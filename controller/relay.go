@@ -574,6 +574,87 @@ func RelayTaskFetch(c *gin.Context) {
 	}
 }
 
+type originTaskResolver func(*gin.Context, *relaycommon.RelayInfo) *dto.TaskError
+
+func resolveOriginTaskWithBytePlusAssetLock(c *gin.Context, info *relaycommon.RelayInfo, resolveFn originTaskResolver) *dto.TaskError {
+	pinnedChannelID := common.GetContextKeyInt(c, constant.ContextKeyBytePlusAssetPinnedChannelID)
+	if pinnedChannelID == 0 {
+		return resolveFn(c, info)
+	}
+	pinnedChannel, taskErr := lockBytePlusAssetPinnedChannel(c, info, pinnedChannelID)
+	if taskErr != nil {
+		return taskErr
+	}
+	info.LockedChannel = pinnedChannel
+
+	resolveErr := resolveFn(c, info)
+	if info == nil || info.TaskRelayInfo == nil || info.LockedChannel == nil {
+		return bytePlusAssetTaskError(types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+	}
+	if taskErr := validateBytePlusAssetPinnedLock(info, pinnedChannelID); taskErr != nil {
+		return taskErr
+	}
+	return resolveErr
+}
+
+func lockBytePlusAssetPinnedChannel(c *gin.Context, info *relaycommon.RelayInfo, pinnedChannelID int) (*model.Channel, *dto.TaskError) {
+	if info == nil {
+		return nil, bytePlusAssetTaskError(types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+	}
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
+	if contextChannelID := common.GetContextKeyInt(c, constant.ContextKeyChannelId); contextChannelID != 0 && contextChannelID != pinnedChannelID {
+		return nil, bytePlusAssetTaskError(types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+	}
+	if info.ChannelMeta != nil && info.ChannelId != 0 && info.ChannelId != pinnedChannelID {
+		return nil, bytePlusAssetTaskError(types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+	}
+	if taskErr := validateBytePlusAssetPinnedLock(info, pinnedChannelID); taskErr != nil {
+		return nil, taskErr
+	}
+
+	channel, err := model.GetChannelById(pinnedChannelID, true)
+	if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled || channel.Type != constant.ChannelTypeBytePlus {
+		return nil, bytePlusAssetTaskError(types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	}
+	return channel, nil
+}
+
+func validateBytePlusAssetPinnedLock(info *relaycommon.RelayInfo, pinnedChannelID int) *dto.TaskError {
+	if info == nil || info.TaskRelayInfo == nil || info.LockedChannel == nil {
+		return nil
+	}
+	lockedChannel, ok := info.LockedChannel.(*model.Channel)
+	if !ok || lockedChannel == nil || lockedChannel.Id != pinnedChannelID {
+		return bytePlusAssetTaskError(types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+	}
+	if lockedChannel.Type != constant.ChannelTypeBytePlus || lockedChannel.Status != common.ChannelStatusEnabled {
+		return bytePlusAssetTaskError(types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	}
+	currentChannel, err := model.GetChannelById(pinnedChannelID, true)
+	if err != nil || currentChannel == nil || currentChannel.Type != constant.ChannelTypeBytePlus || currentChannel.Status != common.ChannelStatusEnabled {
+		return bytePlusAssetTaskError(types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	}
+	info.LockedChannel = currentChannel
+	return nil
+}
+
+func bytePlusAssetTaskError(code types.ErrorCode, statusCode int) *dto.TaskError {
+	return service.TaskErrorWrapperLocal(errors.New(bytePlusAssetTaskMessage(code)), string(code), statusCode)
+}
+
+func bytePlusAssetTaskMessage(code types.ErrorCode) string {
+	switch code {
+	case types.ErrorCodeAssetChannelConflict:
+		return "asset channel conflict"
+	case types.ErrorCodeAssetChannelUnavailable:
+		return "asset channel unavailable"
+	default:
+		return string(code)
+	}
+}
+
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
@@ -585,7 +666,7 @@ func RelayTask(c *gin.Context) {
 		return
 	}
 
-	if taskErr := relay.ResolveOriginTask(c, relayInfo); taskErr != nil {
+	if taskErr := resolveOriginTaskWithBytePlusAssetLock(c, relayInfo, relay.ResolveOriginTask); taskErr != nil {
 		respondTaskError(c, taskErr)
 		return
 	}

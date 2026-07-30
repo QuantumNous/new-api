@@ -325,6 +325,17 @@ distributor.no_available_channel: "分組 {{.Group}} 下模型 {{.Model}} 無可
 distributor.invalid_midjourney_request: "無效的midjourney請求，{{.Error}}"
 distributor.invalid_request_parse_model: "無效的請求，無法解析模型"
 
+# BytePlus asset library messages
+asset.invalid_request: "無效的素材請求"
+asset.not_found: "素材不存在"
+asset.not_ready: "素材仍在處理中，請稍後重試"
+asset.failed: "素材處理失敗"
+asset.channel_conflict: "同一次請求中的素材必須使用同一管道"
+asset.channel_unavailable: "素材綁定的管道目前不可用"
+asset.group_initializing: "素材組正在初始化，請稍後重試"
+asset.upstream_error: "素材服務請求失敗"
+asset.storage_error: "素材儲存錯誤，請稍後重試"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "自訂 OAuth 供應者不存在"
 custom_oauth.slug_empty: "標識符不能為空"

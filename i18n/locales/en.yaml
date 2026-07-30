@@ -324,6 +324,17 @@ distributor.no_available_channel: "No available channel for model {{.Model}} und
 distributor.invalid_midjourney_request: "Invalid Midjourney request: {{.Error}}"
 distributor.invalid_request_parse_model: "Invalid request, unable to parse model"
 
+# BytePlus asset library messages
+asset.invalid_request: "Invalid asset request"
+asset.not_found: "Asset not found"
+asset.not_ready: "Asset is still processing, please try again later"
+asset.failed: "Asset processing failed"
+asset.channel_conflict: "Assets in the same request must use the same channel"
+asset.channel_unavailable: "The asset channel is currently unavailable"
+asset.group_initializing: "Asset group is initializing, please try again later"
+asset.upstream_error: "Asset provider request failed"
+asset.storage_error: "Asset storage error, please try again later"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "Custom OAuth provider not found"
 custom_oauth.slug_empty: "Slug cannot be empty"

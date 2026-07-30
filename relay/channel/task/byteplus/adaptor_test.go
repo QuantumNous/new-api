@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -181,6 +182,52 @@ func TestDoRequestEnforcesModerationSkipHeader(t *testing.T) {
 	}
 }
 
+func TestBuildRequestHeaderUsesStructuredAPIKeyOnly(t *testing.T) {
+	info := newTestRelayInfo("https://ark.example", `{
+		"api_key": "ark-video-key",
+		"access_key_id": "ak-example",
+		"secret_access_key": "sk-should-not-leak",
+		"project_name": "project3"
+	}`)
+	a := &TaskAdaptor{}
+	req := httptest.NewRequest(http.MethodPost, "/upstream", nil)
+
+	if err := a.BuildRequestHeader(newTestContext(`{}`), req, info); err != nil {
+		t.Fatalf("BuildRequestHeader error: %v", err)
+	}
+
+	if got := req.Header.Get("Authorization"); got != "Bearer ark-video-key" {
+		t.Fatalf("Authorization = %q", got)
+	}
+}
+
+func TestFetchTaskUsesStructuredAPIKeyOnly(t *testing.T) {
+	service.InitHttpClient()
+	var authorizationHeader string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorizationHeader = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"task-1","status":"succeeded"}`))
+	}))
+	defer server.Close()
+
+	key := `{
+		"api_key": "ark-video-key",
+		"access_key_id": "ak-example",
+		"secret_access_key": "sk-should-not-leak",
+		"project_name": "project3"
+	}`
+	resp, err := (&TaskAdaptor{}).FetchTask(server.URL, key, map[string]any{"task_id": "task-1"}, "")
+	if err != nil {
+		t.Fatalf("FetchTask error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if authorizationHeader != "Bearer ark-video-key" {
+		t.Fatalf("Authorization = %q", authorizationHeader)
+	}
+}
+
 func TestBuildRequestBodyUsesConfiguredModelMapping(t *testing.T) {
 	a := &TaskAdaptor{}
 	info := newTestRelayInfo("https://ark.example", "test-key")
@@ -203,5 +250,149 @@ func TestBuildRequestBodyUsesConfiguredModelMapping(t *testing.T) {
 	}
 	if payload["model"] != "ep-test-configured-endpoint" {
 		t.Fatalf("upstream model = %v, want configured mapping", payload["model"])
+	}
+}
+
+func TestBuildRequestBodyRewritesResolvedAssetURIsOnly(t *testing.T) {
+	a := &TaskAdaptor{}
+	info := newTestRelayInfo("https://ark.example", "test-key")
+	c := newTestContext(`{
+		"model":"seedance-2.0",
+		"content":[
+			{"type":"text","text":"hello"},
+			{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"},
+			{"type":"video_url","video_url":{"url":"https://example.com/v.mp4"},"role":"reference_video"}
+		]
+	}`)
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://upstream-image",
+	})
+
+	body, err := a.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !strings.Contains(string(raw), `"url":"asset://upstream-image"`) {
+		t.Fatalf("rewritten body missing upstream asset URI: %s", raw)
+	}
+	if !strings.Contains(string(raw), `"url":"https://example.com/v.mp4"`) {
+		t.Fatalf("ordinary URL changed or missing: %s", raw)
+	}
+
+	var original dto.SeedanceVideoRequest
+	if err := common.UnmarshalBodyReusable(c, &original); err != nil {
+		t.Fatalf("re-read original body: %v", err)
+	}
+	if original.Content[1].ImageURL.URL != "asset://ast_1234567890abcdefABCDEF1234567890" {
+		t.Fatalf("reusable body was mutated: %+v", original.Content[1].ImageURL)
+	}
+}
+
+func TestRewriteBytePlusAssetReferencesPreservesLargeIntegerSeed(t *testing.T) {
+	raw := []byte(`{"model":"seedance-2.0","seed":9007199254740993,"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]}`)
+
+	rewritten, err := rewriteBytePlusAssetReferences(raw, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://upstream-image",
+	})
+	if err != nil {
+		t.Fatalf("rewriteBytePlusAssetReferences error: %v", err)
+	}
+	if !strings.Contains(string(rewritten), `"seed":9007199254740993`) {
+		t.Fatalf("large integer seed was not preserved exactly: %s", rewritten)
+	}
+	if !strings.Contains(string(rewritten), `"url":"asset://upstream-image"`) {
+		t.Fatalf("strict asset URI was not rewritten: %s", rewritten)
+	}
+}
+
+func TestBuildRequestBodyRejectsUnresolvedStrictAssetURI(t *testing.T) {
+	a := &TaskAdaptor{}
+	info := newTestRelayInfo("https://ark.example", "test-key")
+	c := newTestContext(`{
+		"model":"seedance-2.0",
+		"content":[{"type":"audio_url","audio_url":{"url":"asset://ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"role":"reference_audio"}]
+	}`)
+
+	_, err := a.BuildRequestBody(c, info)
+	if err == nil || !strings.Contains(err.Error(), "invalid byteplus asset reference") {
+		t.Fatalf("BuildRequestBody error = %v, want invalid asset reference", err)
+	}
+}
+
+func TestRewriteBytePlusAssetReferencesRejectsUnsafeAssetMediaURLs(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "native asset URI",
+			body: `{"content":[{"type":"image_url","image_url":{"url":"asset://native-portrait"}}]}`,
+		},
+		{
+			name: "wrong asset colon prefix",
+			body: `{"content":[{"type":"video_url","video_url":{"url":"asset:ast_1234567890abcdefABCDEF1234567890"}}]}`,
+		},
+		{
+			name: "wrong asset slash prefix",
+			body: `{"content":[{"type":"audio_url","audio_url":{"url":"asset:/ast_1234567890abcdefABCDEF1234567890"}}]}`,
+		},
+		{
+			name: "uppercase scheme",
+			body: `{"content":[{"type":"image_url","image_url":{"url":"ASSET://ast_1234567890abcdefABCDEF1234567890"}}]}`,
+		},
+		{
+			name: "leading whitespace",
+			body: `{"content":[{"type":"video_url","video_url":{"url":" asset://ast_1234567890abcdefABCDEF1234567890"}}]}`,
+		},
+		{
+			name: "trailing whitespace",
+			body: `{"content":[{"type":"audio_url","audio_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890 "}}]}`,
+		},
+		{
+			name: "strict unresolved",
+			body: `{"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"}}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := rewriteBytePlusAssetReferences([]byte(tt.body), map[string]string{})
+			if err == nil {
+				t.Fatal("expected unsafe asset reference error")
+			}
+			assertNoAssetRewriteLeak(t, err)
+		})
+	}
+}
+
+func TestRewriteBytePlusAssetReferencesPreservesOrdinaryBodyAndTextMentions(t *testing.T) {
+	raw := []byte(`{"content":[{"type":"text","text":"plain asset://native-portrait mention"},{"type":"image_url","image_url":{"url":"https://example.com/i.png"}},{"type":"video_url","video_url":{"url":"http://example.com/v.mp4"}}]}`)
+
+	rewritten, err := rewriteBytePlusAssetReferences(raw, map[string]string{})
+	if err != nil {
+		t.Fatalf("rewriteBytePlusAssetReferences error: %v", err)
+	}
+	if string(rewritten) != string(raw) {
+		t.Fatalf("ordinary body changed:\ngot  %s\nwant %s", rewritten, raw)
+	}
+}
+
+func assertNoAssetRewriteLeak(t *testing.T, err error) {
+	t.Helper()
+	text := err.Error()
+	for _, marker := range []string{
+		"asset://native-portrait",
+		"asset://ast_1234567890abcdefABCDEF1234567890",
+		"asset:ast_1234567890abcdefABCDEF1234567890",
+		"asset:/ast_1234567890abcdefABCDEF1234567890",
+		"upstream",
+		"internal",
+	} {
+		if strings.Contains(text, marker) {
+			t.Fatalf("error leaked %q in %q", marker, text)
+		}
 	}
 }

@@ -1,12 +1,17 @@
 package byteplus
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -25,18 +30,23 @@ const moderationSceneSkip = "skip-ark-moderation"
 // existing Doubao and VolcEngine channels.
 type TaskAdaptor struct {
 	doubao.TaskAdaptor
-	apiKey string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.TaskAdaptor.Init(info)
-	a.apiKey = info.ApiKey
 }
 
-func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
+func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
+	if info == nil {
+		return errors.New("missing byteplus relay info")
+	}
+	creds, err := service.ParseBytePlusCredentials(info.ApiKey)
+	if err != nil {
+		return err
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+a.apiKey)
+	req.Header.Set("Authorization", "Bearer "+creds.APIKey)
 	req.Header.Set(moderationSceneHeader, moderationSceneSkip)
 	return nil
 }
@@ -46,6 +56,81 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 // adapter's fixed moderation header.
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
+}
+
+func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	body, err := a.TaskAdaptor.BuildRequestBody(c, info)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return nil, err
+	}
+	rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyBytePlusAssetRewriteMap)
+	rewritten, err := rewriteBytePlusAssetReferences(raw, rewriteMap)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(rewritten), nil
+}
+
+func rewriteBytePlusAssetReferences(raw []byte, rewriteMap map[string]string) ([]byte, error) {
+	if !bytes.Contains(bytes.ToLower(raw), []byte("asset:")) {
+		return raw, nil
+	}
+	var payload map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err != nil {
+		return nil, err
+	}
+	content, ok := payload["content"].([]any)
+	if !ok {
+		return raw, nil
+	}
+	rewritten := false
+	for _, itemAny := range content {
+		item, ok := itemAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, field := range []string{"image_url", "video_url", "audio_url"} {
+			media, ok := item[field].(map[string]any)
+			if !ok {
+				continue
+			}
+			urlValue, ok := media["url"].(string)
+			if !ok || !isBytePlusAssetSchemeURL(urlValue) {
+				continue
+			}
+			if !service.IsStrictBytePlusAssetURI(urlValue) {
+				return nil, fmt.Errorf("invalid byteplus asset reference")
+			}
+			upstreamURL, ok := rewriteMap[urlValue]
+			if !ok || strings.TrimSpace(upstreamURL) == "" {
+				return nil, fmt.Errorf("invalid byteplus asset reference")
+			}
+			media["url"] = upstreamURL
+			rewritten = true
+		}
+	}
+	if !rewritten {
+		return raw, nil
+	}
+	return common.Marshal(payload)
+}
+
+func isBytePlusAssetSchemeURL(raw string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "asset:")
+}
+
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	creds, err := service.ParseBytePlusCredentials(key)
+	if err != nil {
+		return nil, err
+	}
+	return a.TaskAdaptor.FetchTask(baseUrl, creds.APIKey, body, proxy)
 }
 
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {

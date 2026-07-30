@@ -71,7 +71,70 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
-		if ok {
+		hasAssetRefs, assetPreflightErr := hasBytePlusAssetReferences(c, shouldSelectChannel)
+		if assetPreflightErr != nil {
+			abortWithOpenAiMessage(c, assetPreflightErr.StatusCode, bytePlusAssetPublicMessage(assetPreflightErr.GetErrorCode()), assetPreflightErr.GetErrorCode())
+			return
+		}
+		if shouldSelectChannel && (!ok || hasAssetRefs) {
+			if modelRequest.Model == "" {
+				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
+				return
+			}
+			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
+			if modelLimitEnable {
+				s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
+				if !ok {
+					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenNoModelAccess))
+					return
+				}
+				var tokenModelLimit map[string]bool
+				tokenModelLimit, ok = s.(map[string]bool)
+				if !ok {
+					tokenModelLimit = map[string]bool{}
+				}
+				if !service.TokenAllowsModel(tokenModelLimit, modelRequest.Model) {
+					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
+					return
+				}
+			}
+		}
+		assetResolution, assetErr := resolveBytePlusAssetResolution(c, shouldSelectChannel)
+		if assetErr != nil {
+			if abortBytePlusAssetSpecificChannelConflict(c, channelId, ok, assetResolution.PinnedChannelID) {
+				return
+			}
+			abortWithOpenAiMessage(c, assetErr.StatusCode, bytePlusAssetPublicMessage(assetErr.GetErrorCode()), assetErr.GetErrorCode())
+			return
+		}
+		hasAssetRefs = assetResolution.HasReferences()
+		var pinnedChannel *model.Channel
+		pinnedSelectGroup := ""
+		if hasAssetRefs {
+			var pinnedErr *types.NewAPIError
+			pinnedChannel, pinnedSelectGroup, pinnedErr = selectBytePlusPinnedAssetChannel(c, modelRequest, assetResolution)
+			if pinnedErr != nil {
+				abortWithOpenAiMessage(c, pinnedErr.StatusCode, bytePlusAssetPublicMessage(pinnedErr.GetErrorCode()), pinnedErr.GetErrorCode())
+				return
+			}
+		}
+		if pinnedChannel != nil {
+			if ok {
+				id, err := strconv.Atoi(channelId.(string))
+				if err != nil {
+					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
+					return
+				}
+				if id != pinnedChannel.Id {
+					abortWithOpenAiMessage(c, http.StatusConflict, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelConflict), types.ErrorCodeAssetChannelConflict)
+					return
+				}
+			}
+			channel = pinnedChannel
+			if pinnedSelectGroup != "" {
+				common.SetContextKey(c, constant.ContextKeyTokenGroup, pinnedSelectGroup)
+			}
+		} else if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
 				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
@@ -88,31 +151,7 @@ func Distribute() func(c *gin.Context) {
 			}
 		} else {
 			// Select a channel for the user
-			// check token model mapping
-			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
-			if modelLimitEnable {
-				s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
-				if !ok {
-					// token model limit is empty, all models are not allowed
-					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenNoModelAccess))
-					return
-				}
-				var tokenModelLimit map[string]bool
-				tokenModelLimit, ok = s.(map[string]bool)
-				if !ok {
-					tokenModelLimit = map[string]bool{}
-				}
-				if !service.TokenAllowsModel(tokenModelLimit, modelRequest.Model) {
-					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
-					return
-				}
-			}
-
 			if shouldSelectChannel {
-				if modelRequest.Model == "" {
-					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
-					return
-				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 				// check path is /pg/chat/completions
@@ -264,11 +303,161 @@ func Distribute() func(c *gin.Context) {
 	}
 }
 
-// getModelFromRequest 从请求中读取模型信息
-// 根据 Content-Type 自动处理：
-// - application/json
-// - application/x-www-form-urlencoded
-// - multipart/form-data
+func abortBytePlusAssetSpecificChannelConflict(c *gin.Context, channelId any, hasSpecificChannel bool, pinnedChannelID int) bool {
+	if !hasSpecificChannel || pinnedChannelID == 0 {
+		return false
+	}
+	specificChannelID, ok := channelId.(string)
+	if !ok {
+		abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
+		return true
+	}
+	id, err := strconv.Atoi(specificChannelID)
+	if err != nil {
+		abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
+		return true
+	}
+	if id != pinnedChannelID {
+		abortWithOpenAiMessage(c, http.StatusConflict, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelConflict), types.ErrorCodeAssetChannelConflict)
+		return true
+	}
+	return false
+}
+
+// resolveBytePlusAssetResolution parses reusable video submit bodies only far
+// enough to authorize strict BytePlus asset references before channel routing.
+func resolveBytePlusAssetResolution(c *gin.Context, shouldSelectChannel bool) (service.BytePlusAssetReferenceResolution, *types.NewAPIError) {
+	if !shouldSelectChannel || c == nil || c.Request == nil {
+		return service.BytePlusAssetReferenceResolution{}, nil
+	}
+	relayMode, _ := c.Get("relay_mode")
+	if relayMode != relayconstant.RelayModeVideoSubmit {
+		return service.BytePlusAssetReferenceResolution{}, nil
+	}
+
+	var seedanceReq dto.SeedanceVideoRequest
+	if err := common.UnmarshalBodyReusable(c, &seedanceReq); err != nil {
+		return service.BytePlusAssetReferenceResolution{}, bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	return service.ResolveBytePlusAssetReferences(c, common.GetContextKeyInt(c, constant.ContextKeyUserId), &seedanceReq)
+}
+
+func hasBytePlusAssetReferences(c *gin.Context, shouldSelectChannel bool) (bool, *types.NewAPIError) {
+	if !shouldSelectChannel || c == nil || c.Request == nil {
+		return false, nil
+	}
+	relayMode, _ := c.Get("relay_mode")
+	if relayMode != relayconstant.RelayModeVideoSubmit {
+		return false, nil
+	}
+
+	var seedanceReq dto.SeedanceVideoRequest
+	if err := common.UnmarshalBodyReusable(c, &seedanceReq); err != nil {
+		return false, bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	for _, item := range seedanceReq.Content {
+		for _, raw := range []string{
+			seedanceItemURL(item.ImageURL),
+			seedanceItemURL(item.VideoURL),
+			seedanceItemURL(item.AudioURL),
+		} {
+			hasReference, apiErr := bytePlusAssetURLHasReference(raw)
+			if apiErr != nil || hasReference {
+				return hasReference, apiErr
+			}
+		}
+	}
+	return false, nil
+}
+
+func seedanceItemURL(urlObject *dto.SeedanceURLObject) string {
+	if urlObject == nil {
+		return ""
+	}
+	return urlObject.URL
+}
+
+func bytePlusAssetURLHasReference(raw string) (bool, *types.NewAPIError) {
+	if service.IsStrictBytePlusAssetURI(raw) {
+		return true, nil
+	}
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "asset:") {
+		return false, bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	return false, nil
+}
+
+// BytePlus asset references are resolved before normal channel selection so
+// they cannot fall back to a different upstream account.
+func selectBytePlusPinnedAssetChannel(c *gin.Context, modelRequest *ModelRequest, resolution service.BytePlusAssetReferenceResolution) (*model.Channel, string, *types.NewAPIError) {
+	channel, err := model.GetChannelById(resolution.PinnedChannelID, true)
+	if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled || channel.Type != constant.ChannelTypeBytePlus {
+		return nil, "", bytePlusAssetDistributionError(types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	}
+
+	usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	if usingGroup == "" {
+		usingGroup = common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
+	}
+	if usingGroup == "" {
+		usingGroup = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	}
+	if usingGroup == "" {
+		usingGroup = "default"
+	}
+
+	selectedGroup := ""
+	if usingGroup == "auto" {
+		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		for _, group := range service.GetUserAutoGroup(userGroup) {
+			if model.IsChannelEnabledForGroupModel(group, modelRequest.Model, channel.Id) &&
+				service.ChannelSupportsRequestEndpoint(c, channel, modelRequest.Model) {
+				selectedGroup = group
+				common.SetContextKey(c, constant.ContextKeyAutoGroup, group)
+				break
+			}
+		}
+	} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, channel.Id) &&
+		service.ChannelSupportsRequestEndpoint(c, channel, modelRequest.Model) {
+		selectedGroup = usingGroup
+	}
+	if selectedGroup == "" {
+		return nil, "", bytePlusAssetDistributionError(types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	}
+	return channel, selectedGroup, nil
+}
+
+func bytePlusAssetDistributionError(code types.ErrorCode, statusCode int) *types.NewAPIError {
+	return types.NewOpenAIError(errors.New(bytePlusAssetPublicMessage(code)), code, statusCode, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+}
+
+func bytePlusAssetPublicMessage(code types.ErrorCode) string {
+	switch code {
+	case types.ErrorCodeInvalidAssetRequest:
+		return "invalid asset request"
+	case types.ErrorCodeAssetNotFound:
+		return "asset not found"
+	case types.ErrorCodeAssetNotReady:
+		return "asset is not ready"
+	case types.ErrorCodeAssetFailed:
+		return "asset failed"
+	case types.ErrorCodeAssetChannelConflict:
+		return "asset channel conflict"
+	case types.ErrorCodeAssetChannelUnavailable:
+		return "asset channel unavailable"
+	case types.ErrorCodeAssetGroupInitializing:
+		return "asset group is initializing"
+	case types.ErrorCodeAssetUpstreamError:
+		return "asset upstream error"
+	case types.ErrorCodeAssetStorageError:
+		return "asset storage error"
+	default:
+		return string(code)
+	}
+}
+
+// getModelFromRequest reads the requested model without consuming the reusable
+// request body used later by relay adaptors.
 func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
 	if strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json") {
 		modelRequest, err := getModelFromJSONBody(c)

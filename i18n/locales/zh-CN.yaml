@@ -325,6 +325,17 @@ distributor.no_available_channel: "分组 {{.Group}} 下模型 {{.Model}} 无可
 distributor.invalid_midjourney_request: "无效的midjourney请求，{{.Error}}"
 distributor.invalid_request_parse_model: "无效的请求，无法解析模型"
 
+# BytePlus asset library messages
+asset.invalid_request: "无效的素材请求"
+asset.not_found: "素材不存在"
+asset.not_ready: "素材仍在处理中，请稍后重试"
+asset.failed: "素材处理失败"
+asset.channel_conflict: "同一次请求中的素材必须使用同一渠道"
+asset.channel_unavailable: "素材绑定的渠道当前不可用"
+asset.group_initializing: "素材组正在初始化，请稍后重试"
+asset.upstream_error: "素材服务请求失败"
+asset.storage_error: "素材存储错误，请稍后重试"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "自定义 OAuth 提供商不存在"
 custom_oauth.slug_empty: "标识符不能为空"

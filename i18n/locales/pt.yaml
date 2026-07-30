@@ -325,6 +325,17 @@ distributor.no_available_channel: "Nenhum canal disponível para o modelo {{.Mod
 distributor.invalid_midjourney_request: "Solicitação Midjourney inválida: {{.Error}}"
 distributor.invalid_request_parse_model: "Solicitação inválida, não foi possível analisar o modelo"
 
+# BytePlus asset library messages
+asset.invalid_request: "Solicitação de ativo inválida"
+asset.not_found: "Ativo não encontrado"
+asset.not_ready: "O ativo ainda está em processamento, tente novamente mais tarde"
+asset.failed: "O processamento do ativo falhou"
+asset.channel_conflict: "Os ativos na mesma solicitação devem usar o mesmo canal"
+asset.channel_unavailable: "O canal do ativo está indisponível no momento"
+asset.group_initializing: "O grupo de ativos está inicializando, tente novamente mais tarde"
+asset.upstream_error: "Falha na solicitação ao provedor de ativos"
+asset.storage_error: "Erro no armazenamento de ativos, tente novamente mais tarde"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "Provedor OAuth personalizado não encontrado"
 custom_oauth.slug_empty: "O slug não pode ficar vazio"

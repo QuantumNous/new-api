@@ -321,6 +321,8 @@ func migrateDB() error {
 		&TemporaryChannelModelSpend{},
 		&ComputeNode{},
 		&DataToolCall{},
+		&BytePlusAssetGroup{},
+		&BytePlusAsset{},
 		&AdsSpendDaily{},
 		&AdsDailyKeyword{},
 		&AdsDailyCreative{},
@@ -418,6 +420,8 @@ func migrateDBFast() error {
 		{&TemporaryChannelModelSpend{}, "TemporaryChannelModelSpend"},
 		{&ComputeNode{}, "ComputeNode"},
 		{&DataToolCall{}, "DataToolCall"},
+		{&BytePlusAssetGroup{}, "BytePlusAssetGroup"},
+		{&BytePlusAsset{}, "BytePlusAsset"},
 	}
 	// GORM also migrates associations, so parallel AutoMigrate calls can race
 	// when related models share a table dependency.
