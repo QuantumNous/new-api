@@ -40,10 +40,6 @@ mock.module('@tanstack/react-router', () => ({
   },
 }))
 
-mock.module('./campaign-editor', () => ({
-  CampaignEditor: () => <div data-testid='campaign-editor' />,
-}))
-
 mock.module('./campaign-preview-dialog', () => ({
   CampaignPreviewDialog: () => null,
 }))
