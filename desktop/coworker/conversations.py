@@ -95,6 +95,7 @@ class ConversationStore:
             "ALTER TABLE sessions ADD COLUMN auto_title TEXT",
             "ALTER TABLE sessions ADD COLUMN renamed INTEGER DEFAULT 0",
             "ALTER TABLE sessions ADD COLUMN grants TEXT",
+            "ALTER TABLE sessions ADD COLUMN compaction TEXT",
         ):
             try:
                 self._conn.execute(ddl)
@@ -191,13 +192,14 @@ class ConversationStore:
             title = record.title or title_from(record.messages)
             self._conn.execute(
                 """
-                INSERT INTO sessions (session_id, workspace, model, mode, title, agent, n_msgs, messages, extra_roots, grants, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO sessions (session_id, workspace, model, mode, title, agent, n_msgs, messages, extra_roots, grants, compaction, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(session_id) DO UPDATE SET
                     workspace = excluded.workspace, model = excluded.model, mode = excluded.mode,
                     title = COALESCE(sessions.title, excluded.title), agent = excluded.agent,
                     n_msgs = excluded.n_msgs, messages = NULL, extra_roots = excluded.extra_roots,
-                    grants = excluded.grants, updated_at = CURRENT_TIMESTAMP
+                    grants = excluded.grants, compaction = excluded.compaction,
+                    updated_at = CURRENT_TIMESTAMP
                 """,
                 (
                     sid,
@@ -209,6 +211,7 @@ class ConversationStore:
                     len(record.messages),
                     json.dumps(record.extra_roots or []),
                     json.dumps(record.grants or {}),
+                    json.dumps(record.compaction or {}),
                 ),
             )
             self._conn.commit()
@@ -241,6 +244,10 @@ class ConversationStore:
                 row["extra_roots"] if "extra_roots" in row.keys() else None
             ),
             grants=_load_grants(row["grants"] if "grants" in row.keys() else None),
+            # Auto-compaction state (OPE-27) — same defensive parse as grants.
+            compaction=_load_grants(
+                row["compaction"] if "compaction" in row.keys() else None
+            ),
             pinned=bool(row["pinned"]),
             archived=bool(row["archived"]),
             origin=row["origin"],

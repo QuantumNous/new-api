@@ -243,7 +243,9 @@ class SlackAdapter(BasePlatformAdapter):
                     chat_id=str(channel),
                     message_id=ts,
                     value=str(value),
+                    user_id=user.get("id"),
                     user_name=user.get("username") or user.get("name"),
+                    response_url=body.get("response_url"),
                 )
             )
 

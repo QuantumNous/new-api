@@ -31,8 +31,10 @@ def _state(tmp_path, monkeypatch, servers=None):
 @pytest.fixture(autouse=True)
 def _no_pending():
     mcp_oauth._pending = None
+    mcp_oauth._expected_state = None
     yield
     mcp_oauth._pending = None
+    mcp_oauth._expected_state = None
 
 
 # -- config --------------------------------------------------------------------
@@ -98,6 +100,30 @@ def test_wait_then_deliver_resolves():
         return await task
 
     assert asyncio.run(run()) == ("c0de", "st4te")
+
+
+def test_state_from_url():
+    url = "https://idp.example/authorize?client_id=x&state=abc123&scope=y"
+    assert mcp_oauth._state_from_url(url) == "abc123"
+    assert mcp_oauth._state_from_url("https://idp.example/authorize?client_id=x") is None
+
+
+def test_deliver_rejects_mismatched_state_without_consuming_flow():
+    # A stray/forged loopback hit with the wrong state must NOT resolve or consume the
+    # pending future — the genuine redirect (correct state) still gets through.
+    async def run():
+        task = asyncio.create_task(mcp_oauth._wait_for_callback())
+        await asyncio.sleep(0)
+        mcp_oauth._expected_state = "good-state"  # captured from the authorize URL
+        # Wrong state and missing state are both ignored, flow stays pending.
+        assert mcp_oauth.deliver_callback("evil", "bad-state") is False
+        assert mcp_oauth.deliver_callback("evil", None) is False
+        assert not task.done()
+        # The real browser redirect carries the matching state and resolves the flow.
+        assert mcp_oauth.deliver_callback("c0de", "good-state") is True
+        return await task
+
+    assert asyncio.run(run()) == ("c0de", "good-state")
 
 
 # -- status surfacing over REST ---------------------------------------------------

@@ -59,13 +59,13 @@ test("routing: Configure tab binds the mirror channel; Pending's status line fol
   await page.getByTestId("inbox-route-configure").click();
   const mirror = page.getByTestId("inbox-mirror-card");
   await expect(mirror).toContainText("in-app Inbox only");
-  await mirror.getByPlaceholder("slack:C0123 or channel link").fill("C0777");
+  await mirror.getByPlaceholder("slack:C0123 or channel link").fill("slack:T1DL/C0777");
   await mirror.getByRole("button", { name: "Set", exact: true }).click();
-  await expect(mirror).toContainText("slack:C0777");
+  await expect(mirror).toContainText("slack:T1DL/C0777");
 
   // Back on Pending, the line reflects the new target immediately.
   await page.getByTestId("inbox-tab-pending").click();
-  await expect(line).toContainText("slack:C0777");
+  await expect(line).toContainText("slack:T1DL/C0777");
   await expect(line).toContainText("replies there resolve items here");
 
   // Clearing (also on Configure) returns Pending to local-only delivery.

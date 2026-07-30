@@ -260,4 +260,5 @@ def test_workspace_listing_carries_installer_identity(tmp_path):
     )
     (w,) = _slack_workspaces(s)
     assert w["installer_user_id"] == "U_ME"
+    assert w["approval_owner_ids"] == ["U_ME"]
     assert w["installer_name"] == ""

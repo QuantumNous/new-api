@@ -93,6 +93,9 @@ def connector_list(secrets: SecretStore) -> list[dict[str, Any]]:
             "enabled": bool(profile.get("enabled", True)) and connected,
             # The actual allow-list (the GUI manages it inline); was a bare count.
             "allowed_users": list(profile.get("allowed_users") or []),
+            # Manual Socket Mode only: explicitly selected humans who may resolve
+            # consequential Inbox prompts. Relay uses its OAuth installer instead.
+            "approval_owner_ids": list(profile.get("approval_owner_ids") or []),
             "tools": tool_dicts(secrets, d.name),
             "experimental": d.experimental,
             "risk_notice": d.risk_notice,
@@ -107,6 +110,10 @@ def connector_list(secrets: SecretStore) -> list[dict[str, Any]]:
             # Managed relay is multi-workspace: each `slack:team:*` profile is one
             # connected workspace with its OWN allow-list (ids are workspace-scoped).
             entry["workspaces"] = _slack_workspaces(secrets)
+            if profile.get("mode") == "relay":
+                # Dormant Manual-mode owners may remain beside preserved Socket
+                # Mode credentials; they never authorize a bare Relay target.
+                entry["approval_owner_ids"] = []
         if d.name == "gmail":
             # Multi-account: each `gmail:account:*` profile is one mailbox; the
             # :default profile is just the default pointer + privacy filters.
@@ -185,6 +192,11 @@ def _slack_workspaces(secrets: SecretStore) -> list[dict[str, Any]]:
             "domain": profile.get("domain") or "",
             "allowed_users": list(profile.get("allowed_users") or []),
             "allow_all": bool(profile.get("allow_all")),
+            # Relay approvals are installer-only. Keep the list-shaped API aligned
+            # with Manual mode without creating a second editable relay role.
+            "approval_owner_ids": (
+                [profile["slack_user_id"]] if profile.get("slack_user_id") else []
+            ),
             # Who installed (authed_user) — the GUI marks their chip "you" and
             # keys the post-connect card's "your mentions get through" line.
             "installer_user_id": profile.get("slack_user_id") or "",
@@ -353,6 +365,10 @@ def connect_connector(
     profile: dict[str, Any] = {"type": profile_type, "enabled": True, **token_creds}
     if any(f.key == "allowed_users" for f in d.fields):
         profile["allowed_users"] = allowed
+    if name == "slack" and existing.get("approval_owner_ids"):
+        # Re-pasting manual Socket Mode tokens must not erase the locally selected
+        # approval owners.
+        profile["approval_owner_ids"] = list(existing["approval_owner_ids"])
     if identity:
         profile["account"] = identity
     if d.account_field:

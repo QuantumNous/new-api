@@ -9,6 +9,9 @@ import anthropic from "./logos/anthropic.svg";
 import openai from "./logos/openai.svg";
 import gemini from "./logos/gemini.svg";
 import ollama from "./logos/ollama.svg";
+import bedrock from "./logos/bedrock.svg";
+import vertex from "./logos/vertex.svg";
+import openrouter from "./logos/openrouter.svg";
 import fireworks from "./logos/fireworks.svg";
 import together from "./logos/together.svg";
 import zai from "./logos/zai.svg";
@@ -18,12 +21,17 @@ import mistral from "./logos/mistral.svg";
 import qwen from "./logos/qwen.svg";
 import minimax from "./logos/minimax.svg";
 import xai from "./logos/xai.svg";
+import meta from "./logos/meta.svg";
 
 export const PROVIDER_LOGOS: Record<string, string> = {
   anthropic,
   openai,
   gemini,
+  meta,
   ollama,
+  bedrock,
+  vertex,
+  openrouter,
   fireworks,
   together,
   zai,
@@ -39,7 +47,11 @@ export const PROVIDER_ORDER = [
   "anthropic",
   "openai",
   "gemini",
+  "meta",
   "ollama",
+  "bedrock",
+  "vertex",
+  "openrouter",
   "fireworks",
   "together",
   "zai",

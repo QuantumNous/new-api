@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from "fs";
+import { readFileSync, readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import type { Page } from "@playwright/test";
@@ -8,10 +8,31 @@ import type { Page } from "@playwright/test";
 
 export const BACKEND = "http://127.0.0.1:8765";
 
+function sidecarToken(): string {
+  const state =
+    process.env.COWORKER_STATE_DIR ||
+    (process.platform === "win32"
+      ? join(process.env.APPDATA || homedir(), "coworker")
+      : join(homedir(), ".config", "coworker"));
+  try {
+    return readFileSync(join(state, "sidecar-8765.token"), "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+/** Fetch from the live sidecar with its per-launch authentication token. */
+export function backendFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const token = sidecarToken();
+  if (token) headers.set("X-OpenWorker-Token", token);
+  return fetch(`${BACKEND}${path}`, { ...init, headers });
+}
+
 /** The expanded scratch base if the backend is up and a model is ready — else null (→ skip). */
 export async function scratchBaseIfReady(): Promise<string | null> {
   try {
-    const res = await fetch(`${BACKEND}/v1/settings`);
+    const res = await backendFetch("/v1/settings");
     const s = await res.json();
     if (res.ok && s.model_ready) {
       return String(s.scratch_base || "~/OpenWorker").replace(/^~(?=\/|$)/, homedir());

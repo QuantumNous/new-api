@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from coworker import cloud
 from coworker.server import SessionManager, create_app
 
 
@@ -30,6 +31,7 @@ def _install_form(team_id: str, app_state: str = "") -> dict:
         "team_id": team_id,
         "access_token": f"xoxb-{team_id}",
         "bot_user_id": "B1",
+        "slack_user_id": f"U_{team_id}",
         "account": f"Workspace {team_id}",
         "team_domain": f"dom-{team_id.lower()}",
         "connection_id": f"conn_{team_id}",
@@ -68,6 +70,7 @@ def test_managed_callback_installs_and_hot_reloads(client, monkeypatch, managed_
         if c["name"] == "slack"
     ][0]
     assert [w["domain"] for w in slack["workspaces"]] == ["dom-t1"]
+    assert slack["workspaces"][0]["approval_owner_ids"] == ["U_T1"]
     assert client.manager.secrets.get("slack:default")["mode"] == "relay"
     assert refreshes  # new workspace's token loads without an app restart
 

@@ -88,6 +88,21 @@ def _restrict_to_user(path: Path, *, is_dir: bool) -> None:
     os.chmod(path, 0o700 if is_dir else 0o600)
 
 
+def write_private_text(path: str | Path, content: str) -> Path:
+    """Atomically write a user-only text file using the SecretStore's OS protections."""
+    target = Path(path).expanduser()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        _restrict_to_user(target.parent, is_dir=True)
+    except OSError:
+        pass
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_text(content, encoding="utf-8")
+    _restrict_to_user(tmp, is_dir=False)
+    os.replace(tmp, target)
+    return target
+
+
 class SecretStore:
     """File-backed secret store. Reads resolve `${VAR}` refs; status never leaks values."""
 

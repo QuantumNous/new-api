@@ -1,4 +1,5 @@
 {
+  "Apple Silicon": "Apple Silicon",
   "BoxAI Desktop": "BoxAI Desktop",
   "Canvas instructions: Tab to nodes and connections, Enter or Space to select, arrow keys to move, and Delete to remove.": "Canvas instructions: Tab to nodes and connections, Enter or Space to select, arrow keys to move, and Delete to remove.",
   "Connection from {{from}} to {{to}}": "Connection from {{from}} to {{to}}",

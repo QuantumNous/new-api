@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import secrets
 from typing import Any, Optional
 
 from mcp.client.auth import OAuthClientProvider, TokenStorage
@@ -117,21 +118,48 @@ _pending: Optional[asyncio.Future] = None
 # The last authorize URL we sent the user to — surfaced over REST so the GUI can offer
 # a "reopen sign-in page" link if the browser popup was lost.
 last_authorize_url: Optional[str] = None
+# The `state` the SDK put in the current authorize URL. The SDK itself re-checks the
+# returned state (mcp.client.auth.oauth2 compare_digest), so this is NOT the CSRF guard —
+# it's a loopback gate: without it any local caller could hit /mcp/oauth/callback with a
+# bogus code and consume the single pending future, aborting the user's real sign-in
+# (which then finds no pending flow). Matching state here rejects that stray callback and
+# leaves the flow waiting for the genuine one.
+_expected_state: Optional[str] = None
+
+
+def _state_from_url(url: str) -> Optional[str]:
+    """Pull the `state` query param out of an authorize URL (None if absent)."""
+    from urllib.parse import parse_qs, urlsplit
+
+    values = parse_qs(urlsplit(url).query).get("state")
+    return values[0] if values else None
 
 
 def deliver_callback(code: str, state: Optional[str]) -> bool:
-    """Called by the loopback route. Resolves the waiting flow; False if none waits."""
+    """Called by the loopback route. Resolves the waiting flow; False if none waits.
+
+    A callback whose `state` doesn't match the pending flow's is ignored (returns False)
+    WITHOUT consuming the pending future, so a stray/forged local hit can't abort a live
+    sign-in — only the browser redirect carrying the SDK's own state resolves it.
+    """
     global _pending
-    pending, _pending = _pending, None
-    if pending is None or pending.done():
+    if _pending is None or _pending.done():
         return False
+    # Only enforce when we actually captured a state for this flow; a flow with no state
+    # in its authorize URL falls back to the prior accept-any behavior.
+    if _expected_state is not None and (
+        state is None or not secrets.compare_digest(state, _expected_state)
+    ):
+        return False
+    pending, _pending = _pending, None
     pending.set_result((code, state))
     return True
 
 
 async def _open_browser(url: str) -> None:
-    global last_authorize_url
+    global last_authorize_url, _expected_state
     last_authorize_url = url
+    _expected_state = _state_from_url(url)
     import webbrowser
 
     logger.info("mcp oauth: opening browser for sign-in")
@@ -155,7 +183,7 @@ async def _refuse_callback() -> tuple[str, Optional[str]]:
 
 
 async def _wait_for_callback() -> tuple[str, Optional[str]]:
-    global _pending
+    global _pending, _expected_state
     if _pending is not None and not _pending.done():
         _pending.cancel()  # a stale flow lost its browser tab; the new one wins
     _pending = asyncio.get_running_loop().create_future()
@@ -168,6 +196,7 @@ async def _wait_for_callback() -> tuple[str, Optional[str]]:
         )
     finally:
         _pending = None
+        _expected_state = None  # don't let this flow's state gate the next one
 
 
 def build_auth(

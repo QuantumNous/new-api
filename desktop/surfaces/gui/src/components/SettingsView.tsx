@@ -3,12 +3,17 @@ import { useTranslation } from "react-i18next";
 import { SUPPORTED_LANGUAGES, setLanguage } from "../i18n";
 import {
   getSettings,
+  getTrustedWorkspaces,
+  setCompactionSettings,
   setOnboarded,
   setPdfSettings,
   setScratchBase,
   setSessionsPeek,
+  setWorkspaceTrusted,
+  type CompactionSettings,
   type ModelSettings,
   type PdfSettings,
+  type WorkspaceCommandTrust,
 } from "../api";
 import {
   cancelDictationModelDownload,
@@ -117,6 +122,7 @@ export function SettingsView({
                   not under General. */}
               <div className="mt-6">
                 <TokenSavingsCard />
+                <CompactionCard />
               </div>
             </section>
           ) : tab === "voice" ? (
@@ -431,6 +437,8 @@ function AppearanceSection() {
 
       <FilesCard />
 
+      <TrustedWorkspacesCard />
+
       {desktop && (
         <div className={CARD + " p-4"}>
           <div className={FIELD_LABEL + " mb-2.5"}>{t("Always-on")}</div>
@@ -486,6 +494,66 @@ function LanguageCard() {
         ))}
       </div>
       <div className={FIELD_HELP}>{t("Follows your system language until you pick one here.")}</div>
+    </div>
+  );
+}
+
+function TrustedWorkspacesCard() {
+  const { t } = useTranslation();
+  const [workspaces, setWorkspaces] = useState<WorkspaceCommandTrust[] | null>(null);
+
+  const refresh = () =>
+    getTrustedWorkspaces()
+      .then(setWorkspaces)
+      .catch(() => setWorkspaces([]));
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const revoke = async (path: string) => {
+    if (!window.confirm(t("Revoke command trust for {{path}}?", { path }))) return;
+    await setWorkspaceTrusted(path, false);
+    refresh();
+  };
+
+  return (
+    <div className={CARD + " p-4 mb-4"} data-testid="trusted-workspaces-card">
+      <div className={FIELD_LABEL}>{t("Trusted workspaces")}</div>
+      <div className={FIELD_HELP}>
+        {t("Trusted projects may manage their command allowances in .coworker/config.toml.")}
+      </div>
+      {workspaces === null ? (
+        <div className="text-[12px] text-muted mt-3">{t("Loading…")}</div>
+      ) : workspaces.length === 0 ? (
+        <div className="text-[12px] text-muted mt-3">{t("No workspaces are trusted.")}</div>
+      ) : (
+        <div className="mt-3 divide-y divide-line">
+          {workspaces.map((workspace) => (
+            <div key={workspace.workspace} className="py-2.5 flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-[12.5px] text-ink break-all">{workspace.workspace}</div>
+                <div className="text-[11.5px] text-muted mt-0.5">
+                  {workspace.requested_commands.length === 0
+                    ? t("No project command allowances currently declared")
+                    : workspace.requested_commands.length === 1
+                      ? t("{{count}} project command allowance", { count: 1 })
+                      : t("{{count}} project command allowances", {
+                          count: workspace.requested_commands.length,
+                        })}
+                  {!workspace.exists ? " · " + t("Folder unavailable") : ""}
+                </div>
+              </div>
+              <button
+                className="text-[12px] text-red-600 px-2 py-1"
+                onClick={() => void revoke(workspace.workspace)}
+              >
+                {t("Revoke")}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -554,9 +622,9 @@ function UpdateInline() {
 // -- Sidebar density -------------------------------------------------------------
 // -- Token savings (PDF attachments; owner ask, 2026-07-17) ---------------------
 // Attachments replay with EVERY turn, so a big PDF quietly multiplies token spend.
-// Auto-compaction of long histories is a planned follow-up (punchlist §7) — until
-// then this card is the user's dial: attach thresholds + the fallback for models
-// without native PDF support.
+// This card is the attachment dial: attach thresholds + the fallback for models
+// without native PDF support. (Long-history spend is handled by auto-compaction —
+// the CompactionCard below, OPE-27.)
 function TokenSavingsCard() {
   const { t } = useTranslation();
   const [pdf, setPdf] = useState<PdfSettings | null>(null);
@@ -634,6 +702,124 @@ function TokenSavingsCard() {
       </div>
       <div className={FIELD_HELP}>
         {t("PDFs over these limits are not attached — you'll see a notice in the composer instead.")}
+      </div>
+    </div>
+  );
+}
+
+// -- Context compaction (OPE-27) ------------------------------------------------
+// Long sessions are summarized automatically when they approach the model's context
+// limit, so work continues instead of hitting a raw provider error. Two spec'd
+// overrides (trigger % + token cap) and the summarizer-model pin — nothing more.
+function CompactionCard() {
+  const { t } = useTranslation();
+  const [cfg, setCfg] = useState<CompactionSettings | null>(null);
+  const [models, setModels] = useState<string[]>([]);
+  const [labels, setLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    getSettings()
+      .then((s) => {
+        setCfg({
+          compaction_threshold_pct: s.compaction_threshold_pct ?? 0.8,
+          compaction_cap_tokens: s.compaction_cap_tokens ?? 250_000,
+          compaction_model: s.compaction_model ?? "",
+        });
+        setModels(s.models || []);
+        setLabels(s.model_labels || {});
+      })
+      .catch(() =>
+        setCfg({
+          compaction_threshold_pct: 0.8,
+          compaction_cap_tokens: 250_000,
+          compaction_model: "",
+        }),
+      );
+  }, []);
+
+  const save = async (patch: Partial<CompactionSettings>) => {
+    setCfg((p) => (p ? { ...p, ...patch } : p));
+    await setCompactionSettings(patch);
+  };
+
+  if (!cfg) return null;
+  const modelLabel = (id: string) => labels[id]?.split(" · ")[0] || id;
+  return (
+    <div className={CARD + " p-4 mb-4"} data-testid="compaction-card">
+      <div className={FIELD_LABEL}>{t("Context compaction")}</div>
+      <div className={FIELD_HELP}>
+        {t(
+          "Long sessions are compacted automatically: older turns are summarized so the coworker keeps working instead of running out of context. Your visible transcript is never changed — a small marker shows where compaction happened.",
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center gap-5 flex-wrap">
+        <label className="flex items-center gap-2.5">
+          <span className="text-[13px] text-ink">{t("Compact at")}</span>
+          <input
+            type="number"
+            min={10}
+            max={95}
+            value={Math.round(cfg.compaction_threshold_pct * 100)}
+            data-testid="compaction-threshold"
+            className="w-16 px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
+            onChange={(e) =>
+              save({
+                compaction_threshold_pct:
+                  Math.max(10, Math.min(Number(e.target.value) || 80, 95)) / 100,
+              })
+            }
+          />
+          <span className="text-[12.5px] text-muted">{t("% of the context window")}</span>
+        </label>
+        <label className="flex items-center gap-2.5">
+          <span className="text-[13px] text-ink">{t("or at")}</span>
+          <input
+            type="number"
+            min={10_000}
+            max={2_000_000}
+            step={10_000}
+            value={cfg.compaction_cap_tokens}
+            data-testid="compaction-cap"
+            className="w-28 px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
+            onChange={(e) =>
+              save({
+                compaction_cap_tokens: Math.max(
+                  10_000,
+                  Math.min(Number(e.target.value) || 250_000, 2_000_000),
+                ),
+              })
+            }
+          />
+          <span className="text-[12.5px] text-muted">{t("tokens, whichever is smaller")}</span>
+        </label>
+      </div>
+      <div className={FIELD_HELP}>
+        {t(
+          "The cap makes very-large-context models compact early — quality and speed degrade well before their nominal limit.",
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center gap-2.5">
+        <span className="text-[13px] text-ink">{t("Summarizer model")}</span>
+        <select
+          value={cfg.compaction_model}
+          data-testid="compaction-model"
+          className="px-2 py-1.5 rounded-lg border border-line bg-paper text-[13px] text-ink outline-none focus:border-accent"
+          onChange={(e) => save({ compaction_model: e.target.value })}
+        >
+          <option value="">{t("Session’s own model (default)")}</option>
+          {models.map((m) => (
+            <option key={m} value={m}>
+              {modelLabel(m)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={FIELD_HELP}>
+        {t(
+          "The summary is written by this model. The default follows whatever model the session is using.",
+        )}
       </div>
     </div>
   );

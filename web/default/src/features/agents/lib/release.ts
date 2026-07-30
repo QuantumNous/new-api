@@ -6,6 +6,8 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import { t } from 'i18next'
+
 import type { DesktopDownload, DesktopPlatform, DesktopRelease } from '../types'
 
 /** Where releases live when the deployment has not overridden it in system settings. */
@@ -45,6 +47,29 @@ export function primaryDownload(
     (download) => download.platform === platform && download.kind !== 'msi'
   )
   return preferred ?? downloads.find((download) => download.kind !== 'msi')
+}
+
+/**
+ * How one installer is named in the platform picker, e.g. "macOS · Apple Silicon". The
+ * variant comes from the manifest's own `arch`/`kind` rather than an assumption, so an
+ * Intel or ARM Windows build describes itself correctly the day it ships.
+ */
+export function downloadLabel(download: DesktopDownload): string {
+  const platform = download.platform === 'macos' ? t('macOS') : t('Windows')
+  const arch = download.arch.toLowerCase()
+
+  if (download.kind === 'msi') return `${platform} · ${t('MSI installer')}`
+  if (arch === 'arm64' || arch === 'aarch64') {
+    return download.platform === 'macos'
+      ? `${platform} · ${t('Apple Silicon')}`
+      : `${platform} · ${t('ARM64')}`
+  }
+  if (arch === 'x64' || arch === 'x86_64' || arch === 'amd64') {
+    return download.platform === 'macos'
+      ? `${platform} · ${t('Intel')}`
+      : `${platform} · ${t('64-bit')}`
+  }
+  return download.arch ? `${platform} · ${download.arch}` : platform
 }
 
 export function formatSize(bytes: number): string {

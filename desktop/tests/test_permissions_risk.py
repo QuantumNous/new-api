@@ -98,3 +98,54 @@ def test_exec_uses_command_allowlist(tmp_path):
     assert eng.evaluate("run_shell", {"command": "pytest -q"}, None).allowed
     asked = eng.evaluate("run_shell", {"command": "rm -rf /"}, None)
     assert not asked.allowed and asked.needs_user
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git status && rm -rf ~",  # chaining
+        "git status; rm -rf ~",  # sequencing
+        "git status | tee /tmp/x",  # pipe
+        "git status || curl evil",  # or-chain
+        "git status $(rm -rf ~)",  # command substitution
+        "git status `rm -rf ~`",  # backtick substitution
+        "git status > /etc/passwd",  # redirection
+        "git status\nrm -rf ~",  # newline-embedded second command
+    ],
+)
+def test_allowlist_rejects_shell_operator_chaining(tmp_path, command):
+    # An allowlisted prefix must NOT auto-run a command that chains anything after it.
+    eng = PermissionEngine(workspace_root=tmp_path, allowed_commands=["git status"])
+    d = eng.evaluate("run_shell", {"command": command}, None)
+    assert not d.allowed and d.needs_user, command
+
+
+def test_allowlist_prefix_is_argv_boundary(tmp_path):
+    eng = PermissionEngine(workspace_root=tmp_path, allowed_commands=["git status", "ls"])
+    # Exact and sub-argument extensions of the allowlisted argv are fine.
+    assert eng.evaluate("run_shell", {"command": "git status"}, None).allowed
+    assert eng.evaluate("run_shell", {"command": "git status -s"}, None).allowed
+    assert eng.evaluate("run_shell", {"command": "ls -la"}, None).allowed
+    # A different subcommand or a token that merely shares a prefix is NOT allowed.
+    assert eng.evaluate("run_shell", {"command": "git push"}, None).needs_user
+    assert eng.evaluate("run_shell", {"command": "lsof"}, None).needs_user
+
+
+def test_shell_commands_not_auto_allowed_by_default(tmp_path):
+    # There is no generally safe executable: these examples cover code execution,
+    # environment disclosure, reads outside the workspace, and helper execution.
+    from coworker.config import DEFAULT_ALLOWED_COMMANDS
+
+    eng = PermissionEngine(
+        workspace_root=tmp_path, allowed_commands=list(DEFAULT_ALLOWED_COMMANDS)
+    )
+    for cmd in (
+        "python3 -c 'import os'",
+        "pytest /tmp/attacker_test.py",
+        "find . -exec sh -c 'echo arbitrary' {} +",
+        "cat ~/.config/coworker/secrets.json",
+        "echo $OPENAI_API_KEY",
+        "git status",
+    ):
+        d = eng.evaluate("run_shell", {"command": cmd}, None)
+        assert not d.allowed and d.needs_user, cmd

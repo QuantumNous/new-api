@@ -9,15 +9,19 @@ super-agent runner, wired in the next increment). Outbound replies go through th
 from __future__ import annotations
 
 import logging
+from asyncio import to_thread
 from collections import OrderedDict
 from typing import Callable, Optional
+from urllib.parse import urlparse
 
 from ..secrets import SecretStore
 from .base import (
     BasePlatformAdapter,
+    InteractionEvent,
     MessageEvent,
     MessageHandler,
     SendResult,
+    SessionSource,
     parse_target,
 )
 from .config import ConnectorSettings, is_authorized, load_settings
@@ -69,9 +73,51 @@ class Gateway:
             adapter.set_interaction_handler(self._on_interaction)
         self._adapters[adapter.platform] = adapter
 
-    async def _on_interaction(self, event) -> None:
+    async def _on_interaction(self, event: InteractionEvent) -> None:
+        source = SessionSource(
+            platform=event.platform,
+            chat_id=event.chat_id,
+            user_id=event.user_id,
+            user_name=event.user_name,
+            chat_type="channel",
+            team_id=event.team_id,
+        )
+        settings = self.settings.get(event.platform)
+        if settings is None or not is_authorized(settings, source):
+            logger.info("rejecting unauthorized interaction from %s", source.label())
+            await self.reject_interaction(event)
+            return
         if self._interaction_handler is not None:
             await self._interaction_handler(event)
+
+    async def reject_interaction(
+        self,
+        event: InteractionEvent,
+        text: str = "Only a designated approval owner can respond to this request.",
+    ) -> None:
+        """Best-effort private feedback for a rejected Slack button click."""
+        response_url = str(event.response_url or "")
+        parsed = urlparse(response_url)
+        if (
+            event.platform != "slack"
+            or parsed.scheme != "https"
+            or parsed.hostname not in {"hooks.slack.com", "hooks.slack-gov.com"}
+        ):
+            return
+
+        def _post() -> None:
+            import httpx
+
+            try:
+                httpx.post(
+                    response_url,
+                    json={"response_type": "ephemeral", "text": text},
+                    timeout=10,
+                )
+            except Exception:
+                logger.debug("Slack ephemeral interaction response failed", exc_info=True)
+
+        await to_thread(_post)
 
     async def _on_inbound(self, event: MessageEvent) -> None:
         self._record_recent(event)  # capture identity even from unauthorized senders

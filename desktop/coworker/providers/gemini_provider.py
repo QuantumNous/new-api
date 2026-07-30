@@ -30,9 +30,25 @@ from .base import (
     ModelCapabilities,
     ProviderClient,
     StreamChunk,
+    TokenUsage,
     ToolCall,
 )
 from .capabilities import capabilities_for
+
+
+def _usage_from(meta: Any) -> Optional[TokenUsage]:
+    """`usage_metadata` → normalized counts. `prompt_token_count` INCLUDES the cached
+    share; thinking tokens are billed as output, so they fold into `output`."""
+    if meta is None:
+        return None
+    prompt = int(getattr(meta, "prompt_token_count", 0) or 0)
+    cached = int(getattr(meta, "cached_content_token_count", 0) or 0)
+    return TokenUsage(
+        input=max(prompt - cached, 0),
+        output=int(getattr(meta, "candidates_token_count", 0) or 0)
+        + int(getattr(meta, "thoughts_token_count", 0) or 0),
+        cache_read=cached,
+    )
 
 # Gemini finishReason → the engine's OpenAI-shaped finish_reason vocabulary. STOP maps to
 # "tool_calls" instead when the turn contains function calls (Gemini has no distinct reason).
@@ -467,6 +483,7 @@ class GeminiProvider(ProviderClient):
             raw=response,
             reasoning="".join(parsed.thoughts) or None,
             extras=_signature_extras(parsed.text_sig, parsed.call_sigs),
+            usage=_usage_from(getattr(response, "usage_metadata", None)),
         )
 
     def capabilities(self, model: str) -> ModelCapabilities:
@@ -491,10 +508,15 @@ class GeminiProvider(ProviderClient):
         finish = None
         text_sig: Optional[str] = None
         call_sigs: list[Optional[str]] = []
+        usage: Optional[TokenUsage] = None
 
         # Unlike Anthropic, function_call parts arrive whole (args are a complete dict per
         # part), so there is no JSON accumulation — just collect parts across chunks.
         for chunk in client.models.generate_content_stream(**kwargs):
+            # Counts are cumulative per chunk; the last one seen is the final total.
+            chunk_usage = _usage_from(getattr(chunk, "usage_metadata", None))
+            if chunk_usage is not None:
+                usage = chunk_usage
             parsed = _parse_candidate(chunk)
             for thought in parsed.thoughts:
                 thought_parts.append(thought)
@@ -520,5 +542,6 @@ class GeminiProvider(ProviderClient):
                 finish_reason=_map_finish(finish, bool(tool_calls)),
                 reasoning="".join(thought_parts) or None,
                 extras=_signature_extras(text_sig, call_sigs),
+                usage=usage,
             )
         )
