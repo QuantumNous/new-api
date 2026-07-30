@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/QuantumNous/new-api/service/linked_service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -905,6 +906,9 @@ func UpdateSelf(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+		// Trigger async sync of new password to all registered linked services.
+		// This is a best-effort fire-and-forget; errors are logged, not returned.
+		linked_service.TriggerPasswordSyncAsync(cleanUser.Id, c.GetInt("role"), user.Password)
 		bundle, err := service.AdvanceCurrentSessionToUserVersion(identity, "password_changed")
 		if err != nil {
 			common.ApiError(c, err)

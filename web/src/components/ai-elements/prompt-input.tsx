@@ -177,7 +177,7 @@ export function PromptInputProvider({
   const openRef = useRef<() => void>(() => {})
 
   const add = useCallback((files: File[] | FileList) => {
-    const incoming = Array.from(files)
+    const incoming = [...files]
     if (incoming.length === 0) return
 
     setAttachements((prev) =>
@@ -509,7 +509,7 @@ export const PromptInput = ({
 
   const addLocal = useCallback(
     (fileList: File[] | FileList) => {
-      const incoming = Array.from(fileList)
+      const incoming = [...fileList]
       const accepted = incoming.filter((f) => matchesAccept(f))
       if (incoming.length && accepted.length === 0) {
         onError?.({
@@ -760,7 +760,7 @@ export const PromptInput = ({
             controller.textInput.clear()
           }
         }
-      } catch (_error) {
+      } catch {
         // Don't clear on error - user may want to retry
       }
     })
@@ -843,7 +843,7 @@ export const PromptInputTextarea = ({
       e.preventDefault()
       const lastAttachment =
         attachments.files.length > 0
-          ? attachments.files[attachments.files.length - 1]
+          ? attachments.files.at(-1)
           : undefined
       if (lastAttachment) {
         attachments.remove(lastAttachment.id)

@@ -88,7 +88,7 @@ export function checkIsActive(
         return false
       })
     )
-      return true
+      {return true}
   }
 
   // For regular link items, check the item's URL

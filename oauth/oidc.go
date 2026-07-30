@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -24,12 +24,14 @@ func init() {
 type OIDCProvider struct{}
 
 type oidcOAuthResponse struct {
-	AccessToken  string `json:"access_token"`
-	IDToken      string `json:"id_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-	Scope        string `json:"scope"`
+	AccessToken      string `json:"access_token"`
+	IDToken          string `json:"id_token"`
+	RefreshToken     string `json:"refresh_token"`
+	TokenType        string `json:"token_type"`
+	ExpiresIn        int    `json:"expires_in"`
+	Scope            string `json:"scope"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
 }
 
 type oidcUser struct {
@@ -64,6 +66,14 @@ func (p *OIDCProvider) ExchangeToken(ctx context.Context, code string, c *gin.Co
 	values.Set("grant_type", "authorization_code")
 	values.Set("redirect_uri", redirectUri)
 
+	// Support PKCE (Proof Key for Code Exchange)
+	if codeVerifier, exists := c.Get("code_verifier"); exists {
+		if verifier, ok := codeVerifier.(string); ok && verifier != "" {
+			values.Set("code_verifier", verifier)
+			logger.LogDebug(ctx, "[OAuth-OIDC] ExchangeToken: using PKCE code_verifier")
+		}
+	}
+
 	logger.LogDebug(ctx, "[OAuth-OIDC] ExchangeToken: token_endpoint=%s, redirect_uri=%s", settings.TokenEndpoint, redirectUri)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", settings.TokenEndpoint, strings.NewReader(values.Encode()))
@@ -85,15 +95,27 @@ func (p *OIDCProvider) ExchangeToken(ctx context.Context, code string, c *gin.Co
 
 	logger.LogDebug(ctx, "[OAuth-OIDC] ExchangeToken response status: %d", res.StatusCode)
 
-	var oidcResponse oidcOAuthResponse
-	err = json.NewDecoder(res.Body).Decode(&oidcResponse)
+	// Read full body for logging and error inspection
+	bodyBytes, err := io.ReadAll(res.Body)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] ExchangeToken decode error: %s", err.Error()))
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] ExchangeToken read body error: %s", err.Error()))
 		return nil, err
 	}
 
+	var oidcResponse oidcOAuthResponse
+	if err := json.Unmarshal(bodyBytes, &oidcResponse); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] ExchangeToken decode error: %s, body=%s", err.Error(), string(bodyBytes)))
+		return nil, err
+	}
+
+	// If provider returned an OAuth error, log and surface it
+	if oidcResponse.Error != "" {
+		logger.LogError(ctx, "[OAuth-OIDC] ExchangeToken provider error: %s - %s", oidcResponse.Error, oidcResponse.ErrorDescription)
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "OIDC"}, oidcResponse.Error+": "+oidcResponse.ErrorDescription)
+	}
+
 	if oidcResponse.AccessToken == "" {
-		logger.LogError(ctx, "[OAuth-OIDC] ExchangeToken failed: empty access token")
+		logger.LogError(ctx, "[OAuth-OIDC] ExchangeToken failed: empty access token, body=%s", string(bodyBytes))
 		return nil, NewOAuthError(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "OIDC"})
 	}
 

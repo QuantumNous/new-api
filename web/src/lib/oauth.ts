@@ -44,12 +44,13 @@ export function buildDiscordOAuthUrl(clientId: string, state: string): string {
 }
 
 /**
- * Build OIDC OAuth URL
+ * Build OIDC OAuth URL with optional PKCE support
  */
 export function buildOIDCOAuthUrl(
   authUrl: string,
   clientId: string,
-  state: string
+  state: string,
+  codeChallenge?: string
 ): string {
   const url = new URL(authUrl)
   url.searchParams.set('client_id', clientId)
@@ -57,6 +58,10 @@ export function buildOIDCOAuthUrl(
   url.searchParams.set('response_type', 'code')
   url.searchParams.set('scope', 'openid profile email')
   url.searchParams.set('state', state)
+  if (codeChallenge) {
+    url.searchParams.set('code_challenge', codeChallenge)
+    url.searchParams.set('code_challenge_method', 'S256')
+  }
   return url.toString()
 }
 
@@ -65,4 +70,26 @@ export function buildOIDCOAuthUrl(
  */
 export function buildLinuxDOOAuthUrl(clientId: string, state: string): string {
   return `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${clientId}&state=${state}`
+}
+
+export async function generatePkce(): Promise<{
+  codeVerifier: string
+  codeChallenge: string
+}> {
+  const bytes = new Uint8Array(64)
+  crypto.getRandomValues(bytes)
+  const codeVerifier = btoa(String.fromCharCode(...bytes))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '')
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(codeVerifier)
+  )
+  const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '')
+
+  return { codeVerifier, codeChallenge }
 }

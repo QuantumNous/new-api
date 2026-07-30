@@ -100,6 +100,13 @@ func (p *GenericOAuthProvider) ExchangeToken(ctx context.Context, code string, c
 	values.Set("code", code)
 	values.Set("redirect_uri", redirectUri)
 
+	if codeVerifier, exists := c.Get("code_verifier"); exists {
+		if verifier, ok := codeVerifier.(string); ok && verifier != "" {
+			values.Set("code_verifier", verifier)
+			logger.LogDebug(ctx, "[OAuth-Generic-%s] ExchangeToken: using PKCE code_verifier", p.config.Slug)
+		}
+	}
+
 	// Determine auth style
 	authStyle := p.config.AuthStyle
 	if authStyle == AuthStyleAutoDetect {

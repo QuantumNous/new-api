@@ -25,17 +25,19 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
+import { THEME_PRESETS, type ThemePreset } from '@/lib/theme-customization'
 import { cn } from '@/lib/utils'
 
 export function ThemeSwitch() {
   const { t } = useTranslation()
   const { theme, setTheme } = useTheme()
+  const { customization, setPreset } = useThemeCustomization()
 
-  /* Update theme-color meta tag
-   * when theme is updated */
   useEffect(() => {
     const themeColor = theme === 'dark' ? '#020817' : '#fff'
     const metaThemeColor = document.querySelector("meta[name='theme-color']")
@@ -51,28 +53,42 @@ export function ThemeSwitch() {
         <Moon className='absolute size-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0' />
         <span className='sr-only'>{t('Toggle theme')}</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
+      <DropdownMenuContent align='end' className='w-52'>
         <DropdownMenuItem onClick={() => setTheme('light')}>
-          {t('Light')}{' '}
-          <Check
-            size={14}
-            className={cn('ms-auto', theme !== 'light' && 'hidden')}
-          />
+          {t('Light')}
+          <Check size={14} className={cn('ms-auto', theme !== 'light' && 'hidden')} />
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme('dark')}>
           {t('Dark')}
-          <Check
-            size={14}
-            className={cn('ms-auto', theme !== 'dark' && 'hidden')}
-          />
+          <Check size={14} className={cn('ms-auto', theme !== 'dark' && 'hidden')} />
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme('system')}>
           {t('System')}
-          <Check
-            size={14}
-            className={cn('ms-auto', theme !== 'system' && 'hidden')}
-          />
+          <Check size={14} className={cn('ms-auto', theme !== 'system' && 'hidden')} />
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {THEME_PRESETS.map((preset) => (
+          <DropdownMenuItem
+            key={preset.value}
+            onClick={() => setPreset(preset.value as ThemePreset)}
+            className='flex items-center gap-2'
+          >
+            <span className='flex gap-0.5'>
+              {preset.swatches.map((swatch, i) => (
+                <span
+                  key={i}
+                  className='size-3 rounded-full border border-black/10 dark:border-white/10'
+                  style={{ background: swatch }}
+                />
+              ))}
+            </span>
+            <span className='flex-1 text-sm'>{preset.name}</span>
+            <Check
+              size={14}
+              className={cn('ms-auto', customization.preset !== preset.value && 'hidden')}
+            />
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
  * Home page constants
  * All hardcoded data for home page sections
  */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 // Layout - Main base classes
 export const MAIN_BASE_CLASSES = 'bg-background text-foreground w-full'
@@ -45,84 +45,80 @@ export const AI_MODELS = [
 
 // Hero section - Gateway Features
 export const GATEWAY_FEATURES = [
-  'Cost Tracking',
-  'Model Access',
-  'Guardrails',
-  'Observability',
-  'Budgets',
-  'Load Balancing',
-  'Rate Limiting',
-  'Token Mgmt',
-  'Prompt Caching',
-  'Pass-Through',
+  'OpenAI-Compatible API',
+  'Model Routing',
+  'API Key Management',
+  'Channel Management',
+  'Usage Monitoring',
+  'Quota Controls',
+  'Role-Based Access',
+  'Self-Hosted Deployment',
 ] as const
 
-// Stats section - Default statistics
+// Stats section - Capability labels (avoid unverified instance-wide counts)
 export const DEFAULT_STATS = [
   {
-    value: '50',
-    suffix: '+',
-    description: 'upstream services integrated',
+    value: '01',
+    suffix: '',
+    description: '统一接入入口',
   },
   {
-    value: '100',
-    suffix: '+',
-    description: 'model billing support',
+    value: '24/7',
+    suffix: '',
+    description: '自托管控制台',
   },
   {
-    value: '50',
-    suffix: '+',
-    description: 'compatible API routes',
+    value: 'API',
+    suffix: '',
+    description: '兼容 OpenAI 协议',
   },
   {
-    value: '10',
-    suffix: '+',
-    description: 'scheduling controls',
+    value: 'N',
+    suffix: '',
+    description: '按配置扩展渠道',
   },
 ] as const
 
-// Features section - Default features
+// Features section - ReX API capabilities
 export const DEFAULT_FEATURES = [
   {
-    title: 'Lightning Fast',
-    description:
-      'Optimized network architecture ensures millisecond response times',
+    title: '统一接入',
+    description: '通过兼容 OpenAI 的接口连接已配置的模型和上游渠道。',
     iconName: 'Zap',
   },
   {
-    title: 'Secure & Reliable',
-    description:
-      'Enterprise-grade security with comprehensive permission management',
+    title: '密钥可控',
+    description: '集中创建、轮换和撤销应用访问密钥，减少凭据散落。',
     iconName: 'Shield',
   },
   {
-    title: 'Global Coverage',
-    description: 'Multi-region deployment for stable global access',
+    title: '路由清晰',
+    description: '按模型、渠道和权限组织请求路由，配置由实例管理员掌控。',
     iconName: 'Globe',
   },
   {
-    title: 'Developer Friendly',
-    description: 'Compatible API routes for common AI application workflows',
+    title: '开发友好',
+    description: '保留常见 AI 客户端需要的请求格式和流式响应方式。',
     iconName: 'Code',
   },
   {
-    title: 'High Performance',
-    description: 'Support for high concurrency with automatic load balancing',
+    title: '运行可见',
+    description: '在控制台查看请求、用量、配额以及模型调用表现。',
     iconName: 'Gauge',
   },
   {
-    title: 'Transparent Billing',
-    description: 'Pay-as-you-go with real-time usage monitoring',
+    title: '计费可查',
+    description: '根据实例中的模型和渠道配置查看价格与消耗记录。',
     iconName: 'DollarSign',
   },
   {
-    title: 'Team Collaboration',
-    description: 'Multi-user management with flexible permission allocation',
+    title: '团队协作',
+    description: '使用用户、角色和权限控制不同成员的操作范围。',
     iconName: 'Users',
   },
   {
-    title: 'Open Source',
-    description: 'Community driven, self-hosted, and extensible',
+    title: '自主部署',
+    description: '将网关、数据和配套服务部署在你控制的环境中。',
     iconName: 'HeartHandshake',
   },
 ] as const

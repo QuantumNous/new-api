@@ -26,7 +26,7 @@ export function formatRemainingMinutes(mins: unknown) {
       ? Number(mins)
       : typeof mins === 'number'
         ? mins
-        : NaN
+        : Number.NaN
   if (!Number.isFinite(n)) return null
 
   const total = Math.max(0, Math.round(n))

@@ -42,6 +42,7 @@ export interface CustomOAuthProvider {
   auth_style: number // 0=auto, 1=params, 2=header
   access_policy: string
   access_denied_message: string
+  pkce_required: boolean
 }
 
 // ============================================================================
@@ -75,6 +76,7 @@ export const customOAuthFormSchema = z.object({
   auth_style: z.number().int().min(0).max(2).default(0),
   access_policy: z.string().optional().default(''),
   access_denied_message: z.string().optional().default(''),
+  pkce_required: z.boolean().default(false),
 })
 
 export type CustomOAuthFormValues = z.infer<typeof customOAuthFormSchema>
@@ -114,9 +116,25 @@ export interface OAuthPreset {
   display_name_field: string
   email_field: string
   needsBaseUrl: boolean
+  pkce_required?: boolean
 }
 
 export const OAUTH_PRESETS: OAuthPreset[] = [
+  {
+    key: 'linear-passport',
+    name: 'LinearPassport',
+    icon: 'https://pass.linearteam.top/favicon.ico',
+    authorization_endpoint: '/oauth2/authorize',
+    token_endpoint: '/oauth2/token',
+    user_info_endpoint: '/userinfo',
+    scopes: 'openid profile email',
+    user_id_field: 'sub',
+    username_field: 'preferred_username',
+    display_name_field: 'name',
+    email_field: 'email',
+    pkce_required: true,
+    needsBaseUrl: false,
+  },
   {
     key: 'github-enterprise',
     name: 'GitHub Enterprise',

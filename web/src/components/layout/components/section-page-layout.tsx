@@ -69,11 +69,11 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
     const child = node as ReactElement<SlotProps>
     if (child.type === SectionPageLayoutTitle) title = child.props.children
     else if (child.type === SectionPageLayoutActions)
-      actions = child.props.children
+      {actions = child.props.children}
     else if (child.type === SectionPageLayoutContent)
-      content = child.props.children
+      {content = child.props.children}
     else if (child.type === SectionPageLayoutBreadcrumb)
-      breadcrumb = child.props.children
+      {breadcrumb = child.props.children}
   })
 
   return (

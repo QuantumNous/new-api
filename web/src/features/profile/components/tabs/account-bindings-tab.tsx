@@ -42,6 +42,7 @@ import {
   buildGitHubOAuthUrl,
   buildLinuxDOOAuthUrl,
   buildOIDCOAuthUrl,
+  generatePkce,
 } from '@/lib/oauth'
 
 import {
@@ -150,7 +151,11 @@ export function AccountBindingsTab({
   }
 
   const startOAuthBinding = useCallback(
-    async (provider: string, buildUrl: (state: string) => string) => {
+    async (
+      provider: string,
+      buildUrl: (state: string) => string,
+      flowPayload?: Record<string, string>
+    ) => {
       const previous = pendingOAuthBinding.current
       if (previous) {
         clearPendingOAuthBinding(previous)
@@ -173,7 +178,7 @@ export function AccountBindingsTab({
       )
       pendingOAuthBinding.current = pending
       try {
-        const state = await createOAuthFlow(provider, 'bind')
+        const state = await createOAuthFlow(provider, 'bind', flowPayload)
         if (pendingOAuthBinding.current !== pending || popup.closed) return
         pending.state = state
         popup.location.replace(buildUrl(state))
@@ -188,16 +193,32 @@ export function AccountBindingsTab({
   )
 
   const handleBindCustomOAuth = async (provider: CustomOAuthProviderInfo) => {
-    await startOAuthBinding(provider.slug, (state) => {
-      const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
-      const url = new URL(provider.authorization_endpoint)
-      url.searchParams.set('client_id', provider.client_id)
-      url.searchParams.set('redirect_uri', redirectUri)
-      url.searchParams.set('response_type', 'code')
-      url.searchParams.set('state', state)
-      if (provider.scopes) url.searchParams.set('scope', provider.scopes)
-      return url.toString()
-    })
+    let codeChallenge: string | undefined
+    let flowPayload: Record<string, string> | undefined
+    if (provider.pkce_required) {
+      const pkce = await generatePkce()
+      codeChallenge = pkce.codeChallenge
+      flowPayload = { code_verifier: pkce.codeVerifier }
+    }
+
+    await startOAuthBinding(
+      provider.slug,
+      (state) => {
+        const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
+        const url = new URL(provider.authorization_endpoint)
+        url.searchParams.set('client_id', provider.client_id)
+        url.searchParams.set('redirect_uri', redirectUri)
+        url.searchParams.set('response_type', 'code')
+        url.searchParams.set('state', state)
+        if (provider.scopes) url.searchParams.set('scope', provider.scopes)
+        if (codeChallenge) {
+          url.searchParams.set('code_challenge', codeChallenge)
+          url.searchParams.set('code_challenge_method', 'S256')
+        }
+        return url.toString()
+      },
+      flowPayload
+    )
   }
 
   useEffect(() => {

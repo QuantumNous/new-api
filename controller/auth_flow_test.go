@@ -24,12 +24,16 @@ type authFlowTestOAuthProvider struct {
 	userInfoErr   error
 	exchangeCalls int
 	userInfoCalls int
+	codeVerifier  string
 }
 
 func (*authFlowTestOAuthProvider) GetName() string { return "Auth Flow Test" }
 func (*authFlowTestOAuthProvider) IsEnabled() bool { return true }
-func (provider *authFlowTestOAuthProvider) ExchangeToken(context.Context, string, *gin.Context) (*oauth.OAuthToken, error) {
+func (provider *authFlowTestOAuthProvider) ExchangeToken(_ context.Context, _ string, c *gin.Context) (*oauth.OAuthToken, error) {
 	provider.exchangeCalls++
+	if verifier, ok := c.Get("code_verifier"); ok {
+		provider.codeVerifier, _ = verifier.(string)
+	}
 	if provider.exchangeErr != nil {
 		return nil, provider.exchangeErr
 	}
@@ -91,6 +95,7 @@ func TestGenerateOAuthCodeCarriesAffiliateInLoginFlow(t *testing.T) {
 	var payload oauthFlowPayload
 	require.NoError(t, common.UnmarshalJsonStr(flow.Payload, &payload))
 	assert.Equal(t, "invite-code", payload.AffiliateCode)
+	assert.Empty(t, payload.CodeVerifier)
 	assert.Zero(t, flow.UserId)
 	assert.Empty(t, flow.SessionId)
 }
@@ -124,6 +129,46 @@ func TestGenerateOAuthCodeBindsFlowToAuthenticatedSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 42, flow.UserId)
 	assert.Equal(t, "session-42", flow.SessionId)
+}
+
+func TestGenerateOAuthCodeStoresPKCEVerifier(t *testing.T) {
+	setupAuthFlowControllerTest(t)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/oauth/state", strings.NewReader(`{"provider":"auth-flow-test","intent":"login","code_verifier":"test-code-verifier"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	GenerateOAuthCode(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Data struct {
+			FlowToken string `json:"flow_token"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	flow, err := model.GetAuthFlow(response.Data.FlowToken, model.AuthFlowMatch{
+		Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentLogin,
+	})
+	require.NoError(t, err)
+	var payload oauthFlowPayload
+	require.NoError(t, common.UnmarshalJsonStr(flow.Payload, &payload))
+	assert.Equal(t, "test-code-verifier", payload.CodeVerifier)
+}
+
+func TestOAuthCallbackPassesPKCEVerifierToProvider(t *testing.T) {
+	provider := setupAuthFlowControllerTest(t)
+	flowToken, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentLogin,
+		Payload: `{"code_verifier":"test-code-verifier"}`, ExpiresAt: time.Now().Add(time.Minute),
+	})
+	require.NoError(t, err)
+	router := gin.New()
+	router.GET("/api/oauth/:provider", HandleOAuth)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test?state="+flowToken+"&code=test", nil))
+
+	assert.Equal(t, "test-code-verifier", provider.codeVerifier)
 }
 
 func TestOAuthLoginConsumesFlowOnlyAfterProviderIdentity(t *testing.T) {

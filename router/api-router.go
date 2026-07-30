@@ -215,6 +215,19 @@ func SetApiRouter(router *gin.Engine) {
 			customOAuthRoute.PUT("/:id", controller.UpdateCustomOAuthProvider)
 			customOAuthRoute.DELETE("/:id", controller.DeleteCustomOAuthProvider)
 		}
+
+		// Linked service management (root only)
+		linkedServiceRoute := apiRouter.Group("/linked-service")
+		linkedServiceRoute.Use(middleware.RootAuth())
+		{
+			linkedServiceRoute.GET("/", controller.ListLinkedServices)
+			linkedServiceRoute.GET("/:id", controller.GetLinkedService)
+			linkedServiceRoute.POST("/", controller.CreateLinkedService)
+			linkedServiceRoute.PUT("/:id", controller.UpdateLinkedService)
+			linkedServiceRoute.DELETE("/:id", controller.DeleteLinkedService)
+			linkedServiceRoute.POST("/:id/sync-password", controller.SyncLinkedServicePassword)
+		}
+
 		performanceRoute := apiRouter.Group("/performance")
 		performanceRoute.Use(middleware.RootAuth())
 		{

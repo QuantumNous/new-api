@@ -13,15 +13,20 @@ export default defineConfig(({ envMode }) => {
   const serverUrl =
     process.env.VITE_REACT_APP_SERVER_URL ||
     env.rawPublicVars.VITE_REACT_APP_SERVER_URL ||
-    'http://localhost:3000'
+    'http://127.0.0.1:3000'
 
   const isProd = envMode === 'production'
   const devProxy = Object.fromEntries(
     (['/api', '/mj', '/pg'] as const).map((key) => [
       key,
-      { target: serverUrl, changeOrigin: true },
+      {
+        target: serverUrl,
+        changeOrigin: true,
+        timeout: 30000,
+        proxyTimeout: 30000,
+      },
     ])
-  ) as Record<string, { target: string; changeOrigin: boolean }>
+  ) as Record<string, { target: string; changeOrigin: boolean; timeout: number; proxyTimeout: number }>
 
   return {
     plugins: [pluginReact(), pluginTailwindcss({ optimize: false })],
@@ -66,8 +71,9 @@ export default defineConfig(({ envMode }) => {
       template: './index.html',
     },
     server: {
-      host: '0.0.0.0',
-      strictPort: false,
+      host: '127.0.0.1',
+      port: 3001,
+      strictPort: true,
       proxy: devProxy,
     },
     output: {

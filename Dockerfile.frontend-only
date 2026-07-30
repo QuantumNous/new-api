@@ -1,0 +1,34 @@
+# 基于已有的 new-api 镜像，替换内嵌的前端静态文件
+# 用法: docker build -f Dockerfile.frontend-only -t new-api:custom .
+
+FROM calciumion/new-api:latest AS base
+
+# 用本地编译好的 dist 替换镜像内的旧 web/dist
+# 注意: new-api 把前端以 go:embed 打进了二进制，所以必须重新编译 Go
+# 这里使用源码重新构建
+FROM golang:1.24-alpine AS builder
+
+ENV GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+
+WORKDIR /build
+
+# 复制 Go 源码
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+# 用本地已编译好的 dist 覆盖
+COPY web/dist ./web/dist
+
+RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
+
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata wget \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/new-api /
+EXPOSE 3000
+WORKDIR /data
+ENTRYPOINT ["/new-api"]

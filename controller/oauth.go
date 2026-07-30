@@ -23,10 +23,14 @@ type oauthStateRequest struct {
 	Provider string `json:"provider"`
 	Intent   string `json:"intent"`
 	Aff      string `json:"aff,omitempty"`
+	// CodeVerifier for PKCE (Proof Key for Code Exchange)
+	CodeVerifier string `json:"code_verifier,omitempty"`
 }
 
 type oauthFlowPayload struct {
 	AffiliateCode string `json:"affiliate_code,omitempty"`
+	// CodeVerifier stored during auth flow for OIDC PKCE token exchange
+	CodeVerifier string `json:"code_verifier,omitempty"`
 }
 
 // providerParams returns map with Provider key for i18n templates
@@ -62,7 +66,7 @@ func GenerateOAuthCode(c *gin.Context) {
 		userID = identity.UserID
 		sessionID = identity.SessionID
 	}
-	payload, err := common.Marshal(oauthFlowPayload{AffiliateCode: request.Aff})
+	payload, err := common.Marshal(oauthFlowPayload{AffiliateCode: request.Aff, CodeVerifier: request.CodeVerifier})
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -166,9 +170,19 @@ func HandleOAuth(c *gin.Context) {
 		handleOAuthBind(c, provider, pendingFlow, state)
 		return
 	}
-
 	// 5. Exchange code for token
 	code := c.Query("code")
+
+	// Pass code_verifier from auth flow payload (for PKCE) to the provider
+	if pendingFlow.Payload != "" {
+		var flowPayload oauthFlowPayload
+		if err := common.UnmarshalJsonStr(pendingFlow.Payload, &flowPayload); err == nil {
+			if flowPayload.CodeVerifier != "" {
+				c.Set("code_verifier", flowPayload.CodeVerifier)
+			}
+		}
+	}
+
 	token, err := provider.ExchangeToken(c.Request.Context(), code, c)
 	if err != nil {
 		handleOAuthError(c, err)
@@ -226,6 +240,17 @@ func HandleOAuth(c *gin.Context) {
 func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model.AuthFlow, flowToken string) {
 	// Exchange code for token
 	code := c.Query("code")
+
+	// Pass code_verifier from auth flow payload (for PKCE) to the provider
+	if pendingFlow.Payload != "" {
+		var flowPayload oauthFlowPayload
+		if err := common.UnmarshalJsonStr(pendingFlow.Payload, &flowPayload); err == nil {
+			if flowPayload.CodeVerifier != "" {
+				c.Set("code_verifier", flowPayload.CodeVerifier)
+			}
+		}
+	}
+
 	token, err := provider.ExchangeToken(c.Request.Context(), code, c)
 	if err != nil {
 		handleOAuthError(c, err)

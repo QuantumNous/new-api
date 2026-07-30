@@ -36,6 +36,7 @@ type CustomOAuthProviderResponse struct {
 	AuthStyle             int    `json:"auth_style"`
 	AccessPolicy          string `json:"access_policy"`
 	AccessDeniedMessage   string `json:"access_denied_message"`
+	PkceRequired          bool   `json:"pkce_required"`
 }
 
 type UserOAuthBindingResponse struct {
@@ -66,6 +67,7 @@ func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthPro
 		AuthStyle:             p.AuthStyle,
 		AccessPolicy:          p.AccessPolicy,
 		AccessDeniedMessage:   p.AccessDeniedMessage,
+		PkceRequired:          p.PkceRequired,
 	}
 }
 
@@ -131,6 +133,7 @@ type CreateCustomOAuthProviderRequest struct {
 	AuthStyle             int    `json:"auth_style"`
 	AccessPolicy          string `json:"access_policy"`
 	AccessDeniedMessage   string `json:"access_denied_message"`
+	PkceRequired          bool   `json:"pkce_required"`
 }
 
 type FetchCustomOAuthDiscoveryRequest struct {
@@ -249,6 +252,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		AuthStyle:             req.AuthStyle,
 		AccessPolicy:          req.AccessPolicy,
 		AccessDeniedMessage:   req.AccessDeniedMessage,
+		PkceRequired:          req.PkceRequired,
 	}
 
 	if err := model.CreateCustomOAuthProvider(provider); err != nil {
@@ -286,6 +290,7 @@ type UpdateCustomOAuthProviderRequest struct {
 	AuthStyle             *int    `json:"auth_style"`            // Optional: if nil, keep existing
 	AccessPolicy          *string `json:"access_policy"`         // Optional: if nil, keep existing
 	AccessDeniedMessage   *string `json:"access_denied_message"` // Optional: if nil, keep existing
+	PkceRequired          *bool   `json:"pkce_required"`         // Optional: if nil, keep existing
 }
 
 // UpdateCustomOAuthProvider updates an existing custom OAuth provider
@@ -379,6 +384,9 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	}
 	if req.AccessDeniedMessage != nil {
 		provider.AccessDeniedMessage = *req.AccessDeniedMessage
+	}
+	if req.PkceRequired != nil {
+		provider.PkceRequired = *req.PkceRequired
 	}
 
 	if err := model.UpdateCustomOAuthProvider(provider); err != nil {

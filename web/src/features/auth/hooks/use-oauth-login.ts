@@ -28,6 +28,7 @@ import {
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
+  generatePkce,
 } from '../lib/oauth'
 import { pickTelegramAuthorization } from '../lib/telegram-login'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
@@ -120,19 +121,23 @@ export function useOAuthLogin(
       setIsLoading(false)
     }
   }
-
   const handleOIDCLogin = async () => {
     if (!status?.oidc_authorization_endpoint || !status?.oidc_client_id) return
 
     setIsLoading(true)
     try {
       await resetSession()
-      const state = await createOAuthFlow('oidc', 'login')
+
+      const { codeVerifier, codeChallenge } = await generatePkce()
+      const state = await createOAuthFlow('oidc', 'login', {
+        code_verifier: codeVerifier,
+      })
 
       const url = buildOIDCOAuthUrl(
         status.oidc_authorization_endpoint,
         status.oidc_client_id,
-        state
+        state,
+        codeChallenge
       )
       window.open(url, '_self')
     } catch {
@@ -209,7 +214,14 @@ export function useOAuthLogin(
     setIsLoading(true)
     try {
       await resetSession()
-      const state = await createOAuthFlow(provider.slug, 'login')
+      let codeChallenge: string | undefined
+      let flowPayload: Record<string, string> | undefined
+      if (provider.pkce_required) {
+        const pkce = await generatePkce()
+        codeChallenge = pkce.codeChallenge
+        flowPayload = { code_verifier: pkce.codeVerifier }
+      }
+      const state = await createOAuthFlow(provider.slug, 'login', flowPayload)
 
       const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
       const url = new URL(provider.authorization_endpoint)
@@ -219,6 +231,10 @@ export function useOAuthLogin(
       url.searchParams.set('state', state)
       if (provider.scopes) {
         url.searchParams.set('scope', provider.scopes)
+      }
+      if (codeChallenge) {
+        url.searchParams.set('code_challenge', codeChallenge)
+        url.searchParams.set('code_challenge_method', 'S256')
       }
 
       window.open(url.toString(), '_self')

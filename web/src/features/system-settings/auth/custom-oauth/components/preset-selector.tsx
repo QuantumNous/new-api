@@ -48,16 +48,16 @@ export function PresetSelector(props: PresetSelectorProps) {
     const preset = OAUTH_PRESETS.find((p) => p.key === presetKey)
     if (!preset) return
 
-    // Auto-fill name, slug, icon, and field mappings immediately
     props.form.setValue('name', preset.name, { shouldDirty: true })
     props.form.setValue(
       'slug',
       presetKey.toLowerCase().replaceAll(/\s+/g, '-'),
-      {
-        shouldDirty: true,
-      }
+      { shouldDirty: true }
     )
     props.form.setValue('icon', preset.icon, { shouldDirty: true })
+    props.form.setValue('pkce_required', preset.pkce_required ?? false, {
+      shouldDirty: true,
+    })
     props.form.setValue('scopes', preset.scopes, { shouldDirty: true })
     props.form.setValue('user_id_field', preset.user_id_field, {
       shouldDirty: true,
@@ -72,8 +72,10 @@ export function PresetSelector(props: PresetSelectorProps) {
       shouldDirty: true,
     })
 
-    // Apply base URL if already entered
-    if (baseUrl) {
+    // For fixed-endpoint presets, apply immediately without base URL
+    if (!preset.needsBaseUrl) {
+      applyEndpoints(preset, '')
+    } else if (baseUrl) {
       applyEndpoints(preset, baseUrl)
     }
   }
@@ -92,6 +94,29 @@ export function PresetSelector(props: PresetSelectorProps) {
     preset: (typeof OAUTH_PRESETS)[number],
     url: string
   ) => {
+    // LinearPassport has fixed endpoints, no base URL needed
+    if (!preset.needsBaseUrl) {
+      const base = 'https://pass.linearteam.top'
+      props.form.setValue(
+        'authorization_endpoint',
+        base + preset.authorization_endpoint,
+        { shouldDirty: true }
+      )
+      props.form.setValue('token_endpoint', base + preset.token_endpoint, {
+        shouldDirty: true,
+      })
+      props.form.setValue(
+        'user_info_endpoint',
+        base + preset.user_info_endpoint,
+        { shouldDirty: true }
+      )
+      props.form.setValue(
+        'well_known',
+        `${base}/.well-known/openid-configuration`,
+        { shouldDirty: true }
+      )
+      return
+    }
     const cleanUrl = url.replace(/\/+$/, '')
     props.form.setValue(
       'authorization_endpoint',
@@ -141,8 +166,19 @@ export function PresetSelector(props: PresetSelectorProps) {
           <Input
             placeholder={t('https://your-server.example.com')}
             value={baseUrl}
+            disabled={
+              !!selectedPreset &&
+              !OAUTH_PRESETS.find((p) => p.key === selectedPreset)?.needsBaseUrl
+            }
             onChange={(e) => handleBaseUrlChange(e.target.value)}
           />
+          {selectedPreset &&
+            !OAUTH_PRESETS.find((p) => p.key === selectedPreset)
+              ?.needsBaseUrl && (
+              <p className='text-muted-foreground text-xs'>
+                {t('This preset uses fixed endpoints.')}
+              </p>
+            )}
         </div>
       </div>
     </SettingsControlGroup>

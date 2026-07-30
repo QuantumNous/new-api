@@ -23,6 +23,7 @@ export {
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
+  generatePkce,
 } from '@/lib/oauth'
 
 // ============================================================================

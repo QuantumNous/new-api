@@ -44,14 +44,12 @@ const ROOT_VIEW_KEY = '__root'
  * — those filters target known dashboard URLs only, and gating is
  * already enforced at the route level (`beforeLoad` redirects).
  */
-export function useSidebarView(): ResolvedSidebarView {
-  const { t } = useTranslation()
-  const pathname = useLocation({ select: (l) => l.pathname })
+export function useVisibleRootNavGroups(): NavGroup[] {
   const userRole = useAuthStore((s) => s.auth.user?.role)
   const rootSidebarData = useSidebarData()
   const configFilteredRoot = useSidebarConfig(rootSidebarData.navGroups)
 
-  const rootNavGroups = useMemo<NavGroup[]>(() => {
+  return useMemo<NavGroup[]>(() => {
     const role = userRole ?? ROLE.GUEST
     const isAdmin = role >= ROLE.ADMIN
     return configFilteredRoot
@@ -63,6 +61,12 @@ export function useSidebarView(): ResolvedSidebarView {
         return items.length === group.items.length ? group : { ...group, items }
       })
   }, [configFilteredRoot, userRole])
+}
+
+export function useSidebarView(): ResolvedSidebarView {
+  const { t } = useTranslation()
+  const pathname = useLocation({ select: (l) => l.pathname })
+  const rootNavGroups = useVisibleRootNavGroups()
 
   const view = resolveSidebarView(pathname)
 

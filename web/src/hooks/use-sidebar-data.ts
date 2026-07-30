@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   Box,
+  Cable,
   CreditCard,
   FileText,
   FlaskConical,
@@ -33,10 +34,11 @@ import {
   User,
   Users,
   Wallet,
+  Wrench,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -119,6 +121,31 @@ export function useSidebarData(): SidebarData {
         id: 'admin',
         title: t('Admin'),
         items: [
+          {
+            title: t('Kiro-Go'),
+            url: 'http://127.0.0.1:8080/admin',
+            icon: ServerCog,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            title: t('Kiro-Rs-Tool'),
+            url: 'http://127.0.0.1:8990/admin',
+            icon: Cable,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            title: t('Codex Pool'),
+            url: 'http://127.0.0.1:8090/',
+            icon: Box,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            title: t('AI Tools'),
+            url: '/tools/openai-pool',
+            activeUrls: ['/tools'],
+            icon: Wrench,
+            requiredRole: ROLE.ADMIN,
+          },
           {
             title: t('Channels'),
             url: '/channels',

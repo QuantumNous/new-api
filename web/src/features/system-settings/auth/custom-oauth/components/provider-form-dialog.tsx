@@ -104,6 +104,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
       auth_style: 0,
       access_policy: '',
       access_denied_message: '',
+      pkce_required: false,
     },
   })
   const watchedSlug = useWatch({ control: form.control, name: 'slug' })
@@ -135,6 +136,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
         auth_style: props.provider.auth_style ?? 0,
         access_policy: props.provider.access_policy || '',
         access_denied_message: props.provider.access_denied_message || '',
+        pkce_required: props.provider.pkce_required ?? false,
       })
     } else if (props.open && !props.provider) {
       form.reset({
@@ -156,6 +158,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
         auth_style: 0,
         access_policy: '',
         access_denied_message: '',
+        pkce_required: false,
       })
     }
   }, [props.open, props.provider, form])
@@ -414,8 +417,27 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name='pkce_required'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Require PKCE')}</FormLabel>
+                    <FormDescription>
+                      {t('Use S256 PKCE for authorization code exchanges')}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
           </div>
-
           <Separator />
 
           {/* Endpoints */}
