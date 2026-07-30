@@ -50,7 +50,7 @@ func TestBuildRequestBodyMapsNewAPIFields(t *testing.T) {
 	}{
 		{
 			name:           "official text to video format",
-			body:           `{"prompt":"ride","model":"doubao-seedance-2.0","seconds":"15","metadata":{"resolution":"1080p","ratio":"16:9","watermark":false,"generate_audio":true}}`,
+			body:           `{"model":"doubao-seedance-2.0","content":[{"type":"text","text":"ride"}],"resolution":"1080p","ratio":"16:9","duration":15,"generate_audio":true,"watermark":false}`,
 			upstreamModel:  "doubao-seedance-2.0",
 			wantModel:      "seedance-2.0-standard",
 			wantDuration:   "15",
@@ -61,8 +61,8 @@ func TestBuildRequestBodyMapsNewAPIFields(t *testing.T) {
 			wantContent:    []string{"text"},
 		},
 		{
-			name:           "official numeric seconds",
-			body:           `{"prompt":"ride","model":"doubao-seedance-2.0-fast","seconds":4,"metadata":{"resolution":"720p"}}`,
+			name:           "official string duration",
+			body:           `{"model":"doubao-seedance-2.0-fast","content":[{"type":"text","text":"ride"}],"resolution":"720p","duration":"4"}`,
 			upstreamModel:  "doubao-seedance-2.0-fast",
 			wantModel:      "seedance-2.0-fast",
 			wantDuration:   "4",
@@ -71,7 +71,7 @@ func TestBuildRequestBodyMapsNewAPIFields(t *testing.T) {
 		},
 		{
 			name:           "official video reference format",
-			body:           `{"prompt":"change the sea to blue","model":"doubao-seedance-2.0","seconds":"4","metadata":{"content":[{"type":"video_url","video_url":{"url":"https://example.com/input.mp4"},"role":"reference_video"}],"resolution":"720p","ratio":"16:9","watermark":false}}`,
+			body:           `{"model":"doubao-seedance-2.0","content":[{"type":"text","text":"change the sea to blue"},{"type":"video_url","video_url":{"url":"https://example.com/input.mp4"},"role":"reference_video"}],"resolution":"720p","ratio":"16:9","duration":4,"watermark":false}`,
 			upstreamModel:  "doubao-seedance-2.0",
 			wantModel:      "seedance-2.0-standard",
 			wantDuration:   "4",
@@ -79,11 +79,11 @@ func TestBuildRequestBodyMapsNewAPIFields(t *testing.T) {
 			wantResolution: "720p",
 			wantRatio:      "16:9",
 			wantWatermark:  boolPointer(false),
-			wantContent:    []string{"video_url", "text"},
+			wantContent:    []string{"text", "video_url"},
 		},
 		{
-			name:           "official reference images",
-			body:           `{"prompt":"ride","model":"seedance-2.0-standard","seconds":"8","metadata":{"content":[{"type":"image_url","image_url":{"url":"a"},"role":"reference_image"},{"type":"image_url","image_url":{"url":"b"},"role":"reference_image"}],"resolution":"720p","ratio":"16:9","generate_audio":false}}`,
+			name:           "official multimodal references",
+			body:           `{"model":"seedance-2.0-standard","content":[{"type":"text","text":"ride"},{"type":"image_url","image_url":{"url":"a"},"role":"reference_image"},{"type":"image_url","image_url":{"url":"b"},"role":"reference_image"},{"type":"video_url","video_url":{"url":"https://example.com/input.mp4"},"role":"reference_video"},{"type":"audio_url","audio_url":{"url":"https://example.com/input.mp3"},"role":"reference_audio"}],"resolution":"720p","ratio":"16:9","duration":8,"generate_audio":false,"watermark":false}`,
 			upstreamModel:  "seedance-2.0-standard",
 			wantModel:      "seedance-2.0-standard",
 			wantDuration:   "8",
@@ -93,18 +93,53 @@ func TestBuildRequestBodyMapsNewAPIFields(t *testing.T) {
 			wantResolution: "720p",
 			wantRatio:      "16:9",
 			wantAudio:      boolPointer(false),
-			wantContent:    []string{"image_url", "image_url", "text"},
+			wantWatermark:  boolPointer(false),
+			wantContent:    []string{"text", "image_url", "image_url", "video_url", "audio_url"},
 		},
 		{
 			name:          "official first and last frames",
-			body:          `{"prompt":"ride","model":"seedance-2.0-standard","seconds":"8","metadata":{"content":[{"type":"image_url","image_url":{"url":"a"},"role":"first_frame"},{"type":"image_url","image_url":{"url":"b"},"role":"last_frame"}]}}`,
+			body:          `{"model":"seedance-2.0-standard","content":[{"type":"text","text":"ride"},{"type":"image_url","image_url":{"url":"a"},"role":"first_frame"},{"type":"image_url","image_url":{"url":"b"},"role":"last_frame"}],"duration":8}`,
 			upstreamModel: "seedance-2.0-standard",
 			wantModel:     "seedance-2.0-standard",
 			wantDuration:  "8",
 			wantPic:       "a",
 			wantPic2:      "b",
 			wantVideoType: "0",
-			wantContent:   []string{"image_url", "image_url", "text"},
+			wantContent:   []string{"text", "image_url", "image_url"},
+		},
+		{
+			name:          "official first frame URL",
+			body:          `{"model":"seedance-2.0-standard","content":[{"type":"text","text":"ride"},{"type":"image_url","image_url":{"url":"https://example.com/first.png"}}],"ratio":"adaptive","duration":5,"watermark":false}`,
+			upstreamModel: "seedance-2.0-standard",
+			wantModel:     "seedance-2.0-standard",
+			wantDuration:  "5",
+			wantPic:       "https://example.com/first.png",
+			wantRatio:     "adaptive",
+			wantWatermark: boolPointer(false),
+			wantContent:   []string{"text", "image_url"},
+		},
+		{
+			name:          "official first frame base64 data URI",
+			body:          `{"model":"seedance-2.0-standard","content":[{"type":"text","text":"ride"},{"type":"image_url","image_url":{"url":"data:image/png;base64,aHR0cHM6Ly9leGFtcGxlLmNvbQ=="}}],"ratio":"adaptive","duration":5,"watermark":false}`,
+			upstreamModel: "seedance-2.0-standard",
+			wantModel:     "seedance-2.0-standard",
+			wantDuration:  "5",
+			wantPic:       "data:image/png;base64,aHR0cHM6Ly9leGFtcGxlLmNvbQ==",
+			wantRatio:     "adaptive",
+			wantWatermark: boolPointer(false),
+			wantContent:   []string{"text", "image_url"},
+		},
+		{
+			name:           "legacy prompt and metadata compatibility",
+			body:           `{"prompt":"ride","model":"doubao-seedance-2.0","seconds":"15","metadata":{"resolution":"1080p","ratio":"16:9","watermark":false,"generate_audio":true}}`,
+			upstreamModel:  "doubao-seedance-2.0",
+			wantModel:      "seedance-2.0-standard",
+			wantDuration:   "15",
+			wantResolution: "1080p",
+			wantRatio:      "16:9",
+			wantAudio:      boolPointer(true),
+			wantWatermark:  boolPointer(false),
+			wantContent:    []string{"text"},
 		},
 		{
 			name:          "legacy image compatibility",
@@ -123,6 +158,9 @@ func TestBuildRequestBodyMapsNewAPIFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			payload, info := buildPayloadForTest(t, tt.body, tt.upstreamModel)
+			if strings.TrimSpace(payload.Prompt) == "" {
+				t.Fatal("payload prompt must be derived from content text")
+			}
 			if payload.Model != tt.wantModel || info.UpstreamModelName != tt.wantModel {
 				t.Fatalf("model = %q, upstream model = %q, want %q", payload.Model, info.UpstreamModelName, tt.wantModel)
 			}
@@ -203,11 +241,12 @@ func TestValidateRequest(t *testing.T) {
 		body string
 	}{
 		{name: "too many references", body: `{"prompt":"x","model":"seedance-2.0-standard","images":["1","2","3","4","5","6","7","8","9","10"]}`},
-		{name: "fast 1080p", body: `{"prompt":"x","model":"seedance-2.0-fast","seconds":"4","metadata":{"resolution":"1080p"}}`},
-		{name: "duration too short", body: `{"prompt":"x","model":"seedance-2.0-standard","seconds":"3"}`},
-		{name: "too many reference videos", body: `{"prompt":"x","model":"seedance-2.0-standard","seconds":"4","metadata":{"content":[{"type":"video_url","video_url":{"url":"1"}},{"type":"video_url","video_url":{"url":"2"}},{"type":"video_url","video_url":{"url":"3"}},{"type":"video_url","video_url":{"url":"4"}}]}}`},
-		{name: "audio without visual reference", body: `{"prompt":"x","model":"seedance-2.0-standard","seconds":"4","metadata":{"content":[{"type":"audio_url","audio_url":{"url":"1"}}]}}`},
-		{name: "missing media URL", body: `{"prompt":"x","model":"seedance-2.0-standard","seconds":"4","metadata":{"content":[{"type":"video_url","video_url":{}}]}}`},
+		{name: "fast 1080p", body: `{"model":"seedance-2.0-fast","content":[{"type":"text","text":"x"}],"resolution":"1080p","duration":4}`},
+		{name: "duration too short", body: `{"model":"seedance-2.0-standard","content":[{"type":"text","text":"x"}],"duration":3}`},
+		{name: "too many reference videos", body: `{"model":"seedance-2.0-standard","content":[{"type":"text","text":"x"},{"type":"video_url","video_url":{"url":"1"}},{"type":"video_url","video_url":{"url":"2"}},{"type":"video_url","video_url":{"url":"3"}},{"type":"video_url","video_url":{"url":"4"}}],"duration":4}`},
+		{name: "audio without visual reference", body: `{"model":"seedance-2.0-standard","content":[{"type":"text","text":"x"},{"type":"audio_url","audio_url":{"url":"1"}}],"duration":4}`},
+		{name: "missing media URL", body: `{"model":"seedance-2.0-standard","content":[{"type":"text","text":"x"},{"type":"video_url","video_url":{}}],"duration":4}`},
+		{name: "missing text", body: `{"model":"seedance-2.0-standard","content":[{"type":"image_url","image_url":{"url":"a"}}],"duration":4}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -262,6 +301,7 @@ func TestDoResponse(t *testing.T) {
 	t.Run("uses public task ID", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
+		c.Set("task_request", relaycommon.TaskSubmitReq{Resolution: stringPointer("1080p"), Duration: 5, DurationSet: true})
 		info := &relaycommon.RelayInfo{OriginModelName: "doubao-seedance-2.0", TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "task_public"}}
 		resp := &http.Response{Body: io.NopCloser(strings.NewReader(`{"id":"TASK_upstream"}`))}
 		taskID, _, taskErr := (&TaskAdaptor{}).DoResponse(c, resp, info)
@@ -274,6 +314,9 @@ func TestDoResponse(t *testing.T) {
 		}
 		if video.ID != "task_public" || video.TaskID != "task_public" {
 			t.Fatalf("public IDs = %q/%q", video.ID, video.TaskID)
+		}
+		if video.Size != "1080p" || video.Seconds != "5" {
+			t.Fatalf("public size/seconds = %q/%q", video.Size, video.Seconds)
 		}
 	})
 

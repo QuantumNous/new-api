@@ -37,40 +37,61 @@ func TestGetRequestURL(t *testing.T) {
 
 func TestConvertImageRequest(t *testing.T) {
 	tests := []struct {
-		name      string
-		body      string
-		origin    string
-		upstream  string
-		wantModel string
-		wantPic   string
-		wantPics  []string
-		wantRatio string
+		name          string
+		body          string
+		origin        string
+		upstream      string
+		wantModel     string
+		wantPic       string
+		wantPics      []string
+		wantSize      string
+		wantFormat    string
+		wantWatermark *bool
+		wantRatio     string
 	}{
 		{
-			name:      "text to image alias mapping",
-			body:      `{"prompt":"sunset","model":"doubao-seedream-5.0-lite","size":"1800p","aspect_ratio":"16:9"}`,
-			origin:    "doubao-seedream-5.0-lite",
-			upstream:  "doubao-seedream-5.0-lite",
-			wantModel: "seedream-5.0-lite",
-			wantRatio: "16:9",
+			name:          "official text to image",
+			body:          `{"prompt":"sunset","model":"doubao-seedream-5.0-lite","size":"2K","output_format":"png","watermark":false}`,
+			origin:        "doubao-seedream-5.0-lite",
+			upstream:      "doubao-seedream-5.0-lite",
+			wantModel:     "seedream-5.0-lite",
+			wantSize:      "2K",
+			wantFormat:    "png",
+			wantWatermark: boolPointer(false),
 		},
 		{
-			name:      "single image maps to pic",
-			body:      `{"prompt":"restyle","model":"doubao-seedream-4.5","image":"https://example.com/a.png","aspectRatio":"1:1"}`,
-			origin:    "doubao-seedream-4.5",
-			upstream:  "doubao-seedream-4.5",
-			wantModel: "seedream-4.5",
-			wantPic:   "https://example.com/a.png",
-			wantRatio: "1:1",
+			name:          "official single image",
+			body:          `{"prompt":"restyle","model":"doubao-seedream-4.5","image":"https://example.com/a.png","size":"2K","output_format":"jpeg","watermark":true}`,
+			origin:        "doubao-seedream-4.5",
+			upstream:      "doubao-seedream-4.5",
+			wantModel:     "seedream-4.5",
+			wantPic:       "https://example.com/a.png",
+			wantSize:      "2K",
+			wantFormat:    "jpeg",
+			wantWatermark: boolPointer(true),
 		},
 		{
-			name:      "multiple images map to pic and pics",
-			body:      `{"prompt":"combine","model":"doubao-seedream-4.5","images":["a","b","c"]}`,
+			name:          "official multiple images",
+			body:          `{"prompt":"combine","model":"doubao-seedream-4.5","image":["a","b","c"],"size":"2K","output_format":"png","watermark":false}`,
+			origin:        "doubao-seedream-4.5",
+			upstream:      "seedream-4.5",
+			wantModel:     "seedream-4.5",
+			wantPic:       "a",
+			wantPics:      []string{"b", "c"},
+			wantSize:      "2K",
+			wantFormat:    "png",
+			wantWatermark: boolPointer(false),
+		},
+		{
+			name:      "legacy images and aspect ratio",
+			body:      `{"prompt":"combine","model":"doubao-seedream-4.5","images":["a","b"],"size":"2160p","aspect_ratio":"16:9"}`,
 			origin:    "doubao-seedream-4.5",
 			upstream:  "seedream-4.5",
 			wantModel: "seedream-4.5",
 			wantPic:   "a",
-			wantPics:  []string{"b", "c"},
+			wantPics:  []string{"b"},
+			wantSize:  "2160p",
+			wantRatio: "16:9",
 		},
 	}
 
@@ -92,8 +113,14 @@ func TestConvertImageRequest(t *testing.T) {
 			if payload.Model != tt.wantModel || info.UpstreamModelName != tt.wantModel {
 				t.Fatalf("model = %q/%q, want %q", payload.Model, info.UpstreamModelName, tt.wantModel)
 			}
-			if payload.Pic != tt.wantPic || strings.Join(payload.Pics, ",") != strings.Join(tt.wantPics, ",") || payload.AspectRatio != tt.wantRatio {
+			if payload.Pic != tt.wantPic || strings.Join(payload.Pics, ",") != strings.Join(tt.wantPics, ",") {
+				t.Fatalf("payload references = %+v", payload)
+			}
+			if payload.Size != tt.wantSize || payload.OutputFormat != tt.wantFormat || payload.AspectRatio != tt.wantRatio {
 				t.Fatalf("payload = %+v", payload)
+			}
+			if tt.wantWatermark != nil && (payload.Watermark == nil || *payload.Watermark != *tt.wantWatermark) {
+				t.Fatalf("payload watermark = %v, want %v", payload.Watermark, *tt.wantWatermark)
 			}
 		})
 	}
@@ -104,8 +131,11 @@ func TestConvertImageRequestValidation(t *testing.T) {
 		`{"prompt":"x","model":"doubao-seedream-4.5","n":2}`,
 		`{"prompt":"x","model":"doubao-seedream-4.5","n":0}`,
 		`{"prompt":"x","model":"doubao-seedream-5.0-lite","size":"2160p"}`,
+		`{"prompt":"x","model":"doubao-seedream-5.0-lite","size":"4K"}`,
 		`{"prompt":"x","model":"unknown-image"}`,
 		`{"prompt":"x","model":"doubao-seedream-4.5","images":["1","2","3","4","5","6","7"]}`,
+		`{"prompt":"x","model":"doubao-seedream-4.5","image":["1","2","3","4","5","6","7"]}`,
+		`{"prompt":"x","model":"doubao-seedream-4.5","output_format":1}`,
 	}
 	for _, body := range tests {
 		var request dto.ImageRequest
@@ -301,4 +331,8 @@ func imageHTTPResponse(body string) *http.Response {
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }

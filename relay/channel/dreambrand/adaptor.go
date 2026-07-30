@@ -26,12 +26,14 @@ import (
 const maxDownloadedImageBytes = 50 * 1024 * 1024
 
 type imageRequestPayload struct {
-	Prompt      string   `json:"prompt"`
-	Model       string   `json:"model"`
-	Size        string   `json:"size,omitempty"`
-	AspectRatio string   `json:"aspectRatio,omitempty"`
-	Pic         string   `json:"pic,omitempty"`
-	Pics        []string `json:"pics,omitempty"`
+	Prompt       string   `json:"prompt"`
+	Model        string   `json:"model"`
+	Size         string   `json:"size,omitempty"`
+	OutputFormat string   `json:"output_format,omitempty"`
+	Watermark    *bool    `json:"watermark,omitempty"`
+	AspectRatio  string   `json:"aspectRatio,omitempty"`
+	Pic          string   `json:"pic,omitempty"`
+	Pics         []string `json:"pics,omitempty"`
 }
 
 type upstreamImageData struct {
@@ -112,15 +114,20 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if modelName == "" {
 		modelName = ResolveModelName(request.Model)
 	}
-	if modelName == "seedream-5.0-lite" && request.Size == "2160p" {
+	if modelName == "seedream-5.0-lite" && (strings.EqualFold(request.Size, "2160p") || strings.EqualFold(request.Size, "4K")) {
 		return nil, fmt.Errorf("seedream-5.0-lite supports resolutions up to 1800p")
 	}
-
+	outputFormat, err := imageOutputFormat(request)
+	if err != nil {
+		return nil, err
+	}
 	payload := imageRequestPayload{
-		Prompt:      request.Prompt,
-		Model:       modelName,
-		Size:        request.Size,
-		AspectRatio: imageAspectRatio(request),
+		Prompt:       request.Prompt,
+		Model:        modelName,
+		Size:         request.Size,
+		OutputFormat: outputFormat,
+		Watermark:    request.Watermark,
+		AspectRatio:  imageAspectRatio(request),
 	}
 	if len(references) > 0 {
 		payload.Pic = references[0]
@@ -329,6 +336,17 @@ func imageReferences(request dto.ImageRequest) ([]string, error) {
 		}
 	}
 	return references, nil
+}
+
+func imageOutputFormat(request dto.ImageRequest) (string, error) {
+	if len(request.OutputFormat) == 0 || string(request.OutputFormat) == "null" {
+		return "", nil
+	}
+	var outputFormat string
+	if err := common.Unmarshal(request.OutputFormat, &outputFormat); err != nil {
+		return "", fmt.Errorf("output_format must be a string")
+	}
+	return strings.TrimSpace(outputFormat), nil
 }
 
 func imageAspectRatio(request dto.ImageRequest) string {

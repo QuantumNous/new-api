@@ -257,31 +257,53 @@ func resolveVideoMetadata(req relaycommon.TaskSubmitReq) (resolvedVideoMetadata,
 		return resolvedVideoMetadata{}, err
 	}
 	result := resolvedVideoMetadata{
-		generateAudio: metadata.GenerateAudio,
-		watermark:     metadata.Watermark,
+		generateAudio: req.GenerateAudio,
+		watermark:     req.Watermark,
 	}
-	if metadata.Resolution != nil {
+	if result.generateAudio == nil {
+		result.generateAudio = metadata.GenerateAudio
+	}
+	if result.watermark == nil {
+		result.watermark = metadata.Watermark
+	}
+	if req.Resolution != nil {
+		result.resolution = strings.TrimSpace(*req.Resolution)
+	} else if metadata.Resolution != nil {
 		result.resolution = strings.TrimSpace(*metadata.Resolution)
 	}
-	if metadata.Ratio != nil {
+	if req.Ratio != nil {
+		result.ratio = strings.TrimSpace(*req.Ratio)
+	} else if metadata.Ratio != nil {
 		result.ratio = strings.TrimSpace(*metadata.Ratio)
+	}
+	content := req.Content
+	contentField := "content"
+	if len(content) == 0 {
+		content = metadata.Content
+		contentField = "metadata.content"
 	}
 
 	videoCount := 0
 	audioCount := 0
-	for _, raw := range metadata.Content {
+	hasText := false
+	for _, raw := range content {
 		var item contentItem
 		if err := common.Unmarshal(raw, &item); err != nil {
-			return resolvedVideoMetadata{}, fmt.Errorf("metadata.content contains an invalid item: %w", err)
+			return resolvedVideoMetadata{}, fmt.Errorf("%s contains an invalid item: %w", contentField, err)
 		}
 		itemType := strings.TrimSpace(item.Type)
 		if itemType == "text" {
+			if strings.TrimSpace(item.Text) == "" {
+				return resolvedVideoMetadata{}, fmt.Errorf("%s text item requires text", contentField)
+			}
+			hasText = true
+			result.content = append(result.content, raw)
 			continue
 		}
 		switch itemType {
 		case "image_url":
 			if item.ImageURL == nil || strings.TrimSpace(item.ImageURL.URL) == "" {
-				return resolvedVideoMetadata{}, errors.New("metadata.content image_url item requires image_url.url")
+				return resolvedVideoMetadata{}, fmt.Errorf("%s image_url item requires image_url.url", contentField)
 			}
 			result.imageURLs = append(result.imageURLs, strings.TrimSpace(item.ImageURL.URL))
 			if item.Role == "reference_image" {
@@ -289,18 +311,18 @@ func resolveVideoMetadata(req relaycommon.TaskSubmitReq) (resolvedVideoMetadata,
 			}
 		case "video_url":
 			if item.VideoURL == nil || strings.TrimSpace(item.VideoURL.URL) == "" {
-				return resolvedVideoMetadata{}, errors.New("metadata.content video_url item requires video_url.url")
+				return resolvedVideoMetadata{}, fmt.Errorf("%s video_url item requires video_url.url", contentField)
 			}
 			videoCount++
 			result.hasVideoOrAudio = true
 		case "audio_url":
 			if item.AudioURL == nil || strings.TrimSpace(item.AudioURL.URL) == "" {
-				return resolvedVideoMetadata{}, errors.New("metadata.content audio_url item requires audio_url.url")
+				return resolvedVideoMetadata{}, fmt.Errorf("%s audio_url item requires audio_url.url", contentField)
 			}
 			audioCount++
 			result.hasVideoOrAudio = true
 		default:
-			return resolvedVideoMetadata{}, fmt.Errorf("unsupported metadata.content type: %s", itemType)
+			return resolvedVideoMetadata{}, fmt.Errorf("unsupported %s type: %s", contentField, itemType)
 		}
 		result.content = append(result.content, raw)
 	}
@@ -313,11 +335,13 @@ func resolveVideoMetadata(req relaycommon.TaskSubmitReq) (resolvedVideoMetadata,
 	if audioCount > 0 && videoCount == 0 && len(result.imageURLs)+len(referenceImages(req)) == 0 {
 		return resolvedVideoMetadata{}, errors.New("reference audio requires at least one reference image or video")
 	}
-	textContent, err := common.Marshal(contentItem{Type: "text", Text: req.Prompt})
-	if err != nil {
-		return resolvedVideoMetadata{}, err
+	if !hasText {
+		textContent, err := common.Marshal(contentItem{Type: "text", Text: req.Prompt})
+		if err != nil {
+			return resolvedVideoMetadata{}, err
+		}
+		result.content = append(result.content, textContent)
 	}
-	result.content = append(result.content, textContent)
 	return result, nil
 }
 
@@ -376,6 +400,9 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	video.Model = info.OriginModelName
 	if req, getErr := relaycommon.GetTaskRequest(c); getErr == nil {
 		video.Size = req.Size
+		if req.Resolution != nil {
+			video.Size = strings.TrimSpace(*req.Resolution)
+		}
 		if duration, ok := resolveDuration(req); ok {
 			video.Seconds = duration
 		}

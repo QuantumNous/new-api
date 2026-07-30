@@ -684,10 +684,15 @@ type TaskRelayInfo struct {
 type TaskSubmitReq struct {
 	Prompt         string                 `json:"prompt"`
 	Model          string                 `json:"model,omitempty"`
+	Content        []json.RawMessage      `json:"content,omitempty"`
 	Mode           string                 `json:"mode,omitempty"`
 	Image          string                 `json:"image,omitempty"`
 	Images         []string               `json:"images,omitempty"`
 	Size           string                 `json:"size,omitempty"`
+	Resolution     *string                `json:"resolution,omitempty"`
+	Ratio          *string                `json:"ratio,omitempty"`
+	GenerateAudio  *bool                  `json:"generate_audio,omitempty"`
+	Watermark      *bool                  `json:"watermark,omitempty"`
 	Duration       int                    `json:"duration,omitempty"`
 	DurationSet    bool                   `json:"-"`
 	Seconds        string                 `json:"seconds,omitempty"`
@@ -759,7 +764,26 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	if strings.TrimSpace(t.Prompt) == "" {
+		t.Prompt = taskContentPrompt(t.Content)
+	}
+
 	return nil
+}
+
+func taskContentPrompt(content []json.RawMessage) string {
+	texts := make([]string, 0, 1)
+	for _, raw := range content {
+		var item struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}
+		if err := common.Unmarshal(raw, &item); err != nil || item.Type != "text" || strings.TrimSpace(item.Text) == "" {
+			continue
+		}
+		texts = append(texts, item.Text)
+	}
+	return strings.Join(texts, "\n")
 }
 func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 	metadata := t.Metadata
