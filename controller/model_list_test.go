@@ -392,6 +392,124 @@ func TestListModelsUsesAdvancedCustomEndpointTypesFromPricingCache(t *testing.T)
 	}, payload.Data[0].SupportedEndpointTypes)
 }
 
+func TestListModelsIncludesConfiguredTokenLimits(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "kimi-k2.7-code",
+		ChannelId: 1,
+		Enabled:   true,
+	}).Error)
+	require.NoError(t, db.Create(&model.Model{
+		ModelName:       "kimi-k2.7-code",
+		NameRule:        model.NameRuleExact,
+		Status:          common.ChannelStatusEnabled,
+		ContextWindow:   262144,
+		MaxOutputTokens: 32768,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	payload := decodeListModelsPayload(t, recorder)
+	require.Len(t, payload.Data, 1)
+	require.Equal(t, "kimi-k2.7-code", payload.Data[0].Id)
+	require.Equal(t, int64(262144), payload.Data[0].ContextWindow)
+	require.Equal(t, int64(32768), payload.Data[0].MaxOutputTokens)
+}
+
+func TestListModelsOmitsUnspecifiedTokenLimits(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "model-without-token-limits",
+		ChannelId: 1,
+		Enabled:   true,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Data []map[string]any `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.Len(t, payload.Data, 1)
+	require.Equal(t, "model-without-token-limits", payload.Data[0]["id"])
+	require.NotContains(t, payload.Data[0], "context_window")
+	require.NotContains(t, payload.Data[0], "max_output_tokens")
+}
+
+func TestListModelsUsesNameRuleTokenLimits(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "kimi-k2.7-code",
+		ChannelId: 1,
+		Enabled:   true,
+	}).Error)
+	require.NoError(t, db.Create(&model.Model{
+		ModelName:       "kimi-",
+		NameRule:        model.NameRulePrefix,
+		Status:          common.ChannelStatusEnabled,
+		ContextWindow:   200000,
+		MaxOutputTokens: 16384,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	payload := decodeListModelsPayload(t, recorder)
+	require.Len(t, payload.Data, 1)
+	require.Equal(t, "kimi-k2.7-code", payload.Data[0].Id)
+	require.Equal(t, int64(200000), payload.Data[0].ContextWindow)
+	require.Equal(t, int64(16384), payload.Data[0].MaxOutputTokens)
+}
+
+func TestListModelsMetadataDoesNotBypassTokenModelLimits(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Model{
+		ModelName:       "metadata-only-model",
+		NameRule:        model.NameRuleExact,
+		Status:          common.ChannelStatusEnabled,
+		ContextWindow:   262144,
+		MaxOutputTokens: 32768,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
+		"token-allowed-model": true,
+	})
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	payload := decodeListModelsPayload(t, recorder)
+	require.Len(t, payload.Data, 1)
+	require.Equal(t, "token-allowed-model", payload.Data[0].Id)
+	require.NotEqual(t, "metadata-only-model", payload.Data[0].Id)
+}
+
 func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{
