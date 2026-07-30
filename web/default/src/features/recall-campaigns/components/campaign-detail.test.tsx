@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeAll, describe, expect, mock, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test'
 import { createInstance } from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
@@ -67,6 +67,10 @@ beforeAll(async () => {
   })
 })
 
+afterAll(() => {
+  mock.restore()
+})
+
 function makeStage(): RecallEmailStage {
   return {
     stage_no: 1,
@@ -104,6 +108,12 @@ function makeMetrics(): RecallCampaignMetrics {
     no_coupon_count: 1,
     currency_metrics: [],
   }
+}
+
+function makeLegacyMetricsWithoutOpenedCount(): RecallCampaignMetrics {
+  const { opened_recipient_count: _openedRecipientCount, ...legacyMetrics } =
+    makeMetrics()
+  return legacyMetrics as RecallCampaignMetrics
 }
 
 function makeDetail(campaignType: RecallCampaignType): RecallCampaignDetail {
@@ -188,7 +198,10 @@ function makeDetail(campaignType: RecallCampaignType): RecallCampaignDetail {
   }
 }
 
-function renderCampaignDetail(campaignType: RecallCampaignType): string {
+function renderCampaignDetail(
+  campaignType: RecallCampaignType,
+  metrics: RecallCampaignMetrics = makeMetrics()
+): string {
   const campaignId = 42
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -204,7 +217,7 @@ function renderCampaignDetail(campaignType: RecallCampaignType): string {
   })
   queryClient.setQueryData(recallCampaignKeys.metrics(campaignId), {
     success: true,
-    data: makeMetrics(),
+    data: metrics,
   })
   queryClient.setQueryData(recallCampaignKeys.recipients(campaignId, 1), {
     success: true,
@@ -416,5 +429,19 @@ describe('CampaignDetail metric rendering', () => {
     expect(metricsHtml).toContain('Direct conversions')
     expect(metricsHtml).toContain('Assisted conversions')
     expect(metricsHtml).toContain('No-coupon conversions')
+  })
+
+  test('renders zero opened users for legacy metrics responses without opened counts', () => {
+    const metricsHtml = campaignMetricsMarkup(
+      renderCampaignDetail(
+        'content_only',
+        makeLegacyMetricsWithoutOpenedCount()
+      )
+    )
+
+    expect(metricsHtml).toContain('Users who opened')
+    expect(metricsHtml).toContain('>0</div>')
+    expect(metricsHtml).toContain('Observed clicks')
+    expect(metricsHtml).toContain('>3</div>')
   })
 })

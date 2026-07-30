@@ -106,7 +106,7 @@ export function getRecallCampaignMetricCards(
     ['Candidates', metrics.candidate_count],
     ['Enrolled', metrics.enrolled_count],
     ['Excluded', metrics.excluded_count],
-    ['Users who opened', metrics.opened_recipient_count],
+    ['Users who opened', metrics.opened_recipient_count ?? 0],
     ['Observed clicks', metrics.observed_click_count],
     ...(isPromotion
       ? ([
