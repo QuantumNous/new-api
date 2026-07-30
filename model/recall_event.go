@@ -278,6 +278,31 @@ func RecordRecallClaimClickWithContext(ctx context.Context, recipientID int64, c
 	return outcome, err
 }
 
+func RecordRecallEmailOpenWithContext(ctx context.Context, recipientID int64, openedAt int64) (bool, error) {
+	recipient := RecallRecipient{}
+	if err := DB.WithContext(ctx).
+		Select("id", "campaign_id").
+		Where("id = ?", recipientID).
+		First(&recipient).Error; err != nil {
+		return false, err
+	}
+
+	event := RecallEvent{
+		CampaignId:    recipient.CampaignId,
+		RecipientId:   recipient.Id,
+		EventType:     "email_open",
+		Source:        "email_open",
+		SourceEventId: fmt.Sprintf("recipient:%d", recipient.Id),
+		EventData:     `{}`,
+		CreatedAt:     openedAt,
+	}
+	result := insertRecallRunEvent(DB.WithContext(ctx), &event)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 func RecordRecallConversionWithContext(ctx context.Context, record RecallConversionRecord) (bool, error) {
 	converted := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
