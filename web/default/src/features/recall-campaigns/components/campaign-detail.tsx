@@ -22,6 +22,7 @@ import {
   listRecallRecipients,
   recallCampaignKeys,
 } from '../api'
+import { getRecallDeliveryErrorCopyKey } from '../copy'
 import {
   formatRecallCampaignType,
   getRecallEmailLocaleStatus,
@@ -29,9 +30,9 @@ import {
   getRecallRecipientRetry,
   isRecallPromotionCampaign,
 } from '../helpers'
-import { getRecallDeliveryErrorCopyKey } from '../copy'
 import type {
   RecallCampaignAction,
+  RecallCampaignMetrics,
   RecallCampaignStatus,
   RecallEmailLocalizationBlocker,
   RecallEmailStage,
@@ -55,9 +56,10 @@ function getRecallActivationBlockerReason(
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function getRecallActivationReadiness(
-  stages: RecallEmailStage[]
-): { ready: boolean; blockers: RecallEmailLocalizationBlocker[] } {
+export function getRecallActivationReadiness(stages: RecallEmailStage[]): {
+  ready: boolean
+  blockers: RecallEmailLocalizationBlocker[]
+} {
   const blockers: RecallEmailLocalizationBlocker[] = []
   const allowedLocales = new Set(activationLocales)
   for (const stage of stages) {
@@ -93,6 +95,28 @@ export function formatRecallDeliveryErrorMessage(
   if (message) return message
   if (code) return code
   return message
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function getRecallCampaignMetricCards(
+  metrics: RecallCampaignMetrics,
+  isPromotion: boolean
+): Array<[string, number]> {
+  return [
+    ['Candidates', metrics.candidate_count],
+    ['Enrolled', metrics.enrolled_count],
+    ['Excluded', metrics.excluded_count],
+    ['Users who opened', metrics.opened_recipient_count],
+    ['Observed clicks', metrics.observed_click_count],
+    ...(isPromotion
+      ? ([
+          ['Direct conversions', metrics.direct_count],
+          ['Assisted conversions', metrics.assisted_count],
+          ['No-coupon conversions', metrics.no_coupon_count],
+        ] satisfies Array<[string, number]>)
+      : []),
+    ['Accepted messages', metrics.messages_accepted_count],
+  ]
 }
 
 function formatTimestamp(value: number): string {
@@ -232,9 +256,7 @@ export function CampaignDetail(props: CampaignDetailProps) {
               <Button
                 type='button'
                 variant='outline'
-                onClick={() =>
-                  setFocusBlocker(activationReadiness.blockers[0])
-                }
+                onClick={() => setFocusBlocker(activationReadiness.blockers[0])}
               >
                 {t('Generate or fix translations')}
               </Button>
@@ -248,30 +270,16 @@ export function CampaignDetail(props: CampaignDetailProps) {
               {metrics ? (
                 <>
                   <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
-                    {[
-                      ['Candidates', metrics.candidate_count],
-                      ['Enrolled', metrics.enrolled_count],
-                      ['Excluded', metrics.excluded_count],
-                      ['Observed clicks', metrics.observed_click_count],
-                      ...(isPromotion
-                        ? [
-                            ['Direct conversions', metrics.direct_count],
-                            ['Assisted conversions', metrics.assisted_count],
-                            ['No-coupon conversions', metrics.no_coupon_count],
-                          ]
-                        : []),
-                      ['Accepted messages', metrics.messages_accepted_count],
-                    ].map(([label, value]) => (
-                      <div
-                        className='rounded-lg border p-3'
-                        key={String(label)}
-                      >
-                        <div className='text-muted-foreground text-xs'>
-                          {t(String(label))}
+                    {getRecallCampaignMetricCards(metrics, isPromotion).map(
+                      ([label, value]) => (
+                        <div className='rounded-lg border p-3' key={label}>
+                          <div className='text-muted-foreground text-xs'>
+                            {t(label)}
+                          </div>
+                          <div className='text-xl font-semibold'>{value}</div>
                         </div>
-                        <div className='text-xl font-semibold'>{value}</div>
-                      </div>
-                    ))}
+                      )
+                    )}
                   </div>
                   {isPromotion ? (
                     <div className='mt-4 grid gap-3 md:grid-cols-2'>
