@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Check, CircleDollarSign, Compass, KeyRound, Workflow } from "lucide-react";
+import { ArrowRight, Check, CircleDollarSign, Compass, KeyRound, Scale, Workflow } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
 import {
   getToolsAdMarketplaceUrl,
@@ -97,6 +97,53 @@ export function ToolsAdLandingPage({ config }: { config: ToolsAdLandingConfig })
                   </article>
                 ))}
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 py-20 sm:px-6 md:py-28">
+          <div className="mx-auto max-w-7xl">
+            <div className="max-w-3xl">
+              <Scale className="size-7 text-[#1e67ff] dark:text-[#8fb4ff]" />
+              <p className="mt-5 font-mono text-xs tracking-[0.15em] text-[#1e67ff] uppercase dark:text-[#8fb4ff]">{config.comparison.eyebrow}</p>
+              <h2 className="mt-4 text-3xl leading-tight font-black tracking-[-0.04em] md:text-5xl">{config.comparison.title}</h2>
+              <p className="mt-5 text-sm leading-7 text-black/56 md:text-base dark:text-white/48">{config.comparison.body}</p>
+            </div>
+            <div className="mt-12 overflow-x-auto">
+              <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm">
+                <thead>
+                  <tr>
+                    {config.comparison.headers.map((header, index) => (
+                      <th
+                        key={header}
+                        className={`border-b border-black/12 px-5 py-4 font-bold dark:border-white/12 ${index === 1 ? "bg-[#1e67ff]/8 text-[#1e67ff] dark:bg-[#8fb4ff]/10 dark:text-[#8fb4ff]" : "text-black/62 dark:text-white/58"}`}
+                      >
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {config.comparison.rows.map((row) => (
+                    <tr key={row[0]}>
+                      {row.map((cell, index) => (
+                        <td
+                          key={cell}
+                          className={`border-b border-black/8 px-5 py-5 align-top leading-6 dark:border-white/8 ${index === 0 ? "font-semibold" : "text-black/58 dark:text-white/52"} ${index === 1 ? "bg-[#1e67ff]/6 font-medium text-black/72 dark:bg-[#8fb4ff]/8 dark:text-white/72" : ""}`}
+                        >
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs leading-6 text-black/45 dark:text-white/40">
+              <span className="max-w-2xl">{config.comparison.note}</span>
+              {config.comparison.sources.map((source) => (
+                <a key={source.href} href={source.href} target="_blank" rel="noreferrer" className="font-semibold text-[#1e67ff] hover:underline dark:text-[#8fb4ff]">{source.label}</a>
+              ))}
             </div>
           </div>
         </section>

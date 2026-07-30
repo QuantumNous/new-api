@@ -17,6 +17,13 @@ describe("tools ad landing config", () => {
       expect(config.benefits).toHaveLength(4);
       expect(config.faqs).toHaveLength(3);
       expect(getToolsAdMarketplaceUrl(slug)).toContain("/api-marketplace");
+      // Every ad landing page carries an honest, sourced competitor comparison.
+      expect(config.comparison.headers).toHaveLength(3);
+      expect(config.comparison.rows.length).toBeGreaterThanOrEqual(4);
+      for (const row of config.comparison.rows) expect(row).toHaveLength(3);
+      expect(config.comparison.note).toContain("reviewed");
+      expect(config.comparison.sources.length).toBeGreaterThanOrEqual(2);
+      for (const source of config.comparison.sources) expect(source.href).toMatch(/^https:\/\//);
     }
   });
 

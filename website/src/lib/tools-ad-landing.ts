@@ -27,6 +27,15 @@ export type ToolsAdLandingConfig = {
   useCasesTitle: string;
   useCases: string[];
   faqs: Array<{ question: string; answer: string }>;
+  comparison: {
+    eyebrow: string;
+    title: string;
+    body: string;
+    headers: string[];
+    rows: string[][];
+    note: string;
+    sources: Array<{ label: string; href: string }>;
+  };
   finalTitle: string;
   finalBody: string;
   seo: { title: string; description: string };
@@ -104,6 +113,45 @@ const WEB_SCRAPING_API: ToolsAdLandingConfig = {
         "Flatkey-side failures should not consume balance. Use the execution response and request ledger as the source of truth for the final charge.",
     },
   ],
+  comparison: {
+    eyebrow: "Flatkey vs a dedicated scraping API",
+    title: "Compare the operating model, not just the request.",
+    body: "Single-purpose scraping APIs such as ScraperAPI, Bright Data, and Zyte are built to run one kind of extraction well. Flatkey is the better fit when an agent needs many ready-to-run web-data tools plus AI models behind one key and one prepaid balance.",
+    headers: ["Decision", "Flatkey Tools", "A dedicated scraping API"],
+    rows: [
+      [
+        "Primary unit",
+        "A metered tool with a visible schema and exact price shown before each run",
+        "A scraping endpoint or plan you integrate and manage per provider",
+      ],
+      [
+        "Credentials",
+        "One Flatkey API key and one prepaid balance",
+        "A provider-specific key and account, usually one per vendor",
+      ],
+      [
+        "Commercial model",
+        "Pay per accepted run; the same balance also covers 300+ AI models and other tools",
+        "Subscription tiers or credit packs scoped to that scraping product; verify current terms",
+      ],
+      [
+        "After extraction",
+        "Continue to models, search, and other tools on the same account and request trail",
+        "Move the data into a separate AI or tooling stack you wire up yourself",
+      ],
+      [
+        "Best fit",
+        "Agents that mix web extraction with search, models, and downstream jobs",
+        "Teams that want one specialized scraper tuned and operated in-house",
+      ],
+    ],
+    note: "Comparison reflects public product documentation reviewed July 29, 2026. Capabilities and pricing change often; confirm current terms on each vendor's official pages.",
+    sources: [
+      { label: "ScraperAPI docs", href: "https://docs.scraperapi.com/" },
+      { label: "Bright Data pricing", href: "https://brightdata.com/pricing" },
+      { label: "Zyte pricing", href: "https://www.zyte.com/pricing/" },
+    ],
+  },
   finalTitle: "Prove one web-data job before you scale it.",
   finalBody: "Inspect the live contract, run a bounded example, and keep the path only when the returned data meets your acceptance threshold.",
   seo: {
@@ -185,6 +233,45 @@ const GOOGLE_SEARCH_API: ToolsAdLandingConfig = {
         "Inspect the exact Flatkey price, start with a small result limit, keep an idempotency key where supported, and reconcile the final charge from the execution response.",
     },
   ],
+  comparison: {
+    eyebrow: "Flatkey vs a dedicated SERP API",
+    title: "Compare the operating model, not just the query.",
+    body: "Single-purpose SERP APIs such as SerpApi, SearchApi, and Bright Data SERP specialize in returning search results. Flatkey fits when an agent needs search collection plus research, enrichment, and AI models on one key and one prepaid balance.",
+    headers: ["Decision", "Flatkey Tools", "A dedicated SERP API"],
+    rows: [
+      [
+        "Primary unit",
+        "A metered search tool with a visible schema and exact price shown before each run",
+        "A search endpoint or plan you integrate and manage per provider",
+      ],
+      [
+        "Credentials",
+        "One Flatkey API key and one prepaid balance",
+        "A provider-specific key and account, usually one per vendor",
+      ],
+      [
+        "Commercial model",
+        "Pay per accepted run; the same balance also covers 300+ AI models and other tools",
+        "Monthly search quotas or credit tiers scoped to that SERP product; verify current terms",
+      ],
+      [
+        "After the results",
+        "Classify, enrich, or summarize with models on the same account and request trail",
+        "Move results into a separate AI or tooling stack you wire up yourself",
+      ],
+      [
+        "Best fit",
+        "Agents that turn search into a decision across research, GTM, and content jobs",
+        "Teams that only need raw SERP data at high volume from one vendor",
+      ],
+    ],
+    note: "Comparison reflects public product documentation reviewed July 29, 2026. Capabilities and pricing change often; confirm current terms on each vendor's official pages.",
+    sources: [
+      { label: "SerpApi search API", href: "https://serpapi.com/search-api" },
+      { label: "SearchApi", href: "https://www.searchapi.io/" },
+      { label: "Bright Data SERP API", href: "https://brightdata.com/products/serp-api" },
+    ],
+  },
   finalTitle: "Turn one search query into a complete agent workflow.",
   finalBody: "Start with a bounded search, preserve the source URLs, and measure the cost of the accepted downstream result—not only the first API call.",
   seo: {

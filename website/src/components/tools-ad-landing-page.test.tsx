@@ -9,6 +9,8 @@ describe("ToolsAdLandingPage", () => {
     expect(html).toContain("Web Scraping API");
     expect(html).toContain("Execution receipt");
     expect(html).toContain("Browse scraping tools");
+    expect(html).toContain("Flatkey vs a dedicated scraping API");
+    expect(html).toContain("docs.scraperapi.com");
   });
 
   test("renders search evidence and source-preservation language", () => {
@@ -16,5 +18,7 @@ describe("ToolsAdLandingPage", () => {
     expect(html).toContain("Google Search API");
     expect(html).toContain("Source URLs preserved");
     expect(html).toContain("Browse search tools");
+    expect(html).toContain("Flatkey vs a dedicated SERP API");
+    expect(html).toContain("serpapi.com/search-api");
   });
 });
