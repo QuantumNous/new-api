@@ -63,6 +63,7 @@ import { attachmentPreviewSrc } from '../../lib/attachments/attachment-utils'
 import { downloadGeneratedMedia } from '../../lib/download-generated-media'
 import { getMessageContentStyles } from '../../lib/message/message-styles'
 import type { Message } from '../../types'
+import { MediaLightbox, type LightboxItem } from '../media/media-lightbox'
 import {
   ImagePlaceholder,
   VideoPlaceholder,
@@ -144,6 +145,10 @@ export function PlaygroundMessageContent({
       : message.managedTool?.error
 
   const shouldReduce = useReducedMotion()
+  const [lightbox, setLightbox] = useState<{
+    items: LightboxItem[]
+    index: number
+  } | null>(null)
   const toolMeta = message.managedTool
     ? (MANAGED_TOOL_META[message.managedTool.action] ?? DEFAULT_TOOL_META)
     : DEFAULT_TOOL_META
@@ -172,12 +177,32 @@ export function PlaygroundMessageContent({
         <div className='mb-2 flex flex-wrap gap-2'>
           {message.attachments.map((attachment, index) =>
             attachmentPreviewSrc(attachment) ? (
-              <img
+              <button
                 key={attachment.id}
-                src={attachmentPreviewSrc(attachment)}
-                alt={t('Attachment {{index}}', { index: index + 1 })}
-                className='border-border size-24 rounded-lg border object-cover'
-              />
+                type='button'
+                className='focus-visible:ring-ring cursor-zoom-in rounded-lg outline-none focus-visible:ring-2'
+                aria-label={t('Attachment {{index}}', { index: index + 1 })}
+                onClick={() => {
+                  const items = (message.attachments ?? [])
+                    .map((item) => attachmentPreviewSrc(item))
+                    .filter((src): src is string => Boolean(src))
+                    .map((src) => ({ url: src }))
+                  const src = attachmentPreviewSrc(attachment)
+                  setLightbox({
+                    items,
+                    index: Math.max(
+                      0,
+                      items.findIndex((item) => item.url === src)
+                    ),
+                  })
+                }}
+              >
+                <img
+                  src={attachmentPreviewSrc(attachment)}
+                  alt={t('Attachment {{index}}', { index: index + 1 })}
+                  className='border-border size-24 rounded-lg border object-cover'
+                />
+              </button>
             ) : (
               <div
                 key={attachment.id}
@@ -270,7 +295,14 @@ export function PlaygroundMessageContent({
             </div>
           )}
           {message.managedTool.images && (
-            <div className='mt-3 grid gap-2 sm:grid-cols-2'>
+            <div
+              className={cn(
+                'mt-3 grid gap-2',
+                message.managedTool.images.length > 1
+                  ? 'sm:grid-cols-2'
+                  : 'max-w-md'
+              )}
+            >
               {message.managedTool.images.map((url, index) => (
                 <ManagedToolImage
                   key={url}
@@ -278,6 +310,16 @@ export function PlaygroundMessageContent({
                   index={index}
                   alt={t('Generated image')}
                   downloadLabel={t('Download')}
+                  onOpen={() => {
+                    const items = (message.managedTool?.images ?? []).map(
+                      (imageUrl, imageIndex) => ({
+                        url: imageUrl,
+                        alt: t('Generated image'),
+                        downloadName: `image-${imageIndex + 1}`,
+                      })
+                    )
+                    setLightbox({ items, index })
+                  }}
                 />
               ))}
             </div>
@@ -357,6 +399,18 @@ export function PlaygroundMessageContent({
           {actions}
         </>
       )}
+
+      <MediaLightbox
+        open={lightbox != null}
+        onOpenChange={(open) => {
+          if (!open) setLightbox(null)
+        }}
+        items={lightbox?.items ?? []}
+        index={lightbox?.index ?? 0}
+        onIndexChange={(index) =>
+          setLightbox((state) => (state ? { ...state, index } : state))
+        }
+      />
     </div>
   )
 }
@@ -366,6 +420,7 @@ function ManagedToolImage(props: {
   index: number
   alt: string
   downloadLabel: string
+  onOpen?: () => void
 }) {
   const [sizeLabel, setSizeLabel] = useState<string | null>(null)
 
@@ -377,7 +432,7 @@ function ManagedToolImage(props: {
       <img
         src={props.url}
         alt={props.alt}
-        className='generation-image-reveal w-full object-contain'
+        className='generation-image-reveal max-h-80 w-full object-cover'
         referrerPolicy='no-referrer'
         loading='lazy'
         decoding='async'
@@ -388,6 +443,14 @@ function ManagedToolImage(props: {
           }
         }}
       />
+      {props.onOpen && (
+        <button
+          type='button'
+          className='absolute inset-0 cursor-zoom-in'
+          aria-label={props.alt}
+          onClick={props.onOpen}
+        />
+      )}
       {sizeLabel && (
         <span className='generation-size-badge bg-background/85 text-foreground/90 absolute top-2 left-2 rounded-full px-2 py-0.5 font-mono text-[11px] shadow-sm backdrop-blur-sm'>
           {sizeLabel}

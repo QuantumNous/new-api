@@ -6,8 +6,9 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { nanoid } from 'nanoid'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { usePlaygroundStore } from '@/stores/playground-store'
 
@@ -19,17 +20,23 @@ import {
   uploadPlaygroundAsset,
 } from '../api'
 import { persistGeneratedMediaAsset } from '../lib/download-generated-media'
-import type { GeneratedImage, VideoSubmission } from '../types'
+import type { StudioRunSummary } from '../lib/session/session-types'
+import {
+  createLocalRunId,
+  type PendingStudioRun,
+  type StudioGenerationInput,
+} from '../lib/studio/studio-feed'
+import type { StudioSettings } from '../types'
 import {
   ensureActiveStudioProjectId,
   recordActiveStudioRun,
 } from './use-session-cloud-sync'
 
 /**
- * Generation results and mutations for the studio modalities. Settings live
- * in the shared playground store (persisted, migrated); the transient
- * results below reset when the playground unmounts, matching the previous
- * behavior.
+ * Concurrent generation engine for the studio modalities. Every submit
+ * appends a pending entry immediately (so the feed shows it), runs the
+ * request, and finalizes into the owning session's run history. Multiple
+ * runs may be in flight at once; failures stay on the feed with a retry.
  */
 export type UseStudioResult = ReturnType<typeof useStudio>
 
@@ -37,22 +44,105 @@ export function useStudio() {
   const queryClient = useQueryClient()
   const settings = usePlaygroundStore((state) => state.studioSettings)
   const setSettings = usePlaygroundStore((state) => state.setStudioSettings)
-  const [images, setImages] = useState<GeneratedImage[]>([])
-  const [video, setVideo] = useState<VideoSubmission | null>(null)
-  const [audioUrl, setAudioUrl] = useState('')
+  const [pendingRuns, setPendingRuns] = useState<PendingStudioRun[]>([])
+  const blobUrlsRef = useRef<string[]>([])
 
   useEffect(
     () => () => {
-      if (audioUrl) URL.revokeObjectURL(audioUrl)
+      for (const url of blobUrlsRef.current) URL.revokeObjectURL(url)
+      blobUrlsRef.current = []
     },
-    [audioUrl]
+    []
   )
 
-  const imageMutation = useMutation({
-    // Persist to same-origin assets before surfacing URLs so <img> and
-    // download both work even when the provider blocks hotlinking / CORS.
-    mutationFn: async (variables: Parameters<typeof generateImages>[0]) => {
-      const generated = await generateImages(variables)
+  const patchPending = useCallback(
+    (clientId: string, patch: Partial<PendingStudioRun>) => {
+      setPendingRuns((previous) =>
+        previous.map((entry) =>
+          entry.clientId === clientId ? { ...entry, ...patch } : entry
+        )
+      )
+    },
+    []
+  )
+
+  const removePending = useCallback((clientId: string) => {
+    setPendingRuns((previous) =>
+      previous.filter((entry) => entry.clientId !== clientId)
+    )
+  }, [])
+
+  const finalizeRun = useCallback(
+    async (input: {
+      generation: StudioGenerationInput
+      assetId?: number
+      taskId?: string
+      fallbackUrl?: string
+      projectId: number
+    }) => {
+      const { generation } = input
+      const cloudRun = await createPlaygroundRun({
+        modality: generation.modality,
+        model: generation.model,
+        prompt: generation.prompt,
+        asset_id: input.assetId,
+        task_id: input.taskId,
+        project_id: input.projectId || undefined,
+      })
+      const run: StudioRunSummary = cloudRun
+        ? {
+            id: cloudRun.id,
+            model: cloudRun.model,
+            prompt: cloudRun.prompt,
+            resultUrl: cloudRun.result_url || input.fallbackUrl,
+            assetId: cloudRun.asset_id,
+            taskId: cloudRun.task_id,
+            createdAt: cloudRun.created_at
+              ? cloudRun.created_at * 1000
+              : Date.now(),
+          }
+        : {
+            id: createLocalRunId(),
+            model: generation.model,
+            prompt: generation.prompt,
+            resultUrl: input.fallbackUrl,
+            assetId: input.assetId,
+            taskId: input.taskId,
+            createdAt: Date.now(),
+          }
+      const previewUrl = run.resultUrl
+      recordActiveStudioRun({
+        sessionId: generation.sessionId,
+        prompt: generation.prompt,
+        model: generation.model,
+        previewUrls:
+          previewUrl &&
+          !previewUrl.startsWith('data:') &&
+          !previewUrl.startsWith('blob:')
+            ? [previewUrl]
+            : undefined,
+        run,
+      })
+    },
+    []
+  )
+
+  const executeImageRun = useCallback(
+    async (generation: StudioGenerationInput, snapshot: StudioSettings) => {
+      const generated = await generateImages({
+        model: generation.model,
+        group: generation.group,
+        prompt: generation.prompt,
+        settings: snapshot,
+        referenceImage: generation.references[0] ?? null,
+        referenceImages: generation.references.slice(1),
+        editMode: generation.references.length > 0,
+      })
+      if (generated.length === 0) {
+        throw new Error('The model returned no images.')
+      }
+      // Persist to same-origin assets before surfacing URLs so <img> and
+      // download both work even when the provider blocks hotlinking / CORS.
       const persisted = await Promise.all(
         generated.map(async (image, index) => {
           try {
@@ -61,169 +151,150 @@ export function useStudio() {
               `generated-image-${index + 1}`,
               'image'
             )
-            return {
-              url: asset.url,
-              revisedPrompt: image.revisedPrompt,
-              assetId: asset.id,
-            }
+            return { url: asset.url, assetId: asset.id as number | undefined }
           } catch {
-            // Fall back to the original URL (with no-referrer on display).
-            return { ...image, assetId: undefined as number | undefined }
+            return { url: image.url, assetId: undefined }
           }
         })
       )
-      return persisted
+      const projectId = await ensureActiveStudioProjectId(generation.sessionId)
+      for (const image of persisted) {
+        await finalizeRun({
+          generation,
+          assetId: image.assetId,
+          fallbackUrl: image.url,
+          projectId,
+        })
+      }
+      await queryClient.invalidateQueries({ queryKey: ['playground', 'runs'] })
     },
-    onSuccess: (images, variables) => {
-      setImages(images)
-      const previewUrls = images
-        .map((image) => image.url)
-        .filter((url) => !url.startsWith('data:') && !url.startsWith('blob:'))
-      recordActiveStudioRun({
-        prompt: variables.prompt,
-        model: variables.model,
-        previewUrls,
+    [finalizeRun, queryClient]
+  )
+
+  const executeVideoRun = useCallback(
+    async (generation: StudioGenerationInput, snapshot: StudioSettings) => {
+      const submission = await submitVideo({
+        model: generation.model,
+        group: generation.group,
+        prompt: generation.prompt,
+        settings: snapshot,
+        firstFrame: generation.references[0] ?? null,
+        inputReference: generation.references[0] ?? null,
       })
-      void (async () => {
-        const projectId = await ensureActiveStudioProjectId()
-        await Promise.allSettled(
-          images.map(async (image) => {
-            if (!image.assetId) return
-            const run = await createPlaygroundRun({
-              modality: 'image',
-              model: variables.model,
-              prompt: variables.prompt,
-              asset_id: image.assetId,
-              project_id: projectId || undefined,
-            })
-            if (run) {
-              recordActiveStudioRun({
-                prompt: variables.prompt,
-                model: variables.model,
-                previewUrls: run.result_url ? [run.result_url] : undefined,
-                run: {
-                  id: run.id,
-                  model: run.model,
-                  prompt: run.prompt,
-                  resultUrl: run.result_url,
-                  assetId: run.asset_id,
-                  taskId: run.task_id,
-                  createdAt: run.created_at
-                    ? run.created_at * 1000
-                    : Date.now(),
-                },
-              })
-            }
-          })
+      if (!submission.taskId) {
+        throw new Error('The provider did not return a task id.')
+      }
+      const projectId = await ensureActiveStudioProjectId(generation.sessionId)
+      await finalizeRun({ generation, taskId: submission.taskId, projectId })
+      await queryClient.invalidateQueries({
+        queryKey: ['playground', 'task-history'],
+      })
+      await queryClient.invalidateQueries({ queryKey: ['playground', 'runs'] })
+    },
+    [finalizeRun, queryClient]
+  )
+
+  const executeAudioRun = useCallback(
+    async (generation: StudioGenerationInput, snapshot: StudioSettings) => {
+      const blob = await generateSpeech({
+        model: generation.model,
+        group: generation.group,
+        text: generation.prompt,
+        settings: snapshot,
+      })
+      let assetId: number | undefined
+      let resultUrl = ''
+      try {
+        const extension = snapshot.audioFormat || 'mp3'
+        const asset = await uploadPlaygroundAsset(
+          new File([blob], `speech.${extension}`, { type: blob.type }),
+          'audio'
         )
-        await queryClient.invalidateQueries({
-          queryKey: ['playground', 'runs'],
-        })
-      })()
-    },
-  })
-  const videoMutation = useMutation({
-    mutationFn: submitVideo,
-    onSuccess: (submission, variables) => {
-      setVideo(submission)
-      recordActiveStudioRun({
-        prompt: variables.prompt,
-        model: variables.model,
+        assetId = asset.id
+        resultUrl = asset.url
+      } catch {
+        // Keep playback for this tab even when the asset upload fails.
+        resultUrl = URL.createObjectURL(blob)
+        blobUrlsRef.current.push(resultUrl)
+      }
+      const projectId = await ensureActiveStudioProjectId(generation.sessionId)
+      await finalizeRun({
+        generation,
+        assetId,
+        fallbackUrl: resultUrl,
+        projectId,
       })
-      void (async () => {
-        const projectId = await ensureActiveStudioProjectId()
-        const run = await createPlaygroundRun({
-          modality: 'video',
-          model: variables.model,
-          prompt: variables.prompt,
-          task_id: submission.taskId,
-          project_id: projectId || undefined,
-        })
-        if (run) {
-          recordActiveStudioRun({
-            prompt: variables.prompt,
-            model: variables.model,
-            run: {
-              id: run.id,
-              model: run.model,
-              prompt: run.prompt,
-              resultUrl: run.result_url,
-              assetId: run.asset_id,
-              taskId: run.task_id,
-              createdAt: run.created_at ? run.created_at * 1000 : Date.now(),
-            },
-          })
-        }
-        await queryClient.invalidateQueries({
-          queryKey: ['playground', 'task-history'],
-        })
-        await queryClient.invalidateQueries({
-          queryKey: ['playground', 'runs'],
-        })
-      })()
+      await queryClient.invalidateQueries({ queryKey: ['playground', 'runs'] })
     },
-  })
-  const audioMutation = useMutation({
-    mutationFn: generateSpeech,
-    onSuccess: (blob, variables) => {
-      if (audioUrl) URL.revokeObjectURL(audioUrl)
-      setAudioUrl(URL.createObjectURL(blob))
-      recordActiveStudioRun({
-        prompt: variables.text,
-        model: variables.model,
-      })
-      void (async () => {
-        let assetId: number
-        try {
-          const extension = variables.settings.audioFormat || 'mp3'
-          const asset = await uploadPlaygroundAsset(
-            new File([blob], `speech.${extension}`, { type: blob.type }),
-            'audio'
-          )
-          assetId = asset.id
-        } catch {
-          // Playback remains available without creating a broken saved run.
-          return
+    [finalizeRun, queryClient]
+  )
+
+  const executeRun = useCallback(
+    async (entry: PendingStudioRun) => {
+      try {
+        if (entry.input.modality === 'image') {
+          await executeImageRun(entry.input, entry.settings)
+        } else if (entry.input.modality === 'video') {
+          await executeVideoRun(entry.input, entry.settings)
+        } else {
+          await executeAudioRun(entry.input, entry.settings)
         }
-        const projectId = await ensureActiveStudioProjectId()
-        const run = await createPlaygroundRun({
-          modality: 'audio',
-          model: variables.model,
-          prompt: variables.text,
-          asset_id: assetId,
-          project_id: projectId || undefined,
+        removePending(entry.clientId)
+      } catch (error) {
+        patchPending(entry.clientId, {
+          status: 'error',
+          error: error instanceof Error ? error.message : String(error),
         })
-        if (run) {
-          recordActiveStudioRun({
-            prompt: variables.text,
-            model: variables.model,
-            previewUrls: run.result_url ? [run.result_url] : undefined,
-            run: {
-              id: run.id,
-              model: run.model,
-              prompt: run.prompt,
-              resultUrl: run.result_url,
-              assetId: run.asset_id,
-              taskId: run.task_id,
-              createdAt: run.created_at ? run.created_at * 1000 : Date.now(),
-            },
-          })
-        }
-        await queryClient.invalidateQueries({
-          queryKey: ['playground', 'runs'],
-        })
-      })()
+      }
     },
-  })
+    [
+      executeAudioRun,
+      executeImageRun,
+      executeVideoRun,
+      patchPending,
+      removePending,
+    ]
+  )
+
+  const startGeneration = useCallback(
+    (input: StudioGenerationInput) => {
+      const entry: PendingStudioRun = {
+        clientId: nanoid(10),
+        input,
+        settings: { ...usePlaygroundStore.getState().studioSettings },
+        startedAt: Date.now(),
+        status: 'running',
+      }
+      setPendingRuns((previous) => [...previous, entry])
+      void executeRun(entry)
+    },
+    [executeRun]
+  )
+
+  const retryRun = useCallback(
+    (clientId: string) => {
+      const entry = pendingRuns.find((item) => item.clientId === clientId)
+      if (!entry || entry.status !== 'error') return
+      const next: PendingStudioRun = {
+        ...entry,
+        status: 'running',
+        error: undefined,
+        startedAt: Date.now(),
+      }
+      setPendingRuns((previous) =>
+        previous.map((item) => (item.clientId === clientId ? next : item))
+      )
+      void executeRun(next)
+    },
+    [executeRun, pendingRuns]
+  )
 
   return {
     settings,
     setSettings,
-    images,
-    video,
-    audioUrl,
-    imageMutation,
-    videoMutation,
-    audioMutation,
+    pendingRuns,
+    startGeneration,
+    retryRun,
+    dismissRun: removePending,
   }
 }

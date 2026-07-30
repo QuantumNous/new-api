@@ -739,12 +739,18 @@ export function useSessionCloudSync(isAuthenticated: boolean) {
   }, [isAuthenticated])
 }
 
-/** Ensure the active studio session is cloud-bound; returns project id or 0. */
-export async function ensureActiveStudioProjectId(): Promise<number> {
+/**
+ * Ensure a studio session is cloud-bound; returns project id or 0. Defaults
+ * to the active session; pass the id captured at submit time so late results
+ * bind to the session that requested them.
+ */
+export async function ensureActiveStudioProjectId(
+  sessionId?: string
+): Promise<number> {
   const state = usePlaygroundStore.getState()
-  const session = state.sessions.find(
-    (item) => item.id === state.activeSessionByModality[state.activeModality]
-  )
+  const targetId =
+    sessionId ?? state.activeSessionByModality[state.activeModality]
+  const session = state.sessions.find((item) => item.id === targetId)
   if (!session || !isStudioSession(session)) return 0
   if (session.serverId) return session.serverId
   try {
@@ -767,17 +773,25 @@ export async function ensureActiveStudioProjectId(): Promise<number> {
   }
 }
 
-/** Append a completed run preview onto the active studio session locally. */
+/**
+ * Append a completed run preview onto a studio session locally. Defaults to
+ * the active session; pass `sessionId` captured at submit time so results
+ * arriving after a session switch land in the right project.
+ */
 export function recordActiveStudioRun(input: {
   prompt: string
   model: string
   previewUrls?: string[]
   run?: StudioRunSummary
+  sessionId?: string
 }): void {
   const state = usePlaygroundStore.getState()
-  const modality = state.activeModality
-  if (modality === 'chat') return
-  const sessionId = state.activeSessionByModality[modality]
+  let sessionId = input.sessionId
+  if (!sessionId) {
+    const modality = state.activeModality
+    if (modality === 'chat') return
+    sessionId = state.activeSessionByModality[modality] ?? undefined
+  }
   const session = state.sessions.find((item) => item.id === sessionId)
   if (!session || !isStudioSession(session)) return
 

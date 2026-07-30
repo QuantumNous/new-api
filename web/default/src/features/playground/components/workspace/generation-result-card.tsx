@@ -6,7 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { Check, Download, Loader2 } from 'lucide-react'
+import { Check, Download, ImagePlus, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,6 +20,10 @@ type GenerationImageCardProps = {
   filename: string
   downloading: boolean
   onDownload: () => void
+  /** Opens the full-size viewer (click on the image itself). */
+  onOpen?: () => void
+  /** Adds this image to the composer as an edit reference. */
+  onUseAsReference?: () => void
   index?: number
   /** Requested generation size (e.g. 1024x1536) used until natural size loads */
   requestedSize?: string
@@ -110,6 +114,14 @@ export function GenerationImageCard(props: GenerationImageCardProps) {
             setLoaded(true)
           }}
         />
+        {props.onOpen && (
+          <button
+            type='button'
+            className='absolute inset-0 z-[5] cursor-zoom-in'
+            aria-label={t('View full image')}
+            onClick={props.onOpen}
+          />
+        )}
         {sizeLabel && (
           <div
             className={cn(
@@ -125,15 +137,27 @@ export function GenerationImageCard(props: GenerationImageCardProps) {
         <div
           className={cn(
             'absolute inset-x-0 bottom-0 z-10 flex items-end justify-end gap-2 p-2.5',
-            'bg-gradient-to-t from-black/55 via-black/20 to-transparent',
+            'pointer-events-none bg-gradient-to-t from-black/55 via-black/20 to-transparent',
             'opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100'
           )}
         >
+          {props.onUseAsReference && (
+            <Button
+              type='button'
+              size='sm'
+              variant='secondary'
+              className='bg-background/90 text-foreground hover:bg-background pointer-events-auto h-8 shadow-sm backdrop-blur'
+              onClick={props.onUseAsReference}
+            >
+              <ImagePlus className='size-3.5' />
+              {t('Edit')}
+            </Button>
+          )}
           <Button
             type='button'
             size='sm'
             variant='secondary'
-            className='bg-background/90 text-foreground hover:bg-background h-8 shadow-sm backdrop-blur'
+            className='bg-background/90 text-foreground hover:bg-background pointer-events-auto h-8 shadow-sm backdrop-blur'
             disabled={props.downloading}
             onClick={handleDownload}
           >
@@ -164,23 +188,4 @@ function DownloadActionIcon(props: { downloading: boolean; done: boolean }) {
   return <Download className='size-3.5' />
 }
 
-type GenerationMediaResultProps = {
-  children: React.ReactNode
-  className?: string
-  actions?: React.ReactNode
-}
 
-/** Shared reveal wrapper for video / audio result panels. */
-export function GenerationMediaResult(props: GenerationMediaResultProps) {
-  return (
-    <div
-      className={cn(
-        'generation-result-enter mx-auto w-full space-y-3',
-        props.className
-      )}
-    >
-      {props.children}
-      {props.actions}
-    </div>
-  )
-}

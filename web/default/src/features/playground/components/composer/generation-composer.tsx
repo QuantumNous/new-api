@@ -17,6 +17,7 @@ import {
   type MediaReference,
 } from './attachments/media-reference-slot'
 import { ComposerShell } from './composer'
+import { GenerationParamChips } from './generation-param-chips'
 import { PriceHintBadge } from './price-hint'
 import { useComposerText } from './use-composer'
 
@@ -48,8 +49,9 @@ export function GenerationComposer(props: GenerationComposerProps) {
   const groupRatio = groups.find((item) => item.value === group)?.ratio
 
   const submit = () => {
-    if (!text.trim() || !model || props.isPending) return
+    if (!text.trim() || !model) return
     props.onSubmit(text.trim())
+    setText('')
   }
 
   let placeholder = t('Describe what you want to create…')
@@ -65,7 +67,7 @@ export function GenerationComposer(props: GenerationComposerProps) {
     <div className='playground-composer-dock mx-auto w-full max-w-4xl shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:px-3 sm:py-3 md:px-3 md:py-3.5'>
       {props.isPending && (
         <p className='text-muted-foreground mb-2 px-1 text-center text-[11px]'>
-          {t('Generating… you can keep editing the prompt for the next run.')}
+          {t('Generating… you can already queue the next run.')}
         </p>
       )}
       <ComposerShell
@@ -73,18 +75,21 @@ export function GenerationComposer(props: GenerationComposerProps) {
         onTextChange={setText}
         onSubmit={submit}
         placeholder={placeholder}
-        canSubmit={Boolean(text.trim() && model && !props.isPending)}
+        canSubmit={Boolean(text.trim() && model)}
         tools={
-          showMediaSlot ? (
-            <MediaReferenceSlot
-              label={mediaLabel}
-              value={props.references}
-              onChange={props.onReferencesChange}
-              attachable
-              kind='image'
-              maxFiles={props.modality === 'image' ? 4 : 1}
-            />
-          ) : undefined
+          <div className='flex min-w-0 items-center gap-1 overflow-x-auto py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+            {showMediaSlot && (
+              <MediaReferenceSlot
+                label={mediaLabel}
+                value={props.references}
+                onChange={props.onReferencesChange}
+                attachable
+                kind='image'
+                maxFiles={props.modality === 'image' ? 4 : 1}
+              />
+            )}
+            <GenerationParamChips modality={props.modality} />
+          </div>
         }
         trailing={
           <PriceHintBadge

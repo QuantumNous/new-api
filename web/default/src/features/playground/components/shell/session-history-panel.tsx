@@ -255,6 +255,24 @@ export function SessionHistoryPanel(props: SessionHistoryPanelProps) {
                         {formatRelativeTime(session.updatedAt, t)}
                       </span>
                     </span>
+                    {session.modality === 'image' &&
+                      (session.previewUrls?.length ?? 0) > 0 && (
+                        <span className='mt-1.5 flex items-center gap-1'>
+                          {(session.previewUrls ?? [])
+                            .slice(-3)
+                            .map((url) => (
+                              <img
+                                key={url}
+                                src={url}
+                                alt=''
+                                aria-hidden='true'
+                                loading='lazy'
+                                referrerPolicy='no-referrer'
+                                className='border-border/60 size-9 rounded-md border object-cover'
+                              />
+                            ))}
+                        </span>
+                      )}
                   </button>
                 )}
 

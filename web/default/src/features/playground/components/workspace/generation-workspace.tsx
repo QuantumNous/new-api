@@ -6,31 +6,24 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { Check, Download, Loader2 } from 'lucide-react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
 import type { PricingModel } from '@/features/pricing/types'
-import { MOTION_TRANSITION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { usePlaygroundStore } from '@/stores/playground-store'
 
+import { fetchPlaygroundAssetBlob } from '../../api'
 import type { UseStudioResult } from '../../hooks/use-studio'
-import { useVideoTaskResult } from '../../hooks/use-video-task-result'
-import { downloadGeneratedMedia } from '../../lib/download-generated-media'
+import { isStudioSession } from '../../lib'
 import { isPlaygroundImageModel } from '../../lib/studio/image-request-schema'
+import { groupRunsIntoBatches } from '../../lib/studio/studio-feed'
 import type { StudioModality } from '../../types'
 import type { MediaReference } from '../composer/attachments/media-reference-slot'
 import { GenerationComposer } from '../composer/generation-composer'
-import { GenerationErrorState, GenerationProgress } from './generation-progress'
-import {
-  GenerationImageCard,
-  GenerationMediaResult,
-} from './generation-result-card'
 import { ModelHero } from './model-hero'
+import { StudioFeed } from './studio-feed'
 
 type GenerationWorkspaceProps = {
   modality: Exclude<StudioModality, 'chat'>
@@ -39,92 +32,67 @@ type GenerationWorkspaceProps = {
   studio: UseStudioResult
 }
 
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(String(reader.result ?? '')))
+    reader.addEventListener('error', () =>
+      reject(new Error('Could not read media blob'))
+    )
+    reader.readAsDataURL(blob)
+  })
+}
+
 /**
- * Generation workspace: result gallery in normal flow with the generation
- * composer docked at the bottom of the column (no floating overlay).
- * Model, group and settings come from the shared store; mutations and
- * transient results come from `useStudio` via the `studio` bundle.
+ * Continuous generation workspace: a chronological feed of prompt + result
+ * cards (restored from the session's run history) with the composer docked
+ * at the bottom. Submitting never blocks on a running generation — new runs
+ * append to the feed as pending cards.
  */
 export function GenerationWorkspace(props: GenerationWorkspaceProps) {
   const { t } = useTranslation()
-  const shouldReduce = useReducedMotion()
   const { studio } = props
   const [references, setReferences] = useState<MediaReference[]>([])
-  const [referenceKey, setReferenceKey] = useState('')
-  const [downloading, setDownloading] = useState('')
-  const [downloadDone, setDownloadDone] = useState('')
+  const [referenceModality, setReferenceModality] = useState(props.modality)
 
   const model = usePlaygroundStore((state) => state.config.model)
   const group = usePlaygroundStore((state) => state.config.group)
-  const imageCount = usePlaygroundStore(
-    (state) => state.studioSettings.imageCount
+  const setPrefill = usePlaygroundStore((state) => state.setPrefill)
+  const activeModality = usePlaygroundStore((state) => state.activeModality)
+  const activeSessionId = usePlaygroundStore(
+    (state) => state.activeSessionByModality[state.activeModality] ?? null
   )
-  const imageSize = usePlaygroundStore(
-    (state) => state.studioSettings.imageSize
+  const session = usePlaygroundStore((state) =>
+    state.sessions.find((item) => item.id === activeSessionId)
   )
 
-  // Reset the media reference when the modality or model changes.
-  const currentKey = `${props.modality}:${model}`
-  if (referenceKey !== currentKey) {
-    setReferenceKey(currentKey)
+  // References carry the editing chain within a modality; switching between
+  // image and video (different reference semantics) clears them.
+  if (referenceModality !== props.modality) {
+    setReferenceModality(props.modality)
     setReferences([])
   }
 
-  const videoTaskId = studio.video?.taskId ?? ''
-  const videoTask = useVideoTaskResult(
-    videoTaskId,
-    props.modality === 'video' && Boolean(studio.video)
+  const studioSession =
+    session && isStudioSession(session) && session.modality === props.modality
+      ? session
+      : null
+  const batches = useMemo(
+    () => groupRunsIntoBatches(studioSession?.runs),
+    [studioSession?.runs]
+  )
+  const pending = useMemo(
+    () =>
+      studio.pendingRuns.filter(
+        (entry) =>
+          entry.input.modality === props.modality &&
+          (!studioSession || entry.input.sessionId === studioSession.id)
+      ),
+    [studio.pendingRuns, props.modality, studioSession]
   )
 
-  let isPending = studio.audioMutation.isPending
-  let error = studio.audioMutation.error
-  if (props.modality === 'image') {
-    isPending = studio.imageMutation.isPending
-    error = studio.imageMutation.error
-  } else if (props.modality === 'video') {
-    isPending = studio.videoMutation.isPending
-    error = studio.videoMutation.error
-  }
-
-  const videoWaiting =
-    props.modality === 'video' &&
-    Boolean(studio.video) &&
-    !videoTask.ready &&
-    !videoTask.failed
-
-  const showProgress = isPending || videoWaiting
-
-  const hasOutput =
-    (props.modality === 'image' && studio.images.length > 0 && !isPending) ||
-    (props.modality === 'video' && Boolean(studio.video) && videoTask.ready) ||
-    (props.modality === 'audio' && Boolean(studio.audioUrl) && !isPending)
-
-  const showHero = !hasOutput && !showProgress && !error && !videoTask.failed
-
-  const [lastPrompt, setLastPrompt] = useState('')
-
-  useEffect(() => {
-    if (!downloadDone) return
-    const id = window.setTimeout(() => setDownloadDone(''), 1600)
-    return () => window.clearTimeout(id)
-  }, [downloadDone])
-
-  const downloadMedia = async (
-    sourceUrl: string,
-    filename: string,
-    kind: 'image' | 'video' | 'audio'
-  ) => {
-    setDownloading(filename)
-    try {
-      await downloadGeneratedMedia(sourceUrl, filename, kind)
-      setDownloadDone(filename)
-      toast.success(t('Download started'))
-    } catch {
-      toast.error(t('Download failed'))
-    } finally {
-      setDownloading('')
-    }
-  }
+  const showHero = batches.length === 0 && pending.length === 0
+  const hasRunning = pending.some((entry) => entry.status === 'running')
 
   const submit = (prompt: string) => {
     if (!prompt || !model) return
@@ -137,214 +105,91 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
       )
       return
     }
-    setLastPrompt(prompt)
-    const settings = usePlaygroundStore.getState().studioSettings
-    const referenceUrls = references.map((reference) => reference.dataUrl)
-    const refUrl = referenceUrls[0] ?? null
-    const common = { model, group, settings }
-    if (props.modality === 'image') {
-      studio.imageMutation.mutate({
-        ...common,
-        prompt,
-        referenceImage: refUrl,
-        referenceImages: referenceUrls.slice(1),
-        editMode: referenceUrls.length > 0,
+    let sessionId = studioSession?.id
+    if (!sessionId) {
+      usePlaygroundStore.getState().startNewSession(props.modality)
+      sessionId =
+        usePlaygroundStore.getState().activeSessionByModality[props.modality] ??
+        undefined
+    }
+    if (!sessionId) return
+    const referenceUrls =
+      props.modality === 'audio'
+        ? []
+        : references
+            .map((reference) => reference.dataUrl)
+            .slice(0, props.modality === 'image' ? 4 : 1)
+    studio.startGeneration({
+      modality: props.modality,
+      sessionId,
+      prompt,
+      model,
+      group,
+      references: referenceUrls,
+    })
+  }
+
+  const addReferenceFromResult = async (image: {
+    url: string
+    assetId?: number
+  }) => {
+    const maxFiles = props.modality === 'image' ? 4 : 1
+    try {
+      const blob = image.assetId
+        ? await fetchPlaygroundAssetBlob(image.assetId)
+        : await (await fetch(image.url)).blob()
+      const dataUrl = await blobToDataUrl(blob)
+      if (!dataUrl.startsWith('data:image/')) {
+        throw new Error('not an image')
+      }
+      setReferences((previous) => {
+        const next = [
+          ...previous,
+          {
+            id: crypto.randomUUID(),
+            name: t('Generated image'),
+            dataUrl,
+            assetId: image.assetId,
+          },
+        ]
+        return next.slice(-maxFiles)
       })
-    } else if (props.modality === 'video') {
-      studio.videoMutation.mutate({
-        ...common,
-        prompt,
-        firstFrame: refUrl,
-        inputReference: refUrl,
-      })
-    } else {
-      studio.audioMutation.mutate({ ...common, text: prompt })
+      toast.success(t('Added as reference. Describe your edit and send.'))
+    } catch {
+      toast.error(t('Could not load this image as a reference.'))
     }
   }
 
-  const videoFilename = `video-${videoTaskId}`
-
-  const downloadIcon = (filename: string) => {
-    if (downloading === filename) {
-      return <Loader2 className='size-4 animate-spin' />
-    }
-    if (downloadDone === filename) {
-      return <Check className='size-4 text-emerald-500' />
-    }
-    return <Download className='size-4' />
-  }
-
-  const downloadLabel = (filename: string, idleLabel: string) =>
-    downloadDone === filename ? t('Saved') : idleLabel
+  const supportsReferences =
+    props.modality === 'image' || props.modality === 'video'
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
       <div className='min-h-0 flex-1 overflow-y-auto'>
-        <AnimatePresence mode='wait' initial={false}>
-          {showHero && (
-            <motion.div
-              key={`hero-${props.modality}`}
-              exit={
-                shouldReduce
-                  ? undefined
-                  : { opacity: 0, y: -8, transition: MOTION_TRANSITION.fast }
+        {showHero ? (
+          <ModelHero
+            model={props.pricingModel}
+            modelName={model}
+            modality={props.modality}
+          />
+        ) : (
+          <div className='mx-auto w-full max-w-5xl px-3 pt-4 pb-6 sm:px-4 md:px-6'>
+            <StudioFeed
+              modality={props.modality}
+              batches={batches}
+              pending={pending}
+              onReusePrompt={(prompt) => setPrefill(prompt)}
+              onRerun={(prompt) => submit(prompt)}
+              onUseAsReference={
+                supportsReferences
+                  ? (image) => void addReferenceFromResult(image)
+                  : undefined
               }
-            >
-              <ModelHero
-                model={props.pricingModel}
-                modelName={model}
-                modality={props.modality}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className='mx-auto w-full max-w-5xl px-3 pb-5 sm:px-4 md:px-6 md:pb-6'>
-          <section
-            className={cn(
-              'flex min-h-[10rem] flex-col sm:min-h-[12rem]',
-              showProgress || hasOutput || error ? 'pt-3 sm:pt-4 md:pt-6' : ''
-            )}
-            aria-busy={showProgress}
-            aria-live='polite'
-          >
-            <AnimatePresence mode='wait' initial={false}>
-              {showProgress && (
-                <motion.div
-                  key='progress'
-                  initial={shouldReduce ? false : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={shouldReduce ? undefined : { opacity: 0 }}
-                  transition={MOTION_TRANSITION.fast}
-                >
-                  <GenerationProgress
-                    modality={props.modality}
-                    imageCount={
-                      props.modality === 'image' ? imageCount : undefined
-                    }
-                    imageSize={
-                      props.modality === 'image' ? imageSize : undefined
-                    }
-                    percent={
-                      props.modality === 'video' ? videoTask.percent : null
-                    }
-                    detail={
-                      props.modality === 'video' && studio.video
-                        ? studio.video.taskId
-                        : undefined
-                    }
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {!showProgress &&
-              props.modality === 'image' &&
-              studio.images.length > 0 && (
-                <div
-                  className={cn(
-                    'grid w-full gap-3',
-                    studio.images.length === 1
-                      ? 'mx-auto max-w-xl grid-cols-1'
-                      : 'grid-cols-1 sm:grid-cols-2'
-                  )}
-                >
-                  {studio.images.map((image, index) => {
-                    const filename = `generated-image-${index + 1}`
-                    return (
-                      <GenerationImageCard
-                        key={image.url}
-                        url={image.url}
-                        alt={image.revisedPrompt || t('Generated image')}
-                        caption={image.revisedPrompt}
-                        filename={filename}
-                        index={index}
-                        requestedSize={imageSize}
-                        downloading={downloading === filename}
-                        onDownload={() =>
-                          void downloadMedia(image.url, filename, 'image')
-                        }
-                      />
-                    )
-                  })}
-                </div>
-              )}
-
-            {!showProgress &&
-              props.modality === 'video' &&
-              studio.video &&
-              videoTask.ready && (
-                <GenerationMediaResult className='max-w-3xl'>
-                  <div className='border-border/80 overflow-hidden rounded-2xl border bg-black shadow-sm'>
-                    <AdaptiveVideoPlayer src={videoTask.resultUrl} />
-                  </div>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
-                    className='border-border bg-muted/50 text-foreground'
-                    disabled={downloading === videoFilename}
-                    onClick={() =>
-                      void downloadMedia(
-                        videoTask.resultUrl,
-                        videoFilename,
-                        'video'
-                      )
-                    }
-                  >
-                    {downloadIcon(videoFilename)}
-                    {downloadLabel(videoFilename, t('Download video'))}
-                  </Button>
-                </GenerationMediaResult>
-              )}
-
-            {props.modality === 'video' && studio.video && videoTask.failed && (
-              <GenerationErrorState
-                message={videoTask.failReason || t('Video generation failed.')}
-                onRetry={() => submit(lastPrompt)}
-                retryDisabled={!lastPrompt}
-              />
-            )}
-
-            {!showProgress && props.modality === 'audio' && studio.audioUrl && (
-              <GenerationMediaResult className='max-w-md'>
-                <div className='border-border/80 bg-muted/40 space-y-4 rounded-2xl border p-5 shadow-sm'>
-                  <div className='from-primary/10 via-muted/40 to-muted/20 rounded-xl bg-gradient-to-br px-4 py-6'>
-                    <audio
-                      controls
-                      autoPlay
-                      className='w-full'
-                      src={studio.audioUrl}
-                    >
-                      {t('Your browser does not support audio playback.')}
-                    </audio>
-                  </div>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
-                    className='border-border bg-muted/50 text-foreground'
-                    disabled={downloading === 'speech'}
-                    onClick={() =>
-                      void downloadMedia(studio.audioUrl, 'speech', 'audio')
-                    }
-                  >
-                    {downloadIcon('speech')}
-                    {downloadLabel('speech', t('Download audio'))}
-                  </Button>
-                </div>
-              </GenerationMediaResult>
-            )}
-
-            {error && !showProgress && (
-              <GenerationErrorState
-                message={error.message || t('Generation failed.')}
-                onRetry={() => submit(lastPrompt)}
-                retryDisabled={!lastPrompt}
-              />
-            )}
-          </section>
-        </div>
+              onRetryPending={studio.retryRun}
+              onDismissPending={studio.dismissRun}
+            />
+          </div>
+        )}
       </div>
 
       <div
@@ -356,44 +201,12 @@ export function GenerationWorkspace(props: GenerationWorkspaceProps) {
         <GenerationComposer
           modality={props.modality}
           pricingModel={props.pricingModel}
-          isPending={showProgress}
+          isPending={hasRunning && activeModality === props.modality}
           references={references}
           onReferencesChange={setReferences}
           onSubmit={submit}
         />
       </div>
-    </div>
-  )
-}
-
-function AdaptiveVideoPlayer(props: { src: string }) {
-  const { t } = useTranslation()
-  const [videoSize, setVideoSize] = useState<{
-    w: number
-    h: number
-  } | null>(null)
-  const aspect = videoSize ? `${videoSize.w} / ${videoSize.h}` : '16 / 9'
-  return (
-    <div className='relative w-full' style={{ aspectRatio: aspect }}>
-      <video
-        controls
-        autoPlay
-        className='absolute inset-0 h-full w-full'
-        src={props.src}
-        onLoadedMetadata={(event) => {
-          const video = event.currentTarget
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            setVideoSize({ w: video.videoWidth, h: video.videoHeight })
-          }
-        }}
-      >
-        {t('Your browser does not support video playback.')}
-      </video>
-      {videoSize ? (
-        <span className='bg-background/85 text-foreground/90 pointer-events-none absolute top-3 left-3 rounded-full px-2.5 py-1 font-mono text-[11px] shadow-sm backdrop-blur-sm'>
-          {videoSize.w}×{videoSize.h}
-        </span>
-      ) : null}
     </div>
   )
 }

@@ -6,13 +6,12 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { AlertCircle, ImageIcon, Music2, Video } from 'lucide-react'
+import { ImageIcon, Music2, Video } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Shimmer } from '@/components/ai-elements/shimmer'
-import { Button } from '@/components/ui/button'
 import { MOTION_TRANSITION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
@@ -317,7 +316,7 @@ export function VideoPlaceholder(props: { reduceMotion: boolean }) {
   )
 }
 
-function AudioPlaceholder(props: { reduceMotion: boolean }) {
+export function AudioPlaceholder(props: { reduceMotion: boolean }) {
   const bars = [
     { id: 'b0', h: 0.35 },
     { id: 'b1', h: 0.7 },
@@ -359,39 +358,4 @@ function AudioPlaceholder(props: { reduceMotion: boolean }) {
   )
 }
 
-type GenerationErrorProps = {
-  message: string
-  onRetry?: () => void
-  retryDisabled?: boolean
-}
 
-export function GenerationErrorState(props: GenerationErrorProps) {
-  const { t } = useTranslation()
-  return (
-    <div
-      className='border-destructive/30 bg-destructive/5 animate-in fade-in-0 zoom-in-95 mx-auto w-full max-w-md rounded-2xl border px-6 py-10 text-center duration-200'
-      role='alert'
-    >
-      <div className='bg-destructive/10 text-destructive mx-auto mb-3 flex size-11 items-center justify-center rounded-full'>
-        <AlertCircle className='size-5' aria-hidden='true' />
-      </div>
-      <p className='text-foreground text-sm font-medium'>
-        {t('Generation failed.')}
-      </p>
-      <p className='text-muted-foreground mt-1.5 text-xs text-pretty'>
-        {props.message}
-      </p>
-      {props.onRetry && (
-        <Button
-          className='mt-4'
-          size='sm'
-          variant='outline'
-          onClick={props.onRetry}
-          disabled={props.retryDisabled}
-        >
-          {t('Try again')}
-        </Button>
-      )}
-    </div>
-  )
-}
