@@ -39,7 +39,28 @@ web/             — Frontend themes container
  web/default/   — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
   web/classic/   — Classic frontend (React 18, Vite, Semi Design)
   web/default/src/i18n/ — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
+desktop/       — BoxAI Desktop (Python coworker + Tauri GUI, npm)
+connect/       — BoxAI Connect (Tauri desktop client-configurator, pnpm)
 ```
+
+**Three package managers, on purpose.** `web/` uses bun, `desktop/surfaces/gui/`
+uses npm, and `connect/` uses pnpm. Each is pinned by its own lockfile and, for
+`connect/`, by `packageManager` in `connect/package.json`. Do not "unify" them:
+`connect/` is a vendored fork (see below) and switching its package manager
+would break its lockfile and its diffability against upstream.
+
+**`connect/` is a vendored MIT fork.** BoxAI Connect derives from
+[CC Switch](https://github.com/farion1231/cc-switch) and stays under the MIT
+License it inherited — it is a separate program that contains no new-api code,
+so the AGPLv3 §7 additional terms in the root `NOTICE` do not attach to it. Do
+not stamp the `Copyright (C) 2023-2026 QuantumNous` AGPL header onto files under
+`connect/`; that would assert authorship over upstream's code. BoxAI-authored
+files there live in `connect/src-tauri/src/boxai/` and
+`connect/src/components/boxai/`. Lineage and licensing: `connect/UPSTREAM.md`,
+`connect/LICENSE`, `connect/THIRD_PARTY_NOTICES.md`. Upstream `cc-switch`
+identifiers inside the fork are deliberately left alone — some are markers
+written into *other applications'* config files, and renaming them orphans real
+user state.
 
 ## Internationalization (i18n)
 

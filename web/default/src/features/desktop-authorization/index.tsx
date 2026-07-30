@@ -66,6 +66,12 @@ export function DesktopAuthorizationPage() {
   const expired = expiresAt ? expiresAt.getTime() <= Date.now() : false
   const pending = request?.status.toLowerCase() === 'pending'
 
+  // Two desktop products share this page. Naming the wrong one is how a user
+  // ends up approving something they did not start, so the copy follows the
+  // client that actually opened the request.
+  const productName =
+    request?.client_id === 'boxai-connect' ? 'BoxAI Connect' : 'BoxAI Desktop'
+
   let stateMessage: string | null = null
   if (!requestId) stateMessage = t('The authorization request is missing')
   else if (requestQuery.isError) {
@@ -79,7 +85,7 @@ export function DesktopAuthorizationPage() {
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
-        {t('BoxAI Desktop authorization')}
+        {t('{{product}} authorization', { product: productName })}
       </SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <main
@@ -101,7 +107,11 @@ export function DesktopAuthorizationPage() {
           {!requestQuery.isLoading && stateMessage && (
             <Alert variant='destructive'>
               <AlertCircle aria-hidden='true' />
-              <AlertTitle>{t('Unable to authorize BoxAI Desktop')}</AlertTitle>
+              <AlertTitle>
+                {t('Unable to authorize {{product}}', {
+                  product: productName,
+                })}
+              </AlertTitle>
               <AlertDescription>{stateMessage}</AlertDescription>
             </Alert>
           )}
@@ -112,7 +122,9 @@ export function DesktopAuthorizationPage() {
                   <Laptop className='size-5' aria-hidden='true' />
                 </div>
                 <CardTitle>
-                  {t('BoxAI Desktop wants to access your account')}
+                  {t('{{product}} wants to access your account', {
+                    product: productName,
+                  })}
                 </CardTitle>
                 <CardDescription>
                   {t(

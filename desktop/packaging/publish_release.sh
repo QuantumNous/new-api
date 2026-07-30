@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# Publish a staged BoxAI Desktop release to Cloudflare R2 (bucket boxai-desktop, served at
+# Publish a staged desktop release to Cloudflare R2 (bucket boxai-desktop, served at
 # https://dl.you-box.com). GitHub Releases are NOT used: they are unusably slow from mainland
 # China, and the desktop updater plus the website both read from this one origin.
+#
+# Shared by both desktop products. BOXAI_RELEASE_PRODUCT selects which one:
+#   desktop (default)  BoxAI Desktop, from desktop/surfaces/gui
+#   connect            BoxAI Connect, from connect/
+# Each publishes under its own key prefix, so one product can never overwrite the
+# other's manifests.
 #
 #   1. verify the staged version matches tauri.conf.json (a mismatch ships an update that
 #      installs and then immediately re-offers itself);
@@ -20,12 +26,17 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PLATFORM="$(cd "$HERE/.." && pwd)"
 REPO="$(cd "$PLATFORM/.." && pwd)"
-GUI="$PLATFORM/surfaces/gui"
+PRODUCT="${BOXAI_RELEASE_PRODUCT:-desktop}"
+case "$PRODUCT" in
+  desktop) SOURCE_DIR="$PLATFORM/surfaces/gui"; PRODUCT_NAME="BoxAI Desktop"; STAGE_ROOT="$PLATFORM/release" ;;
+  connect) SOURCE_DIR="$REPO/connect";          PRODUCT_NAME="BoxAI Connect"; STAGE_ROOT="$REPO/connect/release" ;;
+  *) echo "ERROR: unknown BOXAI_RELEASE_PRODUCT '$PRODUCT' (expected desktop or connect)" >&2; exit 1 ;;
+esac
 
-VERSION="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$GUI/src-tauri/tauri.conf.json")"
-STAGE="${BOXAI_RELEASE_STAGE:-$PLATFORM/release/$VERSION}"
+VERSION="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$SOURCE_DIR/src-tauri/tauri.conf.json")"
+STAGE="${BOXAI_RELEASE_STAGE:-$STAGE_ROOT/$VERSION}"
 BUCKET="${BOXAI_RELEASE_BUCKET:-boxai-desktop}"
-PREFIX="desktop"
+PREFIX="$PRODUCT"
 BASE_URL="${BOXAI_RELEASE_BASE_URL:-https://dl.you-box.com/$PREFIX}"
 
 [ -d "$STAGE" ] || { echo "ERROR: no staged release at $STAGE — run stage_release.sh first" >&2; exit 1; }
@@ -41,8 +52,8 @@ done
 
 echo "==> [1/4] composing manifests for $VERSION"
 python3 "$HERE/make_release_manifests.py" \
-  --version "$VERSION" --dist "$STAGE" --base-url "$BASE_URL" \
-  --notes "${BOXAI_RELEASE_NOTES:-BoxAI Desktop $VERSION}"
+  --version "$VERSION" --dist "$STAGE" --base-url "$BASE_URL" --product "$PRODUCT" \
+  --notes "${BOXAI_RELEASE_NOTES:-$PRODUCT_NAME $VERSION}"
 
 export AWS_ACCESS_KEY_ID="$R2_DESKTOP_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$R2_DESKTOP_SECRET_ACCESS_KEY"

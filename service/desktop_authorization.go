@@ -18,7 +18,22 @@ import (
 	"gorm.io/gorm"
 )
 
-const DesktopClientID = "boxai-desktop"
+const (
+	// DesktopClientID is BoxAI Desktop, the assistant app under desktop/.
+	DesktopClientID = "boxai-desktop"
+	// ConnectClientID is BoxAI Connect, the AI-client configurator under
+	// connect/. It is a separate identity so a user can tell the two apart —
+	// and revoke them independently — in their session list.
+	ConnectClientID = "boxai-connect"
+)
+
+// IsDesktopClientID reports whether a client may use the desktop authorization
+// endpoints. The exchange separately requires the redeeming client to match the
+// one that created the authorization, so a code minted for one product can
+// never be redeemed by the other.
+func IsDesktopClientID(clientID string) bool {
+	return clientID == DesktopClientID || clientID == ConnectClientID
+}
 
 var ErrDesktopInvalidGrant = errors.New("invalid desktop grant")
 
@@ -65,7 +80,7 @@ func ValidateDesktopRedirect(raw string) error {
 }
 
 func CreateDesktopAuthorization(clientID, redirect, challenge, method, state, name string) (*model.DesktopAuthorization, error) {
-	if clientID != DesktopClientID || method != "S256" || len(challenge) != 43 || !validPKCEValue(state, 22, 128) {
+	if !IsDesktopClientID(clientID) || method != "S256" || len(challenge) != 43 || !validPKCEValue(state, 22, 128) {
 		return nil, errors.New("invalid authorization request")
 	}
 	if _, err := base64.RawURLEncoding.DecodeString(challenge); err != nil {
@@ -131,7 +146,7 @@ func DecideDesktopAuthorization(id string, userID int, approve bool) (string, *m
 }
 
 func ExchangeDesktopCode(code, verifier, clientID, redirect string) (access, refresh, apiKey string, expires int, err error) {
-	if clientID != DesktopClientID || ValidateDesktopRedirect(redirect) != nil || !validPKCEValue(verifier, 43, 128) {
+	if !IsDesktopClientID(clientID) || ValidateDesktopRedirect(redirect) != nil || !validPKCEValue(verifier, 43, 128) {
 		return "", "", "", 0, ErrDesktopInvalidGrant
 	}
 	if _, err = loadDesktopSigningKey(); err != nil {

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">BoxAI Connect</title>
+  <!-- Same blue rounded square as the BoxAI mark and BoxAI Desktop; the glyph is
+       what distinguishes the product. Desktop carries the spark, Connect the link. -->
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="#2563EB"/>
+  <g
+    transform="translate(32 32) scale(1.9) translate(-12 -12)"
+    fill="none"
+    stroke="#fff"
+    stroke-width="3"
+    stroke-linecap="round"
+  >
+    <path d="M9 17H7A5 5 0 0 1 7 7h2"/>
+    <path d="M15 7h2a5 5 0 1 1 0 10h-2"/>
+    <path d="M8 12h8"/>
+  </g>
+</svg>

@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { AnimateInView } from '@/components/animate-in-view'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { SectionHeading } from './section-heading'
+import { SectionHeading } from '@/components/section-heading'
 
 // Captured from the real app by desktop/surfaces/gui `npm run screenshots`, which drives the
 // hermetic e2e mocks — regenerating them after a UI change needs no manual retouching.

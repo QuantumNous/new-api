@@ -100,6 +100,30 @@ func TestDesktopAuthorizationDenial(t *testing.T) {
 	assert.ErrorIs(t, err, ErrDesktopInvalidGrant)
 }
 
+// Both desktop products share these endpoints, but a code minted for one must
+// never be redeemable by the other: they mint separate relay keys the user
+// revokes separately.
+func TestDesktopAuthorizationIsScopedToTheClientThatRequestedIt(t *testing.T) {
+	u := setupDesktopAuthorizationTest(t)
+	verifier := "0123456789012345678901234567890123456789012"
+	redirect := "http://127.0.0.1:9100/auth/callback"
+
+	a, err := CreateDesktopAuthorization(ConnectClientID, redirect, pkce(verifier), "S256", desktopTestState, "BoxAI Connect · laptop")
+	require.NoError(t, err)
+	code, _, err := DecideDesktopAuthorization(a.ID, u.Id, true)
+	require.NoError(t, err)
+
+	_, _, _, _, err = ExchangeDesktopCode(code, verifier, DesktopClientID, redirect)
+	assert.ErrorIs(t, err, ErrDesktopInvalidGrant)
+
+	_, _, apiKey, _, err := ExchangeDesktopCode(code, verifier, ConnectClientID, redirect)
+	require.NoError(t, err)
+	assert.Contains(t, apiKey, "sk-")
+
+	_, err = CreateDesktopAuthorization("some-other-app", redirect, pkce(verifier), "S256", desktopTestState, "Impostor")
+	assert.Error(t, err, "an unknown client must not be able to open a desktop authorization")
+}
+
 func TestDesktopAuthorizationAllowsMultiplePendingAndDeniedRequests(t *testing.T) {
 	u := setupDesktopAuthorizationTest(t)
 	verifier := "0123456789012345678901234567890123456789012"

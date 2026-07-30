@@ -77,6 +77,10 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Agents'), href: '/agents' })
   }
 
+  if (modules.connect.enabled) {
+    links.push({ title: t('Connect'), href: '/connect' })
+  }
+
   if (modules.inspiration.enabled) {
     links.push({ title: t('Inspiration'), href: '/inspiration' })
   }

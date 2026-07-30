@@ -13,8 +13,8 @@ import { AnimateInView } from '@/components/animate-in-view'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/auth-store'
 
-import type { DesktopDownload } from '../types'
-import { DownloadActions } from './download-actions'
+import type { DesktopDownload } from '@/features/downloads/types'
+import { DownloadActions } from '@/features/downloads/download-actions'
 
 export function DesktopCta(props: {
   primary?: DesktopDownload
@@ -68,6 +68,7 @@ export function DesktopCta(props: {
             loading={props.loading}
             failed={props.failed}
             fallbackUrl={props.fallbackUrl}
+            productName={t('BoxAI Desktop')}
           />
         </div>
 

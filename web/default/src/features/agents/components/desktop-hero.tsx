@@ -11,9 +11,9 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 
-import { formatSize } from '../lib/release'
-import type { DesktopDownload, DesktopRelease } from '../types'
-import { DownloadActions } from './download-actions'
+import { formatSize } from '@/features/downloads/release'
+import type { DesktopDownload, DesktopRelease } from '@/features/downloads/types'
+import { DownloadActions } from '@/features/downloads/download-actions'
 
 export function DesktopHero(props: {
   release?: DesktopRelease
@@ -80,6 +80,7 @@ export function DesktopHero(props: {
               loading={props.loading}
               failed={props.failed}
               fallbackUrl={props.fallbackUrl}
+              productName={t('BoxAI Desktop')}
             />
           </div>
 

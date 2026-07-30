@@ -51,6 +51,7 @@ func GetStatus(c *gin.Context) {
 	legalSetting := system_setting.GetLegalSettings()
 	brandingSetting := system_setting.GetBrandingSettings()
 	desktopSetting := system_setting.GetDesktopSettings()
+	connectSetting := system_setting.GetConnectSettings()
 
 	data := gin.H{
 		"version":                     common.Version,
@@ -103,6 +104,10 @@ func GetStatus(c *gin.Context) {
 		"desktop_release_manifest_url":  desktopSetting.ReleaseManifestURL,
 		"desktop_download_url":          desktopSetting.DownloadURL,
 		"desktop_min_version":           desktopSetting.MinVersion,
+		"connect_enabled":               connectSetting.Enabled,
+		"connect_release_manifest_url":  connectSetting.ReleaseManifestURL,
+		"connect_download_url":          connectSetting.DownloadURL,
+		"connect_min_version":           connectSetting.MinVersion,
 
 		"usd_exchange_rate": operation_setting.USDExchangeRate,
 		"price":             operation_setting.Price,

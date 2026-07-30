@@ -1,0 +1,92 @@
+# BoxAI Connect validation. Renderer and Rust checks only — no bundling, no signing, and
+# therefore no secrets, so this runs on pull requests from anywhere.
+name: Connect CI
+
+on:
+  push:
+    paths:
+      - "connect/**"
+      - ".github/workflows/connect-ci.yml"
+  pull_request:
+    paths:
+      - "connect/**"
+      - ".github/workflows/connect-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  renderer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: connect
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: connect/.node-version
+          cache: pnpm
+          cache-dependency-path: connect/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Format
+        run: pnpm format:check
+      - name: Test
+        run: pnpm test
+      - name: Build renderer
+        run: pnpm build:renderer
+
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: connect/src-tauri
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: connect/src-tauri
+      # Tauri v2 links against the system webkit/gtk stack even for `cargo check`.
+      - name: Install Linux build dependencies
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test
+
+  compliance:
+    # Connect is a vendored MIT fork. These two facts are easy to erase in a
+    # rebrand sweep and expensive to notice later, so they are asserted here.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Upstream attribution is intact
+        run: |
+          for f in connect/LICENSE connect/THIRD_PARTY_NOTICES.md connect/UPSTREAM.md; do
+            test -f "$f" || { echo "::error::$f is missing"; exit 1; }
+          done
+          grep -q "Jason Young" connect/LICENSE
+          grep -q "CC Switch" connect/UPSTREAM.md
+          grep -q "QuantumNous" NOTICE
+      - name: No OriginGame identifiers outside the lineage record
+        run: |
+          if grep -rliE "origingame|originkit" connect/ \
+               --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist \
+               --exclude=UPSTREAM.md; then
+            echo "::error::OriginGame identifiers must not appear outside connect/UPSTREAM.md"
+            exit 1
+          fi

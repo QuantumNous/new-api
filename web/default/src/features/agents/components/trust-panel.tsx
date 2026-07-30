@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 
 import { AnimateInView } from '@/components/animate-in-view'
 
-import { SectionHeading } from './section-heading'
+import { SectionHeading } from '@/components/section-heading'
 
 export function TrustPanel() {
   const { t } = useTranslation()

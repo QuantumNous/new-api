@@ -1,0 +1,130 @@
+# BoxAI Connect release builds: macOS (.dmg, arm64 + x64) and Windows (.msi + NSIS .exe).
+#
+# Connect ships both Mac architectures, so the macOS job builds two targets. Publishing
+# reuses desktop/packaging/publish_release.sh through BOXAI_RELEASE_PRODUCT, so both desktop
+# products go out through one verified pipeline under separate R2 key prefixes.
+name: Connect Release
+
+on:
+  push:
+    tags: ["connect-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+    working-directory: connect
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest # Apple Silicon
+            slug: macos
+          - os: windows-latest
+            slug: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: connect/.node-version
+          cache: pnpm
+          cache-dependency-path: connect/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: connect/src-tauri
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # `createUpdaterArtifacts` is on, so tauri exits non-zero when the signing key is
+      # missing — and it does so *after* Apple signing, which reads like a signing failure.
+      - name: Build .dmg (macOS)
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_API_KEY APPLE_API_ISSUER; do
+            [ -n "$(eval echo "\${$v:-}")" ] || unset "$v"
+          done
+          if [ -n "${APPLE_API_KEY_CONTENT:-}" ]; then
+            echo "$APPLE_API_KEY_CONTENT" | base64 -d > "$RUNNER_TEMP/AuthKey.p8"
+            export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          fi
+          unset APPLE_API_KEY_CONTENT
+          pnpm tauri build --target aarch64-apple-darwin
+          pnpm tauri build --target x86_64-apple-darwin
+
+      - name: Build .msi + NSIS .exe (Windows)
+        if: runner.os == 'Windows'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm tauri build
+
+      - name: Stage artifacts (stable names)
+        env:
+          BOXAI_RELEASE_STAGE: ${{ github.workspace }}/connect/out
+        run: bash packaging/stage_release.sh
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.slug }}
+          path: connect/out/*
+          if-no-files-found: error
+
+  # Releases are served from Cloudflare R2 at https://dl.you-box.com, not from GitHub
+  # Releases: GitHub asset downloads are unusably slow from mainland China, and both the
+  # updater and the website read from this one origin.
+  release:
+    if: startsWith(github.ref, 'refs/tags/connect-v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: connect/release/staged
+          merge-multiple: true
+
+      - name: Publish to R2
+        env:
+          BOXAI_RELEASE_PRODUCT: connect
+          BOXAI_RELEASE_STAGE: ${{ github.workspace }}/connect/release/staged
+          BOXAI_CLOUDFLARE_ENV: /dev/null
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_DESKTOP_ACCESS_KEY_ID: ${{ secrets.R2_DESKTOP_ACCESS_KEY_ID }}
+          R2_DESKTOP_SECRET_ACCESS_KEY: ${{ secrets.R2_DESKTOP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#connect-v}"
+          CONF_VERSION=$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+          if [ "$VERSION" != "$CONF_VERSION" ]; then
+            echo "::error::tag $TAG != tauri.conf.json version $CONF_VERSION — bump the config before tagging"
+            exit 1
+          fi
+          bash ../desktop/packaging/publish_release.sh

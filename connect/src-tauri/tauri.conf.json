@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BoxAI Connect",
+  "version": "0.1.0",
+  "identifier": "com.you-box.connect",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "pnpm run dev:renderer",
+    "beforeBuildCommand": "pnpm run build:renderer"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "",
+        "titleBarStyle": "Overlay",
+        "width": 1000,
+        "height": 650,
+        "minWidth": 900,
+        "minHeight": 600,
+        "visible": false,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: https: http:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https: http:",
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg", "nsis", "msi"],
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "wix": {
+        "template": "wix/per-user-main.wxs"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true,
+      "entitlements": "entitlements.mac.plist"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["boxaiconnect"]
+      }
+    },
+    "updater": {
+      "endpoints": ["https://dl.you-box.com/connect/latest.json"],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQyOUIwNEZBRTgwOTAwQzUKUldURkFBbm8rZ1NiUWpJaVlEQ2FjTXpmZ0FDTDNZdXpuZ0JFOHR1bFNmdWJvQm9JVnN5RFM0VlUK"
+    }
+  }
+}

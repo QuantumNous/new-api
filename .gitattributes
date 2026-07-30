@@ -37,6 +37,10 @@
 electron/** linguist-vendored
 web/** linguist-vendored
 
+# connect/ is a vendored fork of CC Switch (MIT); it should not dominate the
+# repository's language statistics.
+connect/** linguist-vendored
+
 # Un-vendor core frontend source to keep JavaScript visible in language stats
 web/src/components/** linguist-vendored=false
 web/src/pages/** linguist-vendored=false

@@ -34,6 +34,15 @@ Apache-2.0 upstream NOTICE entries identified for direct dependencies are
 reproduced below. Preserve this file with Docker images, standalone binaries,
 frontend bundles, and Electron desktop installers distributed to users.
 
+==== Separately Licensed Subtrees ====
+
+connect/
+BoxAI Connect, a desktop client for configuring AI coding clients. It is an
+independent program derived from CC Switch (Copyright (c) 2024-2025 Jason
+Young) and is distributed under the MIT License, not under this project's
+AGPLv3 terms. Its license text, lineage, and third-party notices live in
+connect/LICENSE, connect/UPSTREAM.md, and connect/THIRD_PARTY_NOTICES.md.
+
 ==== Apache-2.0 Notices ====
 
 AWS SDK for Go

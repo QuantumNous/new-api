@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-labelledby="title">
+  <title id="title">BoxAI Connect menu bar icon</title>
+  <!-- macOS template image: black glyph on transparency. The system recolours it for
+       light/dark menu bars, so it must carry no colour of its own. Source for
+       statusbar_template_3x.png; regenerate with:
+         rsvg-convert -w 72 -h 72 statusbar_template.svg -o statusbar_template_3x.png -->
+  <g fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round">
+    <path d="M9 17H7A5 5 0 0 1 7 7h2"/>
+    <path d="M15 7h2a5 5 0 1 1 0 10h-2"/>
+    <path d="M8 12h8"/>
+  </g>
+</svg>

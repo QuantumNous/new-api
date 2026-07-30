@@ -8,9 +8,9 @@ License, or (at your option) any later version.
 */
 import { useTranslation } from 'react-i18next'
 
-import type { DesktopDownload } from '../types'
-import { ProseAccordion, type ProseAccordionEntry } from './prose-accordion'
-import { SectionHeading } from './section-heading'
+import type { DesktopDownload } from '@/features/downloads/types'
+import { ProseAccordion, type ProseAccordionEntry } from '@/components/prose-accordion'
+import { SectionHeading } from '@/components/section-heading'
 
 function ChecksumBlock(props: { download: DesktopDownload }) {
   const { t } = useTranslation()

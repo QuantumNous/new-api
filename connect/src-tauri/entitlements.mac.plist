@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- The bundled WebView JIT-compiles page scripts. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <!-- Outbound only: BoxAI, the Asset Worker, and the portal. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- The loopback broker listens on 127.0.0.1 for local AI clients. -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+  </dict>
+</plist>

@@ -9,8 +9,8 @@ License, or (at your option) any later version.
 import { Link } from '@tanstack/react-router'
 import { Trans, useTranslation } from 'react-i18next'
 
-import { ProseAccordion } from './prose-accordion'
-import { SectionHeading } from './section-heading'
+import { ProseAccordion } from '@/components/prose-accordion'
+import { SectionHeading } from '@/components/section-heading'
 
 const QUESTIONS = [
   {

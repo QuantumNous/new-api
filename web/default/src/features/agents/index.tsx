@@ -19,7 +19,7 @@ import { InstallGuide } from './components/install-guide'
 import { ScreenshotShowcase } from './components/screenshot-showcase'
 import { TrustPanel } from './components/trust-panel'
 import { useDesktopRelease } from './hooks/use-desktop-release'
-import { detectPlatform, primaryDownload } from './lib/release'
+import { detectPlatform, primaryDownload } from '@/features/downloads/release'
 
 export function AgentsView() {
   const { t } = useTranslation()

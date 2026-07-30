@@ -28,6 +28,7 @@ export const defaultTopNavLinks: TopNavLink[] = [
   { title: 'Home', href: '/' },
   { title: 'Workspace', href: '/playground' },
   { title: 'Agents', href: '/agents' },
+  { title: 'Connect', href: '/connect' },
   { title: 'Inspiration', href: '/inspiration' },
   { title: 'Model Hub', href: '/pricing' },
   { title: 'Rankings', href: '/rankings' },

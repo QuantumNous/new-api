@@ -1,0 +1,13 @@
+packages: []
+
+# pnpm refuses to install until every dependency with a postinstall script is
+# decided here. Leaving them to `onlyBuiltDependencies` alone was enough only
+# because this machine's node_modules had already been built; a clean checkout
+# failed and pnpm rewrote this file with unresolved placeholders.
+#
+# esbuild and oxide download the platform binary the build needs. msw only
+# installs a browser service worker, which nothing in Kit serves.
+allowBuilds:
+  '@tailwindcss/oxide': true
+  esbuild: true
+  msw: false

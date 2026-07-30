@@ -21,6 +21,7 @@ import { Route as PricingIndexRouteImport } from './routes/pricing/index'
 import { Route as PlaygroundIndexRouteImport } from './routes/playground/index'
 import { Route as InspirationIndexRouteImport } from './routes/inspiration/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
+import { Route as ConnectIndexRouteImport } from './routes/connect/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
@@ -143,6 +144,11 @@ const InspirationIndexRoute = InspirationIndexRouteImport.update({
 const DocsIndexRoute = DocsIndexRouteImport.update({
   id: '/docs/',
   path: '/docs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnectIndexRoute = ConnectIndexRouteImport.update({
+  id: '/connect/',
+  path: '/connect/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AgentsIndexRoute = AgentsIndexRouteImport.update({
@@ -538,6 +544,7 @@ export interface FileRoutesByFullPath {
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/agents/': typeof AgentsIndexRoute
+  '/connect/': typeof ConnectIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/inspiration/': typeof InspirationIndexRoute
   '/playground/': typeof PlaygroundIndexRoute
@@ -613,6 +620,7 @@ export interface FileRoutesByTo {
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
   '/agents': typeof AgentsIndexRoute
+  '/connect': typeof ConnectIndexRoute
   '/docs': typeof DocsIndexRoute
   '/inspiration': typeof InspirationIndexRoute
   '/playground': typeof PlaygroundIndexRoute
@@ -693,6 +701,7 @@ export interface FileRoutesById {
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/agents/': typeof AgentsIndexRoute
+  '/connect/': typeof ConnectIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/inspiration/': typeof InspirationIndexRoute
   '/playground/': typeof PlaygroundIndexRoute
@@ -772,6 +781,7 @@ export interface FileRouteTypes {
     | '/oauth/$provider'
     | '/about/'
     | '/agents/'
+    | '/connect/'
     | '/docs/'
     | '/inspiration/'
     | '/playground/'
@@ -847,6 +857,7 @@ export interface FileRouteTypes {
     | '/oauth/$provider'
     | '/about'
     | '/agents'
+    | '/connect'
     | '/docs'
     | '/inspiration'
     | '/playground'
@@ -926,6 +937,7 @@ export interface FileRouteTypes {
     | '/oauth/$provider'
     | '/about/'
     | '/agents/'
+    | '/connect/'
     | '/docs/'
     | '/inspiration/'
     | '/playground/'
@@ -993,6 +1005,7 @@ export interface RootRouteChildren {
   OauthProviderRoute: typeof OauthProviderRoute
   AboutIndexRoute: typeof AboutIndexRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
+  ConnectIndexRoute: typeof ConnectIndexRoute
   DocsIndexRoute: typeof DocsIndexRoute
   PlaygroundIndexRoute: typeof PlaygroundIndexRoute
   PricingIndexRoute: typeof PricingIndexRoute
@@ -1086,6 +1099,13 @@ declare module '@tanstack/react-router' {
       path: '/docs'
       fullPath: '/docs/'
       preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connect/': {
+      id: '/connect/'
+      path: '/connect'
+      fullPath: '/connect/'
+      preLoaderRoute: typeof ConnectIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/agents/': {
@@ -1729,6 +1749,7 @@ const rootRouteChildren: RootRouteChildren = {
   OauthProviderRoute: OauthProviderRoute,
   AboutIndexRoute: AboutIndexRoute,
   AgentsIndexRoute: AgentsIndexRoute,
+  ConnectIndexRoute: ConnectIndexRoute,
   DocsIndexRoute: DocsIndexRoute,
   PlaygroundIndexRoute: PlaygroundIndexRoute,
   PricingIndexRoute: PricingIndexRoute,

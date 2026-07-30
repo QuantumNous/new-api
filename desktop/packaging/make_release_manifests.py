@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Compose the two release manifests from staged desktop artifacts.
 
+Shared by both desktop products; --product selects the artifact table.
+
 Run after every platform build has been staged into one directory:
 
     python3 make_release_manifests.py --version 0.1.6 --dist dist/ \
@@ -30,40 +32,87 @@ import pathlib
 import sys
 
 # Stable asset name -> Tauri platform key. These are the artifacts the updater installs.
+# Names carry no version: the version lives in the R2 key prefix, so a manifest
+# always points at <base-url>/<version>/<asset>.
 UPDATER_ARTIFACTS = {
-    "BoxAI-Desktop-macos-arm64.app.tar.gz": "darwin-aarch64",
-    "BoxAI-Desktop-windows-setup.exe": "windows-x86_64",
+    "desktop": {
+        "BoxAI-Desktop-macos-arm64.app.tar.gz": "darwin-aarch64",
+        "BoxAI-Desktop-windows-setup.exe": "windows-x86_64",
+    },
+    "connect": {
+        "BoxAI-Connect-macos-arm64.app.tar.gz": "darwin-aarch64",
+        "BoxAI-Connect-macos-x64.app.tar.gz": "darwin-x86_64",
+        "BoxAI-Connect-windows-setup.exe": "windows-x86_64",
+    },
 }
 
 # Stable asset name -> what the website shows. `signed` reflects whether the installer
 # carries an OS-trusted signature (macOS: Developer ID + notarization; Windows: none yet,
 # so the download page must tell users how to get past SmartScreen).
-SITE_ARTIFACTS = [
-    {
-        "asset": "BoxAI-Desktop-macos-arm64.dmg",
-        "platform": "macos",
-        "arch": "arm64",
-        "kind": "dmg",
-        "signed": True,
-        "minimum_os": "12.0",
-    },
-    {
-        "asset": "BoxAI-Desktop-windows-setup.exe",
-        "platform": "windows",
-        "arch": "x86_64",
-        "kind": "exe",
-        "signed": False,
-        "minimum_os": "10",
-    },
-    {
-        "asset": "BoxAI-Desktop-windows.msi",
-        "platform": "windows",
-        "arch": "x86_64",
-        "kind": "msi",
-        "signed": False,
-        "minimum_os": "10",
-    },
-]
+SITE_ARTIFACTS = {
+    "desktop": [
+        {
+            "asset": "BoxAI-Desktop-macos-arm64.dmg",
+            "platform": "macos",
+            "arch": "arm64",
+            "kind": "dmg",
+            "signed": True,
+            "minimum_os": "12.0",
+        },
+        {
+            "asset": "BoxAI-Desktop-windows-setup.exe",
+            "platform": "windows",
+            "arch": "x86_64",
+            "kind": "exe",
+            "signed": False,
+            "minimum_os": "10",
+        },
+        {
+            "asset": "BoxAI-Desktop-windows.msi",
+            "platform": "windows",
+            "arch": "x86_64",
+            "kind": "msi",
+            "signed": False,
+            "minimum_os": "10",
+        },
+    ],
+    # Connect ships both Mac architectures; the upstream shell it forks still
+    # supports Intel, and a chunk of the coding-client audience is on it.
+    "connect": [
+        {
+            "asset": "BoxAI-Connect-macos-arm64.dmg",
+            "platform": "macos",
+            "arch": "arm64",
+            "kind": "dmg",
+            "signed": True,
+            "minimum_os": "12.0",
+        },
+        {
+            "asset": "BoxAI-Connect-macos-x64.dmg",
+            "platform": "macos",
+            "arch": "x64",
+            "kind": "dmg",
+            "signed": True,
+            "minimum_os": "12.0",
+        },
+        {
+            "asset": "BoxAI-Connect-windows-setup.exe",
+            "platform": "windows",
+            "arch": "x86_64",
+            "kind": "exe",
+            "signed": False,
+            "minimum_os": "10",
+        },
+        {
+            "asset": "BoxAI-Connect-windows.msi",
+            "platform": "windows",
+            "arch": "x86_64",
+            "kind": "msi",
+            "signed": False,
+            "minimum_os": "10",
+        },
+    ],
+}
 
 
 def sha256(path: pathlib.Path) -> str:
@@ -88,7 +137,16 @@ def main() -> int:
     ap.add_argument(
         "--notes", default="", help="release notes line shown in the update prompt"
     )
+    ap.add_argument(
+        "--product",
+        default="desktop",
+        choices=sorted(UPDATER_ARTIFACTS),
+        help="which desktop product these artifacts belong to",
+    )
     args = ap.parse_args()
+
+    updater_artifacts = UPDATER_ARTIFACTS[args.product]
+    site_artifacts = SITE_ARTIFACTS[args.product]
 
     base = args.base_url.rstrip("/")
     version_url = f"{base}/{args.version}"
@@ -99,7 +157,7 @@ def main() -> int:
     )
 
     platforms: dict[str, dict[str, str]] = {}
-    for asset, platform in UPDATER_ARTIFACTS.items():
+    for asset, platform in updater_artifacts.items():
         artifact = args.dist / asset
         sig = args.dist / (asset + ".sig")
         if not artifact.exists():
@@ -124,7 +182,7 @@ def main() -> int:
         return 1
 
     downloads = []
-    for spec in SITE_ARTIFACTS:
+    for spec in site_artifacts:
         artifact = args.dist / spec["asset"]
         if not artifact.exists():
             print(

@@ -95,6 +95,9 @@ export interface SystemStatus {
     desktop_release_manifest_url?: string
     desktop_download_url?: string
     desktop_min_version?: string
+    connect_release_manifest_url?: string
+    connect_download_url?: string
+    connect_min_version?: string
     github_oauth?: boolean
     github_client_id?: string
     discord_oauth?: boolean
@@ -142,6 +145,9 @@ export interface SystemStatus {
   desktop_release_manifest_url?: string
   desktop_download_url?: string
   desktop_min_version?: string
+  connect_release_manifest_url?: string
+  connect_download_url?: string
+  connect_min_version?: string
   github_oauth?: boolean
   github_client_id?: string
   discord_oauth?: boolean

@@ -3,6 +3,7 @@ WEB_CLASSIC_DIR = ./web/classic
 API_DIR = .
 DESKTOP_DIR = ./desktop
 DESKTOP_GUI_DIR = ./desktop/surfaces/gui
+CONNECT_DIR = ./connect
 DEV_WEB_DEFAULT_PORT ?= 5173
 DEV_WEB_CLASSIC_PORT ?= 5174
 DEV_COMPOSE_FILE = docker-compose.dev.yml
@@ -18,7 +19,8 @@ export REDIS_CONN_STRING ?= redis://127.0.0.1:6379/0
 .PHONY: all build-web build-web-classic build-all-web start-api \
 	dev-infra dev-api dev-web dev-web-local dev-web-classic dev \
 	reset-setup deploy deploy-bootstrap \
-	desktop-build desktop-stage desktop-publish desktop-screenshots
+	desktop-build desktop-stage desktop-publish desktop-screenshots \
+	connect-dev connect-check connect-build connect-stage connect-publish
 
 all: build-all-web start-api
 
@@ -94,6 +96,28 @@ desktop-publish:
 # Regenerate the marketing screenshots the download page uses (hermetic, no backend).
 desktop-screenshots:
 	@cd $(DESKTOP_GUI_DIR) && npm run screenshots
+
+# BoxAI Connect (connect/): the desktop app that points AI coding clients at this
+# deployment. It is a pnpm + Rust project, deliberately outside the bun workspace.
+#
+# Releases normally ship from .github/workflows/connect-release.yml on a connect-v* tag.
+# These targets are the local/emergency path; they reuse desktop/packaging's publish
+# pipeline through BOXAI_RELEASE_PRODUCT so both products share one verified script.
+connect-dev:
+	@cd $(CONNECT_DIR) && pnpm install --frozen-lockfile && pnpm dev
+
+connect-check:
+	@cd $(CONNECT_DIR) && pnpm install --frozen-lockfile && pnpm typecheck && pnpm format:check && pnpm test
+	@cd $(CONNECT_DIR)/src-tauri && cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings && cargo test
+
+connect-build:
+	@cd $(CONNECT_DIR) && pnpm install --frozen-lockfile && pnpm tauri build
+
+connect-stage:
+	@cd $(CONNECT_DIR) && bash packaging/stage_release.sh
+
+connect-publish:
+	@BOXAI_RELEASE_PRODUCT=connect bash $(DESKTOP_DIR)/packaging/publish_release.sh
 
 reset-setup:
 	@echo "Resetting local setup wizard state..."

@@ -23,6 +23,7 @@ export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
 export type HeaderNavModule =
   | 'playground'
   | 'agents'
+  | 'connect'
   | 'inspiration'
   | 'rankings'
   | 'pricing'
@@ -32,6 +33,7 @@ export type HeaderNavModules = {
   console: boolean
   playground: ModuleAccess
   agents: ModuleAccess
+  connect: ModuleAccess
   inspiration: ModuleAccess
   pricing: ModuleAccess
   rankings: ModuleAccess
@@ -49,6 +51,7 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
   console: true,
   playground: { enabled: true, requireAuth: false },
   agents: { enabled: true, requireAuth: false },
+  connect: { enabled: true, requireAuth: false },
   inspiration: { enabled: true, requireAuth: false },
   pricing: { enabled: true, requireAuth: false },
   rankings: { enabled: true, requireAuth: false },
@@ -59,6 +62,7 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
 const DEFAULTS: Record<HeaderNavModule, ModuleAccess> = {
   playground: DEFAULT_HEADER_NAV_MODULES.playground,
   agents: DEFAULT_HEADER_NAV_MODULES.agents,
+  connect: DEFAULT_HEADER_NAV_MODULES.connect,
   inspiration: DEFAULT_HEADER_NAV_MODULES.inspiration,
   pricing: DEFAULT_HEADER_NAV_MODULES.pricing,
   rankings: DEFAULT_HEADER_NAV_MODULES.rankings,
@@ -69,6 +73,7 @@ function cloneHeaderNavDefaults(): HeaderNavModules {
     ...DEFAULT_HEADER_NAV_MODULES,
     playground: { ...DEFAULT_HEADER_NAV_MODULES.playground },
     agents: { ...DEFAULT_HEADER_NAV_MODULES.agents },
+    connect: { ...DEFAULT_HEADER_NAV_MODULES.connect },
     inspiration: { ...DEFAULT_HEADER_NAV_MODULES.inspiration },
     pricing: { ...DEFAULT_HEADER_NAV_MODULES.pricing },
     rankings: { ...DEFAULT_HEADER_NAV_MODULES.rankings },
@@ -131,7 +136,12 @@ export function parseHeaderNavModules(raw: unknown): HeaderNavModules {
   if (!parsed) return result
 
   Object.entries(parsed).forEach(([key, value]) => {
-    if (key === 'playground' || key === 'agents' || key === 'inspiration') {
+    if (
+      key === 'playground' ||
+      key === 'agents' ||
+      key === 'connect' ||
+      key === 'inspiration'
+    ) {
       result[key] = {
         ...parseAccess(value, result[key]),
         requireAuth: false,

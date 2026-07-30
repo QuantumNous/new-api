@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "BoxAI Connect",
+        "titleBarStyle": "Visible",
+        "visible": true,
+        "minWidth": 900,
+        "minHeight": 600
+      }
+    ]
+  }
+}

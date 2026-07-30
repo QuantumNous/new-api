@@ -6,6 +6,7 @@ on:
       - '*'
       - '!nightly*'
       - '!desktop-v*'
+      - '!connect-v*'
   workflow_dispatch:
     inputs:
       tag:

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useNavigate } from '@tanstack/react-router'
 import type { Row } from '@tanstack/react-table'
 import {
   Trash2,
@@ -28,6 +29,7 @@ import {
   Link,
   Loader2,
   Info,
+  Plug,
 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -74,6 +76,7 @@ export function DataTableRowActions<TData>({
   row,
 }: DataTableRowActionsProps<TData>) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const apiKey = apiKeySchema.parse(row.original)
   const {
     setOpen,
@@ -265,6 +268,14 @@ export function DataTableRowActions<TData>({
           {t('CC Switch')}
           <DropdownMenuShortcut>
             <ArrowRightLeft size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => navigate({ to: '/connect' })}
+        >
+          {t('Set up BoxAI Connect')}
+          <DropdownMenuShortcut>
+            <Plug size={16} />
           </DropdownMenuShortcut>
         </DropdownMenuItem>
         {hasChatPresets && (

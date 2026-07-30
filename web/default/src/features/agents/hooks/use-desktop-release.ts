@@ -10,10 +10,11 @@ import { useQuery } from '@tanstack/react-query'
 
 import { useStatus } from '@/hooks/use-status'
 
-import {
-  DEFAULT_RELEASE_MANIFEST_URL,
-  fetchDesktopRelease,
-} from '../lib/release'
+import { fetchDesktopRelease } from '@/features/downloads/release'
+
+/** Where BoxAI Desktop releases live when the deployment has not overridden it. */
+const DEFAULT_RELEASE_MANIFEST_URL =
+  'https://dl.you-box.com/desktop/releases.json'
 
 /**
  * The current desktop release, read straight from the manifest the publish pipeline uploads
