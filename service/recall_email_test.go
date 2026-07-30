@@ -2025,7 +2025,7 @@ func newRecallEmailFixture(t *testing.T, stageCount int, sender RecallEmailSende
 	campaign := model.RecallCampaign{
 		Name: "email campaign", Status: model.RecallCampaignRunning, AudienceTemplate: "first_purchase", AudienceConfig: `{}`,
 		ExecutionMode: "manual", CouponSource: "existing", StripeCouponId: "coupon_email", DiscountConfig: string(discountJSON),
-		ProductScope: string(productJSON), PromotionValidSeconds: 3600, EmailSequenceConfig: string(emailJSON), EnrollmentLimit: 100, WorkerConcurrency: 2,
+		ProductScope: string(productJSON), PromotionValidSeconds: 3600, EmailSequenceConfig: model.LargeText(emailJSON), EnrollmentLimit: 100, WorkerConcurrency: 2,
 	}
 	require.NoError(t, model.DB.Create(&campaign).Error)
 	user := model.User{Username: "recall-user", DisplayName: `Ada <admin>`, Password: "password123", Status: common.UserStatusEnabled, Email: "snapshot@example.com", EmailVerifiedAt: recallEmailTestNow - 100}

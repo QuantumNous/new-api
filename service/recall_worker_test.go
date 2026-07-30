@@ -1900,7 +1900,7 @@ func createRecallWorkerCampaign(t *testing.T, status string) model.RecallCampaig
 		Name: "worker campaign", Status: status, AudienceTemplate: "inactive_users", AudienceConfig: `{}`,
 		ExecutionMode: "manual", CouponSource: "existing", StripeCouponId: "coupon_worker",
 		DiscountConfig: string(discountJSON), ProductScope: `{}`, PromotionValidSeconds: 3600,
-		EmailSequenceConfig: string(emailJSON), EnrollmentLimit: 100, WorkerConcurrency: 2,
+		EmailSequenceConfig: model.LargeText(emailJSON), EnrollmentLimit: 100, WorkerConcurrency: 2,
 	}
 	require.NoError(t, model.DB.Create(&campaign).Error)
 	return campaign
