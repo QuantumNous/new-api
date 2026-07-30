@@ -126,6 +126,112 @@ func TestChangePlanRejectsNonAnnualTarget(t *testing.T) {
 	requireRejected(t, w, "仅支持切换到年付套餐")
 }
 
+// TestChangePlanRejectsPlanNotFound covers a plan_id that doesn't exist. The
+// handler uses common.ApiError(c, err), which surfaces the raw GORM error
+// string rather than a curated message — this matches the brief and the
+// convention in every sibling payment handler (epay/creem/stripe/waffo_pancake/
+// airwallex-pay), so the test asserts the literal GORM message rather than
+// pushing the handler toward a curated one.
+func TestChangePlanRejectsPlanNotFound(t *testing.T) {
+	setupChangePlanDB(t)
+	require.NoError(t, model.SaveAirwallexBillingCustomerId(7, "bcus_1"))
+	failIfCalledListSubscriptions(t)
+	failIfCalledSwitchPrice(t)
+
+	c, w := changePlanRequest(t, 7, 999999) // no plan with this id exists
+	SubscriptionChangePlanAirwallex(c)
+
+	requireRejected(t, w, "record not found")
+}
+
+// TestChangePlanRejectsDisabledTarget covers a target plan that exists and is
+// annual/priced but has Enabled=false.
+func TestChangePlanRejectsDisabledTarget(t *testing.T) {
+	setupChangePlanDB(t)
+	require.NoError(t, model.SaveAirwallexBillingCustomerId(7, "bcus_1"))
+	failIfCalledListSubscriptions(t)
+	failIfCalledSwitchPrice(t)
+
+	disabled := &model.SubscriptionPlan{
+		Title: "JINN Plus 年付（已下线）", PriceAmount: 204, Currency: "CNY",
+		DurationUnit: model.SubscriptionDurationYear, DurationValue: 1,
+		UpgradeGroup: "plus", AirwallexPriceId: "pri_annual_disabled", Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(disabled).Error)
+	// GORM's `gorm:"default:true"` tag treats a zero-value bool field (false) on
+	// Create as "unset" and silently substitutes the default, so Enabled: false
+	// in the literal above would have been saved as true. Flip it with an
+	// explicit UPDATE instead, then drop the cache entry so the handler's
+	// GetSubscriptionPlanById re-reads the disabled row from the DB.
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", disabled.Id).Update("enabled", false).Error)
+	model.InvalidateSubscriptionPlanCache(disabled.Id)
+
+	c, w := changePlanRequest(t, 7, disabled.Id)
+	SubscriptionChangePlanAirwallex(c)
+
+	requireRejected(t, w, "套餐未启用")
+}
+
+// TestChangePlanRejectsEmptyAirwallexPriceId covers a target plan that is
+// enabled and annual but has no AirwallexPriceId configured.
+func TestChangePlanRejectsEmptyAirwallexPriceId(t *testing.T) {
+	setupChangePlanDB(t)
+	require.NoError(t, model.SaveAirwallexBillingCustomerId(7, "bcus_1"))
+	failIfCalledListSubscriptions(t)
+	failIfCalledSwitchPrice(t)
+
+	noPrice := &model.SubscriptionPlan{
+		Title: "JINN Plus 年付（未配置价格）", PriceAmount: 204, Currency: "CNY",
+		DurationUnit: model.SubscriptionDurationYear, DurationValue: 1,
+		UpgradeGroup: "plus", AirwallexPriceId: "", Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(noPrice).Error)
+
+	c, w := changePlanRequest(t, 7, noPrice.Id)
+	SubscriptionChangePlanAirwallex(c)
+
+	requireRejected(t, w, "该套餐未配置 AirwallexPriceId")
+}
+
+// TestChangePlanRejectsAnnualToAnnual covers the case where the subscription's
+// CURRENT price already resolves to an annual plan. Nothing in the schema
+// prevents two enabled annual plans sharing an upgrade_group, so without an
+// explicit guard an annual->annual "switch" would be reachable even though
+// this endpoint is monthly->annual only.
+func TestChangePlanRejectsAnnualToAnnual(t *testing.T) {
+	setupChangePlanDB(t)
+	require.NoError(t, model.SaveAirwallexBillingCustomerId(7, "bcus_1"))
+
+	currentAnnual := &model.SubscriptionPlan{
+		Title: "JINN Plus 年付（当前）", PriceAmount: 204, Currency: "CNY",
+		DurationUnit: model.SubscriptionDurationYear, DurationValue: 1,
+		UpgradeGroup: "plus", AirwallexPriceId: "pri_annual_current", Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(currentAnnual).Error)
+	targetAnnual := &model.SubscriptionPlan{
+		Title: "JINN Plus 年付（目标）", PriceAmount: 204, Currency: "CNY",
+		DurationUnit: model.SubscriptionDurationYear, DurationValue: 1,
+		UpgradeGroup: "plus", AirwallexPriceId: "pri_annual_target", Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(targetAnnual).Error)
+
+	// The live subscription's current item is on the OTHER annual price.
+	stubSubscriptionItems(t, "pri_annual_current")
+
+	savedList := listBillingSubscriptions
+	listBillingSubscriptions = func(customerId, status string) ([]airwallex.BillingSubscription, error) {
+		return []airwallex.BillingSubscription{{Id: "sub_1", Status: "ACTIVE"}}, nil
+	}
+	t.Cleanup(func() { listBillingSubscriptions = savedList })
+
+	failIfCalledSwitchPrice(t)
+
+	c, w := changePlanRequest(t, 7, targetAnnual.Id)
+	SubscriptionChangePlanAirwallex(c)
+
+	requireRejected(t, w, "当前已是年付套餐，无需切换")
+}
+
 func TestChangePlanRejectsCrossTierSwitch(t *testing.T) {
 	setupChangePlanDB(t)
 	require.NoError(t, model.SaveAirwallexBillingCustomerId(7, "bcus_1"))

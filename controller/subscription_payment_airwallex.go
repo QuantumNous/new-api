@@ -388,6 +388,10 @@ func SubscriptionChangePlanAirwallex(c *gin.Context) {
 		common.ApiErrorMsg(c, "当前套餐无法识别，请联系客服")
 		return
 	}
+	if current.DurationUnit == model.SubscriptionDurationYear {
+		common.ApiErrorMsg(c, "当前已是年付套餐，无需切换")
+		return
+	}
 	if current.UpgradeGroup != target.UpgradeGroup {
 		common.ApiErrorMsg(c, "仅支持同一档位内切换为年付")
 		return
