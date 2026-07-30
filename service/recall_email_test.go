@@ -25,6 +25,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -1954,25 +1955,45 @@ func TestRecallContentOnlyEmailRejectsHistoricalClaimTemplateBeforeSend(t *testi
 }
 
 func TestRecallEmailWorkerInjectsOpenPixelOnlyIntoFinalOutboundHTML(t *testing.T) {
-	t.Setenv("APP_CONSOLE_ORIGIN", "https://console.flatkey.ai")
 	tests := []struct {
-		name         string
-		campaignType string
-		template     RecallEmailTemplate
+		name                  string
+		consoleOrigin         string
+		fallbackServerAddress string
+		campaignType          string
+		template              RecallEmailTemplate
+		wantTrackerCount      int
 	}{
 		{
-			name:         "html body",
-			campaignType: model.RecallCampaignTypePromotion,
-			template:     RecallEmailTemplate{Subject: "Tracked HTML", BodyHTML: validRecallHTML},
+			name:             "html body",
+			consoleOrigin:    "https://console.flatkey.ai",
+			campaignType:     model.RecallCampaignTypePromotion,
+			template:         RecallEmailTemplate{Subject: "Tracked HTML", BodyHTML: validRecallHTML},
+			wantTrackerCount: 1,
 		},
 		{
-			name:         "content only body text",
-			campaignType: model.RecallCampaignTypeContentOnly,
-			template:     RecallEmailTemplate{Subject: "Tracked content", BodyText: "Product update\nOpen Flatkey for details."},
+			name:             "content only body text",
+			consoleOrigin:    "https://console.flatkey.ai",
+			campaignType:     model.RecallCampaignTypeContentOnly,
+			template:         RecallEmailTemplate{Subject: "Tracked content", BodyText: "Product update\nOpen Flatkey for details."},
+			wantTrackerCount: 1,
+		},
+		{
+			name:                  "missing console origin skips server fallback",
+			consoleOrigin:         "",
+			fallbackServerAddress: "http://localhost:3000",
+			campaignType:          model.RecallCampaignTypePromotion,
+			template:              RecallEmailTemplate{Subject: "Untracked without console", BodyHTML: validRecallHTML},
+			wantTrackerCount:      0,
 		},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
+			t.Setenv("APP_CONSOLE_ORIGIN", testCase.consoleOrigin)
+			if testCase.fallbackServerAddress != "" {
+				originalServerAddress := system_setting.ServerAddress
+				system_setting.ServerAddress = testCase.fallbackServerAddress
+				t.Cleanup(func() { system_setting.ServerAddress = originalServerAddress })
+			}
 			fixture := newRecallEmailFixture(t, 1, nil)
 			templateJSON, err := common.Marshal(map[string]RecallEmailTemplate{
 				"en": testCase.template,
@@ -2013,8 +2034,10 @@ func TestRecallEmailWorkerInjectsOpenPixelOnlyIntoFinalOutboundHTML(t *testing.T
 
 			require.Len(t, *fixture.sent, 1)
 			sent := (*fixture.sent)[0]
-			require.Equal(t, 1, strings.Count(sent.htmlBody, "/api/recall/open.gif?token="))
-			require.Contains(t, sent.htmlBody, `src="https://console.flatkey.ai/api/recall/open.gif?token=`)
+			require.Equal(t, testCase.wantTrackerCount, strings.Count(sent.htmlBody, "/api/recall/open.gif?token="))
+			if testCase.wantTrackerCount > 0 {
+				require.Contains(t, sent.htmlBody, `src="https://console.flatkey.ai/api/recall/open.gif?token=`)
+			}
 
 			stored := loadRecallEmailMessageByID(t, fixture.message.Id)
 			require.NotContains(t, stored.TemplateSnapshot, "/api/recall/open.gif?token=")

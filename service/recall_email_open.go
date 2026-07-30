@@ -10,6 +10,7 @@ import (
 	"errors"
 	"html"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -53,6 +54,10 @@ func CreateRecallEmailOpenToken(recipientID int64) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(sealed), nil
 }
 
+func recallEmailOpenBaseOrigin() string {
+	return strings.TrimSpace(os.Getenv("APP_CONSOLE_ORIGIN"))
+}
+
 func appendRecallEmailOpenPixel(htmlBody string, baseOrigin string, token string) string {
 	token = strings.TrimSpace(token)
 	if token == "" {
@@ -72,6 +77,9 @@ func appendRecallEmailOpenPixel(htmlBody string, baseOrigin string, token string
 	if origin.RawQuery != "" || origin.Fragment != "" {
 		return htmlBody
 	}
+	if !recallEmailOpenHostHasValidPort(origin.Host) {
+		return htmlBody
+	}
 	tracking := url.URL{
 		Scheme: scheme,
 		Host:   origin.Host,
@@ -81,7 +89,7 @@ func appendRecallEmailOpenPixel(htmlBody string, baseOrigin string, token string
 	query.Set("token", token)
 	tracking.RawQuery = query.Encode()
 	pixel := `<img src="` + html.EscapeString(tracking.String()) + `" width="1" height="1" alt="" style="display:none!important" aria-hidden="true">`
-	index := strings.LastIndex(strings.ToLower(htmlBody), "</body>")
+	index := lastRecallEmailClosingBodyIndex(htmlBody)
 	tracked := htmlBody + pixel
 	if index >= 0 {
 		tracked = htmlBody[:index] + pixel + htmlBody[index:]
@@ -90,6 +98,65 @@ func appendRecallEmailOpenPixel(htmlBody string, baseOrigin string, token string
 		return htmlBody
 	}
 	return tracked
+}
+
+func recallEmailOpenHostHasValidPort(host string) bool {
+	if strings.HasPrefix(host, "[") {
+		closeBracket := strings.LastIndex(host, "]")
+		if closeBracket < 0 {
+			return false
+		}
+		if len(host) == closeBracket+1 {
+			return true
+		}
+		if len(host) <= closeBracket+2 || host[closeBracket+1] != ':' {
+			return false
+		}
+		return recallEmailOpenPortIsDigits(host[closeBracket+2:])
+	}
+	colon := strings.LastIndex(host, ":")
+	if colon < 0 {
+		return true
+	}
+	return colon < len(host)-1 && recallEmailOpenPortIsDigits(host[colon+1:])
+}
+
+func recallEmailOpenPortIsDigits(port string) bool {
+	if port == "" {
+		return false
+	}
+	for index := 0; index < len(port); index++ {
+		if port[index] < '0' || port[index] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func lastRecallEmailClosingBodyIndex(source string) int {
+	const closingBody = "</body>"
+	for index := len(source) - len(closingBody); index >= 0; index-- {
+		if recallEmailASCIIFoldEqual(source[index:index+len(closingBody)], closingBody) {
+			return index
+		}
+	}
+	return -1
+}
+
+func recallEmailASCIIFoldEqual(value string, pattern string) bool {
+	if len(value) != len(pattern) {
+		return false
+	}
+	for index := 0; index < len(pattern); index++ {
+		left := value[index]
+		if left >= 'A' && left <= 'Z' {
+			left += 'a' - 'A'
+		}
+		if left != pattern[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func RecordRecallEmailOpen(ctx context.Context, token string, openedAt time.Time) error {

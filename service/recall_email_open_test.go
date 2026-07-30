@@ -43,6 +43,44 @@ func TestAppendRecallEmailOpenPixel(t *testing.T) {
 		require.Equal(t, 1, strings.Count(got, trackingURL))
 	})
 
+	t.Run("preserves byte offsets when unicode case folding expands before closing body", func(t *testing.T) {
+		htmlBody := "<html><body>Before \u0130</BODY></html>"
+
+		got := appendRecallEmailOpenPixel(htmlBody, "https://console.flatkey.ai", token)
+
+		require.Equal(t, "<html><body>Before \u0130"+pixel+"</BODY></html>", got)
+		require.Equal(t, 1, strings.Count(got, trackingURL))
+	})
+
+	t.Run("valid IPv6 and IDN origins inject absolute URLs", func(t *testing.T) {
+		htmlBody := "<html><body>Hello</body></html>"
+		tests := []struct {
+			name   string
+			origin string
+			want   string
+		}{
+			{
+				name:   "IPv6 loopback with port",
+				origin: "https://[::1]:8443/",
+				want:   `src="https://[::1]:8443/api/recall/open.gif?token=` + token + `"`,
+			},
+			{
+				name:   "IDN host",
+				origin: "https://例え.テスト/",
+				want:   `/api/recall/open.gif?token=` + token,
+			},
+		}
+		for _, testCase := range tests {
+			t.Run(testCase.name, func(t *testing.T) {
+				got := appendRecallEmailOpenPixel(htmlBody, testCase.origin, token)
+
+				require.Contains(t, got, testCase.want)
+				require.Contains(t, got, `src="https://`)
+				require.Equal(t, 1, strings.Count(got, "/api/recall/open.gif?token="))
+			})
+		}
+	})
+
 	t.Run("invalid origins and empty token are no-op", func(t *testing.T) {
 		htmlBody := "<html><body>Hello</body></html>"
 		tests := []struct {
@@ -57,6 +95,8 @@ func TestAppendRecallEmailOpenPixel(t *testing.T) {
 			{name: "path beyond root", origin: "https://console.flatkey.ai/console", token: token},
 			{name: "query", origin: "https://console.flatkey.ai/?a=1", token: token},
 			{name: "fragment", origin: "https://console.flatkey.ai/#app", token: token},
+			{name: "malformed IPv6", origin: "https://[::1/", token: token},
+			{name: "invalid port", origin: "https://console.flatkey.ai:bad/", token: token},
 			{name: "empty token", origin: "https://console.flatkey.ai", token: ""},
 		}
 		for _, testCase := range tests {
