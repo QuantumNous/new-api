@@ -12,6 +12,10 @@ import (
 )
 
 func SetApiRouter(router *gin.Engine) {
+	// Mailbox image proxies may refetch the same pixel; keep this response
+	// neutral by bypassing the shared API group's global rate limiter.
+	router.GET("/api/recall/open.gif", controller.TrackRecallEmailOpen)
+
 	apiRouter := router.Group("/api")
 	apiRouter.Use(middleware.RouteTag("api"))
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
@@ -93,7 +97,6 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/creem/webhook", anonymousRequestBodyLimit, controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", anonymousRequestBodyLimit, controller.WaffoWebhook)
 		apiRouter.GET("/recall/unsubscribe", controller.UnsubscribeRecallEmail)
-		apiRouter.GET("/recall/open.gif", controller.TrackRecallEmailOpen)
 		// RFC 8058 one-click target. Mailbox providers POST here with no
 		// session, so it stays anonymous like the GET landing page.
 		apiRouter.POST("/recall/unsubscribe", anonymousRequestBodyLimit, controller.UnsubscribeRecallEmailOneClick)
