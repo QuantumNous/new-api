@@ -16,6 +16,11 @@ const (
 	NameRuleSuffix
 )
 
+type ModelTokenLimits struct {
+	ContextWindow   int64
+	MaxOutputTokens int64
+}
+
 type BoundChannel struct {
 	Name string `json:"name"`
 	Type int    `json:"type"`
@@ -31,6 +36,8 @@ type Model struct {
 	Endpoints    string         `json:"endpoints,omitempty" gorm:"type:text"`
 	Status       int            `json:"status" gorm:"default:1"`
 	SyncOfficial int            `json:"sync_official" gorm:"default:1"`
+	ContextWindow   int64          `json:"context_window,omitempty" gorm:"type:bigint"`
+	MaxOutputTokens int64          `json:"max_output_tokens,omitempty" gorm:"type:bigint"`
 	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime  int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
@@ -78,7 +85,7 @@ func (mi *Model) Update() error {
 	mi.UpdatedTime = common.GetTimestamp()
 	// 使用 Select 强制更新所有字段，包括零值
 	return DB.Model(&Model{}).Where("id = ?", mi.Id).
-		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").
+		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "context_window", "max_output_tokens", "name_rule", "updated_time").
 		Updates(mi).Error
 }
 
@@ -150,6 +157,59 @@ func normalizeLookupValues(values []string) []string {
 		normalized = append(normalized, value)
 	}
 	return normalized
+}
+
+func GetModelTokenLimits(modelNames []string) (map[string]ModelTokenLimits, error) {
+	result := make(map[string]ModelTokenLimits)
+	modelNames = normalizeLookupValues(modelNames)
+	if len(modelNames) == 0 {
+		return result, nil
+	}
+
+	var models []Model
+	if err := DB.Where("status = ?", common.ChannelStatusEnabled).Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	for _, modelName := range modelNames {
+		var best *Model
+		for i := range models {
+			candidate := &models[i]
+			if !modelNameRuleMatches(candidate.NameRule, candidate.ModelName, modelName) {
+				continue
+			}
+			if best == nil ||
+				(candidate.NameRule == NameRuleExact && (best.NameRule != NameRuleExact || candidate.Id < best.Id)) ||
+				(candidate.NameRule != NameRuleExact && best.NameRule != NameRuleExact &&
+					(len(candidate.ModelName) > len(best.ModelName) ||
+						(len(candidate.ModelName) == len(best.ModelName) && candidate.Id < best.Id))) {
+				best = candidate
+			}
+		}
+		if best == nil || (best.ContextWindow <= 0 && best.MaxOutputTokens <= 0) {
+			continue
+		}
+		result[modelName] = ModelTokenLimits{
+			ContextWindow:   best.ContextWindow,
+			MaxOutputTokens: best.MaxOutputTokens,
+		}
+	}
+	return result, nil
+}
+
+func modelNameRuleMatches(rule int, pattern, modelName string) bool {
+	switch rule {
+	case NameRuleExact:
+		return modelName == pattern
+	case NameRulePrefix:
+		return strings.HasPrefix(modelName, pattern)
+	case NameRuleContains:
+		return strings.Contains(modelName, pattern)
+	case NameRuleSuffix:
+		return strings.HasSuffix(modelName, pattern)
+	default:
+		return false
+	}
 }
 
 func GetPreferredModelOwnerChannelTypes(modelNames []string, groups []string) (map[string]int, error) {
