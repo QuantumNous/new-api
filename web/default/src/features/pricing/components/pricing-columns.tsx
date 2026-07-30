@@ -153,7 +153,7 @@ export function usePricingColumns(
 
           return (
             <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
+              <span className='font-price text-sm tabular-nums'>
                 {primaryEntries.map((entry, index) => (
                   <span key={entry.key}>
                     {index > 0 && (
@@ -202,7 +202,7 @@ export function usePricingColumns(
 
           return (
             <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
+              <span className='font-price text-sm tabular-nums'>
                 {inputPrice}
                 <span className='text-muted-foreground/40 mx-1'>/</span>
                 {outputPrice}
@@ -226,7 +226,7 @@ export function usePricingColumns(
 
         return (
           <div className='max-w-full min-w-0'>
-            <span className='font-mono text-sm tabular-nums'>{price}</span>
+            <span className='font-price text-sm tabular-nums'>{price}</span>
             <div className='text-muted-foreground/50 text-[10px]'>
               / {t('request')}
             </div>
@@ -272,7 +272,7 @@ export function usePricingColumns(
 
           return (
             <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
+              <span className='font-price text-sm tabular-nums'>
                 {stripTrailingZeros(cacheEntry.formatted)}
               </span>
               <div className='text-muted-foreground/50 text-[10px]'>
@@ -302,7 +302,7 @@ export function usePricingColumns(
 
         return (
           <div className='max-w-full min-w-0'>
-            <span className='font-mono text-sm tabular-nums'>
+            <span className='font-price text-sm tabular-nums'>
               {cachedPrice}
             </span>
             <div className='text-muted-foreground/50 text-[10px]'>

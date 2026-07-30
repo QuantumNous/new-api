@@ -41,6 +41,11 @@ For commercial licensing, please contact support@quantumnous.com
   --font-manrope:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
     'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  /* Marketplace price face. Arial leads because it carries currency glyphs
+   * (e.g. ₫) that the monospace stack lacks — without it the browser falls
+   * back to a mismatched font mid-price. Exposed as the `font-price`
+   * utility and used across the pricing marketplace. */
+  --font-price: Arial, 'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);

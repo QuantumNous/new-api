@@ -33,6 +33,7 @@ import { getGroupSavingsPercent, isTokenBasedModel } from '../lib/model-helpers'
 import { canTryInPlayground } from '../lib/playground-eligibility'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
+import { ModelPriceRows, type ModelPriceRowItem } from './model-price-rows'
 
 export interface ModelCardProps {
   model: PricingModel
@@ -73,7 +74,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const usdExchangeRate = props.usdExchangeRate ?? 1
   const showRechargePrice = props.showRechargePrice ?? false
   const isTokenBased = isTokenBasedModel(props.model)
-  const tokenUnitLabel = tokenUnit === 'K' ? t('/K tokens') : t('/M tokens')
   const isNew = isRecentlyReleased(props.model)
   const title = props.model.display_name || props.model.model_name
   const canTry = canTryInPlayground(props.model)
@@ -127,14 +127,14 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     } else if (dynamicSummary.primaryEntries[0]) {
       const entry = dynamicSummary.primaryEntries[0]
       priceLine = (
-        <>
-          <span className='text-foreground font-mono text-sm font-semibold tabular-nums sm:text-base'>
+        <div className='font-price flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5'>
+          <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
             {entry.formatted}
           </span>
           <span className='text-muted-foreground text-xs'>
             {t(entry.shortLabel)}
           </span>
-        </>
+        </div>
       )
     } else {
       priceLine = (
@@ -144,56 +144,79 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       )
     }
   } else if (isTokenBased) {
+    const priceItems: ModelPriceRowItem[] = [
+      {
+        key: 'input',
+        label: t('Input'),
+        tone: 'input',
+        emphasized: true,
+        formatted: formatPrice(
+          props.model,
+          'input',
+          tokenUnit,
+          showRechargePrice,
+          priceRate,
+          usdExchangeRate,
+          props.selectedGroup
+        ),
+      },
+      {
+        key: 'output',
+        label: t('Output'),
+        tone: 'output',
+        emphasized: true,
+        formatted: formatPrice(
+          props.model,
+          'output',
+          tokenUnit,
+          showRechargePrice,
+          priceRate,
+          usdExchangeRate,
+          props.selectedGroup
+        ),
+      },
+    ]
+    if (props.model.cache_ratio != null) {
+      priceItems.push({
+        key: 'cache',
+        label: t('Cache'),
+        tone: 'cache',
+        formatted: formatPrice(
+          props.model,
+          'cache',
+          tokenUnit,
+          showRechargePrice,
+          priceRate,
+          usdExchangeRate,
+          props.selectedGroup
+        ),
+      })
+    }
     priceLine = (
-      <>
-        <span className='text-xs'>
-          <span className='text-muted-foreground'>{t('Input')} </span>
-          <strong className='text-foreground font-mono text-sm tabular-nums'>
-            {formatPrice(
-              props.model,
-              'input',
-              tokenUnit,
-              showRechargePrice,
-              priceRate,
-              usdExchangeRate,
-              props.selectedGroup
-            )}
-          </strong>
-        </span>
-        <span className='text-muted-foreground/40' aria-hidden>
-          /
-        </span>
-        <span className='text-xs'>
-          <span className='text-muted-foreground'>{t('Output')} </span>
-          <strong className='text-foreground font-mono text-sm tabular-nums'>
-            {formatPrice(
-              props.model,
-              'output',
-              tokenUnit,
-              showRechargePrice,
-              priceRate,
-              usdExchangeRate,
-              props.selectedGroup
-            )}
-          </strong>
-        </span>
-        <span className='text-muted-foreground text-xs'>{tokenUnitLabel}</span>
-      </>
+      <ModelPriceRows
+        items={priceItems}
+        unitSuffix={tokenUnit === 'K' ? '/1K' : '/1M'}
+      />
     )
   } else {
     priceLine = (
-      <>
-        <span className='text-foreground font-mono text-sm font-semibold tabular-nums sm:text-base'>
-          {formatRequestPrice(
-            props.model,
-            showRechargePrice,
-            priceRate,
-            usdExchangeRate,
-            props.selectedGroup
-          )}
-        </span>
-        <span className='text-muted-foreground text-xs'>/ {t('request')}</span>
-      </>
+      <ModelPriceRows
+        items={[
+          {
+            key: 'request',
+            label: t('Per request'),
+            tone: 'default',
+            emphasized: true,
+            formatted: formatRequestPrice(
+              props.model,
+              showRechargePrice,
+              priceRate,
+              usdExchangeRate,
+              props.selectedGroup
+            ),
+          },
+        ]}
+      />
     )
   }
 
@@ -243,9 +266,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               </span>
             )}
           </div>
-          <div className='mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5'>
-            {priceLine}
-          </div>
+          <div className='mt-2'>{priceLine}</div>
         </div>
       </div>
 
