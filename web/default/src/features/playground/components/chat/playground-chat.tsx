@@ -77,7 +77,7 @@ export function PlaygroundChat({
   onSaveEdit,
   onCancelEdit,
   onSaveEditAndSubmit,
-  messageLayoutMode = 'left',
+  messageLayoutMode = 'alternating',
 }: PlaygroundChatProps) {
   const { t } = useTranslation()
   const [editText, setEditText] = useState('')

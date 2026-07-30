@@ -33,7 +33,5 @@ export function getMessageAlignment(
 }
 
 export function getMessageAlignmentClass(alignment: MessageAlignment): string {
-  return alignment === 'right'
-    ? 'items-end text-right'
-    : 'items-start text-left'
+  return alignment === 'right' ? 'items-end text-left' : 'items-start text-left'
 }
