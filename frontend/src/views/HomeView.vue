@@ -144,6 +144,8 @@
       </div>
     </section>
 
+    <HomeShowcase />
+
     <AppFooter />
   </div>
 </template>
@@ -157,6 +159,7 @@ import HeroWorldMap from '@/components/home/hero/HeroWorldMap.vue'
 import HeroContent from '@/components/home/hero/HeroContent.vue'
 import HeroSignalConsole from '@/components/home/hero/HeroSignalConsole.vue'
 import ScrollActivityIndicator from '@/components/home/hero/ScrollActivityIndicator.vue'
+import HomeShowcase from '@/components/home/showcase/HomeShowcase.vue'
 import { useHeroScrollChrome } from '@/composables/useHeroScrollChrome'
 import { useImmersiveStage } from '@/composables/useImmersiveStage'
 import {

@@ -33,10 +33,20 @@
           class="hidden h-5 w-px bg-[var(--border-subtle)] lg:block"
           aria-hidden="true"
         />
-        <NotificationBadge />
+        <NotificationBadge class="xl:hidden 2xl:inline-flex" />
       </div>
 
       <div class="flex shrink-0 items-center gap-2.5 md:gap-2">
+        <div class="hidden items-center gap-0.5 xl:flex">
+          <a
+            v-for="item in showcaseAnchors"
+            :key="item.href"
+            :href="item.href"
+            class="rounded-full px-3 py-1.5 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
+          >
+            {{ t(item.labelKey) }}
+          </a>
+        </div>
         <span
           class="hidden items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-[var(--text-secondary)] md:inline-flex"
           :title="statusLabel"
@@ -165,6 +175,12 @@ const statusLabel = computed(() => {
   if (phase.value === 'error') return t('nav.unavailable')
   return t('nav.checking')
 })
+
+const showcaseAnchors = [
+  { href: '#market-route', labelKey: 'nav.marketRoute' },
+  { href: '#activities', labelKey: 'nav.activities' },
+  { href: '#assurance', labelKey: 'nav.assurance' },
+] as const
 
 let scrollPosition = 0
 let savedBodyStyles: Record<string, string> | null = null

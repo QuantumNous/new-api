@@ -66,6 +66,39 @@
 
           <nav class="mt-10" :aria-label="t('nav.navigation')">
             <ul class="space-y-2">
+              <li v-for="item in showcaseAnchors" :key="item.href">
+                <a
+                  :href="item.href"
+                  class="group flex min-h-14 items-center gap-3 rounded-2xl px-4 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+                  @click="close"
+                >
+                  <span
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--accent)]"
+                  >
+                    <component
+                      :is="item.icon"
+                      :size="17"
+                      :stroke-width="1.8"
+                      aria-hidden="true"
+                    />
+                  </span>
+                  <span class="text-sm font-semibold">{{
+                    t(item.labelKey)
+                  }}</span>
+                  <svg
+                    class="ml-auto text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                </a>
+              </li>
               <li>
                 <div
                   class="flex min-h-14 items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 text-[var(--text-secondary)]"
@@ -188,6 +221,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { Network, ShieldCheck, Sparkles } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import StatusDot from '@/components/common/StatusDot.vue'
@@ -226,6 +260,24 @@ const statusCodeLabel = computed(() => {
   if (phase.value === 'error') return t('nav.telemetry.unavailable')
   return t('nav.telemetry.checking')
 })
+
+const showcaseAnchors = [
+  {
+    href: '#market-route',
+    labelKey: 'nav.marketRoute',
+    icon: Network,
+  },
+  {
+    href: '#activities',
+    labelKey: 'nav.activities',
+    icon: Sparkles,
+  },
+  {
+    href: '#assurance',
+    labelKey: 'nav.assurance',
+    icon: ShieldCheck,
+  },
+] as const
 
 function close() {
   emit('close')

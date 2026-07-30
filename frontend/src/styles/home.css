@@ -237,6 +237,7 @@ html.dark .mobile-nav-drawer {
 /* HomeView owns its scroll rail. Native chrome is removed rather than merely
    made transparent, so it cannot leave a blank gutter beside the custom rail. */
 html.hero-scrollbar-hidden {
+  scroll-behavior: smooth;
   scrollbar-gutter: auto;
   scrollbar-width: none;
   scrollbar-color: transparent transparent;
@@ -996,6 +997,101 @@ html.hero-scrollbar-hidden::-webkit-scrollbar-thumb:hover {
 @media (max-width: 1023px) {
   .landing-shell {
     --hero-depth-overlay: var(--hero-mobile-depth-overlay);
+  }
+}
+
+/* ===== Homepage showcase bands ===== */
+.landing-shell .home-showcase {
+  position: relative;
+  isolation: isolate;
+}
+
+.landing-shell .home-showcase-band {
+  position: relative;
+  scroll-margin-top: 5.5rem;
+  padding-block: clamp(4.75rem, 9vw, 8.5rem);
+}
+
+.landing-shell .home-showcase-inner {
+  position: relative;
+  width: min(100% - 2rem, 92rem);
+  margin-inline: auto;
+}
+
+.landing-shell .home-showcase-band + .home-showcase-band {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.landing-shell
+  .home-showcase-assurance-group
+  > .home-showcase-band:first-child {
+  border-top: 1px solid var(--border-subtle);
+}
+
+html.light .landing-shell .home-showcase-band {
+  --showcase-rule: var(--pencil-line-soft);
+}
+
+html.light .landing-shell .home-showcase-band::after {
+  position: absolute;
+  right: max(1rem, calc((100vw - 92rem) / 2));
+  bottom: 1.1rem;
+  left: max(1rem, calc((100vw - 92rem) / 2));
+  height: 3px;
+  background: repeating-linear-gradient(
+    91deg,
+    var(--showcase-rule) 0 14px,
+    transparent 14px 23px
+  );
+  content: '';
+  opacity: 0.35;
+  transform: rotate(-0.08deg);
+  pointer-events: none;
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .landing-shell .home-showcase-band > .home-showcase-inner {
+      animation: home-band-reveal linear both;
+      animation-range: entry 4% entry 72%;
+      animation-timeline: view();
+    }
+  }
+}
+
+@keyframes home-band-reveal {
+  from {
+    opacity: 0.18;
+    transform: translateY(2.25rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 640px) {
+  .landing-shell .home-showcase-inner {
+    width: min(100% - 3rem, 92rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-shell .home-showcase-inner {
+    width: min(100% - 4rem, 92rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.landing-shell) {
+    scroll-behavior: auto;
+  }
+
+  .landing-shell .home-showcase-band > .home-showcase-inner {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
 

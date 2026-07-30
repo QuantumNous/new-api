@@ -10,6 +10,9 @@ export default {
     openMenu: 'Open navigation menu',
     closeMenu: 'Close navigation menu',
     status: 'Status',
+    marketRoute: 'Market & Routing',
+    activities: 'Activities',
+    assurance: 'Assurance',
     docs: 'Docs',
     pricing: 'Pricing',
     language: 'Language',
@@ -101,6 +104,283 @@ export default {
         title: 'Team Guardrails',
         detail: 'quota · concurrency · groups · policy-bound access',
       },
+    },
+  },
+  showcase: {
+    state: {
+      loading: 'Assembling the homepage market and operations snapshot…',
+      errorTitle: 'Homepage showcase data is unavailable',
+      errorDescription:
+        'The local showcase source failed to load. Console and account data are unaffected.',
+      retry: 'Reload',
+    },
+    common: {
+      eyebrow: 'REN2HUB ECOSYSTEM',
+      openConsole: 'Open Console',
+      viewDetails: 'View details',
+      enabled: 'Enabled',
+      disabled: 'Disabled',
+      verified: 'Verified',
+      previous: 'Move up',
+      next: 'Move down',
+    },
+    market: {
+      eyebrow: 'MARKET TO ROUTE',
+      title: 'A channel market that goes beyond a price list',
+      description:
+        'Publish supply, acquire a channel, then compose it into a dedicated token route in one continuous workflow.',
+      buy: 'Buy channels',
+      sell: 'Publish supply',
+      route: 'Token route',
+      sideLabel: 'Market operation mode',
+      listingTitle: 'Live supply ledger',
+      listingHint:
+        'Choose a channel and add it to the token route on the right.',
+      publish: 'Publish channel',
+      published: 'Listed',
+      buyAction: 'Add to route',
+      bought: 'Added',
+      purchaseAction: 'Buy calling service',
+      bindAction: 'Add to token route',
+      bound: 'In route',
+      sellerLabel: 'Supplier',
+      availability: 'Availability',
+      qc: 'QC',
+      price: 'Per million tokens',
+      routeTitle: 'DIY routing bench',
+      routeHint:
+        'Order defines priority; load balancing distributes by weight.',
+      loadBalance: 'Load balancing',
+      simulate: 'Simulate a request',
+      simulating: 'Routing',
+      routeReady: 'Route ready',
+      routeSending: 'Request sent to primary channel {channel}',
+      routeFailover: 'Primary health dropped; switching to {channel}',
+      routeDone: '{channel} responded · {latency} ms',
+      routeUnavailable:
+        'No channel is available. Enable at least one healthy route.',
+      emptyRoute: 'Choose a channel on the left to build a dedicated route.',
+      emptyListings: 'No actionable channel supply is available in this mode.',
+      priority: 'Priority #{n}',
+      weight: 'Weight',
+      routeOrderLabel: 'Token channel priority order',
+      moveChannelUp: 'Move {channel} up',
+      moveChannelDown: 'Move {channel} down',
+      toggleChannel: 'Enable or disable {channel}',
+      mockIsolation: 'Homepage sandbox is isolated from real tokens',
+      goMarket: 'Open marketplace',
+      goKeys: 'Manage my tokens',
+      journey: {
+        label: 'Market journey from publishing to token routing',
+        draft: 'Publish',
+        listed: 'List',
+        purchased: 'Acquire',
+        bound: 'Route',
+      },
+      status: {
+        draft: 'Draft',
+        listed: 'Available',
+        purchased: 'Purchased',
+      },
+      listings: {
+        cascade: {
+          title: 'Cascade Relay · GPT-5',
+          detail:
+            'A seller-published calling service ready to list, acquire, and compose into a dedicated token route.',
+        },
+        claude: {
+          title: 'Claude Sonnet Stable Channel',
+          detail:
+            'An Anthropic calling channel checked for availability and model consistency.',
+        },
+        gemini: {
+          title: 'Gemini Pro Elastic Channel',
+          detail:
+            'Marketplace capacity for traffic peaks, already owned by this account.',
+        },
+      },
+    },
+    routing: {
+      channels: {
+        atlas: 'Atlas Primary',
+        gemini: 'Gemini Market Channel',
+        harbor: 'Harbor Fallback',
+      },
+      health: {
+        healthy: 'Healthy',
+        degraded: 'Degraded',
+        offline: 'Offline',
+      },
+    },
+    discount: {
+      eyebrow: 'TOKEN VOLUME DISCOUNT',
+      title: 'Every request moves you toward a lower price',
+      description:
+        'Account-wide model token usage unlocks higher tiers automatically and applies the discount instantly.',
+      usage: 'Cumulative model tokens',
+      currentTier: 'Current tier',
+      instantDiscount: 'Instant discount',
+      payRatio: 'Current pay ratio',
+      saved: 'Estimated savings',
+      exampleSpend: 'Trial spend (USD)',
+      estimatedPayment: 'Estimated payment after discount: {amount}',
+      nextTier: '{amount} to the next tier',
+      maxTier: 'Highest discount unlocked',
+      sliderLabel: 'Adjust cumulative token usage',
+      tierReached: 'Unlocked',
+      tierPending: 'Locked',
+      accountWide: 'All API keys in the account accumulate together',
+      tiers: {
+        starter: 'Starter',
+        growth: 'Growth',
+        scale: 'Scale',
+        pro: 'Pro',
+        max: 'Max',
+      },
+    },
+    activities: {
+      eyebrow: 'TOKEN-POWERED ACTIVITIES',
+      title: 'Let token usage keep creating value',
+      description:
+        'Check-ins, referrals, the token farm, and games share one benefit loop for credits, coupons, items, and badges.',
+      checkin: {
+        title: 'Daily check-in',
+        description:
+          'Build a streak and leave today’s stamp for account credit.',
+        action: 'Check in today',
+        done: 'Checked in',
+        reward: '+{amount} credit',
+      },
+      affiliate: {
+        title: 'Affiliate Plan',
+        description:
+          'Referral attribution persists and usage generates account rebates.',
+        action: 'Simulate referral',
+        members: 'Valid referrals',
+        rebate: 'Total rebate',
+      },
+      farm: {
+        title: 'Token Farm',
+        description:
+          'API usage grows ore and crops that convert to account benefits.',
+        action: 'Add usage',
+        ore: 'Ore',
+        growth: 'Growth',
+      },
+      game: {
+        title: 'The Boring Big Game',
+        description:
+          'Usage milestones award game coins for a light wheel and blind box.',
+        action: 'Spin once',
+        spinning: 'Drawing',
+        coins: 'Game coins',
+        lastPrize: 'Latest reward',
+        pendingPrize: 'Ready to draw',
+        prizes: {
+          badge: 'Milestone badge',
+        },
+      },
+      items: {
+        checkin: {
+          title: 'Daily Check-in',
+          detail:
+            'Maintain a check-in streak and accumulate account credit for model calls.',
+          reward: 'Complete 7 days for $5 account credit',
+        },
+        affiliate: {
+          title: 'Affiliate Plan',
+          detail:
+            'Referral attribution persists while eligible usage generates account rebates.',
+          reward: 'Rebates accrue with eligible usage',
+        },
+        farm: {
+          title: 'Token Farm',
+          detail:
+            'Model token usage grows ore and crops toward account milestones.',
+          reward: 'Unlock a harvest badge at 10M tokens',
+        },
+        bigame: {
+          title: 'The Boring Big Game',
+          detail:
+            'Token usage milestones award coins for the in-app wheel and blind box.',
+          reward: 'Unlock a milestone blind box at 100 coins',
+        },
+      },
+      units: {
+        days: 'days',
+        invites: 'referrals',
+        tokens: 'tokens',
+        coins: 'coins',
+      },
+      empty: 'Activity data is currently unavailable',
+      equityNote:
+        'The Affiliate Plan is a referral program, not equity or an investment product.',
+      goActivities: 'Open activity center',
+    },
+    quality: {
+      verdicts: {
+        verified: 'Verified',
+        review: 'Needs review',
+        unavailable: 'Unavailable',
+      },
+    },
+    support: {
+      links: {
+        ticket: 'Support ticket',
+        telegram: 'Telegram',
+        qq: 'QQ',
+      },
+    },
+    trust: {
+      eyebrow: 'OPERATIONS & VERIFICATION',
+      title: 'Operational status and channel evidence, open to inspection',
+      description:
+        'Runtime keeps counting, quality reports stay traceable by provider and model, and issues enter a tracked ticket thread.',
+      runtime: 'Stable runtime',
+      requests: 'Requests today',
+      availability: 'Current availability',
+      requestsHint: 'Deterministic homepage count · pauses offscreen',
+      availabilityHint: 'From the public uptime endpoint',
+      day: 'Days',
+      hour: 'Hours',
+      minute: 'Minutes',
+      second: 'Seconds',
+      qualityTitle: 'Third-party channel QC',
+      qualityHint:
+        'Each channel includes an overall result and model-level reports.',
+      agency: 'QC provider',
+      allAgencies: 'All providers',
+      channelOverview: 'Channel quality overview',
+      channelScore: 'Channel score',
+      reportId: 'Report ID',
+      checkedAt: 'Checked at',
+      openReport: 'Open report',
+      reportUnavailable: 'Report link pending',
+      emptyReports: 'No matching model report',
+      emptyReportsHint: 'Try another channel or quality provider.',
+      supportTitle: 'Tracked ticket support',
+      supportDescription:
+        'Submit complete request and response records, reproducible steps, and technical screenshots. Progress stays in the ticket thread.',
+      ticketAction: 'Submit a ticket',
+      validEvidence: 'Useful evidence',
+      validItems: [
+        'Complete request and response records',
+        'Reproducible steps and technical screenshots',
+        'Request ID, model, and time range',
+      ],
+      invalidEvidence: 'Not conclusive',
+      invalidItems: [
+        'Third-party scores alone',
+        'Subjective claims without a time range',
+        'Descriptions that cannot be reproduced',
+      ],
+      disclaimer:
+        'Report providers own their findings. The platform does not replace evidence with subjective judgment or promise an unverified response time.',
+      finalTitle: 'Route your next model request through a network you control',
+      finalDescription:
+        'Start with one token and manage market supply, routing, discounts, and support in one place.',
+      finalPrimary: 'Start free',
+      finalSecondary: 'View market',
     },
   },
   footer: {
