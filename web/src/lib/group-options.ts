@@ -37,15 +37,12 @@ export function buildGroupOptions<TRatio>(
 ): GroupDisplayOption<TRatio>[] {
   return Object.entries(groups).map(([identifier, info]) => {
     const name = info.name?.trim() || identifier
-    const description = info.desc?.trim()
-    const secondary = [name === identifier ? '' : identifier, description]
-      .filter(Boolean)
-      .join(' - ')
+    const description = info.desc?.trim() || name
 
     return {
       value: identifier,
       label: name,
-      desc: secondary || undefined,
+      desc: description,
       ratio: info.ratio,
     }
   })

@@ -28,6 +28,7 @@ const domGlobals = [
   'navigator',
   'HTMLElement',
   'HTMLInputElement',
+  'HTMLTextAreaElement',
   'SVGElement',
   'Node',
   'Element',
@@ -51,6 +52,8 @@ const { act, useState } = await import('react')
 const { createRoot } = await import('react-dom/client')
 const { createInstance } = await import('i18next')
 const { I18nextProvider, initReactI18next } = await import('react-i18next')
+const { useForm } = await import('react-hook-form')
+const { GroupRatioForm } = await import('../group-ratio-form')
 const { GroupRatioVisualEditor } = await import('../group-ratio-visual-editor')
 
 const i18n = createInstance()
@@ -223,6 +226,62 @@ describe('group identifier presentation', () => {
     assert.equal(identifierInput.value, 'vip')
     assert.equal(identifiersAreValid, false)
     assert.equal(container.querySelectorAll('code[title="vip"]').length, 1)
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  test('keeps group JSON fields editable in JSON mode', async () => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    function Harness() {
+      const form = useForm({
+        defaultValues: {
+          GroupRatio: '{"default":1}',
+          GroupDisplayNames: '{"default":"Default"}',
+          TopupGroupRatio: '{"default":1}',
+          UserUsableGroups: '{"default":"Default group"}',
+          GroupGroupRatio: '{}',
+          AutoGroups: '[]',
+          DefaultUseAutoGroup: false,
+          GroupSpecialUsableGroup: '{}',
+        },
+      })
+
+      return (
+        <I18nextProvider i18n={i18n}>
+          <GroupRatioForm
+            form={form}
+            onSave={async () => undefined}
+            isSaving={false}
+            savedGroupIdentifiers={['default']}
+          />
+        </I18nextProvider>
+      )
+    }
+
+    await act(async () => root.render(<Harness />))
+
+    const jsonModeButton = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent?.includes('Switch to JSON')
+    )
+    assert.ok(jsonModeButton)
+    await act(async () => jsonModeButton.click())
+
+    const editableFields = [
+      'GroupRatio',
+      'GroupDisplayNames',
+      'TopupGroupRatio',
+      'UserUsableGroups',
+      'GroupGroupRatio',
+      'AutoGroups',
+      'GroupSpecialUsableGroup',
+    ]
+    for (const fieldName of editableFields) {
+      assert.ok(container.querySelector(`textarea[name="${fieldName}"]`))
+    }
 
     await act(async () => root.unmount())
     container.remove()

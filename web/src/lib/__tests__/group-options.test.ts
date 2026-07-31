@@ -33,7 +33,17 @@ describe('group option display', () => {
 
     assert.equal(option.value, 'codex1')
     assert.equal(option.label, 'Codex Plus')
-    assert.equal(option.desc, 'codex1 - For Codex users')
+    assert.equal(option.desc, 'For Codex users')
+  })
+
+  test('falls back to the display name when the description is empty', () => {
+    const [option] = buildGroupOptions({
+      codex1: { name: 'Codex Plus', desc: '', ratio: 1 },
+    })
+
+    assert.equal(option.value, 'codex1')
+    assert.equal(option.label, 'Codex Plus')
+    assert.equal(option.desc, 'Codex Plus')
   })
 
   test('falls back to the identifier for responses without a name', () => {

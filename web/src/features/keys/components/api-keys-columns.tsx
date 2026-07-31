@@ -56,6 +56,7 @@ function getQuotaProgressColor(percentage: number): string {
 
 type GroupMetadata = Record<string, { label: string; ratio?: number | string }>
 
+/** 加载 API Key 列表展示所需的分组名称和倍率。 */
 function useGroupMetadata(): GroupMetadata {
   const { data } = useQuery({
     queryKey: ['user-groups'],

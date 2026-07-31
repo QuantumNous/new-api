@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// validGroupOptionsUpdateRequest 返回可按需覆盖字段的合法请求。
 func validGroupOptionsUpdateRequest() GroupOptionsUpdateRequest {
 	return GroupOptionsUpdateRequest{
 		GroupRatio:              `{"codex1":1}`,
@@ -31,11 +32,13 @@ func validGroupOptionsUpdateRequest() GroupOptionsUpdateRequest {
 	}
 }
 
+// groupOptionsUpdateResponse 表示测试关心的接口响应字段。
 type groupOptionsUpdateResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
 
+// setupGroupOptionsUpdateTest 隔离数据库和分组配置全局状态。
 func setupGroupOptionsUpdateTest(t *testing.T) *gorm.DB {
 	t.Helper()
 	previousDB := model.DB
@@ -43,6 +46,7 @@ func setupGroupOptionsUpdateTest(t *testing.T) *gorm.DB {
 	previousRedisEnabled := common.RedisEnabled
 	previousGroupRatio := ratio_setting.GroupRatio2JSONString()
 	previousAutoGroups := setting.AutoGroups2JsonString()
+	previousDisplayNames := setting.GroupDisplayNames2JSONString()
 	common.OptionMapRWMutex.RLock()
 	previousOptionMap := make(map[string]string, len(common.OptionMap))
 	for key, value := range common.OptionMap {
@@ -55,6 +59,7 @@ func setupGroupOptionsUpdateTest(t *testing.T) *gorm.DB {
 		common.RedisEnabled = previousRedisEnabled
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(previousGroupRatio))
 		require.NoError(t, setting.UpdateAutoGroupsByJsonString(previousAutoGroups))
+		require.NoError(t, setting.UpdateGroupDisplayNamesByJSONString(previousDisplayNames))
 		common.OptionMapRWMutex.Lock()
 		common.OptionMap = previousOptionMap
 		common.OptionMapRWMutex.Unlock()
@@ -62,7 +67,7 @@ func setupGroupOptionsUpdateTest(t *testing.T) *gorm.DB {
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Option{}, &model.User{}, &model.Log{}))
+	require.NoError(t, db.AutoMigrate(&model.Option{}, &model.User{}, &model.Token{}, &model.Log{}))
 	model.DB = db
 	model.LOG_DB = db
 	common.RedisEnabled = false
@@ -72,6 +77,7 @@ func setupGroupOptionsUpdateTest(t *testing.T) *gorm.DB {
 	return db
 }
 
+// performGroupOptionsUpdate 调用分组配置接口并解析通用响应。
 func performGroupOptionsUpdate(t *testing.T, request GroupOptionsUpdateRequest) (*httptest.ResponseRecorder, groupOptionsUpdateResponse) {
 	t.Helper()
 	body, err := common.Marshal(request)
@@ -136,6 +142,73 @@ func TestUpdateGroupOptionsPersistsOnlyChangedFields(t *testing.T) {
 	assert.JSONEq(t, `["server"]`, persistedAutoGroups.Value)
 	assert.JSONEq(t, `{"client":2}`, ratio_setting.GroupRatio2JSONString())
 	assert.JSONEq(t, `["server"]`, setting.AutoGroups2JsonString())
+}
+
+func TestUpdateGroupOptionsDisplayNameEditKeepsIdentifierAndTokenBinding(t *testing.T) {
+	db := setupGroupOptionsUpdateTest(t)
+	require.NoError(t, model.UpdateOptionsBulk(map[string]string{
+		"GroupRatio":        `{"stable":1}`,
+		"GroupDisplayNames": `{"stable":"Old name"}`,
+	}))
+	require.NoError(t, db.Create(&model.Token{
+		Id:     1,
+		UserId: 1,
+		Key:    "display-name-token",
+		Group:  "stable",
+	}).Error)
+
+	request := validGroupOptionsUpdateRequest()
+	request.GroupRatio = `{"stable":1}`
+	request.GroupDisplayNames = `{"stable":"New name"}`
+	request.ChangedKeys = []string{"GroupDisplayNames"}
+	recorder, response := performGroupOptionsUpdate(t, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.True(t, response.Success, response.Message)
+	var persistedGroupRatio model.Option
+	var persistedToken model.Token
+	require.NoError(t, db.First(&persistedGroupRatio, "key = ?", "GroupRatio").Error)
+	require.NoError(t, db.First(&persistedToken, 1).Error)
+	assert.JSONEq(t, `{"stable":1}`, persistedGroupRatio.Value)
+	assert.Equal(t, "stable", persistedToken.Group)
+	assert.Equal(t, "New name", setting.GetGroupDisplayName("stable"))
+}
+
+func TestUpdateGroupOptionsRecreatedIdentifierRestoresHistoricalTokenBinding(t *testing.T) {
+	db := setupGroupOptionsUpdateTest(t)
+	require.NoError(t, model.UpdateOptionsBulk(map[string]string{
+		"GroupRatio":        `{"stable":1}`,
+		"GroupDisplayNames": `{"stable":"Stable group"}`,
+	}))
+	require.NoError(t, db.Create(&model.Token{
+		Id:     2,
+		UserId: 1,
+		Key:    "historical-token",
+		Group:  "stable",
+	}).Error)
+
+	deleteRequest := validGroupOptionsUpdateRequest()
+	deleteRequest.GroupRatio = `{}`
+	deleteRequest.GroupDisplayNames = `{}`
+	deleteRequest.ChangedKeys = []string{"GroupRatio", "GroupDisplayNames"}
+	_, deleteResponse := performGroupOptionsUpdate(t, deleteRequest)
+	require.True(t, deleteResponse.Success, deleteResponse.Message)
+
+	var persistedToken model.Token
+	require.NoError(t, db.First(&persistedToken, 2).Error)
+	assert.Equal(t, "stable", persistedToken.Group)
+	assert.NotContains(t, ratio_setting.GetGroupRatioCopy(), persistedToken.Group)
+
+	recreateRequest := validGroupOptionsUpdateRequest()
+	recreateRequest.GroupRatio = `{"stable":2}`
+	recreateRequest.GroupDisplayNames = `{"stable":"Restored group"}`
+	recreateRequest.ChangedKeys = []string{"GroupRatio", "GroupDisplayNames"}
+	_, recreateResponse := performGroupOptionsUpdate(t, recreateRequest)
+	require.True(t, recreateResponse.Success, recreateResponse.Message)
+
+	require.NoError(t, db.First(&persistedToken, 2).Error)
+	assert.Equal(t, "stable", persistedToken.Group)
+	assert.Equal(t, 2.0, ratio_setting.GetGroupRatioCopy()[persistedToken.Group])
 }
 
 func TestUpdateGroupOptionsValidatesFullRequestBeforeWriting(t *testing.T) {

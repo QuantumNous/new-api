@@ -24,6 +24,7 @@ func GroupDisplayNames2JSONString() string {
 	return string(jsonBytes)
 }
 
+// parseGroupDisplayNames 解析显示名称映射并拒绝空白标识。
 func parseGroupDisplayNames(jsonStr string) (map[string]string, error) {
 	names := make(map[string]string)
 	if err := common.UnmarshalJsonStr(jsonStr, &names); err != nil {
