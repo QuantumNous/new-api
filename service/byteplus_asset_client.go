@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -304,10 +303,7 @@ func (c *BytePlusAssetClient) actionURL(action string) (string, error) {
 }
 
 func upstreamAssetErr(reason, requestID string) error {
-	if strings.TrimSpace(requestID) == "" {
-		return fmt.Errorf("byteplus asset %s", reason)
-	}
-	return fmt.Errorf("byteplus asset %s (request_id=%s)", reason, requestID)
+	return &BytePlusAPIError{StatusCode: http.StatusOK, RequestID: strings.TrimSpace(requestID)}
 }
 
 func sanitizedAssetResultError(result bytePlusAssetResult) string {

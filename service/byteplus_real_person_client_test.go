@@ -80,6 +80,9 @@ func TestBytePlusClientCreateVisualSendsOfficialContractAndScrubsMissingFields(t
 		if err == nil {
 			t.Fatal("CreateVisualValidateSession should reject missing required result fields")
 		}
+		if !isBytePlusDefinitiveResponse(err) {
+			t.Fatalf("missing visual session fields should be definitive: %v", err)
+		}
 		for _, leaked := range secretValues {
 			if strings.Contains(err.Error(), leaked) {
 				t.Fatalf("error leaked %q: %v", leaked, err)
@@ -142,6 +145,9 @@ func TestBytePlusClientGetVisualTrimsTokenAndMapsResult(t *testing.T) {
 	_, err = client.GetVisualValidateResult(context.Background(), testAssetCreds(), " token-1 ")
 	if err == nil {
 		t.Fatal("GetVisualValidateResult should reject empty GroupId")
+	}
+	if !isBytePlusDefinitiveResponse(err) {
+		t.Fatalf("missing visual result GroupId should be definitive: %v", err)
 	}
 	for _, leaked := range []string{"token-1", "upstream-token-1-message"} {
 		if strings.Contains(err.Error(), leaked) {
@@ -223,6 +229,52 @@ func TestBytePlusClientListAssetsSendsFilterAndMapsPagination(t *testing.T) {
 	}
 }
 
+func TestBytePlusClientListAssetsRejectsMissingResultButAllowsEmptyObject(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		wantErr     bool
+		wantRequest string
+	}{
+		{name: "empty body", body: ``, wantErr: true},
+		{name: "missing result", body: `{"ResponseMetadata":{"RequestId":"req-list-missing"}}`, wantErr: true, wantRequest: "req-list-missing"},
+		{name: "null result", body: `{"ResponseMetadata":{"RequestId":"req-list-null"},"Result":null}`, wantErr: true, wantRequest: "req-list-null"},
+		{name: "empty result object", body: `{"ResponseMetadata":{"RequestId":"req-list-empty"},"Result":{}}`, wantRequest: "req-list-empty"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+
+			client := NewBytePlusAssetClient(server.Client(), server.URL)
+			got, err := client.ListAssets(context.Background(), testAssetCreds(), BytePlusListAssetsRequest{})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("ListAssets should reject missing Result envelope")
+				}
+				if !isBytePlusDefinitiveResponse(err) {
+					t.Fatalf("missing Result should be definitive: %v", err)
+				}
+				for _, leaked := range []string{"Result", "missing result"} {
+					if strings.Contains(err.Error(), leaked) {
+						t.Fatalf("error leaked %q: %v", leaked, err)
+					}
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ListAssets empty Result object error: %v", err)
+			}
+			if got.RequestID != tc.wantRequest || got.TotalCount != 0 || len(got.Items) != 0 {
+				t.Fatalf("ListAssets empty Result object = %+v", got)
+			}
+		})
+	}
+}
+
 func TestBytePlusClientDeleteAssetHandlesEmptyResultAndNotFoundClassification(t *testing.T) {
 	observed := make(chan bytePlusObservedRequest, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -269,6 +321,52 @@ func TestBytePlusClientDeleteAssetHandlesEmptyResultAndNotFoundClassification(t 
 	}
 	if strings.Contains(err.Error(), "provider says missing") {
 		t.Fatalf("error leaked metadata message: %v", err)
+	}
+}
+
+func TestBytePlusClientDeleteAssetRejectsMissingResultButAllowsEmptyObject(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		wantErr     bool
+		wantRequest string
+	}{
+		{name: "empty body", body: ``, wantErr: true},
+		{name: "missing result", body: `{"ResponseMetadata":{"RequestId":"req-delete-missing"}}`, wantErr: true, wantRequest: "req-delete-missing"},
+		{name: "null result", body: `{"ResponseMetadata":{"RequestId":"req-delete-null"},"Result":null}`, wantErr: true, wantRequest: "req-delete-null"},
+		{name: "empty result object", body: `{"ResponseMetadata":{"RequestId":"req-delete-empty"},"Result":{}}`, wantRequest: "req-delete-empty"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+
+			client := NewBytePlusAssetClient(server.Client(), server.URL)
+			got, err := client.DeleteAsset(context.Background(), testAssetCreds(), "asset-1")
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("DeleteAsset should reject missing Result envelope")
+				}
+				if !isBytePlusDefinitiveResponse(err) {
+					t.Fatalf("missing Result should be definitive: %v", err)
+				}
+				for _, leaked := range []string{"Result", "missing result", "asset-1"} {
+					if strings.Contains(err.Error(), leaked) {
+						t.Fatalf("error leaked %q: %v", leaked, err)
+					}
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("DeleteAsset empty Result object error: %v", err)
+			}
+			if got != tc.wantRequest {
+				t.Fatalf("DeleteAsset requestID = %q, want %q", got, tc.wantRequest)
+			}
+		})
 	}
 }
 

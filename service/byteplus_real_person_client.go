@@ -67,8 +67,8 @@ type bytePlusVisualValidationResultPayload struct {
 }
 
 type bytePlusListAssetsResponse struct {
-	ResponseMetadata bytePlusResponseMetadata     `json:"ResponseMetadata"`
-	Result           bytePlusListAssetsResultBody `json:"Result"`
+	ResponseMetadata bytePlusResponseMetadata      `json:"ResponseMetadata"`
+	Result           *bytePlusListAssetsResultBody `json:"Result"`
 }
 
 type bytePlusListAssetsResultBody struct {
@@ -78,7 +78,7 @@ type bytePlusListAssetsResultBody struct {
 
 type bytePlusDeleteAssetResponse struct {
 	ResponseMetadata bytePlusResponseMetadata `json:"ResponseMetadata"`
-	Result           map[string]any           `json:"Result"`
+	Result           *map[string]any          `json:"Result"`
 }
 
 func (c *BytePlusAssetClient) CreateVisualValidateSession(ctx context.Context, creds BytePlusCredentials, callbackURL string) (BytePlusVisualValidationSession, error) {
@@ -154,6 +154,9 @@ func (c *BytePlusAssetClient) ListAssets(ctx context.Context, creds BytePlusCred
 	if err := c.do(ctx, creds, "ListAssets", payload, &resp); err != nil {
 		return BytePlusListAssetsResult{}, err
 	}
+	if resp.Result == nil {
+		return BytePlusListAssetsResult{}, upstreamAssetErr("missing result", resp.ResponseMetadata.RequestID)
+	}
 	return BytePlusListAssetsResult{
 		Items:      resp.Result.Items,
 		TotalCount: resp.Result.TotalCount,
@@ -176,6 +179,9 @@ func (c *BytePlusAssetClient) DeleteAsset(ctx context.Context, creds BytePlusCre
 	var resp bytePlusDeleteAssetResponse
 	if err := c.do(ctx, creds, "DeleteAsset", payload, &resp); err != nil {
 		return "", err
+	}
+	if resp.Result == nil {
+		return "", upstreamAssetErr("missing result", resp.ResponseMetadata.RequestID)
 	}
 	return resp.ResponseMetadata.RequestID, nil
 }

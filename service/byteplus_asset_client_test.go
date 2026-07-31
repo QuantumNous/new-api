@@ -149,6 +149,9 @@ func TestBytePlusAssetClientBoundsRequestDuration(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("CreateAssetGroup timeout error = %v", err)
 	}
+	if isBytePlusDefinitiveResponse(err) {
+		t.Fatalf("timeout should not be definitive: %v", err)
+	}
 }
 
 func TestBytePlusAssetClientGetAssetMapsStatuses(t *testing.T) {
@@ -265,6 +268,96 @@ func TestBytePlusAssetClientRejectsResponseMetadataErrorWithoutBodyReflection(t 
 	}
 }
 
+func TestBytePlusAssetClientSemanticErrorsAreDefinitiveAndScrubbed(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		call func(*BytePlusAssetClient) error
+	}{
+		{
+			name: "create asset group missing result id",
+			body: `{"ResponseMetadata":{"RequestId":"req-group-missing"},"Result":{"Error":{"Message":"sk-example group-secret"}}}`,
+			call: func(client *BytePlusAssetClient) error {
+				_, _, err := client.CreateAssetGroup(context.Background(), testAssetCreds(), "flatkey-group")
+				return err
+			},
+		},
+		{
+			name: "create asset missing result id",
+			body: `{"ResponseMetadata":{"RequestId":"req-asset-missing"},"Result":{"Error":{"Message":"sk-example asset-secret"}}}`,
+			call: func(client *BytePlusAssetClient) error {
+				_, _, err := client.CreateAsset(context.Background(), testAssetCreds(), BytePlusCreateAssetRequest{
+					GroupID:   "group-1",
+					URL:       "https://example.com/a.png",
+					AssetType: "Image",
+				})
+				return err
+			},
+		},
+		{
+			name: "get asset unexpected result id",
+			body: `{"ResponseMetadata":{"RequestId":"req-get-unexpected"},"Result":{"Id":"asset-other","Status":"Active","Error":{"Message":"sk-example unexpected-secret"}}}`,
+			call: func(client *BytePlusAssetClient) error {
+				_, err := client.GetAsset(context.Background(), testAssetCreds(), "asset-1")
+				return err
+			},
+		},
+		{
+			name: "get asset unknown status",
+			body: `{"ResponseMetadata":{"RequestId":"req-get-status"},"Result":{"Id":"asset-1","Status":"Mystery","Error":{"Message":"sk-example status-secret"}}}`,
+			call: func(client *BytePlusAssetClient) error {
+				_, err := client.GetAsset(context.Background(), testAssetCreds(), "asset-1")
+				return err
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+
+			err := tc.call(NewBytePlusAssetClient(server.Client(), server.URL))
+			if err == nil {
+				t.Fatal("semantic error should fail")
+			}
+			if !isBytePlusDefinitiveResponse(err) {
+				t.Fatalf("semantic error should be definitive: %v", err)
+			}
+			if !strings.Contains(err.Error(), "req-") {
+				t.Fatalf("semantic error should retain request id: %v", err)
+			}
+			for _, leaked := range []string{"sk-example", "secret", "asset-other", "Mystery", "missing result", "unexpected result", "unknown status"} {
+				if strings.Contains(err.Error(), leaked) {
+					t.Fatalf("error leaked %q: %v", leaked, err)
+				}
+			}
+		})
+	}
+}
+
+func TestBytePlusAssetClientLocalAndTransportErrorsAreNotDefinitive(t *testing.T) {
+	client := NewBytePlusAssetClient(nil, "https://example.com")
+	_, _, err := client.CreateAssetGroup(context.Background(), testAssetCreds(), "  ")
+	if err == nil {
+		t.Fatal("CreateAssetGroup should reject blank name")
+	}
+	if isBytePlusDefinitiveResponse(err) {
+		t.Fatalf("local validation should not be definitive: %v", err)
+	}
+
+	client = NewBytePlusAssetClient(&http.Client{Transport: bytePlusErrorRoundTripper{err: errors.New("transport down")}}, "https://example.com")
+	_, _, err = client.CreateAssetGroup(context.Background(), testAssetCreds(), "flatkey-group")
+	if err == nil {
+		t.Fatal("CreateAssetGroup should return transport error")
+	}
+	if isBytePlusDefinitiveResponse(err) {
+		t.Fatalf("transport error should not be definitive: %v", err)
+	}
+}
+
 func TestBytePlusAssetClientClassifiesMalformedAndOversizeEnvelopeSafely(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -349,4 +442,12 @@ func testAssetCreds() BytePlusCredentials {
 
 func decodeTestJSON(r *http.Request, v any) error {
 	return common.DecodeJson(r.Body, v)
+}
+
+type bytePlusErrorRoundTripper struct {
+	err error
+}
+
+func (t bytePlusErrorRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, t.err
 }
