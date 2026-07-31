@@ -33,7 +33,10 @@ import {
   OAUTH_BIND_RESULT_MESSAGE,
 } from '@/features/auth/constants'
 import { watchOAuthPopupClosed } from '@/features/auth/lib/oauth-bind-window'
-import { markOAuthBindPopup } from '@/features/auth/lib/oauth-callback-mode'
+import {
+  getOAuthSessionStorage,
+  markOAuthBindPopup,
+} from '@/features/auth/lib/oauth-callback-mode'
 import type { CustomOAuthProviderInfo } from '@/features/auth/types'
 import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
@@ -163,10 +166,6 @@ export function AccountBindingsTab({
         toast.error(t('OAuth pop-up was blocked'))
         return
       }
-      // Stamp the popup while it is still same-origin (about:blank). The mark
-      // rides through the provider round trip and is what tells the callback
-      // this is a bind rather than a login in a tab that merely has an opener.
-      markOAuthBindPopup(popup.sessionStorage, provider)
       const pending: PendingOAuthBinding = {
         provider,
         state: '',
@@ -180,6 +179,15 @@ export function AccountBindingsTab({
       try {
         const state = await createOAuthFlow(provider, 'bind')
         if (pendingOAuthBinding.current !== pending || popup.closed) return
+        // Stamp the popup while it is still same-origin (about:blank). Tying
+        // the mark to this state prevents a stale popup from claiming a later
+        // login callback. If storage is blocked, do not navigate into a
+        // callback that cannot safely identify the bind flow.
+        if (
+          !markOAuthBindPopup(getOAuthSessionStorage(popup), provider, state)
+        ) {
+          throw new Error('OAuth bind popup storage is unavailable')
+        }
         pending.state = state
         popup.location.replace(buildUrl(state))
       } catch {

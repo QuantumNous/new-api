@@ -35,13 +35,17 @@ For commercial licensing, please contact support@quantumnous.com
  * it positive proof of a bind flow.
  */
 
-const OAUTH_BIND_FLOW_KEY = 'oauth_bind_flow'
+const OAUTH_BIND_FLOW_KEY_PREFIX = 'oauth_bind_flow:'
 
 /** Minimal shape of `sessionStorage`, kept structural so tests can fake it. */
 export interface OAuthModeStorage {
   getItem: (key: string) => string | null
   setItem: (key: string, value: string) => void
-  removeItem: (key: string) => void
+}
+
+/** Minimal owner shape for safely accessing `sessionStorage`. */
+export interface OAuthSessionStorageOwner {
+  readonly sessionStorage: OAuthModeStorage
 }
 
 /** Minimal shape of `window.opener`. */
@@ -57,52 +61,60 @@ export interface OAuthCallbackModeContext {
 export type OAuthCallbackMode = 'login' | 'bind'
 
 /**
+ * Access `sessionStorage` without letting browser privacy settings crash the
+ * OAuth page or binding action.
+ */
+export function getOAuthSessionStorage(
+  owner: OAuthSessionStorageOwner | null | undefined
+): OAuthModeStorage | null {
+  try {
+    return owner?.sessionStorage ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Stamp a freshly opened, still same-origin popup as an OAuth bind flow.
  * Call this before navigating the popup to the provider.
  */
 export function markOAuthBindPopup(
   storage: OAuthModeStorage | null | undefined,
-  provider: string
-): void {
-  try {
-    storage?.setItem(OAUTH_BIND_FLOW_KEY, provider)
-  } catch {
-    // A blocked or full sessionStorage only costs us the bind stamp; the
-    // callback then behaves like a login, which is the safe direction.
-  }
-}
+  provider: string,
+  state: string
+): boolean {
+  if (!storage || !provider || !state) return false
 
-/** Clear the stamp once the bind flow is over. */
-export function clearOAuthBindPopupMark(
-  storage: OAuthModeStorage | null | undefined
-): void {
   try {
-    storage?.removeItem(OAUTH_BIND_FLOW_KEY)
+    const key = `${OAUTH_BIND_FLOW_KEY_PREFIX}${provider}`
+    storage.setItem(key, state)
+    return storage.getItem(key) === state
   } catch {
-    // Nothing actionable: the stamp dies with the popup anyway.
+    return false
   }
 }
 
 /**
  * Resolve how a callback on `/oauth/:provider` should be handled.
  *
- * A bind requires both halves of the evidence: our own stamp for this exact
- * provider, and a live opener to hand the result back to. Anything else is a
- * login, which is also the safe default — a login callback recovers on its own,
- * while a wrongly assumed bind can only time out.
+ * A bind requires all three pieces of evidence: our own stamp for this exact
+ * provider and state, plus a live opener to hand the result back to. Anything
+ * else is a login, which is also the safe default — a login callback recovers
+ * on its own, while a wrongly assumed bind can only time out.
  */
 export function resolveOAuthCallbackMode(
   provider: string,
+  state: string,
   { opener, storage }: OAuthCallbackModeContext
 ): OAuthCallbackMode {
-  if (!opener || opener.closed) return 'login'
+  if (!opener || opener.closed || !storage || !state) return 'login'
 
-  let marked: string | null = null
+  let markedState: string | null = null
   try {
-    marked = storage?.getItem(OAUTH_BIND_FLOW_KEY) ?? null
+    markedState = storage.getItem(`${OAUTH_BIND_FLOW_KEY_PREFIX}${provider}`)
   } catch {
     return 'login'
   }
 
-  return marked && marked === provider ? 'bind' : 'login'
+  return markedState === state ? 'bind' : 'login'
 }
