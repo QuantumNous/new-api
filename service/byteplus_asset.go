@@ -524,6 +524,8 @@ func publicBytePlusAssetErrorMessage(code types.ErrorCode) string {
 		return "idempotency conflict"
 	case types.ErrorCodeIdempotencyOutcomeUnknown:
 		return "idempotency outcome unknown"
+	case types.ErrorCodeAssetProfileConflict:
+		return "asset profile conflict"
 	case types.ErrorCodeAssetFileTooLarge:
 		return "asset file too large"
 	case types.ErrorCodeAssetMediaUnsupported:

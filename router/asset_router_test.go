@@ -30,11 +30,19 @@ func TestSetBytePlusAssetRouterRegistersPublicAssetRoutes(t *testing.T) {
 	for _, want := range []string{
 		http.MethodPost + " /v1/assets",
 		http.MethodGet + " /v1/assets/:asset_id",
+		http.MethodDelete + " /v1/assets/:asset_id",
+		http.MethodPost + " /v1/real-persons",
+		http.MethodPost + " /v1/real-persons/:person_id/verification-sessions",
+		http.MethodGet + " /v1/real-persons",
+		http.MethodGet + " /v1/real-persons/:person_id",
+		http.MethodPost + " /v1/real-persons/:person_id/assets",
+		http.MethodGet + " /v1/real-persons/:person_id/assets",
+		http.MethodGet + " /v1/real-person-verifications/callback/:callback_token",
+		http.MethodPost + " /v1/real-person-verifications/callback/:callback_token",
 	} {
 		require.True(t, routes[want], "route %s was not registered; routes=%v", want, engine.Routes())
 	}
 	require.False(t, routes[http.MethodGet+" /v1/assets"], "list endpoint must not be registered")
-	require.False(t, routes[http.MethodDelete+" /v1/assets/:asset_id"], "delete endpoint must not be registered")
 }
 
 func TestBytePlusAssetRoutesReachTokenAuthWithoutDistribution(t *testing.T) {
@@ -48,12 +56,33 @@ func TestBytePlusAssetRoutesReachTokenAuthWithoutDistribution(t *testing.T) {
 	}{
 		{method: http.MethodPost, path: "/v1/assets"},
 		{method: http.MethodGet, path: "/v1/assets/ast_1234567890abcdefABCDEF1234567890"},
+		{method: http.MethodDelete, path: "/v1/assets/ast_1234567890abcdefABCDEF1234567890"},
+		{method: http.MethodPost, path: "/v1/real-persons"},
+		{method: http.MethodGet, path: "/v1/real-persons"},
+		{method: http.MethodPost, path: "/v1/real-persons/rph_123/verification-sessions"},
+		{method: http.MethodGet, path: "/v1/real-persons/rph_123"},
+		{method: http.MethodPost, path: "/v1/real-persons/rph_123/assets"},
+		{method: http.MethodGet, path: "/v1/real-persons/rph_123/assets"},
 	} {
 		recorder := httptest.NewRecorder()
 		engine.ServeHTTP(recorder, httptest.NewRequest(tc.method, tc.path, nil))
 		require.NotEqual(t, http.StatusNotFound, recorder.Code, "%s %s route missing", tc.method, tc.path)
 		require.Equal(t, http.StatusUnauthorized, recorder.Code, "%s %s should stop at TokenAuth without credentials, body=%s", tc.method, tc.path, recorder.Body.String())
 		require.NotContains(t, recorder.Body.String(), "no_available_key")
+	}
+}
+
+func TestBytePlusRealPersonCallbackRoutesAreAnonymousAndReturn204(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	SetBytePlusAssetRouter(engine)
+
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(method, "/v1/real-person-verifications/callback/callback-token", nil)
+		engine.ServeHTTP(recorder, request)
+		require.Equal(t, http.StatusNoContent, recorder.Code, "%s body=%s", method, recorder.Body.String())
+		require.Empty(t, recorder.Body.String())
 	}
 }
 
@@ -152,12 +181,12 @@ func TestBytePlusAssetRouterUsesRateLimitAndTokenAuthWithoutDistribute(t *testin
 
 	text := string(source)
 	require.Contains(t, text, `middleware.RouteTag("asset")`)
-	require.Contains(t, text, "middleware.GlobalAPIRateLimit()")
-	require.Contains(t, text, "middleware.TokenAuth()")
-	require.Contains(t, text, "middleware.ModelRequestRateLimit()")
+	require.Less(t, strings.Index(text, `middleware.RouteTag("asset")`), strings.Index(text, "middleware.GlobalAPIRateLimit()"))
+	require.Less(t, strings.Index(text, "middleware.GlobalAPIRateLimit()"), strings.Index(text, "middleware.TokenAuth()"))
+	require.Less(t, strings.Index(text, "middleware.TokenAuth()"), strings.Index(text, "middleware.ModelRequestRateLimit()"))
+	require.Less(t, strings.Index(text, "middleware.RealPersonVerificationCallbackMetrics()"), strings.Index(text, "middleware.RealPersonVerificationCallbackRateLimit()"))
 	require.NotContains(t, text, "middleware.Distribute()")
 	require.NotContains(t, text, ".GET(\"/assets\"")
-	require.NotContains(t, text, ".DELETE(")
 }
 
 func TestSetRouterIncludesBytePlusAssetRoutes(t *testing.T) {
@@ -173,6 +202,9 @@ func TestSetRouterIncludesBytePlusAssetRoutes(t *testing.T) {
 
 	require.True(t, routes[http.MethodPost+" /v1/assets"])
 	require.True(t, routes[http.MethodGet+" /v1/assets/:asset_id"])
+	require.True(t, routes[http.MethodPost+" /v1/real-persons"])
+	require.True(t, routes[http.MethodGet+" /v1/real-person-verifications/callback/:callback_token"])
+	require.True(t, routes[http.MethodPost+" /v1/real-person-verifications/callback/:callback_token"])
 }
 
 func TestSetRouterAppliesRelayGlobalMiddlewareToBytePlusAssetRoutes(t *testing.T) {

@@ -451,6 +451,32 @@ func TestBytePlusRealPersonReverifyGetListAndVerificationCAS(t *testing.T) {
 	}
 }
 
+func TestBytePlusRealPersonCallbackUsesOnlyServerSideResultAuthority(t *testing.T) {
+	newBytePlusRealPersonServiceTestDB(t)
+	fake := &fakeBytePlusRealPersonClient{resultErr: errors.New("server-side result unavailable")}
+	installBytePlusRealPersonServiceTestDeps(t, fake)
+	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
+
+	created, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 101, "callback-create", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
+	require.Nil(t, apiErr)
+	require.Equal(t, "rph_test_1", created.ID)
+
+	NotifyBytePlusRealPersonVerificationCallback(context.Background(), "callback-token-1")
+	profile, err := model.GetBytePlusRealPersonProfileForUser(7, created.ID)
+	require.NoError(t, err)
+	require.NotEqual(t, model.BytePlusRealPersonProfileStatusActive, profile.Status)
+	require.Nil(t, profile.UpstreamGroupId)
+
+	fake.resultErr = nil
+	fake.result = BytePlusVisualValidationResult{GroupID: "group-server-confirmed", RequestID: "req-result"}
+	NotifyBytePlusRealPersonVerificationCallback(context.Background(), "callback-token-1")
+	profile, err = model.GetBytePlusRealPersonProfileForUser(7, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, model.BytePlusRealPersonProfileStatusActive, profile.Status)
+	require.NotNil(t, profile.UpstreamGroupId)
+	require.Equal(t, "group-server-confirmed", *profile.UpstreamGroupId)
+}
+
 func newBytePlusRealPersonServiceTestDB(t *testing.T) {
 	t.Helper()
 	db := newBytePlusAssetServiceTestDB(t)

@@ -220,6 +220,7 @@ func SyncBytePlusRealPersonVerification(ctx context.Context, userID int, profile
 			_, _ = model.FailBytePlusRealPersonSession(profile.Id, claimed.Id, "verification_upstream_error", bytePlusAssetNow())
 			return realPersonError(types.ErrorCodeVerificationUpstreamError, http.StatusBadGateway)
 		}
+		_, _ = model.RetryBytePlusVisualValidationSession(claimed.Id, claimed.LeaseUpdatedTime, bytePlusAssetNow()+bytePlusAssetDeleteRetryDelaySecs, bytePlusAssetNow())
 		return nil
 	}
 	if strings.TrimSpace(result.GroupID) != "" {
@@ -248,6 +249,25 @@ func GetBytePlusRealPerson(ctx context.Context, userID int, personID string) (*d
 		return nil, apiErr
 	}
 	return responseFromBytePlusRealPerson(profile, "", 0), nil
+}
+
+func NotifyBytePlusRealPersonVerificationCallback(ctx context.Context, callbackToken string) {
+	callbackToken = strings.TrimSpace(callbackToken)
+	if callbackToken == "" {
+		return
+	}
+	if model.DB == nil {
+		return
+	}
+	session, err := model.GetBytePlusVisualValidationSessionByCallbackHash(sha256Hex([]byte(callbackToken)))
+	if err != nil || session == nil || session.ExpiresAt <= bytePlusAssetNow() {
+		return
+	}
+	profile, err := model.GetBytePlusRealPersonProfileByID(session.ProfileId)
+	if err != nil || profile == nil || profile.CurrentValidationSessionId == nil || *profile.CurrentValidationSessionId != session.Id {
+		return
+	}
+	_ = SyncBytePlusRealPersonVerification(ctx, profile.UserId, profile)
 }
 
 func ListBytePlusRealPersons(ctx context.Context, userID int, limit int, after string) (*dto.BytePlusRealPersonListResponse, *types.NewAPIError) {
@@ -665,6 +685,8 @@ func publicBytePlusRealPersonErrorMessage(code types.ErrorCode) string {
 		return "invalid real person request"
 	case types.ErrorCodeRealPersonNotFound:
 		return "real person not found"
+	case types.ErrorCodeRealPersonNotActive:
+		return "real person not active"
 	case types.ErrorCodeVerificationInProgress:
 		return "verification in progress"
 	case types.ErrorCodeIdempotencyConflict:

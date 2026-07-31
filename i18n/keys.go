@@ -368,15 +368,28 @@ const (
 
 // BytePlus asset library messages
 const (
-	MsgAssetInvalidRequest     = "asset.invalid_request"
-	MsgAssetNotFound           = "asset.not_found"
-	MsgAssetNotReady           = "asset.not_ready"
-	MsgAssetFailed             = "asset.failed"
-	MsgAssetChannelConflict    = "asset.channel_conflict"
-	MsgAssetChannelUnavailable = "asset.channel_unavailable"
-	MsgAssetGroupInitializing  = "asset.group_initializing"
-	MsgAssetUpstreamError      = "asset.upstream_error"
-	MsgAssetStorageError       = "asset.storage_error"
+	MsgAssetInvalidRequest          = "asset.invalid_request"
+	MsgAssetNotFound                = "asset.not_found"
+	MsgAssetNotReady                = "asset.not_ready"
+	MsgAssetFailed                  = "asset.failed"
+	MsgAssetChannelConflict         = "asset.channel_conflict"
+	MsgAssetChannelUnavailable      = "asset.channel_unavailable"
+	MsgAssetGroupInitializing       = "asset.group_initializing"
+	MsgAssetUpstreamError           = "asset.upstream_error"
+	MsgAssetStorageError            = "asset.storage_error"
+	MsgRealPersonInvalidRequest     = "real_person.invalid_request"
+	MsgRealPersonNotFound           = "real_person.not_found"
+	MsgRealPersonNotActive          = "real_person.not_active"
+	MsgRealPersonChannelUnavailable = "real_person.channel_unavailable"
+	MsgRealPersonStorageError       = "real_person.storage_error"
+	MsgVerificationInProgress       = "verification.in_progress"
+	MsgVerificationUpstreamError    = "verification.upstream_error"
+	MsgIdempotencyConflict          = "idempotency.conflict"
+	MsgIdempotencyOutcomeUnknown    = "idempotency.outcome_unknown"
+	MsgAssetProfileConflict         = "asset.profile_conflict"
+	MsgAssetFileTooLarge            = "asset.file_too_large"
+	MsgAssetMediaUnsupported        = "asset.media_unsupported"
+	MsgAssetUploadFailed            = "asset.upload_failed"
 )
 
 // Email content messages (subject + HTML body, rendered with template data)

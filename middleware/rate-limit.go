@@ -119,6 +119,16 @@ func PrometheusMetricsRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(maxRequestNum, int64(duration), "PM_AUTH_FAIL")
 }
 
+func RealPersonVerificationCallbackRateLimit() func(c *gin.Context) {
+	if common.RedisEnabled && common.RDB == nil {
+		inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
+		return func(c *gin.Context) {
+			memoryRateLimiter(c, 120, 60, "RPV_CB")
+		}
+	}
+	return rateLimitFactory(120, 60, "RPV_CB")
+}
+
 func CriticalRateLimit() func(c *gin.Context) {
 	if common.CriticalRateLimitEnable {
 		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "CT")
