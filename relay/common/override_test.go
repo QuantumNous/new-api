@@ -2153,6 +2153,79 @@ func TestApplyParamOverrideWithRelayInfoRecordsOperationAuditInDebugMode(t *test
 	}
 }
 
+func TestApplyParamOverrideWithRelayInfoSyncsResponsesReasoningEffort(t *testing.T) {
+	originalDebugEnabled := common2.DebugEnabled
+	common2.DebugEnabled = false
+	t.Cleanup(func() {
+		common2.DebugEnabled = originalDebugEnabled
+	})
+
+	info := &RelayInfo{
+		ReasoningEffort: "high",
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"mode":  "set",
+						"path":  "reasoning.effort",
+						"value": "max",
+					},
+				},
+			},
+		},
+	}
+
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(`{
+		"model":"gpt-5.6-sol",
+		"reasoning":{"effort":"high"}
+	}`), info)
+	if err != nil {
+		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
+	}
+	assertJSONEqual(t, `{
+		"model":"gpt-5.6-sol",
+		"reasoning":{"effort":"max"}
+	}`, string(out))
+	if info.ReasoningEffort != "max" {
+		t.Fatalf("expected final reasoning effort max, got %q", info.ReasoningEffort)
+	}
+	if !reflect.DeepEqual(info.ParamOverrideAudit, []string{"set reasoning.effort = max"}) {
+		t.Fatalf("unexpected param override audit, got %#v", info.ParamOverrideAudit)
+	}
+}
+
+func TestApplyParamOverrideWithRelayInfoSyncsChatReasoningEffort(t *testing.T) {
+	info := &RelayInfo{
+		ReasoningEffort: "high",
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"mode":  "set",
+						"path":  "reasoning_effort",
+						"value": "xhigh",
+					},
+				},
+			},
+		},
+	}
+
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(`{
+		"model":"gpt-5.6-sol",
+		"reasoning_effort":"high"
+	}`), info)
+	if err != nil {
+		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
+	}
+	assertJSONEqual(t, `{
+		"model":"gpt-5.6-sol",
+		"reasoning_effort":"xhigh"
+	}`, string(out))
+	if info.ReasoningEffort != "xhigh" {
+		t.Fatalf("expected final reasoning effort xhigh, got %q", info.ReasoningEffort)
+	}
+}
+
 func TestApplyParamOverrideWithRelayInfoRecordsOnlyKeyOperationsWhenDebugDisabled(t *testing.T) {
 	originalDebugEnabled := common2.DebugEnabled
 	common2.DebugEnabled = false
