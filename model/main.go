@@ -266,6 +266,9 @@ func migrateDB() error {
 		&RecallCampaign{},
 		&RecallRecipient{},
 		&RecallMessage{},
+		&RecallExclusionBatch{},
+		&RecallCampaignExclusion{},
+		&RecallTranslationTask{},
 		&RecallEmailQuotaWindow{},
 		&RecallEvent{},
 		&RegistrationDomainState{},
@@ -340,6 +343,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := migrateRecallTranslationTaskSnapshotsToLongText(); err != nil {
+		return err
+	}
 	if err := migrateRecallCampaignTypes(); err != nil {
 		return err
 	}
@@ -371,6 +377,9 @@ func migrateDBFast() error {
 		{&RecallCampaign{}, "RecallCampaign"},
 		{&RecallRecipient{}, "RecallRecipient"},
 		{&RecallMessage{}, "RecallMessage"},
+		{&RecallExclusionBatch{}, "RecallExclusionBatch"},
+		{&RecallCampaignExclusion{}, "RecallCampaignExclusion"},
+		{&RecallTranslationTask{}, "RecallTranslationTask"},
 		{&RecallEmailQuotaWindow{}, "RecallEmailQuotaWindow"},
 		{&RecallEvent{}, "RecallEvent"},
 		{&RegistrationDomainState{}, "RegistrationDomainState"},
@@ -438,6 +447,9 @@ func migrateDBFast() error {
 			return fmt.Errorf("failed to migrate %s: %v", m.name, err)
 		}
 	}
+	if err := migrateRecallTranslationTaskSnapshotsToLongText(); err != nil {
+		return err
+	}
 	if err := migrateRecallCampaignTypes(); err != nil {
 		return err
 	}
@@ -485,6 +497,44 @@ func storedInviteRewardSubscriptionModeEnabled() (bool, error) {
 		return false, fmt.Errorf("invalid InviteRewardSubscriptionModeEnabled option %q: %w", option.Value, err)
 	}
 	return enabled, nil
+}
+
+var recallTranslationTaskSnapshotColumns = []string{"source_snapshot", "result_snapshot"}
+
+func migrateRecallTranslationTaskSnapshotsToLongText() error {
+	if !common.UsingMySQL {
+		return nil
+	}
+
+	tableName := "recall_translation_tasks"
+	if DB == nil || !DB.Migrator().HasTable(tableName) {
+		return nil
+	}
+
+	for _, columnName := range recallTranslationTaskSnapshotColumns {
+		if !DB.Migrator().HasColumn(&RecallTranslationTask{}, columnName) {
+			continue
+		}
+
+		var columnType string
+		if err := DB.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns
+				WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+			tableName, columnName).Scan(&columnType).Error; err != nil {
+			common.SysLog(fmt.Sprintf("Warning: failed to query metadata for %s.%s: %v", tableName, columnName, err))
+		} else if strings.EqualFold(columnType, "longtext") {
+			continue
+		}
+
+		if err := DB.Exec(recallTranslationTaskSnapshotLongTextSQL(columnName)).Error; err != nil {
+			return fmt.Errorf("failed to migrate %s.%s to longtext: %w", tableName, columnName, err)
+		}
+		common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to longtext", tableName, columnName))
+	}
+	return nil
+}
+
+func recallTranslationTaskSnapshotLongTextSQL(columnName string) string {
+	return fmt.Sprintf("ALTER TABLE `recall_translation_tasks` MODIFY COLUMN `%s` LONGTEXT", columnName)
 }
 
 const recallRecipientIdentityMigrationBatchSize = 500

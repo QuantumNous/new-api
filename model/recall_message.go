@@ -29,6 +29,7 @@ type RecallMessage struct {
 	TemplateSnapshot  string  `json:"-" gorm:"not null"`
 	ScheduledAt       int64   `json:"scheduled_at" gorm:"index"`
 	State             string  `json:"state" gorm:"type:varchar(24);not null;index"`
+	StateVersion      int64   `json:"state_version"`
 	AttemptCount      int     `json:"attempt_count"`
 	NextAttemptAt     int64   `json:"next_attempt_at" gorm:"index"`
 	LeaseOwner        string  `json:"-" gorm:"type:varchar(96);index"`

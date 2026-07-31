@@ -1,11 +1,13 @@
 package model
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,8 +18,204 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 )
+
+func setupRecallRepositoryDB(t *testing.T) (*gorm.DB, *gorm.DB) {
+	t.Helper()
+	return setupRecallRepositoryTestDB(t)
+}
+
+func TestRecallOperationsSchemaContract(t *testing.T) {
+	setupRecallRepositoryDB(t)
+
+	require.True(t, DB.Migrator().HasTable(&RecallExclusionBatch{}))
+	require.True(t, DB.Migrator().HasTable(&RecallCampaignExclusion{}))
+	require.True(t, DB.Migrator().HasTable(&RecallTranslationTask{}))
+	require.True(t, DB.Migrator().HasColumn(&RecallMessage{}, "StateVersion"))
+	require.True(t, DB.Migrator().HasIndex(&RecallCampaignExclusion{}, "idx_recall_exclusion_campaign_identity"))
+	require.True(t, DB.Migrator().HasIndex(&RecallTranslationTask{}, "idx_recall_translation_due"))
+	require.Equal(t, "BLOB", recallSQLiteColumnType(t, "recall_exclusion_batches", "resolved_user_ids_snapshot"))
+	require.Equal(t, "TEXT", recallSQLiteColumnType(t, "recall_translation_tasks", "source_snapshot"))
+	require.Equal(t, "TEXT", recallSQLiteColumnType(t, "recall_translation_tasks", "result_snapshot"))
+}
+
+func TestRecallOperationsSchemaUsesPortableSnapshotTypes(t *testing.T) {
+	tests := []struct {
+		name                    string
+		dialect                 gorm.Dialector
+		wantExclusionSnapshot   string
+		wantTranslationSnapshot string
+	}{
+		{name: "sqlite", dialect: sqlite.Open(":memory:"), wantExclusionSnapshot: "blob", wantTranslationSnapshot: "text"},
+		{name: "mysql", dialect: mysql.New(mysql.Config{}), wantExclusionSnapshot: "longblob", wantTranslationSnapshot: "text"},
+		{name: "postgres", dialect: postgres.New(postgres.Config{}), wantExclusionSnapshot: "bytea", wantTranslationSnapshot: "text"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			exclusionSchema, err := schema.Parse(&RecallExclusionBatch{}, &sync.Map{}, schema.NamingStrategy{})
+			require.NoError(t, err)
+			exclusionSnapshot := exclusionSchema.LookUpField("ResolvedUserIDsSnapshot")
+			require.NotNil(t, exclusionSnapshot)
+			require.Equal(t, test.wantExclusionSnapshot, test.dialect.DataTypeOf(exclusionSnapshot))
+
+			translationSchema, err := schema.Parse(&RecallTranslationTask{}, &sync.Map{}, schema.NamingStrategy{})
+			require.NoError(t, err)
+			for _, fieldName := range []string{"SourceSnapshot", "ResultSnapshot"} {
+				field := translationSchema.LookUpField(fieldName)
+				require.NotNil(t, field)
+				require.Equal(t, test.wantTranslationSnapshot, test.dialect.DataTypeOf(field))
+			}
+		})
+	}
+}
+
+func TestRecallTranslationSnapshotsDeclareTextColumnType(t *testing.T) {
+	translationSchema, err := schema.Parse(&RecallTranslationTask{}, &sync.Map{}, schema.NamingStrategy{})
+	require.NoError(t, err)
+	for _, fieldName := range []string{"SourceSnapshot", "ResultSnapshot"} {
+		field := translationSchema.LookUpField(fieldName)
+		require.NotNil(t, field)
+		require.Equal(t, "text", field.TagSettings["TYPE"])
+	}
+}
+
+func TestRecallOperationsSchemaColumnCapacities(t *testing.T) {
+	setupRecallRepositoryDB(t)
+
+	tests := []struct {
+		model      any
+		fieldName  string
+		table      string
+		column     string
+		wantType   string
+		sqliteType string
+	}{
+		{model: &RecallExclusionBatch{}, fieldName: "Status", table: "recall_exclusion_batches", column: "status", wantType: "varchar(16)", sqliteType: "varchar(16)"},
+		{model: &RecallExclusionBatch{}, fieldName: "FileSHA256", table: "recall_exclusion_batches", column: "file_sha256", wantType: "char(64)", sqliteType: "char(64)"},
+		{model: &RecallCampaignExclusion{}, fieldName: "RecipientIdentity", table: "recall_campaign_exclusions", column: "recipient_identity", wantType: "varchar(96)", sqliteType: "varchar(96)"},
+		{model: &RecallCampaignExclusion{}, fieldName: "PersistentReasonCode", table: "recall_campaign_exclusions", column: "persistent_reason_code", wantType: "varchar(64)", sqliteType: "varchar(64)"},
+		{model: &RecallCampaignExclusion{}, fieldName: "LastRunReasonCode", table: "recall_campaign_exclusions", column: "last_run_reason_code", wantType: "varchar(64)", sqliteType: "varchar(64)"},
+		{model: &RecallTranslationTask{}, fieldName: "SourceHash", table: "recall_translation_tasks", column: "source_hash", wantType: "char(64)", sqliteType: "char(64)"},
+		{model: &RecallTranslationTask{}, fieldName: "IdempotencyKey", table: "recall_translation_tasks", column: "idempotency_key", wantType: "char(64)", sqliteType: "char(64)"},
+		{model: &RecallTranslationTask{}, fieldName: "Status", table: "recall_translation_tasks", column: "status", wantType: "varchar(16)", sqliteType: "varchar(16)"},
+		{model: &RecallTranslationTask{}, fieldName: "LeaseOwner", table: "recall_translation_tasks", column: "lease_owner", wantType: "varchar(96)", sqliteType: "varchar(96)"},
+		{model: &RecallTranslationTask{}, fieldName: "ErrorCode", table: "recall_translation_tasks", column: "error_code", wantType: "varchar(64)", sqliteType: "varchar(64)"},
+		{model: &RecallTranslationTask{}, fieldName: "ErrorMessage", table: "recall_translation_tasks", column: "error_message", wantType: "varchar(512)", sqliteType: "varchar(512)"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.table+"/"+test.column, func(t *testing.T) {
+			parsed, err := schema.Parse(test.model, &sync.Map{}, schema.NamingStrategy{})
+			require.NoError(t, err)
+			field := parsed.LookUpField(test.fieldName)
+			require.NotNil(t, field)
+			require.Equal(t, test.wantType, field.TagSettings["TYPE"])
+			require.Equal(t, test.wantType, mysql.New(mysql.Config{}).DataTypeOf(field))
+			require.Equal(t, test.wantType, postgres.New(postgres.Config{}).DataTypeOf(field))
+			require.Equal(t, test.wantType, sqlite.Open(":memory:").DataTypeOf(field))
+			require.Equal(t, test.sqliteType, recallSQLiteColumnType(t, test.table, test.column))
+		})
+	}
+}
+
+func TestRecallTranslationSnapshotMySQLWideningSQLUsesLongText(t *testing.T) {
+	for _, columnName := range recallTranslationTaskSnapshotColumns {
+		sql := strings.ToLower(recallTranslationTaskSnapshotLongTextSQL(columnName))
+		require.Contains(t, sql, "alter table `recall_translation_tasks`")
+		require.Contains(t, sql, "modify column `"+columnName+"` longtext")
+		require.NotContains(t, sql, "alter column")
+		require.NotContains(t, sql, " where ")
+		require.NotContains(t, sql, "json_set")
+		require.NotContains(t, sql, "json_extract")
+		require.NotContains(t, sql, "jsonb")
+	}
+}
+
+func TestRecallOperationsMigrationDryRunSQLIsPortable(t *testing.T) {
+	sqliteDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := sqliteDB.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	dialects := map[string]struct {
+		dialect    gorm.Dialector
+		typeTokens []string
+	}{
+		"mysql": {
+			dialect: mysql.New(mysql.Config{
+				Conn:                      sqlDB,
+				SkipInitializeWithVersion: true,
+			}),
+			typeTokens: []string{"longblob", "longtext"},
+		},
+		"postgres": {
+			dialect:    postgres.New(postgres.Config{Conn: sqlDB}),
+			typeTokens: []string{"bytea", "text"},
+		},
+	}
+	for name, test := range dialects {
+		t.Run(name, func(t *testing.T) {
+			var sqlLog bytes.Buffer
+			db, err := gorm.Open(test.dialect, &gorm.Config{
+				DryRun:               true,
+				DisableAutomaticPing: true,
+				Logger:               logger.New(log.New(&sqlLog, "", 0), logger.Config{LogLevel: logger.Info}),
+			})
+			require.NoError(t, err)
+			require.NoError(t, db.Migrator().CreateTable(
+				&RecallExclusionBatch{},
+				&RecallCampaignExclusion{},
+				&RecallTranslationTask{},
+			))
+			generatedSQL := strings.ToLower(sqlLog.String())
+			if name == "mysql" {
+				for _, columnName := range recallTranslationTaskSnapshotColumns {
+					generatedSQL += "\n" + strings.ToLower(recallTranslationTaskSnapshotLongTextSQL(columnName))
+				}
+			}
+			require.NotEmpty(t, strings.TrimSpace(generatedSQL))
+			require.Contains(t, generatedSQL, "recall_exclusion_batches")
+			require.Contains(t, generatedSQL, "recall_campaign_exclusions")
+			require.Contains(t, generatedSQL, "recall_translation_tasks")
+			for _, token := range test.typeTokens {
+				require.Contains(t, generatedSQL, token)
+			}
+			require.NotContains(t, generatedSQL, "alter column")
+			require.NotContains(t, generatedSQL, " where ")
+			require.NotContains(t, generatedSQL, "json_set")
+			require.NotContains(t, generatedSQL, "json_extract")
+			require.NotContains(t, generatedSQL, "jsonb")
+		})
+	}
+}
+
+func recallSQLiteColumnType(t *testing.T, table string, column string) string {
+	t.Helper()
+	rows, err := DB.Raw("PRAGMA table_info(" + table + ")").Rows()
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name string
+		var columnType string
+		var notNull int
+		var defaultValue sql.NullString
+		var pk int
+		require.NoError(t, rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk))
+		if name == column {
+			return columnType
+		}
+	}
+	require.NoError(t, rows.Err())
+	require.Failf(t, "column not found", "%s.%s", table, column)
+	return ""
+}
 
 func setupRecallRepositoryTestDB(t *testing.T) (*gorm.DB, *gorm.DB) {
 	t.Helper()
@@ -48,6 +246,9 @@ func setupRecallRepositoryTestDB(t *testing.T) (*gorm.DB, *gorm.DB) {
 		&RecallCampaign{},
 		&RecallRecipient{},
 		&RecallMessage{},
+		&RecallExclusionBatch{},
+		&RecallCampaignExclusion{},
+		&RecallTranslationTask{},
 		&RecallEvent{},
 	))
 	return mainDB, logDB
@@ -75,6 +276,9 @@ func setupRecallRepositoryFileDB(t *testing.T) *gorm.DB {
 		&RecallCampaign{},
 		&RecallRecipient{},
 		&RecallMessage{},
+		&RecallExclusionBatch{},
+		&RecallCampaignExclusion{},
+		&RecallTranslationTask{},
 		&RecallEvent{},
 	))
 	return db
