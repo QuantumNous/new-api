@@ -96,7 +96,7 @@ func TestBytePlusSensitiveCipherRejectsInvalidEnvelopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newBytePlusSensitiveCipher error: %v", err)
 	}
-	envelope, err := cipher.Encrypt("session", "field", "plaintext")
+	envelope, err := cipher.Encrypt("session", "byted_token", "plaintext")
 	if err != nil {
 		t.Fatalf("Encrypt error: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestBytePlusSensitiveCipherRejectsInvalidEnvelopes(t *testing.T) {
 		"v1:" + base64.RawURLEncoding.EncodeToString([]byte("short")),
 	}
 	for _, envelope := range tests {
-		if _, err := cipher.Decrypt("session", "field", envelope); err == nil {
+		if _, err := cipher.Decrypt("session", "byted_token", envelope); err == nil {
 			t.Fatalf("Decrypt(%q) should fail", envelope)
 		}
 	}
@@ -120,7 +120,7 @@ func TestBytePlusSensitiveCipherReturnsRandomReadError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newBytePlusSensitiveCipher error: %v", err)
 	}
-	if _, err := cipher.Encrypt("session", "field", "plaintext"); err == nil {
+	if _, err := cipher.Encrypt("session", "byted_token", "plaintext"); err == nil {
 		t.Fatal("Encrypt should fail when nonce reader fails")
 	}
 }
@@ -131,11 +131,11 @@ func TestLoadBytePlusSensitiveCipherFromEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadBytePlusSensitiveCipherFromEnv error: %v", err)
 	}
-	envelope, err := cipher.Encrypt("session", "field", "plaintext")
+	envelope, err := cipher.Encrypt("session", "byted_token", "plaintext")
 	if err != nil {
 		t.Fatalf("Encrypt error: %v", err)
 	}
-	plaintext, err := cipher.Decrypt("session", "field", envelope)
+	plaintext, err := cipher.Decrypt("session", "byted_token", envelope)
 	if err != nil {
 		t.Fatalf("Decrypt error: %v", err)
 	}
@@ -155,6 +155,58 @@ func TestLoadBytePlusSensitiveCipherFromEnvRejectsInvalidValues(t *testing.T) {
 		if _, err := loadBytePlusSensitiveCipherFromEnv(); err == nil {
 			t.Fatalf("loadBytePlusSensitiveCipherFromEnv(%q) should fail", value)
 		}
+	}
+}
+
+func TestBytePlusSensitiveCipherSupportsPlannedFields(t *testing.T) {
+	fields := []string{"byted_token", "h5_link", "callback_token"}
+	for _, field := range fields {
+		cipher, err := newBytePlusSensitiveCipher(bytesOf('k', 32), strings.NewReader(strings.Repeat("n", 64)))
+		if err != nil {
+			t.Fatalf("newBytePlusSensitiveCipher error: %v", err)
+		}
+		envelope, err := cipher.Encrypt("rvs_public-1", field, "secret-"+field)
+		if err != nil {
+			t.Fatalf("Encrypt(%q) error: %v", field, err)
+		}
+		plaintext, err := cipher.Decrypt("rvs_public-1", field, envelope)
+		if err != nil {
+			t.Fatalf("Decrypt(%q) error: %v", field, err)
+		}
+		if plaintext != "secret-"+field {
+			t.Fatalf("plaintext = %q", plaintext)
+		}
+	}
+}
+
+func TestBytePlusSensitiveCipherRejectsAmbiguousContextInputs(t *testing.T) {
+	cipher, err := newBytePlusSensitiveCipher(bytesOf('k', 32), strings.NewReader(strings.Repeat("n", 64)))
+	if err != nil {
+		t.Fatalf("newBytePlusSensitiveCipher error: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		sessionID string
+		field     string
+	}{
+		{name: "colon session", sessionID: "a:b", field: "byted_token"},
+		{name: "space session", sessionID: "session 1", field: "byted_token"},
+		{name: "unicode session", sessionID: "会话", field: "byted_token"},
+		{name: "control session", sessionID: "session\n1", field: "byted_token"},
+		{name: "too long session", sessionID: strings.Repeat("a", 65), field: "byted_token"},
+		{name: "unknown field", sessionID: "session-1", field: "unknown"},
+		{name: "colon field", sessionID: "session-1", field: "byted_token:extra"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := cipher.Encrypt(tt.sessionID, tt.field, "plaintext"); err == nil {
+				t.Fatal("Encrypt should reject ambiguous context")
+			}
+			if _, err := cipher.Decrypt(tt.sessionID, tt.field, "v1:abc"); err == nil {
+				t.Fatal("Decrypt should reject ambiguous context")
+			}
+		})
 	}
 }
 

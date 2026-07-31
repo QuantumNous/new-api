@@ -50,7 +50,7 @@ func TestParseBytePlusCredentialsAcceptsStructuredJSON(t *testing.T) {
 			"enabled": true,
 			"tos_bucket": " real-person-bucket ",
 			"tos_region": " ap-southeast-1 ",
-			"tos_internal_endpoint": " https://tos-s3-cn-beijing.volces.com/ "
+			"tos_internal_endpoint": " https://tos-ap-southeast-1.ibytepluses.com/ "
 		}
 	}`)
 	if err != nil {
@@ -59,7 +59,7 @@ func TestParseBytePlusCredentialsAcceptsStructuredJSON(t *testing.T) {
 	if creds.APIKey != "ark-video-key" || creds.AccessKeyID != "ak-example" || creds.SecretAccessKey != "sk-example" || creds.ProjectName != "project3" {
 		t.Fatalf("parsed credentials = %+v", creds)
 	}
-	if creds.RealPersonAssets.TOSBucket != "real-person-bucket" || creds.RealPersonAssets.TOSRegion != bytePlusAssetRegion || creds.RealPersonAssets.TOSInternalEndpoint != "https://tos-s3-cn-beijing.volces.com/" {
+	if creds.RealPersonAssets.TOSBucket != "real-person-bucket" || creds.RealPersonAssets.TOSRegion != bytePlusAssetRegion || creds.RealPersonAssets.TOSInternalEndpoint != "https://tos-ap-southeast-1.ibytepluses.com/" {
 		t.Fatalf("parsed real-person assets config = %+v", creds.RealPersonAssets)
 	}
 	if err := creds.ValidateVideo(); err != nil {
@@ -83,7 +83,7 @@ func TestBytePlusCredentialsValidateRealPersonAssetsRequiresExplicitEnablement(t
 			Enabled:             false,
 			TOSBucket:           "real-person-bucket",
 			TOSRegion:           bytePlusAssetRegion,
-			TOSInternalEndpoint: "https://tos-s3-cn-beijing.volces.com",
+			TOSInternalEndpoint: "https://tos-ap-southeast-1.ibytepluses.com",
 		},
 	}
 	if err := creds.ValidateRealPersonAssets(); err == nil || err.Error() != "byteplus real-person assets are disabled" {
@@ -91,28 +91,43 @@ func TestBytePlusCredentialsValidateRealPersonAssetsRequiresExplicitEnablement(t
 	}
 }
 
-func TestBytePlusCredentialsValidateRealPersonAssetsRejectsUnsafeEndpoint(t *testing.T) {
+func TestBytePlusCredentialsValidateRealPersonAssetsAllowsOfficialEndpoints(t *testing.T) {
 	tests := []string{
-		"http://tos-s3-cn-beijing.volces.com",
-		"https://user:pass@tos-s3-cn-beijing.volces.com",
-		"https://tos-s3-cn-beijing.volces.com?token=secret",
-		"https://tos-s3-cn-beijing.volces.com#fragment",
-		"https://tos-s3-cn-beijing.volces.com/path",
-		"tos-s3-cn-beijing.volces.com",
+		"https://tos-ap-southeast-1.bytepluses.com",
+		"https://tos-ap-southeast-1.ibytepluses.com",
+		"https://tos-s3-ap-southeast-1.bytepluses.com",
+		"https://tos-s3-ap-southeast-1.ibytepluses.com",
+		"HTTPS://TOS-AP-SOUTHEAST-1.IBYTEPLUSES.COM:443/",
 	}
 	for _, endpoint := range tests {
-		creds := BytePlusCredentials{
-			APIKey:          "ark-video-key",
-			AccessKeyID:     "ak-example",
-			SecretAccessKey: "sk-example",
-			ProjectName:     "project3",
-			RealPersonAssets: BytePlusRealPersonAssetsConfig{
-				Enabled:             true,
-				TOSBucket:           "real-person-bucket",
-				TOSRegion:           bytePlusAssetRegion,
-				TOSInternalEndpoint: endpoint,
-			},
+		creds := testBytePlusRealPersonCreds(endpoint)
+		if err := creds.ValidateRealPersonAssets(); err != nil {
+			t.Fatalf("ValidateRealPersonAssets(%q) error: %v", endpoint, err)
 		}
+	}
+}
+
+func TestBytePlusCredentialsValidateRealPersonAssetsRejectsUnsafeEndpoint(t *testing.T) {
+	tests := []string{
+		"https://tos-s3-cn-beijing.volces.com",
+		"https://tos-ap-southeast-1.volces.com",
+		"https://tos-ap-southeast-1.ivolces.com",
+		"https://attacker.example",
+		"http://tos-ap-southeast-1.ibytepluses.com",
+		"https://user:pass@tos-ap-southeast-1.ibytepluses.com",
+		"https://tos-ap-southeast-1.ibytepluses.com?token=secret",
+		"https://tos-ap-southeast-1.ibytepluses.com#fragment",
+		"https://tos-ap-southeast-1.ibytepluses.com/path",
+		"https://tos-ap-southeast-1.ibytepluses.com/%2F",
+		"https://tos-ap-southeast-1.ibytepluses.com:8443",
+		"tos-ap-southeast-1.ibytepluses.com",
+		"https://10.0.0.1",
+		"https://tos-ap-southeast-1.ibytepluses.com.",
+		"https:\\tos-ap-southeast-1.ibytepluses.com",
+		"https:tos-ap-southeast-1.ibytepluses.com",
+	}
+	for _, endpoint := range tests {
+		creds := testBytePlusRealPersonCreds(endpoint)
 		err := creds.ValidateRealPersonAssets()
 		if err == nil {
 			t.Fatalf("ValidateRealPersonAssets(%q) should fail", endpoint)
@@ -133,11 +148,26 @@ func TestBytePlusCredentialsValidateRealPersonAssetsRequiresModelArkRegion(t *te
 			Enabled:             true,
 			TOSBucket:           "real-person-bucket",
 			TOSRegion:           "cn-beijing",
-			TOSInternalEndpoint: "https://tos-s3-cn-beijing.volces.com",
+			TOSInternalEndpoint: "https://tos-ap-southeast-1.ibytepluses.com",
 		},
 	}
 	if err := creds.ValidateRealPersonAssets(); err == nil {
 		t.Fatal("ValidateRealPersonAssets should reject non-ModelArk region")
+	}
+}
+
+func testBytePlusRealPersonCreds(endpoint string) BytePlusCredentials {
+	return BytePlusCredentials{
+		APIKey:          "ark-video-key",
+		AccessKeyID:     "ak-example",
+		SecretAccessKey: "sk-example",
+		ProjectName:     "project3",
+		RealPersonAssets: BytePlusRealPersonAssetsConfig{
+			Enabled:             true,
+			TOSBucket:           "real-person-bucket",
+			TOSRegion:           bytePlusAssetRegion,
+			TOSInternalEndpoint: endpoint,
+		},
 	}
 }
 

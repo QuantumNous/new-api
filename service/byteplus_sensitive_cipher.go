@@ -13,6 +13,12 @@ import (
 
 const bytePlusSensitiveCipherEnv = "BYTEPLUS_REAL_PERSON_CIPHER_KEY"
 
+const (
+	bytePlusSensitiveFieldBytedToken    = "byted_token"
+	bytePlusSensitiveFieldH5Link        = "h5_link"
+	bytePlusSensitiveFieldCallbackToken = "callback_token"
+)
+
 type BytePlusSensitiveCipher interface {
 	Encrypt(sessionID, field, plaintext string) (string, error)
 	Decrypt(sessionID, field, envelope string) (string, error)
@@ -58,7 +64,7 @@ func bytePlusSensitiveAAD(sessionID, field string) []byte {
 }
 
 func (c *bytePlusSensitiveCipher) Encrypt(sessionID, field, plaintext string) (string, error) {
-	if sessionID == "" || field == "" || plaintext == "" {
+	if !isValidBytePlusSensitiveContext(sessionID, field) || plaintext == "" {
 		return "", errors.New("byteplus sensitive cipher inputs are required")
 	}
 	nonce := make([]byte, c.aead.NonceSize())
@@ -73,7 +79,7 @@ func (c *bytePlusSensitiveCipher) Encrypt(sessionID, field, plaintext string) (s
 }
 
 func (c *bytePlusSensitiveCipher) Decrypt(sessionID, field, envelope string) (string, error) {
-	if sessionID == "" || field == "" {
+	if !isValidBytePlusSensitiveContext(sessionID, field) {
 		return "", errors.New("byteplus sensitive cipher inputs are required")
 	}
 	if !strings.HasPrefix(envelope, "v1:") {
@@ -90,4 +96,27 @@ func (c *bytePlusSensitiveCipher) Decrypt(sessionID, field, envelope string) (st
 		return "", errors.New("byteplus sensitive cipher envelope is invalid")
 	}
 	return string(plaintext), nil
+}
+
+func isValidBytePlusSensitiveContext(sessionID, field string) bool {
+	if sessionID == "" || len(sessionID) > 64 || !isAllowedBytePlusSensitiveField(field) {
+		return false
+	}
+	for i := 0; i < len(sessionID); i++ {
+		ch := sessionID[i]
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isAllowedBytePlusSensitiveField(field string) bool {
+	switch field {
+	case bytePlusSensitiveFieldBytedToken, bytePlusSensitiveFieldH5Link, bytePlusSensitiveFieldCallbackToken:
+		return true
+	default:
+		return false
+	}
 }

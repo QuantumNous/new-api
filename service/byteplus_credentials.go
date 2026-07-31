@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"net"
 	"net/url"
 	"strings"
 
@@ -92,6 +93,7 @@ func (c BytePlusCredentials) ValidateRealPersonAssets() error {
 }
 
 func isValidBytePlusRealPersonEndpoint(endpoint string) bool {
+	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		return false
 	}
@@ -99,13 +101,31 @@ func isValidBytePlusRealPersonEndpoint(endpoint string) bool {
 	if err != nil {
 		return false
 	}
-	if parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+	if !strings.EqualFold(parsed.Scheme, "https") || parsed.Host == "" || parsed.Hostname() == "" || parsed.User != nil || parsed.Opaque != "" {
 		return false
 	}
-	if parsed.RawQuery != "" || parsed.Fragment != "" {
+	if parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" || parsed.RawPath != "" {
 		return false
 	}
-	return parsed.Path == "" || parsed.Path == "/"
+	if parsed.Path != "" && parsed.Path != "/" {
+		return false
+	}
+	if port := parsed.Port(); port != "" && port != "443" {
+		return false
+	}
+	hostname := strings.ToLower(parsed.Hostname())
+	if net.ParseIP(hostname) != nil {
+		return false
+	}
+	switch hostname {
+	case "tos-ap-southeast-1.bytepluses.com",
+		"tos-ap-southeast-1.ibytepluses.com",
+		"tos-s3-ap-southeast-1.bytepluses.com",
+		"tos-s3-ap-southeast-1.ibytepluses.com":
+		return true
+	default:
+		return false
+	}
 }
 
 func looksLikeJSON(s string) bool {
