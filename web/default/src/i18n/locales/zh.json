@@ -5061,6 +5061,7 @@
     "Weighted by request count": "按请求数加权",
     "Welcome back!": "欢迎回来！",
     "Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.": "欢迎使用 flatkey！发送一条消息，30 秒内完成你的第一次 API 调用——无需密钥或任何配置。",
+    "{{seconds}}s left: pick a prompt to make your first API call. We will guide you to top up right after it succeeds.": "还剩 {{seconds}} 秒：选择一个提示词完成首次 API 调用。成功后我们会立即引导你充值。",
     "Welcome to our New API...": "欢迎使用我们的 New API...",
     "Well-Known URL": "Well-Known URL",
     "Well-Known URL must start with http:// or https://": "知名 URL 必须以 http:// 或 https:// 开头",

@@ -51,6 +51,7 @@ interface FirstRunWelcomeProps {
   // everyone else lands here on an empty Playground and gets a neutral header
   // with the same one-click example prompts.
   firstRun?: boolean
+  ptFirstCallSecondsRemaining?: number
 }
 
 /**
@@ -62,8 +63,21 @@ export function FirstRunWelcome({
   onPickExample,
   disabled = false,
   firstRun = false,
+  ptFirstCallSecondsRemaining,
 }: FirstRunWelcomeProps) {
   const { t } = useTranslation()
+  let welcomeMessage = t('Try one of these to get started:')
+  if (firstRun) {
+    welcomeMessage = t(
+      'Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.'
+    )
+  }
+  if (firstRun && ptFirstCallSecondsRemaining !== undefined) {
+    welcomeMessage = t(
+      '{{seconds}}s left: pick a prompt to make your first API call. We will guide you to top up right after it succeeds.',
+      { seconds: ptFirstCallSecondsRemaining }
+    )
+  }
   return (
     <div className='mx-auto w-full max-w-4xl px-4 pt-6'>
       <div className='rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 dark:border-violet-900/40 dark:from-violet-950/30 dark:to-transparent'>
@@ -72,11 +86,7 @@ export function FirstRunWelcome({
             <Sparkles className='size-4' />
           </span>
           <p className='text-foreground text-sm leading-relaxed'>
-            {firstRun
-              ? t(
-                  'Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.'
-                )
-              : t('Try one of these to get started:')}
+            {welcomeMessage}
           </p>
         </div>
         <div className='mt-4 flex flex-wrap gap-2'>

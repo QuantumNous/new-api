@@ -23,6 +23,17 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { useOnboardingStore } from '@/stores/onboarding-store'
+import {
+  clearPtFirstCallExperimentTimer,
+  getPtFirstCallExperimentElapsedMs,
+  getStoredAdsAttribution,
+  isPtFirstCallTopupExperiment,
+  isWithinPtFirstCallTarget,
+  PT_FIRST_CALL_TARGET_MS,
+  PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+  startPtFirstCallTopupExperiment,
+} from '@/lib/analytics/attribution'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { useCanUseGroups } from '@/hooks/use-enterprise'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getUserModels, getUserGroups } from './api'
@@ -30,11 +41,7 @@ import { PlaygroundChat } from './components/playground-chat'
 import { FirstRunWelcome, GetKeyCard } from './components/playground-first-run'
 import { PlaygroundInput } from './components/playground-input'
 import { MESSAGE_ROLES, MESSAGE_STATUS } from './constants'
-import {
-  usePlaygroundState,
-  useChatHandler,
-  useVideoGeneration,
-} from './hooks'
+import { usePlaygroundState, useChatHandler, useVideoGeneration } from './hooks'
 import {
   createUserMessage,
   createLoadingAssistantMessage,
@@ -140,6 +147,15 @@ export function Playground({
   const getKeyCardShownRef = useRef(false)
   const topupPromptShownRef = useRef(false)
   const [userPickedModel, setUserPickedModel] = useState(false)
+  const isPtFirstCallExperiment = useMemo(
+    () => isPtFirstCallTopupExperiment(getStoredAdsAttribution()),
+    []
+  )
+  const [ptFirstCallSecondsRemaining, setPtFirstCallSecondsRemaining] =
+    useState(PT_FIRST_CALL_TARGET_MS / 1000)
+  const ptFirstCallSuccessTrackedRef = useRef(false)
+  const ptFirstCallTimeoutTrackedRef = useRef(false)
+  const ptFirstCallElapsedMsRef = useRef<number | null>(null)
 
   // Initialize first-run mode once on mount. The clean slate matters because a
   // just-registered user may be in a browser that still holds a previous
@@ -274,6 +290,33 @@ export function Playground({
   )
 
   useEffect(() => {
+    if (!firstRun || !isPtFirstCallExperiment || hasCompletedAssistant) return
+
+    if (getPtFirstCallExperimentElapsedMs() === null) {
+      startPtFirstCallTopupExperiment()
+    }
+    trackAdsFunnelEvent('flatkey_pt_first_call_experiment_view', {
+      experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+    })
+
+    const updateTimer = () => {
+      const elapsedMs = getPtFirstCallExperimentElapsedMs() ?? 0
+      const remainingMs = Math.max(0, PT_FIRST_CALL_TARGET_MS - elapsedMs)
+      setPtFirstCallSecondsRemaining(Math.ceil(remainingMs / 1000))
+      if (remainingMs > 0 || ptFirstCallTimeoutTrackedRef.current) return
+
+      ptFirstCallTimeoutTrackedRef.current = true
+      trackAdsFunnelEvent('flatkey_pt_first_call_60s_timeout', {
+        experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+      })
+    }
+
+    updateTimer()
+    const timer = window.setInterval(updateTimer, 1000)
+    return () => window.clearInterval(timer)
+  }, [firstRun, isPtFirstCallExperiment, hasCompletedAssistant])
+
+  useEffect(() => {
     if (!firstRun) return
     if (getKeyCardShownRef.current) return
     // Require a real send this session so a restored conversation can't trigger
@@ -281,6 +324,19 @@ export function Playground({
     if (!sentThisSession) return
     if (!hasCompletedAssistant) return
     getKeyCardShownRef.current = true
+    if (isPtFirstCallExperiment && !ptFirstCallSuccessTrackedRef.current) {
+      ptFirstCallSuccessTrackedRef.current = true
+      const elapsedMs = getPtFirstCallExperimentElapsedMs()
+      ptFirstCallElapsedMsRef.current = elapsedMs
+      trackAdsFunnelEvent('flatkey_pt_first_api_call_success', {
+        experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+        elapsed_seconds:
+          elapsedMs === null ? undefined : Math.round(elapsedMs / 1000),
+        within_60_seconds:
+          elapsedMs === null ? false : isWithinPtFirstCallTarget(elapsedMs),
+      })
+      clearPtFirstCallExperimentTimer()
+    }
     // First successful call: mark onboarding done in persistent storage so a
     // later tab return / reload no longer reshows the welcome banner for this
     // user (the effective firstRun then resolves to false).
@@ -293,7 +349,14 @@ export function Playground({
       navigate({ to: '/playground', replace: true })
     }, 0)
     return () => window.clearTimeout(showCardTimer)
-  }, [firstRun, sentThisSession, hasCompletedAssistant, navigate, userId])
+  }, [
+    firstRun,
+    sentThisSession,
+    hasCompletedAssistant,
+    navigate,
+    userId,
+    isPtFirstCallExperiment,
+  ])
 
   useEffect(() => {
     const shouldOpen = shouldOpenFirstRunTopupPrompt({
@@ -307,6 +370,14 @@ export function Playground({
     if (!shouldOpen) return
 
     topupPromptShownRef.current = true
+    if (isPtFirstCallExperiment) {
+      const elapsedMs = ptFirstCallElapsedMsRef.current
+      trackAdsFunnelEvent('flatkey_pt_topup_offer_open', {
+        experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+        first_call_elapsed_seconds:
+          elapsedMs === null ? undefined : Math.round(elapsedMs / 1000),
+      })
+    }
     openOnboarding()
   }, [
     firstRun,
@@ -315,6 +386,7 @@ export function Playground({
     enableStripeCardBind,
     authUser?.stripe_card_bound,
     openOnboarding,
+    isPtFirstCallExperiment,
   ])
 
   const prepareFirstRunSend = useCallback(() => {
@@ -464,6 +536,9 @@ export function Playground({
       {messages.length === 0 && (
         <FirstRunWelcome
           firstRun={firstRun}
+          ptFirstCallSecondsRemaining={
+            isPtFirstCallExperiment ? ptFirstCallSecondsRemaining : undefined
+          }
           disabled={!isFirstRunModelReady}
           onPickExample={handleSendMessage}
         />

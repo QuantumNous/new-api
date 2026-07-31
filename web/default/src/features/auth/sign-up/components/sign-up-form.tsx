@@ -25,8 +25,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   getAdsAttributionPayload,
-  isPtPostSignupTopupExperiment,
+  isPtFirstCallTopupExperiment,
   parseAttributionPayload,
+  PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+  startPtFirstCallTopupExperiment,
 } from '@/lib/analytics/attribution'
 import {
   trackAdsFunnelEvent,
@@ -289,7 +291,7 @@ export function SignUpForm({
     setIsLoading(true)
     try {
       const adsAttribution = getAdsAttributionPayload()
-      const shouldShowPtTopupOnboarding = isPtPostSignupTopupExperiment(
+      const isPtFirstCallExperiment = isPtFirstCallTopupExperiment(
         parseAttributionPayload(adsAttribution)
       )
       const res = await register({
@@ -317,12 +319,20 @@ export function SignUpForm({
           product_surface: 'console',
           has_email: Boolean(data.email),
         })
-        // PT paid-search registrations are the single funnel experiment running
-        // today. All other users keep the activation-first Playground path.
+        const postSignupTarget = redirectTo || '/playground?first=1'
+        if (isPtFirstCallExperiment && !redirectTo) {
+          startPtFirstCallTopupExperiment()
+          trackAdsFunnelEvent('flatkey_pt_first_call_experiment_enrolled', {
+            experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+          })
+        }
+        // Explicit safe redirects (for example /keys) still win. Otherwise all
+        // new users enter activation-first Playground; PT paid search is timed
+        // separately and sees the top-up only after a successful first call.
         toast.success(t('Account created!'))
         await handleLoginSuccess(
           res.data as { id?: number } | null,
-          shouldShowPtTopupOnboarding ? '/onboarding' : '/playground?first=1'
+          postSignupTarget
         )
       } else {
         trackAdsFunnelEvent('flatkey_signup_error', {

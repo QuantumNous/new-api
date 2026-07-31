@@ -5061,6 +5061,7 @@
     "Weighted by request count": "リクエスト数で加重",
     "Welcome back!": "おかえりなさい！",
     "Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.": "flatkey へようこそ！メッセージを送るだけで、キーや設定なしに 30 秒で最初の API 呼び出しができます。",
+    "{{seconds}}s left: pick a prompt to make your first API call. We will guide you to top up right after it succeeds.": "残り{{seconds}}秒：候補を選んで最初の API 呼び出しを実行してください。成功したら、すぐにチャージをご案内します。",
     "Welcome to our New API...": "New API へようこそ...",
     "Well-Known URL": "よく知られたURL",
     "Well-Known URL must start with http:// or https://": "Well-Known URL は http:// または https:// で始まる必要があります",

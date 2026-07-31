@@ -29,8 +29,10 @@ import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import {
   getAdsAttributionPayload,
-  isPtPostSignupTopupExperiment,
+  isPtFirstCallTopupExperiment,
   parseAttributionPayload,
+  PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+  startPtFirstCallTopupExperiment,
 } from '@/lib/analytics/attribution'
 import {
   trackAdsFunnelEvent,
@@ -275,7 +277,7 @@ function OAuthCallback() {
 
       try {
         const adsAttribution = getAdsAttributionPayload()
-        const shouldShowPtTopupOnboarding = isPtPostSignupTopupExperiment(
+        const isPtFirstCallExperiment = isPtFirstCallTopupExperiment(
           parseAttributionPayload(adsAttribution)
         )
         const config: OAuthRequestConfig = {
@@ -323,13 +325,22 @@ function OAuthCallback() {
               void _error
             }
             trackOAuthResult('success')
-            // Apply the same PT paid-search experiment to brand-new OAuth users.
+            // Apply the same activation-first PT paid-search experiment to
+            // brand-new OAuth users while preserving an explicit safe redirect.
             if (isNewUser) {
               trackYahooSignupConversion()
+              const requestedTarget =
+                pendingPostLoginRedirect?.target || search?.redirect
+              const hasExplicitTarget = isSafeInternalPath(requestedTarget)
+              if (isPtFirstCallExperiment && !hasExplicitTarget) {
+                startPtFirstCallTopupExperiment()
+                trackAdsFunnelEvent(
+                  'flatkey_pt_first_call_experiment_enrolled',
+                  { experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID }
+                )
+              }
               redirectAfterLogin(
-                shouldShowPtTopupOnboarding
-                  ? '/onboarding'
-                  : '/playground?first=1'
+                hasExplicitTarget ? requestedTarget : '/playground?first=1'
               )
               return
             }

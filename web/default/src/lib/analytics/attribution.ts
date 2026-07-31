@@ -51,7 +51,10 @@ const ATTRIBUTION_KEYS = new Set([
 
 const ATTRIBUTION_STORAGE_KEY = 'ads:attribution'
 const SHARED_ATTRIBUTION_COOKIE_KEY = 'flatkey_ads_attribution'
-export const PT_POST_SIGNUP_TOPUP_EXPERIMENT_ID = 'pt_post_signup_topup_v1'
+const PT_FIRST_CALL_STARTED_AT_STORAGE_KEY =
+  'ads:pt_first_call_topup_started_at'
+export const PT_FIRST_CALL_TOPUP_EXPERIMENT_ID = 'pt_first_call_topup_v2'
+export const PT_FIRST_CALL_TARGET_MS = 60 * 1000
 const ATTRIBUTION_TTL_MS = 90 * 24 * 60 * 60 * 1000
 const PAID_CLICK_IDS = new Set([
   'fbclid',
@@ -447,7 +450,7 @@ export function isPtGooglePaidAttribution(values: AttributionValues): boolean {
   return hasGoogleClickId && (isPortugueseLanding || isPortugueseLocale)
 }
 
-export function applyPtPostSignupTopupExperiment(
+export function applyPtFirstCallTopupExperiment(
   values: AttributionValues
 ): AttributionValues {
   const cleaned = cleanAttributionValues(values)
@@ -456,14 +459,54 @@ export function applyPtPostSignupTopupExperiment(
   }
   return {
     ...cleaned,
-    experiment_id: PT_POST_SIGNUP_TOPUP_EXPERIMENT_ID,
+    experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
   }
 }
 
-export function isPtPostSignupTopupExperiment(
+export function isPtFirstCallTopupExperiment(
   values: AttributionValues
 ): boolean {
-  return values.experiment_id === PT_POST_SIGNUP_TOPUP_EXPERIMENT_ID
+  return values.experiment_id === PT_FIRST_CALL_TOPUP_EXPERIMENT_ID
+}
+
+export function startPtFirstCallTopupExperiment(startedAt = Date.now()): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(
+      PT_FIRST_CALL_STARTED_AT_STORAGE_KEY,
+      String(startedAt)
+    )
+  } catch {
+    // Best-effort experiment timing must never block registration.
+  }
+}
+
+export function getPtFirstCallExperimentElapsedMs(
+  completedAt = Date.now()
+): number | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const startedAt = Number(
+      window.sessionStorage.getItem(PT_FIRST_CALL_STARTED_AT_STORAGE_KEY)
+    )
+    if (!Number.isFinite(startedAt) || startedAt <= 0) return null
+    return Math.max(0, completedAt - startedAt)
+  } catch {
+    return null
+  }
+}
+
+export function clearPtFirstCallExperimentTimer(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.removeItem(PT_FIRST_CALL_STARTED_AT_STORAGE_KEY)
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
+export function isWithinPtFirstCallTarget(elapsedMs: number): boolean {
+  return elapsedMs >= 0 && elapsedMs <= PT_FIRST_CALL_TARGET_MS
 }
 
 export function getStoredAdsAttribution(): Record<string, string> {
@@ -547,7 +590,7 @@ export function captureAdsAttribution(): Record<string, string> {
     }
   }
 
-  const merged = applyPtPostSignupTopupExperiment(
+  const merged = applyPtFirstCallTopupExperiment(
     mergeAttributionValues(getStoredAdsAttribution(), current)
   )
 

@@ -5061,6 +5061,7 @@
     "Weighted by request count": "Có trọng số theo số yêu cầu",
     "Welcome back!": "Chào mừng trở lại!",
     "Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.": "Chào mừng đến với flatkey! Gửi một tin nhắn để thực hiện lệnh gọi API đầu tiên trong 30 giây — không cần khóa hay thiết lập.",
+    "{{seconds}}s left: pick a prompt to make your first API call. We will guide you to top up right after it succeeds.": "Còn {{seconds}} giây: chọn một gợi ý để thực hiện lệnh gọi API đầu tiên. Chúng tôi sẽ hướng dẫn bạn nạp tiền ngay sau khi thành công.",
     "Welcome to our New API...": "Chào mừng bạn đến với API mới của chúng tôi...",
     "Well-Known URL": "URL đã biết",
     "Well-Known URL must start with http:// or https://": "URL Well-Known phải bắt đầu bằng http:// hoặc https://",

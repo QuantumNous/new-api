@@ -5061,6 +5061,7 @@
     "Weighted by request count": "Pondéré par le nombre de requêtes",
     "Welcome back!": "Bienvenue de retour !",
     "Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.": "Bienvenue sur flatkey ! Envoyez un message pour effectuer votre premier appel API en 30 secondes — sans clé ni configuration.",
+    "{{seconds}}s left: pick a prompt to make your first API call. We will guide you to top up right after it succeeds.": "Plus que {{seconds}}s : choisissez une suggestion pour effectuer votre premier appel API. Nous vous guiderons vers la recharge dès qu’il aura réussi.",
     "Welcome to our New API...": "Bienvenue sur notre New API...",
     "Well-Known URL": "URL bien connue",
     "Well-Known URL must start with http:// or https://": "L'URL bien connue doit commencer par http:// ou https://",
