@@ -236,6 +236,8 @@ func SetApiRouter(router *gin.Engine) {
 			recallCampaignRoute.GET("/:id/recipients", controller.ListRecallRecipients)
 			recallCampaignRoute.GET("/:id/events", controller.ListRecallEvents)
 			recallCampaignRoute.GET("/:id/metrics", controller.GetRecallCampaignMetrics)
+			recallCampaignRoute.GET("/:id/metric-users", controller.GetRecallMetricUsers)
+			recallCampaignRoute.GET("/:id/metric-users/export", controller.ExportRecallMetricUsers)
 			recallCampaignRoute.GET("/:id/export", controller.ExportRecallCampaign)
 			recallCampaignRoute.POST("/:id/recipients/:rid/retry", controller.RetryRecallRecipient)
 		}

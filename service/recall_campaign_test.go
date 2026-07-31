@@ -209,6 +209,7 @@ func setupRecallCampaignTestDB(t *testing.T) *gorm.DB {
 		&model.RecallMessage{},
 		&model.RecallEmailQuotaWindow{},
 		&model.RecallEvent{},
+		&model.RecallCampaignExclusion{},
 		&model.Log{},
 	))
 	return db

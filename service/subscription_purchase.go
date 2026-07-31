@@ -930,11 +930,12 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 	}
 	if quote.DiscountKind == SubscriptionDiscountKindRecall && quote.DiscountAmountMinor > 0 {
 		eventData, err := common.Marshal(map[string]any{
-			"trade_no":        order.TradeNo,
-			"conversion_kind": model.RecallConversionDirect,
-			"currency":        strings.ToUpper(strings.TrimSpace(quote.Currency)),
-			"amount_total":    quote.PaymentAmountMinor,
-			"discount_amount": quote.DiscountAmountMinor,
+			"trade_no":         order.TradeNo,
+			"conversion_kind":  model.RecallConversionDirect,
+			"currency":         strings.ToUpper(strings.TrimSpace(quote.Currency)),
+			"amount_total":     quote.PaymentAmountMinor,
+			"discount_amount":  quote.DiscountAmountMinor,
+			"payment_category": model.RecallRevenueCategoryBalanceSubscription,
 		})
 		if err != nil {
 			return nil, nil, err

@@ -14,14 +14,15 @@ import (
 )
 
 type RecallEvent struct {
-	Id            int64  `json:"id" gorm:"primaryKey"`
-	CampaignId    int64  `json:"campaign_id" gorm:"index"`
-	RecipientId   int64  `json:"recipient_id" gorm:"index"`
-	EventType     string `json:"event_type" gorm:"type:varchar(48);not null;index"`
-	Source        string `json:"source" gorm:"type:varchar(32);uniqueIndex:idx_recall_source_event,priority:1"`
+	Id            int64  `json:"id" gorm:"primaryKey;index:idx_recall_metric_fact_rep,priority:5;index:idx_recall_metric_fact_scan,priority:4;index:idx_recall_metric_message_state,priority:5"`
+	CampaignId    int64  `json:"campaign_id" gorm:"index;index:idx_recall_metric_fact_rep,priority:1;index:idx_recall_metric_fact_scan,priority:1;index:idx_recall_metric_message_state,priority:1"`
+	RecipientId   int64  `json:"recipient_id" gorm:"index;index:idx_recall_metric_fact_rep,priority:3;index:idx_recall_metric_fact_scan,priority:5"`
+	EventType     string `json:"event_type" gorm:"type:varchar(48);not null;index;index:idx_recall_metric_fact_rep,priority:2;index:idx_recall_metric_fact_scan,priority:2;index:idx_recall_metric_message_state,priority:2"`
+	Source        string `json:"source" gorm:"type:varchar(32);uniqueIndex:idx_recall_source_event,priority:1;index:idx_recall_metric_message_state,priority:3"`
+	MessageId     int64  `json:"message_id" gorm:"index:idx_recall_metric_message_state,priority:4"`
 	SourceEventId string `json:"source_event_id" gorm:"type:varchar(160);uniqueIndex:idx_recall_source_event,priority:2"`
 	EventData     string `json:"event_data" gorm:"type:text"`
-	CreatedAt     int64  `json:"created_at" gorm:"autoCreateTime;index"`
+	CreatedAt     int64  `json:"created_at" gorm:"autoCreateTime;index;index:idx_recall_metric_fact_rep,priority:4;index:idx_recall_metric_fact_scan,priority:3"`
 }
 
 var errRecallRunNotOwned = errors.New("recall campaign run not owned")

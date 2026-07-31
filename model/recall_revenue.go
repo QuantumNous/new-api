@@ -21,19 +21,19 @@ const (
 )
 
 type RecallRevenueTotals struct {
-	Currency                 string
-	AttributedSpendMinor     int64
-	AttributedUsers          int64
-	NewExternalCashMinor     int64
-	ExternalCashUsers        int64
-	DirectTopupMinor         int64
-	DirectTopupUsers         int64
-	BalanceSubscriptionMinor int64
-	BalanceSubscriptionUsers int64
-	OnlineSubscriptionMinor  int64
-	OnlineSubscriptionUsers  int64
-	UnclassifiedMinor        int64
-	UnclassifiedUsers        int64
+	Currency                 string `json:"currency"`
+	AttributedSpendMinor     int64  `json:"attributed_spend_minor"`
+	AttributedUsers          int64  `json:"attributed_users"`
+	NewExternalCashMinor     int64  `json:"new_external_cash_minor"`
+	ExternalCashUsers        int64  `json:"external_cash_users"`
+	DirectTopupMinor         int64  `json:"direct_topup_minor"`
+	DirectTopupUsers         int64  `json:"direct_topup_users"`
+	BalanceSubscriptionMinor int64  `json:"balance_subscription_minor"`
+	BalanceSubscriptionUsers int64  `json:"balance_subscription_users"`
+	OnlineSubscriptionMinor  int64  `json:"online_subscription_minor"`
+	OnlineSubscriptionUsers  int64  `json:"online_subscription_users"`
+	UnclassifiedMinor        int64  `json:"unclassified_minor"`
+	UnclassifiedUsers        int64  `json:"unclassified_users"`
 }
 
 type recallRevenueFactKey struct {

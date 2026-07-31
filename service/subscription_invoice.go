@@ -1077,13 +1077,14 @@ func recordRecurringInvoiceRecallConversionTx(tx *gorm.DB, order *model.Subscrip
 		currency = facts.Currency
 	}
 	eventData, err := common.Marshal(map[string]any{
-		"invoice_id":      strings.TrimSpace(invoiceID),
-		"subscription_id": facts.SubscriptionID,
-		"trade_no":        strings.TrimSpace(order.TradeNo),
-		"conversion_kind": model.RecallConversionDirect,
-		"currency":        currency,
-		"amount_total":    order.PaymentAmountMinor,
-		"discount_amount": order.RecallDiscountAmountMinor,
+		"invoice_id":       strings.TrimSpace(invoiceID),
+		"subscription_id":  facts.SubscriptionID,
+		"trade_no":         strings.TrimSpace(order.TradeNo),
+		"conversion_kind":  model.RecallConversionDirect,
+		"currency":         currency,
+		"amount_total":     order.PaymentAmountMinor,
+		"discount_amount":  order.RecallDiscountAmountMinor,
+		"payment_category": model.RecallRevenueCategoryOnlineSubscription,
 	})
 	if err != nil {
 		return err

@@ -3,15 +3,19 @@ package router
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	backendI18n "github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestRecallEmailPreviewRoute(t *testing.T) {
@@ -327,4 +331,106 @@ func TestRecallOffersRouteIsRegisteredAndRequiresUserAuth(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/user/recall/offers", nil))
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
+func TestRecallMetricUserRoutesAreRegisteredWithAdminAuth(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-metric-users-auth"))))
+	SetApiRouter(engine)
+
+	wantRoutes := map[string]string{
+		"/api/recall-campaigns/:id/metric-users":        http.MethodGet,
+		"/api/recall-campaigns/:id/metric-users/export": http.MethodGet,
+	}
+	for path, method := range wantRoutes {
+		found := false
+		for _, route := range engine.Routes() {
+			if route.Path == path && route.Method == method {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "missing route %s %s", method, path)
+
+		target := strings.Replace(path, ":id", "1", 1) + "?metric=enrolled"
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(method, target, nil))
+		require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	}
+}
+
+func TestRecallMetricUserRouteMapsBadRequestNotFoundAndStaleSnapshot(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	originalDB := model.DB
+	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/recall-metric-router.db"), &gorm.Config{})
+	require.NoError(t, err)
+	model.DB = db
+	require.NoError(t, db.AutoMigrate(&model.RecallCampaign{}, &model.RecallRecipient{}, &model.RecallEvent{}, &model.RecallMessage{}, &model.RecallCampaignExclusion{}, &model.TopUp{}, &model.SubscriptionOrder{}))
+	t.Cleanup(func() {
+		sqlDB, _ := db.DB()
+		_ = sqlDB.Close()
+		model.DB = originalDB
+	})
+	campaign := model.RecallCampaign{Name: "router metric", Status: model.RecallCampaignRunning}
+	require.NoError(t, db.Create(&campaign).Error)
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-metric-status-auth"))))
+	SetApiRouter(engine)
+	engine.GET("/login-admin", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set("id", 99)
+		session.Set("username", "recall-admin")
+		session.Set("role", common.RoleAdminUser)
+		session.Set("status", common.UserStatusEnabled)
+		session.Set("group", "default")
+		require.NoError(t, session.Save())
+		c.Status(http.StatusNoContent)
+	})
+
+	loginRecorder := httptest.NewRecorder()
+	engine.ServeHTTP(loginRecorder, httptest.NewRequest(http.MethodGet, "/login-admin", nil))
+	require.Equal(t, http.StatusNoContent, loginRecorder.Code)
+	request := func(target string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		req.Header.Set("New-Api-User", "99")
+		for _, cookie := range loginRecorder.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, req)
+		return recorder
+	}
+
+	badFilter := request("/api/recall-campaigns/" + strconv.FormatInt(campaign.Id, 10) + "/metric-users?metric=enrolled&conversion_kind=direct")
+	require.Equal(t, http.StatusBadRequest, badFilter.Code)
+	require.Contains(t, badFilter.Body.String(), `"success":false`)
+
+	missing := request("/api/recall-campaigns/99999/metric-users?metric=enrolled")
+	require.Equal(t, http.StatusNotFound, missing.Code)
+
+	stale := request("/api/recall-campaigns/" + strconv.FormatInt(campaign.Id, 10) + "/metric-users?metric=enrolled&snapshot=invalid")
+	require.Equal(t, http.StatusConflict, stale.Code)
+	require.NotContains(t, stale.Body.String(), "invalid.")
+
+	exportRawSnapshot := request("/api/recall-campaigns/" + strconv.FormatInt(campaign.Id, 10) + `/metric-users/export?metric=enrolled&snapshot=%7B%22as_of%22:1%7D`)
+	require.Equal(t, http.StatusConflict, exportRawSnapshot.Code)
+	require.NotContains(t, exportRawSnapshot.Header().Get("Content-Type"), "text/csv")
+
+	unknown := request("/api/recall-campaigns/" + strconv.FormatInt(campaign.Id, 10) + "/metric-users?metric=enrolled&unexpected=1")
+	require.Equal(t, http.StatusBadRequest, unknown.Code)
+
+	cursorOnly := request("/api/recall-campaigns/" + strconv.FormatInt(campaign.Id, 10) + "/metric-users?metric=enrolled&cursor=invalid")
+	require.Equal(t, http.StatusConflict, cursorOnly.Code)
+
+	qAlias := request("/api/recall-campaigns/" + strconv.FormatInt(campaign.Id, 10) + "/metric-users?metric=enrolled&q=recall-admin")
+	require.Equal(t, http.StatusOK, qAlias.Code)
+
+	for key := range model.RecallMetricRegistry() {
+		recorder := request("/api/recall-campaigns/" + strconv.FormatInt(campaign.Id, 10) + "/metric-users?metric=" + string(key))
+		require.Equal(t, http.StatusOK, recorder.Code, key)
+	}
 }

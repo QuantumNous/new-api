@@ -85,6 +85,7 @@ type recallMessageStateEventPayload struct {
 	FromState   string `json:"from_state"`
 	ToState     string `json:"to_state"`
 	OccurredAt  int64  `json:"occurred_at"`
+	FailureCode string `json:"failure_code,omitempty"`
 }
 
 func TransitionRecallMessageWithEvent(ctx context.Context, transition RecallMessageTransition) (bool, error) {
@@ -208,6 +209,7 @@ func TransitionRecallMessagesWithEventsTx(tx *gorm.DB, transitions []RecallMessa
 			}
 			row.State = transition.To
 			row.StateVersion = nextVersion
+			applyRecallMessageTransitionEventFields(&row.RecallMessage, updates)
 			if transition.CampaignID > 0 {
 				row.CampaignID = transition.CampaignID
 			}
@@ -471,6 +473,25 @@ func recallMessageTransitionUpdates(transition RecallMessageTransition) (map[str
 	return updates, nil
 }
 
+func applyRecallMessageTransitionEventFields(message *RecallMessage, updates map[string]any) {
+	if message == nil {
+		return
+	}
+	if value, ok := updates["last_error_code"]; ok {
+		if code, ok := value.(string); ok {
+			message.LastErrorCode = strings.TrimSpace(code)
+		}
+	}
+	if value, ok := updates["failed_at"]; ok {
+		switch failedAt := value.(type) {
+		case int64:
+			message.FailedAt = failedAt
+		case int:
+			message.FailedAt = int64(failedAt)
+		}
+	}
+}
+
 func recallMessageTransitionAllowedFields() map[string]struct{} {
 	return map[string]struct{}{
 		"accepted_at":         {},
@@ -486,21 +507,33 @@ func recallMessageTransitionAllowedFields() map[string]struct{} {
 	}
 }
 
+func recallMessageStateEventFailureCode(to string, code string) string {
+	switch to {
+	case RecallMessageFailed, RecallMessageCancelled:
+		return sanitizeRecallErrorCode(code)
+	default:
+		return ""
+	}
+}
+
 func recallMessageStateEvent(message any, from string, to string, version int64, occurredAt int64) (RecallEvent, error) {
 	var id int64
 	var recipientID int64
 	var campaignID int64
 	var stageNo int
+	var failureCode string
 	switch row := message.(type) {
 	case RecallMessage:
 		id = row.Id
 		recipientID = row.RecipientId
 		stageNo = row.StageNo
+		failureCode = row.LastErrorCode
 	case recallMessageWithCampaign:
 		id = row.Id
 		recipientID = row.RecipientId
 		campaignID = row.CampaignID
 		stageNo = row.StageNo
+		failureCode = row.LastErrorCode
 	default:
 		return RecallEvent{}, fmt.Errorf("unsupported recall message state event row")
 	}
@@ -511,15 +544,17 @@ func recallMessageStateEvent(message any, from string, to string, version int64,
 		FromState:   from,
 		ToState:     to,
 		OccurredAt:  occurredAt,
+		FailureCode: recallMessageStateEventFailureCode(to, failureCode),
 	})
 	if err != nil {
 		return RecallEvent{}, err
 	}
 	return RecallEvent{
 		CampaignId:    campaignID,
-		RecipientId:   0,
+		RecipientId:   recipientID,
 		EventType:     "message_state_changed",
 		Source:        "message_state",
+		MessageId:     id,
 		SourceEventId: fmt.Sprintf("%d:%d", id, version),
 		EventData:     string(payload),
 		CreatedAt:     occurredAt,

@@ -12,6 +12,34 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestRecallRevenueTotalsJSONUsesSnakeCase(t *testing.T) {
+	raw, err := common.Marshal(RecallRevenueTotals{
+		Currency:                 "USD",
+		AttributedSpendMinor:     100,
+		AttributedUsers:          1,
+		NewExternalCashMinor:     90,
+		ExternalCashUsers:        2,
+		DirectTopupMinor:         80,
+		DirectTopupUsers:         3,
+		BalanceSubscriptionMinor: 70,
+		BalanceSubscriptionUsers: 4,
+		OnlineSubscriptionMinor:  60,
+		OnlineSubscriptionUsers:  5,
+		UnclassifiedMinor:        50,
+		UnclassifiedUsers:        6,
+	})
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"attributed_spend_minor":100`)
+	require.Contains(t, string(raw), `"online_subscription_users":5`)
+	require.NotContains(t, string(raw), "AttributedSpendMinor")
+
+	var decoded map[string]any
+	require.NoError(t, common.Unmarshal(raw, &decoded))
+	require.Contains(t, decoded, "currency")
+	require.Contains(t, decoded, "direct_topup_users")
+	require.NotContains(t, decoded, "DirectTopupUsers")
+}
+
 func TestRecallRevenueActivity14Fixture(t *testing.T) {
 	setupRecallRevenueTestDB(t)
 

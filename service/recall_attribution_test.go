@@ -508,18 +508,26 @@ func TestRecallAttributionMetricsKeepCurrenciesSeparate(t *testing.T) {
 		"conversion_kind":    model.RecallConversionDirect, "conversion_trade_no": "trade_usd",
 		"conversion_currency": "USD", "conversion_amount": int64(1200), "discount_amount": int64(200),
 	}).Error)
-	for _, message := range []model.RecallMessage{
-		{RecipientId: first.Id, StageNo: 1, State: model.RecallMessageAccepted},
-		{RecipientId: second.Id, StageNo: 1, State: model.RecallMessageFailed},
-		{RecipientId: codeFailure.Id, StageNo: 1, State: model.RecallMessageCancelled},
-		{RecipientId: noCoupon.Id, StageNo: 1, State: model.RecallMessageScheduled},
-	} {
-		require.NoError(t, model.DB.Create(&message).Error)
-	}
-	require.NoError(t, model.DB.Create(&model.RecallEvent{
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		return model.CreateRecallMessagesWithStateEventsTx(tx, campaign.Id, []model.RecallMessage{
+			{RecipientId: first.Id, StageNo: 1, State: model.RecallMessageAccepted},
+			{RecipientId: second.Id, StageNo: 1, State: model.RecallMessageFailed},
+			{RecipientId: codeFailure.Id, StageNo: 1, State: model.RecallMessageCancelled},
+			{RecipientId: noCoupon.Id, StageNo: 1, State: model.RecallMessageScheduled},
+		}, 1_700_000_050)
+	}))
+	run := model.RecallEvent{
 		CampaignId: campaign.Id, EventType: "campaign_run", Source: "scheduler", SourceEventId: "run_metrics",
 		EventData: `{"eligible_total":2,"exclusions":{"paid":3}}`, CreatedAt: 1_700_000_000,
-	}).Error)
+	}
+	require.NoError(t, model.DB.Create(&run).Error)
+	for _, exclusion := range []model.RecallCampaignExclusion{
+		{CampaignId: campaign.Id, RecipientIdentity: first.RecipientIdentity, UserId: first.UserId, FirstRunEventId: run.Id, LastRunEventId: run.Id, FirstSeenAt: 1_700_000_000, LastSeenAt: 1_700_000_000},
+		{CampaignId: campaign.Id, RecipientIdentity: second.RecipientIdentity, UserId: second.UserId, FirstRunEventId: run.Id, LastRunEventId: run.Id, FirstSeenAt: 1_700_000_000, LastSeenAt: 1_700_000_000},
+		{CampaignId: campaign.Id, RecipientIdentity: codeFailure.RecipientIdentity, UserId: codeFailure.UserId, FirstRunEventId: run.Id, LastRunEventId: run.Id, FirstSeenAt: 1_700_000_000, LastSeenAt: 1_700_000_000},
+	} {
+		require.NoError(t, model.DB.Create(&exclusion).Error)
+	}
 	require.NoError(t, model.DB.Create(&model.RecallEvent{
 		CampaignId: campaign.Id, RecipientId: first.Id, EventType: "observed_click", Source: "claim",
 		SourceEventId: "metrics_click", EventData: `{}`, CreatedAt: 1_700_000_100,
@@ -539,6 +547,35 @@ func TestRecallAttributionMetricsKeepCurrenciesSeparate(t *testing.T) {
 		},
 	} {
 		require.NoError(t, model.DB.Create(&event).Error)
+	}
+	for _, conversion := range []struct {
+		recipient model.RecallRecipient
+		kind      string
+		tradeNo   string
+		currency  string
+		amount    int64
+	}{
+		{recipient: first, kind: model.RecallConversionDirect, tradeNo: "trade_usd", currency: "usd", amount: 1200},
+		{recipient: second, kind: model.RecallConversionAssisted, tradeNo: "trade_jpy", currency: "jpy", amount: 8000},
+		{recipient: noCoupon, kind: model.RecallConversionNoCoupon, tradeNo: "trade_eur", currency: "eur", amount: 3000},
+	} {
+		eventData, err := common.Marshal(map[string]any{
+			"trade_no":         conversion.tradeNo,
+			"conversion_kind":  conversion.kind,
+			"currency":         conversion.currency,
+			"amount_total":     conversion.amount,
+			"payment_category": "direct_topup",
+		})
+		require.NoError(t, err)
+		require.NoError(t, model.DB.Create(&model.RecallEvent{
+			CampaignId:    campaign.Id,
+			RecipientId:   conversion.recipient.Id,
+			EventType:     "conversion",
+			Source:        "test",
+			SourceEventId: "metrics_conversion_" + conversion.tradeNo,
+			EventData:     string(eventData),
+			CreatedAt:     1_700_000_200,
+		}).Error)
 	}
 
 	metrics, err := NewRecallAttributionService(&recallStripeFakeClient{}).GetMetrics(context.Background(), campaign.Id)

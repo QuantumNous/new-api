@@ -1391,9 +1391,10 @@ func (s *RecallCampaignService) commitCampaignRun(
 		recipients[i].PromotionExpiresAt = expiresAt
 	}
 	eventData, err := common.Marshal(map[string]any{
-		"campaign_type":  draft.CampaignType,
-		"eligible_total": len(recipients),
-		"exclusions":     exclusions,
+		"campaign_type":            draft.CampaignType,
+		"eligible_total":           len(recipients),
+		"exclusions":               exclusions,
+		"identity_ledger_complete": true,
 	})
 	if err != nil {
 		return false, err
