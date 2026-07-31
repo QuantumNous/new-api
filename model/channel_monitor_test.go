@@ -70,33 +70,73 @@ func TestClaimDueChannelMonitorsOnlyClaimsOncePerLease(t *testing.T) {
 	assert.Empty(t, second)
 }
 
-func TestUpdateChannelMonitorAvailabilityOverrides(t *testing.T) {
+func TestUpdateChannelMonitorAvailabilityBoost(t *testing.T) {
 	truncateTables(t)
 
-	manual7d := 99.5
-	manual30d := 98.25
 	monitor := &ChannelMonitor{
-		Name:                  "Manual availability",
-		ApiURL:                "https://example.com/v1",
-		ApiKeyEncrypted:       "encrypted",
-		TestModel:             "gpt-test",
-		IntervalSeconds:       60,
-		TimeoutSeconds:        15,
-		Enabled:               true,
-		Visible:               true,
-		ManualAvailability7d:  &manual7d,
-		ManualAvailability30d: &manual30d,
+		Name:                     "Availability boost",
+		ApiURL:                   "https://example.com/v1",
+		ApiKeyEncrypted:          "encrypted",
+		TestModel:                "gpt-test",
+		IntervalSeconds:          60,
+		TimeoutSeconds:           15,
+		Enabled:                  true,
+		Visible:                  true,
+		AvailabilityBoostPercent: 12.5,
 	}
 	require.NoError(t, CreateChannelMonitor(monitor))
 
-	manual7d = 97.75
-	monitor.ManualAvailability7d = &manual7d
-	monitor.ManualAvailability30d = nil
+	monitor.AvailabilityBoostPercent = 7.75
 	require.NoError(t, UpdateChannelMonitor(monitor))
 
 	updated, err := GetChannelMonitorByID(monitor.Id)
 	require.NoError(t, err)
-	require.NotNil(t, updated.ManualAvailability7d)
-	assert.Equal(t, 97.75, *updated.ManualAvailability7d)
-	assert.Nil(t, updated.ManualAvailability30d)
+	assert.Equal(t, 7.75, updated.AvailabilityBoostPercent)
+}
+
+func TestRemoveLegacyChannelMonitorAvailabilityColumns(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&ChannelMonitor{}))
+	legacy := &channelMonitorLegacyAvailability{}
+	require.NoError(t, DB.Migrator().AddColumn(legacy, "ManualAvailability7d"))
+	require.NoError(t, DB.Migrator().AddColumn(legacy, "ManualAvailability30d"))
+	require.True(t, DB.Migrator().HasColumn(legacy, "manual_availability_7d"))
+	require.True(t, DB.Migrator().HasColumn(legacy, "manual_availability_30d"))
+
+	require.NoError(t, removeLegacyChannelMonitorAvailabilityColumns())
+
+	assert.False(t, DB.Migrator().HasColumn(legacy, "manual_availability_7d"))
+	assert.False(t, DB.Migrator().HasColumn(legacy, "manual_availability_30d"))
+}
+
+func TestClaimChannelMonitorUserTestEnforcesSharedCooldown(t *testing.T) {
+	truncateTables(t)
+
+	monitor := &ChannelMonitor{
+		Name:            "User test cooldown",
+		ApiURL:          "https://example.com/v1",
+		ApiKeyEncrypted: "encrypted",
+		TestModel:       "gpt-test",
+		IntervalSeconds: 60,
+		TimeoutSeconds:  15,
+		Enabled:         true,
+		Visible:         true,
+	}
+	require.NoError(t, CreateChannelMonitor(monitor))
+
+	claimed, err := ClaimChannelMonitorUserTest(monitor.Id, 100, 125)
+	require.NoError(t, err)
+	assert.True(t, claimed)
+
+	claimed, err = ClaimChannelMonitorUserTest(monitor.Id, 110, 135)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+
+	require.NoError(t, CompleteChannelMonitorUserTest(monitor.Id, 120))
+	claimed, err = ClaimChannelMonitorUserTest(monitor.Id, 119, 144)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+
+	claimed, err = ClaimChannelMonitorUserTest(monitor.Id, 120, 145)
+	require.NoError(t, err)
+	assert.True(t, claimed)
 }

@@ -16,30 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import assert from 'node:assert/strict'
+import { describe, test } from 'node:test'
 
-import dayjs from 'dayjs'
+import { applyMonitorAvailabilityBoost } from './format'
 
-export function formatMonitorAvailability(value: number | null): string {
-  return value == null ? '--' : `${value.toFixed(2)}%`
-}
+describe('monitor availability boost', () => {
+  test('recovers the configured share of failed checks', () => {
+    assert.equal(applyMonitorAvailabilityBoost(80, 10), 82)
+    assert.equal(applyMonitorAvailabilityBoost(95, 20), 96)
+    assert.equal(applyMonitorAvailabilityBoost(99.5, 10), 99.55)
+  })
 
-export function applyMonitorAvailabilityBoost(
-  raw: number | null,
-  boostPercent: number
-): number | null {
-  if (raw == null) return null
-  const boosted = raw + ((100 - raw) * boostPercent) / 100
-  return Math.round(Math.min(100, Math.max(0, boosted)) * 100) / 100
-}
-
-export function formatMonitorTime(value: number | null): string {
-  return value == null ? '--' : dayjs.unix(value).format('YYYY-MM-DD HH:mm:ss')
-}
-
-export function getMonitorApiHost(apiURL: string): string {
-  try {
-    return new URL(apiURL).host
-  } catch {
-    return apiURL
-  }
-}
+  test('preserves missing data and caps the result', () => {
+    assert.equal(applyMonitorAvailabilityBoost(null, 100), null)
+    assert.equal(applyMonitorAvailabilityBoost(100, 100), 100)
+  })
+})

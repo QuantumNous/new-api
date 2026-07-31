@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { isAxiosError } from 'axios'
+
 import { api } from '@/lib/api'
 
 import type {
@@ -24,6 +26,7 @@ import type {
   ChannelMonitorPayload,
   ChannelMonitorRunResponse,
   GroupStatusMonitor,
+  GroupStatusTestResponse,
 } from './types'
 
 type ApiResponse<T> = {
@@ -91,4 +94,40 @@ export async function getGroupStatus(): Promise<GroupStatusMonitor[]> {
       '/api/group-status/'
     )
   return requireData(response.data).items
+}
+
+export class GroupStatusTestCooldownError extends Error {
+  readonly nextTestAt: number
+
+  constructor(nextTestAt: number) {
+    super('Availability test is cooling down')
+    this.name = 'GroupStatusTestCooldownError'
+    this.nextTestAt = nextTestAt
+  }
+}
+
+export async function runGroupStatusTest(
+  id: number
+): Promise<GroupStatusTestResponse> {
+  try {
+    const response = await api.post<ApiResponse<GroupStatusTestResponse>>(
+      `/api/group-status/${id}/test`,
+      undefined,
+      { skipErrorHandler: true }
+    )
+    return requireData(response.data)
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 429) {
+      const cooldown = error.response.data as ApiResponse<{
+        retry_after?: number
+        next_test_at?: number
+      }>
+      const retryAfter = Math.max(1, cooldown.data?.retry_after ?? 1)
+      const nextTestAt =
+        cooldown.data?.next_test_at ??
+        Math.floor(Date.now() / 1000) + retryAfter
+      throw new GroupStatusTestCooldownError(nextTestAt)
+    }
+    throw error
+  }
 }

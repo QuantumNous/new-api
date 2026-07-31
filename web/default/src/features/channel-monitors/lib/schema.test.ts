@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
-import { channelMonitorFormSchema, parseManualAvailability } from './schema'
+import { channelMonitorFormSchema } from './schema'
 
 const validMonitor = {
   name: 'Status monitor',
@@ -30,18 +30,16 @@ const validMonitor = {
   timeout_seconds: 15,
   enabled: true,
   visible: true,
-  manual_availability_7d: '',
-  manual_availability_30d: '',
+  availability_boost_percent: 0,
 }
 
-describe('channel monitor availability overrides', () => {
-  test('accepts blank and bounded percentage values', () => {
+describe('channel monitor availability boost', () => {
+  test('accepts bounded percentage values', () => {
     assert.equal(channelMonitorFormSchema.safeParse(validMonitor).success, true)
     assert.equal(
       channelMonitorFormSchema.safeParse({
         ...validMonitor,
-        manual_availability_7d: '99.95',
-        manual_availability_30d: '0',
+        availability_boost_percent: '99.95',
       }).success,
       true
     )
@@ -52,15 +50,10 @@ describe('channel monitor availability overrides', () => {
       assert.equal(
         channelMonitorFormSchema.safeParse({
           ...validMonitor,
-          manual_availability_7d: value,
+          availability_boost_percent: value,
         }).success,
         false
       )
     }
-  })
-
-  test('converts blank overrides to null for the API payload', () => {
-    assert.equal(parseManualAvailability('  '), null)
-    assert.equal(parseManualAvailability('99.95'), 99.95)
   })
 })

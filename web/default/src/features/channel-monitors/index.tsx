@@ -99,8 +99,7 @@ function monitorPayload(
     timeout_seconds: monitor.timeout_seconds,
     enabled: monitor.enabled,
     visible: monitor.visible,
-    manual_availability_7d: monitor.manual_availability_7d,
-    manual_availability_30d: monitor.manual_availability_30d,
+    availability_boost_percent: monitor.availability_boost_percent,
     ...changes,
   }
 }
@@ -307,7 +306,7 @@ export function ChannelMonitors() {
                         <TableHead>{t('Test model')}</TableHead>
                         <TableHead>{t('Test interval')}</TableHead>
                         <TableHead>{t('Status')}</TableHead>
-                        <TableHead>{t('7-day / 30-day')}</TableHead>
+                        <TableHead>{t('Original / user display')}</TableHead>
                         <TableHead>{t('Latest test')}</TableHead>
                         <TableHead className='w-32 text-end'>
                           {t('Actions')}
@@ -364,27 +363,26 @@ export function ChannelMonitors() {
                             <MonitorStatusBadge status={monitor.status} />
                           </TableCell>
                           <TableCell>
-                            <div className='flex flex-col gap-1'>
-                              <span className='flex items-center gap-1.5'>
-                                {formatMonitorAvailability(
-                                  monitor.availability_7d
-                                )}
-                                {monitor.manual_availability_7d != null && (
-                                  <Badge variant='outline'>
-                                    {t('Manual override')}
-                                  </Badge>
-                                )}
-                              </span>
-                              <span className='text-muted-foreground flex items-center gap-1.5'>
-                                {formatMonitorAvailability(
-                                  monitor.availability_30d
-                                )}
-                                {monitor.manual_availability_30d != null && (
-                                  <Badge variant='outline'>
-                                    {t('Manual override')}
-                                  </Badge>
-                                )}
-                              </span>
+                            <div className='flex min-w-56 flex-col gap-1.5'>
+                              <AdminAvailabilityRow
+                                period={t('7 days')}
+                                raw={monitor.raw_availability_7d}
+                                displayed={monitor.availability_7d}
+                              />
+                              <AdminAvailabilityRow
+                                period={t('30 days')}
+                                raw={monitor.raw_availability_30d}
+                                displayed={monitor.availability_30d}
+                              />
+                              {monitor.availability_boost_percent > 0 && (
+                                <Badge variant='outline' className='mt-0.5'>
+                                  +
+                                  {monitor.availability_boost_percent.toFixed(
+                                    2
+                                  )}
+                                  %
+                                </Badge>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -490,6 +488,29 @@ export function ChannelMonitors() {
         }}
       />
     </>
+  )
+}
+
+type AdminAvailabilityRowProps = {
+  period: string
+  raw: number | null
+  displayed: number | null
+}
+
+function AdminAvailabilityRow(props: AdminAvailabilityRowProps) {
+  return (
+    <div className='grid grid-cols-[4.5rem_4rem_auto_4rem] items-center gap-1.5 text-xs'>
+      <span className='text-muted-foreground'>{props.period}</span>
+      <span className='text-end tabular-nums'>
+        {formatMonitorAvailability(props.raw)}
+      </span>
+      <span className='text-muted-foreground' aria-hidden='true'>
+        →
+      </span>
+      <strong className='text-end font-medium tabular-nums'>
+        {formatMonitorAvailability(props.displayed)}
+      </strong>
+    </div>
   )
 }
 

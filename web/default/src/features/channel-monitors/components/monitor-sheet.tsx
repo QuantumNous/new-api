@@ -22,7 +22,7 @@ import { Activity01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -61,11 +61,14 @@ import {
   runChannelMonitor,
   updateChannelMonitor,
 } from '../api'
-import { formatMonitorTime } from '../lib/format'
+import {
+  applyMonitorAvailabilityBoost,
+  formatMonitorAvailability,
+  formatMonitorTime,
+} from '../lib/format'
 import {
   channelMonitorFormDefaults,
   channelMonitorFormSchema,
-  parseManualAvailability,
   type ChannelMonitorFormInput,
   type ChannelMonitorFormValues,
 } from '../lib/schema'
@@ -106,14 +109,7 @@ function buildFormDefaults(
     timeout_seconds: monitor.timeout_seconds,
     enabled: monitor.enabled,
     visible: monitor.visible,
-    manual_availability_7d:
-      monitor.manual_availability_7d == null
-        ? ''
-        : String(monitor.manual_availability_7d),
-    manual_availability_30d:
-      monitor.manual_availability_30d == null
-        ? ''
-        : String(monitor.manual_availability_30d),
+    availability_boost_percent: monitor.availability_boost_percent,
   }
 }
 
@@ -133,6 +129,15 @@ export function ChannelMonitorSheet(props: ChannelMonitorSheetProps) {
     if (props.open) form.reset(buildFormDefaults(props.monitor))
   }, [form, props.monitor, props.open])
 
+  const watchedBoostPercent = useWatch({
+    control: form.control,
+    name: 'availability_boost_percent',
+  })
+  const parsedBoostPercent = Number(watchedBoostPercent)
+  const boostPercent = Number.isFinite(parsedBoostPercent)
+    ? parsedBoostPercent
+    : 0
+
   const saveMutation = useMutation<
     SaveMutationResult,
     Error,
@@ -145,12 +150,6 @@ export function ChannelMonitorSheet(props: ChannelMonitorSheetProps) {
         api_url: input.values.api_url.trim(),
         api_key: input.values.api_key.trim(),
         test_model: input.values.test_model.trim(),
-        manual_availability_7d: parseManualAvailability(
-          input.values.manual_availability_7d
-        ),
-        manual_availability_30d: parseManualAvailability(
-          input.values.manual_availability_30d
-        ),
       }
       const saved = props.monitor
         ? await updateChannelMonitor(props.monitor.id, payload)
@@ -367,10 +366,10 @@ export function ChannelMonitorSheet(props: ChannelMonitorSheetProps) {
 
                 <FormField
                   control={form.control}
-                  name='manual_availability_7d'
+                  name='availability_boost_percent'
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Manual 7-day availability')}</FormLabel>
+                    <FormItem className='sm:col-span-2'>
+                      <FormLabel>{t('Availability boost')}</FormLabel>
                       <FormControl>
                         <InputGroup>
                           <InputGroupInput
@@ -378,7 +377,7 @@ export function ChannelMonitorSheet(props: ChannelMonitorSheetProps) {
                             min={0}
                             max={100}
                             step={0.01}
-                            value={field.value}
+                            value={String(field.value ?? '')}
                             onChange={(event) =>
                               field.onChange(event.target.value)
                             }
@@ -388,44 +387,36 @@ export function ChannelMonitorSheet(props: ChannelMonitorSheetProps) {
                           </InputGroupAddon>
                         </InputGroup>
                       </FormControl>
-                      <FormDescription>
-                        {t('Leave blank to use automatic statistics')}
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name='manual_availability_30d'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Manual 30-day availability')}</FormLabel>
-                      <FormControl>
-                        <InputGroup>
-                          <InputGroupInput
-                            type='number'
-                            min={0}
-                            max={100}
-                            step={0.01}
-                            value={field.value}
-                            onChange={(event) =>
-                              field.onChange(event.target.value)
-                            }
-                          />
-                          <InputGroupAddon align='inline-end'>
-                            <InputGroupText>%</InputGroupText>
-                          </InputGroupAddon>
-                        </InputGroup>
-                      </FormControl>
-                      <FormDescription>
-                        {t('Leave blank to use automatic statistics')}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {props.monitor && (
+                  <div className='bg-muted/40 rounded-lg border p-3 sm:col-span-2'>
+                    <p className='mb-2 text-sm font-medium'>
+                      {t('Availability boost preview')}
+                    </p>
+                    <div className='grid gap-2 text-sm'>
+                      <AvailabilityPreviewRow
+                        period={t('7 days')}
+                        raw={props.monitor.raw_availability_7d}
+                        boosted={applyMonitorAvailabilityBoost(
+                          props.monitor.raw_availability_7d,
+                          boostPercent
+                        )}
+                      />
+                      <AvailabilityPreviewRow
+                        period={t('30 days')}
+                        raw={props.monitor.raw_availability_30d}
+                        boosted={applyMonitorAvailabilityBoost(
+                          props.monitor.raw_availability_30d,
+                          boostPercent
+                        )}
+                      />
+                    </div>
+                  </div>
+                )}
               </FieldGroup>
 
               <Separator />
@@ -513,5 +504,28 @@ export function ChannelMonitorSheet(props: ChannelMonitorSheetProps) {
         </Form>
       </SheetContent>
     </Sheet>
+  )
+}
+
+type AvailabilityPreviewRowProps = {
+  period: string
+  raw: number | null
+  boosted: number | null
+}
+
+function AvailabilityPreviewRow(props: AvailabilityPreviewRowProps) {
+  return (
+    <div className='grid grid-cols-[5rem_1fr_auto_1fr] items-center gap-2'>
+      <span className='text-muted-foreground'>{props.period}</span>
+      <span className='text-end tabular-nums'>
+        {formatMonitorAvailability(props.raw)}
+      </span>
+      <span className='text-muted-foreground' aria-hidden='true'>
+        →
+      </span>
+      <strong className='text-end tabular-nums'>
+        {formatMonitorAvailability(props.boosted)}
+      </strong>
+    </div>
   )
 }

@@ -315,6 +315,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := removeLegacyChannelMonitorAvailabilityColumns(); err != nil {
+		return err
+	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -408,7 +411,27 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	if err := removeLegacyChannelMonitorAvailabilityColumns(); err != nil {
+		return err
+	}
 	common.SysLog("database migrated")
+	return nil
+}
+
+func removeLegacyChannelMonitorAvailabilityColumns() error {
+	legacy := &channelMonitorLegacyAvailability{}
+	migrator := DB.Migrator()
+	if !migrator.HasTable(legacy) {
+		return nil
+	}
+	for _, column := range []string{"manual_availability_7d", "manual_availability_30d"} {
+		if !migrator.HasColumn(legacy, column) {
+			continue
+		}
+		if err := migrator.DropColumn(legacy, column); err != nil {
+			return fmt.Errorf("remove legacy channel monitor column %s: %w", column, err)
+		}
+	}
 	return nil
 }
 

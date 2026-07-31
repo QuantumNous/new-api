@@ -25,56 +25,74 @@ import (
 )
 
 const (
-	channelMonitorEncryptionPrefix = "v1:"
-	channelMonitorRunnerInterval   = time.Second
-	channelMonitorLeaseSeconds     = int64(180)
-	channelMonitorClaimLimit       = 16
-	channelMonitorMaxConcurrency   = 8
-	channelMonitorMaxErrorLength   = 500
-	channelMonitorMinInterval      = 1
-	channelMonitorMaxInterval      = 86400
-	channelMonitorMinTimeout       = 1
-	channelMonitorMaxTimeout       = 120
+	channelMonitorEncryptionPrefix        = "v1:"
+	channelMonitorRunnerInterval          = time.Second
+	channelMonitorLeaseSeconds            = int64(180)
+	channelMonitorClaimLimit              = 16
+	channelMonitorMaxConcurrency          = 8
+	channelMonitorMaxErrorLength          = 500
+	channelMonitorMinInterval             = 1
+	channelMonitorMaxInterval             = 86400
+	channelMonitorMinTimeout              = 1
+	channelMonitorMaxTimeout              = 120
+	ChannelMonitorUserTestCooldownSeconds = int64(10)
 )
 
+var ErrChannelMonitorUserTestUnavailable = errors.New("channel monitor is not available for user tests")
+
+type ChannelMonitorUserTestCooldownError struct {
+	NextTestAt int64
+}
+
+func (err *ChannelMonitorUserTestCooldownError) Error() string {
+	return "channel monitor user test is cooling down"
+}
+
 type ChannelMonitorInput struct {
-	Name                  string
-	ApiURL                string
-	ApiKey                string
-	TestModel             string
-	IntervalSeconds       int
-	TimeoutSeconds        int
-	Enabled               bool
-	Visible               bool
-	ManualAvailability7d  *float64
-	ManualAvailability30d *float64
-	CreatedBy             int
+	Name                     string
+	ApiURL                   string
+	ApiKey                   string
+	TestModel                string
+	IntervalSeconds          int
+	TimeoutSeconds           int
+	Enabled                  bool
+	Visible                  bool
+	AvailabilityBoostPercent float64
+	CreatedBy                int
 }
 
 type ChannelMonitorView struct {
-	Monitor         *model.ChannelMonitor
-	Status          string
-	Latest          *model.ChannelMonitorHistory
-	Availability7d  *float64
-	Availability30d *float64
-	RecentResults   []*model.ChannelMonitorHistory
+	Monitor            *model.ChannelMonitor
+	Status             string
+	Latest             *model.ChannelMonitorHistory
+	RawAvailability7d  *float64
+	RawAvailability30d *float64
+	Availability7d     *float64
+	Availability30d    *float64
+	RecentResults      []*model.ChannelMonitorHistory
 }
 
-func validateChannelMonitorAvailabilityOverride(value *float64) error {
-	if value == nil {
-		return nil
-	}
-	if math.IsNaN(*value) || math.IsInf(*value, 0) || *value < 0 || *value > 100 {
-		return errors.New("availability override must be between 0 and 100")
+type ChannelMonitorUserTestResult struct {
+	Success    bool
+	LatencyMs  int
+	CheckedAt  int64
+	NextTestAt int64
+}
+
+func validateChannelMonitorAvailabilityBoost(value float64) error {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value > 100 {
+		return errors.New("availability boost must be between 0 and 100")
 	}
 	return nil
 }
 
-func resolveChannelMonitorAvailability(calculated, manual *float64) *float64 {
-	if manual == nil {
-		return calculated
+func applyChannelMonitorAvailabilityBoost(raw *float64, boost float64) *float64 {
+	if raw == nil {
+		return nil
 	}
-	value := *manual
+	value := *raw + (100-*raw)*boost/100
+	value = math.Max(0, math.Min(100, value))
+	value = math.Round(value*100) / 100
 	return &value
 }
 
@@ -109,10 +127,7 @@ func normalizeChannelMonitorInput(input ChannelMonitorInput, requireAPIKey bool)
 	if input.TimeoutSeconds < channelMonitorMinTimeout || input.TimeoutSeconds > channelMonitorMaxTimeout {
 		return input, fmt.Errorf("request timeout must be between %d and %d seconds", channelMonitorMinTimeout, channelMonitorMaxTimeout)
 	}
-	if err := validateChannelMonitorAvailabilityOverride(input.ManualAvailability7d); err != nil {
-		return input, err
-	}
-	if err := validateChannelMonitorAvailabilityOverride(input.ManualAvailability30d); err != nil {
+	if err := validateChannelMonitorAvailabilityBoost(input.AvailabilityBoostPercent); err != nil {
 		return input, err
 	}
 	return input, nil
@@ -194,17 +209,16 @@ func CreateChannelMonitor(input ChannelMonitorInput) (*model.ChannelMonitor, err
 	}
 	now := common.GetTimestamp()
 	monitor := &model.ChannelMonitor{
-		Name:                  normalized.Name,
-		ApiURL:                normalized.ApiURL,
-		ApiKeyEncrypted:       encryptedKey,
-		TestModel:             normalized.TestModel,
-		IntervalSeconds:       normalized.IntervalSeconds,
-		TimeoutSeconds:        normalized.TimeoutSeconds,
-		Enabled:               normalized.Enabled,
-		Visible:               normalized.Visible,
-		ManualAvailability7d:  normalized.ManualAvailability7d,
-		ManualAvailability30d: normalized.ManualAvailability30d,
-		CreatedBy:             normalized.CreatedBy,
+		Name:                     normalized.Name,
+		ApiURL:                   normalized.ApiURL,
+		ApiKeyEncrypted:          encryptedKey,
+		TestModel:                normalized.TestModel,
+		IntervalSeconds:          normalized.IntervalSeconds,
+		TimeoutSeconds:           normalized.TimeoutSeconds,
+		Enabled:                  normalized.Enabled,
+		Visible:                  normalized.Visible,
+		AvailabilityBoostPercent: normalized.AvailabilityBoostPercent,
+		CreatedBy:                normalized.CreatedBy,
 	}
 	if monitor.Enabled {
 		monitor.NextCheckAt = &now
@@ -237,8 +251,7 @@ func UpdateChannelMonitor(id int, input ChannelMonitorInput) (*model.ChannelMoni
 	monitor.TimeoutSeconds = normalized.TimeoutSeconds
 	monitor.Enabled = normalized.Enabled
 	monitor.Visible = normalized.Visible
-	monitor.ManualAvailability7d = normalized.ManualAvailability7d
-	monitor.ManualAvailability30d = normalized.ManualAvailability30d
+	monitor.AvailabilityBoostPercent = normalized.AvailabilityBoostPercent
 	now := common.GetTimestamp()
 	if monitor.Enabled {
 		monitor.NextCheckAt = &now
@@ -294,16 +307,16 @@ func buildChannelMonitorView(monitor *model.ChannelMonitor) (*ChannelMonitorView
 			view.Status = "failed"
 		}
 	}
-	view.Availability7d, err = model.GetChannelMonitorAvailability(monitor.Id, now-7*24*60*60)
+	view.RawAvailability7d, err = model.GetChannelMonitorAvailability(monitor.Id, now-7*24*60*60)
 	if err != nil {
 		return nil, err
 	}
-	view.Availability30d, err = model.GetChannelMonitorAvailability(monitor.Id, now-30*24*60*60)
+	view.RawAvailability30d, err = model.GetChannelMonitorAvailability(monitor.Id, now-30*24*60*60)
 	if err != nil {
 		return nil, err
 	}
-	view.Availability7d = resolveChannelMonitorAvailability(view.Availability7d, monitor.ManualAvailability7d)
-	view.Availability30d = resolveChannelMonitorAvailability(view.Availability30d, monitor.ManualAvailability30d)
+	view.Availability7d = applyChannelMonitorAvailabilityBoost(view.RawAvailability7d, monitor.AvailabilityBoostPercent)
+	view.Availability30d = applyChannelMonitorAvailabilityBoost(view.RawAvailability30d, monitor.AvailabilityBoostPercent)
 	view.RecentResults, err = model.ListChannelMonitorHistory(monitor.Id, 30)
 	if err != nil {
 		return nil, err
@@ -327,6 +340,49 @@ func RunChannelMonitorCheck(ctx context.Context, id int) (*model.ChannelMonitorH
 		return nil, err
 	}
 	return runChannelMonitorCheck(ctx, monitor)
+}
+
+func RunUserChannelMonitorTest(ctx context.Context, id int) (*ChannelMonitorUserTestResult, error) {
+	monitor, err := model.GetChannelMonitorByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if !monitor.Enabled || !monitor.Visible {
+		return nil, ErrChannelMonitorUserTestUnavailable
+	}
+
+	now := common.GetTimestamp()
+	leaseUntil := now + int64(monitor.TimeoutSeconds) + ChannelMonitorUserTestCooldownSeconds
+	claimed, err := model.ClaimChannelMonitorUserTest(monitor.Id, now, leaseUntil)
+	if err != nil {
+		return nil, err
+	}
+	if !claimed {
+		current, getErr := model.GetChannelMonitorByID(id)
+		if getErr != nil {
+			return nil, getErr
+		}
+		nextTestAt := now + ChannelMonitorUserTestCooldownSeconds
+		if current.UserTestAvailableAt != nil && *current.UserTestAvailableAt > now {
+			nextTestAt = *current.UserTestAvailableAt
+		}
+		return nil, &ChannelMonitorUserTestCooldownError{NextTestAt: nextTestAt}
+	}
+
+	history, err := runChannelMonitorCheck(ctx, monitor)
+	if err != nil {
+		return nil, err
+	}
+	result := &ChannelMonitorUserTestResult{
+		Success:   history.Success,
+		LatencyMs: history.LatencyMs,
+		CheckedAt: history.CheckedAt,
+	}
+	result.NextTestAt = common.GetTimestamp() + ChannelMonitorUserTestCooldownSeconds
+	if completeErr := model.CompleteChannelMonitorUserTest(monitor.Id, result.NextTestAt); completeErr != nil {
+		return nil, completeErr
+	}
+	return result, nil
 }
 
 func runChannelMonitorCheck(ctx context.Context, monitor *model.ChannelMonitor) (*model.ChannelMonitorHistory, error) {

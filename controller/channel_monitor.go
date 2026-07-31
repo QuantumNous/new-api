@@ -14,29 +14,27 @@ import (
 )
 
 type channelMonitorCreateRequest struct {
-	Name                  string   `json:"name"`
-	ApiURL                string   `json:"api_url"`
-	ApiKey                string   `json:"api_key"`
-	TestModel             string   `json:"test_model"`
-	IntervalSeconds       int      `json:"interval_seconds"`
-	TimeoutSeconds        int      `json:"timeout_seconds"`
-	Enabled               *bool    `json:"enabled"`
-	Visible               *bool    `json:"visible"`
-	ManualAvailability7d  *float64 `json:"manual_availability_7d"`
-	ManualAvailability30d *float64 `json:"manual_availability_30d"`
+	Name                     string   `json:"name"`
+	ApiURL                   string   `json:"api_url"`
+	ApiKey                   string   `json:"api_key"`
+	TestModel                string   `json:"test_model"`
+	IntervalSeconds          int      `json:"interval_seconds"`
+	TimeoutSeconds           int      `json:"timeout_seconds"`
+	Enabled                  *bool    `json:"enabled"`
+	Visible                  *bool    `json:"visible"`
+	AvailabilityBoostPercent *float64 `json:"availability_boost_percent"`
 }
 
 type channelMonitorUpdateRequest struct {
-	Name                  string   `json:"name"`
-	ApiURL                string   `json:"api_url"`
-	ApiKey                string   `json:"api_key"`
-	TestModel             string   `json:"test_model"`
-	IntervalSeconds       int      `json:"interval_seconds"`
-	TimeoutSeconds        int      `json:"timeout_seconds"`
-	Enabled               *bool    `json:"enabled"`
-	Visible               *bool    `json:"visible"`
-	ManualAvailability7d  *float64 `json:"manual_availability_7d"`
-	ManualAvailability30d *float64 `json:"manual_availability_30d"`
+	Name                     string   `json:"name"`
+	ApiURL                   string   `json:"api_url"`
+	ApiKey                   string   `json:"api_key"`
+	TestModel                string   `json:"test_model"`
+	IntervalSeconds          int      `json:"interval_seconds"`
+	TimeoutSeconds           int      `json:"timeout_seconds"`
+	Enabled                  *bool    `json:"enabled"`
+	Visible                  *bool    `json:"visible"`
+	AvailabilityBoostPercent *float64 `json:"availability_boost_percent"`
 }
 
 type channelMonitorResultResponse struct {
@@ -49,43 +47,52 @@ type channelMonitorResultResponse struct {
 }
 
 type channelMonitorResponse struct {
-	Id                    int                            `json:"id"`
-	Name                  string                         `json:"name"`
-	ApiURL                string                         `json:"api_url"`
-	TestModel             string                         `json:"test_model"`
-	IntervalSeconds       int                            `json:"interval_seconds"`
-	TimeoutSeconds        int                            `json:"timeout_seconds"`
-	Enabled               bool                           `json:"enabled"`
-	Visible               bool                           `json:"visible"`
-	HasAPIKey             bool                           `json:"has_api_key"`
-	Status                string                         `json:"status"`
-	LatestLatencyMs       *int                           `json:"latest_latency_ms"`
-	LatestStatusCode      *int                           `json:"latest_status_code"`
-	LatestError           string                         `json:"latest_error,omitempty"`
-	LastCheckedAt         *int64                         `json:"last_checked_at"`
-	NextCheckAt           *int64                         `json:"next_check_at"`
-	Availability7d        *float64                       `json:"availability_7d"`
-	Availability30d       *float64                       `json:"availability_30d"`
-	ManualAvailability7d  *float64                       `json:"manual_availability_7d"`
-	ManualAvailability30d *float64                       `json:"manual_availability_30d"`
-	RecentResults         []channelMonitorResultResponse `json:"recent_results"`
-	CreatedAt             int64                          `json:"created_at"`
-	UpdatedAt             int64                          `json:"updated_at"`
+	Id                       int                            `json:"id"`
+	Name                     string                         `json:"name"`
+	ApiURL                   string                         `json:"api_url"`
+	TestModel                string                         `json:"test_model"`
+	IntervalSeconds          int                            `json:"interval_seconds"`
+	TimeoutSeconds           int                            `json:"timeout_seconds"`
+	Enabled                  bool                           `json:"enabled"`
+	Visible                  bool                           `json:"visible"`
+	HasAPIKey                bool                           `json:"has_api_key"`
+	Status                   string                         `json:"status"`
+	LatestLatencyMs          *int                           `json:"latest_latency_ms"`
+	LatestStatusCode         *int                           `json:"latest_status_code"`
+	LatestError              string                         `json:"latest_error,omitempty"`
+	LastCheckedAt            *int64                         `json:"last_checked_at"`
+	NextCheckAt              *int64                         `json:"next_check_at"`
+	RawAvailability7d        *float64                       `json:"raw_availability_7d"`
+	RawAvailability30d       *float64                       `json:"raw_availability_30d"`
+	Availability7d           *float64                       `json:"availability_7d"`
+	Availability30d          *float64                       `json:"availability_30d"`
+	AvailabilityBoostPercent float64                        `json:"availability_boost_percent"`
+	RecentResults            []channelMonitorResultResponse `json:"recent_results"`
+	CreatedAt                int64                          `json:"created_at"`
+	UpdatedAt                int64                          `json:"updated_at"`
 }
 
 type groupStatusResponse struct {
-	Id              int                            `json:"id"`
-	Name            string                         `json:"name"`
-	ApiURL          string                         `json:"api_url"`
-	TestModel       string                         `json:"test_model"`
-	IntervalSeconds int                            `json:"interval_seconds"`
-	Status          string                         `json:"status"`
-	LatestLatencyMs *int                           `json:"latest_latency_ms"`
-	LastCheckedAt   *int64                         `json:"last_checked_at"`
-	NextCheckAt     *int64                         `json:"next_check_at"`
-	Availability7d  *float64                       `json:"availability_7d"`
-	Availability30d *float64                       `json:"availability_30d"`
-	RecentResults   []channelMonitorResultResponse `json:"recent_results"`
+	Id                  int                            `json:"id"`
+	Name                string                         `json:"name"`
+	ApiURL              string                         `json:"api_url"`
+	TestModel           string                         `json:"test_model"`
+	IntervalSeconds     int                            `json:"interval_seconds"`
+	Status              string                         `json:"status"`
+	LatestLatencyMs     *int                           `json:"latest_latency_ms"`
+	LastCheckedAt       *int64                         `json:"last_checked_at"`
+	NextCheckAt         *int64                         `json:"next_check_at"`
+	Availability7d      *float64                       `json:"availability_7d"`
+	Availability30d     *float64                       `json:"availability_30d"`
+	CanTest             bool                           `json:"can_test"`
+	UserTestAvailableAt *int64                         `json:"user_test_available_at"`
+	RecentResults       []channelMonitorResultResponse `json:"recent_results"`
+}
+
+type groupStatusTestResultResponse struct {
+	Success   bool  `json:"success"`
+	LatencyMs int   `json:"latency_ms"`
+	CheckedAt int64 `json:"checked_at"`
 }
 
 func channelMonitorResultToResponse(result *model.ChannelMonitorHistory, includeError bool) channelMonitorResultResponse {
@@ -105,25 +112,26 @@ func channelMonitorResultToResponse(result *model.ChannelMonitorHistory, include
 func channelMonitorViewToResponse(view *service.ChannelMonitorView) channelMonitorResponse {
 	monitor := view.Monitor
 	response := channelMonitorResponse{
-		Id:                    monitor.Id,
-		Name:                  monitor.Name,
-		ApiURL:                monitor.ApiURL,
-		TestModel:             monitor.TestModel,
-		IntervalSeconds:       monitor.IntervalSeconds,
-		TimeoutSeconds:        monitor.TimeoutSeconds,
-		Enabled:               monitor.Enabled,
-		Visible:               monitor.Visible,
-		HasAPIKey:             monitor.ApiKeyEncrypted != "",
-		Status:                view.Status,
-		LastCheckedAt:         monitor.LastCheckedAt,
-		NextCheckAt:           monitor.NextCheckAt,
-		Availability7d:        view.Availability7d,
-		Availability30d:       view.Availability30d,
-		ManualAvailability7d:  monitor.ManualAvailability7d,
-		ManualAvailability30d: monitor.ManualAvailability30d,
-		RecentResults:         make([]channelMonitorResultResponse, 0, len(view.RecentResults)),
-		CreatedAt:             monitor.CreatedAt,
-		UpdatedAt:             monitor.UpdatedAt,
+		Id:                       monitor.Id,
+		Name:                     monitor.Name,
+		ApiURL:                   monitor.ApiURL,
+		TestModel:                monitor.TestModel,
+		IntervalSeconds:          monitor.IntervalSeconds,
+		TimeoutSeconds:           monitor.TimeoutSeconds,
+		Enabled:                  monitor.Enabled,
+		Visible:                  monitor.Visible,
+		HasAPIKey:                monitor.ApiKeyEncrypted != "",
+		Status:                   view.Status,
+		LastCheckedAt:            monitor.LastCheckedAt,
+		NextCheckAt:              monitor.NextCheckAt,
+		RawAvailability7d:        view.RawAvailability7d,
+		RawAvailability30d:       view.RawAvailability30d,
+		Availability7d:           view.Availability7d,
+		Availability30d:          view.Availability30d,
+		AvailabilityBoostPercent: monitor.AvailabilityBoostPercent,
+		RecentResults:            make([]channelMonitorResultResponse, 0, len(view.RecentResults)),
+		CreatedAt:                monitor.CreatedAt,
+		UpdatedAt:                monitor.UpdatedAt,
 	}
 	if view.Latest != nil {
 		response.LatestLatencyMs = &view.Latest.LatencyMs
@@ -139,17 +147,19 @@ func channelMonitorViewToResponse(view *service.ChannelMonitorView) channelMonit
 func channelMonitorViewToGroupStatus(view *service.ChannelMonitorView) groupStatusResponse {
 	monitor := view.Monitor
 	response := groupStatusResponse{
-		Id:              monitor.Id,
-		Name:            monitor.Name,
-		ApiURL:          monitor.ApiURL,
-		TestModel:       monitor.TestModel,
-		IntervalSeconds: monitor.IntervalSeconds,
-		Status:          view.Status,
-		LastCheckedAt:   monitor.LastCheckedAt,
-		NextCheckAt:     monitor.NextCheckAt,
-		Availability7d:  view.Availability7d,
-		Availability30d: view.Availability30d,
-		RecentResults:   make([]channelMonitorResultResponse, 0, len(view.RecentResults)),
+		Id:                  monitor.Id,
+		Name:                monitor.Name,
+		ApiURL:              monitor.ApiURL,
+		TestModel:           monitor.TestModel,
+		IntervalSeconds:     monitor.IntervalSeconds,
+		Status:              view.Status,
+		LastCheckedAt:       monitor.LastCheckedAt,
+		NextCheckAt:         monitor.NextCheckAt,
+		Availability7d:      view.Availability7d,
+		Availability30d:     view.Availability30d,
+		CanTest:             monitor.Enabled,
+		UserTestAvailableAt: monitor.UserTestAvailableAt,
+		RecentResults:       make([]channelMonitorResultResponse, 0, len(view.RecentResults)),
 	}
 	if view.Latest != nil {
 		response.LatestLatencyMs = &view.Latest.LatencyMs
@@ -217,18 +227,21 @@ func CreateChannelMonitor(c *gin.Context) {
 	if request.Visible != nil {
 		visible = *request.Visible
 	}
+	availabilityBoostPercent := 0.0
+	if request.AvailabilityBoostPercent != nil {
+		availabilityBoostPercent = *request.AvailabilityBoostPercent
+	}
 	monitor, err := service.CreateChannelMonitor(service.ChannelMonitorInput{
-		Name:                  request.Name,
-		ApiURL:                request.ApiURL,
-		ApiKey:                request.ApiKey,
-		TestModel:             request.TestModel,
-		IntervalSeconds:       request.IntervalSeconds,
-		TimeoutSeconds:        request.TimeoutSeconds,
-		Enabled:               enabled,
-		Visible:               visible,
-		ManualAvailability7d:  request.ManualAvailability7d,
-		ManualAvailability30d: request.ManualAvailability30d,
-		CreatedBy:             c.GetInt("id"),
+		Name:                     request.Name,
+		ApiURL:                   request.ApiURL,
+		ApiKey:                   request.ApiKey,
+		TestModel:                request.TestModel,
+		IntervalSeconds:          request.IntervalSeconds,
+		TimeoutSeconds:           request.TimeoutSeconds,
+		Enabled:                  enabled,
+		Visible:                  visible,
+		AvailabilityBoostPercent: availabilityBoostPercent,
+		CreatedBy:                c.GetInt("id"),
 	})
 	if err != nil {
 		respondChannelMonitorError(c, err)
@@ -265,17 +278,20 @@ func UpdateChannelMonitor(c *gin.Context) {
 	if request.Visible != nil {
 		visible = *request.Visible
 	}
+	availabilityBoostPercent := current.Monitor.AvailabilityBoostPercent
+	if request.AvailabilityBoostPercent != nil {
+		availabilityBoostPercent = *request.AvailabilityBoostPercent
+	}
 	_, err = service.UpdateChannelMonitor(id, service.ChannelMonitorInput{
-		Name:                  request.Name,
-		ApiURL:                request.ApiURL,
-		ApiKey:                request.ApiKey,
-		TestModel:             request.TestModel,
-		IntervalSeconds:       request.IntervalSeconds,
-		TimeoutSeconds:        request.TimeoutSeconds,
-		Enabled:               enabled,
-		Visible:               visible,
-		ManualAvailability7d:  request.ManualAvailability7d,
-		ManualAvailability30d: request.ManualAvailability30d,
+		Name:                     request.Name,
+		ApiURL:                   request.ApiURL,
+		ApiKey:                   request.ApiKey,
+		TestModel:                request.TestModel,
+		IntervalSeconds:          request.IntervalSeconds,
+		TimeoutSeconds:           request.TimeoutSeconds,
+		Enabled:                  enabled,
+		Visible:                  visible,
+		AvailabilityBoostPercent: availabilityBoostPercent,
 	})
 	if err != nil {
 		respondChannelMonitorError(c, err)
@@ -351,4 +367,45 @@ func GetGroupStatus(c *gin.Context) {
 		items = append(items, channelMonitorViewToGroupStatus(view))
 	}
 	common.ApiSuccess(c, gin.H{"items": items})
+}
+
+func RunGroupStatusTest(c *gin.Context) {
+	id, ok := parseChannelMonitorId(c)
+	if !ok {
+		return
+	}
+	result, err := service.RunUserChannelMonitorTest(c.Request.Context(), id)
+	if err != nil {
+		var cooldownErr *service.ChannelMonitorUserTestCooldownError
+		if errors.As(err, &cooldownErr) {
+			retryAfter := cooldownErr.NextTestAt - common.GetTimestamp()
+			if retryAfter < 1 {
+				retryAfter = 1
+			}
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"success": false,
+				"message": "availability test is cooling down",
+				"data": gin.H{
+					"retry_after":  retryAfter,
+					"next_test_at": cooldownErr.NextTestAt,
+				},
+			})
+			return
+		}
+		if errors.Is(err, service.ErrChannelMonitorUserTestUnavailable) {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "monitor not found"})
+			return
+		}
+		respondChannelMonitorError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"result": groupStatusTestResultResponse{
+			Success:   result.Success,
+			LatencyMs: result.LatencyMs,
+			CheckedAt: result.CheckedAt,
+		},
+		"cooldown_seconds": service.ChannelMonitorUserTestCooldownSeconds,
+		"next_test_at":     result.NextTestAt,
+	})
 }

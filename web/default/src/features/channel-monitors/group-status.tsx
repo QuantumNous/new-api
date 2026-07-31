@@ -26,9 +26,10 @@ import {
   RefreshIcon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { SectionPageLayout } from '@/components/layout'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -58,7 +59,11 @@ import {
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
-import { getGroupStatus } from './api'
+import {
+  getGroupStatus,
+  GroupStatusTestCooldownError,
+  runGroupStatusTest,
+} from './api'
 import {
   MonitorHistoryBars,
   MonitorStatusBadge,
@@ -75,11 +80,20 @@ type AvailabilityPeriod = '7' | '30'
 export function GroupStatus() {
   const { t } = useTranslation()
   const [period, setPeriod] = useState<AvailabilityPeriod>('7')
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
   const statusQuery = useQuery({
     queryKey: ['group-status'],
     queryFn: getGroupStatus,
     refetchInterval: 15_000,
   })
+
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setNow(Math.floor(Date.now() / 1000)),
+      1000
+    )
+    return () => window.clearInterval(timer)
+  }, [])
 
   const monitors = statusQuery.data ?? []
   const operational = monitors.filter(
@@ -93,19 +107,6 @@ export function GroupStatus() {
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Group Status')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
-        <ToggleGroup
-          value={[period]}
-          onValueChange={(values) => {
-            const next = values[0]
-            if (next === '7' || next === '30') setPeriod(next)
-          }}
-          variant='outline'
-          size='sm'
-          aria-label={t('Availability period')}
-        >
-          <ToggleGroupItem value='7'>{t('7 days')}</ToggleGroupItem>
-          <ToggleGroupItem value='30'>{t('30 days')}</ToggleGroupItem>
-        </ToggleGroup>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -129,6 +130,51 @@ export function GroupStatus() {
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='mx-auto flex w-full max-w-7xl flex-col gap-4'>
+          <div className='bg-background flex flex-col gap-3 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between'>
+            <div>
+              <p className='font-medium'>{t('Availability period')}</p>
+              <p className='text-muted-foreground mt-0.5 text-xs'>
+                {period === '7'
+                  ? t('Showing 7-day stability')
+                  : t('Showing 30-day stability')}
+              </p>
+            </div>
+            <ToggleGroup
+              value={[period]}
+              onValueChange={(values) => {
+                const next = values[0]
+                if (next === '7' || next === '30') setPeriod(next)
+              }}
+              className='bg-muted/60 grid w-full grid-cols-2 rounded-lg border p-1 sm:w-72'
+              aria-label={t('Availability period')}
+            >
+              <ToggleGroupItem
+                value='7'
+                className='aria-pressed:bg-primary aria-pressed:text-primary-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-10 w-full px-3 text-center leading-tight whitespace-normal'
+              >
+                {period === '7' && (
+                  <HugeiconsIcon
+                    icon={CheckmarkCircle02Icon}
+                    data-icon='inline-start'
+                  />
+                )}
+                {t('Last 7 days')}
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value='30'
+                className='aria-pressed:bg-primary aria-pressed:text-primary-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-10 w-full px-3 text-center leading-tight whitespace-normal'
+              >
+                {period === '30' && (
+                  <HugeiconsIcon
+                    icon={CheckmarkCircle02Icon}
+                    data-icon='inline-start'
+                  />
+                )}
+                {t('Last 30 days')}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
           <div className='divide-border bg-background grid grid-cols-2 overflow-hidden rounded-lg border sm:grid-cols-4 sm:divide-x'>
             <StatusSummary
               label={t('Monitored groups')}
@@ -193,6 +239,7 @@ export function GroupStatus() {
                   key={monitor.id}
                   monitor={monitor}
                   period={period}
+                  now={now}
                 />
               ))}
             </div>
@@ -238,10 +285,37 @@ function StatusSummary(props: StatusSummaryProps) {
 type GroupStatusCardProps = {
   monitor: GroupStatusMonitor
   period: AvailabilityPeriod
+  now: number
 }
 
 function GroupStatusCard(props: GroupStatusCardProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [cooldownUntil, setCooldownUntil] = useState(0)
+  const testMutation = useMutation({
+    mutationFn: () => runGroupStatusTest(props.monitor.id),
+    onSuccess: async (response) => {
+      setCooldownUntil(response.next_test_at)
+      await queryClient.invalidateQueries({ queryKey: ['group-status'] })
+      if (response.result.success) {
+        toast.success(t('Availability test succeeded'))
+      } else {
+        toast.error(t('Availability test failed'))
+      }
+    },
+    onError: (error) => {
+      if (error instanceof GroupStatusTestCooldownError) {
+        setCooldownUntil(error.nextTestAt)
+        toast.error(
+          t('Test again in {{seconds}}s', {
+            seconds: Math.max(1, error.nextTestAt - props.now),
+          })
+        )
+        return
+      }
+      toast.error(error.message || t('Operation failed'))
+    },
+  })
   const availability =
     props.period === '7'
       ? props.monitor.availability_7d
@@ -249,6 +323,40 @@ function GroupStatusCard(props: GroupStatusCardProps) {
   let statusLabel = t('Not tested')
   if (props.monitor.status === 'success') statusLabel = t('Operational')
   if (props.monitor.status === 'failed') statusLabel = t('Failed')
+  const nextUserTestAt = Math.max(
+    cooldownUntil,
+    props.monitor.user_test_available_at ?? 0,
+    testMutation.data?.next_test_at ?? 0
+  )
+  const retrySeconds = Math.max(0, nextUserTestAt - props.now)
+  const userTestResult = testMutation.data?.result
+  let footerStatus = statusLabel
+  let footerStatusTone = ''
+  if (props.monitor.status === 'failed') footerStatusTone = 'text-destructive'
+  if (props.monitor.status === 'success') footerStatusTone = 'text-success'
+  if (userTestResult) {
+    footerStatus = userTestResult.success ? t('Operational') : t('Failed')
+    if (userTestResult.latency_ms > 0) {
+      footerStatus += ` · ${userTestResult.latency_ms} ms`
+    }
+    footerStatusTone = userTestResult.success
+      ? 'text-success'
+      : 'text-destructive'
+  }
+  let testButtonLabel = t('Run test now')
+  let testButtonIcon = (
+    <HugeiconsIcon icon={Activity01Icon} data-icon='inline-start' />
+  )
+  if (retrySeconds > 0) {
+    testButtonLabel = t('Test again in {{seconds}}s', {
+      seconds: retrySeconds,
+    })
+    testButtonIcon = <HugeiconsIcon icon={ClockIcon} data-icon='inline-start' />
+  }
+  if (testMutation.isPending) {
+    testButtonLabel = t('Testing...')
+    testButtonIcon = <Spinner data-icon='inline-start' />
+  }
 
   return (
     <Card className='min-w-0 gap-0 py-0'>
@@ -293,7 +401,9 @@ function GroupStatusCard(props: GroupStatusCardProps) {
         <div className='flex items-end justify-between gap-3'>
           <div>
             <p className='text-muted-foreground text-xs'>
-              {t('Availability')} · {props.period} {t('days')}
+              {props.period === '7'
+                ? t('7-day stability')
+                : t('30-day stability')}
             </p>
             <p className='text-muted-foreground mt-1 text-xs'>
               {formatMonitorTime(props.monitor.last_checked_at)}
@@ -316,7 +426,10 @@ function GroupStatusCard(props: GroupStatusCardProps) {
             <span className='text-muted-foreground'>
               {t('Latest 30 test results')}
             </span>
-            <NextCheckCountdown value={props.monitor.next_check_at} />
+            <NextCheckCountdown
+              value={props.monitor.next_check_at}
+              now={props.now}
+            />
           </div>
           <MonitorHistoryBars results={props.monitor.recent_results} />
           <div className='text-muted-foreground mt-1 flex justify-between text-[10px]'>
@@ -326,33 +439,35 @@ function GroupStatusCard(props: GroupStatusCardProps) {
         </div>
       </CardContent>
 
-      <CardFooter className='justify-between px-4 py-3 text-xs'>
-        <span className='text-muted-foreground'>{t('Current status')}</span>
-        <span
-          className={cn(
-            'font-medium',
-            props.monitor.status === 'failed' && 'text-destructive',
-            props.monitor.status === 'success' && 'text-success'
-          )}
+      <CardFooter className='flex-wrap justify-between gap-3 px-4 py-3 text-xs'>
+        <div className='flex min-w-0 flex-col gap-0.5'>
+          <span className='text-muted-foreground'>
+            {userTestResult ? t('Just tested') : t('Current status')}
+          </span>
+          <span className={cn('font-medium', footerStatusTone)}>
+            {footerStatus}
+          </span>
+        </div>
+        <Button
+          variant='outline'
+          className='min-w-32'
+          disabled={
+            !props.monitor.can_test ||
+            testMutation.isPending ||
+            retrySeconds > 0
+          }
+          onClick={() => testMutation.mutate()}
         >
-          {statusLabel}
-        </span>
+          {testButtonIcon}
+          {testButtonLabel}
+        </Button>
       </CardFooter>
     </Card>
   )
 }
 
-function NextCheckCountdown(props: { value: number | null }) {
+function NextCheckCountdown(props: { value: number | null; now: number }) {
   const { t } = useTranslation()
-  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
-
-  useEffect(() => {
-    const timer = window.setInterval(
-      () => setNow(Math.floor(Date.now() / 1000)),
-      1000
-    )
-    return () => window.clearInterval(timer)
-  }, [])
 
   if (props.value == null) {
     return <span className='text-muted-foreground'>--</span>
@@ -360,7 +475,7 @@ function NextCheckCountdown(props: { value: number | null }) {
   return (
     <span className='text-muted-foreground tabular-nums'>
       {t('Refresh in {{seconds}}s', {
-        seconds: Math.max(0, props.value - now),
+        seconds: Math.max(0, props.value - props.now),
       })}
     </span>
   )

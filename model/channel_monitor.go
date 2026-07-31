@@ -14,23 +14,34 @@ const channelMonitorHistoryRetention = 31 * 24 * time.Hour
 const channelMonitorEncryptionOptionKey = "ChannelMonitorEncryptionKey"
 
 type ChannelMonitor struct {
-	Id                    int      `json:"id"`
-	Name                  string   `json:"name" gorm:"size:100;not null;uniqueIndex"`
-	ApiURL                string   `json:"api_url" gorm:"size:500;not null"`
-	ApiKeyEncrypted       string   `json:"-" gorm:"type:text;not null"`
-	TestModel             string   `json:"test_model" gorm:"size:200;not null"`
-	IntervalSeconds       int      `json:"interval_seconds" gorm:"not null"`
-	TimeoutSeconds        int      `json:"timeout_seconds" gorm:"not null"`
-	Enabled               bool     `json:"enabled" gorm:"index:idx_channel_monitor_due,priority:1;not null"`
-	Visible               bool     `json:"visible" gorm:"index;not null"`
-	ManualAvailability7d  *float64 `json:"manual_availability_7d" gorm:"column:manual_availability_7d"`
-	ManualAvailability30d *float64 `json:"manual_availability_30d" gorm:"column:manual_availability_30d"`
-	LastCheckedAt         *int64   `json:"last_checked_at" gorm:"bigint"`
-	NextCheckAt           *int64   `json:"next_check_at" gorm:"bigint;index:idx_channel_monitor_due,priority:2"`
-	LeaseExpiresAt        *int64   `json:"-" gorm:"bigint;index:idx_channel_monitor_due,priority:3"`
-	CreatedBy             int      `json:"created_by" gorm:"index"`
-	CreatedAt             int64    `json:"created_at" gorm:"bigint"`
-	UpdatedAt             int64    `json:"updated_at" gorm:"bigint"`
+	Id                       int     `json:"id"`
+	Name                     string  `json:"name" gorm:"size:100;not null;uniqueIndex"`
+	ApiURL                   string  `json:"api_url" gorm:"size:500;not null"`
+	ApiKeyEncrypted          string  `json:"-" gorm:"type:text;not null"`
+	TestModel                string  `json:"test_model" gorm:"size:200;not null"`
+	IntervalSeconds          int     `json:"interval_seconds" gorm:"not null"`
+	TimeoutSeconds           int     `json:"timeout_seconds" gorm:"not null"`
+	Enabled                  bool    `json:"enabled" gorm:"index:idx_channel_monitor_due,priority:1;not null"`
+	Visible                  bool    `json:"visible" gorm:"index;not null"`
+	AvailabilityBoostPercent float64 `json:"availability_boost_percent" gorm:"column:availability_boost_percent"`
+	UserTestAvailableAt      *int64  `json:"-" gorm:"column:user_test_available_at;bigint"`
+	LastCheckedAt            *int64  `json:"last_checked_at" gorm:"bigint"`
+	NextCheckAt              *int64  `json:"next_check_at" gorm:"bigint;index:idx_channel_monitor_due,priority:2"`
+	LeaseExpiresAt           *int64  `json:"-" gorm:"bigint;index:idx_channel_monitor_due,priority:3"`
+	CreatedBy                int     `json:"created_by" gorm:"index"`
+	CreatedAt                int64   `json:"created_at" gorm:"bigint"`
+	UpdatedAt                int64   `json:"updated_at" gorm:"bigint"`
+}
+
+// channelMonitorLegacyAvailability keeps the removed columns addressable for
+// the one-time schema cleanup without reintroducing them to ChannelMonitor.
+type channelMonitorLegacyAvailability struct {
+	ManualAvailability7d  *float64 `gorm:"column:manual_availability_7d"`
+	ManualAvailability30d *float64 `gorm:"column:manual_availability_30d"`
+}
+
+func (channelMonitorLegacyAvailability) TableName() string {
+	return "channel_monitors"
 }
 
 type ChannelMonitorHistory struct {
@@ -89,20 +100,35 @@ func UpdateChannelMonitor(monitor *ChannelMonitor) error {
 	return DB.Model(&ChannelMonitor{}).
 		Where("id = ?", monitor.Id).
 		Updates(map[string]any{
-			"name":                    monitor.Name,
-			"api_url":                 monitor.ApiURL,
-			"api_key_encrypted":       monitor.ApiKeyEncrypted,
-			"test_model":              monitor.TestModel,
-			"interval_seconds":        monitor.IntervalSeconds,
-			"timeout_seconds":         monitor.TimeoutSeconds,
-			"enabled":                 monitor.Enabled,
-			"visible":                 monitor.Visible,
-			"manual_availability_7d":  monitor.ManualAvailability7d,
-			"manual_availability_30d": monitor.ManualAvailability30d,
-			"next_check_at":           monitor.NextCheckAt,
-			"lease_expires_at":        nil,
-			"updated_at":              monitor.UpdatedAt,
+			"name":                       monitor.Name,
+			"api_url":                    monitor.ApiURL,
+			"api_key_encrypted":          monitor.ApiKeyEncrypted,
+			"test_model":                 monitor.TestModel,
+			"interval_seconds":           monitor.IntervalSeconds,
+			"timeout_seconds":            monitor.TimeoutSeconds,
+			"enabled":                    monitor.Enabled,
+			"visible":                    monitor.Visible,
+			"availability_boost_percent": monitor.AvailabilityBoostPercent,
+			"next_check_at":              monitor.NextCheckAt,
+			"lease_expires_at":           nil,
+			"updated_at":                 monitor.UpdatedAt,
 		}).Error
+}
+
+func ClaimChannelMonitorUserTest(id int, now int64, leaseUntil int64) (bool, error) {
+	result := DB.Model(&ChannelMonitor{}).
+		Where("id = ? AND enabled = ? AND visible = ? AND (user_test_available_at IS NULL OR user_test_available_at <= ?)", id, true, true, now).
+		Update("user_test_available_at", leaseUntil)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func CompleteChannelMonitorUserTest(id int, availableAt int64) error {
+	return DB.Model(&ChannelMonitor{}).
+		Where("id = ?", id).
+		Update("user_test_available_at", availableAt).Error
 }
 
 func DeleteChannelMonitor(id int) error {

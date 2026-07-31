@@ -24,5 +24,6 @@ func registerChannelMonitorRoutes(apiRouter *gin.RouterGroup) {
 	userRoute.Use(middleware.UserAuth())
 	{
 		userRoute.GET("/", controller.GetGroupStatus)
+		userRoute.POST("/:id/test", controller.RunGroupStatusTest)
 	}
 }
