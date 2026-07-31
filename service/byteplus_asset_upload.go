@@ -11,7 +11,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
@@ -409,7 +408,7 @@ func buildBytePlusTempObjectKey(userID int) (string, error) {
 }
 
 func defaultBytePlusUploadedName(filename string) string {
-	name := filepath.Base(filename)
+	name := defaultBytePlusRealPersonAssetName(filename)
 	name = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
 			return -1

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"path"
 	"strings"
 	"unicode/utf8"
 
@@ -249,6 +250,26 @@ func normalizeBytePlusRealPersonAssetName(name string) (string, *types.NewAPIErr
 		return "", assetError(errors.New("asset name is too long"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 	}
 	return name, nil
+}
+
+func defaultBytePlusRealPersonAssetName(filename string) string {
+	name := path.Base(strings.ReplaceAll(filename, "\\", "/"))
+	name = strings.TrimSpace(name)
+	name = strings.ReplaceAll(name, "/", "")
+	name = strings.ReplaceAll(name, "\\", "")
+	if utf8.RuneCountInString(name) <= bytePlusRealPersonAssetNameMaxRunes {
+		return name
+	}
+	var builder strings.Builder
+	count := 0
+	for _, r := range name {
+		if count >= bytePlusRealPersonAssetNameMaxRunes {
+			break
+		}
+		builder.WriteRune(r)
+		count++
+	}
+	return builder.String()
 }
 
 func loadBytePlusRealPersonAssetProfileAndChannel(userID int, personID string) (*model.BytePlusRealPersonProfile, *model.Channel, BytePlusCredentials, *types.NewAPIError) {

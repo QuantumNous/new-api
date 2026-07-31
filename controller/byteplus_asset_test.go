@@ -44,7 +44,7 @@ func TestCreateBytePlusAssetBindsTokenContextAndReturnsPublicAsset(t *testing.T)
 			Object:    "asset",
 			AssetType: "Image",
 			Status:    model.BytePlusAssetStatusProcessing,
-			Moderation: dto.BytePlusAssetModeration{
+			Moderation: &dto.BytePlusAssetModeration{
 				Strategy: "Skip",
 			},
 			CreatedAt: 1784990000,
@@ -144,7 +144,7 @@ func TestGetBytePlusAssetUsesPathIDAndAuthenticatedUser(t *testing.T) {
 			Object:    "asset",
 			AssetType: "Video",
 			Status:    model.BytePlusAssetStatusActive,
-			Moderation: dto.BytePlusAssetModeration{
+			Moderation: &dto.BytePlusAssetModeration{
 				Strategy: "Default",
 			},
 			CreatedAt: 1784990001,

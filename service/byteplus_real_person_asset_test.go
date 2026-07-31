@@ -477,3 +477,18 @@ func TestMultipartMissingNameUsesSanitizedFilenameTruncatedTo128CodePoints(t *te
 	require.NotContains(t, resp.Name, "/")
 	require.NotContains(t, resp.Name, "\\")
 }
+
+func TestDefaultRealPersonAssetNameSanitizesSlashStylesAndTruncates(t *testing.T) {
+	for _, raw := range []string{"../folder/name.png", `..\folder\name.png`} {
+		name := defaultBytePlusRealPersonAssetName(raw)
+		require.Equal(t, "name.png", name)
+		require.NotContains(t, name, "/")
+		require.NotContains(t, name, "\\")
+	}
+
+	long := strings.Repeat("x", 140) + ".png"
+	name := defaultBytePlusRealPersonAssetName(`..\folder\` + long)
+	require.LessOrEqual(t, utf8.RuneCountInString(name), bytePlusRealPersonAssetNameMaxRunes)
+	require.NotContains(t, name, "/")
+	require.NotContains(t, name, "\\")
+}
