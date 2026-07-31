@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,25 +21,34 @@ import (
 )
 
 type fakeBytePlusAssetClient struct {
+	mu sync.Mutex
+
 	createGroupCalls int
 	createAssetCalls int
 	getAssetCalls    int
+	deleteAssetCalls int
 
 	groupID     string
 	groupReqID  string
 	assetID     string
 	assetReqID  string
+	deleteReqID string
 	status      BytePlusAssetStatus
 	createErr   error
 	getErr      error
+	deleteErr   error
 	onGetAsset  func()
+	onDelete    func()
 	lastCreate  BytePlusCreateAssetRequest
 	lastCreds   BytePlusCredentials
 	lastGroup   string
 	lastAssetID string
+	lastDelete  string
 }
 
 func (f *fakeBytePlusAssetClient) CreateAssetGroup(ctx context.Context, creds BytePlusCredentials, name string) (string, string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.createGroupCalls++
 	f.lastCreds = creds
 	f.lastGroup = name
@@ -49,6 +59,8 @@ func (f *fakeBytePlusAssetClient) CreateAssetGroup(ctx context.Context, creds By
 }
 
 func (f *fakeBytePlusAssetClient) CreateAsset(ctx context.Context, creds BytePlusCredentials, request BytePlusCreateAssetRequest) (string, string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.createAssetCalls++
 	f.lastCreds = creds
 	f.lastCreate = request
@@ -59,16 +71,39 @@ func (f *fakeBytePlusAssetClient) CreateAsset(ctx context.Context, creds BytePlu
 }
 
 func (f *fakeBytePlusAssetClient) GetAsset(ctx context.Context, creds BytePlusCredentials, upstreamAssetID string) (BytePlusAssetStatus, error) {
+	f.mu.Lock()
 	f.getAssetCalls++
 	f.lastCreds = creds
 	f.lastAssetID = upstreamAssetID
-	if f.onGetAsset != nil {
-		f.onGetAsset()
+	onGet := f.onGetAsset
+	err := f.getErr
+	status := f.status
+	f.mu.Unlock()
+	if onGet != nil {
+		onGet()
 	}
-	if f.getErr != nil {
-		return BytePlusAssetStatus{}, f.getErr
+	if err != nil {
+		return BytePlusAssetStatus{}, err
 	}
-	return f.status, nil
+	return status, nil
+}
+
+func (f *fakeBytePlusAssetClient) DeleteAsset(ctx context.Context, creds BytePlusCredentials, upstreamAssetID string) (string, error) {
+	f.mu.Lock()
+	f.deleteAssetCalls++
+	f.lastCreds = creds
+	f.lastDelete = upstreamAssetID
+	onDelete := f.onDelete
+	err := f.deleteErr
+	reqID := f.deleteReqID
+	f.mu.Unlock()
+	if onDelete != nil {
+		onDelete()
+	}
+	if err != nil {
+		return "", err
+	}
+	return reqID, nil
 }
 
 func TestBytePlusAssetCreateRejectsInvalidPublicURLs(t *testing.T) {
@@ -538,6 +573,170 @@ func TestBytePlusAssetGetConcurrentTerminalWinnerIsReloadedAndReturnedAsFailure(
 	}
 	if stored.Status != model.BytePlusAssetStatusFailed || stored.ErrorMessage != "concurrent terminal winner" || stored.UpdatedTime != 1999 {
 		t.Fatalf("concurrent terminal winner was overwritten: %+v", stored)
+	}
+}
+
+func TestGetBytePlusAssetReturnsDeletingWithoutPollingAndDeletedAsNotFound(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	group := insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+	insertBytePlusAssetRow(t, "ast_deleting", 7, group.Id, 131, model.BytePlusAssetStatusDeleting, "upstream-delete")
+	insertBytePlusAssetRow(t, "ast_deleted", 7, group.Id, 131, model.BytePlusAssetStatusDeleted, "upstream-deleted")
+
+	resp, err := GetBytePlusAsset(context.Background(), 7, "ast_deleting")
+	if err != nil {
+		t.Fatalf("GetBytePlusAsset deleting: %v", err)
+	}
+	if resp.ID != "ast_deleting" || resp.Status != model.BytePlusAssetStatusDeleting {
+		t.Fatalf("deleting response = %+v", resp)
+	}
+	if fake.getAssetCalls != 0 {
+		t.Fatalf("deleting asset must not poll upstream, calls=%d", fake.getAssetCalls)
+	}
+
+	_, err = GetBytePlusAsset(context.Background(), 7, "ast_deleted")
+	assertAssetError(t, err, types.ErrorCodeAssetNotFound, http.StatusNotFound)
+	if fake.getAssetCalls != 0 {
+		t.Fatalf("deleted asset must not poll upstream, calls=%d", fake.getAssetCalls)
+	}
+	_, err = GetBytePlusAsset(context.Background(), 8, "ast_deleted")
+	assertAssetError(t, err, types.ErrorCodeAssetNotFound, http.StatusNotFound)
+}
+
+func TestDeleteBytePlusAssetMarksDeletingBeforeUpstreamCall(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{deleteReqID: "req-delete"}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	group := insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+	insertBytePlusAssetRow(t, "ast_delete_first", 7, group.Id, 131, model.BytePlusAssetStatusActive, "upstream-delete")
+	fake.onDelete = func() {
+		var asset model.BytePlusAsset
+		if err := model.DB.First(&asset, "public_id = ?", "ast_delete_first").Error; err != nil {
+			t.Fatalf("load asset during delete: %v", err)
+		}
+		if asset.Status != model.BytePlusAssetStatusDeleting || asset.NextDeleteAt == 0 {
+			t.Fatalf("asset not tombstoned before upstream call: %+v", asset)
+		}
+	}
+
+	err := DeleteBytePlusAsset(context.Background(), 7, "ast_delete_first")
+	if err != nil {
+		t.Fatalf("DeleteBytePlusAsset: %v", err)
+	}
+	if fake.deleteAssetCalls != 1 || fake.lastDelete != "upstream-delete" {
+		t.Fatalf("delete calls=%d last=%q", fake.deleteAssetCalls, fake.lastDelete)
+	}
+	var asset model.BytePlusAsset
+	if err := model.DB.First(&asset, "public_id = ?", "ast_delete_first").Error; err != nil {
+		t.Fatalf("load asset after delete: %v", err)
+	}
+	if asset.Status != model.BytePlusAssetStatusDeleted || asset.DeletedTime == 0 {
+		t.Fatalf("asset not completed as deleted: %+v", asset)
+	}
+}
+
+func TestDeleteBytePlusAssetRepeatedCallsReturnSuccessWithoutDuplicateDelete(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{deleteReqID: "req-delete"}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	group := insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+	insertBytePlusAssetRow(t, "ast_repeat_delete", 7, group.Id, 131, model.BytePlusAssetStatusActive, "upstream-delete")
+	block := make(chan struct{})
+	entered := make(chan struct{})
+	fake.onDelete = func() {
+		close(entered)
+		<-block
+	}
+
+	firstErr := make(chan *types.NewAPIError, 1)
+	go func() {
+		firstErr <- DeleteBytePlusAsset(context.Background(), 7, "ast_repeat_delete")
+	}()
+	<-entered
+	secondErr := DeleteBytePlusAsset(context.Background(), 7, "ast_repeat_delete")
+	close(block)
+	if err := <-firstErr; err != nil {
+		t.Fatalf("first delete: %v", err)
+	}
+	if secondErr != nil {
+		t.Fatalf("second delete: %v", secondErr)
+	}
+	if fake.deleteAssetCalls != 1 {
+		t.Fatalf("duplicate upstream delete calls=%d", fake.deleteAssetCalls)
+	}
+}
+
+func TestDeleteBytePlusAssetTreatsUpstreamNotFoundAsDeleted(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{deleteErr: &BytePlusAPIError{StatusCode: http.StatusNotFound, Definitive: true}}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	group := insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+	insertBytePlusAssetRow(t, "ast_missing_upstream", 7, group.Id, 131, model.BytePlusAssetStatusActive, "upstream-missing")
+
+	if err := DeleteBytePlusAsset(context.Background(), 7, "ast_missing_upstream"); err != nil {
+		t.Fatalf("DeleteBytePlusAsset: %v", err)
+	}
+	var asset model.BytePlusAsset
+	if err := model.DB.First(&asset, "public_id = ?", "ast_missing_upstream").Error; err != nil {
+		t.Fatalf("load asset: %v", err)
+	}
+	if asset.Status != model.BytePlusAssetStatusDeleted {
+		t.Fatalf("not found should complete deletion: %+v", asset)
+	}
+}
+
+func TestDeleteBytePlusAssetFailureKeepsDeletingAndSchedulesRetry(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{deleteErr: errors.New("temporary upstream failure")}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	group := insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+	insertBytePlusAssetRow(t, "ast_retry_delete", 7, group.Id, 131, model.BytePlusAssetStatusActive, "upstream-retry")
+
+	if err := DeleteBytePlusAsset(context.Background(), 7, "ast_retry_delete"); err != nil {
+		t.Fatalf("DeleteBytePlusAsset should accept tombstone on upstream failure: %v", err)
+	}
+	var asset model.BytePlusAsset
+	if err := model.DB.First(&asset, "public_id = ?", "ast_retry_delete").Error; err != nil {
+		t.Fatalf("load asset: %v", err)
+	}
+	if asset.Status != model.BytePlusAssetStatusDeleting || asset.DeleteAttempts != 1 || asset.DeleteLeaseUpdatedTime != 0 || asset.NextDeleteAt <= 2000 {
+		t.Fatalf("failure should keep deleting and schedule retry: %+v", asset)
+	}
+}
+
+func TestDeleteBytePlusAssetUnavailableBoundChannelKeepsTombstoneWithoutFailover(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusManuallyDisabled, structuredBytePlusKey())
+	insertBytePlusAssetChannel(t, 132, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	group := insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+	insertBytePlusAssetRow(t, "ast_no_failover", 7, group.Id, 131, model.BytePlusAssetStatusActive, "upstream-bound")
+
+	if err := DeleteBytePlusAsset(context.Background(), 7, "ast_no_failover"); err != nil {
+		t.Fatalf("DeleteBytePlusAsset should accept unavailable bound channel: %v", err)
+	}
+	if fake.deleteAssetCalls != 0 {
+		t.Fatalf("unavailable bound channel must not call upstream or failover, calls=%d", fake.deleteAssetCalls)
+	}
+	var asset model.BytePlusAsset
+	if err := model.DB.First(&asset, "public_id = ?", "ast_no_failover").Error; err != nil {
+		t.Fatalf("load asset: %v", err)
+	}
+	if asset.Status != model.BytePlusAssetStatusDeleting || asset.NextDeleteAt <= 2000 {
+		t.Fatalf("unavailable channel should keep scheduled tombstone: %+v", asset)
 	}
 }
 

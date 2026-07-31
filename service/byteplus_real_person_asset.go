@@ -80,6 +80,32 @@ func CreateBytePlusRealPersonAssetFromMultipart(ctx context.Context, userID int,
 	return createBytePlusRealPersonAsset(ctx, userID, profile.PublicId, idempotencyKey, uploaded.AssetType, name, source, store)
 }
 
+func ListBytePlusRealPersonAssets(ctx context.Context, userID int, personID string, limit int, after string) (*dto.BytePlusRealPersonAssetListResponse, *types.NewAPIError) {
+	profile, err := model.GetBytePlusRealPersonProfileForUser(userID, strings.TrimSpace(personID))
+	if err != nil {
+		if model.IsBytePlusRealPersonNotFound(err) {
+			return nil, assetError(errors.New("real person not found"), types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
+		}
+		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	}
+	assets, hasMore, err := model.ListBytePlusAssetsForRealPerson(userID, profile.Id, limit, strings.TrimSpace(after))
+	if err != nil {
+		if errors.Is(err, model.ErrBytePlusAssetCursorNotFound) {
+			return nil, assetError(errors.New("asset cursor not found"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+		}
+		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	}
+	data := make([]dto.BytePlusAssetResponse, 0, len(assets))
+	for i := range assets {
+		data = append(data, *responseFromBytePlusAsset(&assets[i]))
+	}
+	nextAfter := ""
+	if hasMore && len(data) > 0 {
+		nextAfter = data[len(data)-1].ID
+	}
+	return &dto.BytePlusRealPersonAssetListResponse{Object: bytePlusRealPersonListObjectType, Data: data, HasMore: hasMore, NextAfter: nextAfter}, nil
+}
+
 func createBytePlusRealPersonAsset(ctx context.Context, userID int, personID, idempotencyKey, assetType, name string, source realPersonAssetSource, store BytePlusTempObjectStore) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
 	keyHash, err := hashAPIIdempotencyKey(idempotencyKey)
 	if err != nil {

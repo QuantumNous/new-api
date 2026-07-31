@@ -539,6 +539,75 @@ func TestBytePlusAssetResponseKeepsVirtualModerationAndAddsRealPersonURI(t *test
 	require.Equal(t, "upstream_failed", real.FailureCode)
 }
 
+func TestListRealPersonAssetsScopesUserAndProfileAndHidesDeleted(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	other := seedActiveRealPersonProfile(t, 7, 101, "rph_other")
+	seedRealPersonAssetRow(t, "ast_visible", 7, f.profile.Id, model.BytePlusAssetStatusActive, 2100, "")
+	seedRealPersonAssetRow(t, "ast_deleted", 7, f.profile.Id, model.BytePlusAssetStatusDeleted, 2200, "")
+	seedRealPersonAssetRow(t, "ast_other_profile", 7, other.Id, model.BytePlusAssetStatusActive, 2300, "")
+	seedRealPersonAssetRow(t, "ast_other_user", 8, f.profile.Id, model.BytePlusAssetStatusActive, 2400, "")
+
+	list, apiErr := ListBytePlusRealPersonAssets(context.Background(), 7, f.profile.PublicId, 10, "")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, bytePlusRealPersonListObjectType, list.Object)
+	require.Len(t, list.Data, 1)
+	require.Equal(t, "ast_visible", list.Data[0].ID)
+	require.Equal(t, "asset://ast_visible", list.Data[0].AssetURI)
+	raw, err := common.Marshal(list)
+	require.NoError(t, err)
+	for _, forbidden := range []string{"upstream", "group", "channel", "project3", "sk-test"} {
+		require.NotContains(t, strings.ToLower(string(raw)), forbidden)
+	}
+}
+
+func TestListRealPersonAssetsReturnsFailedWithStableFailureCode(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	seedRealPersonAssetRow(t, "ast_failed", 7, f.profile.Id, model.BytePlusAssetStatusFailed, 2100, "asset_upstream_error")
+
+	list, apiErr := ListBytePlusRealPersonAssets(context.Background(), 7, f.profile.PublicId, 10, "")
+
+	require.Nil(t, apiErr)
+	require.Len(t, list.Data, 1)
+	require.Equal(t, model.BytePlusAssetStatusFailed, list.Data[0].Status)
+	require.Equal(t, "asset_upstream_error", list.Data[0].FailureCode)
+}
+
+func TestListRealPersonAssetsRejectsUnknownCursor(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	seedRealPersonAssetRow(t, "ast_visible", 7, f.profile.Id, model.BytePlusAssetStatusActive, 2100, "")
+
+	_, apiErr := ListBytePlusRealPersonAssets(context.Background(), 7, f.profile.PublicId, 10, "ast_missing")
+
+	assertAssetError(t, apiErr, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+}
+
+func TestListRealPersonAssetsUsesStableTieBreakerAndRejectsOutOfScopeCursors(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	other := seedActiveRealPersonProfile(t, 7, 101, "rph_other_tie")
+	seedRealPersonAssetRow(t, "ast_newer", 7, f.profile.Id, model.BytePlusAssetStatusActive, 2200, "")
+	seedRealPersonAssetRow(t, "ast_tie_low", 7, f.profile.Id, model.BytePlusAssetStatusProcessing, 2100, "")
+	seedRealPersonAssetRow(t, "ast_tie_high", 7, f.profile.Id, model.BytePlusAssetStatusActive, 2100, "")
+	seedRealPersonAssetRow(t, "ast_other_profile", 7, other.Id, model.BytePlusAssetStatusActive, 2300, "")
+	seedRealPersonAssetRow(t, "ast_other_user", 8, f.profile.Id, model.BytePlusAssetStatusActive, 2300, "")
+	seedRealPersonAssetRow(t, "ast_deleted_cursor", 7, f.profile.Id, model.BytePlusAssetStatusDeleted, 2000, "")
+
+	first, apiErr := ListBytePlusRealPersonAssets(context.Background(), 7, f.profile.PublicId, 2, "")
+	require.Nil(t, apiErr)
+	require.True(t, first.HasMore)
+	require.Equal(t, "ast_tie_high", first.NextAfter)
+	require.Equal(t, []string{"ast_newer", "ast_tie_high"}, realPersonAssetListIDs(first.Data))
+	second, apiErr := ListBytePlusRealPersonAssets(context.Background(), 7, f.profile.PublicId, 2, first.NextAfter)
+	require.Nil(t, apiErr)
+	require.False(t, second.HasMore)
+	require.Equal(t, []string{"ast_tie_low"}, realPersonAssetListIDs(second.Data))
+
+	for _, cursor := range []string{"ast_other_profile", "ast_other_user", "ast_deleted_cursor"} {
+		_, apiErr = ListBytePlusRealPersonAssets(context.Background(), 7, f.profile.PublicId, 2, cursor)
+		assertAssetError(t, apiErr, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+}
+
 func TestCreateRealPersonAssetFromMultipartBlankPresignReturnsStorageErrorBeforeUpstream(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	f.store.blankPresign = true
@@ -548,6 +617,26 @@ func TestCreateRealPersonAssetFromMultipartBlankPresignReturnsStorageErrorBefore
 	assertAssetError(t, apiErr, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	require.Len(t, f.store.puts, 1)
 	require.Equal(t, 0, f.fake.createAssetCalls)
+}
+
+func seedRealPersonAssetRow(t *testing.T, publicID string, userID int, profileID int64, status string, created int64, failureCode string) {
+	t.Helper()
+	if err := model.DB.Create(&model.BytePlusAsset{
+		PublicId: publicID, UserId: userID, RealPersonProfileId: &profileID, ChannelId: 101,
+		UpstreamAssetId: "upstream-" + publicID, AssetType: "Image", Name: publicID,
+		ModerationStrategy: "Default", Status: status, FailureCode: failureCode,
+		CreatedTime: created, UpdatedTime: created,
+	}).Error; err != nil {
+		t.Fatalf("seed real-person asset: %v", err)
+	}
+}
+
+func realPersonAssetListIDs(data []dto.BytePlusAssetResponse) []string {
+	ids := make([]string, 0, len(data))
+	for _, item := range data {
+		ids = append(ids, item.ID)
+	}
+	return ids
 }
 
 func newIndependentRealPersonAssetMultipartRequest(t *testing.T, payload []byte, assetType, name string) *http.Request {

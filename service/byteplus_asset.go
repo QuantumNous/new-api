@@ -23,6 +23,8 @@ const (
 	bytePlusAssetPublicIDPrefix        = "ast_"
 	bytePlusAssetPublicIDRandomLen     = 32
 	bytePlusAssetGroupLeaseStaleSecs   = int64(300)
+	bytePlusAssetDeleteLeaseStaleSecs  = int64(300)
+	bytePlusAssetDeleteRetryDelaySecs  = int64(60)
 	bytePlusAssetGroupNameRandomLength = 16
 	bytePlusAssetGroupRetryBaseDelay   = 50 * time.Millisecond
 )
@@ -31,6 +33,7 @@ type bytePlusAssetAPI interface {
 	CreateAssetGroup(ctx context.Context, creds BytePlusCredentials, name string) (string, string, error)
 	CreateAsset(ctx context.Context, creds BytePlusCredentials, request BytePlusCreateAssetRequest) (string, string, error)
 	GetAsset(ctx context.Context, creds BytePlusCredentials, upstreamAssetID string) (BytePlusAssetStatus, error)
+	DeleteAsset(ctx context.Context, creds BytePlusCredentials, upstreamAssetID string) (string, error)
 }
 
 var (
@@ -133,6 +136,10 @@ func GetBytePlusAsset(ctx context.Context, userID int, publicID string) (*dto.By
 		return nil, assetError(errors.New("asset failed"), types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
 	case model.BytePlusAssetStatusCreating:
 		return nil, assetError(errors.New("asset is not ready"), types.ErrorCodeAssetNotReady, http.StatusConflict)
+	case model.BytePlusAssetStatusDeleting:
+		return responseFromBytePlusAsset(asset), nil
+	case model.BytePlusAssetStatusDeleted:
+		return nil, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
 	}
 	if strings.TrimSpace(asset.UpstreamAssetId) == "" {
 		return nil, assetError(errors.New("asset is not ready"), types.ErrorCodeAssetNotReady, http.StatusConflict)
@@ -168,6 +175,66 @@ func GetBytePlusAsset(ctx context.Context, userID int, publicID string) (*dto.By
 		return nil, assetError(errors.New("asset failed"), types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
 	}
 	return responseFromBytePlusAsset(asset), nil
+}
+
+func DeleteBytePlusAsset(ctx context.Context, userID int, publicID string) *types.NewAPIError {
+	publicID = strings.TrimSpace(publicID)
+	if publicID == "" {
+		return assetError(errors.New("asset id is required"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	now := bytePlusAssetNow()
+	asset, changed, err := model.BeginBytePlusAssetDeletion(userID, publicID, now)
+	if err != nil {
+		if model.IsBytePlusAssetNotFound(err) {
+			return assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
+		}
+		return assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	}
+	if !changed {
+		return nil
+	}
+	if strings.TrimSpace(asset.UpstreamAssetId) == "" {
+		if _, err := model.CompleteBytePlusAssetDeletion(asset.Id, asset.DeleteLeaseUpdatedTime, bytePlusAssetNow()); err != nil {
+			return assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		}
+		return nil
+	}
+
+	now = bytePlusAssetNow()
+	claimed, owner, err := model.ClaimBytePlusAssetDeletion(asset.Id, now, now-bytePlusAssetDeleteLeaseStaleSecs)
+	if err != nil {
+		return assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	}
+	if !owner {
+		return nil
+	}
+	retry := func() *types.NewAPIError {
+		retryAt := bytePlusAssetNow() + bytePlusAssetDeleteRetryDelaySecs
+		if _, err := model.RetryBytePlusAssetDeletion(claimed.Id, claimed.DeleteLeaseUpdatedTime, retryAt, bytePlusAssetNow()); err != nil {
+			return assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		}
+		return nil
+	}
+	channel, err := model.GetChannelById(claimed.ChannelId, true)
+	if err != nil || !bytePlusAssetChannelIsUsable(channel) {
+		return retry()
+	}
+	creds, err := ParseBytePlusCredentials(channel.Key)
+	if err != nil || creds.ValidateAssets() != nil {
+		return retry()
+	}
+	client, err := bytePlusAssetClientFactory(channel)
+	if err != nil {
+		return retry()
+	}
+	_, err = client.DeleteAsset(ctx, creds, claimed.UpstreamAssetId)
+	if err == nil || isBytePlusNotFound(err) {
+		if _, completeErr := model.CompleteBytePlusAssetDeletion(claimed.Id, claimed.DeleteLeaseUpdatedTime, bytePlusAssetNow()); completeErr != nil {
+			return assetError(completeErr, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		}
+		return nil
+	}
+	return retry()
 }
 
 func ensureBytePlusAssetGroup(ctx context.Context, userID int, channel *model.Channel, creds BytePlusCredentials, client bytePlusAssetAPI) (*model.BytePlusAssetGroup, *types.NewAPIError) {

@@ -59,7 +59,10 @@ type BytePlusAsset struct {
 	UpdatedTime            int64  `json:"updated_time" gorm:"bigint"`
 }
 
-var ErrBytePlusAssetNotUpdatable = errors.New("byteplus asset is not updatable")
+var (
+	ErrBytePlusAssetNotUpdatable   = errors.New("byteplus asset is not updatable")
+	ErrBytePlusAssetCursorNotFound = errors.New("byteplus asset cursor not found")
+)
 
 func ClaimBytePlusAssetGroup(userID int, channelID int, now int64, staleBefore int64) (*BytePlusAssetGroup, bool, error) {
 	group := &BytePlusAssetGroup{
@@ -190,6 +193,35 @@ func GetBytePlusAssetsByPublicIDsForUser(userID int, publicIDs []string) ([]Byte
 	return assets, err
 }
 
+func ListBytePlusAssetsForRealPerson(userID int, profileID int64, limit int, afterPublicID string) ([]BytePlusAsset, bool, error) {
+	if limit <= 0 {
+		return nil, false, nil
+	}
+	query := DB.Where("user_id = ? AND real_person_profile_id = ? AND status <> ?", userID, profileID, BytePlusAssetStatusDeleted)
+	afterPublicID = strings.TrimSpace(afterPublicID)
+	if afterPublicID != "" {
+		var cursor BytePlusAsset
+		err := DB.Where("user_id = ? AND real_person_profile_id = ? AND public_id = ? AND status <> ?", userID, profileID, afterPublicID, BytePlusAssetStatusDeleted).
+			First(&cursor).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, false, ErrBytePlusAssetCursorNotFound
+			}
+			return nil, false, err
+		}
+		query = query.Where("created_time < ? OR (created_time = ? AND id < ?)", cursor.CreatedTime, cursor.CreatedTime, cursor.Id)
+	}
+	var assets []BytePlusAsset
+	if err := query.Order("created_time DESC, id DESC").Limit(limit + 1).Find(&assets).Error; err != nil {
+		return nil, false, err
+	}
+	hasMore := len(assets) > limit
+	if hasMore {
+		assets = assets[:limit]
+	}
+	return assets, hasMore, nil
+}
+
 func UpdateBytePlusAssetUpstreamCreated(assetID int64, upstreamAssetID string, upstreamRequestID string, status string, now int64) error {
 	result := DB.Model(&BytePlusAsset{}).
 		Where("id = ? AND status = ?", assetID, BytePlusAssetStatusCreating).
@@ -277,6 +309,80 @@ func MarkBytePlusRealPersonAssetOutcomeUnknownForIdempotency(recordID, leaseUpda
 			"updated_time": now,
 		})
 	return requireOneBytePlusAssetCAS(updatedAsset, assetID)
+}
+
+func BeginBytePlusAssetDeletion(userID int, publicID string, now int64) (*BytePlusAsset, bool, error) {
+	var asset BytePlusAsset
+	if err := DB.Where("user_id = ? AND public_id = ?", userID, strings.TrimSpace(publicID)).First(&asset).Error; err != nil {
+		return nil, false, err
+	}
+	if asset.Status == BytePlusAssetStatusDeleting || asset.Status == BytePlusAssetStatusDeleted {
+		return &asset, false, nil
+	}
+	updated := DB.Model(&BytePlusAsset{}).
+		Where("id = ? AND status NOT IN ?", asset.Id, []string{BytePlusAssetStatusDeleting, BytePlusAssetStatusDeleted}).
+		Updates(map[string]any{
+			"status":                    BytePlusAssetStatusDeleting,
+			"next_delete_at":            now,
+			"delete_lease_updated_time": int64(0),
+			"updated_time":              now,
+		})
+	if updated.Error != nil {
+		return nil, false, updated.Error
+	}
+	if err := DB.First(&asset, asset.Id).Error; err != nil {
+		return nil, false, err
+	}
+	return &asset, updated.RowsAffected == 1, nil
+}
+
+func ClaimBytePlusAssetDeletion(assetID int64, now, staleBefore int64) (*BytePlusAsset, bool, error) {
+	var asset BytePlusAsset
+	if err := DB.First(&asset, assetID).Error; err != nil {
+		return nil, false, err
+	}
+	if asset.Status != BytePlusAssetStatusDeleting || asset.NextDeleteAt > now ||
+		(asset.DeleteLeaseUpdatedTime != 0 && asset.DeleteLeaseUpdatedTime >= staleBefore) {
+		return &asset, false, nil
+	}
+	updated := DB.Model(&BytePlusAsset{}).
+		Where("id = ? AND status = ? AND next_delete_at <= ? AND delete_lease_updated_time = ?",
+			asset.Id, BytePlusAssetStatusDeleting, now, asset.DeleteLeaseUpdatedTime).
+		Updates(map[string]any{
+			"delete_lease_updated_time": now,
+			"updated_time":              now,
+		})
+	if updated.Error != nil {
+		return nil, false, updated.Error
+	}
+	if err := DB.First(&asset, assetID).Error; err != nil {
+		return nil, false, err
+	}
+	return &asset, updated.RowsAffected == 1, nil
+}
+
+func CompleteBytePlusAssetDeletion(assetID int64, leaseUpdatedTime int64, now int64) (bool, error) {
+	updated := DB.Model(&BytePlusAsset{}).
+		Where("id = ? AND status = ? AND delete_lease_updated_time = ?", assetID, BytePlusAssetStatusDeleting, leaseUpdatedTime).
+		Updates(map[string]any{
+			"status":                    BytePlusAssetStatusDeleted,
+			"delete_lease_updated_time": int64(0),
+			"deleted_time":              now,
+			"updated_time":              now,
+		})
+	return updated.RowsAffected == 1, updated.Error
+}
+
+func RetryBytePlusAssetDeletion(assetID int64, leaseUpdatedTime int64, nextAttempt int64, now int64) (bool, error) {
+	updated := DB.Model(&BytePlusAsset{}).
+		Where("id = ? AND status = ? AND delete_lease_updated_time = ?", assetID, BytePlusAssetStatusDeleting, leaseUpdatedTime).
+		Updates(map[string]any{
+			"delete_attempts":           gorm.Expr("delete_attempts + ?", 1),
+			"delete_lease_updated_time": int64(0),
+			"next_delete_at":            nextAttempt,
+			"updated_time":              now,
+		})
+	return updated.RowsAffected == 1, updated.Error
 }
 
 func IsBytePlusAssetNotFound(err error) bool {
