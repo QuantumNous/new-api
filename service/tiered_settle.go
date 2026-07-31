@@ -132,9 +132,19 @@ func PrepareTieredBillingForSelectedGroup(c *gin.Context, relayInfo *relaycommon
 			types.ErrOptionWithSkipRetry(),
 		)
 	}
-	if snap == nil || snap.GroupRatio == 0 {
+	if snap == nil {
 		return nil
 	}
+	if snap.GroupRatio == 0 {
+		// Paid-to-free keeps FreeModel as-is: FreeModel means "pre-consume was
+		// skipped", which is not true once a session exists, and settlement
+		// already yields 0 for a zero group ratio.
+		return nil
+	}
+
+	// The selected group is paid; clear a FreeModel flag frozen when the
+	// initial group was free so downstream state stays consistent.
+	relayInfo.PriceData.FreeModel = false
 
 	if relayInfo.Billing == nil {
 		return PreConsumeBilling(c, snap.EstimatedQuotaAfterGroup, relayInfo)

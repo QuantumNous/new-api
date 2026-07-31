@@ -389,6 +389,7 @@ func TestPrepareTieredBillingForSelectedGroupStartsBillingAfterFreeGroup(t *test
 			QuotaPerUnit:              testQuotaPerUnit,
 		},
 		PriceData: types.PriceData{
+			FreeModel:      true,
 			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0.20},
 		},
 	}
@@ -396,6 +397,7 @@ func TestPrepareTieredBillingForSelectedGroupStartsBillingAfterFreeGroup(t *test
 
 	require.Nil(t, PrepareTieredBillingForSelectedGroup(ctx, relayInfo))
 	require.NotNil(t, relayInfo.Billing)
+	assert.False(t, relayInfo.PriceData.FreeModel, "FreeModel must be cleared after switching to a paid group")
 	assert.Equal(t, 100_000, relayInfo.FinalPreConsumedQuota)
 	assert.Equal(t, 0.20, relayInfo.TieredBillingSnapshot.GroupRatio)
 	assert.Equal(t, 100_000, relayInfo.TieredBillingSnapshot.EstimatedQuotaAfterGroup)
@@ -403,6 +405,113 @@ func TestPrepareTieredBillingForSelectedGroupStartsBillingAfterFreeGroup(t *test
 	userQuota, err := model.GetUserQuota(userID, false)
 	require.NoError(t, err)
 	assert.Equal(t, 400_000, userQuota)
+}
+
+func TestPrepareTieredBillingForSelectedGroupPaidToFreeKeepsFreeModelFalse(t *testing.T) {
+	const expr = `tier("base", p)`
+	billing := &recordingBillingSettler{preConsumedQuota: 50_000}
+	relayInfo := &relaycommon.RelayInfo{
+		Billing:               billing,
+		FinalPreConsumedQuota: 50_000,
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:               "tiered_expr",
+			ExprString:                expr,
+			ExprHash:                  billingexpr.ExprHashString(expr),
+			GroupRatio:                0.10,
+			EstimatedQuotaBeforeGroup: 500_000,
+			EstimatedQuotaAfterGroup:  50_000,
+			QuotaPerUnit:              testQuotaPerUnit,
+		},
+		PriceData: types.PriceData{
+			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0},
+		},
+	}
+
+	require.Nil(t, PrepareTieredBillingForSelectedGroup(nil, relayInfo))
+
+	// Pre-consume did happen under the paid group, so FreeModel stays false;
+	// settlement already yields 0 for GroupRatio == 0 and the session refunds.
+	assert.False(t, relayInfo.PriceData.FreeModel)
+	assert.Empty(t, billing.reserveTargets)
+	assert.Equal(t, 50_000, relayInfo.FinalPreConsumedQuota)
+}
+
+func TestPrepareTieredBillingForSelectedGroupTopUpArrearsAllowsNegativeBalance(t *testing.T) {
+	truncate(t)
+
+	const userID = 701
+	// Balance covers the initial 50k pre-consume (already deducted before this
+	// test's seed) but not the 50k top-up to the more expensive retry group.
+	// The top-up must NOT abort the request: the full delta is deducted, the
+	// uncovered 30k becomes arrears (negative balance), mirroring how
+	// settlement charges a positive delta unconditionally.
+	seedUser(t, userID, 20_000)
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:                userID,
+		IsPlayground:          true,
+		FinalPreConsumedQuota: 50_000,
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:               "tiered_expr",
+			ExprString:                `tier("base", p)`,
+			ExprHash:                  billingexpr.ExprHashString(`tier("base", p)`),
+			GroupRatio:                0.10,
+			EstimatedQuotaBeforeGroup: 500_000,
+			EstimatedQuotaAfterGroup:  50_000,
+			QuotaPerUnit:              testQuotaPerUnit,
+		},
+		PriceData: types.PriceData{
+			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0.20},
+		},
+	}
+	session := &BillingSession{
+		relayInfo:        relayInfo,
+		funding:          &WalletFunding{userId: userID, consumed: 50_000},
+		preConsumedQuota: 50_000,
+	}
+	relayInfo.Billing = session
+
+	require.Nil(t, PrepareTieredBillingForSelectedGroup(nil, relayInfo))
+
+	// Full reservation recorded; wallet charged the full delta into arrears.
+	assert.Equal(t, 100_000, session.GetPreConsumedQuota())
+	assert.Equal(t, 100_000, relayInfo.FinalPreConsumedQuota)
+	assert.Equal(t, 100_000, relayInfo.TieredBillingSnapshot.EstimatedQuotaAfterGroup)
+	userQuota, err := model.GetUserQuota(userID, false)
+	require.NoError(t, err)
+	assert.Equal(t, -30_000, userQuota)
+
+	// Settlement still reconciles against the full reservation: actual 80k
+	// refunds the 20k over-reserve, landing at seed - (actual - initial) = -10k.
+	require.NoError(t, session.Settle(80_000))
+	userQuota, err = model.GetUserQuota(userID, false)
+	require.NoError(t, err)
+	assert.Equal(t, -10_000, userQuota)
+}
+
+func TestBillingSessionReserveWalletTopUpDecrementsBalance(t *testing.T) {
+	truncate(t)
+
+	const userID = 702
+	seedUser(t, userID, 500_000)
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:       userID,
+		IsPlayground: true,
+	}
+	session := &BillingSession{
+		relayInfo:        relayInfo,
+		funding:          &WalletFunding{userId: userID, consumed: 50_000},
+		preConsumedQuota: 50_000,
+	}
+
+	require.NoError(t, session.Reserve(100_000))
+
+	assert.Equal(t, 100_000, session.GetPreConsumedQuota())
+	assert.Equal(t, 100_000, relayInfo.FinalPreConsumedQuota)
+	userQuota, err := model.GetUserQuota(userID, false)
+	require.NoError(t, err)
+	assert.Equal(t, 450_000, userQuota)
 }
 
 func TestTryTieredSettleUsesFinalGroupAfterRetry(t *testing.T) {
