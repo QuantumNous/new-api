@@ -1,0 +1,478 @@
+diff --git a/node_modules/date-fns-tz/.bun-tag-1c7957b3bc59b0ce b/.bun-tag-1c7957b3bc59b0ce
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/esm/format/index.js b/esm/format/index.js
+index ea430d1545a04b6d8acd69a710bc837c69a0f67b..d4aad40f0b01a33eda0737cb0795854b694cc6bb 100644
+--- a/esm/format/index.js
++++ b/esm/format/index.js
+@@ -1,4 +1,4 @@
+-import dateFnsFormat from 'date-fns/format/index.js'
++import dateFnsFormat from 'date-fns/format'
+ import formatters from './formatters/index.js'
+ import toDate from '../toDate/index.js'
+ 
+diff --git a/esm/formatInTimeZone/index.js b/esm/formatInTimeZone/index.js
+index bbb2c4e140ed447fa12ef1e7a995b6e27a469786..47b416f8c84d421c05e3d0610a0af6f30fb3a739 100644
+--- a/esm/formatInTimeZone/index.js
++++ b/esm/formatInTimeZone/index.js
+@@ -1,7 +1,10 @@
+-import cloneObject from 'date-fns/_lib/cloneObject/index.js'
+ import format from '../format/index.js'
+ import utcToZonedTime from '../utcToZonedTime/index.js'
+ 
++function cloneObject(dirtyObject) {
++  return Object.assign({}, dirtyObject);
++}
++
+ /**
+  * @name formatInTimeZone
+  * @category Time Zone Helpers
+diff --git a/esm/fp/format/index.js b/esm/fp/format/index.js
+index 2c5f6bbbee4d4832e4b997d5c12b45fbf60b1efc..8bd30821bdaf99d8d896b3ad4ab782ab0a6f548f 100644
+--- a/esm/fp/format/index.js
++++ b/esm/fp/format/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../format/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var format = convertToFP(fn, 2)
+ 
+diff --git a/esm/fp/formatInTimeZone/index.js b/esm/fp/formatInTimeZone/index.js
+index 98584d5d7f5470427c887c5fe2d2850d38a5bc77..2182c59933d6d56b36b6beb1d95d7eae22831897 100644
+--- a/esm/fp/formatInTimeZone/index.js
++++ b/esm/fp/formatInTimeZone/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../formatInTimeZone/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var formatInTimeZone = convertToFP(fn, 3)
+ 
+diff --git a/esm/fp/formatInTimeZoneWithOptions/index.js b/esm/fp/formatInTimeZoneWithOptions/index.js
+index 69b128972929c96c8a1cd3d7c8a717124ac2df8c..586a364108d0d8508391327052e6677b8d4601f3 100644
+--- a/esm/fp/formatInTimeZoneWithOptions/index.js
++++ b/esm/fp/formatInTimeZoneWithOptions/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../formatInTimeZone/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var formatInTimeZoneWithOptions = convertToFP(fn, 4)
+ 
+diff --git a/esm/fp/formatWithOptions/index.js b/esm/fp/formatWithOptions/index.js
+index a091d28c2746ad6cf5433e8b551391a682cbc1b0..c7df123dc83cfdff0e1ef2c338a5f5a6008cf63a 100644
+--- a/esm/fp/formatWithOptions/index.js
++++ b/esm/fp/formatWithOptions/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../format/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var formatWithOptions = convertToFP(fn, 3)
+ 
+diff --git a/esm/fp/getTimezoneOffset/index.js b/esm/fp/getTimezoneOffset/index.js
+index 2d2377968a25d3e8908625fdb3454f38e82872af..66b06eb591a382d0ac3cdf3c370e4e4a762880cb 100644
+--- a/esm/fp/getTimezoneOffset/index.js
++++ b/esm/fp/getTimezoneOffset/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../getTimezoneOffset/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var getTimezoneOffset = convertToFP(fn, 2)
+ 
+diff --git a/esm/fp/toDate/index.js b/esm/fp/toDate/index.js
+index 38499ed66c0cfb1bd67a7f8f7c299070d08f8bb2..a3d815deaeccf98e9986e8fb3c2fb92f9bf099e7 100644
+--- a/esm/fp/toDate/index.js
++++ b/esm/fp/toDate/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../toDate/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var toDate = convertToFP(fn, 1)
+ 
+diff --git a/esm/fp/toDateWithOptions/index.js b/esm/fp/toDateWithOptions/index.js
+index 8f550fe885bbbe72dd4d67a648e46b28938aeade..1b6fa3a7367b05b1319744fc06cc1a6903d92bac 100644
+--- a/esm/fp/toDateWithOptions/index.js
++++ b/esm/fp/toDateWithOptions/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../toDate/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var toDateWithOptions = convertToFP(fn, 2)
+ 
+diff --git a/esm/fp/utcToZonedTime/index.js b/esm/fp/utcToZonedTime/index.js
+index fd35486644a79b92f8a9e39d100f0cd73d16a06e..62def2ff6eff8cfcb4486250fb4bf5877d28137a 100644
+--- a/esm/fp/utcToZonedTime/index.js
++++ b/esm/fp/utcToZonedTime/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../utcToZonedTime/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var utcToZonedTime = convertToFP(fn, 2)
+ 
+diff --git a/esm/fp/utcToZonedTimeWithOptions/index.js b/esm/fp/utcToZonedTimeWithOptions/index.js
+index e2ac5d7fc8aef17c225e7fbfe941609199435bd2..45409bab92474cc117acca474ad2622dd97ffb62 100644
+--- a/esm/fp/utcToZonedTimeWithOptions/index.js
++++ b/esm/fp/utcToZonedTimeWithOptions/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../utcToZonedTime/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var utcToZonedTimeWithOptions = convertToFP(fn, 3)
+ 
+diff --git a/esm/fp/zonedTimeToUtc/index.js b/esm/fp/zonedTimeToUtc/index.js
+index 58e27af16f172f55b752a6e72ae44f71b1d6f5c1..ece7f20b5ebf66c1c69a2107fee22d79f255fde0 100644
+--- a/esm/fp/zonedTimeToUtc/index.js
++++ b/esm/fp/zonedTimeToUtc/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../zonedTimeToUtc/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var zonedTimeToUtc = convertToFP(fn, 2)
+ 
+diff --git a/esm/fp/zonedTimeToUtcWithOptions/index.js b/esm/fp/zonedTimeToUtcWithOptions/index.js
+index 7788dbb8022c570e9ce1b5602893a8506615d253..1f250e665c0845f4f98453e491f52df7cfb68995 100644
+--- a/esm/fp/zonedTimeToUtcWithOptions/index.js
++++ b/esm/fp/zonedTimeToUtcWithOptions/index.js
+@@ -1,7 +1,7 @@
+ // This file is generated automatically by `scripts/build/fp.js`. Please, don't change it.
+ 
+ import fn from '../../zonedTimeToUtc/index.js'
+-import convertToFP from 'date-fns/fp/_lib/convertToFP/index.js'
++import convertToFP from 'date-fns/fp/_lib/convertToFP'
+ 
+ var zonedTimeToUtcWithOptions = convertToFP(fn, 3)
+ 
+diff --git a/esm/toDate/index.js b/esm/toDate/index.js
+index 6acea0edae39d2e9a2ca9c4b6efa711552198495..b007a6951bdffa9363bfb32bb7bfda42f5729af8 100644
+--- a/esm/toDate/index.js
++++ b/esm/toDate/index.js
+@@ -1,8 +1,25 @@
+-import toInteger from 'date-fns/_lib/toInteger/index.js'
+-import getTimezoneOffsetInMilliseconds from 'date-fns/_lib/getTimezoneOffsetInMilliseconds/index.js'
+ import tzParseTimezone from '../_lib/tzParseTimezone/index.js'
+ import tzPattern from '../_lib/tzPattern/index.js'
+ 
++function toInteger(dirtyValue) {
++  if (dirtyValue === null || dirtyValue === true || dirtyValue === false) {
++    return NaN;
++  }
++  if (dirtyValue === '') {
++    return NaN;
++  }
++  return Math.trunc(Number(dirtyValue));
++}
++
++function getTimezoneOffsetInMilliseconds(date) {
++  var utcDate = new Date(date.getTime());
++  utcDate.setSeconds(0, 0);
++  var utcOffset = utcDate.getTimezoneOffset();
++  utcDate.setHours(utcDate.getHours() - utcOffset);
++  var tzOffset = utcDate.getTimezoneOffset();
++  return (utcOffset - tzOffset) * 60 * 1000;
++}
++
+ var MILLISECONDS_IN_HOUR = 3600000
+ var MILLISECONDS_IN_MINUTE = 60000
+ var DEFAULT_ADDITIONAL_DIGITS = 2
+diff --git a/esm/zonedTimeToUtc/index.js b/esm/zonedTimeToUtc/index.js
+index 4451b6729ac5c800c4d3aaafc16e97307488a4ce..d421bf503cda48b166aa8ec33399a2a9abb99ea5 100644
+--- a/esm/zonedTimeToUtc/index.js
++++ b/esm/zonedTimeToUtc/index.js
+@@ -1,9 +1,12 @@
+-import cloneObject from 'date-fns/_lib/cloneObject/index.js'
+ import toDate from '../toDate/index.js'
+ import tzPattern from '../_lib/tzPattern/index.js'
+ import tzParseTimezone from '../_lib/tzParseTimezone/index.js'
+ import newDateUTC from '../_lib/newDateUTC/index.js'
+ 
++function cloneObject(dirtyObject) {
++  return Object.assign({}, dirtyObject);
++}
++
+ /**
+  * @name zonedTimeToUtc
+  * @category Time Zone Helpers
+diff --git a/format/index.js b/format/index.js
+index 0ffeff8a9282d9192f62c8ad4788e0d9e1c41d04..63ba6fbfca7c359e4be1e1f289eb81118c5088ba 100644
+--- a/format/index.js
++++ b/format/index.js
+@@ -5,7 +5,7 @@ Object.defineProperty(exports, "__esModule", {
+ });
+ exports.default = format;
+ 
+-var _index = _interopRequireDefault(require("date-fns/format/index.js"));
++var _index = _interopRequireDefault(require("date-fns/format"));
+ 
+ var _index2 = _interopRequireDefault(require("./formatters/index.js"));
+ 
+diff --git a/formatInTimeZone/index.js b/formatInTimeZone/index.js
+index ca9388674aa776d28041dd8dfef363f50198bd2d..464e2950dc31f0155e3c6967f8eaa661779fa6dd 100644
+--- a/formatInTimeZone/index.js
++++ b/formatInTimeZone/index.js
+@@ -5,7 +5,9 @@ Object.defineProperty(exports, "__esModule", {
+ });
+ exports.default = formatInTimeZone;
+ 
+-var _index = _interopRequireDefault(require("date-fns/_lib/cloneObject/index.js"));
++function cloneObject(dirtyObject) {
++  return Object.assign({}, dirtyObject);
++}
+ 
+ var _index2 = _interopRequireDefault(require("../format/index.js"));
+ 
+@@ -36,7 +38,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
+  * @returns {String} the formatted date string
+  */
+ function formatInTimeZone(date, timeZone, formatStr, options) {
+-  var extendedOptions = (0, _index.default)(options);
++  var extendedOptions = cloneObject(options);
+   extendedOptions.timeZone = timeZone;
+   return (0, _index2.default)((0, _index3.default)(date, timeZone), formatStr, extendedOptions);
+ }
+diff --git a/fp/format/index.js b/fp/format/index.js
+index a1b5653583134193476dde62edc9e1aa0c9ea35a..d25b0221d76a2478b771caa399a21e424fdd3086 100644
+--- a/fp/format/index.js
++++ b/fp/format/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../format/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/fp/formatInTimeZone/index.js b/fp/formatInTimeZone/index.js
+index 938cb4c843dd684ceae58311508bbff9738a6d28..824b6245c96a6e631d80e4161e6597e1feae23b3 100644
+--- a/fp/formatInTimeZone/index.js
++++ b/fp/formatInTimeZone/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../formatInTimeZone/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/fp/formatInTimeZoneWithOptions/index.js b/fp/formatInTimeZoneWithOptions/index.js
+index 1075b128a0d43655193cc28f1aadf5998ba3579e..90c3e155ee11351e05ffdb052053a3f33367e1db 100644
+--- a/fp/formatInTimeZoneWithOptions/index.js
++++ b/fp/formatInTimeZoneWithOptions/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../formatInTimeZone/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/fp/formatWithOptions/index.js b/fp/formatWithOptions/index.js
+index 0e849afb2e6469f881f63eadce43b14b1e3c927f..450ad9ce3c4cab6acab0a77d375cf0b8adff868f 100644
+--- a/fp/formatWithOptions/index.js
++++ b/fp/formatWithOptions/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../format/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/fp/getTimezoneOffset/index.js b/fp/getTimezoneOffset/index.js
+index e0087fbba2677941551dbe876bedccb4e73610f6..c6f1b02a8fb5defd56d5ed8fd1507091f6b03fdb 100644
+--- a/fp/getTimezoneOffset/index.js
++++ b/fp/getTimezoneOffset/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../getTimezoneOffset/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/fp/toDate/index.js b/fp/toDate/index.js
+index 2e766cc287c884510e02401d3221b5de03e50da2..428618d461672b19ea99c14a70ec3c884b506647 100644
+--- a/fp/toDate/index.js
++++ b/fp/toDate/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../toDate/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/fp/toDateWithOptions/index.js b/fp/toDateWithOptions/index.js
+index a5ccfb2df81205dff0d2b760eddab7ccd91b8b44..d0c74d515198fd1d45f41810818ecc5b63b6263e 100644
+--- a/fp/toDateWithOptions/index.js
++++ b/fp/toDateWithOptions/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../toDate/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/fp/utcToZonedTime/index.js b/fp/utcToZonedTime/index.js
+index 761571b134cec671d2a63f8fafcf14f861f93c0c..5a5132c422570950f1edaa34a4216f30a403e72d 100644
+--- a/fp/utcToZonedTime/index.js
++++ b/fp/utcToZonedTime/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../utcToZonedTime/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/fp/utcToZonedTimeWithOptions/index.js b/fp/utcToZonedTimeWithOptions/index.js
+index 137ae27a45e67a5d2ea046d06973d96b4ead7961..e6ad1ae0be15d269f52f38eeecb7c2b5f09b4c6b 100644
+--- a/fp/utcToZonedTimeWithOptions/index.js
++++ b/fp/utcToZonedTimeWithOptions/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../utcToZonedTime/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/fp/zonedTimeToUtc/index.js b/fp/zonedTimeToUtc/index.js
+index d0333793ad6b5f4a78366d2c6469ba742c16b8ee..290fe2dc56f953261fe65940622604ff2508889d 100644
+--- a/fp/zonedTimeToUtc/index.js
++++ b/fp/zonedTimeToUtc/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../zonedTimeToUtc/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/fp/zonedTimeToUtcWithOptions/index.js b/fp/zonedTimeToUtcWithOptions/index.js
+index 3b88dc59f3586b09e81a05bd744a8781b3d231ae..a9cb3a7ca3c76dc6d52b465aafeaf3ae4c666f90 100644
+--- a/fp/zonedTimeToUtcWithOptions/index.js
++++ b/fp/zonedTimeToUtcWithOptions/index.js
+@@ -7,7 +7,7 @@ exports.default = void 0;
+ 
+ var _index = _interopRequireDefault(require("../../zonedTimeToUtc/index.js"));
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP/index.js"));
++var _index2 = _interopRequireDefault(require("date-fns/fp/_lib/convertToFP"));
+ 
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+diff --git a/toDate/index.js b/toDate/index.js
+index 6c1aaaac284419067bb23c16849260a456b91fe5..5d063f15baef065f75fcdf39390a83bec2c1f864 100644
+--- a/toDate/index.js
++++ b/toDate/index.js
+@@ -5,9 +5,25 @@ Object.defineProperty(exports, "__esModule", {
+ });
+ exports.default = toDate;
+ 
+-var _index = _interopRequireDefault(require("date-fns/_lib/toInteger/index.js"));
++function toInteger(dirtyValue) {
++  if (dirtyValue === null || dirtyValue === true || dirtyValue === false) {
++    return NaN;
++  }
++  if (dirtyValue === '') {
++    return NaN;
++  }
++  var result = Math.trunc(Number(dirtyValue));
++  return result;
++}
+ 
+-var _index2 = _interopRequireDefault(require("date-fns/_lib/getTimezoneOffsetInMilliseconds/index.js"));
++function getTimezoneOffsetInMilliseconds(date) {
++  var utcDate = new Date(date.getTime());
++  utcDate.setSeconds(0, 0);
++  var utcOffset = utcDate.getTimezoneOffset();
++  utcDate.setHours(utcDate.getHours() - utcOffset);
++  var tzOffset = utcDate.getTimezoneOffset();
++  return (utcOffset - tzOffset) * 60 * 1000;
++}
+ 
+ var _index3 = _interopRequireDefault(require("../_lib/tzParseTimezone/index.js"));
+ 
+@@ -97,7 +113,7 @@ function toDate(argument, dirtyOptions) {
+   }
+ 
+   var options = dirtyOptions || {};
+-  var additionalDigits = options.additionalDigits == null ? DEFAULT_ADDITIONAL_DIGITS : (0, _index.default)(options.additionalDigits);
++  var additionalDigits = options.additionalDigits == null ? DEFAULT_ADDITIONAL_DIGITS : toInteger(options.additionalDigits);
+ 
+   if (additionalDigits !== 2 && additionalDigits !== 1 && additionalDigits !== 0) {
+     throw new RangeError('additionalDigits must be 0, 1 or 2');
+@@ -144,8 +160,8 @@ function toDate(argument, dirtyOptions) {
+       }
+     } else {
+       // get offset accurate to hour in time zones that change offset
+-      offset = (0, _index2.default)(new Date(timestamp + time));
+-      offset = (0, _index2.default)(new Date(timestamp + time + offset));
++      offset = getTimezoneOffsetInMilliseconds(new Date(timestamp + time));
++      offset = getTimezoneOffsetInMilliseconds(new Date(timestamp + time + offset));
+     }
+ 
+     return new Date(timestamp + time + offset);
+diff --git a/zonedTimeToUtc/index.js b/zonedTimeToUtc/index.js
+index 3739d26931953854e87d5616f00c3ddf9a29dffe..b0ceeb076fd4878dd8a611ea25e4e4effd657880 100644
+--- a/zonedTimeToUtc/index.js
++++ b/zonedTimeToUtc/index.js
+@@ -5,7 +5,9 @@ Object.defineProperty(exports, "__esModule", {
+ });
+ exports.default = zonedTimeToUtc;
+ 
+-var _index = _interopRequireDefault(require("date-fns/_lib/cloneObject/index.js"));
++function cloneObject(dirtyObject) {
++  return Object.assign({}, dirtyObject);
++}
+ 
+ var _index2 = _interopRequireDefault(require("../toDate/index.js"));
+ 
+@@ -43,7 +45,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
+  */
+ function zonedTimeToUtc(date, timeZone, options) {
+   if (typeof date === 'string' && !date.match(_index3.default)) {
+-    var extendedOptions = (0, _index.default)(options);
++    var extendedOptions = cloneObject(options);
+     extendedOptions.timeZone = timeZone;
+     return (0, _index2.default)(date, extendedOptions);
+   }
