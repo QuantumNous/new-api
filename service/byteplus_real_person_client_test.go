@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -59,6 +60,7 @@ func TestBytePlusClientCreateVisualSendsOfficialContractAndScrubsMissingFields(t
 	if req.Body["CallbackURL"] != "https://callback.example/ok" || req.Body["ProjectName"] != "project3" {
 		t.Fatalf("payload = %#v", req.Body)
 	}
+	assertMapKeys(t, req.Body, "CallbackURL", "ProjectName")
 	if got.BytedToken != "token-1" || got.H5Link != "https://h5.example/session" || got.CallbackURL != "https://callback.example/ok" || got.RequestID != "req-visual" {
 		t.Fatalf("result = %+v", got)
 	}
@@ -86,6 +88,27 @@ func TestBytePlusClientCreateVisualSendsOfficialContractAndScrubsMissingFields(t
 	}
 }
 
+func TestBytePlusClientCreateVisualRejectsBlankCallbackBeforeUpstream(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	_, err := client.CreateVisualValidateSession(context.Background(), testAssetCreds(), "  ")
+	if err == nil {
+		t.Fatal("CreateVisualValidateSession should reject blank callback url")
+	}
+	if strings.Contains(err.Error(), "  ") {
+		t.Fatalf("error reflected blank callback input: %v", err)
+	}
+	if atomic.LoadInt32(&calls) != 0 {
+		t.Fatalf("blank callback reached upstream; calls=%d", calls)
+	}
+}
+
 func TestBytePlusClientGetVisualTrimsTokenAndMapsResult(t *testing.T) {
 	observed := make(chan bytePlusObservedRequest, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -105,6 +128,7 @@ func TestBytePlusClientGetVisualTrimsTokenAndMapsResult(t *testing.T) {
 	if req.Action != "GetVisualValidateResult" || req.Body["BytedToken"] != "token-1" || req.Body["ProjectName"] != "project3" {
 		t.Fatalf("request = %+v", req)
 	}
+	assertMapKeys(t, req.Body, "BytedToken", "ProjectName")
 	if got.GroupID != "group-1" || got.RequestID != "req-get" {
 		t.Fatalf("result = %+v", got)
 	}
@@ -123,6 +147,27 @@ func TestBytePlusClientGetVisualTrimsTokenAndMapsResult(t *testing.T) {
 		if strings.Contains(err.Error(), leaked) {
 			t.Fatalf("error leaked %q: %v", leaked, err)
 		}
+	}
+}
+
+func TestBytePlusClientGetVisualRejectsBlankTokenBeforeUpstream(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	_, err := client.GetVisualValidateResult(context.Background(), testAssetCreds(), "  ")
+	if err == nil {
+		t.Fatal("GetVisualValidateResult should reject blank byted token")
+	}
+	if strings.Contains(err.Error(), "token-1") || strings.Contains(err.Error(), "  ") {
+		t.Fatalf("error reflected byted token input: %v", err)
+	}
+	if atomic.LoadInt32(&calls) != 0 {
+		t.Fatalf("blank token reached upstream; calls=%d", calls)
 	}
 }
 
@@ -159,6 +204,8 @@ func TestBytePlusClientListAssetsSendsFilterAndMapsPagination(t *testing.T) {
 	if filter["GroupType"] != "LivenessFace" || filter["Name"] != "face" {
 		t.Fatalf("Filter = %#v", filter)
 	}
+	assertMapKeys(t, req.Body, "Filter", "PageNumber", "PageSize", "SortBy", "SortOrder", "ProjectName")
+	assertMapKeys(t, filter, "GroupIds", "GroupType", "Statuses", "Name")
 	assertStringSlice(t, filter["GroupIds"], []string{"group-1", "group-2"})
 	assertStringSlice(t, filter["Statuses"], []string{"Active"})
 	if req.Body["PageNumber"] != float64(3) || req.Body["PageSize"] != float64(20) || req.Body["SortBy"] != "CreateTime" || req.Body["SortOrder"] != "Desc" || req.Body["ProjectName"] != "project3" {
@@ -177,11 +224,9 @@ func TestBytePlusClientListAssetsSendsFilterAndMapsPagination(t *testing.T) {
 }
 
 func TestBytePlusClientDeleteAssetHandlesEmptyResultAndNotFoundClassification(t *testing.T) {
+	observed := make(chan bytePlusObservedRequest, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got := observeBytePlusRequest(r)
-		if got.Action != "DeleteAsset" || got.Body["Id"] != "asset-1" || got.Body["ProjectName"] != "project3" {
-			t.Errorf("request = %+v", got)
-		}
+		observed <- observeBytePlusRequest(r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-delete"},"Result":{}}`))
 	}))
@@ -192,6 +237,11 @@ func TestBytePlusClientDeleteAssetHandlesEmptyResultAndNotFoundClassification(t 
 	if err != nil {
 		t.Fatalf("DeleteAsset error: %v", err)
 	}
+	req := <-observed
+	if req.Action != "DeleteAsset" || req.Body["Id"] != "asset-1" || req.Body["ProjectName"] != "project3" {
+		t.Fatalf("request = %+v", req)
+	}
+	assertMapKeys(t, req.Body, "Id", "ProjectName")
 	if requestID != "req-delete" {
 		t.Fatalf("requestID = %q", requestID)
 	}
@@ -219,6 +269,48 @@ func TestBytePlusClientDeleteAssetHandlesEmptyResultAndNotFoundClassification(t 
 	}
 	if strings.Contains(err.Error(), "provider says missing") {
 		t.Fatalf("error leaked metadata message: %v", err)
+	}
+}
+
+func TestBytePlusClientDeleteAssetRejectsBlankIDBeforeUpstream(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	_, err := client.DeleteAsset(context.Background(), testAssetCreds(), "  ")
+	if err == nil {
+		t.Fatal("DeleteAsset should reject blank upstream asset id")
+	}
+	if strings.Contains(err.Error(), "asset-1") || strings.Contains(err.Error(), "  ") {
+		t.Fatalf("error reflected upstream asset id input: %v", err)
+	}
+	if atomic.LoadInt32(&calls) != 0 {
+		t.Fatalf("blank upstream asset id reached upstream; calls=%d", calls)
+	}
+}
+
+func TestBytePlusClientDeleteAssetNilContextIsLocalErrorBeforeUpstream(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	_, err := client.DeleteAsset(nil, testAssetCreds(), "asset-1")
+	if err == nil {
+		t.Fatal("DeleteAsset should reject nil context")
+	}
+	if isBytePlusDefinitiveResponse(err) {
+		t.Fatalf("nil context should not be definitive: %v", err)
+	}
+	if atomic.LoadInt32(&calls) != 0 {
+		t.Fatalf("nil context reached upstream; calls=%d", calls)
 	}
 }
 
@@ -275,6 +367,18 @@ func observeBytePlusRequest(r *http.Request) bytePlusObservedRequest {
 		ContentType: r.Header.Get("Content-Type"),
 		Body:        body,
 		Err:         err,
+	}
+}
+
+func assertMapKeys(t *testing.T, got map[string]any, want ...string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("keys(%#v) len = %d, want %d", got, len(got), len(want))
+	}
+	for _, key := range want {
+		if _, ok := got[key]; !ok {
+			t.Fatalf("keys(%#v) missing %q", got, key)
+		}
 	}
 }
 

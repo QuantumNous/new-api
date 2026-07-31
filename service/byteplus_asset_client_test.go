@@ -313,6 +313,31 @@ func TestBytePlusAssetClientClassifiesMalformedAndOversizeEnvelopeSafely(t *test
 	}
 }
 
+func TestBytePlusAssetClientClassifiesTargetEnvelopeDecodeFailureSafely(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-target-decode"},"Result":{"Id":{"Raw":"sk-example token-1"}}}`))
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	_, _, err := client.CreateAssetGroup(context.Background(), testAssetCreds(), "flatkey-group")
+	if err == nil {
+		t.Fatal("CreateAssetGroup should reject target envelope decode failure")
+	}
+	if !isBytePlusDefinitiveResponse(err) {
+		t.Fatalf("target decode failure should be definitive: %v", err)
+	}
+	if !strings.Contains(err.Error(), "req-target-decode") {
+		t.Fatalf("error should retain request id: %v", err)
+	}
+	for _, leaked := range []string{"sk-example", "token-1", "Raw", "Id"} {
+		if strings.Contains(err.Error(), leaked) {
+			t.Fatalf("error leaked %q: %v", leaked, err)
+		}
+	}
+}
+
 func testAssetCreds() BytePlusCredentials {
 	return BytePlusCredentials{
 		APIKey:          "ark-video-key",
