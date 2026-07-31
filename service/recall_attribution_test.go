@@ -567,6 +567,31 @@ func TestRecallAttributionMetricsKeepCurrenciesSeparate(t *testing.T) {
 	}, metrics.CurrencyMetrics)
 }
 
+func TestRecallRevenueServiceTotals(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	campaign, recipient := createRecallAttributionRecipient(t, "promo_revenue_service")
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", recipient.Id).Updates(map[string]any{
+		"state":               model.RecallRecipientConverted,
+		"converted_at":        int64(1_700_000_200),
+		"conversion_trade_no": "trade_revenue_service",
+		"conversion_currency": "USD",
+		"conversion_amount":   int64(9600),
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.TopUp{
+		UserId: recipient.UserId, TradeNo: "trade_revenue_service", PaymentProvider: model.PaymentProviderStripe,
+		Status: common.TopUpStatusSuccess, PaymentCurrency: "USD", PaymentAmountMinor: 1600,
+	}).Error)
+
+	totals, err := GetRecallRevenueTotals(context.Background(), campaign.Id)
+
+	require.NoError(t, err)
+	require.Equal(t, []model.RecallRevenueTotals{{
+		Currency: "USD", AttributedSpendMinor: 9600, AttributedUsers: 1,
+		NewExternalCashMinor: 9600, ExternalCashUsers: 1,
+		DirectTopupMinor: 9600, DirectTopupUsers: 1,
+	}}, totals)
+}
+
 func TestRecallAttributionMetricsAggregatesOpenedRecipientsInSQL(t *testing.T) {
 	db := setupRecallCampaignTestDB(t)
 	queries := captureRecallMetricSQL(t, db)
