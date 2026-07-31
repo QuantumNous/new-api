@@ -27,6 +27,7 @@ import type {
   SystemTaskResponse,
   UpdateOptionRequest,
   UpdateOptionResponse,
+  UpdateGroupOptionsRequest,
   UpstreamChannelsResponse,
   UpstreamRatiosResponse,
 } from './types'
@@ -38,6 +39,14 @@ export async function getSystemOptions() {
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
   const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  return res.data
+}
+
+/** 原子保存相互关联的分组配置。 */
+export async function updateGroupOptions(
+  request: UpdateGroupOptionsRequest
+): Promise<UpdateOptionResponse> {
+  const res = await api.put<UpdateOptionResponse>('/api/option/group', request)
   return res.data
 }
 

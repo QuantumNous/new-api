@@ -69,24 +69,31 @@ import {
 } from '@/components/ui/sheet'
 
 import { safeJsonParse } from '../utils/json-parser'
+import {
+  buildGroupPricingRows,
+  createGroupIdentifier,
+  createGroupPricingId,
+  groupPricingSignature,
+  normalizeRatio,
+  parseRatioMap,
+  parseUsableMap,
+  renameGroupIdentifierReferences,
+  serializeGroupPricingRows,
+  sourceGroupPricingSignature,
+  type GroupPricingRow,
+} from './group-pricing'
 
 type GroupRatioVisualEditorProps = {
   groupRatio: string
+  groupDisplayNames: string
   topupGroupRatio: string
   userUsableGroups: string
   groupGroupRatio: string
   autoGroups: string
   groupSpecialUsableGroup: string
+  savedGroupIdentifiers: string[]
+  onIdentifierValidityChange: (isValid: boolean) => void
   onChange: (field: string, value: string) => void
-}
-
-type GroupPricingRow = {
-  _id: string
-  name: string
-  ratio: string
-  topupRatio: string
-  selectable: boolean
-  description: string
 }
 
 type RegistryEntry = {
@@ -98,107 +105,12 @@ const sectionCardClassName =
   'relative shadow-sm ring-0 before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:border before:border-border/90'
 const sectionHeaderClassName = 'border-b bg-muted/20'
 
-let groupPricingIdCounter = 0
-function createGroupPricingId() {
-  groupPricingIdCounter += 1
-  return `gpr_${groupPricingIdCounter}`
-}
-
-function normalizeRatio(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 1
-}
-
-function parseRatioMap(value: string): Record<string, number> {
-  return safeJsonParse<Record<string, number>>(value, {
-    fallback: {},
-    silent: true,
-  })
-}
-
-function parseUsableMap(value: string): Record<string, string> {
-  return safeJsonParse<Record<string, string>>(value, {
-    fallback: {},
-    silent: true,
-  })
-}
-
 function parseNestedRatioMap(
   value: string
 ): Record<string, Record<string, number>> {
   return safeJsonParse<Record<string, Record<string, number>>>(value, {
     fallback: {},
     silent: true,
-  })
-}
-
-function buildGroupPricingRows(
-  groupRatio: string,
-  userUsableGroups: string,
-  topupGroupRatio: string
-): GroupPricingRow[] {
-  const ratioMap = parseRatioMap(groupRatio)
-  const usableMap = parseUsableMap(userUsableGroups)
-  const topupMap = parseRatioMap(topupGroupRatio)
-  const names = new Set([
-    ...Object.keys(ratioMap),
-    ...Object.keys(usableMap),
-    ...Object.keys(topupMap),
-  ])
-
-  return [...names].map((name) => ({
-    _id: createGroupPricingId(),
-    name,
-    ratio: String(normalizeRatio(ratioMap[name])),
-    topupRatio: Object.hasOwn(topupMap, name) ? String(topupMap[name]) : '',
-    selectable: Object.hasOwn(usableMap, name),
-    description: String(usableMap[name] ?? ''),
-  }))
-}
-
-function serializeGroupPricingRows(rows: GroupPricingRow[]) {
-  const groupRatio: Record<string, number> = {}
-  const userUsableGroups: Record<string, string> = {}
-  const topupGroupRatio: Record<string, number> = {}
-
-  for (const row of rows) {
-    const name = row.name.trim()
-    if (!name) continue
-    groupRatio[name] = normalizeRatio(row.ratio)
-    if (row.selectable) {
-      userUsableGroups[name] = row.description
-    }
-    const topup = row.topupRatio.trim()
-    if (topup !== '' && Number.isFinite(Number(topup))) {
-      topupGroupRatio[name] = Number(topup)
-    }
-  }
-
-  return {
-    GroupRatio: JSON.stringify(groupRatio, null, 2),
-    UserUsableGroups: JSON.stringify(userUsableGroups, null, 2),
-    TopupGroupRatio: JSON.stringify(topupGroupRatio, null, 2),
-  }
-}
-
-function groupPricingSignature(rows: GroupPricingRow[]): string {
-  const serialized = serializeGroupPricingRows(rows)
-  return JSON.stringify({
-    groupRatio: parseRatioMap(serialized.GroupRatio),
-    userUsableGroups: parseUsableMap(serialized.UserUsableGroups),
-    topupGroupRatio: parseRatioMap(serialized.TopupGroupRatio),
-  })
-}
-
-function sourceGroupPricingSignature(
-  groupRatio: string,
-  userUsableGroups: string,
-  topupGroupRatio: string
-): string {
-  return JSON.stringify({
-    groupRatio: parseRatioMap(groupRatio),
-    userUsableGroups: parseUsableMap(userUsableGroups),
-    topupGroupRatio: parseRatioMap(topupGroupRatio),
   })
 }
 
@@ -253,11 +165,14 @@ function GroupNameSelect(props: GroupNameSelectProps) {
 
 export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   groupRatio,
+  groupDisplayNames,
   topupGroupRatio,
   userUsableGroups,
   groupGroupRatio,
   autoGroups,
   groupSpecialUsableGroup,
+  savedGroupIdentifiers,
+  onIdentifierValidityChange,
   onChange,
 }: GroupRatioVisualEditorProps) {
   const { t } = useTranslation()
@@ -323,12 +238,40 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
     [registryNames, autoGroupsList]
   )
 
+  const handleIdentifierCommit = useCallback(
+    (previousIdentifier: string, nextIdentifier: string) => {
+      const renamed = renameGroupIdentifierReferences(
+        {
+          GroupGroupRatio: groupGroupRatio,
+          AutoGroups: autoGroups,
+          GroupSpecialUsableGroup: groupSpecialUsableGroup,
+        },
+        previousIdentifier,
+        nextIdentifier
+      )
+      if (renamed.GroupGroupRatio !== groupGroupRatio) {
+        onChange('GroupGroupRatio', renamed.GroupGroupRatio)
+      }
+      if (renamed.AutoGroups !== autoGroups) {
+        onChange('AutoGroups', renamed.AutoGroups)
+      }
+      if (renamed.GroupSpecialUsableGroup !== groupSpecialUsableGroup) {
+        onChange('GroupSpecialUsableGroup', renamed.GroupSpecialUsableGroup)
+      }
+    },
+    [autoGroups, groupGroupRatio, groupSpecialUsableGroup, onChange]
+  )
+
   return (
     <div className='space-y-4'>
       <GroupPricingTable
         groupRatio={groupRatio}
+        groupDisplayNames={groupDisplayNames}
         userUsableGroups={userUsableGroups}
         topupGroupRatio={topupGroupRatio}
+        savedGroupIdentifiers={savedGroupIdentifiers}
+        onIdentifierValidityChange={onIdentifierValidityChange}
+        onIdentifierCommit={handleIdentifierCommit}
         onChange={onChange}
         onShowDetail={setDetailGroup}
       />
@@ -418,27 +361,48 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
 
 type GroupPricingTableProps = {
   groupRatio: string
+  groupDisplayNames: string
   userUsableGroups: string
   topupGroupRatio: string
+  savedGroupIdentifiers: string[]
+  onIdentifierValidityChange: (isValid: boolean) => void
+  onIdentifierCommit: (
+    previousIdentifier: string,
+    nextIdentifier: string
+  ) => void
   onChange: (field: string, value: string) => void
   onShowDetail: (name: string) => void
 }
 
 function GroupPricingTable({
   groupRatio,
+  groupDisplayNames,
   userUsableGroups,
   topupGroupRatio,
+  savedGroupIdentifiers,
+  onIdentifierValidityChange,
+  onIdentifierCommit,
   onChange,
   onShowDetail,
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
+  const savedIdentifierSet = useMemo(
+    () => new Set(savedGroupIdentifiers),
+    [savedGroupIdentifiers]
+  )
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
-    buildGroupPricingRows(groupRatio, userUsableGroups, topupGroupRatio)
+    buildGroupPricingRows(
+      groupRatio,
+      groupDisplayNames,
+      userUsableGroups,
+      topupGroupRatio
+    )
   )
 
   useEffect(() => {
     const incomingSignature = sourceGroupPricingSignature(
       groupRatio,
+      groupDisplayNames,
       userUsableGroups,
       topupGroupRatio
     )
@@ -448,17 +412,19 @@ function GroupPricingTable({
       }
       return buildGroupPricingRows(
         groupRatio,
+        groupDisplayNames,
         userUsableGroups,
         topupGroupRatio
       )
     })
-  }, [groupRatio, userUsableGroups, topupGroupRatio])
+  }, [groupRatio, groupDisplayNames, userUsableGroups, topupGroupRatio])
 
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
       setRows(nextRows)
       const serialized = serializeGroupPricingRows(nextRows)
       onChange('GroupRatio', serialized.GroupRatio)
+      onChange('GroupDisplayNames', serialized.GroupDisplayNames)
       onChange('UserUsableGroups', serialized.UserUsableGroups)
       onChange('TopupGroupRatio', serialized.TopupGroupRatio)
     },
@@ -468,7 +434,10 @@ function GroupPricingTable({
   const updateRow = useCallback(
     (
       id: string,
-      field: Exclude<keyof GroupPricingRow, '_id'>,
+      field: Exclude<
+        keyof GroupPricingRow,
+        '_id' | 'identifier' | 'committedIdentifier'
+      >,
       value: string | number | boolean
     ) => {
       emitRows(
@@ -478,18 +447,67 @@ function GroupPricingTable({
     [emitRows, rows]
   )
 
+  const updateIdentifierDraft = useCallback((id: string, value: string) => {
+    setRows((currentRows) =>
+      currentRows.map((row) =>
+        row._id === id ? { ...row, identifier: value } : row
+      )
+    )
+  }, [])
+
+  const commitIdentifier = useCallback(
+    (id: string) => {
+      const row = rows.find((item) => item._id === id)
+      if (!row) return
+
+      const existingIdentifiers = new Set(
+        rows
+          .filter((item) => item._id !== id)
+          .map((item) => item.identifier.trim())
+      )
+      let nextIdentifier = row.identifier.trim()
+      if (!nextIdentifier) {
+        nextIdentifier = createGroupIdentifier()
+        while (existingIdentifiers.has(nextIdentifier)) {
+          nextIdentifier = createGroupIdentifier()
+        }
+      }
+      if (existingIdentifiers.has(nextIdentifier)) return
+
+      const nextRows = rows.map((item) =>
+        item._id === id
+          ? {
+              ...item,
+              identifier: nextIdentifier,
+              committedIdentifier: nextIdentifier,
+            }
+          : item
+      )
+      onIdentifierCommit(row.committedIdentifier, nextIdentifier)
+      emitRows(nextRows)
+    },
+    [emitRows, onIdentifierCommit, rows]
+  )
+
   const addRow = useCallback(() => {
     const existingNames = new Set(rows.map((row) => row.name))
+    const existingIdentifiers = new Set(rows.map((row) => row.identifier))
     let index = 1
     let name = `group_${index}`
     while (existingNames.has(name)) {
       index += 1
       name = `group_${index}`
     }
+    let identifier = createGroupIdentifier()
+    while (existingIdentifiers.has(identifier)) {
+      identifier = createGroupIdentifier()
+    }
     emitRows([
       ...rows,
       {
         _id: createGroupPricingId(),
+        identifier,
+        committedIdentifier: identifier,
         name,
         ratio: '1',
         topupRatio: '',
@@ -506,17 +524,24 @@ function GroupPricingTable({
     [emitRows, rows]
   )
 
-  const duplicateNames = useMemo(() => {
+  const duplicateIdentifiers = useMemo(() => {
     const counts = new Map<string, number>()
     for (const row of rows) {
-      const name = row.name.trim()
-      if (!name) continue
-      counts.set(name, (counts.get(name) ?? 0) + 1)
+      const identifier = row.identifier.trim()
+      if (!identifier) continue
+      counts.set(identifier, (counts.get(identifier) ?? 0) + 1)
     }
     return [...counts.entries()]
       .filter(([, count]) => count > 1)
-      .map(([name]) => name)
+      .map(([identifier]) => identifier)
   }, [rows])
+  const hasBlankIdentifier = rows.some((row) => !row.identifier.trim())
+
+  useEffect(() => {
+    onIdentifierValidityChange(
+      !hasBlankIdentifier && duplicateIdentifiers.length === 0
+    )
+  }, [duplicateIdentifiers, hasBlankIdentifier, onIdentifierValidityChange])
 
   return (
     <Card className={sectionCardClassName}>
@@ -526,7 +551,7 @@ function GroupPricingTable({
             <CardTitle>{t('Pricing groups')}</CardTitle>
             <CardDescription>
               {t(
-                'All group names live here. Ratio applies when calls are billed as this group; top-up ratio applies to users whose account is in this group.'
+                'Manage group display names, stable identifiers, ratios, and availability.'
               )}
             </CardDescription>
           </div>
@@ -554,9 +579,66 @@ function GroupPricingTable({
                     onChange={(event) =>
                       updateRow(row._id, 'name', event.target.value)
                     }
-                    aria-invalid={duplicateNames.includes(row.name.trim())}
+                    placeholder={row.identifier}
                   />
                 ),
+              },
+              {
+                id: 'identifier',
+                header: t('Group identifier'),
+                className: 'min-w-48',
+                cell: (row) => {
+                  if (savedIdentifierSet.has(row.committedIdentifier)) {
+                    return (
+                      <div className='flex h-8 min-w-0 items-center px-2.5'>
+                        <code
+                          className='block min-w-0 truncate font-mono text-sm'
+                          title={row.committedIdentifier}
+                        >
+                          {row.committedIdentifier}
+                        </code>
+                      </div>
+                    )
+                  }
+
+                  const identifier = row.identifier.trim()
+                  let identifierError: string | null = null
+                  if (!identifier) {
+                    identifierError = t('Group identifiers cannot be blank.')
+                  } else if (duplicateIdentifiers.includes(identifier)) {
+                    identifierError = t(
+                      'Duplicate group identifiers: {{identifiers}}',
+                      { identifiers: identifier }
+                    )
+                  }
+                  const identifierErrorId = `group-identifier-error-${row._id}`
+
+                  return (
+                    <div className='min-w-0 space-y-1'>
+                      <Input
+                        value={row.identifier}
+                        onChange={(event) =>
+                          updateIdentifierDraft(row._id, event.target.value)
+                        }
+                        onBlur={() => commitIdentifier(row._id)}
+                        aria-label={t('Group identifier')}
+                        aria-invalid={Boolean(identifierError)}
+                        aria-describedby={
+                          identifierError ? identifierErrorId : undefined
+                        }
+                      />
+                      {identifierError && (
+                        <p
+                          id={identifierErrorId}
+                          role='alert'
+                          className='text-destructive text-xs leading-4'
+                        >
+                          {identifierError}
+                        </p>
+                      )}
+                    </div>
+                  )
+                },
               },
               {
                 id: 'ratio',
@@ -636,8 +718,8 @@ function GroupPricingTable({
                     <Button
                       variant='ghost'
                       size='sm'
-                      onClick={() => onShowDetail(row.name.trim())}
-                      disabled={!row.name.trim()}
+                      onClick={() => onShowDetail(row.identifier.trim())}
+                      disabled={!row.identifier.trim()}
                       aria-label={t('Details')}
                     >
                       <Info className='h-4 w-4' />
@@ -655,14 +737,6 @@ function GroupPricingTable({
               },
             ]}
           />
-
-          {duplicateNames.length > 0 && (
-            <p className='text-destructive text-sm'>
-              {t('Duplicate group names: {{names}}', {
-                names: duplicateNames.join(', '),
-              })}
-            </p>
-          )}
         </div>
       </CardContent>
     </Card>

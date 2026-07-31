@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/http-client'
 
+import type { UserGroupInfo } from './group-options'
+
 export {
   applyAuthBundle,
   applyAuthRotation,
@@ -57,7 +59,7 @@ export async function getUserModels(): Promise<{
 export async function getUserGroups(): Promise<{
   success: boolean
   message?: string
-  data?: Record<string, { desc: string; ratio: number | string }>
+  data?: Record<string, UserGroupInfo>
 }> {
   const res = await api.get('/api/user/self/groups')
   return res.data

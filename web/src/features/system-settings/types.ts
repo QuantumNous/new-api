@@ -39,6 +39,30 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+/** 可通过原子接口保存的分组配置字段。 */
+export type GroupOptionKey =
+  | 'GroupRatio'
+  | 'GroupDisplayNames'
+  | 'TopupGroupRatio'
+  | 'UserUsableGroups'
+  | 'GroupGroupRatio'
+  | 'AutoGroups'
+  | 'DefaultUseAutoGroup'
+  | 'GroupSpecialUsableGroup'
+
+/** 原子保存分组配置所需的完整请求体。 */
+export type UpdateGroupOptionsRequest = {
+  GroupRatio: string
+  GroupDisplayNames: string
+  TopupGroupRatio: string
+  UserUsableGroups: string
+  GroupGroupRatio: string
+  AutoGroups: string
+  DefaultUseAutoGroup: boolean
+  GroupSpecialUsableGroup: string
+  changedKeys: GroupOptionKey[]
+}
+
 export type ConfirmPaymentComplianceResponse = {
   success: boolean
   message: string
@@ -220,6 +244,7 @@ export type ModelSettings = {
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
+  GroupDisplayNames: string
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
@@ -274,6 +299,7 @@ export type BillingSettings = {
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
+  GroupDisplayNames: string
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
