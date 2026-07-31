@@ -341,15 +341,31 @@ func deleteOrQueueBytePlusTempObject(ctx context.Context, object *model.BytePlus
 		return nil
 	}
 	now := bytePlusAssetUploadNow()
+	ok, err := model.ClaimBytePlusAssetTempObjectImmediateCleanup(object.Id, now)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return model.ErrAPIIdempotencyCASLost
+	}
 	if err := store.DeleteObject(ctx, object.ObjectKey); err != nil {
-		_, retryErr := model.RetryBytePlusAssetTempObjectCleanup(object.Id, object.CleanupLeaseUpdatedTime, now, now)
+		ok, retryErr := model.RetryBytePlusAssetTempObjectCleanup(object.Id, now, now, now)
 		if retryErr != nil {
 			return retryErr
 		}
+		if !ok {
+			return model.ErrAPIIdempotencyCASLost
+		}
 		return err
 	}
-	_, err := model.CompleteBytePlusAssetTempObjectCleanup(object.Id, object.CleanupLeaseUpdatedTime, now)
-	return err
+	ok, err = model.CompleteBytePlusAssetTempObjectCleanup(object.Id, now, now)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return model.ErrAPIIdempotencyCASLost
+	}
+	return nil
 }
 
 type bytePlusHashCountingReader struct {

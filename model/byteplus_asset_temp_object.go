@@ -139,6 +139,20 @@ func dueBytePlusTempObjectCleanupScope(db *gorm.DB, now, staleBefore int64) *gor
 	)
 }
 
+func ClaimBytePlusAssetTempObjectImmediateCleanup(id int64, now int64) (bool, error) {
+	result := DB.Model(&BytePlusAssetTempObject{}).
+		Where("id = ? AND asset_id IS NULL AND cleanup_status = ?", id, BytePlusTempObjectCleanupPending).
+		Updates(map[string]any{
+			"cleanup_status":             BytePlusTempObjectCleanupCleaning,
+			"cleanup_lease_updated_time": now,
+			"updated_time":               now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 type BytePlusRealPersonBacklogSnapshot struct {
 	DeletingCount                       int64
 	DeletingOldestUpdateAgeSeconds      int64

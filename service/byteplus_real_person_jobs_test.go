@@ -268,7 +268,7 @@ func TestSynchronousStaleOutcomeUnknownReplayLeavesScannerToReconcileBoundResour
 
 			require.NoError(t, result.Err)
 			require.Equal(t, 1, result.Processed)
-			require.Equal(t, []string{"byteplus real-person job row failed: idempotency_recovery"}, warnings)
+			require.Empty(t, warnings)
 			require.NoError(t, model.DB.First(&record, record.Id).Error)
 			require.Equal(t, model.APIIdempotencyStatusOutcomeUnknown, record.Status)
 			tc.assertFailed(t)
@@ -278,7 +278,7 @@ func TestSynchronousStaleOutcomeUnknownReplayLeavesScannerToReconcileBoundResour
 
 			require.NoError(t, result.Err)
 			require.Zero(t, result.Processed)
-			require.Equal(t, []string{"byteplus real-person job row failed: idempotency_recovery"}, warnings)
+			require.Empty(t, warnings)
 			require.EqualValues(t, beforeOutcomeUnknown+1, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_outcome_unknown_total", map[string]string{"resource": tc.resourceType}))
 		})
 	}

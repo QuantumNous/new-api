@@ -132,6 +132,8 @@ func TestBytePlusMultipartCleanupUsesSingleMetadataLeaseTimestamp(t *testing.T) 
 	var stored model.BytePlusAssetTempObject
 	require.NoError(t, model.DB.First(&stored, "object_key = ?", store.puts[0].key).Error)
 	require.Equal(t, model.BytePlusTempObjectCleanupCleaned, stored.CleanupStatus)
+	require.Equal(t, int64(0), stored.CleanupLeaseUpdatedTime)
+	require.GreaterOrEqual(t, stored.CleanedTime, int64(2000))
 }
 
 func TestBytePlusMultipartOversizeFileWinsOverMissingPostFileMetadata(t *testing.T) {
@@ -263,8 +265,32 @@ func TestBytePlusMultipartSecondFileDoesNotUploadSecondAndCleanupFailureLeavesPe
 	require.NoError(t, model.DB.First(&stored, "object_key = ?", store.puts[0].key).Error)
 	require.Nil(t, stored.AssetId)
 	require.Equal(t, model.BytePlusTempObjectCleanupPending, stored.CleanupStatus)
-	require.LessOrEqual(t, stored.NextCleanupAt, bytePlusAssetUploadNow())
+	require.Equal(t, int64(2000), stored.NextCleanupAt)
 	require.Equal(t, int64(0), stored.CleanupLeaseUpdatedTime)
+}
+
+func TestBytePlusMultipartImmediateCleanupCASMissReturnsError(t *testing.T) {
+	newBytePlusMultipartTestDB(t)
+	object, err := model.CreateBytePlusAssetTempObject(model.BytePlusAssetTempObject{
+		UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "cas-miss",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, CleanupLeaseUpdatedTime: 0,
+		CreatedTime: 100, UpdatedTime: 100,
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.BytePlusAssetTempObject{}).Where("id = ?", object.Id).Updates(map[string]any{
+		"cleanup_status":             model.BytePlusTempObjectCleanupCleaning,
+		"cleanup_lease_updated_time": int64(1999),
+	}).Error)
+	store := &fakeBytePlusTempObjectStore{}
+
+	err = deleteOrQueueBytePlusTempObject(context.Background(), object, store)
+
+	require.ErrorIs(t, err, model.ErrAPIIdempotencyCASLost)
+	require.Empty(t, store.deletes)
+	var stored model.BytePlusAssetTempObject
+	require.NoError(t, model.DB.First(&stored, object.Id).Error)
+	require.Equal(t, model.BytePlusTempObjectCleanupCleaning, stored.CleanupStatus)
+	require.Equal(t, int64(1999), stored.CleanupLeaseUpdatedTime)
 }
 
 func TestBytePlusMultipartSizeBoundaries(t *testing.T) {
