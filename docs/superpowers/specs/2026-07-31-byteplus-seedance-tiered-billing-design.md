@@ -134,8 +134,11 @@ by `total_tokens / 1,000,000`.
 5. Task submission applies that ratio to pre-consumption and stores
    `ModelRatio`, `GroupRatio`, and `OtherRatios` in the billing snapshot.
 6. When the completed task reports a positive `total_tokens`, existing task
-   settlement calculates the authoritative quota with the formula above and
-   charges or refunds the difference from pre-consumption.
+   settlement reloads the currently configured public-model `ModelRatio`,
+   combines it with the snapshotted `GroupRatio` and `OtherRatios`, calculates
+   the authoritative quota with the formula above, and charges or refunds the
+   difference from pre-consumption. Operationally, an in-flight task settles
+   with the `ModelRatio` effective at completion.
 
 No schema change and no generic settlement change are required. BytePlus's
 model table and `EstimateBilling` override stay request-local and stateless, so
