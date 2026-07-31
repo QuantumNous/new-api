@@ -35,6 +35,22 @@ func TestAPIIdempotencySchemaScopesKeyByUserRouteAndHash(t *testing.T) {
 	require.Error(t, db.Create(&duplicate).Error)
 }
 
+func TestAPIIdempotencyPublicContractAliases(t *testing.T) {
+	require.Equal(t, "verification_session", APIIdempotencyResourceTypeVerificationSession)
+	require.Equal(t, "asset", APIIdempotencyResourceTypeAsset)
+	require.Equal(t, APIIdempotencyResourceTypeVerificationSession, APIIdempotencyResourceVerificationSession)
+	require.Equal(t, APIIdempotencyResourceTypeAsset, APIIdempotencyResourceAsset)
+
+	require.Equal(t, APIIdempotencyDecision("owner"), APIIdempotencyDecisionOwner)
+	require.Equal(t, APIIdempotencyDecision("in_progress"), APIIdempotencyDecisionInProgress)
+	require.Equal(t, APIIdempotencyDecision("resume"), APIIdempotencyDecisionResume)
+	require.Equal(t, APIIdempotencyDecision("replay"), APIIdempotencyDecisionReplay)
+	require.Equal(t, APIIdempotencyDecision("conflict"), APIIdempotencyDecisionConflict)
+	require.Equal(t, APIIdempotencyDecision("outcome_unknown"), APIIdempotencyDecisionOutcomeUnknown)
+	require.Equal(t, APIIdempotencyDecisionOwner, DecisionOwner)
+	require.Equal(t, APIIdempotencyDecisionOutcomeUnknown, DecisionOutcomeUnknown)
+}
+
 func TestClaimAPIIdempotencyConcurrentOwnerExactlyOnce(t *testing.T) {
 	newBytePlusRealPersonTestDB(t)
 	var owners atomic.Int64
@@ -105,6 +121,23 @@ func TestClaimAPIIdempotencyReplaysCompletedFailed(t *testing.T) {
 	require.NotContains(t, claim.Record.ResponsePayload, "verification_url")
 }
 
+func TestClaimAPIIdempotencyReplaysFailedPublicPayload(t *testing.T) {
+	db := newBytePlusRealPersonTestDB(t)
+	payload, err := common.Marshal(map[string]any{"id": "rvs_public", "status": "failed"})
+	require.NoError(t, err)
+	require.NotContains(t, string(payload), "verification_url")
+	record := APIIdempotencyRecord{UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64), Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceVerificationSession, ResourcePublicId: "rvs_public", LeaseUpdatedTime: 100}
+	require.NoError(t, db.Create(&record).Error)
+	require.NoError(t, FailAPIIdempotency(record.Id, record.LeaseUpdatedTime, "rvs_public", 502, string(payload), 101))
+
+	claim, err := ClaimAPIIdempotency(7, "/route", record.KeyHash, record.RequestHash, record.ResourceType, 102, 50, 1000)
+	require.NoError(t, err)
+	require.Equal(t, DecisionReplay, claim.Decision)
+	require.Equal(t, APIIdempotencyStatusFailed, claim.Record.Status)
+	require.Equal(t, 502, claim.Record.ResponseStatus)
+	require.NotContains(t, claim.Record.ResponsePayload, "verification_url")
+}
+
 func TestClaimAPIIdempotencyStaleProcessingWithResourceResumes(t *testing.T) {
 	db := newBytePlusRealPersonTestDB(t)
 	profile := BytePlusRealPersonProfile{PublicId: "rph_original", UserId: 7, Name: "p", Status: BytePlusRealPersonProfileStatusPendingVerification}
@@ -154,6 +187,84 @@ func TestAPIIdempotencyStrictCASErrorRowsAffected(t *testing.T) {
 
 	require.NoError(t, db.Model(&APIIdempotencyRecord{}).Where("id = ?", record.Id).Updates(map[string]any{"resource_public_id": "ast_original"}).Error)
 	require.ErrorIs(t, CompleteAPIIdempotency(record.Id, 100, "ast_other", 200, "{}", 101), ErrAPIIdempotencyCASLost)
+}
+
+func TestBindAPIIdempotencyResourceTxRejectsBlankPublicID(t *testing.T) {
+	for _, publicID := range []string{"", "   "} {
+		t.Run("blank_"+strings.ReplaceAll(publicID, " ", "_"), func(t *testing.T) {
+			db := newBytePlusRealPersonTestDB(t)
+			record := APIIdempotencyRecord{UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64), Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceVerificationSession, LeaseUpdatedTime: 100}
+			require.NoError(t, db.Create(&record).Error)
+
+			err := db.Transaction(func(tx *gorm.DB) error {
+				return BindAPIIdempotencyResourceTx(tx, record.Id, record.LeaseUpdatedTime, publicID, 101)
+			})
+			require.Error(t, err)
+			require.NoError(t, db.First(&record, record.Id).Error)
+			require.Empty(t, record.ResourcePublicId)
+		})
+	}
+}
+
+func TestBindAPIIdempotencyResourceTxBindsExactPublicID(t *testing.T) {
+	db := newBytePlusRealPersonTestDB(t)
+	record := APIIdempotencyRecord{UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64), Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceVerificationSession, LeaseUpdatedTime: 100}
+	require.NoError(t, db.Create(&record).Error)
+
+	require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
+		return BindAPIIdempotencyResourceTx(tx, record.Id, record.LeaseUpdatedTime, "rvs_exact", 101)
+	}))
+	require.NoError(t, db.First(&record, record.Id).Error)
+	require.Equal(t, "rvs_exact", record.ResourcePublicId)
+}
+
+func TestCompleteFailAPIIdempotencyRejectUnsafeSourceStatuses(t *testing.T) {
+	for _, status := range []string{
+		APIIdempotencyStatusReceiving,
+		APIIdempotencyStatusCompleted,
+		APIIdempotencyStatusFailed,
+		APIIdempotencyStatusOutcomeUnknown,
+	} {
+		t.Run(status, func(t *testing.T) {
+			db := newBytePlusRealPersonTestDB(t)
+			record := APIIdempotencyRecord{
+				UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64),
+				Status: status, ResourceType: APIIdempotencyResourceAsset, ResourcePublicId: "ast_original",
+				ResponseStatus: 202, ResponsePayload: `{"id":"ast_original"}`, LeaseUpdatedTime: 100,
+			}
+			require.NoError(t, db.Create(&record).Error)
+
+			require.ErrorIs(t, CompleteAPIIdempotency(record.Id, record.LeaseUpdatedTime, "ast_original", 200, `{"id":"ast_changed"}`, 101), ErrAPIIdempotencyCASLost)
+			require.ErrorIs(t, FailAPIIdempotency(record.Id, record.LeaseUpdatedTime, "ast_original", 500, `{"id":"ast_failed"}`, 102), ErrAPIIdempotencyCASLost)
+			require.NoError(t, db.First(&record, record.Id).Error)
+			require.Equal(t, status, record.Status)
+			require.Equal(t, 202, record.ResponseStatus)
+			require.Equal(t, `{"id":"ast_original"}`, record.ResponsePayload)
+			require.Equal(t, "ast_original", record.ResourcePublicId)
+		})
+	}
+}
+
+func TestCompleteFailAPIIdempotencyAcceptProcessingAndCallingUpstream(t *testing.T) {
+	for _, status := range []string{APIIdempotencyStatusProcessing, APIIdempotencyStatusCallingUpstream} {
+		t.Run("complete_"+status, func(t *testing.T) {
+			db := newBytePlusRealPersonTestDB(t)
+			record := APIIdempotencyRecord{UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64), Status: status, ResourceType: APIIdempotencyResourceAsset, ResourcePublicId: "ast_original", LeaseUpdatedTime: 100}
+			require.NoError(t, db.Create(&record).Error)
+			require.NoError(t, CompleteAPIIdempotency(record.Id, record.LeaseUpdatedTime, "ast_original", 200, `{"id":"ast_original"}`, 101))
+			require.NoError(t, db.First(&record, record.Id).Error)
+			require.Equal(t, APIIdempotencyStatusCompleted, record.Status)
+		})
+
+		t.Run("fail_"+status, func(t *testing.T) {
+			db := newBytePlusRealPersonTestDB(t)
+			record := APIIdempotencyRecord{UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64), Status: status, ResourceType: APIIdempotencyResourceAsset, ResourcePublicId: "ast_original", LeaseUpdatedTime: 100}
+			require.NoError(t, db.Create(&record).Error)
+			require.NoError(t, FailAPIIdempotency(record.Id, record.LeaseUpdatedTime, "ast_original", 500, `{"id":"ast_original"}`, 101))
+			require.NoError(t, db.First(&record, record.Id).Error)
+			require.Equal(t, APIIdempotencyStatusFailed, record.Status)
+		})
+	}
 }
 
 func TestMarkStaleAPIIdempotencyOutcomeUnknownOnlyReturnsUpdatedRows(t *testing.T) {

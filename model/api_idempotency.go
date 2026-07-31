@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -16,22 +17,33 @@ const (
 	APIIdempotencyStatusFailed          = "Failed"
 	APIIdempotencyStatusOutcomeUnknown  = "OutcomeUnknown"
 
-	APIIdempotencyResourceVerificationSession = "verification_session"
-	APIIdempotencyResourceAsset               = "asset"
+	APIIdempotencyResourceTypeVerificationSession = "verification_session"
+	APIIdempotencyResourceTypeAsset               = "asset"
+
+	APIIdempotencyResourceVerificationSession = APIIdempotencyResourceTypeVerificationSession
+	APIIdempotencyResourceAsset               = APIIdempotencyResourceTypeAsset
 )
 
 type APIIdempotencyDecision string
 
 const (
-	DecisionOwner          APIIdempotencyDecision = "owner"
-	DecisionInProgress     APIIdempotencyDecision = "in_progress"
-	DecisionResume         APIIdempotencyDecision = "resume"
-	DecisionReplay         APIIdempotencyDecision = "replay"
-	DecisionConflict       APIIdempotencyDecision = "conflict"
-	DecisionOutcomeUnknown APIIdempotencyDecision = "outcome_unknown"
+	APIIdempotencyDecisionOwner          APIIdempotencyDecision = "owner"
+	APIIdempotencyDecisionInProgress     APIIdempotencyDecision = "in_progress"
+	APIIdempotencyDecisionResume         APIIdempotencyDecision = "resume"
+	APIIdempotencyDecisionReplay         APIIdempotencyDecision = "replay"
+	APIIdempotencyDecisionConflict       APIIdempotencyDecision = "conflict"
+	APIIdempotencyDecisionOutcomeUnknown APIIdempotencyDecision = "outcome_unknown"
+
+	DecisionOwner          = APIIdempotencyDecisionOwner
+	DecisionInProgress     = APIIdempotencyDecisionInProgress
+	DecisionResume         = APIIdempotencyDecisionResume
+	DecisionReplay         = APIIdempotencyDecisionReplay
+	DecisionConflict       = APIIdempotencyDecisionConflict
+	DecisionOutcomeUnknown = APIIdempotencyDecisionOutcomeUnknown
 )
 
 var ErrAPIIdempotencyCASLost = errors.New("api idempotency lease was superseded")
+var ErrAPIIdempotencyBlankResourcePublicID = errors.New("api idempotency resource public id is required")
 
 type APIIdempotencyClaim struct {
 	Record   *APIIdempotencyRecord
@@ -157,6 +169,9 @@ func claimExistingAPIIdempotency(userID int, route, keyHash, requestHash string,
 }
 
 func BindAPIIdempotencyResourceTx(tx *gorm.DB, recordID int64, leaseUpdatedTime int64, publicID string, now int64) error {
+	if strings.TrimSpace(publicID) == "" {
+		return ErrAPIIdempotencyBlankResourcePublicID
+	}
 	updated := tx.Model(&APIIdempotencyRecord{}).
 		Where("id = ? AND status = ? AND lease_updated_time = ? AND resource_public_id = ?", recordID, APIIdempotencyStatusProcessing, leaseUpdatedTime, "").
 		Updates(map[string]interface{}{
@@ -193,7 +208,7 @@ func FailAPIIdempotency(recordID int64, leaseUpdatedTime int64, publicID string,
 
 func finishAPIIdempotency(recordID int64, leaseUpdatedTime int64, publicID string, responseStatus int, responsePayload string, now int64, status string) error {
 	updated := DB.Model(&APIIdempotencyRecord{}).
-		Where("id = ? AND lease_updated_time = ? AND (resource_public_id = ? OR resource_public_id = ?)", recordID, leaseUpdatedTime, "", publicID).
+		Where("id = ? AND status IN ? AND lease_updated_time = ? AND (resource_public_id = ? OR resource_public_id = ?)", recordID, []string{APIIdempotencyStatusProcessing, APIIdempotencyStatusCallingUpstream}, leaseUpdatedTime, "", publicID).
 		Updates(map[string]interface{}{
 			"status":             status,
 			"resource_public_id": publicID,
