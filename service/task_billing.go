@@ -44,6 +44,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		other["model_ratio"] = info.PriceData.ModelRatio
 	}
 	other["group_ratio"] = info.PriceData.GroupRatioInfo.GroupRatio
+	other["billing_usd_to_cny_rate"] = info.PriceData.EffectiveBillingUSDToCNYRate()
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
@@ -127,6 +128,7 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 			other["model_ratio"] = bc.ModelRatio
 		}
 		other["group_ratio"] = bc.GroupRatio
+		other["billing_usd_to_cny_rate"] = taskBillingUSDToCNYRate(bc)
 		if priceData := taskBillingContextPriceData(bc); priceData != nil {
 			for k, v := range priceData.OtherRatios() {
 				other[k] = v
@@ -139,6 +141,14 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		other["upstream_model_name"] = props.UpstreamModelName
 	}
 	return other
+}
+
+func taskBillingUSDToCNYRate(bc *model.TaskBillingContext) float64 {
+	if bc == nil {
+		return 1
+	}
+	priceData := types.PriceData{BillingUSDToCNYRate: bc.BillingUSDToCNYRate}
+	return priceData.EffectiveBillingUSDToCNYRate()
 }
 
 func taskBillingContextPriceData(bc *model.TaskBillingContext) *types.PriceData {
@@ -275,33 +285,37 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 
 	modelName := taskModelName(task)
 
-	// 获取模型价格和倍率
-	modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
-	// 只有配置了倍率(非固定价格)时才按 token 重新计费
-	if !hasRatioSetting || modelRatio <= 0 {
-		return
-	}
+	billingContext := task.PrivateData.BillingContext
+	var modelRatio float64
+	var finalGroupRatio float64
+	if billingContext != nil {
+		modelRatio = billingContext.ModelRatio
+		finalGroupRatio = billingContext.GroupRatio
+	} else {
+		// Legacy tasks without a billing context fall back to current settings.
+		var hasRatioSetting bool
+		modelRatio, hasRatioSetting, _ = ratio_setting.GetModelRatio(modelName)
+		if !hasRatioSetting {
+			return
+		}
 
-	// 获取用户和组的倍率信息
-	group := task.Group
-	if group == "" {
-		user, err := model.GetUserById(task.UserId, false)
-		if err == nil {
-			group = user.Group
+		group := task.Group
+		if group == "" {
+			user, err := model.GetUserById(task.UserId, false)
+			if err == nil {
+				group = user.Group
+			}
+		}
+		if group == "" {
+			return
+		}
+		finalGroupRatio = ratio_setting.GetGroupRatio(group)
+		if legacySpecialRatio, ok := ratio_setting.GetGroupGroupRatio(group, group); ok {
+			finalGroupRatio = legacySpecialRatio
 		}
 	}
-	if group == "" {
+	if modelRatio <= 0 {
 		return
-	}
-
-	groupRatio := ratio_setting.GetGroupRatio(group)
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
-	var finalGroupRatio float64
-	if hasUserGroupRatio {
-		finalGroupRatio = userGroupRatio
-	} else {
-		finalGroupRatio = groupRatio
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）
@@ -309,10 +323,11 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	if priceData := taskBillingContextPriceData(task.PrivateData.BillingContext); priceData != nil {
 		otherMultiplier = priceData.OtherRatioMultiplier()
 	}
+	billingUSDToCNYRate := taskBillingUSDToCNYRate(task.PrivateData.BillingContext)
 
-	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier（饱和转换，防止溢出成负数）
-	actualQuota, clamp := common.QuotaFromFloatChecked(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
+	// 计算实际应扣费额度: totalTokens * modelRatio * billing rate * groupRatio * otherMultiplier（饱和转换，防止溢出成负数）
+	actualQuota, clamp := common.QuotaFromFloatChecked(float64(totalTokens) * modelRatio * billingUSDToCNYRate * finalGroupRatio * otherMultiplier)
 
-	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
+	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, billingUSDToCNYRate=%.4f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, billingUSDToCNYRate, finalGroupRatio, otherMultiplier)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason, clamp)
 }

@@ -16,11 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  OFFICIAL_PRICE_CNY_RATE,
-  QUOTA_TYPE_VALUES,
-  TOKEN_UNIT_DIVISORS,
-} from '../constants'
+import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
 import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
 
@@ -104,7 +100,19 @@ function hasRatio(value: number | null | undefined): boolean {
   return value !== undefined && value !== null && Number.isFinite(Number(value))
 }
 
-/** Format model-catalog prices using the configured 1 CNY = 1 USD credit policy. */
+function convertUSDForDisplay(
+  amountInUSD: number,
+  showInCny: boolean,
+  billingUSDToCNYRate: number
+): number {
+  const rate =
+    billingUSDToCNYRate > 0 && Number.isFinite(billingUSDToCNYRate)
+      ? billingUSDToCNYRate
+      : 1
+  return showInCny ? amountInUSD * rate : amountInUSD
+}
+
+/** Format a model-catalog amount that has already been converted for display. */
 export function formatPricingCurrency(
   amount: number,
   showInCny: boolean,
@@ -127,7 +135,7 @@ export function formatPrice(
   tokenUnit: TokenUnit,
   showInCny = false,
   _priceRate = 1,
-  _usdExchangeRate = 1,
+  billingUSDToCNYRate = 1,
   selectedGroup?: string
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
@@ -137,28 +145,36 @@ export function formatPrice(
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
   const priceInUSD = calculateTokenPrice(model, type, displayGroupRatio)
-  const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
+  const price = convertUSDForDisplay(
+    priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit],
+    showInCny,
+    billingUSDToCNYRate
+  )
   return formatPricingCurrency(price, showInCny)
 }
 
 /**
  * Format the catalog base price before any group multiplier is applied.
  *
- * Official USD list prices use a fixed 7 CNY per USD comparison rate while
- * the active price continues to reflect the viewer's selected group.
+ * Official USD list prices use the configured billing exchange rate and no
+ * group multiplier.
  */
 export function formatOfficialPrice(
   model: PricingModel,
   type: PriceType,
-  tokenUnit: TokenUnit
+  tokenUnit: TokenUnit,
+  billingUSDToCNYRate = 1
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }
 
   const priceInUSD = calculateTokenPrice(model, type, 1)
-  const priceInCNY =
-    (priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]) * OFFICIAL_PRICE_CNY_RATE
+  const priceInCNY = convertUSDForDisplay(
+    priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit],
+    true,
+    billingUSDToCNYRate
+  )
   return formatPricingCurrency(priceInCNY, true)
 }
 
@@ -172,7 +188,7 @@ export function formatGroupPrice(
   tokenUnit: TokenUnit,
   showInCny = false,
   _priceRate = 1,
-  _usdExchangeRate = 1,
+  billingUSDToCNYRate = 1,
   groupRatio: Record<string, number>
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
@@ -181,7 +197,11 @@ export function formatGroupPrice(
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
   const priceInUSD = calculateTokenPrice(model, type, ratio)
-  const price = priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit]
+  const price = convertUSDForDisplay(
+    priceInUSD / TOKEN_UNIT_DIVISORS[tokenUnit],
+    showInCny,
+    billingUSDToCNYRate
+  )
   return formatPricingCurrency(price, showInCny)
 }
 
@@ -193,7 +213,7 @@ export function formatFixedPrice(
   group: string,
   showInCny = false,
   _priceRate = 1,
-  _usdExchangeRate = 1,
+  billingUSDToCNYRate = 1,
   groupRatio: Record<string, number>
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
@@ -202,7 +222,8 @@ export function formatFixedPrice(
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
   const priceInUSD = (model.model_price || 0) * ratio
-  return formatPricingCurrency(priceInUSD, showInCny, 4, 4)
+  const price = convertUSDForDisplay(priceInUSD, showInCny, billingUSDToCNYRate)
+  return formatPricingCurrency(price, showInCny, 4, 4)
 }
 
 /**
@@ -212,7 +233,7 @@ export function formatRequestPrice(
   model: PricingModel,
   showInCny = false,
   _priceRate = 1,
-  _usdExchangeRate = 1,
+  billingUSDToCNYRate = 1,
   selectedGroup?: string
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
@@ -222,15 +243,23 @@ export function formatRequestPrice(
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
   const priceInUSD = (model.model_price || 0) * displayGroupRatio
-  return formatPricingCurrency(priceInUSD, showInCny, 4, 4)
+  const price = convertUSDForDisplay(priceInUSD, showInCny, billingUSDToCNYRate)
+  return formatPricingCurrency(price, showInCny, 4, 4)
 }
 
-/** Format the catalog base request price in CNY at the fixed official rate. */
-export function formatOfficialRequestPrice(model: PricingModel): string {
+/** Format the catalog base request price in CNY at the billing rate. */
+export function formatOfficialRequestPrice(
+  model: PricingModel,
+  billingUSDToCNYRate = 1
+): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }
 
-  const priceInCNY = (model.model_price || 0) * OFFICIAL_PRICE_CNY_RATE
+  const priceInCNY = convertUSDForDisplay(
+    model.model_price || 0,
+    true,
+    billingUSDToCNYRate
+  )
   return formatPricingCurrency(priceInCNY, true, 4, 4)
 }

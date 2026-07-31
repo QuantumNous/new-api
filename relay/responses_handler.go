@@ -153,8 +153,12 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
 		originModelName := info.OriginModelName
 		originPriceData := info.PriceData
+		billingUSDToCNYRate := originPriceData.EffectiveBillingUSDToCNYRate()
+		if info.TieredBillingSnapshot != nil {
+			billingUSDToCNYRate = info.TieredBillingSnapshot.EffectiveBillingUSDToCNYRate()
+		}
 
-		_, err := helper.ModelPriceHelper(c, info, info.GetEstimatePromptTokens(), &types.TokenCountMeta{})
+		_, err := helper.ModelPriceHelperWithBillingRate(c, info, info.GetEstimatePromptTokens(), &types.TokenCountMeta{}, billingUSDToCNYRate)
 		if err != nil {
 			info.OriginModelName = originModelName
 			info.PriceData = originPriceData

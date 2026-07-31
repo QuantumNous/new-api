@@ -2,8 +2,7 @@
   "name": "new-api-web-workspace",
   "private": true,
   "workspaces": [
-    "default",
-    "classic"
+    "default"
   ],
   "catalog": {
     "@lobehub/icons": "^5.10.1",

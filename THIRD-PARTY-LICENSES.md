@@ -3,7 +3,7 @@
 This file summarizes direct third-party dependencies used by distributed builds of this project.
 It is an engineering compliance artifact and should be kept with Docker images, standalone binaries, frontend bundles, and Electron installers.
 
-Scope: direct dependencies from `go.mod`, `web/default/package.json`, `web/classic/package.json`, and `electron/package.json`.
+Scope: direct dependencies from `go.mod`, `web/default/package.json`, and `electron/package.json`.
 Transitive dependencies should be audited before a final external release.
 
 ## Dependency Inventory
@@ -141,56 +141,6 @@ Transitive dependencies should be audited before a final external release.
 | web/default | development | npm       | `shadcn`                                              | `3.8.5`                              | MIT                                                |
 | web/default | development | npm       | `typescript`                                          | `5.9.3`                              | Apache-2.0                                         |
 | web/default | development | npm       | `typescript-eslint`                                   | `8.58.1`                             | MIT                                                |
-| web/classic | production  | npm       | `@douyinfe/semi-icons`                                | `2.72.2`                             | MIT                                                |
-| web/classic | production  | npm       | `@douyinfe/semi-ui`                                   | `2.72.2`                             | MIT                                                |
-| web/classic | production  | npm       | `@lobehub/icons`                                      | `2.1.0`                              | MIT                                                |
-| web/classic | production  | npm       | `@visactor/react-vchart`                              | `1.8.11`                             | MIT                                                |
-| web/classic | production  | npm       | `@visactor/vchart`                                    | `1.8.11`                             | MIT                                                |
-| web/classic | production  | npm       | `@visactor/vchart-semi-theme`                         | `1.8.8`                              | MIT                                                |
-| web/classic | production  | npm       | `axios`                                               | `1.15.0`                             | MIT                                                |
-| web/classic | production  | npm       | `clsx`                                                | `2.1.1`                              | MIT                                                |
-| web/classic | production  | npm       | `dayjs`                                               | `1.11.13`                            | MIT                                                |
-| web/classic | production  | npm       | `history`                                             | `5.3.0`                              | MIT                                                |
-| web/classic | production  | npm       | `i18next`                                             | `23.16.8`                            | MIT                                                |
-| web/classic | production  | npm       | `i18next-browser-languagedetector`                    | `7.2.2`                              | MIT                                                |
-| web/classic | production  | npm       | `katex`                                               | `0.16.22`                            | MIT                                                |
-| web/classic | production  | npm       | `lucide-react`                                        | `0.511.0`                            | ISC                                                |
-| web/classic | production  | npm       | `marked`                                              | `4.3.0`                              | MIT                                                |
-| web/classic | production  | npm       | `mermaid`                                             | `11.6.0`                             | MIT                                                |
-| web/classic | production  | npm       | `qrcode.react`                                        | `4.2.0`                              | ISC                                                |
-| web/classic | production  | npm       | `react`                                               | `18.3.1`                             | MIT                                                |
-| web/classic | production  | npm       | `react-dom`                                           | `18.3.1`                             | MIT                                                |
-| web/classic | production  | npm       | `react-dropzone`                                      | `14.3.5`                             | MIT                                                |
-| web/classic | production  | npm       | `react-fireworks`                                     | `1.0.4`                              | ISC                                                |
-| web/classic | production  | npm       | `react-i18next`                                       | `13.5.0`                             | MIT                                                |
-| web/classic | production  | npm       | `react-icons`                                         | `5.5.0`                              | MIT                                                |
-| web/classic | production  | npm       | `react-markdown`                                      | `10.1.0`                             | MIT                                                |
-| web/classic | production  | npm       | `react-router-dom`                                    | `6.28.1`                             | MIT                                                |
-| web/classic | production  | npm       | `react-telegram-login`                                | `1.1.2`                              | MIT                                                |
-| web/classic | production  | npm       | `react-toastify`                                      | `9.1.3`                              | MIT                                                |
-| web/classic | production  | npm       | `react-turnstile`                                     | `1.1.4`                              | MIT                                                |
-| web/classic | production  | npm       | `rehype-highlight`                                    | `7.0.2`                              | MIT                                                |
-| web/classic | production  | npm       | `rehype-katex`                                        | `7.0.1`                              | MIT                                                |
-| web/classic | production  | npm       | `remark-breaks`                                       | `4.0.0`                              | MIT                                                |
-| web/classic | production  | npm       | `remark-gfm`                                          | `4.0.1`                              | MIT                                                |
-| web/classic | production  | npm       | `remark-math`                                         | `6.0.0`                              | MIT                                                |
-| web/classic | production  | npm       | `sse.js`                                              | `2.6.0`                              | Apache-2.0                                         |
-| web/classic | production  | npm       | `unist-util-visit`                                    | `5.0.0`                              | MIT                                                |
-| web/classic | production  | npm       | `use-debounce`                                        | `10.0.4`                             | MIT                                                |
-| web/classic | development | npm       | `@douyinfe/vite-plugin-semi`                          | `2.74.0-alpha.6`                     | MIT                                                |
-| web/classic | development | npm       | `@so1ve/prettier-config`                              | `3.1.0`                              | MIT                                                |
-| web/classic | development | npm       | `@vitejs/plugin-react`                                | `4.3.4`                              | MIT                                                |
-| web/classic | development | npm       | `autoprefixer`                                        | `10.4.21`                            | MIT                                                |
-| web/classic | development | npm       | `code-inspector-plugin`                               | `1.3.3`                              | MIT                                                |
-| web/classic | development | npm       | `eslint`                                              | `8.57.0`                             | MIT                                                |
-| web/classic | development | npm       | `eslint-plugin-header`                                | `3.1.1`                              | MIT                                                |
-| web/classic | development | npm       | `eslint-plugin-react-hooks`                           | `5.2.0`                              | MIT                                                |
-| web/classic | development | npm       | `i18next-cli`                                         | `1.15.0`                             | MIT                                                |
-| web/classic | development | npm       | `postcss`                                             | `8.5.3`                              | MIT                                                |
-| web/classic | development | npm       | `prettier`                                            | `3.4.2`                              | MIT                                                |
-| web/classic | development | npm       | `tailwindcss`                                         | `3.4.17`                             | MIT                                                |
-| web/classic | development | npm       | `typescript`                                          | `4.4.2`                              | Apache-2.0                                         |
-| web/classic | development | npm       | `vite`                                                | `5.4.11`                             | MIT                                                |
 | electron    | development | npm       | `cross-env`                                           | `7.0.3`                              | MIT                                                |
 | electron    | development | npm       | `electron`                                            | `39.8.5`                             | MIT                                                |
 | electron    | development | npm       | `electron-builder`                                    | `26.7.0`                             | MIT                                                |
@@ -372,4 +322,3 @@ this software, either in source code form or as a compiled binary, for any
 purpose, commercial or non-commercial, and by any means.
 
 For more information, please refer to https://unlicense.org/
-

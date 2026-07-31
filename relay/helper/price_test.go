@@ -10,6 +10,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -271,4 +272,163 @@ func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T)
 	require.Equal(t, "QuotaFromFloat", clamp.Op)
 	require.Equal(t, common.QuotaClampOverflow, clamp.Kind)
 	require.Nil(t, info.Billing)
+}
+
+func TestModelPriceHelperBillingRatePreConsume(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	savedRate := operation_setting.BillingUSDToCNYRate
+	savedModelPrices := ratio_setting.ModelPrice2JSONString()
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	savedGroupRatios := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		operation_setting.BillingUSDToCNYRate = savedRate
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedModelPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(savedGroupRatios))
+	})
+
+	operation_setting.BillingUSDToCNYRate = 7.3
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"billing-fixed-price":1}`))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"billing-ratio-price":2}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"billing-sale":0.05}`))
+
+	tests := []struct {
+		name         string
+		model        string
+		promptTokens int
+		wantUsePrice bool
+		wantQuota    int
+	}{
+		{
+			name:         "ratio pricing",
+			model:        "billing-ratio-price",
+			promptTokens: 1000,
+			wantUsePrice: false,
+			wantQuota:    730,
+		},
+		{
+			name:         "one dollar fixed price at five percent",
+			model:        "billing-fixed-price",
+			promptTokens: 1,
+			wantUsePrice: true,
+			wantQuota:    182500,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			info := &relaycommon.RelayInfo{
+				OriginModelName: tt.model,
+				UserGroup:       "billing-sale",
+				UsingGroup:      "billing-sale",
+			}
+
+			priceData, err := ModelPriceHelper(ctx, info, tt.promptTokens, &types.TokenCountMeta{})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.wantUsePrice, priceData.UsePrice)
+			require.Equal(t, 7.3, priceData.BillingUSDToCNYRate)
+			require.Equal(t, tt.wantQuota, priceData.QuotaToPreConsume)
+			require.Equal(t, tt.wantQuota, info.PriceData.QuotaToPreConsume)
+		})
+	}
+
+	operation_setting.BillingUSDToCNYRate = 99
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "billing-fixed-price",
+		UserGroup:       "billing-sale",
+		UsingGroup:      "billing-sale",
+	}
+	priceData, err := ModelPriceHelperWithBillingRate(ctx, info, 1, &types.TokenCountMeta{}, 7.3)
+	require.NoError(t, err)
+	require.Equal(t, 7.3, priceData.BillingUSDToCNYRate)
+	require.Equal(t, 182500, priceData.QuotaToPreConsume)
+}
+
+func TestModelPriceHelperPerCallPreservesInitialBillingRateAcrossGroupRetry(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	savedRate := operation_setting.BillingUSDToCNYRate
+	savedModelPrices := ratio_setting.ModelPrice2JSONString()
+	savedGroupRatios := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		operation_setting.BillingUSDToCNYRate = savedRate
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedModelPrices))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(savedGroupRatios))
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"billing-task-retry":1}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"billing-task-cheap":0.05,"billing-task-expensive":0.1}`))
+	operation_setting.BillingUSDToCNYRate = 7.3
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("auto_group", "billing-task-cheap")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "billing-task-retry",
+		UserGroup:       "billing-task-user",
+		UsingGroup:      "billing-task-cheap",
+	}
+
+	firstPriceData, err := ModelPriceHelperPerCall(ctx, info)
+	require.NoError(t, err)
+	require.Equal(t, 7.3, firstPriceData.BillingUSDToCNYRate)
+	require.Equal(t, 182500, firstPriceData.Quota)
+	info.PriceData = firstPriceData
+
+	operation_setting.BillingUSDToCNYRate = 99
+	ctx.Set("auto_group", "billing-task-expensive")
+	retryPriceData, err := ModelPriceHelperPerCall(ctx, info)
+
+	require.NoError(t, err)
+	require.Equal(t, 7.3, retryPriceData.BillingUSDToCNYRate)
+	require.Equal(t, 0.1, retryPriceData.GroupRatioInfo.GroupRatio)
+	require.Equal(t, 365000, retryPriceData.Quota)
+}
+
+func TestModelPriceHelperTieredFreezesBillingRate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	savedRate := operation_setting.BillingUSDToCNYRate
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() {
+		operation_setting.BillingUSDToCNYRate = savedRate
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+	})
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode":    `{"billing-tiered-rate":"tiered_expr"}`,
+		"billing_setting.billing_expr":    `{"billing-tiered-rate":"tier(\"base\", p * 1000)"}`,
+		"group_ratio_setting.group_ratio": `{"billing-sale":0.05}`,
+	}))
+	operation_setting.BillingUSDToCNYRate = 99
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "billing-tiered-rate",
+		UserGroup:       "billing-sale",
+		UsingGroup:      "billing-sale",
+		BillingRequestInput: &billingexpr.RequestInput{
+			Body: []byte(`{}`),
+		},
+	}
+
+	priceData, err := ModelPriceHelperWithBillingRate(ctx, info, 1000, &types.TokenCountMeta{}, 7.3)
+	require.NoError(t, err)
+	require.NotNil(t, info.TieredBillingSnapshot)
+	require.Equal(t, 7.3, info.TieredBillingSnapshot.BillingUSDToCNYRate)
+	require.Equal(t, 182500, priceData.QuotaToPreConsume)
+
+	operation_setting.BillingUSDToCNYRate = 123
+	settled, err := billingexpr.ComputeTieredQuota(info.TieredBillingSnapshot, billingexpr.TokenParams{P: 1000})
+
+	require.NoError(t, err)
+	require.Equal(t, 182500, settled.ActualQuotaAfterGroup)
+	require.Equal(t, priceData.QuotaToPreConsume, settled.ActualQuotaAfterGroup)
 }

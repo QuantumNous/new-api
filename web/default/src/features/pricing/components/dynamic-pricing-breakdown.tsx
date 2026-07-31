@@ -46,6 +46,10 @@ import {
 
 type DynamicPricingBreakdownProps = {
   billingExpr: string | null | undefined
+  /** Override the global display currency for catalog/detail views. */
+  displayCurrency?: 'USD' | 'CNY'
+  /** USD-to-CNY rate used by billing. Log views pass the frozen request value. */
+  billingUSDToCNYRate?: number
   /**
    * Label of the tier that fired for the current request. When provided,
    * the corresponding row is highlighted and tagged as "Matched". Used by
@@ -155,6 +159,8 @@ function describeGroup(
 
 export function DynamicPricingBreakdown({
   billingExpr,
+  displayCurrency,
+  billingUSDToCNYRate,
   matchedTierLabel,
   hideCacheColumns = false,
   compact = false,
@@ -162,10 +168,27 @@ export function DynamicPricingBreakdown({
   const { t } = useTranslation()
   const expr = billingExpr || ''
   const currency = useSystemConfigStore((s) => s.config.currency)
+  const validBillingRate =
+    billingUSDToCNYRate != null &&
+    billingUSDToCNYRate > 0 &&
+    Number.isFinite(billingUSDToCNYRate)
+      ? billingUSDToCNYRate
+      : null
 
   const { symbol, rate } = useMemo(() => {
+    if (displayCurrency === 'CNY') {
+      return { symbol: '¥', rate: validBillingRate ?? 1 }
+    }
+    if (displayCurrency === 'USD') {
+      return { symbol: '$', rate: 1 }
+    }
     if (currency.quotaDisplayType === 'CNY') {
-      return { symbol: '¥', rate: currency.usdExchangeRate || 7 }
+      const fallbackRate =
+        currency.usdExchangeRate > 0 &&
+        Number.isFinite(currency.usdExchangeRate)
+          ? currency.usdExchangeRate
+          : 1
+      return { symbol: '¥', rate: validBillingRate ?? fallbackRate }
     }
     if (currency.quotaDisplayType === 'CUSTOM') {
       return {
@@ -174,7 +197,7 @@ export function DynamicPricingBreakdown({
       }
     }
     return { symbol: '$', rate: 1 }
-  }, [currency])
+  }, [currency, displayCurrency, validBillingRate])
 
   const { tiers, ruleGroups } = useMemo(() => {
     const split = splitBillingExprAndRequestRules(expr)

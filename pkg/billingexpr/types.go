@@ -3,6 +3,7 @@ package billingexpr
 import (
 	"crypto/sha256"
 	"fmt"
+	"math"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -50,7 +51,15 @@ type BillingSnapshot struct {
 	EstimatedQuotaAfterGroup  int     `json:"estimated_quota_after_group"`
 	EstimatedTier             string  `json:"estimated_tier"`
 	QuotaPerUnit              float64 `json:"quota_per_unit"`
+	BillingUSDToCNYRate       float64 `json:"billing_usd_to_cny_rate"`
 	ExprVersion               int     `json:"expr_version"`
+}
+
+func (s *BillingSnapshot) EffectiveBillingUSDToCNYRate() float64 {
+	if s == nil || s.BillingUSDToCNYRate <= 0 || math.IsNaN(s.BillingUSDToCNYRate) || math.IsInf(s.BillingUSDToCNYRate, 0) {
+		return 1
+	}
+	return s.BillingUSDToCNYRate
 }
 
 // TieredResult holds everything needed after running tiered settlement.

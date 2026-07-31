@@ -70,6 +70,56 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	require.Equal(t, 1488, chatSummary.Quota)
 }
 
+func TestCalculateTextQuotaSummaryBillingRateSettlement(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	tests := []struct {
+		name      string
+		priceData types.PriceData
+		usage     *dto.Usage
+		wantQuota int
+	}{
+		{
+			name: "ratio pricing matches pre-consume formula",
+			priceData: types.PriceData{
+				ModelRatio:          2,
+				CompletionRatio:     1,
+				BillingUSDToCNYRate: 7.3,
+				GroupRatioInfo:      types.GroupRatioInfo{GroupRatio: 0.05},
+			},
+			usage:     &dto.Usage{PromptTokens: 1000, TotalTokens: 1000},
+			wantQuota: 730,
+		},
+		{
+			name: "one dollar fixed price becomes 0.365 yuan",
+			priceData: types.PriceData{
+				UsePrice:            true,
+				ModelPrice:          1,
+				BillingUSDToCNYRate: 7.3,
+				GroupRatioInfo:      types.GroupRatioInfo{GroupRatio: 0.05},
+			},
+			usage:     &dto.Usage{PromptTokens: 1, TotalTokens: 1},
+			wantQuota: 182500,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			relayInfo := &relaycommon.RelayInfo{
+				OriginModelName: "billing-rate-model",
+				PriceData:       tt.priceData,
+				StartTime:       time.Now(),
+			}
+
+			summary := calculateTextQuotaSummary(ctx, relayInfo, tt.usage)
+
+			require.Equal(t, 7.3, summary.BillingUSDToCNYRate)
+			require.Equal(t, tt.wantQuota, summary.Quota)
+		})
+	}
+}
+
 func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

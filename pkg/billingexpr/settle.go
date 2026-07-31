@@ -1,6 +1,11 @@
 package billingexpr
 
-import "github.com/QuantumNous/new-api/common"
+import (
+	"fmt"
+	"math"
+
+	"github.com/QuantumNous/new-api/common"
+)
 
 // quotaConversion converts raw expression output to quota based on the
 // expression version. This is the central dispatch point for future versions
@@ -8,7 +13,7 @@ import "github.com/QuantumNous/new-api/common"
 func quotaConversion(exprOutput float64, snap *BillingSnapshot) float64 {
 	switch snap.ExprVersion {
 	default: // v1: coefficients are $/1M tokens prices
-		return exprOutput / 1_000_000 * snap.QuotaPerUnit
+		return exprOutput / 1_000_000 * snap.QuotaPerUnit * snap.EffectiveBillingUSDToCNYRate()
 	}
 }
 
@@ -23,9 +28,16 @@ func ComputeTieredQuotaWithRequest(snap *BillingSnapshot, params TokenParams, re
 	if err != nil {
 		return TieredResult{}, err
 	}
+	if cost < 0 || math.IsNaN(cost) || math.IsInf(cost, 0) {
+		return TieredResult{}, fmt.Errorf("billing expression returned invalid cost: %v", cost)
+	}
 
 	quotaBeforeGroup := quotaConversion(cost, snap)
-	afterGroup, clamp := common.QuotaRoundChecked(quotaBeforeGroup * snap.GroupRatio)
+	quotaAfterGroup := quotaBeforeGroup * snap.GroupRatio
+	if quotaBeforeGroup < 0 || quotaAfterGroup < 0 || math.IsNaN(quotaAfterGroup) || math.IsInf(quotaAfterGroup, 0) {
+		return TieredResult{}, fmt.Errorf("billing expression produced invalid quota: before_group=%v group_ratio=%v", quotaBeforeGroup, snap.GroupRatio)
+	}
+	afterGroup, clamp := common.QuotaRoundChecked(quotaAfterGroup)
 	crossed := trace.MatchedTier != snap.EstimatedTier
 
 	return TieredResult{

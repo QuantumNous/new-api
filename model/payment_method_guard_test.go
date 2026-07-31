@@ -102,6 +102,62 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
 }
 
+func TestManualCompleteTopUp_PreservesProviderAmountUnits(t *testing.T) {
+	tests := []struct {
+		name      string
+		provider  string
+		amount    int64
+		money     float64
+		wantQuota int
+	}{
+		{
+			name:      "epay amount is account credit",
+			provider:  PaymentProviderEpay,
+			amount:    1,
+			money:     1,
+			wantQuota: int(common.QuotaPerUnit),
+		},
+		{
+			name:      "stripe money is credited account units",
+			provider:  PaymentProviderStripe,
+			amount:    1,
+			money:     2,
+			wantQuota: int(2 * common.QuotaPerUnit),
+		},
+		{
+			name:      "creem amount is already raw quota",
+			provider:  PaymentProviderCreem,
+			amount:    int64(common.QuotaPerUnit),
+			money:     1,
+			wantQuota: int(common.QuotaPerUnit),
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			truncateTables(t)
+			userID := 500 + i
+			tradeNo := "manual-topup-unit-" + tt.provider
+			insertUserForPaymentGuardTest(t, userID, 0)
+			topUp := &TopUp{
+				UserId:          userID,
+				Amount:          tt.amount,
+				Money:           tt.money,
+				TradeNo:         tradeNo,
+				PaymentMethod:   tt.provider,
+				PaymentProvider: tt.provider,
+				Status:          common.TopUpStatusPending,
+				CreateTime:      time.Now().Unix(),
+			}
+			require.NoError(t, topUp.Insert())
+
+			require.NoError(t, ManualCompleteTopUp(tradeNo, "127.0.0.1"))
+			assert.Equal(t, tt.wantQuota, getUserQuotaForPaymentGuardTest(t, userID))
+			assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+		})
+	}
+}
+
 func TestUpdatePendingTopUpStatus_RejectsMismatchedPaymentProvider(t *testing.T) {
 	testCases := []struct {
 		name                    string

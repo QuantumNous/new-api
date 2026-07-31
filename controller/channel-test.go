@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -540,17 +539,31 @@ func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usa
 		}
 	}
 
-	quota := 0
+	billingUSDToCNYRate := priceData.EffectiveBillingUSDToCNYRate()
+	groupRatio := priceData.GroupRatioInfo.GroupRatio
+	recordClamp := func(clamp *common.QuotaClamp) {
+		if clamp != nil && info != nil && info.QuotaClamp == nil {
+			info.QuotaClamp = clamp
+		}
+	}
+
 	if !priceData.UsePrice {
-		quota = usage.PromptTokens + int(math.Round(float64(usage.CompletionTokens)*priceData.CompletionRatio))
-		quota = int(math.Round(float64(quota) * priceData.ModelRatio))
-		if priceData.ModelRatio != 0 && quota <= 0 {
+		tokens := float64(usage.PromptTokens) + float64(usage.CompletionTokens)*priceData.CompletionRatio
+		multiplier := priceData.ModelRatio * billingUSDToCNYRate * groupRatio
+		quota, clamp := common.QuotaRoundChecked(tokens * multiplier)
+		recordClamp(clamp)
+		if multiplier != 0 && quota <= 0 {
 			quota = 1
 		}
 		return quota, nil
 	}
 
-	return int(priceData.ModelPrice * common.QuotaPerUnit), nil
+	quota, clamp := common.QuotaFromFloatChecked(priceData.ModelPrice * common.QuotaPerUnit * billingUSDToCNYRate * groupRatio)
+	recordClamp(clamp)
+	if priceData.ModelPrice != 0 && billingUSDToCNYRate != 0 && groupRatio != 0 && quota <= 0 {
+		quota = 1
+	}
+	return quota, nil
 }
 
 func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
@@ -558,6 +571,14 @@ func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData ty
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
 		service.InjectTieredBillingInfo(other, info, tieredResult)
+	}
+	if info != nil && info.QuotaClamp != nil {
+		adminInfo, ok := other["admin_info"].(map[string]interface{})
+		if !ok || adminInfo == nil {
+			adminInfo = map[string]interface{}{}
+			other["admin_info"] = adminInfo
+		}
+		adminInfo["quota_saturation"] = info.QuotaClamp.AuditMap()
 	}
 	return other
 }

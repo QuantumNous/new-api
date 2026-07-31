@@ -90,6 +90,21 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	}
 }
 
+// BuildRealtimeTieredTokenParams maps Realtime usage onto the same token
+// normalization used by other OpenAI-format responses.
+func BuildRealtimeTieredTokenParams(usage *dto.RealtimeUsage, usedVars map[string]bool) billingexpr.TokenParams {
+	if usage == nil {
+		return billingexpr.TokenParams{}
+	}
+	return BuildTieredTokenParams(&dto.Usage{
+		PromptTokens:           usage.InputTokens,
+		CompletionTokens:       usage.OutputTokens,
+		TotalTokens:            usage.TotalTokens,
+		PromptTokensDetails:    usage.InputTokenDetails,
+		CompletionTokenDetails: usage.OutputTokenDetails,
+	}, false, usedVars)
+}
+
 // TryTieredSettle checks if the request uses tiered_expr billing and, if so,
 // computes the actual quota using the frozen BillingSnapshot. Returns:
 //   - ok=true, quota, result  when tiered billing applies

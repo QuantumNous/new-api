@@ -6,7 +6,6 @@ import (
 	//"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,33 +18,9 @@ var Footer = ""
 var Logo = ""
 var TopUpLink = ""
 
-var themeValue atomic.Value // stores string; safe for concurrent read/write
-
-func init() {
-	themeValue.Store("classic")
-}
-
-func GetTheme() string {
-	return themeValue.Load().(string)
-}
-
-// SetTheme updates the frontend theme atomically.
-// Only "default" and "classic" are accepted; other values are silently ignored.
-func SetTheme(t string) {
-	if t == "default" || t == "classic" {
-		themeValue.Store(t)
-	}
-}
-
-// ThemeAwarePath rewrites legacy /console/* paths to the default-theme
-// equivalents when the active theme is "default".  For "classic" (or any
-// other theme) the path is returned unchanged.  The function only touches
-// known prefixes so it is safe to call with arbitrary suffixes and query
-// strings.
+// ThemeAwarePath rewrites known legacy /console/* paths to their default
+// frontend equivalents while preserving suffixes and query strings.
 func ThemeAwarePath(suffix string) string {
-	if GetTheme() != "default" {
-		return suffix
-	}
 	switch {
 	case strings.HasPrefix(suffix, "/console/topup"):
 		return strings.Replace(suffix, "/console/topup", "/wallet", 1)

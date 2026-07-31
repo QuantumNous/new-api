@@ -105,7 +105,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       })
     : null
   const officialDynamicSummary = isDynamicPricing
-    ? getOfficialDynamicPricingSummary(props.model, tokenUnit)
+    ? getOfficialDynamicPricingSummary(props.model, tokenUnit, usdExchangeRate)
     : null
 
   const visibleBadges = [...endpoints.slice(0, 2), ...tags.slice(0, 1)]
@@ -168,12 +168,14 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     const officialInputValue = formatOfficialPrice(
       props.model,
       'input',
-      tokenUnit
+      tokenUnit,
+      usdExchangeRate
     )
     const officialOutputValue = formatOfficialPrice(
       props.model,
       'output',
-      tokenUnit
+      tokenUnit,
+      usdExchangeRate
     )
 
     priceRows.push(
@@ -203,7 +205,8 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       const officialCachedValue = formatOfficialPrice(
         props.model,
         'cache',
-        tokenUnit
+        tokenUnit,
+        usdExchangeRate
       )
       priceRows.push({
         key: 'cache',
@@ -220,7 +223,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       usdExchangeRate,
       props.model.display_group
     )
-    const officialRequestValue = formatOfficialRequestPrice(props.model)
+    const officialRequestValue = formatOfficialRequestPrice(
+      props.model,
+      usdExchangeRate
+    )
     priceRows.push({
       key: 'request',
       label: t('Price'),

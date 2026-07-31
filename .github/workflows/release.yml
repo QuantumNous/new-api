@@ -38,15 +38,6 @@ jobs:
           cd default
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
-      - name: Build Frontend (classic)
-        env:
-          CI: ""
-        run: |
-          cd web
-          bun install --filter ./classic --frozen-lockfile
-          cd classic
-          VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ../..
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -98,15 +89,6 @@ jobs:
           cd default
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
-      - name: Build Frontend (classic)
-        env:
-          CI: ""
-        run: |
-          cd web
-          bun install --filter ./classic --frozen-lockfile
-          cd classic
-          VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ../..
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -154,15 +136,6 @@ jobs:
           bun install --frozen-lockfile
           cd default
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ../..
-      - name: Build Frontend (classic)
-        env:
-          CI: ""
-        run: |
-          cd web
-          bun install --filter ./classic --frozen-lockfile
-          cd classic
-          VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0

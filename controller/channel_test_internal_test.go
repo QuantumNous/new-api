@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -42,6 +43,57 @@ func TestSettleTestQuotaUsesTieredBilling(t *testing.T) {
 	require.Equal(t, 1500, quota)
 	require.NotNil(t, result)
 	require.Equal(t, "stream", result.MatchedTier)
+}
+
+func TestSettleTestQuotaAppliesBillingRateAndGroupRatio(t *testing.T) {
+	info := &relaycommon.RelayInfo{}
+	usage := &dto.Usage{PromptTokens: 1000, TotalTokens: 1000}
+
+	ratioQuota, result := settleTestQuota(info, types.PriceData{
+		ModelRatio:          2,
+		CompletionRatio:     1,
+		BillingUSDToCNYRate: 7.3,
+		GroupRatioInfo:      types.GroupRatioInfo{GroupRatio: 0.05},
+	}, usage)
+	require.Nil(t, result)
+	require.Equal(t, 730, ratioQuota)
+
+	fixedQuota, result := settleTestQuota(info, types.PriceData{
+		UsePrice:            true,
+		ModelPrice:          1,
+		BillingUSDToCNYRate: 7.3,
+		GroupRatioInfo:      types.GroupRatioInfo{GroupRatio: 0.05},
+	}, usage)
+	require.Nil(t, result)
+	require.Equal(t, 182500, fixedQuota)
+}
+
+func TestSettleTestQuotaSaturatesOverflow(t *testing.T) {
+	priceData := types.PriceData{
+		UsePrice:            true,
+		ModelPrice:          math.MaxFloat64,
+		BillingUSDToCNYRate: 7.3,
+		GroupRatioInfo:      types.GroupRatioInfo{GroupRatio: 1},
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+		PriceData:   priceData,
+	}
+	usage := &dto.Usage{PromptTokens: 1, TotalTokens: 1}
+
+	quota, result := settleTestQuota(info, priceData, usage)
+
+	require.Nil(t, result)
+	require.Equal(t, common.MaxQuota, quota)
+	require.NotNil(t, info.QuotaClamp)
+	require.Equal(t, common.QuotaClampOverflow, info.QuotaClamp.Kind)
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	other := buildTestLogOther(ctx, info, priceData, usage, nil)
+	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	require.True(t, ok)
+	require.NotNil(t, adminInfo["quota_saturation"])
 }
 
 func TestBuildTestLogOtherInjectsTieredInfo(t *testing.T) {

@@ -20,7 +20,7 @@
 
 生产阶段推荐应用 Docker Compose + 1Panel 数据服务：
 
-- Dockerfile 同时构建 default/classic 前端和 Go 后端。
+- Dockerfile 同时构建 default 前端和 Go 后端。
 - docker-compose.1panel.yml 只负责应用和日志/数据目录；PostgreSQL、Redis 由 1Panel 继续管理。
 - 1Panel 的 PostgreSQL/Redis 通过 external `1panel-network` 提供给应用，避免重复启动数据库和缓存。
 - .env 只放在服务器，不提交 Git，也不放进镜像。
@@ -132,7 +132,6 @@ make dev-api          启动 docker-compose.dev.yml
 make dev-api-rebuild  重建开发后端容器
 make start-api        原生启动 Go 后端
 make dev-web          启动 default 前端
-make dev-web-classic  启动 classic 前端
 make dev              启动开发后端和 default 前端
 ```
 
@@ -344,15 +343,6 @@ cd /opt/new-api
 docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml build --pull
 docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml up -d --remove-orphans
 ```
-
-内存较小的服务器（例如 2 GiB）建议跳过 classic 前端构建，避免两个 Node 构建阶段占满内存：
-
-```bash
-docker compose --env-file /etc/new-api/new-api.env -f docker-compose.1panel.yml \
-  build --build-arg BUILD_CLASSIC=false --pull
-```
-
-此模式保留 default 前端和完整后端能力，classic 前端使用占位资源；内存升级后可移除该参数重新构建。
 
 不要在服务器执行 `docker compose down -v`。服务器编排不管理 PostgreSQL/Redis 数据卷，但该命令仍可能删除应用 Compose 卷；1Panel 数据库和 Redis 的数据卷由 1Panel 管理。
 

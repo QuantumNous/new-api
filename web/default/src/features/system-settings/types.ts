@@ -107,7 +107,6 @@ export type SystemTaskListResponse = {
 }
 
 export type SiteSettings = {
-  'theme.frontend': string
   Notice: string
   SystemName: string
   Logo: string
@@ -255,6 +254,7 @@ export type BillingSettings = {
   'quota_setting.enable_free_model_pre_consume': boolean
   QuotaPerUnit: number
   USDExchangeRate: number
+  BillingUSDToCNYRate: number
   'general_setting.quota_display_type': string
   'general_setting.custom_currency_symbol': string
   'general_setting.custom_currency_exchange_rate': number

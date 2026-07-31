@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
 )
 
 // Claude Sonnet-style tiered expression: standard vs long-context
@@ -410,6 +411,27 @@ func TestTryTieredSettle_ErrorFallbackToEstimatedQuotaAfterGroup(t *testing.T) {
 	}
 }
 
+func TestTryTieredSettleNegativeChargeFallsBackToPreConsume(t *testing.T) {
+	exprStr := `c == 123 ? tier("negative", -1000000) : tier("positive", p + c)`
+	relayInfo := &relaycommon.RelayInfo{
+		FinalPreConsumedQuota: 1000,
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:         "tiered_expr",
+			ExprString:          exprStr,
+			ExprHash:            billingexpr.ExprHashString(exprStr),
+			GroupRatio:          0.05,
+			QuotaPerUnit:        500_000,
+			BillingUSDToCNYRate: 7.3,
+		},
+	}
+
+	ok, quota, result := TryTieredSettle(relayInfo, billingexpr.TokenParams{P: 1000, C: 123})
+
+	require.True(t, ok)
+	require.Equal(t, 1000, quota)
+	require.Nil(t, result)
+}
+
 // ---------------------------------------------------------------------------
 // BuildTieredTokenParams: token normalization and ratio parity tests
 // ---------------------------------------------------------------------------
@@ -557,6 +579,30 @@ func TestBuildTieredTokenParams_GPT_AudioOutputNoVar(t *testing.T) {
 	if math.Abs(got-want) > 0.01 {
 		t.Fatalf("quota = %f, want %f", got, want)
 	}
+}
+
+func TestBuildRealtimeTieredTokenParamsSeparatesAudioVariables(t *testing.T) {
+	usage := &dto.RealtimeUsage{
+		InputTokens:  120,
+		OutputTokens: 80,
+		TotalTokens:  200,
+		InputTokenDetails: dto.InputTokenDetails{
+			TextTokens:  100,
+			AudioTokens: 20,
+		},
+		OutputTokenDetails: dto.OutputTokenDetails{
+			TextTokens:  50,
+			AudioTokens: 30,
+		},
+	}
+
+	params := BuildRealtimeTieredTokenParams(usage, map[string]bool{"ai": true, "ao": true})
+
+	require.Equal(t, float64(100), params.P)
+	require.Equal(t, float64(50), params.C)
+	require.Equal(t, float64(120), params.Len)
+	require.Equal(t, float64(20), params.AI)
+	require.Equal(t, float64(30), params.AO)
 }
 
 func TestBuildTieredTokenParams_ParityWithRatio(t *testing.T) {

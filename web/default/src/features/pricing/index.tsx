@@ -55,7 +55,7 @@ export function Pricing() {
     autoGroups,
     isLoading,
     priceRate,
-    usdExchangeRate,
+    billingUSDToCNYRate,
   } = usePricingData()
 
   const {
@@ -143,7 +143,7 @@ export function Pricing() {
           models={displayModels}
           onModelClick={handleModelClick}
           priceRate={priceRate}
-          usdExchangeRate={usdExchangeRate}
+          usdExchangeRate={billingUSDToCNYRate}
           tokenUnit={tokenUnit}
           showRechargePrice={showPricesInCny}
         />
@@ -154,7 +154,7 @@ export function Pricing() {
       <PricingTable
         models={displayModels}
         priceRate={priceRate}
-        usdExchangeRate={usdExchangeRate}
+        usdExchangeRate={billingUSDToCNYRate}
         tokenUnit={tokenUnit}
         showRechargePrice={showPricesInCny}
         onModelClick={handleModelClick}
@@ -246,7 +246,7 @@ export function Pricing() {
             }
             autoGroups={autoGroups || []}
             priceRate={priceRate ?? 1}
-            usdExchangeRate={usdExchangeRate ?? 1}
+            usdExchangeRate={billingUSDToCNYRate ?? 1}
             tokenUnit={tokenUnit}
             showRechargePrice={showPricesInCny}
           />

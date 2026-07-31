@@ -44,6 +44,9 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	if s.settled {
 		return nil
 	}
+	if actualQuota < 0 {
+		return fmt.Errorf("actual quota cannot be negative: %d", actualQuota)
+	}
 	delta := actualQuota - s.preConsumedQuota
 	if delta == 0 {
 		s.settled = true
@@ -153,6 +156,9 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if targetQuota < 0 {
+		return fmt.Errorf("reserve target quota cannot be negative: %d", targetQuota)
+	}
 	if s.settled || s.refunded || targetQuota <= s.preConsumedQuota {
 		return nil
 	}

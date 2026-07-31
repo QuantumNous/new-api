@@ -12,6 +12,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
@@ -236,6 +238,99 @@ func TestTaskBillingContextPriceDataFiltersMultiplier(t *testing.T) {
 		"size":     3,
 		"identity": 1,
 	}, priceData.OtherRatios())
+}
+
+func TestRecalculateTaskQuotaByTokensUsesPersistedBillingContext(t *testing.T) {
+	truncate(t)
+
+	savedRate := operation_setting.BillingUSDToCNYRate
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	savedGroupRatios := ratio_setting.GroupRatio2JSONString()
+	savedGroupGroupRatios := ratio_setting.GroupGroupRatio2JSONString()
+	t.Cleanup(func() {
+		operation_setting.BillingUSDToCNYRate = savedRate
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(savedGroupRatios))
+		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(savedGroupGroupRatios))
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"test-model":99}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"billing-sale":0.9}`))
+	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{"billing-sale":{"billing-sale":0.8}}`))
+	operation_setting.BillingUSDToCNYRate = 99
+
+	privateData := model.TaskPrivateData{
+		BillingContext: &model.TaskBillingContext{
+			ModelRatio:          2,
+			GroupRatio:          0.05,
+			BillingUSDToCNYRate: 7.3,
+			OriginModelName:     "test-model",
+		},
+	}
+	stored, err := privateData.Value()
+	require.NoError(t, err)
+	storedBytes, ok := stored.([]byte)
+	require.True(t, ok)
+	var restored model.TaskPrivateData
+	require.NoError(t, restored.Scan(storedBytes))
+	require.NotNil(t, restored.BillingContext)
+	require.Equal(t, 7.3, restored.BillingContext.BillingUSDToCNYRate)
+
+	const userID, channelID = 41, 41
+	const initialQuota, preConsumedQuota = 10000, 100
+	seedUser(t, userID, initialQuota)
+	seedChannel(t, channelID)
+	task := makeTask(userID, channelID, preConsumedQuota, 0, BillingSourceWallet, 0)
+	task.Group = "billing-sale"
+	task.PrivateData = restored
+	require.NoError(t, model.DB.Create(task).Error)
+
+	RecalculateTaskQuotaByTokens(context.Background(), task, 1000)
+
+	const wantActualQuota = 730 // 1000 * 2 * 7.3 * 0.05
+	assert.Equal(t, wantActualQuota, task.Quota)
+	assert.Equal(t, initialQuota-(wantActualQuota-preConsumedQuota), getUserQuota(t, userID))
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	var other map[string]interface{}
+	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+	assert.Equal(t, 7.3, other["billing_usd_to_cny_rate"])
+}
+
+func TestRecalculateLegacyTaskQuotaPreservesSpecialGroupRatio(t *testing.T) {
+	truncate(t)
+
+	savedRate := operation_setting.BillingUSDToCNYRate
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	savedGroupRatios := ratio_setting.GroupRatio2JSONString()
+	savedGroupGroupRatios := ratio_setting.GroupGroupRatio2JSONString()
+	t.Cleanup(func() {
+		operation_setting.BillingUSDToCNYRate = savedRate
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(savedGroupRatios))
+		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(savedGroupGroupRatios))
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"legacy-task-model":2}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"legacy-task-group":0.9}`))
+	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{"legacy-task-group":{"legacy-task-group":0.25}}`))
+	operation_setting.BillingUSDToCNYRate = 99
+
+	const userID, channelID = 42, 42
+	const initialQuota, preConsumedQuota = 10000, 100
+	seedUser(t, userID, initialQuota)
+	seedChannel(t, channelID)
+	task := makeTask(userID, channelID, preConsumedQuota, 0, BillingSourceWallet, 0)
+	task.Group = "legacy-task-group"
+	task.Properties.OriginModelName = "legacy-task-model"
+	task.PrivateData.BillingContext = nil
+	require.NoError(t, model.DB.Create(task).Error)
+
+	RecalculateTaskQuotaByTokens(context.Background(), task, 1000)
+
+	const wantActualQuota = 500 // 1000 * 2 * legacy special group ratio 0.25; old tasks use billing rate 1.
+	assert.Equal(t, wantActualQuota, task.Quota)
+	assert.Equal(t, initialQuota-(wantActualQuota-preConsumedQuota), getUserQuota(t, userID))
 }
 
 // ---------------------------------------------------------------------------

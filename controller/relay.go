@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -313,7 +314,14 @@ func boolToRetryCount(canRetry bool) int {
 // new provider. A free first candidate can therefore create its BillingSession
 // only when the paid fallback is actually selected.
 func reserveRelayGroupBilling(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) *types.NewAPIError {
-	priceData, err := helper.ModelPriceHelper(c, info, promptTokens, meta)
+	var priceData types.PriceData
+	var err error
+	billingRate := info.PriceData.BillingUSDToCNYRate
+	if billingRate > 0 && !math.IsNaN(billingRate) && !math.IsInf(billingRate, 0) {
+		priceData, err = helper.ModelPriceHelperWithBillingRate(c, info, promptTokens, meta, billingRate)
+	} else {
+		priceData, err = helper.ModelPriceHelper(c, info, promptTokens, meta)
+	}
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 	}
@@ -658,12 +666,13 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.NodeName = common.NodeName
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
-			ModelPrice:      relayInfo.PriceData.ModelPrice,
-			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			ModelRatio:      relayInfo.PriceData.ModelRatio,
-			OtherRatios:     relayInfo.PriceData.OtherRatios(),
-			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			ModelPrice:          relayInfo.PriceData.ModelPrice,
+			GroupRatio:          relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+			ModelRatio:          relayInfo.PriceData.ModelRatio,
+			BillingUSDToCNYRate: relayInfo.PriceData.EffectiveBillingUSDToCNYRate(),
+			OtherRatios:         relayInfo.PriceData.OtherRatios(),
+			OriginModelName:     relayInfo.OriginModelName,
+			PerCallBilling:      common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

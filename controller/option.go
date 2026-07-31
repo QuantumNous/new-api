@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -216,10 +217,10 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "theme.frontend":
-		if option.Value != "default" && option.Value != "classic" {
+		if option.Value != system_setting.DefaultFrontend {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无效的主题值，可选值：default（新版前端）、classic（经典前端）",
+				"message": "无效的主题值，可选值：default（新版前端）",
 			})
 			return
 		}
@@ -229,6 +230,15 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": err.Error(),
+			})
+			return
+		}
+	case "BillingUSDToCNYRate":
+		rate, parseErr := strconv.ParseFloat(strings.TrimSpace(option.Value.(string)), 64)
+		if parseErr != nil || rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "计费汇率必须是大于 0 的有限数值",
 			})
 			return
 		}

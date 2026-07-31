@@ -12,8 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
-	"github.com/shopspring/decimal"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -81,22 +79,14 @@ func shouldChargeViolationFee(err *types.NewAPIError) bool {
 	return HasCSAMViolationMarker(err)
 }
 
-func calcViolationFeeQuota(amount, groupRatio float64) int {
+func calcViolationFeeQuota(amount, billingUSDToCNYRate, groupRatio float64) (int, *common.QuotaClamp) {
 	if amount <= 0 {
-		return 0
+		return 0, nil
 	}
-	if groupRatio <= 0 {
-		return 0
+	if billingUSDToCNYRate <= 0 || groupRatio <= 0 {
+		return 0, nil
 	}
-	quota := decimal.NewFromFloat(amount).
-		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
-		Mul(decimal.NewFromFloat(groupRatio)).
-		Round(0).
-		IntPart()
-	if quota <= 0 {
-		return 0
-	}
-	return int(quota)
+	return common.QuotaRoundChecked(amount * common.QuotaPerUnit * billingUSDToCNYRate * groupRatio)
 }
 
 // ChargeViolationFeeIfNeeded charges an additional fee after the normal flow finishes (including refund).
@@ -118,7 +108,9 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	}
 
 	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
-	feeQuota := calcViolationFeeQuota(settings.ViolationDeductionAmount, groupRatio)
+	billingUSDToCNYRate := relayInfo.PriceData.EffectiveBillingUSDToCNYRate()
+	feeQuota, clamp := calcViolationFeeQuota(settings.ViolationDeductionAmount, billingUSDToCNYRate, groupRatio)
+	noteQuotaClamp(relayInfo, clamp)
 	if feeQuota <= 0 {
 		return false
 	}
@@ -136,15 +128,16 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	oai := apiErr.ToOpenAIError()
 
 	other := map[string]any{
-		"violation_fee":        true,
-		"violation_fee_code":   string(types.ErrorCodeViolationFeeGrokCSAM),
-		"fee_quota":            feeQuota,
-		"base_amount":          settings.ViolationDeductionAmount,
-		"group_ratio":          groupRatio,
-		"status_code":          apiErr.StatusCode,
-		"upstream_error_type":  oai.Type,
-		"upstream_error_code":  fmt.Sprintf("%v", oai.Code),
-		"violation_fee_marker": CSAMViolationMarker,
+		"violation_fee":           true,
+		"violation_fee_code":      string(types.ErrorCodeViolationFeeGrokCSAM),
+		"fee_quota":               feeQuota,
+		"base_amount":             settings.ViolationDeductionAmount,
+		"group_ratio":             groupRatio,
+		"billing_usd_to_cny_rate": billingUSDToCNYRate,
+		"status_code":             apiErr.StatusCode,
+		"upstream_error_type":     oai.Type,
+		"upstream_error_code":     fmt.Sprintf("%v", oai.Code),
+		"violation_fee_marker":    CSAMViolationMarker,
 	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{

@@ -37,10 +37,10 @@ export function usePricingData() {
     () => Math.max((status?.price as number) ?? 1, 0.001),
     [status?.price]
   )
-  const usdExchangeRate = useMemo(
-    () => Math.max((status?.usd_exchange_rate as number) ?? priceRate, 0.001),
-    [status?.usd_exchange_rate, priceRate]
-  )
+  const billingUSDToCNYRate = useMemo(() => {
+    const rate = Number(status?.billing_usd_to_cny_rate ?? 1)
+    return Number.isFinite(rate) && rate > 0 ? rate : 1
+  }, [status?.billing_usd_to_cny_rate])
 
   const models = useMemo(() => {
     if (!data?.data || !data?.vendors) return []
@@ -73,6 +73,6 @@ export function usePricingData() {
     error,
     refetch,
     priceRate,
-    usdExchangeRate,
+    billingUSDToCNYRate,
   }
 }

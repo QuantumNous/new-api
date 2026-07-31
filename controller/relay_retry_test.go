@@ -74,6 +74,9 @@ func TestRelayRetryCommittedStopsOnClientCancellation(t *testing.T) {
 
 func TestReserveRelayGroupBillingCreatesSessionForFreeToPaidFallback(t *testing.T) {
 	withOrderedRoutingBillingSettings(t)
+	savedBillingRate := operation_setting.BillingUSDToCNYRate
+	t.Cleanup(func() { operation_setting.BillingUSDToCNYRate = savedBillingRate })
+	operation_setting.BillingUSDToCNYRate = 7.3
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.Create(&model.User{
 		Id:       40001,
@@ -89,18 +92,21 @@ func TestReserveRelayGroupBillingCreatesSessionForFreeToPaidFallback(t *testing.
 	priceData, err := helper.ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{})
 	require.NoError(t, err)
 	require.True(t, priceData.FreeModel)
+	require.Equal(t, 7.3, priceData.BillingUSDToCNYRate)
 	require.Nil(t, info.Billing)
 
+	operation_setting.BillingUSDToCNYRate = 99
 	common.SetContextKey(ctx, constant.ContextKeyAutoGroup, "paid")
 	info.UsingGroup = "paid"
 	apiErr := reserveRelayGroupBilling(ctx, info, 0, &types.TokenCountMeta{})
 
 	require.Nil(t, apiErr)
 	require.NotNil(t, info.Billing)
-	assert.Equal(t, 100, info.Billing.GetPreConsumedQuota())
+	assert.Equal(t, 730, info.Billing.GetPreConsumedQuota())
+	assert.Equal(t, 7.3, info.PriceData.BillingUSDToCNYRate)
 	userQuota, err := model.GetUserQuota(40001, true)
 	require.NoError(t, err)
-	assert.Equal(t, 900, userQuota)
+	assert.Equal(t, 270, userQuota)
 }
 
 func TestReserveRelayGroupBillingRejectsUnaffordableHigherFallback(t *testing.T) {

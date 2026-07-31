@@ -1179,7 +1179,11 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               showRechargePrice={showRechargePrice}
             />
             {isDynamic && (
-              <DynamicPricingBreakdown billingExpr={props.model.billing_expr} />
+              <DynamicPricingBreakdown
+                billingExpr={props.model.billing_expr}
+                displayCurrency={showRechargePrice ? 'CNY' : 'USD'}
+                billingUSDToCNYRate={props.usdExchangeRate}
+              />
             )}
             <GroupPricingSection
               model={props.model}
@@ -1258,7 +1262,7 @@ export function ModelDetails() {
     autoGroups,
     isLoading,
     priceRate,
-    usdExchangeRate,
+    billingUSDToCNYRate,
   } = usePricingData()
 
   const tokenUnit: TokenUnit =
@@ -1335,7 +1339,7 @@ export function ModelDetails() {
           usableGroup={usableGroup || {}}
           autoGroups={autoGroups || []}
           priceRate={priceRate ?? 1}
-          usdExchangeRate={usdExchangeRate ?? 1}
+          usdExchangeRate={billingUSDToCNYRate ?? 1}
           tokenUnit={tokenUnit}
           showRechargePrice={search.currency !== 'USD'}
           endpointMap={

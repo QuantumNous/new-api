@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { OFFICIAL_PRICE_CNY_RATE, TOKEN_UNIT_DIVISORS } from '../constants'
+import { TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import {
   BILLING_PRICING_VARS,
@@ -35,7 +35,6 @@ type DynamicPriceOptions = {
   priceRate?: number
   usdExchangeRate?: number
   groupRatioMultiplier?: number
-  displayMultiplier?: number
 }
 
 export type DynamicPriceEntry = {
@@ -81,7 +80,14 @@ export function formatDynamicUnitPrice(
   const priceUSD =
     (valuePerMillionTokens * groupRatio) /
     TOKEN_UNIT_DIVISORS[options.tokenUnit]
-  const displayPrice = priceUSD * (options.displayMultiplier ?? 1)
+  const billingUSDToCNYRate =
+    options.usdExchangeRate != null &&
+    options.usdExchangeRate > 0 &&
+    Number.isFinite(options.usdExchangeRate)
+      ? options.usdExchangeRate
+      : 1
+  const displayPrice =
+    priceUSD * (options.showRechargePrice ? billingUSDToCNYRate : 1)
 
   return formatPricingCurrency(displayPrice, options.showRechargePrice ?? false)
 }
@@ -160,15 +166,16 @@ export function getDynamicPricingSummary(
   }
 }
 
-/** Format dynamic official list prices in CNY at the fixed comparison rate. */
+/** Format dynamic official list prices in CNY at the billing exchange rate. */
 export function getOfficialDynamicPricingSummary(
   model: PricingModel,
-  tokenUnit: TokenUnit
+  tokenUnit: TokenUnit,
+  billingUSDToCNYRate = 1
 ): DynamicPricingSummary | null {
   return getDynamicPricingSummary(model, {
     tokenUnit,
     showRechargePrice: true,
     groupRatioMultiplier: 1,
-    displayMultiplier: OFFICIAL_PRICE_CNY_RATE,
+    usdExchangeRate: billingUSDToCNYRate,
   })
 }

@@ -37,6 +37,7 @@ type ToolCallResult struct {
 func ComputeToolCallQuota(usage ToolCallUsage, groupRatio float64) ToolCallResult {
 	var items []ToolCallItem
 	totalQuota := 0
+	billingUSDToCNYRate := operation_setting.GetBillingUSDToCNYRate()
 
 	addItem := func(toolName string, count int) {
 		if count <= 0 {
@@ -47,7 +48,7 @@ func ComputeToolCallQuota(usage ToolCallUsage, groupRatio float64) ToolCallResul
 			return
 		}
 		totalPrice := pricePer1K * float64(count) / 1000
-		quota := common.QuotaRound(totalPrice * common.QuotaPerUnit * groupRatio)
+		quota := common.QuotaRound(totalPrice * common.QuotaPerUnit * billingUSDToCNYRate * groupRatio)
 		items = append(items, ToolCallItem{
 			Name:       toolName,
 			CallCount:  count,
@@ -68,7 +69,7 @@ func ComputeToolCallQuota(usage ToolCallUsage, groupRatio float64) ToolCallResul
 
 	if usage.ImageGenerationCall {
 		price := operation_setting.GetGPTImage1PriceOnceCall(usage.ImageGenerationQuality, usage.ImageGenerationSize)
-		quota := common.QuotaRound(price * common.QuotaPerUnit * groupRatio)
+		quota := common.QuotaRound(price * common.QuotaPerUnit * billingUSDToCNYRate * groupRatio)
 		items = append(items, ToolCallItem{
 			Name:       "image_generation",
 			CallCount:  1,

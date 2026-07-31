@@ -391,17 +391,21 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return errors.New("订单状态不是待支付，无法补单")
 		}
 
-		// 计算应充值额度：
-		// - Stripe 订单：Money 代表经分组倍率换算后的美元数量，直接 * QuotaPerUnit
-		// - 其他订单（如易支付）：Amount 为美元数量，* QuotaPerUnit
-		if topUp.PaymentProvider == PaymentProviderStripe {
-			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit).IntPart())
-		} else {
-			dAmount := decimal.NewFromInt(topUp.Amount)
-			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		// Providers do not store TopUp.Amount in one common unit. Stripe stores
+		// credited account units in Money, Creem stores raw quota in Amount, and
+		// the remaining gateways store account units in Amount.
+		quotaValue := decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+		switch topUp.PaymentProvider {
+		case PaymentProviderStripe:
+			quotaValue = decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+		case PaymentProviderCreem:
+			quotaValue = decimal.NewFromInt(topUp.Amount)
 		}
+		quota, clamp := common.QuotaFromDecimalChecked(quotaValue)
+		if clamp != nil {
+			return clamp
+		}
+		quotaToAdd = quota
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}

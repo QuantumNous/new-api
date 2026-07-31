@@ -62,6 +62,9 @@ const createPricingSchema = (t: (key: string) => string) =>
       USDExchangeRate: z.coerce
         .number()
         .min(0.0001, t('Exchange rate must be greater than 0')),
+      BillingUSDToCNYRate: z.coerce
+        .number()
+        .min(0.0001, t('Exchange rate must be greater than 0')),
       DisplayInCurrencyEnabled: z.boolean(),
       DisplayTokenStatEnabled: z.boolean(),
       general_setting: z.object({
@@ -185,63 +188,57 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
               />
             )}
 
-            <FormField
-              control={form.control}
-              name='general_setting.quota_display_type'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Display Mode')}</FormLabel>
-                  <Select
-                    items={[
-                      { value: 'USD', label: t('USD') },
-                      { value: 'CNY', label: t('CNY') },
-                      { value: 'CUSTOM', label: t('Custom Currency') },
-                      { value: 'TOKENS', label: t('Tokens Only') },
-                    ]}
-                    value={field.value}
-                    onValueChange={field.onChange}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('Select display mode')} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent alignItemWithTrigger={false}>
-                      <SelectGroup>
-                        <SelectItem value='USD'>{t('USD')}</SelectItem>
-                        <SelectItem value='CNY'>{t('CNY')}</SelectItem>
-                        <SelectItem value='CUSTOM'>
-                          {t('Custom Currency')}
-                        </SelectItem>
-                        {showTokensOnlyOption && (
-                          <SelectItem value='TOKENS'>
-                            {t('Tokens Only')}
-                          </SelectItem>
-                        )}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    {t('Choose how quota values are shown to users')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {displayType !== 'TOKENS' && (
+            <div className='grid gap-4 lg:grid-cols-2'>
               <FormField
                 control={form.control}
-                name='USDExchangeRate'
+                name='general_setting.quota_display_type'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>
-                      {displayType === 'CNY'
-                        ? t('CNY per USD')
-                        : displayType === 'USD'
-                          ? t('USD Exchange Rate')
-                          : t('USD Exchange Rate')}
-                    </FormLabel>
+                    <FormLabel>{t('Display Mode')}</FormLabel>
+                    <Select
+                      items={[
+                        { value: 'USD', label: t('USD') },
+                        { value: 'CNY', label: t('CNY') },
+                        { value: 'CUSTOM', label: t('Custom Currency') },
+                        { value: 'TOKENS', label: t('Tokens Only') },
+                      ]}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('Select display mode')} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          <SelectItem value='USD'>{t('USD')}</SelectItem>
+                          <SelectItem value='CNY'>{t('CNY')}</SelectItem>
+                          <SelectItem value='CUSTOM'>
+                            {t('Custom Currency')}
+                          </SelectItem>
+                          {showTokensOnlyOption && (
+                            <SelectItem value='TOKENS'>
+                              {t('Tokens Only')}
+                            </SelectItem>
+                          )}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {t('Choose how quota values are shown to users')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='BillingUSDToCNYRate'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Billing Exchange Rate')}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -251,7 +248,32 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'Real exchange rate between USD and your payment gateway currency'
+                        'Converts USD-denominated model costs to CNY before applying the group ratio. It does not change wallet balances or top-up prices.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {displayType === 'CNY' && (
+              <FormField
+                control={form.control}
+                name='USDExchangeRate'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Wallet Display Rate')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        step='0.01'
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Multiplies account credits only when displaying wallet balances and usage totals. Set it to 1 when one account credit equals one CNY. It does not affect model billing or top-up charges.'
                       )}
                     </FormDescription>
                     <FormMessage />

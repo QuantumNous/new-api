@@ -51,3 +51,69 @@ func TestComputeTieredQuota_NoClampInRange(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, result.Clamp, "in-range settlement must not report a clamp")
 }
+
+func TestComputeTieredQuotaBillingRateFallback(t *testing.T) {
+	exprStr := `tier("base", p * 2 + c * 10)`
+	tests := []struct {
+		name      string
+		rate      float64
+		wantRate  float64
+		wantQuota int
+	}{
+		{name: "historical snapshot defaults to one", rate: 0, wantRate: 1, wantQuota: 3500},
+		{name: "negative rate defaults to one", rate: -1, wantRate: 1, wantQuota: 3500},
+		{name: "nan rate defaults to one", rate: math.NaN(), wantRate: 1, wantQuota: 3500},
+		{name: "infinite rate defaults to one", rate: math.Inf(1), wantRate: 1, wantQuota: 3500},
+		{name: "configured rate is applied once", rate: 7.3, wantRate: 7.3, wantQuota: 25550},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snap := &billingexpr.BillingSnapshot{
+				BillingMode:         "tiered_expr",
+				ExprString:          exprStr,
+				ExprHash:            billingexpr.ExprHashString(exprStr),
+				GroupRatio:          1,
+				QuotaPerUnit:        500_000,
+				BillingUSDToCNYRate: tt.rate,
+			}
+
+			result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 1000, C: 500})
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantRate, snap.EffectiveBillingUSDToCNYRate())
+			assert.Equal(t, tt.wantQuota, result.ActualQuotaAfterGroup)
+		})
+	}
+}
+
+func TestComputeTieredQuotaRejectsNegativeCharge(t *testing.T) {
+	exprStr := `c == 123 ? tier("negative", -1000000) : tier("positive", p + c)`
+	snap := &billingexpr.BillingSnapshot{
+		BillingMode:         "tiered_expr",
+		ExprString:          exprStr,
+		ExprHash:            billingexpr.ExprHashString(exprStr),
+		GroupRatio:          0.05,
+		QuotaPerUnit:        500_000,
+		BillingUSDToCNYRate: 7.3,
+	}
+
+	_, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 1000, C: 123})
+
+	require.ErrorContains(t, err, "invalid cost")
+}
+
+func TestComputeTieredQuotaRejectsNegativeGroupRatio(t *testing.T) {
+	exprStr := `tier("base", p * 2 + c * 10)`
+	snap := &billingexpr.BillingSnapshot{
+		BillingMode:  "tiered_expr",
+		ExprString:   exprStr,
+		ExprHash:     billingexpr.ExprHashString(exprStr),
+		GroupRatio:   -0.05,
+		QuotaPerUnit: 500_000,
+	}
+
+	_, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 1000, C: 500})
+
+	require.ErrorContains(t, err, "invalid quota")
+}

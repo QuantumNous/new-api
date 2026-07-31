@@ -155,7 +155,12 @@ function buildTypeDetailSegments(
 
   const segments: DetailSegment[] = []
 
-  const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
+  const priceOpts = {
+    digitsLarge: 4,
+    digitsSmall: 6,
+    abbreviate: false,
+    billingUSDToCNYRate: other.billing_usd_to_cny_rate,
+  }
   const formatPrice = (price: number) =>
     `${formatBillingCurrencyFromUSD(price, priceOpts)}/M`
   const formatPriceCompact = (price: number) =>
@@ -276,6 +281,18 @@ function buildTypeDetailSegments(
         })
       }
     }
+  }
+
+  const billingUSDToCNYRate = other.billing_usd_to_cny_rate
+  if (
+    billingUSDToCNYRate != null &&
+    Number.isFinite(billingUSDToCNYRate) &&
+    billingUSDToCNYRate !== 1
+  ) {
+    segments.push({
+      text: `${t('Billing Exchange Rate')} ${formatRatioCompact(billingUSDToCNYRate)}x`,
+      muted: true,
+    })
   }
 
   if (other.is_system_prompt_overwritten) {

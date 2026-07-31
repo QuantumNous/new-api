@@ -210,7 +210,12 @@ function BillingBreakdown(props: {
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
-  const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
+  const priceOpts = {
+    digitsLarge: 4,
+    digitsSmall: 6,
+    abbreviate: false,
+    billingUSDToCNYRate: other.billing_usd_to_cny_rate,
+  }
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
 
@@ -269,6 +274,18 @@ function BillingBreakdown(props: {
     rows.push({
       label: isUserGR ? t('User Exclusive Ratio') : t('Group Ratio'),
       value: `${formatRatio(effectiveGR)}x`,
+    })
+  }
+
+  const billingUSDToCNYRate = other.billing_usd_to_cny_rate
+  if (
+    billingUSDToCNYRate != null &&
+    Number.isFinite(billingUSDToCNYRate) &&
+    billingUSDToCNYRate !== 1
+  ) {
+    rows.push({
+      label: t('Billing Exchange Rate'),
+      value: `${formatRatio(billingUSDToCNYRate)}x`,
     })
   }
 
@@ -1061,6 +1078,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <DynamicPricingBreakdown
               compact
               billingExpr={decodeBillingExprB64(other.expr_b64)}
+              billingUSDToCNYRate={other.billing_usd_to_cny_rate}
               matchedTierLabel={other.matched_tier}
               hideCacheColumns={!hasAnyCacheTokens(other)}
             />

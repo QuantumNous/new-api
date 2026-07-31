@@ -905,7 +905,7 @@ export function PaymentSettingsSection({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          {t('Price (local currency / USD)')}
+                          {t('Top-up unit price (payment currency / credit)')}
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -917,7 +917,7 @@ export function PaymentSettingsSection({
                         </FormControl>
                         <FormDescription>
                           {t(
-                            'How much to charge for each US dollar of balance (Epay)'
+                            'Amount Epay charges for each account credit. Set it to 1 for a one-to-one CNY top-up.'
                           )}
                         </FormDescription>
                         <FormMessage />
@@ -930,7 +930,7 @@ export function PaymentSettingsSection({
                     name='MinTopUp'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                        <FormLabel>{t('Minimum top-up (credits)')}</FormLabel>
                         <FormControl>
                           <Input
                             type='number'
@@ -940,7 +940,9 @@ export function PaymentSettingsSection({
                           />
                         </FormControl>
                         <FormDescription>
-                          {t('Smallest USD amount users can recharge (Epay)')}
+                          {t(
+                            'Smallest account credit amount users can top up through Epay.'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

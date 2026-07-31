@@ -105,6 +105,11 @@ export interface CurrencyFormatOptions {
   locale?: Intl.LocalesArgument | undefined
 }
 
+export interface BillingCurrencyFormatOptions extends CurrencyFormatOptions {
+  /** Override USD-to-CNY conversion with the rate frozen into a billing log. */
+  billingUSDToCNYRate?: number
+}
+
 type ResolvedCurrencyFormatOptions = Omit<
   Required<CurrencyFormatOptions>,
   'locale'
@@ -450,12 +455,21 @@ export function formatCurrencyFromUSD(
  */
 export function formatBillingCurrencyFromUSD(
   amountUSD: number | null | undefined,
-  options?: CurrencyFormatOptions
+  options?: BillingCurrencyFormatOptions
 ): string {
   if (amountUSD == null || Number.isNaN(amountUSD)) return '-'
 
   const { config } = getCurrencyDisplay()
-  const meta = getBillingDisplayMeta(config)
+  const configuredMeta = getBillingDisplayMeta(config)
+  const billingRate = options?.billingUSDToCNYRate
+  const meta =
+    config.quotaDisplayType === 'CNY' &&
+    configuredMeta.kind === 'currency' &&
+    billingRate != null &&
+    billingRate > 0 &&
+    Number.isFinite(billingRate)
+      ? { ...configuredMeta, exchangeRate: billingRate }
+      : configuredMeta
   const merged = mergeOptions(options)
   const value =
     meta.kind === 'currency' || meta.kind === 'custom'
