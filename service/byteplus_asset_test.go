@@ -715,6 +715,44 @@ func TestDeleteBytePlusAssetFailureKeepsDeletingAndSchedulesRetry(t *testing.T) 
 	}
 }
 
+func TestDeleteBytePlusAssetRetriesDueDeletingAssetOnRepeatedCall(t *testing.T) {
+	newBytePlusAssetServiceTestDB(t)
+	fake := &fakeBytePlusAssetClient{deleteErr: errors.New("temporary upstream failure")}
+	restore := installBytePlusAssetServiceTestDeps(t, fake)
+	defer restore()
+	now := int64(2000)
+	bytePlusAssetNow = func() int64 { return now }
+	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
+	group := insertActiveBytePlusGroup(t, 7, 131, "upstream-group")
+	insertBytePlusAssetRow(t, "ast_due_retry", 7, group.Id, 131, model.BytePlusAssetStatusActive, "upstream-due")
+
+	if err := DeleteBytePlusAsset(context.Background(), 7, "ast_due_retry"); err != nil {
+		t.Fatalf("first DeleteBytePlusAsset should accept retryable failure: %v", err)
+	}
+	var asset model.BytePlusAsset
+	if err := model.DB.First(&asset, "public_id = ?", "ast_due_retry").Error; err != nil {
+		t.Fatalf("load failed delete asset: %v", err)
+	}
+	if asset.Status != model.BytePlusAssetStatusDeleting || asset.DeleteAttempts != 1 || asset.NextDeleteAt <= now {
+		t.Fatalf("first failure should schedule Deleting retry: %+v", asset)
+	}
+
+	now = asset.NextDeleteAt + 1
+	fake.deleteErr = nil
+	if err := DeleteBytePlusAsset(context.Background(), 7, "ast_due_retry"); err != nil {
+		t.Fatalf("second DeleteBytePlusAsset should claim due Deleting asset: %v", err)
+	}
+	if err := model.DB.First(&asset, "public_id = ?", "ast_due_retry").Error; err != nil {
+		t.Fatalf("reload retried delete asset: %v", err)
+	}
+	if asset.Status != model.BytePlusAssetStatusDeleted {
+		t.Fatalf("due repeated delete should complete deletion: %+v", asset)
+	}
+	if fake.deleteAssetCalls != 2 {
+		t.Fatalf("delete calls=%d, want 2", fake.deleteAssetCalls)
+	}
+}
+
 func TestDeleteBytePlusAssetUnavailableBoundChannelKeepsTombstoneWithoutFailover(t *testing.T) {
 	newBytePlusAssetServiceTestDB(t)
 	fake := &fakeBytePlusAssetClient{}

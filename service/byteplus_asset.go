@@ -190,7 +190,7 @@ func DeleteBytePlusAsset(ctx context.Context, userID int, publicID string) *type
 		}
 		return assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
-	if !changed {
+	if !changed && asset.Status == model.BytePlusAssetStatusDeleted {
 		return nil
 	}
 	if strings.TrimSpace(asset.UpstreamAssetId) == "" {
