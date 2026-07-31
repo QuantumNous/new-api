@@ -39,5 +39,6 @@ const (
 	APITypeAdvancedCustom
 	APITypeSub2API
 	APITypeNewAPI
+	APITypeNadir
 	APITypeDummy // this one is only for count, do not add any channel after this
 )

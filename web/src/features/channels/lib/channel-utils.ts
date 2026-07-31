@@ -93,6 +93,7 @@ export function getChannelTypeIcon(type: number): string {
     40: 'SiliconCloud', // SiliconFlow
     44: 'OpenAI', // MokaAI
     20: 'OpenRouter', // OpenRouter
+    61: 'OpenAI', // Nadir (OpenAI-compatible router, no dedicated icon)
 
     // Image/Video generation
     2: 'Midjourney', // MjProxy

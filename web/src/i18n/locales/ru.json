@@ -2797,6 +2797,7 @@
     "MySQL is a production-ready relational database. Keep your credentials secure.": "MySQL — реляционная база данных, готовая к продакшену. Храните учётные данные в безопасности.",
     "MySQL is production ready. Ensure automated backups and a dedicated user with the minimal required privileges are configured.": "MySQL готов к работе. Убедитесь, что настроены автоматические резервные копии и выделенный пользователь с минимально необходимыми привилегиями.",
     "N/A": "Н/Д",
+    "Nadir": "Nadir",
     "Name": "Название",
     "Name *": "Имя *",
     "Name for this redemption code (1-20 characters)": "Имя для этого кода активации (1-20 символов)",

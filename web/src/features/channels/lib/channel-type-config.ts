@@ -123,6 +123,16 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Use model IDs from OpenRouter',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'OpenAI',
+    defaultBaseUrl: 'https://api.getnadir.com',
+    hints: {
+      key: 'Nadir API Key',
+      models: 'Use "auto" to let Nadir pick the model',
+    },
+  },
   56: {
     id: 56,
     name: CHANNEL_TYPES[56],

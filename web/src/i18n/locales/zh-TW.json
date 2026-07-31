@@ -2797,6 +2797,7 @@
     "MySQL is a production-ready relational database. Keep your credentials secure.": "MySQL 是生產就緒的關聯式資料庫。請確保憑證安全。",
     "MySQL is production ready. Ensure automated backups and a dedicated user with the minimal required privileges are configured.": "MySQL 已準備好投入生產環境。請確保設定了自動備份以及具有最低所需權限的專用用戶。",
     "N/A": "不適用",
+    "Nadir": "Nadir",
     "Name": "名稱",
     "Name *": "名稱 *",
     "Name for this redemption code (1-20 characters)": "此兌換碼的名稱（1-20 個字元）",

@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ai360"
 	"github.com/QuantumNous/new-api/relay/channel/lingyiwanwu"
+	"github.com/QuantumNous/new-api/relay/channel/nadir"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
 	//"github.com/QuantumNous/new-api/relay/channel/minimax"
@@ -680,6 +681,8 @@ func (a *Adaptor) GetModelList() []string {
 		return xinference.ModelList
 	case constant.ChannelTypeOpenRouter:
 		return openrouter.ModelList
+	case constant.ChannelTypeNadir:
+		return nadir.ModelList
 	default:
 		return ModelList
 	}
@@ -697,6 +700,8 @@ func (a *Adaptor) GetChannelName() string {
 		return xinference.ChannelName
 	case constant.ChannelTypeOpenRouter:
 		return openrouter.ChannelName
+	case constant.ChannelTypeNadir:
+		return nadir.ChannelName
 	default:
 		return ChannelName
 	}
