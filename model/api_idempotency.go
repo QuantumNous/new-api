@@ -211,6 +211,9 @@ func CompleteAPIIdempotency(recordID int64, leaseUpdatedTime int64, publicID str
 }
 
 func FailAPIIdempotency(recordID int64, leaseUpdatedTime int64, publicID string, responseStatus int, responsePayload string, now int64) error {
+	if strings.TrimSpace(publicID) == "" {
+		publicID = ""
+	}
 	return finishAPIIdempotency(recordID, leaseUpdatedTime, publicID, responseStatus, responsePayload, now, APIIdempotencyStatusFailed)
 }
 

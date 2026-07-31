@@ -351,7 +351,9 @@ func TestFailAPIIdempotencyAllowsPreResourceFailureReplay(t *testing.T) {
 		Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceAsset, LeaseUpdatedTime: 100,
 	}
 	require.NoError(t, db.Create(&record).Error)
-	require.NoError(t, FailAPIIdempotency(record.Id, record.LeaseUpdatedTime, "", 400, string(payload), 101))
+	require.NoError(t, FailAPIIdempotency(record.Id, record.LeaseUpdatedTime, "   ", 400, string(payload), 101))
+	require.NoError(t, db.First(&record, record.Id).Error)
+	require.Equal(t, "", record.ResourcePublicId)
 
 	claim, err := ClaimAPIIdempotency(7, "/route", record.KeyHash, record.RequestHash, record.ResourceType, 102, 50, 1000)
 	require.NoError(t, err)
