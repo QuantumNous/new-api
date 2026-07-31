@@ -54,7 +54,8 @@ func TestAPIIdempotencyPublicContractAliases(t *testing.T) {
 func TestClaimAPIIdempotencyConcurrentOwnerExactlyOnce(t *testing.T) {
 	newBytePlusRealPersonTestDB(t)
 	var owners atomic.Int64
-	var conflicts atomic.Int64
+	var inProgress atomic.Int64
+	var unexpected atomic.Int64
 	var wg sync.WaitGroup
 	errs := make(chan error, 12)
 	for i := 0; i < 12; i++ {
@@ -68,8 +69,10 @@ func TestClaimAPIIdempotencyConcurrentOwnerExactlyOnce(t *testing.T) {
 			}
 			if claim.Decision == DecisionOwner {
 				owners.Add(1)
+			} else if claim.Decision == DecisionInProgress {
+				inProgress.Add(1)
 			} else {
-				conflicts.Add(1)
+				unexpected.Add(1)
 			}
 		}()
 	}
@@ -79,7 +82,35 @@ func TestClaimAPIIdempotencyConcurrentOwnerExactlyOnce(t *testing.T) {
 		require.NoError(t, err)
 	}
 	require.Equal(t, int64(1), owners.Load())
-	require.Equal(t, int64(11), conflicts.Load())
+	require.Equal(t, int64(11), inProgress.Load())
+	require.Equal(t, int64(0), unexpected.Load())
+}
+
+func TestClaimAPIIdempotencyIgnoresDuplicateInsertRowsAffected(t *testing.T) {
+	db := newBytePlusRealPersonTestDB(t)
+	existing := APIIdempotencyRecord{
+		UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64),
+		Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceAsset, LeaseUpdatedTime: 100,
+	}
+	require.NoError(t, db.Create(&existing).Error)
+
+	callbackName := "api_idempotency_test_force_duplicate_rows"
+	require.NoError(t, db.Callback().Create().After("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*APIIdempotencyRecord); ok && tx.Error == nil {
+			tx.RowsAffected = 1
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, db.Callback().Create().Remove(callbackName))
+	})
+
+	same, err := ClaimAPIIdempotency(7, "/route", existing.KeyHash, existing.RequestHash, existing.ResourceType, 101, 50, 1000)
+	require.NoError(t, err)
+	require.Equal(t, DecisionInProgress, same.Decision)
+
+	different, err := ClaimAPIIdempotency(7, "/route", existing.KeyHash, strings.Repeat("c", 64), existing.ResourceType, 102, 50, 1000)
+	require.NoError(t, err)
+	require.Equal(t, DecisionConflict, different.Decision)
 }
 
 func TestClaimAPIIdempotencyConflictOnDifferentRequestHash(t *testing.T) {
@@ -102,6 +133,26 @@ func TestClaimAPIIdempotencyStaleCallingUpstreamBecomesOutcomeUnknown(t *testing
 	require.NoError(t, err)
 	require.Equal(t, DecisionOutcomeUnknown, claim.Decision)
 	require.NotEqual(t, DecisionOwner, claim.Decision)
+	require.NoError(t, db.First(&record, record.Id).Error)
+	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
+}
+
+func TestClaimAPIIdempotencyCallingUpstreamUsesUpstreamStartForStaleness(t *testing.T) {
+	db := newBytePlusRealPersonTestDB(t)
+	record := APIIdempotencyRecord{
+		UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64),
+		Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceVerificationSession, LeaseUpdatedTime: 100,
+	}
+	require.NoError(t, db.Create(&record).Error)
+	require.NoError(t, MarkAPIIdempotencyCallingUpstream(record.Id, record.LeaseUpdatedTime, 350))
+
+	claim, err := ClaimAPIIdempotency(7, "/route", record.KeyHash, record.RequestHash, record.ResourceType, 360, 101, 1000)
+	require.NoError(t, err)
+	require.Equal(t, DecisionInProgress, claim.Decision)
+
+	claim, err = ClaimAPIIdempotency(7, "/route", record.KeyHash, record.RequestHash, record.ResourceType, 401, 400, 1000)
+	require.NoError(t, err)
+	require.Equal(t, DecisionOutcomeUnknown, claim.Decision)
 	require.NoError(t, db.First(&record, record.Id).Error)
 	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
 }
@@ -206,6 +257,10 @@ func TestBindAPIIdempotencyResourceTxRejectsBlankPublicID(t *testing.T) {
 	}
 }
 
+func TestBindAPIIdempotencyResourceTxRequiresTransaction(t *testing.T) {
+	require.ErrorIs(t, BindAPIIdempotencyResourceTx(nil, 1, 100, "rvs_exact", 101), ErrAPIIdempotencyTransactionRequired)
+}
+
 func TestBindAPIIdempotencyResourceTxBindsExactPublicID(t *testing.T) {
 	db := newBytePlusRealPersonTestDB(t)
 	record := APIIdempotencyRecord{UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64), Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceVerificationSession, LeaseUpdatedTime: 100}
@@ -267,6 +322,46 @@ func TestCompleteFailAPIIdempotencyAcceptProcessingAndCallingUpstream(t *testing
 	}
 }
 
+func TestCompleteAPIIdempotencyRejectsBlankPublicID(t *testing.T) {
+	for _, publicID := range []string{"", "   "} {
+		t.Run("blank_"+strings.ReplaceAll(publicID, " ", "_"), func(t *testing.T) {
+			db := newBytePlusRealPersonTestDB(t)
+			record := APIIdempotencyRecord{
+				UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64),
+				Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceAsset, LeaseUpdatedTime: 100,
+			}
+			require.NoError(t, db.Create(&record).Error)
+
+			require.ErrorIs(t, CompleteAPIIdempotency(record.Id, record.LeaseUpdatedTime, publicID, 200, `{"id":""}`, 101), ErrAPIIdempotencyBlankResourcePublicID)
+			require.NoError(t, db.First(&record, record.Id).Error)
+			require.Equal(t, APIIdempotencyStatusProcessing, record.Status)
+			require.Empty(t, record.ResourcePublicId)
+			require.Zero(t, record.ResponseStatus)
+			require.Empty(t, record.ResponsePayload)
+		})
+	}
+}
+
+func TestFailAPIIdempotencyAllowsPreResourceFailureReplay(t *testing.T) {
+	db := newBytePlusRealPersonTestDB(t)
+	payload, err := common.Marshal(map[string]any{"error": "invalid input"})
+	require.NoError(t, err)
+	record := APIIdempotencyRecord{
+		UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64),
+		Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceAsset, LeaseUpdatedTime: 100,
+	}
+	require.NoError(t, db.Create(&record).Error)
+	require.NoError(t, FailAPIIdempotency(record.Id, record.LeaseUpdatedTime, "", 400, string(payload), 101))
+
+	claim, err := ClaimAPIIdempotency(7, "/route", record.KeyHash, record.RequestHash, record.ResourceType, 102, 50, 1000)
+	require.NoError(t, err)
+	require.Equal(t, DecisionReplay, claim.Decision)
+	require.Equal(t, APIIdempotencyStatusFailed, claim.Record.Status)
+	require.Empty(t, claim.Record.ResourcePublicId)
+	require.Equal(t, 400, claim.Record.ResponseStatus)
+	require.Equal(t, string(payload), claim.Record.ResponsePayload)
+}
+
 func TestMarkStaleAPIIdempotencyOutcomeUnknownOnlyReturnsUpdatedRows(t *testing.T) {
 	db := newBytePlusRealPersonTestDB(t)
 	stale := APIIdempotencyRecord{UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64), Status: APIIdempotencyStatusCallingUpstream, LeaseUpdatedTime: 10}
@@ -282,6 +377,29 @@ func TestMarkStaleAPIIdempotencyOutcomeUnknownOnlyReturnsUpdatedRows(t *testing.
 	require.Equal(t, stale.Id, updated[0].Id)
 	require.NoError(t, db.First(&processing, processing.Id).Error)
 	require.Equal(t, APIIdempotencyStatusProcessing, processing.Status)
+}
+
+func TestMarkStaleAPIIdempotencyOutcomeUnknownUsesUpstreamStartForStaleness(t *testing.T) {
+	db := newBytePlusRealPersonTestDB(t)
+	record := APIIdempotencyRecord{
+		UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64),
+		Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceVerificationSession, LeaseUpdatedTime: 100,
+	}
+	require.NoError(t, db.Create(&record).Error)
+	require.NoError(t, MarkAPIIdempotencyCallingUpstream(record.Id, record.LeaseUpdatedTime, 350))
+
+	updated, err := MarkStaleAPIIdempotencyOutcomeUnknown(101, 360, 10)
+	require.NoError(t, err)
+	require.Empty(t, updated)
+	require.NoError(t, db.First(&record, record.Id).Error)
+	require.Equal(t, APIIdempotencyStatusCallingUpstream, record.Status)
+
+	updated, err = MarkStaleAPIIdempotencyOutcomeUnknown(400, 401, 10)
+	require.NoError(t, err)
+	require.Len(t, updated, 1)
+	require.Equal(t, record.Id, updated[0].Id)
+	require.NoError(t, db.First(&record, record.Id).Error)
+	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
 }
 
 func TestAPIIdempotencyUnknownStatusReturnsError(t *testing.T) {

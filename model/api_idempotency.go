@@ -44,6 +44,7 @@ const (
 
 var ErrAPIIdempotencyCASLost = errors.New("api idempotency lease was superseded")
 var ErrAPIIdempotencyBlankResourcePublicID = errors.New("api idempotency resource public id is required")
+var ErrAPIIdempotencyTransactionRequired = errors.New("api idempotency transaction is required")
 
 type APIIdempotencyClaim struct {
 	Record   *APIIdempotencyRecord
@@ -85,23 +86,6 @@ func ClaimAPIIdempotency(userID int, route, keyHash, requestHash, resourceType s
 	if insert.Error != nil {
 		return nil, insert.Error
 	}
-	if insert.RowsAffected == 1 {
-		updated := DB.Model(&APIIdempotencyRecord{}).
-			Where("id = ? AND status = ? AND lease_updated_time = ?", record.Id, APIIdempotencyStatusReceiving, now).
-			Updates(map[string]interface{}{
-				"status":             APIIdempotencyStatusProcessing,
-				"lease_updated_time": now,
-				"updated_time":       now,
-			})
-		if updated.Error != nil {
-			return nil, updated.Error
-		}
-		if updated.RowsAffected != 1 {
-			return nil, ErrAPIIdempotencyCASLost
-		}
-		record.Status = APIIdempotencyStatusProcessing
-		return &APIIdempotencyClaim{Record: &record, Decision: DecisionOwner}, nil
-	}
 	return claimExistingAPIIdempotency(userID, route, keyHash, requestHash, now, staleBefore)
 }
 
@@ -114,12 +98,30 @@ func claimExistingAPIIdempotency(userID int, route, keyHash, requestHash string,
 		return &APIIdempotencyClaim{Record: &record, Decision: DecisionConflict}, nil
 	}
 	switch record.Status {
+	case APIIdempotencyStatusReceiving:
+		updated := DB.Model(&APIIdempotencyRecord{}).
+			Where("id = ? AND status = ? AND lease_updated_time = ?", record.Id, APIIdempotencyStatusReceiving, record.LeaseUpdatedTime).
+			Updates(map[string]interface{}{
+				"status":             APIIdempotencyStatusProcessing,
+				"lease_updated_time": now,
+				"updated_time":       now,
+			})
+		if updated.Error != nil {
+			return nil, updated.Error
+		}
+		if updated.RowsAffected == 1 {
+			record.Status = APIIdempotencyStatusProcessing
+			record.LeaseUpdatedTime = now
+			record.UpdatedTime = now
+			return &APIIdempotencyClaim{Record: &record, Decision: DecisionOwner}, nil
+		}
+		return claimExistingAPIIdempotency(userID, route, keyHash, requestHash, now, staleBefore)
 	case APIIdempotencyStatusCompleted, APIIdempotencyStatusFailed:
 		return &APIIdempotencyClaim{Record: &record, Decision: DecisionReplay}, nil
 	case APIIdempotencyStatusOutcomeUnknown:
 		return &APIIdempotencyClaim{Record: &record, Decision: DecisionOutcomeUnknown}, nil
 	case APIIdempotencyStatusCallingUpstream:
-		if record.LeaseUpdatedTime >= staleBefore {
+		if apiIdempotencyCallingUpstreamStalenessTime(record) >= staleBefore {
 			return &APIIdempotencyClaim{Record: &record, Decision: DecisionInProgress}, nil
 		}
 		updated := DB.Model(&APIIdempotencyRecord{}).
@@ -139,12 +141,12 @@ func claimExistingAPIIdempotency(userID int, route, keyHash, requestHash string,
 			return &APIIdempotencyClaim{Record: &record, Decision: DecisionOutcomeUnknown}, nil
 		}
 		return claimExistingAPIIdempotency(userID, route, keyHash, requestHash, now, staleBefore)
-	case APIIdempotencyStatusReceiving, APIIdempotencyStatusProcessing:
+	case APIIdempotencyStatusProcessing:
 		if record.LeaseUpdatedTime >= staleBefore {
 			return &APIIdempotencyClaim{Record: &record, Decision: DecisionInProgress}, nil
 		}
 		updated := DB.Model(&APIIdempotencyRecord{}).
-			Where("id = ? AND status IN ? AND lease_updated_time = ?", record.Id, []string{APIIdempotencyStatusReceiving, APIIdempotencyStatusProcessing}, record.LeaseUpdatedTime).
+			Where("id = ? AND status = ? AND lease_updated_time = ?", record.Id, APIIdempotencyStatusProcessing, record.LeaseUpdatedTime).
 			Updates(map[string]interface{}{
 				"status":             APIIdempotencyStatusProcessing,
 				"lease_updated_time": now,
@@ -169,6 +171,9 @@ func claimExistingAPIIdempotency(userID int, route, keyHash, requestHash string,
 }
 
 func BindAPIIdempotencyResourceTx(tx *gorm.DB, recordID int64, leaseUpdatedTime int64, publicID string, now int64) error {
+	if tx == nil {
+		return ErrAPIIdempotencyTransactionRequired
+	}
 	if strings.TrimSpace(publicID) == "" {
 		return ErrAPIIdempotencyBlankResourcePublicID
 	}
@@ -199,6 +204,9 @@ func MarkAPIIdempotencyCallingUpstream(recordID int64, leaseUpdatedTime int64, n
 }
 
 func CompleteAPIIdempotency(recordID int64, leaseUpdatedTime int64, publicID string, responseStatus int, responsePayload string, now int64) error {
+	if strings.TrimSpace(publicID) == "" {
+		return ErrAPIIdempotencyBlankResourcePublicID
+	}
 	return finishAPIIdempotency(recordID, leaseUpdatedTime, publicID, responseStatus, responsePayload, now, APIIdempotencyStatusCompleted)
 }
 
@@ -224,7 +232,10 @@ func MarkStaleAPIIdempotencyOutcomeUnknown(staleBefore int64, now int64, limit i
 		return nil, nil
 	}
 	var candidates []APIIdempotencyRecord
-	if err := DB.Where("status = ? AND lease_updated_time < ?", APIIdempotencyStatusCallingUpstream, staleBefore).
+	if err := DB.Where(
+		"status = ? AND ((upstream_call_started_at > ? AND upstream_call_started_at < ?) OR (upstream_call_started_at <= ? AND lease_updated_time < ?))",
+		APIIdempotencyStatusCallingUpstream, int64(0), staleBefore, int64(0), staleBefore,
+	).
 		Order("id").
 		Limit(limit).
 		Find(&candidates).Error; err != nil {
@@ -283,4 +294,11 @@ func requireOneAPIIdempotencyCAS(result *gorm.DB) error {
 		return ErrAPIIdempotencyCASLost
 	}
 	return nil
+}
+
+func apiIdempotencyCallingUpstreamStalenessTime(record APIIdempotencyRecord) int64 {
+	if record.UpstreamCallStartedAt > 0 {
+		return record.UpstreamCallStartedAt
+	}
+	return record.LeaseUpdatedTime
 }
