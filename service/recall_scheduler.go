@@ -79,6 +79,9 @@ func RunRecallMaintenanceTick(ctx context.Context) {
 	}()
 	setting := operation_setting.GetRecallCampaignSetting()
 	runtime := GetRecallRuntime()
+	if _, err := model.ReconcileRecallMessageStateEventBaseline(ctx, setting.BatchSize); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("recall message state baseline reconciliation failed: %v", err))
+	}
 	if _, err := runtime.Campaigns.RunDueCampaigns(ctx, time.Now(), setting.BatchSize); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("recall campaign maintenance failed: %v", err))
 	}

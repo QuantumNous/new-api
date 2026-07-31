@@ -49,19 +49,17 @@ func BeginRecallEmailSMTPAttemptWithContext(
 ) (RecallEmailSMTPAttempt, error) {
 	attempt := RecallEmailSMTPAttempt{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&RecallMessage{}).
-			Where(
-				"id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?",
-				messageID,
-				RecallMessageLeased,
-				owner,
-				expectedLeaseUntil,
-			).
-			Update("state", RecallMessageSending)
-		if result.Error != nil {
-			return result.Error
+		count, err := TransitionRecallMessagesWithEventsTx(tx, []RecallMessageTransition{{
+			MessageID:          messageID,
+			From:               RecallMessageLeased,
+			To:                 RecallMessageSending,
+			Owner:              owner,
+			ExpectedLeaseUntil: expectedLeaseUntil,
+		}})
+		if err != nil {
+			return err
 		}
-		if result.RowsAffected != 1 {
+		if count != 1 {
 			return nil
 		}
 		attempt.LeaseOwned = true

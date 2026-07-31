@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -56,6 +57,484 @@ type RecallDueMessage struct {
 	State                string
 	EffectiveDueAt       int64
 	PreviousLeaseExpires int64
+}
+
+type RecallMessageTransition struct {
+	MessageID          int64
+	RecipientID        int64
+	CampaignID         int64
+	StageNo            int
+	From               string
+	To                 string
+	Owner              string
+	ExpectedLeaseUntil int64
+	Fields             map[string]any
+	dueFence           *recallMessageDueFence
+}
+
+type recallMessageDueFence struct {
+	State string
+	Value int64
+	Now   int64
+}
+
+type recallMessageStateEventPayload struct {
+	MessageID   int64  `json:"message_id"`
+	RecipientID int64  `json:"recipient_id"`
+	StageNo     int    `json:"stage_no"`
+	FromState   string `json:"from_state"`
+	ToState     string `json:"to_state"`
+	OccurredAt  int64  `json:"occurred_at"`
+}
+
+func TransitionRecallMessageWithEvent(ctx context.Context, transition RecallMessageTransition) (bool, error) {
+	transitioned := 0
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		count, err := TransitionRecallMessagesWithEventsTx(tx, []RecallMessageTransition{transition})
+		transitioned = count
+		return err
+	})
+	if err != nil {
+		return false, err
+	}
+	return transitioned == 1, nil
+}
+
+func CreateRecallMessagesWithStateEventsTx(tx *gorm.DB, campaignID int64, messages []RecallMessage, occurredAt int64) error {
+	if tx == nil {
+		return fmt.Errorf("recall message state event creation requires a transaction")
+	}
+	if len(messages) == 0 {
+		return nil
+	}
+	for i := range messages {
+		messages[i].StateVersion = 1
+		if strings.TrimSpace(messages[i].State) == "" {
+			messages[i].State = RecallMessageScheduled
+		}
+	}
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "recipient_id"}, {Name: "stage_no"}},
+		DoNothing: true,
+	}).CreateInBatches(&messages, recallRunBatchSize).Error; err != nil {
+		return err
+	}
+
+	stored, err := selectRecallMessagesForStateEventCreation(tx, campaignID, messages)
+	if err != nil {
+		return err
+	}
+	for _, message := range stored {
+		if message.StateVersion != 1 {
+			continue
+		}
+		event, err := recallMessageStateEvent(message, "", message.State, 1, occurredAt)
+		if err != nil {
+			return err
+		}
+		if _, err := insertRecallMessageStateEvent(tx, &event); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TransitionRecallMessagesWithEventsTx(tx *gorm.DB, transitions []RecallMessageTransition) (int, error) {
+	if tx == nil {
+		return 0, fmt.Errorf("recall message state transition requires a transaction")
+	}
+	if len(transitions) == 0 {
+		return 0, nil
+	}
+	occurredAt, err := getDBTimestamp(tx)
+	if err != nil {
+		return 0, err
+	}
+	transitionByID := make(map[int64]RecallMessageTransition, len(transitions))
+	ids := make([]int64, 0, len(transitions))
+	for _, transition := range transitions {
+		if strings.TrimSpace(transition.From) == "" || strings.TrimSpace(transition.To) == "" {
+			return 0, fmt.Errorf("recall message transition requires from and to states")
+		}
+		if _, err := recallMessageTransitionUpdates(transition); err != nil {
+			return 0, err
+		}
+		if _, exists := transitionByID[transition.MessageID]; !exists {
+			ids = append(ids, transition.MessageID)
+		}
+		transitionByID[transition.MessageID] = transition
+	}
+	transitioned := 0
+	for start := 0; start < len(ids); start += recallRunBatchSize {
+		end := start + recallRunBatchSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+		rows, err := selectRecallMessagesForTransition(tx, ids[start:end])
+		if err != nil {
+			return transitioned, err
+		}
+		for _, row := range rows {
+			transition := transitionByID[row.Id]
+			if !recallMessageTransitionMatches(row.RecallMessage, transition) {
+				continue
+			}
+			if row.StateVersion == 0 {
+				baselined, err := insertInlineRecallMessageBaseline(tx, row, transition, occurredAt)
+				if err != nil {
+					return transitioned, err
+				}
+				if !baselined {
+					continue
+				}
+				row.StateVersion = 1
+			}
+			updates, err := recallMessageTransitionUpdates(transition)
+			if err != nil {
+				return transitioned, err
+			}
+			nextVersion := row.StateVersion + 1
+			updates["state"] = transition.To
+			updates["state_version"] = nextVersion
+			updateQuery := recallMessageTransitionQuery(tx.Model(&RecallMessage{}), row.RecallMessage, transition).
+				Where("state_version = ?", row.StateVersion)
+			updateQuery = applyRecallMessageDueFence(updateQuery, transition.dueFence)
+			result := updateQuery.Updates(updates)
+			if result.Error != nil {
+				return transitioned, result.Error
+			}
+			if result.RowsAffected == 0 {
+				continue
+			}
+			row.State = transition.To
+			row.StateVersion = nextVersion
+			if transition.CampaignID > 0 {
+				row.CampaignID = transition.CampaignID
+			}
+			event, err := recallMessageStateEvent(row, transition.From, transition.To, nextVersion, occurredAt)
+			if err != nil {
+				return transitioned, err
+			}
+			inserted, err := insertRecallMessageStateEvent(tx, &event)
+			if err != nil {
+				return transitioned, err
+			}
+			if !inserted && tx.Migrator().HasTable(&RecallEvent{}) {
+				return transitioned, fmt.Errorf("recall message state event was not inserted for message %d version %d", row.Id, nextVersion)
+			}
+			transitioned++
+		}
+	}
+	return transitioned, nil
+}
+
+func recallMessageDueAcquireFence(state string, value int64, now int64) *recallMessageDueFence {
+	return &recallMessageDueFence{State: state, Value: value, Now: now}
+}
+
+func recallDueCandidateFenceValue(candidate RecallDueMessage) int64 {
+	if candidate.State == RecallMessageLeased {
+		return candidate.PreviousLeaseExpires
+	}
+	return candidate.EffectiveDueAt
+}
+
+func recallMessageDueFenceValue(message RecallMessage) int64 {
+	switch message.State {
+	case RecallMessageScheduled:
+		return message.ScheduledAt
+	case RecallMessageRetryWait:
+		return message.NextAttemptAt
+	case RecallMessageLeased:
+		return message.LeaseExpiresAt
+	default:
+		return 0
+	}
+}
+
+func applyRecallMessageDueFence(query *gorm.DB, fence *recallMessageDueFence) *gorm.DB {
+	if fence == nil {
+		return query
+	}
+	switch fence.State {
+	case RecallMessageScheduled:
+		return query.Where("scheduled_at = ? AND scheduled_at <= ?", fence.Value, fence.Now)
+	case RecallMessageRetryWait:
+		return query.Where("next_attempt_at = ? AND next_attempt_at <= ?", fence.Value, fence.Now)
+	case RecallMessageLeased:
+		return query.Where("lease_expires_at = ? AND lease_expires_at < ?", fence.Value, fence.Now)
+	default:
+		return query
+	}
+}
+
+func ReconcileRecallMessageStateEventBaseline(ctx context.Context, limit int) (int, error) {
+	if limit <= 0 {
+		return 0, nil
+	}
+	reconciled := 0
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		pending := 0
+		rows := make([]recallMessageWithCampaign, 0, limit)
+		if err := tx.Model(&RecallMessage{}).
+			Select("recall_messages.*, recall_recipients.campaign_id").
+			Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
+			Where("recall_messages.state_version = 0").
+			Order("recall_messages.id ASC").
+			Limit(limit).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Find(&rows).Error; err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		occurredAt, err := getDBTimestamp(tx)
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			result := tx.Model(&RecallMessage{}).
+				Where("id = ? AND state_version = 0", row.Id).
+				Update("state_version", 1)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 0 {
+				continue
+			}
+			row.StateVersion = 1
+			event, err := recallMessageStateEvent(row, "", row.State, 1, occurredAt)
+			if err != nil {
+				return err
+			}
+			inserted, err := insertRecallMessageStateEvent(tx, &event)
+			if err != nil {
+				return err
+			}
+			if !inserted && tx.Migrator().HasTable(&RecallEvent{}) {
+				return fmt.Errorf("recall message baseline event was not inserted for message %d", row.Id)
+			}
+			pending++
+		}
+		reconciled = pending
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return reconciled, err
+}
+
+func CountUnbaselinedRecallMessagesForCampaign(ctx context.Context, campaignID int64) (int64, error) {
+	var count int64
+	err := DB.WithContext(ctx).Model(&RecallMessage{}).
+		Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
+		Where("recall_recipients.campaign_id = ? AND recall_messages.state_version = 0", campaignID).
+		Count(&count).Error
+	return count, err
+}
+
+type recallMessageWithCampaign struct {
+	RecallMessage
+	CampaignID int64 `gorm:"column:campaign_id"`
+}
+
+func selectRecallMessagesForStateEventCreation(tx *gorm.DB, campaignID int64, messages []RecallMessage) ([]recallMessageWithCampaign, error) {
+	stored := make([]recallMessageWithCampaign, 0, len(messages))
+	for start := 0; start < len(messages); start += recallRunBatchSize {
+		end := start + recallRunBatchSize
+		if end > len(messages) {
+			end = len(messages)
+		}
+		batch := messages[start:end]
+		recipientIDs := make([]int64, 0, len(batch))
+		stageNos := make([]int, 0, len(batch))
+		requested := make(map[recallMessageCreationKey]struct{}, len(batch))
+		for _, message := range batch {
+			recipientIDs = append(recipientIDs, message.RecipientId)
+			stageNos = append(stageNos, message.StageNo)
+			requested[recallMessageCreationKey{RecipientID: message.RecipientId, StageNo: message.StageNo}] = struct{}{}
+		}
+		query := tx.Model(&RecallMessage{}).
+			Select("recall_messages.*, recall_recipients.campaign_id").
+			Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
+			Where("recall_messages.recipient_id IN ? AND recall_messages.stage_no IN ?", recipientIDs, stageNos)
+		if campaignID > 0 {
+			query = query.Where("recall_recipients.campaign_id = ?", campaignID)
+		}
+		var rows []recallMessageWithCampaign
+		if err := query.Order("recall_messages.id ASC").Find(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			key := recallMessageCreationKey{RecipientID: row.RecipientId, StageNo: row.StageNo}
+			if _, ok := requested[key]; !ok {
+				continue
+			}
+			stored = append(stored, row)
+		}
+	}
+	return stored, nil
+}
+
+type recallMessageCreationKey struct {
+	RecipientID int64
+	StageNo     int
+}
+
+func selectRecallMessagesForTransition(tx *gorm.DB, ids []int64) ([]recallMessageWithCampaign, error) {
+	rows := make([]recallMessageWithCampaign, 0, len(ids))
+	query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Model(&RecallMessage{}).
+		Where("recall_messages.id IN ?", ids).
+		Order("recall_messages.id ASC")
+	if tx.Migrator().HasTable(&RecallRecipient{}) {
+		query = query.Select("recall_messages.*, recall_recipients.campaign_id").
+			Joins("LEFT JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id")
+	} else {
+		query = query.Select("recall_messages.*")
+	}
+	if err := query.Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func recallMessageTransitionMatches(message RecallMessage, transition RecallMessageTransition) bool {
+	if message.State != transition.From {
+		return false
+	}
+	if transition.RecipientID > 0 && message.RecipientId != transition.RecipientID {
+		return false
+	}
+	if transition.StageNo > 0 && message.StageNo != transition.StageNo {
+		return false
+	}
+	if transition.Owner != "" || transition.ExpectedLeaseUntil != 0 {
+		return message.LeaseOwner == transition.Owner && message.LeaseExpiresAt == transition.ExpectedLeaseUntil
+	}
+	return true
+}
+
+func recallMessageTransitionQuery(query *gorm.DB, message RecallMessage, transition RecallMessageTransition) *gorm.DB {
+	query = query.Where("id = ? AND state = ?", message.Id, transition.From)
+	if transition.RecipientID > 0 {
+		query = query.Where("recipient_id = ?", transition.RecipientID)
+	}
+	if transition.StageNo > 0 {
+		query = query.Where("stage_no = ?", transition.StageNo)
+	}
+	if transition.Owner != "" || transition.ExpectedLeaseUntil != 0 {
+		query = query.Where("lease_owner = ? AND lease_expires_at = ?", transition.Owner, transition.ExpectedLeaseUntil)
+	}
+	return query
+}
+
+func insertInlineRecallMessageBaseline(tx *gorm.DB, row recallMessageWithCampaign, transition RecallMessageTransition, occurredAt int64) (bool, error) {
+	query := recallMessageTransitionQuery(tx.Model(&RecallMessage{}), row.RecallMessage, transition).
+		Where("state_version = 0")
+	query = applyRecallMessageDueFence(query, transition.dueFence)
+	result := query.Update("state_version", int64(1))
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return false, nil
+	}
+	if transition.CampaignID > 0 {
+		row.CampaignID = transition.CampaignID
+	}
+	event, err := recallMessageStateEvent(row, "", row.State, 1, occurredAt)
+	if err != nil {
+		return false, err
+	}
+	inserted, err := insertRecallMessageStateEvent(tx, &event)
+	if err != nil {
+		return false, err
+	}
+	if !inserted && tx.Migrator().HasTable(&RecallEvent{}) {
+		return false, fmt.Errorf("recall message baseline event was not inserted for message %d", row.Id)
+	}
+	return true, nil
+}
+
+func recallMessageTransitionUpdates(transition RecallMessageTransition) (map[string]any, error) {
+	allowedFields := recallMessageTransitionAllowedFields()
+	updates := make(map[string]any, len(transition.Fields)+2)
+	for key, value := range transition.Fields {
+		if _, ok := allowedFields[key]; !ok {
+			return nil, fmt.Errorf("unsupported recall message transition field %q", key)
+		}
+		updates[key] = value
+	}
+	return updates, nil
+}
+
+func recallMessageTransitionAllowedFields() map[string]struct{} {
+	return map[string]struct{}{
+		"accepted_at":         {},
+		"failed_at":           {},
+		"provider_message_id": {},
+		"claim_token_hash":    {},
+		"attempt_count":       {},
+		"next_attempt_at":     {},
+		"last_error_code":     {},
+		"last_error_message":  {},
+		"lease_owner":         {},
+		"lease_expires_at":    {},
+	}
+}
+
+func recallMessageStateEvent(message any, from string, to string, version int64, occurredAt int64) (RecallEvent, error) {
+	var id int64
+	var recipientID int64
+	var campaignID int64
+	var stageNo int
+	switch row := message.(type) {
+	case RecallMessage:
+		id = row.Id
+		recipientID = row.RecipientId
+		stageNo = row.StageNo
+	case recallMessageWithCampaign:
+		id = row.Id
+		recipientID = row.RecipientId
+		campaignID = row.CampaignID
+		stageNo = row.StageNo
+	default:
+		return RecallEvent{}, fmt.Errorf("unsupported recall message state event row")
+	}
+	payload, err := common.Marshal(recallMessageStateEventPayload{
+		MessageID:   id,
+		RecipientID: recipientID,
+		StageNo:     stageNo,
+		FromState:   from,
+		ToState:     to,
+		OccurredAt:  occurredAt,
+	})
+	if err != nil {
+		return RecallEvent{}, err
+	}
+	return RecallEvent{
+		CampaignId:    campaignID,
+		RecipientId:   0,
+		EventType:     "message_state_changed",
+		Source:        "message_state",
+		SourceEventId: fmt.Sprintf("%d:%d", id, version),
+		EventData:     string(payload),
+		CreatedAt:     occurredAt,
+	}, nil
+}
+
+func insertRecallMessageStateEvent(tx *gorm.DB, event *RecallEvent) (bool, error) {
+	if !tx.Migrator().HasTable(&RecallEvent{}) {
+		return false, nil
+	}
+	result := insertRecallRunEvent(tx, event)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
 }
 
 func ListDueRecallMessages(now int64, limit int) ([]RecallDueMessage, error) {
@@ -113,27 +592,44 @@ func mergeDueRecallMessages(limit int, sources ...[]RecallDueMessage) []RecallDu
 }
 
 func LeaseDueRecallMessage(candidate RecallDueMessage, owner string, now int64, leaseUntil int64) (bool, error) {
-	query := DB.Model(&RecallMessage{}).
-		Where("id = ? AND state = ?", candidate.ID, candidate.State)
-	switch candidate.State {
-	case RecallMessageScheduled:
-		query = query.Where("scheduled_at = ? AND scheduled_at <= ?", candidate.EffectiveDueAt, now)
-	case RecallMessageRetryWait:
-		query = query.Where("next_attempt_at = ? AND next_attempt_at <= ?", candidate.EffectiveDueAt, now)
-	case RecallMessageLeased:
-		query = query.Where("lease_expires_at = ? AND lease_expires_at < ?", candidate.PreviousLeaseExpires, now)
-	default:
-		return false, nil
-	}
-	result := query.Updates(map[string]any{
-		"state":            RecallMessageLeased,
-		"lease_owner":      owner,
-		"lease_expires_at": leaseUntil,
+	won := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND state = ?", candidate.ID, candidate.State)
+		switch candidate.State {
+		case RecallMessageScheduled:
+			query = query.Where("scheduled_at = ? AND scheduled_at <= ?", candidate.EffectiveDueAt, now)
+		case RecallMessageRetryWait:
+			query = query.Where("next_attempt_at = ? AND next_attempt_at <= ?", candidate.EffectiveDueAt, now)
+		case RecallMessageLeased:
+			query = query.Where("lease_expires_at = ? AND lease_expires_at < ?", candidate.PreviousLeaseExpires, now)
+		default:
+			return nil
+		}
+		var message RecallMessage
+		if err := query.First(&message).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+		count, err := TransitionRecallMessagesWithEventsTx(tx, []RecallMessageTransition{{
+			MessageID: message.Id,
+			From:      candidate.State,
+			To:        RecallMessageLeased,
+			dueFence:  recallMessageDueAcquireFence(candidate.State, recallDueCandidateFenceValue(candidate), now),
+			Fields: map[string]any{
+				"lease_owner":      owner,
+				"lease_expires_at": leaseUntil,
+			},
+		}})
+		if err != nil {
+			return err
+		}
+		won = count == 1
+		return nil
 	})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	return won, err
 }
 
 func ReleaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, candidate RecallDueMessage) (bool, error) {
@@ -155,13 +651,17 @@ func releaseRecallMessageLeaseWithContext(ctx context.Context, id int64, owner s
 		updates["state"] = RecallMessageRetryWait
 		updates["next_attempt_at"] = retryAt
 	}
-	result := DB.WithContext(ctx).Model(&RecallMessage{}).
-		Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, RecallMessageLeased, owner, expectedLeaseUntil).
-		Updates(updates)
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	to := updates["state"].(string)
+	delete(updates, "state")
+	won, err := TransitionRecallMessageWithEvent(ctx, RecallMessageTransition{
+		MessageID:          id,
+		From:               RecallMessageLeased,
+		To:                 to,
+		Owner:              owner,
+		ExpectedLeaseUntil: expectedLeaseUntil,
+		Fields:             updates,
+	})
+	return won, err
 }
 
 func DeferRecallMessageLeaseWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, deferUntil int64) (bool, error) {
@@ -190,26 +690,42 @@ func ListDueRecallMessageIDs(now int64, limit int) ([]int64, error) {
 }
 
 func LeaseRecallMessage(id int64, owner string, now int64, leaseUntil int64) (bool, error) {
-	result := DB.Model(&RecallMessage{}).
-		Where(
-			"id = ? AND ((state = ? AND scheduled_at <= ?) OR (state = ? AND next_attempt_at <= ?) OR (state = ? AND lease_expires_at < ?))",
-			id,
-			RecallMessageScheduled,
-			now,
-			RecallMessageRetryWait,
-			now,
-			RecallMessageLeased,
-			now,
-		).
-		Updates(map[string]any{
-			"state":            RecallMessageLeased,
-			"lease_owner":      owner,
-			"lease_expires_at": leaseUntil,
-		})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	won := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var message RecallMessage
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(
+				"id = ? AND ((state = ? AND scheduled_at <= ?) OR (state = ? AND next_attempt_at <= ?) OR (state = ? AND lease_expires_at < ?))",
+				id,
+				RecallMessageScheduled,
+				now,
+				RecallMessageRetryWait,
+				now,
+				RecallMessageLeased,
+				now,
+			).First(&message).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+		count, err := TransitionRecallMessagesWithEventsTx(tx, []RecallMessageTransition{{
+			MessageID: message.Id,
+			From:      message.State,
+			To:        RecallMessageLeased,
+			dueFence:  recallMessageDueAcquireFence(message.State, recallMessageDueFenceValue(message), now),
+			Fields: map[string]any{
+				"lease_owner":      owner,
+				"lease_expires_at": leaseUntil,
+			},
+		}})
+		if err != nil {
+			return err
+		}
+		won = count == 1
+		return nil
+	})
+	return won, err
 }
 
 func CompleteRecallMessageLease(id int64, owner string, expectedLeaseUntil int64, from string, to string, fields map[string]any) (bool, error) {
@@ -230,26 +746,27 @@ func CompleteRecallMessageLease(id int64, owner string, expectedLeaseUntil int64
 		}
 		updates[key] = value
 	}
-	updates["state"] = to
 	updates["lease_owner"] = ""
 	updates["lease_expires_at"] = int64(0)
-	result := DB.Model(&RecallMessage{}).
-		Where("id = ? AND lease_owner = ? AND lease_expires_at = ? AND state = ?", id, owner, expectedLeaseUntil, from).
-		Updates(updates)
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	won, err := TransitionRecallMessageWithEvent(context.Background(), RecallMessageTransition{
+		MessageID:          id,
+		From:               from,
+		To:                 to,
+		Owner:              owner,
+		ExpectedLeaseUntil: expectedLeaseUntil,
+		Fields:             updates,
+	})
+	return won, err
 }
 
 func MarkRecallMessageSendingWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64) (bool, error) {
-	result := DB.WithContext(ctx).Model(&RecallMessage{}).
-		Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, RecallMessageLeased, owner, expectedLeaseUntil).
-		Update("state", RecallMessageSending)
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	return TransitionRecallMessageWithEvent(ctx, RecallMessageTransition{
+		MessageID:          id,
+		From:               RecallMessageLeased,
+		To:                 RecallMessageSending,
+		Owner:              owner,
+		ExpectedLeaseUntil: expectedLeaseUntil,
+	})
 }
 
 func GetRecallEmailWorkItemForLeaseWithContext(ctx context.Context, id int64, owner string) (*RecallEmailWorkItem, error) {
@@ -318,6 +835,7 @@ func EnsureRecallMessageProviderIDWithContext(ctx context.Context, id int64, own
 func AcceptRecallMessageAndScheduleNextWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64, acceptedAt int64, next *RecallMessage) (bool, error) {
 	accepted := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		pendingAccepted := false
 		var message RecallMessage
 		if err := tx.Select("recipient_id").
 			Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, RecallMessageSending, owner, expectedLeaseUntil).
@@ -327,10 +845,13 @@ func AcceptRecallMessageAndScheduleNextWithContext(ctx context.Context, id int64
 			}
 			return err
 		}
-		result := tx.Model(&RecallMessage{}).
-			Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, RecallMessageSending, owner, expectedLeaseUntil).
-			Updates(map[string]any{
-				"state":              RecallMessageAccepted,
+		count, err := TransitionRecallMessagesWithEventsTx(tx, []RecallMessageTransition{{
+			MessageID:          id,
+			From:               RecallMessageSending,
+			To:                 RecallMessageAccepted,
+			Owner:              owner,
+			ExpectedLeaseUntil: expectedLeaseUntil,
+			Fields: map[string]any{
 				"accepted_at":        acceptedAt,
 				"attempt_count":      gorm.Expr("attempt_count + ?", 1),
 				"next_attempt_at":    int64(0),
@@ -338,11 +859,12 @@ func AcceptRecallMessageAndScheduleNextWithContext(ctx context.Context, id int64
 				"lease_expires_at":   int64(0),
 				"last_error_code":    "",
 				"last_error_message": "",
-			})
-		if result.Error != nil {
-			return result.Error
+			},
+		}})
+		if err != nil {
+			return err
 		}
-		if result.RowsAffected == 0 {
+		if count == 0 {
 			return nil
 		}
 		if err := tx.Model(&RecallRecipient{}).
@@ -357,75 +879,113 @@ func AcceptRecallMessageAndScheduleNextWithContext(ctx context.Context, id int64
 			next.RecipientId = message.RecipientId
 			next.State = RecallMessageScheduled
 			next.ClaimTokenHash = nil
-			if err := tx.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "recipient_id"}, {Name: "stage_no"}},
-				DoNothing: true,
-			}).Create(next).Error; err != nil {
+			if err := CreateRecallMessagesWithStateEventsTx(tx, 0, []RecallMessage{*next}, acceptedAt); err != nil {
 				return err
 			}
 		}
-		accepted = true
+		pendingAccepted = true
+		accepted = pendingAccepted
 		return nil
 	})
+	if err != nil {
+		return false, err
+	}
 	return accepted, err
 }
 
 func CancelRecallEmailFlowWithContext(ctx context.Context, id int64, recipientID int64, owner string, expectedLeaseUntil int64, reasonCode string, now int64) (bool, error) {
 	cancelled := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&RecallMessage{}).
+		pendingCancelled := false
+		var current RecallMessage
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND recipient_id = ? AND state IN ? AND lease_owner = ? AND lease_expires_at = ?", id, recipientID, []string{RecallMessageLeased, RecallMessageSending}, owner, expectedLeaseUntil).
-			Updates(map[string]any{
-				"state":              RecallMessageCancelled,
+			First(&current).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+		count, err := TransitionRecallMessagesWithEventsTx(tx, []RecallMessageTransition{{
+			MessageID:          current.Id,
+			RecipientID:        recipientID,
+			From:               current.State,
+			To:                 RecallMessageCancelled,
+			Owner:              owner,
+			ExpectedLeaseUntil: expectedLeaseUntil,
+			Fields: map[string]any{
 				"next_attempt_at":    int64(0),
 				"lease_owner":        "",
 				"lease_expires_at":   int64(0),
 				"failed_at":          now,
 				"last_error_code":    reasonCode,
 				"last_error_message": "",
-			})
-		if result.Error != nil {
-			return result.Error
+			},
+		}})
+		if err != nil {
+			return err
 		}
-		if result.RowsAffected == 0 {
+		if count == 0 {
 			return nil
 		}
-		cancelled = true
-		return tx.Model(&RecallMessage{}).
-			Where("recipient_id = ? AND state IN ?", recipientID, []string{RecallMessageScheduled, RecallMessageRetryWait, RecallMessageLeased, RecallMessageSending}).
-			Updates(map[string]any{
-				"state":              RecallMessageCancelled,
-				"next_attempt_at":    int64(0),
-				"lease_owner":        "",
-				"lease_expires_at":   int64(0),
-				"failed_at":          now,
-				"last_error_code":    reasonCode,
-				"last_error_message": "",
-			}).Error
+		pendingCancelled = true
+		_, err = cancelRecallMessagesInBatches(tx, func(afterID int64) *gorm.DB {
+			return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("recipient_id = ? AND id > ? AND state IN ?", recipientID, afterID, cancellableRecallMessageStates())
+		}, 0, reasonCode, now)
+		if err != nil {
+			return err
+		}
+		cancelled = pendingCancelled
+		return nil
 	})
+	if err != nil {
+		return false, err
+	}
 	return cancelled, err
 }
 
 func ManualRetryRecallMessageWithContext(ctx context.Context, id int64, acknowledgeUncertain bool, now int64) (bool, error) {
-	query := DB.WithContext(ctx).Model(&RecallMessage{}).
-		Where("id = ? AND state = ?", id, RecallMessageFailed)
-	if acknowledgeUncertain {
-		query = DB.WithContext(ctx).Model(&RecallMessage{}).
-			Where("id = ? AND (state IN ? OR (state = ? AND lease_expires_at > 0 AND lease_expires_at < ?))", id, []string{RecallMessageFailed, RecallMessageUncertain}, RecallMessageSending, now)
-	}
-	result := query.Updates(map[string]any{
-		"state":              RecallMessageRetryWait,
-		"next_attempt_at":    now,
-		"failed_at":          int64(0),
-		"lease_owner":        "",
-		"lease_expires_at":   int64(0),
-		"last_error_code":    "",
-		"last_error_message": "",
+	retried := false
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		pendingRetried := false
+		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND state = ?", id, RecallMessageFailed)
+		if acknowledgeUncertain {
+			query = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("id = ? AND (state IN ? OR (state = ? AND lease_expires_at > 0 AND lease_expires_at < ?))", id, []string{RecallMessageFailed, RecallMessageUncertain}, RecallMessageSending, now)
+		}
+		var message RecallMessage
+		if err := query.First(&message).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+		count, err := TransitionRecallMessagesWithEventsTx(tx, []RecallMessageTransition{{
+			MessageID: message.Id,
+			From:      message.State,
+			To:        RecallMessageRetryWait,
+			Fields: map[string]any{
+				"next_attempt_at":    now,
+				"failed_at":          int64(0),
+				"lease_owner":        "",
+				"lease_expires_at":   int64(0),
+				"last_error_code":    "",
+				"last_error_message": "",
+			},
+		}})
+		if err != nil {
+			return err
+		}
+		pendingRetried = count == 1
+		retried = pendingRetried
+		return nil
 	})
-	if result.Error != nil {
-		return false, result.Error
+	if err != nil {
+		return false, err
 	}
-	return result.RowsAffected == 1, nil
+	return retried, err
 }
 
 func ListRecallMessagesForRecipientIDsWithContext(ctx context.Context, recipientIDs []int64) ([]RecallMessage, error) {
@@ -484,20 +1044,31 @@ func manualRetryRecallMessageState(db *gorm.DB, id int64, recipientID int64, exp
 	if recipientID > 0 {
 		query = query.Where("recipient_id = ?", recipientID)
 	}
-	result := query.
-		Updates(map[string]any{
-			"state":              RecallMessageRetryWait,
+	var message RecallMessage
+	if err := query.Clauses(clause.Locking{Strength: "UPDATE"}).First(&message).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	count, err := TransitionRecallMessagesWithEventsTx(db, []RecallMessageTransition{{
+		MessageID:   message.Id,
+		RecipientID: recipientID,
+		From:        message.State,
+		To:          RecallMessageRetryWait,
+		Fields: map[string]any{
 			"next_attempt_at":    now,
 			"failed_at":          int64(0),
 			"lease_owner":        "",
 			"lease_expires_at":   int64(0),
 			"last_error_code":    "",
 			"last_error_message": "",
-		})
-	if result.Error != nil {
-		return false, result.Error
+		},
+	}})
+	if err != nil {
+		return false, err
 	}
-	return result.RowsAffected == 1, nil
+	return count == 1, nil
 }
 
 func ScheduleNextRecallStages(recipientID int64, messages []RecallMessage) error {
@@ -507,31 +1078,80 @@ func ScheduleNextRecallStages(recipientID int64, messages []RecallMessage) error
 	for i := range messages {
 		messages[i].RecipientId = recipientID
 	}
-	return DB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "recipient_id"}, {Name: "stage_no"}},
-		DoNothing: true,
-	}).Create(&messages).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		now, err := getDBTimestamp(tx)
+		if err != nil {
+			return err
+		}
+		return CreateRecallMessagesWithStateEventsTx(tx, 0, messages, now)
+	})
 }
 
 func CancelPendingRecallMessages(recipientID int64, reasonCode string, now int64) (int64, error) {
-	result := DB.Model(&RecallMessage{}).
-		Where("recipient_id = ? AND state IN ?", recipientID, []string{
-			RecallMessageScheduled,
-			RecallMessageRetryWait,
-			RecallMessageLeased,
-			RecallMessageSending,
-		}).
-		Updates(map[string]any{
-			"state":              RecallMessageCancelled,
-			"next_attempt_at":    int64(0),
-			"lease_owner":        "",
-			"lease_expires_at":   int64(0),
-			"last_error_code":    reasonCode,
-			"last_error_message": "",
-			"failed_at":          now,
-		})
-	if result.Error != nil {
-		return 0, result.Error
+	cancelled := 0
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		count, err := cancelRecallMessagesInBatches(tx, func(afterID int64) *gorm.DB {
+			return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("recipient_id = ? AND id > ? AND state IN ?", recipientID, afterID, cancellableRecallMessageStates())
+		}, 0, reasonCode, now)
+		if err != nil {
+			return err
+		}
+		cancelled = count
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
-	return result.RowsAffected, nil
+	return int64(cancelled), err
+}
+
+func cancellableRecallMessageStates() []string {
+	return []string{
+		RecallMessageScheduled,
+		RecallMessageRetryWait,
+		RecallMessageLeased,
+		RecallMessageSending,
+	}
+}
+
+func cancelRecallMessagesInBatches(tx *gorm.DB, buildQuery func(afterID int64) *gorm.DB, campaignID int64, reasonCode string, now int64) (int, error) {
+	cancelled := 0
+	afterID := int64(0)
+	for {
+		messages := make([]RecallMessage, 0, recallRunBatchSize)
+		if err := buildQuery(afterID).
+			Order("recall_messages.id ASC").
+			Limit(recallRunBatchSize).
+			Find(&messages).Error; err != nil {
+			return cancelled, err
+		}
+		if len(messages) == 0 {
+			return cancelled, nil
+		}
+		transitions := make([]RecallMessageTransition, 0, len(messages))
+		for _, message := range messages {
+			transitions = append(transitions, RecallMessageTransition{
+				MessageID:   message.Id,
+				RecipientID: message.RecipientId,
+				CampaignID:  campaignID,
+				From:        message.State,
+				To:          RecallMessageCancelled,
+				Fields: map[string]any{
+					"next_attempt_at":    int64(0),
+					"lease_owner":        "",
+					"lease_expires_at":   int64(0),
+					"last_error_code":    reasonCode,
+					"last_error_message": "",
+					"failed_at":          now,
+				},
+			})
+			afterID = message.Id
+		}
+		count, err := TransitionRecallMessagesWithEventsTx(tx, transitions)
+		if err != nil {
+			return cancelled, err
+		}
+		cancelled += count
+	}
 }

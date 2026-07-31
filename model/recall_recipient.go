@@ -983,10 +983,11 @@ func ScheduleRecallStageOneFromStatesAndAdvance(ctx context.Context, recipientID
 		message.RecipientId = recipientID
 		message.State = RecallMessageScheduled
 		message.ClaimTokenHash = nil
-		if err := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "recipient_id"}, {Name: "stage_no"}},
-			DoNothing: true,
-		}).Create(&message).Error; err != nil {
+		occurredAt, err := getDBTimestamp(tx)
+		if err != nil {
+			return err
+		}
+		if err := CreateRecallMessagesWithStateEventsTx(tx, 0, []RecallMessage{message}, occurredAt); err != nil {
 			return err
 		}
 		won = true
@@ -1090,21 +1091,18 @@ func SetRecallMarketingOptOutWithContext(ctx context.Context, userID int, now in
 		if err := tx.Model(&User{}).Where("id = ?", userID).Update("setting", string(settingJSON)).Error; err != nil {
 			return err
 		}
-		recipientIDs := tx.Model(&RecallRecipient{}).Select("id").Where("user_id = ?", userID)
-		return tx.Model(&RecallMessage{}).
-			Where("recipient_id IN (?) AND state IN ?", recipientIDs, []string{RecallMessageScheduled, RecallMessageRetryWait, RecallMessageLeased, RecallMessageSending}).
-			Updates(map[string]any{
-				"state":              RecallMessageCancelled,
-				"next_attempt_at":    int64(0),
-				"lease_owner":        "",
-				"lease_expires_at":   int64(0),
-				"failed_at":          now,
-				"last_error_code":    "user_opted_out",
-				"last_error_message": "",
-			}).Error
+		_, err = cancelRecallMessagesInBatches(tx, func(afterID int64) *gorm.DB {
+			return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
+				Where("recall_messages.id > ? AND recall_recipients.user_id = ? AND recall_messages.state IN ?", afterID, userID, cancellableRecallMessageStates())
+		}, 0, "user_opted_out", now)
+		return err
 	})
-	if err != nil || !found {
-		return found, err
+	if err != nil {
+		return false, err
+	}
+	if !found {
+		return false, nil
 	}
 	return true, invalidateUserCache(userID)
 }
@@ -1146,17 +1144,10 @@ func SuppressRecallRecipientWithContext(ctx context.Context, recipientID int64, 
 				return ErrRecallRecipientBindingConflict
 			}
 		}
-		if err := tx.Model(&RecallMessage{}).
-			Where("recipient_id = ? AND state IN ?", recipientID, []string{RecallMessageScheduled, RecallMessageRetryWait, RecallMessageLeased, RecallMessageSending}).
-			Updates(map[string]any{
-				"state":              RecallMessageCancelled,
-				"next_attempt_at":    int64(0),
-				"lease_owner":        "",
-				"lease_expires_at":   int64(0),
-				"failed_at":          now,
-				"last_error_code":    "recipient_unsubscribed",
-				"last_error_message": "",
-			}).Error; err != nil {
+		if _, err := cancelRecallMessagesInBatches(tx, func(afterID int64) *gorm.DB {
+			return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("recipient_id = ? AND id > ? AND state IN ?", recipientID, afterID, cancellableRecallMessageStates())
+		}, 0, "recipient_unsubscribed", now); err != nil {
 			return err
 		}
 		suppressed = true
@@ -1248,10 +1239,15 @@ func InsertRecallRecipientsAndRunEvent(campaignID int64, recipients []RecallReci
 		if len(messages) == 0 {
 			return nil
 		}
-		return tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "recipient_id"}, {Name: "stage_no"}},
-			DoNothing: true,
-		}).Create(&messages).Error
+		occurredAt := runEvent.CreatedAt
+		if occurredAt == 0 {
+			var err error
+			occurredAt, err = getDBTimestamp(tx)
+			if err != nil {
+				return err
+			}
+		}
+		return CreateRecallMessagesWithStateEventsTx(tx, campaignID, messages, occurredAt)
 	})
 	if err != nil {
 		return 0, err

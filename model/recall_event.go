@@ -214,10 +214,15 @@ func CommitRecallCampaignRun(
 			}
 			messages[i].RecipientId = recipientID
 		}
-		return tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "recipient_id"}, {Name: "stage_no"}},
-			DoNothing: true,
-		}).CreateInBatches(&messages, recallRunBatchSize).Error
+		occurredAt := runEvent.CreatedAt
+		if occurredAt == 0 {
+			var err error
+			occurredAt, err = getDBTimestamp(tx)
+			if err != nil {
+				return err
+			}
+		}
+		return CreateRecallMessagesWithStateEventsTx(tx, campaignID, messages, occurredAt)
 	})
 	if errors.Is(err, errRecallRunNotOwned) {
 		return false, 0, nil
