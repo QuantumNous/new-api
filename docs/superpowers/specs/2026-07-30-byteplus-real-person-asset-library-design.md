@@ -1,6 +1,6 @@
 # BytePlus 真人素材库架构设计
 
-> 状态：对话设计已批准，书面规格待用户审阅
+> 状态：书面规格已批准
 > 设计日期：2026-07-30
 > 适用范围：Flatkey / New API 的 Seedance 2.0 私有真人素材认证、素材管理与本地文件接入
 > 前置能力：[BytePlus 素材库功能架构设计](./2026-07-29-byteplus-asset-library-design.md)
@@ -46,13 +46,13 @@
 
 `CreateAsset` 只接受 URL，不接受本地文件体或 Base64。图片、视频和音频均为异步处理，只有 `Active` 素材才能参与 Seedance 生成。
 
-| 类型 | 支持格式 | 官方限制 |
+| 类型 | 支持格式 | Flatkey 字节阈值 |
 | --- | --- | --- |
-| 图片 | JPEG、PNG、WebP、BMP、TIFF、GIF、HEIC、HEIF | `< 30 MB`；尺寸 300–6000 px；宽高比 `(0.4, 2.5)` |
-| 视频 | MP4、MOV | `≤ 50 MB`；2–15 秒；24–60 fps；480p、720p 或 1080p |
-| 音频 | WAV、MP3 | `≤ 15 MB`；2–15 秒 |
+| 图片 | JPEG、PNG、WebP、BMP、TIFF、GIF、HEIC、HEIF | `< 30 MiB`；尺寸 300–6000 px；宽高比 `(0.4, 2.5)` |
+| 视频 | MP4、MOV | `≤ 50 MiB`；2–15 秒；24–60 fps；480p、720p 或 1080p |
+| 音频 | WAV、MP3 | `≤ 15 MiB`；2–15 秒 |
 
-Flatkey 同步校验请求结构、真实 MIME 和文件大小；分辨率、时长、帧率、人脸一致性和内容审核以 BytePlus 异步结果为准。
+BytePlus 文档以 MB 描述上限；本产品契约把服务端二进制字节阈值固定为上述 MiB 值，避免各入口换算不一致。Flatkey 同步校验请求结构、真实 MIME 和文件大小；分辨率、时长、帧率、人脸一致性和内容审核以 BytePlus 异步结果为准。
 
 ### 3.3 能力前置条件
 
@@ -242,7 +242,7 @@ Idempotency-Key: <caller-generated-key>
 }
 ```
 
-URL 必须是绝对公网 HTTPS 地址，不得包含 userinfo，并须通过现有域名、IP、端口和重定向安全规则。Flatkey 不主动下载该 URL，也不持久化完整 URL；调用方须保证它至少 12 小时可被 BytePlus 访问。
+URL 必须是绝对公网 HTTPS 地址，不得包含 userinfo，并须通过现有域名、IP、端口和重定向安全规则。Flatkey 不主动下载该 URL，也不持久化完整 URL；调用方须保证它至少 12 小时可被 BytePlus 访问。URL 与 multipart 的可选 `name` 都先 trim；非空时必须为 1–128 个 Unicode code point。multipart 未提供名称时使用脱敏文件名并截断到同一上限，URL 未提供名称时允许省略。
 
 真人素材固定使用 BytePlus `Moderation.Strategy=Default`，首期不允许调用方跳过审核。
 
@@ -261,7 +261,7 @@ Idempotency-Key: <caller-generated-key>
 | --- | --- | --- |
 | `file` | 是 | 本地图片、视频或音频文件 |
 | `asset_type` | 是 | `Image`、`Video` 或 `Audio` |
-| `name` | 否 | 1–128 字符；缺省时使用脱敏后的文件名 |
+| `name` | 否 | trim 后非空为 1–128 个 Unicode code point；缺省时使用脱敏并按同一规则截断的文件名 |
 
 文件使用请求体硬上限和 `io.LimitReader` 双重限制。服务读取文件头判断真实 MIME，声明类型与真实类型不一致时返回 415。数据流式写入 TOS 并同时计算 SHA-256，不落 Flatkey 本机磁盘。
 
@@ -357,6 +357,7 @@ BytePlus 回调进入独立的非用户 API 路由。CallbackURL 包含高熵、
 | `id` / `public_id` | 本地主键和内部随机会话 ID |
 | `profile_id` | 所属真人档案 |
 | `callback_token_hash` | 回调令牌摘要，唯一 |
+| `callback_token_ciphertext` | AES-GCM 临时密文；仅用于本地资源已提交但尚未调用上游时的 `Processing` 崩溃恢复，建立上游会话或进入终态后清空 |
 | `byted_token_ciphertext` | 加密 BytedToken |
 | `h5_link_ciphertext` | 临时加密 H5Link，仅用于幂等重放 |
 | `status` | `Creating` / `Pending` / `Checking` / `Succeeded` / `Failed` / `Expired` |
@@ -398,7 +399,8 @@ WHERE id = ?
 
 | 字段 | 说明 |
 | --- | --- |
-| `asset_id` | 对应本地素材，唯一 |
+| `asset_id` | 可空；赢家认领幂等账本并创建本地素材后绑定，绑定后唯一 |
+| `user_id` / `channel_id` | 对象所有者与凭据归属；未绑定素材时也可安全定位清理凭据 |
 | `bucket` / `object_key` | 私有 TOS 定位信息，不对外返回 |
 | `content_sha256` / `size_bytes` / `mime_type` | 完整性和审计元数据 |
 | `signed_url_expires_at` | 签名 URL 到期时间；不保存 URL 本身 |
@@ -416,11 +418,11 @@ WHERE id = ?
 | `user_id` / `route` / `key_hash` | 联合唯一；`route` 是稳定操作标识，原始幂等键不落库 |
 | `request_hash` | 路径资源 ID 与规范化 JSON，或路径资源 ID、元数据与流式文件 SHA-256 的组合摘要 |
 | `status` | `Receiving` / `Processing` / `CallingUpstream` / `Completed` / `Failed` / `OutcomeUnknown` |
-| `resource_type` / `resource_public_id` | 指向已创建档案、会话或素材 |
+| `resource_type` / `resource_public_id` | `verification_session` 始终指向精确认证 session 的公开 ID，`asset` 始终指向素材公开 ID；不得让同一类型在档案 ID 与 session ID 之间切换 |
 | `response_status` / `response_payload` | 仅保存可安全重放的脱敏响应 |
 | `upstream_call_started_at` | 上游调用开始前持久化，用于阻止不安全重试 |
 | `lease_updated_time` | 多节点创建租约 |
-| `expires_at` | 默认保留 24 小时 |
+| `expires_at` | `Completed` / `Failed` 安全重放记录默认保留 24 小时；不安全状态不按该时间自动删除 |
 
 相同用户、路由和 key：
 
@@ -430,6 +432,7 @@ WHERE id = ?
 - 同一 key 处于有效创建租约时，其他节点不得重复调用上游。
 - 一旦状态进入 `CallingUpstream`，租约过期也不得使用同一 key 再次调用上游；无法确认结果时进入 `OutcomeUnknown`，后续重放返回同一稳定错误。
 - `Failed` 只表示结果已经确定且存在可安全重放的 `response_status` 和脱敏 `response_payload`；同 key 重放该失败响应。进入 `CallingUpstream` 后若没有可安全确认和保存的响应，记录必须进入 `OutcomeUnknown`，返回稳定的 `idempotency_outcome_unknown`，不得降为可重试的 `Failed`，也不得再次调用上游。
+- 只有 `Completed` / `Failed` 可在 `expires_at` 后由协调器删除并允许 key 重新使用；`Receiving` / `Processing` / `CallingUpstream` / `OutcomeUnknown` 不参与 retention 清理。陈旧 `CallingUpstream` 必须先转为长期保留的 `OutcomeUnknown`，不能因 24 小时到期重新获得 owner。
 
 `response_payload` 永不保存 `verification_url`、BytedToken 或其他敏感上游值。有效期内的认证重放只从对应 session 的 `h5_link_ciphertext` 临时解密并注入链接；密文清理后不存在账本副本可恢复该链接。
 
@@ -438,12 +441,13 @@ WHERE id = ?
 ### 9.1 上传路径
 
 1. 鉴权并验证真人档案属于当前用户且内部状态为 `Active`。
-2. 创建或认领幂等记录和本地素材占位记录。
-3. 对请求体实施硬字节上限，读取文件头校验 MIME。
-4. 使用不可猜对象键流式写入私有 TOS，同时计算 SHA-256；对象键不包含原始文件名。
-5. 持久化 `BytePlusAssetTempObject`，再生成有效期 12 小时的 internal GET 签名 URL。
-6. 使用档案的 GroupId、渠道凭据和签名 URL 调用 `CreateAsset`。
-7. 持久化上游 AssetId 和 `Processing` 状态；响应只返回 Flatkey 字段。
+2. 创建尚未绑定素材的 `BytePlusAssetTempObject`；记录 `user_id`、`channel_id`、私有 TOS 定位信息和清理状态，但 `asset_id` 保持 `NULL`。
+3. 对请求体实施硬字节上限，使用 `Request.MultipartReader()` 顺序读取文件 part，读取文件头校验 MIME；不得调用会将文件落盘或缓冲整个请求的 `FormFile` / `ParseMultipartForm`。
+4. 使用不可猜对象键把文件流直接写入私有 TOS，同时计算 SHA-256 和真实字节数；对象键不包含原始文件名，本机磁盘不保存临时副本。
+5. 使用路径资源 ID、规范化元数据、文件 SHA-256 和真实字节数组合完整 `request_hash`，再创建或认领幂等账本。
+6. 只有账本赢家创建唯一的本地素材占位记录，并以条件更新把临时对象的 `asset_id` 从 `NULL` 绑定到该素材；同 key 同 hash 重放或并发输家的新对象立即删除，删除失败继续由该临时对象 outbox 重试。
+7. 为赢家对象生成有效期 12 小时的 internal GET 签名 URL，使用档案的 GroupId、绑定渠道凭据和签名 URL 调用 `CreateAsset`。
+8. 持久化上游 AssetId 和 `Processing` 状态；响应只返回 Flatkey 字段。任何进入 `CallingUpstream` 后无法确认的结果都进入 `OutcomeUnknown`，不得使用同一幂等键重复调用上游。
 
 ### 9.2 清理路径
 
@@ -495,9 +499,11 @@ WHERE id = ?
 
 ### 11.3 禁止暴露的数据
 
+以下字段不得出现在公开 API、客户可见日志、普通应用日志或发布证据中。受限内部运维日志可以记录数值型 `channel_id` 作为故障关联字段，但不得记录渠道名称、完整 `Channel.Key` 或任何凭据；这也是 14 节“内部渠道 ID”的唯一例外。
+
 - Flatkey Token、BytePlus API Key、AK/SK、Authorization 和签名头。
 - BytedToken、H5 链接密文、回调令牌、TOS 签名 URL。
-- 上游 GroupId、AssetId、ProjectName、渠道 ID、Bucket 和对象键。
+- 上游 GroupId、AssetId、ProjectName、客户可见渠道标识、Bucket 和对象键。
 - 上游原始错误正文、完整源 URL和完整结构化 Channel.Key。
 
 ## 12. 错误模型
@@ -558,13 +564,17 @@ WHERE id = ?
 - 认证和素材状态迁移、CAS 失败、租约接管、幂等命中与冲突。
 - TOS 上传字节数、清理状态、清理重试次数；不记录对象键和签名 URL。
 
-建议指标：
+首版必须复用现有 `pkg/perf_metrics` 自定义 Prometheus 文本导出器，不引入第二套 registry，并固定输出以下发布关键指标：
 
-- 认证创建、成功、失败、过期率和耗时分布。
-- 素材按类型的创建、Active、Failed、删除率和处理耗时。
-- `asset_profile_conflict`、跨用户 404、渠道不可用和上游错误率。
-- 临时对象未在 1 小时内清理的数量、24 小时生命周期兜底删除数量。
-- 幂等重放、冲突、租约接管和孤立上游资源告警。
+- `newapi_byteplus_real_person_outcome_unknown_total{resource}`：`resource` 只允许 `asset`、`verification_session`；只在数据库 CAS 首次把记录推进为 `OutcomeUnknown` 时增加。
+- `newapi_byteplus_real_person_reconcile_total{operation,result}`：`operation` 只允许 `verification_status`、`asset_status`、`asset_delete`、`tos_cleanup`、`idempotency_recovery`、`idempotency_retention`，`result` 只允许 `success`、`retry`、`error`。
+- `newapi_byteplus_real_person_reconcile_last_success_unixtime`：当前进程最近一次完整协调轮次成功结束的 Unix 秒。
+- `newapi_byteplus_real_person_backlog{kind}` 与 `newapi_byteplus_real_person_backlog_oldest_update_age_seconds{kind}`：`kind` 只允许 `deleting`、`tos_cleanup_due`；值来自方言无关的数据库快照，不按进程内队列推断。
+- `newapi_byteplus_real_person_callback_total{status}`：`status` 只允许 `2xx`、`429`、`other_4xx`、`5xx`，并由包住专用 limiter 的路由 middleware 记录最终 HTTP 状态。
+
+这组指标首次被协调器或 callback 使用后固定占 29 条时序，并计入现有 `newapi_perf_metrics_series` 和 `PROMETHEUS_MAX_SERIES_PER_SCRAPE` 预算。任何记录函数遇到未列出的 label 值都必须忽略或归入固定值，不能把 request ID、公开资源 ID、用户 ID、渠道 ID、错误文本、URL、GroupId、AssetId、对象键或 token 作为 label。
+
+生产多节点下，counter 使用 `sum(increase(...))` 聚合；数据库派生的 backlog gauge 和最近成功时间使用 `max(...)`，不得按实例求和。发布前在 staging 受控矩阵完成并清除故障注入后观察 30 分钟：`OutcomeUnknown` 增量、协调 `error`、callback `429/other_4xx/5xx` 和 HTTP 5xx 都必须为 0；GET/POST callback 的 `2xx` 增量至少为 2；协调器最近成功时间小于 90 秒；窗口结束时两类 backlog 都为 0，且窗口内最老未推进年龄不得达到 300 秒。任何失败均为 `NO-GO`，不能用“已知问题”绕过。
 
 ## 15. 测试策略
 
@@ -631,7 +641,7 @@ go test ./relay/channel/task/byteplus -run 'Asset' -count=1
 ### 16.3 部署目标
 
 - Router deploy：required。新增 `/v1` 路由、认证回调、上传、引用限制和素材删除都影响 API 流量。
-- Console/legacy Go service：按当前共享二进制和迁移职责部署同版本，确保数据库模型一致。
+- `newapi-console`：required。与 `newapi-router` 部署同一 Go 镜像，确保迁移模型和所有节点协调器一致；已停用的 legacy `newapi` 不属于发布目标。
 - Website deploy：not required。首期没有官网或控制台页面。
 - Staging：先合入远程 `staging` 触发部署并完成受控真人认证验证。
 - TOS：需要独立准备 Bucket、权限和生命周期；不属于现有 GCP Terraform 自动创建范围。
