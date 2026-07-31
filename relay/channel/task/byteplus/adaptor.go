@@ -36,6 +36,22 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.TaskAdaptor.Init(info)
 }
 
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	seedReq, err := taskcommon.GetSeedanceRequest(c)
+	if err != nil {
+		return nil
+	}
+	modelName := strings.TrimSpace(info.OriginModelName)
+	if modelName == "" {
+		modelName = seedReq.Model
+	}
+	ratio, ok := getVideoInputRatio(modelName, seedReq.Resolution, len(seedReq.Videos()) > 0)
+	if !ok || ratio == 1.0 {
+		return nil
+	}
+	return map[string]float64{"video_input": ratio}
+}
+
 func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
 	if info == nil {
 		return errors.New("missing byteplus relay info")
