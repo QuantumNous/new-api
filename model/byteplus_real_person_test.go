@@ -53,6 +53,90 @@ func TestBytePlusRealPersonDialectMigrations(t *testing.T) {
 	}
 }
 
+func TestBytePlusRealPersonSessionCASOnlyCurrentActivatesProfile(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	profile := BytePlusRealPersonProfile{PublicId: "rph_cas", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&profile).Error)
+	oldSession := BytePlusVisualValidationSession{PublicId: "rvs_old", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("a", 64), Status: BytePlusVisualValidationSessionStatusPending, CreatedTime: 100, UpdatedTime: 100}
+	newSession := BytePlusVisualValidationSession{PublicId: "rvs_new", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("b", 64), Status: BytePlusVisualValidationSessionStatusPending, CreatedTime: 101, UpdatedTime: 101}
+	require.NoError(t, DB.Create(&oldSession).Error)
+	require.NoError(t, DB.Create(&newSession).Error)
+	require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", newSession.Id).Error)
+
+	ok, err := ActivateBytePlusRealPersonProfile(profile.Id, oldSession.Id, "group-old", 200)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.NoError(t, DB.First(&profile, profile.Id).Error)
+	require.Equal(t, BytePlusRealPersonProfileStatusPendingVerification, profile.Status)
+	require.Nil(t, profile.UpstreamGroupId)
+
+	ok, err = ActivateBytePlusRealPersonProfile(profile.Id, newSession.Id, " group-new ", 201)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.NoError(t, DB.First(&profile, profile.Id).Error)
+	require.Equal(t, BytePlusRealPersonProfileStatusActive, profile.Status)
+	require.NotNil(t, profile.UpstreamGroupId)
+	require.Equal(t, "group-new", *profile.UpstreamGroupId)
+	require.NoError(t, DB.First(&newSession, newSession.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusSucceeded, newSession.Status)
+}
+
+func TestBytePlusRealPersonSessionCASClaimLeaseIsExclusiveAndTerminalDoesNotRegress(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	session := BytePlusVisualValidationSession{PublicId: "rvs_claim", ProfileId: 1, CallbackTokenHash: strings.Repeat("c", 64), Status: BytePlusVisualValidationSessionStatusPending, LeaseUpdatedTime: 10, CreatedTime: 10, UpdatedTime: 10}
+	require.NoError(t, DB.Create(&session).Error)
+
+	claimed, owner, err := ClaimBytePlusVisualValidationSession(session.Id, 100, 50)
+	require.NoError(t, err)
+	require.True(t, owner)
+	require.Equal(t, BytePlusVisualValidationSessionStatusChecking, claimed.Status)
+
+	_, owner, err = ClaimBytePlusVisualValidationSession(session.Id, 101, 50)
+	require.NoError(t, err)
+	require.False(t, owner)
+
+	require.NoError(t, DB.Model(&BytePlusVisualValidationSession{}).Where("id = ?", session.Id).Updates(map[string]any{
+		"status":       BytePlusVisualValidationSessionStatusSucceeded,
+		"updated_time": int64(102),
+	}).Error)
+	require.NoError(t, CompleteBytePlusVisualValidationSession(session.Id, "byted", "h5", "req-late", 500, 103))
+	require.NoError(t, DB.First(&session, session.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusSucceeded, session.Status)
+	require.Empty(t, session.BytedTokenCiphertext)
+}
+
+func TestBytePlusRealPersonListUsesUserScopedStableCursor(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	insertProfile := func(publicID string, userID int, created int64) {
+		require.NoError(t, DB.Create(&BytePlusRealPersonProfile{
+			PublicId: publicID, UserId: userID, Name: publicID, ChannelId: 101,
+			Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: created, UpdatedTime: created,
+		}).Error)
+	}
+	insertProfile("rph_newer", 7, 300)
+	insertProfile("rph_tie_low", 7, 200)
+	insertProfile("rph_tie_high", 7, 200)
+	insertProfile("rph_other", 8, 400)
+
+	first, hasMore, err := ListBytePlusRealPersonProfilesForUser(7, 2, "")
+	require.NoError(t, err)
+	require.True(t, hasMore)
+	require.Equal(t, []string{"rph_newer", "rph_tie_high"}, profilePublicIDs(first))
+
+	second, hasMore, err := ListBytePlusRealPersonProfilesForUser(7, 2, "rph_tie_high")
+	require.NoError(t, err)
+	require.False(t, hasMore)
+	require.Equal(t, []string{"rph_tie_low"}, profilePublicIDs(second))
+}
+
+func profilePublicIDs(profiles []BytePlusRealPersonProfile) []string {
+	ids := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		ids = append(ids, profile.PublicId)
+	}
+	return ids
+}
+
 func newBytePlusRealPersonTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := openBytePlusRealPersonSQLiteDB(t)
