@@ -314,7 +314,7 @@ func loadBytePlusRealPersonAssetProfileAndChannel(userID int, personID string) (
 		return nil, nil, BytePlusCredentials{}, apiErr
 	}
 	if profile.Status != model.BytePlusRealPersonProfileStatusActive || profile.UpstreamGroupId == nil || strings.TrimSpace(*profile.UpstreamGroupId) == "" {
-		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person is not active"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person is not active"), types.ErrorCodeRealPersonNotActive, http.StatusConflict)
 	}
 	channel, creds, err := loadUsableBytePlusRealPersonChannel(profile.ChannelId, userID, "")
 	if err != nil {

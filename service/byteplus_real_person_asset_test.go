@@ -425,13 +425,13 @@ func TestRealPersonAssetOwnerValidationFailureStoresFailedLedger(t *testing.T) {
 
 	_, apiErr := f.createURL("inactive-owner", "https://example.com/person.png", "Image", "front")
 
-	assertAssetError(t, apiErr, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	assertAssetError(t, apiErr, types.ErrorCodeRealPersonNotActive, http.StatusConflict)
 	var record model.APIIdempotencyRecord
 	require.NoError(t, model.DB.First(&record, "route = ?", bytePlusRealPersonAssetCreateRoute).Error)
 	require.Equal(t, model.APIIdempotencyStatusFailed, record.Status)
-	require.Equal(t, http.StatusBadRequest, record.ResponseStatus)
+	require.Equal(t, http.StatusConflict, record.ResponseStatus)
 	_, apiErr = f.createURL("inactive-owner", "https://example.com/person.png", "Image", "front")
-	assertAssetError(t, apiErr, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	assertAssetError(t, apiErr, types.ErrorCodeRealPersonNotActive, http.StatusConflict)
 	require.Equal(t, 0, f.fake.createAssetCalls)
 }
 

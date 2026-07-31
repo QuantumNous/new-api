@@ -105,6 +105,24 @@ func TestBytePlusRealPersonSessionCASClaimLeaseIsExclusiveAndTerminalDoesNotRegr
 	require.Empty(t, session.BytedTokenCiphertext)
 }
 
+func TestBytePlusRealPersonPendingSessionClaimHonorsRetryBackoff(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	session := BytePlusVisualValidationSession{PublicId: "rvs_claim_backoff", ProfileId: 1, CallbackTokenHash: strings.Repeat("c", 64), Status: BytePlusVisualValidationSessionStatusPending, LeaseUpdatedTime: 0, CreatedTime: 10, UpdatedTime: 2060}
+	require.NoError(t, DB.Create(&session).Error)
+
+	claimed, owner, err := ClaimBytePlusVisualValidationSession(session.Id, 2000, 1900)
+	require.NoError(t, err)
+	require.False(t, owner)
+	require.Equal(t, BytePlusVisualValidationSessionStatusPending, claimed.Status)
+	require.Equal(t, int64(2060), claimed.UpdatedTime)
+
+	claimed, owner, err = ClaimBytePlusVisualValidationSession(session.Id, 2060, 1960)
+	require.NoError(t, err)
+	require.True(t, owner)
+	require.Equal(t, BytePlusVisualValidationSessionStatusChecking, claimed.Status)
+	require.Equal(t, int64(2060), claimed.LeaseUpdatedTime)
+}
+
 func TestBytePlusRealPersonSessionCASActivateRollsBackProfileWhenSessionTerminal(t *testing.T) {
 	newBytePlusRealPersonTestDB(t)
 	profile := BytePlusRealPersonProfile{PublicId: "rph_activate_terminal", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusVerifying, CreatedTime: 100, UpdatedTime: 100}

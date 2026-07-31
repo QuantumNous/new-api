@@ -455,6 +455,8 @@ func TestBytePlusRealPersonCallbackUsesOnlyServerSideResultAuthority(t *testing.
 	newBytePlusRealPersonServiceTestDB(t)
 	fake := &fakeBytePlusRealPersonClient{resultErr: errors.New("server-side result unavailable")}
 	installBytePlusRealPersonServiceTestDeps(t, fake)
+	now := int64(2000)
+	bytePlusAssetNow = func() int64 { return now }
 	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
 
 	created, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 101, "callback-create", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
@@ -464,14 +466,28 @@ func TestBytePlusRealPersonCallbackUsesOnlyServerSideResultAuthority(t *testing.
 	NotifyBytePlusRealPersonVerificationCallback(context.Background(), "callback-token-1")
 	profile, err := model.GetBytePlusRealPersonProfileForUser(7, created.ID)
 	require.NoError(t, err)
+	require.Equal(t, 1, fake.resultCalls)
 	require.NotEqual(t, model.BytePlusRealPersonProfileStatusActive, profile.Status)
 	require.Nil(t, profile.UpstreamGroupId)
+	session, err := model.GetBytePlusVisualValidationSessionByPublicID("rvs_test_1")
+	require.NoError(t, err)
+	require.Equal(t, model.BytePlusVisualValidationSessionStatusPending, session.Status)
+	require.Equal(t, int64(2060), session.UpdatedTime)
 
 	fake.resultErr = nil
 	fake.result = BytePlusVisualValidationResult{GroupID: "group-server-confirmed", RequestID: "req-result"}
 	NotifyBytePlusRealPersonVerificationCallback(context.Background(), "callback-token-1")
 	profile, err = model.GetBytePlusRealPersonProfileForUser(7, created.ID)
 	require.NoError(t, err)
+	require.Equal(t, 1, fake.resultCalls)
+	require.NotEqual(t, model.BytePlusRealPersonProfileStatusActive, profile.Status)
+	require.Nil(t, profile.UpstreamGroupId)
+
+	now = 2060
+	NotifyBytePlusRealPersonVerificationCallback(context.Background(), "callback-token-1")
+	profile, err = model.GetBytePlusRealPersonProfileForUser(7, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, 2, fake.resultCalls)
 	require.Equal(t, model.BytePlusRealPersonProfileStatusActive, profile.Status)
 	require.NotNil(t, profile.UpstreamGroupId)
 	require.Equal(t, "group-server-confirmed", *profile.UpstreamGroupId)

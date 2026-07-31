@@ -246,6 +246,9 @@ func ClaimBytePlusVisualValidationSession(sessionID int64, now, staleBefore int6
 	}
 	switch session.Status {
 	case BytePlusVisualValidationSessionStatusPending:
+		if session.UpdatedTime > now {
+			return &session, false, nil
+		}
 		return claimBytePlusVisualValidationSessionFrom(session, now, []string{BytePlusVisualValidationSessionStatusPending})
 	case BytePlusVisualValidationSessionStatusChecking:
 		if session.LeaseUpdatedTime >= staleBefore {
