@@ -1,15 +1,13 @@
-import { ContactPage } from "@/components/contact-page";
-import { getHomeCopy } from "@/lib/home-copy";
+import { OnlineContactPage } from "@/components/online-contact-page";
 import { buildMetadata } from "@/lib/seo";
 
-const support = getHomeCopy("en").support;
-
 export const metadata = buildMetadata({
-  title: support.title,
-  description: support.description,
+  title: "flatkey - Contact sales",
+  description:
+    "Talk to flatkey sales for enterprise contracts below self-serve pricing, invoices, token governance and SLA support.",
   pathname: "/contact",
 });
 
 export default function Page() {
-  return <ContactPage locale="en" />;
+  return <OnlineContactPage locale="en" />;
 }

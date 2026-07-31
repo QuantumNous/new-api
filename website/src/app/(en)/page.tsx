@@ -1,26 +1,13 @@
-import { HomePage } from "@/components/home-page";
-import { getCopy } from "@/lib/copy";
-import { buildHomepageSchema, stringifyJsonLd } from "@/lib/schema";
+import { OnlineHomePage } from "@/components/online-home-page";
 import { buildMetadata } from "@/lib/seo";
 
-const copy = getCopy("en");
-const homepageSchema = buildHomepageSchema({
-  locale: "en",
-  title: copy.home.title,
-  description: copy.home.description,
-});
-
 export const metadata = buildMetadata({
-  title: copy.home.title,
-  description: copy.home.description,
+  title: "flatkey - One key. More models. More tools. Lower costs.",
+  description:
+    "flatkey routes your requests to official GPT, Claude, Gemini, DeepSeek, Qwen and GLM APIs, with 300+ frontier models and 1,000+ AI tools behind one key.",
   pathname: "/",
 });
 
 export default function Page() {
-  return (
-    <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(homepageSchema) }} />
-      <HomePage locale="en" />
-    </>
-  );
+  return <OnlineHomePage locale="en" />;
 }

@@ -1,18 +1,13 @@
-import { PricingPage, parsePricingSearch } from "@/components/pricing-page";
-import { getPageContent } from "@/content/pages";
+import { OnlinePricingPage } from "@/components/online-pricing-page";
 import { buildMetadata } from "@/lib/seo";
 
-const content = getPageContent("pricing", "en");
-
 export const metadata = buildMetadata({
-  title: content.title,
-  description: content.description,
+  title: "flatkey - Pricing",
+  description:
+    "flatkey pricing with Go, Pro, Max and Enterprise plans covering official models, media credits and pay-per-call tools.",
   pathname: "/pricing",
 });
 
-type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
-
-export default async function Page(props: Props) {
-  const searchParams = await props.searchParams;
-  return <PricingPage locale="en" search={parsePricingSearch(searchParams)} />;
+export default function Page() {
+  return <OnlinePricingPage locale="en" />;
 }

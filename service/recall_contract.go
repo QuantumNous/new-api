@@ -57,6 +57,7 @@ type RecallCampaignDraft struct {
 	WorkerConcurrency     int                  `json:"worker_concurrency"`
 	Emails                []RecallEmailStage   `json:"email_sequence"`
 	DeferLocalization     bool                 `json:"defer_localization,omitempty"`
+	legacyCouponRedeemBy  int64
 }
 
 type RecallAudienceConfig struct {
@@ -97,7 +98,6 @@ type RecallDiscountConfig struct {
 	MinimumSpend          *RecallMinimumSpendConfig `json:"minimum_spend,omitempty"`
 	MinimumAmount         int64                     `json:"minimum_amount"`
 	MinimumAmountCurrency string                    `json:"minimum_amount_currency"`
-	CouponRedeemBy        int64                     `json:"coupon_redeem_by"`
 }
 
 type RecallMinimumSpendConfig struct {

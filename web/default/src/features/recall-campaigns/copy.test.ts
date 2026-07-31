@@ -109,8 +109,6 @@ const recallEmailPlaceholderHelpKeys = [
 ] as const
 
 const activityEmailLocalizationAndQuotaKeys = [
-  'Coupon redeem-by',
-  'Select coupon redeem-by',
   'Promotion expiry mode',
   'Relative duration',
   'Fixed date',

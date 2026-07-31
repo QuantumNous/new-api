@@ -4,9 +4,12 @@ name: GCP Deploy Website
 # Cloud Run service (separate from the Go app). Triggered only when website/ changes.
 # Deploy is gated by the "production" GitHub Environment — slZhong must Approve.
 
-# RETIRED 2026-07-16: flatkey.ai now serves website-static/ (see gcp-deploy-website-static.yml).
-# Auto-trigger removed to prevent overwriting the static site; keep workflow_dispatch for emergency rollback.
 on:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - ".github/workflows/gcp-deploy-website.yml"
   workflow_dispatch:
     inputs:
       image_tag:
@@ -31,7 +34,7 @@ env:
   COOKIE_SESSION_DOMAIN: ${{ secrets.COOKIE_SESSION_DOMAIN || '.flatkey.ai' }}
   BLOGGER_API_URL:    ${{ vars.BLOGGER_API_URL || 'https://blogger-api-528088078482.us-central1.run.app' }}
   BLOGGER_SITE_SLUG:  ${{ vars.BLOGGER_SITE_SLUG || 'flatkey' }}
-  BLOGGER_ACCESS_KEY: ${{ secrets.BLOGGER_ACCESS_KEY }}
+  BLOGGER_SECRET:     newapi-website-blogger-access-key
 
 jobs:
   build:
@@ -126,9 +129,6 @@ jobs:
           if [[ -n "${COOKIE_SESSION_DOMAIN}" ]]; then
             env_kvs+=("COOKIE_SESSION_DOMAIN=${COOKIE_SESSION_DOMAIN}")
           fi
-          if [[ -n "${BLOGGER_ACCESS_KEY}" ]]; then
-            env_kvs+=("BLOGGER_ACCESS_KEY=${BLOGGER_ACCESS_KEY}")
-          fi
           if [[ -n "${BLOGGER_API_URL}" ]]; then
             env_kvs+=("BLOGGER_API_URL=${BLOGGER_API_URL}")
           fi
@@ -146,6 +146,8 @@ jobs:
             --port=4000 \
             --revision-suffix="${revision_suffix}" \
             --no-traffic \
+            --update-secrets="BLOGGER_ACCESS_KEY=${BLOGGER_SECRET}:latest" \
+            --liveness-probe=httpGet.path=/,httpGet.port=4000,periodSeconds=30,timeoutSeconds=5,failureThreshold=3 \
             "${env_args[@]}" \
             --quiet
           new_rev="$(gcloud run services describe "${RUN_SERVICE}" \

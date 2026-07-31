@@ -315,7 +315,6 @@ const promotionDiscountSchema = z
       })
       .strict()
       .optional(),
-    coupon_redeem_by: nonNegativeInteger,
   })
   .strict()
   .superRefine((discount, context) => {
@@ -385,16 +384,6 @@ const promotionDiscountSchema = z
         message: 'Minimum amount currency is not needed',
       })
     }
-    if (
-      discount.coupon_redeem_by > 0 &&
-      discount.coupon_redeem_by <= Date.now() / 1000
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['coupon_redeem_by'],
-        message: 'Coupon redeem-by must be in the future',
-      })
-    }
   })
 
 const discountSchema = z
@@ -413,9 +402,10 @@ const discountSchema = z
       })
       .strict()
       .optional(),
-    coupon_redeem_by: nonNegativeInteger,
+    coupon_redeem_by: nonNegativeInteger.optional(),
   })
   .strict()
+  .transform(({ coupon_redeem_by: _couponRedeemBy, ...discount }) => discount)
 
 const productScopeSchema = z
   .object({
@@ -711,17 +701,6 @@ export const recallCampaignDraftSchema = z
         code: 'custom',
         path: ['schedule', 'scheduled_at'],
         message: 'Scheduled time must be in the future',
-      })
-    }
-    if (
-      draft.execution_mode === 'scheduled_once' &&
-      draft.discount_config.coupon_redeem_by > 0 &&
-      draft.discount_config.coupon_redeem_by <= draft.schedule.scheduled_at
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['discount_config', 'coupon_redeem_by'],
-        message: 'Coupon redeem-by must be after the scheduled run time',
       })
     }
     if (draft.execution_mode === 'recurring') {

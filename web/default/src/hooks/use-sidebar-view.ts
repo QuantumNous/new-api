@@ -33,10 +33,18 @@ export function filterToolsGroupByRole(
   navGroups: NavGroup[],
   userRole: number | undefined
 ): NavGroup[] {
-  const canViewTools = userRole !== undefined && userRole >= ROLE.ADMIN
-  return navGroups.filter((group) =>
-    group.id === 'tools' ? canViewTools : true
-  )
+  return navGroups.flatMap((group) => {
+    if (group.id !== 'tools') return [group]
+    if (userRole === undefined) return []
+    if (userRole >= ROLE.ADMIN) return [group]
+
+    return [
+      {
+        ...group,
+        items: group.items.filter((item) => item.url === '/api-marketplace'),
+      },
+    ]
+  })
 }
 
 /**
@@ -45,7 +53,7 @@ export function filterToolsGroupByRole(
  * - Returns the matching nested {@link SidebarView} (with its nav
  *   groups) when the URL belongs to a registered drill-in workspace.
  * - Otherwise returns the root navigation, narrowed by:
- *     · admin and tools group visibility (role-based);
+ *     · admin and tools item visibility (role-based);
  *     · `useSidebarConfig` (admin × user `sidebar_modules` overlay).
  *
  * Nested views are intentionally NOT passed through `useSidebarConfig`

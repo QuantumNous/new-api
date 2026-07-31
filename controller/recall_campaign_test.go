@@ -182,10 +182,13 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 	harness := &recallControllerHarness{db: db, stripe: stripeFake, translator: translator}
 	stripeService := service.NewRecallStripeService(stripeFake)
 	harness.runtime = &service.RecallRuntime{
-		Campaigns:   service.NewRecallCampaignServiceWithTranslator(audience, stripeService, translator),
-		Claims:      claims,
-		Recipients:  service.NewRecallRecipientWorker(stripeService, claims, "controller-test"),
-		Emails:      service.NewRecallEmailWorker(func(_ common.SMTPConfig, _, _, _, _ string) error { harness.sendCount++; return nil }, audience, claims, "controller-test"),
+		Campaigns:  service.NewRecallCampaignServiceWithTranslator(audience, stripeService, translator),
+		Claims:     claims,
+		Recipients: service.NewRecallRecipientWorker(stripeService, claims, "controller-test"),
+		Emails: service.NewRecallEmailWorker(func(_ common.SMTPConfig, _, _, _, _ string, _ common.EmailOptions) error {
+			harness.sendCount++
+			return nil
+		}, audience, claims, "controller-test"),
 		Attribution: service.NewRecallAttributionService(stripeFake),
 	}
 	originalProvider := recallRuntimeProvider
@@ -317,6 +320,64 @@ func requireRecallFailure(t *testing.T, recorder *httptest.ResponseRecorder, con
 	payload := decodeRecallEnvelope(t, recorder)
 	require.Equal(t, false, payload["success"])
 	require.Contains(t, payload["message"], contains)
+}
+
+func requireRecallOpenPixelResponse(t *testing.T, recorder *httptest.ResponseRecorder, expectedBody []byte) []byte {
+	t.Helper()
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "image/gif", recorder.Header().Get("Content-Type"))
+	require.Equal(t, "no-store, no-cache, must-revalidate, max-age=0", recorder.Header().Get("Cache-Control"))
+	require.Equal(t, "no-cache", recorder.Header().Get("Pragma"))
+	require.Equal(t, "nosniff", recorder.Header().Get("X-Content-Type-Options"))
+	body := recorder.Body.Bytes()
+	require.Len(t, body, 43)
+	require.Equal(t, []byte("GIF89a"), body[:6])
+	require.Equal(t, byte(0x3b), body[len(body)-1])
+	if expectedBody != nil {
+		require.Equal(t, expectedBody, body)
+	}
+	return append([]byte(nil), body...)
+}
+
+func TestRecallEmailOpenPixelAlwaysReturnsTheSameImageAndRecordsOnce(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	user := seedRecallControllerUser(t, harness, 63, "email-open")
+	recipient := model.RecallRecipient{
+		CampaignId:          campaign.Id,
+		UserId:              user.Id,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       user.Email,
+		LanguageSnapshot:    "en",
+		State:               model.RecallRecipientContacting,
+	}
+	require.NoError(t, harness.db.Create(&recipient).Error)
+	token, err := service.CreateRecallEmailOpenToken(recipient.Id)
+	require.NoError(t, err)
+
+	first := invokeRecallHandler(t, TrackRecallEmailOpen, http.MethodGet, "/api/recall/open.gif?token="+url.QueryEscape(token), nil, 0, nil)
+	pixel := requireRecallOpenPixelResponse(t, first, nil)
+	replay := invokeRecallHandler(t, TrackRecallEmailOpen, http.MethodGet, "/api/recall/open.gif?token="+url.QueryEscape(token), nil, 0, nil)
+	requireRecallOpenPixelResponse(t, replay, pixel)
+	invalid := invokeRecallHandler(t, TrackRecallEmailOpen, http.MethodGet, "/api/recall/open.gif?token=invalid", nil, 0, nil)
+	requireRecallOpenPixelResponse(t, invalid, pixel)
+
+	var eventCount int64
+	require.NoError(t, harness.db.Model(&model.RecallEvent{}).
+		Where("campaign_id = ? AND event_type = ?", campaign.Id, "email_open").
+		Count(&eventCount).Error)
+	require.EqualValues(t, 1, eventCount)
+
+	missingRecipientToken, err := service.CreateRecallEmailOpenToken(recipient.Id + 1_000)
+	require.NoError(t, err)
+	missingRecipient := invokeRecallHandler(t, TrackRecallEmailOpen, http.MethodGet, "/api/recall/open.gif?token="+url.QueryEscape(missingRecipientToken), nil, 0, nil)
+	requireRecallOpenPixelResponse(t, missingRecipient, pixel)
+
+	sqlDB, err := harness.db.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+	persistenceError := invokeRecallHandler(t, TrackRecallEmailOpen, http.MethodGet, "/api/recall/open.gif?token="+url.QueryEscape(token), nil, 0, nil)
+	requireRecallOpenPixelResponse(t, persistenceError, pixel)
 }
 
 func TestRecallActivitySMTPGetReturnsRedactedStatus(t *testing.T) {
@@ -1216,6 +1277,49 @@ func TestRecallUnsubscribeRequiresSignedTokenAndImmediatelySuppressesMail(t *tes
 	require.Equal(t, http.StatusOK, valid.Code)
 	require.NotContains(t, valid.Body.String(), user.Email)
 	require.NotContains(t, valid.Body.String(), token)
+	require.NoError(t, harness.db.First(&user, user.Id).Error)
+	require.True(t, user.GetSetting().RecallMarketingOptOut)
+	require.NoError(t, harness.db.First(&message, message.Id).Error)
+	require.Equal(t, model.RecallMessageCancelled, message.State)
+	require.Equal(t, "user_opted_out", message.LastErrorCode)
+}
+
+// RFC 8058 requires the one-click target to accept POST without a session.
+// Mailbox providers call it directly, with no browser and no user present.
+func TestRecallOneClickUnsubscribePostSuppressesMailWithoutRenderingPage(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	user := seedRecallControllerUser(t, harness, 62, "one-click-unsubscribe")
+	recipient := model.RecallRecipient{
+		CampaignId:          campaign.Id,
+		UserId:              user.Id,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       user.Email,
+		LanguageSnapshot:    "en",
+		State:               model.RecallRecipientContacting,
+	}
+	require.NoError(t, harness.db.Create(&recipient).Error)
+	message := model.RecallMessage{
+		RecipientId:      recipient.Id,
+		StageNo:          1,
+		TemplateSnapshot: "secret-template",
+		ScheduledAt:      time.Now().Add(time.Minute).Unix(),
+		State:            model.RecallMessageScheduled,
+	}
+	require.NoError(t, harness.db.Create(&message).Error)
+
+	invalid := invokeRecallHandler(t, UnsubscribeRecallEmailOneClick, http.MethodPost, "/api/recall/unsubscribe?token=invalid", nil, 0, nil)
+	require.Equal(t, http.StatusBadRequest, invalid.Code)
+	require.NotContains(t, invalid.Body.String(), user.Email)
+
+	token, err := harness.runtime.Claims.CreateUnsubscribeToken(user.Id, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+	valid := invokeRecallHandler(t, UnsubscribeRecallEmailOneClick, http.MethodPost, "/api/recall/unsubscribe?token="+token, nil, 0, nil)
+	require.Equal(t, http.StatusOK, valid.Code)
+	// Providers discard the response; emitting a page would leak recipient data
+	// into logs and proxies for no benefit.
+	require.Empty(t, valid.Body.String())
+
 	require.NoError(t, harness.db.First(&user, user.Id).Error)
 	require.True(t, user.GetSetting().RecallMarketingOptOut)
 	require.NoError(t, harness.db.First(&message, message.Id).Error)

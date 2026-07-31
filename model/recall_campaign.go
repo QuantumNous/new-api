@@ -39,7 +39,7 @@ type RecallCampaign struct {
 	PromotionExpiryMode   string `json:"promotion_expiry_mode" gorm:"type:varchar(16)"`
 	PromotionExpiresAt    int64  `json:"promotion_expires_at"`
 	PromotionValidSeconds int64  `json:"promotion_valid_seconds"`
-	EmailSequenceConfig   string `json:"email_sequence_config" gorm:"type:text;not null"`
+	EmailSequenceConfig   string `json:"email_sequence_config" gorm:"not null"`
 	EnrollmentLimit       int    `json:"enrollment_limit"`
 	WorkerConcurrency     int    `json:"worker_concurrency"`
 	ConfigRevision        int64  `json:"config_revision" gorm:"not null;default:1"`

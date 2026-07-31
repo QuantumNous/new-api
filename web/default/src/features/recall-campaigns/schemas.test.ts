@@ -47,7 +47,6 @@ function makeDraft() {
       currency_options: {},
       minimum_amount: 0,
       minimum_amount_currency: '',
-      coupon_redeem_by: 0,
     },
     product_scope: {
       topup_price_ids: ['price_topup_20'],
@@ -112,7 +111,6 @@ describe('recallCampaignDraftSchema', () => {
       currency_options: {},
       minimum_amount: 0,
       minimum_amount_currency: '',
-      coupon_redeem_by: 0,
     }
     draft.product_scope = {
       topup_price_ids: [],
@@ -120,6 +118,16 @@ describe('recallCampaignDraftSchema', () => {
     }
 
     expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+  })
+
+  test('strips legacy coupon redeem-by from backend drafts', () => {
+    const draft = makeDraft()
+    ;(draft.discount_config as { coupon_redeem_by?: number }).coupon_redeem_by =
+      FUTURE_TIMESTAMP
+
+    const parsed = recallCampaignDraftSchema.parse(draft)
+
+    expect(parsed.discount_config).not.toHaveProperty('coupon_redeem_by')
   })
 
   test('requires activity delivery validity for content-only drafts', () => {
@@ -875,28 +883,6 @@ describe('recallCampaignDraftSchema', () => {
     })
   })
 
-  test('requires coupon redeem-by after a scheduled campaign run', () => {
-    const draft = makeDraft()
-    draft.execution_mode = 'scheduled_once'
-    draft.schedule.scheduled_at = FUTURE_TIMESTAMP
-    draft.promotion_expiry_mode = 'fixed'
-    draft.promotion_valid_seconds = 0
-    draft.promotion_expires_at = FUTURE_TIMESTAMP + 3_600
-    draft.discount_config.coupon_redeem_by = FUTURE_TIMESTAMP - 60
-
-    const result = recallCampaignDraftSchema.safeParse(draft)
-
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(result.error.issues).toContainEqual(
-        expect.objectContaining({
-          path: ['discount_config', 'coupon_redeem_by'],
-          message: 'Coupon redeem-by must be after the scheduled run time',
-        })
-      )
-    }
-  })
-
   test('ignores schedule validation in manual mode', () => {
     const draft = makeDraft()
     draft.schedule = {
@@ -1128,7 +1114,6 @@ describe('recallCampaignActivatedUpdateSchema', () => {
     const draft = makeDraft()
     draft.execution_mode = 'scheduled_once'
     draft.schedule.scheduled_at = 1
-    draft.discount_config.coupon_redeem_by = 1
     draft.email_sequence[0].templates.en.subject = 'Updated subject'
 
     expect(recallCampaignActivatedUpdateSchema.safeParse(draft).success).toBe(

@@ -1,5 +1,10 @@
 name: GCP Deploy Website Static (v2)
 
+# RETIRED: production flatkey.ai is served by website/ Next.js via
+# gcp-deploy-website.yml. This workflow is manual-only and kept as an emergency
+# rollback path for the old static nginx site. Do not add push triggers here or
+# website-static/ will overwrite newapi-web.
+#
 # Deploys both public website surfaces:
 # - website/ Next.js image to Cloud Run newapi-website-legacy, which serves the
 #   historical SEO surface through the static site's nginx fallback proxy.
@@ -15,12 +20,6 @@ name: GCP Deploy Website Static (v2)
 #   and secret accessor grants are owned out-of-band (see deploy/gcp/docs/OPERATIONS.md).
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "website-static/**"
-      - "website/**"
-      - ".github/workflows/gcp-deploy-website-static.yml"
   workflow_dispatch:
 
 permissions:

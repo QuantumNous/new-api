@@ -1,30 +1,30 @@
 import { notFound } from "next/navigation";
-import { PricingPage, parsePricingSearch } from "@/components/pricing-page";
-import { getPageContent } from "@/content/pages";
-import { isLocale, LOCALES } from "@/lib/locales";
+import { OnlinePricingPage } from "@/components/online-pricing-page";
+import { DEFAULT_LOCALE, isLocale, LOCALES } from "@/lib/locales";
 import { buildMetadata } from "@/lib/seo";
 
 type Props = {
   params: Promise<{ locale: string }>;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
-const pageKey = "pricing";
-const pathname = "/pricing";
 
 export function generateStaticParams() {
-  return LOCALES.filter((locale) => locale !== "en").map((locale) => ({ locale }));
+  return LOCALES.filter((locale) => locale !== DEFAULT_LOCALE).map((locale) => ({ locale }));
 }
 
 export async function generateMetadata(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale)) return {};
-  const content = getPageContent(pageKey, params.locale);
-  return buildMetadata({ title: content.title, description: content.description, pathname, locale: params.locale });
+  return buildMetadata({
+    title: "flatkey - Pricing",
+    description:
+      "flatkey pricing with Go, Pro, Max and Enterprise plans covering official models, media credits and pay-per-call tools.",
+    pathname: "/pricing",
+    locale: params.locale,
+  });
 }
 
 export default async function Page(props: Props) {
   const params = await props.params;
-  if (!isLocale(params.locale) || params.locale === "en") notFound();
-  const searchParams = await props.searchParams;
-  return <PricingPage locale={params.locale} search={parsePricingSearch(searchParams)} />;
+  if (!isLocale(params.locale) || params.locale === DEFAULT_LOCALE) notFound();
+  return <OnlinePricingPage locale={params.locale} />;
 }

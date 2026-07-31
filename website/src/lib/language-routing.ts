@@ -11,7 +11,11 @@ const IGNORED_PATH_PREFIXES = [
   "/cdn-cgi",
   "/sign-in",
   "/sign-up",
+  "/login",
+  "/signup",
   "/dashboard",
+  "/console",
+  "/onboarding",
   // Local-only paid landing-page review concepts have no translated siblings.
   "/lp/tools-ads/claude",
 ];
@@ -22,6 +26,7 @@ const IGNORED_EXACT_PATHS = [
   "/llms.txt",
   "/install.sh",
   "/install.ps1",
+  "/legal-sla",
   // These market pages are physical single-locale routes with no localized siblings.
   "/br",
   "/in",

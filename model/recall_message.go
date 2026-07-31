@@ -26,7 +26,7 @@ type RecallMessage struct {
 	RecipientId       int64   `json:"recipient_id" gorm:"uniqueIndex:idx_recall_recipient_stage,priority:1;index"`
 	StageNo           int     `json:"stage_no" gorm:"uniqueIndex:idx_recall_recipient_stage,priority:2"`
 	TemplateVersion   int     `json:"template_version"`
-	TemplateSnapshot  string  `json:"-" gorm:"type:text;not null"`
+	TemplateSnapshot  string  `json:"-" gorm:"not null"`
 	ScheduledAt       int64   `json:"scheduled_at" gorm:"index"`
 	State             string  `json:"state" gorm:"type:varchar(24);not null;index"`
 	AttemptCount      int     `json:"attempt_count"`

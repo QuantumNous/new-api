@@ -51,6 +51,7 @@ type RecallCampaignMetrics struct {
 	MessagesFailedCount    int64                   `json:"messages_failed_count"`
 	MessagesCancelledCount int64                   `json:"messages_cancelled_count"`
 	ObservedClickCount     int64                   `json:"observed_click_count"`
+	OpenedRecipientCount   int64                   `json:"opened_recipient_count"`
 	DirectCount            int64                   `json:"direct_count"`
 	AssistedCount          int64                   `json:"assisted_count"`
 	NoCouponCount          int64                   `json:"no_coupon_count"`
@@ -461,6 +462,8 @@ func (s *RecallAttributionService) GetMetrics(ctx context.Context, campaignID in
 			metrics.MessagesCancelledCount = row.Count
 		case "observed_clicks":
 			metrics.ObservedClickCount = row.Count
+		case "opened_recipients":
+			metrics.OpenedRecipientCount = row.Count
 		case "direct":
 			metrics.DirectCount = row.Count
 		case "assisted":

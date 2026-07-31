@@ -167,9 +167,8 @@ func TestRecallStripePercentCouponParams(t *testing.T) {
 		ProductIDs:    []string{"prod_topup"},
 	}
 	discount := RecallDiscountConfig{
-		Type:           "percent",
-		PercentOff:     25,
-		CouponRedeemBy: 1_900_000_000,
+		Type:       "percent",
+		PercentOff: 25,
 		MinimumSpend: &RecallMinimumSpendConfig{
 			Enabled: true,
 			Amounts: map[string]int64{"usd": 2_500, "inr": 200_000, "brl": 12_500, "jpy": 3_750},
@@ -188,7 +187,7 @@ func TestRecallStripePercentCouponParams(t *testing.T) {
 	require.Nil(t, captured.AmountOff)
 	require.Nil(t, captured.Currency)
 	require.Equal(t, string(stripe.CouponDurationOnce), *captured.Duration)
-	require.Equal(t, int64(1_900_000_000), *captured.RedeemBy)
+	require.Nil(t, captured.RedeemBy)
 	require.Equal(t, int64(50), *captured.MaxRedemptions)
 	require.Equal(t, []*string{stripe.String("prod_topup")}, captured.AppliesTo.Products)
 	require.Equal(t, "42", captured.Metadata["recall_campaign_id"])
