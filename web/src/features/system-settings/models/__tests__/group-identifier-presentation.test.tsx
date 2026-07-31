@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
-import { after, describe, test } from 'node:test'
+import { after, describe, test, type TestContext } from 'node:test'
 
 import { Window } from 'happy-dom'
 
@@ -100,11 +100,11 @@ describe('group identifier presentation', () => {
     domWindow.close()
   })
 
-  test('switches an identifier from an input to text after it is saved', async (testContext) => {
+  test('switches an identifier from an input to text after it is saved', async (testContext: TestContext) => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
-    testContext.after(async () => {
+    testContext.after(async (): Promise<void> => {
       try {
         await act(async () => root.unmount())
       } finally {
@@ -148,11 +148,11 @@ describe('group identifier presentation', () => {
     )
   })
 
-  test('keeps a duplicate identifier draft out of serialized group data', async (testContext) => {
+  test('keeps a duplicate identifier draft out of serialized group data', async (testContext: TestContext) => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
-    testContext.after(async () => {
+    testContext.after(async (): Promise<void> => {
       try {
         await act(async () => root.unmount())
       } finally {
@@ -239,11 +239,11 @@ describe('group identifier presentation', () => {
     assert.equal(container.querySelectorAll('code[title="vip"]').length, 1)
   })
 
-  test('keeps group JSON fields editable in JSON mode', async (testContext) => {
+  test('keeps group JSON fields editable in JSON mode', async (testContext: TestContext) => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
-    testContext.after(async () => {
+    testContext.after(async (): Promise<void> => {
       try {
         await act(async () => root.unmount())
       } finally {
