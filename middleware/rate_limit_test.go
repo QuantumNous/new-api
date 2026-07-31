@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -45,18 +46,31 @@ func performRateLimitRequest(router http.Handler, path string, remoteAddr string
 	return recorder
 }
 
-func TestRedisIPRateLimiterThresholdTTLAndNamespace(t *testing.T) {
+func TestRedisCriticalRateLimiterReturnsJSONWithRetryAfter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	require.NoError(t, i18n.Init())
 	redisServer, _ := useRateLimitMiniRedis(t)
+
+	previousEnabled := common.CriticalRateLimitEnable
+	previousMaxRequests := common.CriticalRateLimitNum
+	previousDuration := common.CriticalRateLimitDuration
+	common.CriticalRateLimitEnable = true
+	common.CriticalRateLimitNum = 2
+	common.CriticalRateLimitDuration = 37
+	t.Cleanup(func() {
+		common.CriticalRateLimitEnable = previousEnabled
+		common.CriticalRateLimitNum = previousMaxRequests
+		common.CriticalRateLimitDuration = previousDuration
+	})
 
 	router := gin.New()
 	require.NoError(t, router.SetTrustedProxies(nil))
-	router.GET("/limited", rateLimitFactory(2, 37, "TEST"), func(c *gin.Context) {
+	router.GET("/limited", CriticalRateLimit(), func(c *gin.Context) {
 		c.Status(http.StatusNoContent)
 	})
 
 	remoteAddr := "192.0.2.10:12345"
-	legacyKey := "rateLimit:TEST192.0.2.10"
+	legacyKey := "rateLimit:CT192.0.2.10"
 	_, err := redisServer.Push(legacyKey, "legacy-list-entry")
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/limited", remoteAddr).Code)
@@ -64,8 +78,10 @@ func TestRedisIPRateLimiterThresholdTTLAndNamespace(t *testing.T) {
 	limitedResponse := performRateLimitRequest(router, "/limited", remoteAddr)
 	assert.Equal(t, http.StatusTooManyRequests, limitedResponse.Code)
 	assert.Equal(t, "37", limitedResponse.Header().Get("Retry-After"))
+	assert.Equal(t, "application/json; charset=utf-8", limitedResponse.Header().Get("Content-Type"))
+	assert.JSONEq(t, `{"success":false,"message":"Too many requests. Please try again later."}`, limitedResponse.Body.String())
 
-	key := redisIPRateLimitKey("TEST", "192.0.2.10")
+	key := redisIPRateLimitKey("CT", "192.0.2.10")
 	count, err := redisServer.Get(key)
 	require.NoError(t, err)
 	assert.Equal(t, "3", count)

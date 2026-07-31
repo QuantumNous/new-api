@@ -199,6 +199,7 @@ twofa.record_id_empty: "2FA記錄ID不能為空"
 twofa.code_invalid: "驗證碼或備用碼不正確"
 
 # Rate limit messages
+rate_limit.exceeded: "請求過於頻繁，請稍後再試"
 rate_limit.reached: "您已達到請求數限制：{{.Minutes}}分鐘內最多請求{{.Max}}次"
 rate_limit.total_reached: "您已達到總請求數限制：{{.Minutes}}分鐘內最多請求{{.Max}}次，包括失敗次數"
 

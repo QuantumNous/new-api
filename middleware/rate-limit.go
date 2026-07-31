@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/gin-gonic/gin"
 )
@@ -132,16 +133,18 @@ func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark s
 	}
 }
 
-// writeRateLimited rejects the request with 429 and a Retry-After hint so
-// clients can back off instead of treating the rejection as a fatal error.
+// writeRateLimited rejects the request with a structured 429 response and a
+// Retry-After hint so clients can report the error and back off safely.
 // The in-memory limiter cannot report the remaining window, so callers
 // without a TTL pass the full window duration as a conservative upper bound.
 func writeRateLimited(c *gin.Context, retryAfterSeconds int64) {
 	if retryAfterSeconds > 0 {
 		c.Header("Retry-After", strconv.FormatInt(retryAfterSeconds, 10))
 	}
-	c.Status(http.StatusTooManyRequests)
-	c.Abort()
+	c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+		"success": false,
+		"message": common.TranslateMessage(c, i18n.MsgRateLimitExceeded),
+	})
 }
 
 func rateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gin.Context) {

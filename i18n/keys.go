@@ -234,6 +234,7 @@ const (
 
 // Rate limit related messages
 const (
+	MsgRateLimitExceeded     = "rate_limit.exceeded"
 	MsgRateLimitReached      = "rate_limit.reached"
 	MsgRateLimitTotalReached = "rate_limit.total_reached"
 )
