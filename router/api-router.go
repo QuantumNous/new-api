@@ -22,6 +22,11 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", anonymousRequestBodyLimit, controller.PostSetup)
 		apiRouter.GET("/status", controller.GetStatus)
+		// 营销站公开接口（无鉴权，仅继承全局限流 GlobalAPIRateLimit）
+		apiRouter.GET("/public/site-config", controller.GetSiteConfig)
+		apiRouter.GET("/public/pricing", controller.GetPublicPricing)
+		apiRouter.GET("/public/model-catalog", controller.GetPublicModelCatalog)
+		apiRouter.POST("/public/contact-sales", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ContactSales)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)

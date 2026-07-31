@@ -10,7 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UserAgreementRouteImport } from './routes/user-agreement'
+import { Route as SolutionsRouteImport } from './routes/solutions'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as ModelsRouteImport } from './routes/models'
+import { Route as ContactSalesRouteImport } from './routes/contact-sales'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -45,7 +48,6 @@ import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
-import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
@@ -75,9 +77,24 @@ const UserAgreementRoute = UserAgreementRouteImport.update({
   path: '/user-agreement',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SolutionsRoute = SolutionsRouteImport.update({
+  id: '/solutions',
+  path: '/solutions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelsRoute = ModelsRouteImport.update({
+  id: '/models',
+  path: '/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactSalesRoute = ContactSalesRouteImport.update({
+  id: '/contact-sales',
+  path: '/contact-sales',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -257,12 +274,6 @@ const AuthenticatedPlaygroundIndexRoute =
     path: '/playground/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedModelsIndexRoute =
-  AuthenticatedModelsIndexRouteImport.update({
-    id: '/models/',
-    path: '/models/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedKeysIndexRoute = AuthenticatedKeysIndexRouteImport.update({
   id: '/keys/',
   path: '/keys/',
@@ -401,7 +412,10 @@ const AuthenticatedSystemSettingsAuthSectionRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/contact-sales': typeof ContactSalesRoute
+  '/models': typeof ModelsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/solutions': typeof SolutionsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/forgot-password': typeof authForgotPasswordRoute
@@ -433,7 +447,6 @@ export interface FileRoutesByFullPath {
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
-  '/models/': typeof AuthenticatedModelsIndexRoute
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
@@ -461,7 +474,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/contact-sales': typeof ContactSalesRoute
+  '/models': typeof ModelsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/solutions': typeof SolutionsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
@@ -492,7 +508,6 @@ export interface FileRoutesByTo {
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
-  '/models': typeof AuthenticatedModelsIndexRoute
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
@@ -523,7 +538,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/(auth)': typeof authRouteRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/contact-sales': typeof ContactSalesRoute
+  '/models': typeof ModelsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/solutions': typeof SolutionsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
@@ -555,7 +573,6 @@ export interface FileRoutesById {
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
-  '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
@@ -585,7 +602,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/contact-sales'
+    | '/models'
     | '/privacy-policy'
+    | '/solutions'
     | '/user-agreement'
     | '/system-settings'
     | '/forgot-password'
@@ -617,7 +637,6 @@ export interface FileRouteTypes {
     | '/channels/'
     | '/dashboard/'
     | '/keys/'
-    | '/models/'
     | '/playground/'
     | '/profile/'
     | '/redemption-codes/'
@@ -645,7 +664,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/contact-sales'
+    | '/models'
     | '/privacy-policy'
+    | '/solutions'
     | '/user-agreement'
     | '/forgot-password'
     | '/oauth'
@@ -676,7 +698,6 @@ export interface FileRouteTypes {
     | '/channels'
     | '/dashboard'
     | '/keys'
-    | '/models'
     | '/playground'
     | '/profile'
     | '/redemption-codes'
@@ -706,7 +727,10 @@ export interface FileRouteTypes {
     | '/'
     | '/(auth)'
     | '/_authenticated'
+    | '/contact-sales'
+    | '/models'
     | '/privacy-policy'
+    | '/solutions'
     | '/user-agreement'
     | '/_authenticated/system-settings'
     | '/(auth)/forgot-password'
@@ -738,7 +762,6 @@ export interface FileRouteTypes {
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
-    | '/_authenticated/models/'
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
@@ -769,7 +792,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   authRouteRoute: typeof authRouteRouteWithChildren
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  ContactSalesRoute: typeof ContactSalesRoute
+  ModelsRoute: typeof ModelsRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  SolutionsRoute: typeof SolutionsRoute
   UserAgreementRoute: typeof UserAgreementRoute
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
@@ -795,11 +821,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UserAgreementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/solutions': {
+      id: '/solutions'
+      path: '/solutions'
+      fullPath: '/solutions'
+      preLoaderRoute: typeof SolutionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy-policy': {
       id: '/privacy-policy'
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/models': {
+      id: '/models'
+      path: '/models'
+      fullPath: '/models'
+      preLoaderRoute: typeof ModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact-sales': {
+      id: '/contact-sales'
+      path: '/contact-sales'
+      fullPath: '/contact-sales'
+      preLoaderRoute: typeof ContactSalesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -1038,13 +1085,6 @@ declare module '@tanstack/react-router' {
       path: '/playground'
       fullPath: '/playground/'
       preLoaderRoute: typeof AuthenticatedPlaygroundIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/models/': {
-      id: '/_authenticated/models/'
-      path: '/models'
-      fullPath: '/models/'
-      preLoaderRoute: typeof AuthenticatedModelsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/keys/': {
@@ -1305,7 +1345,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
-  AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
@@ -1328,7 +1367,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
-  AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,
   AuthenticatedPlaygroundIndexRoute: AuthenticatedPlaygroundIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
@@ -1347,7 +1385,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  ContactSalesRoute: ContactSalesRoute,
+  ModelsRoute: ModelsRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  SolutionsRoute: SolutionsRoute,
   UserAgreementRoute: UserAgreementRoute,
   errors401Route: errors401Route,
   errors403Route: errors403Route,

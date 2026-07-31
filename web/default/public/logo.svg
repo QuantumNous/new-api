@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="OriginFlow">
+  <defs>
+    <linearGradient id="ofGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F8CFF" />
+      <stop offset="100%" stop-color="#8B5CF6" />
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#ofGrad)" />
+  <path
+    d="M42 72 C42 56 60 52 67 65 C74 78 92 73 92 57 C92 43 75 41 67 55"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="94" cy="64" r="7" fill="#FFFFFF" />
+</svg>

@@ -1,0 +1,5 @@
+export { Home } from './pages/Home'
+export { Pricing } from './pages/Pricing'
+export { Models } from './pages/Models'
+export { Solutions } from './pages/Solutions'
+export { ContactSales } from './pages/ContactSales'

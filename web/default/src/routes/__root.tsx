@@ -35,6 +35,59 @@ import { NotFoundError } from '@/features/errors/not-found-error'
 import { getSetupStatus } from '@/features/setup/api'
 import { useSystemConfig } from '@/hooks/use-system-config'
 
+// ── ADR-1 域名隔离：营销/控制台跨 host 重定向 ────────────────────────────────
+// 同一份 SPA 构建同时被 www / app 两个 nginx server block 提供服务，前端按
+// location.host 切换营销/控制台路由。本函数保证「错误 host 下的路径」被重定向
+// 到正确域名（如 app.91flow.com/solutions -> www.91flow.com/solutions）。
+const MARKETING_HOST = 'www.91flow.com'
+const CONSOLE_HOST = 'app.91flow.com'
+
+// 营销站点专属路径（无控制台对应页），在 app host 下必须跳回 www
+const MARKETING_EXCLUSIVE_PATHS = new Set<string>([
+  '/solutions',
+  '/contact-sales',
+  '/privacy-policy',
+  '/user-agreement',
+])
+
+// www host 下允许渲染的营销/公共路径；其余（控制台内部路径）跳转到 app
+const WWW_ALLOWED_PATHS = new Set<string>([
+  '/',
+  '/pricing',
+  '/models',
+  '/solutions',
+  '/contact-sales',
+  '/privacy-policy',
+  '/user-agreement',
+])
+
+function normalizePathname(p: string): string {
+  if (p.length > 1 && p.endsWith('/')) return p.slice(0, -1)
+  return p
+}
+
+function ensureHostIsolation(location: { pathname: string; search: string }): void {
+  if (typeof window === 'undefined') return
+  const host = window.location.host
+  const path = normalizePathname(location.pathname)
+  const search = location.search ?? ''
+  if (host.startsWith('www.')) {
+    // 营销 host：仅营销/公共路径留在本域，其余跳到控制台
+    if (!WWW_ALLOWED_PATHS.has(path) && path !== '/setup') {
+      throw redirect({
+        href: `https://${CONSOLE_HOST}${location.pathname}${search}`,
+      })
+    }
+  } else if (host.startsWith('app.')) {
+    // 控制台 host：营销专属路径跳回营销
+    if (MARKETING_EXCLUSIVE_PATHS.has(path)) {
+      throw redirect({
+        href: `https://${MARKETING_HOST}${location.pathname}${search}`,
+      })
+    }
+  }
+}
+
 function RootComponent() {
   // Load system configuration (logo, system name, etc.) from backend
   useSystemConfig({ autoLoad: true })
@@ -98,6 +151,9 @@ export const Route = createRootRouteWithContext<{
 }>()({
   // 应用初始化与路由解析前统一校验会话
   beforeLoad: async ({ location }) => {
+    // ADR-1 域名隔离：先纠正错误 host 下的路径，再做其他检查
+    ensureHostIsolation(location)
+
     const pathname = location?.pathname || ''
     const needsSetupCheck =
       !setupStatusChecked && !pathname.startsWith('/setup')
