@@ -1450,7 +1450,7 @@
     "Drawing task polling": "繪圖任務輪詢",
     "Drawing task records": "繪圖任務記錄",
     "Duplicate": "重複",
-    "Duplicate group identifiers: {{identifiers}}": "分組標識重複：{{identifiers}}",
+    "Duplicate group identifiers: {{identifiers}}": "分組標識符重複：{{identifiers}}",
     "Duplicate group names: {{names}}": "存在重複的分組名稱：{{names}}",
     "Duplicate model in route models": "路由模型中存在重複模型",
     "Duplicate source model mappings are not allowed": "不允許重複的源模型映射",

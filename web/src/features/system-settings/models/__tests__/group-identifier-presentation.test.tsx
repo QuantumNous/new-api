@@ -100,10 +100,17 @@ describe('group identifier presentation', () => {
     domWindow.close()
   })
 
-  test('switches an identifier from an input to text after it is saved', async () => {
+  test('switches an identifier from an input to text after it is saved', async (testContext) => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
+    testContext.after(async () => {
+      try {
+        await act(async () => root.unmount())
+      } finally {
+        container.remove()
+      }
+    })
 
     await act(async () => {
       root.render(
@@ -139,15 +146,19 @@ describe('group identifier presentation', () => {
       container.querySelector('code[title="default"]')?.textContent,
       'default'
     )
-
-    await act(async () => root.unmount())
-    container.remove()
   })
 
-  test('keeps a duplicate identifier draft out of serialized group data', async () => {
+  test('keeps a duplicate identifier draft out of serialized group data', async (testContext) => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
+    testContext.after(async () => {
+      try {
+        await act(async () => root.unmount())
+      } finally {
+        container.remove()
+      }
+    })
     const groupRatioChanges: string[] = []
     let identifiersAreValid = true
 
@@ -226,15 +237,19 @@ describe('group identifier presentation', () => {
     assert.equal(identifierInput.value, 'vip')
     assert.equal(identifiersAreValid, false)
     assert.equal(container.querySelectorAll('code[title="vip"]').length, 1)
-
-    await act(async () => root.unmount())
-    container.remove()
   })
 
-  test('keeps group JSON fields editable in JSON mode', async () => {
+  test('keeps group JSON fields editable in JSON mode', async (testContext) => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
+    testContext.after(async () => {
+      try {
+        await act(async () => root.unmount())
+      } finally {
+        container.remove()
+      }
+    })
 
     function Harness() {
       const form = useForm({
@@ -282,8 +297,5 @@ describe('group identifier presentation', () => {
     for (const fieldName of editableFields) {
       assert.ok(container.querySelector(`textarea[name="${fieldName}"]`))
     }
-
-    await act(async () => root.unmount())
-    container.remove()
   })
 })

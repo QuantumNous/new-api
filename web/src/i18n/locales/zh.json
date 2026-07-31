@@ -2401,7 +2401,7 @@
     "JSON map of group → ratio applied when the user selects the group explicitly.": "分组 → 比率的 JSON 映射，当用户明确选择该分组时应用此比率。",
     "JSON map of model → multiplier applied to quota billing.": "模型 → 应用于配额计费的乘数的 JSON 映射。",
     "JSON map of model → USD cost per request. Takes precedence over ratio based billing.": "模型 → 每请求美元成本的 JSON 映射。优先于基于比率的计费。",
-    "JSON map of stable group identifiers to editable display names.": "稳定分组标识与可编辑显示名称的 JSON 映射。",
+    "JSON map of stable group identifiers to editable display names.": "从稳定分组标识到可编辑显示名称的 JSON 映射。",
     "JSON mode": "JSON 模式",
     "JSON Mode": "JSON 模式",
     "JSON must be an object": "JSON 必须是对象",
