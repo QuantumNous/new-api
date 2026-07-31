@@ -11,7 +11,7 @@ type BytePlusAssetTempObject struct {
 	AssetId                 *int64 `json:"-" gorm:"uniqueIndex"`
 	UserId                  int    `json:"-" gorm:"index"`
 	ChannelId               int    `json:"-" gorm:"index"`
-	Bucket                  string `json:"-" gorm:"type:varchar(255)"`
+	Bucket                  string `json:"-" gorm:"type:varchar(255);uniqueIndex:idx_byteplus_temp_bucket_key"`
 	ObjectKey               string `json:"-" gorm:"type:varchar(512);uniqueIndex:idx_byteplus_temp_bucket_key"`
 	ContentSHA256           string `json:"-" gorm:"type:char(64)"`
 	SizeBytes               int64  `json:"-" gorm:"bigint"`
