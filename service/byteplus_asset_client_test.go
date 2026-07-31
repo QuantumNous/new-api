@@ -265,6 +265,54 @@ func TestBytePlusAssetClientRejectsResponseMetadataErrorWithoutBodyReflection(t 
 	}
 }
 
+func TestBytePlusAssetClientClassifiesMalformedAndOversizeEnvelopeSafely(t *testing.T) {
+	cases := []struct {
+		name       string
+		status     int
+		body       string
+		leaks      []string
+		definitive bool
+	}{
+		{
+			name:       "malformed",
+			status:     http.StatusOK,
+			body:       `{"ResponseMetadata":{"RequestId":"req-bad-json"},"Result":`,
+			leaks:      []string{"req-bad-json", `"Result":`},
+			definitive: true,
+		},
+		{
+			name:       "oversize",
+			status:     http.StatusOK,
+			body:       strings.Repeat("sk-example", bytePlusAssetResponseMaxBytes/len("sk-example")+2),
+			leaks:      []string{"sk-example"},
+			definitive: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+
+			client := NewBytePlusAssetClient(server.Client(), server.URL)
+			_, _, err := client.CreateAssetGroup(context.Background(), testAssetCreds(), "flatkey-group")
+			if err == nil {
+				t.Fatal("CreateAssetGroup should reject unsafe envelope")
+			}
+			if isBytePlusDefinitiveResponse(err) != tc.definitive {
+				t.Fatalf("definitive = %t, want %t: %v", isBytePlusDefinitiveResponse(err), tc.definitive, err)
+			}
+			for _, leaked := range tc.leaks {
+				if strings.Contains(err.Error(), leaked) {
+					t.Fatalf("error leaked %q: %v", leaked, err)
+				}
+			}
+		})
+	}
+}
+
 func testAssetCreds() BytePlusCredentials {
 	return BytePlusCredentials{
 		APIKey:          "ark-video-key",

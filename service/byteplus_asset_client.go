@@ -72,6 +72,29 @@ type bytePlusAssetResultErr struct {
 	Message string `json:"Message"`
 }
 
+type BytePlusAPIError struct {
+	StatusCode int
+	RequestID  string
+	Code       string
+}
+
+func (e *BytePlusAPIError) Error() string {
+	if e.RequestID == "" {
+		return "byteplus api request failed"
+	}
+	return "byteplus api request failed (request_id=" + e.RequestID + ")"
+}
+
+func isBytePlusDefinitiveResponse(err error) bool {
+	var apiErr *BytePlusAPIError
+	return errors.As(err, &apiErr)
+}
+
+func isBytePlusNotFound(err error) bool {
+	var apiErr *BytePlusAPIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
+}
+
 func NewBytePlusAssetClient(httpClient *http.Client, endpoint string) *BytePlusAssetClient {
 	if httpClient == nil {
 		httpClient = GetHttpClient()
@@ -198,7 +221,7 @@ func (c *BytePlusAssetClient) GetAsset(ctx context.Context, creds BytePlusCreden
 	}, nil
 }
 
-func (c *BytePlusAssetClient) do(ctx context.Context, creds BytePlusCredentials, action string, payload any, out *bytePlusAssetResponse) error {
+func (c *BytePlusAssetClient) do(ctx context.Context, creds BytePlusCredentials, action string, payload any, out any) error {
 	if ctx == nil {
 		return errors.New("byteplus asset request context is required")
 	}
@@ -242,21 +265,29 @@ func (c *BytePlusAssetClient) do(ctx context.Context, creds BytePlusCredentials,
 		return err
 	}
 	if len(raw) > bytePlusAssetResponseMaxBytes {
-		return upstreamAssetErr("response too large", "")
+		return &BytePlusAPIError{StatusCode: resp.StatusCode}
 	}
-	var envelope bytePlusAssetResponse
+	var metadataEnvelope struct {
+		ResponseMetadata bytePlusResponseMetadata `json:"ResponseMetadata"`
+	}
 	if len(bytes.TrimSpace(raw)) > 0 {
-		if err := common.Unmarshal(raw, &envelope); err != nil {
-			return upstreamAssetErr("invalid response", "")
+		if err := common.Unmarshal(raw, &metadataEnvelope); err != nil {
+			return &BytePlusAPIError{StatusCode: resp.StatusCode}
 		}
 	}
+	metadata := metadataEnvelope.ResponseMetadata
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return upstreamAssetErr("upstream error", envelope.ResponseMetadata.RequestID)
+		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code}
 	}
-	if envelope.ResponseMetadata.Error.Code != "" || envelope.ResponseMetadata.Error.Message != "" {
-		return upstreamAssetErr("upstream error", envelope.ResponseMetadata.RequestID)
+	if metadata.Error.Code != "" || metadata.Error.Message != "" {
+		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code}
 	}
-	*out = envelope
+	if out == nil || len(bytes.TrimSpace(raw)) == 0 {
+		return nil
+	}
+	if err := common.Unmarshal(raw, out); err != nil {
+		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID}
+	}
 	return nil
 }
 

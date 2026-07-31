@@ -1,0 +1,295 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
+type bytePlusObservedRequest struct {
+	Method      string
+	Path        string
+	Action      string
+	Version     string
+	Auth        string
+	ContentType string
+	Body        map[string]any
+	Err         error
+}
+
+func TestBytePlusClientCreateVisualSendsOfficialContractAndScrubsMissingFields(t *testing.T) {
+	observed := make(chan bytePlusObservedRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got := observeBytePlusRequest(r)
+		observed <- got
+		if got.Err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-visual"},"Result":{"BytedToken":"token-1","H5Link":"https://h5.example/session","CallbackURL":"https://callback.example/ok"}}`))
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	got, err := client.CreateVisualValidateSession(context.Background(), testAssetCreds(), " https://callback.example/ok ")
+	if err != nil {
+		t.Fatalf("CreateVisualValidateSession error: %v", err)
+	}
+	req := <-observed
+	if req.Err != nil {
+		t.Fatalf("decode request: %v", req.Err)
+	}
+	if req.Method != http.MethodPost || req.Path != "/" {
+		t.Fatalf("method/path = %q/%q", req.Method, req.Path)
+	}
+	if req.Action != "CreateVisualValidateSession" || req.Version != bytePlusAssetAPIVersion {
+		t.Fatalf("Action/Version = %q/%q", req.Action, req.Version)
+	}
+	if !strings.HasPrefix(req.Auth, "HMAC-SHA256 Credential=ak-example/") {
+		t.Fatalf("Authorization header = %q", req.Auth)
+	}
+	if !strings.HasPrefix(req.ContentType, "application/json") {
+		t.Fatalf("Content-Type = %q", req.ContentType)
+	}
+	if req.Body["CallbackURL"] != "https://callback.example/ok" || req.Body["ProjectName"] != "project3" {
+		t.Fatalf("payload = %#v", req.Body)
+	}
+	if got.BytedToken != "token-1" || got.H5Link != "https://h5.example/session" || got.CallbackURL != "https://callback.example/ok" || got.RequestID != "req-visual" {
+		t.Fatalf("result = %+v", got)
+	}
+
+	secretValues := []string{"token-1", "https://h5.example/session", "https://callback.example/ok", "sk-example", "provider-secret-message"}
+	for _, body := range []string{
+		`{"ResponseMetadata":{"RequestId":"req-missing"},"Result":{"H5Link":"https://h5.example/session","CallbackURL":"https://callback.example/ok","Error":{"Message":"provider-secret-message"}}}`,
+		`{"ResponseMetadata":{"RequestId":"req-missing"},"Result":{"BytedToken":"token-1","CallbackURL":"https://callback.example/ok"}}`,
+	} {
+		missingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(body))
+		}))
+		client := NewBytePlusAssetClient(missingServer.Client(), missingServer.URL)
+		_, err := client.CreateVisualValidateSession(context.Background(), testAssetCreds(), "https://callback.example/ok")
+		missingServer.Close()
+		if err == nil {
+			t.Fatal("CreateVisualValidateSession should reject missing required result fields")
+		}
+		for _, leaked := range secretValues {
+			if strings.Contains(err.Error(), leaked) {
+				t.Fatalf("error leaked %q: %v", leaked, err)
+			}
+		}
+	}
+}
+
+func TestBytePlusClientGetVisualTrimsTokenAndMapsResult(t *testing.T) {
+	observed := make(chan bytePlusObservedRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got := observeBytePlusRequest(r)
+		observed <- got
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-get"},"Result":{"GroupId":"group-1","Error":{"Message":"upstream-token-1-message"}}}`))
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	got, err := client.GetVisualValidateResult(context.Background(), testAssetCreds(), " token-1 ")
+	if err != nil {
+		t.Fatalf("GetVisualValidateResult error: %v", err)
+	}
+	req := <-observed
+	if req.Action != "GetVisualValidateResult" || req.Body["BytedToken"] != "token-1" || req.Body["ProjectName"] != "project3" {
+		t.Fatalf("request = %+v", req)
+	}
+	if got.GroupID != "group-1" || got.RequestID != "req-get" {
+		t.Fatalf("result = %+v", got)
+	}
+
+	emptyGroupServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-empty"},"Result":{"GroupId":" ","Error":{"Message":"upstream-token-1-message"}}}`))
+	}))
+	defer emptyGroupServer.Close()
+	client = NewBytePlusAssetClient(emptyGroupServer.Client(), emptyGroupServer.URL)
+	_, err = client.GetVisualValidateResult(context.Background(), testAssetCreds(), " token-1 ")
+	if err == nil {
+		t.Fatal("GetVisualValidateResult should reject empty GroupId")
+	}
+	for _, leaked := range []string{"token-1", "upstream-token-1-message"} {
+		if strings.Contains(err.Error(), leaked) {
+			t.Fatalf("error leaked %q: %v", leaked, err)
+		}
+	}
+}
+
+func TestBytePlusClientListAssetsSendsFilterAndMapsPagination(t *testing.T) {
+	observed := make(chan bytePlusObservedRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		observed <- observeBytePlusRequest(r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-list"},"Result":{"Items":[{"Id":"asset-1","Name":"Face One","GroupId":"group-1","AssetType":"Image","Status":"Active","Moderation":{"Strategy":"Skip"},"ProjectName":"project3","CreateTime":11,"UpdateTime":22}],"TotalCount":7}}`))
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	got, err := client.ListAssets(context.Background(), testAssetCreds(), BytePlusListAssetsRequest{
+		GroupIDs:   []string{"group-1", "group-2"},
+		Statuses:   []string{"Active"},
+		Name:       "face",
+		PageNumber: 3,
+		PageSize:   20,
+		SortBy:     "CreateTime",
+		SortOrder:  "Desc",
+	})
+	if err != nil {
+		t.Fatalf("ListAssets error: %v", err)
+	}
+	req := <-observed
+	if req.Action != "ListAssets" || req.Version != bytePlusAssetAPIVersion {
+		t.Fatalf("Action/Version = %q/%q", req.Action, req.Version)
+	}
+	filter, ok := req.Body["Filter"].(map[string]any)
+	if !ok {
+		t.Fatalf("Filter missing from payload %#v", req.Body)
+	}
+	if filter["GroupType"] != "LivenessFace" || filter["Name"] != "face" {
+		t.Fatalf("Filter = %#v", filter)
+	}
+	assertStringSlice(t, filter["GroupIds"], []string{"group-1", "group-2"})
+	assertStringSlice(t, filter["Statuses"], []string{"Active"})
+	if req.Body["PageNumber"] != float64(3) || req.Body["PageSize"] != float64(20) || req.Body["SortBy"] != "CreateTime" || req.Body["SortOrder"] != "Desc" || req.Body["ProjectName"] != "project3" {
+		t.Fatalf("payload = %#v", req.Body)
+	}
+	if got.TotalCount != 7 || got.RequestID != "req-list" || len(got.Items) != 1 {
+		t.Fatalf("result = %+v", got)
+	}
+	item := got.Items[0]
+	if item.ID != "asset-1" || item.Name != "Face One" || item.GroupID != "group-1" || item.AssetType != "Image" || item.Status != "Active" || item.ProjectName != "project3" || item.CreateTime != 11 || item.UpdateTime != 22 {
+		t.Fatalf("item = %+v", item)
+	}
+	if item.Moderation["Strategy"] != "Skip" {
+		t.Fatalf("moderation = %#v", item.Moderation)
+	}
+}
+
+func TestBytePlusClientDeleteAssetHandlesEmptyResultAndNotFoundClassification(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got := observeBytePlusRequest(r)
+		if got.Action != "DeleteAsset" || got.Body["Id"] != "asset-1" || got.Body["ProjectName"] != "project3" {
+			t.Errorf("request = %+v", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-delete"},"Result":{}}`))
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	requestID, err := client.DeleteAsset(context.Background(), testAssetCreds(), " asset-1 ")
+	if err != nil {
+		t.Fatalf("DeleteAsset error: %v", err)
+	}
+	if requestID != "req-delete" {
+		t.Fatalf("requestID = %q", requestID)
+	}
+
+	notFoundServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-404","Error":{"Code":"ResourceNotFound","Message":"provider says missing asset-1"}}}`))
+	}))
+	defer notFoundServer.Close()
+	client = NewBytePlusAssetClient(notFoundServer.Client(), notFoundServer.URL)
+	_, err = client.DeleteAsset(context.Background(), testAssetCreds(), "asset-1")
+	if err == nil || !isBytePlusNotFound(err) {
+		t.Fatalf("DeleteAsset HTTP 404 error/notFound = %v/%t", err, isBytePlusNotFound(err))
+	}
+
+	metadataNotFoundServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-200-notfound","Error":{"Code":"ResourceNotFound","Message":"provider says missing asset-1"}}}`))
+	}))
+	defer metadataNotFoundServer.Close()
+	client = NewBytePlusAssetClient(metadataNotFoundServer.Client(), metadataNotFoundServer.URL)
+	_, err = client.DeleteAsset(context.Background(), testAssetCreds(), "asset-1")
+	if err == nil || !isBytePlusDefinitiveResponse(err) || isBytePlusNotFound(err) {
+		t.Fatalf("DeleteAsset metadata not found classification err=%v definitive=%t notFound=%t", err, isBytePlusDefinitiveResponse(err), isBytePlusNotFound(err))
+	}
+	if strings.Contains(err.Error(), "provider says missing") {
+		t.Fatalf("error leaked metadata message: %v", err)
+	}
+}
+
+func TestBytePlusClientDeleteAssetTimeoutIsNotDefinitive(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	client.requestTimeout = 25 * time.Millisecond
+	_, err := client.DeleteAsset(context.Background(), testAssetCreds(), "asset-1")
+	close(release)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("DeleteAsset timeout error = %v", err)
+	}
+	if isBytePlusDefinitiveResponse(err) {
+		t.Fatalf("timeout should not be definitive: %v", err)
+	}
+}
+
+func TestBytePlusClientDeleteAssetScrubsUpstream502Body(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-502","Error":{"Code":"Bad","Message":"sk-example token-1 https://h5.example Code=Bad"}}}`))
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	_, err := client.DeleteAsset(context.Background(), testAssetCreds(), "asset-1")
+	if err == nil {
+		t.Fatal("DeleteAsset should reject upstream 502")
+	}
+	if !strings.Contains(err.Error(), "req-502") {
+		t.Fatalf("error should keep request id: %v", err)
+	}
+	for _, leaked := range []string{"sk-example", "token-1", "https://h5.example", "Code=Bad"} {
+		if strings.Contains(err.Error(), leaked) {
+			t.Fatalf("error leaked %q: %v", leaked, err)
+		}
+	}
+}
+
+func observeBytePlusRequest(r *http.Request) bytePlusObservedRequest {
+	var body map[string]any
+	err := decodeTestJSON(r, &body)
+	return bytePlusObservedRequest{
+		Method:      r.Method,
+		Path:        r.URL.Path,
+		Action:      r.URL.Query().Get("Action"),
+		Version:     r.URL.Query().Get("Version"),
+		Auth:        r.Header.Get("Authorization"),
+		ContentType: r.Header.Get("Content-Type"),
+		Body:        body,
+		Err:         err,
+	}
+}
+
+func assertStringSlice(t *testing.T, got any, want []string) {
+	t.Helper()
+	values, ok := got.([]any)
+	if !ok {
+		t.Fatalf("value = %#v, want []any", got)
+	}
+	if len(values) != len(want) {
+		t.Fatalf("len(%#v) = %d, want %d", values, len(values), len(want))
+	}
+	for i := range want {
+		if values[i] != want[i] {
+			t.Fatalf("value[%d] = %#v, want %q", i, values[i], want[i])
+		}
+	}
+}
