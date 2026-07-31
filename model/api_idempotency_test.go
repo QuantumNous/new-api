@@ -412,3 +412,106 @@ func TestAPIIdempotencyUnknownStatusReturnsError(t *testing.T) {
 	require.Error(t, err)
 	require.False(t, errors.Is(err, ErrAPIIdempotencyCASLost))
 }
+
+func TestBytePlusRealPersonJobClaimsAndBacklogSnapshot(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	now := int64(1000)
+	staleBefore := int64(900)
+	profile := BytePlusRealPersonProfile{PublicId: "rph_due", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&profile).Error)
+	session := BytePlusVisualValidationSession{PublicId: "rvs_due", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("a", 64), BytedTokenCiphertext: "cipher", Status: BytePlusVisualValidationSessionStatusPending, LeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&session).Error)
+	require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", session.Id).Error)
+	assetProcessing := BytePlusAsset{PublicId: "ast_processing", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream-processing", AssetType: "Image", Status: BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100}
+	assetDeleting := BytePlusAsset{PublicId: "ast_deleting", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream-delete", AssetType: "Image", Status: BytePlusAssetStatusDeleting, NextDeleteAt: 500, DeleteLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 300}
+	assetDeleted := BytePlusAsset{PublicId: "ast_deleted", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream-deleted", AssetType: "Image", Status: BytePlusAssetStatusDeleted, NextDeleteAt: 500, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&assetProcessing).Error)
+	require.NoError(t, DB.Create(&assetDeleting).Error)
+	require.NoError(t, DB.Create(&assetDeleted).Error)
+	tempDue := BytePlusAssetTempObject{UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "due", CleanupStatus: BytePlusTempObjectCleanupPending, NextCleanupAt: 500, CleanupLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 400}
+	tempFuture := BytePlusAssetTempObject{UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "future", CleanupStatus: BytePlusTempObjectCleanupPending, NextCleanupAt: 2000, CleanupLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100}
+	tempFresh := BytePlusAssetTempObject{UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "fresh", CleanupStatus: BytePlusTempObjectCleanupPending, NextCleanupAt: 500, CleanupLeaseUpdatedTime: 950, CreatedTime: 100, UpdatedTime: 100}
+	tempCleaned := BytePlusAssetTempObject{UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "cleaned", CleanupStatus: BytePlusTempObjectCleanupCleaned, NextCleanupAt: 500, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&tempDue).Error)
+	require.NoError(t, DB.Create(&tempFuture).Error)
+	require.NoError(t, DB.Create(&tempFresh).Error)
+	require.NoError(t, DB.Create(&tempCleaned).Error)
+
+	snapshot, err := GetBytePlusRealPersonBacklogSnapshot(now, staleBefore)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, snapshot.DeletingCount)
+	require.EqualValues(t, 700, snapshot.DeletingOldestUpdateAgeSeconds)
+	require.EqualValues(t, 1, snapshot.TOSCleanupDueCount)
+	require.EqualValues(t, 600, snapshot.TOSCleanupDueOldestUpdateAgeSeconds)
+
+	sessions, err := ClaimDueBytePlusVisualValidationSessions(now, staleBefore, 10)
+	require.NoError(t, err)
+	require.Equal(t, []int64{session.Id}, validationSessionIDsForJobTest(sessions))
+	checks, err := ClaimDueBytePlusAssetStatusChecks(now, staleBefore, 10)
+	require.NoError(t, err)
+	require.Equal(t, []int64{assetProcessing.Id}, assetIDsForJobTest(checks))
+	deletions, err := ClaimDueBytePlusAssetDeletions(now, staleBefore, 10)
+	require.NoError(t, err)
+	require.Equal(t, []int64{assetDeleting.Id}, assetIDsForJobTest(deletions))
+}
+
+func TestMarkBytePlusAssetOutcomeUnknownTargetsCreatingResource(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	creating := BytePlusAsset{PublicId: "ast_creating", UserId: 7, ChannelId: 101, AssetType: "Image", Status: BytePlusAssetStatusCreating, CreatedTime: 100, UpdatedTime: 100}
+	processing := BytePlusAsset{PublicId: "ast_processing", UserId: 7, ChannelId: 101, AssetType: "Image", Status: BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&creating).Error)
+	require.NoError(t, DB.Create(&processing).Error)
+
+	ok, err := MarkBytePlusAssetOutcomeUnknown("ast_creating", 200)
+	require.NoError(t, err)
+	require.True(t, ok)
+	ok, err = MarkBytePlusAssetOutcomeUnknown("ast_processing", 201)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.NoError(t, DB.First(&creating, creating.Id).Error)
+	require.Equal(t, BytePlusAssetStatusFailed, creating.Status)
+	require.Equal(t, "idempotency_outcome_unknown", creating.FailureCode)
+	require.NoError(t, DB.First(&processing, processing.Id).Error)
+	require.Equal(t, BytePlusAssetStatusProcessing, processing.Status)
+}
+
+func TestMarkBytePlusVerificationSessionOutcomeUnknownTargetsExactSession(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	profile := BytePlusRealPersonProfile{PublicId: "rph_exact", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&profile).Error)
+	oldSession := BytePlusVisualValidationSession{PublicId: "rvs_old_exact", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("a", 64), Status: BytePlusVisualValidationSessionStatusCreating, CreatedTime: 100, UpdatedTime: 100}
+	newSession := BytePlusVisualValidationSession{PublicId: "rvs_new_exact", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("b", 64), Status: BytePlusVisualValidationSessionStatusPending, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&oldSession).Error)
+	require.NoError(t, DB.Create(&newSession).Error)
+	require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", newSession.Id).Error)
+
+	ok, err := MarkBytePlusVerificationSessionOutcomeUnknown(oldSession.PublicId, 200)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	require.NoError(t, DB.First(&oldSession, oldSession.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusFailed, oldSession.Status)
+	require.NoError(t, DB.First(&newSession, newSession.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusPending, newSession.Status)
+	require.NoError(t, DB.First(&profile, profile.Id).Error)
+	require.Equal(t, BytePlusRealPersonProfileStatusPendingVerification, profile.Status)
+	require.NotNil(t, profile.CurrentValidationSessionId)
+	require.Equal(t, newSession.Id, *profile.CurrentValidationSessionId)
+}
+
+func validationSessionIDsForJobTest(sessions []BytePlusVisualValidationSession) []int64 {
+	ids := make([]int64, 0, len(sessions))
+	for _, session := range sessions {
+		ids = append(ids, session.Id)
+	}
+	return ids
+}
+
+func assetIDsForJobTest(assets []BytePlusAsset) []int64 {
+	ids := make([]int64, 0, len(assets))
+	for _, asset := range assets {
+		ids = append(ids, asset.Id)
+	}
+	return ids
+}

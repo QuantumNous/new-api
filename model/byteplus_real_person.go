@@ -257,6 +257,31 @@ func ClaimBytePlusVisualValidationSession(sessionID int64, now, staleBefore int6
 	}
 }
 
+func ClaimDueBytePlusVisualValidationSessions(now, staleBefore int64, limit int) ([]BytePlusVisualValidationSession, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	var candidates []BytePlusVisualValidationSession
+	if err := DB.Where("status = ? OR (status = ? AND lease_updated_time < ?)",
+		BytePlusVisualValidationSessionStatusPending,
+		BytePlusVisualValidationSessionStatusChecking,
+		staleBefore,
+	).Order("updated_time ASC, id ASC").Limit(limit).Find(&candidates).Error; err != nil {
+		return nil, err
+	}
+	claimed := make([]BytePlusVisualValidationSession, 0, len(candidates))
+	for _, candidate := range candidates {
+		claimedSession, owner, err := ClaimBytePlusVisualValidationSession(candidate.Id, now, staleBefore)
+		if err != nil {
+			return nil, err
+		}
+		if owner && claimedSession != nil {
+			claimed = append(claimed, *claimedSession)
+		}
+	}
+	return claimed, nil
+}
+
 func claimBytePlusVisualValidationSessionFrom(session BytePlusVisualValidationSession, now int64, statuses []string) (*BytePlusVisualValidationSession, bool, error) {
 	updated := DB.Model(&BytePlusVisualValidationSession{}).
 		Where("id = ? AND status IN ? AND lease_updated_time = ?", session.Id, statuses, session.LeaseUpdatedTime).
@@ -322,6 +347,21 @@ func MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(recordID, le
 	}
 	_, err := FailBytePlusRealPersonSession(profileID, sessionID, failureCode, now)
 	return err
+}
+
+func MarkBytePlusVerificationSessionOutcomeUnknown(sessionPublicID string, now int64) (bool, error) {
+	session, err := GetBytePlusVisualValidationSessionByPublicID(sessionPublicID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	changed, err := FailBytePlusRealPersonSession(session.ProfileId, session.Id, "idempotency_outcome_unknown", now)
+	if errors.Is(err, ErrAPIIdempotencyCASLost) {
+		return false, nil
+	}
+	return changed || err == nil, err
 }
 
 func BytePlusRealPersonChannelHasEnabledAbility(channelID int, group, modelName string) (bool, error) {

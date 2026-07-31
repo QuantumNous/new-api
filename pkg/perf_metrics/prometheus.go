@@ -23,6 +23,7 @@ func BuildPrometheusText(_ context.Context) (string, error) {
 	channelSnapshots := snapshotPrometheusChannels()
 	channelModelSnapshots := snapshotPrometheusChannelModels()
 	modelPerformanceSnapshots := snapshotPrometheusModelPerformances(time.Now())
+	bytePlusRealPersonSnapshot, bytePlusRealPersonEnabled := snapshotBytePlusRealPersonMetrics()
 	baseSeriesCount := len(series)
 	for _, snapshot := range channelSnapshots {
 		baseSeriesCount += snapshot.seriesCount()
@@ -30,6 +31,7 @@ func BuildPrometheusText(_ context.Context) (string, error) {
 	for _, snapshot := range channelModelSnapshots {
 		baseSeriesCount += snapshot.seriesCount()
 	}
+	baseSeriesCount += bytePlusRealPersonMetricSeriesCount(bytePlusRealPersonEnabled)
 	maxSeries := prometheusMaxSeriesPerScrape()
 	if maxSeries > 0 && baseSeriesCount > maxSeries {
 		return "", fmt.Errorf("prometheus series limit exceeded: %d > %d", baseSeriesCount, maxSeries)
@@ -85,6 +87,7 @@ func BuildPrometheusText(_ context.Context) (string, error) {
 		writePrometheusModelPerformanceMetrics(&b, selectedModelPerformanceSnapshots)
 		writePrometheusModelHealthMetrics(&b, len(modelPerformanceSnapshots), modelHealthDroppedSamples)
 	}
+	writeBytePlusRealPersonMetrics(&b, bytePlusRealPersonSnapshot, bytePlusRealPersonEnabled)
 	writePrometheusChannelMetrics(&b, channelSnapshots)
 	writePrometheusChannelModelMetrics(&b, channelModelSnapshots)
 

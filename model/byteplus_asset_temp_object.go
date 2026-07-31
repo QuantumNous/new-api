@@ -97,11 +97,8 @@ func ClaimDueBytePlusTempObjectCleanups(now, staleBefore int64, limit int) ([]By
 		return nil, nil
 	}
 	var candidates []BytePlusAssetTempObject
-	if err := DB.Where(
-		"(cleanup_status = ? AND next_cleanup_at <= ? AND (cleanup_lease_updated_time = ? OR cleanup_lease_updated_time < ?)) OR (cleanup_status = ? AND cleanup_lease_updated_time < ?)",
-		BytePlusTempObjectCleanupPending, now, int64(0), staleBefore,
-		BytePlusTempObjectCleanupCleaning, staleBefore,
-	).
+	if err := dueBytePlusTempObjectCleanupScope(DB, now, staleBefore).
+		Or("cleanup_status = ? AND cleanup_lease_updated_time < ?", BytePlusTempObjectCleanupCleaning, staleBefore).
 		Order("next_cleanup_at ASC, id ASC").
 		Limit(limit).
 		Find(&candidates).Error; err != nil {
@@ -135,10 +132,63 @@ func ClaimDueBytePlusTempObjectCleanups(now, staleBefore int64, limit int) ([]By
 	return claimed, nil
 }
 
+func dueBytePlusTempObjectCleanupScope(db *gorm.DB, now, staleBefore int64) *gorm.DB {
+	return db.Where(
+		"cleanup_status = ? AND next_cleanup_at <= ? AND (cleanup_lease_updated_time = ? OR cleanup_lease_updated_time < ?)",
+		BytePlusTempObjectCleanupPending, now, int64(0), staleBefore,
+	)
+}
+
+type BytePlusRealPersonBacklogSnapshot struct {
+	DeletingCount                       int64
+	DeletingOldestUpdateAgeSeconds      int64
+	TOSCleanupDueCount                  int64
+	TOSCleanupDueOldestUpdateAgeSeconds int64
+}
+
+func GetBytePlusRealPersonBacklogSnapshot(now, staleBefore int64) (BytePlusRealPersonBacklogSnapshot, error) {
+	var snapshot BytePlusRealPersonBacklogSnapshot
+	var deletingOldest *int64
+	deletingQuery := DB.Model(&BytePlusAsset{}).
+		Where("status = ?", BytePlusAssetStatusDeleting)
+	if err := deletingQuery.Count(&snapshot.DeletingCount).Error; err != nil {
+		return snapshot, err
+	}
+	if err := DB.Model(&BytePlusAsset{}).
+		Where("status = ?", BytePlusAssetStatusDeleting).
+		Select("MIN(updated_time)").
+		Scan(&deletingOldest).Error; err != nil {
+		return snapshot, err
+	}
+	if snapshot.DeletingCount > 0 && deletingOldest != nil {
+		snapshot.DeletingOldestUpdateAgeSeconds = nonNegativeAge(now, *deletingOldest)
+	}
+	var tosOldest *int64
+	if err := dueBytePlusTempObjectCleanupScope(DB.Model(&BytePlusAssetTempObject{}), now, staleBefore).Count(&snapshot.TOSCleanupDueCount).Error; err != nil {
+		return snapshot, err
+	}
+	if err := dueBytePlusTempObjectCleanupScope(DB.Model(&BytePlusAssetTempObject{}), now, staleBefore).
+		Select("MIN(updated_time)").
+		Scan(&tosOldest).Error; err != nil {
+		return snapshot, err
+	}
+	if snapshot.TOSCleanupDueCount > 0 && tosOldest != nil {
+		snapshot.TOSCleanupDueOldestUpdateAgeSeconds = nonNegativeAge(now, *tosOldest)
+	}
+	return snapshot, nil
+}
+
+func nonNegativeAge(now, then int64) int64 {
+	if now <= then {
+		return 0
+	}
+	return now - then
+}
+
 func CompleteBytePlusAssetTempObjectCleanup(id int64, leaseUpdatedTime int64, now int64) (bool, error) {
 	result := DB.Model(&BytePlusAssetTempObject{}).
-		Where("id = ? AND cleanup_status IN ? AND cleanup_lease_updated_time = ?",
-			id, []string{BytePlusTempObjectCleanupPending, BytePlusTempObjectCleanupCleaning}, leaseUpdatedTime).
+		Where("id = ? AND cleanup_status = ? AND cleanup_lease_updated_time = ?",
+			id, BytePlusTempObjectCleanupCleaning, leaseUpdatedTime).
 		Updates(map[string]any{
 			"cleanup_status":             BytePlusTempObjectCleanupCleaned,
 			"cleaned_time":               now,
@@ -153,8 +203,8 @@ func CompleteBytePlusAssetTempObjectCleanup(id int64, leaseUpdatedTime int64, no
 
 func RetryBytePlusAssetTempObjectCleanup(id int64, leaseUpdatedTime int64, nextAttempt int64, now int64) (bool, error) {
 	result := DB.Model(&BytePlusAssetTempObject{}).
-		Where("id = ? AND cleanup_status IN ? AND cleanup_lease_updated_time = ?",
-			id, []string{BytePlusTempObjectCleanupPending, BytePlusTempObjectCleanupCleaning}, leaseUpdatedTime).
+		Where("id = ? AND cleanup_status = ? AND cleanup_lease_updated_time = ?",
+			id, BytePlusTempObjectCleanupCleaning, leaseUpdatedTime).
 		Updates(map[string]any{
 			"cleanup_status":             BytePlusTempObjectCleanupPending,
 			"cleanup_attempts":           gorm.Expr("cleanup_attempts + ?", 1),

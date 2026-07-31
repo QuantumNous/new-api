@@ -208,6 +208,40 @@ func TestBytePlusAssetTempObjectFunctionsPropagateDatabaseErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestTerminalTempCleanupCannotRegressToPending(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	object := BytePlusAssetTempObject{
+		UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "cleaned",
+		CleanupStatus: BytePlusTempObjectCleanupCleaned, CleanupLeaseUpdatedTime: 0,
+		CleanedTime: 500, NextCleanupAt: 100, CreatedTime: 100, UpdatedTime: 500,
+	}
+	require.NoError(t, DB.Create(&object).Error)
+
+	ok, err := RetryBytePlusAssetTempObjectCleanup(object.Id, 0, 900, 600)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.NoError(t, DB.First(&object, object.Id).Error)
+	require.Equal(t, BytePlusTempObjectCleanupCleaned, object.CleanupStatus)
+	require.EqualValues(t, 500, object.CleanedTime)
+}
+
+func TestBacklogIgnoresExpiredSignedURLWhenNextCleanupIsFuture(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	object := BytePlusAssetTempObject{
+		UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "future-signed-expired",
+		CleanupStatus: BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 100,
+		NextCleanupAt: 2000, CleanupLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(&object).Error)
+
+	snapshot, err := GetBytePlusRealPersonBacklogSnapshot(1000, 900)
+	require.NoError(t, err)
+	require.Zero(t, snapshot.TOSCleanupDueCount)
+	claimed, err := ClaimDueBytePlusTempObjectCleanups(1000, 900, 10)
+	require.NoError(t, err)
+	require.Empty(t, claimed)
+}
+
 func tempObjectIDs(objects []BytePlusAssetTempObject) []int64 {
 	ids := make([]int64, 0, len(objects))
 	for _, object := range objects {

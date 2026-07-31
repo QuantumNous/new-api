@@ -175,6 +175,14 @@ func GetBytePlusAssetByPublicIDForUser(userID int, publicID string) (*BytePlusAs
 	return &asset, nil
 }
 
+func GetBytePlusAssetByID(assetID int64) (*BytePlusAsset, error) {
+	var asset BytePlusAsset
+	if err := DB.First(&asset, assetID).Error; err != nil {
+		return nil, err
+	}
+	return &asset, nil
+}
+
 func GetBytePlusAssetsByPublicIDsForUser(userID int, publicIDs []string) ([]BytePlusAsset, error) {
 	if len(publicIDs) == 0 {
 		return nil, nil
@@ -242,21 +250,30 @@ func UpdateBytePlusAssetUpstreamCreated(assetID int64, upstreamAssetID string, u
 }
 
 func UpdateBytePlusAssetStatus(assetID int64, status string, errorMessage string, now int64) error {
-	result := DB.Model(&BytePlusAsset{}).
-		Where("id = ?", assetID).
-		Where("status NOT IN ?", bytePlusAssetTerminalStatuses()).
-		Updates(map[string]any{
-			"status":        status,
-			"error_message": errorMessage,
-			"updated_time":  now,
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected != 1 {
-		return fmt.Errorf("%w: id=%d", ErrBytePlusAssetNotUpdatable, assetID)
-	}
-	return nil
+	return DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&BytePlusAsset{}).
+			Where("id = ?", assetID).
+			Where("status NOT IN ?", bytePlusAssetTerminalStatuses()).
+			Updates(map[string]any{
+				"status":        status,
+				"error_message": errorMessage,
+				"updated_time":  now,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return fmt.Errorf("%w: id=%d", ErrBytePlusAssetNotUpdatable, assetID)
+		}
+		if status == BytePlusAssetStatusActive || status == BytePlusAssetStatusFailed {
+			if err := tx.Model(&BytePlusAssetTempObject{}).
+				Where("asset_id = ? AND cleanup_status = ?", assetID, BytePlusTempObjectCleanupPending).
+				Updates(map[string]any{"next_cleanup_at": now, "cleanup_lease_updated_time": int64(0), "updated_time": now}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func MarkBytePlusRealPersonAssetFailedForIdempotency(recordID, leaseUpdatedTime, assetID int64, publicID string, failureCode string, responseStatus int, responsePayload string, now int64) error {
@@ -311,6 +328,24 @@ func MarkBytePlusRealPersonAssetOutcomeUnknownForIdempotency(recordID, leaseUpda
 	return requireOneBytePlusAssetCAS(updatedAsset, assetID)
 }
 
+func MarkBytePlusAssetOutcomeUnknown(publicID string, now int64) (bool, error) {
+	publicID = strings.TrimSpace(publicID)
+	if publicID == "" {
+		return false, nil
+	}
+	result := DB.Model(&BytePlusAsset{}).
+		Where("public_id = ? AND status = ?", publicID, BytePlusAssetStatusCreating).
+		Updates(map[string]any{
+			"status":       BytePlusAssetStatusFailed,
+			"failure_code": "idempotency_outcome_unknown",
+			"updated_time": now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 func BeginBytePlusAssetDeletion(userID int, publicID string, now int64) (*BytePlusAsset, bool, error) {
 	var asset BytePlusAsset
 	if err := DB.Where("user_id = ? AND public_id = ?", userID, strings.TrimSpace(publicID)).First(&asset).Error; err != nil {
@@ -359,6 +394,57 @@ func ClaimBytePlusAssetDeletion(assetID int64, now, staleBefore int64) (*BytePlu
 		return nil, false, err
 	}
 	return &asset, updated.RowsAffected == 1, nil
+}
+
+func ClaimDueBytePlusAssetStatusChecks(now, staleBefore int64, limit int) ([]BytePlusAsset, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	var candidates []BytePlusAsset
+	if err := DB.Where("status = ? AND upstream_asset_id <> ? AND updated_time < ?",
+		BytePlusAssetStatusProcessing, "", staleBefore,
+	).Order("updated_time ASC, id ASC").Limit(limit).Find(&candidates).Error; err != nil {
+		return nil, err
+	}
+	claimed := make([]BytePlusAsset, 0, len(candidates))
+	for _, candidate := range candidates {
+		result := DB.Model(&BytePlusAsset{}).
+			Where("id = ? AND status = ? AND upstream_asset_id <> ? AND updated_time = ?",
+				candidate.Id, BytePlusAssetStatusProcessing, "", candidate.UpdatedTime).
+			Update("updated_time", now)
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		if result.RowsAffected != 1 {
+			continue
+		}
+		candidate.UpdatedTime = now
+		claimed = append(claimed, candidate)
+	}
+	return claimed, nil
+}
+
+func ClaimDueBytePlusAssetDeletions(now, staleBefore int64, limit int) ([]BytePlusAsset, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	var candidates []BytePlusAsset
+	if err := DB.Where("status = ? AND next_delete_at <= ? AND (delete_lease_updated_time = ? OR delete_lease_updated_time < ?)",
+		BytePlusAssetStatusDeleting, now, int64(0), staleBefore,
+	).Order("next_delete_at ASC, id ASC").Limit(limit).Find(&candidates).Error; err != nil {
+		return nil, err
+	}
+	claimed := make([]BytePlusAsset, 0, len(candidates))
+	for _, candidate := range candidates {
+		asset, owner, err := ClaimBytePlusAssetDeletion(candidate.Id, now, staleBefore)
+		if err != nil {
+			return nil, err
+		}
+		if owner && asset != nil {
+			claimed = append(claimed, *asset)
+		}
+	}
+	return claimed, nil
 }
 
 func CompleteBytePlusAssetDeletion(assetID int64, leaseUpdatedTime int64, now int64) (bool, error) {
