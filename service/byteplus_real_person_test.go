@@ -148,6 +148,58 @@ func TestBytePlusRealPersonCreateValidatesBeforeSideEffectsAndReturnsOneTimeVeri
 	require.Empty(t, session.CallbackTokenCiphertext)
 }
 
+func TestBytePlusRealPersonCreateProfileIDFailureStopsBeforeStorageOrUpstream(t *testing.T) {
+	newBytePlusRealPersonServiceTestDB(t)
+	fake := &fakeBytePlusRealPersonClient{}
+	installBytePlusRealPersonServiceTestDeps(t, fake)
+	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
+	oldProfileID := bytePlusRealPersonProfilePublicID
+	bytePlusRealPersonProfilePublicID = func() (string, error) {
+		return "", errors.New("profile id unavailable")
+	}
+	t.Cleanup(func() { bytePlusRealPersonProfilePublicID = oldProfileID })
+
+	_, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 101, "profile-id-fails", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
+	assertRealPersonError(t, apiErr, types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+	require.Equal(t, 0, fake.createCalls)
+	var profileCount int64
+	require.NoError(t, model.DB.Model(&model.BytePlusRealPersonProfile{}).Count(&profileCount).Error)
+	require.Equal(t, int64(0), profileCount)
+	var sessionCount int64
+	require.NoError(t, model.DB.Model(&model.BytePlusVisualValidationSession{}).Count(&sessionCount).Error)
+	require.Equal(t, int64(0), sessionCount)
+	var record model.APIIdempotencyRecord
+	require.NoError(t, model.DB.First(&record, "route = ?", bytePlusRealPersonCreateRoute).Error)
+	require.Equal(t, model.APIIdempotencyStatusProcessing, record.Status)
+	require.Empty(t, record.ResourcePublicId)
+}
+
+func TestBytePlusRealPersonCreateInvalidCallbackBaseIsChannelUnavailable(t *testing.T) {
+	newBytePlusRealPersonServiceTestDB(t)
+	fake := &fakeBytePlusRealPersonClient{}
+	installBytePlusRealPersonServiceTestDeps(t, fake)
+	t.Setenv("BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL", "http://secret.invalid/callback?token=leak")
+	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
+
+	_, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 101, "bad-callback-base", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
+	assertRealPersonError(t, apiErr, types.ErrorCodeRealPersonChannelUnavailable, http.StatusServiceUnavailable)
+	require.Equal(t, 0, fake.createCalls)
+}
+
+func TestBytePlusRealPersonCreateInvalidCallbackTokenIsBadRequest(t *testing.T) {
+	newBytePlusRealPersonServiceTestDB(t)
+	fake := &fakeBytePlusRealPersonClient{}
+	installBytePlusRealPersonServiceTestDeps(t, fake)
+	oldCallback := bytePlusRealPersonCallbackToken
+	bytePlusRealPersonCallbackToken = func() (string, error) { return "", nil }
+	t.Cleanup(func() { bytePlusRealPersonCallbackToken = oldCallback })
+	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
+
+	_, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 101, "bad-callback-token", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
+	assertRealPersonError(t, apiErr, types.ErrorCodeInvalidRealPersonRequest, http.StatusBadRequest)
+	require.Equal(t, 0, fake.createCalls)
+}
+
 func TestBytePlusRealPersonCreateIdempotencyReplayConflictAndSecretClearing(t *testing.T) {
 	newBytePlusRealPersonServiceTestDB(t)
 	fake := &fakeBytePlusRealPersonClient{}
@@ -310,6 +362,24 @@ func TestBytePlusRealPersonReverifyPinnedChannelRequiresEnabledAbilityWithoutFal
 	require.Equal(t, 0, fake.createCalls)
 }
 
+func TestBytePlusRealPersonPinnedChannelSplitsCommaGroupsForAbility(t *testing.T) {
+	newBytePlusRealPersonServiceTestDB(t)
+	fake := &fakeBytePlusRealPersonClient{}
+	installBytePlusRealPersonServiceTestDeps(t, fake)
+	insertBytePlusRealPersonChannel(t, 101, "default,vip", common.ChannelStatusEnabled, structuredRealPersonKey())
+	require.NoError(t, model.DB.Where("channel_id = ?", 101).Delete(&model.Ability{}).Error)
+	priority := int64(101)
+	weight := uint(1)
+	require.NoError(t, model.DB.Create(&model.Ability{Group: "vip", Model: bytePlusAssetModelName, ChannelId: 101, Enabled: true, Priority: &priority, Weight: weight}).Error)
+
+	_, _, err := loadUsableBytePlusRealPersonChannel(101, 7, "")
+	require.NoError(t, err)
+	_, _, err = loadUsableBytePlusRealPersonChannel(101, 7, "vip")
+	require.NoError(t, err)
+	_, _, err = loadUsableBytePlusRealPersonChannel(101, 7, "default")
+	require.Error(t, err)
+}
+
 func TestBytePlusRealPersonVerificationTwoProfilesSameChannelKeepIndependentGroupIDs(t *testing.T) {
 	newBytePlusRealPersonServiceTestDB(t)
 	fake := &fakeBytePlusRealPersonClient{}
@@ -360,6 +430,7 @@ func TestBytePlusRealPersonReverifyGetListAndVerificationCAS(t *testing.T) {
 	rev, apiErr := ReverifyBytePlusRealPerson(context.Background(), 7, created.ID, "rev-key")
 	require.Nil(t, apiErr)
 	require.Equal(t, created.ID, rev.ID)
+	require.Equal(t, "pending_verification", rev.Status)
 	require.Equal(t, 2, fake.createCalls)
 
 	_, apiErr = GetBytePlusRealPerson(context.Background(), 8, created.ID)

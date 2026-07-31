@@ -59,6 +59,11 @@ var (
 	bytePlusRealPersonCompleteAPIIdempotency = model.CompleteAPIIdempotency
 )
 
+var (
+	errBytePlusRealPersonCallbackTokenInvalid = errors.New("callback token is invalid")
+	errBytePlusRealPersonCallbackBaseInvalid  = errors.New("callback base url is invalid")
+)
+
 func CreateBytePlusRealPerson(ctx context.Context, userID int, userGroup, usingGroup string, specificChannelID int, idempotencyKey string, request dto.BytePlusRealPersonCreateRequest) (*dto.BytePlusRealPersonResponse, *types.NewAPIError) {
 	name, err := normalizeBytePlusRealPersonName(request.Name)
 	if err != nil {
@@ -284,6 +289,14 @@ func handleBytePlusRealPersonClaim(ctx context.Context, userID int, channel *mod
 }
 
 func ownBytePlusRealPersonCreate(ctx context.Context, userID int, channel *model.Channel, creds BytePlusCredentials, record *model.APIIdempotencyRecord, baseProfile *model.BytePlusRealPersonProfile, reverify bool) (*dto.BytePlusRealPersonResponse, *types.NewAPIError) {
+	var profilePublicID string
+	var err error
+	if !reverify {
+		profilePublicID, err = bytePlusRealPersonProfilePublicID()
+		if err != nil {
+			return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+		}
+	}
 	session, callbackToken, apiErr := buildLocalBytePlusVisualValidationSession(record.LeaseUpdatedTime)
 	if apiErr != nil {
 		return nil, apiErr
@@ -291,13 +304,11 @@ func ownBytePlusRealPersonCreate(ctx context.Context, userID int, channel *model
 	now := bytePlusAssetNow()
 	var profile *model.BytePlusRealPersonProfile
 	var storedSession *model.BytePlusVisualValidationSession
-	var err error
 	if reverify {
-		storedSession, err = model.ReplaceBytePlusRealPersonCurrentSessionForIdempotency(record.Id, record.LeaseUpdatedTime, userID, baseProfile.Id, []string{model.BytePlusRealPersonProfileStatusFailed, model.BytePlusRealPersonProfileStatusExpired}, *session, now)
-		profile, _ = model.GetBytePlusRealPersonProfileByIDForUser(userID, baseProfile.Id)
+		profile, storedSession, err = model.ReplaceBytePlusRealPersonCurrentSessionForIdempotency(record.Id, record.LeaseUpdatedTime, userID, baseProfile.Id, []string{model.BytePlusRealPersonProfileStatusFailed, model.BytePlusRealPersonProfileStatusExpired}, *session, now)
 	} else {
 		profile, storedSession, err = model.CreateBytePlusRealPersonProfileAndSessionForIdempotency(record.Id, record.LeaseUpdatedTime, model.BytePlusRealPersonProfile{
-			PublicId:    mustBytePlusRealPersonProfileID(),
+			PublicId:    profilePublicID,
 			UserId:      userID,
 			Name:        baseProfile.Name,
 			ChannelId:   channel.Id,
@@ -331,6 +342,9 @@ func resumeBytePlusRealPersonCreate(ctx context.Context, userID int, channel *mo
 func createBytePlusVisualValidation(ctx context.Context, channel *model.Channel, creds BytePlusCredentials, record *model.APIIdempotencyRecord, profile *model.BytePlusRealPersonProfile, session *model.BytePlusVisualValidationSession, callbackToken string) (*dto.BytePlusRealPersonResponse, *types.NewAPIError) {
 	callbackURL, err := bytePlusRealPersonCallbackURL(callbackToken)
 	if err != nil {
+		if errors.Is(err, errBytePlusRealPersonCallbackBaseInvalid) {
+			return nil, realPersonError(types.ErrorCodeRealPersonChannelUnavailable, http.StatusServiceUnavailable)
+		}
 		return nil, realPersonError(types.ErrorCodeInvalidRealPersonRequest, http.StatusBadRequest)
 	}
 	now := bytePlusAssetNow()
@@ -455,14 +469,6 @@ func buildLocalBytePlusVisualValidationSession(now int64) (*model.BytePlusVisual
 	}, callbackToken, nil
 }
 
-func mustBytePlusRealPersonProfileID() string {
-	publicID, err := bytePlusRealPersonProfilePublicID()
-	if err != nil {
-		return ""
-	}
-	return publicID
-}
-
 func selectBytePlusRealPersonChannel(userGroup, usingGroup string, specificChannelID int) (*model.Channel, BytePlusCredentials, error) {
 	groups := bytePlusAssetCandidateGroups(userGroup, usingGroup)
 	if len(groups) == 0 {
@@ -510,7 +516,7 @@ func selectBytePlusRealPersonChannel(userGroup, usingGroup string, specificChann
 	return nil, BytePlusCredentials{}, errors.New("no real-person BytePlus channel")
 }
 
-func loadUsableBytePlusRealPersonChannel(channelID int, _ int, _ string) (*model.Channel, BytePlusCredentials, error) {
+func loadUsableBytePlusRealPersonChannel(channelID int, _ int, requestedGroup string) (*model.Channel, BytePlusCredentials, error) {
 	channel, err := model.GetChannelById(channelID, true)
 	if err != nil {
 		return nil, BytePlusCredentials{}, err
@@ -525,18 +531,39 @@ func loadUsableBytePlusRealPersonChannel(channelID int, _ int, _ string) (*model
 	if err := creds.ValidateRealPersonAssets(); err != nil {
 		return nil, BytePlusCredentials{}, err
 	}
-	group := strings.TrimSpace(channel.Group)
-	if group == "" {
-		group = "default"
+	groups := bytePlusRealPersonChannelAbilityGroups(channel.Group, requestedGroup)
+	for _, group := range groups {
+		ok, err := model.BytePlusRealPersonChannelHasEnabledAbility(channel.Id, group, bytePlusAssetModelName)
+		if err != nil {
+			return nil, BytePlusCredentials{}, err
+		}
+		if ok {
+			return channel, creds, nil
+		}
 	}
-	ok, err := model.BytePlusRealPersonChannelHasEnabledAbility(channel.Id, group, bytePlusAssetModelName)
-	if err != nil {
-		return nil, BytePlusCredentials{}, err
+	return nil, BytePlusCredentials{}, errors.New("channel real person ability unavailable")
+}
+
+func bytePlusRealPersonChannelAbilityGroups(channelGroup, requestedGroup string) []string {
+	requestedGroup = strings.TrimSpace(requestedGroup)
+	if requestedGroup != "" {
+		return []string{requestedGroup}
 	}
-	if !ok {
-		return nil, BytePlusCredentials{}, errors.New("channel real person ability unavailable")
+	parts := strings.Split(channelGroup, ",")
+	groups := make([]string, 0, len(parts))
+	seen := make(map[string]bool, len(parts))
+	for _, part := range parts {
+		group := strings.TrimSpace(part)
+		if group == "" || seen[group] {
+			continue
+		}
+		seen[group] = true
+		groups = append(groups, group)
 	}
-	return channel, creds, nil
+	if len(groups) == 0 {
+		return []string{"default"}
+	}
+	return groups
 }
 
 func realPersonClientForChannel(channel *model.Channel) (bytePlusRealPersonAPI, error) {
@@ -570,12 +597,12 @@ func normalizeBytePlusRealPersonName(name string) (string, error) {
 func bytePlusRealPersonCallbackURL(token string) (string, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return "", errors.New("callback token is required")
+		return "", errBytePlusRealPersonCallbackTokenInvalid
 	}
 	rawBase := strings.TrimSpace(common.GetEnvOrDefaultString(bytePlusRealPersonCallbackBaseURLEnv, ""))
 	parsed, err := url.Parse(rawBase)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", errors.New("callback base url is invalid")
+		return "", errBytePlusRealPersonCallbackBaseInvalid
 	}
 	parsed.Path = strings.TrimRight(parsed.EscapedPath(), "/") + bytePlusRealPersonCallbackPathPrefix + url.PathEscape(token)
 	return parsed.String(), nil

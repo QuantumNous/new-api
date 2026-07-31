@@ -105,6 +105,82 @@ func TestBytePlusRealPersonSessionCASClaimLeaseIsExclusiveAndTerminalDoesNotRegr
 	require.Empty(t, session.BytedTokenCiphertext)
 }
 
+func TestBytePlusRealPersonSessionCASActivateRollsBackProfileWhenSessionTerminal(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	profile := BytePlusRealPersonProfile{PublicId: "rph_activate_terminal", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusVerifying, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&profile).Error)
+	session := BytePlusVisualValidationSession{PublicId: "rvs_activate_terminal", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("1", 64), Status: BytePlusVisualValidationSessionStatusFailed, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&session).Error)
+	require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", session.Id).Error)
+
+	changed, err := ActivateBytePlusRealPersonProfile(profile.Id, session.Id, "group-late", 200)
+	require.ErrorIs(t, err, ErrAPIIdempotencyCASLost)
+	require.False(t, changed)
+	require.NoError(t, DB.First(&profile, profile.Id).Error)
+	require.Equal(t, BytePlusRealPersonProfileStatusVerifying, profile.Status)
+	require.Nil(t, profile.UpstreamGroupId)
+	require.NoError(t, DB.First(&session, session.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusFailed, session.Status)
+}
+
+func TestBytePlusRealPersonSessionCASFailAndExpireRollbackProfileWhenSessionTerminal(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		transition func(profileID, sessionID int64, now int64) (bool, error)
+	}{
+		{name: "fail", transition: func(profileID, sessionID int64, now int64) (bool, error) {
+			return FailBytePlusRealPersonSession(profileID, sessionID, "upstream_failed", now)
+		}},
+		{name: "expire", transition: func(profileID, sessionID int64, now int64) (bool, error) {
+			return ExpireBytePlusRealPersonSession(profileID, sessionID, now)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			newBytePlusRealPersonTestDB(t)
+			profile := BytePlusRealPersonProfile{PublicId: "rph_" + tc.name + "_terminal", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusVerifying, CreatedTime: 100, UpdatedTime: 100}
+			require.NoError(t, DB.Create(&profile).Error)
+			session := BytePlusVisualValidationSession{PublicId: "rvs_" + tc.name + "_terminal", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("2", 64), Status: BytePlusVisualValidationSessionStatusSucceeded, CreatedTime: 100, UpdatedTime: 100}
+			require.NoError(t, DB.Create(&session).Error)
+			require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", session.Id).Error)
+
+			changed, err := tc.transition(profile.Id, session.Id, 200)
+			require.ErrorIs(t, err, ErrAPIIdempotencyCASLost)
+			require.False(t, changed)
+			require.NoError(t, DB.First(&profile, profile.Id).Error)
+			require.Equal(t, BytePlusRealPersonProfileStatusVerifying, profile.Status)
+			require.Empty(t, profile.ErrorCode)
+			require.NoError(t, DB.First(&session, session.Id).Error)
+			require.Equal(t, BytePlusVisualValidationSessionStatusSucceeded, session.Status)
+		})
+	}
+}
+
+func TestBytePlusRealPersonSessionCASOldSessionCanFailWithoutChangingCurrentProfile(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	originalErrorCode := "current_error"
+	profile := BytePlusRealPersonProfile{PublicId: "rph_old_fail", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusVerifying, ErrorCode: originalErrorCode, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&profile).Error)
+	oldSession := BytePlusVisualValidationSession{PublicId: "rvs_old_fail", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("3", 64), CallbackTokenCiphertext: "callback-old", BytedTokenCiphertext: "byted-old", H5LinkCiphertext: "h5-old", Status: BytePlusVisualValidationSessionStatusChecking, CreatedTime: 100, UpdatedTime: 100}
+	newSession := BytePlusVisualValidationSession{PublicId: "rvs_new_fail", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("4", 64), Status: BytePlusVisualValidationSessionStatusPending, CreatedTime: 101, UpdatedTime: 101}
+	require.NoError(t, DB.Create(&oldSession).Error)
+	require.NoError(t, DB.Create(&newSession).Error)
+	require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", newSession.Id).Error)
+
+	changed, err := FailBytePlusRealPersonSession(profile.Id, oldSession.Id, "old_failed", 200)
+	require.NoError(t, err)
+	require.False(t, changed)
+	require.NoError(t, DB.First(&oldSession, oldSession.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusFailed, oldSession.Status)
+	require.Empty(t, oldSession.CallbackTokenCiphertext)
+	require.Empty(t, oldSession.BytedTokenCiphertext)
+	require.Empty(t, oldSession.H5LinkCiphertext)
+	require.NoError(t, DB.First(&profile, profile.Id).Error)
+	require.Equal(t, BytePlusRealPersonProfileStatusVerifying, profile.Status)
+	require.Equal(t, originalErrorCode, profile.ErrorCode)
+	require.NotNil(t, profile.CurrentValidationSessionId)
+	require.Equal(t, newSession.Id, *profile.CurrentValidationSessionId)
+}
+
 func TestBytePlusRealPersonListUsesUserScopedStableCursor(t *testing.T) {
 	newBytePlusRealPersonTestDB(t)
 	insertProfile := func(publicID string, userID int, created int64) {
@@ -161,7 +237,7 @@ func TestBytePlusRealPersonVerificationCompleteSessionCASRejectsTerminalOverwrit
 	require.Empty(t, session.H5LinkCiphertext)
 }
 
-func TestBytePlusRealPersonVerificationOutcomeUnknownDoesNotRewriteNonCurrentSession(t *testing.T) {
+func TestBytePlusRealPersonVerificationOutcomeUnknownCanFailOldSessionWithoutRewritingCurrentProfile(t *testing.T) {
 	newBytePlusRealPersonTestDB(t)
 	originalErrorCode := "original_error"
 	profile := BytePlusRealPersonProfile{
@@ -196,15 +272,68 @@ func TestBytePlusRealPersonVerificationOutcomeUnknownDoesNotRewriteNonCurrentSes
 	require.NoError(t, DB.First(&record, record.Id).Error)
 	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
 	require.NoError(t, DB.First(&oldSession, oldSession.Id).Error)
-	require.Equal(t, BytePlusVisualValidationSessionStatusCreating, oldSession.Status)
-	require.Equal(t, "callback-old", oldSession.CallbackTokenCiphertext)
-	require.Equal(t, "byted-old", oldSession.BytedTokenCiphertext)
-	require.Equal(t, "h5-old", oldSession.H5LinkCiphertext)
+	require.Equal(t, BytePlusVisualValidationSessionStatusFailed, oldSession.Status)
+	require.Empty(t, oldSession.CallbackTokenCiphertext)
+	require.Empty(t, oldSession.BytedTokenCiphertext)
+	require.Empty(t, oldSession.H5LinkCiphertext)
 	require.NoError(t, DB.First(&profile, profile.Id).Error)
 	require.Equal(t, BytePlusRealPersonProfileStatusVerifying, profile.Status)
 	require.Equal(t, originalErrorCode, profile.ErrorCode)
 	require.NotNil(t, profile.CurrentValidationSessionId)
 	require.Equal(t, newSession.Id, *profile.CurrentValidationSessionId)
+}
+
+func TestBytePlusRealPersonVerificationOutcomeUnknownLedgerSurvivesLocalCASLoss(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	profile := BytePlusRealPersonProfile{
+		PublicId: "rph_outcome_terminal", UserId: 7, Name: "A", ChannelId: 101,
+		Status: BytePlusRealPersonProfileStatusVerifying, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(&profile).Error)
+	session := BytePlusVisualValidationSession{
+		PublicId: "rvs_outcome_terminal", ProfileId: profile.Id,
+		CallbackTokenHash: strings.Repeat("5", 64), Status: BytePlusVisualValidationSessionStatusSucceeded,
+		CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(&session).Error)
+	require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", session.Id).Error)
+	record := APIIdempotencyRecord{
+		UserId: 7, Route: "real_person_reverify", KeyHash: strings.Repeat("c", 64), RequestHash: strings.Repeat("d", 64),
+		Status: APIIdempotencyStatusCallingUpstream, ResourceType: APIIdempotencyResourceVerificationSession, ResourcePublicId: session.PublicId,
+		LeaseUpdatedTime: 100, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(&record).Error)
+
+	err := MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, 100, profile.Id, session.Id, "verification_outcome_unknown", 200)
+	require.ErrorIs(t, err, ErrAPIIdempotencyCASLost)
+	require.NoError(t, DB.First(&record, record.Id).Error)
+	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
+	require.NoError(t, DB.First(&profile, profile.Id).Error)
+	require.Equal(t, BytePlusRealPersonProfileStatusVerifying, profile.Status)
+	require.NoError(t, DB.First(&session, session.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusSucceeded, session.Status)
+}
+
+func TestBytePlusRealPersonSessionTerminalTransitionsUseOneOrderedHelper(t *testing.T) {
+	source, err := os.ReadFile("byteplus_real_person.go")
+	require.NoError(t, err)
+	text := string(source)
+	for _, functionName := range []string{"ActivateBytePlusRealPersonProfile", "FailBytePlusRealPersonSession", "ExpireBytePlusRealPersonSession"} {
+		functionStart := strings.Index(text, "func "+functionName)
+		require.NotEqual(t, -1, functionStart, functionName)
+		nextFunction := strings.Index(text[functionStart+len("func "):], "\nfunc ")
+		require.NotEqual(t, -1, nextFunction, functionName)
+		body := text[functionStart : functionStart+len("func ")+nextFunction]
+		require.Contains(t, body, "transitionBytePlusRealPersonSessionTerminal(", functionName)
+	}
+	helperStart := strings.Index(text, "func transitionBytePlusRealPersonSessionTerminal")
+	require.NotEqual(t, -1, helperStart)
+	helperEnd := strings.Index(text[helperStart+len("func "):], "\nfunc ")
+	require.NotEqual(t, -1, helperEnd)
+	helper := text[helperStart : helperStart+len("func ")+helperEnd]
+	require.Less(t, strings.Index(helper, "updatedProfile :="), strings.Index(helper, "updatedSession :="))
+	require.Contains(t, helper, "requireOneRealPersonCAS(updatedProfile)")
+	require.Contains(t, helper, "requireOneRealPersonCAS(updatedSession)")
 }
 
 func profilePublicIDs(profiles []BytePlusRealPersonProfile) []string {

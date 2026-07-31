@@ -141,34 +141,7 @@ func ActivateBytePlusRealPersonProfile(profileID, sessionID int64, groupID strin
 	if groupID == "" {
 		return false, errors.New("byteplus real person group id is required")
 	}
-	var changed bool
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		updated := tx.Model(&BytePlusRealPersonProfile{}).
-			Where("id = ? AND current_validation_session_id = ? AND status IN ?", profileID, sessionID, []string{BytePlusRealPersonProfileStatusPendingVerification, BytePlusRealPersonProfileStatusVerifying}).
-			Updates(map[string]interface{}{
-				"status":            BytePlusRealPersonProfileStatusActive,
-				"upstream_group_id": groupID,
-				"error_code":        "",
-				"updated_time":      now,
-			})
-		if updated.Error != nil {
-			return updated.Error
-		}
-		changed = updated.RowsAffected == 1
-		if !changed {
-			return nil
-		}
-		return tx.Model(&BytePlusVisualValidationSession{}).
-			Where("id = ? AND profile_id = ? AND status NOT IN ?", sessionID, profileID, realPersonTerminalSessionStatuses()).
-			Updates(map[string]interface{}{
-				"status":                    BytePlusVisualValidationSessionStatusSucceeded,
-				"callback_token_ciphertext": "",
-				"byted_token_ciphertext":    "",
-				"h5_link_ciphertext":        "",
-				"updated_time":              now,
-			}).Error
-	})
-	return changed, err
+	return transitionBytePlusRealPersonSessionTerminal(profileID, sessionID, BytePlusRealPersonProfileStatusActive, BytePlusVisualValidationSessionStatusSucceeded, "", groupID, now)
 }
 
 func FailBytePlusRealPersonSession(profileID, sessionID int64, failureCode string, now int64) (bool, error) {
@@ -176,68 +149,66 @@ func FailBytePlusRealPersonSession(profileID, sessionID int64, failureCode strin
 	if failureCode == "" {
 		failureCode = "verification_failed"
 	}
-	var changed bool
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&BytePlusVisualValidationSession{}).
-			Where("id = ? AND profile_id = ? AND status NOT IN ?", sessionID, profileID, realPersonTerminalSessionStatuses()).
-			Updates(map[string]interface{}{
-				"status":                    BytePlusVisualValidationSessionStatusFailed,
-				"callback_token_ciphertext": "",
-				"byted_token_ciphertext":    "",
-				"h5_link_ciphertext":        "",
-				"updated_time":              now,
-			}).Error; err != nil {
-			return err
-		}
-		updated := tx.Model(&BytePlusRealPersonProfile{}).
-			Where("id = ? AND current_validation_session_id = ? AND status IN ?", profileID, sessionID, []string{BytePlusRealPersonProfileStatusPendingVerification, BytePlusRealPersonProfileStatusVerifying}).
-			Updates(map[string]interface{}{
-				"status":       BytePlusRealPersonProfileStatusFailed,
-				"error_code":   failureCode,
-				"updated_time": now,
-			})
-		if updated.Error != nil {
-			return updated.Error
-		}
-		changed = updated.RowsAffected == 1
-		return nil
-	})
-	return changed, err
+	return transitionBytePlusRealPersonSessionTerminal(profileID, sessionID, BytePlusRealPersonProfileStatusFailed, BytePlusVisualValidationSessionStatusFailed, failureCode, "", now)
 }
 
 func ExpireBytePlusRealPersonSession(profileID, sessionID int64, now int64) (bool, error) {
+	return transitionBytePlusRealPersonSessionTerminal(profileID, sessionID, BytePlusRealPersonProfileStatusExpired, BytePlusVisualValidationSessionStatusExpired, "verification_expired", "", now)
+}
+
+func transitionBytePlusRealPersonSessionTerminal(profileID, sessionID int64, profileStatus, sessionStatus, errorCode, groupID string, now int64) (bool, error) {
 	var changed bool
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&BytePlusVisualValidationSession{}).
+		var profile BytePlusRealPersonProfile
+		if err := tx.Select("current_validation_session_id").
+			Where("id = ?", profileID).
+			First(&profile).Error; err != nil {
+			return err
+		}
+		current := profile.CurrentValidationSessionId != nil && *profile.CurrentValidationSessionId == sessionID
+		if current {
+			profileUpdates := map[string]interface{}{
+				"status":       profileStatus,
+				"error_code":   errorCode,
+				"updated_time": now,
+			}
+			if profileStatus == BytePlusRealPersonProfileStatusActive {
+				profileUpdates["upstream_group_id"] = groupID
+			}
+			updatedProfile := tx.Model(&BytePlusRealPersonProfile{}).
+				Where("id = ? AND current_validation_session_id = ? AND status IN ?", profileID, sessionID, []string{BytePlusRealPersonProfileStatusPendingVerification, BytePlusRealPersonProfileStatusVerifying}).
+				Updates(profileUpdates)
+			if err := requireOneRealPersonCAS(updatedProfile); err != nil {
+				return err
+			}
+		}
+		updatedSession := tx.Model(&BytePlusVisualValidationSession{}).
 			Where("id = ? AND profile_id = ? AND status NOT IN ?", sessionID, profileID, realPersonTerminalSessionStatuses()).
 			Updates(map[string]interface{}{
-				"status":                    BytePlusVisualValidationSessionStatusExpired,
+				"status":                    sessionStatus,
 				"callback_token_ciphertext": "",
 				"byted_token_ciphertext":    "",
 				"h5_link_ciphertext":        "",
 				"updated_time":              now,
-			}).Error; err != nil {
-			return err
-		}
-		updated := tx.Model(&BytePlusRealPersonProfile{}).
-			Where("id = ? AND current_validation_session_id = ? AND status IN ?", profileID, sessionID, []string{BytePlusRealPersonProfileStatusPendingVerification, BytePlusRealPersonProfileStatusVerifying}).
-			Updates(map[string]interface{}{
-				"status":       BytePlusRealPersonProfileStatusExpired,
-				"error_code":   "verification_expired",
-				"updated_time": now,
 			})
-		if updated.Error != nil {
-			return updated.Error
+		if current {
+			if err := requireOneRealPersonCAS(updatedSession); err != nil {
+				return err
+			}
+			changed = true
+			return nil
 		}
-		changed = updated.RowsAffected == 1
+		if updatedSession.Error != nil {
+			return updatedSession.Error
+		}
 		return nil
 	})
 	return changed, err
 }
 
-func ReplaceBytePlusRealPersonCurrentSessionForIdempotency(recordID, leaseUpdatedTime int64, userID int, profileID int64, allowedStatuses []string, session BytePlusVisualValidationSession, now int64) (*BytePlusVisualValidationSession, error) {
+func ReplaceBytePlusRealPersonCurrentSessionForIdempotency(recordID, leaseUpdatedTime int64, userID int, profileID int64, allowedStatuses []string, session BytePlusVisualValidationSession, now int64) (*BytePlusRealPersonProfile, *BytePlusVisualValidationSession, error) {
+	var profile BytePlusRealPersonProfile
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		var profile BytePlusRealPersonProfile
 		if err := tx.Where("id = ? AND user_id = ? AND status IN ?", profileID, userID, allowedStatuses).First(&profile).Error; err != nil {
 			return err
 		}
@@ -259,9 +230,13 @@ func ReplaceBytePlusRealPersonCurrentSessionForIdempotency(recordID, leaseUpdate
 		return BindAPIIdempotencyResourceTx(tx, recordID, leaseUpdatedTime, session.PublicId, now)
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &session, nil
+	profile.CurrentValidationSessionId = &session.Id
+	profile.Status = BytePlusRealPersonProfileStatusPendingVerification
+	profile.ErrorCode = ""
+	profile.UpdatedTime = now
+	return &profile, &session, nil
 }
 
 func ClaimBytePlusVisualValidationSession(sessionID int64, now, staleBefore int64) (*BytePlusVisualValidationSession, bool, error) {
@@ -337,38 +312,16 @@ func MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(recordID, le
 	if failureCode == "" {
 		failureCode = "verification_outcome_unknown"
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	if err := DB.Transaction(func(tx *gorm.DB) error {
 		updatedRecord := tx.Model(&APIIdempotencyRecord{}).
 			Where("id = ? AND status IN ? AND lease_updated_time = ?", recordID, []string{APIIdempotencyStatusCallingUpstream, APIIdempotencyStatusProcessing}, leaseUpdatedTime).
 			Updates(map[string]interface{}{"status": APIIdempotencyStatusOutcomeUnknown, "updated_time": now})
-		if err := requireOneAPIIdempotencyCAS(updatedRecord); err != nil {
-			return err
-		}
-		var profile BytePlusRealPersonProfile
-		if err := tx.Select("current_validation_session_id").
-			Where("id = ?", profileID).
-			First(&profile).Error; err != nil {
-			return err
-		}
-		if profile.CurrentValidationSessionId == nil || *profile.CurrentValidationSessionId != sessionID {
-			return nil
-		}
-		if err := tx.Model(&BytePlusVisualValidationSession{}).
-			Where("id = ? AND profile_id = ? AND status NOT IN ? AND EXISTS (?)", sessionID, profileID, realPersonTerminalSessionStatuses(),
-				tx.Model(&BytePlusRealPersonProfile{}).Select("1").Where("id = ? AND current_validation_session_id = ?", profileID, sessionID)).
-			Updates(map[string]interface{}{
-				"status":                    BytePlusVisualValidationSessionStatusFailed,
-				"callback_token_ciphertext": "",
-				"byted_token_ciphertext":    "",
-				"h5_link_ciphertext":        "",
-				"updated_time":              now,
-			}).Error; err != nil {
-			return err
-		}
-		return tx.Model(&BytePlusRealPersonProfile{}).
-			Where("id = ? AND current_validation_session_id = ? AND status IN ?", profileID, sessionID, []string{BytePlusRealPersonProfileStatusPendingVerification, BytePlusRealPersonProfileStatusVerifying}).
-			Updates(map[string]interface{}{"status": BytePlusRealPersonProfileStatusFailed, "error_code": failureCode, "updated_time": now}).Error
-	})
+		return requireOneAPIIdempotencyCAS(updatedRecord)
+	}); err != nil {
+		return err
+	}
+	_, err := FailBytePlusRealPersonSession(profileID, sessionID, failureCode, now)
+	return err
 }
 
 func BytePlusRealPersonChannelHasEnabledAbility(channelID int, group, modelName string) (bool, error) {
