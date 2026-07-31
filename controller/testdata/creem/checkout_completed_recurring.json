@@ -1,0 +1,90 @@
+{
+  "eventType": "checkout.completed",
+  "object": {
+    "id": "ch_fixture_checkout",
+    "object": "checkout",
+    "request_id": "fixture_trade_001",
+    "order": {
+      "object": "order",
+      "id": "ord_fixture_order",
+      "customer": "cust_fixture_customer",
+      "product": "prod_fixture_starter",
+      "amount": 1900,
+      "currency": "USD",
+      "sub_total": 1900,
+      "tax_amount": 0,
+      "amount_due": 1900,
+      "amount_paid": 1900,
+      "status": "paid",
+      "type": "recurring",
+      "transaction": "tran_fixture_initial",
+      "created_at": "2026-07-31T12:24:42.499Z",
+      "updated_at": "2026-07-31T12:26:16.413Z",
+      "mode": "test"
+    },
+    "product": {
+      "id": "prod_fixture_starter",
+      "object": "product",
+      "name": "metaproxy Starter Monthly",
+      "description": "$20 usage quota per monthly billing period. Renews automatically; unused subscription quota does not roll over.",
+      "price": 1900,
+      "currency": "USD",
+      "billing_type": "recurring",
+      "billing_period": "every-month",
+      "status": "active",
+      "tax_mode": "inclusive",
+      "tax_category": "digital-goods-service",
+      "default_success_url": "https://console.metaproxy.agency/app/billing",
+      "created_at": "2026-07-31T12:22:16.398Z",
+      "updated_at": "2026-07-31T12:22:16.398Z",
+      "mode": "test"
+    },
+    "units": 1,
+    "customer": {
+      "id": "cust_fixture_customer",
+      "object": "customer",
+      "email": "fixture@example.com",
+      "name": "Fixture Customer",
+      "metadata": {
+        "plan": "starter",
+        "fixture": "creem-recurring-contract",
+        "trade_no": "fixture_trade_001",
+        "reference_id": "fixture_trade_001"
+      },
+      "country": "US",
+      "created_at": "2026-07-31T12:26:13.774Z",
+      "updated_at": "2026-07-31T12:26:13.774Z",
+      "mode": "test"
+    },
+    "subscription": {
+      "id": "sub_fixture_subscription",
+      "object": "subscription",
+      "product": "prod_fixture_starter",
+      "customer": "cust_fixture_customer",
+      "collection_method": "charge_automatically",
+      "status": "active",
+      "current_period_start_date": "2026-07-31T12:26:14.826Z",
+      "current_period_end_date": "2026-08-31T12:26:14.826Z",
+      "canceled_at": null,
+      "created_at": "2026-07-31T12:26:16.214Z",
+      "updated_at": "2026-07-31T12:26:16.214Z",
+      "metadata": {
+        "plan": "starter",
+        "fixture": "creem-recurring-contract",
+        "trade_no": "fixture_trade_001",
+        "reference_id": "fixture_trade_001"
+      },
+      "mode": "test"
+    },
+    "status": "completed",
+    "metadata": {
+      "plan": "starter",
+      "fixture": "creem-recurring-contract",
+      "trade_no": "fixture_trade_001",
+      "reference_id": "fixture_trade_001"
+    },
+    "mode": "test"
+  },
+  "id": "evt_fixture_checkout_completed",
+  "created_at": 1785500777229
+}

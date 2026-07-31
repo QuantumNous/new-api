@@ -225,6 +225,17 @@ type SubscriptionOrder struct {
 	CompleteTime    int64  `json:"complete_time"`
 
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
+
+	// Provider contract snapshot used by recurring gateways. The snapshot keeps
+	// an in-flight or renewed subscription independent from later plan edits.
+	ContractSnapshot    bool   `json:"contract_snapshot"`
+	ProviderProductId   string `json:"provider_product_id" gorm:"type:varchar(128);default:''"`
+	Currency            string `json:"currency" gorm:"type:varchar(8);default:''"`
+	PlanTitle           string `json:"plan_title" gorm:"type:varchar(128);default:''"`
+	AmountTotal         int64  `json:"amount_total" gorm:"type:bigint;not null;default:0"`
+	AllowWalletOverflow bool   `json:"allow_wallet_overflow"`
+	UpgradeGroup        string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
+	DowngradeGroup      string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 }
 
 func (o *SubscriptionOrder) Insert() error {
@@ -502,7 +513,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -564,55 +575,20 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
-	refCol := "`trade_no`"
-	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
-		refCol = `"trade_no"`
-	}
 	var logUserId int
 	var logPlanTitle string
 	var logMoney float64
 	var logPaymentMethod string
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		var order SubscriptionOrder
-		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
-			return ErrSubscriptionOrderNotFound
+		order, plan, _, completedNow, err := CompleteSubscriptionOrderTx(tx, tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod)
+		if err != nil {
+			return err
 		}
-		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
-			return ErrPaymentMethodMismatch
-		}
-		if order.Status == common.TopUpStatusSuccess {
+		if !completedNow || order == nil || plan == nil {
 			return nil
 		}
-		if order.Status != common.TopUpStatusPending {
-			return ErrSubscriptionOrderStatusInvalid
-		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
-		if err != nil {
-			return err
-		}
-		if !plan.Enabled {
-			// still allow completion for already purchased orders
-		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
-		if err != nil {
-			return err
-		}
-		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
-			return err
-		}
-		order.Status = common.TopUpStatusSuccess
-		order.CompleteTime = common.GetTimestamp()
-		if providerPayload != "" {
-			order.ProviderPayload = providerPayload
-		}
-		if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
-			order.PaymentMethod = actualPaymentMethod
-		}
-		if err := tx.Save(&order).Error; err != nil {
-			return err
-		}
 		logUserId = order.UserId
 		logPlanTitle = plan.Title
 		logMoney = order.Money
@@ -630,6 +606,87 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		RecordLog(logUserId, LogTypeTopup, msg)
 	}
 	return nil
+}
+
+func subscriptionOrderPlanTx(tx *gorm.DB, order *SubscriptionOrder) (*SubscriptionPlan, error) {
+	if order == nil {
+		return nil, errors.New("subscription order is nil")
+	}
+	if !order.ContractSnapshot {
+		return getSubscriptionPlanByIdTx(tx, order.PlanId)
+	}
+	allowWalletOverflow := order.AllowWalletOverflow
+	return &SubscriptionPlan{
+		Id:                  order.PlanId,
+		Title:               order.PlanTitle,
+		PriceAmount:         order.Money,
+		Currency:            order.Currency,
+		DurationUnit:        SubscriptionDurationMonth,
+		DurationValue:       1,
+		CreemProductId:      order.ProviderProductId,
+		MaxPurchasePerUser:  0,
+		UpgradeGroup:        order.UpgradeGroup,
+		DowngradeGroup:      order.DowngradeGroup,
+		TotalAmount:         order.AmountTotal,
+		QuotaResetPeriod:    SubscriptionResetNever,
+		AllowWalletOverflow: &allowWalletOverflow,
+	}, nil
+}
+
+// CompleteSubscriptionOrderTx is the transaction core used by provider webhook
+// handlers that must atomically persist provider ledgers with the entitlement.
+// A successful already-completed order returns its existing subscription when one
+// can be identified, without creating another entitlement.
+func CompleteSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string) (*SubscriptionOrder, *SubscriptionPlan, *UserSubscription, bool, error) {
+	if tx == nil || tradeNo == "" {
+		return nil, nil, nil, false, errors.New("invalid subscription completion arguments")
+	}
+	refCol := "`trade_no`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		refCol = `"trade_no"`
+	}
+	var order SubscriptionOrder
+	if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+		return nil, nil, nil, false, ErrSubscriptionOrderNotFound
+	}
+	if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
+		return nil, nil, nil, false, ErrPaymentMethodMismatch
+	}
+	plan, err := subscriptionOrderPlanTx(tx, &order)
+	if err != nil {
+		return nil, nil, nil, false, err
+	}
+	if order.Status == common.TopUpStatusSuccess {
+		var existing UserSubscription
+		result := tx.Where("user_id = ? AND plan_id = ? AND created_at >= ?", order.UserId, order.PlanId, order.CompleteTime-1).
+			Order("id asc").Limit(1).Find(&existing)
+		if result.Error == nil && result.RowsAffected > 0 {
+			return &order, plan, &existing, false, nil
+		}
+		return &order, plan, nil, false, nil
+	}
+	if order.Status != common.TopUpStatusPending {
+		return nil, nil, nil, false, ErrSubscriptionOrderStatusInvalid
+	}
+	subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+	if err != nil {
+		return nil, nil, nil, false, err
+	}
+	if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
+		return nil, nil, nil, false, err
+	}
+	order.Status = common.TopUpStatusSuccess
+	order.CompleteTime = common.GetTimestamp()
+	if providerPayload != "" {
+		order.ProviderPayload = providerPayload
+	}
+	if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
+		order.PaymentMethod = actualPaymentMethod
+	}
+	if err := tx.Save(&order).Error; err != nil {
+		return nil, nil, nil, false, err
+	}
+	return &order, plan, subscription, true, nil
 }
 
 func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {

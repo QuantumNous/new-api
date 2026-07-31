@@ -27,6 +27,34 @@ type SubscriptionBalancePayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+type CreemSubscriptionPaymentDTO struct {
+	Id                 int    `json:"id"`
+	PlanId             int    `json:"plan_id"`
+	UserSubscriptionId int    `json:"user_subscription_id"`
+	Amount             int64  `json:"amount"`
+	Currency           string `json:"currency"`
+	PeriodStart        int64  `json:"period_start"`
+	PeriodEnd          int64  `json:"period_end"`
+	CreatedAt          int64  `json:"created_at"`
+}
+
+func mapCreemSubscriptionPayments(payments []model.CreemSubscriptionPayment) []CreemSubscriptionPaymentDTO {
+	result := make([]CreemSubscriptionPaymentDTO, 0, len(payments))
+	for _, payment := range payments {
+		result = append(result, CreemSubscriptionPaymentDTO{
+			Id:                 payment.Id,
+			PlanId:             payment.PlanId,
+			UserSubscriptionId: payment.UserSubscriptionId,
+			Amount:             payment.Amount,
+			Currency:           payment.Currency,
+			PeriodStart:        payment.PeriodStart,
+			PeriodEnd:          payment.PeriodEnd,
+			CreatedAt:          payment.CreatedAt,
+		})
+	}
+	return result
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -66,11 +94,16 @@ func GetSubscriptionSelf(c *gin.Context) {
 	if err != nil {
 		activeSubscriptions = []model.SubscriptionSummary{}
 	}
+	creemPayments, err := model.GetCreemSubscriptionPaymentsByUser(userId)
+	if err != nil {
+		creemPayments = []model.CreemSubscriptionPayment{}
+	}
 
 	common.ApiSuccess(c, gin.H{
 		"billing_preference": pref,
 		"subscriptions":      activeSubscriptions, // all active subscriptions
 		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+		"creem_payments":     mapCreemSubscriptionPayments(creemPayments),
 	})
 }
 
