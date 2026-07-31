@@ -1193,8 +1193,8 @@ html.dark .mobile-nav-drawer {
     'Ren2JetBrainsMono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 }
 
-/* HomeView owns its scroll rail. Native chrome is removed rather than merely
-   made transparent, so it cannot leave a blank gutter beside the custom rail. */
+/* HomeView owns its progress dots. Native chrome is removed rather than merely
+   made transparent, so it cannot leave a blank gutter beside the indicator. */
 html.hero-scrollbar-hidden {
   scrollbar-gutter: auto;
   scrollbar-width: none;

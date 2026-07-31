@@ -19,18 +19,31 @@ interface StablePageOptions {
   theme: VisualTheme
   authenticated?: boolean
   routeAwareAuth?: boolean
+  clockStepMs?: number
 }
 
 export async function configureStablePage(
   page: Page,
-  { theme, authenticated = true, routeAwareAuth = false }: StablePageOptions
+  {
+    theme,
+    authenticated = true,
+    routeAwareAuth = false,
+    clockStepMs = 1,
+  }: StablePageOptions
 ): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.addInitScript(
-    ({ fixedNow, user, selectedTheme, hasSession, authByRoute }) => {
+    ({
+      fixedNow,
+      user,
+      selectedTheme,
+      hasSession,
+      authByRoute,
+      timeStepMs,
+    }) => {
       const NativeDate = Date
       let clockTick = 0
-      const nextNow = () => fixedNow + clockTick++
+      const nextNow = () => fixedNow + clockTick++ * timeStepMs
       const FixedDate = new Proxy(NativeDate, {
         construct(target, args) {
           return Reflect.construct(target, args.length ? args : [nextNow()])
@@ -73,6 +86,7 @@ export async function configureStablePage(
       selectedTheme: theme,
       hasSession: authenticated,
       authByRoute: routeAwareAuth,
+      timeStepMs: clockStepMs,
     }
   )
 

@@ -23,12 +23,30 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
       await freezeAndInspectHomeCanvas(page)
 
       await assertInteractiveCentersVisible(page)
+      await expect(page.locator('html')).toHaveClass(/hero-scrollbar-hidden/)
+      expect(
+        await page.evaluate(
+          () => getComputedStyle(document.documentElement).scrollbarWidth
+        )
+      ).toBe('none')
 
       const showcase = page.locator('.home-showcase')
       await showcase.scrollIntoViewIfNeeded()
       await expect(showcase).toBeVisible()
       await assertNoHorizontalOverflow(page)
-      await expect(page.locator('.showcase-dot-rail')).toHaveCount(0)
+      await expect(page.locator('.scroll-activity-indicator')).toHaveCount(0)
+      await expect(page.locator('[data-home-progress-dots]')).toHaveCount(1)
+      await expect(page.locator('[data-home-progress-dot]')).toHaveCount(12)
+      if (viewport === 'desktop') {
+        await expect(page.locator('[data-home-progress-dots]')).toBeVisible()
+        expect(
+          await page
+            .locator('[data-home-progress-dot][aria-current="step"] span')
+            .evaluate((element) => getComputedStyle(element).animationName)
+        ).toBe('none')
+      } else {
+        await expect(page.locator('[data-home-progress-dots]')).toBeHidden()
+      }
 
       const pageLevelRadii = await page
         .locator(
@@ -157,6 +175,39 @@ test('home showcase remains intact at narrow mobile width', async ({
   expect(clockOverflow).toBeLessThanOrEqual(1)
 })
 
+test('home progress dots navigate and track page position', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await configureStablePage(page, { theme: 'light', authenticated: true })
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await waitForStablePage(page)
+
+  const dots = page.locator('[data-home-progress-dot]')
+  await expect(dots).toHaveCount(12)
+  await expect(dots.nth(0)).toHaveAttribute('aria-current', 'step')
+
+  await dots.nth(11).click()
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY), { timeout: 2_000 })
+    .toBeGreaterThan(0)
+  await expect(dots.nth(11)).toHaveAttribute('aria-current', 'step')
+
+  await dots.nth(0).focus()
+  await page.keyboard.press('Enter')
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY), { timeout: 2_000 })
+    .toBeLessThan(2)
+  await expect(dots.nth(0)).toHaveAttribute('aria-current', 'step')
+
+  await dots.nth(5).focus()
+  await page.keyboard.press('Space')
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY), { timeout: 2_000 })
+    .toBeGreaterThan(0)
+  await expect(dots.nth(5)).toHaveAttribute('aria-current', 'step')
+})
+
 test('homepage display fonts stay scoped away from the console', async ({
   page,
 }) => {
@@ -171,7 +222,11 @@ test('homepage display fonts stay scoped away from the console', async ({
 })
 
 test('runtime motion starts only when motion is allowed', async ({ page }) => {
-  await configureStablePage(page, { theme: 'dark', authenticated: true })
+  await configureStablePage(page, {
+    theme: 'dark',
+    authenticated: true,
+    clockStepMs: 1_000,
+  })
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await page.locator('#app > *').first().waitFor({ state: 'visible' })
