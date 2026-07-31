@@ -12,6 +12,10 @@ import (
 )
 
 func SetApiRouter(router *gin.Engine) {
+	// Mailbox image proxies may refetch the same pixel; keep this response
+	// neutral by bypassing the shared API group's global rate limiter.
+	router.GET("/api/recall/open.gif", controller.TrackRecallEmailOpen)
+
 	apiRouter := router.Group("/api")
 	apiRouter.Use(middleware.RouteTag("api"))
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))

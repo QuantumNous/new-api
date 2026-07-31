@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -50,6 +52,13 @@ type recallAudienceUserOption struct {
 }
 
 const maxRecallAudienceUserKeywordRunes = 128
+
+var recallEmailOpenPixelGIF = []byte{
+	0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0x21, 0xf9, 0x04, 0x01, 0x00,
+	0x00, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
+	0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3b,
+}
 
 func ListRecallCampaigns(c *gin.Context) {
 	runtime, err := recallControllerRuntime()
@@ -551,6 +560,17 @@ func UnsubscribeRecallEmail(c *gin.Context) {
 		message = "\u4f60\u5df2\u9000\u8ba2\u53ec\u56de\u8425\u9500\u90ae\u4ef6\u3002"
 	}
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte("<!doctype html><html><body><p>"+message+"</p></body></html>"))
+}
+
+func TrackRecallEmailOpen(c *gin.Context) {
+	err := service.RecordRecallEmailOpen(c.Request.Context(), c.Query("token"), time.Now())
+	if err != nil && !errors.Is(err, service.ErrRecallEmailOpenInvalid) {
+		logger.LogWarn(c.Request.Context(), "record recall email open failed")
+	}
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	c.Header("Pragma", "no-cache")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Data(http.StatusOK, "image/gif", recallEmailOpenPixelGIF)
 }
 
 // UnsubscribeRecallEmailOneClick implements the RFC 8058 POST target advertised

@@ -564,6 +564,11 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 		return &RecallEmailQuotaWaitError{ResetsAt: attempt.Quota.ResetsAt}
 	}
 
+	if token, tokenErr := CreateRecallEmailOpenToken(item.Recipient.Id); tokenErr != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("recall email open analytics skipped for message %d", item.Message.Id))
+	} else {
+		htmlBody = appendRecallEmailOpenPixel(htmlBody, recallEmailOpenBaseOrigin(), token)
+	}
 	if err := w.sender(smtpConfig, subject, item.Recipient.EmailSnapshot, htmlBody, providerMessageID, emailOptions); err != nil {
 		if common.IsEmailSendUncertain(err) {
 			won, updateErr := model.CompleteRecallMessageLease(

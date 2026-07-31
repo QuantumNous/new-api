@@ -206,6 +206,51 @@ func TestRecallEmailTranslationGenerationRouteUsesCriticalRateLimit(t *testing.T
 	require.Equal(t, http.StatusTooManyRequests, requestGeneration().Code)
 }
 
+func TestRecallEmailOpenPixelBypassesGlobalAPIRateLimit(t *testing.T) {
+	previousRedisEnabled := common.RedisEnabled
+	previousGlobalEnabled := common.GlobalApiRateLimitEnable
+	previousGlobalLimit := common.GlobalApiRateLimitNum
+	previousGlobalDuration := common.GlobalApiRateLimitDuration
+	common.RedisEnabled = false
+	common.GlobalApiRateLimitEnable = true
+	common.GlobalApiRateLimitNum = 1
+	common.GlobalApiRateLimitDuration = 60
+	t.Cleanup(func() {
+		common.RedisEnabled = previousRedisEnabled
+		common.GlobalApiRateLimitEnable = previousGlobalEnabled
+		common.GlobalApiRateLimitNum = previousGlobalLimit
+		common.GlobalApiRateLimitDuration = previousGlobalDuration
+	})
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	SetApiRouter(engine)
+
+	requestPixel := func() *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodGet, "/api/recall/open.gif?token=invalid", nil)
+		request.RemoteAddr = "203.0.113.42:2525"
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		return recorder
+	}
+	requirePixel := func(recorder *httptest.ResponseRecorder, expectedBody []byte) []byte {
+		t.Helper()
+		require.Equal(t, http.StatusOK, recorder.Code)
+		require.Equal(t, "image/gif", recorder.Header().Get("Content-Type"))
+		require.Equal(t, "no-store, no-cache, must-revalidate, max-age=0", recorder.Header().Get("Cache-Control"))
+		require.Equal(t, "no-cache", recorder.Header().Get("Pragma"))
+		require.Equal(t, "nosniff", recorder.Header().Get("X-Content-Type-Options"))
+		require.NotEmpty(t, recorder.Body.Bytes())
+		if expectedBody != nil {
+			require.Equal(t, expectedBody, recorder.Body.Bytes())
+		}
+		return append([]byte(nil), recorder.Body.Bytes()...)
+	}
+
+	body := requirePixel(requestPixel(), nil)
+	requirePixel(requestPixel(), body)
+}
+
 func TestRecallAudienceUsersRouteIsRegisteredBeforeIDRoute(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()

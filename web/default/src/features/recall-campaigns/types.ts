@@ -140,7 +140,12 @@ export interface RecallCampaignDraft {
 }
 
 export type RecallCampaignStatus =
-  'draft' | 'scheduled' | 'running' | 'paused' | 'cancelled' | 'completed'
+  | 'draft'
+  | 'scheduled'
+  | 'running'
+  | 'paused'
+  | 'cancelled'
+  | 'completed'
 
 export type RecallRecipientState =
   | 'queued'
@@ -259,7 +264,9 @@ export interface RecallActivitySMTPInput {
 }
 
 export type RecallEmailLocalizationBlockerReason =
-  'missing' | 'stale' | 'invalid'
+  | 'missing'
+  | 'stale'
+  | 'invalid'
 
 export interface RecallEmailLocalizationBlocker {
   stage_no: number
@@ -343,6 +350,7 @@ export interface RecallCampaignMetrics {
   messages_accepted_count: number
   messages_failed_count: number
   messages_cancelled_count: number
+  opened_recipient_count: number
   observed_click_count: number
   direct_count: number
   assisted_count: number
@@ -375,4 +383,8 @@ export interface RecallCampaignPreview {
 }
 
 export type RecallCampaignAction =
-  'activate' | 'pause' | 'resume' | 'cancel' | 'complete'
+  | 'activate'
+  | 'pause'
+  | 'resume'
+  | 'cancel'
+  | 'complete'

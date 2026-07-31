@@ -25,6 +25,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -1951,6 +1952,100 @@ func TestRecallContentOnlyEmailRejectsHistoricalClaimTemplateBeforeSend(t *testi
 	var storedRecipient model.RecallRecipient
 	require.NoError(t, model.DB.First(&storedRecipient, fixture.recipient.Id).Error)
 	require.Nil(t, storedRecipient.ClaimTokenHash)
+}
+
+func TestRecallEmailWorkerInjectsOpenPixelOnlyIntoFinalOutboundHTML(t *testing.T) {
+	tests := []struct {
+		name                  string
+		consoleOrigin         string
+		fallbackServerAddress string
+		campaignType          string
+		template              RecallEmailTemplate
+		wantTrackerCount      int
+	}{
+		{
+			name:             "html body",
+			consoleOrigin:    "https://console.flatkey.ai",
+			campaignType:     model.RecallCampaignTypePromotion,
+			template:         RecallEmailTemplate{Subject: "Tracked HTML", BodyHTML: validRecallHTML},
+			wantTrackerCount: 1,
+		},
+		{
+			name:             "content only body text",
+			consoleOrigin:    "https://console.flatkey.ai",
+			campaignType:     model.RecallCampaignTypeContentOnly,
+			template:         RecallEmailTemplate{Subject: "Tracked content", BodyText: "Product update\nOpen Flatkey for details."},
+			wantTrackerCount: 1,
+		},
+		{
+			name:                  "missing console origin skips server fallback",
+			consoleOrigin:         "",
+			fallbackServerAddress: "http://localhost:3000",
+			campaignType:          model.RecallCampaignTypePromotion,
+			template:              RecallEmailTemplate{Subject: "Untracked without console", BodyHTML: validRecallHTML},
+			wantTrackerCount:      0,
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Setenv("APP_CONSOLE_ORIGIN", testCase.consoleOrigin)
+			if testCase.fallbackServerAddress != "" {
+				originalServerAddress := system_setting.ServerAddress
+				system_setting.ServerAddress = testCase.fallbackServerAddress
+				t.Cleanup(func() { system_setting.ServerAddress = originalServerAddress })
+			}
+			fixture := newRecallEmailFixture(t, 1, nil)
+			templateJSON, err := common.Marshal(map[string]RecallEmailTemplate{
+				"en": testCase.template,
+			})
+			require.NoError(t, err)
+			require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", fixture.campaign.Id).Update(
+				"campaign_type", testCase.campaignType,
+			).Error)
+			if testCase.campaignType == model.RecallCampaignTypeContentOnly {
+				require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", fixture.recipient.Id).Updates(map[string]any{
+					"stripe_customer_id":       "",
+					"stripe_promotion_code_id": nil,
+					"promotion_code":           "",
+					"promotion_expires_at":     recallEmailTestNow + 3600,
+					"claim_token_hash":         nil,
+				}).Error)
+			}
+			require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
+				"template_snapshot": string(templateJSON),
+				"claim_token_hash":  nil,
+			}).Error)
+
+			_, previewHTML, err := RenderRecallEmail(RecallEmailRenderInput{
+				CampaignType:        testCase.campaignType,
+				Language:            "en",
+				Template:            testCase.template,
+				RecipientName:       "Ada",
+				PromotionCodeMasked: "PROM****23",
+				ExpiresAt:           recallEmailTestNow + 3600,
+				ProductSummary:      "Top-ups",
+				ClaimURL:            "https://console.flatkey.ai/console/topup?recall_claim=preview",
+				UnsubscribeURL:      "https://console.flatkey.ai/api/recall/unsubscribe?token=preview",
+			})
+			require.NoError(t, err)
+			require.NotContains(t, previewHTML, "/api/recall/open.gif?token=")
+
+			require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+			require.Len(t, *fixture.sent, 1)
+			sent := (*fixture.sent)[0]
+			require.Equal(t, testCase.wantTrackerCount, strings.Count(sent.htmlBody, "/api/recall/open.gif?token="))
+			if testCase.wantTrackerCount > 0 {
+				require.Contains(t, sent.htmlBody, `src="https://console.flatkey.ai/api/recall/open.gif?token=`)
+			}
+
+			stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+			require.NotContains(t, stored.TemplateSnapshot, "/api/recall/open.gif?token=")
+			var campaign model.RecallCampaign
+			require.NoError(t, model.DB.First(&campaign, fixture.campaign.Id).Error)
+			require.NotContains(t, campaign.EmailSequenceConfig, "/api/recall/open.gif?token=")
+		})
+	}
 }
 
 func TestRecallEmailProcessLeasedEmailOnlyIgnoresFenceAPIActivityForUserZero(t *testing.T) {

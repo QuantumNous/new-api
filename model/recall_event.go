@@ -278,6 +278,31 @@ func RecordRecallClaimClickWithContext(ctx context.Context, recipientID int64, c
 	return outcome, err
 }
 
+func RecordRecallEmailOpenWithContext(ctx context.Context, recipientID int64, openedAt int64) (bool, error) {
+	recipient := RecallRecipient{}
+	if err := DB.WithContext(ctx).
+		Select("id", "campaign_id").
+		Where("id = ?", recipientID).
+		First(&recipient).Error; err != nil {
+		return false, err
+	}
+
+	event := RecallEvent{
+		CampaignId:    recipient.CampaignId,
+		RecipientId:   recipient.Id,
+		EventType:     "email_open",
+		Source:        "email_open",
+		SourceEventId: fmt.Sprintf("recipient:%d", recipient.Id),
+		EventData:     `{}`,
+		CreatedAt:     openedAt,
+	}
+	result := insertRecallRunEvent(DB.WithContext(ctx), &event)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 func RecordRecallConversionWithContext(ctx context.Context, record RecallConversionRecord) (bool, error) {
 	converted := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -442,8 +467,20 @@ func QueryRecallCampaignMetricRows(ctx context.Context, campaignID int64) ([]Rec
 		}
 	}
 
+	var openedRecipientCount int64
+	if err := DB.WithContext(ctx).Model(&RecallEvent{}).
+		Where("campaign_id = ? AND event_type = ? AND recipient_id > 0", campaignID, "email_open").
+		Distinct("recipient_id").
+		Count(&openedRecipientCount).Error; err != nil {
+		return nil, nil, err
+	}
+	counts["opened_recipients"] = openedRecipientCount
+
 	events := make([]RecallEvent, 0)
-	if err := DB.WithContext(ctx).Where("campaign_id = ?", campaignID).Find(&events).Error; err != nil {
+	if err := DB.WithContext(ctx).
+		Select("event_type", "event_data").
+		Where("campaign_id = ? AND (event_type <> ? OR event_type IS NULL)", campaignID, "email_open").
+		Find(&events).Error; err != nil {
 		return nil, nil, err
 	}
 	for _, event := range events {
@@ -468,7 +505,7 @@ func QueryRecallCampaignMetricRows(ctx context.Context, campaignID int64) ([]Rec
 
 	metricNames := []string{
 		"candidates", "enrolled", "excluded", "customer_success", "customer_failure", "code_success", "code_failure",
-		"messages_scheduled", "messages_accepted", "messages_failed", "messages_cancelled", "observed_clicks", "direct", "assisted", "no_coupon",
+		"messages_scheduled", "messages_accepted", "messages_failed", "messages_cancelled", "observed_clicks", "opened_recipients", "direct", "assisted", "no_coupon",
 	}
 	countRows := make([]RecallMetricCountRow, 0, len(metricNames))
 	for _, metric := range metricNames {
