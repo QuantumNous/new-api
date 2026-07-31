@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -17,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var memoryCriticalRateLimitTestRun atomic.Uint64
 
 func useRateLimitMiniRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
 	t.Helper()
@@ -44,6 +47,42 @@ func performRateLimitRequest(router http.Handler, path string, remoteAddr string
 	request.RemoteAddr = remoteAddr
 	router.ServeHTTP(recorder, request)
 	return recorder
+}
+
+func TestMemoryCriticalRateLimiterReturnsJSONWithRetryAfter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	require.NoError(t, i18n.Init())
+
+	previousRedisEnabled := common.RedisEnabled
+	previousEnabled := common.CriticalRateLimitEnable
+	previousMaxRequests := common.CriticalRateLimitNum
+	previousDuration := common.CriticalRateLimitDuration
+	common.RedisEnabled = false
+	common.CriticalRateLimitEnable = true
+	common.CriticalRateLimitNum = 2
+	common.CriticalRateLimitDuration = 43
+	t.Cleanup(func() {
+		common.RedisEnabled = previousRedisEnabled
+		common.CriticalRateLimitEnable = previousEnabled
+		common.CriticalRateLimitNum = previousMaxRequests
+		common.CriticalRateLimitDuration = previousDuration
+	})
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.GET("/limited", CriticalRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	runID := memoryCriticalRateLimitTestRun.Add(1)
+	remoteAddr := fmt.Sprintf("[2001:db8::%x]:12345", runID)
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/limited", remoteAddr).Code)
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/limited", remoteAddr).Code)
+	limitedResponse := performRateLimitRequest(router, "/limited", remoteAddr)
+	assert.Equal(t, http.StatusTooManyRequests, limitedResponse.Code)
+	assert.Equal(t, "43", limitedResponse.Header().Get("Retry-After"))
+	assert.Equal(t, "application/json; charset=utf-8", limitedResponse.Header().Get("Content-Type"))
+	assert.JSONEq(t, `{"success":false,"message":"Too many requests. Please try again later."}`, limitedResponse.Body.String())
 }
 
 func TestRedisCriticalRateLimiterReturnsJSONWithRetryAfter(t *testing.T) {
