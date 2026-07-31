@@ -246,6 +246,65 @@ html.dark .landing-shell .signal-dot-matrix {
   --showcase-flap-surface: var(--surface-solid);
   --showcase-flap-border: var(--border-default);
   --showcase-flap-shadow: var(--card-sketch-shadow);
+  --showcase-capability-background: var(--page-background);
+  --showcase-capability-background-alt: var(--surface-container-lowest);
+  --showcase-capability-panel: color-mix(
+    in srgb,
+    var(--surface-solid) 82%,
+    transparent
+  );
+  --showcase-capability-workbench: color-mix(
+    in srgb,
+    var(--surface-solid) 91%,
+    transparent
+  );
+  --showcase-route-row: color-mix(
+    in srgb,
+    var(--surface-solid) 76%,
+    transparent
+  );
+  --showcase-selected-layer: color-mix(
+    in srgb,
+    var(--accent) 13%,
+    var(--surface-solid)
+  );
+  --showcase-image-opacity: 0.52;
+  --showcase-routing-image-opacity: 0.48;
+  --showcase-image-fallback:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 31px,
+      var(--dec-grid-line) 31px 32px
+    ),
+    var(--page-background);
+  --showcase-routing-fallback:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 47px,
+      var(--dec-grid-line) 47px 48px
+    ),
+    var(--surface-container-lowest);
+  --showcase-image-scrim: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--page-background) 96%, transparent) 0 34%,
+    color-mix(in srgb, var(--page-background) 78%, transparent) 68%,
+    color-mix(in srgb, var(--page-background) 58%, transparent)
+  );
+  --showcase-routing-scrim: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-container-lowest) 95%, transparent) 0 30%,
+    color-mix(in srgb, var(--surface-container-lowest) 74%, transparent) 62%,
+    color-mix(in srgb, var(--surface-container-lowest) 48%, transparent)
+  );
+  --showcase-workbench-shadow: var(--card-sketch-shadow);
+  --showcase-active-halo: 0 0 0 5px
+    color-mix(in srgb, var(--accent) 12%, transparent);
+  --showcase-flow-line: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent),
+    transparent
+  );
   position: relative;
   overflow: clip;
   background: var(--page-background);
@@ -588,6 +647,40 @@ html.dark .home-showcase {
   --showcase-flap-surface: var(--surface-tint-1);
   --showcase-flap-border: var(--outline-variant);
   --showcase-flap-shadow: var(--elevation-1);
+  --showcase-capability-background: var(--surface-container-lowest);
+  --showcase-capability-background-alt: var(--page-background);
+  --showcase-capability-panel: var(--surface-container-high);
+  --showcase-capability-workbench: color-mix(
+    in srgb,
+    var(--surface-container) 96%,
+    transparent
+  );
+  --showcase-route-row: var(--surface-container-low);
+  --showcase-selected-layer: color-mix(
+    in srgb,
+    var(--accent) 10%,
+    var(--surface-container-high)
+  );
+  --showcase-image-opacity: 0.46;
+  --showcase-routing-image-opacity: 0.5;
+  --showcase-image-fallback: var(--surface-container-lowest);
+  --showcase-routing-fallback: var(--page-background);
+  --showcase-image-scrim: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-container-lowest) 96%, transparent) 0 38%,
+    color-mix(in srgb, var(--surface-container-lowest) 79%, transparent) 68%,
+    color-mix(in srgb, var(--surface-container-lowest) 54%, transparent)
+  );
+  --showcase-routing-scrim: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--page-background) 96%, transparent) 0 32%,
+    color-mix(in srgb, var(--page-background) 76%, transparent) 64%,
+    color-mix(in srgb, var(--page-background) 52%, transparent)
+  );
+  --showcase-workbench-shadow: var(--elevation-3);
+  --showcase-active-halo:
+    0 0 0 5px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 0 18px var(--chart-line-glow);
 }
 
 html.dark .runtime-band {
