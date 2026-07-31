@@ -597,6 +597,10 @@ func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, _ *relaycommon.T
 	return int(actualQuotaFloat)
 }
 
+func (a *TaskAdaptor) AdjustPerCallBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	return a.AdjustBillingOnComplete(task, taskResult)
+}
+
 // DoRequest delegates to common helper
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	return channel.DoTaskApiRequest(a, c, info, requestBody)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -91,100 +90,6 @@ if limitWeek > 0 then
 end
 return {1, 0}
 `)
-
-var taskSettlementWindowScript = redis.NewScript(`
-if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
-local count = tonumber(ARGV[1])
-local arg = 2
-for i = 1, count do
-  local delta = tonumber(ARGV[arg])
-  local expireMode = tonumber(ARGV[arg + 1])
-  local expireValue = tonumber(ARGV[arg + 2])
-  redis.call('INCRBY', KEYS[i + 1], delta)
-  if expireMode == 1 then
-    redis.call('EXPIRE', KEYS[i + 1], expireValue)
-  elseif expireMode == 2 then
-    redis.call('EXPIREAT', KEYS[i + 1], expireValue)
-  end
-  arg = arg + 3
-end
-redis.call('SET', KEYS[1], '1', 'EX', 604800)
-return 1
-`)
-
-// ApplyTaskSettlementSubscriptionWindow applies one task settlement delta and
-// its deterministic marker in the same Redis script. Replaying the same
-// settlement ID from another node is therefore a no-op.
-func ApplyTaskSettlementSubscriptionWindow(settlementID int64, snap *model.TaskSubscriptionWindow, delta int64) error {
-	if settlementID <= 0 || snap == nil || delta == 0 || !common.RedisEnabled || common.RDB == nil {
-		return nil
-	}
-
-	type operation struct {
-		key         string
-		delta       int64
-		expireMode  int
-		expireValue int64
-	}
-	operations := make([]operation, 0, 2)
-	if delta > 0 {
-		now := common.GetTimestamp()
-		if snap.Limit5h > 0 {
-			currentBucket := now / subscriptionWindowBucketSeconds * subscriptionWindowBucketSeconds
-			operations = append(operations, operation{
-				key:         subscriptionWindowBucketKey(snap.SubId, currentBucket),
-				delta:       delta,
-				expireMode:  1,
-				expireValue: subscriptionWindowBucketTTL,
-			})
-		}
-		if snap.LimitWeek > 0 {
-			idx := subscriptionWindowWeekIndex(snap.SubStart, now)
-			base := snap.SubStart
-			if base < 0 {
-				base = 0
-			}
-			operations = append(operations, operation{
-				key:         subscriptionWindowWeekKey(snap.SubId, idx),
-				delta:       delta,
-				expireMode:  2,
-				expireValue: base + (idx+1)*subscriptionWindowWeekSeconds + 3600,
-			})
-		}
-	} else {
-		for _, held := range []map[string]int64{snap.BucketHeld, snap.WeekHeld} {
-			keys := make([]string, 0, len(held))
-			for key := range held {
-				keys = append(keys, key)
-			}
-			sort.Strings(keys)
-			refund := -delta
-			for _, key := range keys {
-				if refund == 0 {
-					break
-				}
-				take := held[key]
-				if take > refund {
-					take = refund
-				}
-				if take > 0 {
-					operations = append(operations, operation{key: key, delta: -take})
-					refund -= take
-				}
-			}
-		}
-	}
-
-	keys := []string{fmt.Sprintf("task:settlement:window:%d", settlementID)}
-	args := []any{len(operations)}
-	for _, operation := range operations {
-		keys = append(keys, operation.key)
-		args = append(args, operation.delta, operation.expireMode, operation.expireValue)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	return taskSettlementWindowScript.Run(ctx, common.RDB, keys, args...).Err()
-}
 
 // subscriptionWindowGuard tracks a successful window reservation so that
 // settle deltas and refunds can be written back to the same counters.

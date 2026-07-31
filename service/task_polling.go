@@ -31,6 +31,10 @@ type TaskPollingAdaptor interface {
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
+type perCallTaskBillingAdjuster interface {
+	AdjustPerCallBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
+}
+
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
@@ -67,13 +71,9 @@ func sweepTimedOutTasks(ctx context.Context) {
 			task.FailReason = reason
 		}
 
-		targetQuota := task.Quota
-		if !isLegacy {
-			targetQuota = 0
-		}
-		won, settlementID, err := task.TransitionWithBilling(oldStatus, taskBillingTransition(task, targetQuota, task.FailReason))
+		won, err := task.UpdateWithStatus(oldStatus)
 		if err != nil {
-			logger.LogError(ctx, fmt.Sprintf("sweepTimedOutTasks terminal transition error for task %s: %v", task.TaskID, err))
+			logger.LogError(ctx, fmt.Sprintf("sweepTimedOutTasks CAS update error for task %s: %v", task.TaskID, err))
 			continue
 		}
 		if !won {
@@ -81,7 +81,9 @@ func sweepTimedOutTasks(ctx context.Context) {
 			continue
 		}
 		timedOutCount++
-		deliverTaskBillingSettlement(ctx, settlementID)
+		if !isLegacy && task.Quota != 0 {
+			RefundTaskQuota(ctx, task, reason)
+		}
 	}
 
 	if timedOutCount > 0 {
@@ -96,7 +98,6 @@ func TaskPollingLoop() {
 		common.SysLog("任务进度轮询开始")
 		ctx := context.TODO()
 		sweepTimedOutTasks(ctx)
-		recoverPendingTaskBillingSettlements(ctx, constant.TaskQueryLimit)
 		allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
 		platformTask := make(map[constant.TaskPlatform][]*model.Task)
 		for _, t := range allTasks {
@@ -428,9 +429,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		task.PrivateData.TotalTokens = taskResult.TotalTokens
 	}
 
+	shouldRefund := false
+	shouldSettle := false
 	quota := task.Quota
-	targetQuota := quota
-	billingReason := ""
 
 	task.Status = model.TaskStatus(taskResult.Status)
 	switch taskResult.Status {
@@ -462,7 +463,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			// No URL from adaptor — construct proxy URL using public task ID
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
 		}
-		targetQuota, billingReason = taskBillingTargetOnComplete(adaptor, task, taskResult)
+		shouldSettle = true
 	case model.TaskStatusFailure:
 		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
 		task.Status = model.TaskStatusFailure
@@ -473,8 +474,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		task.FailReason = taskResult.Reason
 		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		taskResult.Progress = taskcommon.ProgressComplete
-		targetQuota = 0
-		billingReason = task.FailReason
+		if quota != 0 {
+			shouldRefund = true
+		}
 	default:
 		return fmt.Errorf("unknown task status %s for task %s", taskResult.Status, task.TaskID)
 	}
@@ -484,13 +486,15 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	isDone := task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure
 	if isDone && snap.Status != task.Status {
-		won, settlementID, err := task.TransitionWithBilling(snap.Status, taskBillingTransition(task, targetQuota, billingReason))
+		won, err := task.UpdateWithStatus(snap.Status)
 		if err != nil {
-			logger.LogError(ctx, fmt.Sprintf("terminal task transition failed for task %s: %s", task.TaskID, err.Error()))
+			logger.LogError(ctx, fmt.Sprintf("UpdateWithStatus failed for task %s: %s", task.TaskID, err.Error()))
+			shouldRefund = false
+			shouldSettle = false
 		} else if !won {
 			logger.LogWarn(ctx, fmt.Sprintf("Task %s already transitioned by another process, skip billing", task.TaskID))
-		} else {
-			deliverTaskBillingSettlement(ctx, settlementID)
+			shouldRefund = false
+			shouldSettle = false
 		}
 	} else if !snap.Equal(task.Snapshot()) {
 		if _, err := task.UpdateWithStatus(snap.Status); err != nil {
@@ -501,20 +505,14 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		logger.LogDebug(ctx, "No update needed for task %s", task.TaskID)
 	}
 
-	return nil
-}
+	if shouldSettle {
+		settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+	}
+	if shouldRefund {
+		RefundTaskQuota(ctx, task, task.FailReason)
+	}
 
-func taskBillingTargetOnComplete(adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) (int, string) {
-	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		return actualQuota, "adaptor计费调整"
-	}
-	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
-		return task.Quota, ""
-	}
-	if actualQuota, ok := calculateTaskQuotaByTokens(task, taskResult.TotalTokens); ok {
-		return actualQuota, fmt.Sprintf("token重算：tokens=%d", taskResult.TotalTokens)
-	}
-	return task.Quota, ""
+	return nil
 }
 
 func redactVideoResponseBody(body []byte) []byte {
@@ -557,14 +555,19 @@ func truncateBase64(s string) string {
 //  2. taskResult.TotalTokens > 0 → 按 token 重算
 //  3. 都不满足 → 保持预扣额度不变
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
+	// 0. 按次计费默认不做差额结算；仅显式实现可选接口的适配器可以调整。
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
+		if adjuster, ok := adaptor.(perCallTaskBillingAdjuster); ok {
+			if actualQuota := adjuster.AdjustPerCallBillingOnComplete(task, taskResult); actualQuota > 0 {
+				RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+			}
+		}
+		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过 token 差额结算", task.TaskID))
+		return
+	}
 	// 1. 优先让 adaptor 决定最终额度
 	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
 		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
-		return
-	}
-	// 按次计费仅跳过 token 回退；adaptor 仍可按上游实际用量调整。
-	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
-		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过 token 差额结算", task.TaskID))
 		return
 	}
 	// 2. 回退到 token 重算
