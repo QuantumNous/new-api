@@ -363,16 +363,21 @@ func normalizeBytePlusAssetModeration(moderation *dto.BytePlusAssetModeration) s
 }
 
 func responseFromBytePlusAsset(asset *model.BytePlusAsset) *dto.BytePlusAssetResponse {
-	return &dto.BytePlusAssetResponse{
+	response := &dto.BytePlusAssetResponse{
 		ID:        asset.PublicId,
 		Object:    bytePlusAssetObjectType,
 		AssetType: asset.AssetType,
 		Status:    asset.Status,
-		Moderation: dto.BytePlusAssetModeration{
-			Strategy: asset.ModerationStrategy,
-		},
 		CreatedAt: asset.CreatedTime,
 	}
+	if asset.RealPersonProfileId == nil {
+		response.Moderation = &dto.BytePlusAssetModeration{Strategy: asset.ModerationStrategy}
+		return response
+	}
+	response.Name = asset.Name
+	response.AssetURI = "asset://" + asset.PublicId
+	response.FailureCode = asset.FailureCode
+	return response
 }
 
 func opaqueBytePlusAssetGroupName() string {
@@ -446,6 +451,18 @@ func publicBytePlusAssetErrorMessage(code types.ErrorCode) string {
 		return "asset upstream error"
 	case types.ErrorCodeAssetStorageError:
 		return "asset storage error"
+	case types.ErrorCodeVerificationInProgress:
+		return "verification in progress"
+	case types.ErrorCodeIdempotencyConflict:
+		return "idempotency conflict"
+	case types.ErrorCodeIdempotencyOutcomeUnknown:
+		return "idempotency outcome unknown"
+	case types.ErrorCodeAssetFileTooLarge:
+		return "asset file too large"
+	case types.ErrorCodeAssetMediaUnsupported:
+		return "asset media unsupported"
+	case types.ErrorCodeAssetUploadFailed:
+		return "asset upload failed"
 	default:
 		return string(code)
 	}

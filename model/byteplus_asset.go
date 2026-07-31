@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -136,6 +137,33 @@ func CreateBytePlusAsset(asset BytePlusAsset) (*BytePlusAsset, error) {
 	return &asset, nil
 }
 
+func CreateRealPersonBytePlusAssetForIdempotency(recordID, leaseUpdatedTime int64, asset BytePlusAsset, tempObjectID *int64, signedURLExpiresAt int64, now int64) (*BytePlusAsset, error) {
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&asset).Error; err != nil {
+			return err
+		}
+		if tempObjectID != nil {
+			updated := tx.Model(&BytePlusAssetTempObject{}).
+				Where("id = ? AND asset_id IS NULL AND cleanup_status = ?", *tempObjectID, BytePlusTempObjectCleanupPending).
+				Updates(map[string]any{
+					"asset_id":                   asset.Id,
+					"signed_url_expires_at":      signedURLExpiresAt,
+					"next_cleanup_at":            signedURLExpiresAt,
+					"cleanup_lease_updated_time": int64(0),
+					"updated_time":               now,
+				})
+			if err := requireOneBytePlusTempObjectCAS(updated); err != nil {
+				return err
+			}
+		}
+		return BindAPIIdempotencyResourceTx(tx, recordID, leaseUpdatedTime, asset.PublicId, now)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &asset, nil
+}
+
 func GetBytePlusAssetByPublicIDForUser(userID int, publicID string) (*BytePlusAsset, error) {
 	var asset BytePlusAsset
 	if err := DB.Where("user_id = ? AND public_id = ?", userID, publicID).First(&asset).Error; err != nil {
@@ -199,10 +227,72 @@ func UpdateBytePlusAssetStatus(assetID int64, status string, errorMessage string
 	return nil
 }
 
+func MarkBytePlusRealPersonAssetFailedForIdempotency(recordID, leaseUpdatedTime, assetID int64, publicID string, failureCode string, responseStatus int, responsePayload string, now int64) error {
+	failureCode = strings.TrimSpace(failureCode)
+	if failureCode == "" {
+		failureCode = "asset_failed"
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		updatedAsset := tx.Model(&BytePlusAsset{}).
+			Where("id = ? AND status NOT IN ?", assetID, bytePlusAssetTerminalStatuses()).
+			Updates(map[string]any{
+				"status":       BytePlusAssetStatusFailed,
+				"failure_code": failureCode,
+				"updated_time": now,
+			})
+		if err := requireOneBytePlusAssetCAS(updatedAsset, assetID); err != nil {
+			return err
+		}
+		updatedRecord := tx.Model(&APIIdempotencyRecord{}).
+			Where("id = ? AND status IN ? AND lease_updated_time = ? AND (resource_public_id = ? OR resource_public_id = ?)", recordID, []string{APIIdempotencyStatusProcessing, APIIdempotencyStatusCallingUpstream}, leaseUpdatedTime, "", publicID).
+			Updates(map[string]any{
+				"status":             APIIdempotencyStatusFailed,
+				"resource_public_id": publicID,
+				"response_status":    responseStatus,
+				"response_payload":   responsePayload,
+				"updated_time":       now,
+			})
+		return requireOneAPIIdempotencyCAS(updatedRecord)
+	})
+}
+
+func MarkBytePlusRealPersonAssetOutcomeUnknownForIdempotency(recordID, leaseUpdatedTime, assetID int64, failureCode string, now int64) error {
+	failureCode = strings.TrimSpace(failureCode)
+	if failureCode == "" {
+		failureCode = "idempotency_outcome_unknown"
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		updatedRecord := tx.Model(&APIIdempotencyRecord{}).
+			Where("id = ? AND status IN ? AND lease_updated_time = ?", recordID, []string{APIIdempotencyStatusProcessing, APIIdempotencyStatusCallingUpstream}, leaseUpdatedTime).
+			Updates(map[string]any{"status": APIIdempotencyStatusOutcomeUnknown, "updated_time": now})
+		if err := requireOneAPIIdempotencyCAS(updatedRecord); err != nil {
+			return err
+		}
+		updatedAsset := tx.Model(&BytePlusAsset{}).
+			Where("id = ? AND status NOT IN ?", assetID, bytePlusAssetTerminalStatuses()).
+			Updates(map[string]any{
+				"status":       BytePlusAssetStatusFailed,
+				"failure_code": failureCode,
+				"updated_time": now,
+			})
+		return requireOneBytePlusAssetCAS(updatedAsset, assetID)
+	})
+}
+
 func IsBytePlusAssetNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
 }
 
 func bytePlusAssetTerminalStatuses() []string {
 	return []string{BytePlusAssetStatusActive, BytePlusAssetStatusFailed, BytePlusAssetStatusDeleting, BytePlusAssetStatusDeleted}
+}
+
+func requireOneBytePlusAssetCAS(result *gorm.DB, assetID int64) error {
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return fmt.Errorf("%w: id=%d", ErrBytePlusAssetNotUpdatable, assetID)
+	}
+	return nil
 }

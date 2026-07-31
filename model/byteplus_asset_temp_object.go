@@ -70,6 +70,12 @@ func BindBytePlusAssetTempObject(id int64, assetID int64, signedURLExpiresAt int
 	return result.RowsAffected == 1, nil
 }
 
+func GetBytePlusAssetTempObjectByAssetID(assetID int64) (*BytePlusAssetTempObject, error) {
+	var object BytePlusAssetTempObject
+	err := DB.Where("asset_id = ?", assetID).First(&object).Error
+	return &object, err
+}
+
 func ClaimDueBytePlusTempObjectCleanups(now, staleBefore int64, limit int) ([]BytePlusAssetTempObject, error) {
 	if limit <= 0 {
 		return nil, nil

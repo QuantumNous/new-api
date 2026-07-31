@@ -1,0 +1,479 @@
+package service
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+	"unicode/utf8"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/stretchr/testify/require"
+)
+
+type realPersonAssetFixture struct {
+	t       *testing.T
+	profile model.BytePlusRealPersonProfile
+	fake    *fakeRealPersonAssetClient
+	store   *recordingRealPersonAssetStore
+}
+
+type fakeRealPersonAssetClient struct {
+	mu               sync.Mutex
+	createAssetCalls int
+	createErr        error
+	onCreateAsset    func()
+	lastCreate       BytePlusCreateAssetRequest
+}
+
+func (f *fakeRealPersonAssetClient) CreateAssetGroup(context.Context, BytePlusCredentials, string) (string, string, error) {
+	return "", "", errors.New("unused")
+}
+
+func (f *fakeRealPersonAssetClient) CreateAsset(_ context.Context, _ BytePlusCredentials, request BytePlusCreateAssetRequest) (string, string, error) {
+	f.mu.Lock()
+	f.createAssetCalls++
+	call := f.createAssetCalls
+	f.lastCreate = request
+	onCreate := f.onCreateAsset
+	err := f.createErr
+	f.mu.Unlock()
+	if onCreate != nil {
+		onCreate()
+	}
+	if err != nil {
+		return "", fmt.Sprintf("req-asset-%d", call), err
+	}
+	return fmt.Sprintf("upstream-asset-%d", call), fmt.Sprintf("req-asset-%d", call), nil
+}
+
+func (f *fakeRealPersonAssetClient) GetAsset(context.Context, BytePlusCredentials, string) (BytePlusAssetStatus, error) {
+	return BytePlusAssetStatus{}, errors.New("unused")
+}
+
+func (f *fakeRealPersonAssetClient) CreateVisualValidateSession(context.Context, BytePlusCredentials, string) (BytePlusVisualValidationSession, error) {
+	return BytePlusVisualValidationSession{}, errors.New("unused")
+}
+
+func (f *fakeRealPersonAssetClient) GetVisualValidateResult(context.Context, BytePlusCredentials, string) (BytePlusVisualValidationResult, error) {
+	return BytePlusVisualValidationResult{}, errors.New("unused")
+}
+
+func (f *fakeRealPersonAssetClient) ListAssets(context.Context, BytePlusCredentials, BytePlusListAssetsRequest) (BytePlusListAssetsResult, error) {
+	return BytePlusListAssetsResult{}, errors.New("unused")
+}
+
+func (f *fakeRealPersonAssetClient) DeleteAsset(context.Context, BytePlusCredentials, string) (string, error) {
+	return "", errors.New("unused")
+}
+
+type recordingRealPersonAssetStore struct {
+	mu           sync.Mutex
+	puts         []fakeTempPut
+	deletes      []string
+	presignKeys  []string
+	presignTTLs  []time.Duration
+	presignByKey map[string]string
+	presignErr   error
+	blankPresign bool
+}
+
+func (s *recordingRealPersonAssetStore) PutObject(_ context.Context, key string, body io.Reader, contentType string, size int64) error {
+	payload, err := io.ReadAll(body)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.puts = append(s.puts, fakeTempPut{key: key, contentType: contentType, size: size, body: payload})
+	return nil
+}
+
+func (s *recordingRealPersonAssetStore) PresignGet(_ context.Context, key string, ttl time.Duration) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.presignKeys = append(s.presignKeys, key)
+	s.presignTTLs = append(s.presignTTLs, ttl)
+	if s.presignErr != nil {
+		return "", s.presignErr
+	}
+	if s.blankPresign {
+		return "   ", nil
+	}
+	if s.presignByKey != nil && s.presignByKey[key] != "" {
+		return s.presignByKey[key], nil
+	}
+	return "https://signed.example/" + key, nil
+}
+
+func (s *recordingRealPersonAssetStore) DeleteObject(_ context.Context, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deletes = append(s.deletes, key)
+	return nil
+}
+
+func (s *recordingRealPersonAssetStore) TempObjectBucket() string {
+	return "real-person-bucket"
+}
+
+func newRealPersonAssetFixture(t *testing.T) *realPersonAssetFixture {
+	t.Helper()
+	newBytePlusRealPersonServiceTestDB(t)
+	fake := &fakeRealPersonAssetClient{}
+	store := &recordingRealPersonAssetStore{}
+	oldNow := bytePlusAssetNow
+	oldUploadNow := bytePlusAssetUploadNow
+	oldID := bytePlusAssetPublicID
+	oldFactory := bytePlusAssetClientFactory
+	oldStoreFactory := bytePlusTempObjectStoreFactory
+	oldUploadRandom := bytePlusAssetUploadRandomKey
+	bytePlusAssetNow = func() int64 { return 2000 }
+	bytePlusAssetUploadNow = func() int64 { return 2000 }
+	assetSeq := 0
+	bytePlusAssetPublicID = func() (string, error) {
+		assetSeq++
+		return fmt.Sprintf("ast_real_%d", assetSeq), nil
+	}
+	objectSeq := 0
+	bytePlusAssetUploadRandomKey = func(int) (string, error) {
+		objectSeq++
+		return fmt.Sprintf("object_%d", objectSeq), nil
+	}
+	bytePlusAssetClientFactory = func(*model.Channel) (bytePlusAssetAPI, error) { return fake, nil }
+	bytePlusTempObjectStoreFactory = func(BytePlusCredentials) (BytePlusTempObjectStore, error) { return store, nil }
+	t.Cleanup(func() {
+		bytePlusAssetNow = oldNow
+		bytePlusAssetUploadNow = oldUploadNow
+		bytePlusAssetPublicID = oldID
+		bytePlusAssetClientFactory = oldFactory
+		bytePlusTempObjectStoreFactory = oldStoreFactory
+		bytePlusAssetUploadRandomKey = oldUploadRandom
+	})
+	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
+	profile := seedActiveRealPersonProfile(t, 7, 101, "rph_active")
+	return &realPersonAssetFixture{t: t, profile: profile, fake: fake, store: store}
+}
+
+func seedActiveRealPersonProfile(t *testing.T, userID, channelID int, publicID string) model.BytePlusRealPersonProfile {
+	t.Helper()
+	groupID := "upstream-profile-group-" + publicID
+	profile := model.BytePlusRealPersonProfile{
+		PublicId: publicID, UserId: userID, Name: "Alice", ChannelId: channelID,
+		Status: model.BytePlusRealPersonProfileStatusActive, UpstreamGroupId: &groupID,
+		CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&profile).Error)
+	return profile
+}
+
+func (f *realPersonAssetFixture) createURL(key, rawURL, assetType, name string) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
+	return CreateBytePlusRealPersonAssetFromURL(context.Background(), f.profile.UserId, f.profile.PublicId, key, dto.BytePlusRealPersonAssetCreateRequest{
+		URL: rawURL, AssetType: assetType, Name: name,
+	})
+}
+
+func (f *realPersonAssetFixture) createMultipart(key string, payload []byte, assetType, name string) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
+	parts := []multipartTestPart{fieldPart("asset_type", assetType)}
+	if name != "__missing__" {
+		parts = append(parts, fieldPart("name", name))
+	}
+	parts = append(parts, filePart("file", "person.png", payload))
+	return CreateBytePlusRealPersonAssetFromMultipart(context.Background(), f.profile.UserId, f.profile.PublicId, key, newBytePlusMultipartRequest(f.t, parts))
+}
+
+func TestCreateRealPersonAssetFromURLUsesBoundProfileGroupAndDefaultModeration(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+
+	resp, apiErr := f.createURL("idem-url", "https://example.com/person.png", "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, resp.Status)
+	require.Nil(t, resp.Moderation)
+	require.Equal(t, "asset://"+resp.ID, resp.AssetURI)
+	require.Equal(t, *f.profile.UpstreamGroupId, f.fake.lastCreate.GroupID)
+	require.Equal(t, "Default", f.fake.lastCreate.ModerationStrategy)
+	var asset model.BytePlusAsset
+	require.NoError(t, model.DB.First(&asset, "public_id = ?", resp.ID).Error)
+	require.NotNil(t, asset.RealPersonProfileId)
+	require.Equal(t, f.profile.Id, *asset.RealPersonProfileId)
+	require.Equal(t, f.profile.UserId, asset.UserId)
+	require.Equal(t, f.profile.ChannelId, asset.ChannelId)
+	require.Equal(t, int64(0), asset.AssetGroupId)
+}
+
+func TestCreateRealPersonAssetFromURLDoesNotPersistCompleteSourceURL(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	signedURL := "https://example.com/person.png?X-Tos-Signature=secret&X-Tos-Credential=private"
+
+	resp, apiErr := f.createURL("idem-signed", signedURL, "Image", "front")
+
+	require.Nil(t, apiErr)
+	var asset model.BytePlusAsset
+	require.NoError(t, model.DB.First(&asset, "public_id = ?", resp.ID).Error)
+	require.Empty(t, asset.SourceURL)
+	raw, err := common.Marshal(asset)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "example.com")
+	require.NotContains(t, string(raw), "X-Tos-Signature")
+}
+
+func TestCreateRealPersonAssetFromURLRejectsNameAbove128CodePointsBeforeLedgerOrUpstream(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+
+	_, apiErr := f.createURL("idem-long-name", "https://example.com/person.png", "Image", strings.Repeat("界", 129))
+
+	assertAssetError(t, apiErr, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+	var records, assets int64
+	require.NoError(t, model.DB.Model(&model.APIIdempotencyRecord{}).Count(&records).Error)
+	require.NoError(t, model.DB.Model(&model.BytePlusAsset{}).Count(&assets).Error)
+	require.Zero(t, records)
+	require.Zero(t, assets)
+}
+
+func TestCreateRealPersonAssetFromMultipartRejectsNameAbove128CodePointsAndCleansUpload(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+
+	_, apiErr := f.createMultipart("idem-long-upload-name", pngHeader(), "Image", strings.Repeat("界", 129))
+
+	assertAssetError(t, apiErr, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	require.Len(t, f.store.puts, 1)
+	require.Len(t, f.store.deletes, 1)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+	var records int64
+	require.NoError(t, model.DB.Model(&model.APIIdempotencyRecord{}).Count(&records).Error)
+	require.Zero(t, records)
+}
+
+func TestNormalizeBytePlusRealPersonAssetNameCountsUnicodeCodePoints(t *testing.T) {
+	name, apiErr := normalizeBytePlusRealPersonAssetName("  " + strings.Repeat("界", 128) + "  ")
+	require.Nil(t, apiErr)
+	require.Equal(t, strings.Repeat("界", 128), name)
+	name, apiErr = normalizeBytePlusRealPersonAssetName("   ")
+	require.Nil(t, apiErr)
+	require.Empty(t, name)
+	_, apiErr = normalizeBytePlusRealPersonAssetName(strings.Repeat("界", 129))
+	assertAssetError(t, apiErr, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+}
+
+func TestCreateRealPersonAssetFromMultipartBindsUploadedObjectAfterHashClaim(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	f.fake.onCreateAsset = func() {
+		var record model.APIIdempotencyRecord
+		require.NoError(t, model.DB.First(&record, "route = ?", bytePlusRealPersonAssetCreateRoute).Error)
+		require.Equal(t, model.APIIdempotencyStatusCallingUpstream, record.Status)
+		var asset model.BytePlusAsset
+		require.NoError(t, model.DB.First(&asset, "public_id = ?", record.ResourcePublicId).Error)
+		var temp model.BytePlusAssetTempObject
+		require.NoError(t, model.DB.First(&temp, "asset_id = ?", asset.Id).Error)
+	}
+
+	resp, apiErr := f.createMultipart("idem-upload", pngHeader(), "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, resp.Status)
+	require.Len(t, f.store.puts, 1)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+	var temp model.BytePlusAssetTempObject
+	require.NoError(t, model.DB.First(&temp).Error)
+	require.NotNil(t, temp.AssetId)
+	require.Equal(t, f.profile.UserId, temp.UserId)
+	require.Equal(t, f.profile.ChannelId, temp.ChannelId)
+}
+
+func TestConcurrentMultipartSameKeyUploadsTwiceButCallsCreateAssetOnceAndDeletesLoser(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	block := make(chan struct{})
+	entered := make(chan struct{})
+	f.fake.onCreateAsset = func() {
+		close(entered)
+		<-block
+	}
+	payload := append([]byte{}, pngHeader()...)
+	payload = append(payload, []byte("same")...)
+
+	type createResult struct {
+		resp *dto.BytePlusAssetResponse
+		err  *types.NewAPIError
+	}
+	firstDone := make(chan createResult, 1)
+	secondDone := make(chan createResult, 1)
+	go func() {
+		resp, err := f.createMultipart("same-key", payload, "Image", "front")
+		firstDone <- createResult{resp: resp, err: err}
+	}()
+	<-entered
+	go func() {
+		resp, err := f.createMultipart("same-key", append([]byte{}, payload...), "Image", "front")
+		secondDone <- createResult{resp: resp, err: err}
+	}()
+	var second createResult
+	select {
+	case second = <-secondDone:
+	case <-time.After(time.Second):
+		t.Fatal("second same-key upload did not return while first upstream call was blocked")
+	}
+	assertAssetError(t, second.err, types.ErrorCodeVerificationInProgress, http.StatusConflict)
+	close(block)
+	var first createResult
+	select {
+	case first = <-firstDone:
+	case <-time.After(time.Second):
+		t.Fatal("first same-key upload did not finish after upstream was unblocked")
+	}
+	require.Nil(t, first.err)
+	require.NotNil(t, first.resp)
+	require.Nil(t, second.resp)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+	require.Len(t, f.store.puts, 2)
+	require.Len(t, f.store.deletes, 1)
+	var assets int64
+	require.NoError(t, model.DB.Model(&model.BytePlusAsset{}).Where("real_person_profile_id = ?", f.profile.Id).Count(&assets).Error)
+	require.Equal(t, int64(1), assets)
+}
+
+func TestMultipartSameKeyDifferentFileHashConflictsAndCleansNewObject(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	_, apiErr := f.createMultipart("same-key", pngHeader(), "Image", "front")
+	require.Nil(t, apiErr)
+	payload := append([]byte{}, pngHeader()...)
+	payload = append(payload, []byte("different")...)
+
+	_, apiErr = f.createMultipart("same-key", payload, "Image", "front")
+
+	assertAssetError(t, apiErr, types.ErrorCodeIdempotencyConflict, http.StatusConflict)
+	require.Len(t, f.store.puts, 2)
+	require.Len(t, f.store.deletes, 1)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+}
+
+func TestCreateRealPersonAssetOutcomeUnknownNeverRetriesCreateAsset(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	f.fake.createErr = context.DeadlineExceeded
+
+	_, apiErr := f.createURL("unknown-key", "https://example.com/person.png", "Image", "front")
+	assertAssetError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+	f.fake.createErr = nil
+	_, apiErr = f.createURL("unknown-key", "https://example.com/person.png", "Image", "front")
+
+	assertAssetError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+}
+
+func TestStaleMultipartProcessingUsesOriginalTempObjectAndCleansNewUpload(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	sum := sha256.Sum256(pngHeader())
+	asset := model.BytePlusAsset{
+		PublicId: "ast_original", UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, RealPersonProfileId: &f.profile.Id,
+		AssetType: "Image", Name: "front", ModerationStrategy: "Default", Status: model.BytePlusAssetStatusCreating,
+		CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	originalTemp := model.BytePlusAssetTempObject{
+		AssetId: &asset.Id, UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, Bucket: "real-person-bucket", ObjectKey: "original-key",
+		ContentSHA256: fmt.Sprintf("%x", sum), SizeBytes: int64(len(pngHeader())), MimeType: "image/png",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 2200, CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&originalTemp).Error)
+	requestHash, err := hashMultipartAssetRequest(f.profile.PublicId, "Image", "front", originalTemp.ContentSHA256, originalTemp.SizeBytes)
+	require.NoError(t, err)
+	keyHash, err := hashAPIIdempotencyKey("resume-upload")
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.APIIdempotencyRecord{
+		UserId: f.profile.UserId, Route: bytePlusRealPersonAssetCreateRoute, KeyHash: keyHash, RequestHash: requestHash,
+		Status: model.APIIdempotencyStatusProcessing, ResourceType: model.APIIdempotencyResourceAsset, ResourcePublicId: asset.PublicId,
+		LeaseUpdatedTime: 1000, CreatedTime: 1000, UpdatedTime: 1000,
+	}).Error)
+	f.store.presignByKey = map[string]string{"original-key": "https://signed.example/original-key"}
+
+	resp, apiErr := f.createMultipart("resume-upload", pngHeader(), "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, "ast_original", resp.ID)
+	require.Equal(t, "https://signed.example/original-key", f.fake.lastCreate.URL)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+	require.Len(t, f.store.puts, 1)
+	require.Len(t, f.store.deletes, 1)
+	require.Equal(t, "original-key", f.store.presignKeys[0])
+	require.NotContains(t, f.store.deletes, "original-key")
+	var assets int64
+	require.NoError(t, model.DB.Model(&model.BytePlusAsset{}).Where("real_person_profile_id = ?", f.profile.Id).Count(&assets).Error)
+	require.Equal(t, int64(1), assets)
+}
+
+func TestBytePlusAssetResponseKeepsVirtualModerationAndAddsRealPersonURI(t *testing.T) {
+	virtual := responseFromBytePlusAsset(&model.BytePlusAsset{
+		PublicId: "ast_virtual", AssetType: "Image", Status: model.BytePlusAssetStatusProcessing,
+		ModerationStrategy: "Skip", CreatedTime: 123,
+	})
+	require.NotNil(t, virtual.Moderation)
+	require.Equal(t, "Skip", virtual.Moderation.Strategy)
+	profileID := int64(9)
+	real := responseFromBytePlusAsset(&model.BytePlusAsset{
+		PublicId: "ast_real", RealPersonProfileId: &profileID, AssetType: "Image", Name: "front",
+		Status: model.BytePlusAssetStatusProcessing, FailureCode: "upstream_failed", CreatedTime: 123,
+	})
+	require.Nil(t, real.Moderation)
+	require.Equal(t, "asset://ast_real", real.AssetURI)
+	require.Equal(t, "front", real.Name)
+	require.Equal(t, "upstream_failed", real.FailureCode)
+}
+
+func TestCreateRealPersonAssetFromMultipartBlankPresignReturnsStorageErrorBeforeUpstream(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	f.store.blankPresign = true
+
+	_, apiErr := f.createMultipart("blank-presign", pngHeader(), "Image", "front")
+
+	assertAssetError(t, apiErr, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	require.Len(t, f.store.puts, 1)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+}
+
+func newIndependentRealPersonAssetMultipartRequest(t *testing.T, payload []byte, assetType, name string) *http.Request {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("asset_type", assetType))
+	require.NoError(t, writer.WriteField("name", name))
+	w, err := writer.CreateFormFile("file", "person.png")
+	require.NoError(t, err)
+	_, err = w.Write(payload)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", io.NopCloser(&readOnlyReader{r: bytes.NewReader(body.Bytes())}))
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.ContentLength = -1
+	return req
+}
+
+func TestMultipartMissingNameUsesSanitizedFilenameTruncatedTo128CodePoints(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	long := strings.Repeat("界", 140)
+	req := newIndependentRealPersonAssetMultipartRequest(t, pngHeader(), "Image", "__missing__")
+	req = newBytePlusMultipartRequest(t, []multipartTestPart{
+		fieldPart("asset_type", "Image"),
+		filePart("file", "../"+long+".png", pngHeader()),
+	})
+
+	resp, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), f.profile.UserId, f.profile.PublicId, "missing-name", req)
+
+	require.Nil(t, apiErr)
+	require.NotEmpty(t, resp.Name)
+	require.Equal(t, 128, utf8.RuneCountInString(resp.Name))
+	require.NotContains(t, resp.Name, "/")
+	require.NotContains(t, resp.Name, "\\")
+}
