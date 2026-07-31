@@ -80,8 +80,8 @@ func TestBytePlusClientCreateVisualSendsOfficialContractAndScrubsMissingFields(t
 		if err == nil {
 			t.Fatal("CreateVisualValidateSession should reject missing required result fields")
 		}
-		if !isBytePlusDefinitiveResponse(err) {
-			t.Fatalf("missing visual session fields should be definitive: %v", err)
+		if isBytePlusDefinitiveResponse(err) {
+			t.Fatalf("missing visual session fields should be ambiguous: %v", err)
 		}
 		for _, leaked := range secretValues {
 			if strings.Contains(err.Error(), leaked) {
@@ -146,8 +146,8 @@ func TestBytePlusClientGetVisualTrimsTokenAndMapsResult(t *testing.T) {
 	if err == nil {
 		t.Fatal("GetVisualValidateResult should reject empty GroupId")
 	}
-	if !isBytePlusDefinitiveResponse(err) {
-		t.Fatalf("missing visual result GroupId should be definitive: %v", err)
+	if isBytePlusDefinitiveResponse(err) {
+		t.Fatalf("missing visual result GroupId should be ambiguous: %v", err)
 	}
 	for _, leaked := range []string{"token-1", "upstream-token-1-message"} {
 		if strings.Contains(err.Error(), leaked) {
@@ -255,8 +255,8 @@ func TestBytePlusClientListAssetsRejectsMissingResultButAllowsEmptyObject(t *tes
 				if err == nil {
 					t.Fatal("ListAssets should reject missing Result envelope")
 				}
-				if !isBytePlusDefinitiveResponse(err) {
-					t.Fatalf("missing Result should be definitive: %v", err)
+				if isBytePlusDefinitiveResponse(err) {
+					t.Fatalf("missing Result should be ambiguous: %v", err)
 				}
 				for _, leaked := range []string{"Result", "missing result"} {
 					if strings.Contains(err.Error(), leaked) {
@@ -350,8 +350,8 @@ func TestBytePlusClientDeleteAssetRejectsMissingResultButAllowsEmptyObject(t *te
 				if err == nil {
 					t.Fatal("DeleteAsset should reject missing Result envelope")
 				}
-				if !isBytePlusDefinitiveResponse(err) {
-					t.Fatalf("missing Result should be definitive: %v", err)
+				if isBytePlusDefinitiveResponse(err) {
+					t.Fatalf("missing Result should be ambiguous: %v", err)
 				}
 				for _, leaked := range []string{"Result", "missing result", "asset-1"} {
 					if strings.Contains(err.Error(), leaked) {

@@ -373,6 +373,68 @@ func TestCreateRealPersonAssetOutcomeUnknownNeverRetriesCreateAsset(t *testing.T
 	require.Equal(t, 1, f.fake.createAssetCalls)
 }
 
+func TestRealPersonAssetURLReplaySurvivesProfileAndChannelDrift(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	first, apiErr := f.createURL("replay-drift-url", "https://example.com/person.png", "Image", "front")
+	require.Nil(t, apiErr)
+	require.NoError(t, model.DB.Model(&model.BytePlusRealPersonProfile{}).Where("id = ?", f.profile.Id).Update("status", model.BytePlusRealPersonProfileStatusFailed).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("status", common.ChannelStatusManuallyDisabled).Error)
+
+	replay, apiErr := f.createURL("replay-drift-url", "https://example.com/person.png", "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, first.ID, replay.ID)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, replay.Status)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+}
+
+func TestRealPersonAssetURLFailedReplaySurvivesProfileAndChannelDrift(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	f.fake.createErr = &BytePlusAPIError{StatusCode: http.StatusBadRequest, RequestID: "req-explicit", Code: "InvalidParameter", Definitive: true}
+	_, apiErr := f.createURL("failed-replay-drift-url", "https://example.com/person.png", "Image", "front")
+	assertAssetError(t, apiErr, types.ErrorCodeAssetUpstreamError, http.StatusBadGateway)
+	require.NoError(t, model.DB.Model(&model.BytePlusRealPersonProfile{}).Where("id = ?", f.profile.Id).Update("status", model.BytePlusRealPersonProfileStatusFailed).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("status", common.ChannelStatusManuallyDisabled).Error)
+	f.fake.createErr = nil
+
+	_, apiErr = f.createURL("failed-replay-drift-url", "https://example.com/person.png", "Image", "front")
+
+	assertAssetError(t, apiErr, types.ErrorCodeAssetUpstreamError, http.StatusBadGateway)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+}
+
+func TestRealPersonAssetMultipartReplaySurvivesProfileAndChannelDriftAndCleansNewUpload(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	first, apiErr := f.createMultipart("replay-drift-upload", pngHeader(), "Image", "front")
+	require.Nil(t, apiErr)
+	require.NoError(t, model.DB.Model(&model.BytePlusRealPersonProfile{}).Where("id = ?", f.profile.Id).Update("status", model.BytePlusRealPersonProfileStatusFailed).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("status", common.ChannelStatusManuallyDisabled).Error)
+
+	replay, apiErr := f.createMultipart("replay-drift-upload", pngHeader(), "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, first.ID, replay.ID)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+	require.Len(t, f.store.puts, 2)
+	require.Len(t, f.store.deletes, 1)
+}
+
+func TestRealPersonAssetOwnerValidationFailureStoresFailedLedger(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	require.NoError(t, model.DB.Model(&model.BytePlusRealPersonProfile{}).Where("id = ?", f.profile.Id).Update("status", model.BytePlusRealPersonProfileStatusFailed).Error)
+
+	_, apiErr := f.createURL("inactive-owner", "https://example.com/person.png", "Image", "front")
+
+	assertAssetError(t, apiErr, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	var record model.APIIdempotencyRecord
+	require.NoError(t, model.DB.First(&record, "route = ?", bytePlusRealPersonAssetCreateRoute).Error)
+	require.Equal(t, model.APIIdempotencyStatusFailed, record.Status)
+	require.Equal(t, http.StatusBadRequest, record.ResponseStatus)
+	_, apiErr = f.createURL("inactive-owner", "https://example.com/person.png", "Image", "front")
+	assertAssetError(t, apiErr, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+}
+
 func TestStaleMultipartProcessingUsesOriginalTempObjectAndCleansNewUpload(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	sum := sha256.Sum256(pngHeader())
@@ -412,6 +474,51 @@ func TestStaleMultipartProcessingUsesOriginalTempObjectAndCleansNewUpload(t *tes
 	var assets int64
 	require.NoError(t, model.DB.Model(&model.BytePlusAsset{}).Where("real_person_profile_id = ?", f.profile.Id).Count(&assets).Error)
 	require.Equal(t, int64(1), assets)
+}
+
+func TestStaleMultipartResumeExtendsOriginalTempObjectExpiryBeforeUpstream(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	bytePlusAssetNow = func() int64 { return 50000 }
+	sum := sha256.Sum256(pngHeader())
+	asset := model.BytePlusAsset{
+		PublicId: "ast_expiring", UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, RealPersonProfileId: &f.profile.Id,
+		AssetType: "Image", Name: "front", ModerationStrategy: "Default", Status: model.BytePlusAssetStatusCreating,
+		CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	originalTemp := model.BytePlusAssetTempObject{
+		AssetId: &asset.Id, UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, Bucket: "real-person-bucket", ObjectKey: "original-expiring-key",
+		ContentSHA256: fmt.Sprintf("%x", sum), SizeBytes: int64(len(pngHeader())), MimeType: "image/png",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 2200, NextCleanupAt: 2200, CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&originalTemp).Error)
+	requestHash, err := hashMultipartAssetRequest(f.profile.PublicId, "Image", "front", originalTemp.ContentSHA256, originalTemp.SizeBytes)
+	require.NoError(t, err)
+	keyHash, err := hashAPIIdempotencyKey("resume-expiring-upload")
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.APIIdempotencyRecord{
+		UserId: f.profile.UserId, Route: bytePlusRealPersonAssetCreateRoute, KeyHash: keyHash, RequestHash: requestHash,
+		Status: model.APIIdempotencyStatusProcessing, ResourceType: model.APIIdempotencyResourceAsset, ResourcePublicId: asset.PublicId,
+		LeaseUpdatedTime: 1000, CreatedTime: 1000, UpdatedTime: 1000,
+	}).Error)
+	wantExpiry := int64(50000 + bytePlusSignedURLTTL.Seconds())
+	f.fake.onCreateAsset = func() {
+		var temp model.BytePlusAssetTempObject
+		require.NoError(t, model.DB.First(&temp, originalTemp.Id).Error)
+		require.Equal(t, wantExpiry, temp.SignedURLExpiresAt)
+		require.Equal(t, wantExpiry, temp.NextCleanupAt)
+		require.Equal(t, model.BytePlusTempObjectCleanupPending, temp.CleanupStatus)
+	}
+
+	resp, apiErr := f.createMultipart("resume-expiring-upload", pngHeader(), "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, "ast_expiring", resp.ID)
+	var temp model.BytePlusAssetTempObject
+	require.NoError(t, model.DB.First(&temp, originalTemp.Id).Error)
+	require.Equal(t, wantExpiry, temp.SignedURLExpiresAt)
+	require.Equal(t, wantExpiry, temp.NextCleanupAt)
+	require.Equal(t, 1, f.fake.createAssetCalls)
 }
 
 func TestBytePlusAssetResponseKeepsVirtualModerationAndAddsRealPersonURI(t *testing.T) {

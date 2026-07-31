@@ -261,22 +261,22 @@ func MarkBytePlusRealPersonAssetOutcomeUnknownForIdempotency(recordID, leaseUpda
 	if failureCode == "" {
 		failureCode = "idempotency_outcome_unknown"
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	if err := DB.Transaction(func(tx *gorm.DB) error {
 		updatedRecord := tx.Model(&APIIdempotencyRecord{}).
 			Where("id = ? AND status IN ? AND lease_updated_time = ?", recordID, []string{APIIdempotencyStatusProcessing, APIIdempotencyStatusCallingUpstream}, leaseUpdatedTime).
 			Updates(map[string]any{"status": APIIdempotencyStatusOutcomeUnknown, "updated_time": now})
-		if err := requireOneAPIIdempotencyCAS(updatedRecord); err != nil {
-			return err
-		}
-		updatedAsset := tx.Model(&BytePlusAsset{}).
-			Where("id = ? AND status NOT IN ?", assetID, bytePlusAssetTerminalStatuses()).
-			Updates(map[string]any{
-				"status":       BytePlusAssetStatusFailed,
-				"failure_code": failureCode,
-				"updated_time": now,
-			})
-		return requireOneBytePlusAssetCAS(updatedAsset, assetID)
-	})
+		return requireOneAPIIdempotencyCAS(updatedRecord)
+	}); err != nil {
+		return err
+	}
+	updatedAsset := DB.Model(&BytePlusAsset{}).
+		Where("id = ? AND status NOT IN ?", assetID, bytePlusAssetTerminalStatuses()).
+		Updates(map[string]any{
+			"status":       BytePlusAssetStatusFailed,
+			"failure_code": failureCode,
+			"updated_time": now,
+		})
+	return requireOneBytePlusAssetCAS(updatedAsset, assetID)
 }
 
 func IsBytePlusAssetNotFound(err error) bool {

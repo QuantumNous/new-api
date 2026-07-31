@@ -76,6 +76,22 @@ func GetBytePlusAssetTempObjectByAssetID(assetID int64) (*BytePlusAssetTempObjec
 	return &object, err
 }
 
+func ExtendBytePlusAssetTempObjectSignedURL(id int64, assetID int64, signedURLExpiresAt int64, now int64) (*BytePlusAssetTempObject, error) {
+	result := DB.Model(&BytePlusAssetTempObject{}).
+		Where("id = ? AND asset_id = ? AND cleanup_status = ? AND cleanup_lease_updated_time = ?", id, assetID, BytePlusTempObjectCleanupPending, int64(0)).
+		Updates(map[string]any{
+			"signed_url_expires_at": signedURLExpiresAt,
+			"next_cleanup_at":       signedURLExpiresAt,
+			"updated_time":          now,
+		})
+	if err := requireOneBytePlusTempObjectCAS(result); err != nil {
+		return nil, err
+	}
+	var object BytePlusAssetTempObject
+	err := DB.First(&object, id).Error
+	return &object, err
+}
+
 func ClaimDueBytePlusTempObjectCleanups(now, staleBefore int64, limit int) ([]BytePlusAssetTempObject, error) {
 	if limit <= 0 {
 		return nil, nil

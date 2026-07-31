@@ -251,7 +251,7 @@ func TestBytePlusRealPersonCreateVerificationOutcomeUnknownIsSticky(t *testing.T
 
 func TestBytePlusRealPersonCreateVerificationDefinitiveErrorIsSafeFailedReplay(t *testing.T) {
 	newBytePlusRealPersonServiceTestDB(t)
-	fake := &fakeBytePlusRealPersonClient{createErr: &BytePlusAPIError{StatusCode: 400, RequestID: "req-secret", Code: "bad_token"}}
+	fake := &fakeBytePlusRealPersonClient{createErr: &BytePlusAPIError{StatusCode: 400, RequestID: "req-secret", Code: "bad_token", Definitive: true}}
 	installBytePlusRealPersonServiceTestDeps(t, fake)
 	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
 

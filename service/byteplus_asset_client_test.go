@@ -268,7 +268,7 @@ func TestBytePlusAssetClientRejectsResponseMetadataErrorWithoutBodyReflection(t 
 	}
 }
 
-func TestBytePlusAssetClientSemanticErrorsAreDefinitiveAndScrubbed(t *testing.T) {
+func TestBytePlusAssetClientSemanticErrorsAreAmbiguousAndScrubbed(t *testing.T) {
 	tests := []struct {
 		name string
 		body string
@@ -323,8 +323,8 @@ func TestBytePlusAssetClientSemanticErrorsAreDefinitiveAndScrubbed(t *testing.T)
 			if err == nil {
 				t.Fatal("semantic error should fail")
 			}
-			if !isBytePlusDefinitiveResponse(err) {
-				t.Fatalf("semantic error should be definitive: %v", err)
+			if isBytePlusDefinitiveResponse(err) {
+				t.Fatalf("semantic error should be ambiguous: %v", err)
 			}
 			if !strings.Contains(err.Error(), "req-") {
 				t.Fatalf("semantic error should retain request id: %v", err)
@@ -371,14 +371,14 @@ func TestBytePlusAssetClientClassifiesMalformedAndOversizeEnvelopeSafely(t *test
 			status:     http.StatusOK,
 			body:       `{"ResponseMetadata":{"RequestId":"req-bad-json"},"Result":`,
 			leaks:      []string{"req-bad-json", `"Result":`},
-			definitive: true,
+			definitive: false,
 		},
 		{
 			name:       "oversize",
 			status:     http.StatusOK,
 			body:       strings.Repeat("sk-example", bytePlusAssetResponseMaxBytes/len("sk-example")+2),
 			leaks:      []string{"sk-example"},
-			definitive: true,
+			definitive: false,
 		},
 	}
 	for _, tc := range cases {
@@ -418,8 +418,8 @@ func TestBytePlusAssetClientClassifiesTargetEnvelopeDecodeFailureSafely(t *testi
 	if err == nil {
 		t.Fatal("CreateAssetGroup should reject target envelope decode failure")
 	}
-	if !isBytePlusDefinitiveResponse(err) {
-		t.Fatalf("target decode failure should be definitive: %v", err)
+	if isBytePlusDefinitiveResponse(err) {
+		t.Fatalf("target decode failure should be ambiguous: %v", err)
 	}
 	if !strings.Contains(err.Error(), "req-target-decode") {
 		t.Fatalf("error should retain request id: %v", err)

@@ -123,6 +123,25 @@ func TestBytePlusAssetTempObjectClaimDueUsesLeaseCAS(t *testing.T) {
 	require.Equal(t, BytePlusTempObjectCleanupPending, stored.CleanupStatus)
 }
 
+func TestBytePlusAssetTempObjectExtendSignedURLRejectsCleanupLease(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	assetID := int64(55)
+	object := BytePlusAssetTempObject{
+		AssetId: &assetID, UserId: 7, ChannelId: 131, Bucket: "bucket", ObjectKey: "leased",
+		CleanupStatus: BytePlusTempObjectCleanupPending, CleanupLeaseUpdatedTime: 500,
+		SignedURLExpiresAt: 100, NextCleanupAt: 100, CreatedTime: 100, UpdatedTime: 500,
+	}
+	require.NoError(t, DB.Create(&object).Error)
+
+	_, err := ExtendBytePlusAssetTempObjectSignedURL(object.Id, assetID, 900, 600)
+
+	require.ErrorIs(t, err, ErrAPIIdempotencyCASLost)
+	require.NoError(t, DB.First(&object, object.Id).Error)
+	require.Equal(t, int64(100), object.SignedURLExpiresAt)
+	require.Equal(t, int64(100), object.NextCleanupAt)
+	require.Equal(t, int64(500), object.CleanupLeaseUpdatedTime)
+}
+
 func TestBytePlusAssetTempObjectClaimReclaimsStaleCleaningLeaseOnce(t *testing.T) {
 	newBytePlusRealPersonTestDB(t)
 	staleCleaning := BytePlusAssetTempObject{

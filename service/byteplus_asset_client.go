@@ -75,6 +75,7 @@ type BytePlusAPIError struct {
 	StatusCode int
 	RequestID  string
 	Code       string
+	Definitive bool
 }
 
 func (e *BytePlusAPIError) Error() string {
@@ -86,12 +87,12 @@ func (e *BytePlusAPIError) Error() string {
 
 func isBytePlusDefinitiveResponse(err error) bool {
 	var apiErr *BytePlusAPIError
-	return errors.As(err, &apiErr)
+	return errors.As(err, &apiErr) && apiErr.Definitive
 }
 
 func isBytePlusNotFound(err error) bool {
 	var apiErr *BytePlusAPIError
-	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
+	return errors.As(err, &apiErr) && apiErr.Definitive && apiErr.StatusCode == http.StatusNotFound
 }
 
 func NewBytePlusAssetClient(httpClient *http.Client, endpoint string) *BytePlusAssetClient {
@@ -276,10 +277,10 @@ func (c *BytePlusAssetClient) do(ctx context.Context, creds BytePlusCredentials,
 	}
 	metadata := metadataEnvelope.ResponseMetadata
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code}
+		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code, Definitive: hasBytePlusMetadataError(metadata)}
 	}
 	if metadata.Error.Code != "" || metadata.Error.Message != "" {
-		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code}
+		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code, Definitive: true}
 	}
 	if out == nil || len(bytes.TrimSpace(raw)) == 0 {
 		return nil
@@ -304,6 +305,10 @@ func (c *BytePlusAssetClient) actionURL(action string) (string, error) {
 
 func upstreamAssetErr(reason, requestID string) error {
 	return &BytePlusAPIError{StatusCode: http.StatusOK, RequestID: strings.TrimSpace(requestID)}
+}
+
+func hasBytePlusMetadataError(metadata bytePlusResponseMetadata) bool {
+	return strings.TrimSpace(metadata.Error.Code) != "" || strings.TrimSpace(metadata.Error.Message) != ""
 }
 
 func sanitizedAssetResultError(result bytePlusAssetResult) string {

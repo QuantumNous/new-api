@@ -37,3 +37,30 @@ func TestMultipartAssetLocalTransactionRollsBackAssetAndBindingOnLedgerCASFailur
 	require.NoError(t, DB.First(&stored, temp.Id).Error)
 	require.Nil(t, stored.AssetId)
 }
+
+func TestRealPersonAssetOutcomeUnknownLedgerSurvivesTerminalAssetCASLoss(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	record := APIIdempotencyRecord{
+		UserId: 7, Route: "real_person_asset_create",
+		KeyHash:     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RequestHash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		Status:      APIIdempotencyStatusCallingUpstream, ResourceType: APIIdempotencyResourceAsset,
+		ResourcePublicId: "ast_terminal", LeaseUpdatedTime: 100, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(&record).Error)
+	asset := BytePlusAsset{
+		PublicId: "ast_terminal", UserId: 7, ChannelId: 101, AssetType: "Image",
+		ModerationStrategy: "Default", Status: BytePlusAssetStatusActive,
+		CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(&asset).Error)
+
+	err := MarkBytePlusRealPersonAssetOutcomeUnknownForIdempotency(record.Id, 100, asset.Id, "idempotency_outcome_unknown", 200)
+
+	require.ErrorIs(t, err, ErrBytePlusAssetNotUpdatable)
+	require.NoError(t, DB.First(&record, record.Id).Error)
+	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
+	require.NoError(t, DB.First(&asset, asset.Id).Error)
+	require.Equal(t, BytePlusAssetStatusActive, asset.Status)
+	require.Empty(t, asset.FailureCode)
+}
