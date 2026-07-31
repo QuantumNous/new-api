@@ -23,8 +23,9 @@ var (
 const bytePlusAssetModel = "seedance-2.0"
 
 func CreateBytePlusAsset(c *gin.Context) {
-	if !bytePlusAssetTokenAllowsModel(c) {
-		writeBytePlusAssetModelForbidden(c)
+	var request dto.BytePlusAssetCreateRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeBytePlusAssetError(c, types.InitOpenAIError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest))
 		return
 	}
 
@@ -34,9 +35,8 @@ func CreateBytePlusAsset(c *gin.Context) {
 		return
 	}
 
-	var request dto.BytePlusAssetCreateRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		writeBytePlusAssetError(c, types.InitOpenAIError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest))
+	if !bytePlusAssetTokenAllowsModel(c) {
+		writeBytePlusAssetModelForbidden(c)
 		return
 	}
 
@@ -60,14 +60,14 @@ func CreateBytePlusAsset(c *gin.Context) {
 }
 
 func GetBytePlusAsset(c *gin.Context) {
-	if !bytePlusAssetTokenAllowsModel(c) {
-		writeBytePlusAssetModelForbidden(c)
-		return
-	}
-
 	assetID := strings.TrimSpace(c.Param("asset_id"))
 	if assetID == "" {
 		writeBytePlusAssetError(c, types.InitOpenAIError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest))
+		return
+	}
+
+	if !bytePlusAssetTokenAllowsModel(c) {
+		writeBytePlusAssetModelForbidden(c)
 		return
 	}
 

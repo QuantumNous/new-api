@@ -66,8 +66,18 @@ func callbackMetricValue(t *testing.T, sample string) int64 {
 
 func TestRealPersonVerificationCallbackRateLimitUsesDedicatedFactory(t *testing.T) {
 	source := readMiddlewareSourceForTest(t, "rate-limit.go")
-	require.Contains(t, source, `func RealPersonVerificationCallbackRateLimit() func(c *gin.Context)`)
-	require.Contains(t, strings.ReplaceAll(source, " ", ""), `returnrateLimitFactory(120,60,"RPV_CB")`)
+	bodyStart := strings.Index(source, `func RealPersonVerificationCallbackRateLimit() func(c *gin.Context) {`)
+	require.NotEqual(t, -1, bodyStart)
+	bodyEnd := strings.Index(source[bodyStart:], "\n}\n\nfunc CriticalRateLimit")
+	require.NotEqual(t, -1, bodyEnd)
+	body := source[bodyStart : bodyStart+bodyEnd+3]
+	require.Equal(t, `func RealPersonVerificationCallbackRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(120, 60, "RPV_CB")
+}
+`, body)
+	require.NotContains(t, body, "common.RedisEnabled")
+	require.NotContains(t, body, "common.RDB")
+	require.NotContains(t, body, "memoryRateLimiter")
 }
 
 func readMiddlewareSourceForTest(t *testing.T, path string) string {

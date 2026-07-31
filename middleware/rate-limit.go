@@ -120,12 +120,6 @@ func PrometheusMetricsRateLimit() func(c *gin.Context) {
 }
 
 func RealPersonVerificationCallbackRateLimit() func(c *gin.Context) {
-	if common.RedisEnabled && common.RDB == nil {
-		inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
-		return func(c *gin.Context) {
-			memoryRateLimiter(c, 120, 60, "RPV_CB")
-		}
-	}
 	return rateLimitFactory(120, 60, "RPV_CB")
 }
 

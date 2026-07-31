@@ -183,7 +183,7 @@ func DeleteBytePlusAsset(c *gin.Context) {
 		writeBytePlusAssetError(c, apiErr)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	c.AbortWithStatus(http.StatusNoContent)
 }
 
 func BytePlusRealPersonVerificationCallback(c *gin.Context) {

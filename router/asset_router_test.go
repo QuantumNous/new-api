@@ -74,6 +74,12 @@ func TestBytePlusAssetRoutesReachTokenAuthWithoutDistribution(t *testing.T) {
 
 func TestBytePlusRealPersonCallbackRoutesAreAnonymousAndReturn204(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	previousRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() {
+		common.RedisEnabled = previousRedisEnabled
+	})
+
 	engine := gin.New()
 	SetBytePlusAssetRouter(engine)
 
