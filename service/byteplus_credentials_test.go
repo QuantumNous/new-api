@@ -95,8 +95,6 @@ func TestBytePlusCredentialsValidateRealPersonAssetsAllowsOfficialEndpoints(t *t
 	tests := []string{
 		"https://tos-ap-southeast-1.bytepluses.com",
 		"https://tos-ap-southeast-1.ibytepluses.com",
-		"https://tos-s3-ap-southeast-1.bytepluses.com",
-		"https://tos-s3-ap-southeast-1.ibytepluses.com",
 		"HTTPS://TOS-AP-SOUTHEAST-1.IBYTEPLUSES.COM:443/",
 	}
 	for _, endpoint := range tests {
@@ -110,6 +108,8 @@ func TestBytePlusCredentialsValidateRealPersonAssetsAllowsOfficialEndpoints(t *t
 func TestBytePlusCredentialsValidateRealPersonAssetsRejectsUnsafeEndpoint(t *testing.T) {
 	tests := []string{
 		"https://tos-s3-cn-beijing.volces.com",
+		"https://tos-s3-ap-southeast-1.bytepluses.com",
+		"https://tos-s3-ap-southeast-1.ibytepluses.com",
 		"https://tos-ap-southeast-1.volces.com",
 		"https://tos-ap-southeast-1.ivolces.com",
 		"https://attacker.example",
@@ -135,6 +135,41 @@ func TestBytePlusCredentialsValidateRealPersonAssetsRejectsUnsafeEndpoint(t *tes
 		if strings.Contains(err.Error(), endpoint) {
 			t.Fatalf("error leaked endpoint %q: %v", endpoint, err)
 		}
+	}
+}
+
+func TestBytePlusCredentialsValidateRealPersonAssetsValidatesBucketForTOS(t *testing.T) {
+	tests := []struct {
+		name    string
+		bucket  string
+		wantErr bool
+	}{
+		{name: "too short two", bucket: "ab", wantErr: true},
+		{name: "minimum three", bucket: "abc"},
+		{name: "maximum sixty three", bucket: strings.Repeat("a", 63)},
+		{name: "too long sixty four", bucket: strings.Repeat("a", 64), wantErr: true},
+		{name: "uppercase", bucket: "Abucket", wantErr: true},
+		{name: "underscore", bucket: "a_bucket", wantErr: true},
+		{name: "dot", bucket: "a.bucket", wantErr: true},
+		{name: "leading hyphen", bucket: "-bucket", wantErr: true},
+		{name: "trailing hyphen", bucket: "bucket-", wantErr: true},
+		{name: "middle hyphen", bucket: "real-person-bucket"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			creds := testBytePlusRealPersonCreds("https://tos-ap-southeast-1.ibytepluses.com")
+			creds.RealPersonAssets.TOSBucket = tt.bucket
+			err := creds.ValidateRealPersonAssets()
+			if tt.wantErr && err == nil {
+				t.Fatalf("ValidateRealPersonAssets bucket %q should fail", tt.bucket)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("ValidateRealPersonAssets bucket %q error: %v", tt.bucket, err)
+			}
+			if err != nil && strings.Contains(err.Error(), tt.bucket) {
+				t.Fatalf("error leaked bucket %q: %v", tt.bucket, err)
+			}
+		})
 	}
 }
 

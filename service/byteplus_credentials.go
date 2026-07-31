@@ -83,6 +83,9 @@ func (c BytePlusCredentials) ValidateRealPersonAssets() error {
 	if strings.TrimSpace(c.RealPersonAssets.TOSBucket) == "" {
 		return errors.New("byteplus real-person tos_bucket is required")
 	}
+	if !isValidBytePlusTOSBucket(c.RealPersonAssets.TOSBucket) {
+		return errors.New("byteplus real-person tos_bucket is invalid")
+	}
 	if strings.TrimSpace(c.RealPersonAssets.TOSRegion) != bytePlusAssetRegion {
 		return errors.New("byteplus real-person tos_region must match ModelArk region")
 	}
@@ -119,13 +122,29 @@ func isValidBytePlusRealPersonEndpoint(endpoint string) bool {
 	}
 	switch hostname {
 	case "tos-ap-southeast-1.bytepluses.com",
-		"tos-ap-southeast-1.ibytepluses.com",
-		"tos-s3-ap-southeast-1.bytepluses.com",
-		"tos-s3-ap-southeast-1.ibytepluses.com":
+		"tos-ap-southeast-1.ibytepluses.com":
 		return true
 	default:
 		return false
 	}
+}
+
+func isValidBytePlusTOSBucket(bucket string) bool {
+	bucket = strings.TrimSpace(bucket)
+	if len(bucket) < 3 || len(bucket) > 63 {
+		return false
+	}
+	if bucket[0] == '-' || bucket[len(bucket)-1] == '-' {
+		return false
+	}
+	for i := 0; i < len(bucket); i++ {
+		ch := bucket[i]
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func looksLikeJSON(s string) bool {
