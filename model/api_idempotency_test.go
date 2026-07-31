@@ -528,6 +528,37 @@ func TestMarkBytePlusVerificationSessionOutcomeUnknownOnlyMutatesCreating(t *tes
 	}
 }
 
+func TestMarkBytePlusVerificationSessionOutcomeUnknownDoesNotOverwriteConcurrentNonCreatingStatus(t *testing.T) {
+	db := newBytePlusRealPersonTestDB(t)
+	profile := BytePlusRealPersonProfile{PublicId: "rph_outcome_race", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&profile).Error)
+	session := BytePlusVisualValidationSession{PublicId: "rvs_outcome_race", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("a", 64), CallbackTokenCiphertext: "callback", BytedTokenCiphertext: "byted", H5LinkCiphertext: "h5", Status: BytePlusVisualValidationSessionStatusCreating, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&session).Error)
+	require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", session.Id).Error)
+	callbackName := "byteplus_outcome_unknown_race_to_pending"
+	fired := false
+	require.NoError(t, db.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if fired || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "BytePlusVisualValidationSession" {
+			return
+		}
+		fired = true
+		require.NoError(t, tx.Session(&gorm.Session{SkipHooks: true}).Exec("UPDATE byte_plus_visual_validation_sessions SET status = ? WHERE id = ?", BytePlusVisualValidationSessionStatusPending, session.Id).Error)
+	}))
+	t.Cleanup(func() { require.NoError(t, db.Callback().Update().Remove(callbackName)) })
+
+	ok, err := MarkBytePlusVerificationSessionOutcomeUnknown(session.PublicId, 200)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.NoError(t, DB.First(&session, session.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusPending, session.Status)
+	require.Equal(t, "callback", session.CallbackTokenCiphertext)
+	require.Equal(t, "byted", session.BytedTokenCiphertext)
+	require.Equal(t, "h5", session.H5LinkCiphertext)
+	require.NoError(t, DB.First(&profile, profile.Id).Error)
+	require.Equal(t, BytePlusRealPersonProfileStatusPendingVerification, profile.Status)
+}
+
 func TestClaimDueBytePlusVisualValidationSessionsOnlyClaimsCurrentProcessableRows(t *testing.T) {
 	newBytePlusRealPersonTestDB(t)
 	now := int64(1000)
@@ -554,6 +585,35 @@ func TestClaimDueBytePlusVisualValidationSessionsOnlyClaimsCurrentProcessableRow
 	sessions, err := ClaimDueBytePlusVisualValidationSessions(now, staleBefore, 10)
 	require.NoError(t, err)
 	require.Equal(t, []int64{current.Id}, validationSessionIDsForJobTest(sessions))
+}
+
+func TestClaimDueBytePlusVisualValidationSessionsRechecksCurrentAtOwnershipUpdate(t *testing.T) {
+	db := newBytePlusRealPersonTestDB(t)
+	now := int64(1000)
+	staleBefore := int64(900)
+	profile := BytePlusRealPersonProfile{PublicId: "rph_claim_race", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&profile).Error)
+	oldSession := BytePlusVisualValidationSession{PublicId: "rvs_claim_old_race", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("a", 64), BytedTokenCiphertext: "cipher", Status: BytePlusVisualValidationSessionStatusPending, LeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100}
+	newSession := BytePlusVisualValidationSession{PublicId: "rvs_claim_new_race", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("b", 64), BytedTokenCiphertext: "cipher", Status: BytePlusVisualValidationSessionStatusPending, LeaseUpdatedTime: 0, CreatedTime: 101, UpdatedTime: 101}
+	require.NoError(t, DB.Create(&oldSession).Error)
+	require.NoError(t, DB.Create(&newSession).Error)
+	require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", oldSession.Id).Error)
+	callbackName := "byteplus_claim_current_switch"
+	fired := false
+	require.NoError(t, db.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if fired || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "BytePlusVisualValidationSession" {
+			return
+		}
+		fired = true
+		require.NoError(t, tx.Session(&gorm.Session{SkipHooks: true}).Exec("UPDATE byte_plus_real_person_profiles SET current_validation_session_id = ? WHERE id = ?", newSession.Id, profile.Id).Error)
+	}))
+	t.Cleanup(func() { require.NoError(t, db.Callback().Update().Remove(callbackName)) })
+
+	sessions, err := ClaimDueBytePlusVisualValidationSessions(now, staleBefore, 10)
+	require.NoError(t, err)
+	require.Equal(t, []int64{newSession.Id}, validationSessionIDsForJobTest(sessions))
+	require.NoError(t, DB.First(&oldSession, oldSession.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusPending, oldSession.Status)
 }
 
 func validationSessionIDsForJobTest(sessions []BytePlusVisualValidationSession) []int64 {

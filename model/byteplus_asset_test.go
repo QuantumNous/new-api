@@ -449,6 +449,69 @@ func TestCompleteBytePlusAssetDeletionSchedulesLinkedPendingTempCleanup(t *testi
 	}
 }
 
+func TestClaimDueBytePlusAssetStatusChecksRechecksDueTempCleanupAtOwnershipUpdate(t *testing.T) {
+	db := newBytePlusRealPersonTestDB(t)
+	now := int64(1000)
+	staleBefore := int64(900)
+	asset := BytePlusAsset{PublicId: "ast_status_claim_race", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream", AssetType: "Image", Status: BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100}
+	if err := DB.Create(&asset).Error; err != nil {
+		t.Fatalf("create asset: %v", err)
+	}
+	callbackName := "byteplus_asset_status_due_temp_race"
+	fired := false
+	if err := db.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if fired || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "BytePlusAsset" {
+			return
+		}
+		fired = true
+		if err := tx.Session(&gorm.Session{SkipHooks: true}).Exec(
+			"INSERT INTO byte_plus_asset_temp_objects (asset_id, user_id, channel_id, bucket, object_key, cleanup_status, next_cleanup_at, cleanup_lease_updated_time, created_time, updated_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			asset.Id, 7, 101, "bucket", "claim-race", BytePlusTempObjectCleanupPending, now, int64(0), 100, 100,
+		).Error; err != nil {
+			t.Fatalf("insert racing temp object: %v", err)
+		}
+	}); err != nil {
+		t.Fatalf("register callback: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Callback().Update().Remove(callbackName) })
+
+	claimed, err := ClaimDueBytePlusAssetStatusChecks(now, staleBefore, 10)
+	if err != nil {
+		t.Fatalf("claim status checks: %v", err)
+	}
+	if len(claimed) != 0 {
+		t.Fatalf("asset with racing due temp cleanup was claimed: %+v", claimed)
+	}
+}
+
+func TestBytePlusAssetStatusRetryIsClaimableAtIntendedDueTime(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	asset := BytePlusAsset{PublicId: "ast_status_retry_due", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream", AssetType: "Image", Status: BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 1000}
+	if err := DB.Create(&asset).Error; err != nil {
+		t.Fatalf("create asset: %v", err)
+	}
+	leaseSeconds := int64(120)
+	nextDue := int64(2060)
+	ok, err := RetryBytePlusAssetStatusCheck(asset.Id, 1000, nextDue)
+	if err != nil || !ok {
+		t.Fatalf("retry status ok=%v err=%v", ok, err)
+	}
+	beforeDue, err := ClaimDueBytePlusAssetStatusChecks(nextDue-1, nextDue-1-leaseSeconds, 10)
+	if err != nil {
+		t.Fatalf("claim before due: %v", err)
+	}
+	if len(beforeDue) != 0 {
+		t.Fatalf("retry claimed before due: %+v", beforeDue)
+	}
+	atDue, err := ClaimDueBytePlusAssetStatusChecks(nextDue, nextDue-leaseSeconds, 10)
+	if err != nil {
+		t.Fatalf("claim at due: %v", err)
+	}
+	if got := assetIDsForJobTest(atDue); len(got) != 1 || got[0] != asset.Id {
+		t.Fatalf("retry not claimable at due, got %v", got)
+	}
+}
+
 func insertModelRealPersonAsset(t *testing.T, publicID string, userID int, profileID int64, status string, created int64, failureCode string) {
 	t.Helper()
 	if err := DB.Create(&BytePlusAsset{

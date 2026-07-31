@@ -22,6 +22,8 @@ const (
 	BytePlusAssetStatusDeleted    = "Deleted"
 )
 
+const bytePlusAssetStatusCheckLeaseSeconds = int64(120)
+
 type BytePlusAssetGroup struct {
 	Id                int64  `json:"id"`
 	UserId            int    `json:"user_id" gorm:"uniqueIndex:idx_byteplus_asset_group_user_channel;index"`
@@ -401,7 +403,7 @@ func ClaimDueBytePlusAssetStatusChecks(now, staleBefore int64, limit int) ([]Byt
 		return nil, nil
 	}
 	var candidates []BytePlusAsset
-	if err := DB.Where("status = ? AND upstream_asset_id <> ? AND updated_time < ?",
+	if err := DB.Where("status = ? AND upstream_asset_id <> ? AND updated_time <= ?",
 		BytePlusAssetStatusProcessing, "", staleBefore,
 	).Where("NOT EXISTS (SELECT 1 FROM byte_plus_asset_temp_objects WHERE byte_plus_asset_temp_objects.asset_id = byte_plus_assets.id AND cleanup_status = ? AND next_cleanup_at <= ? AND (cleanup_lease_updated_time = ? OR cleanup_lease_updated_time < ?))",
 		BytePlusTempObjectCleanupPending, now, int64(0), staleBefore,
@@ -413,6 +415,8 @@ func ClaimDueBytePlusAssetStatusChecks(now, staleBefore int64, limit int) ([]Byt
 		result := DB.Model(&BytePlusAsset{}).
 			Where("id = ? AND status = ? AND upstream_asset_id <> ? AND updated_time = ?",
 				candidate.Id, BytePlusAssetStatusProcessing, "", candidate.UpdatedTime).
+			Where("NOT EXISTS (SELECT 1 FROM byte_plus_asset_temp_objects WHERE byte_plus_asset_temp_objects.asset_id = byte_plus_assets.id AND cleanup_status = ? AND next_cleanup_at <= ? AND (cleanup_lease_updated_time = ? OR cleanup_lease_updated_time < ?))",
+				BytePlusTempObjectCleanupPending, now, int64(0), staleBefore).
 			Update("updated_time", now)
 		if result.Error != nil {
 			return nil, result.Error
@@ -475,9 +479,10 @@ func CompleteBytePlusAssetDeletion(assetID int64, leaseUpdatedTime int64, now in
 }
 
 func RetryBytePlusAssetStatusCheck(assetID int64, claimedUpdatedTime int64, nextAttempt int64) (bool, error) {
+	nextEligibleMarker := nextAttempt - bytePlusAssetStatusCheckLeaseSeconds
 	updated := DB.Model(&BytePlusAsset{}).
 		Where("id = ? AND status = ? AND updated_time = ?", assetID, BytePlusAssetStatusProcessing, claimedUpdatedTime).
-		Update("updated_time", nextAttempt)
+		Update("updated_time", nextEligibleMarker)
 	if updated.Error != nil {
 		return false, updated.Error
 	}

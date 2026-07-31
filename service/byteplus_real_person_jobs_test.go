@@ -18,15 +18,21 @@ import (
 )
 
 type bytePlusRealPersonJobsFake struct {
-	mu            sync.Mutex
-	resultCalls   int
-	getAssetCalls int
-	deleteCalls   int
-	tosDeletes    []string
-	result        BytePlusVisualValidationResult
-	resultErr     error
-	assetStatus   BytePlusAssetStatus
-	getAssetErr   error
+	mu             sync.Mutex
+	resultCalls    int
+	getAssetCalls  int
+	deleteCalls    int
+	tosDeletes     []string
+	result         BytePlusVisualValidationResult
+	resultErr      error
+	assetStatus    BytePlusAssetStatus
+	getAssetErr    error
+	deleteErr      error
+	tosDeleteErr   error
+	onResult       func()
+	onGetAsset     func()
+	onDeleteAsset  func()
+	onDeleteObject func()
 }
 
 func (f *bytePlusRealPersonJobsFake) CreateVisualValidateSession(context.Context, BytePlusCredentials, string) (BytePlusVisualValidationSession, error) {
@@ -35,12 +41,18 @@ func (f *bytePlusRealPersonJobsFake) CreateVisualValidateSession(context.Context
 
 func (f *bytePlusRealPersonJobsFake) GetVisualValidateResult(context.Context, BytePlusCredentials, string) (BytePlusVisualValidationResult, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.resultCalls++
-	if f.resultErr != nil {
-		return BytePlusVisualValidationResult{}, f.resultErr
+	onResult := f.onResult
+	err := f.resultErr
+	result := f.result
+	f.mu.Unlock()
+	if onResult != nil {
+		onResult()
 	}
-	return f.result, nil
+	if err != nil {
+		return BytePlusVisualValidationResult{}, err
+	}
+	return result, nil
 }
 
 func (f *bytePlusRealPersonJobsFake) CreateAsset(context.Context, BytePlusCredentials, BytePlusCreateAssetRequest) (string, string, error) {
@@ -53,12 +65,18 @@ func (f *bytePlusRealPersonJobsFake) CreateAssetGroup(context.Context, BytePlusC
 
 func (f *bytePlusRealPersonJobsFake) GetAsset(context.Context, BytePlusCredentials, string) (BytePlusAssetStatus, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.getAssetCalls++
-	if f.getAssetErr != nil {
-		return BytePlusAssetStatus{}, f.getAssetErr
+	onGet := f.onGetAsset
+	err := f.getAssetErr
+	status := f.assetStatus
+	f.mu.Unlock()
+	if onGet != nil {
+		onGet()
 	}
-	return f.assetStatus, nil
+	if err != nil {
+		return BytePlusAssetStatus{}, err
+	}
+	return status, nil
 }
 
 func (f *bytePlusRealPersonJobsFake) ListAssets(context.Context, BytePlusCredentials, BytePlusListAssetsRequest) (BytePlusListAssetsResult, error) {
@@ -67,8 +85,16 @@ func (f *bytePlusRealPersonJobsFake) ListAssets(context.Context, BytePlusCredent
 
 func (f *bytePlusRealPersonJobsFake) DeleteAsset(context.Context, BytePlusCredentials, string) (string, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.deleteCalls++
+	onDelete := f.onDeleteAsset
+	err := f.deleteErr
+	f.mu.Unlock()
+	if onDelete != nil {
+		onDelete()
+	}
+	if err != nil {
+		return "", err
+	}
 	return "req-delete", nil
 }
 
@@ -82,8 +108,16 @@ func (f *bytePlusRealPersonJobsFake) PresignGet(context.Context, string, time.Du
 
 func (f *bytePlusRealPersonJobsFake) DeleteObject(_ context.Context, key string) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.tosDeletes = append(f.tosDeletes, key)
+	onDelete := f.onDeleteObject
+	err := f.tosDeleteErr
+	f.mu.Unlock()
+	if onDelete != nil {
+		onDelete()
+	}
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -304,8 +338,100 @@ func TestBytePlusRealPersonAssetStatusTransientFailureRecordsRetryWithoutOperati
 	require.NoError(t, result.Err)
 	require.NoError(t, model.DB.First(&asset, asset.Id).Error)
 	require.Equal(t, model.BytePlusAssetStatusProcessing, asset.Status)
-	require.Greater(t, asset.UpdatedTime, int64(2000))
+	require.Less(t, asset.UpdatedTime, int64(2000))
 	require.EqualValues(t, beforeRetry+1, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "asset_status", "result": "retry"}))
+}
+
+func TestBytePlusRealPersonRetryCASLosersAreSilentNoOps(t *testing.T) {
+	cases := []struct {
+		name      string
+		operation string
+		seed      func(t *testing.T, fixture *bytePlusRealPersonJobsFixture)
+	}{
+		{
+			name:      "verification status",
+			operation: "verification_status",
+			seed: func(t *testing.T, fixture *bytePlusRealPersonJobsFixture) {
+				_, session := seedJobVerificationSession(t, "cas_loser", model.BytePlusVisualValidationSessionStatusPending, "byted", 3000)
+				fixture.fake.resultErr = context.DeadlineExceeded
+				fixture.fake.onResult = func() {
+					require.NoError(t, model.DB.Model(&model.BytePlusVisualValidationSession{}).Where("id = ?", session.Id).Update("lease_updated_time", int64(1999)).Error)
+				}
+			},
+		},
+		{
+			name:      "asset status",
+			operation: "asset_status",
+			seed: func(t *testing.T, fixture *bytePlusRealPersonJobsFixture) {
+				asset := model.BytePlusAsset{PublicId: "ast_status_cas_loser", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream-status-cas", AssetType: "Image", Status: model.BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100}
+				require.NoError(t, model.DB.Create(&asset).Error)
+				fixture.fake.getAssetErr = context.DeadlineExceeded
+				fixture.fake.onGetAsset = func() {
+					require.NoError(t, model.DB.Model(&model.BytePlusAsset{}).Where("id = ?", asset.Id).Update("updated_time", int64(1999)).Error)
+				}
+			},
+		},
+		{
+			name:      "asset delete",
+			operation: "asset_delete",
+			seed: func(t *testing.T, fixture *bytePlusRealPersonJobsFixture) {
+				asset := model.BytePlusAsset{PublicId: "ast_delete_cas_loser", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream-delete-cas", AssetType: "Image", Status: model.BytePlusAssetStatusDeleting, NextDeleteAt: 100, DeleteLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100}
+				require.NoError(t, model.DB.Create(&asset).Error)
+				fixture.fake.deleteErr = context.DeadlineExceeded
+				fixture.fake.onDeleteAsset = func() {
+					require.NoError(t, model.DB.Model(&model.BytePlusAsset{}).Where("id = ?", asset.Id).Update("delete_lease_updated_time", int64(1999)).Error)
+				}
+			},
+		},
+		{
+			name:      "tos cleanup",
+			operation: "tos_cleanup",
+			seed: func(t *testing.T, fixture *bytePlusRealPersonJobsFixture) {
+				object := model.BytePlusAssetTempObject{UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "tos-cas-loser", CleanupStatus: model.BytePlusTempObjectCleanupPending, NextCleanupAt: 100, CleanupLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100}
+				require.NoError(t, model.DB.Create(&object).Error)
+				fixture.fake.tosDeleteErr = context.DeadlineExceeded
+				fixture.fake.onDeleteObject = func() {
+					require.NoError(t, model.DB.Model(&model.BytePlusAssetTempObject{}).Where("id = ?", object.Id).Update("cleanup_lease_updated_time", int64(1999)).Error)
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+			tc.seed(t, fixture)
+			beforeRetry := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": tc.operation, "result": "retry"})
+			beforeError := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": tc.operation, "result": "error"})
+
+			result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+			require.NoError(t, result.Err)
+			require.EqualValues(t, beforeRetry, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": tc.operation, "result": "retry"}))
+			require.EqualValues(t, beforeError, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": tc.operation, "result": "error"}))
+		})
+	}
+}
+
+func TestBytePlusRealPersonJobRowWarningsUseOperationOnlyMessage(t *testing.T) {
+	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+	fixture.fake.getAssetErr = errors.New("secret upstream-asset object-key https://signed.example/?X-Amz-Credential=secret")
+	asset := model.BytePlusAsset{PublicId: "ast_warning_status", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream-warning-secret", AssetType: "Image", Status: model.BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	var warnings []string
+	oldWarn := bytePlusRealPersonJobRowWarn
+	bytePlusRealPersonJobRowWarn = func(message string) {
+		warnings = append(warnings, message)
+	}
+	t.Cleanup(func() { bytePlusRealPersonJobRowWarn = oldWarn })
+
+	result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+	require.NoError(t, result.Err)
+	require.Equal(t, []string{"byteplus real-person job row failed: asset_status"}, warnings)
+	for _, forbidden := range []string{"secret", "upstream-warning", "object-key", "signed.example", "X-Amz-Credential"} {
+		require.NotContains(t, warnings[0], forbidden)
+	}
 }
 
 func TestProcessingStatusSyncCannotOverwriteDeletingOrDeleted(t *testing.T) {
@@ -336,6 +462,7 @@ func TestBytePlusRealPersonOperationMetricsPreserveSuccessOnError(t *testing.T) 
 func TestBytePlusRealPersonJobWarningsDoNotEmitRawErrors(t *testing.T) {
 	source, err := os.ReadFile("byteplus_real_person_jobs.go")
 	require.NoError(t, err)
+	require.GreaterOrEqual(t, strings.Count(string(source), "warnBytePlusRealPersonJobRow("), 10)
 	require.NotContains(t, string(source), "result.Err.Error()")
 	require.NotContains(t, string(source), "+ err.Error()")
 }

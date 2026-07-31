@@ -282,7 +282,7 @@ func ClaimDueBytePlusVisualValidationSessions(now, staleBefore int64, limit int)
 		if profile.CurrentValidationSessionId == nil || *profile.CurrentValidationSessionId != candidate.Id {
 			continue
 		}
-		claimedSession, owner, err := ClaimBytePlusVisualValidationSession(candidate.Id, now, staleBefore)
+		claimedSession, owner, err := claimDueBytePlusVisualValidationSession(candidate, now, staleBefore)
 		if err != nil {
 			return nil, err
 		}
@@ -291,6 +291,32 @@ func ClaimDueBytePlusVisualValidationSessions(now, staleBefore int64, limit int)
 		}
 	}
 	return claimed, nil
+}
+
+func claimDueBytePlusVisualValidationSession(session BytePlusVisualValidationSession, now, staleBefore int64) (*BytePlusVisualValidationSession, bool, error) {
+	updated := DB.Model(&BytePlusVisualValidationSession{}).
+		Where("id = ? AND byted_token_ciphertext <> ? AND lease_updated_time = ?", session.Id, "", session.LeaseUpdatedTime).
+		Where("EXISTS (SELECT 1 FROM byte_plus_real_person_profiles WHERE byte_plus_real_person_profiles.id = byte_plus_visual_validation_sessions.profile_id AND byte_plus_real_person_profiles.current_validation_session_id = byte_plus_visual_validation_sessions.id)").
+		Where("(status = ? AND updated_time <= ?) OR (status = ? AND lease_updated_time < ?)",
+			BytePlusVisualValidationSessionStatusPending, now,
+			BytePlusVisualValidationSessionStatusChecking, staleBefore,
+		).
+		Updates(map[string]interface{}{
+			"status":             BytePlusVisualValidationSessionStatusChecking,
+			"lease_updated_time": now,
+			"updated_time":       now,
+		})
+	if updated.Error != nil {
+		return nil, false, updated.Error
+	}
+	if updated.RowsAffected != 1 {
+		reloaded, err := GetBytePlusVisualValidationSessionByID(session.Id)
+		return reloaded, false, err
+	}
+	session.Status = BytePlusVisualValidationSessionStatusChecking
+	session.LeaseUpdatedTime = now
+	session.UpdatedTime = now
+	return &session, true, nil
 }
 
 func claimBytePlusVisualValidationSessionFrom(session BytePlusVisualValidationSession, now int64, statuses []string) (*BytePlusVisualValidationSession, bool, error) {
@@ -375,21 +401,44 @@ func MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(recordID, le
 }
 
 func MarkBytePlusVerificationSessionOutcomeUnknown(sessionPublicID string, now int64) (bool, error) {
-	session, err := GetBytePlusVisualValidationSessionByPublicID(sessionPublicID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
+	sessionPublicID = strings.TrimSpace(sessionPublicID)
+	if sessionPublicID == "" {
+		return false, nil
+	}
+	changed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var session BytePlusVisualValidationSession
+		if err := tx.Where("public_id = ?", sessionPublicID).First(&session).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
 		}
-		return false, err
-	}
-	if session.Status != BytePlusVisualValidationSessionStatusCreating {
-		return false, nil
-	}
-	_, err = FailBytePlusRealPersonSession(session.ProfileId, session.Id, "idempotency_outcome_unknown", now)
-	if errors.Is(err, ErrAPIIdempotencyCASLost) {
-		return false, nil
-	}
-	return err == nil, err
+		updatedSession := tx.Model(&BytePlusVisualValidationSession{}).
+			Where("id = ? AND public_id = ? AND status = ?", session.Id, sessionPublicID, BytePlusVisualValidationSessionStatusCreating).
+			Updates(map[string]interface{}{
+				"status":                    BytePlusVisualValidationSessionStatusFailed,
+				"callback_token_ciphertext": "",
+				"byted_token_ciphertext":    "",
+				"h5_link_ciphertext":        "",
+				"updated_time":              now,
+			})
+		if updatedSession.Error != nil {
+			return updatedSession.Error
+		}
+		if updatedSession.RowsAffected != 1 {
+			return nil
+		}
+		changed = true
+		return tx.Model(&BytePlusRealPersonProfile{}).
+			Where("id = ? AND current_validation_session_id = ? AND status IN ?", session.ProfileId, session.Id, []string{BytePlusRealPersonProfileStatusPendingVerification, BytePlusRealPersonProfileStatusVerifying}).
+			Updates(map[string]interface{}{
+				"status":       BytePlusRealPersonProfileStatusFailed,
+				"error_code":   "idempotency_outcome_unknown",
+				"updated_time": now,
+			}).Error
+	})
+	return changed, err
 }
 
 func BytePlusRealPersonChannelHasEnabledAbility(channelID int, group, modelName string) (bool, error) {
