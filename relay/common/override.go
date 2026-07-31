@@ -213,6 +213,7 @@ func syncReasoningEffort(info *RelayInfo, jsonData []byte) {
 	if info == nil {
 		return
 	}
+	info.ReasoningEffort = ""
 
 	for _, path := range []string{"reasoning.effort", "reasoning_effort"} {
 		value := gjson.GetBytes(jsonData, path)
@@ -221,8 +222,6 @@ func syncReasoningEffort(info *RelayInfo, jsonData []byte) {
 		}
 		if value.Type == gjson.String {
 			info.ReasoningEffort = value.String()
-		} else {
-			info.ReasoningEffort = ""
 		}
 		return
 	}
