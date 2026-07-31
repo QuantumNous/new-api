@@ -1,0 +1,2 @@
+export const HOME_LAUNCHED_AT = '2026-03-15T00:00:00+08:00'
+export const HOME_REQUEST_SEED = 32_132

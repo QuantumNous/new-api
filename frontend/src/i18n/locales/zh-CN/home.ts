@@ -99,6 +99,20 @@ export default {
       },
     },
   },
+  showcase: {
+    runtime: {
+      title: '站点运行指标',
+      running: '已持续运行',
+      uptimeTag: '运行时间',
+      servedTag: '已处理请求',
+      stableCalls: '稳定调用',
+      todaySuccess: '次（今日成功）',
+      protectedBy: '多上游智能调度护航',
+      recentAvailability: '近 7 天',
+      trend24h: '近 24 小时趋势',
+      units: { days: '天', hours: '时', minutes: '分', seconds: '秒' },
+    },
+  },
   footer: {
     tagline: '一个 Key，调用所有大模型。',
     product: '产品',

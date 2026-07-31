@@ -103,6 +103,20 @@ export default {
       },
     },
   },
+  showcase: {
+    runtime: {
+      title: 'Site runtime metrics',
+      running: 'Continuous runtime',
+      uptimeTag: 'UPTIME',
+      servedTag: 'REQUESTS SERVED',
+      stableCalls: 'Stable calls',
+      todaySuccess: 'successful requests today',
+      protectedBy: 'protected by multi-upstream smart routing',
+      recentAvailability: 'last 7 days',
+      trend24h: 'Last 24 hours',
+      units: { days: 'd', hours: 'h', minutes: 'm', seconds: 's' },
+    },
+  },
   footer: {
     tagline: 'One Key for all the models.',
     product: 'Product',

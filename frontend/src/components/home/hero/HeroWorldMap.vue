@@ -1,7 +1,7 @@
 <template>
   <canvas
     ref="canvasEl"
-    class="absolute inset-0 h-full w-full cursor-pointer transition-opacity duration-700 ease-out"
+    class="absolute inset-0 h-full w-full cursor-pointer rounded-none transition-opacity duration-700 ease-out"
     :class="ready ? 'opacity-100' : 'opacity-0'"
     :aria-label="t('canvas.alt')"
     role="img"

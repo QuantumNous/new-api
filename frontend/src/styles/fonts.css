@@ -1,4 +1,31 @@
 ﻿/* Self-hosted subsets captured from the reference font set; no runtime font CDN dependency. */
+
+/* Homepage-only display fonts. These names are intentionally not referenced by
+   global tokens so Console and Lab typography remain unchanged. */
+@font-face {
+  font-family: 'Ren2HomeTime';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(../assets/fonts/home/pingfang-shiguang.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Ren2HomeSketch';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(../assets/fonts/home/yunfeng-hanchan.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'Ren2HomeStamp';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(../assets/fonts/home/nishiki-teki.woff2) format('woff2');
+}
+
 /* latin */
 @font-face {
   font-family: 'Ren2Inter';

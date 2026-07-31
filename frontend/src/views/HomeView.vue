@@ -9,7 +9,7 @@
     <!-- ===== 开屏 Hero ===== -->
     <section
       id="hero-immersive-stage"
-      class="relative flex min-h-[100svh] items-center overflow-hidden pt-[calc(env(safe-area-inset-top)+5.5rem)] pb-[calc(env(safe-area-inset-bottom)+4.75rem)] [@media(max-height:843px)_and_(max-width:1023px)]:pb-[calc(env(safe-area-inset-bottom)+3.5rem)] lg:min-h-screen lg:pt-20 lg:pb-0"
+      class="relative flex min-h-[100svh] items-center overflow-hidden rounded-none pt-[calc(env(safe-area-inset-top)+5.5rem)] pb-[calc(env(safe-area-inset-bottom)+4.75rem)] [@media(max-height:843px)_and_(max-width:1023px)]:pb-[calc(env(safe-area-inset-bottom)+3.5rem)] lg:min-h-screen lg:pt-20 lg:pb-0"
     >
       <!-- 全屏背景：点阵世界地图 + 网关路由动画 -->
       <HeroWorldMap
@@ -144,6 +144,7 @@
       </div>
     </section>
 
+    <HomeShowcase />
     <AppFooter />
   </div>
 </template>
@@ -157,6 +158,7 @@ import HeroWorldMap from '@/components/home/hero/HeroWorldMap.vue'
 import HeroContent from '@/components/home/hero/HeroContent.vue'
 import HeroSignalConsole from '@/components/home/hero/HeroSignalConsole.vue'
 import ScrollActivityIndicator from '@/components/home/hero/ScrollActivityIndicator.vue'
+import HomeShowcase from '@/components/home/showcase/HomeShowcase.vue'
 import { useHeroScrollChrome } from '@/composables/useHeroScrollChrome'
 import { useImmersiveStage } from '@/composables/useImmersiveStage'
 import {

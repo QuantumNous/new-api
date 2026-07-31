@@ -12,9 +12,10 @@ html:not(.dark) .landing-shell::before {
 }
 
 html:not(.dark) .landing-shell .hero-title {
-  font-family: 'Ren2NotoSerifSC', 'Songti SC', 'SimSun', serif;
-  font-weight: 900;
+  font-family: var(--home-font-display);
+  font-weight: 400;
   letter-spacing: 0;
+  font-synthesis: none;
 }
 
 html.light .landing-shell .hero-title {
@@ -101,6 +102,12 @@ html.light .landing-shell .signal-console__rail {
 
 .landing-shell {
   font-family: 'Ren2Inter', 'Ren2NotoSansSC', system-ui, sans-serif;
+  --home-font-display:
+    'Ren2HomeTime', 'Ren2NotoSerifSC', 'Noto Serif SC', serif;
+  --home-font-hand:
+    'Ren2HomeSketch', 'Ren2NotoSansSC', 'Noto Sans SC', sans-serif;
+  --home-font-stamp:
+    'Ren2HomeStamp', 'Ren2JetBrainsMono', ui-monospace, monospace;
   --hero-copy-overlay: var(--home-hero-copy-overlay);
   --surface-overlay: rgba(246, 243, 235, 0.96);
   --text-tertiary: #827e66;
@@ -112,9 +119,10 @@ html.dark .landing-shell {
 }
 
 html.dark .landing-shell .hero-title {
-  font-family: var(--font-display);
-  font-weight: 700;
+  font-family: var(--home-font-display);
+  font-weight: 400;
   letter-spacing: 0;
+  font-synthesis: none;
 }
 
 html.dark .landing-shell .app-navbar[data-scrolled='false'],
@@ -219,12 +227,870 @@ html.dark .landing-shell .signal-dot-matrix {
   --text-tertiary: #827e66;
 }
 
+/* Homepage showcase: continuous full-width bands, with controls as the only
+   rounded surfaces. */
+.home-showcase {
+  --home-font-display:
+    'Ren2HomeTime', 'Ren2NotoSerifSC', 'Noto Serif SC', serif;
+  --home-font-hand:
+    'Ren2HomeSketch', 'Ren2NotoSansSC', 'Noto Sans SC', sans-serif;
+  --home-font-stamp:
+    'Ren2HomeStamp', 'Ren2JetBrainsMono', ui-monospace, monospace;
+  --showcase-rule: color-mix(in srgb, var(--text-primary) 16%, transparent);
+  --showcase-rule-strong: color-mix(
+    in srgb,
+    var(--text-primary) 28%,
+    transparent
+  );
+  --showcase-runtime-surface: var(--page-background);
+  --showcase-flap-surface: var(--surface-solid);
+  --showcase-flap-border: var(--border-default);
+  --showcase-flap-shadow: var(--card-sketch-shadow);
+  position: relative;
+  overflow: clip;
+  background: var(--page-background);
+  border-radius: 0;
+}
+
+html.dark .landing-shell,
+html.dark .home-showcase {
+  --home-font-display:
+    'Ren2NotoSerifSC', 'Noto Serif SC', 'Source Han Serif SC', serif;
+  --home-font-hand:
+    'Ren2Inter', 'Ren2NotoSansSC', 'Noto Sans SC', system-ui, sans-serif;
+  --home-font-stamp:
+    'Ren2JetBrainsMono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+.home-band {
+  position: relative;
+  border-top: 1px solid var(--showcase-rule);
+  border-radius: 0;
+  background: var(--page-background);
+  color: var(--text-primary);
+}
+
+.landing-shell,
+#hero-immersive-stage {
+  border-radius: 0;
+}
+
+/* The global day-theme sketch scope also reaches the outer Hero section.
+   Keep this page-level seam square while leaving its internal controls free to
+   use their thematic shape tokens. */
+html.light .landing-shell > #hero-immersive-stage {
+  border-radius: 0 !important;
+}
+
+.home-band::before {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(25% - 1px),
+    color-mix(in srgb, var(--showcase-rule) 28%, transparent) 25%,
+    transparent calc(25% + 1px)
+  );
+  content: '';
+  opacity: 0.32;
+  pointer-events: none;
+}
+
+.home-inner {
+  position: relative;
+  z-index: 1;
+  width: min(100% - 2rem, 92rem);
+  margin-inline: auto;
+  padding-block: clamp(4.5rem, 8vw, 8rem);
+}
+
+/* Runtime strip */
+.runtime-band {
+  overflow: hidden;
+  background-color: var(--showcase-runtime-surface);
+  background-image: var(--paper-texture-img);
+  background-size: 512px 512px;
+}
+
+.runtime-band::before {
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0 43px,
+    var(--dec-grid-line) 43px 44px
+  );
+  opacity: 1;
+}
+
+.runtime-ledger-sheet {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100% - 2rem, 105rem);
+  min-height: 14rem;
+  grid-template-columns: minmax(0, 1.22fr) minmax(24rem, 0.88fr);
+  margin-inline: auto;
+  padding: clamp(1.75rem, 3.5vw, 2.75rem) clamp(1rem, 3.2vw, 3.2rem);
+}
+
+.runtime-ledger-panel {
+  min-width: 0;
+  padding-inline: clamp(0.5rem, 2.5vw, 2.5rem);
+}
+
+.runtime-ledger-panel--uptime {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.runtime-ledger-panel--requests {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.82fr);
+  grid-template-rows: auto auto auto;
+  column-gap: clamp(1rem, 2.5vw, 2.5rem);
+  border-left: 1px solid
+    color-mix(in srgb, var(--accent) 22%, var(--showcase-rule));
+}
+
+.runtime-ledger-panel--uptime > .runtime-ledger-heading {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.runtime-ledger-panel--uptime > .runtime-clock {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.runtime-ledger-panel--uptime > .runtime-availability {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.runtime-ledger-panel--requests > .runtime-ledger-heading {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.runtime-ledger-panel--requests > .runtime-request-total {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.runtime-ledger-panel--requests > .runtime-request-caption {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.runtime-ledger-panel--requests > .runtime-trend {
+  grid-column: 2;
+  grid-row: 2 / 4;
+  align-self: center;
+}
+
+.runtime-ledger-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0;
+}
+
+.runtime-ledger-heading > svg {
+  color: var(--accent);
+}
+
+.runtime-ledger-heading strong {
+  font-family: var(--home-font-hand);
+  font-size: 0.92rem;
+  font-weight: 400;
+  font-synthesis: none;
+}
+
+.runtime-ledger-heading em {
+  font-family: var(--home-font-stamp);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0;
+  font-synthesis: none;
+}
+
+.runtime-status-dot {
+  position: relative;
+  flex: 0 0 auto;
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 50%;
+  isolation: isolate;
+  background: color-mix(in srgb, var(--status-success-text) 15%, transparent);
+  box-shadow: 0 0 0 5px
+    color-mix(in srgb, var(--status-success-text) 9%, transparent);
+  animation: runtime-status-breathe 2.4s ease-in-out infinite;
+}
+
+.runtime-status-dot::before {
+  position: absolute;
+  inset: 0.19rem;
+  z-index: 1;
+  border-radius: inherit;
+  background: var(--status-success-text);
+  box-shadow: 0 0 8px
+    color-mix(in srgb, var(--status-success-text) 55%, transparent);
+  content: '';
+}
+
+.runtime-status-dot::after {
+  position: absolute;
+  inset: -0.3rem;
+  z-index: -1;
+  border: 1px solid
+    color-mix(in srgb, var(--status-success-text) 48%, transparent);
+  border-radius: inherit;
+  content: '';
+  opacity: 0;
+  animation: runtime-status-ripple 2.4s ease-out infinite;
+}
+
+.runtime-clock {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(0.8rem, 2.2vw, 1.8rem);
+  margin-top: 1.25rem;
+  white-space: nowrap;
+}
+
+.runtime-clock-group {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+}
+
+.runtime-clock-digits {
+  display: flex;
+  gap: 0.42rem;
+}
+
+.runtime-clock-group small {
+  color: var(--text-tertiary);
+  font-family: var(--home-font-hand);
+  font-size: 0.84rem;
+  font-weight: 400;
+  font-synthesis: none;
+}
+
+html:not(.dark) .runtime-clock {
+  gap: clamp(1rem, 2.7vw, 2.2rem);
+  margin-top: 1.55rem;
+  padding-inline: 0.35rem;
+}
+
+html:not(.dark) .runtime-clock-group {
+  gap: 0.72rem;
+}
+
+html:not(.dark) .runtime-clock-digits {
+  gap: 0.5rem;
+}
+
+html:not(.dark) .runtime-clock-group small {
+  font-size: 1.08rem;
+  line-height: 1;
+}
+
+.runtime-availability {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0;
+  align-self: start;
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+}
+
+.runtime-availability-bars {
+  display: flex;
+  height: 1.35rem;
+  align-items: end;
+  gap: 2px;
+  margin-right: 0.35rem;
+}
+
+.runtime-availability-bars i {
+  display: block;
+  width: 5px;
+  border-radius: 2px;
+  background: var(--status-success-text);
+}
+
+.runtime-availability strong {
+  color: var(--status-success-text);
+  font-family: var(--font-mono);
+}
+
+.runtime-request-total {
+  display: block;
+  margin-top: 1rem;
+  color: var(--text-primary);
+  font-family: var(--home-font-display);
+  font-size: clamp(3.1rem, 6vw, 5rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  font-synthesis: none;
+}
+
+.runtime-request-caption {
+  margin: 0.55rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.runtime-trend {
+  width: 100%;
+  max-width: 15rem;
+  margin-top: 0;
+  justify-self: end;
+}
+
+.runtime-trend svg {
+  display: block;
+  width: 100%;
+  height: 3rem;
+  overflow: visible;
+}
+
+.runtime-trend polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 4px var(--chart-line-glow));
+}
+
+.runtime-trend span {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--text-tertiary);
+  font-size: 0.7rem;
+}
+
+html.dark .home-showcase {
+  --showcase-runtime-surface: var(--surface-container-lowest);
+  --showcase-flap-surface: var(--surface-tint-1);
+  --showcase-flap-border: var(--outline-variant);
+  --showcase-flap-shadow: var(--elevation-1);
+}
+
+html.dark .runtime-band {
+  background-color: var(--surface-container-lowest);
+  background-image: none;
+}
+
+html.dark .runtime-band::before {
+  background-image: none;
+}
+
+html.dark .runtime-ledger-sheet {
+  gap: clamp(0.9rem, 1.8vw, 1.35rem);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html.dark .runtime-ledger-panel {
+  position: relative;
+  overflow: hidden;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-card);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 3%, transparent),
+      transparent 42%
+    ),
+    var(--surface-container);
+  box-shadow: var(--elevation-2);
+}
+
+html.dark .runtime-ledger-panel::before {
+  position: absolute;
+  top: 0;
+  right: 1.1rem;
+  left: 1.1rem;
+  height: 1px;
+  background: var(--hairline-gold);
+  content: '';
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+html.dark .runtime-ledger-panel--requests {
+  border-left: 1px solid var(--outline-variant);
+}
+
+html.dark .runtime-ledger-heading {
+  color: var(--text-tertiary);
+  font-family: var(--home-font-stamp);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+}
+
+html.dark .runtime-ledger-heading strong {
+  color: var(--text-secondary);
+  font-family: var(--home-font-hand);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+html.dark .runtime-ledger-heading em {
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-secondary));
+  font-family: var(--home-font-stamp);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+
+html.dark .runtime-ledger-heading > svg {
+  filter: drop-shadow(0 0 5px var(--chart-line-glow));
+}
+
+html.dark .runtime-availability {
+  padding: 0.35rem 0.55rem;
+  border: 1px solid
+    color-mix(in srgb, var(--status-success-text) 18%, transparent);
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--status-success-text) 7%,
+    var(--surface-container-high)
+  );
+}
+
+html.dark .runtime-availability-bars i {
+  box-shadow: 0 0 6px
+    color-mix(in srgb, var(--status-success-text) 38%, transparent);
+}
+
+html.dark .runtime-clock-group small {
+  color: var(--text-tertiary);
+  font-family: var(--home-font-stamp);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+html.dark .runtime-flap {
+  border-color: color-mix(in srgb, var(--accent) 10%, var(--outline));
+  border-radius: var(--shape-control);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 4%, transparent) 0 50%,
+      transparent 50% 100%
+    ),
+    var(--surface-container-high);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    var(--elevation-1);
+  font-family: var(--home-font-stamp);
+  font-size: clamp(2rem, 3.4vw, 2.7rem);
+  font-weight: 500;
+}
+
+html.dark .runtime-flap::after {
+  border-top-color: color-mix(in srgb, var(--accent) 14%, var(--outline));
+  box-shadow: 0 1px 0 rgba(0, 4, 16, 0.32);
+}
+
+html.dark .runtime-request-total {
+  font-family: var(--home-font-hand);
+  font-weight: var(--display-number-weight);
+  letter-spacing: 0.01em;
+}
+
+html.dark .runtime-request-caption {
+  color: var(--text-tertiary);
+  font-family: var(--home-font-hand);
+}
+
+html.dark .runtime-trend {
+  padding: 0.65rem 0.75rem 0.55rem;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--shape-control);
+  background: var(--surface-container-low);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+html.dark .runtime-trend polyline {
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 6px var(--chart-line-glow));
+}
+
+html.dark .runtime-trend span {
+  font-family: var(--home-font-stamp);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+}
+
+@keyframes runtime-flap-tick {
+  from {
+    opacity: 0.55;
+    transform: rotateX(-28deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotateX(0);
+  }
+}
+
+/* ===== Split-Flap 翻牌升级 =====
+   .runtime-flap 上下两半各占50%，digit变化时触发 is-flipping class。
+   上半：rotateX(0→-90deg)；下半：rotateX(90→0deg)，带20ms delay。 */
+.runtime-flap {
+  position: relative;
+  display: inline-grid;
+  width: clamp(2.65rem, 4vw, 3.55rem);
+  height: clamp(4rem, 6vw, 5rem);
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--showcase-flap-border);
+  border-radius: var(--shape-control);
+  background: var(--showcase-flap-surface);
+  box-shadow: var(--showcase-flap-shadow);
+  color: var(--text-primary);
+  font-family: var(--home-font-stamp);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  font-synthesis: none;
+  perspective: 300px;
+  animation: runtime-flap-tick 260ms ease-out;
+}
+
+/* 分隔线 */
+.runtime-flap::after {
+  position: absolute;
+  right: 0;
+  left: 0;
+  top: 50%;
+  border-top: 1px solid var(--border-subtle);
+  content: '';
+  z-index: 3;
+}
+
+.flap-half,
+.flap-leaf {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  overflow: hidden;
+  background: inherit;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+.flap-half {
+  z-index: 1;
+}
+
+.flap-half--top,
+.flap-leaf--previous-top {
+  top: 0;
+  transform-origin: center bottom;
+}
+
+.flap-half--bottom,
+.flap-leaf--previous-bottom,
+.flap-leaf--next-bottom {
+  bottom: 0;
+  transform-origin: center top;
+}
+
+.flap-digit {
+  position: absolute;
+  left: 0;
+  display: grid;
+  width: 100%;
+  height: 200%;
+  place-items: center;
+  font: inherit;
+  line-height: 1;
+}
+
+.flap-half--top .flap-digit,
+.flap-leaf--previous-top .flap-digit {
+  top: 0;
+}
+
+.flap-half--bottom .flap-digit,
+.flap-leaf--previous-bottom .flap-digit,
+.flap-leaf--next-bottom .flap-digit {
+  bottom: 0;
+}
+
+/* Calendar-style sequence: old top folds, old bottom releases at the hinge,
+   then the new bottom leaf opens over the already-present new top half. */
+.flap-leaf--previous-top {
+  z-index: 4;
+  animation: flap-top-fold 200ms ease-in forwards;
+}
+
+.flap-leaf--previous-bottom {
+  z-index: 3;
+  animation: flap-old-bottom-release 200ms step-end forwards;
+}
+
+.flap-leaf--next-bottom {
+  z-index: 4;
+  animation: flap-bottom-unfold 200ms ease-out 200ms forwards;
+  transform: rotateX(90deg);
+}
+
+@keyframes flap-top-fold {
+  from {
+    transform: rotateX(0deg);
+  }
+  to {
+    transform: rotateX(-90deg);
+  }
+}
+
+@keyframes flap-bottom-unfold {
+  from {
+    transform: rotateX(90deg);
+  }
+  to {
+    transform: rotateX(0deg);
+  }
+}
+
+@keyframes flap-old-bottom-release {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* ===== 可用率柱状图弹入动效 ===== */
+.runtime-availability-bar {
+  display: block;
+  width: 5px;
+  border-radius: 2px;
+  background: var(--status-success-text);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: none;
+}
+
+.runtime-availability-bar.is-visible {
+  animation: bar-pop-in 480ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtime-availability-bar.is-visible {
+    animation: none;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes bar-pop-in {
+  from {
+    transform: scaleY(0);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes runtime-status-breathe {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes runtime-status-ripple {
+  0% {
+    opacity: 0;
+    transform: scale(0.65);
+  }
+  18% {
+    opacity: 0.82;
+  }
+  72%,
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@media (max-width: 900px) {
+  .runtime-ledger-sheet {
+    grid-template-columns: 1fr;
+    padding-inline: 1rem;
+  }
+
+  .runtime-ledger-panel {
+    padding: 0.65rem 0;
+  }
+
+  .runtime-ledger-panel--requests {
+    margin-top: 0.75rem;
+    border-top: 1px solid
+      color-mix(in srgb, var(--accent) 22%, var(--showcase-rule));
+    border-left: 0;
+    padding-top: 1.2rem;
+  }
+
+  html.dark .runtime-ledger-panel {
+    padding: 1.1rem;
+  }
+
+  html.dark .runtime-ledger-panel--requests {
+    margin-top: 0;
+    border-top-color: var(--outline-variant);
+    border-left: 1px solid var(--outline-variant);
+    padding-top: 1.1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-band::before {
+    background-image: none;
+  }
+
+  .runtime-ledger-sheet {
+    width: min(100% - 1rem, 105rem);
+    padding-block: 1.25rem;
+  }
+
+  .runtime-ledger-panel--uptime {
+    column-gap: 0.55rem;
+  }
+
+  .runtime-availability {
+    gap: 0.25rem;
+    font-size: 0.66rem;
+  }
+
+  .runtime-availability-bars {
+    height: 1.1rem;
+    gap: 1px;
+    margin-right: 0.1rem;
+  }
+
+  .runtime-availability-bars i {
+    width: 4px;
+  }
+
+  .runtime-clock {
+    justify-content: space-between;
+    gap: 0.45rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .runtime-flap {
+    width: clamp(1.75rem, 8vw, 2rem);
+    height: 3.25rem;
+    font-size: 1.7rem;
+  }
+
+  .runtime-clock-digits {
+    gap: 0.15rem;
+  }
+
+  html:not(.dark) .runtime-clock {
+    gap: 0.55rem;
+    margin-top: 1.4rem;
+    padding-inline: 0;
+  }
+
+  html:not(.dark) .runtime-clock-group {
+    gap: 0.58rem;
+  }
+
+  html:not(.dark) .runtime-clock-digits {
+    gap: 0.18rem;
+  }
+
+  html:not(.dark) .runtime-clock-group small {
+    font-size: 1rem;
+  }
+
+  .runtime-request-total {
+    font-size: clamp(2.7rem, 11vw, 3.25rem);
+  }
+
+  .runtime-ledger-panel--requests {
+    grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 0.82fr);
+    column-gap: 0.75rem;
+  }
+}
+@media (max-width: 360px) {
+  .runtime-ledger-sheet {
+    padding-inline: 0.6rem;
+  }
+  .runtime-clock {
+    gap: 0.25rem;
+  }
+  .runtime-flap {
+    width: 1.7rem;
+  }
+  .runtime-clock-digits {
+    gap: 0.1rem;
+  }
+  html:not(.dark) .runtime-clock {
+    gap: 0.32rem;
+  }
+  html:not(.dark) .runtime-clock-digits {
+    gap: 0.12rem;
+  }
+  .runtime-ledger-panel--requests {
+    grid-template-columns: minmax(0, 1fr) minmax(7rem, 0.75fr);
+    column-gap: 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtime-status-dot {
+    animation: none;
+    transform: none;
+  }
+  .runtime-status-dot::after {
+    animation: none;
+    opacity: 0.45;
+    transform: none;
+  }
+  .runtime-flap {
+    animation: none;
+  }
+}
+
 html.dark .mobile-nav-drawer {
   --surface-overlay: var(--surface-container-highest);
   --text-tertiary: var(--text-tertiary-base);
 }
 
-.landing-shell :where(.hero-title, .hero-copy-glow) {
+.landing-shell .hero-copy-glow {
   font-family: inherit;
 }
 
