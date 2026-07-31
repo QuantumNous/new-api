@@ -1,43 +1,65 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { FlatkeyBrandLogo } from "@/components/flatkey-brand-logo";
-import { LanguageSwitcher } from "@/components/language-switcher";
-import { NotificationPopover } from "@/components/notification-popover";
-import { useSiteConfig } from "@/components/site-config-provider";
+import { LANGUAGE_PREFERENCE_COOKIE } from "@/lib/language-routing";
 import { CLI_LANDING_PATH, cliLandingCopy } from "@/lib/cli-landing";
 import { getCopy } from "@/lib/copy";
-import { type Locale, localizePath, stripLocale, withIdFallback } from "@/lib/locales";
+import { LOCALE_LABELS, LOCALES, type Locale, localeLanguageTag, localizePath, stripLocale, withIdFallback } from "@/lib/locales";
 import { consoleUrl } from "@/lib/origins";
 import { TOOLS_LANDING_PATH, toolsLandingCopy } from "@/lib/tools-landing";
 import { cn } from "@/lib/utils";
 
-// Console links carry ?lng=<locale> so the console SPA (i18next querystring
-// detector) opens in the language the visitor picked on the website.
-const useCaseItems = [
-  { href: "/use-case/codex", label: "Codex" },
-  { href: "/use-case/claude-code", label: "Claude Code" },
-  { href: "/use-case/image-buddy", label: "Image Buddy" },
-];
-const useCaseLabelByLocale: Record<Locale, string> =withIdFallback({
-  en: "Use Case",
-  zh: "使用场景",
-  es: "Casos de uso",
-  fr: "Cas d'usage",
-  pt: "Casos de uso",
-  ru: "Сценарии",
-  ja: "ユースケース",
-  vi: "Use case",
-  de: "Anwendungsfälle",
+const legacyNavLabelByLocale: Record<
+  Locale,
+  {
+    compute: string;
+    playground: string;
+    status: string;
+    usecases: string;
+  }
+> = withIdFallback({
+  en: { compute: "Compute", playground: "Playground", status: "Status", usecases: "Use cases" },
+  zh: { compute: "算力", playground: "Playground", status: "服务状态", usecases: "使用场景" },
+  es: { compute: "Compute", playground: "Playground", status: "Estado", usecases: "Casos de uso" },
+  fr: { compute: "Compute", playground: "Playground", status: "Statut", usecases: "Cas d'usage" },
+  pt: { compute: "Compute", playground: "Playground", status: "Status", usecases: "Casos de uso" },
+  ru: { compute: "Compute", playground: "Playground", status: "Статус", usecases: "Сценарии" },
+  ja: { compute: "Compute", playground: "Playground", status: "ステータス", usecases: "ユースケース" },
+  vi: { compute: "Compute", playground: "Playground", status: "Trạng thái", usecases: "Use cases" },
+  de: { compute: "Compute", playground: "Playground", status: "Status", usecases: "Anwendungsfälle" },
+});
+
+const startFreeLabelByLocale: Record<Locale, string> = withIdFallback({
+  en: "Start free",
+  zh: "免费开始",
+  es: "Empieza gratis",
+  fr: "Commencer gratuitement",
+  pt: "Começar grátis",
+  ru: "Начать бесплатно",
+  ja: "無料で開始",
+  vi: "Bắt đầu miễn phí",
+  de: "Kostenlos starten",
+});
+
+const navGroupLabelByLocale: Record<Locale, { careers: string; developers: string; products: string; resources: string }> = withIdFallback({
+  en: { products: "Products", developers: "Developers", resources: "Resources", careers: "Careers" },
+  zh: { products: "产品", developers: "开发者", resources: "资源", careers: "加入我们" },
+  es: { products: "Productos", developers: "Desarrolladores", resources: "Recursos", careers: "Carreras" },
+  fr: { products: "Produits", developers: "Développeurs", resources: "Ressources", careers: "Carrières" },
+  pt: { products: "Produtos", developers: "Desenvolvedores", resources: "Recursos", careers: "Carreiras" },
+  ru: { products: "Продукты", developers: "Разработчикам", resources: "Ресурсы", careers: "Вакансии" },
+  ja: { products: "プロダクト", developers: "開発者向け", resources: "リソース", careers: "採用情報" },
+  vi: { products: "Sản phẩm", developers: "Nhà phát triển", resources: "Tài nguyên", careers: "Tuyển dụng" },
+  de: { products: "Produkte", developers: "Entwickler", resources: "Ressourcen", careers: "Karriere" },
 });
 
 type Props = {
   locale: Locale;
   pathname: string;
   languageCookieDomain?: string;
-  /** Single-locale routes (market pages) have no localized siblings — the switcher would link to 404s. */
   hideLanguageSwitcher?: boolean;
 };
 
@@ -48,36 +70,76 @@ type NavItem = {
   publicPath?: boolean;
 };
 
+function languageCookie(locale: Locale, domain?: string) {
+  const domainAttribute = domain ? `; Domain=${domain}` : "";
+  return `${LANGUAGE_PREFERENCE_COOKIE}=${locale}; Path=/${domainAttribute}; Max-Age=31536000; SameSite=Lax`;
+}
+
+function StaticLanguageSelect(props: { cookieDomain?: string; locale: Locale; pathname: string }) {
+  const strippedPath = stripLocale(props.pathname);
+
+  return (
+    <select
+      aria-label="Change language"
+      value={props.locale}
+      onChange={(event) => {
+        const nextLocale = event.currentTarget.value as Locale;
+        document.cookie = languageCookie(nextLocale, props.cookieDomain);
+        window.location.href = localizePath(strippedPath, nextLocale);
+      }}
+      className="h-9 max-w-[120px] rounded-lg border border-[#0B0B0F14] bg-white px-2.5 text-[13.5px] font-semibold text-[#43434C] outline-none transition-colors hover:border-[#0B0B0F]"
+    >
+      {LOCALES.map((locale) => (
+        <option key={locale} value={locale} lang={localeLanguageTag(locale)}>
+          {LOCALE_LABELS[locale]}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function SiteHeader(props: Props) {
-  const { docsUrl } = useSiteConfig();
   const copy = getCopy(props.locale);
   const cliCopy = cliLandingCopy[props.locale] ?? cliLandingCopy.en;
   const toolsCopy = toolsLandingCopy[props.locale];
-  const consoleHref = consoleUrl("/dashboard", `lng=${props.locale}`);
-  const signInHref = consoleUrl("/sign-in", `lng=${props.locale}`);
-  const useCaseLabel = useCaseLabelByLocale[props.locale] ?? useCaseLabelByLocale.en;
-  const [scrolled, setScrolled] = useState(false);
+  const legacyLabels = legacyNavLabelByLocale[props.locale] ?? legacyNavLabelByLocale.en;
+  const groupLabels = navGroupLabelByLocale[props.locale] ?? navGroupLabelByLocale.en;
+  const startFreeLabel = startFreeLabelByLocale[props.locale] ?? startFreeLabelByLocale.en;
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems: NavItem[] = [
-    { href: "/", label: copy.nav.home, publicPath: true },
-    { href: "/blog", label: copy.nav.blog, publicPath: true },
-    { href: "/pricing", label: copy.nav.pricing, publicPath: true },
-    { href: "/models", label: copy.nav.modelPricing, publicPath: true },
-    { href: TOOLS_LANDING_PATH, label: toolsCopy.navLabel, publicPath: true },
-    { href: CLI_LANDING_PATH, label: cliCopy.navLabel, publicPath: true },
-    ...(docsUrl ? [{ href: docsUrl, label: copy.nav.docs, external: true }] : []),
-    // Rankings is the website's own daily-updated data page (same pipeline
-    // as the console chart) — the single public rankings surface.
-    { href: "/rankings", label: copy.nav.rankings, publicPath: true },
-  ];
   const currentPath = stripLocale(props.pathname);
+  const signInHref = consoleUrl("/sign-in", `lng=${props.locale}`);
+  const signUpHref = consoleUrl("/sign-up", `lng=${props.locale}`);
+  const showContactAction = currentPath !== "/contact";
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const productItems = useMemo<NavItem[]>(
+    () => [
+      { href: "/models", label: copy.nav.modelPricing, publicPath: true },
+      { href: TOOLS_LANDING_PATH, label: toolsCopy.navLabel, publicPath: true },
+      { href: "/playground", label: legacyLabels.playground, publicPath: true },
+      { href: "/rankings", label: copy.nav.rankings, publicPath: true },
+      { href: "/compute", label: legacyLabels.compute, publicPath: true },
+      { href: "/usecases", label: legacyLabels.usecases, publicPath: true },
+    ],
+    [copy.nav.modelPricing, copy.nav.rankings, legacyLabels, toolsCopy.navLabel]
+  );
+  const developerItems = useMemo<NavItem[]>(
+    () => [
+      { href: CLI_LANDING_PATH, label: cliCopy.navLabel, publicPath: true },
+      { href: "/docs", label: copy.nav.docs, publicPath: true },
+      { href: "/status", label: legacyLabels.status, publicPath: true },
+    ],
+    [cliCopy.navLabel, copy.nav.docs, legacyLabels.status]
+  );
+  const resourceItems = useMemo<NavItem[]>(
+    () => [
+      { href: "/blog", label: copy.nav.blog, publicPath: true },
+      { href: "/about", label: copy.nav.about, publicPath: true },
+      { href: "/careers", label: groupLabels.careers, publicPath: true },
+      { href: "/contact", label: copy.nav.contact, publicPath: true },
+    ],
+    [copy.nav.about, copy.nav.blog, copy.nav.contact, groupLabels.careers]
+  );
+  const mobileItems = [...productItems, ...developerItems, ...resourceItems, { href: "/pricing", label: copy.nav.pricing, publicPath: true }];
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
@@ -86,253 +148,130 @@ export function SiteHeader(props: Props) {
     };
   }, [mobileOpen]);
 
-  return (
-    <>
-      <header className="pointer-events-none fixed inset-x-0 top-0 z-50">
-        <div
-          className={cn(
-            "pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
-            scrolled ? "max-w-[52rem] px-3 pt-3 lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl" : "max-w-7xl px-4 pt-0 md:px-6"
-          )}
-        >
-          <nav
-            className={cn(
-              "flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
-              scrolled
-                ? "h-12 rounded-2xl bg-background/60 pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] ring-border/50 backdrop-blur-2xl"
-                : "h-16 px-2"
-            )}
-          >
-            <Link className="group flex shrink-0 items-center gap-2.5" href={localizePath("/", props.locale)}>
-              <span className="flex h-11 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-[1.02]">
-                <FlatkeyBrandLogo className="h-11" />
-              </span>
-              <span className="sr-only">flatkey.ai</span>
-            </Link>
+  const renderNavLink = (item: NavItem, compact = false) => {
+    const active = item.publicPath && currentPath === item.href;
+    const className = cn(
+      compact
+        ? "block rounded-lg px-3 py-2.5 text-base font-semibold"
+        : "inline-flex h-9 items-center whitespace-nowrap text-[13px] font-semibold",
+      active ? "text-[#0B0B0F]" : "text-[#43434C] hover:text-[#0B0B0F]"
+    );
 
-            <div className="hidden items-center gap-0.5 sm:flex">
-              {navItems.map((item) => {
-                const active = item.publicPath && currentPath === item.href;
-                const className = cn(
-                  "rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200",
-                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                );
+    return item.external ? (
+      <a key={item.href} className={className} href={item.href} target="_blank" rel="noopener noreferrer">
+        {item.label}
+      </a>
+    ) : (
+      <Link key={item.href} className={className} href={item.publicPath ? localizePath(item.href, props.locale) : item.href} onClick={() => setMobileOpen(false)}>
+        {item.label}
+      </Link>
+    );
+  };
 
-                return item.external ? (
-                  <a
-                    key={item.href}
-                    className={className}
-                    href={item.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {item.label}
-                  </a>
-                ) : (
-                  <Link
-                    key={item.href}
-                    className={className}
-                    href={item.publicPath ? localizePath(item.href, props.locale) : item.href}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-              <div className="group/usecase relative">
-                <button
-                  type="button"
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200",
-                    currentPath.startsWith("/use-case") ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                  )}
-                  aria-haspopup="menu"
-                >
-                  {useCaseLabel}
-                  <ChevronDown className="size-3.5 transition-transform group-hover/usecase:rotate-180" />
-                </button>
-                <div className="pointer-events-none absolute top-full left-0 z-50 pt-2 opacity-0 transition-opacity duration-150 group-hover/usecase:pointer-events-auto group-hover/usecase:opacity-100 group-focus-within/usecase:pointer-events-auto group-focus-within/usecase:opacity-100">
-                  <div className="min-w-44 rounded-xl border border-border/70 bg-background/96 p-1.5 shadow-[0_18px_60px_-35px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-                    {useCaseItems.map((item) => (
-                      <Link
-                        key={item.href}
-                        href={localizePath(item.href, props.locale)}
-                        className={cn(
-                          "block rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                          currentPath === item.href ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        )}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <Link
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200",
-                  currentPath === "/contact" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                )}
-                href={localizePath("/contact", props.locale)}
-              >
-                {copy.nav.contact}
-              </Link>
-
-              <div className="mx-2 h-4 w-px bg-border/40" />
-              {!props.hideLanguageSwitcher && (
-                <LanguageSwitcher
-                  locale={props.locale}
-                  pathname={props.pathname}
-                  cookieDomain={props.languageCookieDomain}
-                />
-              )}
-              <NotificationPopover locale={props.locale} />
-              <div className="mx-1 h-4 w-px bg-border/40" />
-              <a
-                className="inline-flex h-8 items-center justify-center rounded-lg border border-border/70 px-3.5 text-xs font-medium text-foreground/80 transition-colors hover:border-border hover:text-foreground"
-                href={consoleHref}
-              >
-                {copy.nav.console}
-              </a>
-              <a
-                className="flatkey-primary-cta inline-flex h-8 items-center justify-center rounded-lg px-3.5 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80"
-                href={signInHref}
-              >
-                {copy.nav.signIn}
-              </a>
-            </div>
-
-            <div className="flex items-center gap-2 sm:hidden">
-              <button
-                type="button"
-                className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                onClick={() => setMobileOpen((value) => !value)}
-                aria-label={copy.nav.toggle}
-                aria-expanded={mobileOpen}
-              >
-                <span className="relative size-4" aria-hidden="true">
-                  <span
-                    className={cn(
-                      "absolute inset-x-0 block h-[1.5px] origin-center rounded-full bg-current transition-all duration-300",
-                      mobileOpen ? "top-[7px] rotate-45" : "top-[3px]"
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "absolute inset-x-0 top-[7px] block h-[1.5px] rounded-full bg-current transition-all duration-300",
-                      mobileOpen ? "scale-x-0 opacity-0" : "opacity-100"
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "absolute inset-x-0 block h-[1.5px] origin-center rounded-full bg-current transition-all duration-300",
-                      mobileOpen ? "top-[7px] -rotate-45" : "top-[11px]"
-                    )}
-                  />
-                </span>
-              </button>
-            </div>
-          </nav>
-        </div>
-      </header>
-
-      <div
-        className={cn(
-          "fixed inset-0 z-40 bg-background/98 backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] sm:pointer-events-none sm:hidden",
-          mobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-        )}
+  const renderNavGroup = (label: string, items: NavItem[]) => (
+    <div className="group/nav relative">
+      <button
+        type="button"
+        className="inline-flex h-9 items-center whitespace-nowrap text-[13px] font-semibold text-[#43434C] hover:text-[#0B0B0F]"
+        aria-haspopup="menu"
       >
-        <div className="flex h-full flex-col justify-between px-8 pt-20 pb-10">
-          <nav className="flex flex-col gap-1">
-            {navItems.map((item, index) => {
-              const className = cn(
-                "flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                mobileOpen ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
-                item.publicPath && currentPath === item.href ? "text-foreground" : "text-muted-foreground"
-              );
-              const style = { transitionDelay: mobileOpen ? `${100 + index * 50}ms` : "0ms" };
+        {label}
+      </button>
+      <div className="pointer-events-none absolute top-full left-0 z-50 pt-3 opacity-0 transition-opacity group-hover/nav:pointer-events-auto group-hover/nav:opacity-100 group-focus-within/nav:pointer-events-auto group-focus-within/nav:opacity-100">
+        <div className="min-w-52 rounded-xl border border-[#0B0B0F14] bg-white p-2 shadow-[0_22px_70px_-45px_rgba(11,11,15,.48)]">
+          {items.map((item) => (
+            <div key={item.href}>{renderNavLink(item, true)}</div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 
-              return item.external ? (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setMobileOpen(false)}
-                  className={className}
-                  style={style}
-                >
-                  {item.label}
-                </a>
-              ) : (
-                <Link
-                  key={item.href}
-                  href={item.publicPath ? localizePath(item.href, props.locale) : item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={className}
-                  style={style}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-            <div
-              className={cn(
-                "pt-3 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                mobileOpen ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
-              )}
-              style={{ transitionDelay: mobileOpen ? `${100 + navItems.length * 50}ms` : "0ms" }}
-            >
-              <div className="text-muted-foreground pb-1 text-xs font-semibold tracking-wide uppercase">{useCaseLabel}</div>
-              {useCaseItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={localizePath(item.href, props.locale)}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    "block py-2 text-base font-medium tracking-tight",
-                    currentPath === item.href ? "text-foreground" : "text-muted-foreground"
-                  )}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
+  return (
+    <header className="sticky top-0 z-50 border-b border-[#0B0B0F14] bg-white/95 backdrop-blur-md">
+      <nav className="flex h-[76px] items-center gap-4 px-5 text-[#0B0B0F] min-[1180px]:gap-[18px] min-[1320px]:px-8">
+        <Link href={localizePath("/", props.locale)} className="mr-1 inline-flex shrink-0 items-center">
+          <FlatkeyBrandLogo className="[&_[data-flatkey-wordmark='true']]:text-[30px] [&_img]:h-10 [&_img]:w-10 min-[1480px]:[&_[data-flatkey-wordmark='true']]:text-[32px] min-[1480px]:[&_img]:h-11 min-[1480px]:[&_img]:w-11" />
+          <span className="sr-only">flatkey.ai</span>
+        </Link>
+
+        <div className="hidden min-w-0 flex-1 items-center gap-4 min-[1180px]:flex min-[1480px]:gap-[18px]">
+          <span className="text-[#aaa7b0]">•</span>
+          {renderNavGroup(groupLabels.products, productItems)}
+          <span className="text-[#aaa7b0]">•</span>
+          {renderNavGroup(groupLabels.developers, developerItems)}
+          <span className="text-[#aaa7b0]">•</span>
+          {renderNavGroup(groupLabels.resources, resourceItems)}
+          <Link
+            className={cn(
+              "inline-flex h-9 items-center whitespace-nowrap text-[13px] font-semibold",
+              currentPath === "/pricing" ? "text-[#0B0B0F]" : "text-[#43434C] hover:text-[#0B0B0F]"
+            )}
+            href={localizePath("/pricing", props.locale)}
+          >
+            {copy.nav.pricing}
+          </Link>
+        </div>
+
+        <div className="ml-auto hidden shrink-0 items-center gap-2 min-[1180px]:flex">
+          <a className="inline-flex h-9 items-center whitespace-nowrap px-2 text-[13px] font-semibold text-[#0B0B0F] hover:text-[#4C1D95]" href={signInHref}>
+            {copy.nav.signIn}
+          </a>
+          {!props.hideLanguageSwitcher && (
+            <StaticLanguageSelect locale={props.locale} pathname={props.pathname} cookieDomain={props.languageCookieDomain} />
+          )}
+          {showContactAction && (
             <Link
+              className="inline-flex h-11 items-center justify-center whitespace-nowrap rounded-lg bg-white px-4 text-[13px] font-bold text-[#0B0B0F] shadow-[inset_0_0_0_1px_#0B0B0F14,0_1px_2px_rgba(11,11,15,.06)] hover:-translate-y-px"
               href={localizePath("/contact", props.locale)}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                "flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                mobileOpen ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
-                currentPath === "/contact" ? "text-foreground" : "text-muted-foreground"
-              )}
-              style={{ transitionDelay: mobileOpen ? `${150 + navItems.length * 50}ms` : "0ms" }}
             >
               {copy.nav.contact}
             </Link>
-          </nav>
-
-          <div
-            className={cn(
-              "flex flex-col gap-3 transition-all duration-500",
-              mobileOpen ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
-            )}
-            style={{ transitionDelay: mobileOpen ? "250ms" : "0ms" }}
+          )}
+          <a
+            className="inline-flex h-11 items-center justify-center whitespace-nowrap rounded-lg bg-[#070707] px-4 text-[13px] font-bold text-white hover:-translate-y-px"
+            href={signUpHref}
+            style={{ color: "#fff" }}
           >
-            <a
-              href={consoleHref}
-              className="inline-flex h-10 items-center justify-center rounded-lg border border-border/70 text-sm font-medium text-foreground/80 transition-colors hover:border-border hover:text-foreground"
-            >
-              {copy.nav.console}
-            </a>
-            <a
-              href={signInHref}
-              className="flatkey-primary-cta inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80"
-            >
-              {copy.nav.signIn}
-            </a>
-          </div>
+            {startFreeLabel} →
+          </a>
+        </div>
+
+        <button
+          type="button"
+          className="ml-auto inline-flex size-[42px] items-center justify-center rounded-[10px] border border-[#0B0B0F14] bg-white text-[#0B0B0F] min-[1180px]:hidden"
+          aria-label={copy.nav.toggle}
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen((value) => !value)}
+        >
+          {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+        </button>
+      </nav>
+
+      <div
+        className={cn(
+          "fixed inset-x-0 top-[76px] z-40 border-b border-[#0B0B0F14] bg-white px-5 py-4 shadow-[0_22px_60px_-42px_rgba(11,11,15,.45)] transition min-[1180px]:hidden",
+          mobileOpen ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-3 opacity-0"
+        )}
+      >
+        <div className="grid gap-1">{mobileItems.map((item) => renderNavLink(item, true))}</div>
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[#0B0B0F14] pt-4">
+          <a className="inline-flex h-10 items-center px-3 text-sm font-semibold" href={signInHref}>
+            {copy.nav.signIn}
+          </a>
+          {!props.hideLanguageSwitcher && (
+            <StaticLanguageSelect locale={props.locale} pathname={props.pathname} cookieDomain={props.languageCookieDomain} />
+          )}
+          {showContactAction && (
+            <Link className="inline-flex h-10 items-center rounded-lg bg-white px-3 text-sm font-bold shadow-[inset_0_0_0_1px_#0B0B0F14]" href={localizePath("/contact", props.locale)} onClick={() => setMobileOpen(false)}>
+              {copy.nav.contact}
+            </Link>
+          )}
+          <a className="inline-flex h-10 items-center rounded-lg bg-[#070707] px-3 text-sm font-bold text-white" href={signUpHref} style={{ color: "#fff" }}>
+            {startFreeLabel} →
+          </a>
         </div>
       </div>
-    </>
+    </header>
   );
 }
