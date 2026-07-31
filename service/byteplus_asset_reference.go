@@ -59,6 +59,12 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
 		}
 	}
+	for _, reference := range references {
+		asset := byID[reference.PublicID]
+		if asset.Status == model.BytePlusAssetStatusDeleted {
+			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
+		}
+	}
 	profileIDs := make(map[int64]struct{})
 	for _, reference := range references {
 		asset := byID[reference.PublicID]

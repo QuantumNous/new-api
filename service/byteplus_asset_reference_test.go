@@ -362,6 +362,52 @@ func TestResolveBytePlusAssetReferencesRejectsDeletingAndDeleted(t *testing.T) {
 	}
 }
 
+func TestResolveBytePlusAssetReferencesDeletedRealPersonAssetsHideProfileConflict(t *testing.T) {
+	newBytePlusAssetReferenceDB(t)
+	first := insertBytePlusReferenceProfile(t, 7, 131, "rph_deleted_first", model.BytePlusRealPersonProfileStatusActive)
+	second := insertBytePlusReferenceProfile(t, 7, 132, "rph_deleted_second", model.BytePlusRealPersonProfileStatusActive)
+	image := insertBytePlusReferenceRealPersonAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusDeleted, "Image", first.Id)
+	audio := insertBytePlusReferenceRealPersonAsset(t, 7, 132, "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "upstream-audio", model.BytePlusAssetStatusDeleted, "Audio", second.Id)
+
+	_, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(
+		dto.SeedanceContentImage, image.PublicId,
+		dto.SeedanceContentAudio, audio.PublicId,
+	))
+	if apiErr == nil {
+		t.Fatal("expected deleted asset error")
+	}
+	if apiErr.GetErrorCode() != types.ErrorCodeAssetNotFound || apiErr.StatusCode != http.StatusNotFound {
+		t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeAssetNotFound, http.StatusNotFound)
+	}
+}
+
+func TestResolveBytePlusAssetReferencesDeletedRealPersonAssetDoesNotObserveProfile(t *testing.T) {
+	tests := []struct {
+		name           string
+		profileStatus  string
+		profileChannel int
+		assetChannel   int
+	}{
+		{name: "inactive profile", profileStatus: model.BytePlusRealPersonProfileStatusVerifying, profileChannel: 131, assetChannel: 131},
+		{name: "profile channel mismatch", profileStatus: model.BytePlusRealPersonProfileStatusActive, profileChannel: 132, assetChannel: 131},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newBytePlusAssetReferenceDB(t)
+			profile := insertBytePlusReferenceProfile(t, 7, tt.profileChannel, "rph_deleted_"+strings.ReplaceAll(tt.name, " ", "_"), tt.profileStatus)
+			asset := insertBytePlusReferenceRealPersonAsset(t, 7, tt.assetChannel, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusDeleted, "Image", profile.Id)
+
+			_, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(dto.SeedanceContentImage, asset.PublicId))
+			if apiErr == nil {
+				t.Fatal("expected deleted asset error")
+			}
+			if apiErr.GetErrorCode() != types.ErrorCodeAssetNotFound || apiErr.StatusCode != http.StatusNotFound {
+				t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeAssetNotFound, http.StatusNotFound)
+			}
+		})
+	}
+}
+
 func TestResolveBytePlusAssetReferencesRejectsProfileOwnerOrChannelMismatch(t *testing.T) {
 	tests := []struct {
 		name           string
