@@ -35,6 +35,7 @@ const (
 )
 
 var bytePlusAssetUploadNow = common.GetTimestamp
+var bytePlusAssetUploadRandomKey = common.GenerateRandomCharsKey
 
 type BytePlusUploadedAsset struct {
 	TempObject    *model.BytePlusAssetTempObject
@@ -57,7 +58,7 @@ func readBytePlusMultipartAsset(ctx context.Context, request *http.Request, prof
 		return nil, assetError(errors.New("invalid multipart upload"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 	}
 	if request.Body != nil {
-		request.Body = &bytePlusMaxBodyReader{r: request.Body, remaining: bytePlusAssetRequestHardMaxBytes + 1}
+		request.Body = &bytePlusMaxBodyReader{r: request.Body, remaining: bytePlusAssetRequestHardMaxBytes}
 	}
 	reader, err := request.MultipartReader()
 	if err != nil {
@@ -96,12 +97,13 @@ func readBytePlusMultipartAsset(ctx context.Context, request *http.Request, prof
 			_ = deleteOrQueueBytePlusTempObject(ctx, uploaded.TempObject, store)
 			return nil, assetError(errors.New("only one file is allowed"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 		}
-		uploaded, err = uploadBytePlusMultipartFile(ctx, part, profile, channel, store)
-		if err != nil {
+		var uploadErr *types.NewAPIError
+		uploaded, uploadErr = uploadBytePlusMultipartFile(ctx, part, profile, channel, store)
+		if uploadErr != nil {
 			if uploaded != nil && uploaded.TempObject != nil {
 				_ = deleteOrQueueBytePlusTempObject(ctx, uploaded.TempObject, store)
 			}
-			return nil, multipartReadError(err)
+			return nil, uploadErr
 		}
 	}
 	if uploaded == nil {
@@ -157,24 +159,28 @@ func readBytePlusMultipartField(part *multipart.Part, meta *bytePlusMultipartMet
 	return nil
 }
 
-func uploadBytePlusMultipartFile(ctx context.Context, part *multipart.Part, profile *model.BytePlusRealPersonProfile, channel *model.Channel, store BytePlusTempObjectStore) (*BytePlusUploadedAsset, error) {
+func uploadBytePlusMultipartFile(ctx context.Context, part *multipart.Part, profile *model.BytePlusRealPersonProfile, channel *model.Channel, store BytePlusTempObjectStore) (*BytePlusUploadedAsset, *types.NewAPIError) {
 	header, err := readBytePlusSniffHeader(part)
 	if err != nil {
-		return nil, err
+		return nil, multipartReadError(err)
 	}
 	if len(header) == 0 {
-		return nil, errors.New("file is empty")
+		return nil, assetError(errors.New("file is empty"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 	}
 	mimeType := sniffBytePlusMediaType(header)
 	objectKey, err := buildBytePlusTempObjectKey(profile.UserId)
 	if err != nil {
-		return nil, err
+		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	}
+	bucket, apiErr := bytePlusTempObjectBucket(store)
+	if apiErr != nil {
+		return nil, apiErr
 	}
 	now := bytePlusAssetUploadNow()
 	tempObject, err := model.CreateBytePlusAssetTempObject(model.BytePlusAssetTempObject{
 		UserId:                  profile.UserId,
 		ChannelId:               channel.Id,
-		Bucket:                  bytePlusTempObjectBucket(store),
+		Bucket:                  bucket,
 		ObjectKey:               objectKey,
 		CleanupStatus:           model.BytePlusTempObjectCleanupPending,
 		NextCleanupAt:           now,
@@ -183,7 +189,7 @@ func uploadBytePlusMultipartFile(ctx context.Context, part *multipart.Part, prof
 		UpdatedTime:             now,
 	})
 	if err != nil {
-		return nil, err
+		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
 	remaining := bytePlusVideoMaxBytes + 1 - int64(len(header))
 	if remaining < 0 {
@@ -192,12 +198,15 @@ func uploadBytePlusMultipartFile(ctx context.Context, part *multipart.Part, prof
 	limited := &io.LimitedReader{R: part, N: remaining}
 	counter := &bytePlusHashCountingReader{r: io.MultiReader(bytes.NewReader(header), limited), h: sha256.New()}
 	if err := store.PutObject(ctx, objectKey, counter, mimeType, 0); err != nil {
-		return &BytePlusUploadedAsset{TempObject: tempObject}, err
+		return &BytePlusUploadedAsset{TempObject: tempObject}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	}
+	if counter.n > bytePlusVideoMaxBytes {
+		return &BytePlusUploadedAsset{TempObject: tempObject, SizeBytes: counter.n}, assetError(errors.New("file too large"), types.ErrorCodeAssetFileTooLarge, http.StatusRequestEntityTooLarge)
 	}
 	shaHex := fmt.Sprintf("%x", counter.h.Sum(nil))
 	metadataNow := bytePlusAssetUploadNow()
 	if err := model.UpdateBytePlusAssetTempObjectMetadata(tempObject.Id, shaHex, counter.n, mimeType, metadataNow); err != nil {
-		return &BytePlusUploadedAsset{TempObject: tempObject}, err
+		return &BytePlusUploadedAsset{TempObject: tempObject}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
 	tempObject.ContentSHA256 = shaHex
 	tempObject.SizeBytes = counter.n
@@ -213,11 +222,26 @@ func uploadBytePlusMultipartFile(ctx context.Context, part *multipart.Part, prof
 	}, nil
 }
 
-func bytePlusTempObjectBucket(store BytePlusTempObjectStore) string {
-	if tosStore, ok := store.(*bytePlusTOSStore); ok {
-		return tosStore.bucket
+type bytePlusTempObjectBucketProvider interface {
+	TempObjectBucket() string
+}
+
+func bytePlusTempObjectBucket(store BytePlusTempObjectStore) (string, *types.NewAPIError) {
+	if provider, ok := store.(bytePlusTempObjectBucketProvider); ok {
+		bucket := strings.TrimSpace(provider.TempObjectBucket())
+		if bucket == "" {
+			return "", assetError(errors.New("temp object bucket is unavailable"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		}
+		return bucket, nil
 	}
-	return "byteplus-real-person-assets"
+	if tosStore, ok := store.(*bytePlusTOSStore); ok {
+		bucket := strings.TrimSpace(tosStore.bucket)
+		if bucket == "" {
+			return "", assetError(errors.New("temp object bucket is unavailable"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		}
+		return bucket, nil
+	}
+	return "", assetError(errors.New("temp object bucket is unavailable"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 }
 
 func readBytePlusSniffHeader(reader io.Reader) ([]byte, error) {
@@ -350,8 +374,16 @@ type bytePlusMaxBodyReader struct {
 }
 
 func (r *bytePlusMaxBodyReader) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
 	if r.remaining <= 0 {
-		return 0, errors.New("multipart request too large")
+		var one [1]byte
+		n, err := r.r.Read(one[:])
+		if n > 0 {
+			return 0, errors.New("multipart request too large")
+		}
+		return 0, err
 	}
 	if int64(len(p)) > r.remaining {
 		p = p[:r.remaining]
@@ -369,7 +401,7 @@ func (r *bytePlusMaxBodyReader) Close() error {
 }
 
 func buildBytePlusTempObjectKey(userID int) (string, error) {
-	random, err := common.GenerateRandomCharsKey(24)
+	random, err := bytePlusAssetUploadRandomKey(24)
 	if err != nil {
 		return "", err
 	}

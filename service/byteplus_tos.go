@@ -64,6 +64,10 @@ func (s *bytePlusTOSStore) PutObject(ctx context.Context, key string, body io.Re
 	return err
 }
 
+func (s *bytePlusTOSStore) TempObjectBucket() string {
+	return s.bucket
+}
+
 func (s *bytePlusTOSStore) PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error) {
 	output, err := s.client.PreSignedURL(&tos.PreSignedURLInput{
 		HTTPMethod: enum.HttpMethodGet,

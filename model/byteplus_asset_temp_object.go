@@ -75,8 +75,11 @@ func ClaimDueBytePlusTempObjectCleanups(now, staleBefore int64, limit int) ([]By
 		return nil, nil
 	}
 	var candidates []BytePlusAssetTempObject
-	if err := DB.Where("cleanup_status = ? AND next_cleanup_at <= ? AND (cleanup_lease_updated_time = ? OR cleanup_lease_updated_time < ?)",
-		BytePlusTempObjectCleanupPending, now, int64(0), staleBefore).
+	if err := DB.Where(
+		"(cleanup_status = ? AND next_cleanup_at <= ? AND (cleanup_lease_updated_time = ? OR cleanup_lease_updated_time < ?)) OR (cleanup_status = ? AND cleanup_lease_updated_time < ?)",
+		BytePlusTempObjectCleanupPending, now, int64(0), staleBefore,
+		BytePlusTempObjectCleanupCleaning, staleBefore,
+	).
 		Order("next_cleanup_at ASC, id ASC").
 		Limit(limit).
 		Find(&candidates).Error; err != nil {
@@ -85,8 +88,12 @@ func ClaimDueBytePlusTempObjectCleanups(now, staleBefore int64, limit int) ([]By
 	claimed := make([]BytePlusAssetTempObject, 0, len(candidates))
 	for _, candidate := range candidates {
 		result := DB.Model(&BytePlusAssetTempObject{}).
-			Where("id = ? AND cleanup_status = ? AND next_cleanup_at <= ? AND (cleanup_lease_updated_time = ? OR cleanup_lease_updated_time < ?)",
-				candidate.Id, BytePlusTempObjectCleanupPending, now, int64(0), staleBefore).
+			Where(
+				"id = ? AND cleanup_status = ? AND cleanup_lease_updated_time = ? AND ((cleanup_status = ? AND next_cleanup_at <= ? AND (cleanup_lease_updated_time = ? OR cleanup_lease_updated_time < ?)) OR (cleanup_status = ? AND cleanup_lease_updated_time < ?))",
+				candidate.Id, candidate.CleanupStatus, candidate.CleanupLeaseUpdatedTime,
+				BytePlusTempObjectCleanupPending, now, int64(0), staleBefore,
+				BytePlusTempObjectCleanupCleaning, staleBefore,
+			).
 			Updates(map[string]any{
 				"cleanup_status":             BytePlusTempObjectCleanupCleaning,
 				"cleanup_lease_updated_time": now,

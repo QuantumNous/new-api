@@ -23,6 +23,8 @@ type fakeBytePlusTempObjectStore struct {
 	puts        []fakeTempPut
 	deletes     []string
 	presignTTLs []time.Duration
+	putErr      error
+	afterPut    func(key string)
 	deleteErr   error
 }
 
@@ -39,6 +41,12 @@ func (f *fakeBytePlusTempObjectStore) PutObject(_ context.Context, key string, b
 		return err
 	}
 	f.puts = append(f.puts, fakeTempPut{key: key, contentType: contentType, size: size, body: payload})
+	if f.afterPut != nil {
+		f.afterPut(key)
+	}
+	if f.putErr != nil {
+		return f.putErr
+	}
 	return nil
 }
 
@@ -50,6 +58,10 @@ func (f *fakeBytePlusTempObjectStore) PresignGet(_ context.Context, key string, 
 func (f *fakeBytePlusTempObjectStore) DeleteObject(_ context.Context, key string) error {
 	f.deletes = append(f.deletes, key)
 	return f.deleteErr
+}
+
+func (f *fakeBytePlusTempObjectStore) TempObjectBucket() string {
+	return "real-person-bucket"
 }
 
 func TestBytePlusMultipartAllowsMetadataAfterFileAndStreamsUnknownLength(t *testing.T) {
@@ -122,6 +134,33 @@ func TestBytePlusMultipartCleanupUsesSingleMetadataLeaseTimestamp(t *testing.T) 
 	require.Equal(t, model.BytePlusTempObjectCleanupCleaned, stored.CleanupStatus)
 }
 
+func TestBytePlusMultipartOversizeFileWinsOverMissingPostFileMetadata(t *testing.T) {
+	newBytePlusMultipartTestDB(t)
+	store := &fakeBytePlusTempObjectStore{}
+	req := newBytePlusMultipartRequest(t, []multipartTestPart{
+		filePart("file", "large.mp4", makeMediaPayload(mp4Header(), bytePlusVideoMaxBytes+1)),
+	})
+
+	_, apiErr := readBytePlusMultipartAsset(context.Background(), req, testRealPersonProfile(), testBytePlusChannel(), store)
+	assertAssetError(t, apiErr, types.ErrorCodeAssetFileTooLarge, http.StatusRequestEntityTooLarge)
+	require.Len(t, store.puts, 1)
+	require.Len(t, store.deletes, 1)
+}
+
+func TestBytePlusMultipartOversizeFileWinsOverInvalidTrailingMetadata(t *testing.T) {
+	newBytePlusMultipartTestDB(t)
+	store := &fakeBytePlusTempObjectStore{}
+	req := newBytePlusMultipartRequest(t, []multipartTestPart{
+		filePart("file", "large.mp4", makeMediaPayload(mp4Header(), bytePlusVideoMaxBytes+1)),
+		fieldPart("unknown", "x"),
+	})
+
+	_, apiErr := readBytePlusMultipartAsset(context.Background(), req, testRealPersonProfile(), testBytePlusChannel(), store)
+	assertAssetError(t, apiErr, types.ErrorCodeAssetFileTooLarge, http.StatusRequestEntityTooLarge)
+	require.Len(t, store.puts, 1)
+	require.Len(t, store.deletes, 1)
+}
+
 func TestBytePlusMultipartPreservesExplicitEmptyName(t *testing.T) {
 	newBytePlusMultipartTestDB(t)
 	asset, apiErr := readBytePlusMultipartAsset(context.Background(), newBytePlusMultipartRequest(t, []multipartTestPart{
@@ -149,6 +188,61 @@ func TestBytePlusMultipartRejectsTypeMismatchAndQueuesCleanup(t *testing.T) {
 	var stored model.BytePlusAssetTempObject
 	require.NoError(t, model.DB.First(&stored, "object_key = ?", store.puts[0].key).Error)
 	require.Equal(t, model.BytePlusTempObjectCleanupCleaned, stored.CleanupStatus)
+}
+
+func TestBytePlusMultipartMapsUploadStorageFailuresToStorageError(t *testing.T) {
+	tests := []struct {
+		name    string
+		store   *fakeBytePlusTempObjectStore
+		broken  bool
+		hookKey func() func()
+	}{
+		{
+			name:  "tos put failure",
+			store: &fakeBytePlusTempObjectStore{putErr: fmt.Errorf("tos put failed")},
+		},
+		{
+			name: "metadata cas failure",
+			store: &fakeBytePlusTempObjectStore{afterPut: func(key string) {
+				require.NoError(t, model.DB.Model(&model.BytePlusAssetTempObject{}).
+					Where("object_key = ?", key).
+					Update("cleanup_status", model.BytePlusTempObjectCleanupCleaned).Error)
+			}},
+		},
+		{
+			name:   "db create failure",
+			store:  &fakeBytePlusTempObjectStore{},
+			broken: true,
+		},
+		{
+			name:  "random key failure",
+			store: &fakeBytePlusTempObjectStore{},
+			hookKey: func() func() {
+				old := bytePlusAssetUploadRandomKey
+				bytePlusAssetUploadRandomKey = func(int) (string, error) { return "", fmt.Errorf("random failed") }
+				return func() { bytePlusAssetUploadRandomKey = old }
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newBytePlusMultipartTestDB(t)
+			if tt.broken {
+				require.NoError(t, model.DB.Migrator().DropTable(&model.BytePlusAssetTempObject{}))
+			}
+			if tt.hookKey != nil {
+				cleanup := tt.hookKey()
+				t.Cleanup(cleanup)
+			}
+			req := newBytePlusMultipartRequest(t, []multipartTestPart{
+				fieldPart("asset_type", "Image"),
+				filePart("file", "image.png", pngHeader()),
+			})
+
+			_, apiErr := readBytePlusMultipartAsset(context.Background(), req, testRealPersonProfile(), testBytePlusChannel(), tt.store)
+			assertAssetError(t, apiErr, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		})
+	}
 }
 
 func TestBytePlusMultipartSecondFileDoesNotUploadSecondAndCleanupFailureLeavesPending(t *testing.T) {
@@ -208,6 +302,29 @@ func TestBytePlusMultipartSizeBoundaries(t *testing.T) {
 			assertAssetError(t, apiErr, tt.wantCode, tt.wantHTTP)
 			require.Len(t, store.puts, 1)
 			require.Len(t, store.deletes, 1)
+		})
+	}
+}
+
+func TestBytePlusMultipartRequestHardLimitAllowsExactEnvelopeAndRejectsOneOver(t *testing.T) {
+	tests := []struct {
+		name       string
+		bodySize   int64
+		wantCode   types.ErrorCode
+		wantStatus int
+	}{
+		{name: "exact hard limit is allowed", bodySize: bytePlusAssetRequestHardMaxBytes},
+		{name: "one byte over hard limit is rejected as too large", bodySize: bytePlusAssetRequestHardMaxBytes + 1, wantCode: types.ErrorCodeAssetFileTooLarge, wantStatus: http.StatusRequestEntityTooLarge},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := &bytePlusMaxBodyReader{r: io.LimitReader(zeroReader{}, tt.bodySize), remaining: bytePlusAssetRequestHardMaxBytes}
+			_, err := io.Copy(io.Discard, reader)
+			if tt.wantCode == "" {
+				require.NoError(t, err)
+				return
+			}
+			assertAssetError(t, multipartReadError(err), tt.wantCode, tt.wantStatus)
 		})
 	}
 }
@@ -291,6 +408,26 @@ func TestBytePlusMultipartNameUsesBaseAndRuneLimit(t *testing.T) {
 	require.Equal(t, 128, utf8.RuneCountInString(asset.Name))
 }
 
+func TestBytePlusMultipartPersistsWrappedStoreBucket(t *testing.T) {
+	newBytePlusMultipartTestDB(t)
+	store := &bucketForwardingTempObjectStore{
+		fakeBytePlusTempObjectStore: &fakeBytePlusTempObjectStore{},
+		bucket:                      "wrapped-real-person-bucket",
+	}
+	req := newBytePlusMultipartRequest(t, []multipartTestPart{
+		fieldPart("asset_type", "Image"),
+		filePart("file", "image.png", pngHeader()),
+	})
+
+	asset, apiErr := readBytePlusMultipartAsset(context.Background(), req, testRealPersonProfile(), testBytePlusChannel(), store)
+	require.Nil(t, apiErr)
+	require.Equal(t, "wrapped-real-person-bucket", asset.TempObject.Bucket)
+
+	var stored model.BytePlusAssetTempObject
+	require.NoError(t, model.DB.First(&stored, asset.TempObject.Id).Error)
+	require.Equal(t, "wrapped-real-person-bucket", stored.Bucket)
+}
+
 type multipartTestPart struct {
 	field    string
 	fileName string
@@ -335,6 +472,24 @@ type readOnlyReader struct {
 
 func (r *readOnlyReader) Read(p []byte) (int, error) {
 	return r.r.Read(p)
+}
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 0
+	}
+	return len(p), nil
+}
+
+type bucketForwardingTempObjectStore struct {
+	*fakeBytePlusTempObjectStore
+	bucket string
+}
+
+func (s *bucketForwardingTempObjectStore) TempObjectBucket() string {
+	return s.bucket
 }
 
 func newBytePlusMultipartTestDB(t *testing.T) {

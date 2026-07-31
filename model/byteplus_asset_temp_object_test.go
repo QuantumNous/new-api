@@ -123,6 +123,36 @@ func TestBytePlusAssetTempObjectClaimDueUsesLeaseCAS(t *testing.T) {
 	require.Equal(t, BytePlusTempObjectCleanupPending, stored.CleanupStatus)
 }
 
+func TestBytePlusAssetTempObjectClaimReclaimsStaleCleaningLeaseOnce(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	staleCleaning := BytePlusAssetTempObject{
+		UserId: 7, ChannelId: 131, Bucket: "bucket", ObjectKey: "stale-cleaning",
+		CleanupStatus: BytePlusTempObjectCleanupCleaning, NextCleanupAt: 90,
+		CleanupLeaseUpdatedTime: 100, CreatedTime: 90, UpdatedTime: 100,
+	}
+	freshCleaning := BytePlusAssetTempObject{
+		UserId: 7, ChannelId: 131, Bucket: "bucket", ObjectKey: "fresh-cleaning",
+		CleanupStatus: BytePlusTempObjectCleanupCleaning, NextCleanupAt: 90,
+		CleanupLeaseUpdatedTime: 480, CreatedTime: 90, UpdatedTime: 480,
+	}
+	require.NoError(t, DB.Create(&staleCleaning).Error)
+	require.NoError(t, DB.Create(&freshCleaning).Error)
+
+	firstClaim, err := ClaimDueBytePlusTempObjectCleanups(500, 400, 10)
+	require.NoError(t, err)
+	require.Equal(t, []int64{staleCleaning.Id}, tempObjectIDs(firstClaim))
+	require.Equal(t, BytePlusTempObjectCleanupCleaning, firstClaim[0].CleanupStatus)
+	require.Equal(t, int64(500), firstClaim[0].CleanupLeaseUpdatedTime)
+
+	secondClaim, err := ClaimDueBytePlusTempObjectCleanups(500, 400, 10)
+	require.NoError(t, err)
+	require.Empty(t, secondClaim)
+
+	var stored BytePlusAssetTempObject
+	require.NoError(t, DB.First(&stored, freshCleaning.Id).Error)
+	require.Equal(t, int64(480), stored.CleanupLeaseUpdatedTime)
+}
+
 func TestBytePlusAssetTempObjectCleanupRetryRequiresCurrentLease(t *testing.T) {
 	newBytePlusRealPersonTestDB(t)
 	object := BytePlusAssetTempObject{
