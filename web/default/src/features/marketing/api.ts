@@ -77,3 +77,31 @@ export async function submitContactSales(
     .catch(() => null)
   return res?.data?.success ? res.data.data : null
 }
+
+export type AnalyticsEventName =
+  | 'visit'
+  | 'signup'
+  | 'pricing_click'
+  | 'lead_submit'
+  | 'page_view'
+
+// 埋点上报（P1-06）。失败静默忽略，不影响主流程。
+export async function trackEvent(
+  event: AnalyticsEventName,
+  extra?: { path?: string; locale?: string; referrer?: string },
+): Promise<void> {
+  await api
+    .post(
+      '/api/public/track',
+      {
+        event,
+        path: extra?.path ?? (typeof window !== 'undefined' ? window.location.pathname : ''),
+        locale: extra?.locale,
+        referrer:
+          extra?.referrer ??
+          (typeof document !== 'undefined' ? document.referrer : ''),
+      },
+      { skipErrorHandler: true, skipBusinessError: true },
+    )
+    .catch(() => {})
+}

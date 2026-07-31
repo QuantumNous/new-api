@@ -48,6 +48,8 @@ const MARKETING_EXCLUSIVE_PATHS = new Set<string>([
   '/contact-sales',
   '/privacy-policy',
   '/user-agreement',
+  '/quickstart',
+  '/usage',
 ])
 
 // www host 下允许渲染的营销/公共路径；其余（控制台内部路径）跳转到 app
@@ -59,6 +61,8 @@ const WWW_ALLOWED_PATHS = new Set<string>([
   '/contact-sales',
   '/privacy-policy',
   '/user-agreement',
+  '/quickstart',
+  '/usage',
 ])
 
 function normalizePathname(p: string): string {

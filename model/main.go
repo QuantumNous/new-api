@@ -302,6 +302,7 @@ func migrateDB() error {
 		&SalesLead{},
 		&PublicPricing{},
 		&PublicModelCategory{},
+		&AnalyticsEvent{},
 	)
 	if err != nil {
 		return err

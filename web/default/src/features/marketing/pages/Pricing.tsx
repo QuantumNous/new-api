@@ -8,9 +8,17 @@ import { getPricing } from '../api'
 import { defaultPlans, pricingFaq } from '../data/pricing'
 import { marketingNavLinks } from '../data/site'
 import { useLocale } from '../hooks/useLocale'
+import { useSeo } from '@/lib/seo'
 
 export function Pricing() {
   const locale = useLocale()
+  useSeo({
+    title: locale === 'zh' ? '定价 | 元点流商 OriginFlow' : 'Pricing | OriginFlow',
+    description:
+      locale === 'zh'
+        ? '按量、订阅与企业定制报价，透明展示销售方式与计费说明。'
+        : 'Pay-as-you-go, subscription, and custom enterprise quotes with clear billing.',
+  })
   const { data, isLoading } = useQuery({
     queryKey: ['marketing-pricing', locale],
     queryFn: () => getPricing(locale),

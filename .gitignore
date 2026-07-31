@@ -29,6 +29,8 @@ plans
 electron/node_modules
 electron/dist
 data/
+# 例外：营销站源码数据目录（非运行时数据）需纳入版本控制
+!web/default/src/features/marketing/data/
 .gomodcache/
 .gocache-temp
 .gopath

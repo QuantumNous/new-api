@@ -5,10 +5,18 @@ import { Section, SectionTitle } from '../components/Section'
 import { marketingNavLinks } from '../data/site'
 import { solutions } from '../data/solutions'
 import { useLocale } from '../hooks/useLocale'
+import { useSeo } from '@/lib/seo'
 
 export function Solutions() {
   const locale = useLocale()
   const content = solutions[locale]
+  useSeo({
+    title: locale === 'zh' ? '解决方案 | 元点流商 OriginFlow' : 'Solutions | OriginFlow',
+    description:
+      locale === 'zh'
+        ? '面向 SaaS、跨境电商、内容生成与 AI Agent 的模型接入方案。'
+        : 'Model access solutions for SaaS, cross-border e-commerce, content generation, and AI Agents.',
+  })
 
   return (
     <PublicLayout

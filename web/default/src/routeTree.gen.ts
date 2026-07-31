@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UserAgreementRouteImport } from './routes/user-agreement'
+import { Route as UsageRouteImport } from './routes/usage'
 import { Route as SolutionsRouteImport } from './routes/solutions'
+import { Route as QuickstartRouteImport } from './routes/quickstart'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ModelsRouteImport } from './routes/models'
 import { Route as ContactSalesRouteImport } from './routes/contact-sales'
@@ -45,6 +47,7 @@ import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
 import { Route as AuthenticatedSystemInfoIndexRouteImport } from './routes/_authenticated/system-info/index'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
+import { Route as AuthenticatedSalesLeadsIndexRouteImport } from './routes/_authenticated/sales-leads/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
@@ -77,9 +80,19 @@ const UserAgreementRoute = UserAgreementRouteImport.update({
   path: '/user-agreement',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UsageRoute = UsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SolutionsRoute = SolutionsRouteImport.update({
   id: '/solutions',
   path: '/solutions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuickstartRoute = QuickstartRouteImport.update({
+  id: '/quickstart',
+  path: '/quickstart',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
@@ -256,6 +269,12 @@ const AuthenticatedSubscriptionsIndexRoute =
     path: '/subscriptions/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSalesLeadsIndexRoute =
+  AuthenticatedSalesLeadsIndexRouteImport.update({
+    id: '/sales-leads/',
+    path: '/sales-leads/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedRedemptionCodesIndexRoute =
   AuthenticatedRedemptionCodesIndexRouteImport.update({
     id: '/redemption-codes/',
@@ -415,7 +434,9 @@ export interface FileRoutesByFullPath {
   '/contact-sales': typeof ContactSalesRoute
   '/models': typeof ModelsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/quickstart': typeof QuickstartRoute
   '/solutions': typeof SolutionsRoute
+  '/usage': typeof UsageRoute
   '/user-agreement': typeof UserAgreementRoute
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/forgot-password': typeof authForgotPasswordRoute
@@ -450,6 +471,7 @@ export interface FileRoutesByFullPath {
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/sales-leads/': typeof AuthenticatedSalesLeadsIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-info/': typeof AuthenticatedSystemInfoIndexRoute
   '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
@@ -477,7 +499,9 @@ export interface FileRoutesByTo {
   '/contact-sales': typeof ContactSalesRoute
   '/models': typeof ModelsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/quickstart': typeof QuickstartRoute
   '/solutions': typeof SolutionsRoute
+  '/usage': typeof UsageRoute
   '/user-agreement': typeof UserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
@@ -511,6 +535,7 @@ export interface FileRoutesByTo {
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/sales-leads': typeof AuthenticatedSalesLeadsIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-info': typeof AuthenticatedSystemInfoIndexRoute
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
@@ -541,7 +566,9 @@ export interface FileRoutesById {
   '/contact-sales': typeof ContactSalesRoute
   '/models': typeof ModelsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/quickstart': typeof QuickstartRoute
   '/solutions': typeof SolutionsRoute
+  '/usage': typeof UsageRoute
   '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
@@ -576,6 +603,7 @@ export interface FileRoutesById {
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/_authenticated/sales-leads/': typeof AuthenticatedSalesLeadsIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/_authenticated/system-info/': typeof AuthenticatedSystemInfoIndexRoute
   '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
@@ -605,7 +633,9 @@ export interface FileRouteTypes {
     | '/contact-sales'
     | '/models'
     | '/privacy-policy'
+    | '/quickstart'
     | '/solutions'
+    | '/usage'
     | '/user-agreement'
     | '/system-settings'
     | '/forgot-password'
@@ -640,6 +670,7 @@ export interface FileRouteTypes {
     | '/playground/'
     | '/profile/'
     | '/redemption-codes/'
+    | '/sales-leads/'
     | '/subscriptions/'
     | '/system-info/'
     | '/system-settings/'
@@ -667,7 +698,9 @@ export interface FileRouteTypes {
     | '/contact-sales'
     | '/models'
     | '/privacy-policy'
+    | '/quickstart'
     | '/solutions'
+    | '/usage'
     | '/user-agreement'
     | '/forgot-password'
     | '/oauth'
@@ -701,6 +734,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/profile'
     | '/redemption-codes'
+    | '/sales-leads'
     | '/subscriptions'
     | '/system-info'
     | '/system-settings'
@@ -730,7 +764,9 @@ export interface FileRouteTypes {
     | '/contact-sales'
     | '/models'
     | '/privacy-policy'
+    | '/quickstart'
     | '/solutions'
+    | '/usage'
     | '/user-agreement'
     | '/_authenticated/system-settings'
     | '/(auth)/forgot-password'
@@ -765,6 +801,7 @@ export interface FileRouteTypes {
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
+    | '/_authenticated/sales-leads/'
     | '/_authenticated/subscriptions/'
     | '/_authenticated/system-info/'
     | '/_authenticated/system-settings/'
@@ -795,7 +832,9 @@ export interface RootRouteChildren {
   ContactSalesRoute: typeof ContactSalesRoute
   ModelsRoute: typeof ModelsRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  QuickstartRoute: typeof QuickstartRoute
   SolutionsRoute: typeof SolutionsRoute
+  UsageRoute: typeof UsageRoute
   UserAgreementRoute: typeof UserAgreementRoute
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
@@ -821,11 +860,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UserAgreementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/usage': {
+      id: '/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof UsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/solutions': {
       id: '/solutions'
       path: '/solutions'
       fullPath: '/solutions'
       preLoaderRoute: typeof SolutionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quickstart': {
+      id: '/quickstart'
+      path: '/quickstart'
+      fullPath: '/quickstart'
+      preLoaderRoute: typeof QuickstartRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy-policy': {
@@ -1064,6 +1117,13 @@ declare module '@tanstack/react-router' {
       path: '/subscriptions'
       fullPath: '/subscriptions/'
       preLoaderRoute: typeof AuthenticatedSubscriptionsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sales-leads/': {
+      id: '/_authenticated/sales-leads/'
+      path: '/sales-leads'
+      fullPath: '/sales-leads/'
+      preLoaderRoute: typeof AuthenticatedSalesLeadsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/redemption-codes/': {
@@ -1348,6 +1408,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
+  AuthenticatedSalesLeadsIndexRoute: typeof AuthenticatedSalesLeadsIndexRoute
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
   AuthenticatedSystemInfoIndexRoute: typeof AuthenticatedSystemInfoIndexRoute
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
@@ -1371,6 +1432,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
     AuthenticatedRedemptionCodesIndexRoute,
+  AuthenticatedSalesLeadsIndexRoute: AuthenticatedSalesLeadsIndexRoute,
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,
   AuthenticatedSystemInfoIndexRoute: AuthenticatedSystemInfoIndexRoute,
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
@@ -1388,7 +1450,9 @@ const rootRouteChildren: RootRouteChildren = {
   ContactSalesRoute: ContactSalesRoute,
   ModelsRoute: ModelsRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  QuickstartRoute: QuickstartRoute,
   SolutionsRoute: SolutionsRoute,
+  UsageRoute: UsageRoute,
   UserAgreementRoute: UserAgreementRoute,
   errors401Route: errors401Route,
   errors403Route: errors403Route,

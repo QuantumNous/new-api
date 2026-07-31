@@ -13,10 +13,22 @@ import { UseCases } from '../components/UseCases'
 import { marketingNavLinks } from '../data/site'
 import { homeContent } from '../data/home'
 import { useLocale } from '../hooks/useLocale'
+import { useSeo } from '@/lib/seo'
 
 export function Home() {
   const locale = useLocale()
   const c = homeContent[locale]
+
+  useSeo({
+    title:
+      locale === 'zh'
+        ? '元点流商 OriginFlow | 一个 API 连接中国与全球大模型'
+        : 'OriginFlow — One API for Chinese & Global AI Models',
+    description:
+      locale === 'zh'
+        ? 'OriginFlow 提供统一的 AI API 网关，接入中国与海外大模型，兼容 OpenAI 协议。'
+        : 'OriginFlow is an AI API gateway connecting Chinese and global models through one OpenAI-compatible API.',
+  })
 
   return (
     <PublicLayout

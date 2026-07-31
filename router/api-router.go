@@ -27,6 +27,13 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/public/pricing", controller.GetPublicPricing)
 		apiRouter.GET("/public/model-catalog", controller.GetPublicModelCatalog)
 		apiRouter.POST("/public/contact-sales", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ContactSales)
+		apiRouter.POST("/public/track", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.TrackEvent)
+		// 销售线索后台管理（管理员，需 AdminAuth）
+		salesLeadRoute := apiRouter.Group("/admin/sales-leads")
+		salesLeadRoute.Use(middleware.AdminAuth())
+		salesLeadRoute.GET("/", controller.ListSalesLeads)
+		salesLeadRoute.GET("/:id", controller.GetSalesLead)
+		salesLeadRoute.PUT("/:id", controller.UpdateSalesLead)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)

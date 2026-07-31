@@ -8,9 +8,17 @@ import { getModelCatalog } from '../api'
 import { defaultModelCategories } from '../data/models'
 import { marketingNavLinks } from '../data/site'
 import { useLocale } from '../hooks/useLocale'
+import { useSeo } from '@/lib/seo'
 
 export function Models() {
   const locale = useLocale()
+  useSeo({
+    title: locale === 'zh' ? '模型能力 | 元点流商 OriginFlow' : 'Models | OriginFlow',
+    description:
+      locale === 'zh'
+        ? '展示中国与海外模型分类及能力，可用性以控制台配置为准。'
+        : 'Categories and capabilities of Chinese and global models.',
+  })
   const { data, isLoading } = useQuery({
     queryKey: ['marketing-models', locale],
     queryFn: () => getModelCatalog(locale),

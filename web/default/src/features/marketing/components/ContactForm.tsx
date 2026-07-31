@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-import { submitContactSales } from '../api'
+import { submitContactSales, trackEvent } from '../api'
 import type { Locale } from '../types'
 
 const regionOptions: { value: string; en: string; zh: string }[] = [
@@ -91,6 +91,7 @@ export function ContactForm({ locale }: { locale: Locale }) {
         message: form.message.trim() || undefined,
       })
       if (res) {
+        trackEvent('lead_submit')
         setDone(true)
         setForm(empty)
       } else {
