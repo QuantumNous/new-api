@@ -189,10 +189,12 @@ export interface LogOtherData {
   frt?: number
   // Tiered (expression-based) billing fields, set by backend when
   // billing_mode === 'tiered_expr'. expr_b64 is the base64-encoded billing
-  // expression and matched_tier is the label of the tier that fired.
+  // expression; the matched fields identify the tier and conditional
+  // multiplier factors that fired.
   billing_mode?: string
   expr_b64?: string
   matched_tier?: string
+  matched_request_rules?: string[]
   reasoning_effort?: string
   image?: boolean
   image_ratio?: number

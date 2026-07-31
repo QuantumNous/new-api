@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -228,23 +230,18 @@ func TestRequestProbeMissingFieldReturnsNil(t *testing.T) {
 	}
 }
 
-func TestRequestProbeMultipleRulesMultiply(t *testing.T) {
-	cost, _, err := billingexpr.RunExprWithRequest(
-		`(param("service_tier") == "fast" ? 2 : 1) * (has(header("anthropic-beta"), "fast-mode-2026-02-01") ? 2.5 : 1)`,
-		billingexpr.TokenParams{},
-		billingexpr.RequestInput{
-			Headers: map[string]string{
-				"Anthropic-Beta": "fast-mode-2026-02-01",
-			},
-			Body: []byte(`{"service_tier":"fast"}`),
-		},
+func TestRequestProbeMultipleRulesTraceMatchedFactors(t *testing.T) {
+	exprStr := `(tier("base", p * 2)) * (param("service_tier") == "fast" ? 2 : 1) * (has(header("anthropic-beta"), "fast-mode-2026-02-01") ? 2.5 : 1)`
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		exprStr,
+		billingexpr.TokenParams{P: 10},
+		billingexpr.RequestInput{Body: []byte(`{"service_tier":"fast"}`)},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if math.Abs(cost-5) > 1e-6 {
-		t.Errorf("cost = %f, want 5", cost)
-	}
+
+	require.NoError(t, err)
+	assert.InDelta(t, 40, cost, 1e-6)
+	assert.Equal(t, "base", trace.MatchedTier)
+	assert.Equal(t, []string{`param("service_tier") == "fast"`}, trace.MatchedRequestRules)
 }
 
 func TestCeilFloor(t *testing.T) {

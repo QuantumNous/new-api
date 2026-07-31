@@ -26,6 +26,56 @@ func ParseExprVersion(exprStr string) (version int, body string) {
 	return DefaultExprVersion, exprStr
 }
 
+// requestRulePatcher adds trace side effects to existing request multipliers
+// without changing the stored expression or its numeric result.
+type requestRulePatcher struct{}
+
+func (requestRulePatcher) Visit(node *ast.Node) {
+	conditional, ok := (*node).(*ast.ConditionalNode)
+	if !ok || !conditional.Ternary || !usesRequestProbe(conditional.Cond) {
+		return
+	}
+	multiplier, ok := requestRuleNumber(conditional.Exp1)
+	fallback, fallbackOK := requestRuleNumber(conditional.Exp2)
+	if !ok || !fallbackOK || fallback != 1 {
+		return
+	}
+	ast.Patch(node, &ast.CallNode{
+		Callee: &ast.IdentifierNode{Value: "_trace"},
+		Arguments: []ast.Node{
+			&ast.StringNode{Value: conditional.Cond.String()},
+			conditional.Cond,
+			&ast.FloatNode{Value: multiplier},
+		},
+	})
+}
+
+func requestRuleNumber(node ast.Node) (float64, bool) {
+	switch value := node.(type) {
+	case *ast.IntegerNode:
+		return float64(value.Value), true
+	case *ast.FloatNode:
+		return value.Value, true
+	default:
+		return 0, false
+	}
+}
+
+func usesRequestProbe(node ast.Node) bool {
+	return ast.Find(node, func(node ast.Node) bool {
+		identifier, ok := node.(*ast.IdentifierNode)
+		if !ok {
+			return false
+		}
+		switch identifier.Value {
+		case "param", "header", "hour", "minute", "weekday", "month", "day":
+			return true
+		default:
+			return false
+		}
+	}) != nil
+}
+
 type cachedEntry struct {
 	prog     *vm.Program
 	usedVars map[string]bool
@@ -50,6 +100,7 @@ var compileEnvPrototypeV1 = map[string]interface{}{
 	"ai":      float64(0),
 	"ao":      float64(0),
 	"tier":    func(string, float64) float64 { return 0 },
+	"_trace":  func(string, bool, float64) float64 { return 1 },
 	"header":  func(string) string { return "" },
 	"param":   func(string) interface{} { return nil },
 	"has":     func(interface{}, string) bool { return false },
@@ -93,7 +144,7 @@ func compileFromCacheByHash(exprStr, hash string) (*vm.Program, error) {
 	cacheMu.RUnlock()
 
 	version, body := ParseExprVersion(exprStr)
-	prog, err := expr.Compile(body, expr.Env(getCompileEnv(version)), expr.AsFloat64())
+	prog, err := expr.Compile(body, expr.Env(getCompileEnv(version)), expr.Patch(requestRulePatcher{}), expr.AsFloat64())
 	if err != nil {
 		return nil, fmt.Errorf("expr compile error: %w", err)
 	}
