@@ -17,6 +17,8 @@ const (
 	BytePlusAssetStatusProcessing = "Processing"
 	BytePlusAssetStatusActive     = "Active"
 	BytePlusAssetStatusFailed     = "Failed"
+	BytePlusAssetStatusDeleting   = "Deleting"
+	BytePlusAssetStatusDeleted    = "Deleted"
 )
 
 type BytePlusAssetGroup struct {
@@ -33,20 +35,27 @@ type BytePlusAssetGroup struct {
 }
 
 type BytePlusAsset struct {
-	Id                 int64  `json:"id"`
-	PublicId           string `json:"public_id" gorm:"type:varchar(64);uniqueIndex;index:idx_byteplus_asset_user_public"`
-	UserId             int    `json:"user_id" gorm:"index:idx_byteplus_asset_user_public;index"`
-	AssetGroupId       int64  `json:"-" gorm:"index"`
-	ChannelId          int    `json:"-" gorm:"index"`
-	UpstreamAssetId    string `json:"-" gorm:"type:varchar(128);index"`
-	UpstreamRequestId  string `json:"-" gorm:"type:varchar(128)"`
-	AssetType          string `json:"asset_type" gorm:"type:varchar(32)"`
-	SourceURL          string `json:"-" gorm:"-"`
-	ModerationStrategy string `json:"moderation_strategy" gorm:"type:varchar(32)"`
-	Status             string `json:"status" gorm:"type:varchar(32);index"`
-	ErrorMessage       string `json:"-" gorm:"type:text"`
-	CreatedTime        int64  `json:"created_time" gorm:"bigint"`
-	UpdatedTime        int64  `json:"updated_time" gorm:"bigint"`
+	Id                     int64  `json:"id"`
+	PublicId               string `json:"public_id" gorm:"type:varchar(64);uniqueIndex;index:idx_byteplus_asset_user_public"`
+	UserId                 int    `json:"user_id" gorm:"index:idx_byteplus_asset_user_public;index"`
+	AssetGroupId           int64  `json:"-" gorm:"index"`
+	RealPersonProfileId    *int64 `json:"-" gorm:"index"`
+	ChannelId              int    `json:"-" gorm:"index"`
+	UpstreamAssetId        string `json:"-" gorm:"type:varchar(128);index"`
+	UpstreamRequestId      string `json:"-" gorm:"type:varchar(128)"`
+	AssetType              string `json:"asset_type" gorm:"type:varchar(32)"`
+	Name                   string `json:"name,omitempty" gorm:"type:varchar(128)"`
+	SourceURL              string `json:"-" gorm:"-"`
+	ModerationStrategy     string `json:"moderation_strategy" gorm:"type:varchar(32)"`
+	Status                 string `json:"status" gorm:"type:varchar(32);index"`
+	FailureCode            string `json:"failure_code,omitempty" gorm:"type:varchar(64)"`
+	ErrorMessage           string `json:"-" gorm:"type:text"`
+	DeleteAttempts         int    `json:"-"`
+	NextDeleteAt           int64  `json:"-" gorm:"bigint;index"`
+	DeleteLeaseUpdatedTime int64  `json:"-" gorm:"bigint;index"`
+	DeletedTime            int64  `json:"-" gorm:"bigint"`
+	CreatedTime            int64  `json:"created_time" gorm:"bigint"`
+	UpdatedTime            int64  `json:"updated_time" gorm:"bigint"`
 }
 
 var ErrBytePlusAssetNotUpdatable = errors.New("byteplus asset is not updatable")
@@ -195,5 +204,5 @@ func IsBytePlusAssetNotFound(err error) bool {
 }
 
 func bytePlusAssetTerminalStatuses() []string {
-	return []string{BytePlusAssetStatusActive, BytePlusAssetStatusFailed}
+	return []string{BytePlusAssetStatusActive, BytePlusAssetStatusFailed, BytePlusAssetStatusDeleting, BytePlusAssetStatusDeleted}
 }

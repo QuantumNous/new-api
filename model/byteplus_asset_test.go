@@ -14,6 +14,9 @@ func TestBytePlusAssetModelsAutoMigrateAndUniqueness(t *testing.T) {
 	if db.Migrator().HasColumn(&BytePlusAsset{}, "source_url") {
 		t.Fatal("source_url must not be migrated because upload URLs can contain signed secrets")
 	}
+	if !db.Migrator().HasColumn(&BytePlusAsset{}, "real_person_profile_id") {
+		t.Fatal("real_person_profile_id must be migrated for real-person asset ownership")
+	}
 
 	if err := db.Create(&BytePlusAssetGroup{UserId: 1, ChannelId: 101, Status: BytePlusAssetGroupStatusCreating}).Error; err != nil {
 		t.Fatalf("create group: %v", err)
@@ -220,6 +223,20 @@ func TestBytePlusAssetStatusUpdateDoesNotRegressTerminalAsset(t *testing.T) {
 	}
 	if got.Status != BytePlusAssetStatusActive || got.UpdatedTime != 2020 {
 		t.Fatalf("terminal asset regressed: %+v", got)
+	}
+}
+
+func TestBytePlusAssetDeletingAndDeletedAreTerminalForStatusPolling(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	for _, status := range []string{BytePlusAssetStatusDeleting, BytePlusAssetStatusDeleted} {
+		asset := BytePlusAsset{PublicId: "ast_" + status, UserId: 7, ChannelId: 101, AssetType: "Image", Status: status}
+		if err := DB.Create(&asset).Error; err != nil {
+			t.Fatalf("create asset: %v", err)
+		}
+		err := UpdateBytePlusAssetStatus(asset.Id, BytePlusAssetStatusActive, "", 200)
+		if !errors.Is(err, ErrBytePlusAssetNotUpdatable) {
+			t.Fatalf("deletion status update error = %v, want ErrBytePlusAssetNotUpdatable", err)
+		}
 	}
 }
 
