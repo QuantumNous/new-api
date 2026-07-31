@@ -292,6 +292,16 @@ func SetApiRouter(router *gin.Engine) {
 			systemInfoRoute.DELETE("/stale-instances", controller.DeleteStaleSystemInstances)
 			systemInfoRoute.DELETE("/instances/:node_name", controller.DeleteStaleSystemInstance)
 		}
+		// In-place binary update (Sub2API-style). Root only.
+		// Docker deployments should continue to use image pull; apply returns 400 there.
+		systemUpdateRoute := apiRouter.Group("/system-update")
+		systemUpdateRoute.Use(middleware.RootAuth())
+		{
+			systemUpdateRoute.GET("/check", controller.CheckSystemUpdate)
+			systemUpdateRoute.POST("/apply", controller.PerformSystemUpdate)
+			systemUpdateRoute.GET("/rollback-versions", controller.ListSystemRollbackVersions)
+			systemUpdateRoute.POST("/rollback", controller.PerformSystemRollback)
+		}
 
 		dataRoute := apiRouter.Group("/data")
 		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
