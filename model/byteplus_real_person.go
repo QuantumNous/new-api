@@ -318,7 +318,7 @@ func CompleteBytePlusVisualValidationSession(sessionID int64, bytedCiphertext, h
 	if updated.Error != nil {
 		return updated.Error
 	}
-	return nil
+	return requireOneRealPersonCAS(updated)
 }
 
 func ClearBytePlusVisualValidationSecrets(sessionID, now int64) error {

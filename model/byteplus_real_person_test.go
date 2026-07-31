@@ -99,7 +99,7 @@ func TestBytePlusRealPersonSessionCASClaimLeaseIsExclusiveAndTerminalDoesNotRegr
 		"status":       BytePlusVisualValidationSessionStatusSucceeded,
 		"updated_time": int64(102),
 	}).Error)
-	require.NoError(t, CompleteBytePlusVisualValidationSession(session.Id, "byted", "h5", "req-late", 500, 103))
+	require.Error(t, CompleteBytePlusVisualValidationSession(session.Id, "byted", "h5", "req-late", 500, 103))
 	require.NoError(t, DB.First(&session, session.Id).Error)
 	require.Equal(t, BytePlusVisualValidationSessionStatusSucceeded, session.Status)
 	require.Empty(t, session.BytedTokenCiphertext)
@@ -127,6 +127,38 @@ func TestBytePlusRealPersonListUsesUserScopedStableCursor(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, hasMore)
 	require.Equal(t, []string{"rph_tie_low"}, profilePublicIDs(second))
+}
+
+func TestBytePlusRealPersonCreateBindCASRollbackLeavesNoProfileOrSession(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	record := APIIdempotencyRecord{UserId: 7, Route: "real_person_create", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64), Status: APIIdempotencyStatusProcessing, ResourceType: APIIdempotencyResourceVerificationSession, LeaseUpdatedTime: 100, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&record).Error)
+
+	_, _, err := CreateBytePlusRealPersonProfileAndSessionForIdempotency(record.Id, 99,
+		BytePlusRealPersonProfile{PublicId: "rph_rollback", UserId: 7, Name: "Alice", ChannelId: 101, Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100},
+		BytePlusVisualValidationSession{PublicId: "rvs_rollback", CallbackTokenHash: strings.Repeat("c", 64), Status: BytePlusVisualValidationSessionStatusCreating, CreatedTime: 100, UpdatedTime: 100},
+		101,
+	)
+	require.ErrorIs(t, err, ErrAPIIdempotencyCASLost)
+	var profileCount int64
+	require.NoError(t, DB.Model(&BytePlusRealPersonProfile{}).Count(&profileCount).Error)
+	require.Equal(t, int64(0), profileCount)
+	var sessionCount int64
+	require.NoError(t, DB.Model(&BytePlusVisualValidationSession{}).Count(&sessionCount).Error)
+	require.Equal(t, int64(0), sessionCount)
+}
+
+func TestBytePlusRealPersonVerificationCompleteSessionCASRejectsTerminalOverwrite(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	session := BytePlusVisualValidationSession{PublicId: "rvs_terminal", ProfileId: 1, CallbackTokenHash: strings.Repeat("d", 64), Status: BytePlusVisualValidationSessionStatusFailed, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&session).Error)
+
+	err := CompleteBytePlusVisualValidationSession(session.Id, "byted", "h5", "req", 500, 200)
+	require.Error(t, err)
+	require.NoError(t, DB.First(&session, session.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusFailed, session.Status)
+	require.Empty(t, session.BytedTokenCiphertext)
+	require.Empty(t, session.H5LinkCiphertext)
 }
 
 func profilePublicIDs(profiles []BytePlusRealPersonProfile) []string {

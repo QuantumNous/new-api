@@ -33,7 +33,6 @@ type bytePlusRealPersonAPI interface {
 	GetVisualValidateResult(ctx context.Context, creds BytePlusCredentials, bytedToken string) (BytePlusVisualValidationResult, error)
 	CreateAsset(ctx context.Context, creds BytePlusCredentials, request BytePlusCreateAssetRequest) (string, string, error)
 	GetAsset(ctx context.Context, creds BytePlusCredentials, upstreamAssetID string) (BytePlusAssetStatus, error)
-	CreateAssetGroup(ctx context.Context, creds BytePlusCredentials, name string) (string, string, error)
 	ListAssets(ctx context.Context, creds BytePlusCredentials, request BytePlusListAssetsRequest) (BytePlusListAssetsResult, error)
 	DeleteAsset(ctx context.Context, creds BytePlusCredentials, upstreamAssetID string) (string, error)
 }
@@ -56,7 +55,8 @@ var (
 	bytePlusRealPersonCallbackToken = func() (string, error) {
 		return common.GenerateRandomCharsKey(48)
 	}
-	bytePlusRealPersonCipherFactory = loadBytePlusSensitiveCipherFromEnv
+	bytePlusRealPersonCipherFactory          = loadBytePlusSensitiveCipherFromEnv
+	bytePlusRealPersonCompleteAPIIdempotency = model.CompleteAPIIdempotency
 )
 
 func CreateBytePlusRealPerson(ctx context.Context, userID int, userGroup, usingGroup string, specificChannelID int, idempotencyKey string, request dto.BytePlusRealPersonCreateRequest) (*dto.BytePlusRealPersonResponse, *types.NewAPIError) {
@@ -152,89 +152,83 @@ func ReverifyBytePlusRealPerson(ctx context.Context, userID int, personID string
 	return handleBytePlusRealPersonClaim(ctx, userID, channel, creds, claim, profile, true)
 }
 
-func Reverify(ctx context.Context, userID int, personID string, idempotencyKey string) (*dto.BytePlusRealPersonResponse, *types.NewAPIError) {
-	return ReverifyBytePlusRealPerson(ctx, userID, personID, idempotencyKey)
-}
-
-func SyncBytePlusRealPersonVerification(ctx context.Context, userID int, profile *model.BytePlusRealPersonProfile) (*model.BytePlusRealPersonProfile, *types.NewAPIError) {
+func SyncBytePlusRealPersonVerification(ctx context.Context, userID int, profile *model.BytePlusRealPersonProfile) *types.NewAPIError {
 	if profile == nil {
-		return nil, realPersonError(types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
+		return realPersonError(types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
 	}
 	if profile.UserId != userID {
-		return nil, realPersonError(types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
+		return realPersonError(types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
 	}
 	if profile.CurrentValidationSessionId == nil {
-		return profile, nil
+		return nil
 	}
 	if profile.Status == model.BytePlusRealPersonProfileStatusActive || profile.Status == model.BytePlusRealPersonProfileStatusFailed || profile.Status == model.BytePlusRealPersonProfileStatusExpired {
-		return profile, nil
+		return nil
 	}
 	session, err := model.GetBytePlusVisualValidationSessionByID(*profile.CurrentValidationSessionId)
 	if err != nil {
-		return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+		return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 	}
 	now := bytePlusAssetNow()
 	if session.ExpiresAt > 0 && session.ExpiresAt <= now {
 		_, err = model.ExpireBytePlusRealPersonSession(profile.Id, session.Id, now)
 		if err != nil {
-			return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+			return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 		}
 		reloaded, err := model.GetBytePlusRealPersonProfileByIDForUser(userID, profile.Id)
 		if err != nil {
-			return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+			return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 		}
-		return reloaded, nil
+		*profile = *reloaded
+		return nil
 	}
 	claimed, owner, err := model.ClaimBytePlusVisualValidationSession(session.Id, now, now-int64(apiIdempotencyLease.Seconds()))
 	if err != nil {
-		return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+		return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 	}
 	if !owner {
-		return profile, nil
+		return nil
 	}
 	if strings.TrimSpace(claimed.BytedTokenCiphertext) == "" {
-		return profile, nil
+		return nil
 	}
 	cipher, err := bytePlusRealPersonCipherFactory()
 	if err != nil {
-		return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+		return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 	}
 	bytedToken, err := cipher.Decrypt(claimed.PublicId, bytePlusSensitiveFieldBytedToken, claimed.BytedTokenCiphertext)
 	if err != nil {
 		_, _ = model.FailBytePlusRealPersonSession(profile.Id, claimed.Id, "verification_secret_unreadable", bytePlusAssetNow())
-		return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+		return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 	}
 	channel, creds, err := loadUsableBytePlusRealPersonChannel(profile.ChannelId, userID, "")
 	if err != nil {
-		return nil, realPersonError(types.ErrorCodeRealPersonChannelUnavailable, http.StatusServiceUnavailable)
+		return realPersonError(types.ErrorCodeRealPersonChannelUnavailable, http.StatusServiceUnavailable)
 	}
 	client, err := realPersonClientForChannel(channel)
 	if err != nil {
-		return nil, realPersonError(types.ErrorCodeRealPersonChannelUnavailable, http.StatusServiceUnavailable)
+		return realPersonError(types.ErrorCodeRealPersonChannelUnavailable, http.StatusServiceUnavailable)
 	}
 	result, err := client.GetVisualValidateResult(ctx, creds, bytedToken)
 	if err != nil {
 		if isBytePlusDefinitiveResponse(err) {
 			_, _ = model.FailBytePlusRealPersonSession(profile.Id, claimed.Id, "verification_upstream_error", bytePlusAssetNow())
-			return nil, realPersonError(types.ErrorCodeVerificationUpstreamError, http.StatusBadGateway)
+			return realPersonError(types.ErrorCodeVerificationUpstreamError, http.StatusBadGateway)
 		}
-		return profile, nil
+		return nil
 	}
 	if strings.TrimSpace(result.GroupID) != "" {
 		_, err = model.ActivateBytePlusRealPersonProfile(profile.Id, claimed.Id, result.GroupID, bytePlusAssetNow())
 		if err != nil {
-			return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+			return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 		}
 	}
 	reloaded, err := model.GetBytePlusRealPersonProfileByIDForUser(userID, profile.Id)
 	if err != nil {
-		return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+		return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 	}
-	return reloaded, nil
-}
-
-func Sync(ctx context.Context, userID int, profile *model.BytePlusRealPersonProfile) (*model.BytePlusRealPersonProfile, *types.NewAPIError) {
-	return SyncBytePlusRealPersonVerification(ctx, userID, profile)
+	*profile = *reloaded
+	return nil
 }
 
 func GetBytePlusRealPerson(ctx context.Context, userID int, personID string) (*dto.BytePlusRealPersonResponse, *types.NewAPIError) {
@@ -245,15 +239,10 @@ func GetBytePlusRealPerson(ctx context.Context, userID int, personID string) (*d
 		}
 		return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 	}
-	profile, apiErr := SyncBytePlusRealPersonVerification(ctx, userID, profile)
-	if apiErr != nil {
+	if apiErr := SyncBytePlusRealPersonVerification(ctx, userID, profile); apiErr != nil {
 		return nil, apiErr
 	}
 	return responseFromBytePlusRealPerson(profile, "", 0), nil
-}
-
-func Get(ctx context.Context, userID int, personID string) (*dto.BytePlusRealPersonResponse, *types.NewAPIError) {
-	return GetBytePlusRealPerson(ctx, userID, personID)
 }
 
 func ListBytePlusRealPersons(ctx context.Context, userID int, limit int, after string) (*dto.BytePlusRealPersonListResponse, *types.NewAPIError) {
@@ -273,10 +262,6 @@ func ListBytePlusRealPersons(ctx context.Context, userID int, limit int, after s
 		nextAfter = data[len(data)-1].ID
 	}
 	return &dto.BytePlusRealPersonListResponse{Object: bytePlusRealPersonListObjectType, Data: data, HasMore: hasMore, NextAfter: nextAfter}, nil
-}
-
-func List(ctx context.Context, userID int, limit int, after string) (*dto.BytePlusRealPersonListResponse, *types.NewAPIError) {
-	return ListBytePlusRealPersons(ctx, userID, limit, after)
 }
 
 func handleBytePlusRealPersonClaim(ctx context.Context, userID int, channel *model.Channel, creds BytePlusCredentials, claim *model.APIIdempotencyClaim, baseProfile *model.BytePlusRealPersonProfile, reverify bool) (*dto.BytePlusRealPersonResponse, *types.NewAPIError) {
@@ -388,7 +373,8 @@ func createBytePlusVisualValidation(ctx context.Context, channel *model.Channel,
 		_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_response_failed", bytePlusAssetNow())
 		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
 	}
-	if err := model.CompleteAPIIdempotency(record.Id, record.LeaseUpdatedTime, session.PublicId, http.StatusOK, payload, bytePlusAssetNow()); err != nil {
+	if err := bytePlusRealPersonCompleteAPIIdempotency(record.Id, record.LeaseUpdatedTime, session.PublicId, http.StatusOK, payload, bytePlusAssetNow()); err != nil {
+		_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_ledger_complete_failed", bytePlusAssetNow())
 		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
 	}
 	return responseFromBytePlusRealPerson(profile, upstream.H5Link, expiresAt), nil
@@ -538,6 +524,17 @@ func loadUsableBytePlusRealPersonChannel(channelID int, _ int, _ string) (*model
 	}
 	if err := creds.ValidateRealPersonAssets(); err != nil {
 		return nil, BytePlusCredentials{}, err
+	}
+	group := strings.TrimSpace(channel.Group)
+	if group == "" {
+		group = "default"
+	}
+	ok, err := model.BytePlusRealPersonChannelHasEnabledAbility(channel.Id, group, bytePlusAssetModelName)
+	if err != nil {
+		return nil, BytePlusCredentials{}, err
+	}
+	if !ok {
+		return nil, BytePlusCredentials{}, errors.New("channel real person ability unavailable")
 	}
 	return channel, creds, nil
 }
