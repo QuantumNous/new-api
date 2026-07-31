@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -12,11 +13,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
-
-func init() {
-	// Keep updater version in sync with process version string.
-	systemupdate.CurrentVersion = common.Version
-}
 
 // systemUpdateTimeout bounds long-running download/replace operations.
 // Detached from the request context so proxy/browser timeouts do not cancel mid-download.
@@ -30,8 +26,14 @@ func systemUpdateContext(parent context.Context) (context.Context, context.Cance
 	return context.WithTimeout(base, systemUpdateTimeout)
 }
 
+func syncUpdateVersion() {
+	// Must run after common.InitEnv() so VERSION env / build tags are final.
+	systemupdate.CurrentVersion = common.Version
+}
+
 // CheckSystemUpdate GET /api/system-update/check
 func CheckSystemUpdate(c *gin.Context) {
+	syncUpdateVersion()
 	force := c.Query("force") == "true"
 	info, err := systemupdate.GetSystemUpdateService().CheckUpdate(c.Request.Context(), force)
 	if err != nil {
@@ -43,6 +45,7 @@ func CheckSystemUpdate(c *gin.Context) {
 
 // PerformSystemUpdate POST /api/system-update/apply
 func PerformSystemUpdate(c *gin.Context) {
+	syncUpdateVersion()
 	ctx, cancel := systemUpdateContext(c.Request.Context())
 	defer cancel()
 
@@ -81,6 +84,7 @@ func PerformSystemUpdate(c *gin.Context) {
 
 // ListSystemRollbackVersions GET /api/system-update/rollback-versions
 func ListSystemRollbackVersions(c *gin.Context) {
+	syncUpdateVersion()
 	versions, err := systemupdate.GetSystemUpdateService().ListRollbackVersions(c.Request.Context())
 	if err != nil {
 		common.ApiError(c, err)
@@ -93,11 +97,14 @@ func ListSystemRollbackVersions(c *gin.Context) {
 // Body optional: {"version":"1.0.0"} to download a specific older release;
 // empty body restores the local .backup from the last update.
 func PerformSystemRollback(c *gin.Context) {
+	syncUpdateVersion()
 	var req struct {
 		Version string `json:"version"`
 	}
-	if c.Request.ContentLength > 0 {
-		if err := c.ShouldBindJSON(&req); err != nil {
+	// Do not gate on ContentLength: chunked bodies report -1 and would skip binding.
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// Empty body is valid (rollback to local .backup).
+		if !errors.Is(err, io.EOF) && !isEmptyJSONBodyError(err) {
 			common.ApiErrorMsg(c, "invalid request body")
 			return
 		}
@@ -128,4 +135,14 @@ func PerformSystemRollback(c *gin.Context) {
 		"need_restart": true,
 		"version":      target,
 	})
+}
+
+func isEmptyJSONBodyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return msg == "EOF" ||
+		strings.Contains(msg, "unexpected end of JSON input") ||
+		strings.Contains(msg, "EOF")
 }

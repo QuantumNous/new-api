@@ -64,6 +64,33 @@ type UpdateCheckerSectionProps = {
 }
 
 const UPDATE_TIMEOUT_MS = 15 * 60 * 1000
+// Keep in sync with systemupdate.defaultUpdateGitHubRepo
+const DEFAULT_UPDATE_GITHUB_REPO = 'Calcium-Ion/new-api'
+
+function apiErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const maybeAxios = error as {
+      response?: { data?: { message?: string; error?: string } }
+      message?: string
+    }
+    const backendMsg =
+      maybeAxios.response?.data?.message || maybeAxios.response?.data?.error
+    if (typeof backendMsg === 'string' && backendMsg.trim()) {
+      return backendMsg
+    }
+    if (typeof maybeAxios.message === 'string' && maybeAxios.message.trim()) {
+      // Prefer backend message; axios default "Request failed with status code 400" is last resort
+      if (!maybeAxios.message.startsWith('Request failed with status code')) {
+        return maybeAxios.message
+      }
+      if (backendMsg) return String(backendMsg)
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  return fallback
+}
 
 export function UpdateCheckerSection({
   currentVersion,
@@ -125,7 +152,7 @@ export function UpdateCheckerSection({
       // Fallback: browser-side GitHub check (legacy behavior) if backend fails
       try {
         const response = await fetch(
-          'https://api.github.com/repos/Calcium-Ion/new-api/releases/latest',
+          `https://api.github.com/repos/${DEFAULT_UPDATE_GITHUB_REPO}/releases/latest`,
           {
             headers: {
               Accept: 'application/vnd.github+json',
@@ -181,7 +208,7 @@ export function UpdateCheckerSection({
       const res = await api.post(
         '/api/system-update/apply',
         {},
-        { timeout: UPDATE_TIMEOUT_MS }
+        { timeout: UPDATE_TIMEOUT_MS, skipErrorHandler: true }
       )
       if (!res.data?.success) {
         throw new Error(res.data?.message || t('Update failed'))
@@ -202,9 +229,7 @@ export function UpdateCheckerSection({
       )
       setDialogOpen(false)
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : t('Update failed')
-      toast.error(message)
+      toast.error(apiErrorMessage(error, t('Update failed')))
     } finally {
       setApplying(false)
     }
@@ -216,7 +241,7 @@ export function UpdateCheckerSection({
       const res = await api.post(
         '/api/system-update/rollback',
         version ? { version } : {},
-        { timeout: UPDATE_TIMEOUT_MS }
+        { timeout: UPDATE_TIMEOUT_MS, skipErrorHandler: true }
       )
       if (!res.data?.success) {
         throw new Error(res.data?.message || t('Rollback failed'))
@@ -227,9 +252,7 @@ export function UpdateCheckerSection({
       )
       setDialogOpen(false)
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : t('Rollback failed')
-      toast.error(message)
+      toast.error(apiErrorMessage(error, t('Rollback failed')))
     } finally {
       setRollingBack(false)
     }

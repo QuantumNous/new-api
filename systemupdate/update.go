@@ -107,12 +107,15 @@ type SystemUpdateService struct {
 	cacheMu    sync.Mutex
 	cache      *updateCacheEntry
 	currentVer string
+	// opMu serializes apply/rollback so concurrent renames cannot corrupt the binary.
+	opMu sync.Mutex
 }
 
 var defaultSystemUpdateService *SystemUpdateService
 var systemUpdateOnce sync.Once
 
 // GetSystemUpdateService returns the process-wide update service.
+// Set CurrentVersion (e.g. from common.Version after InitEnv) before calling handlers.
 func GetSystemUpdateService() *SystemUpdateService {
 	systemUpdateOnce.Do(func() {
 		repo := strings.TrimSpace(os.Getenv("NEW_API_UPDATE_GITHUB_REPO"))
@@ -131,6 +134,10 @@ func GetSystemUpdateService() *SystemUpdateService {
 			currentVer: CurrentVersion,
 		}
 	})
+	// Refresh on every access so post-InitEnv VERSION overrides are visible.
+	if v := strings.TrimSpace(CurrentVersion); v != "" {
+		defaultSystemUpdateService.currentVer = v
+	}
 	return defaultSystemUpdateService
 }
 
@@ -188,6 +195,9 @@ func (s *SystemUpdateService) CheckUpdate(ctx context.Context, force bool) (*Upd
 
 // PerformUpdate downloads and atomically replaces the running binary.
 func (s *SystemUpdateService) PerformUpdate(ctx context.Context) error {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+
 	if DetectDeployMode() != "binary" {
 		return fmt.Errorf("%w: deploy_mode=%s (use docker compose pull/up for containers)", ErrUpdateNotSupportedEnv, DetectDeployMode())
 	}
@@ -206,6 +216,9 @@ func (s *SystemUpdateService) PerformUpdate(ctx context.Context) error {
 
 // Rollback restores the local .backup binary left by the last successful update.
 func (s *SystemUpdateService) Rollback() error {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+
 	if DetectDeployMode() != "binary" {
 		return fmt.Errorf("%w: deploy_mode=%s", ErrUpdateNotSupportedEnv, DetectDeployMode())
 	}
@@ -266,6 +279,9 @@ func (s *SystemUpdateService) ListRollbackVersions(ctx context.Context) ([]Rollb
 
 // RollbackToVersion installs a specific older release binary.
 func (s *SystemUpdateService) RollbackToVersion(ctx context.Context, version string) error {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+
 	if DetectDeployMode() != "binary" {
 		return fmt.Errorf("%w: deploy_mode=%s", ErrUpdateNotSupportedEnv, DetectDeployMode())
 	}
@@ -367,11 +383,6 @@ func (s *SystemUpdateService) applyAssets(ctx context.Context, assets []ReleaseA
 	if err := validateGitHubDownloadURL(downloadURL); err != nil {
 		return err
 	}
-	if checksumURL != "" {
-		if err := validateGitHubDownloadURL(checksumURL); err != nil {
-			return err
-		}
-	}
 
 	exePath, err := resolveExecutable()
 	if err != nil {
@@ -394,17 +405,22 @@ func (s *SystemUpdateService) applyAssets(ctx context.Context, assets []ReleaseA
 	if err := s.downloadFile(ctx, downloadURL, downloadPath); err != nil {
 		return fmt.Errorf("download failed: %w", err)
 	}
-	if checksumURL != "" {
-		if err := s.verifyChecksum(ctx, downloadPath, checksumURL); err != nil {
-			return fmt.Errorf("checksum verification failed: %w", err)
-		}
+	// Checksum is mandatory: never install an unverified binary.
+	if checksumURL == "" {
+		return errors.New("checksum file missing for this platform; refusing to install")
+	}
+	if err := validateGitHubDownloadURL(checksumURL); err != nil {
+		return err
+	}
+	if err := s.verifyChecksum(ctx, downloadPath, checksumURL); err != nil {
+		return fmt.Errorf("checksum verification failed: %w", err)
 	}
 
 	newBinary := filepath.Join(tempDir, "new-api-bin")
 	if err := os.Rename(downloadPath, newBinary); err != nil {
 		// cross-device unlikely in same dir; fall back to copy
 		if copyErr := copyFile(downloadPath, newBinary); copyErr != nil {
-			return fmt.Errorf("stage binary: %w", err)
+			return fmt.Errorf("stage binary: %w", copyErr)
 		}
 	}
 	if err := os.Chmod(newBinary, 0o755); err != nil {
@@ -459,10 +475,20 @@ func selectReleaseAsset(assets []ReleaseAsset, version string) (downloadURL, che
 			return a.DownloadURL, checksumURL, nil
 		}
 	}
-	// Fuzzy fallback: match by platform keywords when version in filename differs slightly.
+	// Restricted fuzzy fallback: must include the target version tag AND match platform.
+	// Avoids picking an unrelated OS/arch asset when the exact filename differs slightly.
+	tag := version
+	if !strings.HasPrefix(tag, "v") {
+		tag = "v" + tag
+	}
+	tagLower := strings.ToLower(tag)
+	verLower := strings.ToLower(version)
 	for _, a := range assets {
 		n := strings.ToLower(a.Name)
 		if strings.HasSuffix(n, ".txt") || strings.Contains(n, "checksum") {
+			continue
+		}
+		if !strings.Contains(n, tagLower) && !strings.Contains(n, verLower) {
 			continue
 		}
 		if assetMatchesPlatform(n) {
@@ -556,13 +582,21 @@ func (s *SystemUpdateService) downloadFile(ctx context.Context, rawURL, dest str
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 	written, err := io.Copy(out, io.LimitReader(resp.Body, maxUpdateDownloadSize+1))
 	if err != nil {
+		_ = out.Close()
 		return err
 	}
 	if written > maxUpdateDownloadSize {
+		_ = out.Close()
 		return fmt.Errorf("file exceeds max size %d", maxUpdateDownloadSize)
+	}
+	if err := out.Sync(); err != nil {
+		_ = out.Close()
+		return fmt.Errorf("sync download: %w", err)
+	}
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("close download: %w", err)
 	}
 	return nil
 }
@@ -703,13 +737,64 @@ func compareVersions(a, b string) int {
 	if aPre != "" && bPre == "" {
 		return -1
 	}
-	if aPre < bPre {
-		return -1
+	return comparePreRelease(aPre, bPre)
+}
+
+// comparePreRelease compares identifiers like "rc.9" vs "rc.10" numerically per dot segment.
+func comparePreRelease(a, b string) int {
+	if a == b {
+		return 0
 	}
-	if aPre > bPre {
-		return 1
+	as := strings.Split(a, ".")
+	bs := strings.Split(b, ".")
+	n := len(as)
+	if len(bs) > n {
+		n = len(bs)
+	}
+	for i := 0; i < n; i++ {
+		var ap, bp string
+		if i < len(as) {
+			ap = as[i]
+		}
+		if i < len(bs) {
+			bp = bs[i]
+		}
+		an, aNum := parseLeadingInt(ap)
+		bn, bNum := parseLeadingInt(bp)
+		if aNum && bNum {
+			if an < bn {
+				return -1
+			}
+			if an > bn {
+				return 1
+			}
+			// equal numeric prefix: compare remainder as string if any
+			continue
+		}
+		if ap < bp {
+			return -1
+		}
+		if ap > bp {
+			return 1
+		}
 	}
 	return 0
+}
+
+func parseLeadingInt(s string) (int, bool) {
+	if s == "" {
+		return 0, true
+	}
+	n := 0
+	ok := false
+	for _, ch := range s {
+		if ch < '0' || ch > '9' {
+			return n, ok
+		}
+		ok = true
+		n = n*10 + int(ch-'0')
+	}
+	return n, ok
 }
 
 func splitPreRelease(v string) (main, pre string) {
