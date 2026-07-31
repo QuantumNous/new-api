@@ -358,3 +358,132 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason)
 }
+
+func calculateTaskQuotaByTokens(task *model.Task, totalTokens int) (int, bool) {
+	if totalTokens <= 0 {
+		return 0, false
+	}
+	billingContext := task.PrivateData.BillingContext
+	if billingContext != nil && billingContext.PerCallBilling {
+		return 0, false
+	}
+
+	modelName := taskModelName(task)
+	modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
+	if !hasRatioSetting || modelRatio <= 0 {
+		return 0, false
+	}
+
+	group := task.Group
+	if group == "" {
+		user, err := model.GetUserById(task.UserId, false)
+		if err == nil {
+			group = user.Group
+		}
+	}
+	if group == "" {
+		return 0, false
+	}
+
+	groupRatio := 1.0
+	if billingContext != nil {
+		groupRatio = billingContext.GroupRatio
+	} else {
+		groupRatio = ratio_setting.GetEffectiveGroupRatio(group, group, modelName).GroupRatio
+	}
+	otherMultiplier := 1.0
+	if billingContext != nil {
+		for _, ratio := range billingContext.OtherRatios {
+			if ratio != 1 && ratio > 0 {
+				otherMultiplier *= ratio
+			}
+		}
+	}
+	return int(float64(totalTokens) * modelRatio * groupRatio * otherMultiplier), true
+}
+
+func taskBillingTransition(task *model.Task, targetQuota int, reason string) model.TaskBillingTransition {
+	other := taskBillingOther(task)
+	other["task_id"] = task.TaskID
+	other["pre_consumed_quota"] = task.Quota
+	other["actual_quota"] = targetQuota
+	if targetQuota == 0 {
+		other["reason"] = reason
+	}
+	return model.TaskBillingTransition{
+		TargetQuota:  targetQuota,
+		Reason:       reason,
+		ModelName:    taskModelName(task),
+		LogOtherJSON: common.MapToJsonStr(other),
+	}
+}
+
+func deliverTaskBillingSettlement(ctx context.Context, settlementID int64) {
+	if settlementID <= 0 {
+		return
+	}
+	if err := deliverTaskBillingSettlementWindow(settlementID); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("任务结算订阅窗口同步失败 settlement=%d: %v", settlementID, err))
+	}
+	if err := model.SyncTaskBillingSettlementCache(settlementID); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("任务结算缓存同步失败 settlement=%d: %v", settlementID, err))
+	}
+	if err := model.DeliverTaskBillingSettlementLog(settlementID); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("任务结算日志投递失败 settlement=%d: %v", settlementID, err))
+	}
+	if err := cleanupTaskBillingSettlement(settlementID); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("任务结算清理失败 settlement=%d: %v", settlementID, err))
+	}
+}
+
+func cleanupTaskBillingSettlement(settlementID int64) error {
+	settlement, found, err := model.GetTaskBillingSettlement(settlementID)
+	if err != nil || !found {
+		return err
+	}
+	if !settlement.CacheDelivered || !settlement.WindowDelivered || !settlement.LogDelivered {
+		return nil
+	}
+	cleanupCutoff := common.GetTimestamp() - model.TaskBillingSettlementCleanupDelaySeconds
+	if settlement.UpdatedAt > cleanupCutoff {
+		return nil
+	}
+	if err := model.DeleteTaskBillingLogDelivery(settlementID); err != nil {
+		return err
+	}
+	return model.DeleteTaskBillingSettlement(settlementID)
+}
+
+func deliverTaskBillingSettlementWindow(settlementID int64) error {
+	settlement, task, err := model.GetTaskBillingSettlementTask(settlementID)
+	if err != nil {
+		return err
+	}
+	if settlement.WindowDelivered {
+		return nil
+	}
+	if settlement.WindowDelta != 0 {
+		billingContext := task.PrivateData.BillingContext
+		if billingContext != nil && billingContext.SubscriptionWindow != nil {
+			if err := ApplyTaskSettlementSubscriptionWindow(
+				settlement.ID,
+				billingContext.SubscriptionWindow,
+				settlement.WindowDelta,
+			); err != nil {
+				return err
+			}
+		}
+	}
+	return model.MarkTaskBillingSettlementWindowDelivered(settlementID)
+}
+
+func recoverPendingTaskBillingSettlements(ctx context.Context, limit int) {
+	settlementIDs, err := model.GetPendingTaskBillingSettlementIDs(limit)
+	if err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("查询待恢复任务结算失败: %v", err))
+		return
+	}
+	for _, settlementID := range settlementIDs {
+		deliverTaskBillingSettlement(ctx, settlementID)
+	}
+}

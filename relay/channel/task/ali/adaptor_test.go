@@ -1,17 +1,89 @@
 package ali
 
 import (
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func testRelayInfo() *relaycommon.RelayInfo {
-	return &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	return &relaycommon.RelayInfo{
+		ChannelMeta:   &relaycommon.ChannelMeta{},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+	}
+}
+
+func TestValidateRequestAfterModelMappingHappyHorseUsesOfficialJSON(t *testing.T) {
+	ctx := newHappyHorseContext(`{
+		"model":"public-video-model",
+		"input":{"prompt":"run"},
+		"parameters":{"duration":5}
+	}`, "application/json")
+	info := testRelayInfo()
+	info.UpstreamModelName = "happyhorse-1.1-t2v"
+
+	taskErr := (&TaskAdaptor{}).ValidateRequestAfterModelMapping(ctx, info)
+	require.Nil(t, taskErr)
+	require.Equal(t, constant.TaskActionTextGenerate, info.Action)
+	req, err := GetHappyHorseRequest(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "happyhorse-1.1-t2v", req.Model)
+}
+
+func TestValidateRequestAfterModelMappingLegacyAliKeepsFlatFormat(t *testing.T) {
+	ctx := newHappyHorseContext(`{"model":"wan2.6-i2v","prompt":"run","duration":5}`, "application/json")
+	info := testRelayInfo()
+	info.UpstreamModelName = "wan2.6-i2v"
+
+	taskErr := (&TaskAdaptor{}).ValidateRequestAfterModelMapping(ctx, info)
+	require.Nil(t, taskErr)
+	req, err := relaycommon.GetTaskRequest(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "wan2.6-i2v", req.Model)
+}
+
+func TestBuildRequestBodyHappyHorseForwardsOfficialShapeWithMappedModel(t *testing.T) {
+	ctx := newHappyHorseContext(`{
+		"model":"public-video-model",
+		"input":{"media":[{"type":"first_frame","url":"https://example.com/frame.png"}]},
+		"parameters":{"seed":0,"watermark":false}
+	}`, "application/json")
+	info := testRelayInfo()
+	info.UpstreamModelName = "happyhorse-1.1-i2v"
+	adaptor := &TaskAdaptor{}
+	require.Nil(t, adaptor.ValidateRequestAfterModelMapping(ctx, info))
+
+	body, err := adaptor.BuildRequestBody(ctx, info)
+	require.NoError(t, err)
+	data, err := io.ReadAll(body)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"model":"happyhorse-1.1-i2v"`)
+	require.Contains(t, string(data), `"input":{"media"`)
+	require.Contains(t, string(data), `"seed":0`)
+	require.Contains(t, string(data), `"watermark":false`)
+	require.NotContains(t, string(data), `"image"`)
+}
+
+func TestValidateTaskPriceDataHappyHorseRequiresFixedPrice(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+	info := testRelayInfo()
+	info.OriginModelName = "public-video-model"
+	info.UpstreamModelName = "happyhorse-1.1-r2v"
+
+	info.PriceData.UsePrice = false
+	require.NotNil(t, adaptor.ValidateTaskPriceData(info))
+	info.PriceData.UsePrice = true
+	require.Nil(t, adaptor.ValidateTaskPriceData(info))
+
+	info.UpstreamModelName = "wan2.6-i2v"
+	info.PriceData.UsePrice = false
+	require.Nil(t, adaptor.ValidateTaskPriceData(info))
 }
 
 func TestConvertToAliRequestDefaultsNonPositiveDuration(t *testing.T) {
