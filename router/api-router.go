@@ -34,6 +34,16 @@ func SetApiRouter(router *gin.Engine) {
 		salesLeadRoute.GET("/", controller.ListSalesLeads)
 		salesLeadRoute.GET("/:id", controller.GetSalesLead)
 		salesLeadRoute.PUT("/:id", controller.UpdateSalesLead)
+		// 模型商店后台管理（管理员，需 AdminAuth）
+		marketModelRoute := apiRouter.Group("/admin/market-models")
+		marketModelRoute.Use(middleware.AdminAuth())
+		marketModelRoute.GET("/", controller.ListMarketModels)
+		marketModelRoute.GET("/:id", controller.GetMarketModel)
+		marketModelRoute.POST("/", controller.CreateMarketModel)
+		marketModelRoute.PUT("/:id", controller.UpdateMarketModel)
+		marketModelRoute.DELETE("/:id", controller.DeleteMarketModel)
+		// 模型商店公开读取（门店展示，仅已上架）
+		apiRouter.GET("/market-models", controller.GetPublicMarketModels)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
