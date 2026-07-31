@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +24,9 @@ type bytePlusRealPersonJobsFake struct {
 	deleteCalls   int
 	tosDeletes    []string
 	result        BytePlusVisualValidationResult
+	resultErr     error
 	assetStatus   BytePlusAssetStatus
+	getAssetErr   error
 }
 
 func (f *bytePlusRealPersonJobsFake) CreateVisualValidateSession(context.Context, BytePlusCredentials, string) (BytePlusVisualValidationSession, error) {
@@ -33,6 +37,9 @@ func (f *bytePlusRealPersonJobsFake) GetVisualValidateResult(context.Context, By
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.resultCalls++
+	if f.resultErr != nil {
+		return BytePlusVisualValidationResult{}, f.resultErr
+	}
 	return f.result, nil
 }
 
@@ -48,6 +55,9 @@ func (f *bytePlusRealPersonJobsFake) GetAsset(context.Context, BytePlusCredentia
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.getAssetCalls++
+	if f.getAssetErr != nil {
+		return BytePlusAssetStatus{}, f.getAssetErr
+	}
 	return f.assetStatus, nil
 }
 
@@ -143,6 +153,66 @@ func TestExpiredCallingUpstreamIsMarkedOutcomeUnknownWithoutExternalCall(t *test
 	require.Empty(t, fixture.fake.tosDeletes)
 }
 
+func TestBytePlusRealPersonVerificationJobsHandleExpirySuccessDefinitiveAndTransient(t *testing.T) {
+	t.Run("expired without upstream call", func(t *testing.T) {
+		fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+		profile, session := seedJobVerificationSession(t, "expired", model.BytePlusVisualValidationSessionStatusPending, "byted", 100)
+
+		result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+		require.NoError(t, result.Err)
+		require.NoError(t, model.DB.First(&profile, profile.Id).Error)
+		require.Equal(t, model.BytePlusRealPersonProfileStatusExpired, profile.Status)
+		require.NoError(t, model.DB.First(&session, session.Id).Error)
+		require.Equal(t, model.BytePlusVisualValidationSessionStatusExpired, session.Status)
+		fixture.fake.mu.Lock()
+		defer fixture.fake.mu.Unlock()
+		require.Zero(t, fixture.fake.resultCalls)
+	})
+
+	t.Run("success activates", func(t *testing.T) {
+		fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+		profile, _ := seedJobVerificationSession(t, "success", model.BytePlusVisualValidationSessionStatusPending, "byted", 3000)
+
+		result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+		require.NoError(t, result.Err)
+		require.NoError(t, model.DB.First(&profile, profile.Id).Error)
+		require.Equal(t, model.BytePlusRealPersonProfileStatusActive, profile.Status)
+		fixture.fake.mu.Lock()
+		defer fixture.fake.mu.Unlock()
+		require.Equal(t, 1, fixture.fake.resultCalls)
+	})
+
+	t.Run("definitive upstream failure fails current session", func(t *testing.T) {
+		fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+		fixture.fake.resultErr = &BytePlusAPIError{StatusCode: 400, Code: "bad", Definitive: true}
+		profile, session := seedJobVerificationSession(t, "definitive", model.BytePlusVisualValidationSessionStatusPending, "byted", 3000)
+
+		result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+		require.NoError(t, result.Err)
+		require.NoError(t, model.DB.First(&profile, profile.Id).Error)
+		require.Equal(t, model.BytePlusRealPersonProfileStatusFailed, profile.Status)
+		require.NoError(t, model.DB.First(&session, session.Id).Error)
+		require.Equal(t, model.BytePlusVisualValidationSessionStatusFailed, session.Status)
+	})
+
+	t.Run("transient upstream failure records retry without operation error", func(t *testing.T) {
+		fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+		fixture.fake.resultErr = context.DeadlineExceeded
+		_, session := seedJobVerificationSession(t, "transient", model.BytePlusVisualValidationSessionStatusPending, "byted", 3000)
+		beforeRetry := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "verification_status", "result": "retry"})
+
+		result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+		require.NoError(t, result.Err)
+		require.NoError(t, model.DB.First(&session, session.Id).Error)
+		require.Equal(t, model.BytePlusVisualValidationSessionStatusPending, session.Status)
+		require.EqualValues(t, beforeRetry+1, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "verification_status", "result": "retry"}))
+	})
+}
+
 func TestJobsPurgeOnlyExpiredSafeIdempotencyRecords(t *testing.T) {
 	newBytePlusRealPersonJobsFixtureWithoutRows(t)
 	statuses := []string{
@@ -222,6 +292,22 @@ func TestExpiredSignedURLGetsOneFinalAssetQueryThenObjectCleanup(t *testing.T) {
 	require.Equal(t, []string{"expired-url"}, fixture.fake.tosDeletes)
 }
 
+func TestBytePlusRealPersonAssetStatusTransientFailureRecordsRetryWithoutOperationError(t *testing.T) {
+	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+	fixture.fake.getAssetErr = context.DeadlineExceeded
+	asset := model.BytePlusAsset{PublicId: "ast_retry_status", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream-retry", AssetType: "Image", Status: model.BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	beforeRetry := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "asset_status", "result": "retry"})
+
+	result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+	require.NoError(t, result.Err)
+	require.NoError(t, model.DB.First(&asset, asset.Id).Error)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, asset.Status)
+	require.Greater(t, asset.UpdatedTime, int64(2000))
+	require.EqualValues(t, beforeRetry+1, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "asset_status", "result": "retry"}))
+}
+
 func TestProcessingStatusSyncCannotOverwriteDeletingOrDeleted(t *testing.T) {
 	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
 	for _, status := range []string{model.BytePlusAssetStatusDeleting, model.BytePlusAssetStatusDeleted} {
@@ -234,6 +320,24 @@ func TestProcessingStatusSyncCannotOverwriteDeletingOrDeleted(t *testing.T) {
 	fixture.fake.mu.Lock()
 	defer fixture.fake.mu.Unlock()
 	require.Zero(t, fixture.fake.getAssetCalls)
+}
+
+func TestBytePlusRealPersonOperationMetricsPreserveSuccessOnError(t *testing.T) {
+	beforeSuccess := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "asset_status", "result": "success"})
+	beforeError := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "asset_status", "result": "error"})
+
+	ok := recordBytePlusRealPersonOperation("asset_status", 1, errors.New("secret-upstream-id"))
+
+	require.False(t, ok)
+	require.EqualValues(t, beforeSuccess+1, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "asset_status", "result": "success"}))
+	require.EqualValues(t, beforeError+1, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "asset_status", "result": "error"}))
+}
+
+func TestBytePlusRealPersonJobWarningsDoNotEmitRawErrors(t *testing.T) {
+	source, err := os.ReadFile("byteplus_real_person_jobs.go")
+	require.NoError(t, err)
+	require.NotContains(t, string(source), "result.Err.Error()")
+	require.NotContains(t, string(source), "+ err.Error()")
 }
 
 func TestMainStartsBytePlusRealPersonJobsOutsideMasterOnlyBlock(t *testing.T) {
@@ -268,6 +372,30 @@ func newBytePlusRealPersonJobsFixture(t *testing.T) *bytePlusRealPersonJobsFixtu
 	return fixture
 }
 
+func seedJobVerificationSession(t *testing.T, suffix, status, token string, expiresAt int64) (model.BytePlusRealPersonProfile, model.BytePlusVisualValidationSession) {
+	t.Helper()
+	profile := model.BytePlusRealPersonProfile{
+		PublicId: "rph_job_" + suffix, UserId: 7, Name: "A", ChannelId: 101,
+		Status: model.BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&profile).Error)
+	cipher := plainBytePlusRealPersonCipher{}
+	byted := ""
+	if strings.TrimSpace(token) != "" {
+		var err error
+		byted, err = cipher.Encrypt("rvs_job_"+suffix, bytePlusSensitiveFieldBytedToken, token)
+		require.NoError(t, err)
+	}
+	session := model.BytePlusVisualValidationSession{
+		PublicId: "rvs_job_" + suffix, ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("a", 64),
+		BytedTokenCiphertext: byted, Status: status, ExpiresAt: expiresAt, LeaseUpdatedTime: 0,
+		CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&session).Error)
+	require.NoError(t, model.DB.Model(&profile).Update("current_validation_session_id", session.Id).Error)
+	return profile, session
+}
+
 func newBytePlusRealPersonJobsFixtureWithoutRows(t *testing.T) *bytePlusRealPersonJobsFixture {
 	newBytePlusRealPersonServiceTestDB(t)
 	fake := &bytePlusRealPersonJobsFake{
@@ -299,4 +427,32 @@ func idempotencyStatusesForJobTest(records []model.APIIdempotencyRecord) []strin
 		statuses = append(statuses, record.Status)
 	}
 	return statuses
+}
+
+func prometheusSampleValueForJobTest(t *testing.T, metric string, labels map[string]string) int64 {
+	t.Helper()
+	text, err := perfmetrics.BuildPrometheusText(context.Background())
+	require.NoError(t, err)
+	prefix := metric + "{"
+	for _, line := range strings.Split(text, "\n") {
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		match := true
+		for key, value := range labels {
+			if !strings.Contains(line, key+`="`+value+`"`) {
+				match = false
+				break
+			}
+		}
+		if !match {
+			continue
+		}
+		parts := strings.Split(line, " ")
+		require.Len(t, parts, 2)
+		parsed, err := strconv.ParseInt(parts[1], 10, 64)
+		require.NoError(t, err)
+		return parsed
+	}
+	return 0
 }

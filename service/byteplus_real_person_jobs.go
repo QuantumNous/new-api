@@ -41,7 +41,7 @@ func StartBytePlusRealPersonJobs() {
 
 func logBytePlusRealPersonJobError(result BytePlusRealPersonJobResult) {
 	if result.Err != nil {
-		common.SysError("byteplus real-person jobs failed: " + result.Err.Error())
+		common.SysError("byteplus real-person jobs failed")
 	}
 }
 
@@ -89,7 +89,6 @@ func RunBytePlusRealPersonJobsOnce(ctx context.Context, now int64, limit int) By
 		snapshot, err := model.GetBytePlusRealPersonBacklogSnapshot(now, staleBefore)
 		if err != nil {
 			result.Err = err
-			perfmetrics.RecordBytePlusRealPersonReconcile("idempotency_retention", "error")
 			return result
 		}
 		perfmetrics.SetBytePlusRealPersonBacklog("deleting", snapshot.DeletingCount, snapshot.DeletingOldestUpdateAgeSeconds)
@@ -116,7 +115,6 @@ func recoverBytePlusRealPersonIdempotency(ctx context.Context, now, staleBefore 
 			if firstErr == nil {
 				firstErr = err
 			}
-			perfmetrics.RecordBytePlusRealPersonReconcile("idempotency_recovery", "error")
 			continue
 		}
 		processed++
@@ -145,12 +143,17 @@ func runBytePlusRealPersonVerificationStatusJobs(ctx context.Context, now, stale
 	processed := 0
 	var firstErr error
 	for _, session := range sessions {
-		if strings.TrimSpace(session.BytedTokenCiphertext) == "" {
-			continue
-		}
 		profile, err := model.GetBytePlusRealPersonProfileByID(session.ProfileId)
 		if err != nil {
 			firstErr = firstNonNil(firstErr, err)
+			continue
+		}
+		if session.ExpiresAt > 0 && session.ExpiresAt <= now {
+			if ok, err := model.ExpireBytePlusRealPersonSession(profile.Id, session.Id, now); err != nil && !errors.Is(err, model.ErrAPIIdempotencyCASLost) {
+				firstErr = firstNonNil(firstErr, err)
+			} else if ok {
+				processed++
+			}
 			continue
 		}
 		cipher, err := bytePlusRealPersonCipherFactory()
@@ -176,7 +179,15 @@ func runBytePlusRealPersonVerificationStatusJobs(ctx context.Context, now, stale
 		}
 		upstream, err := client.GetVisualValidateResult(ctx, creds, bytedToken)
 		if err != nil {
-			firstErr = firstNonNil(firstErr, err)
+			if isBytePlusDefinitiveResponse(err) {
+				if ok, err := model.FailBytePlusRealPersonSession(profile.Id, session.Id, "verification_upstream_error", now); err != nil && !errors.Is(err, model.ErrAPIIdempotencyCASLost) {
+					firstErr = firstNonNil(firstErr, err)
+				} else if ok {
+					processed++
+				}
+				continue
+			}
+			firstErr = firstNonNil(firstErr, retryBytePlusVerificationStatus(session, now))
 			continue
 		}
 		if strings.TrimSpace(upstream.GroupID) != "" {
@@ -188,6 +199,18 @@ func runBytePlusRealPersonVerificationStatusJobs(ctx context.Context, now, stale
 		}
 	}
 	return processed, firstErr
+}
+
+func retryBytePlusVerificationStatus(session model.BytePlusVisualValidationSession, now int64) error {
+	ok, err := model.RetryBytePlusVisualValidationSession(session.Id, session.LeaseUpdatedTime, now+bytePlusAssetDeleteRetryDelaySecs, now)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return model.ErrAPIIdempotencyCASLost
+	}
+	perfmetrics.RecordBytePlusRealPersonReconcile("verification_status", "retry")
+	return nil
 }
 
 func runBytePlusRealPersonAssetStatusJobs(ctx context.Context, now, staleBefore int64, limit int) (int, error) {
@@ -210,7 +233,7 @@ func runBytePlusRealPersonAssetStatusJobs(ctx context.Context, now, staleBefore 
 		}
 		status, err := client.GetAsset(ctx, creds, asset.UpstreamAssetId)
 		if err != nil {
-			firstErr = firstNonNil(firstErr, err)
+			firstErr = firstNonNil(firstErr, retryBytePlusAssetStatusCheck(asset, now))
 			continue
 		}
 		if status.UpstreamAssetID != "" && status.UpstreamAssetID != asset.UpstreamAssetId {
@@ -227,6 +250,18 @@ func runBytePlusRealPersonAssetStatusJobs(ctx context.Context, now, staleBefore 
 		}
 	}
 	return processed, firstErr
+}
+
+func retryBytePlusAssetStatusCheck(asset model.BytePlusAsset, now int64) error {
+	ok, err := model.RetryBytePlusAssetStatusCheck(asset.Id, asset.UpdatedTime, now+bytePlusAssetDeleteRetryDelaySecs)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return model.ErrAPIIdempotencyCASLost
+	}
+	perfmetrics.RecordBytePlusRealPersonReconcile("asset_status", "retry")
+	return nil
 }
 
 func runBytePlusRealPersonAssetDeleteJobs(ctx context.Context, now, staleBefore int64, limit int) (int, error) {
@@ -362,12 +397,12 @@ func retryBytePlusTempObjectCleanup(object model.BytePlusAssetTempObject, now in
 }
 
 func recordBytePlusRealPersonOperation(operation string, processed int, err error) bool {
+	for i := 0; i < processed; i++ {
+		perfmetrics.RecordBytePlusRealPersonReconcile(operation, "success")
+	}
 	if err != nil {
 		perfmetrics.RecordBytePlusRealPersonReconcile(operation, "error")
 		return false
-	}
-	for i := 0; i < processed; i++ {
-		perfmetrics.RecordBytePlusRealPersonReconcile(operation, "success")
 	}
 	return true
 }

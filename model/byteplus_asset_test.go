@@ -241,6 +241,34 @@ func TestBytePlusAssetDeletingAndDeletedAreTerminalForStatusPolling(t *testing.T
 	}
 }
 
+func TestBytePlusAssetStatusTerminalTransitionsScheduleTempCleanup(t *testing.T) {
+	for _, status := range []string{BytePlusAssetStatusActive, BytePlusAssetStatusFailed} {
+		t.Run(status, func(t *testing.T) {
+			newBytePlusRealPersonTestDB(t)
+			asset := BytePlusAsset{PublicId: "ast_cleanup_" + status, UserId: 7, ChannelId: 101, AssetType: "Image", Status: BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100}
+			if err := DB.Create(&asset).Error; err != nil {
+				t.Fatalf("create asset: %v", err)
+			}
+			object := BytePlusAssetTempObject{AssetId: &asset.Id, UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "key-" + status, CleanupStatus: BytePlusTempObjectCleanupPending, NextCleanupAt: 5000, CleanupLeaseUpdatedTime: 123, CreatedTime: 100, UpdatedTime: 100}
+			if err := DB.Create(&object).Error; err != nil {
+				t.Fatalf("create temp object: %v", err)
+			}
+
+			err := UpdateBytePlusAssetStatus(asset.Id, status, "", 200)
+			if err != nil {
+				t.Fatalf("update status: %v", err)
+			}
+
+			if err := DB.First(&object, object.Id).Error; err != nil {
+				t.Fatalf("reload temp object: %v", err)
+			}
+			if object.NextCleanupAt != 200 || object.CleanupLeaseUpdatedTime != 0 || object.UpdatedTime != 200 {
+				t.Fatalf("terminal status did not schedule temp cleanup: %+v", object)
+			}
+		})
+	}
+}
+
 func TestBytePlusAssetUpstreamCreatedDoesNotRegressTerminalAsset(t *testing.T) {
 	newBytePlusAssetTestDB(t)
 
@@ -397,6 +425,30 @@ func TestBytePlusAssetDeletionLifecycleUsesTombstoneAndLeaseCAS(t *testing.T) {
 	}
 }
 
+func TestCompleteBytePlusAssetDeletionSchedulesLinkedPendingTempCleanup(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	asset := BytePlusAsset{PublicId: "ast_delete_cleanup", UserId: 7, ChannelId: 101, AssetType: "Image", Status: BytePlusAssetStatusDeleting, NextDeleteAt: 100, DeleteLeaseUpdatedTime: 222, CreatedTime: 100, UpdatedTime: 100}
+	if err := DB.Create(&asset).Error; err != nil {
+		t.Fatalf("create asset: %v", err)
+	}
+	object := BytePlusAssetTempObject{AssetId: &asset.Id, UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "delete-cleanup", CleanupStatus: BytePlusTempObjectCleanupPending, NextCleanupAt: 5000, CleanupLeaseUpdatedTime: 333, CreatedTime: 100, UpdatedTime: 100}
+	if err := DB.Create(&object).Error; err != nil {
+		t.Fatalf("create temp object: %v", err)
+	}
+
+	ok, err := CompleteBytePlusAssetDeletion(asset.Id, 222, 2050)
+	if err != nil || !ok {
+		t.Fatalf("complete deletion ok=%v err=%v", ok, err)
+	}
+
+	if err := DB.First(&object, object.Id).Error; err != nil {
+		t.Fatalf("reload temp object: %v", err)
+	}
+	if object.NextCleanupAt != 2050 || object.CleanupLeaseUpdatedTime != 0 || object.UpdatedTime != 2050 {
+		t.Fatalf("deleted asset did not schedule temp cleanup: %+v", object)
+	}
+}
+
 func insertModelRealPersonAsset(t *testing.T, publicID string, userID int, profileID int64, status string, created int64, failureCode string) {
 	t.Helper()
 	if err := DB.Create(&BytePlusAsset{
@@ -422,7 +474,7 @@ func newBytePlusAssetTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&BytePlusAssetGroup{}, &BytePlusAsset{}); err != nil {
+	if err := db.AutoMigrate(&BytePlusAssetGroup{}, &BytePlusAsset{}, &BytePlusAssetTempObject{}); err != nil {
 		t.Fatalf("automigrate: %v", err)
 	}
 	sqlDB, err := db.DB()

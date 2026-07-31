@@ -954,7 +954,7 @@ func newBytePlusAssetServiceTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.BytePlusAssetGroup{}, &model.BytePlusAsset{}); err != nil {
+	if err := db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.BytePlusAssetGroup{}, &model.BytePlusAsset{}, &model.BytePlusAssetTempObject{}); err != nil {
 		t.Fatalf("automigrate: %v", err)
 	}
 	sqlDB, err := db.DB()

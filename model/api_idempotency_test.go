@@ -500,6 +500,62 @@ func TestMarkBytePlusVerificationSessionOutcomeUnknownTargetsExactSession(t *tes
 	require.Equal(t, newSession.Id, *profile.CurrentValidationSessionId)
 }
 
+func TestMarkBytePlusVerificationSessionOutcomeUnknownOnlyMutatesCreating(t *testing.T) {
+	for _, status := range []string{
+		BytePlusVisualValidationSessionStatusPending,
+		BytePlusVisualValidationSessionStatusChecking,
+		BytePlusVisualValidationSessionStatusSucceeded,
+		BytePlusVisualValidationSessionStatusFailed,
+		BytePlusVisualValidationSessionStatusExpired,
+	} {
+		t.Run(status, func(t *testing.T) {
+			newBytePlusRealPersonTestDB(t)
+			profile := BytePlusRealPersonProfile{PublicId: "rph_outcome_" + status, UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100}
+			require.NoError(t, DB.Create(&profile).Error)
+			session := BytePlusVisualValidationSession{PublicId: "rvs_outcome_" + status, ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("a", 64), Status: status, CreatedTime: 100, UpdatedTime: 100}
+			require.NoError(t, DB.Create(&session).Error)
+			require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", session.Id).Error)
+
+			ok, err := MarkBytePlusVerificationSessionOutcomeUnknown(session.PublicId, 200)
+			require.NoError(t, err)
+			require.False(t, ok)
+
+			require.NoError(t, DB.First(&session, session.Id).Error)
+			require.Equal(t, status, session.Status)
+			require.NoError(t, DB.First(&profile, profile.Id).Error)
+			require.Equal(t, BytePlusRealPersonProfileStatusPendingVerification, profile.Status)
+		})
+	}
+}
+
+func TestClaimDueBytePlusVisualValidationSessionsOnlyClaimsCurrentProcessableRows(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	now := int64(1000)
+	staleBefore := int64(900)
+	currentProfile := BytePlusRealPersonProfile{PublicId: "rph_current_claim", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&currentProfile).Error)
+	current := BytePlusVisualValidationSession{PublicId: "rvs_current_claim", ProfileId: currentProfile.Id, CallbackTokenHash: strings.Repeat("a", 64), BytedTokenCiphertext: "cipher", Status: BytePlusVisualValidationSessionStatusPending, LeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&current).Error)
+	require.NoError(t, DB.Model(&currentProfile).Update("current_validation_session_id", current.Id).Error)
+
+	old := BytePlusVisualValidationSession{PublicId: "rvs_old_claim", ProfileId: currentProfile.Id, CallbackTokenHash: strings.Repeat("b", 64), BytedTokenCiphertext: "cipher", Status: BytePlusVisualValidationSessionStatusPending, LeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&old).Error)
+	blankProfile := BytePlusRealPersonProfile{PublicId: "rph_blank_claim", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&blankProfile).Error)
+	blank := BytePlusVisualValidationSession{PublicId: "rvs_blank_claim", ProfileId: blankProfile.Id, CallbackTokenHash: strings.Repeat("c", 64), Status: BytePlusVisualValidationSessionStatusPending, LeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&blank).Error)
+	require.NoError(t, DB.Model(&blankProfile).Update("current_validation_session_id", blank.Id).Error)
+	backoffProfile := BytePlusRealPersonProfile{PublicId: "rph_backoff_claim", UserId: 7, Name: "A", ChannelId: 101, Status: BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, DB.Create(&backoffProfile).Error)
+	backoff := BytePlusVisualValidationSession{PublicId: "rvs_backoff_claim", ProfileId: backoffProfile.Id, CallbackTokenHash: strings.Repeat("d", 64), BytedTokenCiphertext: "cipher", Status: BytePlusVisualValidationSessionStatusPending, LeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 2000}
+	require.NoError(t, DB.Create(&backoff).Error)
+	require.NoError(t, DB.Model(&backoffProfile).Update("current_validation_session_id", backoff.Id).Error)
+
+	sessions, err := ClaimDueBytePlusVisualValidationSessions(now, staleBefore, 10)
+	require.NoError(t, err)
+	require.Equal(t, []int64{current.Id}, validationSessionIDsForJobTest(sessions))
+}
+
 func validationSessionIDsForJobTest(sessions []BytePlusVisualValidationSession) []int64 {
 	ids := make([]int64, 0, len(sessions))
 	for _, session := range sessions {

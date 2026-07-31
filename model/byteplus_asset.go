@@ -403,6 +403,8 @@ func ClaimDueBytePlusAssetStatusChecks(now, staleBefore int64, limit int) ([]Byt
 	var candidates []BytePlusAsset
 	if err := DB.Where("status = ? AND upstream_asset_id <> ? AND updated_time < ?",
 		BytePlusAssetStatusProcessing, "", staleBefore,
+	).Where("NOT EXISTS (SELECT 1 FROM byte_plus_asset_temp_objects WHERE byte_plus_asset_temp_objects.asset_id = byte_plus_assets.id AND cleanup_status = ? AND next_cleanup_at <= ? AND (cleanup_lease_updated_time = ? OR cleanup_lease_updated_time < ?))",
+		BytePlusTempObjectCleanupPending, now, int64(0), staleBefore,
 	).Order("updated_time ASC, id ASC").Limit(limit).Find(&candidates).Error; err != nil {
 		return nil, err
 	}
@@ -448,15 +450,38 @@ func ClaimDueBytePlusAssetDeletions(now, staleBefore int64, limit int) ([]BytePl
 }
 
 func CompleteBytePlusAssetDeletion(assetID int64, leaseUpdatedTime int64, now int64) (bool, error) {
+	changed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		updated := tx.Model(&BytePlusAsset{}).
+			Where("id = ? AND status = ? AND delete_lease_updated_time = ?", assetID, BytePlusAssetStatusDeleting, leaseUpdatedTime).
+			Updates(map[string]any{
+				"status":                    BytePlusAssetStatusDeleted,
+				"delete_lease_updated_time": int64(0),
+				"deleted_time":              now,
+				"updated_time":              now,
+			})
+		if updated.Error != nil {
+			return updated.Error
+		}
+		if updated.RowsAffected != 1 {
+			return nil
+		}
+		changed = true
+		return tx.Model(&BytePlusAssetTempObject{}).
+			Where("asset_id = ? AND cleanup_status = ?", assetID, BytePlusTempObjectCleanupPending).
+			Updates(map[string]any{"next_cleanup_at": now, "cleanup_lease_updated_time": int64(0), "updated_time": now}).Error
+	})
+	return changed, err
+}
+
+func RetryBytePlusAssetStatusCheck(assetID int64, claimedUpdatedTime int64, nextAttempt int64) (bool, error) {
 	updated := DB.Model(&BytePlusAsset{}).
-		Where("id = ? AND status = ? AND delete_lease_updated_time = ?", assetID, BytePlusAssetStatusDeleting, leaseUpdatedTime).
-		Updates(map[string]any{
-			"status":                    BytePlusAssetStatusDeleted,
-			"delete_lease_updated_time": int64(0),
-			"deleted_time":              now,
-			"updated_time":              now,
-		})
-	return updated.RowsAffected == 1, updated.Error
+		Where("id = ? AND status = ? AND updated_time = ?", assetID, BytePlusAssetStatusProcessing, claimedUpdatedTime).
+		Update("updated_time", nextAttempt)
+	if updated.Error != nil {
+		return false, updated.Error
+	}
+	return updated.RowsAffected == 1, nil
 }
 
 func RetryBytePlusAssetDeletion(assetID int64, leaseUpdatedTime int64, nextAttempt int64, now int64) (bool, error) {

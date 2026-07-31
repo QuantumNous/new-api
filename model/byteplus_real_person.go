@@ -262,8 +262,9 @@ func ClaimDueBytePlusVisualValidationSessions(now, staleBefore int64, limit int)
 		return nil, nil
 	}
 	var candidates []BytePlusVisualValidationSession
-	if err := DB.Where("status = ? OR (status = ? AND lease_updated_time < ?)",
+	if err := DB.Where("(status = ? AND updated_time <= ?) OR (status = ? AND lease_updated_time < ?)",
 		BytePlusVisualValidationSessionStatusPending,
+		now,
 		BytePlusVisualValidationSessionStatusChecking,
 		staleBefore,
 	).Order("updated_time ASC, id ASC").Limit(limit).Find(&candidates).Error; err != nil {
@@ -271,6 +272,16 @@ func ClaimDueBytePlusVisualValidationSessions(now, staleBefore int64, limit int)
 	}
 	claimed := make([]BytePlusVisualValidationSession, 0, len(candidates))
 	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate.BytedTokenCiphertext) == "" {
+			continue
+		}
+		var profile BytePlusRealPersonProfile
+		if err := DB.Select("current_validation_session_id").Where("id = ?", candidate.ProfileId).First(&profile).Error; err != nil {
+			return nil, err
+		}
+		if profile.CurrentValidationSessionId == nil || *profile.CurrentValidationSessionId != candidate.Id {
+			continue
+		}
 		claimedSession, owner, err := ClaimBytePlusVisualValidationSession(candidate.Id, now, staleBefore)
 		if err != nil {
 			return nil, err
@@ -332,6 +343,20 @@ func ClearBytePlusVisualValidationSecrets(sessionID, now int64) error {
 		}).Error
 }
 
+func RetryBytePlusVisualValidationSession(sessionID int64, leaseUpdatedTime int64, nextAttempt int64, now int64) (bool, error) {
+	updated := DB.Model(&BytePlusVisualValidationSession{}).
+		Where("id = ? AND status = ? AND lease_updated_time = ?", sessionID, BytePlusVisualValidationSessionStatusChecking, leaseUpdatedTime).
+		Updates(map[string]interface{}{
+			"status":             BytePlusVisualValidationSessionStatusPending,
+			"lease_updated_time": int64(0),
+			"updated_time":       nextAttempt,
+		})
+	if updated.Error != nil {
+		return false, updated.Error
+	}
+	return updated.RowsAffected == 1, nil
+}
+
 func MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(recordID, leaseUpdatedTime, profileID, sessionID int64, failureCode string, now int64) error {
 	failureCode = strings.TrimSpace(failureCode)
 	if failureCode == "" {
@@ -357,11 +382,14 @@ func MarkBytePlusVerificationSessionOutcomeUnknown(sessionPublicID string, now i
 		}
 		return false, err
 	}
-	changed, err := FailBytePlusRealPersonSession(session.ProfileId, session.Id, "idempotency_outcome_unknown", now)
+	if session.Status != BytePlusVisualValidationSessionStatusCreating {
+		return false, nil
+	}
+	_, err = FailBytePlusRealPersonSession(session.ProfileId, session.Id, "idempotency_outcome_unknown", now)
 	if errors.Is(err, ErrAPIIdempotencyCASLost) {
 		return false, nil
 	}
-	return changed || err == nil, err
+	return err == nil, err
 }
 
 func BytePlusRealPersonChannelHasEnabledAbility(channelID int, group, modelName string) (bool, error) {
