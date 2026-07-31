@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 type bytePlusRealPersonJobsFake struct {
@@ -305,6 +306,38 @@ func TestExpiredVerificationCallingUpstreamTargetsExactSessionWithoutOverwriting
 	require.Zero(t, fixture.fake.deleteCalls)
 }
 
+func TestBytePlusRealPersonIdempotencyRecoveryWarnsOperationOnlyOnReconcileError(t *testing.T) {
+	newBytePlusRealPersonJobsFixtureWithoutRows(t)
+	asset := model.BytePlusAsset{PublicId: "ast_recovery_secret", UserId: 7, ChannelId: 101, AssetType: "Image", Status: model.BytePlusAssetStatusCreating, CreatedTime: 100, UpdatedTime: 100}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	require.NoError(t, model.DB.Create(&model.APIIdempotencyRecord{UserId: 7, Route: bytePlusRealPersonAssetCreateRoute, KeyHash: strings.Repeat("e", 64), RequestHash: strings.Repeat("f", 64), Status: model.APIIdempotencyStatusCallingUpstream, ResourceType: model.APIIdempotencyResourceAsset, ResourcePublicId: asset.PublicId, LeaseUpdatedTime: 100, UpstreamCallStartedAt: 100, CreatedTime: 100, UpdatedTime: 100}).Error)
+	callbackName := "byteplus_idempotency_recovery_asset_failure"
+	require.NoError(t, model.DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Schema == nil || tx.Statement.Schema.Name != "BytePlusAsset" {
+			return
+		}
+		tx.AddError(errors.New("secret recovery-public-id ast_recovery_secret"))
+	}))
+	t.Cleanup(func() { require.NoError(t, model.DB.Callback().Update().Remove(callbackName)) })
+	var warnings []string
+	oldWarn := bytePlusRealPersonJobRowWarn
+	bytePlusRealPersonJobRowWarn = func(message string) {
+		warnings = append(warnings, message)
+	}
+	t.Cleanup(func() { bytePlusRealPersonJobRowWarn = oldWarn })
+	beforeError := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "idempotency_recovery", "result": "error"})
+
+	result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+	require.Error(t, result.Err)
+	require.Zero(t, result.Processed)
+	require.Equal(t, []string{"byteplus real-person job row failed: idempotency_recovery"}, warnings)
+	require.EqualValues(t, beforeError+1, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "idempotency_recovery", "result": "error"}))
+	for _, forbidden := range []string{"secret", "recovery-public-id", "ast_recovery_secret"} {
+		require.NotContains(t, warnings[0], forbidden)
+	}
+}
+
 func TestExpiredSignedURLGetsOneFinalAssetQueryThenObjectCleanup(t *testing.T) {
 	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
 	asset := model.BytePlusAsset{PublicId: "ast_expired_url", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream-expired", AssetType: "Image", Status: model.BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100}
@@ -409,6 +442,56 @@ func TestBytePlusRealPersonRetryCASLosersAreSilentNoOps(t *testing.T) {
 			require.NoError(t, result.Err)
 			require.EqualValues(t, beforeRetry, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": tc.operation, "result": "retry"}))
 			require.EqualValues(t, beforeError, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": tc.operation, "result": "error"}))
+		})
+	}
+}
+
+func TestBytePlusRealPersonVerificationSuccessOnlyCountsChangedActivation(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(t *testing.T, profile model.BytePlusRealPersonProfile, session model.BytePlusVisualValidationSession)
+	}{
+		{
+			name: "cas lost",
+			mutate: func(t *testing.T, _ model.BytePlusRealPersonProfile, session model.BytePlusVisualValidationSession) {
+				require.NoError(t, model.DB.Model(&model.BytePlusVisualValidationSession{}).Where("id = ?", session.Id).Update("status", model.BytePlusVisualValidationSessionStatusSucceeded).Error)
+			},
+		},
+		{
+			name: "no current change",
+			mutate: func(t *testing.T, profile model.BytePlusRealPersonProfile, _ model.BytePlusVisualValidationSession) {
+				replacement := model.BytePlusVisualValidationSession{PublicId: "rvs_job_replacement", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("c", 64), Status: model.BytePlusVisualValidationSessionStatusPending, CreatedTime: 150, UpdatedTime: 150}
+				require.NoError(t, model.DB.Create(&replacement).Error)
+				require.NoError(t, model.DB.Model(&model.BytePlusRealPersonProfile{}).Where("id = ?", profile.Id).Update("current_validation_session_id", replacement.Id).Error)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+			profile, session := seedJobVerificationSession(t, "activation_"+strings.ReplaceAll(tc.name, " ", "_"), model.BytePlusVisualValidationSessionStatusPending, "byted", 3000)
+			fixture.fake.onResult = func() {
+				tc.mutate(t, profile, session)
+			}
+			var warnings []string
+			oldWarn := bytePlusRealPersonJobRowWarn
+			bytePlusRealPersonJobRowWarn = func(message string) {
+				warnings = append(warnings, message)
+			}
+			t.Cleanup(func() { bytePlusRealPersonJobRowWarn = oldWarn })
+			beforeSuccess := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "verification_status", "result": "success"})
+			beforeError := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "verification_status", "result": "error"})
+			beforeRetry := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "verification_status", "result": "retry"})
+
+			result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+			require.NoError(t, result.Err)
+			require.Zero(t, result.Processed)
+			require.Empty(t, warnings)
+			require.EqualValues(t, beforeSuccess, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "verification_status", "result": "success"}))
+			require.EqualValues(t, beforeError, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "verification_status", "result": "error"}))
+			require.EqualValues(t, beforeRetry, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "verification_status", "result": "retry"}))
 		})
 	}
 }

@@ -122,6 +122,7 @@ func recoverBytePlusRealPersonIdempotency(ctx context.Context, now, staleBefore 
 		}
 		perfmetrics.RecordBytePlusRealPersonOutcomeUnknown(resource)
 		if err := reconcileBytePlusOutcomeUnknownResource(ctx, record, now); err != nil {
+			warnBytePlusRealPersonJobRow("idempotency_recovery")
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -211,12 +212,13 @@ func runBytePlusRealPersonVerificationStatusJobs(ctx context.Context, now, stale
 			continue
 		}
 		if strings.TrimSpace(upstream.GroupID) != "" {
-			if _, err := model.ActivateBytePlusRealPersonProfile(profile.Id, session.Id, upstream.GroupID, now); err != nil && !errors.Is(err, model.ErrAPIIdempotencyCASLost) {
+			if ok, err := model.ActivateBytePlusRealPersonProfile(profile.Id, session.Id, upstream.GroupID, now); err != nil && !errors.Is(err, model.ErrAPIIdempotencyCASLost) {
 				warnBytePlusRealPersonJobRow("verification_status")
 				firstErr = firstNonNil(firstErr, err)
 				continue
+			} else if ok {
+				processed++
 			}
-			processed++
 		}
 	}
 	return processed, firstErr
