@@ -30,4 +30,12 @@ describe("SkagLandingPage", () => {
       expect(html).toContain(row.flatkey);
     }
   });
+
+  test("renders the Chinese AI models API ad intent", () => {
+    const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("chinese-ai-models-api")} />);
+
+    for (const text of ["Chinese AI Models", "DeepSeek", "Qwen", "GLM", "Kimi", "Seedance", "deepseek-v4-flash"]) {
+      expect(html).toContain(text);
+    }
+  });
 });

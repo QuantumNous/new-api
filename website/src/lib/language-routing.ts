@@ -35,6 +35,7 @@ const IGNORED_EXACT_PATHS = [
   // returning localized visitor would send paid traffic to a missing sibling.
   "/gpt-api-alternative",
   "/chinese-ai",
+  "/chinese-ai-models-api",
   "/openai-compatible",
   "/gateway",
   "/apify-alternative",

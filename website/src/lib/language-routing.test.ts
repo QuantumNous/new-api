@@ -62,6 +62,7 @@ describe("language routing", () => {
     for (const pathname of [
       "/gpt-api-alternative",
       "/chinese-ai",
+      "/chinese-ai-models-api",
       "/openai-compatible",
       "/gateway",
       "/apify-alternative",

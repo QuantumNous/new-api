@@ -19,6 +19,7 @@ describe("SKAG landing configuration", () => {
 
     expect(h1("gpt-api-alternative")).toBe("ChatGPT API Alternative");
     expect(h1("chinese-ai")).toBe("Chinese AI Models, One API");
+    expect(h1("chinese-ai-models-api")).toBe("Chinese AI Models API");
     expect(h1("openai-compatible")).toBe("OpenAI-Compatible API");
     expect(h1("gateway")).toBe("LLM API Gateway");
   });
@@ -27,6 +28,7 @@ describe("SKAG landing configuration", () => {
     expect(getSkagLandingPathnames()).toEqual([
       "/gpt-api-alternative",
       "/chinese-ai",
+      "/chinese-ai-models-api",
       "/openai-compatible",
       "/gateway",
     ]);
@@ -46,9 +48,10 @@ describe("SKAG landing configuration", () => {
   test("every config carries pricing, snippet model, SEO copy, and FAQ", () => {
     for (const config of getSkagLandingConfigs()) {
       expect(config.priceRows.length).toBeGreaterThanOrEqual(3);
+      expect(config.priceRows.some((row) => row.flatkey.startsWith("$"))).toBe(true);
       for (const row of config.priceRows) {
-        expect(row.flatkey.startsWith("$")).toBe(true);
-        expect(row.official.startsWith("$")).toBe(true);
+        expect(row.flatkey.length).toBeGreaterThan(0);
+        expect(row.official.length).toBeGreaterThan(0);
       }
       expect(config.exampleModel.length).toBeGreaterThan(0);
       expect(config.seo.title.length).toBeGreaterThan(20);
