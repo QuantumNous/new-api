@@ -161,6 +161,52 @@ func TestBytePlusRealPersonVerificationCompleteSessionCASRejectsTerminalOverwrit
 	require.Empty(t, session.H5LinkCiphertext)
 }
 
+func TestBytePlusRealPersonVerificationOutcomeUnknownDoesNotRewriteNonCurrentSession(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	originalErrorCode := "original_error"
+	profile := BytePlusRealPersonProfile{
+		PublicId: "rph_outcome_unknown", UserId: 7, Name: "A", ChannelId: 101,
+		Status: BytePlusRealPersonProfileStatusVerifying, ErrorCode: originalErrorCode,
+		CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(&profile).Error)
+	oldSession := BytePlusVisualValidationSession{
+		PublicId: "rvs_outcome_old", ProfileId: profile.Id,
+		CallbackTokenHash: strings.Repeat("e", 64), CallbackTokenCiphertext: "callback-old",
+		BytedTokenCiphertext: "byted-old", H5LinkCiphertext: "h5-old",
+		Status: BytePlusVisualValidationSessionStatusCreating, CreatedTime: 100, UpdatedTime: 100,
+	}
+	newSession := BytePlusVisualValidationSession{
+		PublicId: "rvs_outcome_new", ProfileId: profile.Id,
+		CallbackTokenHash: strings.Repeat("f", 64),
+		Status:            BytePlusVisualValidationSessionStatusPending, CreatedTime: 101, UpdatedTime: 101,
+	}
+	require.NoError(t, DB.Create(&oldSession).Error)
+	require.NoError(t, DB.Create(&newSession).Error)
+	require.NoError(t, DB.Model(&profile).Update("current_validation_session_id", newSession.Id).Error)
+	record := APIIdempotencyRecord{
+		UserId: 7, Route: "real_person_reverify", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64),
+		Status: APIIdempotencyStatusCallingUpstream, ResourceType: APIIdempotencyResourceVerificationSession, ResourcePublicId: oldSession.PublicId,
+		LeaseUpdatedTime: 100, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(&record).Error)
+
+	require.NoError(t, MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, 100, profile.Id, oldSession.Id, "verification_outcome_unknown", 200))
+
+	require.NoError(t, DB.First(&record, record.Id).Error)
+	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
+	require.NoError(t, DB.First(&oldSession, oldSession.Id).Error)
+	require.Equal(t, BytePlusVisualValidationSessionStatusCreating, oldSession.Status)
+	require.Equal(t, "callback-old", oldSession.CallbackTokenCiphertext)
+	require.Equal(t, "byted-old", oldSession.BytedTokenCiphertext)
+	require.Equal(t, "h5-old", oldSession.H5LinkCiphertext)
+	require.NoError(t, DB.First(&profile, profile.Id).Error)
+	require.Equal(t, BytePlusRealPersonProfileStatusVerifying, profile.Status)
+	require.Equal(t, originalErrorCode, profile.ErrorCode)
+	require.NotNil(t, profile.CurrentValidationSessionId)
+	require.Equal(t, newSession.Id, *profile.CurrentValidationSessionId)
+}
+
 func profilePublicIDs(profiles []BytePlusRealPersonProfile) []string {
 	ids := make([]string, 0, len(profiles))
 	for _, profile := range profiles {

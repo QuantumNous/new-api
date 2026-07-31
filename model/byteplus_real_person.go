@@ -344,8 +344,18 @@ func MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(recordID, le
 		if err := requireOneAPIIdempotencyCAS(updatedRecord); err != nil {
 			return err
 		}
+		var profile BytePlusRealPersonProfile
+		if err := tx.Select("current_validation_session_id").
+			Where("id = ?", profileID).
+			First(&profile).Error; err != nil {
+			return err
+		}
+		if profile.CurrentValidationSessionId == nil || *profile.CurrentValidationSessionId != sessionID {
+			return nil
+		}
 		if err := tx.Model(&BytePlusVisualValidationSession{}).
-			Where("id = ? AND profile_id = ? AND status NOT IN ?", sessionID, profileID, realPersonTerminalSessionStatuses()).
+			Where("id = ? AND profile_id = ? AND status NOT IN ? AND EXISTS (?)", sessionID, profileID, realPersonTerminalSessionStatuses(),
+				tx.Model(&BytePlusRealPersonProfile{}).Select("1").Where("id = ? AND current_validation_session_id = ?", profileID, sessionID)).
 			Updates(map[string]interface{}{
 				"status":                    BytePlusVisualValidationSessionStatusFailed,
 				"callback_token_ciphertext": "",
