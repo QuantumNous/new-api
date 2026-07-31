@@ -188,10 +188,37 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	creemValues := make(map[string]string, 4)
 	for _, option := range options {
+		switch option.Key {
+		case "CreemApiKey", "CreemWebhookSecret", "CreemProducts", "CreemTestMode":
+			creemValues[option.Key] = option.Value
+			continue
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
+		}
+	}
+	if len(creemValues) == 0 {
+		return
+	}
+	common.OptionMapRWMutex.Lock()
+	defer common.OptionMapRWMutex.Unlock()
+	if common.OptionMap == nil {
+		common.OptionMap = map[string]string{}
+	}
+	for key, value := range creemValues {
+		common.OptionMap[key] = value
+		switch key {
+		case "CreemApiKey":
+			setting.CreemApiKey = value
+		case "CreemWebhookSecret":
+			setting.CreemWebhookSecret = value
+		case "CreemProducts":
+			setting.CreemProducts = value
+		case "CreemTestMode":
+			setting.CreemTestMode, _ = strconv.ParseBool(value)
 		}
 	}
 }
@@ -250,6 +277,43 @@ func UpdateOptionsBulk(values map[string]string) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// UpdateCreemOptionsAtomic persists and publishes the Creem configuration as a
+// single cutover. Callers must validate values before invoking it.
+func UpdateCreemOptionsAtomic(apiKey, webhookSecret, products string, testMode bool) error {
+	values := map[string]string{
+		"CreemApiKey": apiKey, "CreemWebhookSecret": webhookSecret,
+		"CreemProducts": products, "CreemTestMode": strconv.FormatBool(testMode),
+	}
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		for key, value := range values {
+			option := Option{Key: key}
+			if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+				return err
+			}
+			option.Value = value
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	common.OptionMapRWMutex.Lock()
+	defer common.OptionMapRWMutex.Unlock()
+	if common.OptionMap == nil {
+		common.OptionMap = map[string]string{}
+	}
+	for key, value := range values {
+		common.OptionMap[key] = value
+	}
+	setting.CreemApiKey = apiKey
+	setting.CreemWebhookSecret = webhookSecret
+	setting.CreemProducts = products
+	setting.CreemTestMode = testMode
 	return nil
 }
 

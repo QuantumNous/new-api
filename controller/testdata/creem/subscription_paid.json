@@ -1,0 +1,91 @@
+{
+  "eventType": "subscription.paid",
+  "object": {
+    "id": "sub_fixture_subscription",
+    "object": "subscription",
+    "product": {
+      "id": "prod_fixture_starter",
+      "object": "product",
+      "name": "metaproxy Starter Monthly",
+      "description": "$20 usage quota per monthly billing period. Renews automatically; unused subscription quota does not roll over.",
+      "price": 1900,
+      "currency": "USD",
+      "billing_type": "recurring",
+      "billing_period": "every-month",
+      "status": "active",
+      "tax_mode": "inclusive",
+      "tax_category": "digital-goods-service",
+      "default_success_url": "https://console.metaproxy.agency/app/billing",
+      "created_at": "2026-07-31T12:22:16.398Z",
+      "updated_at": "2026-07-31T12:22:16.398Z",
+      "mode": "test"
+    },
+    "customer": {
+      "id": "cust_fixture_customer",
+      "object": "customer",
+      "email": "fixture@example.com",
+      "name": "Fixture Customer",
+      "metadata": {
+        "plan": "starter",
+        "fixture": "creem-recurring-contract",
+        "trade_no": "fixture_trade_001",
+        "reference_id": "fixture_trade_001"
+      },
+      "country": "US",
+      "created_at": "2026-07-31T12:26:13.774Z",
+      "updated_at": "2026-07-31T12:26:13.774Z",
+      "mode": "test"
+    },
+    "items": [
+      {
+        "object": "subscription_item",
+        "id": "sitem_fixture_item",
+        "product_id": "prod_fixture_starter",
+        "price_id": "pprice_fixture_price",
+        "units": 1,
+        "created_at": "2026-07-31T12:26:16.223Z",
+        "updated_at": "2026-07-31T12:26:16.223Z",
+        "mode": "test"
+      }
+    ],
+    "collection_method": "charge_automatically",
+    "status": "active",
+    "last_transaction_id": "tran_fixture_initial",
+    "last_transaction": {
+      "id": "tran_fixture_initial",
+      "object": "transaction",
+      "amount": 1900,
+      "amount_paid": 1900,
+      "currency": "USD",
+      "type": "invoice",
+      "tax_country": "US",
+      "tax_amount": 0,
+      "status": "paid",
+      "refunded_amount": null,
+      "order": "ord_fixture_order",
+      "subscription": "sub_fixture_subscription",
+      "customer": null,
+      "description": "Subscription payment",
+      "period_start": 1785500774826,
+      "period_end": 1788179174826,
+      "created_at": 1785500776571,
+      "mode": "test"
+    },
+    "last_transaction_date": "2026-07-31T12:26:14.826Z",
+    "next_transaction_date": "2026-08-31T12:26:14.826Z",
+    "current_period_start_date": "2026-07-31T12:26:14.826Z",
+    "current_period_end_date": "2026-08-31T12:26:14.826Z",
+    "canceled_at": null,
+    "created_at": "2026-07-31T12:26:16.214Z",
+    "updated_at": "2026-07-31T12:26:16.214Z",
+    "metadata": {
+      "plan": "starter",
+      "fixture": "creem-recurring-contract",
+      "trade_no": "fixture_trade_001",
+      "reference_id": "fixture_trade_001"
+    },
+    "mode": "test"
+  },
+  "id": "evt_fixture_subscription_paid",
+  "created_at": 1785500776868
+}

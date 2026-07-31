@@ -1,0 +1,1 @@
+{"id":"evt_refund_safe","eventType":"refund.created","created_at":1709251200,"object":{"id":"refund_safe","status":"pending","amount":600,"currency":"USD","transaction":"txn_safe"}}

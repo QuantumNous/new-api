@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -12,16 +13,20 @@ import (
 )
 
 type TopUp struct {
-	Id              int     `json:"id"`
-	UserId          int     `json:"user_id" gorm:"index"`
-	Amount          int64   `json:"amount"`
-	Money           float64 `json:"money"`
-	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	CreateTime      int64   `json:"create_time"`
-	CompleteTime    int64   `json:"complete_time"`
-	Status          string  `json:"status"`
+	Id                        int     `json:"id"`
+	UserId                    int     `json:"user_id" gorm:"index"`
+	Amount                    int64   `json:"amount"`
+	Money                     float64 `json:"money"`
+	TradeNo                   string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod             string  `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider           string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	CreateTime                int64   `json:"create_time"`
+	CompleteTime              int64   `json:"complete_time"`
+	Status                    string  `json:"status"`
+	ContractSnapshot          bool    `json:"contract_snapshot"`
+	ExpectedProviderProductId string  `json:"expected_provider_product_id" gorm:"type:varchar(128);default:''"`
+	ExpectedAmountMinor       int64   `json:"expected_amount_minor" gorm:"type:bigint;not null;default:0"`
+	ExpectedCurrency          string  `json:"expected_currency" gorm:"type:varchar(8);default:''"`
 }
 
 const (
@@ -120,7 +125,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	}
 
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		err := lockForUpdate(tx).Where(refCol+" = ?", referenceId).First(topUp).Error
+		err = lockForUpdate(tx).Where(refCol+" = ?", referenceId).First(topUp).Error
 		if err != nil {
 			return errors.New("充值订单不存在")
 		}
@@ -389,7 +394,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
 	return nil
 }
-func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
+func RechargeCreem(input CreemPaymentInput, referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -403,13 +408,29 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		err := lockForUpdate(tx).Where(refCol+" = ?", referenceId).First(topUp).Error
+		done, event, err := beginCreemEventTx(tx, input)
+		if err != nil || done {
+			return err
+		}
+		err = lockForUpdate(tx).Where(refCol+" = ?", referenceId).First(topUp).Error
 		if err != nil {
 			return errors.New("充值订单不存在")
 		}
 
 		if topUp.PaymentProvider != PaymentProviderCreem {
 			return ErrPaymentMethodMismatch
+		}
+		if !topUp.ContractSnapshot {
+			return errors.New("legacy Creem topup requires manual reconciliation")
+		}
+		if topUp.ExpectedProviderProductId == "" || input.ProductId != topUp.ExpectedProviderProductId {
+			return errors.New("Creem topup product mismatch")
+		}
+		if topUp.ExpectedAmountMinor <= 0 || input.Amount != topUp.ExpectedAmountMinor {
+			return errors.New("Creem topup amount mismatch")
+		}
+		if topUp.ExpectedCurrency == "" || !strings.EqualFold(input.Currency, topUp.ExpectedCurrency) {
+			return errors.New("Creem topup currency mismatch")
 		}
 
 		if topUp.Status != common.TopUpStatusPending {
@@ -451,7 +472,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return err
 		}
 
-		return nil
+		return finishCreemEventTx(tx, event)
 	})
 
 	if err != nil {

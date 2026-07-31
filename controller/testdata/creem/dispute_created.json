@@ -1,0 +1,1 @@
+{"id":"evt_dispute_safe","eventType":"dispute.created","created_at":1709251200,"object":{"id":"dispute_safe","status":"created","amount":1200,"currency":"USD","transaction":"txn_safe"}}

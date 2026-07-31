@@ -64,7 +64,7 @@ func TestCreemWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	require.True(t, isCreemWebhookEnabled())
 
 	setting.CreemProducts = "[]"
-	require.False(t, isCreemWebhookEnabled())
+	require.True(t, isCreemWebhookEnabled())
 }
 
 func TestWaffoWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {

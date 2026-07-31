@@ -1,0 +1,1 @@
+{"id":"evt_canceled_safe","eventType":"subscription.canceled","created_at":1709251200,"object":{"id":"sub_safe","product":"prod_safe","customer":"cus_safe","status":"canceled","current_period_start_date":1706745600,"current_period_end_date":1709251200,"canceled_at":"2024-03-01T00:00:00Z"}}

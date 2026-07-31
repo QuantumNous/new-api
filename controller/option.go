@@ -137,6 +137,12 @@ func UpdateOption(c *gin.Context) {
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
+	for _, key := range []string{"CreemApiKey", "CreemWebhookSecret", "CreemProducts", "CreemTestMode"} {
+		if option.Key == key {
+			common.ApiErrorMsg(c, "Creem configuration must be updated atomically")
+			return
+		}
+	}
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
