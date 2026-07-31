@@ -6,7 +6,7 @@ import { getOnlineStaticCopy } from "@/lib/online-static-copy";
 import { consoleUrl } from "@/lib/origins";
 
 type ShellProps = {
-  active?: "models" | "pricing" | "playground" | "compute" | "usecases" | "status";
+  active?: "cli" | "models" | "pricing" | "playground" | "compute" | "usecases" | "status";
   children: ReactNode;
   contactAction?: boolean;
   locale: Locale;
@@ -73,7 +73,6 @@ export function OnlineNav(props: { active?: ShellProps["active"]; contactAction?
     { active: "compute", href: "/compute", label: copy.nav.compute },
   ];
   const developers: NavLink[] = [
-    { href: "/cli", label: copy.nav.cli },
     { external: true, href: "https://docs.flatkey.ai/", label: copy.nav.docs, target: "_blank" },
   ];
   const resources: NavLink[] = [
@@ -93,8 +92,13 @@ export function OnlineNav(props: { active?: ShellProps["active"]; contactAction?
         <NavGroup current={props.active} label={groupLabels.developers} items={developers} />
         <NavGroup current={props.active} label={groupLabels.resources} items={resources} />
       </div>
-      <Link href="/pricing" className={props.active === "pricing" ? "on" : undefined} data-i18n="nav.pricing">
-        {copy.nav.pricing}
+      <Link href="/cli" className={`nav-top-link${props.active === "cli" ? " on" : ""}`} data-i18n="nav.cli">
+        <span className="nav-group-dot" aria-hidden="true" />
+        <span>{copy.nav.cli}</span>
+      </Link>
+      <Link href="/pricing" className={`nav-top-link${props.active === "pricing" ? " on" : ""}`} data-i18n="nav.pricing">
+        <span className="nav-group-dot" aria-hidden="true" />
+        <span>{copy.nav.pricing}</span>
       </Link>
       <div className="sp" />
       <OnlineLanguageSelect locale={props.locale} pathname={props.pathname ?? "/"} />

@@ -124,11 +124,10 @@ export function SiteHeader(props: Props) {
   );
   const developerItems = useMemo<NavItem[]>(
     () => [
-      { href: CLI_LANDING_PATH, label: cliCopy.navLabel, publicPath: true },
       { href: "/docs", label: copy.nav.docs, publicPath: true },
       { href: "/status", label: legacyLabels.status, publicPath: true },
     ],
-    [cliCopy.navLabel, copy.nav.docs, legacyLabels.status]
+    [copy.nav.docs, legacyLabels.status]
   );
   const resourceItems = useMemo<NavItem[]>(
     () => [
@@ -139,7 +138,11 @@ export function SiteHeader(props: Props) {
     ],
     [copy.nav.about, copy.nav.blog, copy.nav.contact, groupLabels.careers]
   );
-  const mobileItems = [...productItems, ...developerItems, ...resourceItems, { href: "/pricing", label: copy.nav.pricing, publicPath: true }];
+  const topLevelItems = [
+    { href: CLI_LANDING_PATH, label: cliCopy.navLabel, publicPath: true },
+    { href: "/pricing", label: copy.nav.pricing, publicPath: true },
+  ];
+  const mobileItems = [...productItems, ...topLevelItems, ...developerItems, ...resourceItems];
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
@@ -148,22 +151,28 @@ export function SiteHeader(props: Props) {
     };
   }, [mobileOpen]);
 
-  const renderNavLink = (item: NavItem, compact = false) => {
+  const renderNavLink = (item: NavItem, compact = false, withDot = false) => {
     const active = item.publicPath && currentPath === item.href;
     const className = cn(
       compact
         ? "block rounded-lg px-3 py-2.5 text-base font-semibold"
-        : "inline-flex h-9 items-center whitespace-nowrap text-[13px] font-semibold",
+        : "inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-2 text-[13px] font-semibold",
       active ? "text-[#0B0B0F]" : "text-[#43434C] hover:text-[#0B0B0F]"
+    );
+    const children = (
+      <>
+        {withDot ? <span className={cn("size-1.5 rounded-full", active ? "bg-violet-600" : "bg-[#aaa7b0]")} aria-hidden="true" /> : null}
+        {item.label}
+      </>
     );
 
     return item.external ? (
       <a key={item.href} className={className} href={item.href} target="_blank" rel="noopener noreferrer">
-        {item.label}
+        {children}
       </a>
     ) : (
       <Link key={item.href} className={className} href={item.publicPath ? localizePath(item.href, props.locale) : item.href} onClick={() => setMobileOpen(false)}>
-        {item.label}
+        {children}
       </Link>
     );
   };
@@ -172,9 +181,10 @@ export function SiteHeader(props: Props) {
     <div className="group/nav relative">
       <button
         type="button"
-        className="inline-flex h-9 items-center whitespace-nowrap text-[13px] font-semibold text-[#43434C] hover:text-[#0B0B0F]"
+        className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-2 text-[13px] font-semibold text-[#43434C] hover:text-[#0B0B0F]"
         aria-haspopup="menu"
       >
+        <span className="size-1.5 rounded-full bg-[#aaa7b0]" aria-hidden="true" />
         {label}
       </button>
       <div className="pointer-events-none absolute top-full left-0 z-50 pt-3 opacity-0 transition-opacity group-hover/nav:pointer-events-auto group-hover/nav:opacity-100 group-focus-within/nav:pointer-events-auto group-focus-within/nav:opacity-100">
@@ -189,28 +199,17 @@ export function SiteHeader(props: Props) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#0B0B0F14] bg-white/95 backdrop-blur-md">
-      <nav className="flex h-[76px] items-center gap-4 px-5 text-[#0B0B0F] min-[1180px]:gap-[18px] min-[1320px]:px-8">
+      <nav className="flex h-[76px] items-center gap-4 px-5 text-[#0B0B0F] min-[1180px]:gap-3 min-[1320px]:px-8">
         <Link href={localizePath("/", props.locale)} className="mr-1 inline-flex shrink-0 items-center">
           <FlatkeyBrandLogo className="[&_[data-flatkey-wordmark='true']]:text-[30px] [&_img]:h-10 [&_img]:w-10 min-[1480px]:[&_[data-flatkey-wordmark='true']]:text-[32px] min-[1480px]:[&_img]:h-11 min-[1480px]:[&_img]:w-11" />
           <span className="sr-only">flatkey.ai</span>
         </Link>
 
-        <div className="hidden min-w-0 flex-1 items-center gap-4 min-[1180px]:flex min-[1480px]:gap-[18px]">
-          <span className="text-[#aaa7b0]">•</span>
+        <div className="hidden min-w-0 flex-1 items-center gap-1 min-[1180px]:flex">
           {renderNavGroup(groupLabels.products, productItems)}
-          <span className="text-[#aaa7b0]">•</span>
           {renderNavGroup(groupLabels.developers, developerItems)}
-          <span className="text-[#aaa7b0]">•</span>
           {renderNavGroup(groupLabels.resources, resourceItems)}
-          <Link
-            className={cn(
-              "inline-flex h-9 items-center whitespace-nowrap text-[13px] font-semibold",
-              currentPath === "/pricing" ? "text-[#0B0B0F]" : "text-[#43434C] hover:text-[#0B0B0F]"
-            )}
-            href={localizePath("/pricing", props.locale)}
-          >
-            {copy.nav.pricing}
-          </Link>
+          {topLevelItems.map((item) => renderNavLink(item, false, true))}
         </div>
 
         <div className="ml-auto hidden shrink-0 items-center gap-2 min-[1180px]:flex">

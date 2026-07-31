@@ -647,6 +647,13 @@ body:has(> header.hero.heroUnified) .proofGrid .tagline{color:var(--ink3)}
   background:transparent;color:var(--ink2);font-family:var(--sans);font-size:14.5px;font-weight:650;white-space:nowrap;
   cursor:pointer;transition:color .16s ease,background-color .16s ease
 }
+.nav a.nav-top-link{
+  display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border-radius:9px;
+  color:var(--ink2);font-size:14.5px;font-weight:650;transition:color .16s ease,background-color .16s ease
+}
+.nav a.nav-top-link:hover,.nav a.nav-top-link:focus-visible{color:var(--ink);background:var(--line2);outline:none}
+.nav a.nav-top-link.on{color:var(--ink);font-weight:700}
+.nav a.nav-top-link.on .nav-group-dot{background:var(--violet-hi);box-shadow:0 0 0 3px rgba(124,58,237,.11)}
 .nav-group-trigger:hover,.nav-group-trigger:focus-visible,.nav-group.is-open .nav-group-trigger{color:var(--ink);background:var(--line2);outline:none}
 .nav-group-dot{width:6px;height:6px;border-radius:50%;background:#aaa7b0;box-shadow:0 0 0 3px transparent;transition:background-color .16s ease,box-shadow .16s ease}
 .nav-group.is-open .nav-group-dot,.nav-group.is-current .nav-group-dot{background:var(--violet-hi);box-shadow:0 0 0 3px rgba(124,58,237,.11)}
@@ -674,6 +681,10 @@ body:has(> header.hero):not(:has(> header.hero.heroUnified))>.nav .nav-group-tri
 body:has(> header.hero):not(:has(> header.hero.heroUnified))>.nav .nav-group-trigger:hover,
 body:has(> header.hero):not(:has(> header.hero.heroUnified))>.nav .nav-group-trigger:focus-visible,
 body:has(> header.hero):not(:has(> header.hero.heroUnified))>.nav .nav-group.is-open .nav-group-trigger{color:#fff;background:rgba(255,255,255,.1)}
+body:has(> header.hero):not(:has(> header.hero.heroUnified))>.nav a.nav-top-link{color:rgba(255,255,255,.84)}
+body:has(> header.hero):not(:has(> header.hero.heroUnified))>.nav a.nav-top-link:hover,
+body:has(> header.hero):not(:has(> header.hero.heroUnified))>.nav a.nav-top-link:focus-visible,
+body:has(> header.hero):not(:has(> header.hero.heroUnified))>.nav a.nav-top-link.on{color:#fff;background:rgba(255,255,255,.1)}
 
 .nav-panel-grouped{padding:14px}
 .mobile-nav-primary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding-bottom:10px}
@@ -687,10 +698,13 @@ body:has(> header.hero):not(:has(> header.hero.heroUnified))>.nav .nav-group.is-
 @media (max-width:1740px){
   .desktop-nav-groups{gap:0}
   .nav-group-trigger{min-height:38px;padding:0 9px;font-size:13.5px}
+  .nav a.nav-top-link{min-height:38px;padding:0 9px;font-size:13.5px}
 }
 @media (max-width:1480px){
   .nav-group-trigger{padding:0 7px;font-size:12.5px}
+  .nav a.nav-top-link{padding:0 7px;font-size:12.5px}
   .nav-group-trigger{gap:6px}
+  .nav a.nav-top-link{gap:6px}
   .nav-group-dot{width:5px;height:5px}
 }
 @media (min-width:901px) and (max-width:1180px){
@@ -699,6 +713,7 @@ body:has(> header.hero):not(:has(> header.hero.heroUnified))>.nav .nav-group.is-
   .nav .nav-toggle{display:none}
   .desktop-nav-groups{display:flex}
   .nav-group-trigger{padding:0 6px;font-size:12px}
+  .nav a.nav-top-link{padding:0 6px;font-size:12px}
   .nav>.langsel{margin-left:0;max-width:86px;padding:7px 5px}
 }
 @media (max-width:900px){
