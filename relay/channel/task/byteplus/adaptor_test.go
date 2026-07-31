@@ -345,6 +345,45 @@ func TestBuildRequestBodyRewritesResolvedAssetURIsOnly(t *testing.T) {
 	}
 }
 
+func TestBytePlusAssetRealPersonBuildRequestBodyRewritesTwoMediaReferencesAndPreservesTextMentions(t *testing.T) {
+	a := &TaskAdaptor{}
+	info := newTestRelayInfo("https://ark.example", "test-key")
+	c := newTestContext(`{
+		"model":"seedance-2.0",
+		"content":[
+			{"type":"text","text":"plain asset://ast_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb mention"},
+			{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"},
+			{"type":"audio_url","audio_url":{"url":"asset://ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"role":"reference_audio"},
+			{"type":"video_url","video_url":{"url":"https://example.com/input.mp4"},"role":"reference_video"}
+		]
+	}`)
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://upstream-image",
+		"asset://ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "asset://upstream-audio",
+	})
+
+	body, err := a.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !strings.Contains(string(raw), `"url":"asset://upstream-image"`) {
+		t.Fatalf("rewritten body missing image upstream asset URI: %s", raw)
+	}
+	if !strings.Contains(string(raw), `"url":"asset://upstream-audio"`) {
+		t.Fatalf("rewritten body missing audio upstream asset URI: %s", raw)
+	}
+	if !strings.Contains(string(raw), `plain asset://ast_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb mention`) {
+		t.Fatalf("text mention changed: %s", raw)
+	}
+	if !strings.Contains(string(raw), `"url":"https://example.com/input.mp4"`) {
+		t.Fatalf("ordinary https video URL changed or missing: %s", raw)
+	}
+}
+
 func TestRewriteBytePlusAssetReferencesPreservesLargeIntegerSeed(t *testing.T) {
 	raw := []byte(`{"model":"seedance-2.0","seed":9007199254740993,"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]}`)
 

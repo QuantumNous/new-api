@@ -59,6 +59,34 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
 		}
 	}
+	profileIDs := make(map[int64]struct{})
+	for _, reference := range references {
+		asset := byID[reference.PublicID]
+		if asset.RealPersonProfileId != nil {
+			profileIDs[*asset.RealPersonProfileId] = struct{}{}
+		}
+	}
+	if len(profileIDs) > 1 {
+		return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset real person profiles do not match"), types.ErrorCodeAssetProfileConflict, http.StatusConflict)
+	}
+	for profileID := range profileIDs {
+		profile, err := model.GetBytePlusRealPersonProfileByIDForUser(userID, profileID)
+		if err != nil {
+			if model.IsBytePlusRealPersonNotFound(err) {
+				return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
+			}
+			return BytePlusAssetReferenceResolution{}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		}
+		if profile.Status != model.BytePlusRealPersonProfileStatusActive {
+			return BytePlusAssetReferenceResolution{}, assetError(errors.New("real person profile is not active"), types.ErrorCodeRealPersonNotActive, http.StatusConflict)
+		}
+		for _, reference := range references {
+			asset := byID[reference.PublicID]
+			if asset.RealPersonProfileId != nil && *asset.RealPersonProfileId == profileID && asset.ChannelId != profile.ChannelId {
+				return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset channel does not match real person profile"), types.ErrorCodeAssetChannelConflict, http.StatusConflict)
+			}
+		}
+	}
 	for _, reference := range references {
 		asset := byID[reference.PublicID]
 		if asset.ChannelId > 0 {
@@ -76,10 +104,12 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 		}
 		switch asset.Status {
 		case model.BytePlusAssetStatusActive:
-		case model.BytePlusAssetStatusCreating, model.BytePlusAssetStatusProcessing:
+		case model.BytePlusAssetStatusCreating, model.BytePlusAssetStatusProcessing, model.BytePlusAssetStatusDeleting:
 			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
 		case model.BytePlusAssetStatusFailed:
 			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset failed"), types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
+		case model.BytePlusAssetStatusDeleted:
+			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
 		default:
 			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
 		}

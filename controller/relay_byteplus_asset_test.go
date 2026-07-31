@@ -46,6 +46,32 @@ func TestBytePlusAssetOriginResolverRunsWithPinnedLockedChannel(t *testing.T) {
 	require.Equal(t, 131, locked.Id)
 }
 
+func TestBytePlusAssetOriginResolverKeepsResolvedRealPersonPinnedChannelLocked(t *testing.T) {
+	restoreDB := useControllerBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	insertControllerBytePlusChannel(t, 131, common.ChannelStatusEnabled, constant.ChannelTypeBytePlus)
+	insertControllerBytePlusChannel(t, 132, common.ChannelStatusEnabled, constant.ChannelTypeBytePlus)
+
+	c := newControllerBytePlusAssetContext()
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetPinnedChannelID, 131)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:   &relaycommon.ChannelMeta{},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+	}
+
+	taskErr := resolveOriginTaskWithBytePlusAssetLock(c, info, func(_ *gin.Context, got *relaycommon.RelayInfo) *dto.TaskError {
+		locked, ok := got.LockedChannel.(*model.Channel)
+		require.True(t, ok)
+		require.NotNil(t, locked)
+		require.Equal(t, 131, locked.Id)
+		return nil
+	})
+	require.Nil(t, taskErr)
+	locked, ok := info.LockedChannel.(*model.Channel)
+	require.True(t, ok)
+	require.Equal(t, 131, locked.Id)
+}
+
 func TestBytePlusAssetOriginResolverWithoutPinIsUnchanged(t *testing.T) {
 	c := newControllerBytePlusAssetContext()
 	info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
@@ -270,7 +296,7 @@ func useControllerBytePlusAssetDBForTest(t *testing.T) func() {
 	oldDB := model.DB
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Channel{}))
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.BytePlusRealPersonProfile{}))
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	model.DB = db
