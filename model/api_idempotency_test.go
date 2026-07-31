@@ -124,7 +124,7 @@ func TestClaimAPIIdempotencyConflictOnDifferentRequestHash(t *testing.T) {
 	require.Equal(t, DecisionConflict, second.Decision)
 }
 
-func TestClaimAPIIdempotencyStaleCallingUpstreamBecomesOutcomeUnknown(t *testing.T) {
+func TestClaimAPIIdempotencyStaleCallingUpstreamReturnsOutcomeUnknownWithoutClaimingScannerCAS(t *testing.T) {
 	db := newBytePlusRealPersonTestDB(t)
 	record := APIIdempotencyRecord{UserId: 7, Route: "/route", KeyHash: strings.Repeat("a", 64), RequestHash: strings.Repeat("b", 64), Status: APIIdempotencyStatusCallingUpstream, ResourceType: APIIdempotencyResourceVerificationSession, LeaseUpdatedTime: 10, ExpiresAt: 1000}
 	require.NoError(t, db.Create(&record).Error)
@@ -134,7 +134,7 @@ func TestClaimAPIIdempotencyStaleCallingUpstreamBecomesOutcomeUnknown(t *testing
 	require.Equal(t, DecisionOutcomeUnknown, claim.Decision)
 	require.NotEqual(t, DecisionOwner, claim.Decision)
 	require.NoError(t, db.First(&record, record.Id).Error)
-	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
+	require.Equal(t, APIIdempotencyStatusCallingUpstream, record.Status)
 }
 
 func TestClaimAPIIdempotencyCallingUpstreamUsesUpstreamStartForStaleness(t *testing.T) {
@@ -154,7 +154,7 @@ func TestClaimAPIIdempotencyCallingUpstreamUsesUpstreamStartForStaleness(t *test
 	require.NoError(t, err)
 	require.Equal(t, DecisionOutcomeUnknown, claim.Decision)
 	require.NoError(t, db.First(&record, record.Id).Error)
-	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
+	require.Equal(t, APIIdempotencyStatusCallingUpstream, record.Status)
 }
 
 func TestClaimAPIIdempotencyReplaysCompletedFailed(t *testing.T) {

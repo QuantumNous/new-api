@@ -88,7 +88,7 @@ func CreateBytePlusRealPerson(ctx context.Context, userID int, userGroup, usingG
 	case model.DecisionInProgress:
 		return nil, realPersonError(types.ErrorCodeVerificationInProgress, http.StatusConflict)
 	case model.DecisionOutcomeUnknown:
-		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	case model.DecisionReplay:
 		return replayBytePlusRealPersonClaim(userID, claim.Record)
 	case model.DecisionResume:
@@ -276,7 +276,7 @@ func handleBytePlusRealPersonClaim(ctx context.Context, userID int, channel *mod
 	case model.DecisionInProgress:
 		return nil, realPersonError(types.ErrorCodeVerificationInProgress, http.StatusConflict)
 	case model.DecisionOutcomeUnknown:
-		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	case model.DecisionReplay:
 		return replayBytePlusRealPersonClaim(userID, claim.Record)
 	case model.DecisionResume:
@@ -350,12 +350,12 @@ func createBytePlusVisualValidation(ctx context.Context, channel *model.Channel,
 	now := bytePlusAssetNow()
 	if err := model.MarkAPIIdempotencyCallingUpstream(record.Id, record.LeaseUpdatedTime, now); err != nil {
 		_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_lease_lost", bytePlusAssetNow())
-		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	client, err := realPersonClientForChannel(channel)
 	if err != nil {
 		_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_client_unavailable", bytePlusAssetNow())
-		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	upstream, err := client.CreateVisualValidateSession(ctx, creds, callbackURL)
 	if err != nil {
@@ -364,32 +364,32 @@ func createBytePlusVisualValidation(ctx context.Context, channel *model.Channel,
 	cipher, err := bytePlusRealPersonCipherFactory()
 	if err != nil {
 		_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_cipher_unavailable", bytePlusAssetNow())
-		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	bytedCiphertext, err := cipher.Encrypt(session.PublicId, bytePlusSensitiveFieldBytedToken, upstream.BytedToken)
 	if err != nil {
 		_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_cipher_failed", bytePlusAssetNow())
-		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	h5Ciphertext, err := cipher.Encrypt(session.PublicId, bytePlusSensitiveFieldH5Link, upstream.H5Link)
 	if err != nil {
 		_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_cipher_failed", bytePlusAssetNow())
-		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	expiresAt := bytePlusAssetNow() + bytePlusRealPersonSessionTTLSeconds
 	if err := model.CompleteBytePlusVisualValidationSession(session.Id, bytedCiphertext, h5Ciphertext, upstream.RequestID, expiresAt, bytePlusAssetNow()); err != nil {
 		_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_persistence_failed", bytePlusAssetNow())
-		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	safe := responseFromBytePlusRealPerson(profile, "", 0)
 	payload, err := marshalAPIIdempotencyResponsePayload(safe)
 	if err != nil {
 		_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_response_failed", bytePlusAssetNow())
-		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	if err := bytePlusRealPersonCompleteAPIIdempotency(record.Id, record.LeaseUpdatedTime, session.PublicId, http.StatusOK, payload, bytePlusAssetNow()); err != nil {
 		_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_ledger_complete_failed", bytePlusAssetNow())
-		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	return responseFromBytePlusRealPerson(profile, upstream.H5Link, expiresAt), nil
 }
@@ -637,7 +637,7 @@ func finishUnknownOrDefinitiveVerificationFailure(record *model.APIIdempotencyRe
 		return nil, realPersonError(types.ErrorCodeVerificationUpstreamError, http.StatusBadGateway)
 	}
 	_ = model.MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, record.LeaseUpdatedTime, profile.Id, session.Id, "verification_outcome_unknown", bytePlusAssetNow())
-	return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+	return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 }
 
 func apiErrorFromStoredRealPersonPayload(payload string, status int) *types.NewAPIError {

@@ -124,23 +124,7 @@ func claimExistingAPIIdempotency(userID int, route, keyHash, requestHash string,
 		if apiIdempotencyCallingUpstreamStalenessTime(record) >= staleBefore {
 			return &APIIdempotencyClaim{Record: &record, Decision: DecisionInProgress}, nil
 		}
-		updated := DB.Model(&APIIdempotencyRecord{}).
-			Where("id = ? AND status = ? AND lease_updated_time = ?", record.Id, APIIdempotencyStatusCallingUpstream, record.LeaseUpdatedTime).
-			Updates(map[string]interface{}{
-				"status":             APIIdempotencyStatusOutcomeUnknown,
-				"lease_updated_time": now,
-				"updated_time":       now,
-			})
-		if updated.Error != nil {
-			return nil, updated.Error
-		}
-		if updated.RowsAffected == 1 {
-			record.Status = APIIdempotencyStatusOutcomeUnknown
-			record.LeaseUpdatedTime = now
-			record.UpdatedTime = now
-			return &APIIdempotencyClaim{Record: &record, Decision: DecisionOutcomeUnknown}, nil
-		}
-		return claimExistingAPIIdempotency(userID, route, keyHash, requestHash, now, staleBefore)
+		return &APIIdempotencyClaim{Record: &record, Decision: DecisionOutcomeUnknown}, nil
 	case APIIdempotencyStatusProcessing:
 		if record.LeaseUpdatedTime >= staleBefore {
 			return &APIIdempotencyClaim{Record: &record, Decision: DecisionInProgress}, nil

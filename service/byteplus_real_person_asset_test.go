@@ -365,11 +365,11 @@ func TestCreateRealPersonAssetOutcomeUnknownNeverRetriesCreateAsset(t *testing.T
 	f.fake.createErr = context.DeadlineExceeded
 
 	_, apiErr := f.createURL("unknown-key", "https://example.com/person.png", "Image", "front")
-	assertAssetError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+	assertAssetError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	f.fake.createErr = nil
 	_, apiErr = f.createURL("unknown-key", "https://example.com/person.png", "Image", "front")
 
-	assertAssetError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+	assertAssetError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	require.Equal(t, 1, f.fake.createAssetCalls)
 }
 

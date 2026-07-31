@@ -235,9 +235,9 @@ func TestBytePlusRealPersonCreateVerificationOutcomeUnknownIsSticky(t *testing.T
 	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
 
 	_, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 0, "unknown-key", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
-	assertRealPersonError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+	assertRealPersonError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	_, apiErr = CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 0, "unknown-key", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
-	assertRealPersonError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+	assertRealPersonError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	require.Equal(t, 1, fake.createCalls)
 	var record model.APIIdempotencyRecord
 	require.NoError(t, model.DB.First(&record, "route = ? AND key_hash <> ?", bytePlusRealPersonCreateRoute, "").Error)
@@ -283,7 +283,7 @@ func TestBytePlusRealPersonCreateVerificationCompleteCASLossMarksOutcomeUnknown(
 	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
 
 	_, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 0, "complete-cas-loss", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
-	assertRealPersonError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+	assertRealPersonError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	require.Equal(t, 1, fake.createCalls)
 	var record model.APIIdempotencyRecord
 	require.NoError(t, model.DB.First(&record, "route = ?", bytePlusRealPersonCreateRoute).Error)
@@ -307,7 +307,7 @@ func TestBytePlusRealPersonCreateVerificationLedgerCompleteCASLossMarksOutcomeUn
 	t.Cleanup(func() { bytePlusRealPersonCompleteAPIIdempotency = oldComplete })
 
 	_, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 0, "ledger-complete-cas-loss", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
-	assertRealPersonError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+	assertRealPersonError(t, apiErr, types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	var record model.APIIdempotencyRecord
 	require.NoError(t, model.DB.First(&record, "route = ?", bytePlusRealPersonCreateRoute).Error)
 	require.Equal(t, model.APIIdempotencyStatusOutcomeUnknown, record.Status)

@@ -188,6 +188,102 @@ func TestExpiredCallingUpstreamIsMarkedOutcomeUnknownWithoutExternalCall(t *test
 	require.Empty(t, fixture.fake.tosDeletes)
 }
 
+func TestSynchronousStaleOutcomeUnknownReplayLeavesScannerToReconcileBoundResources(t *testing.T) {
+	cases := []struct {
+		name         string
+		resourceType string
+		route        string
+		keyHash      string
+		requestHash  string
+		seed         func(t *testing.T) string
+		assertFailed func(t *testing.T)
+	}{
+		{
+			name:         "asset",
+			resourceType: model.APIIdempotencyResourceAsset,
+			route:        bytePlusRealPersonAssetCreateRoute,
+			keyHash:      strings.Repeat("a", 64),
+			requestHash:  strings.Repeat("b", 64),
+			seed: func(t *testing.T) string {
+				asset := model.BytePlusAsset{PublicId: "ast_sync_stale", UserId: 7, ChannelId: 101, AssetType: "Image", Status: model.BytePlusAssetStatusCreating, CreatedTime: 100, UpdatedTime: 100}
+				require.NoError(t, model.DB.Create(&asset).Error)
+				return asset.PublicId
+			},
+			assertFailed: func(t *testing.T) {
+				var asset model.BytePlusAsset
+				require.NoError(t, model.DB.First(&asset, "public_id = ?", "ast_sync_stale").Error)
+				require.Equal(t, model.BytePlusAssetStatusFailed, asset.Status)
+				require.Equal(t, "idempotency_outcome_unknown", asset.FailureCode)
+			},
+		},
+		{
+			name:         "verification_session",
+			resourceType: model.APIIdempotencyResourceVerificationSession,
+			route:        bytePlusRealPersonCreateRoute,
+			keyHash:      strings.Repeat("c", 64),
+			requestHash:  strings.Repeat("d", 64),
+			seed: func(t *testing.T) string {
+				profile := model.BytePlusRealPersonProfile{PublicId: "rph_sync_stale", UserId: 7, Name: "A", ChannelId: 101, Status: model.BytePlusRealPersonProfileStatusPendingVerification, CreatedTime: 100, UpdatedTime: 100}
+				require.NoError(t, model.DB.Create(&profile).Error)
+				session := model.BytePlusVisualValidationSession{PublicId: "rvs_sync_stale", ProfileId: profile.Id, CallbackTokenHash: strings.Repeat("e", 64), CallbackTokenCiphertext: "callback", BytedTokenCiphertext: "byted", H5LinkCiphertext: "h5", Status: model.BytePlusVisualValidationSessionStatusCreating, CreatedTime: 100, UpdatedTime: 100}
+				require.NoError(t, model.DB.Create(&session).Error)
+				require.NoError(t, model.DB.Model(&profile).Update("current_validation_session_id", session.Id).Error)
+				return session.PublicId
+			},
+			assertFailed: func(t *testing.T) {
+				var session model.BytePlusVisualValidationSession
+				require.NoError(t, model.DB.First(&session, "public_id = ?", "rvs_sync_stale").Error)
+				require.Equal(t, model.BytePlusVisualValidationSessionStatusFailed, session.Status)
+				require.Empty(t, session.CallbackTokenCiphertext)
+				require.Empty(t, session.BytedTokenCiphertext)
+				require.Empty(t, session.H5LinkCiphertext)
+				var profile model.BytePlusRealPersonProfile
+				require.NoError(t, model.DB.First(&profile, "public_id = ?", "rph_sync_stale").Error)
+				require.Equal(t, model.BytePlusRealPersonProfileStatusFailed, profile.Status)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			newBytePlusRealPersonJobsFixtureWithoutRows(t)
+			publicID := tc.seed(t)
+			require.NoError(t, model.DB.Create(&model.APIIdempotencyRecord{UserId: 7, Route: tc.route, KeyHash: tc.keyHash, RequestHash: tc.requestHash, Status: model.APIIdempotencyStatusCallingUpstream, ResourceType: tc.resourceType, ResourcePublicId: publicID, LeaseUpdatedTime: 100, UpstreamCallStartedAt: 100, CreatedTime: 100, UpdatedTime: 100}).Error)
+			var warnings []string
+			oldWarn := bytePlusRealPersonJobRowWarn
+			bytePlusRealPersonJobRowWarn = func(message string) {
+				warnings = append(warnings, message)
+			}
+			t.Cleanup(func() { bytePlusRealPersonJobRowWarn = oldWarn })
+			beforeOutcomeUnknown := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_outcome_unknown_total", map[string]string{"resource": tc.resourceType})
+
+			claim, err := model.ClaimAPIIdempotency(7, tc.route, tc.keyHash, tc.requestHash, tc.resourceType, 2000, 1880, 3000)
+			require.NoError(t, err)
+			require.Equal(t, model.DecisionOutcomeUnknown, claim.Decision)
+			var record model.APIIdempotencyRecord
+			require.NoError(t, model.DB.First(&record, "route = ? AND key_hash = ?", tc.route, tc.keyHash).Error)
+			require.Equal(t, model.APIIdempotencyStatusCallingUpstream, record.Status)
+
+			result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+			require.NoError(t, result.Err)
+			require.Equal(t, 1, result.Processed)
+			require.Equal(t, []string{"byteplus real-person job row failed: idempotency_recovery"}, warnings)
+			require.NoError(t, model.DB.First(&record, record.Id).Error)
+			require.Equal(t, model.APIIdempotencyStatusOutcomeUnknown, record.Status)
+			tc.assertFailed(t)
+			require.EqualValues(t, beforeOutcomeUnknown+1, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_outcome_unknown_total", map[string]string{"resource": tc.resourceType}))
+
+			result = RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+			require.NoError(t, result.Err)
+			require.Zero(t, result.Processed)
+			require.Equal(t, []string{"byteplus real-person job row failed: idempotency_recovery"}, warnings)
+			require.EqualValues(t, beforeOutcomeUnknown+1, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_outcome_unknown_total", map[string]string{"resource": tc.resourceType}))
+		})
+	}
+}
+
 func TestBytePlusRealPersonVerificationJobsHandleExpirySuccessDefinitiveAndTransient(t *testing.T) {
 	t.Run("expired without upstream call", func(t *testing.T) {
 		fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)

@@ -127,7 +127,7 @@ func createBytePlusRealPersonAsset(ctx context.Context, userID int, personID, id
 		return nil, assetError(errors.New("asset creation is in progress"), types.ErrorCodeVerificationInProgress, http.StatusConflict)
 	case model.DecisionOutcomeUnknown:
 		cleanupRealPersonAssetUpload(ctx, source, store)
-		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	case model.DecisionReplay:
 		cleanupRealPersonAssetUpload(ctx, source, store)
 		return replayBytePlusRealPersonAssetClaim(claim.Record)
@@ -229,12 +229,12 @@ func callBytePlusRealPersonAssetUpstream(ctx context.Context, channel *model.Cha
 	now := bytePlusAssetNow()
 	if err := model.MarkAPIIdempotencyCallingUpstream(record.Id, record.LeaseUpdatedTime, now); err != nil {
 		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_lease_lost")
-		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	client, err := realPersonClientForChannel(channel)
 	if err != nil {
 		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_client_unavailable")
-		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	groupID := ""
 	if asset.RealPersonProfileId != nil {
@@ -242,7 +242,7 @@ func callBytePlusRealPersonAssetUpstream(ctx context.Context, channel *model.Cha
 	}
 	if groupID == "" {
 		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_profile_group_missing")
-		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	upstreamID, requestID, err := client.CreateAsset(ctx, creds, BytePlusCreateAssetRequest{
 		GroupID:            groupID,
@@ -256,12 +256,12 @@ func callBytePlusRealPersonAssetUpstream(ctx context.Context, channel *model.Cha
 			return failRealPersonAssetWithStoredError(record, asset, "asset_upstream_error", types.ErrorCodeAssetUpstreamError, http.StatusBadGateway)
 		}
 		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_upstream_unknown")
-		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	if err := bytePlusAssetUpdateAssetUpstreamCreated(asset.Id, upstreamID, requestID, model.BytePlusAssetStatusProcessing, bytePlusAssetNow()); err != nil {
 		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_persistence_failed")
 		logBytePlusAssetPersistenceFailure(ctx, channel.Id, requestID)
-		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	asset.UpstreamAssetId = upstreamID
 	asset.UpstreamRequestId = requestID
@@ -271,11 +271,11 @@ func callBytePlusRealPersonAssetUpstream(ctx context.Context, channel *model.Cha
 	payload, err := marshalAPIIdempotencyResponsePayload(safe)
 	if err != nil {
 		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_response_failed")
-		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	if err := model.CompleteAPIIdempotency(record.Id, record.LeaseUpdatedTime, asset.PublicId, http.StatusOK, payload, bytePlusAssetNow()); err != nil {
 		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_ledger_complete_failed")
-		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusConflict)
+		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	return safe, nil
 }

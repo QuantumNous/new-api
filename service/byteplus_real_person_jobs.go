@@ -121,8 +121,8 @@ func recoverBytePlusRealPersonIdempotency(ctx context.Context, now, staleBefore 
 			continue
 		}
 		perfmetrics.RecordBytePlusRealPersonOutcomeUnknown(resource)
+		warnBytePlusRealPersonJobRow("idempotency_recovery")
 		if err := reconcileBytePlusOutcomeUnknownResource(ctx, record, now); err != nil {
-			warnBytePlusRealPersonJobRow("idempotency_recovery")
 			if firstErr == nil {
 				firstErr = err
 			}
