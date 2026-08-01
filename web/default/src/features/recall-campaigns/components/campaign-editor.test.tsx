@@ -1457,6 +1457,8 @@ describe('CampaignEditor schedule modes', () => {
 
   test('preserves explicit UTC and falls back only for blank schedule timezones', async () => {
     const utcDraft = makeDraft('first_purchase')
+    utcDraft.execution_mode = 'scheduled_once'
+    utcDraft.schedule.scheduled_at = 2_000_100_000
     utcDraft.schedule.timezone = 'UTC'
     const { root: utcRoot, container: utcContainer } = renderEditorDom(utcDraft)
 
@@ -1473,6 +1475,8 @@ describe('CampaignEditor schedule modes', () => {
 
     createMutation.mockClear()
     const blankDraft = makeDraft('first_purchase')
+    blankDraft.execution_mode = 'scheduled_once'
+    blankDraft.schedule.scheduled_at = 2_000_100_000
     blankDraft.schedule.timezone = '  '
     const { root: blankRoot, container: blankContainer } =
       renderEditorDom(blankDraft)

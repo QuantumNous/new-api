@@ -276,6 +276,17 @@ export function prepareRecallCampaignSubmitDraft(
 
   return {
     ...draft,
+    schedule:
+      draft.execution_mode === 'manual'
+        ? {
+            scheduled_at: 0,
+            timezone: '',
+            frequency: 'daily',
+            weekday: 1,
+            hour: 0,
+            minute: 0,
+          }
+        : draft.schedule,
     discount_config: {
       ...discountConfig,
       ...normalizeRecallMinimumSpendForSubmit(discountConfig),

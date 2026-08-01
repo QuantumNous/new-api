@@ -143,6 +143,30 @@ function makeRecipient(
 }
 
 describe('recall campaign editor normalization', () => {
+  test('canonicalizes manual schedule at the submit boundary without a mode switch', () => {
+    const draft = makeValidDraft()
+    draft.execution_mode = 'manual'
+    draft.schedule = {
+      scheduled_at: 2_000_100_000,
+      timezone: 'America/New_York',
+      frequency: 'weekly',
+      weekday: 5,
+      hour: 18,
+      minute: 45,
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.schedule).toEqual({
+      scheduled_at: 0,
+      timezone: '',
+      frequency: 'daily',
+      weekday: 1,
+      hour: 0,
+      minute: 0,
+    })
+  })
+
   test('normalizes every localized template to editable HTML', () => {
     const draft = makeValidDraft()
     draft.email_sequence[0].templates = {
