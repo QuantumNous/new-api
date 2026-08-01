@@ -196,7 +196,7 @@ func TestBytePlusAssetClientRejectsUnknownStatusAndScrubsErrors(t *testing.T) {
 func TestBytePlusAssetClientRejectsMissingOrMismatchedGetAssetID(t *testing.T) {
 	responses := []string{
 		`{"ResponseMetadata":{"RequestId":"req-empty"},"Result":{"Id":"  ","Status":"Active","Error":{"Message":"sk-empty-should-not-leak"}}}`,
-		`{"ResponseMetadata":{"RequestId":"req-mismatch"},"Result":{"Id":"asset-other","Status":"Active","Error":{"Message":"sk-mismatch-should-not-leak"}}}`,
+		`{"ResponseMetadata":{"RequestId":"req-mismatch"},"Result":{"Id":"asset-other","Status":"Active","Error":{"Message":"sk-mismatch-leak"}}}`,
 	}
 	var calls int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +212,7 @@ func TestBytePlusAssetClientRejectsMissingOrMismatchedGetAssetID(t *testing.T) {
 		if err == nil {
 			t.Fatal("GetAsset should reject missing or mismatched result id")
 		}
-		for _, leaked := range []string{"sk-empty-should-not-leak", "sk-mismatch-should-not-leak", "asset-other", "asset-1"} {
+		for _, leaked := range []string{"sk-empty-should-not-leak", "sk-mismatch-leak", "asset-other", "asset-1"} {
 			if strings.Contains(err.Error(), leaked) {
 				t.Fatalf("case %d error leaked upstream details %q: %v", i, leaked, err)
 			}

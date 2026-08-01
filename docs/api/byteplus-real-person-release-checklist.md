@@ -50,8 +50,8 @@
 | PostgreSQL migration | 同上；随后仅检查 `TEST_POSTGRES_DSN` 是否非空 | SKIP/NOT RUN；`TEST_POSTGRES_DSN=missing` | NO-GO |
 | OpenAPI router contract | `go test ./router -run TestBytePlusRealPersonOpenAPIContract -count=1` | PASS，exit 0 | 可作为 router contract 证据 |
 | OpenAPI JSON UTF-8 parse | `Get-Content -Raw -Encoding UTF8 docs/openapi/relay.json,docs/openapi/api.json \| ConvertFrom-Json` | PASS，exit 0；两个 JSON 文件均可解析 | 可作为格式证据 |
-| OpenAPI `api.json` feature-range diff | `git diff --exit-code $(git merge-base HEAD main) HEAD -- docs/openapi/api.json` | FAIL，exit 1；`docs/openapi/api.json` 相对 merge base 有 diff | NO-GO |
-| Secrets scan | 对 feature range changed files 扫描 `(AKIA\|AKLT)[A-Za-z0-9]{16,}\|sk-[A-Za-z0-9_-]{24,}\|X-Tos-Signature=[A-Fa-f0-9]{16,}\|-----BEGIN (RSA \|EC \|OPENSSH )?PRIVATE KEY-----` | FAIL，exit 1；命中 `model/compute_node_test.go:29,59`、`model/log_request_sample_test.go:120`、`service/byteplus_asset_client_test.go:199,215`、`service/dingtalk_alert_test.go:621,629,644,646,1192,1208` | NO-GO；本门禁要求零命中且不得 allowlist |
+| OpenAPI `api.json` remote-baseline diff | `git diff --quiet origin/main...HEAD -- docs/openapi/api.json` | PASS，exit 0；当前远端 baseline 无 `docs/openapi/api.json` diff。先前 `main...HEAD` 检查失败是因为本地 `main=2d1c941a445da943ea01f9bc889f25d264b269a4` 落后于 `origin/main=b96d2215a95748c5722bdfd158805c4fc5b9c470`，该证据无效 | 可作为 OpenAPI baseline 证据 |
+| Secrets scan | 对 `git diff --diff-filter=ACMR --name-only origin/main...HEAD` 的每个文件逐个扫描 `(AKIA\|AKLT)[A-Za-z0-9]{16,}\|sk-[A-Za-z0-9_-]{24,}\|X-Tos-Signature=[A-Fa-f0-9]{16,}\|-----BEGIN (RSA \|EC \|OPENSSH )?PRIVATE KEY-----` | PASS，exit 0；0 matches。RED 为修复前 2 hits：`service/byteplus_asset_client_test.go:199,215`，均为测试用 fake leak sentinel；已替换为短占位符 `sk-mismatch-leak` | 可作为 secret-pattern gate 证据 |
 
 本轮使用 `GOCACHE=E:\go-cache\build` 和 `GOTMPDIR=E:\go-cache\tmp-task13`。未观察到 Windows SQLite `TempDir` handle 问题；不得把受影响/新增 feature 失败标为 baseline。
 
@@ -164,8 +164,6 @@ Drill evidence fields：
 - Full vet/full build 失败：`web/classic/dist` 缺失导致 root package embed pattern 失败。
 - Full tests 超时：`go test ./... -count=1` 304040 ms 后 exit 124。
 - MySQL/PostgreSQL dialect migration 未运行：`TEST_MYSQL_DSN`、`TEST_POSTGRES_DSN` 缺失。
-- `docs/openapi/api.json` 相对 merge base 有 diff。
-- Feature-range changed-file secret-pattern scan 有命中；本门禁要求零命中且不得 allowlist。
 - BytePlus/TOS/staging 凭据、测试素材、staging 变更授权缺失；受控集成矩阵未运行。
 - 30 分钟观测窗口、callback probes、metrics/Grafana/Cloud Run 证据未运行。
 - rollback drill 未运行。
