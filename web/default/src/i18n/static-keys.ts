@@ -26,20 +26,12 @@ export const STATIC_I18N_KEYS = [
   'recall.translation_status.missing',
   'recall.translation_status.invalid',
 
-  // Activity operations metrics, schedules, and translation recovery
+  // Activity operations metrics
   'Attributed spend',
   'New external cash',
   'Direct top-up',
   'Balance-paid subscription',
   'Online-paid subscription',
-  'SMTP accepted',
-  'Historical excluded identities were not recorded',
-  'Download current results',
-  'Once',
-  'Superseded',
-  'New campaign data is available.',
-  'Refresh campaign data',
-  'Absolute offset from the first SMTP accepted email.',
 
   // Header navigation
   'Home',
