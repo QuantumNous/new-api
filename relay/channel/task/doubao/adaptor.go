@@ -324,17 +324,22 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
-	sec := req.Duration
-	if parsed, _ := strconv.Atoi(req.Seconds); parsed > 0 {
-		sec = parsed
-	}
-	if sec > 0 {
-		r.Duration = lo.ToPtr(dto.IntValue(sec))
-	}
-	if r.Resolution == "" {
-		switch strings.ToLower(strings.TrimSpace(req.Size)) {
-		case "480p", "720p", "1080p", "4k":
-			r.Resolution = strings.ToLower(strings.TrimSpace(req.Size))
+	// Ctyun accepts top-level duration and resolution. Keep these translations
+	// isolated: existing Volcengine/DoubaoVideo channels must retain their
+	// historical metadata-duration and provider-default-resolution behaviour.
+	if IsCtyunVideoBaseURL(a.baseURL) {
+		sec := req.Duration
+		if parsed, _ := strconv.Atoi(req.Seconds); parsed > 0 {
+			sec = parsed
+		}
+		if sec > 0 {
+			r.Duration = lo.ToPtr(dto.IntValue(sec))
+		}
+		if r.Resolution == "" {
+			switch strings.ToLower(strings.TrimSpace(req.Size)) {
+			case "480p", "720p", "1080p", "4k":
+				r.Resolution = strings.ToLower(strings.TrimSpace(req.Size))
+			}
 		}
 	}
 
