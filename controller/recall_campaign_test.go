@@ -175,6 +175,7 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 		&model.RecallEmailQuotaWindow{},
 		&model.RecallExclusionBatch{},
 		&model.RecallCampaignExclusion{},
+		&model.RecallTranslationTask{},
 	))
 
 	setRecallControllerEnabled(t, true)
@@ -883,7 +884,7 @@ func TestRecallCampaignCreateAndUpdateRequireJSONAndAdminActor(t *testing.T) {
 	require.Equal(t, draft.Name, campaign.Name)
 }
 
-func TestRecallEmailGenerationHandlerUpdatesAllTranslations(t *testing.T) {
+func TestRecallEmailTranslationGenerateEnqueuesTaskAndReturnsAcceptedWithoutTranslating(t *testing.T) {
 	harness := setupRecallControllerHarness(t)
 	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
 	detail, err := harness.runtime.Campaigns.GetDetail(context.Background(), campaign.Id)
@@ -898,14 +899,154 @@ func TestRecallEmailGenerationHandlerUpdatesAllTranslations(t *testing.T) {
 
 	recorder := invokeRecallHandler(t, GenerateRecallEmailTranslations, http.MethodPost, "/", body, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
 
+	require.Equal(t, http.StatusAccepted, recorder.Code)
 	payload := decodeRecallEnvelope(t, recorder)
 	require.Equal(t, true, payload["success"])
-	require.Equal(t, beforeCalls+1, harness.translator.calls)
+	require.Equal(t, beforeCalls, harness.translator.calls)
 	data := payload["data"].(map[string]any)
-	require.Equal(t, float64(campaign.ConfigRevision+1), data["config_revision"])
-	emails := data["email_sequence"].([]any)
-	templates := emails[0].(map[string]any)["templates"].(map[string]any)
-	require.Equal(t, "fr:Generated English", templates["fr"].(map[string]any)["subject"])
+	require.NotZero(t, data["id"])
+	require.Equal(t, float64(campaign.Id), data["campaign_id"])
+	require.Equal(t, float64(campaign.ConfigRevision), data["requested_config_revision"])
+	require.Equal(t, "queued", data["status"])
+	require.NotContains(t, recorder.Body.String(), "source_snapshot")
+	require.NotContains(t, recorder.Body.String(), "result_snapshot")
+	require.NotContains(t, recorder.Body.String(), "Generated body")
+
+	duplicate := invokeRecallHandler(t, GenerateRecallEmailTranslations, http.MethodPost, "/", body, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+	require.Equal(t, http.StatusAccepted, duplicate.Code)
+	duplicateData := decodeRecallEnvelope(t, duplicate)["data"].(map[string]any)
+	require.Equal(t, data["id"], duplicateData["id"])
+	require.Equal(t, beforeCalls, harness.translator.calls)
+}
+
+func TestRecallEmailTranslationTaskPollingScopesAndSanitizesResponses(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
+	otherCampaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
+	task := model.RecallTranslationTask{
+		CampaignId:              campaign.Id,
+		RequestedConfigRevision: campaign.ConfigRevision,
+		ResultConfigRevision:    campaign.ConfigRevision + 1,
+		Status:                  model.RecallTranslationTaskSucceeded,
+		AttemptCount:            1,
+		SourceHash:              strings.Repeat("a", 64),
+		IdempotencyKey:          strings.Repeat("b", 64),
+		SourceSnapshot:          "secret source",
+		ResultSnapshot:          "secret translated output",
+		ErrorCode:               "provider_raw_error",
+		ErrorMessage:            "provider said token secret",
+		CreatedAt:               100,
+		StartedAt:               110,
+		FinishedAt:              120,
+	}
+	require.NoError(t, harness.db.Create(&task).Error)
+	failed := model.RecallTranslationTask{
+		CampaignId:              campaign.Id,
+		RequestedConfigRevision: campaign.ConfigRevision,
+		Status:                  model.RecallTranslationTaskFailed,
+		AttemptCount:            1,
+		SourceHash:              strings.Repeat("c", 64),
+		IdempotencyKey:          strings.Repeat("d", 64),
+		SourceSnapshot:          "failed source",
+		ErrorCode:               "raw-provider-502",
+		ErrorMessage:            "provider leaked raw error",
+		CreatedAt:               200,
+		FinishedAt:              210,
+	}
+	require.NoError(t, harness.db.Create(&failed).Error)
+	running := model.RecallTranslationTask{
+		CampaignId:              campaign.Id,
+		RequestedConfigRevision: campaign.ConfigRevision,
+		Status:                  model.RecallTranslationTaskRunning,
+		AttemptCount:            2,
+		SourceHash:              strings.Repeat("g", 64),
+		IdempotencyKey:          strings.Repeat("h", 64),
+		SourceSnapshot:          "running source",
+		ResultSnapshot:          "running result",
+		ErrorCode:               "stale-provider-error",
+		ErrorMessage:            "stale provider leak",
+		CreatedAt:               250,
+		StartedAt:               255,
+	}
+	require.NoError(t, harness.db.Create(&running).Error)
+	campaignSuperseded := model.RecallTranslationTask{
+		CampaignId:              campaign.Id,
+		RequestedConfigRevision: campaign.ConfigRevision,
+		Status:                  model.RecallTranslationTaskSuperseded,
+		SourceHash:              strings.Repeat("i", 64),
+		IdempotencyKey:          strings.Repeat("j", 64),
+		SourceSnapshot:          "superseded source",
+		ErrorCode:               "ignored-provider-error",
+		ErrorMessage:            "ignored provider leak",
+		CreatedAt:               275,
+		FinishedAt:              280,
+	}
+	require.NoError(t, harness.db.Create(&campaignSuperseded).Error)
+	superseded := model.RecallTranslationTask{
+		CampaignId:              otherCampaign.Id,
+		RequestedConfigRevision: otherCampaign.ConfigRevision,
+		Status:                  model.RecallTranslationTaskSuperseded,
+		SourceHash:              strings.Repeat("e", 64),
+		IdempotencyKey:          strings.Repeat("f", 64),
+		SourceSnapshot:          "other source",
+		CreatedAt:               300,
+		FinishedAt:              310,
+	}
+	require.NoError(t, harness.db.Create(&superseded).Error)
+
+	successRecorder := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(task.Id)}})
+	require.Equal(t, http.StatusOK, successRecorder.Code)
+	successData := decodeRecallEnvelope(t, successRecorder)["data"].(map[string]any)
+	require.Equal(t, float64(task.Id), successData["id"])
+	require.Equal(t, "succeeded", successData["status"])
+	require.Equal(t, float64(campaign.ConfigRevision+1), successData["result_config_revision"])
+	require.NotContains(t, successRecorder.Body.String(), "source")
+	require.NotContains(t, successRecorder.Body.String(), "translated")
+	require.NotContains(t, successRecorder.Body.String(), "provider")
+	require.NotContains(t, successData, "error_code")
+	require.NotContains(t, successData, "error_copy_key")
+
+	runningRecorder := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(running.Id)}})
+	require.Equal(t, http.StatusOK, runningRecorder.Code)
+	runningData := decodeRecallEnvelope(t, runningRecorder)["data"].(map[string]any)
+	require.Equal(t, "running", runningData["status"])
+	require.NotContains(t, runningRecorder.Body.String(), "running source")
+	require.NotContains(t, runningRecorder.Body.String(), "running result")
+	require.NotContains(t, runningRecorder.Body.String(), "provider")
+	require.NotContains(t, runningData, "error_code")
+	require.NotContains(t, runningData, "error_copy_key")
+
+	supersededRecorder := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(campaignSuperseded.Id)}})
+	require.Equal(t, http.StatusOK, supersededRecorder.Code)
+	supersededData := decodeRecallEnvelope(t, supersededRecorder)["data"].(map[string]any)
+	require.Equal(t, "superseded", supersededData["status"])
+	require.Equal(t, "translation_superseded", supersededData["error_code"])
+	require.Equal(t, "recall.translation.error.translation_superseded", supersededData["error_copy_key"])
+	require.NotContains(t, supersededRecorder.Body.String(), "ignored-provider")
+	require.NotContains(t, supersededRecorder.Body.String(), "provider leak")
+
+	latestRecorder := invokeRecallHandler(t, GetLatestRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+	require.Equal(t, http.StatusOK, latestRecorder.Code)
+	latestData := decodeRecallEnvelope(t, latestRecorder)["data"].(map[string]any)
+	require.Equal(t, float64(campaignSuperseded.Id), latestData["id"])
+	require.Equal(t, "superseded", latestData["status"])
+	require.Equal(t, "translation_superseded", latestData["error_code"])
+	require.Equal(t, "recall.translation.error.translation_superseded", latestData["error_copy_key"])
+	require.NotContains(t, latestRecorder.Body.String(), "raw-provider")
+	require.NotContains(t, latestRecorder.Body.String(), "provider leaked")
+
+	failedRecorder := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(failed.Id)}})
+	require.Equal(t, http.StatusOK, failedRecorder.Code)
+	failedData := decodeRecallEnvelope(t, failedRecorder)["data"].(map[string]any)
+	require.Equal(t, "failed", failedData["status"])
+	require.Equal(t, "translation_failed", failedData["error_code"])
+	require.Equal(t, "recall.translation.error.translation_failed", failedData["error_copy_key"])
+	require.NotContains(t, failedRecorder.Body.String(), "raw-provider")
+	require.NotContains(t, failedRecorder.Body.String(), "provider leaked")
+
+	crossCampaign := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(superseded.Id)}})
+	require.Equal(t, http.StatusNotFound, crossCampaign.Code)
+	require.NotContains(t, crossCampaign.Body.String(), "other source")
 }
 
 func TestRecallEmailGenerationActivationReturnsStructuredBlockers(t *testing.T) {

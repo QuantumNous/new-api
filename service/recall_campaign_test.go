@@ -1287,6 +1287,35 @@ func TestGenerateRecallEmailTranslationsUpdatesEveryStageAtomically(t *testing.T
 	require.Equal(t, 2, response.Emails[1].TemplateVersion, "new target content must bump the version once")
 }
 
+func TestEnqueueRecallEmailTranslationsRecordsQueuedObservationWithoutTranslating(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.Zero(t, translator.callCount())
+	storedDraft, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	observations := captureRecallTranslationTaskObservations(t)
+
+	response, err := service.EnqueueEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, model.RecallTranslationTaskQueued, response.Status)
+	require.NotZero(t, response.ID)
+	require.Zero(t, translator.callCount())
+	requireRecallTranslationObservation(t, *observations, "queued", model.RecallTranslationTaskQueued, "", false)
+}
+
 func TestGenerateRecallEmailTranslationsRealPathPreservesManualLocalesOnly(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

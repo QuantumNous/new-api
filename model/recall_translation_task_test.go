@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -243,6 +244,74 @@ func TestRecallTranslationTaskCompletionSupersedesWhenCampaignRevisionOrSourceCh
 	require.NoError(t, err)
 	require.Equal(t, recallTranslationTaskEmailSequence("changed"), updated.EmailSequenceConfig)
 	require.Equal(t, campaign.ConfigRevision, updated.ConfigRevision)
+}
+
+func TestRecallTranslationTaskGetByIDIsScopedToCampaign(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	ctx := context.Background()
+	firstCampaign := seedRecallTranslationCampaign(t, 7, "draft", recallTranslationTaskSource("first"))
+	secondCampaign := seedRecallTranslationCampaign(t, 7, "draft", recallTranslationTaskSource("second"))
+	task, _, err := SubmitRecallTranslationTask(ctx, RecallTranslationTaskSubmission{
+		CampaignID:              firstCampaign.Id,
+		RequestedConfigRevision: firstCampaign.ConfigRevision,
+		SourceHash:              recallTranslationTaskSourceHash(firstCampaign.EmailSequenceConfig),
+		SourceSnapshot:          recallTranslationTaskSource("first"),
+		Now:                     100,
+	})
+	require.NoError(t, err)
+
+	scoped, err := GetRecallTranslationTaskByCampaignAndID(ctx, firstCampaign.Id, task.Id)
+	require.NoError(t, err)
+	require.Equal(t, task.Id, scoped.Id)
+	require.Equal(t, firstCampaign.Id, scoped.CampaignId)
+
+	_, err = GetRecallTranslationTaskByCampaignAndID(ctx, secondCampaign.Id, task.Id)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestRecallTranslationTaskLatestIsScopedAndDeterministicallyOrdered(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	ctx := context.Background()
+	firstCampaign := seedRecallTranslationCampaign(t, 7, "draft", recallTranslationTaskSource("first"))
+	secondCampaign := seedRecallTranslationCampaign(t, 7, "draft", recallTranslationTaskSource("second"))
+	oldTask, _, err := SubmitRecallTranslationTask(ctx, RecallTranslationTaskSubmission{
+		CampaignID:              firstCampaign.Id,
+		RequestedConfigRevision: firstCampaign.ConfigRevision,
+		SourceHash:              recallTranslationTaskSourceHash(firstCampaign.EmailSequenceConfig),
+		SourceSnapshot:          recallTranslationTaskSource("first"),
+		Now:                     100,
+	})
+	require.NoError(t, err)
+	newTask := RecallTranslationTask{
+		CampaignId:              firstCampaign.Id,
+		RequestedConfigRevision: firstCampaign.ConfigRevision + 1,
+		SourceHash:              strings.Repeat("a", 64),
+		IdempotencyKey:          strings.Repeat("b", 64),
+		Status:                  RecallTranslationTaskQueued,
+		NextAttemptAt:           200,
+		SourceSnapshot:          recallTranslationTaskSource("new"),
+		CreatedAt:               oldTask.CreatedAt,
+	}
+	require.NoError(t, DB.Create(&newTask).Error)
+	otherCampaignTask := RecallTranslationTask{
+		CampaignId:              secondCampaign.Id,
+		RequestedConfigRevision: secondCampaign.ConfigRevision,
+		SourceHash:              strings.Repeat("c", 64),
+		IdempotencyKey:          strings.Repeat("d", 64),
+		Status:                  RecallTranslationTaskQueued,
+		NextAttemptAt:           300,
+		SourceSnapshot:          recallTranslationTaskSource("other"),
+		CreatedAt:               newTask.CreatedAt + 1,
+	}
+	require.NoError(t, DB.Create(&otherCampaignTask).Error)
+
+	latest, err := GetLatestRecallTranslationTaskForCampaign(ctx, firstCampaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, newTask.Id, latest.Id)
+	require.Equal(t, firstCampaign.Id, latest.CampaignId)
+
+	_, err = GetLatestRecallTranslationTaskForCampaign(ctx, firstCampaign.Id+secondCampaign.Id+1000)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 
 func seedRecallTranslationCampaign(t *testing.T, revision int64, status string, emailSequence string) RecallCampaign {

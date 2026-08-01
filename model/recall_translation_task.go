@@ -195,6 +195,32 @@ func SubmitRecallTranslationTask(ctx context.Context, submission RecallTranslati
 	return &existing, false, nil
 }
 
+func GetRecallTranslationTaskByCampaignAndID(ctx context.Context, campaignID int64, taskID int64) (*RecallTranslationTask, error) {
+	if campaignID <= 0 || taskID <= 0 {
+		return nil, fmt.Errorf("recall translation task campaign and task IDs must be positive")
+	}
+	var task RecallTranslationTask
+	if err := DB.WithContext(ctx).Where("campaign_id = ? AND id = ?", campaignID, taskID).First(&task).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+func GetLatestRecallTranslationTaskForCampaign(ctx context.Context, campaignID int64) (*RecallTranslationTask, error) {
+	if campaignID <= 0 {
+		return nil, fmt.Errorf("recall translation task campaign ID must be positive")
+	}
+	var task RecallTranslationTask
+	if err := DB.WithContext(ctx).
+		Where("campaign_id = ?", campaignID).
+		Order("created_at DESC").
+		Order("id DESC").
+		First(&task).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
 func ListDueRecallTranslationTasks(ctx context.Context, now int64, limit int) ([]RecallTranslationTask, error) {
 	tasks := make([]RecallTranslationTask, 0)
 	if limit <= 0 {

@@ -155,12 +155,12 @@ func GenerateRecallEmailTranslations(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	response, err := runtime.Campaigns.GenerateEmailTranslations(c.Request.Context(), c.GetInt("id"), id, request)
+	response, err := runtime.Campaigns.EnqueueEmailTranslations(c.Request.Context(), c.GetInt("id"), id, request)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, response)
+	recallAccepted(c, response)
 }
 
 func GetRecallEmailQuotaStatus(c *gin.Context) {

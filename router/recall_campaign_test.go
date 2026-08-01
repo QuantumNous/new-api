@@ -55,8 +55,10 @@ func TestRecallEmailQuotaStatusRouteAndGenerationRouteAreRegisteredWithAdminAuth
 	SetApiRouter(engine)
 
 	wantRoutes := map[string]string{
-		"/api/recall-campaigns/email-quota":                     http.MethodGet,
-		"/api/recall-campaigns/:id/email-translations/generate": http.MethodPost,
+		"/api/recall-campaigns/email-quota":                           http.MethodGet,
+		"/api/recall-campaigns/:id/email-translations/generate":       http.MethodPost,
+		"/api/recall-campaigns/:id/email-translations/tasks/:task_id": http.MethodGet,
+		"/api/recall-campaigns/:id/email-translations/tasks/latest":   http.MethodGet,
 	}
 	for path, method := range wantRoutes {
 		found := false
@@ -90,6 +92,34 @@ func TestRecallEmailQuotaStatusRouteAndGenerationRouteAreRegisteredWithAdminAuth
 	require.NotEqual(t, -1, quotaIndex)
 	require.NotEqual(t, -1, idIndex)
 	require.Less(t, quotaIndex, idIndex)
+}
+
+func TestRecallEmailTranslationTaskRoutesAreRegisteredWithAdminAuth(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-translation-task-auth"))))
+	SetApiRouter(engine)
+
+	routeIndex := map[string]int{}
+	for index, route := range engine.Routes() {
+		routeIndex[route.Method+" "+route.Path] = index
+	}
+	taskRoute := http.MethodGet + " /api/recall-campaigns/:id/email-translations/tasks/:task_id"
+	latestRoute := http.MethodGet + " /api/recall-campaigns/:id/email-translations/tasks/latest"
+	idRoute := http.MethodGet + " /api/recall-campaigns/:id"
+	require.Contains(t, routeIndex, taskRoute)
+	require.Contains(t, routeIndex, latestRoute)
+	require.Contains(t, routeIndex, idRoute)
+
+	for _, target := range []string{
+		"/api/recall-campaigns/1/email-translations/tasks/2",
+		"/api/recall-campaigns/1/email-translations/tasks/latest",
+	} {
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, target, nil))
+		require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	}
 }
 
 func TestRecallExclusionRoutesAreRegisteredBeforeIDRouteWithAdminAuth(t *testing.T) {

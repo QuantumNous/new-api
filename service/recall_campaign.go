@@ -692,96 +692,12 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 }
 
 func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, actorID int, id int64, request RecallEmailGenerationRequest) (RecallEmailGenerationResponse, error) {
-	if err := recallCampaignGate(ctx); err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-	if actorID <= 0 || id <= 0 {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign actor and campaign IDs must be positive")
-	}
-	if request.ConfigRevision <= 0 {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall email generation config revision must be positive")
-	}
-	if s.emailTranslator == nil {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall email translation is not configured")
-	}
-
-	stored, err := model.GetRecallCampaignByIDWithContext(ctx, id)
-	if err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-	if stored.ConfigRevision != request.ConfigRevision {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d config revision changed", id)
-	}
-	if stored.Status == model.RecallCampaignCancelled || stored.Status == model.RecallCampaignCompleted {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d is in terminal state %s", id, stored.Status)
-	}
-	current, err := recallCampaignDraftFromModel(stored)
-	if err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-
-	name := strings.TrimSpace(request.Name)
-	if name == "" || len(name) > 128 {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign name must contain 1 to 128 characters")
-	}
-	proposal, err := canonicalizeRecallEmailDraft(RecallCampaignDraft{
-		CampaignType:      current.CampaignType,
-		Name:              name,
-		Emails:            request.Emails,
-		DeferLocalization: true,
-	})
-	if err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-	englishStages := make([]RecallEmailStage, len(proposal.Emails))
-	for i, stage := range proposal.Emails {
-		english, exists := stage.Templates["en"]
-		if !exists {
-			return RecallEmailGenerationResponse{}, fmt.Errorf("recall email stage %d requires an English template", stage.StageNo)
-		}
-		englishStages[i] = RecallEmailStage{
-			StageNo:      stage.StageNo,
-			DelaySeconds: stage.DelaySeconds,
-			Templates:    map[string]RecallEmailTemplate{"en": english},
-		}
-	}
-	applyRecallEmailSubjectFallbacks(englishStages, name)
-	englishStages, err = normalizeRecallEmailStages(current.CampaignType, englishStages)
-	if err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-	if err := validateRecallEmailGenerationStageShape(current.Emails, englishStages); err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-	reconciled, err := reconcileRecallEmailLocalizationState(englishStages, englishStages, current.Emails, true)
-	if err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-
-	sourceSnapshot, err := buildRecallTranslationSourceSnapshot(
-		current.CampaignType,
-		name,
-		current.Emails,
-		recallTranslationRequestStagesWithManualLocales(englishStages, reconciled),
-	)
-	if err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-	task, _, err := model.SubmitRecallTranslationTask(ctx, model.RecallTranslationTaskSubmission{
-		CampaignID:              id,
-		RequestedConfigRevision: request.ConfigRevision,
-		SourceHash:              recallTranslationCanonicalSourceHash(sourceSnapshot),
-		SourceSnapshot:          sourceSnapshot,
-		Now:                     s.now().Unix(),
-	})
+	task, reconciled, err := s.submitRecallEmailTranslationTask(ctx, actorID, id, request)
 	if err != nil {
 		return RecallEmailGenerationResponse{}, err
 	}
 	if task.Status == model.RecallTranslationTaskQueued {
-		observeRecallTranslationTask(recallTranslationTaskObservation{
-			Event:  "queued",
-			Status: model.RecallTranslationTaskQueued,
-		})
+		observeQueuedRecallTranslationTask()
 	}
 	if task.Status == model.RecallTranslationTaskSucceeded {
 		var result recallTranslationResultSnapshot
@@ -825,6 +741,169 @@ func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, a
 		TaskID:         task.Id,
 		TaskStatus:     task.Status,
 	}, nil
+}
+
+func (s *RecallCampaignService) EnqueueEmailTranslations(ctx context.Context, actorID int, id int64, request RecallEmailGenerationRequest) (RecallTranslationTaskResponse, error) {
+	task, _, err := s.submitRecallEmailTranslationTask(ctx, actorID, id, request)
+	if err != nil {
+		return RecallTranslationTaskResponse{}, err
+	}
+	if task.Status == model.RecallTranslationTaskQueued {
+		observeQueuedRecallTranslationTask()
+	}
+	return RecallTranslationTaskView(*task), nil
+}
+
+func (s *RecallCampaignService) GetEmailTranslationTask(ctx context.Context, campaignID int64, taskID int64) (RecallTranslationTaskResponse, error) {
+	task, err := model.GetRecallTranslationTaskByCampaignAndID(ctx, campaignID, taskID)
+	if err != nil {
+		return RecallTranslationTaskResponse{}, err
+	}
+	return RecallTranslationTaskView(*task), nil
+}
+
+func (s *RecallCampaignService) GetLatestEmailTranslationTask(ctx context.Context, campaignID int64) (RecallTranslationTaskResponse, error) {
+	task, err := model.GetLatestRecallTranslationTaskForCampaign(ctx, campaignID)
+	if err != nil {
+		return RecallTranslationTaskResponse{}, err
+	}
+	return RecallTranslationTaskView(*task), nil
+}
+
+func RecallTranslationTaskView(task model.RecallTranslationTask) RecallTranslationTaskResponse {
+	view := RecallTranslationTaskResponse{
+		ID:                      task.Id,
+		CampaignID:              task.CampaignId,
+		RequestedConfigRevision: task.RequestedConfigRevision,
+		Status:                  normalizeRecallTranslationTaskStatus(task.Status),
+		AttemptCount:            task.AttemptCount,
+		CreatedAt:               task.CreatedAt,
+		StartedAt:               task.StartedAt,
+		FinishedAt:              task.FinishedAt,
+	}
+	if view.Status == model.RecallTranslationTaskSucceeded {
+		view.ResultConfigRevision = task.ResultConfigRevision
+		return view
+	}
+	if view.Status == model.RecallTranslationTaskFailed || view.Status == model.RecallTranslationTaskSuperseded {
+		view.ErrorCode = safeRecallTranslationTaskErrorCode(view.Status, task.ErrorCode)
+		view.ErrorCopyKey = "recall.translation.error." + view.ErrorCode
+	}
+	return view
+}
+
+func (s *RecallCampaignService) submitRecallEmailTranslationTask(ctx context.Context, actorID int, id int64, request RecallEmailGenerationRequest) (*model.RecallTranslationTask, []RecallEmailStage, error) {
+	if err := recallCampaignGate(ctx); err != nil {
+		return nil, nil, err
+	}
+	if actorID <= 0 || id <= 0 {
+		return nil, nil, fmt.Errorf("recall campaign actor and campaign IDs must be positive")
+	}
+	if request.ConfigRevision <= 0 {
+		return nil, nil, fmt.Errorf("recall email generation config revision must be positive")
+	}
+	if s.emailTranslator == nil {
+		return nil, nil, fmt.Errorf("recall email translation is not configured")
+	}
+
+	stored, err := model.GetRecallCampaignByIDWithContext(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+	if stored.ConfigRevision != request.ConfigRevision {
+		return nil, nil, fmt.Errorf("recall campaign %d config revision changed", id)
+	}
+	if stored.Status == model.RecallCampaignCancelled || stored.Status == model.RecallCampaignCompleted {
+		return nil, nil, fmt.Errorf("recall campaign %d is in terminal state %s", id, stored.Status)
+	}
+	current, err := recallCampaignDraftFromModel(stored)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	name := strings.TrimSpace(request.Name)
+	if name == "" || len(name) > 128 {
+		return nil, nil, fmt.Errorf("recall campaign name must contain 1 to 128 characters")
+	}
+	proposal, err := canonicalizeRecallEmailDraft(RecallCampaignDraft{
+		CampaignType:      current.CampaignType,
+		Name:              name,
+		Emails:            request.Emails,
+		DeferLocalization: true,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	englishStages := make([]RecallEmailStage, len(proposal.Emails))
+	for i, stage := range proposal.Emails {
+		english, exists := stage.Templates["en"]
+		if !exists {
+			return nil, nil, fmt.Errorf("recall email stage %d requires an English template", stage.StageNo)
+		}
+		englishStages[i] = RecallEmailStage{
+			StageNo:      stage.StageNo,
+			DelaySeconds: stage.DelaySeconds,
+			Templates:    map[string]RecallEmailTemplate{"en": english},
+		}
+	}
+	applyRecallEmailSubjectFallbacks(englishStages, name)
+	englishStages, err = normalizeRecallEmailStages(current.CampaignType, englishStages)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateRecallEmailGenerationStageShape(current.Emails, englishStages); err != nil {
+		return nil, nil, err
+	}
+	reconciled, err := reconcileRecallEmailLocalizationState(englishStages, englishStages, current.Emails, true)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sourceSnapshot, err := buildRecallTranslationSourceSnapshot(
+		current.CampaignType,
+		name,
+		current.Emails,
+		recallTranslationRequestStagesWithManualLocales(englishStages, reconciled),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	task, _, err := model.SubmitRecallTranslationTask(ctx, model.RecallTranslationTaskSubmission{
+		CampaignID:              id,
+		RequestedConfigRevision: request.ConfigRevision,
+		SourceHash:              recallTranslationCanonicalSourceHash(sourceSnapshot),
+		SourceSnapshot:          sourceSnapshot,
+		Now:                     s.now().Unix(),
+	})
+	return task, reconciled, err
+}
+
+func normalizeRecallTranslationTaskStatus(status string) string {
+	switch status {
+	case model.RecallTranslationTaskQueued, model.RecallTranslationTaskRunning, model.RecallTranslationTaskSucceeded, model.RecallTranslationTaskFailed, model.RecallTranslationTaskSuperseded:
+		return status
+	default:
+		return model.RecallTranslationTaskFailed
+	}
+}
+
+func safeRecallTranslationTaskErrorCode(status string, code string) string {
+	if status == model.RecallTranslationTaskSuperseded {
+		return "translation_superseded"
+	}
+	switch strings.TrimSpace(code) {
+	case "invalid_source_snapshot", "translation_failed", "invalid_translation_output", "translation_lease_lost":
+		return strings.TrimSpace(code)
+	default:
+		return "translation_failed"
+	}
+}
+
+func observeQueuedRecallTranslationTask() {
+	observeRecallTranslationTask(recallTranslationTaskObservation{
+		Event:  "queued",
+		Status: model.RecallTranslationTaskQueued,
+	})
 }
 
 func recallTranslationRequestStagesWithManualLocales(english []RecallEmailStage, current []RecallEmailStage) []RecallEmailStage {
