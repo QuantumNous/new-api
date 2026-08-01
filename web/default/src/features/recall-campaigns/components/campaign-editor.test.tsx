@@ -39,7 +39,11 @@ import {
   RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   RECALL_EMAIL_STARTER_HTML,
 } from '../helpers'
-import type { RecallAudienceTemplate, RecallCampaignDraft } from '../types'
+import type {
+  RecallAudienceTemplate,
+  RecallCampaignDraft,
+  RecallTranslationTask,
+} from '../types'
 
 const commonHelp =
   'Audience templates define the base audience. The rules shown below narrow it further, and built-in eligibility filters also apply. Preview the audience before activation.'
@@ -79,16 +83,17 @@ const generateMutation = mock(
     }
   }) => {
     operationOrder.push('generate')
+    const task = {
+      id: 55,
+      campaign_id: value.id,
+      requested_config_revision: value.request.config_revision,
+      status: 'queued',
+      attempt_count: 0,
+      created_at: 1_900_000_000,
+    } satisfies RecallTranslationTask
     return {
       success: true,
-      data: {
-        id: 55,
-        campaign_id: value.id,
-        requested_config_revision: value.request.config_revision,
-        status: 'queued',
-        attempt_count: 0,
-        created_at: 1_900_000_000,
-      },
+      data: task,
     }
   }
 )
@@ -785,29 +790,17 @@ beforeEach(() => {
   generateMutation.mockClear()
   generateMutation.mockImplementation(async (value) => {
     operationOrder.push('generate')
+    const task = {
+      id: 55,
+      campaign_id: value.id,
+      requested_config_revision: value.request.config_revision,
+      status: 'queued',
+      attempt_count: 0,
+      created_at: 1_900_000_000,
+    } satisfies RecallTranslationTask
     return {
       success: true,
-      data: {
-        config_revision: value.request.config_revision + 1,
-        email_sequence: value.request.email_sequence.map((stage) => ({
-          ...stage,
-          source_revision: Math.max(1, stage.source_revision ?? 0),
-          translated_source_revision: Math.max(1, stage.source_revision ?? 0),
-          manual_locales: [],
-          templates: {
-            ...stage.templates,
-            ...Object.fromEntries(
-              ['zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'].map((locale) => [
-                locale,
-                {
-                  subject: `${locale} subject`,
-                  body_html: `<p>${locale} body</p>`,
-                },
-              ])
-            ),
-          },
-        })),
-      },
+      data: task,
     }
   })
   operationOrder.length = 0
