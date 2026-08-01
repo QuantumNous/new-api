@@ -18,6 +18,14 @@ function setupDom() {
       node.parentNode = this
       return node
     }
+    insertBefore(node: NodeShim, before: NodeShim | null) {
+      if (!before) return this.appendChild(node)
+      const index = this.childNodes.indexOf(before)
+      if (index === -1) return this.appendChild(node)
+      this.childNodes.splice(index, 0, node)
+      node.parentNode = this
+      return node
+    }
     removeChild(node: NodeShim) {
       this.childNodes = this.childNodes.filter((child) => child !== node)
       node.parentNode = null
@@ -161,6 +169,7 @@ const testRecallCampaignKeys = {
   detail: (id: number) => ['recall-campaigns', 'detail', id],
   metrics: (id: number) => ['recall-campaigns', id, 'metrics'],
 }
+let previewError: Error | null = null
 
 function makePreview(
   overrides: Partial<RecallExclusionPreview> = {}
@@ -193,6 +202,7 @@ mock.module('../api', () => ({
   },
   previewRecallCampaignExclusions: async (_id: number, file: File) => {
     previewCalls.push(file)
+    if (previewError) throw previewError
     return { success: true, data: nextPreview }
   },
   recallCampaignKeys: testRecallCampaignKeys,
@@ -239,7 +249,14 @@ const testI18n = createInstance()
 await testI18n.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
-  resources: { en: { translation: {} } },
+  resources: {
+    en: {
+      translation: {
+        'Row conflicts with a converted recipient.':
+          'Translated converted-recipient conflict.',
+      },
+    },
+  },
   interpolation: { escapeValue: false },
 })
 
@@ -272,7 +289,7 @@ function renderDialog(props: {
       </QueryClientProvider>
     )
   })
-  return { container, root }
+  return { container, queryClient, root }
 }
 
 async function wait(ms = 0) {
@@ -302,6 +319,7 @@ afterEach(() => {
   batchLoads.length = 0
   confirmCalls.length = 0
   invalidatedKeys.length = 0
+  previewError = null
   for (const key of Object.keys(latestInputs)) delete latestInputs[key]
   for (const key of Object.keys(latestButtons)) delete latestButtons[key]
   nextPreview = makePreview()
@@ -348,10 +366,31 @@ describe('CampaignExclusionDialog', () => {
     await click('Preview exclusions')
 
     expect(container.textContent).toContain(
-      'Row conflicts with a converted recipient.'
+      'Translated converted-recipient conflict.'
     )
     expect(latestButtons['Apply exclusions']?.disabled).toBeTrue()
     expect(container.textContent).not.toContain('blocked@example.com')
+
+    React.act(() => root.unmount())
+  })
+
+  test('limits rendered problem samples to twenty entries', async () => {
+    nextPreview = makePreview({
+      confirmable: false,
+      blocking_errors: Array.from({ length: 25 }, (_value, index) => ({
+        row: index + 1,
+        code: 'invalid_email',
+        message: `Safe fixed problem ${index + 1}`,
+      })),
+    })
+    const { container, root } = renderDialog({})
+
+    await chooseFile(new File(['email\nmany@example.com\n'], 'users.csv'))
+    await click('Preview exclusions')
+
+    expect(container.textContent).toContain('Safe fixed problem 20')
+    expect(container.textContent).not.toContain('Safe fixed problem 21')
+    expect(container.textContent).toContain('5 more problems not shown')
 
     React.act(() => root.unmount())
   })
@@ -371,6 +410,8 @@ describe('CampaignExclusionDialog', () => {
     expect(confirmCalls).toEqual([88])
     expect(invalidatedKeys).toContainEqual(testRecallCampaignKeys.metrics(42))
     expect(invalidatedKeys).toContainEqual(testRecallCampaignKeys.detail(42))
+    expect(container.textContent).toContain('Exclusions applied.')
+    expect(container.textContent).toContain('5 queued messages were cancelable')
 
     React.act(() => root.unmount())
   })
@@ -391,6 +432,29 @@ describe('CampaignExclusionDialog', () => {
 
     expect(openChanges).toContain(false)
     expect(container.textContent).not.toContain('private@example.com')
+    expect(container.textContent).not.toContain('2 resolved users')
+
+    React.act(() => root.unmount())
+  })
+
+  test('clears File mutation variables and preview state after preview failure and close', async () => {
+    previewError = new Error('safe preview failure')
+    const { container, queryClient, root } = renderDialog({})
+    await chooseFile(new File(['email\nfailed@example.com\n'], 'users.csv'))
+    await click('Preview exclusions')
+
+    expect(container.textContent).not.toContain('failed@example.com')
+    expect(
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .some((mutation) => mutation.state.variables instanceof File)
+    ).toBeFalse()
+
+    await click('Close')
+
+    expect(container.textContent).not.toContain('failed@example.com')
+    expect(container.textContent).not.toContain('2 resolved users')
 
     React.act(() => root.unmount())
   })

@@ -44,6 +44,9 @@ export function CampaignExclusionDialog(
   const selectedFileRef = useRef<File | null>(null)
   const [preview, setPreview] = useState<RecallExclusionPreview | null>(null)
   const [error, setError] = useState('')
+  const [previewPending, setPreviewPending] = useState(false)
+  const [successPreview, setSuccessPreview] =
+    useState<RecallExclusionPreview | null>(null)
   const batchQuery = useQuery({
     queryKey: [
       'recall-campaigns',
@@ -57,10 +60,6 @@ export function CampaignExclusionDialog(
         props.initialBatchId ?? 0
       ),
     enabled: props.open && typeof props.initialBatchId === 'number',
-  })
-  const previewMutation = useMutation({
-    mutationFn: (file: File) =>
-      previewRecallCampaignExclusions(props.campaignId, file),
   })
   const confirmMutation = useMutation({
     mutationFn: (batchId: number) =>
@@ -81,15 +80,28 @@ export function CampaignExclusionDialog(
       return
     }
     setError('')
-    const response = await previewMutation.mutateAsync(file)
-    setPreview(response.data ?? null)
-    clearRawState()
+    setSuccessPreview(null)
+    setPreviewPending(true)
+    try {
+      const response = await previewRecallCampaignExclusions(
+        props.campaignId,
+        file
+      )
+      setPreview(response.data ?? null)
+    } catch (_error) {
+      setError('Unable to preview exclusions.')
+      setPreview(null)
+    } finally {
+      clearRawState()
+      setPreviewPending(false)
+    }
   }
 
   const confirm = async () => {
     if (!visiblePreview?.confirmable) return
     const response = await confirmMutation.mutateAsync(visiblePreview.batch_id)
-    setPreview(response.data ?? visiblePreview)
+    setSuccessPreview(response.data ?? visiblePreview)
+    setPreview(null)
     clearRawState()
     await queryClient.invalidateQueries({
       queryKey: recallCampaignKeys.metrics(props.campaignId),
@@ -102,8 +114,16 @@ export function CampaignExclusionDialog(
   const close = () => {
     clearRawState()
     setError('')
+    setPreview(null)
+    setSuccessPreview(null)
     props.onOpenChange(false)
   }
+
+  const problems = visiblePreview
+    ? [...visiblePreview.blocking_errors, ...visiblePreview.warnings]
+    : []
+  const visibleProblems = problems.slice(0, 20)
+  const hiddenProblemCount = problems.length - visibleProblems.length
 
   return (
     <Dialog open={props.open} onOpenChange={(open) => (!open ? close() : null)}>
@@ -130,7 +150,7 @@ export function CampaignExclusionDialog(
           </div>
           <Button
             type='button'
-            disabled={previewMutation.isPending}
+            disabled={previewPending}
             onClick={() => void previewFile()}
           >
             {t('Preview exclusions')}
@@ -139,6 +159,16 @@ export function CampaignExclusionDialog(
             <p role='alert' className='text-destructive text-sm'>
               {t(error)}
             </p>
+          ) : null}
+          {successPreview ? (
+            <div role='status' className='rounded-lg border p-3 text-sm'>
+              <div>{t('Exclusions applied.')}</div>
+              <div>
+                {t('{{count}} queued messages were cancelable', {
+                  count: successPreview.cancelable_work,
+                })}
+              </div>
+            </div>
           ) : null}
           {visiblePreview ? (
             <div className='space-y-3 rounded-lg border p-3'>
@@ -179,18 +209,21 @@ export function CampaignExclusionDialog(
                   'Confirming will exclude resolved users and cancel pending campaign work that is still cancelable.'
                 )}
               </p>
-              {[...visiblePreview.blocking_errors, ...visiblePreview.warnings]
-                .length > 0 ? (
+              {visibleProblems.length > 0 ? (
                 <ul className='space-y-1 text-sm'>
-                  {[
-                    ...visiblePreview.blocking_errors,
-                    ...visiblePreview.warnings,
-                  ].map((problem) => (
+                  {visibleProblems.map((problem) => (
                     <li key={problemKey(problem)}>
                       {t('Row {{row}}', { row: problem.row })}:{' '}
-                      {problem.message}
+                      {t(problem.message)}
                     </li>
                   ))}
+                  {hiddenProblemCount > 0 ? (
+                    <li>
+                      {t('{{count}} more problems not shown', {
+                        count: hiddenProblemCount,
+                      })}
+                    </li>
+                  ) : null}
                 </ul>
               ) : null}
             </div>
@@ -204,7 +237,7 @@ export function CampaignExclusionDialog(
             type='button'
             disabled={
               !visiblePreview?.confirmable ||
-              previewMutation.isPending ||
+              previewPending ||
               confirmMutation.isPending
             }
             onClick={() => void confirm()}

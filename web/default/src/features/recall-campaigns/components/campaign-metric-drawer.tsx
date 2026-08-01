@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -66,8 +66,8 @@ const metricLabels: Record<RecallMetricKey, string> = {
   attributed_spend: 'Attributed spend',
   new_external_cash: 'New external cash',
   direct_topup: 'Direct top-up',
-  balance_subscription: 'Balance subscription',
-  online_subscription: 'Online subscription',
+  balance_subscription: 'Balance-paid subscription',
+  online_subscription: 'Online-paid subscription',
 }
 
 const grainLabels: Record<string, string> = {
@@ -120,7 +120,12 @@ function displayCardValue(card: RecallMetricCard): string {
   if (card.amounts.length === 0) return String(card.total)
   return card.amounts
     .map((amount) =>
-      formatRecallCurrencyAmount(amount.currency, amount.amount_minor)
+      [
+        formatRecallCurrencyAmount(amount.currency, amount.amount_minor),
+        amount.user_count,
+      ]
+        .filter((value) => value !== '' && value != null)
+        .join(' / ')
     )
     .filter(Boolean)
     .join(' / ')
@@ -134,6 +139,24 @@ function compactFilters(filters: RecallMetricFilters): RecallMetricFilters {
   return Object.fromEntries(
     Object.entries(filters).filter(([, value]) => value !== '' && value != null)
   )
+}
+
+function filtersForCard(
+  card: RecallMetricCard,
+  filters: DrawerFilters
+): DrawerFilters {
+  return compactFilters({
+    q: supported(card, 'search') ? filters.q : undefined,
+    stage_no: supported(card, 'stage_no') ? filters.stage_no : undefined,
+    state: supported(card, 'state') ? filters.state : undefined,
+    conversion_kind: supported(card, 'conversion_kind')
+      ? filters.conversion_kind
+      : undefined,
+    payment_category: supported(card, 'payment_category')
+      ? filters.payment_category
+      : undefined,
+    currency: supported(card, 'currency') ? filters.currency : undefined,
+  }) as DrawerFilters
 }
 
 function maskEmail(email: string): string {
@@ -232,6 +255,7 @@ export function CampaignMetricCardSection(
         ))}
       </div>
       <CampaignMetricDrawer
+        key={selectedCard?.key ?? 'closed'}
         campaignId={props.campaignId}
         card={selectedCard}
         open={selectedCard !== null}
@@ -250,13 +274,14 @@ export function CampaignMetricDrawer(
   const [filters, setFilters] = useState<DrawerFilters>({})
   const [cursor, setCursor] = useState('')
   const [rows, setRows] = useState<RecallMetricRow[]>([])
+  const pendingCursorRef = useRef('')
   const [downloading, setDownloading] = useState(false)
   const card = props.card
   const metric = card?.key
   const activeFilters = useMemo<RecallMetricFilters>(() => {
     if (!card) return {}
     return compactFilters({
-      ...filters,
+      ...filtersForCard(card, filters),
       snapshot: card.snapshot,
       cursor,
       limit: METRIC_PAGE_SIZE,
@@ -282,10 +307,13 @@ export function CampaignMetricDrawer(
 
   if (!card) return null
 
-  const changeFilters = (next: DrawerFilters) => {
-    setFilters(next)
+  const changeFilters = (
+    next: DrawerFilters | ((current: DrawerFilters) => DrawerFilters)
+  ) => {
+    setFilters((current) => (typeof next === 'function' ? next(current) : next))
     setCursor('')
     setRows([])
+    pendingCursorRef.current = ''
   }
   const visibleRows = cursor
     ? [...rows, ...(page?.items ?? [])]
@@ -299,7 +327,10 @@ export function CampaignMetricDrawer(
       const blob = await exportRecallCampaignMetricUsers(
         props.campaignId,
         card.key,
-        compactFilters({ ...filters, snapshot: card.snapshot })
+        compactFilters({
+          ...filtersForCard(card, filters),
+          snapshot: card.snapshot,
+        })
       )
       downloadBlob(blob, metricDownloadName(props.campaignId, card.key))
     } finally {
@@ -327,9 +358,8 @@ export function CampaignMetricDrawer(
           </div>
           {!card.drilldown_complete || card.legacy_unidentified_count > 0 ? (
             <p role='status' className='text-muted-foreground text-sm'>
-              {t(
-                'Some historical exclusions are not individually inspectable.'
-              )}
+              {t('Historical excluded identities were not recorded')}{' '}
+              {card.legacy_unidentified_count}
             </p>
           ) : null}
           <div className='grid gap-3 md:grid-cols-4'>
@@ -340,7 +370,10 @@ export function CampaignMetricDrawer(
                   id='recall-metric-search'
                   value={filters.q ?? ''}
                   onChange={(event) =>
-                    changeFilters({ ...filters, q: event.target.value })
+                    changeFilters((current) => ({
+                      ...current,
+                      q: event.target.value,
+                    }))
                   }
                 />
               </div>
@@ -354,12 +387,12 @@ export function CampaignMetricDrawer(
                   min={1}
                   value={filters.stage_no ?? ''}
                   onChange={(event) =>
-                    changeFilters({
-                      ...filters,
+                    changeFilters((current) => ({
+                      ...current,
                       stage_no: event.target.value
                         ? Number(event.target.value)
                         : undefined,
-                    })
+                    }))
                   }
                 />
               </div>
@@ -371,9 +404,41 @@ export function CampaignMetricDrawer(
                   id='recall-metric-currency'
                   value={filters.currency ?? ''}
                   onChange={(event) =>
-                    changeFilters({ ...filters, currency: event.target.value })
+                    changeFilters((current) => ({
+                      ...current,
+                      currency: event.target.value,
+                    }))
                   }
                 />
+              </div>
+            ) : null}
+            {supported(card, 'state') ? (
+              <div className='space-y-1'>
+                <Label htmlFor='recall-metric-state'>{t('State')}</Label>
+                <NativeSelect
+                  id='recall-metric-state'
+                  value={filters.state ?? ''}
+                  onChange={(event) =>
+                    changeFilters((current) => ({
+                      ...current,
+                      state: event.target.value,
+                    }))
+                  }
+                >
+                  <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
+                  <NativeSelectOption value='queued'>
+                    {t('queued')}
+                  </NativeSelectOption>
+                  <NativeSelectOption value='converted'>
+                    {t('converted')}
+                  </NativeSelectOption>
+                  <NativeSelectOption value='suppressed'>
+                    {t('suppressed')}
+                  </NativeSelectOption>
+                  <NativeSelectOption value='failed'>
+                    {t('failed')}
+                  </NativeSelectOption>
+                </NativeSelect>
               </div>
             ) : null}
             {supported(card, 'conversion_kind') ? (
@@ -385,11 +450,11 @@ export function CampaignMetricDrawer(
                   id='recall-metric-conversion-kind'
                   value={filters.conversion_kind ?? ''}
                   onChange={(event) =>
-                    changeFilters({
-                      ...filters,
+                    changeFilters((current) => ({
+                      ...current,
                       conversion_kind: event.target
                         .value as DrawerFilters['conversion_kind'],
-                    })
+                    }))
                   }
                 >
                   <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
@@ -414,11 +479,11 @@ export function CampaignMetricDrawer(
                   id='recall-metric-payment-category'
                   value={filters.payment_category ?? ''}
                   onChange={(event) =>
-                    changeFilters({
-                      ...filters,
+                    changeFilters((current) => ({
+                      ...current,
                       payment_category: event.target
                         .value as DrawerFilters['payment_category'],
-                    })
+                    }))
                   }
                 >
                   <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
@@ -468,7 +533,10 @@ export function CampaignMetricDrawer(
               variant='outline'
               disabled={query.isFetching}
               onClick={() => {
+                if (query.isFetching || pendingCursorRef.current === nextCursor)
+                  return
                 setRows(visibleRows)
+                pendingCursorRef.current = nextCursor
                 setCursor(nextCursor)
               }}
             >

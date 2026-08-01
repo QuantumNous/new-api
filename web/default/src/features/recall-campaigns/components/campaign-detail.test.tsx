@@ -127,6 +127,10 @@ function makeMetrics(): RecallCampaignMetrics {
         1,
         'conversion'
       ),
+      attributed_spend: {
+        ...makeMetricCard('attributed_spend', 2, 'conversion'),
+        amounts: [{ currency: 'USD', amount_minor: 9_600, user_count: 2 }],
+      },
     },
   }
 }
@@ -429,6 +433,29 @@ describe('CampaignDetail metric rendering', () => {
     expect(metricsHtml).toContain('Assisted conversions')
     expect(metricsHtml).toContain('No-coupon conversions')
     expect(metricsHtml).not.toContain('>999</span>')
+  })
+
+  test('ignores legacy currency metrics when authoritative money cards exist', () => {
+    const metrics = makeMetrics()
+    metrics.currency_metrics = [
+      {
+        currency: 'usd',
+        direct_count: 1,
+        assisted_count: 0,
+        no_coupon_count: 0,
+        payment_amount: 9_600,
+        discount_amount: 2_400,
+      },
+    ]
+
+    const metricsHtml = campaignMetricsMarkup(
+      renderCampaignDetail('promotion', metrics)
+    )
+
+    expect(metricsHtml).toContain('Attributed spend')
+    expect(metricsHtml).toContain('$96.00 / 2')
+    expect(metricsHtml).not.toContain('Payment amount')
+    expect(metricsHtml).not.toContain('9600')
   })
 
   test('does not reconstruct cards from legacy fields when metric cards are absent', () => {

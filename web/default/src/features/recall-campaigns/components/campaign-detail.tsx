@@ -256,35 +256,11 @@ export function CampaignDetail(props: CampaignDetailProps) {
                     campaignId={props.campaignId}
                     metricCards={metrics.metric_cards}
                   />
-                  {isPromotion ? (
-                    <div className='mt-4 grid gap-3 md:grid-cols-2'>
-                      {metrics.currency_metrics.map((currency) => (
-                        <div
-                          className='rounded-lg border p-3'
-                          key={currency.currency}
-                        >
-                          <h4 className='font-medium'>
-                            {currency.currency.toUpperCase()}
-                          </h4>
-                          <p>
-                            {t('Payment amount')}: {currency.payment_amount}
-                          </p>
-                          <p>
-                            {t('Discount amount')}: {currency.discount_amount}
-                          </p>
-                          <p>
-                            {t('Direct / assisted / no coupon')}:{' '}
-                            {currency.direct_count} / {currency.assisted_count}{' '}
-                            / {currency.no_coupon_count}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
+                  {!isPromotion ? (
                     <p className='text-muted-foreground mt-4 text-sm'>
                       {t('Promotion conversion metrics are not applicable.')}
                     </p>
-                  )}
+                  ) : null}
                 </>
               ) : (
                 <p>{t('Loading')}</p>

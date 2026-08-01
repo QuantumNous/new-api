@@ -23,6 +23,14 @@ function setupDom() {
       node.parentNode = this
       return node
     }
+    insertBefore(node: NodeShim, before: NodeShim | null) {
+      if (!before) return this.appendChild(node)
+      const index = this.childNodes.indexOf(before)
+      if (index === -1) return this.appendChild(node)
+      this.childNodes.splice(index, 0, node)
+      node.parentNode = this
+      return node
+    }
     removeChild(node: NodeShim) {
       this.childNodes = this.childNodes.filter((child) => child !== node)
       node.parentNode = null
@@ -75,6 +83,15 @@ function setupDom() {
           .map((node) => ('textContent' in node ? node.textContent : ''))
           .join('')
       )
+    }
+    get length() {
+      return this.childNodes.length
+    }
+    get options() {
+      return this.childNodes
+    }
+    item(index: number) {
+      return this.childNodes[index] ?? null
     }
     setAttribute(key: string, value: string) {
       this.attributes[key] = String(value)
@@ -162,6 +179,15 @@ const exportCalls: Array<{
   filters: RecallMetricFilters
 }> = []
 
+const defaultResult: RecallMetricResult = {
+  items: [],
+  total: 0,
+  amounts: [],
+  snapshot: 'default-page-snapshot',
+  legacy_unidentified_count: 0,
+  drilldown_complete: true,
+}
+
 const pages: Record<string, RecallMetricResult[]> = {
   messages_accepted: [
     {
@@ -218,7 +244,92 @@ const pages: Record<string, RecallMetricResult[]> = {
       drilldown_complete: true,
     },
   ],
+  candidates: [
+    {
+      items: [
+        {
+          row_id: 10,
+          recipient_id: 20,
+          message_id: 0,
+          user_id: 601,
+          email: 'candidate@example.com',
+          occurred_at: 1_900_000_200,
+          stage_no: 0,
+          state: 'queued',
+          conversion_kind: '',
+          trade_no: '',
+          payment_category: '',
+          currency: '',
+          amount_minor: 0,
+          failure_code: '',
+        },
+      ],
+      total: 1,
+      amounts: [],
+      snapshot: 'candidate-page-snapshot',
+      legacy_unidentified_count: 0,
+      drilldown_complete: true,
+    },
+  ],
+  attributed_spend: [
+    {
+      items: [
+        {
+          row_id: 20,
+          recipient_id: 30,
+          message_id: 0,
+          user_id: 701,
+          email: 'first-spend@example.com',
+          occurred_at: 1_900_000_300,
+          stage_no: 0,
+          state: 'converted',
+          conversion_kind: 'direct',
+          trade_no: 'trade_1',
+          payment_category: 'direct_topup',
+          currency: 'USD',
+          amount_minor: 9_600,
+          failure_code: '',
+        },
+      ],
+      total: 2,
+      amounts: [{ currency: 'USD', amount_minor: 9_600, user_count: 2 }],
+      snapshot: 'spend-page-snapshot',
+      next_cursor: 'spend-next',
+      legacy_unidentified_count: 0,
+      drilldown_complete: true,
+    },
+    {
+      items: [
+        {
+          row_id: 21,
+          recipient_id: 31,
+          message_id: 0,
+          user_id: 702,
+          email: 'second-spend@example.com',
+          occurred_at: 1_900_000_301,
+          stage_no: 0,
+          state: 'converted',
+          conversion_kind: 'assisted',
+          trade_no: 'trade_2',
+          payment_category: 'online_subscription',
+          currency: 'USD',
+          amount_minor: 4_200,
+          failure_code: '',
+        },
+      ],
+      total: 2,
+      amounts: [{ currency: 'USD', amount_minor: 9_600, user_count: 2 }],
+      snapshot: 'spend-page-snapshot',
+      legacy_unidentified_count: 0,
+      drilldown_complete: true,
+    },
+  ],
 }
+let pendingMetricRequest: {
+  metric: RecallMetricKey
+  filters: RecallMetricFilters
+  resolve: (value: { success: true; data: RecallMetricResult }) => void
+} | null = null
 
 mock.module('../api', () => ({
   exportRecallCampaignMetricUsers: async (
@@ -235,9 +346,17 @@ mock.module('../api', () => ({
     filters: RecallMetricFilters
   ) => {
     metricUserCalls.push({ metric, filters })
+    if (pendingMetricRequest?.metric === metric) {
+      return await new Promise<{ success: true; data: RecallMetricResult }>(
+        (resolve) => {
+          pendingMetricRequest = { metric, filters, resolve }
+        }
+      )
+    }
+    const pageIndex = filters.cursor ? 1 : 0
     return {
       success: true,
-      data: pages[metric]?.[0] ?? pages.messages_failed[0],
+      data: pages[metric]?.[pageIndex] ?? pages[metric]?.[0] ?? defaultResult,
     }
   },
   recallCampaignKeys: {
@@ -270,6 +389,19 @@ mock.module('@/components/ui/input', () => ({
     if (props.id) inputProps[props.id] = props
     return <input {...props} />
   },
+}))
+
+mock.module('@/components/ui/native-select', () => ({
+  NativeSelect: (props: React.SelectHTMLAttributes<HTMLSelectElement>) => {
+    if (props.id) {
+      inputProps[props.id] =
+        props as unknown as React.InputHTMLAttributes<HTMLInputElement>
+    }
+    return <select {...props} />
+  },
+  NativeSelectOption: (
+    props: React.OptionHTMLAttributes<HTMLOptionElement>
+  ) => <option {...props} />,
 }))
 
 mock.module('@/components/ui/sheet', () => ({
@@ -324,7 +456,8 @@ function makeCard(
   key: RecallMetricKey,
   total: number,
   snapshot: string,
-  rowGrain = 'message'
+  rowGrain = 'message',
+  supportedFilters: Record<string, boolean> = { search: true, stage_no: true }
 ): RecallMetricCard {
   return {
     key,
@@ -334,7 +467,26 @@ function makeCard(
     snapshot,
     legacy_unidentified_count: key === 'messages_accepted' ? 3 : 0,
     drilldown_complete: key !== 'messages_accepted',
-    supported_filters: { search: true, stage_no: true },
+    supported_filters: supportedFilters,
+  }
+}
+
+function makeAmountCard(
+  key: RecallMetricKey,
+  snapshot: string,
+  amountMinor: number,
+  userCount: number
+): RecallMetricCard {
+  return {
+    ...makeCard(key, userCount, snapshot, 'conversion', {
+      search: true,
+      currency: true,
+      conversion_kind: true,
+      payment_category: true,
+    }),
+    amounts: [
+      { currency: 'USD', amount_minor: amountMinor, user_count: userCount },
+    ],
   }
 }
 
@@ -373,6 +525,7 @@ async function click(label: string) {
 afterEach(() => {
   metricUserCalls.length = 0
   exportCalls.length = 0
+  pendingMetricRequest = null
   for (const key of Object.keys(inputProps)) delete inputProps[key]
   for (const key of Object.keys(buttonProps)) delete buttonProps[key]
 })
@@ -393,8 +546,9 @@ describe('CampaignMetricCardSection', () => {
     expect(container.textContent).toContain('Accepted messages')
     expect(container.textContent).toContain('Message rows')
     expect(container.textContent).toContain(
-      'Some historical exclusions are not individually inspectable.'
+      'Historical excluded identities were not recorded'
     )
+    expect(container.textContent).toContain('3')
     expect(metricUserCalls[0]).toEqual({
       metric: 'messages_accepted',
       filters: { limit: 50, snapshot: 'accepted-card-snapshot' },
@@ -445,6 +599,170 @@ describe('CampaignMetricCardSection', () => {
       'accepted-card-snapshot',
       'failed-card-snapshot',
     ])
+
+    React.act(() => root.unmount())
+  })
+
+  test('prunes unsupported filters and resets snapshot when switching metric cards', async () => {
+    const { root } = renderSection({
+      attributed_spend: makeAmountCard(
+        'attributed_spend',
+        'spend-card-snapshot',
+        9_600,
+        2
+      ),
+      candidates: makeCard(
+        'candidates',
+        1,
+        'candidate-card-snapshot',
+        'identity',
+        {
+          search: true,
+        }
+      ),
+    })
+
+    await click('Attributed spend')
+    await React.act(async () => {
+      inputProps['recall-metric-currency']?.onChange?.({
+        target: { value: 'USD' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      inputProps['recall-metric-conversion-kind']?.onChange?.({
+        target: { value: 'direct' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      await wait()
+    })
+    expect(metricUserCalls.at(-1)?.filters).toEqual({
+      conversion_kind: 'direct',
+      currency: 'USD',
+      limit: 50,
+      snapshot: 'spend-card-snapshot',
+    })
+
+    await click('Candidates')
+    expect(metricUserCalls.at(-1)).toEqual({
+      metric: 'candidates',
+      filters: { limit: 50, snapshot: 'candidate-card-snapshot' },
+    })
+
+    await click('Download current results')
+    expect(exportCalls.at(-1)).toEqual({
+      metric: 'candidates',
+      filters: { snapshot: 'candidate-card-snapshot' },
+    })
+
+    React.act(() => root.unmount())
+  })
+
+  test('uses next_cursor for pagination, appends rows, and blocks duplicate page clicks while pending', async () => {
+    const { container, root } = renderSection({
+      attributed_spend: makeAmountCard(
+        'attributed_spend',
+        'spend-card-snapshot',
+        9_600,
+        2
+      ),
+    })
+
+    await click('Attributed spend')
+    await React.act(async () => {
+      await wait()
+    })
+    expect(container.textContent).toContain('701')
+    expect(container.textContent).not.toContain('702')
+
+    pendingMetricRequest = {
+      metric: 'attributed_spend',
+      filters: {},
+      resolve: () => undefined,
+    }
+    await click('Load more')
+    await click('Load more')
+    expect(
+      metricUserCalls.filter((call) => call.filters.cursor === 'spend-next')
+    ).toHaveLength(1)
+
+    await React.act(async () => {
+      pendingMetricRequest?.resolve({
+        success: true,
+        data: pages.attributed_spend[1],
+      })
+      await wait()
+    })
+    expect(container.textContent).toContain('701')
+    expect(container.textContent).toContain('702')
+
+    React.act(() => root.unmount())
+  })
+
+  test('renders supported filter controls from metadata, including state only when declared', async () => {
+    const { container, root } = renderSection({
+      candidates: makeCard(
+        'candidates',
+        1,
+        'candidate-card-snapshot',
+        'identity',
+        {
+          search: true,
+          state: true,
+        }
+      ),
+      messages_accepted: makeCard(
+        'messages_accepted',
+        2,
+        'accepted-card-snapshot',
+        'message',
+        { search: true, stage_no: true }
+      ),
+    })
+
+    await click('Accepted messages')
+    expect(container.textContent).toContain('Stage')
+    expect(container.textContent).not.toContain('State')
+
+    await click('Candidates')
+    expect(container.textContent).toContain('State')
+    await React.act(async () => {
+      inputProps['recall-metric-state']?.onChange?.({
+        target: { value: 'queued' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      await wait()
+    })
+    expect(metricUserCalls.at(-1)?.filters).toEqual({
+      limit: 50,
+      snapshot: 'candidate-card-snapshot',
+      state: 'queued',
+    })
+
+    React.act(() => root.unmount())
+  })
+
+  test('formats amount cards with money and user counts without merging currencies', () => {
+    const { container, root } = renderSection({
+      attributed_spend: makeAmountCard(
+        'attributed_spend',
+        'spend-card-snapshot',
+        9_600,
+        2
+      ),
+      new_external_cash: makeAmountCard(
+        'new_external_cash',
+        'cash-card-snapshot',
+        1_600,
+        1
+      ),
+      direct_topup: {
+        ...makeAmountCard('direct_topup', 'topup-card-snapshot', 9_600, 3),
+        amounts: [
+          { currency: 'USD', amount_minor: 9_600, user_count: 2 },
+          { currency: 'JPY', amount_minor: 1_600, user_count: 1 },
+        ],
+      },
+    })
+
+    expect(container.textContent).toContain('$96.00 / 2')
+    expect(container.textContent).toContain('$16.00 / 1')
+    expect(container.textContent).toContain('¥1,600 / 1')
 
     React.act(() => root.unmount())
   })
