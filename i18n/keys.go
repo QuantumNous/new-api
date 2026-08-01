@@ -321,6 +321,8 @@ const (
 	MsgDistributorNoAvailableChannel      = "distributor.no_available_channel"
 	MsgDistributorInvalidMidjourney       = "distributor.invalid_midjourney_request"
 	MsgDistributorInvalidParseModel       = "distributor.invalid_request_parse_model"
+	MsgPaidOptimizedRouteAutoGroupDenied  = "paid_optimized_route.auto_group_denied"
+	MsgPaidOptimizedRouteFreeGroupDenied  = "paid_optimized_route.free_group_denied"
 )
 
 // Custom OAuth provider related messages

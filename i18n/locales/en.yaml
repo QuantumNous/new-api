@@ -271,6 +271,8 @@ distributor.get_channel_failed: "Failed to get available channel for model {{.Mo
 distributor.no_available_channel: "No available channel for model {{.Model}} under group {{.Group}} (distributor)"
 distributor.invalid_midjourney_request: "Invalid Midjourney request: {{.Error}}"
 distributor.invalid_request_parse_model: "Invalid request, unable to parse model"
+paid_optimized_route.auto_group_denied: "No paid auto group is available for the paid optimized route"
+paid_optimized_route.free_group_denied: "The current token group cannot use the paid optimized route"
 
 # Custom OAuth provider messages
 custom_oauth.not_found: "Custom OAuth provider not found"

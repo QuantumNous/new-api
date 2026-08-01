@@ -264,6 +264,9 @@ func TokenOrUserAuth() func(c *gin.Context) {
 				return
 			}
 			setDashboardAuthContext(c, user, identity, false)
+			if rejectUnpaidOptimizedRoute(c) {
+				return
+			}
 			c.Next()
 			return
 		}
@@ -476,6 +479,9 @@ func TokenAuth() func(c *gin.Context) {
 
 		err = SetupContextForToken(c, token, parts...)
 		if err != nil {
+			return
+		}
+		if rejectUnpaidOptimizedRoute(c) {
 			return
 		}
 		c.Next()

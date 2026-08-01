@@ -3,9 +3,12 @@ package service
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/gin-gonic/gin"
 )
 
 func GetUserUsableGroups(userGroup string) map[string]string {
@@ -52,6 +55,24 @@ func GetUserAutoGroup(userGroup string) []string {
 		}
 	}
 	return autoGroups
+}
+
+// GetUserAutoGroupForRequest returns the auto candidates available to the
+// current request. Paid optimized routes exclude zero-ratio groups so the same
+// auto token can safely be used on both ordinary and optimized API addresses.
+func GetUserAutoGroupForRequest(c *gin.Context, userGroup string) []string {
+	autoGroups := GetUserAutoGroup(userGroup)
+	if !common.GetContextKeyBool(c, constant.ContextKeyPaidOptimizedRoute) {
+		return autoGroups
+	}
+
+	paidGroups := make([]string, 0, len(autoGroups))
+	for _, group := range autoGroups {
+		if GetUserGroupRatio(userGroup, group) > 0 {
+			paidGroups = append(paidGroups, group)
+		}
+	}
+	return paidGroups
 }
 
 // GetGroupsEnabledModels 按 groups 顺序获取各分组启用的模型并去重
