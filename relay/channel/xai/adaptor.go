@@ -64,6 +64,14 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	// grok-4 and newer (incl. grok-4.5) reject sampling-penalty parameters and will 400 with
+	// "Model <name> does not support parameter presencePenalty/frequencyPenalty". Strip them so
+	// clients that always send these params still work. Done before the -search branch below so
+	// both the search and non-search paths are covered (ToMap() marshals the same struct).
+	if strings.HasPrefix(request.Model, "grok-4") {
+		request.PresencePenalty = nil
+		request.FrequencyPenalty = nil
+	}
 	if strings.HasSuffix(info.UpstreamModelName, "-search") {
 		info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-search")
 		request.Model = info.UpstreamModelName
