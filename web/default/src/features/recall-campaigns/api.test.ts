@@ -168,6 +168,40 @@ describe('recall campaign API contracts', () => {
     await expect(exportRecallCampaign(1)).rejects.toThrow('Export unavailable')
   })
 
+  test('rejects empty-MIME JSON failure envelopes returned from CSV exports', async () => {
+    respondWith(
+      new Blob(
+        [JSON.stringify({ success: false, message: 'Export unavailable' })],
+        { type: '' }
+      )
+    )
+    await expect(exportRecallCampaign(1)).rejects.toThrow('Export unavailable')
+
+    respondWith(
+      new Blob(
+        [
+          JSON.stringify({
+            success: false,
+            message: 'Metric export unavailable',
+          }),
+        ],
+        { type: '' }
+      )
+    )
+    await expect(
+      exportRecallCampaignMetricUsers(42, 'messages_failed', {})
+    ).rejects.toThrow('Metric export unavailable')
+  })
+
+  test('returns empty-MIME CSV exports without JSON envelope handling', async () => {
+    const csv = new Blob(['email,amount\nalice@example.com,9600\n'], {
+      type: '',
+    })
+    respondWith(csv)
+
+    await expect(exportRecallCampaign(1)).resolves.toBe(csv)
+  })
+
   test('loads metric users with metric and supplied filters in query params', async () => {
     const filters: RecallMetricFilters = {
       q: 'alice',
@@ -302,11 +336,16 @@ describe('recall campaign API contracts', () => {
     respondWith({
       success: true,
       data: {
-        batch_id: 'batch_1',
-        total: 1,
-        accepted: 1,
-        rejected: 0,
-        problems: [],
+        batch_id: 73,
+        total_rows: 1,
+        resolved_users: 1,
+        duplicate_rows: 0,
+        unresolved_rows: 0,
+        conflict_rows: 0,
+        blocking_errors: [],
+        warnings: [],
+        cancelable_work: 0,
+        confirmable: true,
       },
     })
 
@@ -328,23 +367,28 @@ describe('recall campaign API contracts', () => {
     respondWith({
       success: true,
       data: {
-        batch_id: 'batch_1',
-        total: 1,
-        accepted: 1,
-        rejected: 0,
-        problems: [],
+        batch_id: 73,
+        total_rows: 1,
+        resolved_users: 1,
+        duplicate_rows: 0,
+        unresolved_rows: 0,
+        conflict_rows: 0,
+        blocking_errors: [],
+        warnings: [],
+        cancelable_work: 0,
+        confirmable: true,
       },
     })
 
-    await getRecallCampaignExclusionBatch(42, 'batch_1')
+    await getRecallCampaignExclusionBatch(42, 73)
     expect(capturedConfig?.url).toBe(
-      '/api/recall-campaigns/42/exclusions/batches/batch_1'
+      '/api/recall-campaigns/42/exclusions/batches/73'
     )
     expect(capturedConfig?.method).toBe('get')
 
-    await confirmRecallCampaignExclusionBatch(42, 'batch_1')
+    await confirmRecallCampaignExclusionBatch(42, 73)
     expect(capturedConfig?.url).toBe(
-      '/api/recall-campaigns/42/exclusions/batches/batch_1/confirm'
+      '/api/recall-campaigns/42/exclusions/batches/73/confirm'
     )
     expect(capturedConfig?.method).toBe('post')
   })

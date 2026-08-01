@@ -76,17 +76,28 @@ function requireRecallSuccess<T>(response: ApiResponse<T>): ApiResponse<T> {
   return response
 }
 
+function isRecallApiResponseEnvelope(value: unknown): value is ApiResponse {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { success?: unknown }).success === 'boolean'
+  )
+}
+
 async function requireRecallCSVBlob(
   blob: Blob,
   context: string
 ): Promise<Blob> {
-  if (blob.type.toLowerCase().includes('json')) {
-    let payload: ApiResponse
+  const isJSON = blob.type.toLowerCase().includes('json')
+  if (isJSON || blob.type === '') {
+    let payload: unknown
     try {
-      payload = JSON.parse(await blob.text()) as ApiResponse
+      payload = JSON.parse(await blob.text()) as unknown
     } catch {
+      if (!isJSON) return blob
       throw new Error(`${context} returned invalid JSON`)
     }
+    if (!isRecallApiResponseEnvelope(payload)) return blob
     requireRecallSuccess(payload)
     throw new Error(`${context} returned JSON instead of CSV`)
   }
@@ -349,7 +360,7 @@ export async function previewRecallCampaignExclusions(
 
 export async function getRecallCampaignExclusionBatch(
   id: number,
-  batchId: number | string
+  batchId: number
 ): Promise<ApiResponse<RecallExclusionPreview>> {
   const response = await api.get(
     `/api/recall-campaigns/${id}/exclusions/batches/${batchId}`
@@ -359,7 +370,7 @@ export async function getRecallCampaignExclusionBatch(
 
 export async function confirmRecallCampaignExclusionBatch(
   id: number,
-  batchId: number | string
+  batchId: number
 ): Promise<ApiResponse<RecallExclusionPreview>> {
   const response = await api.post(
     `/api/recall-campaigns/${id}/exclusions/batches/${batchId}/confirm`

@@ -91,12 +91,17 @@ export function formatRecallCurrencyAmount(
   locale = 'en-US'
 ): string {
   if (!Number.isSafeInteger(value)) return ''
-  const formatter = new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency,
-  })
-  const digits = formatter.resolvedOptions().maximumFractionDigits ?? 0
-  return formatter.format(value / 10 ** digits)
+  try {
+    const formatter = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+    })
+    const digits = formatter.resolvedOptions().maximumFractionDigits ?? 0
+    return formatter.format(value / 10 ** digits)
+  } catch (error) {
+    if (error instanceof RangeError) return ''
+    throw error
+  }
 }
 
 export function createDefaultRecallMinimumSpendConfig(): RecallMinimumSpendConfig {

@@ -980,6 +980,10 @@ describe('recall campaign editor normalization', () => {
     expect(formatRecallCurrencyAmount('JPY', 9_600)).toBe('¥9,600')
   })
 
+  test('returns an empty display amount for unsupported metric currencies', () => {
+    expect(formatRecallCurrencyAmount('UNKNOWN', 9_600)).toBe('')
+  })
+
   test('keeps raw form minor-unit formatting separate from display currency formatting', () => {
     expect(formatRecallMinorAmount('USD', 9_600)).toBe('96.00')
   })
