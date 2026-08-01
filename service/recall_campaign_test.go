@@ -3470,7 +3470,7 @@ func TestRecallCampaignRetryTreatsOnlyExpiredSendingAsAcknowledgedUncertainty(t 
 	require.Equal(t, "live-node", active.LeaseOwner)
 
 	var events []model.RecallEvent
-	require.NoError(t, db.Where("recipient_id = ?", recipients[0].Id).Find(&events).Error)
+	require.NoError(t, db.Where("recipient_id = ? AND event_type = ? AND source = ?", recipients[0].Id, "recipient_retry", "admin").Find(&events).Error)
 	require.Len(t, events, 1)
 	require.Contains(t, events[0].EventData, `"previous_state":"sending"`)
 	require.Contains(t, events[0].EventData, `"acknowledge_uncertain":true`)

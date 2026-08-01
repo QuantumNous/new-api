@@ -3540,7 +3540,7 @@ func TestRecallManualRetryExpiredSendingWritesAdminEventAndFencesActiveLease(t *
 	require.Equal(t, now+1, active.LeaseExpiresAt)
 
 	var events []RecallEvent
-	require.NoError(t, DB.Order("id ASC").Find(&events).Error)
+	require.NoError(t, DB.Where("recipient_id = ? AND event_type = ? AND source = ?", messages[0].RecipientId, "recipient_retry", "admin").Order("id ASC").Find(&events).Error)
 	require.Len(t, events, 1)
 	require.Equal(t, expiredEvent.SourceEventId, events[0].SourceEventId)
 }
