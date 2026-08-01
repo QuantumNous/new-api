@@ -21,6 +21,7 @@ import (
 
 var memoryCriticalRateLimitTestRun atomic.Uint64
 
+// useRateLimitMiniRedis configures an isolated Redis backend for rate-limit tests.
 func useRateLimitMiniRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
 	t.Helper()
 
@@ -41,6 +42,7 @@ func useRateLimitMiniRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
 	return redisServer, redisClient
 }
 
+// performRateLimitRequest records a GET request with a controlled client address.
 func performRateLimitRequest(router http.Handler, path string, remoteAddr string) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, path, nil)
@@ -49,6 +51,7 @@ func performRateLimitRequest(router http.Handler, path string, remoteAddr string
 	return recorder
 }
 
+// TestMemoryCriticalRateLimiterReturnsJSONWithRetryAfter verifies the in-memory 429 response contract.
 func TestMemoryCriticalRateLimiterReturnsJSONWithRetryAfter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	require.NoError(t, i18n.Init())
@@ -85,6 +88,7 @@ func TestMemoryCriticalRateLimiterReturnsJSONWithRetryAfter(t *testing.T) {
 	assert.JSONEq(t, `{"success":false,"message":"Too many requests. Please try again later."}`, limitedResponse.Body.String())
 }
 
+// TestRedisCriticalRateLimiterReturnsJSONWithRetryAfter verifies the Redis-backed 429 response contract.
 func TestRedisCriticalRateLimiterReturnsJSONWithRetryAfter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	require.NoError(t, i18n.Init())
