@@ -102,15 +102,7 @@ func classifyRecallSMTPAttempt(err error) recallSMTPAttemptResult {
 			return recallSMTPAttemptResult{Outcome: recallSMTPAttemptRetryable}
 		}
 	}
-	if code, ok := recallSMTPStatusCodeFromMessage(err.Error()); ok {
-		if code >= 500 && code <= 599 {
-			return recallSMTPAttemptResult{Outcome: recallSMTPAttemptPermanent}
-		}
-		if code >= 400 && code <= 499 {
-			return recallSMTPAttemptResult{Outcome: recallSMTPAttemptRetryable}
-		}
-	}
-	if isRecallSMTPDialFailure(err) || isRecallSMTPTemporaryError(err) {
+	if isRecallSMTPDialFailure(err) {
 		return recallSMTPAttemptResult{Outcome: recallSMTPAttemptRetryable}
 	}
 	if isRecallSMTPDeterministicRejection(err) {
@@ -119,32 +111,9 @@ func classifyRecallSMTPAttempt(err error) recallSMTPAttemptResult {
 	return recallSMTPAttemptResult{Outcome: recallSMTPAttemptUncertain}
 }
 
-func recallSMTPStatusCodeFromMessage(message string) (int, bool) {
-	message = strings.TrimSpace(message)
-	if len(message) < 3 {
-		return 0, false
-	}
-	for index := 0; index < 3; index++ {
-		if message[index] < '0' || message[index] > '9' {
-			return 0, false
-		}
-	}
-	code := int(message[0]-'0')*100 + int(message[1]-'0')*10 + int(message[2]-'0')
-	return code, true
-}
-
 func isRecallSMTPDialFailure(err error) bool {
 	var opErr *net.OpError
 	return errors.As(err, &opErr) && strings.EqualFold(opErr.Op, "dial")
-}
-
-func isRecallSMTPTemporaryError(err error) bool {
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "temporary") ||
-		strings.Contains(message, "try again") ||
-		strings.Contains(message, "connection refused") ||
-		strings.Contains(message, "connection reset before data") ||
-		strings.Contains(message, "no such host")
 }
 
 func isRecallSMTPDeterministicRejection(err error) bool {
@@ -157,6 +126,8 @@ func isRecallSMTPDeterministicRejection(err error) bool {
 		strings.Contains(message, "email receiver is required")
 }
 
+var recallSMTPOutcomeSysLog = common.SysLog
+
 func observeRecallSMTPAttemptOutcome(outcome recallSMTPAttemptOutcome) {
 	switch outcome {
 	case recallSMTPAttemptAccepted:
@@ -168,6 +139,15 @@ func observeRecallSMTPAttemptOutcome(outcome recallSMTPAttemptOutcome) {
 	case recallSMTPAttemptUncertain:
 		recallSMTPOutcomeCounters.uncertain.Add(1)
 	}
+	snapshot := RecallSMTPOutcomeCounterSnapshot()
+	recallSMTPOutcomeSysLog(fmt.Sprintf(
+		"recall smtp attempt outcome outcome=%s accepted=%d retryable=%d permanent=%d uncertain=%d",
+		outcome,
+		snapshot[string(recallSMTPAttemptAccepted)],
+		snapshot[string(recallSMTPAttemptRetryable)],
+		snapshot[string(recallSMTPAttemptPermanent)],
+		snapshot[string(recallSMTPAttemptUncertain)],
+	))
 }
 
 func RecallSMTPOutcomeCounterSnapshot() map[string]int64 {

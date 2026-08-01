@@ -294,6 +294,7 @@ func TestRecallEmailProductSummaryInvalidScopeIsPermanent(t *testing.T) {
 	require.Empty(t, *fixture.sent)
 	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
 	require.Equal(t, model.RecallMessageFailed, stored.State)
+	require.Zero(t, stored.AttemptCount)
 	require.Equal(t, "product_scope_invalid", stored.LastErrorCode)
 	require.Zero(t, stored.NextAttemptAt)
 }
@@ -318,6 +319,7 @@ func TestRecallEmailProductSummaryDatabaseFailureIsRetryable(t *testing.T) {
 	require.Empty(t, *fixture.sent)
 	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
 	require.Equal(t, model.RecallMessageRetryWait, stored.State)
+	require.Zero(t, stored.AttemptCount)
 	require.Equal(t, "product_summary_lookup_failed", stored.LastErrorCode)
 	require.Equal(t, recallEmailTestNow+30, stored.NextAttemptAt)
 }
@@ -1558,7 +1560,7 @@ func TestRecallEmailExistingProviderMessageIDSurvivesActivitySMTPConfigChange(t 
 	require.Equal(t, messageID, (*fixture.sent)[0].messageID)
 }
 
-func TestRecallEmailActivitySMTPDefiniteFailureStoresSafeMessage(t *testing.T) {
+func TestRecallEmailActivitySMTPRawProviderFailureStoresSafeUncertainMessage(t *testing.T) {
 	var logOutput bytes.Buffer
 	common.LogWriterMu.Lock()
 	originalErrorWriter := gin.DefaultErrorWriter
@@ -1595,9 +1597,9 @@ func TestRecallEmailActivitySMTPDefiniteFailureStoresSafeMessage(t *testing.T) {
 	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
 
 	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
-	require.Equal(t, model.RecallMessageRetryWait, stored.State)
-	require.Equal(t, "activity_smtp_send_failed", stored.LastErrorCode)
-	require.Equal(t, "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.", stored.LastErrorMessage)
+	require.Equal(t, model.RecallMessageUncertain, stored.State)
+	require.Equal(t, "smtp_uncertain", stored.LastErrorCode)
+	require.Empty(t, stored.LastErrorMessage)
 	require.NotContains(t, stored.LastErrorMessage, "activity-secret")
 	logged := logOutput.String()
 	require.Contains(t, logged, "category=smtp_transport_error")
@@ -1620,6 +1622,9 @@ func TestRecallEmailActivitySMTPDefiniteFailureStoresSafeMessage(t *testing.T) {
 	}
 	require.NotContains(t, logged, "activity-secret")
 	require.NotContains(t, logged, "<!doctype html>")
+	due, err := model.ListDueRecallMessageIDs(recallEmailTestNow+24*3600, 10)
+	require.NoError(t, err)
+	require.NotContains(t, due, stored.Id)
 }
 
 func TestRecallEmailActivitySMTPFailureLogOmitsTransportEchoedMessageData(t *testing.T) {
@@ -1671,8 +1676,9 @@ func TestRecallEmailActivitySMTPFailureLogOmitsTransportEchoedMessageData(t *tes
 		require.NotContains(t, logged, sensitive)
 	}
 	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
-	require.Equal(t, "activity_smtp_send_failed", stored.LastErrorCode)
-	require.Equal(t, "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.", stored.LastErrorMessage)
+	require.Equal(t, model.RecallMessageUncertain, stored.State)
+	require.Equal(t, "smtp_uncertain", stored.LastErrorCode)
+	require.Empty(t, stored.LastErrorMessage)
 }
 
 func TestRecallEmailActivitySMTPNonTLSCommandRejectionStoresDefiniteSafeFailure(t *testing.T) {
@@ -1716,7 +1722,7 @@ func TestRecallEmailWorkerRetryAndUncertainSendReserveNewSlots(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string, _ common.EmailOptions) error {
 		calls++
 		if calls == 1 {
-			return errors.New("temporary MAIL FROM rejection")
+			return &textproto.Error{Code: 421, Msg: "temporary MAIL FROM rejection"}
 		}
 		return uncertainErr
 	})
