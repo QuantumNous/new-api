@@ -758,50 +758,61 @@ func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, a
 		return RecallEmailGenerationResponse{}, err
 	}
 
-	translated, err := s.translateRecallEmailStagesForCampaign(ctx, current.CampaignType, englishStages)
-	if err != nil {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("translate recall campaign email templates: %w", err)
-	}
-	generated, err := applyRecallEmailGenerationResult(current.CampaignType, reconciled, translated)
+	sourceSnapshot, err := buildRecallTranslationSourceSnapshot(current.CampaignType, name, current.Emails, reconciled)
 	if err != nil {
 		return RecallEmailGenerationResponse{}, err
 	}
-	generated, err = incrementRecallEmailTemplateVersions(current.Emails, generated)
+	task, _, err := model.SubmitRecallTranslationTask(ctx, model.RecallTranslationTaskSubmission{
+		CampaignID:              id,
+		RequestedConfigRevision: request.ConfigRevision,
+		SourceHash:              recallTranslationCanonicalSourceHash(stored.EmailSequenceConfig),
+		SourceSnapshot:          sourceSnapshot,
+		Now:                     s.now().Unix(),
+	})
 	if err != nil {
 		return RecallEmailGenerationResponse{}, err
 	}
-
-	latest, err := model.GetRecallCampaignByIDWithContext(ctx, id)
-	if err != nil {
-		return RecallEmailGenerationResponse{}, err
+	if task.Status == model.RecallTranslationTaskSucceeded {
+		var result recallTranslationResultSnapshot
+		if err := common.Unmarshal([]byte(task.ResultSnapshot), &result); err != nil {
+			return RecallEmailGenerationResponse{}, fmt.Errorf("decode recall email translation task result: %w", err)
+		}
+		return RecallEmailGenerationResponse{
+			ConfigRevision: task.ResultConfigRevision,
+			Emails:         result.Emails,
+			TaskID:         task.Id,
+			TaskStatus:     task.Status,
+		}, nil
 	}
-	if latest.ConfigRevision != request.ConfigRevision {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d config revision changed during email translation", id)
-	}
-	if latest.Status != stored.Status {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d status changed during email translation", id)
-	}
-	latestDraft, err := recallCampaignDraftFromModel(latest)
-	if err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-	if !sameRecallEmailSourceRevisions(current.Emails, latestDraft.Emails) {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d email source revision changed during translation", id)
-	}
-	emailJSON, err := common.Marshal(generated)
-	if err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-	won, err := model.UpdateRecallCampaignEmailTranslationsWithContext(ctx, id, stored.Status, request.ConfigRevision, name, string(emailJSON))
-	if err != nil {
-		return RecallEmailGenerationResponse{}, err
-	}
-	if !won {
-		return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d status or config revision changed during email translation", id)
+	if task.Status == model.RecallTranslationTaskQueued {
+		owner := fmt.Sprintf("request-%d", actorID)
+		claimed, won, err := model.ClaimDueRecallTranslationTask(ctx, task.Id, owner, s.now().Unix(), s.now().Add(recallTranslationLeaseDuration).Unix())
+		if err != nil {
+			return RecallEmailGenerationResponse{}, err
+		}
+		if won {
+			worker := NewRecallTranslationWorker(s.emailTranslator, owner)
+			worker.now = s.now
+			generated, result, err := worker.processDetailed(ctx, claimed)
+			if err != nil {
+				return RecallEmailGenerationResponse{}, fmt.Errorf("translate recall campaign email templates: %w", err)
+			}
+			if result != model.RecallTranslationTaskCompletionSucceeded {
+				return RecallEmailGenerationResponse{}, fmt.Errorf("recall campaign %d status or config revision changed during email translation", id)
+			}
+			return RecallEmailGenerationResponse{
+				ConfigRevision: request.ConfigRevision + 1,
+				Emails:         generated,
+				TaskID:         task.Id,
+				TaskStatus:     model.RecallTranslationTaskSucceeded,
+			}, nil
+		}
 	}
 	return RecallEmailGenerationResponse{
-		ConfigRevision: request.ConfigRevision + 1,
-		Emails:         generated,
+		ConfigRevision: request.ConfigRevision,
+		Emails:         reconciled,
+		TaskID:         task.Id,
+		TaskStatus:     task.Status,
 	}, nil
 }
 

@@ -148,6 +148,8 @@ type RecallEmailGenerationRequest struct {
 type RecallEmailGenerationResponse struct {
 	ConfigRevision int64              `json:"config_revision"`
 	Emails         []RecallEmailStage `json:"email_sequence"`
+	TaskID         int64              `json:"task_id,omitempty"`
+	TaskStatus     string             `json:"task_status,omitempty"`
 }
 
 type RecallEmailLocalizationBlocker struct {

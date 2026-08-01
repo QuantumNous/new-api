@@ -205,6 +205,7 @@ func setupRecallCampaignTestDB(t *testing.T) *gorm.DB {
 		&model.SubscriptionPlan{},
 		&model.UserSubscription{},
 		&model.RecallCampaign{},
+		&model.RecallTranslationTask{},
 		&model.RecallRecipient{},
 		&model.RecallMessage{},
 		&model.RecallEmailQuotaWindow{},
@@ -1488,7 +1489,7 @@ func TestGenerateRecallEmailTranslationsRejectsConcurrentStatusChangeWithoutPart
 	require.Equal(t, campaign.ConfigRevision, stored.ConfigRevision)
 }
 
-func TestGenerateRecallEmailTranslationsUpdatesActiveCampaignAtomically(t *testing.T) {
+func TestGenerateRecallEmailTranslationsDoesNotMutateActiveCampaign(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
 	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
@@ -1505,20 +1506,18 @@ func TestGenerateRecallEmailTranslationsUpdatesActiveCampaignAtomically(t *testi
 	require.NoError(t, err)
 	activeDraft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "Active English", BodyText: "Active body"}
 
-	response, err := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+	_, err = service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
 		ConfigRevision: stored.ConfigRevision,
 		Name:           stored.Name,
 		Emails:         activeDraft.Emails,
 	})
 
+	require.ErrorContains(t, err, "status or config revision changed")
+	after, err := model.GetRecallCampaignByID(campaign.Id)
 	require.NoError(t, err)
-	require.EqualValues(t, stored.ConfigRevision+1, response.ConfigRevision)
-	require.Equal(t, "Active English", response.Emails[0].Templates["en"].Subject)
-	require.Equal(t, "fr:Active English", response.Emails[0].Templates["fr"].Subject)
-	require.Equal(t, 2, response.Emails[0].TemplateVersion)
-	stored, err = model.GetRecallCampaignByID(campaign.Id)
-	require.NoError(t, err)
-	require.Equal(t, model.RecallCampaignRunning, stored.Status)
+	require.Equal(t, model.RecallCampaignRunning, after.Status)
+	require.Equal(t, stored.ConfigRevision, after.ConfigRevision)
+	require.Equal(t, stored.EmailSequenceConfig, after.EmailSequenceConfig)
 }
 
 func TestRecallCampaignSaveDraftFallsBackToEnglishWhenTranslationIsNotConfigured(t *testing.T) {

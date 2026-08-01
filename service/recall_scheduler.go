@@ -14,12 +14,13 @@ import (
 )
 
 type RecallRuntime struct {
-	Campaigns   *RecallCampaignService
-	Claims      *RecallClaimService
-	Revocations *RecallPromotionRevocationWorker
-	Recipients  *RecallRecipientWorker
-	Emails      *RecallEmailWorker
-	Attribution *RecallAttributionService
+	Campaigns    *RecallCampaignService
+	Claims       *RecallClaimService
+	Revocations  *RecallPromotionRevocationWorker
+	Recipients   *RecallRecipientWorker
+	Emails       *RecallEmailWorker
+	Translations *RecallTranslationWorker
+	Attribution  *RecallAttributionService
 }
 
 var (
@@ -45,6 +46,10 @@ func GetRecallRuntime() *RecallRuntime {
 			Revocations: NewRecallPromotionRevocationWorker(stripeService, owner),
 			Recipients:  NewRecallRecipientWorker(stripeService, claims, owner),
 			Emails:      NewRecallEmailWorker(common.SendEmailWithSMTPConfigAndOptions, audience, claims, owner),
+			Translations: NewRecallTranslationWorker(
+				NewRecallEmailTranslatorFromMonitorSettings(RecallEmailTranslatorOptions{}),
+				owner,
+			),
 			Attribution: NewRecallAttributionService(stripeClient),
 		}
 	})
@@ -98,6 +103,11 @@ func RunRecallMaintenanceTick(ctx context.Context) {
 			if !isPureRecallEmailQuotaWait(err) {
 				logger.LogWarn(ctx, fmt.Sprintf("recall email maintenance failed: %v", err))
 			}
+		}
+	}
+	if runtime.Translations != nil {
+		if _, err := runtime.Translations.RunBatch(ctx, setting.BatchSize); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("recall translation maintenance failed: %v", err))
 		}
 	}
 	if runtime.Attribution != nil {
