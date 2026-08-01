@@ -758,7 +758,12 @@ func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, a
 		return RecallEmailGenerationResponse{}, err
 	}
 
-	sourceSnapshot, err := buildRecallTranslationSourceSnapshot(current.CampaignType, name, current.Emails, englishStages)
+	sourceSnapshot, err := buildRecallTranslationSourceSnapshot(
+		current.CampaignType,
+		name,
+		current.Emails,
+		recallTranslationRequestStagesWithManualLocales(englishStages, reconciled),
+	)
 	if err != nil {
 		return RecallEmailGenerationResponse{}, err
 	}
@@ -771,6 +776,12 @@ func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, a
 	})
 	if err != nil {
 		return RecallEmailGenerationResponse{}, err
+	}
+	if task.Status == model.RecallTranslationTaskQueued {
+		observeRecallTranslationTask(recallTranslationTaskObservation{
+			Event:  "queued",
+			Status: model.RecallTranslationTaskQueued,
+		})
 	}
 	if task.Status == model.RecallTranslationTaskSucceeded {
 		var result recallTranslationResultSnapshot
@@ -814,6 +825,48 @@ func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, a
 		TaskID:         task.Id,
 		TaskStatus:     task.Status,
 	}, nil
+}
+
+func recallTranslationRequestStagesWithManualLocales(english []RecallEmailStage, current []RecallEmailStage) []RecallEmailStage {
+	currentByStage := make(map[int]RecallEmailStage, len(current))
+	for _, stage := range current {
+		currentByStage[stage.StageNo] = stage
+	}
+	result := cloneRecallEmailStagesForTranslationSnapshot(english)
+	for i := range result {
+		currentStage, exists := currentByStage[result[i].StageNo]
+		if !exists || len(currentStage.ManualLocales) == 0 {
+			continue
+		}
+		manual := make(map[string]struct{}, len(currentStage.ManualLocales))
+		for _, language := range currentStage.ManualLocales {
+			language = strings.ToLower(strings.TrimSpace(language))
+			if !isRecallEmailTranslationLanguage(language) {
+				continue
+			}
+			template, hasTemplate := currentStage.Templates[language]
+			if !hasTemplate {
+				continue
+			}
+			manual[language] = struct{}{}
+			result[i].Templates[language] = template
+		}
+		result[i].ManualLocales = orderedRecallEmailManualLocales(manual)
+	}
+	return result
+}
+
+func cloneRecallEmailStagesForTranslationSnapshot(stages []RecallEmailStage) []RecallEmailStage {
+	cloned := make([]RecallEmailStage, len(stages))
+	for i := range stages {
+		cloned[i] = stages[i]
+		cloned[i].ManualLocales = append([]string{}, stages[i].ManualLocales...)
+		cloned[i].Templates = make(map[string]RecallEmailTemplate, len(stages[i].Templates))
+		for language, template := range stages[i].Templates {
+			cloned[i].Templates[language] = template
+		}
+	}
+	return cloned
 }
 
 func validateRecallEmailGenerationStageShape(current []RecallEmailStage, proposed []RecallEmailStage) error {

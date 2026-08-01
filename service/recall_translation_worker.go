@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 )
 
 const recallTranslationLeaseDuration = 5 * time.Minute
@@ -34,6 +35,33 @@ type recallTranslationSourceSnapshot struct {
 
 type recallTranslationResultSnapshot struct {
 	Emails []RecallEmailStage `json:"email_sequence"`
+}
+
+type recallTranslationTaskObservation struct {
+	Event          string
+	Status         string
+	ErrorClass     string
+	LeaseRecovered bool
+	DurationMs     int64
+}
+
+var recallTranslationTaskObserve = func(observation recallTranslationTaskObservation) {}
+
+func observeRecallTranslationTask(observation recallTranslationTaskObservation) {
+	observation.Event = strings.TrimSpace(observation.Event)
+	observation.Status = strings.TrimSpace(observation.Status)
+	observation.ErrorClass = strings.TrimSpace(observation.ErrorClass)
+	if observation.DurationMs < 0 {
+		observation.DurationMs = 0
+	}
+	perfmetrics.RecordRecallTranslationObservation(
+		observation.Event,
+		observation.Status,
+		observation.ErrorClass,
+		observation.LeaseRecovered,
+		observation.DurationMs,
+	)
+	recallTranslationTaskObserve(observation)
 }
 
 func NewRecallTranslationWorker(translator RecallEmailTranslator, owner string) *RecallTranslationWorker {
@@ -63,10 +91,16 @@ func (w *RecallTranslationWorker) ClaimOne(ctx context.Context) (*model.RecallTr
 	if err != nil || !won {
 		return nil, err
 	}
+	leaseRecovered := due[0].Status == model.RecallTranslationTaskRunning
 	if due[0].Status == model.RecallTranslationTaskRunning {
 		logger.LogInfo(ctx, fmt.Sprintf("recall translation task lease recovered: task_id=%d campaign_id=%d status=%s", task.Id, task.CampaignId, task.Status))
 	}
 	logger.LogInfo(ctx, fmt.Sprintf("recall translation task claimed: task_id=%d campaign_id=%d status=%s lease_epoch=%d", task.Id, task.CampaignId, task.Status, task.LeaseEpoch))
+	observeRecallTranslationTask(recallTranslationTaskObservation{
+		Event:          "claimed",
+		Status:         task.Status,
+		LeaseRecovered: leaseRecovered,
+	})
 	return task, nil
 }
 
@@ -86,8 +120,14 @@ func (w *RecallTranslationWorker) RunBatch(ctx context.Context, limit int) (int,
 		if task == nil {
 			break
 		}
+		started := w.now()
 		if err := w.process(ctx, task); err != nil {
-			logger.LogWarn(ctx, fmt.Sprintf("recall translation task failed: task_id=%d campaign_id=%d error_class=%s", task.Id, task.CampaignId, sanitizeRecallTranslationErrorCode(err)))
+			errorClass := sanitizeRecallTranslationErrorCode(err)
+			status := model.RecallTranslationTaskFailed
+			if errors.Is(err, errRecallTranslationLeaseLost) {
+				status = model.RecallTranslationTaskRunning
+			}
+			logger.LogWarn(ctx, fmt.Sprintf("recall translation task failed: task_id=%d campaign_id=%d status=%s error_class=%s duration_ms=%d", task.Id, task.CampaignId, status, errorClass, w.now().Sub(started).Milliseconds()))
 		}
 		processed++
 	}
@@ -101,10 +141,27 @@ func (w *RecallTranslationWorker) process(ctx context.Context, task *model.Recal
 
 func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *model.RecallTranslationTask) ([]RecallEmailStage, model.RecallTranslationTaskCompletionResult, error) {
 	started := w.now()
+	durationMs := func() int64 {
+		elapsed := w.now().Sub(started).Milliseconds()
+		if elapsed < 0 {
+			return 0
+		}
+		return elapsed
+	}
+	observeRecallTranslationTask(recallTranslationTaskObservation{
+		Event:  "running",
+		Status: model.RecallTranslationTaskRunning,
+	})
 	var snapshot recallTranslationSourceSnapshot
 	if err := common.Unmarshal([]byte(task.SourceSnapshot), &snapshot); err != nil {
 		_, _ = model.FailRecallTranslationTask(ctx, model.RecallTranslationTaskFailure{
 			TaskID: task.Id, Owner: w.owner, LeaseEpoch: task.LeaseEpoch, ErrorCode: "invalid_source_snapshot", FinishedAt: w.now().Unix(),
+		})
+		observeRecallTranslationTask(recallTranslationTaskObservation{
+			Event:      "failed",
+			Status:     model.RecallTranslationTaskFailed,
+			ErrorClass: "invalid_source_snapshot",
+			DurationMs: durationMs(),
 		})
 		return nil, model.RecallTranslationTaskCompletionLeaseLost, fmt.Errorf("invalid source snapshot")
 	}
@@ -114,12 +171,25 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 	heartbeatErr := heartbeat()
 	cancel()
 	if heartbeatErr != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("recall translation task lease lost: task_id=%d campaign_id=%d status=%s error_class=%s duration_ms=%d", task.Id, task.CampaignId, model.RecallTranslationTaskRunning, sanitizeRecallTranslationErrorCode(heartbeatErr), w.now().Sub(started).Milliseconds()))
+		errorClass := sanitizeRecallTranslationErrorCode(heartbeatErr)
+		observeRecallTranslationTask(recallTranslationTaskObservation{
+			Event:      "failed",
+			Status:     model.RecallTranslationTaskRunning,
+			ErrorClass: errorClass,
+			DurationMs: durationMs(),
+		})
+		logger.LogWarn(ctx, fmt.Sprintf("recall translation task lease lost: task_id=%d campaign_id=%d status=%s error_class=%s duration_ms=%d", task.Id, task.CampaignId, model.RecallTranslationTaskRunning, errorClass, durationMs()))
 		return nil, model.RecallTranslationTaskCompletionLeaseLost, heartbeatErr
 	}
 	if err != nil {
 		_, _ = model.FailRecallTranslationTask(ctx, model.RecallTranslationTaskFailure{
 			TaskID: task.Id, Owner: w.owner, LeaseEpoch: task.LeaseEpoch, ErrorCode: "translation_failed", FinishedAt: w.now().Unix(),
+		})
+		observeRecallTranslationTask(recallTranslationTaskObservation{
+			Event:      "failed",
+			Status:     model.RecallTranslationTaskFailed,
+			ErrorClass: "translation_failed",
+			DurationMs: durationMs(),
 		})
 		return nil, model.RecallTranslationTaskCompletionLeaseLost, err
 	}
@@ -130,6 +200,12 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 	if err != nil {
 		_, _ = model.FailRecallTranslationTask(ctx, model.RecallTranslationTaskFailure{
 			TaskID: task.Id, Owner: w.owner, LeaseEpoch: task.LeaseEpoch, ErrorCode: "invalid_translation_output", FinishedAt: w.now().Unix(),
+		})
+		observeRecallTranslationTask(recallTranslationTaskObservation{
+			Event:      "failed",
+			Status:     model.RecallTranslationTaskFailed,
+			ErrorClass: "invalid_translation_output",
+			DurationMs: durationMs(),
 		})
 		return nil, model.RecallTranslationTaskCompletionLeaseLost, err
 	}
@@ -153,9 +229,25 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 		return nil, result, err
 	}
 	if result != model.RecallTranslationTaskCompletionSucceeded {
-		logger.LogInfo(ctx, fmt.Sprintf("recall translation task finished without writeback: task_id=%d campaign_id=%d status=%s result=%s duration_ms=%d", task.Id, task.CampaignId, model.RecallTranslationTaskRunning, result, w.now().Sub(started).Milliseconds()))
+		status := model.RecallTranslationTaskRunning
+		event := string(result)
+		if result == model.RecallTranslationTaskCompletionSuperseded {
+			status = model.RecallTranslationTaskSuperseded
+			event = "superseded"
+		}
+		observeRecallTranslationTask(recallTranslationTaskObservation{
+			Event:      event,
+			Status:     status,
+			DurationMs: durationMs(),
+		})
+		logger.LogInfo(ctx, fmt.Sprintf("recall translation task finished without writeback: task_id=%d campaign_id=%d status=%s result=%s duration_ms=%d", task.Id, task.CampaignId, status, result, durationMs()))
 	} else {
-		logger.LogInfo(ctx, fmt.Sprintf("recall translation task succeeded: task_id=%d campaign_id=%d status=%s duration_ms=%d", task.Id, task.CampaignId, model.RecallTranslationTaskSucceeded, w.now().Sub(started).Milliseconds()))
+		observeRecallTranslationTask(recallTranslationTaskObservation{
+			Event:      "succeeded",
+			Status:     model.RecallTranslationTaskSucceeded,
+			DurationMs: durationMs(),
+		})
+		logger.LogInfo(ctx, fmt.Sprintf("recall translation task succeeded: task_id=%d campaign_id=%d status=%s duration_ms=%d", task.Id, task.CampaignId, model.RecallTranslationTaskSucceeded, durationMs()))
 	}
 	return generated, result, nil
 }

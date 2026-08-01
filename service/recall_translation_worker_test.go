@@ -307,6 +307,97 @@ func TestRecallTranslationWorkerLogsRedactedObservability(t *testing.T) {
 	require.Equal(t, model.RecallTranslationTaskFailed, loadServiceRecallTranslationTask(t, task.Id).Status)
 }
 
+func TestRecallTranslationWorkerObservesLifecycleCountersAndDuration(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 29, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	campaignService := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	campaignService.now = func() time.Time { return now }
+	_, task := seedQueuedRecallTranslationWorkerTask(t, campaignService, now)
+	observations := captureRecallTranslationTaskObservations(t)
+
+	worker := NewRecallTranslationWorker(translator, "worker-a")
+	worker.now = func() time.Time { return now.Add(1500 * time.Millisecond) }
+	processed, err := worker.RunBatch(context.Background(), 1)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	requireRecallTranslationObservation(t, *observations, "claimed", model.RecallTranslationTaskRunning, "", false)
+	requireRecallTranslationObservation(t, *observations, "running", model.RecallTranslationTaskRunning, "", false)
+	requireRecallTranslationObservation(t, *observations, "succeeded", model.RecallTranslationTaskSucceeded, "", false)
+	success := findRecallTranslationObservation(t, *observations, "succeeded", model.RecallTranslationTaskSucceeded)
+	require.GreaterOrEqual(t, success.DurationMs, int64(0))
+	require.NotContains(t, success.ErrorClass, "@")
+	require.Equal(t, model.RecallTranslationTaskSucceeded, loadServiceRecallTranslationTask(t, task.Id).Status)
+}
+
+func TestRecallTranslationWorkerObservesFailureAndSupersededWithSanitizedError(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 29, 9, 0, 0, 0, time.UTC)
+	failingTranslator := &recallCampaignFakeEmailTranslator{err: errors.New("provider leaked secret@example.com {{.ClaimURL}}")}
+	campaignService := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, failingTranslator)
+	campaignService.now = func() time.Time { return now }
+	_, failedTask := seedQueuedRecallTranslationWorkerTask(t, campaignService, now)
+	observations := captureRecallTranslationTaskObservations(t)
+	worker := NewRecallTranslationWorker(failingTranslator, "worker-a")
+	worker.now = func() time.Time { return now }
+
+	processed, err := worker.RunBatch(context.Background(), 1)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	failed := findRecallTranslationObservation(t, *observations, "failed", model.RecallTranslationTaskFailed)
+	require.Equal(t, "translation_failed", failed.ErrorClass)
+	require.NotContains(t, failed.ErrorClass, "secret@example.com")
+	require.NotContains(t, failed.ErrorClass, "{{.ClaimURL}}")
+	require.Equal(t, model.RecallTranslationTaskFailed, loadServiceRecallTranslationTask(t, failedTask.Id).Status)
+
+	translator := &recallCampaignFakeEmailTranslator{}
+	campaignService = NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	campaignService.now = func() time.Time { return now }
+	campaign, supersededTask := seedQueuedRecallTranslationWorkerTask(t, campaignService, now)
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Updates(map[string]any{
+		"email_sequence_config": serviceRecallTranslationTaskEmailSequence(t, "changed"),
+		"config_revision":       gorm.Expr("config_revision + ?", 1),
+	}).Error)
+	worker = NewRecallTranslationWorker(translator, "worker-b")
+	worker.now = func() time.Time { return now }
+
+	processed, err = worker.RunBatch(context.Background(), 1)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	requireRecallTranslationObservation(t, *observations, "superseded", model.RecallTranslationTaskSuperseded, "", false)
+	require.Equal(t, model.RecallTranslationTaskSuperseded, loadServiceRecallTranslationTask(t, supersededTask.Id).Status)
+}
+
+func TestRecallTranslationWorkerObservesLeaseRecovery(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 29, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	campaignService := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	campaignService.now = func() time.Time { return now }
+	_, task := seedQueuedRecallTranslationWorkerTask(t, campaignService, now)
+	firstWorker := NewRecallTranslationWorker(translator, "worker-a")
+	firstWorker.now = func() time.Time { return now }
+	claimed, err := firstWorker.ClaimOne(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, claimed)
+	observations := captureRecallTranslationTaskObservations(t)
+	restartedWorker := NewRecallTranslationWorker(translator, "worker-b")
+	restartedWorker.now = func() time.Time { return now.Add(2 * recallTranslationLeaseDuration) }
+
+	processed, err := restartedWorker.RunBatch(context.Background(), 1)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	requireRecallTranslationObservation(t, *observations, "claimed", model.RecallTranslationTaskRunning, "", true)
+	require.Equal(t, model.RecallTranslationTaskSucceeded, loadServiceRecallTranslationTask(t, task.Id).Status)
+}
+
 func TestRecallMaintenanceTickRunsTranslationWorkerWithoutBlockingOtherMaintenance(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -417,3 +508,32 @@ func (t *blockingRecallTranslationTestTranslator) release() {
 }
 
 var _ RecallEmailTranslator = (*blockingRecallTranslationTestTranslator)(nil)
+
+func captureRecallTranslationTaskObservations(t *testing.T) *[]recallTranslationTaskObservation {
+	t.Helper()
+	original := recallTranslationTaskObserve
+	observations := make([]recallTranslationTaskObservation, 0)
+	recallTranslationTaskObserve = func(observation recallTranslationTaskObservation) {
+		observations = append(observations, observation)
+	}
+	t.Cleanup(func() { recallTranslationTaskObserve = original })
+	return &observations
+}
+
+func requireRecallTranslationObservation(t *testing.T, observations []recallTranslationTaskObservation, event string, status string, errorClass string, leaseRecovered bool) {
+	t.Helper()
+	observation := findRecallTranslationObservation(t, observations, event, status)
+	require.Equal(t, errorClass, observation.ErrorClass)
+	require.Equal(t, leaseRecovered, observation.LeaseRecovered)
+}
+
+func findRecallTranslationObservation(t *testing.T, observations []recallTranslationTaskObservation, event string, status string) recallTranslationTaskObservation {
+	t.Helper()
+	for _, observation := range observations {
+		if observation.Event == event && observation.Status == status {
+			return observation
+		}
+	}
+	require.Failf(t, "recall translation observation missing", "event=%s status=%s observations=%v", event, status, observations)
+	return recallTranslationTaskObservation{}
+}
