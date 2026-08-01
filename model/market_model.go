@@ -86,6 +86,30 @@ func SearchMarketModels(status, category string) ([]*MarketModel, error) {
 	return items, err
 }
 
+// SearchMarketModelsPaginated 分页列出上架模型；status/category 为空时不过滤。按 category、sort 升序。
+// page/pageSize <= 0 时返回全部（兼容公开读取等无需分页的场景）。返回条目、总数与错误。
+func SearchMarketModelsPaginated(status, category string, page, pageSize int) ([]*MarketModel, int64, error) {
+	var items []*MarketModel
+	q := DB.Model(&MarketModel{}).Order("category ASC").Order("sort ASC")
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if category != "" {
+		q = q.Where("category = ?", category)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if page > 0 && pageSize > 0 {
+		q = q.Offset((page - 1) * pageSize).Limit(pageSize)
+	}
+	if err := q.Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
 // UpdateMarketModel 更新上架记录的可编辑字段（Model 为唯一键，不可变）。
 func UpdateMarketModel(m *MarketModel) error {
 	updates := map[string]interface{}{

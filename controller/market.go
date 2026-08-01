@@ -159,16 +159,29 @@ func GetMarketModel(c *gin.Context) {
 	common.ApiSuccess(c, m)
 }
 
-// ListMarketModels 管理员列出上架模型，可选 status/category 过滤。
+// ListMarketModels 管理员列出上架模型，可选 status/category 过滤，支持分页（p/page_size）。
 func ListMarketModels(c *gin.Context) {
 	status := c.Query("status")
 	category := c.Query("category")
-	items, err := model.SearchMarketModels(status, category)
+	page, _ := strconv.Atoi(c.DefaultQuery("p", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 200 {
+		pageSize = 20
+	}
+	items, total, err := model.SearchMarketModelsPaginated(status, category, page, pageSize)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, gin.H{"items": items})
+	common.ApiSuccess(c, gin.H{
+		"items":     items,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }
 
 // UpdateMarketModel 管理员更新上架记录（Model 唯一键不可变）。
