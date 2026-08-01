@@ -28,7 +28,20 @@ type bytePlusTOSStore struct {
 	client bytePlusTOSAPI
 }
 
-var bytePlusTempObjectStoreFactory = newBytePlusTOSStore
+var bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
+
+func newPreferredBytePlusTempObjectStore(creds BytePlusCredentials) (BytePlusTempObjectStore, error) {
+	if err := creds.ValidateRealPersonAssets(); err != nil {
+		return nil, err
+	}
+	if creds.ValidateRealPersonAssetStorage() == nil {
+		return newBytePlusTOSStore(creds)
+	}
+	if !bytePlusRealPersonTOSFallbackAllowed(creds) {
+		return nil, errors.New("byteplus real-person tos storage configuration is invalid")
+	}
+	return newBytePlusGCSTempObjectStore()
+}
 
 func newBytePlusTOSStore(creds BytePlusCredentials) (BytePlusTempObjectStore, error) {
 	if err := creds.ValidateRealPersonAssetStorage(); err != nil {
@@ -66,6 +79,10 @@ func (s *bytePlusTOSStore) PutObject(ctx context.Context, key string, body io.Re
 
 func (s *bytePlusTOSStore) TempObjectBucket() string {
 	return s.bucket
+}
+
+func (s *bytePlusTOSStore) TempObjectStorageProvider() string {
+	return bytePlusTempObjectProviderTOS
 }
 
 func (s *bytePlusTOSStore) PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error) {

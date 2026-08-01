@@ -81,6 +81,8 @@ func (f *fakeRealPersonAssetClient) DeleteAsset(context.Context, BytePlusCredent
 
 type recordingRealPersonAssetStore struct {
 	mu           sync.Mutex
+	bucket       string
+	provider     string
 	puts         []fakeTempPut
 	deletes      []string
 	presignKeys  []string
@@ -126,7 +128,17 @@ func (s *recordingRealPersonAssetStore) DeleteObject(_ context.Context, key stri
 }
 
 func (s *recordingRealPersonAssetStore) TempObjectBucket() string {
+	if strings.TrimSpace(s.bucket) != "" {
+		return s.bucket
+	}
 	return "real-person-bucket"
+}
+
+func (s *recordingRealPersonAssetStore) TempObjectStorageProvider() string {
+	if strings.TrimSpace(s.provider) != "" {
+		return s.provider
+	}
+	return bytePlusTempObjectProviderTOS
 }
 
 func newRealPersonAssetFixture(t *testing.T) *realPersonAssetFixture {
@@ -226,8 +238,9 @@ func TestCreateRealPersonAssetFromURLAllowsURLOnlyCredentialWithoutTOS(t *testin
 	require.Equal(t, 1, f.fake.createAssetCalls)
 }
 
-func TestCreateRealPersonAssetFromMultipartURLOnlyCredentialFailsBeforeUpload(t *testing.T) {
+func TestCreateRealPersonAssetFromMultipartURLOnlyCredentialFailsBeforeUploadWhenGCSDisabled(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
+	t.Setenv("TEMP_MEDIA_BUCKET", " ")
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", urlOnlyRealPersonKey()).Error)
 
 	_, apiErr := f.createMultipart("idem-url-only-upload", pngHeader(), "Image", "front")
@@ -235,6 +248,120 @@ func TestCreateRealPersonAssetFromMultipartURLOnlyCredentialFailsBeforeUpload(t 
 	assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	require.Len(t, f.store.puts, 0)
 	require.Equal(t, 0, f.fake.createAssetCalls)
+}
+
+func TestCreateRealPersonAssetFromMultipartFallsBackToGCSWhenTOSIncomplete(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	f.store.bucket = "gcs-real-person-bucket"
+	f.store.provider = bytePlusTempObjectProviderGCS
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", urlOnlyRealPersonKey()).Error)
+
+	resp, apiErr := f.createMultipart("gcs-fallback-upload", pngHeader(), "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, resp.Status)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+	require.Len(t, f.store.puts, 1)
+	var temp model.BytePlusAssetTempObject
+	require.NoError(t, model.DB.First(&temp, "object_key = ?", f.store.puts[0].key).Error)
+	require.Equal(t, "gcs:gcs-real-person-bucket", temp.Bucket)
+	require.Equal(t, []string{temp.ObjectKey}, f.store.presignKeys)
+}
+
+func TestCreateRealPersonAssetFromMultipartRejectsMalformedTOSConfigEvenWhenGCSConfigured(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_bucket":"real-person-bucket","tos_region":"us-east-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
+	req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", &failingReadCloser{t: t})
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=unread")
+
+	_, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), f.profile.UserId, f.profile.PublicId, "malformed-tos", req)
+
+	assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+	require.Empty(t, f.store.puts)
+}
+
+func TestCreateRealPersonAssetFromMultipartNoBackendFailsBeforeBodyReadOrUpstream(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	t.Setenv("TEMP_MEDIA_BUCKET", " ")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", urlOnlyRealPersonKey()).Error)
+	req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", &failingReadCloser{t: t})
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=unread")
+
+	_, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), f.profile.UserId, f.profile.PublicId, "no-storage-backend", req)
+
+	assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+	require.Empty(t, f.store.puts)
+	var records int64
+	require.NoError(t, model.DB.Model(&model.APIIdempotencyRecord{}).Count(&records).Error)
+	require.Zero(t, records)
+}
+
+func TestCreateRealPersonAssetFromMultipartPrefersTOSWhenBothBackendsConfigured(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+
+	resp, apiErr := f.createMultipart("tos-preferred-upload", pngHeader(), "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, resp.Status)
+	require.Len(t, f.store.puts, 1)
+	var temp model.BytePlusAssetTempObject
+	require.NoError(t, model.DB.First(&temp, "object_key = ?", f.store.puts[0].key).Error)
+	require.Equal(t, "tos:real-person-bucket", temp.Bucket)
+	require.NotEqual(t, "gcs-real-person-bucket", temp.Bucket)
+}
+
+func TestBytePlusGCSTempObjectStoreUsesTempMediaHooks(t *testing.T) {
+	originalPut := putTempMediaObject
+	originalSign := signTempMediaObject
+	originalDelete := deleteTempMediaObject
+	t.Cleanup(func() {
+		putTempMediaObject = originalPut
+		signTempMediaObject = originalSign
+		deleteTempMediaObject = originalDelete
+	})
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+
+	var putBody string
+	var signedMethod string
+	var deletedKey string
+	putTempMediaObject = func(_ context.Context, cfg TempMediaConfig, objectKey string, body io.Reader, contentType string) error {
+		require.Equal(t, "gcs-real-person-bucket", cfg.Bucket)
+		require.Equal(t, "rp/object.png", objectKey)
+		require.Equal(t, "image/png", contentType)
+		payload, err := io.ReadAll(body)
+		require.NoError(t, err)
+		putBody = string(payload)
+		return nil
+	}
+	signTempMediaObject = func(_ context.Context, cfg TempMediaConfig, objectKey string, method string) (string, error) {
+		require.Equal(t, "gcs-real-person-bucket", cfg.Bucket)
+		require.Equal(t, "rp/object.png", objectKey)
+		signedMethod = method
+		return "https://storage.example/rp/object.png?signature=1", nil
+	}
+	deleteTempMediaObject = func(_ context.Context, cfg TempMediaConfig, objectKey string) error {
+		require.Equal(t, "gcs-real-person-bucket", cfg.Bucket)
+		deletedKey = objectKey
+		return nil
+	}
+	store, err := newBytePlusGCSTempObjectStore()
+	require.NoError(t, err)
+
+	require.NoError(t, store.PutObject(context.Background(), " rp/object.png ", strings.NewReader("payload"), " image/png ", 7))
+	signed, err := store.PresignGet(context.Background(), " rp/object.png ", time.Minute)
+	require.NoError(t, err)
+	require.NoError(t, store.DeleteObject(context.Background(), " rp/object.png "))
+
+	require.Equal(t, "payload", putBody)
+	require.Equal(t, http.MethodGet, signedMethod)
+	require.Equal(t, "https://storage.example/rp/object.png?signature=1", signed)
+	require.Equal(t, "rp/object.png", deletedKey)
+	require.Equal(t, "gcs-real-person-bucket", store.(bytePlusTempObjectBucketProvider).TempObjectBucket())
 }
 
 func TestCreateRealPersonAssetFromURLDoesNotPersistCompleteSourceURL(t *testing.T) {
@@ -544,6 +671,203 @@ func TestStaleMultipartResumeExtendsOriginalTempObjectExpiryBeforeUpstream(t *te
 	require.Equal(t, 1, f.fake.createAssetCalls)
 }
 
+func TestStaleMultipartResumeRejectsUnknownPersistedTempObjectBucket(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	sum := sha256.Sum256(pngHeader())
+	asset := model.BytePlusAsset{
+		PublicId: "ast_unknown_bucket", UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, RealPersonProfileId: &f.profile.Id,
+		AssetType: "Image", Name: "front", ModerationStrategy: "Default", Status: model.BytePlusAssetStatusCreating,
+		CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	originalTemp := model.BytePlusAssetTempObject{
+		AssetId: &asset.Id, UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, Bucket: "unknown-temp-bucket", ObjectKey: "unknown-original-key",
+		ContentSHA256: fmt.Sprintf("%x", sum), SizeBytes: int64(len(pngHeader())), MimeType: "image/png",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 2200, CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&originalTemp).Error)
+	requestHash, err := hashMultipartAssetRequest(f.profile.PublicId, "Image", "front", originalTemp.ContentSHA256, originalTemp.SizeBytes)
+	require.NoError(t, err)
+	keyHash, err := hashAPIIdempotencyKey("resume-unknown-bucket")
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.APIIdempotencyRecord{
+		UserId: f.profile.UserId, Route: bytePlusRealPersonAssetCreateRoute, KeyHash: keyHash, RequestHash: requestHash,
+		Status: model.APIIdempotencyStatusProcessing, ResourceType: model.APIIdempotencyResourceAsset, ResourcePublicId: asset.PublicId,
+		LeaseUpdatedTime: 1000, CreatedTime: 1000, UpdatedTime: 1000,
+	}).Error)
+
+	_, apiErr := f.createMultipart("resume-unknown-bucket", pngHeader(), "Image", "front")
+
+	assertAssetError(t, apiErr, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+	require.NotContains(t, f.store.presignKeys, "unknown-original-key")
+	require.Len(t, f.store.puts, 1)
+	require.Len(t, f.store.deletes, 1)
+}
+
+func TestStaleMultipartResumeUsesPersistedGCSBucket(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", urlOnlyRealPersonKey()).Error)
+	originalPut := putTempMediaObject
+	originalSign := signTempMediaObject
+	originalDelete := deleteTempMediaObject
+	t.Cleanup(func() {
+		putTempMediaObject = originalPut
+		signTempMediaObject = originalSign
+		deleteTempMediaObject = originalDelete
+	})
+	var putKeys, signedKeys, deletedKeys []string
+	putTempMediaObject = func(_ context.Context, cfg TempMediaConfig, objectKey string, body io.Reader, _ string) error {
+		require.Equal(t, "gcs-real-person-bucket", cfg.Bucket)
+		_, err := io.ReadAll(body)
+		require.NoError(t, err)
+		putKeys = append(putKeys, objectKey)
+		return nil
+	}
+	signTempMediaObject = func(_ context.Context, cfg TempMediaConfig, objectKey string, method string) (string, error) {
+		require.Equal(t, "gcs-real-person-bucket", cfg.Bucket)
+		require.Equal(t, http.MethodGet, method)
+		signedKeys = append(signedKeys, objectKey)
+		return "https://storage.example/" + objectKey, nil
+	}
+	deleteTempMediaObject = func(_ context.Context, cfg TempMediaConfig, objectKey string) error {
+		require.Equal(t, "gcs-real-person-bucket", cfg.Bucket)
+		deletedKeys = append(deletedKeys, objectKey)
+		return nil
+	}
+	sum := sha256.Sum256(pngHeader())
+	asset := model.BytePlusAsset{
+		PublicId: "ast_gcs_resume", UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, RealPersonProfileId: &f.profile.Id,
+		AssetType: "Image", Name: "front", ModerationStrategy: "Default", Status: model.BytePlusAssetStatusCreating,
+		CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	originalTemp := model.BytePlusAssetTempObject{
+		AssetId: &asset.Id, UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, Bucket: "gcs:gcs-real-person-bucket", ObjectKey: "gcs-original-key",
+		ContentSHA256: fmt.Sprintf("%x", sum), SizeBytes: int64(len(pngHeader())), MimeType: "image/png",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 2200, CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&originalTemp).Error)
+	requestHash, err := hashMultipartAssetRequest(f.profile.PublicId, "Image", "front", originalTemp.ContentSHA256, originalTemp.SizeBytes)
+	require.NoError(t, err)
+	keyHash, err := hashAPIIdempotencyKey("resume-gcs-bucket")
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.APIIdempotencyRecord{
+		UserId: f.profile.UserId, Route: bytePlusRealPersonAssetCreateRoute, KeyHash: keyHash, RequestHash: requestHash,
+		Status: model.APIIdempotencyStatusProcessing, ResourceType: model.APIIdempotencyResourceAsset, ResourcePublicId: asset.PublicId,
+		LeaseUpdatedTime: 1000, CreatedTime: 1000, UpdatedTime: 1000,
+	}).Error)
+
+	_, apiErr := f.createMultipart("resume-gcs-bucket", pngHeader(), "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+	require.Len(t, putKeys, 1)
+	require.Equal(t, []string{"gcs-original-key"}, signedKeys)
+	require.Equal(t, putKeys, deletedKeys)
+}
+
+func TestStaleMultipartResumeKeepsPersistedGCSProviderWhenTOSBucketNameMatches(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	f.store.bucket = "shared-bucket"
+	f.store.provider = bytePlusTempObjectProviderTOS
+	t.Setenv("TEMP_MEDIA_BUCKET", "shared-bucket")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_bucket":"shared-bucket","tos_region":"ap-southeast-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
+	originalSign := signTempMediaObject
+	t.Cleanup(func() { signTempMediaObject = originalSign })
+	var gcsSignedKeys []string
+	signTempMediaObject = func(_ context.Context, cfg TempMediaConfig, objectKey string, method string) (string, error) {
+		require.Equal(t, "shared-bucket", cfg.Bucket)
+		require.Equal(t, http.MethodGet, method)
+		gcsSignedKeys = append(gcsSignedKeys, objectKey)
+		return "https://storage.example/" + objectKey, nil
+	}
+	sum := sha256.Sum256(pngHeader())
+	asset := model.BytePlusAsset{
+		PublicId: "ast_gcs_tos_name_collision", UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, RealPersonProfileId: &f.profile.Id,
+		AssetType: "Image", Name: "front", ModerationStrategy: "Default", Status: model.BytePlusAssetStatusCreating,
+		CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	originalTemp := model.BytePlusAssetTempObject{
+		AssetId: &asset.Id, UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, Bucket: "gcs:shared-bucket", ObjectKey: "gcs-shared-original",
+		ContentSHA256: fmt.Sprintf("%x", sum), SizeBytes: int64(len(pngHeader())), MimeType: "image/png",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 2200, CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&originalTemp).Error)
+	requestHash, err := hashMultipartAssetRequest(f.profile.PublicId, "Image", "front", originalTemp.ContentSHA256, originalTemp.SizeBytes)
+	require.NoError(t, err)
+	keyHash, err := hashAPIIdempotencyKey("resume-gcs-provider-name-collision")
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.APIIdempotencyRecord{
+		UserId: f.profile.UserId, Route: bytePlusRealPersonAssetCreateRoute, KeyHash: keyHash, RequestHash: requestHash,
+		Status: model.APIIdempotencyStatusProcessing, ResourceType: model.APIIdempotencyResourceAsset, ResourcePublicId: asset.PublicId,
+		LeaseUpdatedTime: 1000, CreatedTime: 1000, UpdatedTime: 1000,
+	}).Error)
+
+	_, apiErr := f.createMultipart("resume-gcs-provider-name-collision", pngHeader(), "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, []string{"gcs-shared-original"}, gcsSignedKeys)
+	require.NotContains(t, f.store.presignKeys, "gcs-shared-original")
+	require.Equal(t, 1, f.fake.createAssetCalls)
+}
+
+func TestStaleMultipartResumeRejectsInvalidTOSBucketEvenWhenCurrentGCSBucketNameMatches(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	t.Setenv("TEMP_MEDIA_BUCKET", "shared-bucket")
+	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_bucket":"shared-bucket","tos_region":"us-east-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
+	originalPut := putTempMediaObject
+	originalSign := signTempMediaObject
+	originalDelete := deleteTempMediaObject
+	t.Cleanup(func() {
+		putTempMediaObject = originalPut
+		signTempMediaObject = originalSign
+		deleteTempMediaObject = originalDelete
+	})
+	var signedKeys []string
+	putTempMediaObject = func(_ context.Context, _ TempMediaConfig, _ string, body io.Reader, _ string) error {
+		_, err := io.ReadAll(body)
+		return err
+	}
+	signTempMediaObject = func(_ context.Context, _ TempMediaConfig, objectKey string, _ string) (string, error) {
+		signedKeys = append(signedKeys, objectKey)
+		return "https://storage.example/" + objectKey, nil
+	}
+	deleteTempMediaObject = func(context.Context, TempMediaConfig, string) error { return nil }
+	sum := sha256.Sum256(pngHeader())
+	asset := model.BytePlusAsset{
+		PublicId: "ast_tos_name_collision", UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, RealPersonProfileId: &f.profile.Id,
+		AssetType: "Image", Name: "front", ModerationStrategy: "Default", Status: model.BytePlusAssetStatusCreating,
+		CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	originalTemp := model.BytePlusAssetTempObject{
+		AssetId: &asset.Id, UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, Bucket: "shared-bucket", ObjectKey: "old-tos-object",
+		ContentSHA256: fmt.Sprintf("%x", sum), SizeBytes: int64(len(pngHeader())), MimeType: "image/png",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 2200, CreatedTime: 1000, UpdatedTime: 1000,
+	}
+	require.NoError(t, model.DB.Create(&originalTemp).Error)
+	requestHash, err := hashMultipartAssetRequest(f.profile.PublicId, "Image", "front", originalTemp.ContentSHA256, originalTemp.SizeBytes)
+	require.NoError(t, err)
+	keyHash, err := hashAPIIdempotencyKey("resume-tos-gcs-name-collision")
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.APIIdempotencyRecord{
+		UserId: f.profile.UserId, Route: bytePlusRealPersonAssetCreateRoute, KeyHash: keyHash, RequestHash: requestHash,
+		Status: model.APIIdempotencyStatusProcessing, ResourceType: model.APIIdempotencyResourceAsset, ResourcePublicId: asset.PublicId,
+		LeaseUpdatedTime: 1000, CreatedTime: 1000, UpdatedTime: 1000,
+	}).Error)
+
+	_, apiErr := f.createMultipart("resume-tos-gcs-name-collision", pngHeader(), "Image", "front")
+
+	assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	require.NotContains(t, signedKeys, "old-tos-object")
+	require.Equal(t, 0, f.fake.createAssetCalls)
+}
+
 func TestBytePlusAssetResponseKeepsVirtualModerationAndAddsRealPersonURI(t *testing.T) {
 	virtual := responseFromBytePlusAsset(&model.BytePlusAsset{
 		PublicId: "ast_virtual", AssetType: "Image", Status: model.BytePlusAssetStatusProcessing,
@@ -677,6 +1001,19 @@ func newIndependentRealPersonAssetMultipartRequest(t *testing.T, payload []byte,
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.ContentLength = -1
 	return req
+}
+
+type failingReadCloser struct {
+	t *testing.T
+}
+
+func (r *failingReadCloser) Read([]byte) (int, error) {
+	r.t.Fatal("request body should not be read before storage backend is selected")
+	return 0, io.ErrUnexpectedEOF
+}
+
+func (r *failingReadCloser) Close() error {
+	return nil
 }
 
 func TestMultipartMissingNameUsesSanitizedFilenameTruncatedTo128CodePoints(t *testing.T) {

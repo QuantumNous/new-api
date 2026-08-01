@@ -56,7 +56,7 @@ func CreateBytePlusRealPersonAssetFromMultipart(ctx context.Context, userID int,
 	}
 	store, err := bytePlusTempObjectStoreFactory(creds)
 	if err != nil {
-		return nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		return nil, assetError(err, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
 	uploaded, apiErr := readBytePlusMultipartAsset(ctx, request, profile, channel, store)
 	if apiErr != nil {
@@ -185,7 +185,7 @@ func ownBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusReal
 	upstreamURL := strings.TrimSpace(source.URL)
 	if source.Uploaded != nil {
 		var apiErr *types.NewAPIError
-		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, store, source.Uploaded.TempObject)
+		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, creds, store, source.Uploaded.TempObject)
 		if apiErr != nil {
 			return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 		}
@@ -213,7 +213,7 @@ func resumeBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusR
 		}
 		original = extended
 		var apiErr *types.NewAPIError
-		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, store, original)
+		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, creds, store, original)
 		if apiErr != nil {
 			return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 		}
@@ -342,7 +342,7 @@ func loadBytePlusRealPersonAssetProfileAndStorage(userID int, personID string) (
 		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person channel unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
 	creds, err := ParseBytePlusCredentials(channel.Key)
-	if err != nil || creds.ValidateRealPersonAssetStorage() != nil {
+	if err != nil || !bytePlusRealPersonMultipartStorageAvailable(creds) {
 		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person storage credentials unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
 	return profile, channel, creds, nil
@@ -371,10 +371,15 @@ func hashURLRealPersonAssetRequest(personID, rawURL, assetType, name string) (st
 	})
 }
 
-func presignRealPersonAssetObject(ctx context.Context, store BytePlusTempObjectStore, object *model.BytePlusAssetTempObject) (string, *types.NewAPIError) {
+func presignRealPersonAssetObject(ctx context.Context, creds BytePlusCredentials, store BytePlusTempObjectStore, object *model.BytePlusAssetTempObject) (string, *types.NewAPIError) {
 	if store == nil || object == nil {
 		return "", assetError(errors.New("temp object is unavailable"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
+	resolved, err := bytePlusTempObjectStoreForPersistedBucket(creds, store, object.Bucket)
+	if err != nil {
+		return "", assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	}
+	store = resolved
 	signed, err := store.PresignGet(ctx, object.ObjectKey, bytePlusSignedURLTTL)
 	if err != nil || strings.TrimSpace(signed) == "" {
 		return "", assetError(errors.New("temp object presign failed"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
@@ -386,6 +391,89 @@ func cleanupRealPersonAssetUpload(ctx context.Context, source realPersonAssetSou
 	if source.Uploaded != nil && source.Uploaded.TempObject != nil {
 		_ = deleteOrQueueBytePlusTempObject(ctx, source.Uploaded.TempObject, store)
 	}
+}
+
+func bytePlusRealPersonMultipartStorageAvailable(creds BytePlusCredentials) bool {
+	if creds.ValidateRealPersonAssetStorage() == nil {
+		return true
+	}
+	return creds.ValidateRealPersonAssets() == nil && bytePlusRealPersonTOSFallbackAllowed(creds) && bytePlusGCSTempObjectStoreConfigured()
+}
+
+func bytePlusRealPersonTOSFallbackAllowed(creds BytePlusCredentials) bool {
+	bucket := strings.TrimSpace(creds.RealPersonAssets.TOSBucket)
+	region := strings.TrimSpace(creds.RealPersonAssets.TOSRegion)
+	endpoint := strings.TrimSpace(creds.RealPersonAssets.TOSInternalEndpoint)
+	missing := bucket == "" || region == "" || endpoint == ""
+	if !missing {
+		return false
+	}
+	if bucket != "" && !isValidBytePlusTOSBucket(bucket) {
+		return false
+	}
+	if region != "" && region != bytePlusAssetRegion {
+		return false
+	}
+	if endpoint != "" && !isValidBytePlusRealPersonEndpoint(endpoint) {
+		return false
+	}
+	return true
+}
+
+func bytePlusTempObjectStoreForPersistedBucket(creds BytePlusCredentials, current BytePlusTempObjectStore, persistedBucket string) (BytePlusTempObjectStore, error) {
+	provider, bucket := bytePlusTempObjectLocatorParts(persistedBucket)
+	if bucket == "" {
+		return nil, errors.New("temp object bucket is unavailable")
+	}
+	if provider != "" && bytePlusTempObjectStoreMatchesBucket(current, provider, bucket) {
+		return current, nil
+	}
+	if provider == bytePlusTempObjectProviderTOS || provider == "" {
+		if provider == "" && creds.ValidateRealPersonAssetStorage() == nil && bytePlusTempObjectStoreMatchesBucket(current, bytePlusTempObjectProviderTOS, bucket) {
+			return current, nil
+		}
+		if strings.TrimSpace(creds.RealPersonAssets.TOSBucket) == bucket {
+			if creds.ValidateRealPersonAssetStorage() != nil {
+				return nil, errors.New("persisted tos temp object storage is unavailable")
+			}
+			return bytePlusTempObjectStoreFactory(creds)
+		}
+		if provider == "" {
+			return nil, errors.New("legacy temp object bucket is unknown")
+		}
+	}
+	if provider == bytePlusTempObjectProviderGCS && bytePlusGCSTempObjectBucket() == bucket {
+		return newBytePlusGCSTempObjectStore()
+	}
+	return nil, errors.New("temp object bucket is unknown")
+}
+
+func bytePlusTempObjectLocatorParts(locator string) (string, string) {
+	locator = strings.TrimSpace(locator)
+	provider, bucket, found := strings.Cut(locator, ":")
+	if !found {
+		return "", locator
+	}
+	provider = strings.TrimSpace(provider)
+	bucket = strings.TrimSpace(bucket)
+	switch provider {
+	case bytePlusTempObjectProviderTOS, bytePlusTempObjectProviderGCS:
+		return provider, bucket
+	default:
+		return "", locator
+	}
+}
+
+func bytePlusTempObjectStoreMatchesBucket(store BytePlusTempObjectStore, provider, bucket string) bool {
+	if store == nil {
+		return false
+	}
+	bucketProvider, ok := store.(bytePlusTempObjectBucketProvider)
+	if !ok || strings.TrimSpace(bucketProvider.TempObjectBucket()) != strings.TrimSpace(bucket) {
+		return false
+	}
+	storageProvider, ok := store.(bytePlusTempObjectStorageProvider)
+	return ok && strings.TrimSpace(storageProvider.TempObjectStorageProvider()) == strings.TrimSpace(provider)
 }
 
 func replayBytePlusRealPersonAssetClaim(record *model.APIIdempotencyRecord) (*dto.BytePlusAssetResponse, *types.NewAPIError) {

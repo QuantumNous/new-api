@@ -464,6 +464,59 @@ func TestExpiredSignedURLGetsOneFinalAssetQueryThenObjectCleanup(t *testing.T) {
 	require.Equal(t, []string{"expired-url"}, fixture.fake.tosDeletes)
 }
 
+func TestTempObjectCleanupRejectsUnknownPersistedBucketWithoutTOSDelete(t *testing.T) {
+	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+	object := model.BytePlusAssetTempObject{
+		UserId: 7, ChannelId: 101, Bucket: "unknown-temp-bucket", ObjectKey: "unknown-cleanup",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, NextCleanupAt: 100,
+		CleanupLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&object).Error)
+
+	result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+	require.NoError(t, result.Err)
+	require.Zero(t, result.Processed)
+	fixture.fake.mu.Lock()
+	require.Empty(t, fixture.fake.tosDeletes)
+	fixture.fake.mu.Unlock()
+	require.NoError(t, model.DB.First(&object, object.Id).Error)
+	require.Equal(t, model.BytePlusTempObjectCleanupPending, object.CleanupStatus)
+	require.Greater(t, object.CleanupAttempts, 0)
+}
+
+func TestTempObjectCleanupUsesPersistedGCSBucket(t *testing.T) {
+	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 101).Update("key", urlOnlyRealPersonKey()).Error)
+	originalDelete := deleteTempMediaObject
+	t.Cleanup(func() { deleteTempMediaObject = originalDelete })
+	var deletedKeys []string
+	deleteTempMediaObject = func(_ context.Context, cfg TempMediaConfig, objectKey string) error {
+		require.Equal(t, "gcs-real-person-bucket", cfg.Bucket)
+		deletedKeys = append(deletedKeys, objectKey)
+		return nil
+	}
+	object := model.BytePlusAssetTempObject{
+		UserId: 7, ChannelId: 101, Bucket: "gcs:gcs-real-person-bucket", ObjectKey: "gcs-cleanup",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, NextCleanupAt: 100,
+		CleanupLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&object).Error)
+
+	result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.Processed)
+	fixture.fake.mu.Lock()
+	require.Empty(t, fixture.fake.tosDeletes)
+	fixture.fake.mu.Unlock()
+	require.Equal(t, []string{"gcs-cleanup"}, deletedKeys)
+	require.NoError(t, model.DB.First(&object, object.Id).Error)
+	require.Equal(t, model.BytePlusTempObjectCleanupCleaned, object.CleanupStatus)
+}
+
 func TestBytePlusRealPersonAssetStatusTransientFailureRecordsRetryWithoutOperationError(t *testing.T) {
 	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
 	fixture.fake.getAssetErr = context.DeadlineExceeded

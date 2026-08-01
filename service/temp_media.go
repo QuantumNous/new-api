@@ -35,6 +35,7 @@ var (
 	ErrTempMediaServiceAccount   = errors.New("temp media service account is unavailable")
 	putTempMediaObject           = putTempMediaObjectToGCS
 	signTempMediaObject          = signTempMediaObjectWithIAM
+	deleteTempMediaObject        = deleteTempMediaObjectFromGCS
 	tempMediaNow                 = time.Now
 	tempMediaServiceAccountEmail = defaultTempMediaServiceAccountEmail
 )
@@ -136,6 +137,18 @@ func putTempMediaObjectToGCS(ctx context.Context, cfg TempMediaConfig, objectKey
 		return err
 	}
 	return writer.Close()
+}
+
+func deleteTempMediaObjectFromGCS(ctx context.Context, cfg TempMediaConfig, objectKey string) error {
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	if err := client.Bucket(cfg.Bucket).Object(objectKey).Delete(ctx); err != nil && !errors.Is(err, storage.ErrObjectNotExist) {
+		return err
+	}
+	return nil
 }
 
 func signTempMediaObjectWithIAM(ctx context.Context, cfg TempMediaConfig, objectKey string, method string) (string, error) {

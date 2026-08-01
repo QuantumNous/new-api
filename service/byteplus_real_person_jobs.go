@@ -366,12 +366,12 @@ func runBytePlusRealPersonTOSCleanupJobs(ctx context.Context, now, staleBefore i
 			continue
 		}
 		creds, err := ParseBytePlusCredentials(channel.Key)
-		if err != nil || creds.ValidateRealPersonAssetStorage() != nil {
+		if err != nil {
 			warnBytePlusRealPersonJobRow("tos_cleanup")
 			firstErr = firstNonNil(firstErr, retryBytePlusTempObjectCleanup(object, now))
 			continue
 		}
-		store, err := bytePlusTempObjectStoreFactory(creds)
+		store, err := bytePlusTempObjectStoreForPersistedBucket(creds, nil, object.Bucket)
 		if err != nil {
 			warnBytePlusRealPersonJobRow("tos_cleanup")
 			firstErr = firstNonNil(firstErr, retryBytePlusTempObjectCleanup(object, now))

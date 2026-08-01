@@ -225,11 +225,18 @@ type bytePlusTempObjectBucketProvider interface {
 	TempObjectBucket() string
 }
 
+type bytePlusTempObjectStorageProvider interface {
+	TempObjectStorageProvider() string
+}
+
 func bytePlusTempObjectBucket(store BytePlusTempObjectStore) (string, *types.NewAPIError) {
 	if provider, ok := store.(bytePlusTempObjectBucketProvider); ok {
 		bucket := strings.TrimSpace(provider.TempObjectBucket())
 		if bucket == "" {
 			return "", assetError(errors.New("temp object bucket is unavailable"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		}
+		if storageProvider, ok := store.(bytePlusTempObjectStorageProvider); ok {
+			return bytePlusTempObjectLocator(storageProvider.TempObjectStorageProvider(), bucket), nil
 		}
 		return bucket, nil
 	}
@@ -238,9 +245,23 @@ func bytePlusTempObjectBucket(store BytePlusTempObjectStore) (string, *types.New
 		if bucket == "" {
 			return "", assetError(errors.New("temp object bucket is unavailable"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 		}
-		return bucket, nil
+		return bytePlusTempObjectLocator(bytePlusTempObjectProviderTOS, bucket), nil
 	}
 	return "", assetError(errors.New("temp object bucket is unavailable"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+}
+
+const (
+	bytePlusTempObjectProviderTOS = "tos"
+	bytePlusTempObjectProviderGCS = "gcs"
+)
+
+func bytePlusTempObjectLocator(provider, bucket string) string {
+	provider = strings.TrimSpace(provider)
+	bucket = strings.TrimSpace(bucket)
+	if provider == "" {
+		return bucket
+	}
+	return provider + ":" + bucket
 }
 
 func readBytePlusSniffHeader(reader io.Reader) ([]byte, error) {
