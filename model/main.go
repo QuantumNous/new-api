@@ -292,6 +292,7 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&MarketModel{},
 		// P2 平台化能力：企业团队空间 / SLA / 区域路由 / 分销商
 		&Team{},
 		&TeamMember{},

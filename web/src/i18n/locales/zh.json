@@ -1,5 +1,18 @@
 {
   "translation": {
+    "market.title": "模型市场",
+    "market.subtitle": "浏览并部署 AI 模型，价格透明。",
+    "market.input": "输入",
+    "market.output": "输出",
+    "market.perUnit": "每 1M {{unit}}",
+    "market.featured": "精选",
+    "market.comingSoon": "即将推出",
+    "market.tryFree": "免费试用",
+    "market.noModels": "暂无可用模型。",
+    "market.loading": "加载中...",
+    "market.provider": "供应商",
+    "market.category": "分类",
+    "market.viewDetails": "查看详情",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
@@ -5227,6 +5240,7 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Model Market": "模型市场"
   }
 }

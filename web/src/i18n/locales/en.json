@@ -1,5 +1,18 @@
 {
   "translation": {
+    "market.title": "Model Market",
+    "market.subtitle": "Browse and deploy AI models with transparent pricing.",
+    "market.input": "Input",
+    "market.output": "Output",
+    "market.perUnit": "per 1M {{unit}}",
+    "market.featured": "Featured",
+    "market.comingSoon": "Coming soon",
+    "market.tryFree": "Try for free",
+    "market.noModels": "No models available yet.",
+    "market.loading": "Loading...",
+    "market.provider": "Provider",
+    "market.category": "Category",
+    "market.viewDetails": "View details",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
@@ -5227,6 +5240,7 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Model Market": "Model Market"
   }
 }
