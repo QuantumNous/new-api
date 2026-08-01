@@ -1,12 +1,47 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test'
 import { createInstance } from 'i18next'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
+import * as recallApi from '../api'
 import type { RecallExclusionPreview } from '../types'
 
+const originalGlobalPropertyDescriptors = new Map<
+  PropertyKey,
+  PropertyDescriptor | undefined
+>()
+
+function defineTestGlobal(key: PropertyKey, value: unknown) {
+  if (!originalGlobalPropertyDescriptors.has(key)) {
+    originalGlobalPropertyDescriptors.set(
+      key,
+      Object.getOwnPropertyDescriptor(globalThis, key)
+    )
+  }
+  Object.defineProperty(globalThis, key, {
+    configurable: true,
+    value,
+    writable: true,
+  })
+}
+
+function restoreTestGlobals() {
+  for (const [key, descriptor] of originalGlobalPropertyDescriptors) {
+    if (descriptor) {
+      Object.defineProperty(globalThis, key, descriptor)
+    } else {
+      Reflect.deleteProperty(globalThis, key)
+    }
+  }
+}
+
 function setupDom() {
+  if (typeof document !== 'undefined' && document.body) {
+    defineTestGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    return
+  }
+
   class NodeShim {
     childNodes: NodeShim[] = []
     nodeType = 0
@@ -41,12 +76,18 @@ function setupDom() {
       )
     }
     dispatchEvent(event: Event) {
+      if (!('target' in event) || event.target === null) {
+        Object.defineProperty(event, 'target', { value: this })
+      }
       Object.defineProperty(event, 'currentTarget', {
         configurable: true,
         value: this,
       })
       for (const listener of this.listeners[event.type] ?? []) {
         listener.call(this, event)
+      }
+      if (event.bubbles && this.parentNode) {
+        this.parentNode.dispatchEvent(event)
       }
       return !event.defaultPrevented
     }
@@ -139,15 +180,16 @@ function setupDom() {
     defaultView: globalThis,
   }
   Object.assign(body, { ownerDocument: documentShim })
-  Object.assign(globalThis, {
-    document: documentShim,
-    window: globalThis,
-    HTMLElement: ElementShim,
-    HTMLIFrameElement: class {},
-    MouseEvent: Event,
-    Node: NodeShim,
-    IS_REACT_ACT_ENVIRONMENT: true,
-  })
+  defineTestGlobal('document', documentShim as unknown as Document)
+  defineTestGlobal(
+    'window',
+    globalThis as unknown as Window & typeof globalThis
+  )
+  defineTestGlobal('HTMLElement', ElementShim as unknown as typeof HTMLElement)
+  defineTestGlobal('HTMLIFrameElement', class {} as typeof HTMLIFrameElement)
+  defineTestGlobal('MouseEvent', Event)
+  defineTestGlobal('Node', NodeShim as unknown as typeof Node)
+  defineTestGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 }
 
 setupDom()
@@ -164,11 +206,7 @@ const latestButtons: Record<
   string,
   React.ButtonHTMLAttributes<HTMLButtonElement>
 > = {}
-const testRecallCampaignKeys = {
-  all: ['recall-campaigns'],
-  detail: (id: number) => ['recall-campaigns', 'detail', id],
-  metrics: (id: number) => ['recall-campaigns', id, 'metrics'],
-}
+const testRecallCampaignKeys = recallApi.recallCampaignKeys
 let previewError: Error | null = null
 let confirmError: Error | null = null
 let batchError: Error | null = null
@@ -205,6 +243,7 @@ function makePreview(
 let nextPreview = makePreview()
 
 mock.module('../api', () => ({
+  ...recallApi,
   confirmRecallCampaignExclusionBatch: async (_id: number, batchId: number) => {
     confirmCalls.push(batchId)
     if (confirmError) throw confirmError
@@ -237,7 +276,6 @@ mock.module('../api', () => ({
     }
     return { success: true, data: nextPreview }
   },
-  recallCampaignKeys: testRecallCampaignKeys,
 }))
 
 mock.module('@/components/ui/button', () => ({
@@ -401,6 +439,11 @@ afterEach(() => {
   for (const key of Object.keys(latestInputs)) delete latestInputs[key]
   for (const key of Object.keys(latestButtons)) delete latestButtons[key]
   nextPreview = makePreview()
+})
+
+afterAll(() => {
+  mock.restore()
+  restoreTestGlobals()
 })
 
 describe('CampaignExclusionDialog', () => {

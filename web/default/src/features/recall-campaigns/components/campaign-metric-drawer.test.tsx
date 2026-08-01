@@ -1,9 +1,10 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test'
 import { createInstance } from 'i18next'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
+import * as recallApi from '../api'
 import type {
   RecallMetricCard,
   RecallMetricFilters,
@@ -11,7 +12,41 @@ import type {
   RecallMetricResult,
 } from '../types'
 
+const originalGlobalPropertyDescriptors = new Map<
+  PropertyKey,
+  PropertyDescriptor | undefined
+>()
+
+function defineTestGlobal(key: PropertyKey, value: unknown) {
+  if (!originalGlobalPropertyDescriptors.has(key)) {
+    originalGlobalPropertyDescriptors.set(
+      key,
+      Object.getOwnPropertyDescriptor(globalThis, key)
+    )
+  }
+  Object.defineProperty(globalThis, key, {
+    configurable: true,
+    value,
+    writable: true,
+  })
+}
+
+function restoreTestGlobals() {
+  for (const [key, descriptor] of originalGlobalPropertyDescriptors) {
+    if (descriptor) {
+      Object.defineProperty(globalThis, key, descriptor)
+    } else {
+      Reflect.deleteProperty(globalThis, key)
+    }
+  }
+}
+
 function setupDom() {
+  if (typeof document !== 'undefined' && document.body) {
+    defineTestGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    return
+  }
+
   class NodeShim {
     childNodes: NodeShim[] = []
     nodeType = 0
@@ -46,12 +81,18 @@ function setupDom() {
       )
     }
     dispatchEvent(event: Event) {
+      if (!('target' in event) || event.target === null) {
+        Object.defineProperty(event, 'target', { value: this })
+      }
       Object.defineProperty(event, 'currentTarget', {
         configurable: true,
         value: this,
       })
       for (const listener of this.listeners[event.type] ?? []) {
         listener.call(this, event)
+      }
+      if (event.bubbles && this.parentNode) {
+        this.parentNode.dispatchEvent(event)
       }
       return !event.defaultPrevented
     }
@@ -167,22 +208,23 @@ function setupDom() {
     }
     return appended
   }
-  Object.assign(globalThis, {
-    document: documentShim,
-    window: globalThis,
-    HTMLElement: ElementShim,
-    HTMLIFrameElement: class {},
-    MouseEvent: Event,
-    Node: NodeShim,
-    IS_REACT_ACT_ENVIRONMENT: true,
-    URL: {
-      createObjectURL: () => {
-        objectUrls.push('blob:test')
-        return 'blob:test'
-      },
-      revokeObjectURL: (url: string) => {
-        revokedUrls.push(url)
-      },
+  defineTestGlobal('document', documentShim as unknown as Document)
+  defineTestGlobal(
+    'window',
+    globalThis as unknown as Window & typeof globalThis
+  )
+  defineTestGlobal('HTMLElement', ElementShim as unknown as typeof HTMLElement)
+  defineTestGlobal('HTMLIFrameElement', class {} as typeof HTMLIFrameElement)
+  defineTestGlobal('MouseEvent', Event)
+  defineTestGlobal('Node', NodeShim as unknown as typeof Node)
+  defineTestGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  defineTestGlobal('URL', {
+    createObjectURL: () => {
+      objectUrls.push('blob:test')
+      return 'blob:test'
+    },
+    revokeObjectURL: (url: string) => {
+      revokedUrls.push(url)
     },
   })
 }
@@ -384,6 +426,7 @@ let exportError: Error | null = null
 let anchorClickThrows = false
 
 mock.module('../api', () => ({
+  ...recallApi,
   exportRecallCampaignMetricUsers: async (
     _campaignId: number,
     metric: RecallMetricKey,
@@ -414,6 +457,7 @@ mock.module('../api', () => ({
     }
   },
   recallCampaignKeys: {
+    ...recallApi.recallCampaignKeys,
     metricUsers: (
       campaignId: number,
       metric: RecallMetricKey,
@@ -587,6 +631,11 @@ afterEach(() => {
   anchorClickThrows = false
   for (const key of Object.keys(inputProps)) delete inputProps[key]
   for (const key of Object.keys(buttonProps)) delete buttonProps[key]
+})
+
+afterAll(() => {
+  mock.restore()
+  restoreTestGlobals()
 })
 
 describe('CampaignMetricCardSection', () => {

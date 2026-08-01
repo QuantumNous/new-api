@@ -23,6 +23,8 @@ mock.module('@/components/ui/dialog', () => ({
     props.open
       ? React.createElement(React.Fragment, null, props.children)
       : null,
+  DialogClose: (props: { children: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, props.children),
   DialogContent: (props: { children: React.ReactNode }) =>
     React.createElement('div', null, props.children),
   DialogDescription: (props: { children: React.ReactNode }) =>
@@ -31,8 +33,14 @@ mock.module('@/components/ui/dialog', () => ({
     React.createElement('footer', null, props.children),
   DialogHeader: (props: { children: React.ReactNode }) =>
     React.createElement('header', null, props.children),
+  DialogOverlay: (props: { children?: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, props.children),
+  DialogPortal: (props: { children: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, props.children),
   DialogTitle: (props: { children: React.ReactNode }) =>
     React.createElement('h2', null, props.children),
+  DialogTrigger: (props: { children: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, props.children),
 }))
 
 mock.module('sonner', () => ({
