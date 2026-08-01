@@ -537,6 +537,9 @@ export const STATIC_I18N_KEYS = [
   'OpenAI Models upstream path must not contain {model}',
   'OpenAI Models route is required to enable upstream model checks',
 
+  // Channel admission validation
+  'Channel limits must be whole numbers from 0 to 1000000',
+
   // Dashboard flow stages (labels/descriptions passed to t at runtime)
   'User',
   'Node',
