@@ -324,15 +324,21 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
-	// Ctyun accepts top-level duration and resolution. Keep these translations
-	// isolated: existing Volcengine/DoubaoVideo channels must retain their
-	// historical metadata-duration and provider-default-resolution behaviour.
+	// The legacy seconds field applies to every DoubaoVideo channel and must
+	// remain after metadata to preserve its historical override precedence.
+	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
+		r.Duration = lo.ToPtr(dto.IntValue(sec))
+	}
+
+	// Ctyun additionally accepts top-level duration and resolution. Keep these
+	// translations isolated: existing Volcengine/DoubaoVideo channels must
+	// retain their historical metadata-duration and provider-default-resolution
+	// behaviour.
 	if IsCtyunVideoBaseURL(a.baseURL) {
-		sec := req.Duration
-		if parsed, _ := strconv.Atoi(req.Seconds); parsed > 0 {
-			sec = parsed
+		if req.Duration > 0 {
+			r.Duration = lo.ToPtr(dto.IntValue(req.Duration))
 		}
-		if sec > 0 {
+		if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
 			r.Duration = lo.ToPtr(dto.IntValue(sec))
 		}
 		if r.Resolution == "" {

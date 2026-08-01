@@ -171,7 +171,43 @@ func TestBuildRequestBodyKeepsVolcenginePayloadSemantics(t *testing.T) {
 		Prompt:   "legacy payload",
 		Model:    "seedance-1-0-pro-250528",
 		Duration: 10,
+		Seconds:  "8",
 		Size:     "720p",
+		Metadata: map[string]interface{}{
+			"duration": 5,
+		},
+	})
+
+	adaptor := &TaskAdaptor{}
+	adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://ark.cn-beijing.volces.com"}})
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://ark.cn-beijing.volces.com"}}
+	bodyReader, err := adaptor.BuildRequestBody(ctx, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody() error = %v", err)
+	}
+	bodyBytes, err := io.ReadAll(bodyReader)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	var got requestPayload
+	if err := json.Unmarshal(bodyBytes, &got); err != nil {
+		t.Fatalf("unmarshal request body: %v", err)
+	}
+	if got.Duration == nil || int(*got.Duration) != 8 {
+		t.Fatalf("legacy Volcengine duration = %v, want seconds override 8", got.Duration)
+	}
+	if got.Resolution != "" {
+		t.Fatalf("legacy Volcengine resolution = %q, want provider default", got.Resolution)
+	}
+}
+
+func TestBuildRequestBodyKeepsVolcengineMetadataDuration(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(nil)
+	ctx.Set("task_request", relaycommon.TaskSubmitReq{
+		Prompt:   "legacy metadata duration",
+		Model:    "seedance-1-0-pro-250528",
+		Duration: 10,
 		Metadata: map[string]interface{}{
 			"duration": 5,
 		},
@@ -194,9 +230,6 @@ func TestBuildRequestBodyKeepsVolcenginePayloadSemantics(t *testing.T) {
 	}
 	if got.Duration == nil || int(*got.Duration) != 5 {
 		t.Fatalf("legacy Volcengine duration = %v, want metadata duration 5", got.Duration)
-	}
-	if got.Resolution != "" {
-		t.Fatalf("legacy Volcengine resolution = %q, want provider default", got.Resolution)
 	}
 }
 
