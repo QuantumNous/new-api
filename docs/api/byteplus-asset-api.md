@@ -1,5 +1,7 @@
 # BytePlus 素材库 API
 
+> 真人认证素材、multipart 本地文件上传、真人素材列表与删除能力见 [Flatkey 真人素材库 API](./byteplus-real-person-asset-api.md)。本文档中的 `POST /v1/assets` 保持虚拟素材兼容：JSON URL 创建，无幂等键要求。
+
 本文档面向调用方，说明 Flatkey 暴露给 `seedance-2.0` 视频生成链路使用的私有素材库接口。素材库用于先登记可复用的图片、视频或音频素材，再在 `POST /v1/videos` 的 `content[]` 中通过 `asset://{asset_id}` 引用。
 
 文档依据当前代码契约核对：`router/asset-router.go`、`router/video-router.go`、`controller/byteplus_asset.go`、`service/byteplus_asset.go`、`service/byteplus_asset_reference.go`、`middleware/distributor.go`、`relay/channel/task/byteplus/adaptor.go`、`dto/byteplus_asset.go`、`dto/video_seedance.go`、`dto/openai_video.go`。
@@ -11,7 +13,7 @@
 所有示例使用占位符：
 
 ```text
-https://api.example.com
+https://router.flatkey.ai
 ```
 
 替换为你的 Flatkey / new-api 服务地址后再调用。
@@ -49,6 +51,8 @@ ast_<32 位字母或数字>
 asset://ast_<32 位字母或数字>
 ```
 
+`asset://ast_...` 是 Flatkey 公开的本地 URI，服务端会在调用上游前改写为上游素材引用；它不是 BytePlus 文档中的通用 `asset://<Asset_Id>` 前缀。
+
 严格匹配规则：
 
 - 只允许小写 scheme：`asset://`。
@@ -82,15 +86,16 @@ ASSET://ast_1234567890abcdefABCDEF1234567890
 | --- | --- | --- |
 | `POST /v1/assets` | 需要 Bearer Token | 创建图片、视频或音频素材 |
 | `GET /v1/assets/{asset_id}` | 需要 Bearer Token | 查询单个素材状态 |
+| `DELETE /v1/assets/{asset_id}` | 需要 Bearer Token | 删除真人素材；虚拟素材仍按兼容链路保留 |
 | `POST /v1/videos` | 需要 Bearer Token | 创建异步视频任务，可在 `content[]` 中引用素材 |
 | `GET /v1/videos/{task_id}` | 需要 Bearer Token | 查询视频任务状态 |
 | `GET /v1/videos/{task_id}/content` | 不需要 Token | 下载已完成任务的视频二进制内容 |
 
-当前没有以下接口：
+当前契约边界：
 
-- 没有 `GET /v1/assets` 素材列表接口。
-- 没有素材删除、更新、重命名接口。
-- 没有幂等键或客户端自定义素材 ID。
+- 旧版虚拟素材 `POST /v1/assets` 仍是 JSON URL 创建且不要求幂等键；真人素材写入要求 `Idempotency-Key`，详见真人素材库文档。
+- 没有通用 `GET /v1/assets` 素材列表接口；真人素材列表限定在 `GET /v1/real-persons/{person_id}/assets`。
+- 没有素材更新、重命名或客户端自定义素材 ID。
 - 没有跨用户共享素材能力。
 
 ## 3. 创建素材
@@ -151,7 +156,7 @@ Content-Type: application/json
 ### 3.3 curl 示例
 
 ```bash
-curl -sS https://api.example.com/v1/assets \
+curl -sS https://router.flatkey.ai/v1/assets \
   -H "Authorization: Bearer <FLATKEY_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -210,7 +215,7 @@ Authorization: Bearer <FLATKEY_API_KEY>
 ### 4.4 curl 示例
 
 ```bash
-curl -sS https://api.example.com/v1/assets/ast_1234567890abcdefABCDEF1234567890 \
+curl -sS https://router.flatkey.ai/v1/assets/ast_1234567890abcdefABCDEF1234567890 \
   -H "Authorization: Bearer <FLATKEY_API_KEY>"
 ```
 
@@ -356,7 +361,7 @@ Authorization: Bearer <FLATKEY_API_KEY>
   "created_at": 1785292100,
   "completed_at": 1785292200,
   "metadata": {
-    "url": "https://api.example.com/v1/videos/task_1234567890abcdef1234567890abcdef/content"
+    "url": "https://router.flatkey.ai/v1/videos/task_1234567890abcdef1234567890abcdef/content"
   },
   "usage": {
     "completion_tokens": 120,
@@ -424,7 +429,7 @@ GET /v1/videos/{task_id}/content
 ### 7.2 curl 示例
 
 ```bash
-curl -L https://api.example.com/v1/videos/task_1234567890abcdef1234567890abcdef/content \
+curl -L https://router.flatkey.ai/v1/videos/task_1234567890abcdef1234567890abcdef/content \
   -o output.mp4
 ```
 
@@ -495,7 +500,7 @@ curl -L https://api.example.com/v1/videos/task_1234567890abcdef1234567890abcdef/
 以下示例只使用占位符，不包含真实凭据。运行前设置环境变量：
 
 ```bash
-export FLATKEY_BASE_URL="https://api.example.com"
+export FLATKEY_BASE_URL="https://router.flatkey.ai"
 export FLATKEY_API_KEY="<FLATKEY_API_KEY>"
 export ASSET_SOURCE_URL="https://cdn.example.com/reference/portrait.mp4"
 ```
@@ -626,7 +631,7 @@ print("saved output.mp4")
 以下示例使用 Node.js 18+ 内置 `fetch`。运行前设置环境变量：
 
 ```bash
-export FLATKEY_BASE_URL="https://api.example.com"
+export FLATKEY_BASE_URL="https://router.flatkey.ai"
 export FLATKEY_API_KEY="<FLATKEY_API_KEY>"
 export ASSET_SOURCE_URL="https://cdn.example.com/reference/portrait.mp4"
 ```
@@ -742,7 +747,7 @@ console.log("saved output.mp4");
 保存为 `byteplus_asset_e2e.py` 后运行：
 
 ```bash
-FLATKEY_BASE_URL="https://api.example.com" \
+FLATKEY_BASE_URL="https://router.flatkey.ai" \
 FLATKEY_API_KEY="<FLATKEY_API_KEY>" \
 ASSET_SOURCE_URL="https://cdn.example.com/reference/portrait.mp4" \
 python byteplus_asset_e2e.py
@@ -896,6 +901,8 @@ if __name__ == "__main__":
 - 等素材变为 `Active` 后再提交视频任务。
 - `asset://` URI 必须严格匹配 `asset://ast_<32 位字母数字>`。
 - `Image` 素材放入 `image_url.url`，`Video` 素材放入 `video_url.url`，`Audio` 素材放入 `audio_url.url`。
-- 同一个视频请求中的所有素材应来自同一渠道。
+- 同一个视频请求中的所有素材必须来自同一渠道。
+- 真人素材引用最多来自一个真人档案；同一真人档案下的多个真人素材可以混用，同渠道虚拟素材也可以和这一个真人档案混用。
+- 真人素材 DELETE 会立即进入 `Deleting`，新的引用立即拒绝；重复 DELETE 返回空 `204`。
 - 使用 `GET /v1/videos/{task_id}` 轮询，完成后从 `metadata.url` 或 `/v1/videos/{task_id}/content` 下载。
-- 不要依赖素材列表、删除、更新或幂等键；当前契约未提供这些能力。
+- 旧版虚拟素材 `POST /v1/assets` 不要求幂等键；真人素材写入必须提供幂等键。

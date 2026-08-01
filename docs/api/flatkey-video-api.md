@@ -270,6 +270,12 @@ curl -L -o output.mp4 "$RESULT_URL" \
 
 除 `images` 外，`video-pro` 模式下还可通过 `metadata.videos` / `metadata.audios` 提供视频或音频参考（每组最多 3 个、总时长 ≤ 15 秒；`audios` 必须搭配图片或视频使用）。
 
+### Seedance 真人素材引用
+
+`seedance-2.0` 的 `POST /v1/videos` `content[]` 可以使用 Flatkey 本地 `asset://ast_...` 真人素材 URI；Flatkey 会在服务端调用上游前改写为上游素材引用。详见 [Flatkey 真人素材库 API](./byteplus-real-person-asset-api.md)。
+
+同一请求可以引用同一个真人档案下的多个 Image / Video / Audio 素材，也可以混合同渠道的虚拟素材。若一次请求包含两个以上非空真人档案集合，Flatkey 会在调用上游前返回 `409 asset_profile_conflict`；这是 Flatkey 的预上游安全和路由规则。素材类型必须匹配容器：Image 放 `image_url`，Video 放 `video_url`，Audio 放 `audio_url`。`Deleting`、`Deleted`、`Processing`、`Failed` 以及真人档案非 `active` 的素材都不可用于生成。
+
 ### 素材数组
 
 每个素材是一个对象：
