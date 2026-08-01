@@ -122,6 +122,27 @@ func TestRelayErrorHandlerKeepsOpenAIErrorMessage(t *testing.T) {
 	require.Equal(t, message, newAPIError.Error())
 }
 
+func TestNormalizeServerOverloadError(t *testing.T) {
+	body := `{"error":{"message":"Selected model is at capacity.","type":"server_error","code":"server_is_overloaded"}}`
+	resp := &http.Response{
+		StatusCode: http.StatusServiceUnavailable,
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+
+	upstreamError := RelayErrorHandler(context.Background(), resp, false)
+	require.NotNil(t, upstreamError)
+	require.Equal(t, types.ErrorCode("server_is_overloaded"), upstreamError.GetErrorCode())
+
+	openAIError := upstreamError.ToOpenAIError()
+	rewritten := NormalizeServerOverloadError(&openAIError)
+	normalizedError := types.WithOpenAIError(openAIError, upstreamError.StatusCode)
+
+	require.True(t, rewritten)
+	require.Equal(t, types.ErrorCode("server_error"), normalizedError.GetErrorCode())
+	require.Equal(t, "server_error", normalizedError.ToOpenAIError().Code)
+	require.Equal(t, "Selected model is at capacity.", normalizedError.Error())
+}
+
 func TestRelayErrorHandlerKeepsInvalidJSONBodyInDebugLog(t *testing.T) {
 	withDebugEnabled(t, true)
 

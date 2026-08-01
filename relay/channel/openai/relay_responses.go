@@ -30,7 +30,10 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
-	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
+	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && (oaiError.Type != "" || oaiError.Message != "" || oaiError.Code != nil) {
+		if service.NormalizeServerOverloadError(oaiError) {
+			logger.LogWarn(c, "intercepted upstream server_is_overloaded and rewrote error code to server_error for client retry")
+		}
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
@@ -86,6 +89,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	imageCommitted := false
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		data, rewritten, err := rewriteResponsesServerOverload(data)
+		if err != nil {
+			logger.LogError(c, "failed to rewrite responses overload error: "+err.Error())
+			sr.Error(err)
+			return
+		}
+		if rewritten {
+			logger.LogWarn(c, "intercepted upstream server_is_overloaded SSE event and rewrote error code to server_error for client retry")
+		}
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse

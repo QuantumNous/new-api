@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -241,4 +242,62 @@ func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamR
 		return
 	}
 	_ = helper.ResponseChunkData(c, streamResponse, data)
+}
+
+func rewriteResponsesServerOverload(data string) (string, bool, error) {
+	if !strings.Contains(data, `"server_is_overloaded"`) {
+		return data, false, nil
+	}
+
+	var event map[string]json.RawMessage
+	if err := common.UnmarshalJsonStr(data, &event); err != nil {
+		return "", false, err
+	}
+
+	responseData, ok := event["response"]
+	if !ok {
+		return data, false, nil
+	}
+	var response map[string]json.RawMessage
+	if err := common.Unmarshal(responseData, &response); err != nil {
+		return data, false, nil
+	}
+
+	errorData, ok := response["error"]
+	if !ok {
+		return data, false, nil
+	}
+	var errorFields map[string]json.RawMessage
+	if err := common.Unmarshal(errorData, &errorFields); err != nil {
+		return data, false, nil
+	}
+	codeData, ok := errorFields["code"]
+	if !ok {
+		return data, false, nil
+	}
+	var code string
+	if err := common.Unmarshal(codeData, &code); err != nil || code != "server_is_overloaded" {
+		return data, false, nil
+	}
+
+	codeData, err := common.Marshal("server_error")
+	if err != nil {
+		return "", false, err
+	}
+	errorFields["code"] = codeData
+	errorData, err = common.Marshal(errorFields)
+	if err != nil {
+		return "", false, err
+	}
+	response["error"] = errorData
+	responseData, err = common.Marshal(response)
+	if err != nil {
+		return "", false, err
+	}
+	event["response"] = responseData
+	eventData, err := common.Marshal(event)
+	if err != nil {
+		return "", false, err
+	}
+	return string(eventData), true, nil
 }

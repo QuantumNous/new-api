@@ -1,0 +1,60 @@
+# Production deployment using an external PostgreSQL database.
+#
+# Required environment variables:
+#   SQL_DSN=postgresql://newapi:password@db.example.com:5432/new_api?sslmode=require
+#   REDIS_PASSWORD=replace-with-a-strong-password
+
+services:
+  new-api:
+    image: ${NEW_API_IMAGE:-calciumion/new-api:latest}
+    container_name: new-api
+    restart: always
+    command: --log-dir /app/logs
+    ports:
+      - "${NEW_API_PORT:-3001}:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    environment:
+      SQL_DSN: ${SQL_DSN:?SQL_DSN is required}
+      REDIS_CONN_STRING: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
+      TZ: ${TZ:-Asia/Shanghai}
+      ERROR_LOG_ENABLED: "true"
+      BATCH_UPDATE_ENABLED: "true"
+      NODE_NAME: ${NODE_NAME:-new-api-node-1}
+    depends_on:
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - new-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: always
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    volumes:
+      - redis_data:/data
+    networks:
+      - new-api-network
+
+volumes:
+  redis_data:
+
+networks:
+  new-api-network:
+    driver: bridge
