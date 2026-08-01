@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deploy new-api"
+  short_description: "Deploy new-api safely to low-memory 1Panel hosts"
+  default_prompt: "Use $deploy-new-api to build, deploy, verify, and roll back new-api on the existing 1Panel stack."
