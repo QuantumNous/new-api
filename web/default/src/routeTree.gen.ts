@@ -15,6 +15,7 @@ import { Route as SolutionsRouteImport } from './routes/solutions'
 import { Route as QuickstartRouteImport } from './routes/quickstart'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as ModelsRouteImport } from './routes/models'
+import { Route as MarketRouteImport } from './routes/market'
 import { Route as ContactSalesRouteImport } from './routes/contact-sales'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
@@ -104,6 +105,11 @@ const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
 const ModelsRoute = ModelsRouteImport.update({
   id: '/models',
   path: '/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketRoute = MarketRouteImport.update({
+  id: '/market',
+  path: '/market',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactSalesRoute = ContactSalesRouteImport.update({
@@ -439,6 +445,7 @@ const AuthenticatedSystemSettingsAuthSectionRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contact-sales': typeof ContactSalesRoute
+  '/market': typeof MarketRoute
   '/models': typeof ModelsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/quickstart': typeof QuickstartRoute
@@ -505,6 +512,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contact-sales': typeof ContactSalesRoute
+  '/market': typeof MarketRoute
   '/models': typeof ModelsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/quickstart': typeof QuickstartRoute
@@ -573,6 +581,7 @@ export interface FileRoutesById {
   '/(auth)': typeof authRouteRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/contact-sales': typeof ContactSalesRoute
+  '/market': typeof MarketRoute
   '/models': typeof ModelsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/quickstart': typeof QuickstartRoute
@@ -641,6 +650,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/contact-sales'
+    | '/market'
     | '/models'
     | '/privacy-policy'
     | '/quickstart'
@@ -707,6 +717,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/contact-sales'
+    | '/market'
     | '/models'
     | '/privacy-policy'
     | '/quickstart'
@@ -774,6 +785,7 @@ export interface FileRouteTypes {
     | '/(auth)'
     | '/_authenticated'
     | '/contact-sales'
+    | '/market'
     | '/models'
     | '/privacy-policy'
     | '/quickstart'
@@ -843,6 +855,7 @@ export interface RootRouteChildren {
   authRouteRoute: typeof authRouteRouteWithChildren
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   ContactSalesRoute: typeof ContactSalesRoute
+  MarketRoute: typeof MarketRoute
   ModelsRoute: typeof ModelsRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   QuickstartRoute: typeof QuickstartRoute
@@ -906,6 +919,13 @@ declare module '@tanstack/react-router' {
       path: '/models'
       fullPath: '/models'
       preLoaderRoute: typeof ModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/market': {
+      id: '/market'
+      path: '/market'
+      fullPath: '/market'
+      preLoaderRoute: typeof MarketRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact-sales': {
@@ -1470,6 +1490,7 @@ const rootRouteChildren: RootRouteChildren = {
   authRouteRoute: authRouteRouteWithChildren,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   ContactSalesRoute: ContactSalesRoute,
+  MarketRoute: MarketRoute,
   ModelsRoute: ModelsRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   QuickstartRoute: QuickstartRoute,

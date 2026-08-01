@@ -92,3 +92,28 @@ export interface MarketModelFormData {
 // ============================================================================
 
 export type MarketModelsDialogType = 'create' | 'update' | 'delete'
+
+// ============================================================================
+// Public Storefront Types (GET /api/market-models)
+// ============================================================================
+
+// i18n overlay resolved server-side from Metadata JSON for the requested locale.
+// `null` when no override exists for the locale.
+export interface MarketModelI18n {
+  name?: string
+  description?: string
+  locale: string
+}
+
+export interface PublicMarketModelItem {
+  model: MarketModel
+  i18n: MarketModelI18n | null
+}
+
+export interface GetPublicMarketModelsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    items: PublicMarketModelItem[]
+  }
+}

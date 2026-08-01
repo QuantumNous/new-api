@@ -24,6 +24,7 @@ import type {
   GetMarketModelsResponse,
   MarketModel,
   MarketModelFormData,
+  PublicMarketModelItem,
 } from './types'
 
 // ============================================================================
@@ -72,4 +73,22 @@ export async function updateMarketModel(
 export async function deleteMarketModel(id: number): Promise<ApiResponse> {
   const res = await api.delete(`/api/admin/market-models/${id}`)
   return res.data
+}
+
+// ============================================================================
+// Model Market Storefront (public, no auth)
+// ============================================================================
+
+// Get the public, available-only model market catalog. Errors are swallowed so
+// anonymous visitors never see error toasts; falls back to an empty list.
+export async function getPublicMarketModels(
+  locale: string
+): Promise<PublicMarketModelItem[]> {
+  const res = await api
+    .get<ApiResponse<{ items: PublicMarketModelItem[] }>>('/api/market-models', {
+      params: { locale },
+      skipErrorHandler: true,
+    })
+    .catch(() => null)
+  return res?.data?.data?.items ?? []
 }
