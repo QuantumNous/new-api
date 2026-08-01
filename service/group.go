@@ -79,3 +79,10 @@ func GetUserGroupRatio(userGroup, group string) float64 {
 	}
 	return ratio_setting.GetGroupRatio(group)
 }
+
+// GetModelGroupRatio 获取模型在指定分组中的倍率（模型×分组交叉倍率）
+// 如果模型在该分组有自定义倍率则返回，否则回退到全局分组倍率
+func GetModelGroupRatio(modelName, group string) float64 {
+	globalGroupRatio := ratio_setting.GetGroupRatio(group)
+	return ratio_setting.GetModelGroupRatio(modelName, group, globalGroupRatio)
+}

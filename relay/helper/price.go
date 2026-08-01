@@ -67,6 +67,12 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 		groupRatioInfo.GroupRatio = ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	}
 
+	// apply model-specific group ratio overlay
+	modelName := relayInfo.OriginModelName
+	if modelName != "" {
+		groupRatioInfo.GroupRatio = ratio_setting.GetModelGroupRatio(modelName, relayInfo.UsingGroup, groupRatioInfo.GroupRatio)
+	}
+
 	return groupRatioInfo
 }
 
