@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 // channelErr builds a NewAPIError with an explicit status code and no
