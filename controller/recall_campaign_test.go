@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -172,6 +173,8 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 		&model.RecallMessage{},
 		&model.RecallEvent{},
 		&model.RecallEmailQuotaWindow{},
+		&model.RecallExclusionBatch{},
+		&model.RecallCampaignExclusion{},
 	))
 
 	setRecallControllerEnabled(t, true)
@@ -303,6 +306,29 @@ func invokeRecallHandlerWithRequestID(t *testing.T, handler gin.HandlerFunc, met
 	return recorder
 }
 
+func invokeRecallMultipartHandler(t *testing.T, handler gin.HandlerFunc, target string, field string, filename string, payload []byte, actorID int, params gin.Params) *httptest.ResponseRecorder {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile(field, filename)
+	require.NoError(t, err)
+	_, err = part.Write(payload)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	request := httptest.NewRequest(http.MethodPost, target, &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+	ctx.Params = params
+	if actorID != 0 {
+		ctx.Set("id", actorID)
+	}
+	handler(ctx)
+	return recorder
+}
+
 func recallControllerAdminEventID(action string, identity string) string {
 	digest := sha256.Sum256([]byte(identity))
 	return fmt.Sprintf("admin:%s:%x", action, digest)
@@ -313,6 +339,19 @@ func decodeRecallEnvelope(t *testing.T, recorder *httptest.ResponseRecorder) map
 	payload := map[string]any{}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
 	return payload
+}
+
+func decodeRecallExclusionPreview(t *testing.T, recorder *httptest.ResponseRecorder) service.RecallExclusionPreview {
+	t.Helper()
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Success bool                           `json:"success"`
+		Message string                         `json:"message"`
+		Data    service.RecallExclusionPreview `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success, payload.Message)
+	return payload.Data
 }
 
 func requireRecallFailure(t *testing.T, recorder *httptest.ResponseRecorder, contains string) {
@@ -991,6 +1030,59 @@ func TestRecallCampaignPreviewReturnsAudienceAndStripeWithoutCreateOrSend(t *tes
 	require.Zero(t, harness.stripe.createCustomer)
 	require.Zero(t, harness.stripe.createPromotionCode)
 	require.Zero(t, harness.sendCount)
+}
+
+func TestRecallExclusionHandlersPreviewFetchAndConfirm(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	user := seedRecallControllerUser(t, harness, 8801, "exclusion")
+	recipient := model.RecallRecipient{
+		CampaignId:        campaign.Id,
+		UserId:            user.Id,
+		State:             model.RecallRecipientQueued,
+		EmailSnapshot:     user.Email,
+		LanguageSnapshot:  "en",
+		RecipientIdentity: model.RecallRecipientIdentityForUser(user.Id),
+	}
+	require.NoError(t, harness.db.Create(&recipient).Error)
+	require.NoError(t, harness.db.Create(&model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: "scheduled", State: model.RecallMessageScheduled}).Error)
+
+	previewRecorder := invokeRecallMultipartHandler(t, PreviewRecallCampaignExclusions, "/api/recall-campaigns/1/exclusions/preview", "file", "users.csv", []byte(fmt.Sprintf("EMAIL\n %s \n", strings.ToUpper(user.Email))), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+	preview := decodeRecallExclusionPreview(t, previewRecorder)
+	require.True(t, preview.Confirmable)
+	require.Equal(t, int64(1), preview.ResolvedUsers)
+
+	fetch := decodeRecallExclusionPreview(t, invokeRecallHandler(t, GetRecallCampaignExclusionBatch, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "batch_id", Value: fmt.Sprint(preview.BatchID)}}))
+	require.Equal(t, preview.BatchID, fetch.BatchID)
+	require.True(t, fetch.Confirmable)
+
+	wrongCampaign := invokeRecallHandler(t, GetRecallCampaignExclusionBatch, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id + 1)}, {Key: "batch_id", Value: fmt.Sprint(preview.BatchID)}})
+	requireRecallFailure(t, wrongCampaign, "record not found")
+
+	confirmed := decodeRecallExclusionPreview(t, invokeRecallHandler(t, ConfirmRecallCampaignExclusionBatch, http.MethodPost, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "batch_id", Value: fmt.Sprint(preview.BatchID)}}))
+	require.Equal(t, int64(1), confirmed.CancelableWork)
+	var exclusion model.RecallCampaignExclusion
+	require.NoError(t, harness.db.Where("campaign_id = ? AND user_id = ?", campaign.Id, user.Id).First(&exclusion).Error)
+	require.Equal(t, "operator_csv", exclusion.PersistentReasonCode)
+	var message model.RecallMessage
+	require.NoError(t, harness.db.First(&message, "recipient_id = ?", recipient.Id).Error)
+	require.Equal(t, model.RecallMessageCancelled, message.State)
+}
+
+func TestRecallExclusionHandlersRejectMissingAndOversizedUploads(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	params := gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}}
+
+	missingFile := invokeRecallMultipartHandler(t, PreviewRecallCampaignExclusions, "/api/recall-campaigns/1/exclusions/preview", "not_file", "users.csv", []byte("email\nnobody@example.com\n"), 7, params)
+	requireRecallFailure(t, missingFile, "CSV file is required")
+
+	oversizedFile := append([]byte("email\n"), bytes.Repeat([]byte{'a'}, 5<<20)...)
+	tooLargeFile := invokeRecallMultipartHandler(t, PreviewRecallCampaignExclusions, "/api/recall-campaigns/1/exclusions/preview", "file", "users.csv", oversizedFile, 7, params)
+	requireRecallFailure(t, tooLargeFile, "exceeds maximum")
+
+	oversizedBody := invokeRecallMultipartHandler(t, PreviewRecallCampaignExclusions, "/api/recall-campaigns/1/exclusions/preview", "file", "users.csv", bytes.Repeat([]byte{'a'}, 6<<20), 7, params)
+	requireRecallFailure(t, oversizedBody, "invalid recall exclusion upload")
 }
 
 func TestRecallCampaignReadsMaskCodesAndOmitClaimAndTemplateSecrets(t *testing.T) {

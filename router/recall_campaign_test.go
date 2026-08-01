@@ -92,6 +92,35 @@ func TestRecallEmailQuotaStatusRouteAndGenerationRouteAreRegisteredWithAdminAuth
 	require.Less(t, quotaIndex, idIndex)
 }
 
+func TestRecallExclusionRoutesAreRegisteredBeforeIDRouteWithAdminAuth(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("recall-exclusion-auth"))))
+	SetApiRouter(engine)
+
+	wantRoutes := map[string]string{
+		"/api/recall-campaigns/:id/exclusions/preview":                   http.MethodPost,
+		"/api/recall-campaigns/:id/exclusions/batches/:batch_id":         http.MethodGet,
+		"/api/recall-campaigns/:id/exclusions/batches/:batch_id/confirm": http.MethodPost,
+	}
+	routeIndex := map[string]int{}
+	for index, route := range engine.Routes() {
+		routeIndex[route.Method+" "+route.Path] = index
+	}
+	for path, method := range wantRoutes {
+		key := method + " " + path
+		_, found := routeIndex[key]
+		require.True(t, found, "missing route %s", key)
+
+		target := strings.Replace(path, ":id", "1", 1)
+		target = strings.Replace(target, ":batch_id", "2", 1)
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(method, target, nil))
+		require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	}
+}
+
 func TestRecallEmailQuotaUpdateRouteIsRegisteredWithAdminAuth(t *testing.T) {
 	require.NoError(t, backendI18n.Init())
 	gin.SetMode(gin.TestMode)
