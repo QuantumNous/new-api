@@ -169,6 +169,7 @@ export function useAdminOrders() {
   }
 
   function reloadFromFirstPage() {
+    window.clearTimeout(searchTimer)
     if (page.value === 1) void load()
     else page.value = 1
   }
@@ -178,7 +179,8 @@ export function useAdminOrders() {
     searchTimer = window.setTimeout(reloadFromFirstPage, 300)
   })
   watch([status, method, type], reloadFromFirstPage)
-  watch([page, pageSize], () => void load())
+  watch(pageSize, reloadFromFirstPage)
+  watch(page, () => void load())
   watch(range, () => void loadStats())
 
   /**

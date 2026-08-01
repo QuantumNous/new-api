@@ -131,8 +131,8 @@ describe('OrdersView', () => {
     const wrapper = await mountOrders()
 
     const selected = wrapper
-      .findAll('[role="tab"][aria-selected="true"]')
-      .map((tab) => tab.text())
+      .findAll('[role="radio"][aria-checked="true"]')
+      .map((radio) => radio.text())
     expect(selected).toContain('30 days')
   })
 
@@ -141,8 +141,8 @@ describe('OrdersView', () => {
     const spy = vi.spyOn(api, 'get')
 
     const sevenDays = wrapper
-      .findAll('[role="tab"]')
-      .find((tab) => tab.text() === '7 days')
+      .findAll('[role="radio"]')
+      .find((radio) => radio.text() === '7 days')
     if (!sevenDays) throw new Error('expected the 7-day segment')
     await sevenDays.trigger('click')
     await waitForRequests()
@@ -154,8 +154,8 @@ describe('OrdersView', () => {
     )
     expect(
       wrapper
-        .findAll('[role="tab"][aria-selected="true"]')
-        .map((tab) => tab.text())
+        .findAll('[role="radio"][aria-checked="true"]')
+        .map((radio) => radio.text())
     ).toContain('7 days')
   })
 

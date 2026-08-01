@@ -19,6 +19,7 @@ const { loading, items, storage, load } = useLabAssets()
 const safeCover = (value: string | undefined) => safeImageUrl(value)
 
 const tab = ref('all')
+const assetsPanelId = 'lab-assets-tab-panel'
 const view = ref<'list' | 'grid'>('list')
 const keyword = ref('')
 
@@ -140,7 +141,12 @@ function rowAction(_item: AssetItem) {
 
       <!-- toolbar -->
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <ConsoleTabs v-model="tab" :items="tabs" class="flex-1" />
+        <ConsoleTabs
+          v-model="tab"
+          :items="tabs"
+          :panel-id="assetsPanelId"
+          class="flex-1"
+        />
         <div class="flex items-center gap-2">
           <SearchInput
             v-model="keyword"
@@ -156,171 +162,179 @@ function rowAction(_item: AssetItem) {
         </div>
       </div>
 
-      <!-- list view -->
       <div
-        v-if="view === 'list'"
-        class="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
-        data-handdrawn="ledger-list"
+        :id="assetsPanelId"
+        role="tabpanel"
+        :aria-labelledby="`${assetsPanelId}-tab-${tab}`"
       >
+        <!-- list view -->
         <div
-          class="flex items-center gap-3 border-b border-[var(--border-subtle)] bg-[var(--surface-table-header)] px-4 py-2.5 text-xs font-medium text-[var(--text-secondary)]"
+          v-if="view === 'list'"
+          class="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
+          data-handdrawn="ledger-list"
         >
-          <span class="flex-1">{{ t('lab.assets.colName') }}</span>
-          <span class="hidden w-24 sm:block">{{
-            t('lab.assets.colSource')
-          }}</span>
-          <span class="w-20 text-right">{{ t('lab.assets.colSize') }}</span>
-          <span class="hidden w-24 text-right md:block">{{
-            t('lab.assets.colOpened')
-          }}</span>
-          <span class="w-8" />
-        </div>
-
-        <div v-if="loading">
           <div
-            v-for="i in 8"
-            :key="i"
-            class="flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3 last:border-0"
+            class="flex items-center gap-3 border-b border-[var(--border-subtle)] bg-[var(--surface-table-header)] px-4 py-2.5 text-xs font-medium text-[var(--text-secondary)]"
           >
-            <div
-              class="h-8 w-8 shrink-0 animate-pulse rounded-lg bg-[var(--surface-muted)]"
-            />
-            <div
-              class="h-4 flex-1 animate-pulse rounded bg-[var(--surface-muted)]"
-            />
-          </div>
-        </div>
-
-        <template v-else-if="filtered.length">
-          <div
-            v-for="item in filtered"
-            :key="item.id"
-            class="group flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3 transition-colors last:border-0 hover:bg-[var(--surface-muted)]"
-          >
-            <span
-              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-muted)] text-[var(--text-secondary)]"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-              >
-                <path :d="KIND_ICON[item.kind]" />
-              </svg>
-            </span>
-            <span
-              class="min-w-0 flex-1 truncate text-sm text-[var(--text-primary)]"
-              >{{ item.name }}</span
-            >
-            <span
-              class="hidden w-24 text-xs text-[var(--text-tertiary)] sm:block"
-              >{{ t(SOURCE_KEY[item.source]) }}</span
-            >
-            <span class="w-20 text-right text-xs text-[var(--text-tertiary)]">{{
-              formatBytes(item.size)
+            <span class="flex-1">{{ t('lab.assets.colName') }}</span>
+            <span class="hidden w-24 sm:block">{{
+              t('lab.assets.colSource')
             }}</span>
-            <span
-              class="hidden w-24 text-right text-xs text-[var(--text-tertiary)] md:block"
-              >{{ relativeTime(item.updatedAt) }}</span
-            >
-            <button
-              type="button"
-              class="touch-row-action flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] opacity-0 transition-all hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-ring group-hover:opacity-100"
-              :aria-label="t('lab.assets.more')"
-              @click="rowAction(item)"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <circle cx="12" cy="5" r="1" />
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="12" cy="19" r="1" />
-              </svg>
-            </button>
+            <span class="w-20 text-right">{{ t('lab.assets.colSize') }}</span>
+            <span class="hidden w-24 text-right md:block">{{
+              t('lab.assets.colOpened')
+            }}</span>
+            <span class="w-8" />
           </div>
-        </template>
 
-        <EmptyState
-          v-else
-          :title="t('lab.assets.emptyTitle')"
-          :hint="t('lab.assets.emptyHint')"
-        />
-      </div>
-
-      <!-- grid view -->
-      <div v-else>
-        <div
-          v-if="loading"
-          class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
-        >
-          <div
-            v-for="i in 8"
-            :key="i"
-            class="aspect-square animate-pulse rounded-2xl bg-[var(--surface-muted)]"
-          />
-        </div>
-        <div
-          v-else-if="filtered.length"
-          class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
-        >
-          <figure
-            v-for="item in filtered"
-            :key="item.id"
-            class="pencil-surface group overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
-            data-handdrawn="surface-clipped"
-          >
+          <div v-if="loading">
             <div
-              class="aspect-square overflow-hidden bg-[var(--surface-muted)]"
+              v-for="i in 8"
+              :key="i"
+              class="flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3 last:border-0"
             >
-              <img
-                v-if="safeCover(item.cover)"
-                :src="safeCover(item.cover)!"
-                :alt="item.name"
-                class="h-full w-full object-cover"
-                loading="lazy"
+              <div
+                class="h-8 w-8 shrink-0 animate-pulse rounded-lg bg-[var(--surface-muted)]"
               />
               <div
-                v-else
-                class="flex h-full items-center justify-center text-[var(--text-tertiary)]"
+                class="h-4 flex-1 animate-pulse rounded bg-[var(--surface-muted)]"
+              />
+            </div>
+          </div>
+
+          <template v-else-if="filtered.length">
+            <div
+              v-for="item in filtered"
+              :key="item.id"
+              class="group flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3 transition-colors last:border-0 hover:bg-[var(--surface-muted)]"
+            >
+              <span
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-muted)] text-[var(--text-secondary)]"
               >
                 <svg
-                  width="34"
-                  height="34"
+                  width="16"
+                  height="16"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="1.5"
+                  stroke-width="1.8"
                 >
                   <path :d="KIND_ICON[item.kind]" />
                 </svg>
-              </div>
-            </div>
-            <figcaption
-              class="flex items-center justify-between gap-2 px-3 py-2.5"
-            >
+              </span>
               <span
-                class="min-w-0 truncate text-xs font-medium text-[var(--text-primary)]"
+                class="min-w-0 flex-1 truncate text-sm text-[var(--text-primary)]"
                 >{{ item.name }}</span
               >
-              <span class="shrink-0 text-[11px] text-[var(--text-tertiary)]">{{
-                formatBytes(item.size)
-              }}</span>
-            </figcaption>
-          </figure>
+              <span
+                class="hidden w-24 text-xs text-[var(--text-tertiary)] sm:block"
+                >{{ t(SOURCE_KEY[item.source]) }}</span
+              >
+              <span
+                class="w-20 text-right text-xs text-[var(--text-tertiary)]"
+                >{{ formatBytes(item.size) }}</span
+              >
+              <span
+                class="hidden w-24 text-right text-xs text-[var(--text-tertiary)] md:block"
+                >{{ relativeTime(item.updatedAt) }}</span
+              >
+              <button
+                type="button"
+                class="touch-row-action flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] opacity-0 transition-all hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-ring group-hover:opacity-100"
+                :aria-label="t('lab.assets.more')"
+                @click="rowAction(item)"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="5" r="1" />
+                  <circle cx="12" cy="12" r="1" />
+                  <circle cx="12" cy="19" r="1" />
+                </svg>
+              </button>
+            </div>
+          </template>
+
+          <EmptyState
+            v-else
+            :title="t('lab.assets.emptyTitle')"
+            :hint="t('lab.assets.emptyHint')"
+          />
         </div>
-        <EmptyState
-          v-else
-          :title="t('lab.assets.emptyTitle')"
-          :hint="t('lab.assets.emptyHint')"
-        />
+
+        <!-- grid view -->
+        <div v-else>
+          <div
+            v-if="loading"
+            class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+          >
+            <div
+              v-for="i in 8"
+              :key="i"
+              class="aspect-square animate-pulse rounded-2xl bg-[var(--surface-muted)]"
+            />
+          </div>
+          <div
+            v-else-if="filtered.length"
+            class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+          >
+            <figure
+              v-for="item in filtered"
+              :key="item.id"
+              class="pencil-surface group overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+              data-handdrawn="surface-clipped"
+            >
+              <div
+                class="aspect-square overflow-hidden bg-[var(--surface-muted)]"
+              >
+                <img
+                  v-if="safeCover(item.cover)"
+                  :src="safeCover(item.cover)!"
+                  :alt="item.name"
+                  class="h-full w-full object-cover"
+                  loading="lazy"
+                />
+                <div
+                  v-else
+                  class="flex h-full items-center justify-center text-[var(--text-tertiary)]"
+                >
+                  <svg
+                    width="34"
+                    height="34"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <path :d="KIND_ICON[item.kind]" />
+                  </svg>
+                </div>
+              </div>
+              <figcaption
+                class="flex items-center justify-between gap-2 px-3 py-2.5"
+              >
+                <span
+                  class="min-w-0 truncate text-xs font-medium text-[var(--text-primary)]"
+                  >{{ item.name }}</span
+                >
+                <span
+                  class="shrink-0 text-[11px] text-[var(--text-tertiary)]"
+                  >{{ formatBytes(item.size) }}</span
+                >
+              </figcaption>
+            </figure>
+          </div>
+          <EmptyState
+            v-else
+            :title="t('lab.assets.emptyTitle')"
+            :hint="t('lab.assets.emptyHint')"
+          />
+        </div>
       </div>
     </div>
   </div>

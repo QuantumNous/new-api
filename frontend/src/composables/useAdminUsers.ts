@@ -154,6 +154,7 @@ export function useAdminUsers() {
   }
 
   function reloadFromFirstPage() {
+    window.clearTimeout(searchTimer)
     if (page.value === 1) void load()
     else page.value = 1
   }
@@ -163,7 +164,8 @@ export function useAdminUsers() {
     searchTimer = window.setTimeout(reloadFromFirstPage, 300)
   })
   watch([role, status, sortBy, sortOrder], reloadFromFirstPage)
-  watch([page, pageSize], () => void load())
+  watch(pageSize, reloadFromFirstPage)
+  watch(page, () => void load())
 
   async function runRowAction(
     user: AdminUser,

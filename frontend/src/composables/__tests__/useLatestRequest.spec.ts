@@ -7,7 +7,7 @@ function createInScope() {
   const scope = effectScope()
   const request = scope.run(() => useLatestRequest())
   if (!request) throw new Error('expected composable instance')
-  return { scope, run: request.run }
+  return { scope, run: request.run, cancel: request.cancel }
 }
 
 describe('useLatestRequest', () => {
@@ -58,5 +58,24 @@ describe('useLatestRequest', () => {
 
     scope.stop()
     expect(signals[0].aborted).toBe(true)
+  })
+
+  it('supports explicit cancellation without surfacing an active error', async () => {
+    const { scope, run, cancel } = createInScope()
+    let resolve: (value: string) => void = () => undefined
+    const signals: AbortSignal[] = []
+    const pending = run((currentSignal) => {
+      signals.push(currentSignal)
+      return new Promise<string>((done) => {
+        resolve = done
+      })
+    })
+
+    cancel()
+    expect(signals[0]?.aborted).toBe(true)
+    resolve('late')
+    expect(await pending).toEqual({ stale: true, ok: true, value: 'late' })
+
+    scope.stop()
   })
 })

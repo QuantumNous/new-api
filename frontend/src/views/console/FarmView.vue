@@ -41,6 +41,7 @@ const {
 } = useFarm()
 
 const tab = ref('farm')
+const farmPanelId = 'farm-tab-panel'
 
 const tabItems = computed(() => [
   { key: 'farm', label: t('farm.tabFarm') },
@@ -76,71 +77,83 @@ onMounted(load)
       :title="t('farm.title')"
       :crumbs="[$t('farm.breadcrumb.0'), $t('farm.breadcrumb.1')]"
       :tabs="tabItems"
+      :tab-panel-id="farmPanelId"
     >
       <p class="mt-2 max-w-xl text-sm text-[var(--text-tertiary)]">
         {{ t('farm.subtitle') }}
       </p>
     </PageHero>
 
-    <!-- loading skeleton -->
-    <div v-if="loading" class="grid gap-5 lg:grid-cols-2">
-      <div
-        v-for="i in 4"
-        :key="i"
-        class="h-56 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
-      />
-    </div>
-
-    <template v-else>
-      <!-- Tab: My Farm -->
-      <div v-show="tab === 'farm'" class="space-y-5">
-        <FarmHero v-if="farmState && mine" :state="farmState" :mine="mine" />
-        <div class="grid gap-5 lg:grid-cols-2">
-          <PlotGrid :plots="plots" :acting="acting" @harvest="harvest" />
-          <RanchRow
-            :animals="animals"
-            :acting="acting"
-            @feed-animal="feedAnimal"
-            @collect-animal="collectAnimal"
-          />
-          <FishingPanel
-            v-if="fishing"
-            :fishing="fishing"
-            :acting="acting"
-            @fish="goFishing"
-          />
-          <PetDock v-if="pet" :pet="pet" :acting="acting" @feed-pet="feedPet" />
-        </div>
-      </div>
-
-      <!-- Tab: Leaderboard (mounted on first visit, kept alive afterwards) -->
-      <div v-if="leaderLoaded" v-show="tab === 'leader'">
-        <LeaderTable
-          :entries="leaderEntries"
-          :period="leaderPeriod"
-          :loading="leaderLoading"
-          @change-period="onChangePeriod"
-        />
-        <EmptyState
-          v-if="!leaderLoading && leaderEntries.length === 0"
-          :title="t('farm.leader.emptyTitle')"
-          :hint="t('farm.leader.emptyHint')"
-        />
-      </div>
-
-      <!-- Tab: Rebate (mounted on first visit, kept alive afterwards) -->
-      <div v-if="rebateLoaded" v-show="tab === 'rebate'">
-        <RewardTierCard
-          v-if="rebateState"
-          :tiers="rebateTiers"
-          :state="rebateState"
-          :loading="rebateLoading"
-        />
+    <div
+      :id="farmPanelId"
+      role="tabpanel"
+      :aria-labelledby="`${farmPanelId}-tab-${tab}`"
+    >
+      <!-- loading skeleton -->
+      <div v-if="loading" class="grid gap-5 lg:grid-cols-2">
         <div
-          v-else-if="rebateLoading"
-          class="h-72 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
+          v-for="i in 4"
+          :key="i"
+          class="h-56 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
         />
       </div>
-    </template>
+
+      <template v-else>
+        <!-- Tab: My Farm -->
+        <div v-show="tab === 'farm'" class="space-y-5">
+          <FarmHero v-if="farmState && mine" :state="farmState" :mine="mine" />
+          <div class="grid gap-5 lg:grid-cols-2">
+            <PlotGrid :plots="plots" :acting="acting" @harvest="harvest" />
+            <RanchRow
+              :animals="animals"
+              :acting="acting"
+              @feed-animal="feedAnimal"
+              @collect-animal="collectAnimal"
+            />
+            <FishingPanel
+              v-if="fishing"
+              :fishing="fishing"
+              :acting="acting"
+              @fish="goFishing"
+            />
+            <PetDock
+              v-if="pet"
+              :pet="pet"
+              :acting="acting"
+              @feed-pet="feedPet"
+            />
+          </div>
+        </div>
+
+        <!-- Tab: Leaderboard (mounted on first visit, kept alive afterwards) -->
+        <div v-if="leaderLoaded" v-show="tab === 'leader'">
+          <LeaderTable
+            :entries="leaderEntries"
+            :period="leaderPeriod"
+            :loading="leaderLoading"
+            @change-period="onChangePeriod"
+          />
+          <EmptyState
+            v-if="!leaderLoading && leaderEntries.length === 0"
+            :title="t('farm.leader.emptyTitle')"
+            :hint="t('farm.leader.emptyHint')"
+          />
+        </div>
+
+        <!-- Tab: Rebate (mounted on first visit, kept alive afterwards) -->
+        <div v-if="rebateLoaded" v-show="tab === 'rebate'">
+          <RewardTierCard
+            v-if="rebateState"
+            :tiers="rebateTiers"
+            :state="rebateState"
+            :loading="rebateLoading"
+          />
+          <div
+            v-else-if="rebateLoading"
+            class="h-72 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
+          />
+        </div>
+      </template>
+    </div>
   </div>
 </template>

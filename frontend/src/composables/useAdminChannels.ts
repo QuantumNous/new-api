@@ -169,6 +169,7 @@ export function useAdminChannels() {
   }
 
   function reloadFromFirstPage() {
+    window.clearTimeout(searchTimer)
     if (page.value === 1) void load()
     else page.value = 1
   }
@@ -178,7 +179,8 @@ export function useAdminChannels() {
     searchTimer = window.setTimeout(reloadFromFirstPage, 300)
   })
   watch([type, status, sortBy, sortOrder], reloadFromFirstPage)
-  watch([page, pageSize], () => void load())
+  watch(pageSize, reloadFromFirstPage)
+  watch(page, () => void load())
 
   async function runChannelAction(
     id: number,

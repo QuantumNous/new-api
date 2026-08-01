@@ -7,6 +7,7 @@ import { areaGradient, lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import type { TokenTrendPoint } from '@/composables/useDashboard'
 import { formatCompact, formatQuota } from '@/utils/format'
+import { escapeHtml } from '@/utils/html'
 
 const props = defineProps<{
   points: TokenTrendPoint[]
@@ -114,17 +115,17 @@ useEChart(
                   : formatCompact(s.value)
               return `<div style="display:flex;align-items:center;gap:6px;margin-top:3px">
                 <span style="width:8px;height:8px;border-radius:2px;background:${s.color}"></span>
-                <span style="color:${p.textSecondary}">${s.seriesName}:</span>
-                <span style="margin-left:auto;font-weight:600">${value}</span>
+                <span style="color:${p.textSecondary}">${escapeHtml(s.seriesName)}:</span>
+                <span style="margin-left:auto;font-weight:600">${escapeHtml(value)}</span>
               </div>`
             })
             .join('')
           return `<div style="min-width:186px">
-            <div style="font-weight:700;margin-bottom:2px">${params[0]!.axisValueLabel}</div>
+            <div style="font-weight:700;margin-bottom:2px">${escapeHtml(params[0]!.axisValueLabel)}</div>
             ${rows}
             <div style="margin-top:7px;padding-top:6px;border-top:1px solid ${p.borderSubtle};font-weight:600">
-              ${t('dashboard.tokenTrend.actual')}: ${formatQuota(point.actual)}
-              <span style="color:${p.textTertiary};font-weight:400"> | ${t('dashboard.tokenTrend.standard')}: ${formatQuota(point.standard)}</span>
+              ${escapeHtml(t('dashboard.tokenTrend.actual'))}: ${escapeHtml(formatQuota(point.actual))}
+              <span style="color:${p.textTertiary};font-weight:400"> | ${escapeHtml(t('dashboard.tokenTrend.standard'))}: ${escapeHtml(formatQuota(point.standard))}</span>
             </div>
           </div>`
         },

@@ -85,6 +85,7 @@ async function load() {
 
 let searchTimer = 0
 function reload() {
+  window.clearTimeout(searchTimer)
   if (page.value === 1) load()
   else page.value = 1
 }
@@ -93,7 +94,8 @@ watch(keyword, () => {
   searchTimer = window.setTimeout(reload, 300)
 })
 watch(status, reload)
-watch([page, pageSize], load)
+watch(pageSize, reload)
+watch(page, load)
 
 function openDetail(id: number) {
   router.push({ name: 'ticket-detail', params: { id } })

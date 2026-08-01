@@ -10,6 +10,7 @@ import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleModal from '@/components/common/ConsoleModal.vue'
 import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import IconButton from '@/components/common/IconButton.vue'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 
 const props = defineProps<{
@@ -32,32 +33,42 @@ const saving = ref(false)
 
 /** Manual tokens can also use the user's active marketplace channels. */
 const myChannels = ref<MyChannel[]>([])
+const channelRequest = useLatestRequest()
 
 const readonly = computed(() => props.token?.type === 'auto')
 
-watch(
-  () => props.open,
-  async (open) => {
-    if (!open || !props.token) return
-    channels.value = props.token.channels.map((c) => ({ ...c }))
-    loadBalance.value = props.token.load_balance
-    if (props.token.type === 'manual') {
-      try {
-        const data = await api.get<{ channels: MyChannel[] }>(
-          '/api/market/my-channels'
-        )
-        myChannels.value = data.channels
-      } catch (error) {
-        myChannels.value = []
-        toast.error(
-          error instanceof ApiError ? error.message : t('common.failed')
-        )
-      }
-    } else {
-      myChannels.value = []
-    }
+watch([() => props.open, () => props.token?.id], async ([open]) => {
+  channelRequest.cancel()
+  const token = props.token
+  if (!open || !token) {
+    myChannels.value = []
+    return
   }
-)
+
+  channels.value = token.channels.map((channel) => ({ ...channel }))
+  loadBalance.value = token.load_balance
+  if (token.type !== 'manual') {
+    myChannels.value = []
+    return
+  }
+
+  const result = await channelRequest.run((signal) =>
+    api.get<{ channels: MyChannel[] }>('/api/market/my-channels', undefined, {
+      signal,
+    })
+  )
+  if (result.stale) return
+  if (!result.ok) {
+    myChannels.value = []
+    toast.error(
+      result.error instanceof ApiError
+        ? result.error.message
+        : t('common.failed')
+    )
+    return
+  }
+  myChannels.value = result.value.channels
+})
 
 /** Manual tokens combine official and user-added active channels. */
 const candidates = computed<string[]>(() => {

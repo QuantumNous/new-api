@@ -1,8 +1,9 @@
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import type {
@@ -42,6 +43,8 @@ export function useAdminRedemption() {
     id: number | null
   } | null>(null)
   const bulkAction = ref<RedemptionBulkAction | null>(null)
+  const listRequest = useLatestRequest()
+  let searchTimer = 0
 
   const isCrudBusy = computed(() => crudAction.value !== null)
   const isBulkBusy = computed(() => bulkAction.value !== null)
@@ -84,51 +87,65 @@ export function useAdminRedemption() {
   }
 
   async function load(opts: { background?: boolean } = {}): Promise<void> {
-    if (opts.background) {
-      refreshing.value = true
-    } else {
-      loading.value = true
-      initialError.value = ''
+    const background = opts.background === true && rows.value.length > 0
+    if (background) refreshing.value = true
+    else loading.value = true
+    if (rows.value.length === 0) initialError.value = ''
+
+    const trimmed = keyword.value.trim()
+    const url = trimmed ? '/api/redemption/search' : '/api/redemption/'
+    const result = await listRequest.run((signal) =>
+      api.get<AdminRedemptionPage>(
+        url,
+        {
+          keyword: trimmed || undefined,
+          type: typeFilter.value || undefined,
+          status: statusFilter.value || undefined,
+          sort_by: sortBy.value,
+          sort_order: sortOrder.value,
+          p: page.value,
+          page_size: pageSize.value,
+        },
+        { signal }
+      )
+    )
+    if (result.stale) return
+
+    loading.value = false
+    refreshing.value = false
+    if (!result.ok) {
+      const message =
+        result.error instanceof ApiError
+          ? result.error.message
+          : t('redemption.loadFailed')
+      if (rows.value.length === 0) initialError.value = message
+      else toast.error(message)
+      return
     }
 
-    try {
-      const isSearch = keyword.value.trim().length > 0
-      const url = isSearch ? '/api/redemption/search' : '/api/redemption/'
-      const result = await api.get<AdminRedemptionPage>(url, {
-        keyword: keyword.value || undefined,
-        type: typeFilter.value || undefined,
-        status: statusFilter.value || undefined,
-        sort_by: sortBy.value,
-        sort_order: sortOrder.value,
-        p: page.value,
-        page_size: pageSize.value,
-      })
-      rows.value = result.items
-      total.value = result.total
-      typeCounts.value = result.type_counts
-      statusCounts.value = result.status_counts
-    } catch (err) {
-      if (!opts.background) {
-        initialError.value =
-          err instanceof ApiError ? err.message : t('redemption.loadFailed')
-      }
-    } finally {
-      loading.value = false
-      refreshing.value = false
-    }
+    rows.value = result.value.items
+    total.value = result.value.total
+    typeCounts.value = result.value.type_counts
+    statusCounts.value = result.value.status_counts
+    initialError.value = ''
   }
 
-  // Reload on filter / sort / page changes.
-  watch(
-    [keyword, typeFilter, statusFilter, sortBy, sortOrder, pageSize],
-    () => {
-      page.value = 1
-      load()
-    }
-  )
-  watch(page, () => load())
+  function reloadFromFirstPage(): void {
+    window.clearTimeout(searchTimer)
+    if (page.value === 1) void load()
+    else page.value = 1
+  }
 
-  onMounted(() => load())
+  watch(keyword, () => {
+    window.clearTimeout(searchTimer)
+    searchTimer = window.setTimeout(reloadFromFirstPage, 300)
+  })
+  watch([typeFilter, statusFilter, sortBy, sortOrder], reloadFromFirstPage)
+  watch(pageSize, reloadFromFirstPage)
+  watch(page, () => void load())
+
+  onMounted(() => void load())
+  onBeforeUnmount(() => window.clearTimeout(searchTimer))
 
   async function toggleStatus(code: AdminRedemptionCode): Promise<void> {
     if (busy.value.has(code.id)) return
@@ -147,6 +164,7 @@ export function useAdminRedemption() {
           ? t('redemption.disabled')
           : t('redemption.enabled')
       )
+      await load({ background: true })
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : String(err))
     } finally {
@@ -180,9 +198,9 @@ export function useAdminRedemption() {
     crudAction.value = { action: 'delete', id: code.id }
     try {
       await api.delete(`/api/redemption/${code.id}`)
-      rows.value = rows.value.filter((c) => c.id !== code.id)
-      total.value = Math.max(0, total.value - 1)
       toast.success(t('redemption.deleted'))
+      if (rows.value.length === 1 && page.value > 1) page.value -= 1
+      else await load({ background: true })
       return true
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : String(err))
@@ -201,12 +219,13 @@ export function useAdminRedemption() {
       const deleted = await api.post<number>('/api/redemption/batch', {
         ids: codes.map((c) => c.id),
       })
-      const deletedIds = new Set(codes.map((c) => c.id))
-      rows.value = rows.value.filter((c) => !deletedIds.has(c.id))
-      total.value = Math.max(0, total.value - (deleted ?? codes.length))
       toast.success(
         t('redemption.bulkDeleted', { count: deleted ?? codes.length })
       )
+      const deletedIds = new Set(codes.map((code) => code.id))
+      const clearsPage = rows.value.every((code) => deletedIds.has(code.id))
+      if (clearsPage && page.value > 1) page.value -= 1
+      else await load({ background: true })
       return true
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : String(err))

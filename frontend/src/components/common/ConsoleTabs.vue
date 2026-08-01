@@ -8,14 +8,27 @@ const model = defineModel<string>({ default: '' })
 
 const props = defineProps<{
   items: TabItem[]
+  panelId: string
 }>()
 
 function onKeydown(e: KeyboardEvent, index: number) {
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+  let next: number
+  if (e.key === 'ArrowRight') {
+    next = index === props.items.length - 1 ? 0 : index + 1
+  } else if (e.key === 'ArrowLeft') {
+    next = index === 0 ? props.items.length - 1 : index - 1
+  } else if (e.key === 'Home') {
+    next = 0
+  } else if (e.key === 'End') {
+    next = props.items.length - 1
+  } else {
+    return
+  }
+
+  const item = props.items[next]
+  if (!item) return
   e.preventDefault()
-  const delta = e.key === 'ArrowRight' ? 1 : -1
-  const next = (index + delta + props.items.length) % props.items.length
-  model.value = props.items[next].key
+  model.value = item.key
   const tabs = (
     e.currentTarget as HTMLElement
   ).parentElement?.querySelectorAll<HTMLElement>('[role="tab"]')
@@ -31,9 +44,11 @@ function onKeydown(e: KeyboardEvent, index: number) {
   >
     <button
       v-for="(item, i) in items"
+      :id="`${panelId}-tab-${item.key}`"
       :key="item.key"
       type="button"
       role="tab"
+      :aria-controls="panelId"
       :aria-selected="model === item.key"
       :tabindex="model === item.key ? 0 : -1"
       class="relative pb-3 text-sm font-medium transition-colors"

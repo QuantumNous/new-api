@@ -62,7 +62,14 @@ async function load() {
   total.value = result.value.total
 }
 
-watch([page, pageSize, refreshKey], load)
+function reloadFromFirstPage() {
+  if (page.value === 1) void load()
+  else page.value = 1
+}
+
+watch(pageSize, reloadFromFirstPage)
+watch(page, load)
+watch(refreshKey, load)
 onMounted(load)
 </script>
 

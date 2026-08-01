@@ -1,8 +1,9 @@
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import type {
@@ -45,6 +46,8 @@ export function useAdminPlans() {
     null
   )
   const bulkAction = ref<PlanBulkAction | null>(null)
+  const listRequest = useLatestRequest()
+  let searchTimer = 0
 
   const isCrudBusy = computed(() => crudAction.value !== null)
   const isBulkBusy = computed(() => bulkAction.value !== null)
@@ -84,50 +87,65 @@ export function useAdminPlans() {
   }
 
   async function load(opts: { background?: boolean } = {}): Promise<void> {
-    if (opts.background) {
-      refreshing.value = true
-    } else {
-      loading.value = true
-      initialError.value = ''
+    const background = opts.background === true && rows.value.length > 0
+    if (background) refreshing.value = true
+    else loading.value = true
+    if (rows.value.length === 0) initialError.value = ''
+
+    const result = await listRequest.run((signal) =>
+      api.get<AdminPlanPage>(
+        '/api/plan/',
+        {
+          keyword: keyword.value.trim() || undefined,
+          status: statusFilter.value || undefined,
+          kind: kindFilter.value || undefined,
+          sort_by: sortBy.value,
+          sort_order: sortOrder.value,
+          p: page.value,
+          page_size: pageSize.value,
+        },
+        { signal }
+      )
+    )
+    if (result.stale) return
+
+    loading.value = false
+    refreshing.value = false
+    if (!result.ok) {
+      const message =
+        result.error instanceof ApiError
+          ? result.error.message
+          : t('planManagement.loadFailed')
+      if (rows.value.length === 0) initialError.value = message
+      else toast.error(message)
+      return
     }
 
-    try {
-      const result = await api.get<AdminPlanPage>('/api/plan/', {
-        keyword: keyword.value || undefined,
-        status: statusFilter.value || undefined,
-        kind: kindFilter.value || undefined,
-        sort_by: sortBy.value,
-        sort_order: sortOrder.value,
-        p: page.value,
-        page_size: pageSize.value,
-      })
-      rows.value = result.items
-      total.value = result.total
-      statusCounts.value = result.status_counts
-      kindCounts.value = result.kind_counts
-      filteredSubscribers.value = result.filtered_subscribers
-      filteredRevenue.value = result.filtered_revenue
-    } catch (err) {
-      if (!opts.background) {
-        initialError.value =
-          err instanceof ApiError ? err.message : t('planManagement.loadFailed')
-      }
-    } finally {
-      loading.value = false
-      refreshing.value = false
-    }
+    rows.value = result.value.items
+    total.value = result.value.total
+    statusCounts.value = result.value.status_counts
+    kindCounts.value = result.value.kind_counts
+    filteredSubscribers.value = result.value.filtered_subscribers
+    filteredRevenue.value = result.value.filtered_revenue
+    initialError.value = ''
   }
 
-  watch(
-    [keyword, statusFilter, kindFilter, sortBy, sortOrder, pageSize],
-    () => {
-      page.value = 1
-      load()
-    }
-  )
-  watch(page, () => load())
+  function reloadFromFirstPage(): void {
+    window.clearTimeout(searchTimer)
+    if (page.value === 1) void load()
+    else page.value = 1
+  }
 
-  onMounted(() => load())
+  watch(keyword, () => {
+    window.clearTimeout(searchTimer)
+    searchTimer = window.setTimeout(reloadFromFirstPage, 300)
+  })
+  watch([statusFilter, kindFilter, sortBy, sortOrder], reloadFromFirstPage)
+  watch(pageSize, reloadFromFirstPage)
+  watch(page, () => void load())
+
+  onMounted(() => void load())
+  onBeforeUnmount(() => window.clearTimeout(searchTimer))
 
   async function setStatus(
     plan: AdminPlan,
@@ -197,10 +215,9 @@ export function useAdminPlans() {
     crudAction.value = { action: 'delete', id: plan.id }
     try {
       await api.delete(`/api/plan/${plan.id}`)
-      rows.value = rows.value.filter((p) => p.id !== plan.id)
-      total.value = Math.max(0, total.value - 1)
       toast.success(t('planManagement.deleted'))
-      await load({ background: true })
+      if (rows.value.length === 1 && page.value > 1) page.value -= 1
+      else await load({ background: true })
       return true
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : String(err))
@@ -220,7 +237,10 @@ export function useAdminPlans() {
       toast.success(
         t('planManagement.bulkDeleted', { count: deleted ?? plans.length })
       )
-      await load({ background: true })
+      const deletedIds = new Set(plans.map((plan) => plan.id))
+      const clearsPage = rows.value.every((plan) => deletedIds.has(plan.id))
+      if (clearsPage && page.value > 1) page.value -= 1
+      else await load({ background: true })
       return true
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : String(err))

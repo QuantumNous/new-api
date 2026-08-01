@@ -44,6 +44,23 @@ function slices(): Slice[] {
   return option.series[0].data
 }
 
+function tooltipFormatter(): (params: {
+  name: string
+  percent: number
+  value: number
+}) => string {
+  const option = captured.build!(palette) as {
+    tooltip: {
+      formatter: (params: {
+        name: string
+        percent: number
+        value: number
+      }) => string
+    }
+  }
+  return option.tooltip.formatter
+}
+
 function model(name: string, quota: number): ModelShare {
   return {
     model: name,
@@ -107,6 +124,18 @@ describe('ModelDistributionCard', () => {
     render([model('small', 100), model('big', 9_000), model('mid', 4_000)])
 
     expect(slices().map((s) => s.name)).toEqual(['big', 'mid', 'small'])
+  })
+
+  it('escapes model names rendered by the HTML tooltip', () => {
+    render([model('<img src=x onerror=alert(1)>', 100)])
+
+    const html = tooltipFormatter()({
+      name: '<img src=x onerror=alert(1)>',
+      percent: 100,
+      value: 100,
+    })
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+    expect(html).not.toContain('<img')
   })
 
   it('lists every model even though the chart folds the tail', () => {

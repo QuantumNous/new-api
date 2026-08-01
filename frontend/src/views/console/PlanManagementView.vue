@@ -18,6 +18,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
+import { ApiError } from '@/api/types'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
@@ -33,6 +34,7 @@ import TablePagination from '@/components/common/TablePagination.vue'
 import Breadcrumb from '@/components/console/Breadcrumb.vue'
 import PlanFormModal from '@/components/console/plans/PlanFormModal.vue'
 import { useAdminPlans } from '@/composables/useAdminPlans'
+import { useToast } from '@/composables/useToast'
 import {
   ADMIN_PLAN_SORT_FIELDS,
   ADMIN_PLAN_STATUSES,
@@ -59,6 +61,7 @@ import type {
 import { formatMoney, formatNumber, formatTime } from '@/utils/format'
 
 const { t } = useI18n()
+const toast = useToast()
 
 const {
   rows,
@@ -108,8 +111,10 @@ async function loadChannelNames(): Promise<void> {
     channelNames.value = new Map(
       page.items.map((channel) => [channel.id, channel.name])
     )
-  } catch {
-    // Non-fatal: the column falls back to showing the raw id.
+  } catch (error) {
+    toast.error(
+      error instanceof ApiError ? error.message : t('channels.loadFailed')
+    )
   }
 }
 

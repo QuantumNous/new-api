@@ -7,6 +7,7 @@ import { useEChart } from '@/charts/useEChart'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import type { ModelShare } from '@/composables/useDashboard'
 import { formatCompact, formatNumber, formatQuota } from '@/utils/format'
+import { escapeHtml } from '@/utils/html'
 
 /** Slices the donut plots individually; everything past this folds into one. */
 const TOP_N = 10
@@ -72,7 +73,7 @@ const { dispatch } = useEChart(
       borderColor: p.borderSubtle,
       textStyle: { color: p.textPrimary, fontSize: 12 },
       formatter: (params: { name: string; percent: number; value: number }) =>
-        `${params.name}<br/>${formatQuota(params.value)} · ${params.percent}%`,
+        `${escapeHtml(params.name)}<br/>${escapeHtml(formatQuota(params.value))} · ${escapeHtml(params.percent)}%`,
     },
     series: [
       {

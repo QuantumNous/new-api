@@ -127,6 +127,7 @@ async function load() {
 let searchTimer = 0
 // Reset to page 1 without firing load() twice (see LogsView for the rationale).
 function reload() {
+  window.clearTimeout(searchTimer)
   if (page.value === 1) load()
   else page.value = 1
 }
@@ -134,7 +135,8 @@ watch(keyword, () => {
   window.clearTimeout(searchTimer)
   searchTimer = window.setTimeout(reload, 300)
 })
-watch([page, pageSize], load)
+watch(pageSize, reload)
+watch(page, load)
 
 const togglingIds = ref<Set<number>>(new Set())
 

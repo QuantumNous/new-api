@@ -45,6 +45,7 @@ export function useEChart(
   watchSources?: WatchSource | WatchSource[]
 ) {
   let chart: echarts.ECharts | null = null
+  let chartTarget: HTMLElement | null = null
   let resizeObserver: ResizeObserver | null = null
   let themeObserver: MutationObserver | null = null
 
@@ -73,8 +74,20 @@ export function useEChart(
     watch(watchSources, () => render())
   }
 
+  function detach() {
+    resizeObserver?.disconnect()
+    resizeObserver = null
+    themeObserver?.disconnect()
+    themeObserver = null
+    chart?.dispose()
+    chart = null
+    chartTarget = null
+  }
+
   function attach(target: HTMLElement) {
-    if (chart) return
+    if (chart && chartTarget === target) return
+    detach()
+    chartTarget = target
     chart = echarts.init(target)
     render()
 
@@ -95,17 +108,21 @@ export function useEChart(
     if (el.value) attach(el.value)
   })
 
-  // Charts behind a v-if loading skeleton mount without an element; pick it up
-  // as soon as the real container renders.
-  watch(el, (target) => {
-    if (target) attach(target)
-  })
+  // A v-if loading skeleton replaces the chart host element. Dispose the
+  // instance bound to the removed node before attaching the replacement, or
+  // ECharts keeps rendering into a detached DOM subtree.
+  watch(
+    el,
+    (target) => {
+      if (target === chartTarget) return
+      detach()
+      if (target) attach(target)
+    },
+    { flush: 'post' }
+  )
 
   onBeforeUnmount(() => {
-    resizeObserver?.disconnect()
-    themeObserver?.disconnect()
-    chart?.dispose()
-    chart = null
+    detach()
   })
 
   return { refresh: render, dispatch }

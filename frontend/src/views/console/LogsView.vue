@@ -248,6 +248,7 @@ function currentParams() {
 }
 
 const listRequest = useLatestRequest()
+const statsRequest = useLatestRequest()
 
 async function load() {
   loading.value = true
@@ -270,6 +271,7 @@ async function load() {
 
 let searchTimer = 0
 function reload() {
+  window.clearTimeout(searchTimer)
   if (page.value === 1) load()
   else page.value = 1
 }
@@ -278,7 +280,8 @@ watch(keyword, () => {
   searchTimer = window.setTimeout(reload, 300)
 })
 watch([type, startDate, endDate], reload)
-watch([page, pageSize], load)
+watch(pageSize, reload)
+watch(page, load)
 
 // ---------- export ----------
 
@@ -396,11 +399,17 @@ onMounted(async () => {
     { passive: true }
   )
   void load()
-  try {
-    stat.value = await api.get<LogStat>('/api/log/self/stat')
-  } catch (error) {
-    toast.error(error instanceof ApiError ? error.message : t('common.failed'))
-  }
+  const result = await statsRequest.run((signal) =>
+    api.get<LogStat>('/api/log/self/stat', undefined, { signal })
+  )
+  if (result.stale) return
+  if (result.ok) stat.value = result.value
+  else
+    toast.error(
+      result.error instanceof ApiError
+        ? result.error.message
+        : t('common.failed')
+    )
 })
 
 onBeforeUnmount(() => {

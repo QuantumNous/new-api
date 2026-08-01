@@ -14,7 +14,13 @@ export function useLatestRequest() {
   let controller: AbortController | null = null
   let sequence = 0
 
-  onScopeDispose(() => controller?.abort())
+  function cancel(): void {
+    sequence += 1
+    controller?.abort()
+    controller = null
+  }
+
+  onScopeDispose(cancel)
 
   async function run<T>(
     task: (signal: AbortSignal) => Promise<T>
@@ -35,5 +41,5 @@ export function useLatestRequest() {
     }
   }
 
-  return { run }
+  return { run, cancel }
 }

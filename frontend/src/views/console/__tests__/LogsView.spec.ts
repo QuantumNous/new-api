@@ -258,4 +258,36 @@ describe('LogsView', () => {
     expect(rejectExport).toBeDefined()
     expect(useToast().toasts).toHaveLength(0)
   })
+
+  it('aborts the summary request on unmount without reporting a failure', async () => {
+    const originalGet = api.get.bind(api)
+    let statSignal: AbortSignal | undefined
+    vi.spyOn(api, 'get').mockImplementation((<T>(
+      url: string,
+      params?: Record<string, unknown>,
+      options?: { signal?: AbortSignal }
+    ) => {
+      if (url !== '/api/log/self/stat') {
+        return originalGet<T>(url, params, options)
+      }
+      statSignal = options?.signal
+      return new Promise<T>((_resolve, reject) => {
+        statSignal?.addEventListener(
+          'abort',
+          () => reject(new DOMException('Aborted', 'AbortError')),
+          { once: true }
+        )
+      })
+    }) as typeof api.get)
+
+    const wrapper = mount(LogsView, {
+      global: { plugins: [i18n] },
+    })
+    await flushPromises()
+    wrapper.unmount()
+    await flushPromises()
+
+    expect(statSignal?.aborted).toBe(true)
+    expect(useToast().toasts).toHaveLength(0)
+  })
 })

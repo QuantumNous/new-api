@@ -93,6 +93,7 @@ const {
 } = useAdminOrders()
 
 const activeTab = ref('overview')
+const ordersPanelId = 'orders-tab-panel'
 const detailOrder = ref<AdminOrder | null>(null)
 const refundTarget = ref<AdminOrder | null>(null)
 const exportOpen = ref(false)
@@ -335,267 +336,282 @@ onBeforeUnmount(() => exportController?.abort())
       />
     </div>
 
-    <ConsoleTabs v-model="activeTab" :items="tabs" class="-mt-3 mb-6" />
+    <ConsoleTabs
+      v-model="activeTab"
+      :items="tabs"
+      :panel-id="ordersPanelId"
+      class="-mt-3 mb-6"
+    />
 
-    <!-- ============ overview ============ -->
-    <div v-if="activeTab === 'overview'">
-      <div
-        v-if="statsError"
-        class="flex flex-col items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-6 py-16 text-center"
-        role="alert"
-      >
-        <AlertTriangle :size="28" class="text-[var(--status-danger-text)]" />
-        <p class="mt-3 font-semibold text-[var(--text-primary)]">
-          {{ t('orders.statsFailed') }}
-        </p>
-        <p class="mt-1 max-w-md text-sm text-[var(--text-tertiary)]">
-          {{ statsError }}
-        </p>
-        <ConsoleButton class="mt-5" variant="secondary" @click="loadStats()">
-          {{ t('common.retry') }}
-        </ConsoleButton>
+    <div
+      :id="ordersPanelId"
+      role="tabpanel"
+      :aria-labelledby="`${ordersPanelId}-tab-${activeTab}`"
+    >
+      <!-- ============ overview ============ -->
+      <div v-if="activeTab === 'overview'">
+        <div
+          v-if="statsError"
+          class="flex flex-col items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-6 py-16 text-center"
+          role="alert"
+        >
+          <AlertTriangle :size="28" class="text-[var(--status-danger-text)]" />
+          <p class="mt-3 font-semibold text-[var(--text-primary)]">
+            {{ t('orders.statsFailed') }}
+          </p>
+          <p class="mt-1 max-w-md text-sm text-[var(--text-tertiary)]">
+            {{ statsError }}
+          </p>
+          <ConsoleButton class="mt-5" variant="secondary" @click="loadStats()">
+            {{ t('common.retry') }}
+          </ConsoleButton>
+        </div>
+
+        <template v-else>
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <OrderStatCard
+              :label="t('orders.todayRevenue')"
+              :value="formatMoney(stats?.today_revenue ?? 0)"
+              :hint="
+                t('orders.orderCount', { count: stats?.today_orders ?? 0 })
+              "
+              tone="success"
+              :loading="statsLoading"
+            >
+              <template #icon><BadgeDollarSign :size="20" /></template>
+            </OrderStatCard>
+            <OrderStatCard
+              :label="t('orders.totalRevenue')"
+              :value="formatMoney(stats?.total_revenue ?? 0)"
+              :hint="
+                t('orders.orderCount', { count: stats?.total_orders ?? 0 })
+              "
+              tone="info"
+              :loading="statsLoading"
+            >
+              <template #icon><CreditCard :size="20" /></template>
+            </OrderStatCard>
+            <OrderStatCard
+              :label="t('orders.todayOrders')"
+              :value="String(stats?.today_orders ?? 0)"
+              :hint="t('orders.settledOnly')"
+              tone="accent"
+              :loading="statsLoading"
+            >
+              <template #icon><Receipt :size="20" /></template>
+            </OrderStatCard>
+            <OrderStatCard
+              :label="t('orders.averageAmount')"
+              :value="formatMoney(stats?.average_amount ?? 0)"
+              :hint="t('orders.rangeDays', { days: range })"
+              tone="warning"
+              :loading="statsLoading"
+            >
+              <template #icon><TrendingUp :size="20" /></template>
+            </OrderStatCard>
+          </div>
+
+          <OrderRevenueChart
+            class="mt-5"
+            :points="daily"
+            :loading="statsLoading"
+          />
+
+          <div class="mt-5 grid gap-5 lg:grid-cols-2">
+            <PaymentMethodShare
+              :items="stats?.payment_share ?? []"
+              :loading="statsLoading"
+            />
+            <TopSpenders
+              :items="stats?.top_spenders ?? []"
+              :loading="statsLoading"
+            />
+          </div>
+        </template>
       </div>
 
-      <template v-else>
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <OrderStatCard
-            :label="t('orders.todayRevenue')"
-            :value="formatMoney(stats?.today_revenue ?? 0)"
-            :hint="t('orders.orderCount', { count: stats?.today_orders ?? 0 })"
-            tone="success"
-            :loading="statsLoading"
-          >
-            <template #icon><BadgeDollarSign :size="20" /></template>
-          </OrderStatCard>
-          <OrderStatCard
-            :label="t('orders.totalRevenue')"
-            :value="formatMoney(stats?.total_revenue ?? 0)"
-            :hint="t('orders.orderCount', { count: stats?.total_orders ?? 0 })"
-            tone="info"
-            :loading="statsLoading"
-          >
-            <template #icon><CreditCard :size="20" /></template>
-          </OrderStatCard>
-          <OrderStatCard
-            :label="t('orders.todayOrders')"
-            :value="String(stats?.today_orders ?? 0)"
-            :hint="t('orders.settledOnly')"
-            tone="accent"
-            :loading="statsLoading"
-          >
-            <template #icon><Receipt :size="20" /></template>
-          </OrderStatCard>
-          <OrderStatCard
-            :label="t('orders.averageAmount')"
-            :value="formatMoney(stats?.average_amount ?? 0)"
-            :hint="t('orders.rangeDays', { days: range })"
-            tone="warning"
-            :loading="statsLoading"
-          >
-            <template #icon><TrendingUp :size="20" /></template>
-          </OrderStatCard>
+      <!-- ============ order list ============ -->
+      <ConsoleCard v-else :padded="false">
+        <div
+          class="flex flex-col gap-3 border-b border-[var(--border-subtle)] p-4 xl:flex-row xl:items-center"
+        >
+          <SearchInput
+            v-model="keyword"
+            :placeholder="t('orders.searchPlaceholder')"
+            :aria-label="t('orders.searchPlaceholder')"
+            name="admin-order-search"
+            class="w-full xl:w-72"
+          />
+          <div class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3 xl:flex-1">
+            <FilterSelect
+              v-model="status"
+              :options="statusOptions"
+              :label="t('orders.statusFilter')"
+              class="w-full"
+            />
+            <FilterSelect
+              v-model="method"
+              :options="methodOptions"
+              :label="t('orders.methodFilter')"
+              class="w-full"
+            />
+            <FilterSelect
+              v-model="type"
+              :options="typeOptions"
+              :label="t('orders.typeFilter')"
+              class="w-full"
+            />
+          </div>
         </div>
 
-        <OrderRevenueChart
-          class="mt-5"
-          :points="daily"
-          :loading="statsLoading"
-        />
-
-        <div class="mt-5 grid gap-5 lg:grid-cols-2">
-          <PaymentMethodShare
-            :items="stats?.payment_share ?? []"
-            :loading="statsLoading"
-          />
-          <TopSpenders
-            :items="stats?.top_spenders ?? []"
-            :loading="statsLoading"
-          />
-        </div>
-      </template>
-    </div>
-
-    <!-- ============ order list ============ -->
-    <ConsoleCard v-else :padded="false">
-      <div
-        class="flex flex-col gap-3 border-b border-[var(--border-subtle)] p-4 xl:flex-row xl:items-center"
-      >
-        <SearchInput
-          v-model="keyword"
-          :placeholder="t('orders.searchPlaceholder')"
-          :aria-label="t('orders.searchPlaceholder')"
-          name="admin-order-search"
-          class="w-full xl:w-72"
-        />
-        <div class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3 xl:flex-1">
-          <FilterSelect
-            v-model="status"
-            :options="statusOptions"
-            :label="t('orders.statusFilter')"
-            class="w-full"
-          />
-          <FilterSelect
-            v-model="method"
-            :options="methodOptions"
-            :label="t('orders.methodFilter')"
-            class="w-full"
-          />
-          <FilterSelect
-            v-model="type"
-            :options="typeOptions"
-            :label="t('orders.typeFilter')"
-            class="w-full"
-          />
-        </div>
-      </div>
-
-      <div
-        v-if="initialError"
-        class="flex min-h-64 flex-col items-center justify-center px-6 py-12 text-center"
-        role="alert"
-      >
-        <AlertTriangle :size="28" class="text-[var(--status-danger-text)]" />
-        <p class="mt-3 font-semibold text-[var(--text-primary)]">
-          {{ t('orders.loadFailed') }}
-        </p>
-        <p class="mt-1 max-w-md text-sm text-[var(--text-tertiary)]">
-          {{ initialError }}
-        </p>
-        <ConsoleButton class="mt-5" variant="secondary" @click="load()">
-          {{ t('common.retry') }}
-        </ConsoleButton>
-      </div>
-
-      <template v-else>
-        <!-- mobile -->
-        <div class="lg:hidden">
-          <OrderMobileList
-            :orders="rows"
-            :loading="loading"
-            :can-refund="canRefund"
-            :is-refunding="isRefunding"
-            :view-order="(order) => (detailOrder = order)"
-            :refund-order="requestRefund"
-          />
+        <div
+          v-if="initialError"
+          class="flex min-h-64 flex-col items-center justify-center px-6 py-12 text-center"
+          role="alert"
+        >
+          <AlertTriangle :size="28" class="text-[var(--status-danger-text)]" />
+          <p class="mt-3 font-semibold text-[var(--text-primary)]">
+            {{ t('orders.loadFailed') }}
+          </p>
+          <p class="mt-1 max-w-md text-sm text-[var(--text-tertiary)]">
+            {{ initialError }}
+          </p>
+          <ConsoleButton class="mt-5" variant="secondary" @click="load()">
+            {{ t('common.retry') }}
+          </ConsoleButton>
         </div>
 
-        <!-- desktop -->
-        <div class="hidden lg:block">
-          <DataTable
-            :columns="columns"
-            :rows="rows"
-            row-key="id"
-            :loading="loading"
-            :skeleton-rows="pageSize"
-            adaptive-scroll
-            :page-size="pageSize"
-            :scroll-region-label="t('orders.tableRows')"
-            min-table-width="1060px"
-            :empty-title="t('orders.emptyTitle')"
-            :empty-hint="t('orders.emptyHint')"
-            row-dblclickable
-            @row-dblclick="(order) => (detailOrder = order as AdminOrder)"
-          >
-            <template #cell-id="{ row }">
-              <span class="font-mono text-xs text-[var(--text-tertiary)]">
-                #{{ (row as AdminOrder).id }}
-              </span>
-            </template>
+        <template v-else>
+          <!-- mobile -->
+          <div class="lg:hidden">
+            <OrderMobileList
+              :orders="rows"
+              :loading="loading"
+              :can-refund="canRefund"
+              :is-refunding="isRefunding"
+              :view-order="(order) => (detailOrder = order)"
+              :refund-order="requestRefund"
+            />
+          </div>
 
-            <template #cell-order_no="{ row }">
-              <span
-                class="block truncate font-mono text-xs text-[var(--text-secondary)]"
-                :title="(row as AdminOrder).order_no"
-              >
-                {{ (row as AdminOrder).order_no }}
-              </span>
-            </template>
+          <!-- desktop -->
+          <div class="hidden lg:block">
+            <DataTable
+              :columns="columns"
+              :rows="rows"
+              row-key="id"
+              :loading="loading"
+              :skeleton-rows="pageSize"
+              adaptive-scroll
+              :page-size="pageSize"
+              :scroll-region-label="t('orders.tableRows')"
+              min-table-width="1060px"
+              :empty-title="t('orders.emptyTitle')"
+              :empty-hint="t('orders.emptyHint')"
+              row-dblclickable
+              @row-dblclick="(order) => (detailOrder = order as AdminOrder)"
+            >
+              <template #cell-id="{ row }">
+                <span class="font-mono text-xs text-[var(--text-tertiary)]">
+                  #{{ (row as AdminOrder).id }}
+                </span>
+              </template>
 
-            <template #cell-user="{ row }">
-              <span
-                class="block truncate text-xs text-[var(--text-secondary)]"
-                :title="(row as AdminOrder).email"
-              >
-                {{ (row as AdminOrder).email }}
-              </span>
-            </template>
-
-            <template #cell-amount="{ row }">
-              <span class="font-semibold">
-                {{ formatMoney((row as AdminOrder).amount) }}
-              </span>
-            </template>
-
-            <template #cell-method="{ row }">
-              <span class="text-xs text-[var(--text-secondary)]">
-                {{ t(adminOrderMethodLabelKey((row as AdminOrder).method)) }}
-              </span>
-            </template>
-
-            <template #cell-status="{ row }">
-              <StatusChip
-                :tone="adminOrderStatusTone((row as AdminOrder).status)"
-              >
-                {{ t(adminOrderStatusLabelKey((row as AdminOrder).status)) }}
-              </StatusChip>
-            </template>
-
-            <template #cell-created="{ row }">
-              <span class="text-xs text-[var(--text-tertiary)]">
-                {{ formatTime((row as AdminOrder).created) }}
-              </span>
-            </template>
-
-            <template #cell-actions="{ row }">
-              <div
-                class="flex items-center justify-end gap-1"
-                @click.stop
-                @dblclick.stop
-              >
-                <IconButton
-                  :label="t('orders.viewOrder')"
-                  @click="detailOrder = row as AdminOrder"
+              <template #cell-order_no="{ row }">
+                <span
+                  class="block truncate font-mono text-xs text-[var(--text-secondary)]"
+                  :title="(row as AdminOrder).order_no"
                 >
-                  <Eye :size="16" />
-                </IconButton>
-                <IconButton
-                  v-if="canRefund(row as AdminOrder)"
-                  :label="t('orders.refundOrder')"
-                  tone="danger"
-                  :disabled="isRefundBusy"
-                  @click="requestRefund(row as AdminOrder)"
+                  {{ (row as AdminOrder).order_no }}
+                </span>
+              </template>
+
+              <template #cell-user="{ row }">
+                <span
+                  class="block truncate text-xs text-[var(--text-secondary)]"
+                  :title="(row as AdminOrder).email"
                 >
-                  <LoaderCircle
-                    v-if="isRefunding((row as AdminOrder).id)"
-                    :size="16"
-                    class="animate-spin"
+                  {{ (row as AdminOrder).email }}
+                </span>
+              </template>
+
+              <template #cell-amount="{ row }">
+                <span class="font-semibold">
+                  {{ formatMoney((row as AdminOrder).amount) }}
+                </span>
+              </template>
+
+              <template #cell-method="{ row }">
+                <span class="text-xs text-[var(--text-secondary)]">
+                  {{ t(adminOrderMethodLabelKey((row as AdminOrder).method)) }}
+                </span>
+              </template>
+
+              <template #cell-status="{ row }">
+                <StatusChip
+                  :tone="adminOrderStatusTone((row as AdminOrder).status)"
+                >
+                  {{ t(adminOrderStatusLabelKey((row as AdminOrder).status)) }}
+                </StatusChip>
+              </template>
+
+              <template #cell-created="{ row }">
+                <span class="text-xs text-[var(--text-tertiary)]">
+                  {{ formatTime((row as AdminOrder).created) }}
+                </span>
+              </template>
+
+              <template #cell-actions="{ row }">
+                <div
+                  class="flex items-center justify-end gap-1"
+                  @click.stop
+                  @dblclick.stop
+                >
+                  <IconButton
+                    :label="t('orders.viewOrder')"
+                    @click="detailOrder = row as AdminOrder"
+                  >
+                    <Eye :size="16" />
+                  </IconButton>
+                  <IconButton
+                    v-if="canRefund(row as AdminOrder)"
+                    :label="t('orders.refundOrder')"
+                    tone="danger"
+                    :disabled="isRefundBusy"
+                    @click="requestRefund(row as AdminOrder)"
+                  >
+                    <LoaderCircle
+                      v-if="isRefunding((row as AdminOrder).id)"
+                      :size="16"
+                      class="animate-spin"
+                    />
+                    <RotateCcw v-else :size="16" />
+                  </IconButton>
+                </div>
+              </template>
+
+              <template #footer>
+                <div class="border-t border-[var(--border-subtle)]">
+                  <TablePagination
+                    v-model:page="page"
+                    v-model:page-size="pageSize"
+                    :total="total"
                   />
-                  <RotateCcw v-else :size="16" />
-                </IconButton>
-              </div>
-            </template>
+                </div>
+              </template>
+            </DataTable>
+          </div>
 
-            <template #footer>
-              <div class="border-t border-[var(--border-subtle)]">
-                <TablePagination
-                  v-model:page="page"
-                  v-model:page-size="pageSize"
-                  :total="total"
-                />
-              </div>
-            </template>
-          </DataTable>
-        </div>
-
-        <div class="border-t border-[var(--border-subtle)] lg:hidden">
-          <TablePagination
-            v-model:page="page"
-            v-model:page-size="pageSize"
-            :total="total"
-          />
-        </div>
-      </template>
-    </ConsoleCard>
+          <div class="border-t border-[var(--border-subtle)] lg:hidden">
+            <TablePagination
+              v-model:page="page"
+              v-model:page-size="pageSize"
+              :total="total"
+            />
+          </div>
+        </template>
+      </ConsoleCard>
+    </div>
 
     <OrderDetailModal
       :order="detailOrder"

@@ -6,6 +6,7 @@ import { useEChart } from '@/charts/useEChart'
 import { lineMood } from '@/charts/themePreset'
 import type { InviteMonthPoint } from '@/types/console'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
+import { escapeHtml } from '@/utils/html'
 
 const props = defineProps<{
   series: InviteMonthPoint[]
@@ -37,11 +38,12 @@ useEChart(
       textStyle: { color: p.textPrimary, fontSize: 12 },
       formatter: (params: { name: string; value: number }[]) => {
         const item = params[0]
+        if (!item) return ''
         const label =
           mode.value === 'new'
             ? t('invite.chartTabNew')
             : t('invite.chartTabCumulative')
-        return `${item.name} · ${label} ${t('invite.people', { count: item.value })}`
+        return `${escapeHtml(item.name)} · ${escapeHtml(label)} ${escapeHtml(t('invite.people', { count: item.value }))}`
       },
     },
     xAxis: {

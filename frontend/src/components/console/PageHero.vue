@@ -4,15 +4,24 @@ import ConsoleTabs, { type TabItem } from '@/components/common/ConsoleTabs.vue'
 
 const tab = defineModel<string>('tab', { default: '' })
 
-withDefaults(
-  defineProps<{
-    title: string
-    titleAccent?: string
-    crumbs?: string[]
-    tabs?: TabItem[]
-  }>(),
-  { titleAccent: '', crumbs: () => [], tabs: () => [] }
-)
+interface PageHeroBaseProps {
+  title: string
+  titleAccent?: string
+  crumbs?: string[]
+}
+
+/* eslint-disable vue/require-default-prop -- defaults weaken this paired prop contract */
+type PageHeroProps = PageHeroBaseProps &
+  (
+    | { tabs: TabItem[]; tabPanelId: string }
+    | { tabs?: never; tabPanelId?: never }
+  )
+/* eslint-enable vue/require-default-prop */
+
+withDefaults(defineProps<PageHeroProps>(), {
+  titleAccent: '',
+  crumbs: () => [],
+})
 </script>
 
 <template>
@@ -48,7 +57,13 @@ withDefaults(
       </div>
     </div>
 
-    <ConsoleTabs v-if="tabs.length" v-model="tab" :items="tabs" class="mt-5" />
+    <ConsoleTabs
+      v-if="tabs?.length"
+      v-model="tab"
+      :items="tabs"
+      :panel-id="tabPanelId!"
+      class="mt-5"
+    />
     <!-- breathing ink line below hero when no tabs own the boundary -->
     <div v-else class="ink-divider mt-6" aria-hidden="true" />
   </div>

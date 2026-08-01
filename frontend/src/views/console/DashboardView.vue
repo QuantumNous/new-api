@@ -62,6 +62,7 @@ const tabs = computed(() => [
   { key: 'autoroute', label: t('dashboard.autoRoute.tabLabel') },
 ])
 const activeTab = ref('overview')
+const dashboardPanelId = 'dashboard-tab-panel'
 
 watch(activeTab, (tab) => {
   if (
@@ -115,32 +116,38 @@ const rangeOptions = computed(() => [
       :title="greeting"
       :crumbs="[$t('dashboard.breadcrumb.0'), $t('dashboard.breadcrumb.1')]"
       :tabs="tabs"
+      :tab-panel-id="dashboardPanelId"
     />
 
-    <!-- ══════════════════════════════════════════
+    <div
+      :id="dashboardPanelId"
+      role="tabpanel"
+      :aria-labelledby="`${dashboardPanelId}-tab-${activeTab}`"
+    >
+      <!-- ══════════════════════════════════════════
          Tab: Overview
     ══════════════════════════════════════════ -->
-    <div v-if="activeTab === 'overview'" class="space-y-5">
-      <!-- KPI strip — 4 clickable chips, jumps to Stats tab -->
-      <OverviewKpiStrip
-        :stats="stats"
-        :flow="flow"
-        :token-trend="tokenTrend"
-        :limits="limits"
-        :loading="loading"
-        @switch-tab="activeTab = $event"
-      />
-
-      <!-- Skeleton -->
-      <div v-if="loading" class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        <div
-          v-for="i in 6"
-          :key="i"
-          class="h-48 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
+      <div v-if="activeTab === 'overview'" class="space-y-5">
+        <!-- KPI strip — 4 clickable chips, jumps to Stats tab -->
+        <OverviewKpiStrip
+          :stats="stats"
+          :flow="flow"
+          :token-trend="tokenTrend"
+          :limits="limits"
+          :loading="loading"
+          @switch-tab="activeTab = $event"
         />
-      </div>
 
-      <!--
+        <!-- Skeleton -->
+        <div v-if="loading" class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div
+            v-for="i in 6"
+            :key="i"
+            class="h-48 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
+          />
+        </div>
+
+        <!--
         Row-aligned grid, one narrow + one wide card per row, so every row shares
         a bottom edge and no column runs long leaving a blank strip beside the
         other. The rows pair by meaning — balance next to the spend it burns,
@@ -153,114 +160,115 @@ const rangeOptions = computed(() => [
         shrink and the container waits for the canvas, so the column never
         comes back down.
       -->
-      <div v-else class="grid gap-5 xl:grid-cols-3">
-        <!-- 总额度（限速已并入 KPI 条的 RPM 格） -->
-        <BalanceCard
-          class="min-w-0"
-          :quota="stats?.quota ?? 0"
-          :used-quota="stats?.used_quota ?? 0"
-          :today-quota="stats?.today_quota"
-          :daily-burn="dailyBurn"
-        />
-        <!-- 消费 / 请求 双轴趋势 -->
-        <TrendDualCard
-          class="min-w-0 xl:col-span-2"
-          :stats="stats"
-          :flow="flow"
-          :loading="loading"
-        />
+        <div v-else class="grid gap-5 xl:grid-cols-3">
+          <!-- 总额度（限速已并入 KPI 条的 RPM 格） -->
+          <BalanceCard
+            class="min-w-0"
+            :quota="stats?.quota ?? 0"
+            :used-quota="stats?.used_quota ?? 0"
+            :today-quota="stats?.today_quota"
+            :daily-burn="dailyBurn"
+          />
+          <!-- 消费 / 请求 双轴趋势 -->
+          <TrendDualCard
+            class="min-w-0 xl:col-span-2"
+            :stats="stats"
+            :flow="flow"
+            :loading="loading"
+          />
 
-        <!-- 系统状态 -->
-        <SystemStatusCard class="min-w-0" :metrics="system" />
-        <!-- Token 使用趋势 -->
-        <TokenTrendCard
-          class="min-w-0 xl:col-span-2"
-          :points="tokenTrend"
-          :loading="loading"
-        />
+          <!-- 系统状态 -->
+          <SystemStatusCard class="min-w-0" :metrics="system" />
+          <!-- Token 使用趋势 -->
+          <TokenTrendCard
+            class="min-w-0 xl:col-span-2"
+            :points="tokenTrend"
+            :loading="loading"
+          />
 
-        <!-- 折扣卡片 -->
-        <DiscountCard
-          class="min-w-0"
-          :discounts="discounts"
-          :models="share"
-          :loading="loading"
-        />
-        <!-- 模型消费分布 -->
-        <ModelDistributionCard
-          class="min-w-0 xl:col-span-2"
-          :items="share"
-          :loading="loading"
-        />
+          <!-- 折扣卡片 -->
+          <DiscountCard
+            class="min-w-0"
+            :discounts="discounts"
+            :models="share"
+            :loading="loading"
+          />
+          <!-- 模型消费分布 -->
+          <ModelDistributionCard
+            class="min-w-0 xl:col-span-2"
+            :items="share"
+            :loading="loading"
+          />
+        </div>
       </div>
-    </div>
 
-    <!-- ══════════════════════════════════════════
+      <!-- ══════════════════════════════════════════
          Tab: Statistics
     ══════════════════════════════════════════ -->
-    <div v-else-if="activeTab === 'stats'" class="space-y-5">
-      <!-- Range picker — same segmented control as the trend card's mode toggle -->
-      <div class="flex flex-wrap items-center gap-3">
-        <div
-          class="flex rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-0.5 text-sm"
-        >
-          <button
-            v-for="opt in rangeOptions"
-            :key="opt.key"
-            type="button"
-            class="rounded-lg px-3 py-1.5 font-medium transition-all focus-ring"
-            :class="
-              statsComposable.range.value === opt.key
-                ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
-                : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-            "
-            @click="statsComposable.range.value = opt.key as StatsRange"
+      <div v-else-if="activeTab === 'stats'" class="space-y-5">
+        <!-- Range picker — same segmented control as the trend card's mode toggle -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div
+            class="flex rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-0.5 text-sm"
           >
-            {{ opt.label }}
-          </button>
+            <button
+              v-for="opt in rangeOptions"
+              :key="opt.key"
+              type="button"
+              class="rounded-lg px-3 py-1.5 font-medium transition-all focus-ring"
+              :class="
+                statsComposable.range.value === opt.key
+                  ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
+                  : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+              "
+              @click="statsComposable.range.value = opt.key as StatsRange"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+
+          <DateRangePicker
+            v-if="statsComposable.range.value === 'custom'"
+            v-model:start="statsComposable.customStart.value"
+            v-model:end="statsComposable.customEnd.value"
+            class="w-full sm:w-64"
+          />
         </div>
 
-        <DateRangePicker
-          v-if="statsComposable.range.value === 'custom'"
-          v-model:start="statsComposable.customStart.value"
-          v-model:end="statsComposable.customEnd.value"
-          class="w-full sm:w-64"
+        <StatsKpiRow
+          :kpi="statsComposable.data.value?.kpi ?? null"
+          :flow="statsComposable.data.value?.flow ?? []"
+          :loading="statsComposable.loading.value"
         />
-      </div>
-
-      <StatsKpiRow
-        :kpi="statsComposable.data.value?.kpi ?? null"
-        :flow="statsComposable.data.value?.flow ?? []"
-        :loading="statsComposable.loading.value"
-      />
-      <StatsDualTrend
-        :flow="statsComposable.data.value?.flow ?? []"
-        :loading="statsComposable.loading.value"
-      />
-      <!--
+        <StatsDualTrend
+          :flow="statsComposable.data.value?.flow ?? []"
+          :loading="statsComposable.loading.value"
+        />
+        <!--
         Row-aligned pair: the capped model table sets the height and the hourly
         chart grows to share its bottom edge. min-w-0 for the same canvas
         reason as the overview grid.
       -->
-      <div class="grid gap-5 lg:grid-cols-2">
-        <StatsModelTable
-          class="min-w-0"
-          :models="statsComposable.data.value?.models ?? []"
-          :loading="statsComposable.loading.value"
-        />
-        <StatsHourlyChart
-          class="min-w-0"
-          :hourly="statsComposable.data.value?.hourly ?? []"
-          :loading="statsComposable.loading.value"
-        />
+        <div class="grid gap-5 lg:grid-cols-2">
+          <StatsModelTable
+            class="min-w-0"
+            :models="statsComposable.data.value?.models ?? []"
+            :loading="statsComposable.loading.value"
+          />
+          <StatsHourlyChart
+            class="min-w-0"
+            :hourly="statsComposable.data.value?.hourly ?? []"
+            :loading="statsComposable.loading.value"
+          />
+        </div>
       </div>
-    </div>
 
-    <!-- ══════════════════════════════════════════
+      <!-- ══════════════════════════════════════════
          Tab: Auto Route
     ══════════════════════════════════════════ -->
-    <div v-else-if="activeTab === 'autoroute'">
-      <AutoRoutePanel />
+      <div v-else-if="activeTab === 'autoroute'">
+        <AutoRoutePanel />
+      </div>
     </div>
 
     <ContactFloatBall />

@@ -15,7 +15,7 @@ export interface SegmentOption {
 
 const model = defineModel<string>({ required: true })
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     options: SegmentOption[]
     /** stable accessible name for the whole group */
@@ -24,21 +24,47 @@ withDefaults(
   }>(),
   { size: 'md' }
 )
+
+function onKeydown(event: KeyboardEvent, index: number) {
+  const last = props.options.length - 1
+  let next: number
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+    next = index === last ? 0 : index + 1
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+    next = index === 0 ? last : index - 1
+  } else if (event.key === 'Home') {
+    next = 0
+  } else if (event.key === 'End') {
+    next = last
+  } else {
+    return
+  }
+
+  const option = props.options[next]
+  if (!option) return
+  event.preventDefault()
+  model.value = option.value
+  const radios = (
+    event.currentTarget as HTMLElement
+  ).parentElement?.querySelectorAll<HTMLElement>('[role="radio"]')
+  radios?.[next]?.focus()
+}
 </script>
 
 <template>
   <div
     class="inline-flex items-center gap-1 rounded-xl bg-[var(--surface-muted)] p-1"
-    role="tablist"
+    role="radiogroup"
     :aria-label="label"
     data-handdrawn="segments"
   >
     <button
-      v-for="opt in options"
+      v-for="(opt, index) in options"
       :key="opt.value"
       type="button"
-      role="tab"
-      :aria-selected="model === opt.value"
+      role="radio"
+      :aria-checked="model === opt.value"
+      :tabindex="model === opt.value ? 0 : -1"
       :aria-label="opt.ariaLabel"
       :title="opt.ariaLabel"
       class="inline-flex items-center justify-center gap-1.5 font-semibold transition-colors focus-ring"
@@ -50,6 +76,7 @@ withDefaults(
           : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--state-hover-layer)] rounded-lg',
       ]"
       @click="model = opt.value"
+      @keydown="onKeydown($event, index)"
     >
       <svg
         v-if="opt.icon"
