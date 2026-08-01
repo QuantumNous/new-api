@@ -2,6 +2,7 @@ package i18n
 
 import (
 	"embed"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -182,19 +183,72 @@ func ParseAcceptLanguage(header string) string {
 		return DefaultLang
 	}
 
-	// Simple parsing: take the first language tag
-	parts := strings.Split(header, ",")
-	if len(parts) == 0 {
-		return DefaultLang
+	bestLang := DefaultLang
+	bestQ := -1.0
+
+	for _, part := range strings.Split(header, ",") {
+		lang, q := parseLanguageRange(part)
+		if lang == "" || q <= 0 {
+			continue
+		}
+		normalized, ok := matchSupportedLang(lang)
+		if !ok {
+			continue
+		}
+		if q > bestQ {
+			bestLang = normalized
+			bestQ = q
+		}
 	}
 
-	// Get the first language and remove quality value
-	firstLang := strings.TrimSpace(parts[0])
-	if idx := strings.Index(firstLang, ";"); idx > 0 {
-		firstLang = firstLang[:idx]
+	return bestLang
+}
+
+func parseLanguageRange(part string) (string, float64) {
+	part = strings.TrimSpace(part)
+	if part == "" {
+		return "", 0
 	}
 
-	return normalizeLang(firstLang)
+	segments := strings.Split(part, ";")
+	lang := strings.TrimSpace(segments[0])
+	q := 1.0
+
+	for _, segment := range segments[1:] {
+		param := strings.TrimSpace(segment)
+		if len(param) < 2 || !strings.EqualFold(param[:2], "q=") {
+			continue
+		}
+		parsedQ, err := strconv.ParseFloat(strings.TrimSpace(param[2:]), 64)
+		if err != nil {
+			continue
+		}
+		switch {
+		case parsedQ < 0:
+			q = 0
+		case parsedQ > 1:
+			q = 1
+		default:
+			q = parsedQ
+		}
+	}
+
+	return lang, q
+}
+
+func matchSupportedLang(lang string) (string, bool) {
+	lang = strings.ToLower(strings.TrimSpace(lang))
+
+	switch {
+	case strings.HasPrefix(lang, "zh-tw"):
+		return LangZhTW, true
+	case strings.HasPrefix(lang, "zh"):
+		return LangZhCN, true
+	case strings.HasPrefix(lang, "en"):
+		return LangEn, true
+	default:
+		return "", false
+	}
 }
 
 // normalizeLang normalizes language code to supported format
