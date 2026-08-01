@@ -59,6 +59,9 @@ describe('ModelCard billing metadata', () => {
     expect(wrapper.text()).toContain('$2.5000')
     expect(wrapper.text()).toContain('$10.0000')
     expect(wrapper.text()).toContain('$1.2500')
+    expect(wrapper.get('[data-model-divider]').classes()).toContain(
+      'border-[var(--border-default)]'
+    )
     expect(wrapper.get('[data-model-channels]').classes()).toEqual(
       expect.arrayContaining(['ml-auto', 'text-right'])
     )

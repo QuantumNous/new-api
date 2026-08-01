@@ -190,7 +190,8 @@ async function copyName() {
 
     <!-- metrics row -->
     <div
-      class="mt-2 flex flex-wrap items-end justify-between gap-x-3 gap-y-2 border-t border-[var(--border-subtle)] pt-3"
+      class="mt-2 flex flex-wrap items-end justify-between gap-x-3 gap-y-2 border-t border-[var(--border-default)] pt-3"
+      data-model-divider
     >
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         <StatusChip :tone="billingTone[model.billing]" data-model-billing>{{

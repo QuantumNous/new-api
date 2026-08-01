@@ -39,9 +39,10 @@ const { t } = useI18n()
           {{ group.tagline }}
         </p>
       </div>
-      <!-- gold hairline rule — same decorative family as .section-heading -->
+      <!-- Stronger group rule keeps the vendor and summary columns distinct. -->
       <span
-        class="h-px min-w-6 flex-1 bg-[var(--dec-gold-line)]"
+        class="h-px min-w-6 flex-1 bg-[var(--border-strong)]"
+        data-vendor-divider
         aria-hidden="true"
       />
       <div class="shrink-0 text-right">
