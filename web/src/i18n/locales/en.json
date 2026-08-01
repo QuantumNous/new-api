@@ -1,4 +1,13 @@
 {
+  "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.",
+  "Backend update API unavailable; showing release notes only.": "Backend update API unavailable; showing release notes only.",
+  "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d",
+  "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.",
+  "Rollback completed. Please restart the new-api process.": "Rollback completed. Please restart the new-api process.",
+  "Rollback failed": "Rollback failed",
+  "Rollback last backup": "Rollback last backup",
+  "Rollback versions": "Rollback versions",
+  "Rolling back...": "Rolling back...",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -2033,7 +2042,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -5228,5 +5237,7 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Update completed. Please restart the new-api process to load the new binary.": "Update completed. Please restart the new-api process to load the new binary.",
+  "Update now": "Update now"
 }

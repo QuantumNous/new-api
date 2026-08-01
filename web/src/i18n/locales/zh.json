@@ -1,4 +1,13 @@
 {
+  "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "当前环境无法自动应用更新。请手动下载发布包或打开 GitHub 页面。",
+  "Backend update API unavailable; showing release notes only.": "后端更新接口不可用；仅显示发布说明。",
+  "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "检测到 Docker 部署。已禁用原地二进制更新。请使用：docker compose pull && docker compose up -d",
+  "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "原地更新会下载官方发布二进制并替换正在运行的可执行文件（仅适用于二进制安装）。Docker 用户应改为拉取新镜像。",
+  "Rollback completed. Please restart the new-api process.": "回滚完成。请重启 new-api 进程。",
+  "Rollback failed": "回滚失败",
+  "Rollback last backup": "回滚到上次备份",
+  "Rollback versions": "可回滚版本",
+  "Rolling back...": "正在回滚…",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -2033,7 +2042,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -5228,5 +5237,7 @@
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
     "Zoom": "缩放"
-  }
+  },
+  "Update completed. Please restart the new-api process to load the new binary.": "更新完成。请重启 new-api 进程以加载新二进制。",
+  "Update now": "立即更新"
 }

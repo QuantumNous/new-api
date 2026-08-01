@@ -28,7 +28,8 @@ func systemUpdateContext(parent context.Context) (context.Context, context.Cance
 
 func syncUpdateVersion() {
 	// Must run after common.InitEnv() so VERSION env / build tags are final.
-	systemupdate.CurrentVersion = common.Version
+	// Concurrency-safe: handlers can call this in parallel without data races.
+	systemupdate.SetCurrentVersion(common.Version)
 }
 
 // CheckSystemUpdate GET /api/system-update/check

@@ -17,12 +17,16 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// CurrentVersion is the running binary version. Set it at process start
-// (e.g. from common.Version) before calling GetSystemUpdateService.
+// CurrentVersion is the running binary version.
+// Prefer SetCurrentVersion for concurrent-safe updates after InitEnv.
 var CurrentVersion = "v0.0.0"
+
+// runningVer mirrors CurrentVersion for concurrent-safe reads/writes.
+var runningVer atomic.Value // string
 
 const (
 	defaultUpdateGitHubRepo = "Calcium-Ion/new-api"
@@ -106,6 +110,8 @@ type SystemUpdateService struct {
 	dlClient   *http.Client
 	cacheMu    sync.Mutex
 	cache      *updateCacheEntry
+	// cacheGen increments whenever currentVer changes; CheckUpdate only caches if gen is stable.
+	cacheGen   uint64
 	currentVer string
 	// opMu serializes apply/rollback so concurrent renames cannot corrupt the binary.
 	opMu sync.Mutex
@@ -114,6 +120,34 @@ type SystemUpdateService struct {
 var defaultSystemUpdateService *SystemUpdateService
 var systemUpdateOnce sync.Once
 
+func init() {
+	runningVer.Store(CurrentVersion)
+}
+
+// SetCurrentVersion updates the running version in a concurrency-safe way.
+// Call after common.InitEnv() when VERSION is finalized.
+func SetCurrentVersion(v string) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return
+	}
+	runningVer.Store(v)
+	CurrentVersion = v // best-effort mirror for diagnostics; service uses runningVer
+
+	// If the process-wide service is already live, refresh under cacheMu.
+	s := defaultSystemUpdateService
+	if s == nil {
+		return
+	}
+	s.cacheMu.Lock()
+	if s.currentVer != v {
+		s.currentVer = v
+		s.cache = nil
+		s.cacheGen++
+	}
+	s.cacheMu.Unlock()
+}
+
 // GetSystemUpdateService returns the process-wide update service.
 // Set CurrentVersion (e.g. from common.Version after InitEnv) before calling handlers.
 func GetSystemUpdateService() *SystemUpdateService {
@@ -121,6 +155,10 @@ func GetSystemUpdateService() *SystemUpdateService {
 		repo := strings.TrimSpace(os.Getenv("NEW_API_UPDATE_GITHUB_REPO"))
 		if repo == "" {
 			repo = defaultUpdateGitHubRepo
+		}
+		ver := CurrentVersion
+		if stored, ok := runningVer.Load().(string); ok && strings.TrimSpace(stored) != "" {
+			ver = stored
 		}
 		defaultSystemUpdateService = &SystemUpdateService{
 			repo:  repo,
@@ -131,19 +169,23 @@ func GetSystemUpdateService() *SystemUpdateService {
 			dlClient: &http.Client{
 				Timeout: githubDownloadTimeout,
 			},
-			currentVer: CurrentVersion,
+			currentVer: ver,
 		}
 	})
 	// Refresh under cacheMu so concurrent checks cannot race with version/cache reads.
 	// Invalidate cache when the version changes so HasUpdate is not stale.
-	if v := strings.TrimSpace(CurrentVersion); v != "" {
-		s := defaultSystemUpdateService
-		s.cacheMu.Lock()
-		if s.currentVer != v {
-			s.currentVer = v
-			s.cache = nil
+	if v, ok := runningVer.Load().(string); ok {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			s := defaultSystemUpdateService
+			s.cacheMu.Lock()
+			if s.currentVer != v {
+				s.currentVer = v
+				s.cache = nil
+				s.cacheGen++
+			}
+			s.cacheMu.Unlock()
 		}
-		s.cacheMu.Unlock()
 	}
 	return defaultSystemUpdateService
 }
@@ -153,6 +195,12 @@ func (s *SystemUpdateService) currentVersion() string {
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()
 	return s.currentVer
+}
+
+func (s *SystemUpdateService) cacheGeneration() uint64 {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	return s.cacheGen
 }
 
 // DetectDeployMode returns binary / docker / unknown.
@@ -186,6 +234,8 @@ func (s *SystemUpdateService) CheckUpdate(ctx context.Context, force bool) (*Upd
 		}
 	}
 
+	// Capture generation so an in-flight fetch cannot cache over a newer version.
+	gen := s.cacheGeneration()
 	info, err := s.fetchLatest(ctx)
 	if err != nil {
 		if cached := s.getCache(); cached != nil {
@@ -203,6 +253,13 @@ func (s *SystemUpdateService) CheckUpdate(ctx context.Context, force bool) (*Upd
 			DeployMode:     mode,
 			CanApply:       mode == "binary",
 		}, nil
+	}
+	// Refresh CurrentVersion fields against latest service state if gen advanced mid-fetch.
+	if s.cacheGeneration() != gen {
+		info.CurrentVersion = normalizeVersion(s.currentVersion())
+		info.HasUpdate = compareVersions(info.CurrentVersion, info.LatestVersion) < 0
+		// Do not cache: version changed while we were fetching.
+		return info, nil
 	}
 	s.setCache(info)
 	return info, nil
@@ -572,8 +629,9 @@ func (s *SystemUpdateService) getJSON(ctx context.Context, apiURL string, dest a
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
-	// Keep stdlib decoder: importing common/json pulls a large dependency graph
-	// into this package for no behavioral difference (DecodeJson is a thin wrap).
+	// Intentionally use stdlib decoder: this package must stay free of the
+	// heavy common dependency graph (gin/redis/etc.) so unit tests stay fast.
+	// Behavior matches common.DecodeJson (thin wrap of encoding/json).
 	return json.NewDecoder(resp.Body).Decode(dest)
 }
 
@@ -874,9 +932,16 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
 		return err
 	}
-	return out.Close()
+	if err := out.Sync(); err != nil {
+		_ = out.Close()
+		return fmt.Errorf("sync copy: %w", err)
+	}
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("close copy: %w", err)
+	}
+	return nil
 }

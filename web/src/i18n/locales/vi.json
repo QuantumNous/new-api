@@ -1,4 +1,13 @@
 {
+  "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "Không thể tự động áp dụng cập nhật trong môi trường này. Hãy tải bản phát hành thủ công hoặc mở trang GitHub.",
+  "Backend update API unavailable; showing release notes only.": "API cập nhật backend không khả dụng; chỉ hiển thị ghi chú phát hành.",
+  "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Phát hiện triển khai Docker. Đã tắt cập nhật nhị phân tại chỗ. Nâng cấp bằng: docker compose pull && docker compose up -d",
+  "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "Cập nhật tại chỗ tải nhị phân phát hành chính thức và thay thế file thực thi đang chạy (chỉ cài đặt nhị phân). Người dùng Docker nên kéo image mới.",
+  "Rollback completed. Please restart the new-api process.": "Đã hoàn tất rollback. Vui lòng khởi động lại tiến trình new-api.",
+  "Rollback failed": "Rollback thất bại",
+  "Rollback last backup": "Rollback bản sao lưu gần nhất",
+  "Rollback versions": "Phiên bản rollback",
+  "Rolling back...": "Đang rollback…",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -2033,7 +2042,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Buộc phản hồi JSON hợp lệ về cú pháp",
@@ -5228,5 +5237,7 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  }
+  },
+  "Update completed. Please restart the new-api process to load the new binary.": "Cập nhật hoàn tất. Hãy khởi động lại tiến trình new-api để tải nhị phân mới.",
+  "Update now": "Cập nhật ngay"
 }
