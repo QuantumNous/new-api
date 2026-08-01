@@ -266,11 +266,6 @@ export interface RecallEmailGenerationRequest {
   email_sequence: RecallEmailStage[]
 }
 
-export interface RecallEmailGenerationResponse {
-  config_revision: number
-  email_sequence: RecallEmailStage[]
-}
-
 export interface RecallEmailQuotaStatus {
   limit: number
   used: number

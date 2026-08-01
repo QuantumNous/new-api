@@ -174,7 +174,7 @@ describe('recall campaign API contracts', () => {
       stage_no: 2,
       state: 'converted',
       conversion_kind: 'direct',
-      payment_category: 'topup',
+      payment_category: 'direct_topup',
       currency: 'USD',
       snapshot: '2026-08-01T00:00:00Z',
       cursor: 'next-page',
@@ -197,6 +197,32 @@ describe('recall campaign API contracts', () => {
     expect(capturedConfig?.params).toEqual({
       metric: 'direct_conversions',
       ...filters,
+    })
+  })
+
+  test('keeps the explicit metric argument ahead of a forged runtime filter metric', async () => {
+    const forgedFilters = {
+      metric: 'messages_failed',
+      state: 'converted',
+      currency: 'USD',
+    } as RecallMetricFilters & { metric: string }
+    respondWith({
+      success: true,
+      data: {
+        items: [],
+        total: 0,
+        amounts: [],
+        snapshot: '',
+        legacy_unidentified_count: 0,
+        drilldown_complete: true,
+      },
+    })
+
+    await getRecallCampaignMetricUsers(42, 'direct_conversions', forgedFilters)
+
+    expect(capturedConfig?.params).toEqual({
+      ...forgedFilters,
+      metric: 'direct_conversions',
     })
   })
 
@@ -229,6 +255,25 @@ describe('recall campaign API contracts', () => {
     expect(capturedConfig?.params).toEqual({
       metric: 'attributed_spend',
       ...filters,
+    })
+  })
+
+  test('keeps the explicit export metric ahead of a forged runtime filter metric', async () => {
+    const csv = new Blob(['email,amount\nalice@example.com,9600\n'], {
+      type: 'text/csv',
+    })
+    const forgedFilters = {
+      metric: 'messages_failed',
+      currency: 'USD',
+      snapshot: '2026-08-01T00:00:00Z',
+    } as RecallMetricFilters & { metric: string }
+    respondWith(csv)
+
+    await exportRecallCampaignMetricUsers(42, 'attributed_spend', forgedFilters)
+
+    expect(capturedConfig?.params).toEqual({
+      ...forgedFilters,
+      metric: 'attributed_spend',
     })
   })
 

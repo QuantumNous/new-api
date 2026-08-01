@@ -97,7 +97,7 @@ function buildRecallMetricUserParams(
   metric: RecallMetricKey,
   filters: RecallMetricFilters = {}
 ): RecallMetricFilters & { metric: RecallMetricKey } {
-  return { metric, ...filters }
+  return { ...filters, metric }
 }
 
 export async function listRecallCampaigns(
