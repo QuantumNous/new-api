@@ -63,30 +63,34 @@ describe('API key Auto group form mapping', () => {
     assert.equal(apiKeySchema.parse(legacyApiKey).auto_groups, null)
   })
 
-  test('creates an explicit snapshot from the global order up to the current limit', () => {
-    const defaults = getApiKeyFormDefaultValues(
-      true,
-      ['default', 'vip', 'team'],
-      2
-    )
+  test('creates an Auto token that inherits the global order', () => {
+    const defaults = getApiKeyFormDefaultValues(true)
 
     assert.equal(defaults.group, 'auto')
-    assert.deepEqual(defaults.auto_groups, ['default', 'vip'])
-    assert.deepEqual(transformFormDataToPayload(defaults).auto_groups, [
-      'default',
-      'vip',
-    ])
+    assert.equal(defaults.auto_groups_mode, 'inherit')
+    assert.deepEqual(defaults.auto_groups, [])
+    assert.deepEqual(transformFormDataToPayload(defaults).auto_groups, [])
   })
 
-  test('shows an inherited token as a filtered global snapshot on first edit', () => {
-    const defaults = transformApiKeyToFormDefaults(
+  test('maps omitted, null, and empty snapshots to inheritance on edit', () => {
+    const legacyApiKey: Record<string, unknown> = { ...baseApiKey }
+    delete legacyApiKey.auto_groups
+    const inheritedApiKeys = [
+      apiKeySchema.parse(legacyApiKey),
       baseApiKey,
-      ['default', 'revoked', 'vip'],
-      ['default', 'vip'],
-      2
-    )
+      { ...baseApiKey, auto_groups: [] },
+    ]
 
-    assert.deepEqual(defaults.auto_groups, ['default', 'vip'])
+    for (const apiKey of inheritedApiKeys) {
+      const defaults = transformApiKeyToFormDefaults(
+        apiKey,
+        ['default', 'vip'],
+        2
+      )
+
+      assert.equal(defaults.auto_groups_mode, 'inherit')
+      assert.deepEqual(defaults.auto_groups, [])
+    }
   })
 
   test('filters a stored snapshot before applying a lowered limit', () => {
@@ -95,28 +99,66 @@ describe('API key Auto group form mapping', () => {
         ...baseApiKey,
         auto_groups: ['revoked', 'vip', 'default'],
       },
-      [],
       ['default', 'vip'],
       2
     )
 
+    assert.equal(defaults.auto_groups_mode, 'custom')
     assert.deepEqual(defaults.auto_groups, ['vip', 'default'])
   })
 
-  test('submits an empty array for global inheritance and for non-Auto groups', () => {
-    const inherited = getApiKeyFormDefaultValues(true, ['default'], 1)
-    inherited.auto_groups = []
+  test('keeps a fully filtered snapshot custom and rejects it until resolved', () => {
+    const defaults = transformApiKeyToFormDefaults(
+      { ...baseApiKey, auto_groups: ['revoked'] },
+      ['default'],
+      2
+    )
+
+    assert.equal(defaults.auto_groups_mode, 'custom')
+    assert.deepEqual(defaults.auto_groups, [])
+
+    const result = getApiKeyFormSchema(t, 2).safeParse(defaults)
+    assert.equal(result.success, false)
+    if (result.success) return
+    assert.deepEqual(result.error.issues[0]?.path, ['auto_groups'])
+    assert.equal(
+      result.error.issues[0]?.message,
+      'Select at least one Auto group or restore global Auto.'
+    )
+  })
+
+  test('submits a valid custom snapshot in its configured order', () => {
+    const custom = {
+      ...getApiKeyFormDefaultValues(true),
+      auto_groups_mode: 'custom' as const,
+      auto_groups: ['vip', 'default'],
+    }
+
+    assert.deepEqual(transformFormDataToPayload(custom).auto_groups, [
+      'vip',
+      'default',
+    ])
+  })
+
+  test('submits an empty array for inheritance and for non-Auto groups', () => {
+    const inherited = getApiKeyFormDefaultValues(true)
     assert.deepEqual(transformFormDataToPayload(inherited).auto_groups, [])
 
-    const nonAuto = { ...inherited, group: 'default', auto_groups: ['vip'] }
+    const nonAuto = {
+      ...inherited,
+      group: 'default',
+      auto_groups_mode: 'custom' as const,
+      auto_groups: ['vip'],
+    }
     assert.deepEqual(transformFormDataToPayload(nonAuto).auto_groups, [])
     assert.equal(transformFormDataToPayload(nonAuto).cross_group_retry, false)
   })
 
   test('rejects snapshots over the configured limit', () => {
     const result = getApiKeyFormSchema(t, 1).safeParse({
-      ...getApiKeyFormDefaultValues(true, ['default'], 1),
+      ...getApiKeyFormDefaultValues(true),
       name: 'limited token',
+      auto_groups_mode: 'custom',
       auto_groups: ['default', 'vip'],
     })
 
@@ -126,6 +168,22 @@ describe('API key Auto group form mapping', () => {
     assert.equal(
       result.error.issues[0]?.message,
       'Select at most 1 Auto groups'
+    )
+  })
+
+  test('rejects duplicate custom groups', () => {
+    const result = getApiKeyFormSchema(t).safeParse({
+      ...getApiKeyFormDefaultValues(true),
+      name: 'duplicate token',
+      auto_groups_mode: 'custom',
+      auto_groups: ['vip', 'vip'],
+    })
+
+    assert.equal(result.success, false)
+    if (result.success) return
+    assert.equal(
+      result.error.issues[0]?.message,
+      'Auto groups must not contain duplicates'
     )
   })
 })

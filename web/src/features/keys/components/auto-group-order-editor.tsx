@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   ArrowDown01Icon,
+  ArrowRight01Icon,
   ArrowUp01Icon,
   Cancel01Icon,
   Drag01Icon,
@@ -43,16 +44,17 @@ import { cn } from '@/lib/utils'
 
 import {
   ApiKeyGroupCombobox,
-  GroupRatioBadge,
   type ApiKeyGroupOption,
 } from './api-key-group-combobox'
+import { GroupRatioBadge } from './auto-group-visuals'
 
 type AutoGroupOrderEditorProps = Omit<ComponentProps<'div'>, 'onChange'> & {
   value: string[]
+  mode: 'inherit' | 'custom'
   options: ApiKeyGroupOption[]
   globalOptions: ApiKeyGroupOption[]
   maxCount: number
-  onChange: (groups: string[]) => void
+  onChange: (value: { groups: string[]; mode: 'inherit' | 'custom' }) => void
   'data-slot'?: string
   'data-form-root'?: string
 }
@@ -156,7 +158,7 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
   const { t } = useTranslation()
   const maxCount =
     Number.isInteger(props.maxCount) && props.maxCount > 0 ? props.maxCount : 5
-  const isInheriting = props.value.length === 0
+  const isInheriting = props.mode === 'inherit'
   const atLimit = props.value.length >= maxCount
   const candidates = useMemo(
     () =>
@@ -169,11 +171,17 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
 
   const handleAdd = (group: string) => {
     if (atLimit || props.value.includes(group)) return
-    props.onChange([...props.value, group])
+    props.onChange({
+      groups: [...props.value, group],
+      mode: 'custom',
+    })
   }
 
   const handleRemove = (group: string) => {
-    props.onChange(props.value.filter((item) => item !== group))
+    props.onChange({
+      groups: props.value.filter((item) => item !== group),
+      mode: 'custom',
+    })
   }
 
   const handleMove = (index: number, direction: 'up' | 'down') => {
@@ -181,7 +189,7 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
     if (targetIndex < 0 || targetIndex >= props.value.length) return
     const next = [...props.value]
     ;[next[index], next[targetIndex]] = [next[targetIndex], next[index]]
-    props.onChange(next)
+    props.onChange({ groups: next, mode: 'custom' })
   }
 
   return (
@@ -211,8 +219,10 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
           type='button'
           variant='outline'
           size='sm'
-          disabled={props.value.length === 0}
-          onClick={() => props.onChange([])}
+          disabled={isInheriting}
+          onClick={() => {
+            props.onChange({ groups: [], mode: 'inherit' })
+          }}
         >
           {t('Restore global Auto')}
         </Button>
@@ -248,43 +258,67 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
           className='flex max-h-24 flex-wrap content-start gap-1.5 overflow-y-auto'
         >
           {props.globalOptions.map((option, index) => (
-            <li
-              key={option.value}
-              title={option.desc}
-              className='bg-muted/30 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1'
-            >
-              <span
-                data-slot='global-auto-order-index'
-                aria-hidden='true'
-                className='text-muted-foreground text-xs tabular-nums'
-              >
-                {index + 1}
-              </span>
-              <span
-                data-slot='global-auto-order-name'
-                className='max-w-40 truncate text-xs font-medium'
-              >
-                {option.label}
-              </span>
-              {option.desc && (
-                <span
-                  data-slot='global-auto-order-description'
-                  className='sr-only'
-                >
-                  {option.desc}
-                </span>
+            <li key={option.value} className='flex min-w-0 items-center gap-1'>
+              {index > 0 && (
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  strokeWidth={2}
+                  aria-hidden='true'
+                  data-slot='global-auto-order-connector'
+                  className='text-muted-foreground size-3.5 shrink-0'
+                />
               )}
-              <GroupRatioBadge ratio={option.ratio} />
+              <span
+                data-slot='global-auto-order-chip'
+                title={option.desc}
+                className='bg-muted/30 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1'
+              >
+                <span
+                  data-slot='global-auto-order-index'
+                  aria-hidden='true'
+                  className='bg-primary/10 text-primary flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums'
+                >
+                  {index + 1}
+                </span>
+                <span
+                  data-slot='global-auto-order-name'
+                  className='max-w-40 truncate text-xs font-medium'
+                >
+                  {option.label}
+                </span>
+                {option.desc && (
+                  <span
+                    data-slot='global-auto-order-description'
+                    className='sr-only'
+                  >
+                    {option.desc}
+                  </span>
+                )}
+                <GroupRatioBadge ratio={option.ratio} />
+              </span>
             </li>
           ))}
         </ol>
       )}
 
-      {!isInheriting && (
+      {!isInheriting && props.value.length === 0 && (
+        <Empty className='min-h-24 border'>
+          <EmptyHeader>
+            <EmptyTitle>{t('Auto group order')}</EmptyTitle>
+            <EmptyDescription>
+              {t(
+                'No valid custom Auto groups remain. Add a group or restore global Auto.'
+              )}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )}
+
+      {!isInheriting && props.value.length > 0 && (
         <Reorder.Group
           axis='y'
           values={props.value}
-          onReorder={props.onChange}
+          onReorder={(groups) => props.onChange({ groups, mode: 'custom' })}
           className='flex flex-col gap-2'
         >
           {props.value.map((group, index) => (

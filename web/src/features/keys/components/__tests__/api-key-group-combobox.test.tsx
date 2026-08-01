@@ -78,6 +78,7 @@ await i18n.use(initReactI18next).init({
   resources: {
     en: {
       translation: {
+        Auto: 'Auto',
         Ratio: 'Ratio',
         'Search...': 'Search...',
         'No group found.': 'No group found.',
@@ -97,7 +98,7 @@ const options = [
     value: 'auto',
     label: 'auto',
     desc: 'Global automatic routing',
-    ratio: 'Auto',
+    ratio: '自动',
   },
   { value: 'default', label: 'default', desc: 'User group', ratio: 1 },
   { value: 'vip', label: 'vip', desc: 'Priority group', ratio: 3 },
@@ -139,7 +140,7 @@ describe('API key group combobox Auto effect', () => {
     domWindow.close()
   })
 
-  test('marks the selected Auto trigger and Auto option with an accessible decorative flow border', async () => {
+  test('rings the selected Auto trigger and its localized ratio without rendering the API ratio text', async () => {
     setReducedMotion(false)
     const container = document.createElement('div')
     document.body.append(container)
@@ -152,6 +153,7 @@ describe('API key group combobox Auto effect', () => {
     assert.equal(trigger.dataset.autoGroupEffect, 'trigger')
     assert.equal(trigger.classList.contains('bg-linear-to-r'), false)
     assert.equal(trigger.classList.contains('overflow-hidden'), false)
+    assert.equal(trigger.classList.contains('overflow-visible'), true)
 
     const triggerFlowBorder = trigger.querySelector<HTMLElement>(
       '[data-auto-group-flow-border]'
@@ -167,6 +169,19 @@ describe('API key group combobox Auto effect', () => {
       true
     )
 
+    const triggerRatio = trigger.querySelector<HTMLElement>(
+      '[data-auto-group-effect="ratio"]'
+    )
+    assert.ok(triggerRatio)
+    assert.equal(triggerRatio.textContent, 'Auto Ratio')
+    assert.equal(triggerRatio.textContent?.includes('Auto'), true)
+    assert.equal(triggerRatio.textContent?.includes('x'), false)
+    assert.equal(trigger.textContent?.includes('自动'), false)
+    assert.equal(triggerRatio.classList.contains('relative'), true)
+    assert.equal(triggerRatio.classList.contains('overflow-visible'), true)
+    assert.equal(triggerRatio.classList.contains('rounded-4xl'), true)
+    assert.ok(triggerRatio.querySelector('[data-auto-group-flow-border]'))
+
     await act(async () => trigger.click())
     assert.equal(trigger.getAttribute('aria-expanded'), 'true')
 
@@ -174,12 +189,24 @@ describe('API key group combobox Auto effect', () => {
     assert.equal(autoOption.dataset.autoGroupEffect, 'option')
     assert.equal(autoOption.getAttribute('aria-selected'), 'true')
     assert.equal(autoOption.classList.contains('bg-linear-to-r'), false)
+    assert.equal(autoOption.classList.contains('overflow-visible'), true)
     assert.ok(autoOption.querySelector('[data-auto-group-flow-border]'))
+    const optionRatio = autoOption.querySelector<HTMLElement>(
+      '[data-auto-group-effect="ratio"]'
+    )
+    assert.ok(optionRatio)
+    assert.equal(optionRatio.textContent, 'Auto Ratio')
+    assert.ok(optionRatio.querySelector('[data-auto-group-flow-border]'))
 
     const defaultOption = getCommandItem('User group')
     assert.equal(defaultOption.hasAttribute('data-auto-group-effect'), false)
     assert.equal(
       defaultOption.querySelector('[data-auto-group-flow-border]'),
+      null
+    )
+    assert.equal(defaultOption.textContent?.includes('1x Ratio'), true)
+    assert.equal(
+      defaultOption.querySelector('[data-auto-group-effect="ratio"]'),
       null
     )
 
@@ -249,6 +276,7 @@ describe('API key group combobox Auto effect', () => {
     const trigger = getTrigger(container)
     assert.equal(trigger.dataset.autoGroupEffect, 'trigger')
     assert.equal(trigger.querySelector('[data-auto-group-flow-border]'), null)
+    assert.ok(trigger.querySelector('[data-auto-group-effect="ratio"]'))
 
     await act(async () => trigger.click())
     const autoOption = getCommandItem('Global automatic routing')
@@ -257,6 +285,7 @@ describe('API key group combobox Auto effect', () => {
       autoOption.querySelector('[data-auto-group-flow-border]'),
       null
     )
+    assert.ok(autoOption.querySelector('[data-auto-group-effect="ratio"]'))
 
     await act(async () => root.unmount())
     container.remove()

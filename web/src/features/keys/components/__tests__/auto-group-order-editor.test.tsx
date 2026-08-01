@@ -73,6 +73,8 @@ await i18n.use(initReactI18next).init({
         'Move {{group}} up': 'Move {{group}} up',
         'No available groups in the global Auto order.':
           'No available groups in the global Auto order.',
+        'No valid custom Auto groups remain. Add a group or restore global Auto.':
+          'No valid custom Auto groups remain. Add a group or restore global Auto.',
         'No custom groups. Saving will inherit the complete global Auto order.':
           'No custom groups. Saving will inherit the complete global Auto order.',
         'Remove {{group}}': 'Remove {{group}}',
@@ -99,12 +101,16 @@ const globalOptions = [
   { value: 'team', label: 'Team', desc: 'Shared access', ratio: 2 },
 ]
 
-function Harness() {
-  const [groups, setGroups] = useState(['default', 'vip'])
+function Harness(props: { initialGroups?: string[] }) {
+  const [groups, setGroups] = useState(
+    props.initialGroups ?? ['default', 'vip']
+  )
+  const [mode, setMode] = useState<'inherit' | 'custom'>('custom')
   return (
     <I18nextProvider i18n={i18n}>
       <AutoGroupOrderEditor
         value={groups}
+        mode={mode}
         options={[
           { value: 'auto', label: 'auto' },
           { value: 'default', label: 'default', ratio: 1 },
@@ -113,26 +119,59 @@ function Harness() {
         ]}
         globalOptions={globalOptions}
         maxCount={2}
-        onChange={setGroups}
+        onChange={(value) => {
+          setGroups(value.groups)
+          setMode(value.mode)
+        }}
       />
       <output data-testid='order'>{groups.join(',')}</output>
+      <output data-testid='mode'>{mode}</output>
     </I18nextProvider>
   )
 }
 
 function InheritanceHarness(props: { globalOptions?: typeof globalOptions }) {
   const [groups, setGroups] = useState<string[]>([])
+  const [mode, setMode] = useState<'inherit' | 'custom'>('inherit')
 
   return (
     <I18nextProvider i18n={i18n}>
       <AutoGroupOrderEditor
         value={groups}
+        mode={mode}
         options={[{ value: 'auto', label: 'auto' }, ...globalOptions]}
         globalOptions={props.globalOptions ?? globalOptions}
         maxCount={2}
-        onChange={setGroups}
+        onChange={(value) => {
+          setGroups(value.groups)
+          setMode(value.mode)
+        }}
       />
       <output data-testid='order'>{groups.join(',')}</output>
+      <output data-testid='mode'>{mode}</output>
+    </I18nextProvider>
+  )
+}
+
+function CustomEmptyHarness() {
+  const [groups, setGroups] = useState<string[]>([])
+  const [mode, setMode] = useState<'inherit' | 'custom'>('custom')
+
+  return (
+    <I18nextProvider i18n={i18n}>
+      <AutoGroupOrderEditor
+        value={groups}
+        mode={mode}
+        options={[{ value: 'auto', label: 'auto' }, ...globalOptions]}
+        globalOptions={globalOptions}
+        maxCount={2}
+        onChange={(value) => {
+          setGroups(value.groups)
+          setMode(value.mode)
+        }}
+      />
+      <output data-testid='order'>{groups.join(',')}</output>
+      <output data-testid='mode'>{mode}</output>
     </I18nextProvider>
   )
 }
@@ -235,6 +274,10 @@ describe('Auto group order editor', () => {
       ''
     )
     assert.equal(
+      container.querySelector('[data-testid="mode"]')?.textContent,
+      'inherit'
+    )
+    assert.equal(
       container.textContent?.includes(
         'Using the complete global Auto order (3 groups)'
       ),
@@ -284,13 +327,20 @@ describe('Auto group order editor', () => {
 
     const items = [...order.querySelectorAll('li')]
     assert.equal(items.length, 3)
+    assert.equal(
+      order.querySelectorAll('[data-slot="global-auto-order-connector"]')
+        .length,
+      2
+    )
     assert.deepEqual(
       items.map((item) => ({
         index: item.querySelector('[data-slot="global-auto-order-index"]')
           ?.textContent,
         name: item.querySelector('[data-slot="global-auto-order-name"]')
           ?.textContent,
-        title: item.getAttribute('title'),
+        title: item
+          .querySelector('[data-slot="global-auto-order-chip"]')
+          ?.getAttribute('title'),
         description: item.querySelector(
           '[data-slot="global-auto-order-description"]'
         )?.textContent,
@@ -322,11 +372,25 @@ describe('Auto group order editor', () => {
     )
 
     for (const item of items) {
+      const chip = item.querySelector('[data-slot="global-auto-order-chip"]')
+      assert.ok(chip)
       const description = item.querySelector(
         '[data-slot="global-auto-order-description"]'
       )
       assert.ok(description)
       assert.equal(description.classList.contains('sr-only'), true)
+    }
+
+    assert.equal(
+      items[0]?.querySelector('[data-slot="global-auto-order-connector"]'),
+      null
+    )
+    for (const item of items.slice(1)) {
+      const connector = item.querySelector(
+        '[data-slot="global-auto-order-connector"]'
+      )
+      assert.ok(connector)
+      assert.equal(connector.getAttribute('aria-hidden'), 'true')
     }
 
     assert.equal(container.querySelector('[aria-label^="Drag "]'), null)
@@ -367,6 +431,107 @@ describe('Auto group order editor', () => {
     assert.equal(
       container.querySelector('[data-slot="global-auto-order"]'),
       null
+    )
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  test('keeps an empty custom order distinct from global inheritance', async () => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    await act(async () => root.render(<CustomEmptyHarness />))
+
+    assert.equal(
+      container.querySelector('[data-testid="mode"]')?.textContent,
+      'custom'
+    )
+    assert.equal(
+      container.textContent?.includes(
+        'No valid custom Auto groups remain. Add a group or restore global Auto.'
+      ),
+      true
+    )
+    assert.equal(
+      container.querySelector('[data-slot="global-auto-order"]'),
+      null
+    )
+
+    const restoreButton = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent?.includes('Restore global Auto')
+    )
+    assert.ok(restoreButton)
+    assert.equal(restoreButton.disabled, false)
+    await act(async () => restoreButton.click())
+
+    assert.equal(
+      container.querySelector('[data-testid="mode"]')?.textContent,
+      'inherit'
+    )
+    assert.ok(container.querySelector('[data-slot="global-auto-order"]'))
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  test('adding a group from inheritance explicitly creates a custom order', async () => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    await act(async () => root.render(<InheritanceHarness />))
+
+    const addButton = container.querySelector<HTMLButtonElement>(
+      'button[role="combobox"]'
+    )
+    assert.ok(addButton)
+    await act(async () => addButton.click())
+    const vipOption = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="command-item"]'),
+    ].find((option) => option.textContent?.includes('VIP'))
+    assert.ok(vipOption)
+    await act(async () => vipOption.click())
+
+    assert.equal(
+      container.querySelector('[data-testid="mode"]')?.textContent,
+      'custom'
+    )
+    assert.equal(
+      container.querySelector('[data-testid="order"]')?.textContent,
+      'vip'
+    )
+    assert.equal(
+      container.querySelector('[data-slot="global-auto-order"]'),
+      null
+    )
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  test('removing the last custom group does not silently enable inheritance', async () => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    await act(async () => root.render(<Harness initialGroups={['default']} />))
+    await act(async () => findButton(container, 'Remove default').click())
+
+    assert.equal(
+      container.querySelector('[data-testid="order"]')?.textContent,
+      ''
+    )
+    assert.equal(
+      container.querySelector('[data-testid="mode"]')?.textContent,
+      'custom'
+    )
+    assert.equal(
+      container.textContent?.includes(
+        'No valid custom Auto groups remain. Add a group or restore global Auto.'
+      ),
+      true
     )
 
     await act(async () => root.unmount())

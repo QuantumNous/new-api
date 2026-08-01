@@ -20,7 +20,6 @@ import { Check, ChevronsUpDown } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -38,6 +37,12 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
 
+import {
+  AUTO_GROUP_FRAME_CLASS_NAME,
+  AutoGroupFlowBorder,
+  GroupRatioBadge,
+} from './auto-group-visuals'
+
 export type ApiKeyGroupOption = {
   value: string
   label: string
@@ -51,66 +56,6 @@ type ApiKeyGroupComboboxProps = {
   onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
-}
-
-function formatGroupRatio(
-  ratio: ApiKeyGroupOption['ratio'],
-  ratioLabel: string
-) {
-  if (ratio === undefined || ratio === null || ratio === '') return null
-  return `${ratio}x ${ratioLabel}`
-}
-
-function getRatioBadgeClassName(ratio: ApiKeyGroupOption['ratio']) {
-  if (typeof ratio !== 'number') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
-  }
-
-  if (ratio > 5) {
-    return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300'
-  }
-  if (ratio > 3) {
-    return 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/40 dark:text-orange-300'
-  }
-  if (ratio > 1) {
-    return 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300'
-  }
-  return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
-}
-
-export function GroupRatioBadge({
-  ratio,
-}: {
-  ratio: ApiKeyGroupOption['ratio']
-}) {
-  const { t } = useTranslation()
-  const label = formatGroupRatio(ratio, t('Ratio'))
-
-  if (!label) return null
-
-  return (
-    <Badge
-      variant='outline'
-      className={cn(
-        'max-w-24 shrink-0 truncate text-[10px] sm:max-w-none sm:text-xs',
-        getRatioBadgeClassName(ratio)
-      )}
-    >
-      {label}
-    </Badge>
-  )
-}
-
-function AutoGroupFlowBorder(props: { shouldReduceMotion: boolean }) {
-  if (props.shouldReduceMotion) return null
-
-  return (
-    <span
-      aria-hidden='true'
-      data-auto-group-flow-border='true'
-      className='auto-group-flow-border pointer-events-none absolute -inset-px'
-    />
-  )
 }
 
 export function ApiKeyGroupCombobox({
@@ -162,7 +107,10 @@ export function ApiKeyGroupCombobox({
             className={cn(
               'border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 relative h-auto min-h-14 w-full justify-between gap-2 rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3',
               isAutoSelected &&
-                'border-primary/40 shadow-sm shadow-primary/10 hover:border-primary/55 data-popup-open:border-primary/55 data-popup-open:ring-primary/20'
+                cn(
+                  AUTO_GROUP_FRAME_CLASS_NAME,
+                  'hover:border-primary/55 data-popup-open:border-primary/55 data-popup-open:ring-primary/20'
+                )
             )}
           />
         }
@@ -182,7 +130,11 @@ export function ApiKeyGroupCombobox({
             )}
           </span>
           <span className='hidden sm:block'>
-            <GroupRatioBadge ratio={selectedOption?.ratio} />
+            <GroupRatioBadge
+              ratio={selectedOption?.ratio}
+              isAuto={isAutoSelected}
+              shouldReduceMotion={shouldReduceMotion}
+            />
           </span>
         </span>
         <ChevronsUpDown
@@ -217,7 +169,10 @@ export function ApiKeyGroupCombobox({
                     className={cn(
                       'data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors',
                       isAutoOption &&
-                        'border-primary/35 relative border shadow-sm shadow-primary/10 data-[selected=true]:border-primary/55'
+                        cn(
+                          AUTO_GROUP_FRAME_CLASS_NAME,
+                          'border-primary/35 data-[selected=true]:border-primary/55'
+                        )
                     )}
                   >
                     {isAutoOption && (
@@ -242,7 +197,11 @@ export function ApiKeyGroupCombobox({
                         </span>
                       )}
                     </span>
-                    <GroupRatioBadge ratio={option.ratio} />
+                    <GroupRatioBadge
+                      ratio={option.ratio}
+                      isAuto={isAutoOption}
+                      shouldReduceMotion={shouldReduceMotion}
+                    />
                   </CommandItem>
                 )
               })}

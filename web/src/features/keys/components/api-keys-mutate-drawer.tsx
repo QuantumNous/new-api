@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -107,7 +107,9 @@ export function ApiKeysMutateDrawer({
   const { status, loading: statusLoading } = useStatus()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const initializedTargetRef = useRef<string | null>(null)
+  const [initializedTarget, setInitializedTarget] = useState<string | null>(
+    null
+  )
   const defaultUseAutoGroup = status?.default_use_auto_group === true
 
   // Fetch models
@@ -199,7 +201,7 @@ export function ApiKeysMutateDrawer({
   // Load existing data when updating
   useEffect(() => {
     if (!open) {
-      initializedTargetRef.current = null
+      setInitializedTarget(null)
       return
     }
     if (
@@ -214,27 +216,23 @@ export function ApiKeysMutateDrawer({
     if (!isUpdate && statusLoading) return
 
     const target = isUpdate && currentRow ? `update:${currentRow.id}` : 'create'
-    if (initializedTargetRef.current === target) return
-    initializedTargetRef.current = target
+    if (initializedTarget === target) return
     if (isUpdate && currentRow) {
       if (apiKeyData?.success && apiKeyData.data) {
         form.reset(
           transformApiKeyToFormDefaults(
             apiKeyData.data,
-            globalAutoGroups,
             availableAutoGroupNames,
             maxAutoGroups
           )
         )
+        setInitializedTarget(target)
       }
     } else {
       form.reset(
-        getApiKeyFormDefaultValues(
-          defaultUseAutoGroup && backendHasAuto,
-          globalAutoGroups,
-          maxAutoGroups
-        )
+        getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
       )
+      setInitializedTarget(target)
     }
   }, [
     open,
@@ -251,15 +249,20 @@ export function ApiKeysMutateDrawer({
     apiKeyData,
     apiKeyFetched,
     apiKeyFetching,
-    globalAutoGroups,
     availableAutoGroupNames,
     maxAutoGroups,
+    initializedTarget,
   ])
+
+  const formTarget =
+    isUpdate && currentRow ? `update:${currentRow.id}` : 'create'
+  const isFormInitialized = initializedTarget === formTarget
+  const selectedGroup = form.watch('group')
 
   // Correct group after groups load: if the form value is not in available groups, fall back
   useEffect(() => {
     if (groups.length === 0) return
-    const currentGroup = form.getValues('group')
+    const currentGroup = selectedGroup
     if (currentGroup && !groups.some((g) => g.value === currentGroup)) {
       const fallback =
         groups.find((g) => g.value === 'default')?.value ??
@@ -268,10 +271,11 @@ export function ApiKeysMutateDrawer({
       form.setValue('group', fallback)
       if (currentGroup === 'auto') {
         form.setValue('auto_groups', [])
+        form.setValue('auto_groups_mode', 'inherit')
         form.setValue('cross_group_retry', false)
       }
     }
-  }, [groups, form])
+  }, [groups, form, selectedGroup])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
@@ -353,7 +357,7 @@ export function ApiKeysMutateDrawer({
   const quotaPlaceholder = tokensOnly
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
-  const selectedGroup = form.watch('group')
+  const autoGroupsMode = form.watch('auto_groups_mode')
   const unlimitedQuota = form.watch('unlimited_quota')
 
   return (
@@ -383,6 +387,8 @@ export function ApiKeysMutateDrawer({
           <form
             id='api-key-form'
             onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+            aria-busy={!isFormInitialized}
+            inert={!isFormInitialized || isSubmitting ? true : undefined}
             className={sideDrawerFormClassName('gap-5')}
           >
             <SideDrawerSection>
@@ -419,22 +425,11 @@ export function ApiKeysMutateDrawer({
                         onValueChange={(group) => {
                           field.onChange(group)
                           if (group === 'auto') {
-                            if (form.getValues('auto_groups').length === 0) {
-                              form.setValue(
-                                'auto_groups',
-                                globalAutoGroups.slice(0, maxAutoGroups),
-                                { shouldDirty: true, shouldValidate: true }
-                              )
-                            }
                             form.setValue('cross_group_retry', true, {
                               shouldDirty: true,
                             })
                             return
                           }
-                          form.setValue('auto_groups', [], {
-                            shouldDirty: true,
-                            shouldValidate: true,
-                          })
                           form.setValue('cross_group_retry', false, {
                             shouldDirty: true,
                           })
@@ -462,12 +457,24 @@ export function ApiKeysMutateDrawer({
                       <FormControl>
                         <AutoGroupOrderEditor
                           value={field.value}
+                          mode={autoGroupsMode}
                           options={groups}
                           globalOptions={globalAutoGroupOptions}
                           maxCount={maxAutoGroups}
-                          onChange={(value) =>
-                            field.onChange(value.slice(0, maxAutoGroups))
-                          }
+                          onChange={(value) => {
+                            form.setValue('auto_groups_mode', value.mode, {
+                              shouldDirty: true,
+                              shouldValidate: false,
+                            })
+                            form.setValue(
+                              'auto_groups',
+                              value.groups.slice(0, maxAutoGroups),
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              }
+                            )
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -752,7 +759,7 @@ export function ApiKeysMutateDrawer({
           <Button
             type='button'
             onClick={form.handleSubmit(onSubmit, onInvalid)}
-            disabled={isSubmitting}
+            disabled={!isFormInitialized || isSubmitting}
             className='w-full sm:w-auto'
           >
             {isSubmitting ? t('Saving...') : t('Save changes')}
