@@ -1,5 +1,5 @@
 import { AxiosHeaders, type InternalAxiosRequestConfig } from 'axios'
-import { afterEach, describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, mock, test } from 'bun:test'
 import { api } from '@/lib/api'
 import {
   createRecallCampaign,
@@ -168,6 +168,18 @@ describe('recall campaign API contracts', () => {
     await expect(exportRecallCampaign(1)).rejects.toThrow('Export unavailable')
   })
 
+  test('rejects non-envelope JSON returned from export as a Blob', async () => {
+    respondWith(
+      new Blob([JSON.stringify({ error: 'Export unavailable' })], {
+        type: 'application/json',
+      })
+    )
+
+    await expect(exportRecallCampaign(1)).rejects.toThrow(
+      'Recall campaign export returned JSON instead of CSV'
+    )
+  })
+
   test('rejects empty-MIME JSON failure envelopes returned from CSV exports', async () => {
     respondWith(
       new Blob(
@@ -197,9 +209,12 @@ describe('recall campaign API contracts', () => {
     const csv = new Blob(['email,amount\nalice@example.com,9600\n'], {
       type: '',
     })
+    const text = mock(csv.text.bind(csv))
+    Object.defineProperty(csv, 'text', { value: text })
     respondWith(csv)
 
     await expect(exportRecallCampaign(1)).resolves.toBe(csv)
+    expect(text).not.toHaveBeenCalled()
   })
 
   test('loads metric users with metric and supplied filters in query params', async () => {

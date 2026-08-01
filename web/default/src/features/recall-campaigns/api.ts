@@ -90,6 +90,10 @@ async function requireRecallCSVBlob(
 ): Promise<Blob> {
   const isJSON = blob.type.toLowerCase().includes('json')
   if (isJSON || blob.type === '') {
+    if (!isJSON) {
+      const prefix = (await blob.slice(0, 1024).text()).trimStart()
+      if (!['{', '['].includes(prefix[0] ?? '')) return blob
+    }
     let payload: unknown
     try {
       payload = JSON.parse(await blob.text()) as unknown
@@ -97,8 +101,7 @@ async function requireRecallCSVBlob(
       if (!isJSON) return blob
       throw new Error(`${context} returned invalid JSON`)
     }
-    if (!isRecallApiResponseEnvelope(payload)) return blob
-    requireRecallSuccess(payload)
+    if (isRecallApiResponseEnvelope(payload)) requireRecallSuccess(payload)
     throw new Error(`${context} returned JSON instead of CSV`)
   }
   return blob
