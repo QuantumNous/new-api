@@ -2660,11 +2660,16 @@ func TestRecallCampaignRecurringRunNextRunCASAllowsOneMultiConnectionWinner(t *t
 	close(start)
 
 	winners := 0
+	timeout := time.After(5 * time.Second)
 	for i := 0; i < 2; i++ {
-		result := <-results
-		require.NoError(t, result.err)
-		if result.committed {
-			winners++
+		select {
+		case result := <-results:
+			require.NoError(t, result.err)
+			if result.committed {
+				winners++
+			}
+		case <-timeout:
+			t.Fatal("timed out waiting for concurrent recall campaign CAS race result")
 		}
 	}
 	require.Equal(t, 1, winners)
@@ -3470,6 +3475,83 @@ func TestRecallCampaignActivatedUpdateOnlyChangesFutureEmailVersion(t *testing.T
 	require.NoError(t, err)
 	require.NoError(t, common.Unmarshal([]byte(updated.EmailSequenceConfig), &stages))
 	require.Equal(t, 3, stages[0].TemplateVersion)
+}
+
+func TestRecallCampaignActivatedEmailUpdateAcceptsProductScheduleAliases(t *testing.T) {
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	start := now.Add(2 * time.Hour)
+	shanghai, err := time.LoadLocation("Asia/Shanghai")
+	require.NoError(t, err)
+	localStart := start.In(shanghai)
+	tests := []struct {
+		name        string
+		productMode string
+		schedule    RecallScheduleConfig
+		wantMode    string
+	}{
+		{
+			name:        "Once",
+			productMode: "Once",
+			schedule:    RecallScheduleConfig{ScheduledAt: start.Unix(), Timezone: "Asia/Shanghai"},
+			wantMode:    "scheduled_once",
+		},
+		{
+			name:        "Daily",
+			productMode: "Daily",
+			schedule: RecallScheduleConfig{
+				ScheduledAt: start.Unix(),
+				Timezone:    "Asia/Shanghai",
+				Hour:        localStart.Hour(),
+				Minute:      localStart.Minute(),
+			},
+			wantMode: "recurring",
+		},
+		{
+			name:        "Weekly",
+			productMode: "Weekly",
+			schedule: RecallScheduleConfig{
+				ScheduledAt: start.Unix(),
+				Timezone:    "Asia/Shanghai",
+				Weekday:     int(localStart.Weekday()),
+				Hour:        localStart.Hour(),
+				Minute:      localStart.Minute(),
+			},
+			wantMode: "recurring",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupRecallCampaignTestDB(t)
+			createRecallCampaignEligibleUser(t, db, now, "alias-update-"+strings.ToLower(test.name))
+			draft := validRecallCampaignDraft(now)
+			draft.Audience.LastAPICallAgeDays = 0
+			draft.ExecutionMode = test.productMode
+			draft.Schedule = test.schedule
+			service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+			service.now = func() time.Time { return now }
+			campaign, err := service.SaveDraft(context.Background(), 7, draft)
+			require.NoError(t, err)
+			require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+			storedBefore, err := model.GetRecallCampaignByID(campaign.Id)
+			require.NoError(t, err)
+			require.Equal(t, test.wantMode, storedBefore.ExecutionMode)
+
+			edit := draft
+			edit.ExecutionMode = test.productMode
+			edit.Schedule = test.schedule
+			edit.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "Alias update " + test.name, BodyText: "Updated body"}
+			updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, edit)
+
+			require.NoError(t, err)
+			require.Equal(t, storedBefore.ScheduledAt, updated.ScheduledAt)
+			require.Equal(t, storedBefore.RecurrenceConfig, updated.RecurrenceConfig)
+			require.Equal(t, storedBefore.NextRunAt, updated.NextRunAt)
+			var stages []RecallEmailStage
+			require.NoError(t, common.Unmarshal([]byte(updated.EmailSequenceConfig), &stages))
+			require.Equal(t, 2, stages[0].TemplateVersion)
+		})
+	}
 }
 
 func TestRecallCampaignActivatedEmailUpdateIgnoresPastImmutableTimestamps(t *testing.T) {

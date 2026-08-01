@@ -1587,40 +1587,8 @@ func validateAndNormalizeRecallCampaignDraftInternal(draft RecallCampaignDraft, 
 	}
 	draft.Audience = normalizeRecallAudienceConfig(draft.Audience)
 
-	draft.ExecutionMode = strings.ToLower(strings.TrimSpace(draft.ExecutionMode))
-	switch draft.ExecutionMode {
-	case "manual":
-		draft.Schedule = RecallScheduleConfig{}
-	case "once", "scheduled_once":
-		draft.ExecutionMode = "scheduled_once"
-		if err := validateRecallScheduleTimezone(draft.Schedule.Timezone); err != nil {
-			return RecallCampaignDraft{}, err
-		}
-		if draft.Schedule.ScheduledAt <= now.Unix() {
-			return RecallCampaignDraft{}, fmt.Errorf("scheduled recall campaign must run in the future")
-		}
-		draft.Schedule = RecallScheduleConfig{
-			ScheduledAt: draft.Schedule.ScheduledAt,
-			Timezone:    strings.TrimSpace(draft.Schedule.Timezone),
-		}
-	case "daily":
-		draft.ExecutionMode = "recurring"
-		draft.Schedule.Frequency = "daily"
-		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now, true); err != nil {
-			return RecallCampaignDraft{}, err
-		}
-	case "weekly":
-		draft.ExecutionMode = "recurring"
-		draft.Schedule.Frequency = "weekly"
-		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now, true); err != nil {
-			return RecallCampaignDraft{}, err
-		}
-	case "recurring":
-		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now, false); err != nil {
-			return RecallCampaignDraft{}, err
-		}
-	default:
-		return RecallCampaignDraft{}, fmt.Errorf("unsupported recall execution mode %q", draft.ExecutionMode)
+	if err := canonicalizeRecallExecutionModeAndSchedule(&draft, now, true); err != nil {
+		return RecallCampaignDraft{}, err
 	}
 
 	if draft.CampaignType == model.RecallCampaignTypeContentOnly && draft.PromotionValidSeconds <= 0 {
@@ -1649,6 +1617,55 @@ func validateAndNormalizeRecallCampaignDraftInternal(draft RecallCampaignDraft, 
 	return draft, nil
 }
 
+func canonicalizeRecallExecutionModeAndSchedule(draft *RecallCampaignDraft, now time.Time, validate bool) error {
+	if draft == nil {
+		return fmt.Errorf("recall campaign draft is required")
+	}
+	draft.ExecutionMode = strings.ToLower(strings.TrimSpace(draft.ExecutionMode))
+	switch draft.ExecutionMode {
+	case "manual":
+		draft.Schedule = RecallScheduleConfig{}
+	case "once", "scheduled_once":
+		draft.ExecutionMode = "scheduled_once"
+		if validate {
+			if err := validateRecallScheduleTimezone(draft.Schedule.Timezone); err != nil {
+				return err
+			}
+			if draft.Schedule.ScheduledAt <= now.Unix() {
+				return fmt.Errorf("scheduled recall campaign must run in the future")
+			}
+		}
+		draft.Schedule = RecallScheduleConfig{
+			ScheduledAt: draft.Schedule.ScheduledAt,
+			Timezone:    strings.TrimSpace(draft.Schedule.Timezone),
+		}
+	case "daily":
+		draft.ExecutionMode = "recurring"
+		draft.Schedule.Frequency = "daily"
+		if validate {
+			return validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now, true)
+		}
+		normalizeRecallRecurringScheduleFields(&draft.Schedule)
+	case "weekly":
+		draft.ExecutionMode = "recurring"
+		draft.Schedule.Frequency = "weekly"
+		if validate {
+			return validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now, true)
+		}
+		normalizeRecallRecurringScheduleFields(&draft.Schedule)
+	case "recurring":
+		if validate {
+			return validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now, false)
+		}
+		normalizeRecallRecurringScheduleFields(&draft.Schedule)
+	default:
+		if validate {
+			return fmt.Errorf("unsupported recall execution mode %q", draft.ExecutionMode)
+		}
+	}
+	return nil
+}
+
 func validateRecallScheduleTimezone(timezone string) error {
 	timezone = strings.TrimSpace(timezone)
 	if timezone == "" || timezone == "Local" {
@@ -1667,13 +1684,9 @@ func validateAndNormalizeRecallRecurringSchedule(schedule *RecallScheduleConfig,
 	if err := validateRecallScheduleTimezone(schedule.Timezone); err != nil {
 		return err
 	}
-	schedule.Timezone = strings.TrimSpace(schedule.Timezone)
-	schedule.Frequency = strings.ToLower(strings.TrimSpace(schedule.Frequency))
+	normalizeRecallRecurringScheduleFields(schedule)
 	if schedule.Frequency != "daily" && schedule.Frequency != "weekly" {
 		return fmt.Errorf("recall recurrence frequency must be daily or weekly")
-	}
-	if schedule.Frequency == "daily" {
-		schedule.Weekday = 0
 	}
 	if requireStartBoundary && schedule.ScheduledAt <= 0 {
 		return fmt.Errorf("recall product recurring schedule requires a start boundary")
@@ -1684,6 +1697,17 @@ func validateAndNormalizeRecallRecurringSchedule(schedule *RecallScheduleConfig,
 	}
 	_, err := NextRecallRun(now, *schedule)
 	return err
+}
+
+func normalizeRecallRecurringScheduleFields(schedule *RecallScheduleConfig) {
+	if schedule == nil {
+		return
+	}
+	schedule.Timezone = strings.TrimSpace(schedule.Timezone)
+	schedule.Frequency = strings.ToLower(strings.TrimSpace(schedule.Frequency))
+	if schedule.Frequency == "daily" {
+		schedule.Weekday = 0
+	}
 }
 
 func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now time.Time, requireProducts bool) (RecallCampaignDraft, error) {
@@ -2477,23 +2501,7 @@ func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCamp
 	}
 	draft.AudienceTemplate = strings.ToLower(strings.TrimSpace(draft.AudienceTemplate))
 	draft.Audience = normalizeRecallAudienceConfig(draft.Audience)
-	draft.ExecutionMode = strings.ToLower(strings.TrimSpace(draft.ExecutionMode))
-	switch draft.ExecutionMode {
-	case "manual":
-		draft.Schedule = RecallScheduleConfig{}
-	case "scheduled_once":
-		draft.Schedule.Timezone = strings.TrimSpace(draft.Schedule.Timezone)
-		draft.Schedule.Frequency = ""
-		draft.Schedule.Weekday = 0
-		draft.Schedule.Hour = 0
-		draft.Schedule.Minute = 0
-	case "recurring":
-		draft.Schedule.Timezone = strings.TrimSpace(draft.Schedule.Timezone)
-		draft.Schedule.Frequency = strings.ToLower(strings.TrimSpace(draft.Schedule.Frequency))
-		if draft.Schedule.Frequency == "daily" {
-			draft.Schedule.Weekday = 0
-		}
-	}
+	_ = canonicalizeRecallExecutionModeAndSchedule(&draft, time.Time{}, false)
 	draft.CouponSource = strings.ToLower(strings.TrimSpace(draft.CouponSource))
 	draft.ExistingCouponID = strings.TrimSpace(draft.ExistingCouponID)
 	draft.PromotionExpiryMode = normalizedRecallPromotionExpiryMode(draft.PromotionExpiryMode)
