@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import * as React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { createFormControl, type UseFormReturn } from 'react-hook-form'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  environmentManager,
+  QueryClient,
+  QueryClientProvider,
+  timeoutManager,
+} from '@tanstack/react-query'
 import {
   afterAll,
   beforeAll,
@@ -29,7 +34,6 @@ import {
   mock,
   spyOn,
   test,
-  vi,
 } from 'bun:test'
 import { createInstance } from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -122,6 +126,25 @@ const latestSwitchProps: Record<
     onCheckedChange?: (checked: boolean) => void
   }
 > = {}
+
+type TimeoutProvider = Parameters<typeof timeoutManager.setTimeoutProvider>[0]
+
+const realTimeoutProvider: TimeoutProvider = {
+  clearInterval: (timerId) => clearInterval(timerId),
+  clearTimeout: (timerId) => clearTimeout(timerId),
+  setInterval: (callback, delay) => setInterval(callback, delay),
+  setTimeout: (callback, delay) => setTimeout(callback, delay),
+}
+let activeTimeoutProvider = realTimeoutProvider
+
+timeoutManager.setTimeoutProvider({
+  clearInterval: (timerId) => activeTimeoutProvider.clearInterval(timerId),
+  clearTimeout: (timerId) => activeTimeoutProvider.clearTimeout(timerId),
+  setInterval: (callback, delay) =>
+    activeTimeoutProvider.setInterval(callback, delay),
+  setTimeout: (callback, delay) =>
+    activeTimeoutProvider.setTimeout(callback, delay),
+})
 
 spyOn(recallApi, 'useRecallCampaignMutations').mockImplementation(() => ({
   create: { isPending: false, mutateAsync: createMutation },
@@ -595,6 +618,7 @@ function setupDom() {
 }
 
 setupDom()
+environmentManager.setIsServer(() => false)
 
 function createQueryClient() {
   const queryClient = new QueryClient({
@@ -1398,6 +1422,7 @@ describe('CampaignEditor schedule modes', () => {
   test('maps Once, Daily, and Weekly selections to the backend wire contract on submit', async () => {
     for (const [mode, executionMode, frequency] of [
       ['once', 'scheduled_once', 'daily'],
+      ['daily', 'recurring', 'daily'],
       ['weekly', 'recurring', 'weekly'],
       ['manual', 'manual', 'daily'],
     ] as const) {
@@ -1415,8 +1440,12 @@ describe('CampaignEditor schedule modes', () => {
       )?.[0] as RecallCampaignDraft
       expect(submitted.execution_mode).toBe(executionMode)
       expect(submitted.schedule.frequency).toBe(frequency)
-      if (mode === 'once') {
+      if (mode === 'once' || mode === 'daily') {
         expect(submitted.schedule.timezone).toBe('Asia/Shanghai')
+        expect(submitted.schedule.scheduled_at).toBeGreaterThan(0)
+      }
+      if (mode === 'daily') {
+        expect(submitted.schedule.weekday).toBe(1)
       }
       if (mode === 'manual') {
         expect(submitted.schedule.scheduled_at).toBe(0)
@@ -1709,7 +1738,33 @@ describe('CampaignEditor email sequence', () => {
   })
 
   test('polls an active generated translation task roughly every two seconds and stops on terminal status', async () => {
-    vi.useFakeTimers()
+    type ControlledInterval = {
+      active: boolean
+      callback: () => void
+      delay: number
+      id: number
+    }
+    const intervals: ControlledInterval[] = []
+    let nextTimerID = 1
+    activeTimeoutProvider = {
+      clearInterval: (timerId) => {
+        const interval = intervals.find((current) => current.id === timerId)
+        if (interval) interval.active = false
+      },
+      clearTimeout: (timerId) => clearTimeout(timerId),
+      setInterval: (callback, delay) => {
+        const interval = {
+          active: true,
+          callback,
+          delay,
+          id: nextTimerID,
+        }
+        intervals.push(interval)
+        nextTimerID += 1
+        return interval.id
+      },
+      setTimeout: (callback, delay) => setTimeout(callback, delay),
+    }
     generateMutation.mockImplementationOnce(async (value) => ({
       success: true,
       data: {
@@ -1746,41 +1801,48 @@ describe('CampaignEditor email sequence', () => {
       campaignId: 9,
       configRevision: 4,
     })
+    const runPollingInterval = async () => {
+      const interval = intervals.find(
+        (current) => current.active && current.delay === 2_000
+      )
+      expect(interval).toBeTruthy()
+      await React.act(async () => {
+        interval?.callback()
+        await Promise.resolve()
+      })
+      await flushReactWork()
+    }
 
     try {
       await clickByID(container, 'recall-generate-translations')
       expect(container.textContent).toContain('Translation task queued')
       await flushReactWork()
       expect(getTranslationTask).toHaveBeenCalledTimes(1)
-
-      await React.act(async () => {
-        vi.advanceTimersByTime(2_000)
-        await Promise.resolve()
-      })
       await flushReactWork()
+      expect(
+        intervals.some(
+          (interval) => interval.active && interval.delay === 2_000
+        )
+      ).toBe(true)
+
+      await runPollingInterval()
       expect(getTranslationTask).toHaveBeenCalledTimes(2)
 
-      await React.act(async () => {
-        vi.advanceTimersByTime(2_000)
-        await Promise.resolve()
-      })
-      await flushReactWork()
+      await runPollingInterval()
       expect(getTranslationTask).toHaveBeenCalledTimes(3)
-      await React.act(async () => {
-        vi.advanceTimersByTime(2_000)
-        await Promise.resolve()
-      })
-      await flushReactWork()
-      expect(container.textContent).toContain('Translation task succeeded')
+      await waitFor(() =>
+        Boolean(container.textContent?.includes('Translation task succeeded'))
+      )
       const callsAfterTerminal = getTranslationTask.mock.calls.length
 
-      await React.act(async () => {
-        vi.advanceTimersByTime(4_000)
-        await Promise.resolve()
-      })
+      expect(
+        intervals.some(
+          (interval) => interval.active && interval.delay === 2_000
+        )
+      ).toBe(false)
       expect(getTranslationTask).toHaveBeenCalledTimes(callsAfterTerminal)
     } finally {
-      vi.useRealTimers()
+      activeTimeoutProvider = realTimeoutProvider
       dispose(root)
     }
   })

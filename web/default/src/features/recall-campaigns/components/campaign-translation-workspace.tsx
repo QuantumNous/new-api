@@ -451,7 +451,7 @@ export function CampaignTranslationWorkspace(
               status: props.translationTask.status,
             })}
           </p>
-          {props.translationTask.status === 'failed' ? (
+          {getTranslationTaskError(props.translationTask) ? (
             <p className='text-destructive'>
               {t(getTranslationTaskError(props.translationTask))}
             </p>

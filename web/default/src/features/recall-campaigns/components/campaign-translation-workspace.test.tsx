@@ -421,6 +421,30 @@ describe('CampaignTranslationWorkspace', () => {
     }
   )
 
+  test('shows stable copy for superseded translation task errors', () => {
+    const html = renderWorkspace(
+      makeDraft([makeStage()]),
+      undefined,
+      false,
+      false,
+      {
+        id: 55,
+        campaign_id: 9,
+        requested_config_revision: 4,
+        status: 'superseded',
+        attempt_count: 1,
+        error_code: 'translation_superseded',
+        error_copy_key: 'recall.translation.superseded',
+        error_message: 'raw provider detail must not leak',
+        created_at: 1_900_000_000,
+      }
+    )
+
+    expect(html).toContain('Translation task superseded')
+    expect(html).toContain('recall.translation.superseded')
+    expect(html).not.toContain('raw provider detail must not leak')
+  })
+
   test.each(['queued', 'running'] as const)(
     'disables duplicate generation while translation task is %s',
     (status) => {

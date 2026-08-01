@@ -157,6 +157,20 @@ describe('recall campaign API contracts', () => {
     await expect(call()).rejects.toThrow('Recall request failed')
   })
 
+  test('serializes uncertain recipient retry acknowledgment in the request body', async () => {
+    respondWith({ success: true })
+
+    await retryRecallRecipient(42, 73, true)
+
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/recipients/73/retry'
+    )
+    expect(capturedConfig?.method).toBe('post')
+    expect(JSON.parse(String(capturedConfig?.data))).toEqual({
+      acknowledge_uncertain: true,
+    })
+  })
+
   test('rejects a JSON failure envelope returned from export as a Blob', async () => {
     respondWith(
       new Blob(

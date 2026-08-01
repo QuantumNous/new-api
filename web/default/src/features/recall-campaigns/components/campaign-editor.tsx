@@ -490,8 +490,8 @@ export function CampaignEditor(props: CampaignEditorProps) {
       const task = query.state.data?.data
       return task && isRecallTranslationTaskActive(task.status) ? 2_000 : false
     },
+    refetchIntervalInBackground: true,
   })
-  const refetchActiveTranslationTask = activeTranslationTaskQuery.refetch
 
   useEffect(() => {
     const task = latestTranslationTaskQuery.data?.data
@@ -524,26 +524,6 @@ export function CampaignEditor(props: CampaignEditorProps) {
       })
     }
   }, [persistedCampaignID, queryClient, translationTask])
-
-  useEffect(() => {
-    if (
-      persistedCampaignID <= 0 ||
-      activeTranslationTaskID <= 0 ||
-      !translationTask ||
-      !isRecallTranslationTaskActive(translationTask.status)
-    ) {
-      return
-    }
-    const timer = window.setInterval(() => {
-      void refetchActiveTranslationTask()
-    }, 2_000)
-    return () => window.clearInterval(timer)
-  }, [
-    activeTranslationTaskID,
-    persistedCampaignID,
-    refetchActiveTranslationTask,
-    translationTask,
-  ])
 
   useEffect(() => {
     setPersistedCampaignID(props.campaignId ?? 0)

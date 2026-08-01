@@ -820,7 +820,7 @@ describe('recallCampaignDraftSchema', () => {
       const draft = makeDraft()
       draft.execution_mode = 'recurring'
       draft.schedule = {
-        scheduled_at: 0,
+        scheduled_at: 1,
         timezone: 'UTC',
         frequency: 'daily',
         weekday: 0,
@@ -901,17 +901,40 @@ describe('recallCampaignDraftSchema', () => {
     const draft = makeDraft()
     draft.execution_mode = 'scheduled_once'
     draft.schedule.scheduled_at = FUTURE_TIMESTAMP
+    draft.schedule.timezone = 'Asia/Shanghai'
     expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
 
     draft.schedule.scheduled_at = 1
-    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
+    const pastResult = recallCampaignDraftSchema.safeParse(draft)
+    expect(pastResult.success).toBe(false)
+    if (!pastResult.success) {
+      expect(pastResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['schedule', 'scheduled_at'],
+          message: 'Scheduled time must be in the future',
+        })
+      )
+    }
+
+    draft.schedule.scheduled_at = FUTURE_TIMESTAMP
+    draft.schedule.timezone = 'not/a-zone'
+    const timezoneResult = recallCampaignDraftSchema.safeParse(draft)
+    expect(timezoneResult.success).toBe(false)
+    if (!timezoneResult.success) {
+      expect(timezoneResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['schedule', 'timezone'],
+          message: 'IANA timezone is required',
+        })
+      )
+    }
   })
 
   test('validates recurring IANA timezones and daily fields', () => {
     const draft = makeDraft()
     draft.execution_mode = 'recurring'
     draft.schedule = {
-      scheduled_at: 0,
+      scheduled_at: FUTURE_TIMESTAMP,
       timezone: 'America/New_York',
       frequency: 'daily',
       weekday: 0,
@@ -928,11 +951,38 @@ describe('recallCampaignDraftSchema', () => {
     expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(false)
   })
 
-  test('validates recurring weekly fields', () => {
+  test('requires a concrete recurring start boundary while allowing past boundaries', () => {
     const draft = makeDraft()
     draft.execution_mode = 'recurring'
     draft.schedule = {
       scheduled_at: 0,
+      timezone: 'UTC',
+      frequency: 'daily',
+      weekday: 0,
+      hour: 9,
+      minute: 0,
+    }
+
+    const missingResult = recallCampaignDraftSchema.safeParse(draft)
+    expect(missingResult.success).toBe(false)
+    if (!missingResult.success) {
+      expect(missingResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['schedule', 'scheduled_at'],
+          message: 'Recurring start boundary is required',
+        })
+      )
+    }
+
+    draft.schedule.scheduled_at = 1
+    expect(recallCampaignDraftSchema.safeParse(draft).success).toBe(true)
+  })
+
+  test('validates recurring weekly fields', () => {
+    const draft = makeDraft()
+    draft.execution_mode = 'recurring'
+    draft.schedule = {
+      scheduled_at: FUTURE_TIMESTAMP,
       timezone: 'Europe/Paris',
       frequency: 'weekly',
       weekday: 6,
