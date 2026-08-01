@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
+	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -619,7 +620,7 @@ func RelayTask(c *gin.Context) {
 				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
 		}
 
-		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetryTaskRelay(c, channel, taskErr, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
 	}
@@ -671,8 +672,14 @@ func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 	c.JSON(taskErr.StatusCode, taskErr)
 }
 
-func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError, retryTimes int) bool {
+func shouldRetryTaskRelay(c *gin.Context, channel *model.Channel, taskErr *dto.TaskError, retryTimes int) bool {
 	if taskErr == nil {
+		return false
+	}
+	// Ctyun video task creation is non-idempotent and the upstream does not
+	// support cancellation. Once a submission may have reached the provider,
+	// never replay it automatically or fail over to another channel.
+	if channel != nil && channel.Type == constant.ChannelTypeDoubaoVideo && taskdoubao.IsCtyunVideoBaseURL(channel.GetBaseURL()) {
 		return false
 	}
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {

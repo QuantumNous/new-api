@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -121,7 +123,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+	return buildTaskCollectionURL(a.baseURL), nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -191,6 +193,11 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	} else {
 		info.UpstreamModelName = body.Model
 	}
+	if IsCtyunVideoBaseURL(a.baseURL) {
+		if err := validateCtyunRequest(body); err != nil {
+			return nil, err
+		}
+	}
 	data, err := common.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -241,7 +248,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
+	uri := buildTaskItemURL(baseUrl, taskID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -257,6 +264,33 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 	return client.Do(req)
+}
+
+// buildTaskCollectionURL keeps the existing Volcengine /api/v3 behavior while
+// allowing compatible gateways (for example Ctyun) to declare their API
+// version explicitly in the configured base URL.
+func buildTaskCollectionURL(baseURL string) string {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if strings.HasSuffix(baseURL, "/v1") || strings.HasSuffix(baseURL, "/api/v3") {
+		return baseURL + "/contents/generations/tasks"
+	}
+	return baseURL + "/api/v3/contents/generations/tasks"
+}
+
+func buildTaskItemURL(baseURL, taskID string) string {
+	return buildTaskCollectionURL(baseURL) + "/" + url.PathEscape(taskID)
+}
+
+// IsCtyunVideoBaseURL identifies the exact Ctyun video endpoint. Ctyun task
+// creation is non-idempotent, so the controller uses this signal to prevent
+// automatic retries or cross-channel failover after an uncertain submission.
+func IsCtyunVideoBaseURL(baseURL string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(parsed.Hostname(), "ai.ctaigw.cn") &&
+		strings.TrimRight(parsed.EscapedPath(), "/") == "/v1"
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
@@ -290,8 +324,18 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
-	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
+	sec := req.Duration
+	if parsed, _ := strconv.Atoi(req.Seconds); parsed > 0 {
+		sec = parsed
+	}
+	if sec > 0 {
 		r.Duration = lo.ToPtr(dto.IntValue(sec))
+	}
+	if r.Resolution == "" {
+		switch strings.ToLower(strings.TrimSpace(req.Size)) {
+		case "480p", "720p", "1080p", "4k":
+			r.Resolution = strings.ToLower(strings.TrimSpace(req.Size))
+		}
 	}
 
 	r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
@@ -301,6 +345,26 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	})
 
 	return &r, nil
+}
+
+func validateCtyunRequest(req *requestPayload) error {
+	if req == nil {
+		return fmt.Errorf("ctyun request is nil")
+	}
+	resolution := strings.ToLower(strings.TrimSpace(req.Resolution))
+	switch req.Model {
+	case "cdance2.0-fast-0611":
+		if resolution != "" && resolution != "480p" && resolution != "720p" {
+			return fmt.Errorf("model %s does not support resolution %s", req.Model, req.Resolution)
+		}
+	case "cdance2.0-0611":
+		if resolution != "" && resolution != "480p" && resolution != "720p" && resolution != "1080p" && resolution != "4k" {
+			return fmt.Errorf("model %s does not support resolution %s", req.Model, req.Resolution)
+		}
+	default:
+		return fmt.Errorf("unsupported Ctyun video model: %s", req.Model)
+	}
+	return nil
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
