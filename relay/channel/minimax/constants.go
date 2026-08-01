@@ -23,6 +23,7 @@ var ModelList = []string{
 	"MiniMax-M2.5-highspeed",
 	"image-01",
 	"image-01-live",
+	"MiniMax-H3",
 }
 
 var ChannelName = "minimax"
