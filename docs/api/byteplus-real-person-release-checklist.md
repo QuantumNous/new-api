@@ -6,7 +6,8 @@
 
 | 字段 | 值 |
 | --- | --- |
-| Release commit | `9fc0d597a8a7d193f070d5183724f15a624d9b13` |
+| Release commit | 未指定（当前为 NO-GO；转为 GO 前必须由获授权发布者填写最终 release commit，并针对该精确提交重新运行和签署本清单全部门禁） |
+| Local evidence snapshot | 当前条目为 `2026-08-01` 本地证据快照，不构成 release authorization |
 | Staging revision | 不可用：本任务未部署、未查询外部 staging 修订 |
 | Production router revision | 不可用：本任务禁止触碰生产 |
 | Production console revision | 不可用：本任务禁止触碰生产 |
