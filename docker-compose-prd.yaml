@@ -10,6 +10,8 @@ services:
     container_name: new-api
     restart: always
     command: --log-dir /app/logs
+    env_file:
+      - .env
     ports:
       - "${NEW_API_PORT:-3001}:3000"
     volumes:
@@ -19,8 +21,8 @@ services:
       SQL_DSN: ${SQL_DSN:?SQL_DSN is required}
       REDIS_CONN_STRING: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
       TZ: ${TZ:-Asia/Shanghai}
-      ERROR_LOG_ENABLED: "true"
-      BATCH_UPDATE_ENABLED: "true"
+      ERROR_LOG_ENABLED: ${ERROR_LOG_ENABLED:-true}
+      BATCH_UPDATE_ENABLED: ${BATCH_UPDATE_ENABLED:-true}
       NODE_NAME: ${NODE_NAME:-new-api-node-1}
     depends_on:
       redis:
