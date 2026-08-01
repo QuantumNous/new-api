@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createFormControl, type UseFormReturn } from 'react-hook-form'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   afterAll,
   beforeAll,
@@ -82,25 +82,12 @@ const generateMutation = mock(
     return {
       success: true,
       data: {
-        config_revision: value.request.config_revision + 1,
-        email_sequence: value.request.email_sequence.map((stage) => ({
-          ...stage,
-          source_revision: Math.max(1, stage.source_revision ?? 0),
-          translated_source_revision: Math.max(1, stage.source_revision ?? 0),
-          manual_locales: [],
-          templates: {
-            ...stage.templates,
-            ...Object.fromEntries(
-              ['zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'].map((locale) => [
-                locale,
-                {
-                  subject: `${locale} subject`,
-                  body_html: `<p>${locale} body</p>`,
-                },
-              ])
-            ),
-          },
-        })),
+        id: 55,
+        campaign_id: value.id,
+        requested_config_revision: value.request.config_revision,
+        status: 'queued',
+        attempt_count: 0,
+        created_at: 1_900_000_000,
       },
     }
   }
@@ -259,9 +246,8 @@ mock.module('@/components/multi-select', () => ({
   ),
 }))
 
-const { CampaignOfferValidityFields } = await import(
-  './campaign-offer-validity-fields'
-)
+const { CampaignOfferValidityFields } =
+  await import('./campaign-offer-validity-fields')
 const { CampaignEditor, createRecallCampaignFormDraft } =
   await import('./campaign-editor')
 
@@ -1524,7 +1510,7 @@ describe('CampaignEditor email sequence', () => {
     expect(html).toContain('Generate 7 translations')
   })
 
-  test('saves a new draft before one all-stage generation request', async () => {
+  test('saves a new draft before one all-stage translation task request', async () => {
     const draft = makeDraft('first_purchase')
     draft.email_sequence[0].templates = {
       en: draft.email_sequence[0].templates.en,
@@ -1543,7 +1529,7 @@ describe('CampaignEditor email sequence', () => {
       id: 123,
       request: { config_revision: 7, name: 'Test campaign' },
     })
-    expect(container.textContent).toContain('7 / 7 ready')
+    expect(container.textContent).toContain('0 / 7 ready')
     dispose(root)
   })
 

@@ -1,9 +1,11 @@
 import { createFormControl } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { describe, expect, test } from 'bun:test'
+import { createRecallCampaignFormDraft } from './components/campaign-editor'
 import {
   convertRecallBodyTextToHtml,
   createDefaultRecallMinimumSpendConfig,
+  formatRecallCurrencyAmount,
   formatRecallMinorAmount,
   formatRecallCampaignType,
   getRecallEffectivePromotionExpiry,
@@ -26,12 +28,13 @@ import {
   setRecallCampaignGroupMode,
 } from './helpers'
 import { recallCampaignDraftSchema } from './schemas'
-import { createRecallCampaignFormDraft } from './components/campaign-editor'
-import type {
-  RecallCampaignDraft,
-  RecallEmailStage,
-  RecallMinimumSpendConfig,
-  RecallRecipient,
+import {
+  type RecallCampaignDraft,
+  type RecallEmailStage,
+  type RecallMinimumSpendConfig,
+  type RecallRecipient,
+  isRecallTranslationTaskActive,
+  isRecallTranslationTaskTerminal,
 } from './types'
 
 function makeDraft(): RecallCampaignDraft {
@@ -451,9 +454,9 @@ describe('recall campaign editor normalization', () => {
     'treats legacy %s stage templates as empty at submit',
     (shape) => {
       const draft = makeValidDraft()
-      draft.email_sequence[0].templates = (
-        shape === 'null' ? null : undefined
-      ) as unknown as RecallEmailStage['templates']
+      draft.email_sequence[0].templates = (shape === 'null'
+        ? null
+        : undefined) as unknown as RecallEmailStage['templates']
       draft.email_sequence[0].manual_locales = ['es']
 
       const normalized = prepareRecallCampaignSubmitDraft(draft)
@@ -467,9 +470,9 @@ describe('recall campaign editor normalization', () => {
     'hydrates default English editor template for legacy %s stage templates',
     (shape) => {
       const draft = makeValidDraft()
-      draft.email_sequence[0].templates = (
-        shape === 'null' ? null : undefined
-      ) as unknown as RecallEmailStage['templates']
+      draft.email_sequence[0].templates = (shape === 'null'
+        ? null
+        : undefined) as unknown as RecallEmailStage['templates']
 
       const hydrated = createRecallCampaignFormDraft(draft)
 
@@ -913,8 +916,9 @@ describe('recall campaign editor normalization', () => {
     'treats legacy %s templates as a missing locale state',
     (shape) => {
       const stage = makeStage(1, 0)
-      stage.templates = (shape === 'null' ? null : undefined) as unknown as
-        | RecallEmailStage['templates']
+      stage.templates = (shape === 'null'
+        ? null
+        : undefined) as unknown as RecallEmailStage['templates']
 
       expect(getRecallEmailLocaleStatus(stage, 'en')).toBe('missing')
     }
@@ -969,6 +973,17 @@ describe('recall campaign editor normalization', () => {
     expect(formatRecallMinorAmount('JPY', 750)).toBe('750')
   })
 
+  test('formats metric minor-unit amounts for display using ISO currency precision', () => {
+    expect(formatRecallCurrencyAmount('USD', 9_600)).toBe('$96.00')
+    expect(formatRecallCurrencyAmount('USD', 0)).toBe('$0.00')
+    expect(formatRecallCurrencyAmount('USD', -1)).toBe('-$0.01')
+    expect(formatRecallCurrencyAmount('JPY', 9_600)).toBe('¥9,600')
+  })
+
+  test('keeps raw form minor-unit formatting separate from display currency formatting', () => {
+    expect(formatRecallMinorAmount('USD', 9_600)).toBe('96.00')
+  })
+
   test('renumbers stages after removing a middle stage', () => {
     const stages = [
       makeStage(1, 0),
@@ -980,6 +995,24 @@ describe('recall campaign editor normalization', () => {
       makeStage(1, 0),
       { ...makeStage(3, 172_800), stage_no: 2 },
     ])
+  })
+})
+
+describe('recall email translation task guards', () => {
+  test('identifies active translation task states', () => {
+    expect(isRecallTranslationTaskActive('queued')).toBe(true)
+    expect(isRecallTranslationTaskActive('running')).toBe(true)
+    expect(isRecallTranslationTaskActive('succeeded')).toBe(false)
+    expect(isRecallTranslationTaskActive('failed')).toBe(false)
+    expect(isRecallTranslationTaskActive('superseded')).toBe(false)
+  })
+
+  test('identifies terminal translation task states', () => {
+    expect(isRecallTranslationTaskTerminal('queued')).toBe(false)
+    expect(isRecallTranslationTaskTerminal('running')).toBe(false)
+    expect(isRecallTranslationTaskTerminal('succeeded')).toBe(true)
+    expect(isRecallTranslationTaskTerminal('failed')).toBe(true)
+    expect(isRecallTranslationTaskTerminal('superseded')).toBe(true)
   })
 })
 

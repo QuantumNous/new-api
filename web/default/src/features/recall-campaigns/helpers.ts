@@ -85,6 +85,20 @@ export function formatRecallMinorAmount(
   return currency === 'JPY' ? String(value) : (value / scale).toFixed(2)
 }
 
+export function formatRecallCurrencyAmount(
+  currency: string,
+  value: number,
+  locale = 'en-US'
+): string {
+  if (!Number.isSafeInteger(value)) return ''
+  const formatter = new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+  })
+  const digits = formatter.resolvedOptions().maximumFractionDigits ?? 0
+  return formatter.format(value / 10 ** digits)
+}
+
 export function createDefaultRecallMinimumSpendConfig(): RecallMinimumSpendConfig {
   return { enabled: false, amounts: {} }
 }
@@ -430,9 +444,7 @@ export function recallPromotionSecondsToDuration(
 export function getRecallEffectivePromotionExpiry(
   draft: Pick<
     RecallCampaignDraft,
-    | 'promotion_expiry_mode'
-    | 'promotion_expires_at'
-    | 'promotion_valid_seconds'
+    'promotion_expiry_mode' | 'promotion_expires_at' | 'promotion_valid_seconds'
   >,
   runAtSeconds: number
 ): number {
@@ -578,9 +590,18 @@ function recallDateOnlyAfterDays(
 }
 
 function recallLocalDateKey(
-  parts: Pick<RecallZonedDateParts, 'year' | 'month' | 'day' | 'hour' | 'minute'>
+  parts: Pick<
+    RecallZonedDateParts,
+    'year' | 'month' | 'day' | 'hour' | 'minute'
+  >
 ): number {
-  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute)
+  return Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute
+  )
 }
 
 function recallWallClockToUnixSeconds(
@@ -641,7 +662,10 @@ export function getRecallFirstRecurringRunAt(
 
   let afterParts: RecallZonedDateParts | null
   try {
-    afterParts = getRecallZonedDateParts(new Date(afterSeconds * 1_000), timezone)
+    afterParts = getRecallZonedDateParts(
+      new Date(afterSeconds * 1_000),
+      timezone
+    )
   } catch {
     return null
   }

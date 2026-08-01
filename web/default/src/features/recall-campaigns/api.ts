@@ -14,15 +14,19 @@ import type {
   RecallEmailPreviewRequest,
   RecallEmailPreviewResponse,
   RecallEmailGenerationRequest,
-  RecallEmailGenerationResponse,
   RecallEmailQuotaStatus,
   RecallEvent,
+  RecallExclusionPreview,
+  RecallMetricFilters,
+  RecallMetricKey,
+  RecallMetricResult,
   RecallPage,
   RecallAudienceUserOption,
   RecallRecipient,
   RecallSubscriptionProductRecord,
   RecallStripePreview,
   RecallTopUpProductConfiguration,
+  RecallTranslationTask,
 } from './types'
 
 export const recallCampaignKeys = {
@@ -70,6 +74,30 @@ function requireRecallSuccess<T>(response: ApiResponse<T>): ApiResponse<T> {
     )
   }
   return response
+}
+
+async function requireRecallCSVBlob(
+  blob: Blob,
+  context: string
+): Promise<Blob> {
+  if (blob.type.toLowerCase().includes('json')) {
+    let payload: ApiResponse
+    try {
+      payload = JSON.parse(await blob.text()) as ApiResponse
+    } catch {
+      throw new Error(`${context} returned invalid JSON`)
+    }
+    requireRecallSuccess(payload)
+    throw new Error(`${context} returned JSON instead of CSV`)
+  }
+  return blob
+}
+
+function buildRecallMetricUserParams(
+  metric: RecallMetricKey,
+  filters: RecallMetricFilters = {}
+): RecallMetricFilters & { metric: RecallMetricKey } {
+  return { metric, ...filters }
 }
 
 export async function listRecallCampaigns(
@@ -124,10 +152,29 @@ export async function previewRecallEmail(
 export async function generateRecallEmailTranslations(
   id: number,
   request: RecallEmailGenerationRequest
-): Promise<ApiResponse<RecallEmailGenerationResponse>> {
+): Promise<ApiResponse<RecallTranslationTask>> {
   const response = await api.post(
     `/api/recall-campaigns/${id}/email-translations/generate`,
     request
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallEmailTranslationTask(
+  id: number,
+  taskId: number
+): Promise<ApiResponse<RecallTranslationTask>> {
+  const response = await api.get(
+    `/api/recall-campaigns/${id}/email-translations/tasks/${taskId}`
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getLatestRecallEmailTranslationTask(
+  id: number
+): Promise<ApiResponse<RecallTranslationTask>> {
+  const response = await api.get(
+    `/api/recall-campaigns/${id}/email-translations/tasks/latest`
   )
   return requireRecallSuccess(response.data)
 }
@@ -257,6 +304,69 @@ export async function getRecallCampaignMetrics(
   return requireRecallSuccess(response.data)
 }
 
+export async function getRecallCampaignMetricUsers(
+  id: number,
+  metric: RecallMetricKey,
+  filters: RecallMetricFilters = {}
+): Promise<ApiResponse<RecallMetricResult>> {
+  const response = await api.get(`/api/recall-campaigns/${id}/metric-users`, {
+    params: buildRecallMetricUserParams(metric, filters),
+  })
+  return requireRecallSuccess(response.data)
+}
+
+export async function exportRecallCampaignMetricUsers(
+  id: number,
+  metric: RecallMetricKey,
+  filters: RecallMetricFilters = {}
+): Promise<Blob> {
+  const response = await api.get(
+    `/api/recall-campaigns/${id}/metric-users/export`,
+    {
+      params: buildRecallMetricUserParams(metric, filters),
+      responseType: 'blob',
+      disableDuplicate: true,
+    }
+  )
+  return requireRecallCSVBlob(
+    response.data as Blob,
+    'Recall campaign metric export'
+  )
+}
+
+export async function previewRecallCampaignExclusions(
+  id: number,
+  file: File
+): Promise<ApiResponse<RecallExclusionPreview>> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post(
+    `/api/recall-campaigns/${id}/exclusions/preview`,
+    formData
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallCampaignExclusionBatch(
+  id: number,
+  batchId: number | string
+): Promise<ApiResponse<RecallExclusionPreview>> {
+  const response = await api.get(
+    `/api/recall-campaigns/${id}/exclusions/batches/${batchId}`
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function confirmRecallCampaignExclusionBatch(
+  id: number,
+  batchId: number | string
+): Promise<ApiResponse<RecallExclusionPreview>> {
+  const response = await api.post(
+    `/api/recall-campaigns/${id}/exclusions/batches/${batchId}/confirm`
+  )
+  return requireRecallSuccess(response.data)
+}
+
 export async function retryRecallRecipient(
   campaignId: number,
   recipientId: number,
@@ -274,18 +384,7 @@ export async function exportRecallCampaign(id: number): Promise<Blob> {
     responseType: 'blob',
     disableDuplicate: true,
   })
-  const blob = response.data as Blob
-  if (blob.type.toLowerCase().includes('json')) {
-    let payload: ApiResponse
-    try {
-      payload = JSON.parse(await blob.text()) as ApiResponse
-    } catch {
-      throw new Error('Recall campaign export returned invalid JSON')
-    }
-    requireRecallSuccess(payload)
-    throw new Error('Recall campaign export returned JSON instead of CSV')
-  }
-  return blob
+  return requireRecallCSVBlob(response.data as Blob, 'Recall campaign export')
 }
 
 export function useRecallCampaignMutations(id?: number) {
