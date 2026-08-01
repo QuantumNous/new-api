@@ -8,6 +8,7 @@
 
 ## 目标
 
+- 同时保留三条摄取路径：客户公网 HTTPS URL、multipart 经 GCS 临时存储、multipart 经 TOS 临时存储。
 - 当 BytePlus 渠道没有完整可用的 TOS 配置时，真人素材 multipart 上传自动使用 GCS。
 - 保持当前图片、视频、音频格式、大小、幂等和真人档案状态校验不变。
 - 不公开 Bucket，不把云存储凭据、对象 key 或签名 URL返回给客户。
@@ -23,6 +24,16 @@
 - 不把 GCS 临时对象当作长期素材源；长期素材仍由 BytePlus 私有素材库持有。
 
 ## 架构
+
+### 三条摄取路径
+
+| 客户请求 | 临时存储 | 使用条件 | 最终结果 |
+| --- | --- | --- | --- |
+| JSON 公网 HTTPS URL | 无 Flatkey 临时对象 | 客户已有可匿名下载的 URL | BytePlus 摄取后返回 Flatkey `ast_...` |
+| multipart 本地文件 | 私有 GCS | TOS 尚未配置时的默认回退 | BytePlus 摄取后返回 Flatkey `ast_...` |
+| multipart 本地文件 | 私有 TOS | 渠道以后具备完整 TOS 配置 | BytePlus 摄取后返回 Flatkey `ast_...` |
+
+客户只需要选择 URL 或 multipart，不需要知道 multipart 最终走 GCS 还是 TOS。TOS 配置完整时优先使用 TOS；未配置时使用 GCS，因此以后建立 TOS Bucket不会移除或破坏 GCS 回退能力。
 
 ### 存储适配器
 
@@ -64,6 +75,14 @@ GCS 实现复用 `service/temp_media.go` 的 Bucket 选择、服务账号发现�
 5. 客户收到现有的 `ast_...` 和 `asset://ast_...`，不会看到签名 URL。
 6. 清理任务在签名 URL 到期后探测最终素材状态并删除临时对象；删除失败继续按现有 CAS/退避机制重试。
 
+### 临时对象与长期素材的关系
+
+GCS/TOS Bucket本身不会被删除；清理任务只删除每次 multipart 上传产生的临时对象。该对象是 BytePlus `CreateAsset` 的一次性摄取源，不是视频生成时反复读取的长期素材。
+
+BytePlus 摄取成功后会生成并持有自己的上游 `AssetId`。Flatkey 将其映射为客户可见的 `ast_...` / `asset://ast_...`。后续 Seedance 请求解析的是这个上游素材资产，而不是原始 GCS/TOS 签名 URL。因此，在素材状态已经进入 `Active` 后，即使临时对象和签名 URL被清理，`asset://ast_...` 仍可继续使用。
+
+签名 URL和临时对象至少保留现有 12 小时摄取窗口。清理任务先执行最终状态探测，再按现有到期清理流程处理对象；上传、签名或上游创建失败产生的孤儿对象也由同一队列重试删除。
+
 ## 安全与错误处理
 
 - GCS Bucket和对象保持私有；不设置 `public-read`。
@@ -83,6 +102,7 @@ GCS 实现复用 `service/temp_media.go` 的 Bucket 选择、服务账号发现�
 4. 清理任务依据持久化 Bucket 删除 GCS 对象；后续补充 TOS 配置不会误删到 TOS。
 5. GCS 不可用时返回稳定错误且不调用上游。
 6. 原有 URL 模式、TOS multipart、格式/大小、幂等和清理测试全部保持通过。
+7. GCS/TOS 临时对象删除后，已为 `Active` 的 Flatkey 素材仍保留 `asset://ast_...` 映射且可通过引用校验。
 
 ## 发布与验证
 
