@@ -17,12 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Filter, RotateCcw, Calendar, Search } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useQuery } from '@tanstack/react-query'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
+import { useDebounce } from '@/hooks'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -46,6 +55,8 @@ import type {
   DashboardChartPreferences,
   DashboardFilters,
 } from '@/features/dashboard/types'
+import { searchAdminApiKeys, searchApiKeys, getApiKey } from '@/features/keys/api'
+import type { ApiKey } from '@/features/keys/types'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -95,6 +106,165 @@ const SectionDivider = ({ label }: { label: string }) => (
     </div>
   </div>
 )
+
+interface TokenFilterComboboxProps {
+  value?: number
+  onValueChange: (value?: number) => void
+  isAdmin: boolean
+}
+
+// 可搜索单选 API KEY 选择器；管理员可查看全部 key，普通用户只能查看自己的 key。
+// 使用 Base UI Combobox，搜索框固定不动，输入即触发后端搜索，大小写不敏感。
+function TokenFilterCombobox({
+  value,
+  onValueChange,
+  isAdmin,
+}: TokenFilterComboboxProps) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [keyword, setKeyword] = useState('')
+  // 搜索词防抖，避免每输入一个字符就触发一次后端请求。
+  const debouncedKeyword = useDebounce(keyword, 300)
+  const [inputValue, setInputValue] = useState('')
+  // 缓存所有加载过的 token id -> name，避免选择后因当前 options 被过滤而找不到 label。
+  const [tokenMap, setTokenMap] = useState<Record<string, string>>({})
+
+  const { data: tokenOptions } = useQuery<ApiKey[]>({
+    queryKey: [
+      'dashboard',
+      'token-options',
+      isAdmin ? 'admin' : 'self',
+      debouncedKeyword,
+    ],
+    queryFn: async () => {
+      const res = isAdmin
+        ? await searchAdminApiKeys({ keyword: debouncedKeyword, size: 100 })
+        : await searchApiKeys({ keyword: debouncedKeyword, size: 100 })
+      return res.success ? (res.data?.items ?? []) : []
+    },
+    enabled: open,
+    staleTime: 60_000,
+  })
+
+  // 预选中的 key 若不在已加载的搜索结果中（例如来自 URL/持久化筛选且 token 较旧），
+  // 单独按 id 取一次名称，避免输入框错误地回退显示“全部 API 密钥”。
+  const { data: preselectedToken } = useQuery<ApiKey | null>({
+    queryKey: ['dashboard', 'token-selected', value],
+    queryFn: async () => {
+      if (!value) return null
+      const res = await getApiKey(value)
+      return res.success ? (res.data ?? null) : null
+    },
+    enabled: !!value && !tokenMap[String(value)],
+    staleTime: 60_000,
+  })
+
+  // 把每次后端返回的 token 更新到缓存中，确保已选项名称始终可解析。
+  useEffect(() => {
+    const incoming = [...(tokenOptions ?? [])]
+    if (preselectedToken) incoming.push(preselectedToken)
+    if (incoming.length === 0) return
+    setTokenMap((prev) => {
+      const next = { ...prev }
+      for (const token of incoming) {
+        next[String(token.id)] = token.name
+      }
+      return next
+    })
+  }, [tokenOptions, preselectedToken])
+
+  const options = useMemo(() => {
+    const allOption = { value: '__all__', label: t('All API keys') }
+    return [
+      allOption,
+      ...(tokenOptions ?? []).map((token) => ({
+        value: String(token.id),
+        label: token.name,
+      })),
+    ]
+  }, [tokenOptions, t])
+
+  const items = useMemo(() => options.map((option) => option.value), [options])
+  const selectedValue = value ? String(value) : '__all__'
+  const selectedLabel =
+    selectedValue === '__all__'
+      ? t('All API keys')
+      : (tokenMap[selectedValue] ?? '')
+
+  // 下拉框关闭或选中项变化时，输入框恢复为当前选中项名称，便于用户看清已选内容。
+  useEffect(() => {
+    if (!open) {
+      setInputValue(selectedLabel || t('All API keys'))
+    }
+  }, [open, selectedLabel, t])
+
+  // Base UI 在选择/关闭时可能尝试把 value 转回输入框文本；
+  // 用 tokenMap 而不是当前 options 解析，防止回退显示数据库 id。
+  const itemToStringLabel = useCallback(
+    (itemValue: string) => {
+      if (itemValue === '__all__') return t('All API keys')
+      return tokenMap[itemValue] ?? itemValue
+    },
+    [tokenMap, t]
+  )
+
+  const handleValueChange = (nextValue: string | null) => {
+    if (nextValue === '__all__' || nextValue === null) {
+      onValueChange(undefined)
+      setInputValue(t('All API keys'))
+    } else {
+      onValueChange(Number(nextValue))
+      // 选择后立即写入名称，防止 Base UI 用 value（id）回填输入框。
+      const label = tokenMap[nextValue] ?? nextValue
+      setInputValue(label)
+    }
+    setOpen(false)
+  }
+
+  const handleInputValueChange = (nextInputValue: string) => {
+    setInputValue(nextInputValue)
+    setKeyword(nextInputValue)
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen)
+    if (nextOpen) {
+      // 打开下拉框时清空输入框，方便用户立即输入搜索词。
+      setInputValue('')
+      setKeyword('')
+    }
+  }
+
+  return (
+    <Combobox
+      value={selectedValue}
+      onValueChange={handleValueChange}
+      inputValue={inputValue}
+      onInputValueChange={handleInputValueChange}
+      open={open}
+      onOpenChange={handleOpenChange}
+      items={items}
+      itemToStringLabel={itemToStringLabel}
+      autoComplete='none'
+      filter={() => true}
+    >
+      <ComboboxInput
+        id='token_id'
+        placeholder={t('Search API keys...')}
+        showTrigger
+      />
+      <ComboboxContent>
+        <ComboboxList>
+          {options.map((option) => (
+            <ComboboxItem key={option.value} value={option.value}>
+              <span className='truncate'>{option.label}</span>
+            </ComboboxItem>
+          ))}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  )
+}
 
 export function ModelsFilter(props: ModelsFilterProps) {
   const { t } = useTranslation()
@@ -147,11 +317,12 @@ export function ModelsFilter(props: ModelsFilterProps) {
 
   const handleChange = (
     field: keyof DashboardFilters,
-    value: Date | string | undefined
+    value: Date | string | number | undefined
   ) => {
     setFilters((prev) => ({ ...prev, [field]: value }))
-    if (field === 'start_timestamp' || field === 'end_timestamp')
+    if (field === 'start_timestamp' || field === 'end_timestamp') {
       setSelectedRange(null)
+    }
   }
 
   const handleQuickRange = (days: number) => {
@@ -179,7 +350,7 @@ export function ModelsFilter(props: ModelsFilterProps) {
       title={t(props.titleKey ?? 'Model Analytics Filters')}
       description={t(
         props.descriptionKey ??
-          'Filter the model analytics view by time range and user.'
+          'Filter the model analytics view by time range, user and API key.'
       )}
       contentClassName='max-sm:h-dvh max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-lg'
       contentHeight='min(48vh, 460px)'
@@ -257,12 +428,10 @@ export function ModelsFilter(props: ModelsFilterProps) {
           <div className='grid gap-2'>
             <Label htmlFor='time_granularity'>{t('Time Granularity')}</Label>
             <Select
-              items={[
-                ...TIME_GRANULARITY_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: t(option.label),
-                })),
-              ]}
+              items={TIME_GRANULARITY_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.label),
+              }))}
               value={filters.time_granularity}
               onValueChange={(value) =>
                 handleChange('time_granularity', value as TimeGranularity)
@@ -281,6 +450,17 @@ export function ModelsFilter(props: ModelsFilterProps) {
                 </SelectGroup>
               </SelectContent>
             </Select>
+          </div>
+
+          <SectionDivider label={t('API Key Filter')} />
+
+          <div className='grid gap-2'>
+            <Label htmlFor='token_id'>{t('API key')}</Label>
+            <TokenFilterCombobox
+              value={filters.token_id}
+              onValueChange={(value) => handleChange('token_id', value)}
+              isAdmin={Boolean(isAdmin)}
+            />
           </div>
 
           {/* Admin-only fields */}

@@ -118,14 +118,6 @@ func validateLikePattern(input string) error {
 		return errors.New("搜索模式中最多允许包含 2 个 % 通配符")
 	}
 
-	// 3. 含 % 时，去掉 % 后关键词长度必须 >= 2
-	if count > 0 {
-		stripped := strings.ReplaceAll(input, "%", "")
-		if len(stripped) < 2 {
-			return errors.New("使用模糊搜索时，关键词长度至少为 2 个字符")
-		}
-	}
-
 	return nil
 }
 
@@ -160,20 +152,25 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 
 	baseQuery := DB.Model(&Token{}).Where("user_id = ?", userId)
 
-	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）
+	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）。
+	// 若用户未显式输入通配符 %，默认按前缀模糊匹配（例如 RD11 匹配 RD1141）。
+	// 使用 LOWER() 实现跨数据库的大小写不敏感搜索。
 	if keyword != "" {
+		if !strings.Contains(keyword, "%") {
+			keyword = keyword + "%"
+		}
 		keywordPattern, err := sanitizeLikePattern(keyword)
 		if err != nil {
 			return nil, 0, err
 		}
-		baseQuery = baseQuery.Where("name LIKE ? ESCAPE '!'", keywordPattern)
+		baseQuery = baseQuery.Where("LOWER(name) LIKE LOWER(?) ESCAPE '!'", keywordPattern)
 	}
 	if token != "" {
 		tokenPattern, err := sanitizeLikePattern(token)
 		if err != nil {
 			return nil, 0, err
 		}
-		baseQuery = baseQuery.Where(commonKeyCol+" LIKE ? ESCAPE '!'", tokenPattern)
+		baseQuery = baseQuery.Where("LOWER("+commonKeyCol+") LIKE LOWER(?) ESCAPE '!'", tokenPattern)
 	}
 
 	// 先查匹配总数（用于分页，受 maxTokens 上限保护，避免全表 COUNT）
@@ -187,6 +184,66 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 	err = baseQuery.Order("id desc").Offset(offset).Limit(limit).Find(&tokens).Error
 	if err != nil {
 		common.SysError("failed to search tokens: " + err.Error())
+		return nil, 0, errors.New("搜索令牌失败")
+	}
+	return tokens, total, nil
+}
+
+// SearchAllTokens 全局搜索所有用户的 API KEY（管理员专用）。
+// 实现复用 SearchUserTokens 的 LIKE 转义与截断逻辑，但不做 user_id 限制。
+func SearchAllTokens(keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
+	// model 层强制截断
+	if limit <= 0 || limit > searchHardLimit {
+		limit = searchHardLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	if token != "" {
+		token = strings.TrimPrefix(token, "sk-")
+	}
+
+	// 与 SearchUserTokens 一致：用 maxTokens 封顶 COUNT，避免 admin 全局搜索时
+	// 在大表上做全表 COUNT 扫描。total 实际为 min(真实匹配数, maxTokens)，配合硬上限分页足够。
+	maxTokens := operation_setting.GetMaxUserTokens()
+
+	baseQuery := DB.Model(&Token{})
+
+	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）。
+	// 若用户未显式输入通配符 %，默认按前缀模糊匹配（例如 RD11 匹配 RD1141）。
+	// 使用 LOWER() 实现跨数据库的大小写不敏感搜索。
+	if keyword != "" {
+		if !strings.Contains(keyword, "%") {
+			keyword = keyword + "%"
+		}
+		keywordPattern, err := sanitizeLikePattern(keyword)
+		if err != nil {
+			return nil, 0, err
+		}
+		baseQuery = baseQuery.Where("LOWER(name) LIKE LOWER(?) ESCAPE '!'", keywordPattern)
+	}
+	if token != "" {
+		tokenPattern, err := sanitizeLikePattern(token)
+		if err != nil {
+			return nil, 0, err
+		}
+		baseQuery = baseQuery.Where("LOWER("+commonKeyCol+") LIKE LOWER(?) ESCAPE '!'", tokenPattern)
+	}
+
+	// 先查匹配总数
+	// 与 SearchUserTokens 保持一致：用 maxTokens 封顶 COUNT，避免 admin 全局搜索时
+	// 在大表上做全表 COUNT 扫描。total 实际为 min(真实匹配数, maxTokens)，配合硬上限分页足够。
+	err = baseQuery.Limit(maxTokens).Count(&total).Error
+	if err != nil {
+		common.SysError("failed to count search all tokens: " + err.Error())
+		return nil, 0, errors.New("搜索令牌失败")
+	}
+
+	// 再分页查数据
+	err = baseQuery.Order("id desc").Offset(offset).Limit(limit).Find(&tokens).Error
+	if err != nil {
+		common.SysError("failed to search all tokens: " + err.Error())
 		return nil, 0, errors.New("搜索令牌失败")
 	}
 	return tokens, total, nil

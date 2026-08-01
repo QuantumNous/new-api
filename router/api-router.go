@@ -245,6 +245,13 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.DELETE("/:id", controller.DeleteToken)
 			tokenRoute.POST("/batch", controller.DeleteTokenBatch)
 			tokenRoute.POST("/batch/keys", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKeysBatch)
+
+			// 管理员全局搜索所有用户的 API KEY，供数据看板等场景使用
+			adminTokenRoute := tokenRoute.Group("/admin")
+			adminTokenRoute.Use(middleware.AdminAuth())
+			{
+				adminTokenRoute.GET("/search", middleware.SearchRateLimit(), controller.SearchAllTokens)
+			}
 		}
 
 		usageRoute := apiRouter.Group("/usage")
