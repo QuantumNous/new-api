@@ -126,6 +126,7 @@ const latestSwitchProps: Record<
     onCheckedChange?: (checked: boolean) => void
   }
 > = {}
+const testQueryClients = new Set<QueryClient>()
 
 type TimeoutProvider = Parameters<typeof timeoutManager.setTimeoutProvider>[0]
 
@@ -630,6 +631,7 @@ function createQueryClient() {
       },
     },
   })
+  testQueryClients.add(queryClient)
   queryClient.setQueryData(recallApi.recallCampaignKeys.userGroups, {
     success: true,
     data: ['admin', 'default', 'plg'],
@@ -911,7 +913,15 @@ beforeEach(() => {
   operationOrder.length = 0
 })
 
-afterAll(() => {
+afterAll(async () => {
+  for (const queryClient of testQueryClients) {
+    queryClient.clear()
+  }
+  testQueryClients.clear()
+  await React.act(async () => {
+    await Promise.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
   mock.restore()
   restoreTestGlobals()
 })
