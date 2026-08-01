@@ -24,6 +24,7 @@
     {
       "role": "assistant",
       "content": null,
+      "reasoning_content": "Let me look.",
       "tool_calls": [
         {
           "id": "toolu_abc",

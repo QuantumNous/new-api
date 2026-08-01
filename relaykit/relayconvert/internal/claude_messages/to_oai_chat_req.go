@@ -146,6 +146,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 			}
 			var toolCalls []dto.ToolCallRequest
 			mediaMessages := make([]dto.MediaContent, 0, len(content))
+			var reasoning strings.Builder
 
 			for _, mediaMsg := range content {
 				switch mediaMsg.Type {
@@ -156,6 +157,19 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 						CacheControl: mediaMsg.CacheControl,
 					}
 					mediaMessages = append(mediaMessages, message)
+				case "thinking":
+					// Replayed thinking blocks keep multi-turn tool-call context for
+					// reasoning models. The signature cannot cross the chat format, so
+					// only the text is preserved. Thinking blocks are only valid on
+					// assistant turns; ignore them on any other role.
+					if mediaMsg.Thinking != nil && claudeMessage.Role == "assistant" {
+						reasoning.WriteString(*mediaMsg.Thinking)
+					}
+				case "redacted_thinking":
+				// redacted_thinking carries an opaque encrypted payload, not
+				// readable reasoning text; it cannot round-trip through the chat
+				// format without mutating into a plain (and invalid) thinking
+				// block, so it is deliberately not preserved.
 				case "image":
 					imageData := fmt.Sprintf("data:%s;base64,%s", mediaMsg.Source.MediaType, mediaMsg.Source.Data)
 					mediaMessage := dto.MediaContent{
@@ -200,8 +214,12 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 			if len(mediaMessages) > 0 && len(toolCalls) == 0 {
 				openAIMessage.SetMediaContent(mediaMessages)
 			}
+			if reasoning.Len() > 0 {
+				reasoningContent := reasoning.String()
+				openAIMessage.ReasoningContent = &reasoningContent
+			}
 		}
-		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
+		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 || openAIMessage.GetReasoningContent() != "" {
 			openAIMessages = append(openAIMessages, openAIMessage)
 		}
 	}

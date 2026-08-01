@@ -225,7 +225,22 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		}
 	}
 
+	// Anthropic signature-verifies thinking blocks in the LATEST assistant
+	// message during tool-use continuation; a synthesized (unsigned) block
+	// there is rejected with a 400, so reasoning is only replayed as thinking
+	// blocks on earlier assistant turns, which the API tolerates.
+	lastAssistantIdx := -1
+	for i, message := range textRequest.Messages {
+		if message.Role == "assistant" {
+			lastAssistantIdx = i
+		}
+	}
+
 	formatMessages := make([]dto.Message, 0)
+	// formatSrcIdx tracks each formatMessages entry's source index in
+	// textRequest.Messages (they skew once consecutive same-role messages
+	// merge), so the latest-assistant gate below compares source positions.
+	formatSrcIdx := make([]int, 0)
 	lastMessage := dto.Message{
 		Role: "tool",
 	}
@@ -237,6 +252,9 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 			Role:    message.Role,
 			Content: message.Content,
 		}
+		if reasoning := message.GetReasoningContent(); reasoning != "" {
+			fmtMessage.ReasoningContent = &reasoning
+		}
 		if message.Role == "tool" {
 			fmtMessage.ToolCallId = message.ToolCallId
 		}
@@ -246,13 +264,22 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		if lastMessage.Role == message.Role && lastMessage.Role != "tool" {
 			if lastMessage.IsStringContent() && message.IsStringContent() {
 				fmtMessage.SetStringContent(strings.Trim(fmt.Sprintf("%s %s", lastMessage.StringContent(), message.StringContent()), "\""))
+				// Merging is required for Claude's alternating-roles constraint;
+				// merge the reasoning too so the earlier turn's is not lost.
+				if mergedReasoning := lastMessage.GetReasoningContent() + message.GetReasoningContent(); mergedReasoning != "" {
+					fmtMessage.ReasoningContent = &mergedReasoning
+				} else {
+					fmtMessage.ReasoningContent = nil
+				}
 				formatMessages = formatMessages[:len(formatMessages)-1]
+				formatSrcIdx = formatSrcIdx[:len(formatSrcIdx)-1]
 			}
 		}
 		if fmtMessage.Content == nil || (fmtMessage.IsStringContent() && fmtMessage.StringContent() == "") {
 			fmtMessage.SetStringContent("...")
 		}
 		formatMessages = append(formatMessages, fmtMessage)
+		formatSrcIdx = append(formatSrcIdx, i)
 		lastMessage = fmtMessage
 	}
 
@@ -260,7 +287,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 	isFirstMessage := true
 	var systemMessages []dto.ClaudeMediaMessage
 
-	for _, message := range formatMessages {
+	for i, message := range formatMessages {
 		if message.Role == "system" {
 			if message.IsStringContent() {
 				if text := message.StringContent(); text != "" {
@@ -329,7 +356,11 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 					Content:   message.Content,
 				},
 			}
-		} else if message.IsStringContent() && message.ToolCalls == nil {
+			// Plain-string path for everything except reasoning-bearing earlier
+		// assistant turns; those take the media branch so their reasoning can be
+		// replayed as an unsigned thinking block (see below for why the latest
+		// assistant turn is excluded).
+	} else if message.IsStringContent() && message.ToolCalls == nil && (message.Role != "assistant" || message.GetReasoningContent() == "" || formatSrcIdx[i] == lastAssistantIdx) {
 			text := message.StringContent()
 			if text == "" {
 				text = "..."
@@ -337,10 +368,31 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 			claudeMessage.Content = text
 		} else {
 			claudeMediaMessages := make([]dto.ClaudeMediaMessage, 0)
+			thinkingEmitted := false
+			if message.Role == "assistant" && formatSrcIdx[i] != lastAssistantIdx {
+				// Replayed reasoning becomes a thinking block ahead of text/tool_use,
+				// mirroring the assistant turn shape Claude returns. The chat format
+				// cannot carry a signature, so the block is emitted unsigned — which
+				// is why it is never emitted on the latest assistant turn (the API
+				// signature-verifies thinking blocks there during tool-use
+				// continuation and would reject the request with a 400).
+				if reasoning := message.GetReasoningContent(); reasoning != "" {
+					claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+						Type:     "thinking",
+						Thinking: kitutil.GetPointer(reasoning),
+					})
+					thinkingEmitted = true
+				}
+			}
 			for _, mediaMessage := range message.ParseContent() {
 				switch mediaMessage.Type {
 				case "text":
 					if mediaMessage.Text != "" {
+						// The "..." placeholder only fills otherwise-empty turns; it
+						// adds noise next to a real thinking block.
+						if thinkingEmitted && mediaMessage.Text == "..." {
+							continue
+						}
 						claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
 							Type: "text",
 							Text: kitutil.GetPointer[string](mediaMessage.Text),
