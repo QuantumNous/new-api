@@ -404,10 +404,10 @@ describe('CampaignTranslationWorkspace', () => {
           requested_config_revision: 4,
           status,
           attempt_count: 1,
-          error_code: status === 'failed' ? 'provider_failed' : undefined,
+          error_code: status === 'failed' ? 'translation_failed' : undefined,
           error_copy_key:
             status === 'failed'
-              ? 'recall.translation.provider_failed'
+              ? 'recall.translation.error.translation_failed'
               : undefined,
           created_at: 1_900_000_000,
         }
@@ -415,7 +415,11 @@ describe('CampaignTranslationWorkspace', () => {
 
       expect(html).toContain(`Translation task ${status}`)
       if (status === 'failed') {
-        expect(html).toContain('recall.translation.provider_failed')
+        expect(html).toContain('Translation generation failed')
+        expect(html).not.toContain(
+          'recall.translation.error.translation_failed'
+        )
+        expect(html).not.toContain('translation_failed')
         expect(html).not.toContain('raw provider')
       }
     }
@@ -434,14 +438,20 @@ describe('CampaignTranslationWorkspace', () => {
         status: 'superseded',
         attempt_count: 1,
         error_code: 'translation_superseded',
-        error_copy_key: 'recall.translation.superseded',
+        error_copy_key: 'recall.translation.error.translation_superseded',
         error_message: 'raw provider detail must not leak',
         created_at: 1_900_000_000,
       }
     )
 
     expect(html).toContain('Translation task superseded')
-    expect(html).toContain('recall.translation.superseded')
+    expect(html).toContain(
+      'Translation request was replaced by a newer request.'
+    )
+    expect(html).not.toContain(
+      'recall.translation.error.translation_superseded'
+    )
+    expect(html).not.toContain('translation_superseded')
     expect(html).not.toContain('raw provider detail must not leak')
   })
 
@@ -661,9 +671,9 @@ describe('CampaignTranslationWorkspace', () => {
 
       await clickByID(container, 'recall-generate-translations')
       expect(onGenerate).toHaveBeenCalledTimes(1)
-      expect(container.textContent).toContain(
-        failureMode === 'throws' ? 'Generation exploded' : 'Generation rejected'
-      )
+      expect(container.textContent).toContain('Translation generation failed')
+      expect(container.textContent).not.toContain('Generation exploded')
+      expect(container.textContent).not.toContain('Generation rejected')
 
       await clickByID(container, 'recall-generate-translations')
 

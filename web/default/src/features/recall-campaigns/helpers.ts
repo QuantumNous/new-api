@@ -582,6 +582,56 @@ function getRecallZonedDateParts(
   }
 }
 
+function formatRecallDateTimeInputPart(value: number): string {
+  return String(value).padStart(2, '0')
+}
+
+export function recallUnixSecondsToWallClockInput(
+  timestamp: number,
+  timezone: string
+): string {
+  const normalizedTimezone = timezone.trim()
+  if (timestamp <= 0 || !normalizedTimezone || normalizedTimezone === 'Local') {
+    return ''
+  }
+  try {
+    const parts = getRecallZonedDateParts(
+      new Date(timestamp * 1_000),
+      normalizedTimezone
+    )
+    if (!parts) return ''
+    return `${parts.year}-${formatRecallDateTimeInputPart(
+      parts.month
+    )}-${formatRecallDateTimeInputPart(parts.day)}T${formatRecallDateTimeInputPart(
+      parts.hour
+    )}:${formatRecallDateTimeInputPart(parts.minute)}`
+  } catch {
+    return ''
+  }
+}
+
+export function recallWallClockInputToUnixSeconds(
+  value: string,
+  timezone: string
+): number {
+  const normalizedTimezone = timezone.trim()
+  if (!normalizedTimezone || normalizedTimezone === 'Local') return 0
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim())
+  if (!match) return 0
+  const [, year, month, day, hour, minute] = match
+  const timestamp = recallWallClockToUnixSeconds(
+    {
+      year: Number(year),
+      month: Number(month),
+      day: Number(day),
+      hour: Number(hour),
+      minute: Number(minute),
+    },
+    normalizedTimezone
+  )
+  return timestamp ?? 0
+}
+
 function recallDateOnlyAfterDays(
   parts: Pick<RecallZonedDateParts, 'year' | 'month' | 'day'>,
   days: number

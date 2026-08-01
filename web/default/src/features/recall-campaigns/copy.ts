@@ -29,6 +29,30 @@ export const recallDeliveryErrorCopyByCode: Record<string, string> = {
     'Delivery status is uncertain. Check the mailbox provider before retrying.',
 }
 
+export const recallTranslationTaskErrorCopyByCode: Record<string, string> = {
+  translation_failed: 'Translation generation failed',
+  translation_superseded:
+    'Translation request was replaced by a newer request.',
+}
+
+export const recallTranslationTaskErrorCopyByKey: Record<string, string> = {
+  'recall.translation.error.translation_failed':
+    recallTranslationTaskErrorCopyByCode.translation_failed,
+  'recall.translation.error.translation_superseded':
+    recallTranslationTaskErrorCopyByCode.translation_superseded,
+}
+
+export function getRecallTranslationTaskErrorCopyKey(value: unknown): string {
+  if (typeof value !== 'string')
+    return recallTranslationTaskErrorCopyByCode.translation_failed
+  const normalized = value.trim()
+  return (
+    recallTranslationTaskErrorCopyByCode[normalized] ??
+    recallTranslationTaskErrorCopyByKey[normalized] ??
+    recallTranslationTaskErrorCopyByCode.translation_failed
+  )
+}
+
 const activitySMTPSaveFallbackCopyKey =
   'Failed to update Activity SMTP settings.'
 
@@ -86,8 +110,7 @@ export function getRecallActivitySMTPSafeSaveErrorCopyKey(
       : error instanceof Error
         ? error.message
         : ''
-  const validationCopy =
-    activitySMTPSaveValidationCopyByMessage[message.trim()]
+  const validationCopy = activitySMTPSaveValidationCopyByMessage[message.trim()]
   return validationCopy ?? activitySMTPSaveFallbackCopyKey
 }
 

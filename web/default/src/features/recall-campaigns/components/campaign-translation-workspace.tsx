@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { getRecallTranslationTaskErrorCopyKey } from '../copy'
 import {
   RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   getRecallEmailLocaleStatus,
@@ -135,12 +136,19 @@ export function markRecallManualLocale(
 }
 
 function getGenerationErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message
+  const code =
+    error && typeof error === 'object'
+      ? (error as { data?: { code?: unknown } }).data?.code
+      : undefined
+  if (code) return getRecallTranslationTaskErrorCopyKey(code)
   return 'Translation generation failed'
 }
 
 function getTranslationTaskError(task: RecallTranslationTask): string {
-  return task.error_copy_key?.trim() || task.error_code?.trim() || ''
+  if (!task.error_copy_key && !task.error_code) return ''
+  return getRecallTranslationTaskErrorCopyKey(
+    task.error_copy_key || task.error_code
+  )
 }
 
 export function CampaignTranslationWorkspace(

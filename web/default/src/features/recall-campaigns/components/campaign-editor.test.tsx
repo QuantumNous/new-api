@@ -1428,6 +1428,7 @@ describe('CampaignEditor schedule modes', () => {
     ] as const) {
       createMutation.mockClear()
       const draft = makeDraft('first_purchase')
+      draft.schedule.timezone = ''
       const { root, container } = renderEditorDom(draft)
 
       React.act(() => {
@@ -1452,6 +1453,103 @@ describe('CampaignEditor schedule modes', () => {
       }
       dispose(root)
     }
+  })
+
+  test('preserves explicit UTC and falls back only for blank schedule timezones', async () => {
+    const utcDraft = makeDraft('first_purchase')
+    utcDraft.schedule.timezone = 'UTC'
+    const { root: utcRoot, container: utcContainer } = renderEditorDom(utcDraft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('daily')
+    })
+    await submit(utcContainer)
+
+    expect(
+      (createMutation.mock.calls.at(-1)?.[0] as RecallCampaignDraft).schedule
+        .timezone
+    ).toBe('UTC')
+    dispose(utcRoot)
+
+    createMutation.mockClear()
+    const blankDraft = makeDraft('first_purchase')
+    blankDraft.schedule.timezone = '  '
+    const { root: blankRoot, container: blankContainer } =
+      renderEditorDom(blankDraft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('daily')
+    })
+    await submit(blankContainer)
+
+    expect(
+      (createMutation.mock.calls.at(-1)?.[0] as RecallCampaignDraft).schedule
+        .timezone
+    ).toBe('Asia/Shanghai')
+    dispose(blankRoot)
+  })
+
+  test('submits manual mode with an inert canonical schedule payload', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.execution_mode = 'recurring'
+    draft.schedule = {
+      scheduled_at: 2_000_100_000,
+      timezone: 'UTC',
+      frequency: 'weekly',
+      weekday: 5,
+      hour: 18,
+      minute: 45,
+    }
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('manual')
+    })
+    await submit(container)
+
+    expect(
+      (createMutation.mock.calls.at(-1)?.[0] as RecallCampaignDraft).schedule
+    ).toEqual({
+      scheduled_at: 0,
+      timezone: '',
+      frequency: 'daily',
+      weekday: 1,
+      hour: 0,
+      minute: 0,
+    })
+    dispose(root)
+  })
+
+  test('converts scheduled input using the selected IANA timezone wall clock', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.execution_mode = 'scheduled_once'
+    draft.schedule.timezone = 'America/New_York'
+    draft.schedule.scheduled_at = Date.UTC(2030, 0, 2, 14, 0) / 1_000
+    draft.schedule.hour = 9
+    draft.schedule.minute = 0
+    const { root, container } = renderEditorDom(draft)
+
+    expect(latestInputProps['recall-schedule-start-at']?.value).toBe(
+      '2030-01-02T09:00'
+    )
+
+    React.act(() => {
+      latestInputProps['recall-schedule-start-at'].onChange?.({
+        target: { name: 'schedule.scheduled_at', value: '2030-01-02T10:30' },
+        type: 'change',
+      } as React.ChangeEvent<HTMLInputElement>)
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted.schedule.scheduled_at).toBe(
+      Date.UTC(2030, 0, 2, 15, 30) / 1_000
+    )
+    expect(submitted.schedule.hour).toBe(10)
+    expect(submitted.schedule.minute).toBe(30)
+    dispose(root)
   })
 
   test('describes follow-up email offsets as absolute offsets from the first SMTP accepted email', () => {
@@ -2000,6 +2098,68 @@ describe('CampaignEditor email sequence', () => {
     dispose(root)
   })
 
+  test('clears translation task and dirty refresh state when switching campaign identity', async () => {
+    const draftA = makeDraft('first_purchase')
+    draftA.email_sequence[0].templates.en.subject = 'Campaign A subject'
+    const draftB = makeDraft('first_purchase')
+    draftB.email_sequence[0].templates.en.subject = 'Campaign B subject'
+    const { root, container, queryClient } = renderEditorDom(draftA, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+    await flushReactWork()
+
+    React.act(() => {
+      latestInputProps['recall-email-0-en-subject'].onChange?.({
+        target: {
+          name: 'email_sequence.0.templates.en.subject',
+          value: 'Unsaved Campaign A subject',
+        },
+        type: 'change',
+      } as React.ChangeEvent<HTMLInputElement>)
+    })
+
+    getTranslationTask.mockClear()
+    getLatestTranslationTask.mockClear()
+    updateMutation.mockClear()
+    React.act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <I18nextProvider i18n={testI18n}>
+            <CampaignEditor
+              campaignId={10}
+              configRevision={1}
+              initialDraft={draftB}
+              specifiedUsersSelector={MockSpecifiedUsersSelector}
+            />
+          </I18nextProvider>
+        </QueryClientProvider>
+      )
+    })
+    await flushReactWork()
+
+    expect(container.textContent).not.toContain('Unsaved Campaign A subject')
+    expect(container.textContent).not.toContain('Refresh campaign data')
+    expect(getTranslationTask.mock.calls).not.toContainEqual([10, 44])
+    expect(
+      getLatestTranslationTask.mock.calls.some((call) => call[0] === 10)
+    ).toBe(true)
+    await submit(container)
+    expect(updateMutation.mock.calls.at(-1)?.[0]).toMatchObject({
+      id: 10,
+      draft: {
+        email_sequence: [
+          {
+            templates: {
+              en: { subject: 'Campaign B subject' },
+            },
+          },
+        ],
+      },
+    })
+    dispose(root)
+  })
+
   test('generates new draft translations after reviewing missing targets with an empty product scope', async () => {
     const draft = makeDraft('first_purchase')
     draft.product_scope = { topup_price_ids: [], subscription_price_ids: [] }
@@ -2164,7 +2324,8 @@ describe('CampaignEditor email sequence', () => {
       '#recall-email-0-fr-subject'
     ) as HTMLInputElement | null
     expect(french?.value).toBe('Sujet français')
-    expect(container.textContent).toContain('Translation unavailable')
+    expect(container.textContent).toContain('Translation generation failed')
+    expect(container.textContent).not.toContain('Translation unavailable')
     dispose(root)
   })
 

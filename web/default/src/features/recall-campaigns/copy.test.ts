@@ -247,6 +247,28 @@ const activitySMTPNaturalTranslationExpectations = {
   },
 } as const
 
+describe('recall translation task error copy', () => {
+  test('maps stable backend translation task error codes to frontend copy', () => {
+    expect(
+      recallCopy.getRecallTranslationTaskErrorCopyKey('translation_failed')
+    ).toBe('Translation generation failed')
+    expect(
+      recallCopy.getRecallTranslationTaskErrorCopyKey('translation_superseded')
+    ).toBe('Translation request was replaced by a newer request.')
+  })
+
+  test('falls back without exposing unknown backend codes or keys', () => {
+    expect(
+      recallCopy.getRecallTranslationTaskErrorCopyKey('provider stack trace')
+    ).toBe('Translation generation failed')
+    expect(
+      recallCopy.getRecallTranslationTaskErrorCopyKey(
+        'recall.translation.provider_failed'
+      )
+    ).toBe('Translation generation failed')
+  })
+})
+
 describe('recall campaign copy', () => {
   test('maps each audience template to its explanation', () => {
     expect(audienceTemplateDescriptionKeys).toEqual({

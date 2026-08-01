@@ -12,6 +12,8 @@ import {
   getRecallEmailLocaleStatus,
   getRecallPageCount,
   getRecallRecipientRetry,
+  recallWallClockInputToUnixSeconds,
+  recallUnixSecondsToWallClockInput,
   isRecallPromotionCampaign,
   insertRecallEmailAction,
   hydrateRecallMinimumSpendConfig,
@@ -1017,6 +1019,29 @@ describe('recall email translation task guards', () => {
     expect(isRecallTranslationTaskTerminal('succeeded')).toBe(true)
     expect(isRecallTranslationTaskTerminal('failed')).toBe(true)
     expect(isRecallTranslationTaskTerminal('superseded')).toBe(true)
+  })
+})
+
+describe('recall timezone datetime helpers', () => {
+  test('converts New York winter wall clock time without using the browser timezone', () => {
+    const timestamp = recallWallClockInputToUnixSeconds(
+      '2030-01-02T09:00',
+      'America/New_York'
+    )
+
+    expect(timestamp).toBe(Date.UTC(2030, 0, 2, 14, 0) / 1_000)
+    expect(
+      recallUnixSecondsToWallClockInput(timestamp, 'America/New_York')
+    ).toBe('2030-01-02T09:00')
+  })
+
+  test('returns an empty value for invalid timezone wall clock input', () => {
+    expect(
+      recallWallClockInputToUnixSeconds('2030-03-10T02:30', 'America/New_York')
+    ).toBe(0)
+    expect(recallWallClockInputToUnixSeconds('2030-01-02T09:00', '')).toBe(0)
+    expect(recallUnixSecondsToWallClockInput(0, 'America/New_York')).toBe('')
+    expect(recallUnixSecondsToWallClockInput(1_893_600_000, '')).toBe('')
   })
 })
 

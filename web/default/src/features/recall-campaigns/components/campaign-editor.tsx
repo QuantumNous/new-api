@@ -43,6 +43,8 @@ import {
   parseRecallMajorAmount,
   prepareRecallCampaignSubmitDraft,
   recallFixedCurrencies,
+  recallUnixSecondsToWallClockInput,
+  recallWallClockInputToUnixSeconds,
   setRecallCampaignGroups,
   setRecallCampaignGroupMode,
 } from '../helpers'
@@ -102,23 +104,26 @@ function normalizeRecallScheduleForMode(
   draft: RecallCampaignDraft,
   mode: RecallScheduleMode
 ): RecallCampaignDraft {
+  const normalizedTimezone =
+    draft.schedule.timezone?.trim() &&
+    draft.schedule.timezone.trim() !== 'Local'
+      ? draft.schedule.timezone.trim()
+      : DEFAULT_RECALL_TIMEZONE
   const schedule = {
     ...draft.schedule,
-    timezone:
-      draft.schedule.timezone?.trim() &&
-      draft.schedule.timezone.trim() !== 'UTC'
-        ? draft.schedule.timezone.trim()
-        : DEFAULT_RECALL_TIMEZONE,
+    timezone: normalizedTimezone,
   }
   if (mode === 'manual') {
     return {
       ...draft,
       execution_mode: 'manual',
       schedule: {
-        ...schedule,
         scheduled_at: 0,
+        timezone: '',
         frequency: 'daily',
         weekday: 1,
+        hour: 0,
+        minute: 0,
       },
     }
   }
@@ -372,6 +377,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const [persistedCampaignID, setPersistedCampaignID] = useState(
     props.campaignId ?? 0
   )
+  const persistedCampaignIDRef = useRef(props.campaignId ?? 0)
   const [persistedConfigRevision, setPersistedConfigRevision] = useState(
     props.configRevision ?? 0
   )
@@ -384,6 +390,8 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const previousInitialDraft = useRef<RecallCampaignDraft | undefined>(
     undefined
   )
+  const previousInitialDraftCampaignID = useRef(props.campaignId ?? 0)
+  const previousCampaignID = useRef(props.campaignId ?? 0)
   const [fixedAmountInputs, setFixedAmountInputs] =
     useState<RecallFixedAmountInputs>(() =>
       createRecallFixedAmountInputs(defaultValues.discount_config)
@@ -394,6 +402,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const discountType = form.watch('discount_config.type')
   const executionMode = form.watch('execution_mode')
   const scheduleMode = getRecallScheduleMode(form.watch())
+  const scheduleTimezone = form.watch('schedule.timezone')
   const groups = form.watch('audience_config.groups')
   const groupMode = form.watch('audience_config.group_mode')
   const providers = form.watch('audience_config.payment_providers')
@@ -448,11 +457,20 @@ export function CampaignEditor(props: CampaignEditorProps) {
   ).error
 
   useEffect(() => {
-    if (props.initialDraft === previousInitialDraft.current) return
+    const campaignID = props.campaignId ?? 0
+    const campaignChanged =
+      campaignID !== previousInitialDraftCampaignID.current
+    if (
+      !campaignChanged &&
+      props.initialDraft === previousInitialDraft.current
+    ) {
+      return
+    }
     previousInitialDraft.current = props.initialDraft
+    previousInitialDraftCampaignID.current = campaignID
     if (props.initialDraft) {
       const draft = createRecallCampaignFormDraft(props.initialDraft)
-      if (form.formState.isDirty) {
+      if (!campaignChanged && form.formState.isDirty) {
         setPendingServerDraft(draft)
         return
       }
@@ -460,7 +478,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
       setPendingServerDraft(null)
       setFixedAmountInputs(createRecallFixedAmountInputs(draft.discount_config))
     }
-  }, [form, props.initialDraft])
+  }, [form, props.campaignId, props.initialDraft])
 
   const latestTranslationTaskQuery = useQuery({
     queryKey: persistedCampaignID
@@ -526,7 +544,26 @@ export function CampaignEditor(props: CampaignEditorProps) {
   }, [persistedCampaignID, queryClient, translationTask])
 
   useEffect(() => {
-    setPersistedCampaignID(props.campaignId ?? 0)
+    const nextCampaignID = props.campaignId ?? 0
+    const previousPropCampaignID = previousCampaignID.current
+    previousCampaignID.current = nextCampaignID
+    const parentReceivedNewDraftID =
+      previousPropCampaignID === 0 &&
+      nextCampaignID > 0 &&
+      persistedCampaignIDRef.current === nextCampaignID
+    if (
+      nextCampaignID !== previousPropCampaignID &&
+      !parentReceivedNewDraftID
+    ) {
+      setActiveTranslationTaskID(0)
+      setTranslationTask(undefined)
+      setPendingServerDraft(null)
+      invalidatedTranslationTasks.current.clear()
+    }
+    if (nextCampaignID > 0 || previousPropCampaignID > 0) {
+      setPersistedCampaignID(nextCampaignID)
+      persistedCampaignIDRef.current = nextCampaignID
+    }
     setPersistedConfigRevision(props.configRevision ?? 0)
   }, [props.campaignId, props.configRevision])
 
@@ -576,6 +613,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
       configRevision: response.data.config_revision || persistedConfigRevision,
     }
     setPersistedCampaignID(result.id)
+    persistedCampaignIDRef.current = result.id
     setPersistedConfigRevision(result.configRevision)
     if (notifySaved) {
       toast.success(campaignID ? t('Campaign updated') : t('Campaign created'))
@@ -1310,22 +1348,38 @@ export function CampaignEditor(props: CampaignEditorProps) {
                           ? 'recall-schedule-start-at-error'
                           : undefined
                       }
-                      value={recallUnixToLocalDateTime(field.value)}
+                      value={recallUnixSecondsToWallClockInput(
+                        field.value,
+                        scheduleTimezone
+                      )}
                       onChange={(event) => {
-                        const nextValue = recallLocalDateTimeToUnix(
-                          event.target.value
+                        const inputValue = event.target.value
+                        const nextValue = recallWallClockInputToUnixSeconds(
+                          inputValue,
+                          scheduleTimezone
                         )
+                        const inputParts =
+                          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(
+                            inputValue
+                          )
                         field.onChange(nextValue)
-                        const date = new Date(nextValue * 1000)
-                        if (!Number.isNaN(date.getTime())) {
-                          form.setValue('schedule.hour', date.getHours(), {
-                            shouldDirty: true,
-                            shouldValidate: true,
-                          })
-                          form.setValue('schedule.minute', date.getMinutes(), {
-                            shouldDirty: true,
-                            shouldValidate: true,
-                          })
+                        if (inputParts) {
+                          form.setValue(
+                            'schedule.hour',
+                            Number(inputParts[4]),
+                            {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            }
+                          )
+                          form.setValue(
+                            'schedule.minute',
+                            Number(inputParts[5]),
+                            {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            }
+                          )
                         }
                       }}
                     />
