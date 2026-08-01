@@ -124,10 +124,13 @@ func (w *RecallTranslationWorker) RunBatch(ctx context.Context, limit int) (int,
 		if err := w.process(ctx, task); err != nil {
 			errorClass := sanitizeRecallTranslationErrorCode(err)
 			status := model.RecallTranslationTaskFailed
-			if errors.Is(err, errRecallTranslationLeaseLost) {
+			if isRecallTranslationNonterminalError(err) {
 				status = model.RecallTranslationTaskRunning
 			}
 			logger.LogWarn(ctx, fmt.Sprintf("recall translation task failed: task_id=%d campaign_id=%d status=%s error_class=%s duration_ms=%d", task.Id, task.CampaignId, status, errorClass, w.now().Sub(started).Milliseconds()))
+			if errors.Is(err, errRecallTranslationFailureWriteFailed) {
+				return processed, err
+			}
 		}
 		processed++
 	}
@@ -154,16 +157,11 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 	})
 	var snapshot recallTranslationSourceSnapshot
 	if err := common.Unmarshal([]byte(task.SourceSnapshot), &snapshot); err != nil {
-		_, _ = model.FailRecallTranslationTask(ctx, model.RecallTranslationTaskFailure{
-			TaskID: task.Id, Owner: w.owner, LeaseEpoch: task.LeaseEpoch, ErrorCode: "invalid_source_snapshot", FinishedAt: w.now().Unix(),
-		})
-		observeRecallTranslationTask(recallTranslationTaskObservation{
-			Event:      "failed",
-			Status:     model.RecallTranslationTaskFailed,
-			ErrorClass: "invalid_source_snapshot",
-			DurationMs: durationMs(),
-		})
-		return nil, model.RecallTranslationTaskCompletionLeaseLost, fmt.Errorf("invalid source snapshot")
+		result, failErr := w.failRecallTranslationTask(ctx, task, "invalid_source_snapshot", durationMs())
+		if failErr != nil {
+			return nil, result, failErr
+		}
+		return nil, result, fmt.Errorf("invalid source snapshot")
 	}
 	translateCtx, cancel := context.WithCancel(ctx)
 	heartbeat := w.startHeartbeat(translateCtx, cancel, task)
@@ -182,32 +180,25 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 		return nil, model.RecallTranslationTaskCompletionLeaseLost, heartbeatErr
 	}
 	if err != nil {
-		_, _ = model.FailRecallTranslationTask(ctx, model.RecallTranslationTaskFailure{
-			TaskID: task.Id, Owner: w.owner, LeaseEpoch: task.LeaseEpoch, ErrorCode: "translation_failed", FinishedAt: w.now().Unix(),
-		})
-		observeRecallTranslationTask(recallTranslationTaskObservation{
-			Event:      "failed",
-			Status:     model.RecallTranslationTaskFailed,
-			ErrorClass: "translation_failed",
-			DurationMs: durationMs(),
-		})
-		return nil, model.RecallTranslationTaskCompletionLeaseLost, err
+		if isRecallTranslationContextInterrupted(ctx, err) {
+			return nil, model.RecallTranslationTaskCompletionLeaseLost, err
+		}
+		result, failErr := w.failRecallTranslationTask(ctx, task, "translation_failed", durationMs())
+		if failErr != nil {
+			return nil, result, failErr
+		}
+		return nil, result, err
 	}
 	generated, err := applyRecallEmailGenerationResult(snapshot.CampaignType, snapshot.English, translated)
 	if err == nil {
 		generated, err = incrementRecallEmailTemplateVersions(snapshot.Current, generated)
 	}
 	if err != nil {
-		_, _ = model.FailRecallTranslationTask(ctx, model.RecallTranslationTaskFailure{
-			TaskID: task.Id, Owner: w.owner, LeaseEpoch: task.LeaseEpoch, ErrorCode: "invalid_translation_output", FinishedAt: w.now().Unix(),
-		})
-		observeRecallTranslationTask(recallTranslationTaskObservation{
-			Event:      "failed",
-			Status:     model.RecallTranslationTaskFailed,
-			ErrorClass: "invalid_translation_output",
-			DurationMs: durationMs(),
-		})
-		return nil, model.RecallTranslationTaskCompletionLeaseLost, err
+		result, failErr := w.failRecallTranslationTask(ctx, task, "invalid_translation_output", durationMs())
+		if failErr != nil {
+			return nil, result, failErr
+		}
+		return nil, result, err
 	}
 	emailJSON, err := common.Marshal(generated)
 	if err != nil {
@@ -252,6 +243,29 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 	return generated, result, nil
 }
 
+func (w *RecallTranslationWorker) failRecallTranslationTask(ctx context.Context, task *model.RecallTranslationTask, errorCode string, durationMs int64) (model.RecallTranslationTaskCompletionResult, error) {
+	committed, err := model.FailRecallTranslationTask(ctx, model.RecallTranslationTaskFailure{
+		TaskID:     task.Id,
+		Owner:      w.owner,
+		LeaseEpoch: task.LeaseEpoch,
+		ErrorCode:  errorCode,
+		FinishedAt: w.now().Unix(),
+	})
+	if err != nil {
+		return model.RecallTranslationTaskCompletionLeaseLost, fmt.Errorf("%w: %v", errRecallTranslationFailureWriteFailed, err)
+	}
+	if !committed {
+		return model.RecallTranslationTaskCompletionLeaseLost, errRecallTranslationLeaseLost
+	}
+	observeRecallTranslationTask(recallTranslationTaskObservation{
+		Event:      "failed",
+		Status:     model.RecallTranslationTaskFailed,
+		ErrorClass: errorCode,
+		DurationMs: durationMs,
+	})
+	return model.RecallTranslationTaskCompletionLeaseLost, nil
+}
+
 func buildRecallTranslationSourceSnapshot(campaignType string, name string, current []RecallEmailStage, english []RecallEmailStage) (string, error) {
 	payload, err := common.Marshal(recallTranslationSourceSnapshot{
 		CampaignType: campaignType,
@@ -271,6 +285,7 @@ func recallTranslationCanonicalSourceHash(emailSequenceConfig string) string {
 }
 
 var errRecallTranslationLeaseLost = errors.New("translation_lease_lost")
+var errRecallTranslationFailureWriteFailed = errors.New("recall translation failure write failed")
 
 func (w *RecallTranslationWorker) startHeartbeat(ctx context.Context, cancel context.CancelFunc, task *model.RecallTranslationTask) func() error {
 	interval := w.effectiveHeartbeatInterval()
@@ -349,6 +364,9 @@ func sanitizeRecallTranslationErrorCode(err error) string {
 	if err == nil {
 		return ""
 	}
+	if isRecallTranslationNonterminalError(err) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return "translation_lease_lost"
+	}
 	code := strings.TrimSpace(err.Error())
 	switch code {
 	case "invalid_source_snapshot", "translation_failed", "invalid_translation_output", "translation_lease_lost":
@@ -356,4 +374,14 @@ func sanitizeRecallTranslationErrorCode(err error) string {
 	default:
 		return "translation_failed"
 	}
+}
+
+func isRecallTranslationContextInterrupted(ctx context.Context, err error) bool {
+	return ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
+}
+
+func isRecallTranslationNonterminalError(err error) bool {
+	return errors.Is(err, errRecallTranslationLeaseLost) ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded)
 }

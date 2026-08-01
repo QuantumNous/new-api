@@ -835,7 +835,12 @@ func recallTranslationRequestStagesWithManualLocales(english []RecallEmailStage,
 	result := cloneRecallEmailStagesForTranslationSnapshot(english)
 	for i := range result {
 		currentStage, exists := currentByStage[result[i].StageNo]
-		if !exists || len(currentStage.ManualLocales) == 0 {
+		if !exists {
+			continue
+		}
+		result[i].SourceRevision = currentStage.SourceRevision
+		result[i].TranslatedSourceRevision = currentStage.TranslatedSourceRevision
+		if len(currentStage.ManualLocales) == 0 {
 			continue
 		}
 		manual := make(map[string]struct{}, len(currentStage.ManualLocales))

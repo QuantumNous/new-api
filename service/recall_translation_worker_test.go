@@ -398,6 +398,174 @@ func TestRecallTranslationWorkerObservesLeaseRecovery(t *testing.T) {
 	require.Equal(t, model.RecallTranslationTaskSucceeded, loadServiceRecallTranslationTask(t, task.Id).Status)
 }
 
+func TestRecallTranslationWorkerDoesNotEmitFailedObservationWhenFailureWriteLosesLease(t *testing.T) {
+	tests := []struct {
+		name       string
+		errorClass string
+		translator func() RecallEmailTranslator
+		mutateTask func(*testing.T, *model.RecallTranslationTask)
+	}{
+		{
+			name:       "invalid source snapshot",
+			errorClass: "invalid_source_snapshot",
+			translator: func() RecallEmailTranslator {
+				return &recallCampaignFakeEmailTranslator{}
+			},
+			mutateTask: func(t *testing.T, task *model.RecallTranslationTask) {
+				t.Helper()
+				task.SourceSnapshot = "{"
+				require.NoError(t, model.DB.Model(&model.RecallTranslationTask{}).Where("id = ?", task.Id).Update("source_snapshot", task.SourceSnapshot).Error)
+			},
+		},
+		{
+			name:       "translator error",
+			errorClass: "translation_failed",
+			translator: func() RecallEmailTranslator {
+				return &recallCampaignFakeEmailTranslator{err: errors.New("provider failed")}
+			},
+		},
+		{
+			name:       "invalid output",
+			errorClass: "invalid_translation_output",
+			translator: func() RecallEmailTranslator {
+				return &recallCampaignFakeEmailTranslator{translateFn: func([]RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+					return map[int]map[string]RecallEmailTemplate{
+						1: {
+							"zh": {Subject: "zh subject", BodyText: "zh body"},
+						},
+					}, nil
+				}}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Date(2026, 7, 29, 9, 0, 0, 0, time.UTC)
+			translator := tt.translator()
+			campaignService := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+			campaignService.now = func() time.Time { return now }
+			_, task := seedQueuedRecallTranslationWorkerTask(t, campaignService, now)
+			if tt.mutateTask != nil {
+				tt.mutateTask(t, task)
+			}
+			worker := NewRecallTranslationWorker(translator, "worker-a")
+			worker.now = func() time.Time { return now }
+			claimed, err := worker.ClaimOne(context.Background())
+			require.NoError(t, err)
+			require.NotNil(t, claimed)
+			_, won, err := model.ClaimDueRecallTranslationTask(context.Background(), task.Id, "worker-b", now.Add(2*recallTranslationLeaseDuration).Unix(), now.Add(3*recallTranslationLeaseDuration).Unix())
+			require.NoError(t, err)
+			require.True(t, won)
+			observations := captureRecallTranslationTaskObservations(t)
+
+			_, _, err = worker.processDetailed(context.Background(), claimed)
+
+			require.Error(t, err)
+			requireNoRecallTranslationObservation(t, *observations, "failed", model.RecallTranslationTaskFailed, tt.errorClass)
+			stored := loadServiceRecallTranslationTask(t, task.Id)
+			require.Equal(t, model.RecallTranslationTaskRunning, stored.Status)
+			require.Equal(t, "worker-b", stored.LeaseOwner)
+		})
+	}
+}
+
+func TestRecallTranslationWorkerDoesNotEmitFailedObservationWhenFailureWriteErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		errorClass string
+		translator func() RecallEmailTranslator
+		mutateTask func(*testing.T, *model.RecallTranslationTask)
+	}{
+		{
+			name:       "invalid source snapshot",
+			errorClass: "invalid_source_snapshot",
+			translator: func() RecallEmailTranslator {
+				return &recallCampaignFakeEmailTranslator{}
+			},
+			mutateTask: func(t *testing.T, task *model.RecallTranslationTask) {
+				t.Helper()
+				task.SourceSnapshot = "{"
+				require.NoError(t, model.DB.Model(&model.RecallTranslationTask{}).Where("id = ?", task.Id).Update("source_snapshot", task.SourceSnapshot).Error)
+			},
+		},
+		{
+			name:       "translator error",
+			errorClass: "translation_failed",
+			translator: func() RecallEmailTranslator {
+				return &recallCampaignFakeEmailTranslator{err: errors.New("provider failed")}
+			},
+		},
+		{
+			name:       "invalid output",
+			errorClass: "invalid_translation_output",
+			translator: func() RecallEmailTranslator {
+				return &recallCampaignFakeEmailTranslator{translateFn: func([]RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+					return map[int]map[string]RecallEmailTemplate{
+						1: {
+							"zh": {Subject: "zh subject", BodyText: "zh body"},
+						},
+					}, nil
+				}}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Date(2026, 7, 29, 9, 0, 0, 0, time.UTC)
+			translator := tt.translator()
+			campaignService := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+			campaignService.now = func() time.Time { return now }
+			_, task := seedQueuedRecallTranslationWorkerTask(t, campaignService, now)
+			if tt.mutateTask != nil {
+				tt.mutateTask(t, task)
+			}
+			injectRecallTranslationTaskFailureUpdateError(t)
+			worker := NewRecallTranslationWorker(translator, "worker-a")
+			worker.now = func() time.Time { return now }
+			claimed, err := worker.ClaimOne(context.Background())
+			require.NoError(t, err)
+			require.NotNil(t, claimed)
+			observations := captureRecallTranslationTaskObservations(t)
+
+			_, _, err = worker.processDetailed(context.Background(), claimed)
+
+			require.ErrorContains(t, err, "forced recall translation failure update error")
+			requireNoRecallTranslationObservation(t, *observations, "failed", model.RecallTranslationTaskFailed, tt.errorClass)
+			require.Equal(t, model.RecallTranslationTaskRunning, loadServiceRecallTranslationTask(t, task.Id).Status)
+		})
+	}
+}
+
+func TestRecallTranslationWorkerTreatsCallerCancellationAsNonterminal(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 29, 9, 0, 0, 0, time.UTC)
+	translator := newBlockingRecallTranslationTestTranslator()
+	campaignService := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	campaignService.now = func() time.Time { return now }
+	_, task := seedQueuedRecallTranslationWorkerTask(t, campaignService, now)
+	observations := captureRecallTranslationTaskObservations(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	worker := NewRecallTranslationWorker(translator, "worker-a")
+	worker.now = func() time.Time { return now }
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := worker.RunBatch(ctx, 1)
+		done <- err
+	}()
+	translator.waitStarted(t)
+	cancel()
+
+	require.NoError(t, <-done)
+	requireNoRecallTranslationObservation(t, *observations, "failed", model.RecallTranslationTaskFailed, "translation_failed")
+	require.Equal(t, model.RecallTranslationTaskRunning, loadServiceRecallTranslationTask(t, task.Id).Status)
+}
+
 func TestRecallMaintenanceTickRunsTranslationWorkerWithoutBlockingOtherMaintenance(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -536,4 +704,31 @@ func findRecallTranslationObservation(t *testing.T, observations []recallTransla
 	}
 	require.Failf(t, "recall translation observation missing", "event=%s status=%s observations=%v", event, status, observations)
 	return recallTranslationTaskObservation{}
+}
+
+func requireNoRecallTranslationObservation(t *testing.T, observations []recallTranslationTaskObservation, event string, status string, errorClass string) {
+	t.Helper()
+	for _, observation := range observations {
+		if observation.Event == event && observation.Status == status && observation.ErrorClass == errorClass {
+			require.Failf(t, "recall translation observation unexpectedly present", "event=%s status=%s error_class=%s observations=%v", event, status, errorClass, observations)
+		}
+	}
+}
+
+func injectRecallTranslationTaskFailureUpdateError(t *testing.T) {
+	t.Helper()
+	callbackName := "recall_translation_fail_update_error_" + strings.ReplaceAll(t.Name(), "/", "_")
+	require.NoError(t, model.DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallTranslationTask" {
+			return
+		}
+		updates, ok := tx.Statement.Dest.(map[string]any)
+		if !ok {
+			return
+		}
+		if updates["status"] == model.RecallTranslationTaskFailed {
+			tx.AddError(errors.New("forced recall translation failure update error"))
+		}
+	}))
+	t.Cleanup(func() { _ = model.DB.Callback().Update().Remove(callbackName) })
 }
