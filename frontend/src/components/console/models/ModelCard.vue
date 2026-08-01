@@ -11,7 +11,7 @@ import type {
 import HealthMeter from '@/components/common/HealthMeter.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { useToast } from '@/composables/useToast'
-import { formatContext, formatLatency, formatTokenPrice } from '@/utils/format'
+import { formatLatency, formatTokenPrice } from '@/utils/format'
 
 const props = withDefaults(
   defineProps<{
@@ -128,14 +128,6 @@ async function copyName() {
 
     <!-- price block -->
     <div class="mt-3 space-y-1">
-      <div v-if="tierCount" class="mb-1 flex items-center gap-2">
-        <StatusChip tone="warning">{{ t('models.billing.tiered') }}</StatusChip>
-        <span
-          class="rounded-md bg-[var(--surface-muted)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)]"
-        >
-          {{ t('models.tierCount', { count: tierCount }) }}
-        </span>
-      </div>
       <template v-if="model.billing === 'per_call'">
         <div class="flex items-baseline gap-1.5">
           <span class="text-lg font-bold text-[var(--text-primary)]">{{
@@ -198,12 +190,21 @@ async function copyName() {
 
     <!-- metrics row -->
     <div
-      class="mt-2 flex items-end justify-between gap-3 border-t border-[var(--border-subtle)] pt-3"
+      class="mt-2 flex flex-wrap items-end justify-between gap-x-3 gap-y-2 border-t border-[var(--border-subtle)] pt-3"
     >
-      <StatusChip :tone="billingTone[model.billing]">{{
-        billingLabel
-      }}</StatusChip>
-      <div class="flex items-end gap-4 text-right">
+      <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+        <StatusChip :tone="billingTone[model.billing]" data-model-billing>{{
+          billingLabel
+        }}</StatusChip>
+        <span
+          v-if="tierCount"
+          class="rounded-md bg-[var(--surface-muted)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)]"
+          data-model-tier-count
+        >
+          {{ t('models.tierCount', { count: tierCount }) }}
+        </span>
+      </div>
+      <div class="flex shrink-0 items-end gap-4 text-right">
         <div>
           <p
             class="text-[10px] uppercase tracking-wide text-[var(--text-tertiary)]"
@@ -235,18 +236,15 @@ async function copyName() {
       </div>
     </div>
 
-    <!-- footer: type + channels + context -->
+    <!-- footer: type + channels -->
     <div
       class="mt-3 flex items-center gap-2 text-xs text-[var(--text-tertiary)]"
     >
       <StatusChip :tone="typeTone[model.type]">{{ typeLabel }}</StatusChip>
-      <span class="min-w-0 flex-1 truncate">
+      <span class="ml-auto min-w-0 truncate text-right" data-model-channels>
         {{ t('models.channels') }} {{ shownChannels.join(' · ')
         }}<span v-if="extraChannels"> +{{ extraChannels }}</span>
       </span>
-      <span v-if="model.context > 0" class="shrink-0 font-mono">{{
-        formatContext(model.context)
-      }}</span>
     </div>
   </article>
 
@@ -273,9 +271,18 @@ async function copyName() {
     <!-- billing + type chips -->
     <div class="hidden shrink-0 items-center gap-2 md:flex">
       <StatusChip :tone="typeTone[model.type]">{{ typeLabel }}</StatusChip>
-      <StatusChip :tone="billingTone[model.billing]">{{
-        billingLabel
-      }}</StatusChip>
+      <div class="flex items-center gap-1.5">
+        <StatusChip :tone="billingTone[model.billing]" data-model-billing>{{
+          billingLabel
+        }}</StatusChip>
+        <span
+          v-if="tierCount"
+          class="rounded-md bg-[var(--surface-muted)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--text-tertiary)]"
+          data-model-tier-count
+        >
+          {{ t('models.tierCount', { count: tierCount }) }}
+        </span>
+      </div>
     </div>
     <!-- price (input/output) -->
     <div class="hidden w-32 shrink-0 text-right lg:block">

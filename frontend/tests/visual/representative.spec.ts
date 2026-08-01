@@ -29,6 +29,7 @@ const darkScenarios: Scenario[] = [
     path: '/console/dashboard',
     selectTabByName: '自动路由',
   },
+  { name: 'models', path: '/console/models' },
   { name: 'keys', path: '/console/keys' },
   {
     name: 'keys-create-modal',
@@ -56,6 +57,7 @@ const lightScenarios: Scenario[] = [
     path: '/console/dashboard',
     selectTabByName: '自动路由',
   },
+  { name: 'models', path: '/console/models' },
   // Both plan surfaces carry new bespoke geometry (storefront cards, ledger
   // rows with disabled row actions), so the pencil rendering is worth pinning.
   { name: 'subscription', path: '/console/subscription' },
