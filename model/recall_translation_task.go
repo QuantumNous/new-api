@@ -163,6 +163,7 @@ func SubmitRecallTranslationTask(ctx context.Context, submission RecallTranslati
 				"lease_expires_at": int64(0),
 				"error_code":       "",
 				"error_message":    "",
+				"started_at":       int64(0),
 				"finished_at":      int64(0),
 			})
 		if result.Error != nil {
@@ -186,6 +187,7 @@ func SubmitRecallTranslationTask(ctx context.Context, submission RecallTranslati
 			existing.LeaseExpiresAt = 0
 			existing.ErrorCode = ""
 			existing.ErrorMessage = ""
+			existing.StartedAt = 0
 			existing.FinishedAt = 0
 			queuedLifecycle = true
 		}

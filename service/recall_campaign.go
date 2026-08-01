@@ -692,11 +692,11 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 }
 
 func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, actorID int, id int64, request RecallEmailGenerationRequest) (RecallEmailGenerationResponse, error) {
-	task, reconciled, _, err := s.submitRecallEmailTranslationTask(ctx, actorID, id, request)
+	task, reconciled, queuedLifecycle, err := s.submitRecallEmailTranslationTask(ctx, actorID, id, request)
 	if err != nil {
 		return RecallEmailGenerationResponse{}, err
 	}
-	if task.Status == model.RecallTranslationTaskQueued {
+	if queuedLifecycle && task.Status == model.RecallTranslationTaskQueued {
 		observeQueuedRecallTranslationTask()
 	}
 	if task.Status == model.RecallTranslationTaskSucceeded {

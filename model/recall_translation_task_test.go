@@ -94,6 +94,11 @@ func TestRecallTranslationTaskTerminalFailureDuplicateAndConditionalRequeue(t *t
 	require.Equal(t, first.Id, requeued.Id)
 	require.Equal(t, RecallTranslationTaskQueued, requeued.Status)
 	require.Equal(t, 1, requeued.AttemptCount)
+	require.Zero(t, requeued.StartedAt)
+	require.Zero(t, requeued.FinishedAt)
+	storedRequeued := loadRecallTranslationTask(t, first.Id)
+	require.Zero(t, storedRequeued.StartedAt)
+	require.Zero(t, storedRequeued.FinishedAt)
 
 	claimed, won, err = ClaimDueRecallTranslationTask(ctx, first.Id, "worker-b", 130, 190)
 	require.NoError(t, err)

@@ -1346,7 +1346,45 @@ func TestEnqueueRecallEmailTranslationsRecordsQueuedObservationWithoutTranslatin
 	require.NoError(t, err)
 	require.Equal(t, response.ID, requeued.ID)
 	require.Equal(t, model.RecallTranslationTaskQueued, requeued.Status)
+	require.Zero(t, requeued.StartedAt)
+	require.Zero(t, requeued.FinishedAt)
 	require.Equal(t, 2, countRecallTranslationObservations(*observations, "queued", model.RecallTranslationTaskQueued))
+}
+
+func TestGenerateRecallEmailTranslationsDoesNotRepeatQueuedObservationForDuplicateLifecycle(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	storedDraft, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	observations := captureRecallTranslationTaskObservations(t)
+
+	queued, err := service.EnqueueEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.RecallTranslationTaskQueued, queued.Status)
+	require.Equal(t, 1, countRecallTranslationObservations(*observations, "queued", model.RecallTranslationTaskQueued))
+
+	generated, err := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+	require.NoError(t, err)
+	require.Equal(t, queued.ID, generated.TaskID)
+	require.Equal(t, model.RecallTranslationTaskSucceeded, generated.TaskStatus)
+	require.Equal(t, 1, translator.callCount())
+	require.Equal(t, 1, countRecallTranslationObservations(*observations, "queued", model.RecallTranslationTaskQueued))
 }
 
 func countRecallTranslationObservations(observations []recallTranslationTaskObservation, event string, status string) int {
