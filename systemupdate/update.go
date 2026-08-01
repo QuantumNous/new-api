@@ -134,11 +134,25 @@ func GetSystemUpdateService() *SystemUpdateService {
 			currentVer: CurrentVersion,
 		}
 	})
-	// Refresh on every access so post-InitEnv VERSION overrides are visible.
+	// Refresh under cacheMu so concurrent checks cannot race with version/cache reads.
+	// Invalidate cache when the version changes so HasUpdate is not stale.
 	if v := strings.TrimSpace(CurrentVersion); v != "" {
-		defaultSystemUpdateService.currentVer = v
+		s := defaultSystemUpdateService
+		s.cacheMu.Lock()
+		if s.currentVer != v {
+			s.currentVer = v
+			s.cache = nil
+		}
+		s.cacheMu.Unlock()
 	}
 	return defaultSystemUpdateService
+}
+
+// currentVersion returns the service's running version under cacheMu.
+func (s *SystemUpdateService) currentVersion() string {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	return s.currentVer
 }
 
 // DetectDeployMode returns binary / docker / unknown.
@@ -180,9 +194,10 @@ func (s *SystemUpdateService) CheckUpdate(ctx context.Context, force bool) (*Upd
 			return &cloned, nil
 		}
 		mode := DetectDeployMode()
+		cur := normalizeVersion(s.currentVersion())
 		return &UpdateInfo{
-			CurrentVersion: normalizeVersion(s.currentVer),
-			LatestVersion:  normalizeVersion(s.currentVer),
+			CurrentVersion: cur,
+			LatestVersion:  cur,
 			HasUpdate:      false,
 			Warning:        err.Error(),
 			DeployMode:     mode,
@@ -250,7 +265,7 @@ func (s *SystemUpdateService) ListRollbackVersions(ctx context.Context) ([]Rollb
 	if err != nil {
 		return nil, err
 	}
-	current := normalizeVersion(s.currentVer)
+	current := normalizeVersion(s.currentVersion())
 	seen := map[string]bool{}
 	out := make([]RollbackVersion, 0, maxRollbackVersions)
 	for _, r := range releases {
@@ -348,7 +363,7 @@ func (s *SystemUpdateService) fetchRecent(ctx context.Context, perPage int) ([]g
 
 func (s *SystemUpdateService) releaseToUpdateInfo(release *githubRelease) *UpdateInfo {
 	latest := normalizeVersion(release.TagName)
-	current := normalizeVersion(s.currentVer)
+	current := normalizeVersion(s.currentVersion())
 	assets := make([]ReleaseAsset, 0, len(release.Assets))
 	for _, a := range release.Assets {
 		assets = append(assets, ReleaseAsset{
@@ -557,6 +572,8 @@ func (s *SystemUpdateService) getJSON(ctx context.Context, apiURL string, dest a
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
+	// Keep stdlib decoder: importing common/json pulls a large dependency graph
+	// into this package for no behavioral difference (DecodeJson is a thin wrap).
 	return json.NewDecoder(resp.Body).Decode(dest)
 }
 
@@ -740,7 +757,12 @@ func compareVersions(a, b string) int {
 	return comparePreRelease(aPre, bPre)
 }
 
-// comparePreRelease compares identifiers like "rc.9" vs "rc.10" numerically per dot segment.
+// comparePreRelease implements SemVer 2.0.0 prerelease precedence:
+// - identifiers separated by dots
+// - numeric identifiers (all digits) compare numerically (no int conversion)
+// - numeric identifiers have lower precedence than non-numeric
+// - non-numeric compare lexically in ASCII order
+// - when all shared identifiers are equal, the shorter set has lower precedence
 func comparePreRelease(a, b string) int {
 	if a == b {
 		return 0
@@ -748,53 +770,75 @@ func comparePreRelease(a, b string) int {
 	as := strings.Split(a, ".")
 	bs := strings.Split(b, ".")
 	n := len(as)
-	if len(bs) > n {
+	if len(bs) < n {
 		n = len(bs)
 	}
 	for i := 0; i < n; i++ {
-		var ap, bp string
-		if i < len(as) {
-			ap = as[i]
-		}
-		if i < len(bs) {
-			bp = bs[i]
-		}
-		an, aNum := parseLeadingInt(ap)
-		bn, bNum := parseLeadingInt(bp)
-		if aNum && bNum {
-			if an < bn {
+		ap, bp := as[i], bs[i]
+		aNum := isNumericIdent(ap)
+		bNum := isNumericIdent(bp)
+		switch {
+		case aNum && bNum:
+			if c := compareNumericIdent(ap, bp); c != 0 {
+				return c
+			}
+		case aNum && !bNum:
+			return -1
+		case !aNum && bNum:
+			return 1
+		default:
+			if ap < bp {
 				return -1
 			}
-			if an > bn {
+			if ap > bp {
 				return 1
 			}
-			// equal numeric prefix: compare remainder as string if any
-			continue
 		}
-		if ap < bp {
-			return -1
-		}
-		if ap > bp {
-			return 1
-		}
+	}
+	if len(as) < len(bs) {
+		return -1
+	}
+	if len(as) > len(bs) {
+		return 1
 	}
 	return 0
 }
 
-func parseLeadingInt(s string) (int, bool) {
+func isNumericIdent(s string) bool {
 	if s == "" {
-		return 0, true
+		return false
 	}
-	n := 0
-	ok := false
 	for _, ch := range s {
 		if ch < '0' || ch > '9' {
-			return n, ok
+			return false
 		}
-		ok = true
-		n = n*10 + int(ch-'0')
 	}
-	return n, ok
+	return true
+}
+
+// compareNumericIdent compares pure-digit identifiers without int conversion.
+func compareNumericIdent(a, b string) int {
+	a = strings.TrimLeft(a, "0")
+	b = strings.TrimLeft(b, "0")
+	if a == "" {
+		a = "0"
+	}
+	if b == "" {
+		b = "0"
+	}
+	if len(a) < len(b) {
+		return -1
+	}
+	if len(a) > len(b) {
+		return 1
+	}
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
 }
 
 func splitPreRelease(v string) (main, pre string) {

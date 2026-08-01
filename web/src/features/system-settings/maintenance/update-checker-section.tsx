@@ -109,7 +109,7 @@ export function UpdateCheckerSection({
   const uptime = startTime ? formatTimestamp(startTime) : t('Unknown')
   const version = currentVersion || t('Unknown')
 
-  const loadRollbackVersions = async () => {
+  const loadRollbackVersions = async (): Promise<void> => {
     try {
       const res = await api.get('/api/system-update/rollback-versions')
       if (res.data?.success) {
@@ -121,7 +121,7 @@ export function UpdateCheckerSection({
     }
   }
 
-  const handleCheckUpdates = async () => {
+  const handleCheckUpdates = async (): Promise<void> => {
     setChecking(true)
     try {
       const res = await api.get('/api/system-update/check', {
@@ -202,7 +202,8 @@ export function UpdateCheckerSection({
     }
   }
 
-  const handleApplyUpdate = async () => {
+  const handleApplyUpdate = async (): Promise<void> => {
+    if (applying || rollingBack) return
     setApplying(true)
     try {
       const res = await api.post(
@@ -235,7 +236,8 @@ export function UpdateCheckerSection({
     }
   }
 
-  const handleRollback = async (version?: string) => {
+  const handleRollback = async (version?: string): Promise<void> => {
+    if (applying || rollingBack) return
     setRollingBack(true)
     try {
       const res = await api.post(
@@ -258,7 +260,7 @@ export function UpdateCheckerSection({
     }
   }
 
-  const goToRelease = () => {
+  const goToRelease = (): void => {
     const url = updateInfo?.release_info?.html_url
     if (url) {
       window.open(url, '_blank', 'noopener,noreferrer')
@@ -288,12 +290,15 @@ export function UpdateCheckerSection({
           </div>
 
           <div className='flex flex-wrap gap-2'>
-            <Button onClick={handleCheckUpdates} disabled={checking || applying}>
+            <Button
+              onClick={handleCheckUpdates}
+              disabled={checking || applying || rollingBack}
+            >
               {checking ? (
                 t('Checking updates...')
               ) : (
                 <>
-                  <RefreshCcwIcon className='me-2 h-4 w-4' />
+                  <RefreshCcwIcon className='me-2 h-4 w-4' aria-hidden='true' />
                   {t('Check for updates')}
                 </>
               )}
@@ -304,7 +309,7 @@ export function UpdateCheckerSection({
               disabled={rollingBack || applying || checking}
               onClick={() => handleRollback()}
             >
-              <Undo2Icon className='me-2 h-4 w-4' />
+              <Undo2Icon className='me-2 h-4 w-4' aria-hidden='true' />
               {rollingBack ? t('Rolling back...') : t('Rollback last backup')}
             </Button>
           </div>
@@ -349,7 +354,7 @@ export function UpdateCheckerSection({
             </Button>
             {updateInfo?.release_info?.html_url && (
               <Button type='button' variant='outline' onClick={goToRelease}>
-                <ExternalLinkIcon className='me-2 h-4 w-4' />
+                <ExternalLinkIcon className='me-2 h-4 w-4' aria-hidden='true' />
                 {t('Open release')}
               </Button>
             )}
@@ -357,9 +362,9 @@ export function UpdateCheckerSection({
               <Button
                 type='button'
                 onClick={handleApplyUpdate}
-                disabled={applying}
+                disabled={applying || rollingBack}
               >
-                <DownloadIcon className='me-2 h-4 w-4' />
+                <DownloadIcon className='me-2 h-4 w-4' aria-hidden='true' />
                 {applying ? t('Updating...') : t('Update now')}
               </Button>
             )}

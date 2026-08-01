@@ -22,6 +22,15 @@ func TestNormalizeAndCompareVersions(t *testing.T) {
 		// numeric prerelease ordering (rc.9 < rc.10)
 		{"1.0.0-rc.9", "1.0.0-rc.10", -1},
 		{"1.0.0-rc.10", "1.0.0-rc.9", 1},
+		// SemVer: only all-digit identifiers are numeric
+		{"1.0.0-rc.1alpha", "1.0.0-rc.1beta", -1},
+		{"1.0.0-rc.1beta", "1.0.0-rc.1alpha", 1},
+		// SemVer: more identifiers after equal prefix → higher
+		{"1.0.0-rc.1", "1.0.0-rc.1.0", -1},
+		{"1.0.0-rc.1.0", "1.0.0-rc.1", 1},
+		// SemVer: numeric identifiers have lower precedence than non-numeric
+		{"1.0.0-1", "1.0.0-alpha", -1},
+		{"1.0.0-alpha", "1.0.0-1", 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.a+"_"+tc.b, func(t *testing.T) {
