@@ -42,9 +42,7 @@ export function getRecallLocalizationBlockers(
     (blocker): blocker is RecallEmailLocalizationBlocker =>
       Boolean(blocker) &&
       typeof blocker === 'object' &&
-      Number.isInteger(
-        (blocker as RecallEmailLocalizationBlocker).stage_no
-      ) &&
+      Number.isInteger((blocker as RecallEmailLocalizationBlocker).stage_no) &&
       (blocker as RecallEmailLocalizationBlocker).stage_no > 0 &&
       typeof (blocker as RecallEmailLocalizationBlocker).locale === 'string' &&
       ['missing', 'stale', 'invalid'].includes(

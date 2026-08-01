@@ -5,7 +5,11 @@ import { afterAll, describe, expect, mock, test } from 'bun:test'
 import { createInstance } from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
-import type { RecallCampaignDraft, RecallEmailStage } from '../types'
+import type {
+  RecallCampaignDraft,
+  RecallEmailStage,
+  RecallTranslationTask,
+} from '../types'
 
 mock.module('./campaign-email-html-editor', () => ({
   CampaignEmailHtmlEditor: (props: {
@@ -84,7 +88,9 @@ function renderWorkspace(
   draft: RecallCampaignDraft,
   focusBlocker?: { stage_no: number; locale: string; reason: 'missing' },
   disabled = false,
-  immutable = false
+  immutable = false,
+  translationTask?: RecallTranslationTask,
+  refreshPending = false
 ): string {
   return renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
@@ -95,6 +101,9 @@ function renderWorkspace(
         form={createForm(draft)}
         isGenerating={false}
         onGenerate={async () => undefined}
+        onApplyServerRefresh={() => undefined}
+        serverRefreshPending={refreshPending}
+        translationTask={translationTask}
       />
     </I18nextProvider>
   )
@@ -297,7 +306,8 @@ setupDom()
 
 function renderWorkspaceDom(
   draft: RecallCampaignDraft,
-  onGenerate: () => Promise<void>
+  onGenerate: () => Promise<void>,
+  translationTask?: RecallTranslationTask
 ): { container: HTMLElement; root: Root } {
   const container = document.createElement('div')
   const root = createRoot(container)
@@ -309,6 +319,7 @@ function renderWorkspaceDom(
           form={createForm(draft)}
           isGenerating={false}
           onGenerate={onGenerate}
+          translationTask={translationTask}
         />
       </I18nextProvider>
     )
@@ -371,6 +382,81 @@ describe('CampaignTranslationWorkspace', () => {
     expect(html).toContain('Email stage 1')
     expect(html).toContain('Email stage 2')
     expect(html).toContain('Generate 7 translations')
+  })
+
+  test.each([
+    'queued',
+    'running',
+    'succeeded',
+    'failed',
+    'superseded',
+  ] as const)(
+    'shows translation task %s as a distinct background status',
+    (status) => {
+      const html = renderWorkspace(
+        makeDraft([makeStage()]),
+        undefined,
+        false,
+        false,
+        {
+          id: 55,
+          campaign_id: 9,
+          requested_config_revision: 4,
+          status,
+          attempt_count: 1,
+          error_code: status === 'failed' ? 'provider_failed' : undefined,
+          error_copy_key:
+            status === 'failed'
+              ? 'recall.translation.provider_failed'
+              : undefined,
+          created_at: 1_900_000_000,
+        }
+      )
+
+      expect(html).toContain(`Translation task ${status}`)
+      if (status === 'failed') {
+        expect(html).toContain('recall.translation.provider_failed')
+        expect(html).not.toContain('raw provider')
+      }
+    }
+  )
+
+  test.each(['queued', 'running'] as const)(
+    'disables duplicate generation while translation task is %s',
+    (status) => {
+      const html = renderWorkspace(
+        makeDraft([makeStage()]),
+        undefined,
+        false,
+        false,
+        {
+          id: 55,
+          campaign_id: 9,
+          requested_config_revision: 4,
+          status,
+          attempt_count: 1,
+          created_at: 1_900_000_000,
+        }
+      )
+
+      expect(html).toMatch(
+        /<button(?=[^>]*id="recall-generate-translations")(?=[^>]*disabled="")[^>]*>Generating translations<\/button>/
+      )
+    }
+  )
+
+  test('shows an explicit refresh action instead of silently applying server data', () => {
+    const html = renderWorkspace(
+      makeDraft([makeStage()]),
+      undefined,
+      false,
+      false,
+      undefined,
+      true
+    )
+
+    expect(html).toContain('New campaign data is available.')
+    expect(html).toContain('Refresh campaign data')
   })
 
   test('disables stage delay editing with the rest of the workspace', () => {
@@ -552,9 +638,7 @@ describe('CampaignTranslationWorkspace', () => {
       await clickByID(container, 'recall-generate-translations')
       expect(onGenerate).toHaveBeenCalledTimes(1)
       expect(container.textContent).toContain(
-        failureMode === 'throws'
-          ? 'Generation exploded'
-          : 'Generation rejected'
+        failureMode === 'throws' ? 'Generation exploded' : 'Generation rejected'
       )
 
       await clickByID(container, 'recall-generate-translations')
@@ -583,7 +667,10 @@ describe('CampaignTranslationWorkspace', () => {
     )
     const stage = makeStage()
     stage.manual_locales = ['es']
-    const { container, root } = renderWorkspaceDom(makeDraft([stage]), onGenerate)
+    const { container, root } = renderWorkspaceDom(
+      makeDraft([stage]),
+      onGenerate
+    )
 
     await clickByID(container, 'recall-generate-translations')
     expect(container.textContent).toContain(
@@ -614,7 +701,10 @@ describe('CampaignTranslationWorkspace', () => {
     )
     const stage = makeStage()
     stage.manual_locales = ['es']
-    const { container, root } = renderWorkspaceDom(makeDraft([stage]), onGenerate)
+    const { container, root } = renderWorkspaceDom(
+      makeDraft([stage]),
+      onGenerate
+    )
 
     await clickByID(container, 'recall-generate-translations')
     await clickByID(container, 'recall-confirm-regenerate-translations')

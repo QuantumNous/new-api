@@ -522,6 +522,23 @@ describe('recall campaign API contracts', () => {
     expect(capturedConfig?.method).toBe('get')
   })
 
+  test('exposes stable email translation task query keys', () => {
+    expect(recallCampaignKeys.translationTask(42, 55)).toEqual([
+      'recall-campaigns',
+      42,
+      'email-translations',
+      'tasks',
+      55,
+    ])
+    expect(recallCampaignKeys.latestTranslationTask(42)).toEqual([
+      'recall-campaigns',
+      42,
+      'email-translations',
+      'tasks',
+      'latest',
+    ])
+  })
+
   test('loads the activity email quota from its dedicated endpoint', async () => {
     respondWith({
       success: true,

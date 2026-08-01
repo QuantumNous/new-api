@@ -1,6 +1,14 @@
-import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+} from 'react'
 import { Controller, useForm, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -15,7 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useRecallCampaignMutations } from '../api'
+import {
+  getLatestRecallEmailTranslationTask,
+  getRecallEmailTranslationTask,
+  recallCampaignKeys,
+  useRecallCampaignMutations,
+} from '../api'
 import {
   recallLocalDateTimeToUnix,
   recallUnixToLocalDateTime,
@@ -37,13 +50,16 @@ import {
   recallCampaignActivatedUpdateSchema,
   recallCampaignDraftSchema,
 } from '../schemas'
-import type {
-  RecallCampaignDraft,
-  RecallCampaignStatus,
-  RecallDiscountConfig,
-  RecallEmailLocalizationBlocker,
-  RecallEmailTemplate,
-  RecallFixedCurrency,
+import {
+  isRecallTranslationTaskActive,
+  isRecallTranslationTaskTerminal,
+  type RecallCampaignDraft,
+  type RecallCampaignStatus,
+  type RecallDiscountConfig,
+  type RecallEmailLocalizationBlocker,
+  type RecallEmailTemplate,
+  type RecallFixedCurrency,
+  type RecallTranslationTask,
 } from '../types'
 import { CampaignGroupSelector } from './campaign-group-selector'
 import { CampaignOfferValidityFields } from './campaign-offer-validity-fields'
@@ -66,6 +82,73 @@ const LazyCampaignSpecifiedUsersSelector = lazy(async () => {
 })
 
 type RecallFixedAmountInputs = Record<RecallFixedCurrency, string>
+type RecallScheduleMode = 'manual' | 'once' | 'daily' | 'weekly'
+
+const DEFAULT_RECALL_TIMEZONE = 'Asia/Shanghai'
+
+function getRecallScheduleMode(draft: RecallCampaignDraft): RecallScheduleMode {
+  if (draft.execution_mode === 'scheduled_once') return 'once'
+  if (draft.execution_mode === 'recurring') {
+    return draft.schedule.frequency === 'weekly' ? 'weekly' : 'daily'
+  }
+  return 'manual'
+}
+
+function getDefaultFutureStartSeconds(): number {
+  return Math.floor(Date.now() / 1000) + 86_400
+}
+
+function normalizeRecallScheduleForMode(
+  draft: RecallCampaignDraft,
+  mode: RecallScheduleMode
+): RecallCampaignDraft {
+  const schedule = {
+    ...draft.schedule,
+    timezone:
+      draft.schedule.timezone?.trim() &&
+      draft.schedule.timezone.trim() !== 'UTC'
+        ? draft.schedule.timezone.trim()
+        : DEFAULT_RECALL_TIMEZONE,
+  }
+  if (mode === 'manual') {
+    return {
+      ...draft,
+      execution_mode: 'manual',
+      schedule: {
+        ...schedule,
+        scheduled_at: 0,
+        frequency: 'daily',
+        weekday: 1,
+      },
+    }
+  }
+  const scheduledAt =
+    schedule.scheduled_at > 0
+      ? schedule.scheduled_at
+      : getDefaultFutureStartSeconds()
+  if (mode === 'once') {
+    return {
+      ...draft,
+      execution_mode: 'scheduled_once',
+      schedule: {
+        ...schedule,
+        scheduled_at: scheduledAt,
+        frequency: 'daily',
+        weekday: 1,
+      },
+    }
+  }
+  return {
+    ...draft,
+    execution_mode: 'recurring',
+    schedule: {
+      ...schedule,
+      scheduled_at: scheduledAt,
+      frequency: mode,
+      weekday: mode === 'weekly' ? schedule.weekday : 1,
+    },
+  }
+}
 
 function createRecallEmailTemplates(
   templates: Record<string, RecallEmailTemplate> = {},
@@ -226,7 +309,7 @@ function createRecallCampaignDefaults(): RecallCampaignDraft {
     execution_mode: 'manual',
     schedule: {
       scheduled_at: 0,
-      timezone: 'UTC',
+      timezone: DEFAULT_RECALL_TIMEZONE,
       frequency: 'daily',
       weekday: 1,
       hour: 9,
@@ -273,6 +356,7 @@ interface CampaignEditorProps {
 
 export function CampaignEditor(props: CampaignEditorProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const mutations = useRecallCampaignMutations(props.campaignId)
   const updateSchema =
     props.status && props.status !== 'draft'
@@ -291,6 +375,15 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const [persistedConfigRevision, setPersistedConfigRevision] = useState(
     props.configRevision ?? 0
   )
+  const [activeTranslationTaskID, setActiveTranslationTaskID] = useState(0)
+  const [translationTask, setTranslationTask] =
+    useState<RecallTranslationTask>()
+  const [pendingServerDraft, setPendingServerDraft] =
+    useState<RecallCampaignDraft | null>(null)
+  const invalidatedTranslationTasks = useRef(new Set<number>())
+  const previousInitialDraft = useRef<RecallCampaignDraft | undefined>(
+    undefined
+  )
   const [fixedAmountInputs, setFixedAmountInputs] =
     useState<RecallFixedAmountInputs>(() =>
       createRecallFixedAmountInputs(defaultValues.discount_config)
@@ -300,6 +393,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const couponSource = form.watch('coupon_source')
   const discountType = form.watch('discount_config.type')
   const executionMode = form.watch('execution_mode')
+  const scheduleMode = getRecallScheduleMode(form.watch())
   const groups = form.watch('audience_config.groups')
   const groupMode = form.watch('audience_config.group_mode')
   const providers = form.watch('audience_config.payment_providers')
@@ -340,14 +434,116 @@ export function CampaignEditor(props: CampaignEditorProps) {
     'audience_config.specified_emails',
     form.formState
   ).error
+  const scheduledAtError = form.getFieldState(
+    'schedule.scheduled_at',
+    form.formState
+  ).error
+  const scheduleTimezoneError = form.getFieldState(
+    'schedule.timezone',
+    form.formState
+  ).error
+  const scheduleWeekdayError = form.getFieldState(
+    'schedule.weekday',
+    form.formState
+  ).error
 
   useEffect(() => {
+    if (props.initialDraft === previousInitialDraft.current) return
+    previousInitialDraft.current = props.initialDraft
     if (props.initialDraft) {
       const draft = createRecallCampaignFormDraft(props.initialDraft)
+      if (form.formState.isDirty) {
+        setPendingServerDraft(draft)
+        return
+      }
       form.reset(draft)
+      setPendingServerDraft(null)
       setFixedAmountInputs(createRecallFixedAmountInputs(draft.discount_config))
     }
   }, [form, props.initialDraft])
+
+  const latestTranslationTaskQuery = useQuery({
+    queryKey: persistedCampaignID
+      ? recallCampaignKeys.latestTranslationTask(persistedCampaignID)
+      : recallCampaignKeys.latestTranslationTask(0),
+    queryFn: () => getLatestRecallEmailTranslationTask(persistedCampaignID),
+    enabled: persistedCampaignID > 0 && activeTranslationTaskID === 0,
+    retry: false,
+  })
+
+  const activeTranslationTaskQuery = useQuery({
+    queryKey:
+      persistedCampaignID && activeTranslationTaskID
+        ? recallCampaignKeys.translationTask(
+            persistedCampaignID,
+            activeTranslationTaskID
+          )
+        : recallCampaignKeys.translationTask(0, 0),
+    queryFn: () =>
+      getRecallEmailTranslationTask(
+        persistedCampaignID,
+        activeTranslationTaskID
+      ),
+    enabled: persistedCampaignID > 0 && activeTranslationTaskID > 0,
+    retry: false,
+    refetchInterval: (query) => {
+      const task = query.state.data?.data
+      return task && isRecallTranslationTaskActive(task.status) ? 2_000 : false
+    },
+  })
+  const refetchActiveTranslationTask = activeTranslationTaskQuery.refetch
+
+  useEffect(() => {
+    const task = latestTranslationTaskQuery.data?.data
+    if (!task || activeTranslationTaskID !== 0) return
+    setTranslationTask(task)
+    if (isRecallTranslationTaskActive(task.status)) {
+      setActiveTranslationTaskID(task.id)
+    }
+  }, [activeTranslationTaskID, latestTranslationTaskQuery.data])
+
+  useEffect(() => {
+    const task = activeTranslationTaskQuery.data?.data
+    if (!task) return
+    setTranslationTask(task)
+  }, [activeTranslationTaskQuery.data])
+
+  useEffect(() => {
+    if (
+      !translationTask ||
+      !isRecallTranslationTaskTerminal(translationTask.status)
+    ) {
+      return
+    }
+    if (translationTask.status !== 'succeeded') return
+    if (invalidatedTranslationTasks.current.has(translationTask.id)) return
+    invalidatedTranslationTasks.current.add(translationTask.id)
+    if (persistedCampaignID > 0) {
+      void queryClient.invalidateQueries({
+        queryKey: recallCampaignKeys.detail(persistedCampaignID),
+      })
+    }
+  }, [persistedCampaignID, queryClient, translationTask])
+
+  useEffect(() => {
+    if (
+      persistedCampaignID <= 0 ||
+      activeTranslationTaskID <= 0 ||
+      !translationTask ||
+      !isRecallTranslationTaskActive(translationTask.status)
+    ) {
+      return
+    }
+    const timer = window.setInterval(() => {
+      void refetchActiveTranslationTask()
+    }, 2_000)
+    return () => window.clearInterval(timer)
+  }, [
+    activeTranslationTaskID,
+    persistedCampaignID,
+    refetchActiveTranslationTask,
+    translationTask,
+  ])
 
   useEffect(() => {
     setPersistedCampaignID(props.campaignId ?? 0)
@@ -414,6 +610,15 @@ export function CampaignEditor(props: CampaignEditorProps) {
     await persistDraft(draft, true)
   }
 
+  const applyPendingServerDraft = () => {
+    if (!pendingServerDraft) return
+    form.reset(pendingServerDraft)
+    setFixedAmountInputs(
+      createRecallFixedAmountInputs(pendingServerDraft.discount_config)
+    )
+    setPendingServerDraft(null)
+  }
+
   const generateTranslations = async () => {
     let campaignID = persistedCampaignID
     let configRevision = persistedConfigRevision
@@ -441,7 +646,21 @@ export function CampaignEditor(props: CampaignEditorProps) {
     if (!response.success || !response.data) {
       throw new Error('Translation generation failed')
     }
+    setTranslationTask(response.data)
+    setActiveTranslationTaskID(response.data.id)
     setPersistedConfigRevision(response.data.requested_config_revision)
+  }
+
+  const setScheduleMode = (mode: RecallScheduleMode) => {
+    const normalized = normalizeRecallScheduleForMode(form.getValues(), mode)
+    form.setValue('execution_mode', normalized.execution_mode, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('schedule', normalized.schedule, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
   }
 
   const setCouponSource = (value: RecallCampaignDraft['coupon_source']) => {
@@ -1067,18 +1286,15 @@ export function CampaignEditor(props: CampaignEditorProps) {
             <Label>{t('Execution mode')}</Label>
             <Select
               disabled={immutable}
-              value={executionMode}
+              value={scheduleMode}
               onValueChange={(value) =>
-                value &&
-                form.setValue(
-                  'execution_mode',
-                  value as RecallCampaignDraft['execution_mode']
-                )
+                value && setScheduleMode(value as RecallScheduleMode)
               }
               items={[
                 { value: 'manual', label: t('Manual') },
-                { value: 'scheduled_once', label: t('Scheduled once') },
-                { value: 'recurring', label: t('Recurring') },
+                { value: 'once', label: t('Once') },
+                { value: 'daily', label: t('Daily') },
+                { value: 'weekly', label: t('Weekly') },
               ]}
             >
               <SelectTrigger className='w-full'>
@@ -1087,98 +1303,126 @@ export function CampaignEditor(props: CampaignEditorProps) {
               <SelectContent>
                 <SelectGroup>
                   <SelectItem value='manual'>{t('Manual')}</SelectItem>
-                  <SelectItem value='scheduled_once'>
-                    {t('Scheduled once')}
-                  </SelectItem>
-                  <SelectItem value='recurring'>{t('Recurring')}</SelectItem>
+                  <SelectItem value='once'>{t('Once')}</SelectItem>
+                  <SelectItem value='daily'>{t('Daily')}</SelectItem>
+                  <SelectItem value='weekly'>{t('Weekly')}</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
           </div>
-          {executionMode === 'scheduled_once' ? (
-            <div className='space-y-2'>
-              <Label>{t('Scheduled Unix timestamp')}</Label>
-              <Input
-                type='number'
-                disabled={immutable}
-                {...form.register('schedule.scheduled_at', {
-                  valueAsNumber: true,
-                })}
-              />
-            </div>
+          {executionMode !== 'manual' ? (
+            <>
+              <div className='space-y-2'>
+                <Label htmlFor='recall-schedule-start-at'>
+                  {t('Start date and time')}
+                </Label>
+                <Controller
+                  control={form.control}
+                  name='schedule.scheduled_at'
+                  render={({ field }) => (
+                    <Input
+                      id='recall-schedule-start-at'
+                      type='datetime-local'
+                      disabled={immutable}
+                      aria-invalid={Boolean(scheduledAtError)}
+                      aria-describedby={
+                        scheduledAtError
+                          ? 'recall-schedule-start-at-error'
+                          : undefined
+                      }
+                      value={recallUnixToLocalDateTime(field.value)}
+                      onChange={(event) => {
+                        const nextValue = recallLocalDateTimeToUnix(
+                          event.target.value
+                        )
+                        field.onChange(nextValue)
+                        const date = new Date(nextValue * 1000)
+                        if (!Number.isNaN(date.getTime())) {
+                          form.setValue('schedule.hour', date.getHours(), {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                          form.setValue('schedule.minute', date.getMinutes(), {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                        }
+                      }}
+                    />
+                  )}
+                />
+                {scheduledAtError ? (
+                  <p
+                    id='recall-schedule-start-at-error'
+                    role='alert'
+                    className='text-destructive text-sm'
+                  >
+                    {t(String(scheduledAtError.message))}
+                  </p>
+                ) : null}
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='recall-schedule-timezone'>
+                  {t('IANA timezone')}
+                </Label>
+                <Input
+                  id='recall-schedule-timezone'
+                  placeholder={DEFAULT_RECALL_TIMEZONE}
+                  disabled={immutable}
+                  aria-invalid={Boolean(scheduleTimezoneError)}
+                  aria-describedby={
+                    scheduleTimezoneError
+                      ? 'recall-schedule-timezone-error'
+                      : undefined
+                  }
+                  {...form.register('schedule.timezone')}
+                />
+                {scheduleTimezoneError ? (
+                  <p
+                    id='recall-schedule-timezone-error'
+                    role='alert'
+                    className='text-destructive text-sm'
+                  >
+                    {t(String(scheduleTimezoneError.message))}
+                  </p>
+                ) : null}
+              </div>
+            </>
           ) : null}
           {executionMode === 'recurring' ? (
             <>
-              <div className='space-y-2'>
-                <Label>{t('IANA timezone')}</Label>
-                <Input
-                  placeholder='America/New_York'
-                  disabled={immutable}
-                  {...form.register('schedule.timezone')}
-                />
-              </div>
-              <div className='space-y-2'>
-                <Label>{t('Frequency')}</Label>
-                <Select
-                  disabled={immutable}
-                  value={form.watch('schedule.frequency')}
-                  onValueChange={(value) =>
-                    value &&
-                    form.setValue(
-                      'schedule.frequency',
-                      value as 'daily' | 'weekly'
-                    )
-                  }
-                  items={[
-                    { value: 'daily', label: t('Daily') },
-                    { value: 'weekly', label: t('Weekly') },
-                  ]}
-                >
-                  <SelectTrigger className='w-full'>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value='daily'>{t('Daily')}</SelectItem>
-                      <SelectItem value='weekly'>{t('Weekly')}</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
               {form.watch('schedule.frequency') === 'weekly' ? (
                 <div className='space-y-2'>
-                  <Label>{t('Weekday (0-6)')}</Label>
+                  <Label htmlFor='recall-schedule-weekday'>
+                    {t('Weekday')}
+                  </Label>
                   <Input
+                    id='recall-schedule-weekday'
                     type='number'
                     min={0}
                     max={6}
                     disabled={immutable}
+                    aria-invalid={Boolean(scheduleWeekdayError)}
+                    aria-describedby={
+                      scheduleWeekdayError
+                        ? 'recall-schedule-weekday-error'
+                        : undefined
+                    }
                     {...form.register('schedule.weekday', {
                       valueAsNumber: true,
                     })}
                   />
+                  {scheduleWeekdayError ? (
+                    <p
+                      id='recall-schedule-weekday-error'
+                      role='alert'
+                      className='text-destructive text-sm'
+                    >
+                      {t(String(scheduleWeekdayError.message))}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
-              <div className='space-y-2'>
-                <Label>{t('Hour (0-23)')}</Label>
-                <Input
-                  type='number'
-                  min={0}
-                  max={23}
-                  disabled={immutable}
-                  {...form.register('schedule.hour', { valueAsNumber: true })}
-                />
-              </div>
-              <div className='space-y-2'>
-                <Label>{t('Minute (0-59)')}</Label>
-                <Input
-                  type='number'
-                  min={0}
-                  max={59}
-                  disabled={immutable}
-                  {...form.register('schedule.minute', { valueAsNumber: true })}
-                />
-              </div>
             </>
           ) : null}
         </CardContent>
@@ -1196,6 +1440,9 @@ export function CampaignEditor(props: CampaignEditorProps) {
             immutable={immutable}
             isGenerating={mutations.generate.isPending}
             onGenerate={generateTranslations}
+            onApplyServerRefresh={applyPendingServerDraft}
+            serverRefreshPending={Boolean(pendingServerDraft)}
+            translationTask={translationTask}
           />
         </CardContent>
       </Card>

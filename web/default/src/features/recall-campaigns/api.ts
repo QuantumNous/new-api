@@ -54,6 +54,10 @@ export const recallCampaignKeys = {
   userGroups: ['recall-campaigns', 'audience-options', 'user-groups'] as const,
   audienceUsers: (params: { keyword?: string; ids?: number[] }) =>
     ['recall-campaigns', 'audience-options', 'users', params] as const,
+  translationTask: (id: number, taskId: number) =>
+    ['recall-campaigns', id, 'email-translations', 'tasks', taskId] as const,
+  latestTranslationTask: (id: number) =>
+    ['recall-campaigns', id, 'email-translations', 'tasks', 'latest'] as const,
 }
 
 export class RecallApiError<T = unknown> extends Error {

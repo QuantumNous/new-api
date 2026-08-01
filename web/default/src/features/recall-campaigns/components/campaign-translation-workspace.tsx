@@ -17,11 +17,13 @@ import {
   RECALL_EMAIL_STARTER_HTML,
   removeRecallEmailStage,
 } from '../helpers'
-import type {
-  RecallCampaignDraft,
-  RecallEmailLocalizationBlocker,
-  RecallEmailLocaleStatus,
-  RecallEmailStage,
+import {
+  isRecallTranslationTaskActive,
+  type RecallCampaignDraft,
+  type RecallEmailLocalizationBlocker,
+  type RecallEmailLocaleStatus,
+  type RecallEmailStage,
+  type RecallTranslationTask,
 } from '../types'
 import { CampaignEmailHtmlEditor } from './campaign-email-html-editor'
 
@@ -34,7 +36,10 @@ interface CampaignTranslationWorkspaceProps {
   immutable?: boolean
   isGenerating: boolean
   onGenerate: () => Promise<void>
+  onApplyServerRefresh?: () => void
+  serverRefreshPending?: boolean
   focusBlocker?: RecallEmailLocalizationBlocker
+  translationTask?: RecallTranslationTask
 }
 
 function isRecallTargetLocale(locale: string): locale is RecallTargetLocale {
@@ -134,6 +139,10 @@ function getGenerationErrorMessage(error: unknown): string {
   return 'Translation generation failed'
 }
 
+function getTranslationTaskError(task: RecallTranslationTask): string {
+  return task.error_copy_key?.trim() || task.error_code?.trim() || ''
+}
+
 export function CampaignTranslationWorkspace(
   props: CampaignTranslationWorkspaceProps
 ): React.JSX.Element {
@@ -176,7 +185,11 @@ export function CampaignTranslationWorkspace(
   const summary = getRecallTranslationSummary(watchedStages, englishDirtyStages)
   const manualCount = getRecallManualLocaleCount(watchedStages)
   const readOnly = props.disabled || Boolean(props.immutable)
-  const generationPending = props.isGenerating || generationInFlight
+  const activeTranslationTask = props.translationTask
+    ? isRecallTranslationTaskActive(props.translationTask.status)
+    : false
+  const generationPending =
+    props.isGenerating || generationInFlight || activeTranslationTask
 
   useEffect(() => {
     if (!props.focusBlocker) return
@@ -257,7 +270,11 @@ export function CampaignTranslationWorkspace(
         ) : null}
         <div className='grid gap-3 md:grid-cols-2'>
           <div className='space-y-2'>
-            <Label>{t('Delay seconds')}</Label>
+            <Label>
+              {index === 0
+                ? t('Delay seconds')
+                : t('Absolute offset from the first SMTP accepted email.')}
+            </Label>
             <Input
               type='number'
               min={0}
@@ -426,6 +443,28 @@ export function CampaignTranslationWorkspace(
         <p role='alert' className='text-destructive text-sm'>
           {t(generationError)}
         </p>
+      ) : null}
+      {props.translationTask ? (
+        <div role='status' className='space-y-1 rounded-md border p-3 text-sm'>
+          <p>
+            {t('Translation task {{status}}', {
+              status: props.translationTask.status,
+            })}
+          </p>
+          {props.translationTask.status === 'failed' ? (
+            <p className='text-destructive'>
+              {t(getTranslationTaskError(props.translationTask))}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {props.serverRefreshPending ? (
+        <div role='status' className='space-y-2 rounded-md border p-3 text-sm'>
+          <p>{t('New campaign data is available.')}</p>
+          <Button type='button' onClick={props.onApplyServerRefresh}>
+            {t('Refresh campaign data')}
+          </Button>
+        </div>
       ) : null}
       <p className='font-medium'>{t('{{ready}} / {{total}} ready', summary)}</p>
       <Button
