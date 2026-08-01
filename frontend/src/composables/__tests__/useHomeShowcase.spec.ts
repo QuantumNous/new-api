@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   calculateRuntime,
   clampRouteWeight,
+  rankRouteChannels,
   reorderRouteChannels,
   selectRoutePrimary,
   useHomeShowcase,
@@ -76,6 +77,43 @@ describe('home runtime calculations', () => {
     state.dispose()
   })
 
+  it('derives automatic route order without changing the DIY order', () => {
+    const state = useHomeShowcase()
+    const channels = state.activeChannels.value
+    const manualOrder = channels.map((channel) => channel.id)
+
+    expect(rankRouteChannels(channels).map((channel) => channel.id)).toEqual([
+      'prod-market-backup',
+      'prod-cold-backup',
+      'prod-official-primary',
+    ])
+    expect(channels.map((channel) => channel.id)).toEqual(manualOrder)
+
+    state.setRouteMode('auto')
+    expect(state.activeChannels.value.map((channel) => channel.id)).toEqual(
+      manualOrder
+    )
+    state.setRouteMode('manual')
+    expect(state.activeChannels.value.map((channel) => channel.id)).toEqual(
+      manualOrder
+    )
+    state.dispose()
+  })
+
+  it('reports unavailable when every candidate is removed', () => {
+    const state = useHomeShowcase()
+    for (const channel of state.activeChannels.value) {
+      if (channel.enabled) expect(state.toggleChannel(channel.id)).toBe(true)
+    }
+
+    expect(
+      state.activeChannels.value.every((channel) => !channel.enabled)
+    ).toBe(true)
+    expect(state.simulateRequest()).toBe(false)
+    expect(state.routeSimulation.value.phase).toBe('unavailable')
+    state.dispose()
+  })
+
   it('selects by priority or weight and completes the degraded-route fallback', () => {
     vi.useFakeTimers()
     const state = useHomeShowcase()
@@ -98,6 +136,23 @@ describe('home runtime calculations', () => {
       'prod-market-backup'
     )
     expect(state.routeSimulation.value.latency).toBe(424)
+    state.dispose()
+  })
+
+  it('uses the derived automatic order for request selection', () => {
+    vi.useFakeTimers()
+    const state = useHomeShowcase()
+    state.setRouteMode('auto')
+
+    expect(state.simulateRequest()).toBe(true)
+    expect(state.routeSimulation.value.primaryChannelId).toBe(
+      'prod-market-backup'
+    )
+    vi.advanceTimersByTime(760)
+    expect(state.routeSimulation.value.phase).toBe('responded')
+    expect(state.routeSimulation.value.activeChannelId).toBe(
+      'prod-market-backup'
+    )
     state.dispose()
   })
 })

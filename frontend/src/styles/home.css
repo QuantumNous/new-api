@@ -100,6 +100,159 @@ html.light .landing-shell .signal-console__rail {
   box-shadow: 2px 0 0 var(--pencil-line-faint);
 }
 
+html.light .landing-shell .routing-workbench {
+  border: 1.5px solid var(--pencil-line-soft);
+  border-radius: 18px 23px 19px 21px / 20px 17px 23px 19px;
+  box-shadow:
+    3px 4px 0 color-mix(in srgb, var(--pencil-line-soft) 36%, transparent),
+    0 18px 38px color-mix(in srgb, var(--text-primary) 9%, transparent);
+}
+
+html.light .landing-shell .routing-workbench::before {
+  position: absolute;
+  z-index: 5;
+  inset: 3px 4px 4px 3px;
+  border: 1px solid var(--pencil-line-faint);
+  border-radius: 15px 20px 17px 18px / 18px 15px 20px 16px;
+  clip-path: polygon(0 2%, 67% 0, 100% 2%, 99% 96%, 62% 100%, 1% 98%);
+  content: '';
+  pointer-events: none;
+}
+
+html.light .landing-shell .token-commandbar {
+  border-bottom-color: transparent;
+  background-image: repeating-linear-gradient(
+    92deg,
+    var(--pencil-line-soft) 0 7px,
+    transparent 7px 12px
+  );
+  background-position: left bottom;
+  background-repeat: repeat-x;
+  background-size: auto 1px;
+}
+
+html.light .landing-shell .token-switcher button.is-active {
+  position: relative;
+  box-shadow: none;
+}
+
+html.light .landing-shell .token-switcher button.is-active::after {
+  position: absolute;
+  right: 8%;
+  bottom: 0.18rem;
+  left: 9%;
+  height: 3px;
+  border-top: 1.5px solid var(--accent);
+  border-radius: 48% 52% 44% 56%;
+  content: '';
+  rotate: -0.8deg;
+}
+
+html.light .landing-shell .token-mode-badge {
+  border-color: var(--pencil-line-soft);
+  border-radius: 5px 8px 6px 4px / 6px 5px 8px 5px;
+  box-shadow: 1px 1px 0 var(--pencil-line-faint);
+  rotate: 0.45deg;
+}
+
+html.light .landing-shell .candidate-bay,
+html.light .landing-shell .route-priority-panel {
+  border-bottom-color: transparent;
+  background-image: repeating-linear-gradient(
+    91deg,
+    var(--pencil-line-soft) 0 8px,
+    transparent 8px 13px
+  );
+  background-position: left bottom;
+  background-repeat: repeat-x;
+  background-size: auto 1px;
+}
+
+html.light .landing-shell .route-candidates button {
+  border-color: var(--pencil-line-soft);
+  border-radius: 4px 7px 5px 3px / 5px 4px 7px 4px;
+  box-shadow: 1px 1px 0 var(--pencil-line-faint);
+  rotate: -0.12deg;
+}
+
+html.light .landing-shell .route-candidates button:nth-child(even) {
+  border-radius: 6px 4px 7px 5px / 4px 7px 5px 6px;
+  rotate: 0.16deg;
+}
+
+html.light .landing-shell .route-candidates button:hover,
+html.light .landing-shell .route-candidates button:focus-visible {
+  rotate: 0deg;
+}
+
+html.light .landing-shell .route-candidates button.is-selected::after {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.3rem;
+  width: 1.25rem;
+  border-top: 1px solid var(--accent);
+  content: '';
+  rotate: -6deg;
+}
+
+html.light .landing-shell .route-item {
+  border-color: var(--pencil-line-soft);
+  border-radius: 3px 6px 4px 2px / 4px 3px 6px 4px;
+  box-shadow: 1px 1px 0 var(--pencil-line-faint);
+}
+
+html.light .landing-shell .route-item:nth-child(even) {
+  border-radius: 5px 3px 6px 4px / 3px 6px 4px 5px;
+}
+
+html.light .landing-shell .route-priority {
+  border-color: var(--pencil-line-soft);
+  border-radius: 47% 53% 49% 51% / 54% 46% 52% 48%;
+  box-shadow: 1px 1px 0 var(--pencil-line-faint);
+}
+
+html.light .landing-shell .balance-switch > span {
+  border-color: var(--pencil-line-soft);
+  border-radius: 47% 53% 49% 51% / 54% 46% 52% 48%;
+  box-shadow: 1px 1px 0 var(--pencil-line-faint);
+}
+
+html.light .landing-shell .route-details {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 25px,
+    var(--dec-grid-line) 25px 26px
+  );
+}
+
+html.light .landing-shell .signal-node {
+  border-color: var(--pencil-line-soft);
+  border-radius: 4px 7px 5px 3px / 5px 4px 7px 4px;
+  box-shadow: 1px 1px 0 var(--pencil-line-faint);
+}
+
+html.light .landing-shell .signal-node--gateway {
+  rotate: -0.35deg;
+}
+
+html.light .landing-shell .signal-node--channel {
+  rotate: 0.18deg;
+}
+
+html.light .landing-shell .signal-node--model {
+  rotate: 0.28deg;
+}
+
+html.light .landing-shell .signal-rail {
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--pencil-line-soft) 0 8px,
+    transparent 8px 12px
+  );
+  rotate: -0.12deg;
+}
+
 .landing-shell {
   font-family: 'Ren2Inter', 'Ren2NotoSansSC', system-ui, sans-serif;
   --home-font-display:
@@ -269,7 +422,7 @@ html.dark .landing-shell .signal-dot-matrix {
     var(--surface-solid)
   );
   --showcase-image-opacity: 0.52;
-  --showcase-routing-image-opacity: 0.48;
+  --showcase-routing-image-opacity: 0.12;
   --showcase-image-fallback:
     repeating-linear-gradient(
       0deg,
@@ -662,7 +815,7 @@ html.dark .home-showcase {
     var(--surface-container-high)
   );
   --showcase-image-opacity: 0.46;
-  --showcase-routing-image-opacity: 0.5;
+  --showcase-routing-image-opacity: 0.1;
   --showcase-image-fallback: var(--surface-container-lowest);
   --showcase-routing-fallback: var(--page-background);
   --showcase-image-scrim: linear-gradient(

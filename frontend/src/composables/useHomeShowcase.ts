@@ -62,6 +62,31 @@ export function reorderRouteChannels(
   return true
 }
 
+const ROUTE_HEALTH_RANK: Record<HomeRouteChannel['health'], number> = {
+  online: 0,
+  degraded: 1,
+  offline: 2,
+}
+
+export function rankRouteChannels(
+  channels: HomeRouteChannel[]
+): HomeRouteChannel[] {
+  const originalIndex = new Map(
+    channels.map((channel, index) => [channel.id, index])
+  )
+
+  return [...channels].sort((left, right) => {
+    const health =
+      ROUTE_HEALTH_RANK[left.health] - ROUTE_HEALTH_RANK[right.health]
+    if (health !== 0) return health
+    if (left.latency !== right.latency) return left.latency - right.latency
+    if (left.qualityScore !== right.qualityScore) {
+      return right.qualityScore - left.qualityScore
+    }
+    return originalIndex.get(left.id)! - originalIndex.get(right.id)!
+  })
+}
+
 export function selectRoutePrimary(
   channels: HomeRouteChannel[],
   loadBalance: boolean,
@@ -216,6 +241,7 @@ export function useHomeShowcase() {
 
   function setRouteMode(mode: HomeRouteMode) {
     activeToken.value.mode = mode
+    resetSimulation()
   }
 
   function reorderActiveChannel(channelId: string, targetIndex: number) {
@@ -284,8 +310,12 @@ export function useHomeShowcase() {
   function simulateRequest(): boolean {
     clearSimulationTimers()
     const eventId = routeSimulation.value.eventId + 1
+    const simulationChannels =
+      activeToken.value.mode === 'auto'
+        ? rankRouteChannels(activeToken.value.channels)
+        : activeToken.value.channels
     const primary = selectRoutePrimary(
-      activeToken.value.channels,
+      simulationChannels,
       activeToken.value.loadBalance,
       eventId
     )
@@ -298,7 +328,7 @@ export function useHomeShowcase() {
       return false
     }
 
-    const candidates = activeToken.value.channels.filter(
+    const candidates = simulationChannels.filter(
       (channel) =>
         channel.enabled &&
         channel.health === 'online' &&
