@@ -42,9 +42,9 @@
 | Targeted race | `go test -race ...` | NOT RUN：用户明确禁止运行 `go test -race` | NO-GO |
 | Targeted functional regression | `go test ./model ./service ./controller ./router ./middleware ./dto ./types ./pkg/perf_metrics ./relay/channel/task/byteplus -run 'APIIdempotency|BytePlus|RealPerson|AssetReference|Callback|SensitiveRequestPath|Multipart' -count=1` | PASS，exit 0；9 个 package 均 `ok` | 可作为局部功能证据 |
 | Targeted vet | `go vet ./model ./service ./controller ./router ./middleware ./dto ./types ./pkg/perf_metrics ./relay/channel/task/byteplus` | PASS，exit 0 | 可作为局部静态证据 |
-| Full vet | `go vet ./...` | FAIL，exit 1；首个相关失败：`main.go:46:12: pattern web/classic/dist: no matching files found` | NO-GO；该 root package 缺少 `web/classic/dist` 为本轮实际观察到的潜在基线问题 |
-| Full build | `go build ./...` | FAIL，exit 1；首个相关失败：`main.go:46:12: pattern web/classic/dist: no matching files found` | NO-GO |
-| Full tests | `go test ./... -count=1` | TIMEOUT，exit 124；304040 ms 后无 package 级结果返回 | NO-GO |
+| Full vet | `go vet ./...` | FAIL，exit 1；首个相关失败：`main.go:46:12: pattern web/classic/dist: no matching files found` | NO-GO；该 root package 缺少 `web/classic/dist` 为本轮实际观察到的环境/基线问题，不在 feature diff 内 |
+| Full build | `go build ./...` | FAIL，exit 1；首个相关失败：`main.go:46:12: pattern web/classic/dist: no matching files found` | NO-GO；同上，root embed failure 不在 feature diff 内 |
+| Full tests | `go test ./... -count=1` | TIMEOUT，exit 124；原始 full suite 304040 ms 超时。120s guarded reproduction 先输出 `main.go:46:12: pattern web/classic/dist: no matching files found`，随后卡在长包；`go test ./controller -count=1 -timeout=30s -v` 超时定位到 pre-existing `TestListRecallAudienceUsersSearchesByKeywordWithBounds` -> `setupRecallControllerHarness` -> SQLite/GORM AutoMigrate（`controller/recall_campaign_test.go` 未由 feature 修改）；110s 后续定位到 pre-existing Stripe setup -> SQLite/GORM AutoMigrate（`controller/topup_stripe_test.go` 未由 feature 修改）；non-root/non-controller bounded batch 超时在 `service/recall_audience_test.go` setup AutoMigrate（未由 feature 修改）；legacy slices 单独可过但慢：controller Recall ~58.7s，Stripe ~62.1s；feature 证据 `go test ./controller -run '(BytePlus\|RealPerson)' -count=1 -timeout=60s -v` PASS，package 0.449s、wall ~5.1s | NO-GO；full-suite stall 归类为 baseline/environment-heavy legacy SQLite/GORM setup，未定位到 BytePlus real-person tests；feature 会增加总负载，不能声称 full suite 通过 |
 | SQLite migration | `Remove-Item Env:TEST_MYSQL_DSN; Remove-Item Env:TEST_POSTGRES_DSN; go test ./model -run TestBytePlusRealPersonDialectMigrations -count=1 -v` | PASS，exit 0；`sqlite` PASS | 可作为 SQLite smoke 证据 |
 | MySQL migration | 同上；随后仅检查 `TEST_MYSQL_DSN` 是否非空 | SKIP/NOT RUN；`TEST_MYSQL_DSN=missing` | NO-GO |
 | PostgreSQL migration | 同上；随后仅检查 `TEST_POSTGRES_DSN` 是否非空 | SKIP/NOT RUN；`TEST_POSTGRES_DSN=missing` | NO-GO |
@@ -161,8 +161,8 @@ Drill evidence fields：
 阻塞项：
 
 - Targeted race 未运行：用户明确禁止 `go test -race`。
-- Full vet/full build 失败：`web/classic/dist` 缺失导致 root package embed pattern 失败。
-- Full tests 超时：`go test ./... -count=1` 304040 ms 后 exit 124。
+- Full vet/full build 失败：`web/classic/dist` 缺失导致 root package embed pattern 失败；该环境/基线问题不在 feature diff 内，但本地 full gates 仍失败。
+- Full tests 超时：`go test ./... -count=1` 304040 ms 后 exit 124；bounded localization 指向 pre-existing legacy SQLite/GORM AutoMigrate stalls（Recall/Stripe/controller 与 `service/recall_audience_test.go`），BytePlus/RealPerson controller slice 通过，但 full suite 仍未通过。
 - MySQL/PostgreSQL dialect migration 未运行：`TEST_MYSQL_DSN`、`TEST_POSTGRES_DSN` 缺失。
 - BytePlus/TOS/staging 凭据、测试素材、staging 变更授权缺失；受控集成矩阵未运行。
 - 30 分钟观测窗口、callback probes、metrics/Grafana/Cloud Run 证据未运行。
