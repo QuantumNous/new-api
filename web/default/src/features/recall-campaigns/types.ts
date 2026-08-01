@@ -393,12 +393,24 @@ export interface RecallCampaignMetrics {
   assisted_count: number
   no_coupon_count: number
   currency_metrics: RecallCurrencyMetrics[]
+  metric_cards?: Record<string, RecallMetricCard>
 }
 
 export interface RecallMetricAmount {
   currency: string
   amount_minor: number
   user_count: number
+}
+
+export interface RecallMetricCard {
+  key: RecallMetricKey
+  total: number
+  amounts: RecallMetricAmount[]
+  row_grain: 'identity' | 'message' | 'conversion' | string
+  snapshot: string
+  legacy_unidentified_count: number
+  drilldown_complete: boolean
+  supported_filters: Record<string, boolean>
 }
 
 export interface RecallMetricRow {

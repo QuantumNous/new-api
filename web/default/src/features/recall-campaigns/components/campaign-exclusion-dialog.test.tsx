@@ -1,0 +1,397 @@
+import * as React from 'react'
+import { createRoot } from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { createInstance } from 'i18next'
+import { I18nextProvider, initReactI18next } from 'react-i18next'
+import type { RecallExclusionPreview } from '../types'
+
+function setupDom() {
+  class NodeShim {
+    childNodes: NodeShim[] = []
+    nodeType = 0
+    nodeName = ''
+    parentNode: NodeShim | null = null
+    private listeners: Record<string, EventListener[]> = {}
+    appendChild(node: NodeShim) {
+      this.childNodes.push(node)
+      node.parentNode = this
+      return node
+    }
+    removeChild(node: NodeShim) {
+      this.childNodes = this.childNodes.filter((child) => child !== node)
+      node.parentNode = null
+      return node
+    }
+    addEventListener(type: string, listener: EventListener) {
+      this.listeners[type] ??= []
+      this.listeners[type].push(listener)
+    }
+    removeEventListener(type: string, listener: EventListener) {
+      this.listeners[type] = (this.listeners[type] ?? []).filter(
+        (current) => current !== listener
+      )
+    }
+    dispatchEvent(event: Event) {
+      Object.defineProperty(event, 'currentTarget', {
+        configurable: true,
+        value: this,
+      })
+      for (const listener of this.listeners[event.type] ?? []) {
+        listener.call(this, event)
+      }
+      return !event.defaultPrevented
+    }
+  }
+  class ElementShim extends NodeShim {
+    attributes: Record<string, string> = {}
+    disabled = false
+    files?: File[]
+    localName: string
+    namespaceURI = 'http://www.w3.org/1999/xhtml'
+    style = {}
+    tagName: string
+    value = ''
+    private text = ''
+    constructor(tagName: string) {
+      super()
+      this.nodeType = 1
+      this.localName = tagName
+      this.tagName = tagName.toUpperCase()
+      this.nodeName = this.tagName
+    }
+    set textContent(value: string) {
+      this.text = String(value)
+      this.childNodes = []
+    }
+    get textContent() {
+      return (
+        this.text ||
+        this.childNodes
+          .map((node) => ('textContent' in node ? node.textContent : ''))
+          .join('')
+      )
+    }
+    setAttribute(key: string, value: string) {
+      this.attributes[key] = String(value)
+      if (key === 'disabled') this.disabled = true
+      if (key === 'value') this.value = String(value)
+    }
+    getAttribute(key: string) {
+      return this.attributes[key] ?? null
+    }
+    removeAttribute(key: string) {
+      delete this.attributes[key]
+      if (key === 'disabled') this.disabled = false
+    }
+    querySelector(selector: string): ElementShim | null {
+      if (
+        selector.startsWith('#') &&
+        this.attributes.id === selector.slice(1)
+      ) {
+        return this
+      }
+      if (selector.toUpperCase() === this.tagName) return this
+      for (const child of this.childNodes) {
+        if (child instanceof ElementShim) {
+          const match = child.querySelector(selector)
+          if (match) return match
+        }
+      }
+      return null
+    }
+    focus() {}
+  }
+  class TextShim extends NodeShim {
+    textContent: string
+    constructor(text: string) {
+      super()
+      this.nodeType = 3
+      this.nodeName = '#text'
+      this.textContent = text
+    }
+  }
+  const body = new ElementShim('body')
+  const documentShim = {
+    nodeType: 9,
+    body,
+    createElement: (tagName: string) => {
+      const element = new ElementShim(tagName)
+      Object.assign(element, { ownerDocument: documentShim })
+      return element
+    },
+    createElementNS: (_namespace: string, tagName: string) => {
+      const element = new ElementShim(tagName)
+      Object.assign(element, { ownerDocument: documentShim })
+      return element
+    },
+    createTextNode: (text: string) => new TextShim(text),
+    addEventListener() {},
+    removeEventListener() {},
+    defaultView: globalThis,
+  }
+  Object.assign(body, { ownerDocument: documentShim })
+  Object.assign(globalThis, {
+    document: documentShim,
+    window: globalThis,
+    HTMLElement: ElementShim,
+    HTMLIFrameElement: class {},
+    MouseEvent: Event,
+    Node: NodeShim,
+    IS_REACT_ACT_ENVIRONMENT: true,
+  })
+}
+
+setupDom()
+
+const previewCalls: File[] = []
+const batchLoads: number[] = []
+const confirmCalls: number[] = []
+const invalidatedKeys: unknown[] = []
+const latestInputs: Record<
+  string,
+  React.InputHTMLAttributes<HTMLInputElement>
+> = {}
+const latestButtons: Record<
+  string,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+> = {}
+const testRecallCampaignKeys = {
+  all: ['recall-campaigns'],
+  detail: (id: number) => ['recall-campaigns', 'detail', id],
+  metrics: (id: number) => ['recall-campaigns', id, 'metrics'],
+}
+
+function makePreview(
+  overrides: Partial<RecallExclusionPreview> = {}
+): RecallExclusionPreview {
+  return {
+    batch_id: 73,
+    total_rows: 3,
+    resolved_users: 2,
+    duplicate_rows: 1,
+    unresolved_rows: 0,
+    conflict_rows: 0,
+    blocking_errors: [],
+    warnings: [],
+    cancelable_work: 5,
+    confirmable: true,
+    ...overrides,
+  }
+}
+
+let nextPreview = makePreview()
+
+mock.module('../api', () => ({
+  confirmRecallCampaignExclusionBatch: async (_id: number, batchId: number) => {
+    confirmCalls.push(batchId)
+    return { success: true, data: makePreview({ batch_id: batchId }) }
+  },
+  getRecallCampaignExclusionBatch: async (_id: number, batchId: number) => {
+    batchLoads.push(batchId)
+    return { success: true, data: makePreview({ batch_id: batchId }) }
+  },
+  previewRecallCampaignExclusions: async (_id: number, file: File) => {
+    previewCalls.push(file)
+    return { success: true, data: nextPreview }
+  },
+  recallCampaignKeys: testRecallCampaignKeys,
+}))
+
+mock.module('@/components/ui/button', () => ({
+  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => {
+    if (typeof props.children === 'string')
+      latestButtons[props.children] = props
+    return <button {...props} />
+  },
+}))
+
+mock.module('@/components/ui/input', () => ({
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => {
+    if (props.id) latestInputs[props.id] = props
+    return <input {...props} />
+  },
+}))
+
+mock.module('@/components/ui/dialog', () => ({
+  Dialog: (props: { open?: boolean; children: React.ReactNode }) =>
+    props.open ? <div>{props.children}</div> : null,
+  DialogContent: (props: React.HTMLAttributes<HTMLDivElement>) => (
+    <section {...props} />
+  ),
+  DialogDescription: (props: React.HTMLAttributes<HTMLParagraphElement>) => (
+    <p {...props} />
+  ),
+  DialogFooter: (props: React.HTMLAttributes<HTMLDivElement>) => (
+    <footer {...props} />
+  ),
+  DialogHeader: (props: React.HTMLAttributes<HTMLDivElement>) => (
+    <header {...props} />
+  ),
+  DialogTitle: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
+    <h2 {...props} />
+  ),
+}))
+
+const { CampaignExclusionDialog } = await import('./campaign-exclusion-dialog')
+
+const testI18n = createInstance()
+await testI18n.use(initReactI18next).init({
+  lng: 'en',
+  fallbackLng: 'en',
+  resources: { en: { translation: {} } },
+  interpolation: { escapeValue: false },
+})
+
+function renderDialog(props: {
+  initialBatchId?: number
+  onOpenChange?: (open: boolean) => void
+}) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  const originalInvalidate = queryClient.invalidateQueries.bind(queryClient)
+  queryClient.invalidateQueries = ((filters: { queryKey?: unknown }) => {
+    invalidatedKeys.push(filters.queryKey)
+    return originalInvalidate(filters)
+  }) as QueryClient['invalidateQueries']
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  React.act(() => {
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={testI18n}>
+          <CampaignExclusionDialog
+            campaignId={42}
+            initialBatchId={props.initialBatchId}
+            open
+            onOpenChange={props.onOpenChange ?? (() => undefined)}
+          />
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+  })
+  return { container, root }
+}
+
+async function wait(ms = 0) {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function click(label: string) {
+  await React.act(async () => {
+    latestButtons[label]?.onClick?.(
+      new MouseEvent('click') as unknown as React.MouseEvent<HTMLButtonElement>
+    )
+    await wait()
+  })
+}
+
+async function chooseFile(file: File) {
+  await React.act(async () => {
+    latestInputs['recall-exclusion-file']?.onChange?.({
+      target: { files: [file], value: 'C:\\fakepath\\users.csv' },
+    } as unknown as React.ChangeEvent<HTMLInputElement>)
+    await wait()
+  })
+}
+
+afterEach(() => {
+  previewCalls.length = 0
+  batchLoads.length = 0
+  confirmCalls.length = 0
+  invalidatedKeys.length = 0
+  for (const key of Object.keys(latestInputs)) delete latestInputs[key]
+  for (const key of Object.keys(latestButtons)) delete latestButtons[key]
+  nextPreview = makePreview()
+})
+
+describe('CampaignExclusionDialog', () => {
+  test('uploads only for preview and clears raw file input after preview', async () => {
+    const { container, root } = renderDialog({})
+    const file = new File(['email\nraw@example.com\n'], 'users.csv', {
+      type: 'text/csv',
+    })
+
+    await chooseFile(file)
+    await click('Preview exclusions')
+
+    expect(previewCalls).toEqual([file])
+    expect(confirmCalls).toEqual([])
+    expect(container.textContent).toContain('2 resolved users')
+    expect(container.textContent).toContain('5 queued messages can be canceled')
+    expect(
+      latestInputs['recall-exclusion-file']?.value === '' ||
+        latestInputs['recall-exclusion-file']?.value === undefined
+    ).toBeTrue()
+    expect(container.textContent).not.toContain('raw@example.com')
+
+    React.act(() => root.unmount())
+  })
+
+  test('disables confirmation for blocking conflicts and renders bounded problem messages', async () => {
+    nextPreview = makePreview({
+      conflict_rows: 1,
+      confirmable: false,
+      blocking_errors: [
+        {
+          row: 2,
+          code: 'already_converted',
+          message: 'Row conflicts with a converted recipient.',
+        },
+      ],
+    })
+
+    const { container, root } = renderDialog({})
+    await chooseFile(new File(['email\nblocked@example.com\n'], 'users.csv'))
+    await click('Preview exclusions')
+
+    expect(container.textContent).toContain(
+      'Row conflicts with a converted recipient.'
+    )
+    expect(latestButtons['Apply exclusions']?.disabled).toBeTrue()
+    expect(container.textContent).not.toContain('blocked@example.com')
+
+    React.act(() => root.unmount())
+  })
+
+  test('recovers saved preview by numeric batch id and refreshes metrics after confirm', async () => {
+    const { container, root } = renderDialog({ initialBatchId: 88 })
+
+    await React.act(async () => {
+      await wait()
+    })
+
+    expect(batchLoads).toEqual([88])
+    expect(container.textContent).toContain('2 resolved users')
+
+    await click('Apply exclusions')
+
+    expect(confirmCalls).toEqual([88])
+    expect(invalidatedKeys).toContainEqual(testRecallCampaignKeys.metrics(42))
+    expect(invalidatedKeys).toContainEqual(testRecallCampaignKeys.detail(42))
+
+    React.act(() => root.unmount())
+  })
+
+  test('clears raw state on confirm and close', async () => {
+    const openChanges: boolean[] = []
+    const { container, root } = renderDialog({
+      onOpenChange: (open) => openChanges.push(open),
+    })
+    await chooseFile(new File(['email\nprivate@example.com\n'], 'users.csv'))
+    await click('Preview exclusions')
+    await click('Apply exclusions')
+
+    expect(confirmCalls).toEqual([73])
+    expect(container.textContent).not.toContain('private@example.com')
+
+    await click('Close')
+
+    expect(openChanges).toContain(false)
+    expect(container.textContent).not.toContain('private@example.com')
+
+    React.act(() => root.unmount())
+  })
+})

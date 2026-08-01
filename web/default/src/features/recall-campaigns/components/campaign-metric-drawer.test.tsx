@@ -1,0 +1,451 @@
+import * as React from 'react'
+import { createRoot } from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { createInstance } from 'i18next'
+import { I18nextProvider, initReactI18next } from 'react-i18next'
+import type {
+  RecallMetricCard,
+  RecallMetricFilters,
+  RecallMetricKey,
+  RecallMetricResult,
+} from '../types'
+
+function setupDom() {
+  class NodeShim {
+    childNodes: NodeShim[] = []
+    nodeType = 0
+    nodeName = ''
+    parentNode: NodeShim | null = null
+    private listeners: Record<string, EventListener[]> = {}
+    appendChild(node: NodeShim) {
+      this.childNodes.push(node)
+      node.parentNode = this
+      return node
+    }
+    removeChild(node: NodeShim) {
+      this.childNodes = this.childNodes.filter((child) => child !== node)
+      node.parentNode = null
+      return node
+    }
+    addEventListener(type: string, listener: EventListener) {
+      this.listeners[type] ??= []
+      this.listeners[type].push(listener)
+    }
+    removeEventListener(type: string, listener: EventListener) {
+      this.listeners[type] = (this.listeners[type] ?? []).filter(
+        (current) => current !== listener
+      )
+    }
+    dispatchEvent(event: Event) {
+      Object.defineProperty(event, 'currentTarget', {
+        configurable: true,
+        value: this,
+      })
+      for (const listener of this.listeners[event.type] ?? []) {
+        listener.call(this, event)
+      }
+      return !event.defaultPrevented
+    }
+  }
+  class ElementShim extends NodeShim {
+    attributes: Record<string, string> = {}
+    disabled = false
+    localName: string
+    namespaceURI = 'http://www.w3.org/1999/xhtml'
+    style = {}
+    tagName: string
+    value = ''
+    private text = ''
+    constructor(tagName: string) {
+      super()
+      this.nodeType = 1
+      this.localName = tagName
+      this.tagName = tagName.toUpperCase()
+      this.nodeName = this.tagName
+    }
+    set textContent(value: string) {
+      this.text = String(value)
+      this.childNodes = []
+    }
+    get textContent() {
+      return (
+        this.text ||
+        this.childNodes
+          .map((node) => ('textContent' in node ? node.textContent : ''))
+          .join('')
+      )
+    }
+    setAttribute(key: string, value: string) {
+      this.attributes[key] = String(value)
+      if (key === 'disabled') this.disabled = true
+      if (key === 'value') this.value = String(value)
+    }
+    getAttribute(key: string) {
+      return this.attributes[key] ?? null
+    }
+    removeAttribute(key: string) {
+      delete this.attributes[key]
+      if (key === 'disabled') this.disabled = false
+    }
+    querySelector(selector: string): ElementShim | null {
+      if (
+        selector.startsWith('#') &&
+        this.attributes.id === selector.slice(1)
+      ) {
+        return this
+      }
+      if (selector.toUpperCase() === this.tagName) return this
+      for (const child of this.childNodes) {
+        if (child instanceof ElementShim) {
+          const match = child.querySelector(selector)
+          if (match) return match
+        }
+      }
+      return null
+    }
+    click() {}
+    focus() {}
+  }
+  class TextShim extends NodeShim {
+    textContent: string
+    constructor(text: string) {
+      super()
+      this.nodeType = 3
+      this.nodeName = '#text'
+      this.textContent = text
+    }
+  }
+  const body = new ElementShim('body')
+  const documentShim = {
+    nodeType: 9,
+    body,
+    createElement: (tagName: string) => {
+      const element = new ElementShim(tagName)
+      Object.assign(element, { ownerDocument: documentShim })
+      return element
+    },
+    createElementNS: (_namespace: string, tagName: string) => {
+      const element = new ElementShim(tagName)
+      Object.assign(element, { ownerDocument: documentShim })
+      return element
+    },
+    createTextNode: (text: string) => new TextShim(text),
+    addEventListener() {},
+    removeEventListener() {},
+    defaultView: globalThis,
+  }
+  Object.assign(body, { ownerDocument: documentShim })
+  Object.assign(globalThis, {
+    document: documentShim,
+    window: globalThis,
+    HTMLElement: ElementShim,
+    HTMLIFrameElement: class {},
+    MouseEvent: Event,
+    Node: NodeShim,
+    IS_REACT_ACT_ENVIRONMENT: true,
+    URL: {
+      createObjectURL: () => 'blob:test',
+      revokeObjectURL: () => undefined,
+    },
+  })
+}
+
+setupDom()
+
+const metricUserCalls: Array<{
+  metric: RecallMetricKey
+  filters: RecallMetricFilters
+}> = []
+const exportCalls: Array<{
+  metric: RecallMetricKey
+  filters: RecallMetricFilters
+}> = []
+
+const pages: Record<string, RecallMetricResult[]> = {
+  messages_accepted: [
+    {
+      items: [
+        {
+          row_id: 1,
+          recipient_id: 11,
+          message_id: 101,
+          user_id: 501,
+          email: 'accepted@example.com',
+          occurred_at: 1_900_000_000,
+          stage_no: 1,
+          state: 'accepted',
+          conversion_kind: '',
+          trade_no: '',
+          payment_category: '',
+          currency: '',
+          amount_minor: 0,
+          failure_code: '',
+        },
+      ],
+      total: 2,
+      amounts: [],
+      snapshot: 'accepted-page-snapshot',
+      next_cursor: 'accepted-next',
+      legacy_unidentified_count: 3,
+      drilldown_complete: false,
+    },
+  ],
+  messages_failed: [
+    {
+      items: [
+        {
+          row_id: 2,
+          recipient_id: 12,
+          message_id: 102,
+          user_id: 502,
+          email: 'masked-from-backend',
+          occurred_at: 1_900_000_100,
+          stage_no: 2,
+          state: 'failed',
+          conversion_kind: '',
+          trade_no: '',
+          payment_category: '',
+          currency: '',
+          amount_minor: 0,
+          failure_code: 'smtp_rejected',
+        },
+      ],
+      total: 1,
+      amounts: [],
+      snapshot: 'failed-page-snapshot',
+      legacy_unidentified_count: 0,
+      drilldown_complete: true,
+    },
+  ],
+}
+
+mock.module('../api', () => ({
+  exportRecallCampaignMetricUsers: async (
+    _campaignId: number,
+    metric: RecallMetricKey,
+    filters: RecallMetricFilters
+  ) => {
+    exportCalls.push({ metric, filters })
+    return new Blob(['ok'], { type: 'text/csv' })
+  },
+  getRecallCampaignMetricUsers: async (
+    _campaignId: number,
+    metric: RecallMetricKey,
+    filters: RecallMetricFilters
+  ) => {
+    metricUserCalls.push({ metric, filters })
+    return {
+      success: true,
+      data: pages[metric]?.[0] ?? pages.messages_failed[0],
+    }
+  },
+  recallCampaignKeys: {
+    metricUsers: (
+      campaignId: number,
+      metric: RecallMetricKey,
+      filters: RecallMetricFilters
+    ) => ['recall-campaigns', campaignId, 'metric-users', metric, filters],
+  },
+}))
+
+const inputProps: Record<
+  string,
+  React.InputHTMLAttributes<HTMLInputElement>
+> = {}
+const buttonProps: Record<
+  string,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+> = {}
+
+mock.module('@/components/ui/button', () => ({
+  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => {
+    if (typeof props.children === 'string') buttonProps[props.children] = props
+    return <button {...props} />
+  },
+}))
+
+mock.module('@/components/ui/input', () => ({
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => {
+    if (props.id) inputProps[props.id] = props
+    return <input {...props} />
+  },
+}))
+
+mock.module('@/components/ui/sheet', () => ({
+  Sheet: (props: { open?: boolean; children: React.ReactNode }) =>
+    props.open ? <div data-testid='sheet'>{props.children}</div> : null,
+  SheetContent: (props: React.HTMLAttributes<HTMLDivElement>) => (
+    <section {...props} />
+  ),
+  SheetDescription: (props: React.HTMLAttributes<HTMLParagraphElement>) => (
+    <p {...props} />
+  ),
+  SheetHeader: (props: React.HTMLAttributes<HTMLDivElement>) => (
+    <header {...props} />
+  ),
+  SheetTitle: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
+    <h2 {...props} />
+  ),
+}))
+
+mock.module('@/components/ui/table', () => ({
+  Table: (props: React.TableHTMLAttributes<HTMLTableElement>) => (
+    <table {...props} />
+  ),
+  TableBody: (props: React.HTMLAttributes<HTMLTableSectionElement>) => (
+    <tbody {...props} />
+  ),
+  TableCell: (props: React.TdHTMLAttributes<HTMLTableCellElement>) => (
+    <td {...props} />
+  ),
+  TableHead: (props: React.ThHTMLAttributes<HTMLTableCellElement>) => (
+    <th {...props} />
+  ),
+  TableHeader: (props: React.HTMLAttributes<HTMLTableSectionElement>) => (
+    <thead {...props} />
+  ),
+  TableRow: (props: React.HTMLAttributes<HTMLTableRowElement>) => (
+    <tr {...props} />
+  ),
+}))
+
+const { CampaignMetricCardSection } = await import('./campaign-metric-drawer')
+
+const testI18n = createInstance()
+await testI18n.use(initReactI18next).init({
+  lng: 'en',
+  fallbackLng: 'en',
+  resources: { en: { translation: {} } },
+  interpolation: { escapeValue: false },
+})
+
+function makeCard(
+  key: RecallMetricKey,
+  total: number,
+  snapshot: string,
+  rowGrain = 'message'
+): RecallMetricCard {
+  return {
+    key,
+    total,
+    amounts: [],
+    row_grain: rowGrain,
+    snapshot,
+    legacy_unidentified_count: key === 'messages_accepted' ? 3 : 0,
+    drilldown_complete: key !== 'messages_accepted',
+    supported_filters: { search: true, stage_no: true },
+  }
+}
+
+function renderSection(cards: Record<string, RecallMetricCard>) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  React.act(() => {
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={testI18n}>
+          <CampaignMetricCardSection campaignId={42} metricCards={cards} />
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+  })
+  return { container, root }
+}
+
+async function wait(ms = 0) {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function click(label: string) {
+  await React.act(async () => {
+    buttonProps[label]?.onClick?.(
+      new MouseEvent('click') as unknown as React.MouseEvent<HTMLButtonElement>
+    )
+    await wait()
+  })
+}
+
+afterEach(() => {
+  metricUserCalls.length = 0
+  exportCalls.length = 0
+  for (const key of Object.keys(inputProps)) delete inputProps[key]
+  for (const key of Object.keys(buttonProps)) delete buttonProps[key]
+})
+
+describe('CampaignMetricCardSection', () => {
+  test('opens a shared drawer from a metric card and preserves the card snapshot across filter/export actions', async () => {
+    const { container, root } = renderSection({
+      messages_accepted: makeCard(
+        'messages_accepted',
+        2,
+        'accepted-card-snapshot'
+      ),
+      messages_failed: makeCard('messages_failed', 1, 'failed-card-snapshot'),
+    })
+
+    await click('Accepted messages')
+
+    expect(container.textContent).toContain('Accepted messages')
+    expect(container.textContent).toContain('Message rows')
+    expect(container.textContent).toContain(
+      'Some historical exclusions are not individually inspectable.'
+    )
+    expect(metricUserCalls[0]).toEqual({
+      metric: 'messages_accepted',
+      filters: { limit: 50, snapshot: 'accepted-card-snapshot' },
+    })
+
+    await React.act(async () => {
+      inputProps['recall-metric-search']?.onChange?.({
+        target: { value: '501' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      await wait()
+    })
+
+    expect(metricUserCalls.at(-1)).toEqual({
+      metric: 'messages_accepted',
+      filters: { limit: 50, q: '501', snapshot: 'accepted-card-snapshot' },
+    })
+
+    await click('Download current results')
+
+    expect(exportCalls.at(-1)).toEqual({
+      metric: 'messages_accepted',
+      filters: { q: '501', snapshot: 'accepted-card-snapshot' },
+    })
+
+    React.act(() => root.unmount())
+  })
+
+  test('keeps accepted and failed message exports as separate metric calls', async () => {
+    const { root } = renderSection({
+      messages_accepted: makeCard(
+        'messages_accepted',
+        2,
+        'accepted-card-snapshot'
+      ),
+      messages_failed: makeCard('messages_failed', 1, 'failed-card-snapshot'),
+    })
+
+    await click('Accepted messages')
+    await click('Download current results')
+    await click('Failed messages')
+    await click('Download current results')
+
+    expect(exportCalls.map((call) => call.metric)).toEqual([
+      'messages_accepted',
+      'messages_failed',
+    ])
+    expect(exportCalls.map((call) => call.filters.snapshot)).toEqual([
+      'accepted-card-snapshot',
+      'failed-card-snapshot',
+    ])
+
+    React.act(() => root.unmount())
+  })
+})
