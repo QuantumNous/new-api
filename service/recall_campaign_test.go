@@ -930,6 +930,25 @@ func TestRecallCampaignScheduleRejectsOncePastStart(t *testing.T) {
 	require.ErrorContains(t, err, "must run in the future")
 }
 
+func TestRecallCampaignScheduleRejectsProductRecurringWithoutStartBoundary(t *testing.T) {
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	for _, mode := range []string{"Daily", "Weekly"} {
+		t.Run(mode, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			draft.ExecutionMode = mode
+			draft.Schedule = RecallScheduleConfig{
+				Timezone: "Asia/Shanghai",
+				Weekday:  int(time.Friday),
+				Hour:     9,
+			}
+
+			_, err := validateAndNormalizeRecallCampaignDraftForPersistence(draft, now)
+
+			require.ErrorContains(t, err, "start boundary")
+		})
+	}
+}
+
 func TestRecallCampaignDraftCanonicalizesSpecifiedAudienceBeforeSave(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -2598,6 +2617,66 @@ func TestRecallCampaignRecurringRunRequiresNextRunCASOwnership(t *testing.T) {
 	var eventCount int64
 	require.NoError(t, db.Model(&model.RecallEvent{}).Count(&eventCount).Error)
 	require.EqualValues(t, 1, eventCount)
+}
+
+func TestRecallCampaignRecurringRunNextRunCASAllowsOneMultiConnectionWinner(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(4)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 0, 30, 0, 0, time.UTC)
+	createRecallCampaignEligibleUser(t, db, now, "recurring-cas-race")
+	draft := validRecallCampaignDraft(now)
+	draft.Audience.LastAPICallAgeDays = 0
+	draft.ExecutionMode = "Daily"
+	draft.Schedule = RecallScheduleConfig{ScheduledAt: now.Add(30 * time.Minute).Unix(), Timezone: "Asia/Shanghai", Hour: 9}
+	serviceA := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	serviceB := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	serviceA.now = func() time.Time { return now }
+	serviceB.now = func() time.Time { return now }
+	campaign, err := serviceA.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, serviceA.Activate(context.Background(), 7, campaign.Id))
+	stale, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	staleA := *stale
+	staleB := *stale
+	runAt := time.Unix(stale.NextRunAt, 0)
+
+	type runResult struct {
+		committed bool
+		err       error
+	}
+	start := make(chan struct{})
+	results := make(chan runResult, 2)
+	runNode := func(service *RecallCampaignService, campaign model.RecallCampaign) {
+		<-start
+		committed, runErr := service.runDueCampaign(context.Background(), &campaign, runAt)
+		results <- runResult{committed: committed, err: runErr}
+	}
+	go runNode(serviceA, staleA)
+	go runNode(serviceB, staleB)
+	close(start)
+
+	winners := 0
+	for i := 0; i < 2; i++ {
+		result := <-results
+		require.NoError(t, result.err)
+		if result.committed {
+			winners++
+		}
+	}
+	require.Equal(t, 1, winners)
+	var recipientCount int64
+	require.NoError(t, db.Model(&model.RecallRecipient{}).Count(&recipientCount).Error)
+	require.EqualValues(t, 1, recipientCount)
+	var eventCount int64
+	require.NoError(t, db.Model(&model.RecallEvent{}).Count(&eventCount).Error)
+	require.EqualValues(t, 1, eventCount)
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Greater(t, stored.NextRunAt, stale.NextRunAt)
 }
 
 func TestNextRecallRunRejectsInvalidSchedule(t *testing.T) {

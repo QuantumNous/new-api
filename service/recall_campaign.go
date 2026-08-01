@@ -1606,17 +1606,17 @@ func validateAndNormalizeRecallCampaignDraftInternal(draft RecallCampaignDraft, 
 	case "daily":
 		draft.ExecutionMode = "recurring"
 		draft.Schedule.Frequency = "daily"
-		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now); err != nil {
+		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now, true); err != nil {
 			return RecallCampaignDraft{}, err
 		}
 	case "weekly":
 		draft.ExecutionMode = "recurring"
 		draft.Schedule.Frequency = "weekly"
-		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now); err != nil {
+		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now, true); err != nil {
 			return RecallCampaignDraft{}, err
 		}
 	case "recurring":
-		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now); err != nil {
+		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now, false); err != nil {
 			return RecallCampaignDraft{}, err
 		}
 	default:
@@ -1660,7 +1660,7 @@ func validateRecallScheduleTimezone(timezone string) error {
 	return nil
 }
 
-func validateAndNormalizeRecallRecurringSchedule(schedule *RecallScheduleConfig, now time.Time) error {
+func validateAndNormalizeRecallRecurringSchedule(schedule *RecallScheduleConfig, now time.Time, requireStartBoundary bool) error {
 	if schedule == nil {
 		return fmt.Errorf("recall recurrence schedule is required")
 	}
@@ -1674,6 +1674,9 @@ func validateAndNormalizeRecallRecurringSchedule(schedule *RecallScheduleConfig,
 	}
 	if schedule.Frequency == "daily" {
 		schedule.Weekday = 0
+	}
+	if requireStartBoundary && schedule.ScheduledAt <= 0 {
+		return fmt.Errorf("recall product recurring schedule requires a start boundary")
 	}
 	if schedule.ScheduledAt > 0 {
 		_, err := firstRecallRun(now, *schedule)
