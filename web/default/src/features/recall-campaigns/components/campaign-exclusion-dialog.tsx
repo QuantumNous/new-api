@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -43,11 +43,12 @@ export function CampaignExclusionDialog(
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const selectedFileRef = useRef<File | null>(null)
   const dialogGenerationRef = useRef(0)
+  const previousOpenRef = useRef(props.open)
   const previewRequestIdRef = useRef(0)
   const activePreviewRequestRef = useRef<number | null>(null)
   const [preview, setPreview] = useState<RecallExclusionPreview | null>(null)
   const [error, setError] = useState('')
-  const [dialogClosed, setDialogClosed] = useState(false)
+  const [locallyClosed, setLocallyClosed] = useState(false)
   const [previewPending, setPreviewPending] = useState(false)
   const [successPreview, setSuccessPreview] =
     useState<RecallExclusionPreview | null>(null)
@@ -68,18 +69,26 @@ export function CampaignExclusionDialog(
         props.initialBatchId ?? 0
       ),
     enabled: props.open && typeof props.initialBatchId === 'number',
+    staleTime: Infinity,
   })
   const confirmMutation = useMutation({
     mutationFn: (batchId: number) =>
       confirmRecallCampaignExclusionBatch(props.campaignId, batchId),
   })
-
+  useEffect(() => {
+    if (props.open && !previousOpenRef.current) {
+      setLocallyClosed(false)
+    }
+    previousOpenRef.current = props.open
+  }, [props.open])
+  const batchPreview = batchQuery.data?.data ?? null
   const recoveredPreview =
     typeof props.initialBatchId === 'number' &&
-    confirmedBatchIds.has(props.initialBatchId)
+    (confirmedBatchIds.has(props.initialBatchId) ||
+      batchPreview?.confirmable === false)
       ? null
-      : (batchQuery.data?.data ?? null)
-  const visiblePreview = dialogClosed
+      : batchPreview
+  const visiblePreview = locallyClosed
     ? null
     : (preview ?? (successPreview ? null : recoveredPreview))
 
@@ -98,7 +107,7 @@ export function CampaignExclusionDialog(
     const requestId = previewRequestIdRef.current + 1
     previewRequestIdRef.current = requestId
     activePreviewRequestRef.current = requestId
-    setDialogClosed(false)
+    setLocallyClosed(false)
     setError('')
     setSuccessPreview(null)
     setPreviewPending(true)
@@ -127,25 +136,16 @@ export function CampaignExclusionDialog(
   const confirm = async () => {
     if (!visiblePreview?.confirmable) return
     const dialogGeneration = dialogGenerationRef.current
-    setDialogClosed(false)
+    setLocallyClosed(false)
     setError('')
     try {
       const response = await confirmMutation.mutateAsync(
         visiblePreview.batch_id
       )
-      if (dialogGenerationRef.current !== dialogGeneration) return
       const confirmedPreview = {
         ...(response.data ?? visiblePreview),
         confirmable: false,
       }
-      setSuccessPreview(confirmedPreview)
-      setConfirmedBatchIds((current) => {
-        const next = new Set(current)
-        next.add(visiblePreview.batch_id)
-        return next
-      })
-      setPreview(null)
-      clearRawState()
       queryClient.setQueryData(batchQueryKey, {
         success: true,
         data: confirmedPreview,
@@ -158,7 +158,21 @@ export function CampaignExclusionDialog(
       })
       await queryClient.invalidateQueries({
         queryKey: batchQueryKey,
+        refetchType: 'none',
       })
+      queryClient.setQueryData(batchQueryKey, {
+        success: true,
+        data: confirmedPreview,
+      })
+      if (dialogGenerationRef.current !== dialogGeneration) return
+      setSuccessPreview(confirmedPreview)
+      setConfirmedBatchIds((current) => {
+        const next = new Set(current)
+        next.add(visiblePreview.batch_id)
+        return next
+      })
+      setPreview(null)
+      clearRawState()
     } catch (_error) {
       if (dialogGenerationRef.current !== dialogGeneration) return
       setError('Unable to apply exclusions.')
@@ -171,7 +185,7 @@ export function CampaignExclusionDialog(
     previewRequestIdRef.current += 1
     activePreviewRequestRef.current = null
     clearRawState()
-    setDialogClosed(true)
+    setLocallyClosed(true)
     setError('')
     setPreview(null)
     setSuccessPreview(null)
@@ -207,7 +221,7 @@ export function CampaignExclusionDialog(
               type='file'
               accept='.csv,text/csv'
               onChange={(event) => {
-                setDialogClosed(false)
+                setLocallyClosed(false)
                 selectedFileRef.current = event.target.files?.[0] ?? null
                 setError('')
               }}

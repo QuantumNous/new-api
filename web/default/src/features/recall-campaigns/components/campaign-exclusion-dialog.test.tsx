@@ -173,6 +173,11 @@ let previewError: Error | null = null
 let confirmError: Error | null = null
 let batchError: Error | null = null
 let confirmResponse: RecallExclusionPreview | null = null
+let pendingConfirmRequest: {
+  batchId: number
+  resolve: (value: { success: true; data: RecallExclusionPreview }) => void
+  reject: (error: Error) => void
+} | null = null
 let pendingPreviewRequest: {
   file: File
   resolve: (value: { success: true; data: RecallExclusionPreview }) => void
@@ -203,6 +208,13 @@ mock.module('../api', () => ({
   confirmRecallCampaignExclusionBatch: async (_id: number, batchId: number) => {
     confirmCalls.push(batchId)
     if (confirmError) throw confirmError
+    if (pendingConfirmRequest) {
+      return await new Promise<{ success: true; data: RecallExclusionPreview }>(
+        (resolve, reject) => {
+          pendingConfirmRequest = { batchId, resolve, reject }
+        }
+      )
+    }
     return {
       success: true,
       data: confirmResponse ?? makePreview({ batch_id: batchId }),
@@ -312,6 +324,47 @@ function renderDialog(props: {
   return { container, queryClient, root }
 }
 
+function renderControlledDialog(props: { initialBatchId?: number }) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  const originalInvalidate = queryClient.invalidateQueries.bind(queryClient)
+  queryClient.invalidateQueries = ((filters: { queryKey?: unknown }) => {
+    invalidatedKeys.push(filters.queryKey)
+    return originalInvalidate(filters)
+  }) as QueryClient['invalidateQueries']
+  let open = true
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const render = () => {
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={testI18n}>
+          <CampaignExclusionDialog
+            campaignId={42}
+            initialBatchId={props.initialBatchId}
+            open={open}
+            onOpenChange={(nextOpen) => {
+              open = nextOpen
+            }}
+          />
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+  }
+  React.act(render)
+  return {
+    container,
+    queryClient,
+    root,
+    setOpen(nextOpen: boolean) {
+      open = nextOpen
+      React.act(render)
+    },
+  }
+}
+
 async function wait(ms = 0) {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -343,6 +396,7 @@ afterEach(() => {
   confirmError = null
   batchError = null
   confirmResponse = null
+  pendingConfirmRequest = null
   pendingPreviewRequest = null
   for (const key of Object.keys(latestInputs)) delete latestInputs[key]
   for (const key of Object.keys(latestButtons)) delete latestButtons[key]
@@ -486,6 +540,82 @@ describe('CampaignExclusionDialog', () => {
     await click('Close')
     expect(openChanges).toContain(false)
     expect(container.textContent).not.toContain('2 resolved users')
+
+    React.act(() => root.unmount())
+  })
+
+  test('shows unconfirmed recovered preview again after parent closes and reopens', async () => {
+    const { container, root, setOpen } = renderControlledDialog({
+      initialBatchId: 88,
+    })
+
+    await React.act(async () => {
+      await wait()
+    })
+    expect(container.textContent).toContain('2 resolved users')
+
+    await click('Close')
+    setOpen(false)
+    expect(container.textContent).not.toContain('2 resolved users')
+
+    setOpen(true)
+    await React.act(async () => {
+      await wait()
+    })
+
+    expect(container.textContent).toContain('2 resolved users')
+    expect(latestButtons['Apply exclusions']?.disabled).toBeFalse()
+
+    React.act(() => root.unmount())
+  })
+
+  test('runs global confirm side effects after close without restoring recovered batch', async () => {
+    pendingConfirmRequest = {
+      batchId: 0,
+      resolve: () => undefined,
+      reject: () => undefined,
+    }
+    const { container, queryClient, root, setOpen } = renderControlledDialog({
+      initialBatchId: 88,
+    })
+
+    await React.act(async () => {
+      await wait()
+    })
+    await click('Apply exclusions')
+    expect(confirmCalls).toEqual([88])
+
+    await click('Close')
+    setOpen(false)
+
+    await React.act(async () => {
+      pendingConfirmRequest?.resolve({
+        success: true,
+        data: makePreview({ batch_id: 88, cancelable_work: 7 }),
+      })
+      await wait()
+    })
+
+    const batchKey = ['recall-campaigns', 42, 'exclusion-batch', 88]
+    expect(invalidatedKeys).toContainEqual(testRecallCampaignKeys.metrics(42))
+    expect(invalidatedKeys).toContainEqual(testRecallCampaignKeys.detail(42))
+    expect(invalidatedKeys).toContainEqual(batchKey)
+    expect(
+      (
+        queryClient.getQueryData(batchKey) as {
+          data?: RecallExclusionPreview
+        }
+      )?.data?.confirmable
+    ).toBeFalse()
+    expect(container.textContent).not.toContain('Exclusions applied.')
+
+    setOpen(true)
+    await React.act(async () => {
+      await wait()
+    })
+
+    expect(container.textContent).not.toContain('2 resolved users')
+    expect(latestButtons['Apply exclusions']?.disabled).toBeTrue()
 
     React.act(() => root.unmount())
   })
