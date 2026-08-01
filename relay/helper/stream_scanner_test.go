@@ -15,6 +15,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -284,6 +285,73 @@ func TestStreamScannerHandler_ClientCancelAbortsUpstreamAndReturns(t *testing.T)
 }
 
 // ---------- Ping tests ----------
+
+func TestStreamPingConfig_ImageStreamDefaultsToKeepalive(t *testing.T) {
+	setting := operation_setting.GetGeneralSetting()
+	oldEnabled := setting.PingIntervalEnabled
+	oldSeconds := setting.PingIntervalSeconds
+	setting.PingIntervalEnabled = false
+	setting.PingIntervalSeconds = 60
+	t.Cleanup(func() {
+		setting.PingIntervalEnabled = oldEnabled
+		setting.PingIntervalSeconds = oldSeconds
+	})
+
+	for _, relayMode := range []int{
+		relayconstant.RelayModeImagesGenerations,
+		relayconstant.RelayModeImagesEdits,
+	} {
+		enabled, interval := StreamPingConfig(&relaycommon.RelayInfo{
+			IsStream:  true,
+			RelayMode: relayMode,
+		})
+		assert.True(t, enabled)
+		assert.Equal(t, DefaultPingInterval, interval)
+	}
+
+	enabled, interval := StreamPingConfig(&relaycommon.RelayInfo{IsStream: true})
+	assert.False(t, enabled)
+	assert.Equal(t, 60*time.Second, interval)
+}
+
+func TestStreamPingConfig_ImageStreamHonorsDisablePing(t *testing.T) {
+	setting := operation_setting.GetGeneralSetting()
+	oldEnabled := setting.PingIntervalEnabled
+	oldSeconds := setting.PingIntervalSeconds
+	setting.PingIntervalEnabled = true
+	setting.PingIntervalSeconds = 3
+	t.Cleanup(func() {
+		setting.PingIntervalEnabled = oldEnabled
+		setting.PingIntervalSeconds = oldSeconds
+	})
+
+	enabled, interval := StreamPingConfig(&relaycommon.RelayInfo{
+		IsStream:    true,
+		RelayMode:   relayconstant.RelayModeImagesGenerations,
+		DisablePing: true,
+	})
+	assert.False(t, enabled)
+	assert.Equal(t, 3*time.Second, interval)
+}
+
+func TestStreamPingConfig_ImageStreamCapsGlobalInterval(t *testing.T) {
+	setting := operation_setting.GetGeneralSetting()
+	oldEnabled := setting.PingIntervalEnabled
+	oldSeconds := setting.PingIntervalSeconds
+	setting.PingIntervalEnabled = true
+	setting.PingIntervalSeconds = 600
+	t.Cleanup(func() {
+		setting.PingIntervalEnabled = oldEnabled
+		setting.PingIntervalSeconds = oldSeconds
+	})
+
+	enabled, interval := StreamPingConfig(&relaycommon.RelayInfo{
+		IsStream:  true,
+		RelayMode: relayconstant.RelayModeImagesGenerations,
+	})
+	assert.True(t, enabled)
+	assert.Equal(t, DefaultPingInterval, interval)
+}
 
 func TestStreamScannerHandler_PingSentDuringSlowUpstream(t *testing.T) {
 	setting := operation_setting.GetGeneralSetting()

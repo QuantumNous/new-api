@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -44,6 +45,33 @@ func NewStreamScanner(reader io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, InitialScannerBufferSize), getScannerBufferSize())
 	return scanner
+}
+
+// StreamPingConfig returns the downstream SSE keepalive policy. Image
+// generation can remain silent for minutes before the first upstream byte, so
+// streamed image requests always get a keepalive even when the global ping
+// option is disabled. Other relay modes continue to follow the global setting.
+func StreamPingConfig(info *relaycommon.RelayInfo) (bool, time.Duration) {
+	generalSettings := operation_setting.GetGeneralSetting()
+	pingEnabled := generalSettings.PingIntervalEnabled
+	pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
+	if pingInterval <= 0 {
+		pingInterval = DefaultPingInterval
+	}
+
+	if info != nil && info.IsStream &&
+		(info.RelayMode == relayconstant.RelayModeImagesGenerations ||
+			info.RelayMode == relayconstant.RelayModeImagesEdits) {
+		pingEnabled = true
+		if pingInterval > DefaultPingInterval {
+			pingInterval = DefaultPingInterval
+		}
+	}
+
+	if info != nil && info.DisablePing {
+		pingEnabled = false
+	}
+	return pingEnabled, pingInterval
 }
 
 func copyCodexSSEHeaders(c *gin.Context, resp *http.Response) {
@@ -104,12 +132,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		})
 	}
 
-	generalSettings := operation_setting.GetGeneralSetting()
-	pingEnabled := generalSettings.PingIntervalEnabled && !info.DisablePing
-	pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
-	if pingInterval <= 0 {
-		pingInterval = DefaultPingInterval
-	}
+	pingEnabled, pingInterval := StreamPingConfig(info)
 
 	if pingEnabled {
 		pingTicker = time.NewTicker(pingInterval)
