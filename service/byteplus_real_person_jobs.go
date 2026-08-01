@@ -374,7 +374,7 @@ func runBytePlusRealPersonTOSCleanupJobs(ctx context.Context, now, staleBefore i
 			continue
 		}
 		creds, err := ParseBytePlusCredentials(channel.Key)
-		if err != nil || creds.ValidateRealPersonAssets() != nil {
+		if err != nil || creds.ValidateRealPersonAssetStorage() != nil {
 			warnBytePlusRealPersonJobRow("tos_cleanup")
 			firstErr = firstNonNil(firstErr, retryBytePlusTempObjectCleanup(object, now))
 			continue

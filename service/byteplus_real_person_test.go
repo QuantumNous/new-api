@@ -148,6 +148,20 @@ func TestBytePlusRealPersonCreateValidatesBeforeSideEffectsAndReturnsOneTimeVeri
 	require.Empty(t, session.CallbackTokenCiphertext)
 }
 
+func TestBytePlusRealPersonCreateAllowsURLOnlyCredentialWithoutTOS(t *testing.T) {
+	newBytePlusRealPersonServiceTestDB(t)
+	fake := &fakeBytePlusRealPersonClient{}
+	installBytePlusRealPersonServiceTestDeps(t, fake)
+	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, urlOnlyRealPersonKey())
+
+	resp, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 101, "url-only-create", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
+
+	require.Nil(t, apiErr)
+	require.Equal(t, "rph_test_1", resp.ID)
+	require.Equal(t, "https://verify.example/session", resp.VerificationURL)
+	require.Equal(t, 1, fake.createCalls)
+}
+
 func TestBytePlusRealPersonCreateProfileIDFailureStopsBeforeStorageOrUpstream(t *testing.T) {
 	newBytePlusRealPersonServiceTestDB(t)
 	fake := &fakeBytePlusRealPersonClient{}
@@ -548,6 +562,10 @@ func insertBytePlusRealPersonChannel(t *testing.T, id int, group string, status 
 
 func structuredRealPersonKey() string {
 	return `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_bucket":"bucket","tos_region":"ap-southeast-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`
+}
+
+func urlOnlyRealPersonKey() string {
+	return `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true}}`
 }
 
 func assertRealPersonError(t *testing.T, err error, code types.ErrorCode, status int) {

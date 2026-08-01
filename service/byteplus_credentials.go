@@ -80,6 +80,13 @@ func (c BytePlusCredentials) ValidateRealPersonAssets() error {
 	if !c.RealPersonAssets.Enabled {
 		return errors.New("byteplus real-person assets are disabled")
 	}
+	return nil
+}
+
+func (c BytePlusCredentials) ValidateRealPersonAssetStorage() error {
+	if err := c.ValidateRealPersonAssets(); err != nil {
+		return err
+	}
 	if strings.TrimSpace(c.RealPersonAssets.TOSBucket) == "" {
 		return errors.New("byteplus real-person tos_bucket is required")
 	}

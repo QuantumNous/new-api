@@ -22,6 +22,9 @@ func TestParseBytePlusCredentialsAcceptsLegacyKeyForVideoOnly(t *testing.T) {
 	if err := creds.ValidateRealPersonAssets(); err == nil {
 		t.Fatal("legacy key should not be valid for real-person asset APIs")
 	}
+	if err := creds.ValidateRealPersonAssetStorage(); err == nil {
+		t.Fatal("legacy key should not be valid for real-person asset storage")
+	}
 }
 
 func TestParseBytePlusCredentialsAcceptsBracketLeadingLegacyKeyForVideoOnly(t *testing.T) {
@@ -71,6 +74,28 @@ func TestParseBytePlusCredentialsAcceptsStructuredJSON(t *testing.T) {
 	if err := creds.ValidateRealPersonAssets(); err != nil {
 		t.Fatalf("structured key should be valid for real-person assets: %v", err)
 	}
+	if err := creds.ValidateRealPersonAssetStorage(); err != nil {
+		t.Fatalf("structured key should be valid for real-person asset storage: %v", err)
+	}
+}
+
+func TestBytePlusCredentialsValidateRealPersonAssetsAllowsURLOnlyWithoutTOS(t *testing.T) {
+	creds := BytePlusCredentials{
+		APIKey:          "ark-video-key",
+		AccessKeyID:     "ak-example",
+		SecretAccessKey: "sk-example",
+		ProjectName:     "project3",
+		RealPersonAssets: BytePlusRealPersonAssetsConfig{
+			Enabled: true,
+		},
+	}
+
+	if err := creds.ValidateRealPersonAssets(); err != nil {
+		t.Fatalf("ValidateRealPersonAssets URL-only error: %v", err)
+	}
+	if err := creds.ValidateRealPersonAssetStorage(); err == nil || err.Error() != "byteplus real-person tos_bucket is required" {
+		t.Fatalf("ValidateRealPersonAssetStorage URL-only error = %v", err)
+	}
 }
 
 func TestBytePlusCredentialsValidateRealPersonAssetsRequiresExplicitEnablement(t *testing.T) {
@@ -91,7 +116,7 @@ func TestBytePlusCredentialsValidateRealPersonAssetsRequiresExplicitEnablement(t
 	}
 }
 
-func TestBytePlusCredentialsValidateRealPersonAssetsAllowsOfficialEndpoints(t *testing.T) {
+func TestBytePlusCredentialsValidateRealPersonAssetStorageAllowsOfficialEndpoints(t *testing.T) {
 	tests := []string{
 		"https://tos-ap-southeast-1.bytepluses.com",
 		"https://tos-ap-southeast-1.ibytepluses.com",
@@ -99,13 +124,13 @@ func TestBytePlusCredentialsValidateRealPersonAssetsAllowsOfficialEndpoints(t *t
 	}
 	for _, endpoint := range tests {
 		creds := testBytePlusRealPersonCreds(endpoint)
-		if err := creds.ValidateRealPersonAssets(); err != nil {
-			t.Fatalf("ValidateRealPersonAssets(%q) error: %v", endpoint, err)
+		if err := creds.ValidateRealPersonAssetStorage(); err != nil {
+			t.Fatalf("ValidateRealPersonAssetStorage(%q) error: %v", endpoint, err)
 		}
 	}
 }
 
-func TestBytePlusCredentialsValidateRealPersonAssetsRejectsUnsafeEndpoint(t *testing.T) {
+func TestBytePlusCredentialsValidateRealPersonAssetStorageRejectsUnsafeEndpoint(t *testing.T) {
 	tests := []string{
 		"https://tos-s3-cn-beijing.volces.com",
 		"https://tos-s3-ap-southeast-1.bytepluses.com",
@@ -128,9 +153,9 @@ func TestBytePlusCredentialsValidateRealPersonAssetsRejectsUnsafeEndpoint(t *tes
 	}
 	for _, endpoint := range tests {
 		creds := testBytePlusRealPersonCreds(endpoint)
-		err := creds.ValidateRealPersonAssets()
+		err := creds.ValidateRealPersonAssetStorage()
 		if err == nil {
-			t.Fatalf("ValidateRealPersonAssets(%q) should fail", endpoint)
+			t.Fatalf("ValidateRealPersonAssetStorage(%q) should fail", endpoint)
 		}
 		if strings.Contains(err.Error(), endpoint) {
 			t.Fatalf("error leaked endpoint %q: %v", endpoint, err)
@@ -138,7 +163,7 @@ func TestBytePlusCredentialsValidateRealPersonAssetsRejectsUnsafeEndpoint(t *tes
 	}
 }
 
-func TestBytePlusCredentialsValidateRealPersonAssetsValidatesBucketForTOS(t *testing.T) {
+func TestBytePlusCredentialsValidateRealPersonAssetStorageValidatesBucketForTOS(t *testing.T) {
 	tests := []struct {
 		name    string
 		bucket  string
@@ -159,12 +184,12 @@ func TestBytePlusCredentialsValidateRealPersonAssetsValidatesBucketForTOS(t *tes
 		t.Run(tt.name, func(t *testing.T) {
 			creds := testBytePlusRealPersonCreds("https://tos-ap-southeast-1.ibytepluses.com")
 			creds.RealPersonAssets.TOSBucket = tt.bucket
-			err := creds.ValidateRealPersonAssets()
+			err := creds.ValidateRealPersonAssetStorage()
 			if tt.wantErr && err == nil {
-				t.Fatalf("ValidateRealPersonAssets bucket %q should fail", tt.bucket)
+				t.Fatalf("ValidateRealPersonAssetStorage bucket %q should fail", tt.bucket)
 			}
 			if !tt.wantErr && err != nil {
-				t.Fatalf("ValidateRealPersonAssets bucket %q error: %v", tt.bucket, err)
+				t.Fatalf("ValidateRealPersonAssetStorage bucket %q error: %v", tt.bucket, err)
 			}
 			if err != nil && strings.Contains(err.Error(), tt.bucket) {
 				t.Fatalf("error leaked bucket %q: %v", tt.bucket, err)
@@ -173,7 +198,7 @@ func TestBytePlusCredentialsValidateRealPersonAssetsValidatesBucketForTOS(t *tes
 	}
 }
 
-func TestBytePlusCredentialsValidateRealPersonAssetsRequiresModelArkRegion(t *testing.T) {
+func TestBytePlusCredentialsValidateRealPersonAssetStorageRequiresModelArkRegion(t *testing.T) {
 	creds := BytePlusCredentials{
 		APIKey:          "ark-video-key",
 		AccessKeyID:     "ak-example",
@@ -186,8 +211,8 @@ func TestBytePlusCredentialsValidateRealPersonAssetsRequiresModelArkRegion(t *te
 			TOSInternalEndpoint: "https://tos-ap-southeast-1.ibytepluses.com",
 		},
 	}
-	if err := creds.ValidateRealPersonAssets(); err == nil {
-		t.Fatal("ValidateRealPersonAssets should reject non-ModelArk region")
+	if err := creds.ValidateRealPersonAssetStorage(); err == nil {
+		t.Fatal("ValidateRealPersonAssetStorage should reject non-ModelArk region")
 	}
 }
 

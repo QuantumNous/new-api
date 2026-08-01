@@ -309,9 +309,12 @@ func defaultBytePlusRealPersonAssetName(filename string) string {
 }
 
 func loadBytePlusRealPersonAssetProfileAndChannel(userID int, personID string) (*model.BytePlusRealPersonProfile, *model.Channel, BytePlusCredentials, *types.NewAPIError) {
-	profile, channel, creds, apiErr := loadBytePlusRealPersonAssetProfileAndStorage(userID, personID)
-	if apiErr != nil {
-		return nil, nil, BytePlusCredentials{}, apiErr
+	profile, err := model.GetBytePlusRealPersonProfileForUser(userID, strings.TrimSpace(personID))
+	if err != nil {
+		if model.IsBytePlusRealPersonNotFound(err) {
+			return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person not found"), types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
+		}
+		return nil, nil, BytePlusCredentials{}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
 	if profile.Status != model.BytePlusRealPersonProfileStatusActive || profile.UpstreamGroupId == nil || strings.TrimSpace(*profile.UpstreamGroupId) == "" {
 		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person is not active"), types.ErrorCodeRealPersonNotActive, http.StatusConflict)
@@ -339,7 +342,7 @@ func loadBytePlusRealPersonAssetProfileAndStorage(userID int, personID string) (
 		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person channel unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
 	creds, err := ParseBytePlusCredentials(channel.Key)
-	if err != nil || creds.ValidateRealPersonAssets() != nil {
+	if err != nil || creds.ValidateRealPersonAssetStorage() != nil {
 		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person storage credentials unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
 	return profile, channel, creds, nil

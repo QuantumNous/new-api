@@ -72,6 +72,12 @@ func TestBytePlusTOSStoreFactoryDefaultsToSDKStore(t *testing.T) {
 	require.NotNil(t, store)
 }
 
+func TestBytePlusTOSNewStoreRejectsURLOnlyCredentialsBeforeSDKClient(t *testing.T) {
+	_, err := newBytePlusTOSStore(mustParseBytePlusCredentials(t, urlOnlyRealPersonKey()))
+
+	require.EqualError(t, err, "byteplus real-person tos_bucket is required")
+}
+
 func TestBytePlusTOSNewStoreValidatesCredentialsBeforeSDKClient(t *testing.T) {
 	_, err := newBytePlusTOSStore(BytePlusCredentials{})
 	require.Error(t, err)
@@ -80,4 +86,11 @@ func TestBytePlusTOSNewStoreValidatesCredentialsBeforeSDKClient(t *testing.T) {
 	store, err := newBytePlusTOSStore(testBytePlusRealPersonCreds("https://tos-ap-southeast-1.ibytepluses.com"))
 	require.NoError(t, err)
 	require.NotNil(t, store)
+}
+
+func mustParseBytePlusCredentials(t *testing.T, raw string) BytePlusCredentials {
+	t.Helper()
+	creds, err := ParseBytePlusCredentials(raw)
+	require.NoError(t, err)
+	return creds
 }

@@ -31,7 +31,7 @@ type bytePlusTOSStore struct {
 var bytePlusTempObjectStoreFactory = newBytePlusTOSStore
 
 func newBytePlusTOSStore(creds BytePlusCredentials) (BytePlusTempObjectStore, error) {
-	if err := creds.ValidateRealPersonAssets(); err != nil {
+	if err := creds.ValidateRealPersonAssetStorage(); err != nil {
 		return nil, err
 	}
 	client, err := tos.NewClientV2(

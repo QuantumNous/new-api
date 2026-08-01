@@ -214,6 +214,29 @@ func TestCreateRealPersonAssetFromURLUsesBoundProfileGroupAndDefaultModeration(t
 	require.Equal(t, int64(0), asset.AssetGroupId)
 }
 
+func TestCreateRealPersonAssetFromURLAllowsURLOnlyCredentialWithoutTOS(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", urlOnlyRealPersonKey()).Error)
+
+	resp, apiErr := f.createURL("idem-url-only", "https://example.com/person.png", "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, resp.Status)
+	require.Equal(t, "https://example.com/person.png", f.fake.lastCreate.URL)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+}
+
+func TestCreateRealPersonAssetFromMultipartURLOnlyCredentialFailsBeforeUpload(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", urlOnlyRealPersonKey()).Error)
+
+	_, apiErr := f.createMultipart("idem-url-only-upload", pngHeader(), "Image", "front")
+
+	assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	require.Len(t, f.store.puts, 0)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+}
+
 func TestCreateRealPersonAssetFromURLDoesNotPersistCompleteSourceURL(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	signedURL := "https://example.com/person.png?X-Tos-Signature=secret&X-Tos-Credential=private"
