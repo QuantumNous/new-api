@@ -171,8 +171,8 @@ curl -sS -X DELETE https://router.flatkey.ai/v1/assets/ast_1234567890abcdef12345
 | 403 | `access_denied` | Token、用户、模型权限、余额或 IP 限制不满足 |
 | 404 | `real_person_not_found`、`asset_not_found` | 档案或素材不存在，或不属于当前用户 |
 | 409 | `real_person_not_active`、`verification_in_progress`、`idempotency_conflict`、`asset_profile_conflict` | 状态冲突、幂等冲突、一次视频请求引用多个真人档案 |
-| 413 | `asset_too_large` | 文件或请求超过限制 |
-| 415 | `unsupported_asset_media_type` | 文件格式或容器不支持 |
+| 413 | `asset_file_too_large` | 文件或请求超过限制 |
+| 415 | `asset_media_unsupported` | 文件格式或容器不支持 |
 | 500 | `asset_storage_error` | Flatkey 存储或状态持久化失败 |
 | 502 | `asset_upstream_error`、`idempotency_outcome_unknown` | 上游失败或幂等结果未知 |
 | 503 | `asset_channel_unavailable` | 可用渠道不存在或暂不可用 |

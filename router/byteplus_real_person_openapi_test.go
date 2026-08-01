@@ -15,7 +15,7 @@ func TestBytePlusRealPersonOpenAPIContract(t *testing.T) {
 	require.Equal(t, "3.0.1", relay["openapi"])
 	require.Equal(t, "3.0.1", admin["openapi"])
 
-	servers := relay["servers"].([]any)
+	servers := requireOpenAPIArray(t, relay["servers"], "servers")
 	require.NotEmpty(t, servers)
 	require.Equal(t, "https://router.flatkey.ai", openAPIObject(t, servers[0])["url"])
 
@@ -119,6 +119,17 @@ func TestBytePlusRealPersonOpenAPIContract(t *testing.T) {
 	}
 }
 
+func TestBytePlusRealPersonAssetAPIDocStableErrorCodes(t *testing.T) {
+	raw, err := os.ReadFile("../docs/api/byteplus-real-person-asset-api.md")
+	require.NoError(t, err)
+	doc := string(raw)
+
+	require.Contains(t, doc, "| 413 | `asset_file_too_large` |")
+	require.Contains(t, doc, "| 415 | `asset_media_unsupported` |")
+	require.NotContains(t, doc, "asset_too_large")
+	require.NotContains(t, doc, "unsupported_asset_media_type")
+}
+
 func readOpenAPIDocument(t *testing.T, path string) map[string]any {
 	t.Helper()
 
@@ -127,6 +138,14 @@ func readOpenAPIDocument(t *testing.T, path string) map[string]any {
 	var document map[string]any
 	require.NoError(t, common.Unmarshal(raw, &document))
 	return document
+}
+
+func requireOpenAPIArray(t *testing.T, value any, name string) []any {
+	t.Helper()
+
+	array, ok := value.([]any)
+	require.True(t, ok, "expected OpenAPI %s array, got %T", name, value)
+	return array
 }
 
 func openAPIObject(t *testing.T, value any) map[string]any {
@@ -189,6 +208,7 @@ func requireRequestContentType(t *testing.T, operation map[string]any, contentTy
 	t.Helper()
 
 	requestBody := openAPIObject(t, operation["requestBody"])
+	require.Equal(t, true, requestBody["required"], "requestBody.required must be true")
 	content := openAPIObject(t, requestBody["content"])
 	mediaType, ok := content[contentType]
 	require.True(t, ok, "missing request content type %s", contentType)
