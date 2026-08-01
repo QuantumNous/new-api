@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type QueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import {
   createRootRouteWithContext,
@@ -70,11 +70,11 @@ function normalizePathname(p: string): string {
   return p
 }
 
-function ensureHostIsolation(location: { pathname: string; search: string }): void {
+function ensureHostIsolation(location: { pathname: string; searchStr: string }): void {
   if (typeof window === 'undefined') return
   const host = window.location.host
   const path = normalizePathname(location.pathname)
-  const search = location.search ?? ''
+  const search = location.searchStr ?? ''
   if (host.startsWith('www.')) {
     // 营销 host：仅营销/公共路径留在本域，其余跳到控制台
     if (!WWW_ALLOWED_PATHS.has(path) && path !== '/setup') {
