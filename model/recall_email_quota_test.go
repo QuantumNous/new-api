@@ -29,8 +29,25 @@ func setupRecallEmailQuotaTestDB(t *testing.T) *gorm.DB {
 		DB = originalDB
 	})
 
-	require.NoError(t, db.AutoMigrate(&RecallEmailQuotaWindow{}, &RecallMessage{}))
+	require.NoError(t, db.AutoMigrate(&RecallEmailQuotaWindow{}, &RecallRecipient{}, &RecallCampaignExclusion{}, &RecallMessage{}))
 	return db
+}
+
+func createRecallEmailQuotaTestRecipient(t *testing.T, id int64, campaignID int64, email string) RecallRecipient {
+	t.Helper()
+
+	recipient := RecallRecipient{
+		Id:                  id,
+		CampaignId:          campaignID,
+		UserId:              int(id),
+		RecipientIdentity:   RecallRecipientIdentityForUser(int(id)),
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       email,
+		LanguageSnapshot:    "en",
+		State:               RecallRecipientContacting,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	return recipient
 }
 
 func TestBeginRecallEmailSMTPAttemptDoesNotConsumeQuotaAfterLeaseLoss(t *testing.T) {
@@ -64,8 +81,9 @@ func TestBeginRecallEmailSMTPAttemptDoesNotConsumeQuotaAfterLeaseLoss(t *testing
 
 func TestBeginRecallEmailSMTPAttemptCommitsSendingAndQuotaTogether(t *testing.T) {
 	setupRecallEmailQuotaTestDB(t)
+	recipient := createRecallEmailQuotaTestRecipient(t, 2, 2002, "quota-send@example.com")
 	message := RecallMessage{
-		RecipientId:      2,
+		RecipientId:      recipient.Id,
 		StageNo:          1,
 		TemplateSnapshot: `{}`,
 		State:            RecallMessageLeased,
@@ -94,8 +112,9 @@ func TestBeginRecallEmailSMTPAttemptRollsBackSendingWhenQuotaIsExhausted(t *test
 	_, reserved, err := ReserveRecallEmailQuotaWithContext(context.Background(), 1)
 	require.NoError(t, err)
 	require.True(t, reserved)
+	recipient := createRecallEmailQuotaTestRecipient(t, 3, 2003, "quota-exhausted@example.com")
 	message := RecallMessage{
-		RecipientId:      3,
+		RecipientId:      recipient.Id,
 		StageNo:          1,
 		TemplateSnapshot: `{}`,
 		State:            RecallMessageLeased,

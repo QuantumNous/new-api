@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestRecallWorkerUserStripeCustomerConditionalWriteChoosesOneWinner(t *testing.T) {
@@ -233,4 +234,153 @@ func TestRecallWorkerSchedulesStageOneFromExplicitSourceState(t *testing.T) {
 	var storedMessage RecallMessage
 	require.NoError(t, DB.Where("recipient_id = ? AND stage_no = 1", recipient.Id).First(&storedMessage).Error)
 	require.Nil(t, storedMessage.ClaimTokenHash)
+}
+
+func TestRecallExclusionBeginSMTPAttemptSuppressesPersistentExclusionWithoutQuota(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	campaign := newRecallRepositoryCampaign("suppressed smtp begin")
+	campaign.Status = RecallCampaignRunning
+	require.NoError(t, CreateRecallCampaign(&campaign))
+	recipient := RecallRecipient{
+		CampaignId: campaign.Id, UserId: 8001, RecipientIdentity: RecallRecipientIdentityForUser(8001),
+		EligibilitySnapshot: `{}`, EmailSnapshot: "suppressed@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	message := RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageLeased, LeaseOwner: "node-a", LeaseExpiresAt: 200}
+	require.NoError(t, DB.Create(&message).Error)
+	require.NoError(t, DB.Create(&RecallCampaignExclusion{
+		CampaignId: campaign.Id, RecipientIdentity: recipient.RecipientIdentity, UserId: recipient.UserId,
+		Persistent: true, PersistentReasonCode: "operator_csv",
+	}).Error)
+
+	attempt, err := BeginRecallEmailSMTPAttemptWithContext(context.Background(), message.Id, "node-a", 200, 1)
+
+	require.NoError(t, err)
+	require.True(t, attempt.LeaseOwned)
+	require.True(t, attempt.Suppressed)
+	require.False(t, attempt.Reserved)
+	stored := RecallMessage{}
+	require.NoError(t, DB.First(&stored, message.Id).Error)
+	require.Equal(t, RecallMessageCancelled, stored.State)
+	require.Equal(t, "operator_csv", stored.LastErrorCode)
+	status, err := GetRecallEmailQuotaStatusWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	require.Zero(t, status.Used)
+}
+
+func TestRecallExclusionBeginSMTPAttemptReportsSuppressedWhenConfirmationCancelsAfterInitialRead(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	campaign := newRecallRepositoryCampaign("suppressed after read")
+	campaign.Status = RecallCampaignRunning
+	require.NoError(t, CreateRecallCampaign(&campaign))
+	recipient := RecallRecipient{
+		CampaignId: campaign.Id, UserId: 8101, RecipientIdentity: RecallRecipientIdentityForUser(8101),
+		EligibilitySnapshot: `{}`, EmailSnapshot: "after-read@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	message := RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageLeased, LeaseOwner: "node-a", LeaseExpiresAt: 200}
+	require.NoError(t, DB.Create(&message).Error)
+	callbackName := "recall_exclusion_after_initial_read"
+	fired := false
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if fired || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallMessage" {
+			return
+		}
+		fired = true
+		db := tx.Session(&gorm.Session{NewDB: true})
+		if err := db.Exec(
+			"INSERT INTO recall_campaign_exclusions (campaign_id, recipient_identity, user_id, persistent, persistent_reason_code) VALUES (?, ?, ?, ?, ?)",
+			campaign.Id, recipient.RecipientIdentity, recipient.UserId, true, "operator_csv",
+		).Error; err != nil {
+			tx.AddError(err)
+			return
+		}
+		if err := db.Exec(
+			"UPDATE recall_messages SET state = ?, lease_owner = ?, lease_expires_at = ?, last_error_code = ? WHERE id = ?",
+			RecallMessageCancelled, "", int64(0), "operator_csv", message.Id,
+		).Error; err != nil {
+			tx.AddError(err)
+		}
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Query().Remove(callbackName) })
+
+	attempt, err := BeginRecallEmailSMTPAttemptWithContext(context.Background(), message.Id, "node-a", 200, 1)
+
+	require.NoError(t, err)
+	require.True(t, attempt.LeaseOwned)
+	require.True(t, attempt.Suppressed)
+	require.False(t, attempt.Reserved)
+	status, err := GetRecallEmailQuotaStatusWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	require.Zero(t, status.Used)
+	stored := RecallMessage{}
+	require.NoError(t, DB.First(&stored, message.Id).Error)
+	require.Equal(t, RecallMessageCancelled, stored.State)
+}
+
+func TestRecallExclusionBeginSMTPAttemptQuotaRollsBackWhenCASLoses(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	campaign := newRecallRepositoryCampaign("quota rollback")
+	campaign.Status = RecallCampaignRunning
+	require.NoError(t, CreateRecallCampaign(&campaign))
+	recipient := RecallRecipient{
+		CampaignId: campaign.Id, UserId: 8002, RecipientIdentity: RecallRecipientIdentityForUser(8002),
+		EligibilitySnapshot: `{}`, EmailSnapshot: "quota-race@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	message := RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageLeased, LeaseOwner: "node-a", LeaseExpiresAt: 200}
+	require.NoError(t, DB.Create(&message).Error)
+	callbackName := "recall_quota_cas_loss"
+	fired := false
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if fired || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallMessage" {
+			return
+		}
+		fired = true
+		if err := tx.Session(&gorm.Session{NewDB: true}).
+			Exec("UPDATE recall_messages SET state = ?, lease_owner = ?, lease_expires_at = ? WHERE id = ?", RecallMessageCancelled, "", int64(0), message.Id).Error; err != nil {
+			tx.AddError(err)
+		}
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Update().Remove(callbackName) })
+
+	attempt, err := BeginRecallEmailSMTPAttemptWithContext(context.Background(), message.Id, "node-a", 200, 1)
+
+	require.NoError(t, err)
+	require.False(t, attempt.LeaseOwned)
+	require.False(t, attempt.Reserved)
+	status, err := GetRecallEmailQuotaStatusWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	require.Zero(t, status.Used)
+}
+
+func TestRecallExclusionAcceptPreservesAcceptedButSkipsNextWhenExcluded(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	campaign := newRecallRepositoryCampaign("accept suppressed")
+	campaign.Status = RecallCampaignRunning
+	require.NoError(t, CreateRecallCampaign(&campaign))
+	recipient := RecallRecipient{
+		CampaignId: campaign.Id, UserId: 8003, RecipientIdentity: RecallRecipientIdentityForUser(8003),
+		EligibilitySnapshot: `{}`, EmailSnapshot: "accepted@example.com", LanguageSnapshot: "en", State: RecallRecipientContacting,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	message := RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageSending, LeaseOwner: "node-a", LeaseExpiresAt: 200}
+	require.NoError(t, DB.Create(&message).Error)
+	require.NoError(t, DB.Create(&RecallCampaignExclusion{
+		CampaignId: campaign.Id, RecipientIdentity: recipient.RecipientIdentity, UserId: recipient.UserId,
+		Persistent: true, PersistentReasonCode: "operator_csv",
+	}).Error)
+
+	accepted, err := AcceptRecallMessageAndScheduleNextWithContext(context.Background(), message.Id, "node-a", 200, 150, &RecallMessage{
+		StageNo: 2, TemplateSnapshot: `{}`, ScheduledAt: 300,
+	})
+
+	require.NoError(t, err)
+	require.True(t, accepted)
+	first := RecallMessage{}
+	require.NoError(t, DB.First(&first, message.Id).Error)
+	require.Equal(t, RecallMessageAccepted, first.State)
+	var nextCount int64
+	require.NoError(t, DB.Model(&RecallMessage{}).Where("recipient_id = ? AND stage_no = 2", recipient.Id).Count(&nextCount).Error)
+	require.Zero(t, nextCount)
 }

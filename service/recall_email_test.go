@@ -1225,6 +1225,25 @@ func TestRecallEmailWorkerPreSMTPCancellationDoesNotConsumeQuota(t *testing.T) {
 	require.Zero(t, status.Used)
 }
 
+func TestRecallEmailWorkerPersistentExclusionCancelsWithoutSMTP(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	setRecallEmailHourlyLimit(t, 1)
+	require.NoError(t, model.DB.Create(&model.RecallCampaignExclusion{
+		CampaignId: fixture.campaign.Id, RecipientIdentity: model.RecallRecipientIdentityForUser(fixture.user.Id), UserId: fixture.user.Id,
+		Persistent: true, PersistentReasonCode: "operator_csv",
+	}).Error)
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	require.Empty(t, *fixture.sent)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageCancelled, stored.State)
+	require.Equal(t, "operator_csv", stored.LastErrorCode)
+	status, err := model.GetRecallEmailQuotaStatusWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	require.Zero(t, status.Used)
+}
+
 func TestRecallEmailWorkerSenderInvalidStopsBeforeLeaseAndQuota(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
 	clearRecallActivitySMTP(t)

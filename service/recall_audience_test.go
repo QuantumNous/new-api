@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1380,4 +1382,82 @@ func TestRecallAudienceHonorsCancellationAndRejectsInvalidBatchSizes(t *testing.
 	selector.LogBatchSize = 0
 	_, err = selector.Preview(context.Background(), draft, 1, time.Unix(2_000_000_000, 0))
 	require.Error(t, err)
+}
+
+func TestRecallAudienceRunExclusionLedgerCapturesRejectedIdentities(t *testing.T) {
+	mainDB, _ := setupRecallAudienceTestDBs(t)
+	const now int64 = 2_000_000_000
+	disabled := createRecallAudienceUser(t, mainDB, now, "ledger_disabled", func(user *model.User) {
+		user.Status = common.UserStatusDisabled
+	})
+	invalid := createRecallAudienceUser(t, mainDB, now, "ledger_invalid", func(user *model.User) {
+		user.Email = "not-an-email"
+	})
+
+	_, exclusions, source, err := NewRecallAudienceSelector().SnapshotWithExclusionLedger(context.Background(), RecallCampaignDraft{
+		AudienceTemplate: "first_purchase",
+		Audience:         RecallAudienceConfig{RegistrationAgeDays: 7, MinRequestCount: 5, MaxQuota: 10},
+	}, 10, time.Unix(now, 0))
+	require.NoError(t, err)
+	spool, ok := source.(*recallAudienceExclusionLedger)
+	require.True(t, ok, "snapshot exclusion ledger must use the bounded spool source")
+	t.Cleanup(func() { _ = spool.Close() })
+	var ledger []model.RecallCampaignRunExclusion
+	require.NoError(t, source.ForEachRecallCampaignRunExclusion(func(exclusion model.RecallCampaignRunExclusion) error {
+		ledger = append(ledger, exclusion)
+		return nil
+	}))
+
+	require.EqualValues(t, 1, exclusions["disabled"])
+	require.EqualValues(t, 1, exclusions["invalid_email"])
+	require.ElementsMatch(t, []model.RecallCampaignRunExclusion{
+		{RecipientIdentity: model.RecallRecipientIdentityForUser(disabled.Id), UserId: disabled.Id, ReasonCode: "disabled"},
+		{RecipientIdentity: model.RecallRecipientIdentityForUser(invalid.Id), UserId: invalid.Id, ReasonCode: "invalid_email"},
+	}, ledger)
+	path := spool.path
+	raw, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	require.NotContains(t, string(raw), "ledger_disabled@example.com")
+	require.NotContains(t, string(raw), "not-an-email")
+	require.NoError(t, spool.Close())
+	_, statErr := os.Stat(path)
+	require.True(t, os.IsNotExist(statErr))
+}
+
+func TestRecallAudienceSnapshotClosesDiscardedExclusionLedgerOnSuccessAndFailure(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		mainDB, _ := setupRecallAudienceTestDBs(t)
+		const now int64 = 2_000_000_000
+		createRecallAudienceUser(t, mainDB, now, "snapshot_cleanup_disabled", func(user *model.User) {
+			user.Status = common.UserStatusDisabled
+		})
+		before := recallAudienceTempLedgerCount(t)
+
+		_, _, err := NewRecallAudienceSelector().Snapshot(context.Background(), RecallCampaignDraft{
+			AudienceTemplate: "first_purchase",
+			Audience:         RecallAudienceConfig{RegistrationAgeDays: 7, MinRequestCount: 5, MaxQuota: 10},
+		}, 10, time.Unix(now, 0))
+
+		require.NoError(t, err)
+		require.Equal(t, before, recallAudienceTempLedgerCount(t))
+	})
+
+	t.Run("iterate failure", func(t *testing.T) {
+		setupRecallAudienceTestDBs(t)
+		before := recallAudienceTempLedgerCount(t)
+		selector := NewRecallAudienceSelector()
+		selector.MainBatchSize = 0
+
+		_, _, _, err := selector.SnapshotWithExclusionLedger(context.Background(), RecallCampaignDraft{AudienceTemplate: "first_purchase"}, 10, time.Unix(2_000_000_000, 0))
+
+		require.Error(t, err)
+		require.Equal(t, before, recallAudienceTempLedgerCount(t))
+	})
+}
+
+func recallAudienceTempLedgerCount(t *testing.T) int {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(os.TempDir(), "recall-run-exclusions-*.jsonl"))
+	require.NoError(t, err)
+	return len(matches)
 }

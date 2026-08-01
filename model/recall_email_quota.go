@@ -29,11 +29,13 @@ type RecallEmailSMTPAttempt struct {
 	Quota      RecallEmailQuotaStatus
 	Reserved   bool
 	LeaseOwned bool
+	Suppressed bool
 }
 
 var (
 	recallEmailQuotaNow     = getDBTimestamp
 	errRecallEmailQuotaWait = errors.New("recall email quota exhausted")
+	errRecallEmailCASLost   = errors.New("recall email CAS lost")
 )
 
 func ReserveRecallEmailQuotaWithContext(ctx context.Context, limit int) (RecallEmailQuotaStatus, bool, error) {
@@ -49,20 +51,41 @@ func BeginRecallEmailSMTPAttemptWithContext(
 ) (RecallEmailSMTPAttempt, error) {
 	attempt := RecallEmailSMTPAttempt{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		count, err := TransitionRecallMessagesWithEventsTx(tx, []RecallMessageTransition{{
-			MessageID:          messageID,
-			From:               RecallMessageLeased,
-			To:                 RecallMessageSending,
-			Owner:              owner,
-			ExpectedLeaseUntil: expectedLeaseUntil,
-		}})
+		if err := serializeRecallSQLiteWriterTx(tx, "UPDATE recall_messages SET id = id WHERE id = ?", messageID); err != nil {
+			return err
+		}
+		var message RecallMessage
+		if err := tx.Select("id", "recipient_id").
+			Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", messageID, RecallMessageLeased, owner, expectedLeaseUntil).
+			First(&message).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		attempt.LeaseOwned = true
+
+		var recipient RecallRecipient
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", message.RecipientId).
+			First(&recipient).Error; err != nil {
+			return err
+		}
+		suppressed, reason, err := hasPersistentRecallCampaignExclusionTx(tx, recipient)
 		if err != nil {
 			return err
 		}
-		if count != 1 {
+		if suppressed {
+			attempt.Suppressed = true
+			cancelled, err := cancelSuppressedRecallEmailFlowTx(tx, message.Id, recipient.Id, owner, expectedLeaseUntil, reason)
+			if err != nil {
+				return err
+			}
+			if !cancelled {
+				return nil
+			}
 			return nil
 		}
-		attempt.LeaseOwned = true
 
 		status, reserved, err := reserveRecallEmailQuota(tx, limit)
 		if err != nil {
@@ -73,12 +96,38 @@ func BeginRecallEmailSMTPAttemptWithContext(
 		if !reserved {
 			return errRecallEmailQuotaWait
 		}
+		count, err := TransitionRecallMessagesWithEventsTx(tx, []RecallMessageTransition{{
+			MessageID:          messageID,
+			RecipientID:        recipient.Id,
+			From:               RecallMessageLeased,
+			To:                 RecallMessageSending,
+			Owner:              owner,
+			ExpectedLeaseUntil: expectedLeaseUntil,
+		}})
+		if err != nil {
+			return err
+		}
+		if count != 1 {
+			attempt.LeaseOwned = false
+			attempt.Reserved = false
+			return errRecallEmailCASLost
+		}
 		return nil
 	})
 	if errors.Is(err, errRecallEmailQuotaWait) {
 		return attempt, nil
 	}
+	if errors.Is(err, errRecallEmailCASLost) {
+		return attempt, nil
+	}
 	return attempt, err
+}
+
+func serializeRecallSQLiteWriterTx(tx *gorm.DB, sql string, args ...any) error {
+	if tx.Dialector.Name() != "sqlite" {
+		return nil
+	}
+	return tx.Exec(sql, args...).Error
 }
 
 func reserveRecallEmailQuota(db *gorm.DB, limit int) (RecallEmailQuotaStatus, bool, error) {

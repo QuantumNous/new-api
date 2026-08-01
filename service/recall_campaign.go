@@ -1368,14 +1368,21 @@ func (s *RecallCampaignService) commitCampaignRun(
 	}
 	var recipients []model.RecallRecipient
 	var exclusions map[string]int64
+	var runExclusions model.RecallCampaignRunExclusionSource
 	var err error
 	if campaign.ExecutionMode == "recurring" {
-		recipients, exclusions, err = s.snapshotRecurringAudience(ctx, campaign.Id, draft, snapshotLimit, runAt)
+		recipients, exclusions, runExclusions, err = s.snapshotRecurringAudience(ctx, campaign.Id, draft, snapshotLimit, runAt)
 	} else {
-		recipients, exclusions, err = s.audience.Snapshot(ctx, draft, snapshotLimit, runAt)
+		recipients, exclusions, runExclusions, err = s.audience.SnapshotWithExclusionLedger(ctx, draft, snapshotLimit, runAt)
 	}
 	if err != nil {
+		if closer, ok := runExclusions.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
 		return false, err
+	}
+	if closer, ok := runExclusions.(interface{ Close() error }); ok {
+		defer func() { _ = closer.Close() }()
 	}
 	expiresAt := runAt.Add(time.Duration(campaign.PromotionValidSeconds) * time.Second).Unix()
 	if draft.CampaignType == model.RecallCampaignTypePromotion {
@@ -1415,6 +1422,7 @@ func (s *RecallCampaignService) commitCampaignRun(
 			SourceEventId: runKey,
 			EventData:     string(eventData),
 		},
+		runExclusions,
 	)
 	return committed, err
 }
@@ -1425,13 +1433,17 @@ func (s *RecallCampaignService) snapshotRecurringAudience(
 	draft RecallCampaignDraft,
 	limit int,
 	runAt time.Time,
-) ([]model.RecallRecipient, map[string]int64, error) {
+) ([]model.RecallRecipient, map[string]int64, model.RecallCampaignRunExclusionSource, error) {
 	existing, err := model.ListRecallCampaignRecipientKeysWithContext(ctx, campaignID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	recipients := make([]model.RecallRecipient, 0, limit)
-	exclusions, err := s.audience.iterate(ctx, draft, runAt.Unix(), func(selection recallAudienceSelection) bool {
+	runExclusions, err := newRecallAudienceExclusionLedger()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	exclusions, err := s.audience.iterate(ctx, draft, runAt.Unix(), runExclusions, func(selection recallAudienceSelection) bool {
 		candidate := selection.Candidate
 		if len(recipients) >= limit {
 			return true
@@ -1473,7 +1485,11 @@ func (s *RecallCampaignService) snapshotRecurringAudience(
 		}
 		return true
 	})
-	return recipients, exclusions, err
+	if err != nil {
+		_ = runExclusions.Close()
+		return nil, nil, nil, err
+	}
+	return recipients, exclusions, runExclusions, err
 }
 
 func normalizeRecallCampaignRecipientEmailKey(email string) (string, bool) {

@@ -3696,7 +3696,10 @@ func TestRecallCampaignRecurringSnapshotSkipsExistingIdentityBeforeInsert(t *tes
 	}
 	require.NoError(t, db.Create(&existing).Error)
 
-	recipients, _, err := service.snapshotRecurringAudience(context.Background(), campaign.Id, draft, 10, now)
+	recipients, _, source, err := service.snapshotRecurringAudience(context.Background(), campaign.Id, draft, 10, now)
+	if closer, ok := source.(interface{ Close() error }); ok {
+		t.Cleanup(func() { _ = closer.Close() })
+	}
 
 	require.NoError(t, err)
 	require.Empty(t, recipients)
@@ -3728,11 +3731,42 @@ func TestRecallCampaignRecurringSnapshotDeduplicatesNormalizedEmailWithinRun(t *
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 	require.NoError(t, err)
 
-	recipients, _, err := service.snapshotRecurringAudience(context.Background(), campaign.Id, draft, 10, now)
+	recipients, _, source, err := service.snapshotRecurringAudience(context.Background(), campaign.Id, draft, 10, now)
+	if closer, ok := source.(interface{ Close() error }); ok {
+		t.Cleanup(func() { _ = closer.Close() })
+	}
 
 	require.NoError(t, err)
 	require.Len(t, recipients, 1)
 	require.Equal(t, "same-run@example.com", recipients[0].EmailSnapshot)
+}
+
+func TestRecallCampaignRunClosesExclusionLedgerWhenCommitLosesRunEvent(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 0, 30, 0, 0, time.UTC)
+	createRecallAudienceUser(t, db, now.Unix(), "commit_cleanup_disabled", func(user *model.User) {
+		user.Status = common.UserStatusDisabled
+	})
+	draft := validRecallCampaignDraft(now)
+	draft.Audience.LastAPICallAgeDays = 0
+	campaign := model.RecallCampaign{
+		Name: "commit cleanup", Status: model.RecallCampaignRunning, AudienceTemplate: draft.AudienceTemplate,
+		AudienceConfig: `{}`, ExecutionMode: "manual", PromotionValidSeconds: 3600, EmailSequenceConfig: `[]`,
+		ConfigRevision: 1,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	require.NoError(t, db.Create(&model.RecallEvent{
+		CampaignId: campaign.Id, EventType: "campaign_run", Source: "scheduler", SourceEventId: "cleanup-conflict", EventData: `{}`,
+	}).Error)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	before := recallAudienceTempLedgerCount(t)
+
+	committed, err := service.commitCampaignRun(context.Background(), &campaign, draft, []string{model.RecallCampaignRunning}, model.RecallCampaignRunning, nil, map[string]any{}, "cleanup-conflict", now)
+
+	require.NoError(t, err)
+	require.False(t, committed)
+	require.Equal(t, before, recallAudienceTempLedgerCount(t))
 }
 
 func mustRunDueCampaigns(t *testing.T, service *RecallCampaignService, now time.Time) int {

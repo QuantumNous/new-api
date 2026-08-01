@@ -271,6 +271,9 @@ func ApplyRecallExclusionBatchWithContext(ctx context.Context, campaignID int64,
 	}
 	outcome := RecallExclusionApplyOutcome{BatchID: batchID}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := serializeRecallSQLiteWriterTx(tx, "UPDATE recall_exclusion_batches SET id = id WHERE id = ? AND campaign_id = ?", batchID, campaignID); err != nil {
+			return err
+		}
 		var batch RecallExclusionBatch
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND campaign_id = ?", batchID, campaignID).

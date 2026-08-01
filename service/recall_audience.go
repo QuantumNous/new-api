@@ -1,9 +1,12 @@
 package service
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net/mail"
+	"os"
 	"strings"
 	"time"
 
@@ -158,7 +161,7 @@ func (selector *RecallAudienceSelector) Preview(ctx context.Context, draft Recal
 	if sampleSize < 0 {
 		return preview, fmt.Errorf("recall audience sample size must not be negative")
 	}
-	exclusions, err := selector.iterate(ctx, draft, now.Unix(), func(selection recallAudienceSelection) bool {
+	exclusions, err := selector.iterate(ctx, draft, now.Unix(), nil, func(selection recallAudienceSelection) bool {
 		candidate := selection.Candidate
 		preview.EligibleTotal++
 		if len(preview.Sample) < sampleSize {
@@ -172,11 +175,26 @@ func (selector *RecallAudienceSelector) Preview(ctx context.Context, draft Recal
 }
 
 func (selector *RecallAudienceSelector) Snapshot(ctx context.Context, draft RecallCampaignDraft, limit int, now time.Time) ([]model.RecallRecipient, map[string]int64, error) {
+	recipients, exclusions, source, err := selector.SnapshotWithExclusionLedger(ctx, draft, limit, now)
+	if closer, ok := source.(interface{ Close() error }); ok {
+		closeErr := closer.Close()
+		if err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}
+	return recipients, exclusions, err
+}
+
+func (selector *RecallAudienceSelector) SnapshotWithExclusionLedger(ctx context.Context, draft RecallCampaignDraft, limit int, now time.Time) ([]model.RecallRecipient, map[string]int64, model.RecallCampaignRunExclusionSource, error) {
 	recipients := make([]model.RecallRecipient, 0)
 	if limit < 0 {
-		return nil, nil, fmt.Errorf("recall audience snapshot limit must not be negative")
+		return nil, nil, nil, fmt.Errorf("recall audience snapshot limit must not be negative")
 	}
-	exclusions, err := selector.iterate(ctx, draft, now.Unix(), func(selection recallAudienceSelection) bool {
+	ledger, err := newRecallAudienceExclusionLedger()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	exclusions, err := selector.iterate(ctx, draft, now.Unix(), ledger, func(selection recallAudienceSelection) bool {
 		if len(recipients) < limit {
 			candidate := selection.Candidate
 			recipients = append(recipients, model.RecallRecipient{
@@ -190,13 +208,18 @@ func (selector *RecallAudienceSelector) Snapshot(ctx context.Context, draft Reca
 		}
 		return true
 	})
-	return recipients, exclusions, err
+	if err != nil {
+		_ = ledger.Close()
+		return nil, nil, nil, err
+	}
+	return recipients, exclusions, ledger, err
 }
 
 func (selector *RecallAudienceSelector) iterate(
 	ctx context.Context,
 	draft RecallCampaignDraft,
 	now int64,
+	ledger *recallAudienceExclusionLedger,
 	onEligible func(recallAudienceSelection) bool,
 ) (map[string]int64, error) {
 	exclusions := newRecallAudienceExclusions()
@@ -230,6 +253,9 @@ func (selector *RecallAudienceSelector) iterate(
 			}
 			if reason != "" {
 				exclusions[reason]++
+				if err := writeRecallAudienceRunExclusion(ledger, fact, candidate, reason); err != nil {
+					return exclusions, err
+				}
 				continue
 			}
 			candidates = append(candidates, candidate)
@@ -261,6 +287,9 @@ func (selector *RecallAudienceSelector) iterate(
 		for _, candidate := range candidates {
 			if _, active := recentlyActive[candidate.Candidate.UserID]; active {
 				exclusions["recent_api_activity"]++
+				if err := writeRecallAudienceRunExclusion(ledger, model.RecallCandidateFact{}, candidate, "recent_api_activity"); err != nil {
+					return exclusions, err
+				}
 				continue
 			}
 			if !onEligible(candidate) {
@@ -276,6 +305,116 @@ func (selector *RecallAudienceSelector) iterate(
 			return exclusions, nil
 		}
 	}
+}
+
+func writeRecallAudienceRunExclusion(ledger *recallAudienceExclusionLedger, fact model.RecallCandidateFact, selection recallAudienceSelection, reason string) error {
+	if ledger == nil {
+		return nil
+	}
+	identity := strings.TrimSpace(selection.RecipientIdentity)
+	userID := selection.Candidate.UserID
+	if identity == "" {
+		identity = strings.TrimSpace(fact.RecipientIdentity)
+	}
+	if userID == 0 && !fact.EmailOnly {
+		userID = fact.User.Id
+	}
+	if identity == "" && userID > 0 {
+		identity = model.RecallRecipientIdentityForUser(userID)
+	}
+	if identity == "" {
+		return nil
+	}
+	return ledger.Append(model.RecallCampaignRunExclusion{
+		RecipientIdentity: identity,
+		UserId:            userID,
+		ReasonCode:        reason,
+	})
+}
+
+type recallAudienceExclusionLedger struct {
+	path   string
+	file   *os.File
+	closed bool
+}
+
+func newRecallAudienceExclusionLedger() (*recallAudienceExclusionLedger, error) {
+	file, err := os.CreateTemp(os.TempDir(), "recall-run-exclusions-*.jsonl")
+	if err != nil {
+		return nil, err
+	}
+	return &recallAudienceExclusionLedger{path: file.Name(), file: file}, nil
+}
+
+func (ledger *recallAudienceExclusionLedger) Append(exclusion model.RecallCampaignRunExclusion) error {
+	if ledger == nil || ledger.file == nil {
+		return nil
+	}
+	data, err := common.Marshal(exclusion)
+	if err != nil {
+		return err
+	}
+	if _, err := ledger.file.Write(append(data, '\n')); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ledger *recallAudienceExclusionLedger) ForEachRecallCampaignRunExclusion(visit func(model.RecallCampaignRunExclusion) error) error {
+	if ledger == nil || ledger.path == "" {
+		return nil
+	}
+	if ledger.file != nil {
+		if err := ledger.file.Sync(); err != nil {
+			return err
+		}
+		if _, err := ledger.file.Seek(0, 0); err != nil {
+			return err
+		}
+	}
+	file := ledger.file
+	if file == nil {
+		var err error
+		file, err = os.Open(ledger.path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		defer file.Close()
+	}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		var exclusion model.RecallCampaignRunExclusion
+		if err := common.Unmarshal(scanner.Bytes(), &exclusion); err != nil {
+			return err
+		}
+		if err := visit(exclusion); err != nil {
+			return err
+		}
+	}
+	return scanner.Err()
+}
+
+func (ledger *recallAudienceExclusionLedger) Close() error {
+	if ledger == nil || ledger.closed {
+		return nil
+	}
+	ledger.closed = true
+	var firstErr error
+	if ledger.file != nil {
+		if err := ledger.file.Close(); err != nil {
+			firstErr = err
+		}
+		ledger.file = nil
+	}
+	if ledger.path != "" {
+		if err := os.Remove(ledger.path); err != nil && !errors.Is(err, os.ErrNotExist) && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 func recallAudienceUsesRecentAPILookup(template string) bool {

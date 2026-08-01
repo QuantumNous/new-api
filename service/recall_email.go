@@ -530,6 +530,9 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	if !attempt.LeaseOwned {
 		return ErrRecallEmailLeaseLost
 	}
+	if attempt.Suppressed {
+		return nil
+	}
 	if !attempt.Reserved {
 		if candidate != nil {
 			released, releaseErr := model.ReleaseRecallMessageLeaseForRetryWithContext(
