@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -283,6 +284,44 @@ func TestCreateRealPersonAssetFromMultipartRejectsMalformedTOSConfigEvenWhenGCSC
 	require.Empty(t, f.store.puts)
 }
 
+func TestCreateRealPersonAssetFromMultipartRejectsPartialTOSConfigBeforeBodyRead(t *testing.T) {
+	cases := []struct {
+		name string
+		key  string
+	}{
+		{
+			name: "bucket only",
+			key:  `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_bucket":"real-person-bucket"}}`,
+		},
+		{
+			name: "region only",
+			key:  `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_region":"ap-southeast-1"}}`,
+		},
+		{
+			name: "endpoint only",
+			key:  `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newRealPersonAssetFixture(t)
+			t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+			require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", tc.key).Error)
+			req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", &failingReadCloser{t: t})
+			req.Header.Set("Content-Type", "multipart/form-data; boundary=unread")
+
+			_, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), f.profile.UserId, f.profile.PublicId, "partial-tos-"+tc.name, req)
+
+			assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+			require.Equal(t, 0, f.fake.createAssetCalls)
+			require.Empty(t, f.store.puts)
+			var records int64
+			require.NoError(t, model.DB.Model(&model.APIIdempotencyRecord{}).Count(&records).Error)
+			require.Zero(t, records)
+		})
+	}
+}
+
 func TestCreateRealPersonAssetFromMultipartNoBackendFailsBeforeBodyReadOrUpstream(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	t.Setenv("TEMP_MEDIA_BUCKET", " ")
@@ -303,6 +342,20 @@ func TestCreateRealPersonAssetFromMultipartNoBackendFailsBeforeBodyReadOrUpstrea
 func TestCreateRealPersonAssetFromMultipartPrefersTOSWhenBothBackendsConfigured(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+	oldTOSFactory := bytePlusTOSObjectStoreFactory
+	oldPut := putTempMediaObject
+	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
+	bytePlusTOSObjectStoreFactory = func(BytePlusCredentials) (BytePlusTempObjectStore, error) {
+		return f.store, nil
+	}
+	putTempMediaObject = func(context.Context, TempMediaConfig, string, io.Reader, string) error {
+		t.Fatal("gcs put should not run when tos storage is complete")
+		return nil
+	}
+	t.Cleanup(func() {
+		bytePlusTOSObjectStoreFactory = oldTOSFactory
+		putTempMediaObject = oldPut
+	})
 
 	resp, apiErr := f.createMultipart("tos-preferred-upload", pngHeader(), "Image", "front")
 
@@ -313,6 +366,35 @@ func TestCreateRealPersonAssetFromMultipartPrefersTOSWhenBothBackendsConfigured(
 	require.NoError(t, model.DB.First(&temp, "object_key = ?", f.store.puts[0].key).Error)
 	require.Equal(t, "tos:real-person-bucket", temp.Bucket)
 	require.NotEqual(t, "gcs-real-person-bucket", temp.Bucket)
+}
+
+func TestBytePlusGCSTempObjectStoreUsesDefaultTempMediaBucketConvention(t *testing.T) {
+	oldBucket, hadBucket := os.LookupEnv("TEMP_MEDIA_BUCKET")
+	oldOrigin, hadOrigin := os.LookupEnv("APP_CONSOLE_ORIGIN")
+	oldFrontend, hadFrontend := os.LookupEnv("FRONTEND_BASE_URL")
+	require.NoError(t, os.Unsetenv("TEMP_MEDIA_BUCKET"))
+	require.NoError(t, os.Unsetenv("APP_CONSOLE_ORIGIN"))
+	require.NoError(t, os.Unsetenv("FRONTEND_BASE_URL"))
+	t.Cleanup(func() {
+		if hadBucket {
+			require.NoError(t, os.Setenv("TEMP_MEDIA_BUCKET", oldBucket))
+		} else {
+			require.NoError(t, os.Unsetenv("TEMP_MEDIA_BUCKET"))
+		}
+		if hadOrigin {
+			require.NoError(t, os.Setenv("APP_CONSOLE_ORIGIN", oldOrigin))
+		} else {
+			require.NoError(t, os.Unsetenv("APP_CONSOLE_ORIGIN"))
+		}
+		if hadFrontend {
+			require.NoError(t, os.Setenv("FRONTEND_BASE_URL", oldFrontend))
+		} else {
+			require.NoError(t, os.Unsetenv("FRONTEND_BASE_URL"))
+		}
+	})
+
+	require.True(t, bytePlusGCSTempObjectStoreConfigured())
+	require.Equal(t, defaultTempMediaBucket, bytePlusGCSTempObjectBucket())
 }
 
 func TestBytePlusGCSTempObjectStoreUsesTempMediaHooks(t *testing.T) {

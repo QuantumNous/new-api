@@ -30,6 +30,7 @@ func bytePlusGCSTempObjectStoreConfigured() bool {
 	if bucket, ok := os.LookupEnv("TEMP_MEDIA_BUCKET"); ok {
 		return strings.TrimSpace(bucket) != ""
 	}
+	// CurrentTempMediaConfig carries the product default prod/staging private buckets.
 	return strings.TrimSpace(CurrentTempMediaConfig().Bucket) != ""
 }
 

@@ -404,20 +404,7 @@ func bytePlusRealPersonTOSFallbackAllowed(creds BytePlusCredentials) bool {
 	bucket := strings.TrimSpace(creds.RealPersonAssets.TOSBucket)
 	region := strings.TrimSpace(creds.RealPersonAssets.TOSRegion)
 	endpoint := strings.TrimSpace(creds.RealPersonAssets.TOSInternalEndpoint)
-	missing := bucket == "" || region == "" || endpoint == ""
-	if !missing {
-		return false
-	}
-	if bucket != "" && !isValidBytePlusTOSBucket(bucket) {
-		return false
-	}
-	if region != "" && region != bytePlusAssetRegion {
-		return false
-	}
-	if endpoint != "" && !isValidBytePlusRealPersonEndpoint(endpoint) {
-		return false
-	}
-	return true
+	return bucket == "" && region == "" && endpoint == ""
 }
 
 func bytePlusTempObjectStoreForPersistedBucket(creds BytePlusCredentials, current BytePlusTempObjectStore, persistedBucket string) (BytePlusTempObjectStore, error) {

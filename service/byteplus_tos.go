@@ -29,13 +29,14 @@ type bytePlusTOSStore struct {
 }
 
 var bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
+var bytePlusTOSObjectStoreFactory = newBytePlusTOSStore
 
 func newPreferredBytePlusTempObjectStore(creds BytePlusCredentials) (BytePlusTempObjectStore, error) {
 	if err := creds.ValidateRealPersonAssets(); err != nil {
 		return nil, err
 	}
 	if creds.ValidateRealPersonAssetStorage() == nil {
-		return newBytePlusTOSStore(creds)
+		return bytePlusTOSObjectStoreFactory(creds)
 	}
 	if !bytePlusRealPersonTOSFallbackAllowed(creds) {
 		return nil, errors.New("byteplus real-person tos storage configuration is invalid")
