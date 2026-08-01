@@ -301,7 +301,7 @@ func TestBytePlusRealPersonVerificationOutcomeUnknownCanFailOldSessionWithoutRew
 	require.Equal(t, newSession.Id, *profile.CurrentValidationSessionId)
 }
 
-func TestBytePlusRealPersonVerificationOutcomeUnknownLedgerSurvivesLocalCASLoss(t *testing.T) {
+func TestBytePlusRealPersonVerificationOutcomeUnknownRollsBackLedgerOnLocalCASLoss(t *testing.T) {
 	newBytePlusRealPersonTestDB(t)
 	profile := BytePlusRealPersonProfile{
 		PublicId: "rph_outcome_terminal", UserId: 7, Name: "A", ChannelId: 101,
@@ -325,7 +325,7 @@ func TestBytePlusRealPersonVerificationOutcomeUnknownLedgerSurvivesLocalCASLoss(
 	err := MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency(record.Id, 100, profile.Id, session.Id, "verification_outcome_unknown", 200)
 	require.ErrorIs(t, err, ErrAPIIdempotencyCASLost)
 	require.NoError(t, DB.First(&record, record.Id).Error)
-	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
+	require.Equal(t, APIIdempotencyStatusCallingUpstream, record.Status)
 	require.NoError(t, DB.First(&profile, profile.Id).Error)
 	require.Equal(t, BytePlusRealPersonProfileStatusVerifying, profile.Status)
 	require.NoError(t, DB.First(&session, session.Id).Error)
@@ -344,7 +344,7 @@ func TestBytePlusRealPersonSessionTerminalTransitionsUseOneOrderedHelper(t *test
 		body := text[functionStart : functionStart+len("func ")+nextFunction]
 		require.Contains(t, body, "transitionBytePlusRealPersonSessionTerminal(", functionName)
 	}
-	helperStart := strings.Index(text, "func transitionBytePlusRealPersonSessionTerminal")
+	helperStart := strings.Index(text, "func transitionBytePlusRealPersonSessionTerminalTx")
 	require.NotEqual(t, -1, helperStart)
 	helperEnd := strings.Index(text[helperStart+len("func "):], "\nfunc ")
 	require.NotEqual(t, -1, helperEnd)
@@ -352,6 +352,14 @@ func TestBytePlusRealPersonSessionTerminalTransitionsUseOneOrderedHelper(t *test
 	require.Less(t, strings.Index(helper, "updatedProfile :="), strings.Index(helper, "updatedSession :="))
 	require.Contains(t, helper, "requireOneRealPersonCAS(updatedProfile)")
 	require.Contains(t, helper, "requireOneRealPersonCAS(updatedSession)")
+
+	outcomeUnknownStart := strings.Index(text, "func MarkBytePlusRealPersonVerificationOutcomeUnknownForIdempotency")
+	require.NotEqual(t, -1, outcomeUnknownStart)
+	outcomeUnknownEnd := strings.Index(text[outcomeUnknownStart+len("func "):], "\nfunc ")
+	require.NotEqual(t, -1, outcomeUnknownEnd)
+	outcomeUnknown := text[outcomeUnknownStart : outcomeUnknownStart+len("func ")+outcomeUnknownEnd]
+	require.Contains(t, outcomeUnknown, "transitionBytePlusRealPersonSessionTerminalTx(tx,")
+	require.NotContains(t, outcomeUnknown, "FailBytePlusRealPersonSession(")
 }
 
 func profilePublicIDs(profiles []BytePlusRealPersonProfile) []string {

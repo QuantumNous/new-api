@@ -46,13 +46,13 @@ func TestBytePlusAssetClientCreateAssetGroupSendsSignedRequest(t *testing.T) {
 	if gotAction != "CreateAssetGroup" || gotVersion != "2024-01-01" {
 		t.Fatalf("query Action/Version = %q/%q", gotAction, gotVersion)
 	}
-	if !strings.HasPrefix(gotAuth, "HMAC-SHA256 Credential=ak-example/") {
+	if !strings.HasPrefix(gotAuth, "HMAC-SHA256 Credential=sentinel-access-key-id/") {
 		t.Fatalf("Authorization header = %q", gotAuth)
 	}
 	if gotHash == "" {
 		t.Fatal("X-Content-Sha256 header is empty")
 	}
-	if gotBody["Name"] != "flatkey-group" || gotBody["GroupType"] != "AIGC" || gotBody["ProjectName"] != "project3" {
+	if gotBody["Name"] != "flatkey-group" || gotBody["GroupType"] != "AIGC" || gotBody["ProjectName"] != "test-project" {
 		t.Fatalf("payload = %#v", gotBody)
 	}
 }
@@ -179,7 +179,7 @@ func TestBytePlusAssetClientGetAssetMapsStatuses(t *testing.T) {
 func TestBytePlusAssetClientRejectsUnknownStatusAndScrubsErrors(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-unknown"},"Result":{"Id":"asset-1","Status":"Mystery","Error":{"Message":"sk-should-not-leak"}}}`))
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-unknown"},"Result":{"Id":"asset-1","Status":"Mystery","Error":{"Message":"sentinel-secret-should-not-leak"}}}`))
 	}))
 	defer server.Close()
 
@@ -188,15 +188,15 @@ func TestBytePlusAssetClientRejectsUnknownStatusAndScrubsErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("GetAsset should reject unknown upstream status")
 	}
-	if strings.Contains(err.Error(), "sk-should-not-leak") || strings.Contains(err.Error(), "asset-1") {
+	if strings.Contains(err.Error(), "sentinel-secret-should-not-leak") || strings.Contains(err.Error(), "asset-1") {
 		t.Fatalf("error leaked upstream details: %v", err)
 	}
 }
 
 func TestBytePlusAssetClientRejectsMissingOrMismatchedGetAssetID(t *testing.T) {
 	responses := []string{
-		`{"ResponseMetadata":{"RequestId":"req-empty"},"Result":{"Id":"  ","Status":"Active","Error":{"Message":"sk-empty-should-not-leak"}}}`,
-		`{"ResponseMetadata":{"RequestId":"req-mismatch"},"Result":{"Id":"asset-other","Status":"Active","Error":{"Message":"sk-mismatch-leak"}}}`,
+		`{"ResponseMetadata":{"RequestId":"req-empty"},"Result":{"Id":"  ","Status":"Active","Error":{"Message":"sentinel-empty-secret-should-not-leak"}}}`,
+		`{"ResponseMetadata":{"RequestId":"req-mismatch"},"Result":{"Id":"asset-other","Status":"Active","Error":{"Message":"sentinel-mismatch-secret-leak"}}}`,
 	}
 	var calls int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +212,7 @@ func TestBytePlusAssetClientRejectsMissingOrMismatchedGetAssetID(t *testing.T) {
 		if err == nil {
 			t.Fatal("GetAsset should reject missing or mismatched result id")
 		}
-		for _, leaked := range []string{"sk-empty-should-not-leak", "sk-mismatch-leak", "asset-other", "asset-1"} {
+		for _, leaked := range []string{"sentinel-empty-secret-should-not-leak", "sentinel-mismatch-secret-leak", "asset-other", "asset-1"} {
 			if strings.Contains(err.Error(), leaked) {
 				t.Fatalf("case %d error leaked upstream details %q: %v", i, leaked, err)
 			}
@@ -227,7 +227,7 @@ func TestBytePlusAssetClientRejectsUpstreamErrorWithoutSecretReflection(t *testi
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-bad","Error":{"Code":"Bad","Message":"sk-should-not-leak"}}}`))
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-bad","Error":{"Code":"Bad","Message":"sentinel-secret-should-not-leak"}}}`))
 	}))
 	defer server.Close()
 
@@ -236,11 +236,27 @@ func TestBytePlusAssetClientRejectsUpstreamErrorWithoutSecretReflection(t *testi
 	if err == nil {
 		t.Fatal("CreateAssetGroup should reject upstream error")
 	}
-	if strings.Contains(err.Error(), "sk-should-not-leak") {
+	if strings.Contains(err.Error(), "sentinel-secret-should-not-leak") {
 		t.Fatalf("error leaked secret: %v", err)
 	}
 	if !strings.Contains(err.Error(), "req-bad") {
 		t.Fatalf("error should retain request id, got %v", err)
+	}
+}
+
+func TestBytePlusAssetClientClassifiesBareHTTP404AsDefinitiveNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := NewBytePlusAssetClient(server.Client(), server.URL)
+	_, err := client.GetAsset(context.Background(), testAssetCreds(), "asset-1")
+	if err == nil {
+		t.Fatal("GetAsset should reject bare upstream 404")
+	}
+	if !isBytePlusNotFound(err) {
+		t.Fatalf("bare upstream 404 should be definitive not-found: %v", err)
 	}
 }
 
@@ -276,7 +292,7 @@ func TestBytePlusAssetClientSemanticErrorsAreAmbiguousAndScrubbed(t *testing.T) 
 	}{
 		{
 			name: "create asset group missing result id",
-			body: `{"ResponseMetadata":{"RequestId":"req-group-missing"},"Result":{"Error":{"Message":"sk-example group-secret"}}}`,
+			body: `{"ResponseMetadata":{"RequestId":"req-group-missing"},"Result":{"Error":{"Message":"sentinel-secret-key group-secret"}}}`,
 			call: func(client *BytePlusAssetClient) error {
 				_, _, err := client.CreateAssetGroup(context.Background(), testAssetCreds(), "flatkey-group")
 				return err
@@ -284,7 +300,7 @@ func TestBytePlusAssetClientSemanticErrorsAreAmbiguousAndScrubbed(t *testing.T) 
 		},
 		{
 			name: "create asset missing result id",
-			body: `{"ResponseMetadata":{"RequestId":"req-asset-missing"},"Result":{"Error":{"Message":"sk-example asset-secret"}}}`,
+			body: `{"ResponseMetadata":{"RequestId":"req-asset-missing"},"Result":{"Error":{"Message":"sentinel-secret-key asset-secret"}}}`,
 			call: func(client *BytePlusAssetClient) error {
 				_, _, err := client.CreateAsset(context.Background(), testAssetCreds(), BytePlusCreateAssetRequest{
 					GroupID:   "group-1",
@@ -296,7 +312,7 @@ func TestBytePlusAssetClientSemanticErrorsAreAmbiguousAndScrubbed(t *testing.T) 
 		},
 		{
 			name: "get asset unexpected result id",
-			body: `{"ResponseMetadata":{"RequestId":"req-get-unexpected"},"Result":{"Id":"asset-other","Status":"Active","Error":{"Message":"sk-example unexpected-secret"}}}`,
+			body: `{"ResponseMetadata":{"RequestId":"req-get-unexpected"},"Result":{"Id":"asset-other","Status":"Active","Error":{"Message":"sentinel-secret-key unexpected-secret"}}}`,
 			call: func(client *BytePlusAssetClient) error {
 				_, err := client.GetAsset(context.Background(), testAssetCreds(), "asset-1")
 				return err
@@ -304,7 +320,7 @@ func TestBytePlusAssetClientSemanticErrorsAreAmbiguousAndScrubbed(t *testing.T) 
 		},
 		{
 			name: "get asset unknown status",
-			body: `{"ResponseMetadata":{"RequestId":"req-get-status"},"Result":{"Id":"asset-1","Status":"Mystery","Error":{"Message":"sk-example status-secret"}}}`,
+			body: `{"ResponseMetadata":{"RequestId":"req-get-status"},"Result":{"Id":"asset-1","Status":"Mystery","Error":{"Message":"sentinel-secret-key status-secret"}}}`,
 			call: func(client *BytePlusAssetClient) error {
 				_, err := client.GetAsset(context.Background(), testAssetCreds(), "asset-1")
 				return err
@@ -329,7 +345,7 @@ func TestBytePlusAssetClientSemanticErrorsAreAmbiguousAndScrubbed(t *testing.T) 
 			if !strings.Contains(err.Error(), "req-") {
 				t.Fatalf("semantic error should retain request id: %v", err)
 			}
-			for _, leaked := range []string{"sk-example", "secret", "asset-other", "Mystery", "missing result", "unexpected result", "unknown status"} {
+			for _, leaked := range []string{"sentinel-secret-key", "secret", "asset-other", "Mystery", "missing result", "unexpected result", "unknown status"} {
 				if strings.Contains(err.Error(), leaked) {
 					t.Fatalf("error leaked %q: %v", leaked, err)
 				}
@@ -376,8 +392,8 @@ func TestBytePlusAssetClientClassifiesMalformedAndOversizeEnvelopeSafely(t *test
 		{
 			name:       "oversize",
 			status:     http.StatusOK,
-			body:       strings.Repeat("sk-example", bytePlusAssetResponseMaxBytes/len("sk-example")+2),
-			leaks:      []string{"sk-example"},
+			body:       strings.Repeat("sentinel-secret-key", bytePlusAssetResponseMaxBytes/len("sentinel-secret-key")+2),
+			leaks:      []string{"sentinel-secret-key"},
 			definitive: false,
 		},
 	}
@@ -409,7 +425,7 @@ func TestBytePlusAssetClientClassifiesMalformedAndOversizeEnvelopeSafely(t *test
 func TestBytePlusAssetClientClassifiesTargetEnvelopeDecodeFailureSafely(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-target-decode"},"Result":{"Id":{"Raw":"sk-example token-1"}}}`))
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-target-decode"},"Result":{"Id":{"Raw":"sentinel-secret-key token-1"}}}`))
 	}))
 	defer server.Close()
 
@@ -424,7 +440,7 @@ func TestBytePlusAssetClientClassifiesTargetEnvelopeDecodeFailureSafely(t *testi
 	if !strings.Contains(err.Error(), "req-target-decode") {
 		t.Fatalf("error should retain request id: %v", err)
 	}
-	for _, leaked := range []string{"sk-example", "token-1", "Raw", "Id"} {
+	for _, leaked := range []string{"sentinel-secret-key", "token-1", "Raw", "Id"} {
 		if strings.Contains(err.Error(), leaked) {
 			t.Fatalf("error leaked %q: %v", leaked, err)
 		}
@@ -433,10 +449,10 @@ func TestBytePlusAssetClientClassifiesTargetEnvelopeDecodeFailureSafely(t *testi
 
 func testAssetCreds() BytePlusCredentials {
 	return BytePlusCredentials{
-		APIKey:          "ark-video-key",
-		AccessKeyID:     "ak-example",
-		SecretAccessKey: "sk-example",
-		ProjectName:     "project3",
+		APIKey:          "sentinel-api-key",
+		AccessKeyID:     "sentinel-access-key-id",
+		SecretAccessKey: "sentinel-secret-key",
+		ProjectName:     "test-project",
 	}
 }
 

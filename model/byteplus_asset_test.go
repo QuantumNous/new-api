@@ -18,6 +18,9 @@ func TestBytePlusAssetModelsAutoMigrateAndUniqueness(t *testing.T) {
 	if !db.Migrator().HasColumn(&BytePlusAsset{}, "real_person_profile_id") {
 		t.Fatal("real_person_profile_id must be migrated for real-person asset ownership")
 	}
+	if !db.Migrator().HasColumn(&BytePlusAsset{}, "lease_until") {
+		t.Fatal("lease_until must be migrated so submitted Seedance tasks can protect referenced assets")
+	}
 
 	if err := db.Create(&BytePlusAssetGroup{UserId: 1, ChannelId: 101, Status: BytePlusAssetGroupStatusCreating}).Error; err != nil {
 		t.Fatalf("create group: %v", err)
@@ -366,7 +369,7 @@ func TestListBytePlusAssetsForRealPersonRejectsOutOfScopeAndDeletedCursors(t *te
 
 func TestBytePlusAssetDeletionLifecycleUsesTombstoneAndLeaseCAS(t *testing.T) {
 	newBytePlusAssetTestDB(t)
-	active, err := CreateBytePlusAsset(BytePlusAsset{PublicId: "ast_delete", UserId: 7, ChannelId: 101, AssetType: "Image", Status: BytePlusAssetStatusActive, UpstreamAssetId: "upstream-asset", CreatedTime: 1000, UpdatedTime: 1000})
+	active, err := CreateBytePlusAsset(BytePlusAsset{PublicId: "ast_delete", UserId: 7, ChannelId: 101, AssetType: "Image", Status: BytePlusAssetStatusActive, UpstreamAssetId: "upstream-asset", LeaseUntil: 2500, CreatedTime: 1000, UpdatedTime: 1000})
 	if err != nil {
 		t.Fatalf("create asset: %v", err)
 	}
@@ -375,7 +378,7 @@ func TestBytePlusAssetDeletionLifecycleUsesTombstoneAndLeaseCAS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin deletion: %v", err)
 	}
-	if !changed || begun.Status != BytePlusAssetStatusDeleting || begun.NextDeleteAt != 2000 || begun.DeleteLeaseUpdatedTime != 0 {
+	if !changed || begun.Status != BytePlusAssetStatusDeleting || begun.NextDeleteAt != 2500 || begun.DeleteLeaseUpdatedTime != 0 {
 		t.Fatalf("begin asset=%+v changed=%v", begun, changed)
 	}
 	if _, _, err := BeginBytePlusAssetDeletion(8, "ast_delete", 2001); !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -384,12 +387,20 @@ func TestBytePlusAssetDeletionLifecycleUsesTombstoneAndLeaseCAS(t *testing.T) {
 
 	claimed, owner, err := ClaimBytePlusAssetDeletion(active.Id, 2010, 1900)
 	if err != nil {
+		t.Fatalf("early claim deletion: %v", err)
+	}
+	if owner {
+		t.Fatal("delete worker must not claim before lease_until/next_delete_at")
+	}
+
+	claimed, owner, err = ClaimBytePlusAssetDeletion(active.Id, 2510, 2400)
+	if err != nil {
 		t.Fatalf("claim deletion: %v", err)
 	}
-	if !owner || claimed.DeleteLeaseUpdatedTime != 2010 {
+	if !owner || claimed.DeleteLeaseUpdatedTime != 2510 {
 		t.Fatalf("claim asset=%+v owner=%v", claimed, owner)
 	}
-	_, owner, err = ClaimBytePlusAssetDeletion(active.Id, 2011, 1900)
+	_, owner, err = ClaimBytePlusAssetDeletion(active.Id, 2511, 2400)
 	if err != nil {
 		t.Fatalf("fresh competing claim: %v", err)
 	}
@@ -399,29 +410,77 @@ func TestBytePlusAssetDeletionLifecycleUsesTombstoneAndLeaseCAS(t *testing.T) {
 	if ok, err := CompleteBytePlusAssetDeletion(active.Id, 9999, 2020); err != nil || ok {
 		t.Fatalf("stale complete ok=%v err=%v", ok, err)
 	}
-	if ok, err := RetryBytePlusAssetDeletion(active.Id, 2010, 2030, 2025); err != nil || !ok {
+	if ok, err := RetryBytePlusAssetDeletion(active.Id, 2510, 2600, 2525); err != nil || !ok {
 		t.Fatalf("retry ok=%v err=%v", ok, err)
 	}
 	var retried BytePlusAsset
 	if err := DB.First(&retried, active.Id).Error; err != nil {
 		t.Fatalf("reload retried: %v", err)
 	}
-	if retried.Status != BytePlusAssetStatusDeleting || retried.DeleteAttempts != 1 || retried.DeleteLeaseUpdatedTime != 0 || retried.NextDeleteAt != 2030 {
+	if retried.Status != BytePlusAssetStatusDeleting || retried.DeleteAttempts != 1 || retried.DeleteLeaseUpdatedTime != 0 || retried.NextDeleteAt != 2600 {
 		t.Fatalf("retried asset = %+v", retried)
 	}
-	claimed, owner, err = ClaimBytePlusAssetDeletion(active.Id, 2040, 1900)
+	claimed, owner, err = ClaimBytePlusAssetDeletion(active.Id, 2610, 2500)
 	if err != nil || !owner {
 		t.Fatalf("second claim asset=%+v owner=%v err=%v", claimed, owner, err)
 	}
-	if ok, err := CompleteBytePlusAssetDeletion(active.Id, claimed.DeleteLeaseUpdatedTime, 2050); err != nil || !ok {
+	if ok, err := CompleteBytePlusAssetDeletion(active.Id, claimed.DeleteLeaseUpdatedTime, 2620); err != nil || !ok {
 		t.Fatalf("complete ok=%v err=%v", ok, err)
 	}
 	var deleted BytePlusAsset
 	if err := DB.First(&deleted, active.Id).Error; err != nil {
 		t.Fatalf("reload deleted: %v", err)
 	}
-	if deleted.Status != BytePlusAssetStatusDeleted || deleted.DeletedTime != 2050 {
+	if deleted.Status != BytePlusAssetStatusDeleted || deleted.DeletedTime != 2620 {
 		t.Fatalf("deleted asset = %+v", deleted)
+	}
+}
+
+func TestExtendBytePlusAssetLeaseProtectsActiveAssetsAndDeletionCAS(t *testing.T) {
+	newBytePlusAssetTestDB(t)
+	active, err := CreateBytePlusAsset(BytePlusAsset{PublicId: "ast_lease_active", UserId: 7, ChannelId: 101, AssetType: "Image", Status: BytePlusAssetStatusActive, UpstreamAssetId: "upstream-active", LeaseUntil: 1000, CreatedTime: 100, UpdatedTime: 100})
+	if err != nil {
+		t.Fatalf("create active: %v", err)
+	}
+	deleting, err := CreateBytePlusAsset(BytePlusAsset{PublicId: "ast_lease_deleting", UserId: 7, ChannelId: 101, AssetType: "Image", Status: BytePlusAssetStatusDeleting, UpstreamAssetId: "upstream-deleting", NextDeleteAt: 1200, LeaseUntil: 1100, CreatedTime: 100, UpdatedTime: 100})
+	if err != nil {
+		t.Fatalf("create deleting: %v", err)
+	}
+	failed, err := CreateBytePlusAsset(BytePlusAsset{PublicId: "ast_lease_failed", UserId: 7, ChannelId: 101, AssetType: "Image", Status: BytePlusAssetStatusFailed, LeaseUntil: 1000, CreatedTime: 100, UpdatedTime: 100})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	extended, err := ExtendBytePlusAssetLeasesForSubmit(7, []string{active.PublicId, deleting.PublicId}, 3000, 2000)
+	if err != nil {
+		t.Fatalf("extend leases: %v", err)
+	}
+	if len(extended) != 2 {
+		t.Fatalf("extended count = %d, want 2", len(extended))
+	}
+
+	var storedActive, storedDeleting, storedFailed BytePlusAsset
+	if err := DB.First(&storedActive, active.Id).Error; err != nil {
+		t.Fatalf("reload active: %v", err)
+	}
+	if err := DB.First(&storedDeleting, deleting.Id).Error; err != nil {
+		t.Fatalf("reload deleting: %v", err)
+	}
+	if err := DB.First(&storedFailed, failed.Id).Error; err != nil {
+		t.Fatalf("reload failed: %v", err)
+	}
+	if storedActive.LeaseUntil != 3000 || storedActive.UpdatedTime != 2000 {
+		t.Fatalf("active lease not extended: %+v", storedActive)
+	}
+	if storedDeleting.LeaseUntil != 3000 || storedDeleting.NextDeleteAt != 3000 || storedDeleting.UpdatedTime != 2000 {
+		t.Fatalf("deleting lease/delete time not extended atomically: %+v", storedDeleting)
+	}
+	if storedFailed.LeaseUntil != 1000 {
+		t.Fatalf("failed asset should not be extended: %+v", storedFailed)
+	}
+
+	if _, owner, err := ClaimBytePlusAssetDeletion(deleting.Id, 2999, 2500); err != nil || owner {
+		t.Fatalf("delete claim before extended lease owner=%v err=%v", owner, err)
 	}
 }
 

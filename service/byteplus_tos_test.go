@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/url"
 	"testing"
 	"time"
 
@@ -86,6 +87,18 @@ func TestBytePlusTOSNewStoreValidatesCredentialsBeforeSDKClient(t *testing.T) {
 	store, err := newBytePlusTOSStore(testBytePlusRealPersonCreds("https://tos-ap-southeast-1.ibytepluses.com"))
 	require.NoError(t, err)
 	require.NotNil(t, store)
+}
+
+func TestBytePlusTOSPresignUsesPublicEndpointWhenStorageEndpointIsInternal(t *testing.T) {
+	store, err := newBytePlusTOSStore(testBytePlusRealPersonCreds("https://tos-ap-southeast-1.ibytepluses.com"))
+	require.NoError(t, err)
+
+	signed, err := store.PresignGet(context.Background(), "real/person.png", time.Hour)
+	require.NoError(t, err)
+	parsed, err := url.Parse(signed)
+	require.NoError(t, err)
+	require.Equal(t, "real-person-bucket.tos-ap-southeast-1.bytepluses.com", parsed.Hostname())
+	require.NotContains(t, signed, "ibytepluses.com")
 }
 
 func mustParseBytePlusCredentials(t *testing.T, raw string) BytePlusCredentials {

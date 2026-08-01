@@ -54,6 +54,7 @@ type BytePlusAsset struct {
 	FailureCode            string `json:"failure_code,omitempty" gorm:"type:varchar(64)"`
 	ErrorMessage           string `json:"-" gorm:"type:text"`
 	DeleteAttempts         int    `json:"-"`
+	LeaseUntil             int64  `json:"-" gorm:"bigint;index"`
 	NextDeleteAt           int64  `json:"-" gorm:"bigint;index"`
 	DeleteLeaseUpdatedTime int64  `json:"-" gorm:"bigint;index"`
 	DeletedTime            int64  `json:"-" gorm:"bigint"`
@@ -312,22 +313,22 @@ func MarkBytePlusRealPersonAssetOutcomeUnknownForIdempotency(recordID, leaseUpda
 	if failureCode == "" {
 		failureCode = "idempotency_outcome_unknown"
 	}
-	if err := DB.Transaction(func(tx *gorm.DB) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		updatedAsset := tx.Model(&BytePlusAsset{}).
+			Where("id = ? AND status NOT IN ?", assetID, bytePlusAssetTerminalStatuses()).
+			Updates(map[string]any{
+				"status":       BytePlusAssetStatusFailed,
+				"failure_code": failureCode,
+				"updated_time": now,
+			})
+		if err := requireOneBytePlusAssetCAS(updatedAsset, assetID); err != nil {
+			return err
+		}
 		updatedRecord := tx.Model(&APIIdempotencyRecord{}).
 			Where("id = ? AND status IN ? AND lease_updated_time = ?", recordID, []string{APIIdempotencyStatusProcessing, APIIdempotencyStatusCallingUpstream}, leaseUpdatedTime).
 			Updates(map[string]any{"status": APIIdempotencyStatusOutcomeUnknown, "updated_time": now})
 		return requireOneAPIIdempotencyCAS(updatedRecord)
-	}); err != nil {
-		return err
-	}
-	updatedAsset := DB.Model(&BytePlusAsset{}).
-		Where("id = ? AND status NOT IN ?", assetID, bytePlusAssetTerminalStatuses()).
-		Updates(map[string]any{
-			"status":       BytePlusAssetStatusFailed,
-			"failure_code": failureCode,
-			"updated_time": now,
-		})
-	return requireOneBytePlusAssetCAS(updatedAsset, assetID)
+	})
 }
 
 func MarkBytePlusAssetOutcomeUnknown(publicID string, now int64) (bool, error) {
@@ -356,11 +357,15 @@ func BeginBytePlusAssetDeletion(userID int, publicID string, now int64) (*BytePl
 	if asset.Status == BytePlusAssetStatusDeleting || asset.Status == BytePlusAssetStatusDeleted {
 		return &asset, false, nil
 	}
+	nextDeleteAt := now
+	if asset.LeaseUntil > nextDeleteAt {
+		nextDeleteAt = asset.LeaseUntil
+	}
 	updated := DB.Model(&BytePlusAsset{}).
 		Where("id = ? AND status NOT IN ?", asset.Id, []string{BytePlusAssetStatusDeleting, BytePlusAssetStatusDeleted}).
 		Updates(map[string]any{
 			"status":                    BytePlusAssetStatusDeleting,
-			"next_delete_at":            now,
+			"next_delete_at":            nextDeleteAt,
 			"delete_lease_updated_time": int64(0),
 			"updated_time":              now,
 		})
@@ -457,7 +462,7 @@ func CompleteBytePlusAssetDeletion(assetID int64, leaseUpdatedTime int64, now in
 	changed := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		updated := tx.Model(&BytePlusAsset{}).
-			Where("id = ? AND status = ? AND delete_lease_updated_time = ?", assetID, BytePlusAssetStatusDeleting, leaseUpdatedTime).
+			Where("id = ? AND status = ? AND delete_lease_updated_time = ? AND lease_until <= ?", assetID, BytePlusAssetStatusDeleting, leaseUpdatedTime, now).
 			Updates(map[string]any{
 				"status":                    BytePlusAssetStatusDeleted,
 				"delete_lease_updated_time": int64(0),
@@ -495,10 +500,48 @@ func RetryBytePlusAssetDeletion(assetID int64, leaseUpdatedTime int64, nextAttem
 		Updates(map[string]any{
 			"delete_attempts":           gorm.Expr("delete_attempts + ?", 1),
 			"delete_lease_updated_time": int64(0),
-			"next_delete_at":            nextAttempt,
+			"next_delete_at":            gorm.Expr("CASE WHEN lease_until > ? THEN lease_until ELSE ? END", nextAttempt, nextAttempt),
 			"updated_time":              now,
 		})
 	return updated.RowsAffected == 1, updated.Error
+}
+
+func ExtendBytePlusAssetLeasesForSubmit(userID int, publicIDs []string, leaseUntil int64, now int64) ([]BytePlusAsset, error) {
+	unique := make([]string, 0, len(publicIDs))
+	seen := make(map[string]struct{}, len(publicIDs))
+	for _, publicID := range publicIDs {
+		publicID = strings.TrimSpace(publicID)
+		if publicID == "" {
+			continue
+		}
+		if _, ok := seen[publicID]; ok {
+			continue
+		}
+		seen[publicID] = struct{}{}
+		unique = append(unique, publicID)
+	}
+	if len(unique) == 0 {
+		return nil, nil
+	}
+	var assets []BytePlusAsset
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		update := tx.Model(&BytePlusAsset{}).
+			Where("user_id = ? AND public_id IN ?", userID, unique).
+			Where("status = ? OR (status = ? AND delete_lease_updated_time = ?)", BytePlusAssetStatusActive, BytePlusAssetStatusDeleting, int64(0)).
+			Updates(map[string]any{
+				"lease_until":    gorm.Expr("CASE WHEN lease_until < ? THEN ? ELSE lease_until END", leaseUntil, leaseUntil),
+				"next_delete_at": gorm.Expr("CASE WHEN status = ? AND next_delete_at < ? THEN ? ELSE next_delete_at END", BytePlusAssetStatusDeleting, leaseUntil, leaseUntil),
+				"updated_time":   now,
+			})
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected != int64(len(unique)) {
+			return ErrAPIIdempotencyCASLost
+		}
+		return tx.Where("user_id = ? AND public_id IN ?", userID, unique).Find(&assets).Error
+	})
+	return assets, err
 }
 
 func IsBytePlusAssetNotFound(err error) bool {

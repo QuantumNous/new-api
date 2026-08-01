@@ -103,9 +103,7 @@ func RecordBytePlusRealPersonCallbackStatus(statusCode int) {
 
 func snapshotBytePlusRealPersonMetrics() (bytePlusRealPersonMetricSnapshot, bool) {
 	var snapshot bytePlusRealPersonMetricSnapshot
-	if !bytePlusRealPersonMetricsInitialized.Load() {
-		return snapshot, false
-	}
+	initialized := bytePlusRealPersonMetricsInitialized.Load()
 	for i := range bytePlusRealPersonMetricLabels.resources {
 		snapshot.outcomeUnknown[i] = bytePlusRealPersonOutcomeUnknown[i].Load()
 	}
@@ -122,7 +120,7 @@ func snapshotBytePlusRealPersonMetrics() (bytePlusRealPersonMetricSnapshot, bool
 	for i := range bytePlusRealPersonMetricLabels.callbacks {
 		snapshot.callbacks[i] = bytePlusRealPersonCallback[i].Load()
 	}
-	return snapshot, true
+	return snapshot, initialized
 }
 
 func bytePlusRealPersonMetricSeriesCount(enabled bool) int {

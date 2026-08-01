@@ -34,15 +34,20 @@ type bytePlusRealPersonJobsFake struct {
 	onGetAsset     func()
 	onDeleteAsset  func()
 	onDeleteObject func()
+	resultDeadline bool
+	getDeadlines   []bool
+	deleteDeadline bool
+	tosDeadline    bool
 }
 
 func (f *bytePlusRealPersonJobsFake) CreateVisualValidateSession(context.Context, BytePlusCredentials, string) (BytePlusVisualValidationSession, error) {
 	return BytePlusVisualValidationSession{}, errors.New("unused")
 }
 
-func (f *bytePlusRealPersonJobsFake) GetVisualValidateResult(context.Context, BytePlusCredentials, string) (BytePlusVisualValidationResult, error) {
+func (f *bytePlusRealPersonJobsFake) GetVisualValidateResult(ctx context.Context, _ BytePlusCredentials, _ string) (BytePlusVisualValidationResult, error) {
 	f.mu.Lock()
 	f.resultCalls++
+	f.resultDeadline = contextHasDeadline(ctx)
 	onResult := f.onResult
 	err := f.resultErr
 	result := f.result
@@ -64,9 +69,10 @@ func (f *bytePlusRealPersonJobsFake) CreateAssetGroup(context.Context, BytePlusC
 	return "", "", errors.New("unused")
 }
 
-func (f *bytePlusRealPersonJobsFake) GetAsset(context.Context, BytePlusCredentials, string) (BytePlusAssetStatus, error) {
+func (f *bytePlusRealPersonJobsFake) GetAsset(ctx context.Context, _ BytePlusCredentials, _ string) (BytePlusAssetStatus, error) {
 	f.mu.Lock()
 	f.getAssetCalls++
+	f.getDeadlines = append(f.getDeadlines, contextHasDeadline(ctx))
 	onGet := f.onGetAsset
 	err := f.getAssetErr
 	status := f.assetStatus
@@ -84,9 +90,10 @@ func (f *bytePlusRealPersonJobsFake) ListAssets(context.Context, BytePlusCredent
 	return BytePlusListAssetsResult{}, errors.New("unused")
 }
 
-func (f *bytePlusRealPersonJobsFake) DeleteAsset(context.Context, BytePlusCredentials, string) (string, error) {
+func (f *bytePlusRealPersonJobsFake) DeleteAsset(ctx context.Context, _ BytePlusCredentials, _ string) (string, error) {
 	f.mu.Lock()
 	f.deleteCalls++
+	f.deleteDeadline = contextHasDeadline(ctx)
 	onDelete := f.onDeleteAsset
 	err := f.deleteErr
 	f.mu.Unlock()
@@ -107,9 +114,10 @@ func (f *bytePlusRealPersonJobsFake) PresignGet(context.Context, string, time.Du
 	return "", errors.New("unused")
 }
 
-func (f *bytePlusRealPersonJobsFake) DeleteObject(_ context.Context, key string) error {
+func (f *bytePlusRealPersonJobsFake) DeleteObject(ctx context.Context, key string) error {
 	f.mu.Lock()
 	f.tosDeletes = append(f.tosDeletes, key)
+	f.tosDeadline = contextHasDeadline(ctx)
 	onDelete := f.onDeleteObject
 	err := f.tosDeleteErr
 	f.mu.Unlock()
@@ -120,6 +128,11 @@ func (f *bytePlusRealPersonJobsFake) DeleteObject(_ context.Context, key string)
 		return err
 	}
 	return nil
+}
+
+func contextHasDeadline(ctx context.Context) bool {
+	_, ok := ctx.Deadline()
+	return ok
 }
 
 func TestRunBytePlusRealPersonJobsOnceProcessesRowsOnNonMasterNode(t *testing.T) {
@@ -165,6 +178,29 @@ func TestTwoJobRunnersClaimEachRowAtMostOnce(t *testing.T) {
 	require.Equal(t, 1, fixture.fake.resultCalls)
 	require.Equal(t, 1, fixture.fake.deleteCalls)
 	require.Equal(t, []string{"tos-due"}, fixture.fake.tosDeletes)
+}
+
+func TestBytePlusRealPersonJobsBoundExternalCallContexts(t *testing.T) {
+	fixture := newBytePlusRealPersonJobsFixture(t)
+	asset := model.BytePlusAsset{
+		PublicId: "ast_status_deadline", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream-deadline",
+		AssetType: "Image", Status: model.BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	fixture.fake.assetStatus = BytePlusAssetStatus{UpstreamAssetID: "upstream-deadline", Status: model.BytePlusAssetStatusActive}
+
+	result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+	require.NoError(t, result.Err)
+	fixture.fake.mu.Lock()
+	defer fixture.fake.mu.Unlock()
+	require.True(t, fixture.fake.resultDeadline, "verification status call should have a deadline")
+	require.NotEmpty(t, fixture.fake.getDeadlines)
+	for _, ok := range fixture.fake.getDeadlines {
+		require.True(t, ok, "asset status probe should have a deadline")
+	}
+	require.True(t, fixture.fake.deleteDeadline, "asset delete call should have a deadline")
+	require.True(t, fixture.fake.tosDeadline, "TOS cleanup delete call should have a deadline")
 }
 
 func TestExpiredCallingUpstreamIsMarkedOutcomeUnknownWithoutExternalCall(t *testing.T) {
@@ -443,7 +479,7 @@ func TestBytePlusRealPersonIdempotencyRecoveryWarnsOperationOnlyOnReconcileError
 	}
 }
 
-func TestExpiredSignedURLGetsOneFinalAssetQueryThenObjectCleanup(t *testing.T) {
+func TestExpiredSignedURLStillProcessingRetriesWithoutObjectCleanup(t *testing.T) {
 	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
 	asset := model.BytePlusAsset{PublicId: "ast_expired_url", UserId: 7, ChannelId: 101, UpstreamAssetId: "upstream-expired", AssetType: "Image", Status: model.BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100}
 	require.NoError(t, model.DB.Create(&asset).Error)
@@ -453,15 +489,52 @@ func TestExpiredSignedURLGetsOneFinalAssetQueryThenObjectCleanup(t *testing.T) {
 	result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
 
 	require.NoError(t, result.Err)
-	require.Equal(t, 1, result.Processed)
+	require.Zero(t, result.Processed)
 	require.NoError(t, model.DB.First(&asset, asset.Id).Error)
 	require.Equal(t, model.BytePlusAssetStatusProcessing, asset.Status)
 	require.NoError(t, model.DB.First(&object, object.Id).Error)
-	require.Equal(t, model.BytePlusTempObjectCleanupCleaned, object.CleanupStatus)
+	require.Equal(t, model.BytePlusTempObjectCleanupPending, object.CleanupStatus)
+	require.Equal(t, 1, object.CleanupAttempts)
+	require.Equal(t, int64(2060), object.NextCleanupAt)
 	fixture.fake.mu.Lock()
 	defer fixture.fake.mu.Unlock()
 	require.Equal(t, 1, fixture.fake.getAssetCalls)
-	require.Equal(t, []string{"expired-url"}, fixture.fake.tosDeletes)
+	require.Empty(t, fixture.fake.tosDeletes)
+}
+
+func TestExpiredSignedURLNonTerminalLocalAssetRetriesWithoutObjectCleanup(t *testing.T) {
+	cases := []struct {
+		name           string
+		status         string
+		upstreamID     string
+		wantProbeCalls int
+	}{
+		{name: "processing blank upstream", status: model.BytePlusAssetStatusProcessing, upstreamID: "", wantProbeCalls: 0},
+		{name: "creating", status: model.BytePlusAssetStatusCreating, upstreamID: "", wantProbeCalls: 0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+			asset := model.BytePlusAsset{PublicId: "ast_expired_url_" + strings.ReplaceAll(tc.name, " ", "_"), UserId: 7, ChannelId: 101, UpstreamAssetId: tc.upstreamID, AssetType: "Image", Status: tc.status, CreatedTime: 100, UpdatedTime: 100}
+			require.NoError(t, model.DB.Create(&asset).Error)
+			object := model.BytePlusAssetTempObject{AssetId: &asset.Id, UserId: 7, ChannelId: 101, Bucket: "bucket", ObjectKey: "expired-url-" + strings.ReplaceAll(tc.name, " ", "-"), CleanupStatus: model.BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 100, NextCleanupAt: 100, CleanupLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100}
+			require.NoError(t, model.DB.Create(&object).Error)
+
+			result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+			require.NoError(t, result.Err)
+			require.Zero(t, result.Processed)
+			require.NoError(t, model.DB.First(&object, object.Id).Error)
+			require.Equal(t, model.BytePlusTempObjectCleanupPending, object.CleanupStatus)
+			require.Equal(t, 1, object.CleanupAttempts)
+			require.Equal(t, int64(2060), object.NextCleanupAt)
+			fixture.fake.mu.Lock()
+			defer fixture.fake.mu.Unlock()
+			require.Equal(t, tc.wantProbeCalls, fixture.fake.getAssetCalls)
+			require.Empty(t, fixture.fake.tosDeletes)
+		})
+	}
 }
 
 func TestTempObjectCleanupRejectsUnknownPersistedBucketWithoutTOSDelete(t *testing.T) {

@@ -119,15 +119,23 @@ func TestBytePlusRealPersonOpenAPIContract(t *testing.T) {
 	}
 }
 
-func TestBytePlusRealPersonAssetAPIDocStableErrorCodes(t *testing.T) {
-	raw, err := os.ReadFile("../docs/api/byteplus-real-person-asset-api.md")
-	require.NoError(t, err)
-	doc := string(raw)
+func TestBytePlusRealPersonAssetOpenAPIStableErrorCodes(t *testing.T) {
+	relay := readOpenAPIDocument(t, "../docs/openapi/relay.json")
+	createAsset := requireOpenAPIOperation(t, relay, "/v1/real-persons/{person_id}/assets", "post")
+	responses := openAPIObject(t, createAsset["responses"])
 
-	require.Contains(t, doc, "| 413 | `asset_file_too_large` |")
-	require.Contains(t, doc, "| 415 | `asset_media_unsupported` |")
-	require.NotContains(t, doc, "asset_too_large")
-	require.NotContains(t, doc, "unsupported_asset_media_type")
+	for status, expectedCode := range map[string]string{
+		"413": "asset_file_too_large",
+		"415": "asset_media_unsupported",
+	} {
+		response := openAPIObject(t, responses[status])
+		content := openAPIObject(t, response["content"])
+		mediaType := openAPIObject(t, content["application/json"])
+		example := openAPIObject(t, mediaType["example"])
+		publicError := openAPIObject(t, example["error"])
+		require.Equal(t, expectedCode, publicError["type"])
+		require.Equal(t, expectedCode, publicError["code"])
+	}
 }
 
 func readOpenAPIDocument(t *testing.T, path string) map[string]any {

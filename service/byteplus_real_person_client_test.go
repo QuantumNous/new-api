@@ -51,13 +51,13 @@ func TestBytePlusClientCreateVisualSendsOfficialContractAndScrubsMissingFields(t
 	if req.Action != "CreateVisualValidateSession" || req.Version != bytePlusAssetAPIVersion {
 		t.Fatalf("Action/Version = %q/%q", req.Action, req.Version)
 	}
-	if !strings.HasPrefix(req.Auth, "HMAC-SHA256 Credential=ak-example/") {
+	if !strings.HasPrefix(req.Auth, "HMAC-SHA256 Credential=sentinel-access-key-id/") {
 		t.Fatalf("Authorization header = %q", req.Auth)
 	}
 	if !strings.HasPrefix(req.ContentType, "application/json") {
 		t.Fatalf("Content-Type = %q", req.ContentType)
 	}
-	if req.Body["CallbackURL"] != "https://callback.example/ok" || req.Body["ProjectName"] != "project3" {
+	if req.Body["CallbackURL"] != "https://callback.example/ok" || req.Body["ProjectName"] != "test-project" {
 		t.Fatalf("payload = %#v", req.Body)
 	}
 	assertMapKeys(t, req.Body, "CallbackURL", "ProjectName")
@@ -65,7 +65,7 @@ func TestBytePlusClientCreateVisualSendsOfficialContractAndScrubsMissingFields(t
 		t.Fatalf("result = %+v", got)
 	}
 
-	secretValues := []string{"token-1", "https://h5.example/session", "https://callback.example/ok", "sk-example", "provider-secret-message"}
+	secretValues := []string{"token-1", "https://h5.example/session", "https://callback.example/ok", "sentinel-secret-key", "provider-secret-message"}
 	for _, body := range []string{
 		`{"ResponseMetadata":{"RequestId":"req-missing"},"Result":{"H5Link":"https://h5.example/session","CallbackURL":"https://callback.example/ok","Error":{"Message":"provider-secret-message"}}}`,
 		`{"ResponseMetadata":{"RequestId":"req-missing"},"Result":{"BytedToken":"token-1","CallbackURL":"https://callback.example/ok"}}`,
@@ -128,7 +128,7 @@ func TestBytePlusClientGetVisualTrimsTokenAndMapsResult(t *testing.T) {
 		t.Fatalf("GetVisualValidateResult error: %v", err)
 	}
 	req := <-observed
-	if req.Action != "GetVisualValidateResult" || req.Body["BytedToken"] != "token-1" || req.Body["ProjectName"] != "project3" {
+	if req.Action != "GetVisualValidateResult" || req.Body["BytedToken"] != "token-1" || req.Body["ProjectName"] != "test-project" {
 		t.Fatalf("request = %+v", req)
 	}
 	assertMapKeys(t, req.Body, "BytedToken", "ProjectName")
@@ -182,7 +182,7 @@ func TestBytePlusClientListAssetsSendsFilterAndMapsPagination(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		observed <- observeBytePlusRequest(r)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-list"},"Result":{"Items":[{"Id":"asset-1","Name":"Face One","GroupId":"group-1","AssetType":"Image","Status":"Active","Moderation":{"Strategy":"Skip"},"ProjectName":"project3","CreateTime":11,"UpdateTime":22}],"TotalCount":7}}`))
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-list"},"Result":{"Items":[{"Id":"asset-1","Name":"Face One","GroupId":"group-1","AssetType":"Image","Status":"Active","Moderation":{"Strategy":"Skip"},"ProjectName":"test-project","CreateTime":11,"UpdateTime":22}],"TotalCount":7}}`))
 	}))
 	defer server.Close()
 
@@ -214,14 +214,14 @@ func TestBytePlusClientListAssetsSendsFilterAndMapsPagination(t *testing.T) {
 	assertMapKeys(t, filter, "GroupIds", "GroupType", "Statuses", "Name")
 	assertStringSlice(t, filter["GroupIds"], []string{"group-1", "group-2"})
 	assertStringSlice(t, filter["Statuses"], []string{"Active"})
-	if req.Body["PageNumber"] != float64(3) || req.Body["PageSize"] != float64(20) || req.Body["SortBy"] != "CreateTime" || req.Body["SortOrder"] != "Desc" || req.Body["ProjectName"] != "project3" {
+	if req.Body["PageNumber"] != float64(3) || req.Body["PageSize"] != float64(20) || req.Body["SortBy"] != "CreateTime" || req.Body["SortOrder"] != "Desc" || req.Body["ProjectName"] != "test-project" {
 		t.Fatalf("payload = %#v", req.Body)
 	}
 	if got.TotalCount != 7 || got.RequestID != "req-list" || len(got.Items) != 1 {
 		t.Fatalf("result = %+v", got)
 	}
 	item := got.Items[0]
-	if item.ID != "asset-1" || item.Name != "Face One" || item.GroupID != "group-1" || item.AssetType != "Image" || item.Status != "Active" || item.ProjectName != "project3" || item.CreateTime != 11 || item.UpdateTime != 22 {
+	if item.ID != "asset-1" || item.Name != "Face One" || item.GroupID != "group-1" || item.AssetType != "Image" || item.Status != "Active" || item.ProjectName != "test-project" || item.CreateTime != 11 || item.UpdateTime != 22 {
 		t.Fatalf("item = %+v", item)
 	}
 	if item.Moderation["Strategy"] != "Skip" {
@@ -290,7 +290,7 @@ func TestBytePlusClientDeleteAssetHandlesEmptyResultAndNotFoundClassification(t 
 		t.Fatalf("DeleteAsset error: %v", err)
 	}
 	req := <-observed
-	if req.Action != "DeleteAsset" || req.Body["Id"] != "asset-1" || req.Body["ProjectName"] != "project3" {
+	if req.Action != "DeleteAsset" || req.Body["Id"] != "asset-1" || req.Body["ProjectName"] != "test-project" {
 		t.Fatalf("request = %+v", req)
 	}
 	assertMapKeys(t, req.Body, "Id", "ProjectName")
@@ -434,7 +434,7 @@ func TestBytePlusClientDeleteAssetTimeoutIsNotDefinitive(t *testing.T) {
 func TestBytePlusClientDeleteAssetScrubsUpstream502Body(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-502","Error":{"Code":"Bad","Message":"sk-example token-1 https://h5.example Code=Bad"}}}`))
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"req-502","Error":{"Code":"Bad","Message":"sentinel-secret-key token-1 https://h5.example Code=Bad"}}}`))
 	}))
 	defer server.Close()
 
@@ -446,7 +446,7 @@ func TestBytePlusClientDeleteAssetScrubsUpstream502Body(t *testing.T) {
 	if !strings.Contains(err.Error(), "req-502") {
 		t.Fatalf("error should keep request id: %v", err)
 	}
-	for _, leaked := range []string{"sk-example", "token-1", "https://h5.example", "Code=Bad"} {
+	for _, leaked := range []string{"sentinel-secret-key", "token-1", "https://h5.example", "Code=Bad"} {
 		if strings.Contains(err.Error(), leaked) {
 			t.Fatalf("error leaked %q: %v", leaked, err)
 		}

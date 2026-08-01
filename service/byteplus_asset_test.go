@@ -175,7 +175,7 @@ func TestBytePlusAssetCreateSelectsStructuredBytePlusChannelAndPersistsProcessin
 	restore := installBytePlusAssetServiceTestDeps(t, fake)
 	defer restore()
 
-	insertBytePlusAssetChannel(t, 120, "default", common.ChannelStatusEnabled, "ark-video-only")
+	insertBytePlusAssetChannel(t, 120, "default", common.ChannelStatusEnabled, "sentinel-video-only")
 	insertNonBytePlusAssetChannel(t, 121, "default")
 	insertBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, structuredBytePlusKey())
 
@@ -198,7 +198,7 @@ func TestBytePlusAssetCreateSelectsStructuredBytePlusChannelAndPersistsProcessin
 	if fake.lastCreate.GroupID != "upstream-group" || fake.lastCreate.URL != "https://example.com/portrait.mp4" || fake.lastCreate.AssetType != "Video" || fake.lastCreate.ModerationStrategy != "Default" {
 		t.Fatalf("create request = %+v", fake.lastCreate)
 	}
-	if fake.lastCreds.APIKey != "ark-structured" || fake.lastCreds.ProjectName != "project3" {
+	if fake.lastCreds.APIKey != "sentinel-structured-api-key" || fake.lastCreds.ProjectName != "test-project" {
 		t.Fatalf("credentials = %+v", fake.lastCreds)
 	}
 	if !strings.HasPrefix(fake.lastGroup, "flatkey-assets-") || strings.ContainsAny(fake.lastGroup, "@:/.") {
@@ -819,7 +819,7 @@ func TestBytePlusAssetUpdateFailureLogsOnlySafeCorrelationFields(t *testing.T) {
 
 	oldUpdate := bytePlusAssetUpdateAssetUpstreamCreated
 	bytePlusAssetUpdateAssetUpstreamCreated = func(assetID int64, upstreamAssetID string, upstreamRequestID string, status string, now int64) error {
-		return errors.New("sql failed for https://example.com/private.png upstream-asset-secret upstream-group-secret project3 sk-test")
+		return errors.New("sql failed for https://example.com/private.png upstream-asset-secret upstream-group-secret test-project sentinel-secret-key")
 	}
 	defer func() { bytePlusAssetUpdateAssetUpstreamCreated = oldUpdate }()
 
@@ -837,7 +837,7 @@ func TestBytePlusAssetUpdateFailureLogsOnlySafeCorrelationFields(t *testing.T) {
 	if logged == "" || !strings.Contains(logged, "flatkey-request-id") || !strings.Contains(logged, "channel_id=131") || !strings.Contains(logged, "upstream_request_id=req-asset") {
 		t.Fatalf("log missing safe fields: %q", logged)
 	}
-	for _, forbidden := range []string{"private.png", "ast_fixed", "upstream-asset-secret", "upstream-group-secret", "project3", "sk-test", "sql failed"} {
+	for _, forbidden := range []string{"private.png", "ast_fixed", "upstream-asset-secret", "upstream-group-secret", "test-project", "sentinel-secret-key", "sql failed"} {
 		if strings.Contains(logged, forbidden) {
 			t.Fatalf("restricted log leaked %q in %q", forbidden, logged)
 		}
@@ -878,14 +878,14 @@ func TestBytePlusAssetCreateMarksLocalAssetFailedWhenUpstreamPersistFails(t *tes
 }
 
 func TestBytePlusAssetErrorsUseStablePublicMessages(t *testing.T) {
-	apiErr := assetError(errors.New("sql failed with sk-secret upstream-asset project3 https://internal.example"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+	apiErr := assetError(errors.New("sql failed with sentinel-secret-key upstream-asset test-project https://internal.example"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	openaiErr := apiErr.ToOpenAIError()
 	raw, err := common.Marshal(openaiErr)
 	if err != nil {
 		t.Fatalf("marshal openai error: %v", err)
 	}
 	text := string(raw)
-	for _, forbidden := range []string{"sql failed", "sk-secret", "upstream-asset", "project3", "internal.example"} {
+	for _, forbidden := range []string{"sql failed", "sentinel-secret-key", "upstream-asset", "test-project", "internal.example"} {
 		if strings.Contains(openaiErr.Message, forbidden) || strings.Contains(text, forbidden) {
 			t.Fatalf("public error leaked %q: message=%q raw=%s", forbidden, openaiErr.Message, text)
 		}
@@ -1010,7 +1010,7 @@ func insertNonBytePlusAssetChannel(t *testing.T, id int, group string) {
 	ch := model.Channel{
 		Id:       id,
 		Type:     constant.ChannelTypeOpenAI,
-		Key:      "sk-openai",
+		Key:      "sentinel-openai-key",
 		Status:   common.ChannelStatusEnabled,
 		Name:     "openai",
 		Models:   "seedance-2.0",
@@ -1070,5 +1070,5 @@ func insertBytePlusAssetRow(t *testing.T, publicID string, userID int, groupID i
 }
 
 func structuredBytePlusKey() string {
-	return `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3"}`
+	return `{"api_key":"sentinel-structured-api-key","access_key_id":"sentinel-access-key-id","secret_access_key":"sentinel-secret-key","project_name":"test-project"}`
 }

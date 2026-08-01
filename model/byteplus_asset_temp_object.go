@@ -97,8 +97,7 @@ func ClaimDueBytePlusTempObjectCleanups(now, staleBefore int64, limit int) ([]By
 		return nil, nil
 	}
 	var candidates []BytePlusAssetTempObject
-	if err := dueBytePlusTempObjectCleanupScope(DB, now, staleBefore).
-		Or("cleanup_status = ? AND cleanup_lease_updated_time < ?", BytePlusTempObjectCleanupCleaning, staleBefore).
+	if err := reclaimableBytePlusTempObjectCleanupScope(DB, now, staleBefore).
 		Order("next_cleanup_at ASC, id ASC").
 		Limit(limit).
 		Find(&candidates).Error; err != nil {
@@ -137,6 +136,11 @@ func dueBytePlusTempObjectCleanupScope(db *gorm.DB, now, staleBefore int64) *gor
 		"cleanup_status = ? AND next_cleanup_at <= ? AND (cleanup_lease_updated_time = ? OR cleanup_lease_updated_time < ?)",
 		BytePlusTempObjectCleanupPending, now, int64(0), staleBefore,
 	)
+}
+
+func reclaimableBytePlusTempObjectCleanupScope(db *gorm.DB, now, staleBefore int64) *gorm.DB {
+	return dueBytePlusTempObjectCleanupScope(db, now, staleBefore).
+		Or("cleanup_status = ? AND cleanup_lease_updated_time < ?", BytePlusTempObjectCleanupCleaning, staleBefore)
 }
 
 func ClaimBytePlusAssetTempObjectImmediateCleanup(id int64, now int64) (bool, error) {
@@ -178,10 +182,10 @@ func GetBytePlusRealPersonBacklogSnapshot(now, staleBefore int64) (BytePlusRealP
 		snapshot.DeletingOldestUpdateAgeSeconds = nonNegativeAge(now, *deletingOldest)
 	}
 	var tosOldest *int64
-	if err := dueBytePlusTempObjectCleanupScope(DB.Model(&BytePlusAssetTempObject{}), now, staleBefore).Count(&snapshot.TOSCleanupDueCount).Error; err != nil {
+	if err := reclaimableBytePlusTempObjectCleanupScope(DB.Model(&BytePlusAssetTempObject{}), now, staleBefore).Count(&snapshot.TOSCleanupDueCount).Error; err != nil {
 		return snapshot, err
 	}
-	if err := dueBytePlusTempObjectCleanupScope(DB.Model(&BytePlusAssetTempObject{}), now, staleBefore).
+	if err := reclaimableBytePlusTempObjectCleanupScope(DB.Model(&BytePlusAssetTempObject{}), now, staleBefore).
 		Select("MIN(updated_time)").
 		Scan(&tosOldest).Error; err != nil {
 		return snapshot, err

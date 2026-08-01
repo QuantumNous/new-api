@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/types"
+	"gorm.io/gorm"
 )
 
 const (
@@ -77,6 +78,9 @@ func CreateBytePlusRealPerson(ctx context.Context, userID int, userGroup, usingG
 	if err != nil {
 		return nil, realPersonError(types.ErrorCodeInvalidRealPersonRequest, http.StatusBadRequest)
 	}
+	if err := bytePlusRealPersonValidateCallbackBase(); err != nil {
+		return nil, realPersonError(types.ErrorCodeRealPersonChannelUnavailable, http.StatusServiceUnavailable)
+	}
 	now := bytePlusAssetNow()
 	claim, err := model.ClaimAPIIdempotency(userID, bytePlusRealPersonCreateRoute, keyHash, requestHash, bytePlusRealPersonVerificationResource, now, now-int64(apiIdempotencyLease.Seconds()), now+int64(apiIdempotencyRetention.Seconds()))
 	if err != nil {
@@ -130,18 +134,14 @@ func ReverifyBytePlusRealPerson(ctx context.Context, userID int, personID string
 		}
 		return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 	}
-	if profile.Status != model.BytePlusRealPersonProfileStatusFailed && profile.Status != model.BytePlusRealPersonProfileStatusExpired {
-		return nil, realPersonError(types.ErrorCodeInvalidRealPersonRequest, http.StatusBadRequest)
-	}
-	channel, creds, err := loadUsableBytePlusRealPersonChannel(profile.ChannelId, userID, "")
-	if err != nil {
-		return nil, realPersonError(types.ErrorCodeRealPersonChannelUnavailable, http.StatusServiceUnavailable)
+	if apiErr := expireBytePlusRealPersonCurrentSessionIfDue(userID, profile); apiErr != nil {
+		return nil, apiErr
 	}
 	requestHash, err := hashCanonicalRequest(struct {
 		ProfileID int64  `json:"profile_id"`
 		Name      string `json:"name"`
 		ChannelID int    `json:"channel_id"`
-	}{ProfileID: profile.Id, Name: profile.Name, ChannelID: channel.Id})
+	}{ProfileID: profile.Id, Name: profile.Name, ChannelID: profile.ChannelId})
 	if err != nil {
 		return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 	}
@@ -149,12 +149,69 @@ func ReverifyBytePlusRealPerson(ctx context.Context, userID int, personID string
 	if err != nil {
 		return nil, realPersonError(types.ErrorCodeInvalidRealPersonRequest, http.StatusBadRequest)
 	}
+	route := bytePlusRealPersonReverifyRoute + ":" + profile.PublicId
+	if response, handled, apiErr := replayExistingBytePlusRealPersonReverifyClaim(userID, route, keyHash, requestHash); handled {
+		return response, apiErr
+	}
+	if profile.Status != model.BytePlusRealPersonProfileStatusFailed && profile.Status != model.BytePlusRealPersonProfileStatusExpired {
+		return nil, realPersonError(types.ErrorCodeInvalidRealPersonRequest, http.StatusBadRequest)
+	}
+	if err := bytePlusRealPersonValidateCallbackBase(); err != nil {
+		return nil, realPersonError(types.ErrorCodeRealPersonChannelUnavailable, http.StatusServiceUnavailable)
+	}
 	now := bytePlusAssetNow()
-	claim, err := model.ClaimAPIIdempotency(userID, bytePlusRealPersonReverifyRoute+":"+profile.PublicId, keyHash, requestHash, bytePlusRealPersonVerificationResource, now, now-int64(apiIdempotencyLease.Seconds()), now+int64(apiIdempotencyRetention.Seconds()))
+	claim, err := model.ClaimAPIIdempotency(userID, route, keyHash, requestHash, bytePlusRealPersonVerificationResource, now, now-int64(apiIdempotencyLease.Seconds()), now+int64(apiIdempotencyRetention.Seconds()))
 	if err != nil {
 		return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 	}
-	return handleBytePlusRealPersonClaim(ctx, userID, channel, creds, claim, profile, true)
+	switch claim.Decision {
+	case model.DecisionConflict:
+		return nil, realPersonError(types.ErrorCodeIdempotencyConflict, http.StatusConflict)
+	case model.DecisionInProgress:
+		return nil, realPersonError(types.ErrorCodeVerificationInProgress, http.StatusConflict)
+	case model.DecisionOutcomeUnknown:
+		return nil, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
+	case model.DecisionReplay:
+		return replayBytePlusRealPersonClaim(userID, claim.Record)
+	case model.DecisionResume, model.DecisionOwner:
+		channel, creds, err := loadUsableBytePlusRealPersonChannel(profile.ChannelId, userID, "")
+		if err != nil {
+			return nil, realPersonError(types.ErrorCodeRealPersonChannelUnavailable, http.StatusServiceUnavailable)
+		}
+		if claim.Decision == model.DecisionResume {
+			return resumeBytePlusRealPersonCreate(ctx, userID, channel, creds, claim.Record)
+		}
+		return ownBytePlusRealPersonCreate(ctx, userID, channel, creds, claim.Record, profile, true)
+	default:
+		return nil, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+	}
+}
+
+func replayExistingBytePlusRealPersonReverifyClaim(userID int, route, keyHash, requestHash string) (*dto.BytePlusRealPersonResponse, bool, *types.NewAPIError) {
+	var record model.APIIdempotencyRecord
+	err := model.DB.Where("user_id = ? AND route = ? AND key_hash = ?", userID, route, keyHash).First(&record).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, true, realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+	}
+	if record.RequestHash != requestHash {
+		return nil, true, realPersonError(types.ErrorCodeIdempotencyConflict, http.StatusConflict)
+	}
+	switch record.Status {
+	case model.APIIdempotencyStatusProcessing:
+		return nil, true, realPersonError(types.ErrorCodeVerificationInProgress, http.StatusConflict)
+	case model.APIIdempotencyStatusCallingUpstream:
+		return nil, true, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
+	case model.APIIdempotencyStatusCompleted, model.APIIdempotencyStatusFailed:
+		response, apiErr := replayBytePlusRealPersonClaim(userID, &record)
+		return response, true, apiErr
+	case model.APIIdempotencyStatusOutcomeUnknown:
+		return nil, true, realPersonError(types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
+	default:
+		return nil, false, nil
+	}
 }
 
 func SyncBytePlusRealPersonVerification(ctx context.Context, userID int, profile *model.BytePlusRealPersonProfile) *types.NewAPIError {
@@ -224,6 +281,39 @@ func SyncBytePlusRealPersonVerification(ctx context.Context, userID int, profile
 		if err != nil {
 			return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 		}
+	}
+	reloaded, err := model.GetBytePlusRealPersonProfileByIDForUser(userID, profile.Id)
+	if err != nil {
+		return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+	}
+	*profile = *reloaded
+	return nil
+}
+
+func expireBytePlusRealPersonCurrentSessionIfDue(userID int, profile *model.BytePlusRealPersonProfile) *types.NewAPIError {
+	if profile == nil {
+		return realPersonError(types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
+	}
+	if profile.UserId != userID {
+		return realPersonError(types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
+	}
+	if profile.CurrentValidationSessionId == nil {
+		return nil
+	}
+	if profile.Status == model.BytePlusRealPersonProfileStatusActive || profile.Status == model.BytePlusRealPersonProfileStatusFailed || profile.Status == model.BytePlusRealPersonProfileStatusExpired {
+		return nil
+	}
+	session, err := model.GetBytePlusVisualValidationSessionByID(*profile.CurrentValidationSessionId)
+	if err != nil {
+		return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
+	}
+	now := bytePlusAssetNow()
+	if session.ExpiresAt <= 0 || session.ExpiresAt > now {
+		return nil
+	}
+	_, err = model.ExpireBytePlusRealPersonSession(profile.Id, session.Id, now)
+	if err != nil {
+		return realPersonError(types.ErrorCodeRealPersonStorageError, http.StatusInternalServerError)
 	}
 	reloaded, err := model.GetBytePlusRealPersonProfileByIDForUser(userID, profile.Id)
 	if err != nil {
@@ -615,13 +705,27 @@ func bytePlusRealPersonCallbackURL(token string) (string, error) {
 	if token == "" {
 		return "", errBytePlusRealPersonCallbackTokenInvalid
 	}
+	parsed, err := bytePlusRealPersonValidatedCallbackBase()
+	if err != nil {
+		return "", err
+	}
+	parsed.RawPath = strings.TrimRight(parsed.EscapedPath(), "/") + bytePlusRealPersonCallbackPathPrefix + url.PathEscape(token)
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + bytePlusRealPersonCallbackPathPrefix + token
+	return parsed.String(), nil
+}
+
+func bytePlusRealPersonValidateCallbackBase() error {
+	_, err := bytePlusRealPersonValidatedCallbackBase()
+	return err
+}
+
+func bytePlusRealPersonValidatedCallbackBase() (*url.URL, error) {
 	rawBase := strings.TrimSpace(common.GetEnvOrDefaultString(bytePlusRealPersonCallbackBaseURLEnv, ""))
 	parsed, err := url.Parse(rawBase)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", errBytePlusRealPersonCallbackBaseInvalid
+		return nil, errBytePlusRealPersonCallbackBaseInvalid
 	}
-	parsed.Path = strings.TrimRight(parsed.EscapedPath(), "/") + bytePlusRealPersonCallbackPathPrefix + url.PathEscape(token)
-	return parsed.String(), nil
+	return parsed, nil
 }
 
 func responseFromBytePlusRealPerson(profile *model.BytePlusRealPersonProfile, verificationURL string, verificationExpiresAt int64) *dto.BytePlusRealPersonResponse {

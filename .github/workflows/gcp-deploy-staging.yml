@@ -40,6 +40,9 @@ env:
   STAGING_FLATKEY_DATA_TOOL_MARKUP_BPS: ${{ vars.STAGING_FLATKEY_DATA_TOOL_MARKUP_BPS || '10000' }}
   STAGING_FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD: ${{ vars.STAGING_FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD || '12500' }}
   STAGING_FLATKEY_DATA_TOOL_MIN_PLAN_RANK: ${{ vars.STAGING_FLATKEY_DATA_TOOL_MIN_PLAN_RANK || '10' }}
+  STAGING_TEMP_MEDIA_BUCKET: vocai-gemini-prod-flatkey-temp-media-staging
+  STAGING_BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL: https://staging-router.flatkey.ai
+  STAGING_BYTEPLUS_REAL_PERSON_CIPHER_SECRET: newapi-staging-byteplus-real-person-cipher-key
 
 jobs:
   build:
@@ -161,6 +164,8 @@ jobs:
             "FLATKEY_DATA_TOOL_MARKUP_BPS=${STAGING_FLATKEY_DATA_TOOL_MARKUP_BPS}"
             "FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD=${STAGING_FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD}"
             "FLATKEY_DATA_TOOL_MIN_PLAN_RANK=${STAGING_FLATKEY_DATA_TOOL_MIN_PLAN_RANK}"
+            "TEMP_MEDIA_BUCKET=${STAGING_TEMP_MEDIA_BUCKET}"
+            "BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL=${STAGING_BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL}"
           )
           IFS=,
           env_arg="${env_vars[*]}"
@@ -170,6 +175,7 @@ jobs:
             --region="${REGION}" \
             --image="${{ needs.build.outputs.image_uri }}" \
             --update-env-vars="${env_arg}" \
+            --update-secrets="BYTEPLUS_REAL_PERSON_CIPHER_KEY=${STAGING_BYTEPLUS_REAL_PERSON_CIPHER_SECRET}:latest" \
             --revision-suffix="${revision_suffix}" \
             --quiet
           new_rev="$(gcloud run services describe "${RUN_SERVICE}" \

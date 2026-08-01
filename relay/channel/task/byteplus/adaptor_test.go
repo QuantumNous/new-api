@@ -14,6 +14,8 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 )
 
 func newTestContext(body string) *gin.Context {
@@ -237,10 +239,10 @@ func TestDoRequestEnforcesModerationSkipHeader(t *testing.T) {
 
 func TestBuildRequestHeaderUsesStructuredAPIKeyOnly(t *testing.T) {
 	info := newTestRelayInfo("https://ark.example", `{
-		"api_key": "ark-video-key",
-		"access_key_id": "ak-example",
-		"secret_access_key": "sk-should-not-leak",
-		"project_name": "project3"
+		"api_key": "sentinel-api-key",
+		"access_key_id": "sentinel-access-key-id",
+		"secret_access_key": "sentinel-secret-key",
+		"project_name": "test-project"
 	}`)
 	a := &TaskAdaptor{}
 	req := httptest.NewRequest(http.MethodPost, "/upstream", nil)
@@ -249,7 +251,7 @@ func TestBuildRequestHeaderUsesStructuredAPIKeyOnly(t *testing.T) {
 		t.Fatalf("BuildRequestHeader error: %v", err)
 	}
 
-	if got := req.Header.Get("Authorization"); got != "Bearer ark-video-key" {
+	if got := req.Header.Get("Authorization"); got != "Bearer sentinel-api-key" {
 		t.Fatalf("Authorization = %q", got)
 	}
 }
@@ -265,10 +267,10 @@ func TestFetchTaskUsesStructuredAPIKeyOnly(t *testing.T) {
 	defer server.Close()
 
 	key := `{
-		"api_key": "ark-video-key",
-		"access_key_id": "ak-example",
-		"secret_access_key": "sk-should-not-leak",
-		"project_name": "project3"
+		"api_key": "sentinel-api-key",
+		"access_key_id": "sentinel-access-key-id",
+		"secret_access_key": "sentinel-secret-key",
+		"project_name": "test-project"
 	}`
 	resp, err := (&TaskAdaptor{}).FetchTask(server.URL, key, map[string]any{"task_id": "task-1"}, "")
 	if err != nil {
@@ -276,7 +278,7 @@ func TestFetchTaskUsesStructuredAPIKeyOnly(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if authorizationHeader != "Bearer ark-video-key" {
+	if authorizationHeader != "Bearer sentinel-api-key" {
 		t.Fatalf("Authorization = %q", authorizationHeader)
 	}
 }
@@ -415,6 +417,108 @@ func TestBuildRequestBodyRejectsUnresolvedStrictAssetURI(t *testing.T) {
 	}
 }
 
+func TestBuildRequestBodyExtendsResolvedLocalAssetLeasesBeforeUpstreamSubmit(t *testing.T) {
+	newBytePlusAdaptorAssetDB(t)
+	asset := model.BytePlusAsset{
+		PublicId: "ast_1234567890abcdefABCDEF1234567890", UserId: 7, ChannelId: 131,
+		UpstreamAssetId: "upstream-image", AssetType: "Image", Status: model.BytePlusAssetStatusActive,
+		LeaseUntil: 1000, CreatedTime: 100, UpdatedTime: 100,
+	}
+	if err := model.DB.Create(&asset).Error; err != nil {
+		t.Fatalf("create asset: %v", err)
+	}
+	oldNow := bytePlusAssetLeaseNow
+	bytePlusAssetLeaseNow = func() int64 { return 2000 }
+	t.Cleanup(func() { bytePlusAssetLeaseNow = oldNow })
+	a := &TaskAdaptor{}
+	info := newTestRelayInfo("https://ark.example", "test-key")
+	c := newTestContext(`{
+		"model":"seedance-2.0",
+		"execution_expires_after":3600,
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`)
+	common.SetContextKey(c, constant.ContextKeyUserId, 7)
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://upstream-image",
+	})
+
+	body, err := a.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !strings.Contains(string(raw), `"execution_expires_after":3600`) {
+		t.Fatalf("body lost execution_expires_after: %s", raw)
+	}
+	var stored model.BytePlusAsset
+	if err := model.DB.First(&stored, asset.Id).Error; err != nil {
+		t.Fatalf("reload asset: %v", err)
+	}
+	if stored.LeaseUntil != 2000+72*60*60 || stored.UpdatedTime != 2000 {
+		t.Fatalf("lease not conservatively extended for 72h: %+v", stored)
+	}
+}
+
+func TestBuildRequestBodyExtendsAssetLeaseToRequestedWindowWhenAboveDefault(t *testing.T) {
+	newBytePlusAdaptorAssetDB(t)
+	asset := model.BytePlusAsset{
+		PublicId: "ast_1234567890abcdefABCDEF1234567890", UserId: 7, ChannelId: 131,
+		UpstreamAssetId: "upstream-image", AssetType: "Image", Status: model.BytePlusAssetStatusActive,
+		CreatedTime: 100, UpdatedTime: 100,
+	}
+	if err := model.DB.Create(&asset).Error; err != nil {
+		t.Fatalf("create asset: %v", err)
+	}
+	oldNow := bytePlusAssetLeaseNow
+	bytePlusAssetLeaseNow = func() int64 { return 2000 }
+	t.Cleanup(func() { bytePlusAssetLeaseNow = oldNow })
+	a := &TaskAdaptor{}
+	info := newTestRelayInfo("https://ark.example", "test-key")
+	c := newTestContext(`{
+		"model":"seedance-2.0",
+		"execution_expires_after":259200,
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`)
+	common.SetContextKey(c, constant.ContextKeyUserId, 7)
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://upstream-image",
+	})
+
+	_, err := a.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+
+	var stored model.BytePlusAsset
+	if err := model.DB.First(&stored, asset.Id).Error; err != nil {
+		t.Fatalf("reload asset: %v", err)
+	}
+	if stored.LeaseUntil != 2000+259200 {
+		t.Fatalf("lease_until = %d, want %d", stored.LeaseUntil, int64(2000+259200))
+	}
+}
+
+func TestBuildRequestBodyWithoutLocalAssetReferencesDoesNotNeedDatabase(t *testing.T) {
+	db := newBytePlusAdaptorAssetDB(t)
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get sqlite handle: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close sqlite: %v", err)
+	}
+	a := &TaskAdaptor{}
+	info := newTestRelayInfo("https://ark.example", "test-key")
+	c := newTestContext(`{"model":"seedance-2.0","execution_expires_after":259200,"content":[{"type":"text","text":"hello"}]}`)
+
+	if _, err := a.BuildRequestBody(c, info); err != nil {
+		t.Fatalf("BuildRequestBody without references error: %v", err)
+	}
+}
+
 func TestRewriteBytePlusAssetReferencesRejectsUnsafeAssetMediaURLs(t *testing.T) {
 	tests := []struct {
 		name string
@@ -487,4 +591,25 @@ func assertNoAssetRewriteLeak(t *testing.T, err error) {
 			t.Fatalf("error leaked %q in %q", marker, text)
 		}
 	}
+}
+
+func newBytePlusAdaptorAssetDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	oldDB := model.DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	model.DB = db
+	t.Cleanup(func() {
+		model.DB = oldDB
+		sqlDB, err := db.DB()
+		if err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	if err := db.AutoMigrate(&model.BytePlusAsset{}); err != nil {
+		t.Fatalf("migrate assets: %v", err)
+	}
+	return db
 }

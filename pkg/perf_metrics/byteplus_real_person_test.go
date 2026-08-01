@@ -14,7 +14,10 @@ func TestBytePlusRealPersonMetricsFixedSeriesAndLabels(t *testing.T) {
 
 	text, err := BuildPrometheusText(context.Background())
 	require.NoError(t, err)
-	require.NotContains(t, text, "newapi_byteplus_real_person_")
+	require.Equal(t, 29, countBytePlusRealPersonSamples(text))
+	requirePrometheusSampleLine(t, text, `newapi_byteplus_real_person_outcome_unknown_total{resource="asset"} 0`)
+	requirePrometheusSampleLine(t, text, `newapi_byteplus_real_person_backlog{kind="deleting"} 0`)
+	requireAllBytePlusRealPersonReconcileSeries(t, text)
 	requirePrometheusSeriesGaugeMatchesRenderedSamples(t, text)
 
 	RecordBytePlusRealPersonOutcomeUnknown("unknown")
@@ -23,7 +26,11 @@ func TestBytePlusRealPersonMetricsFixedSeriesAndLabels(t *testing.T) {
 	RecordBytePlusRealPersonCallbackStatus(302)
 	text, err = BuildPrometheusText(context.Background())
 	require.NoError(t, err)
-	require.NotContains(t, text, "newapi_byteplus_real_person_")
+	require.Equal(t, 29, countBytePlusRealPersonSamples(text))
+	requirePrometheusSampleLine(t, text, `newapi_byteplus_real_person_outcome_unknown_total{resource="asset"} 0`)
+	requirePrometheusSampleLine(t, text, `newapi_byteplus_real_person_reconcile_total{operation="asset_status",result="error"} 0`)
+	requirePrometheusSampleLine(t, text, `newapi_byteplus_real_person_backlog{kind="deleting"} 0`)
+	requirePrometheusSampleLine(t, text, `newapi_byteplus_real_person_callback_total{status="429"} 0`)
 	requirePrometheusSeriesGaugeMatchesRenderedSamples(t, text)
 
 	RecordBytePlusRealPersonOutcomeUnknown("asset")

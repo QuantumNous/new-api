@@ -277,7 +277,7 @@ func (c *BytePlusAssetClient) do(ctx context.Context, creds BytePlusCredentials,
 	}
 	metadata := metadataEnvelope.ResponseMetadata
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code, Definitive: hasBytePlusMetadataError(metadata)}
+		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code, Definitive: hasBytePlusMetadataError(metadata) || resp.StatusCode == http.StatusNotFound}
 	}
 	if metadata.Error.Code != "" || metadata.Error.Message != "" {
 		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code, Definitive: true}

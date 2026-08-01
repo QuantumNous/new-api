@@ -6,11 +6,11 @@ import (
 )
 
 func TestParseBytePlusCredentialsAcceptsLegacyKeyForVideoOnly(t *testing.T) {
-	creds, err := ParseBytePlusCredentials("ark-legacy-video-key")
+	creds, err := ParseBytePlusCredentials("sentinel-legacy-video-key")
 	if err != nil {
 		t.Fatalf("ParseBytePlusCredentials legacy error: %v", err)
 	}
-	if creds.APIKey != "ark-legacy-video-key" {
+	if creds.APIKey != "sentinel-legacy-video-key" {
 		t.Fatalf("APIKey = %q", creds.APIKey)
 	}
 	if err := creds.ValidateVideo(); err != nil {
@@ -28,11 +28,11 @@ func TestParseBytePlusCredentialsAcceptsLegacyKeyForVideoOnly(t *testing.T) {
 }
 
 func TestParseBytePlusCredentialsAcceptsBracketLeadingLegacyKeyForVideoOnly(t *testing.T) {
-	creds, err := ParseBytePlusCredentials("[ark-legacy-video-key")
+	creds, err := ParseBytePlusCredentials("[sentinel-legacy-video-key")
 	if err != nil {
 		t.Fatalf("ParseBytePlusCredentials bracket-leading legacy error: %v", err)
 	}
-	if creds.APIKey != "[ark-legacy-video-key" {
+	if creds.APIKey != "[sentinel-legacy-video-key" {
 		t.Fatalf("APIKey = %q", creds.APIKey)
 	}
 	if err := creds.ValidateVideo(); err != nil {
@@ -45,10 +45,10 @@ func TestParseBytePlusCredentialsAcceptsBracketLeadingLegacyKeyForVideoOnly(t *t
 
 func TestParseBytePlusCredentialsAcceptsStructuredJSON(t *testing.T) {
 	creds, err := ParseBytePlusCredentials(`{
-		"api_key": " ark-video-key ",
-		"access_key_id": " ak-example ",
-		"secret_access_key": " sk-example ",
-		"project_name": " project3 ",
+		"api_key": " sentinel-api-key ",
+		"access_key_id": " sentinel-access-key-id ",
+		"secret_access_key": " sentinel-secret-key ",
+			"project_name": " test-project ",
 		"real_person_assets": {
 			"enabled": true,
 			"tos_bucket": " real-person-bucket ",
@@ -59,7 +59,7 @@ func TestParseBytePlusCredentialsAcceptsStructuredJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseBytePlusCredentials structured error: %v", err)
 	}
-	if creds.APIKey != "ark-video-key" || creds.AccessKeyID != "ak-example" || creds.SecretAccessKey != "sk-example" || creds.ProjectName != "project3" {
+	if creds.APIKey != "sentinel-api-key" || creds.AccessKeyID != "sentinel-access-key-id" || creds.SecretAccessKey != "sentinel-secret-key" || creds.ProjectName != "test-project" {
 		t.Fatalf("parsed credentials = %+v", creds)
 	}
 	if creds.RealPersonAssets.TOSBucket != "real-person-bucket" || creds.RealPersonAssets.TOSRegion != bytePlusAssetRegion || creds.RealPersonAssets.TOSInternalEndpoint != "https://tos-ap-southeast-1.ibytepluses.com/" {
@@ -81,10 +81,10 @@ func TestParseBytePlusCredentialsAcceptsStructuredJSON(t *testing.T) {
 
 func TestBytePlusCredentialsValidateRealPersonAssetsAllowsURLOnlyWithoutTOS(t *testing.T) {
 	creds := BytePlusCredentials{
-		APIKey:          "ark-video-key",
-		AccessKeyID:     "ak-example",
-		SecretAccessKey: "sk-example",
-		ProjectName:     "project3",
+		APIKey:          "sentinel-api-key",
+		AccessKeyID:     "sentinel-access-key-id",
+		SecretAccessKey: "sentinel-secret-key",
+		ProjectName:     "test-project",
 		RealPersonAssets: BytePlusRealPersonAssetsConfig{
 			Enabled: true,
 		},
@@ -100,10 +100,10 @@ func TestBytePlusCredentialsValidateRealPersonAssetsAllowsURLOnlyWithoutTOS(t *t
 
 func TestBytePlusCredentialsValidateRealPersonAssetsRequiresExplicitEnablement(t *testing.T) {
 	creds := BytePlusCredentials{
-		APIKey:          "ark-video-key",
-		AccessKeyID:     "ak-example",
-		SecretAccessKey: "sk-example",
-		ProjectName:     "project3",
+		APIKey:          "sentinel-api-key",
+		AccessKeyID:     "sentinel-access-key-id",
+		SecretAccessKey: "sentinel-secret-key",
+		ProjectName:     "test-project",
 		RealPersonAssets: BytePlusRealPersonAssetsConfig{
 			Enabled:             false,
 			TOSBucket:           "real-person-bucket",
@@ -200,10 +200,10 @@ func TestBytePlusCredentialsValidateRealPersonAssetStorageValidatesBucketForTOS(
 
 func TestBytePlusCredentialsValidateRealPersonAssetStorageRequiresModelArkRegion(t *testing.T) {
 	creds := BytePlusCredentials{
-		APIKey:          "ark-video-key",
-		AccessKeyID:     "ak-example",
-		SecretAccessKey: "sk-example",
-		ProjectName:     "project3",
+		APIKey:          "sentinel-api-key",
+		AccessKeyID:     "sentinel-access-key-id",
+		SecretAccessKey: "sentinel-secret-key",
+		ProjectName:     "test-project",
 		RealPersonAssets: BytePlusRealPersonAssetsConfig{
 			Enabled:             true,
 			TOSBucket:           "real-person-bucket",
@@ -218,10 +218,10 @@ func TestBytePlusCredentialsValidateRealPersonAssetStorageRequiresModelArkRegion
 
 func testBytePlusRealPersonCreds(endpoint string) BytePlusCredentials {
 	return BytePlusCredentials{
-		APIKey:          "ark-video-key",
-		AccessKeyID:     "ak-example",
-		SecretAccessKey: "sk-example",
-		ProjectName:     "project3",
+		APIKey:          "sentinel-api-key",
+		AccessKeyID:     "sentinel-access-key-id",
+		SecretAccessKey: "sentinel-secret-key",
+		ProjectName:     "test-project",
 		RealPersonAssets: BytePlusRealPersonAssetsConfig{
 			Enabled:             true,
 			TOSBucket:           "real-person-bucket",
@@ -243,9 +243,9 @@ func TestParseBytePlusCredentialsRejectsMalformedJSONLookingInput(t *testing.T) 
 
 func TestParseBytePlusCredentialsRejectsMissingFieldsWithoutSecretLeak(t *testing.T) {
 	creds, err := ParseBytePlusCredentials(`{
-		"api_key": "ark-video-key",
-		"access_key_id": "ak-example",
-		"secret_access_key": "sk-should-not-leak"
+		"api_key": "sentinel-api-key",
+		"access_key_id": "sentinel-access-key-id",
+		"secret_access_key": "sentinel-secret-should-not-leak"
 	}`)
 	if err != nil {
 		t.Fatalf("video parsing should not require asset fields: %v", err)
@@ -254,7 +254,7 @@ func TestParseBytePlusCredentialsRejectsMissingFieldsWithoutSecretLeak(t *testin
 	if err == nil {
 		t.Fatal("ValidateAssets should reject missing project_name")
 	}
-	if strings.Contains(err.Error(), "sk-should-not-leak") {
+	if strings.Contains(err.Error(), "sentinel-secret-should-not-leak") {
 		t.Fatalf("error leaked secret: %v", err)
 	}
 }

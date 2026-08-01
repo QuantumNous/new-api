@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/url"
 	"strings"
 	"time"
 
@@ -24,8 +25,9 @@ type bytePlusTOSAPI interface {
 }
 
 type bytePlusTOSStore struct {
-	bucket string
-	client bytePlusTOSAPI
+	bucket         string
+	client         bytePlusTOSAPI
+	publicEndpoint string
 }
 
 var bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
@@ -48,8 +50,9 @@ func newBytePlusTOSStore(creds BytePlusCredentials) (BytePlusTempObjectStore, er
 	if err := creds.ValidateRealPersonAssetStorage(); err != nil {
 		return nil, err
 	}
+	internalEndpoint := strings.TrimSpace(creds.RealPersonAssets.TOSInternalEndpoint)
 	client, err := tos.NewClientV2(
-		strings.TrimSpace(creds.RealPersonAssets.TOSInternalEndpoint),
+		internalEndpoint,
 		tos.WithCredentials(tos.NewStaticCredentials(creds.AccessKeyID, creds.SecretAccessKey)),
 		tos.WithRegion(strings.TrimSpace(creds.RealPersonAssets.TOSRegion)),
 		tos.WithDisableTrailerHeader(false),
@@ -58,7 +61,11 @@ func newBytePlusTOSStore(creds BytePlusCredentials) (BytePlusTempObjectStore, er
 	if err != nil {
 		return nil, errors.New("byteplus real-person tos client is unavailable")
 	}
-	return &bytePlusTOSStore{bucket: strings.TrimSpace(creds.RealPersonAssets.TOSBucket), client: client}, nil
+	return &bytePlusTOSStore{
+		bucket:         strings.TrimSpace(creds.RealPersonAssets.TOSBucket),
+		client:         client,
+		publicEndpoint: bytePlusTOSPublicPresignEndpoint(internalEndpoint),
+	}, nil
 }
 
 func (s *bytePlusTOSStore) PutObject(ctx context.Context, key string, body io.Reader, contentType string, size int64) error {
@@ -88,10 +95,11 @@ func (s *bytePlusTOSStore) TempObjectStorageProvider() string {
 
 func (s *bytePlusTOSStore) PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error) {
 	output, err := s.client.PreSignedURL(&tos.PreSignedURLInput{
-		HTTPMethod: enum.HttpMethodGet,
-		Bucket:     s.bucket,
-		Key:        strings.TrimSpace(key),
-		Expires:    int64(ttl.Seconds()),
+		HTTPMethod:          enum.HttpMethodGet,
+		Bucket:              s.bucket,
+		Key:                 strings.TrimSpace(key),
+		Expires:             int64(ttl.Seconds()),
+		AlternativeEndpoint: strings.TrimSpace(s.publicEndpoint),
 	})
 	if err != nil {
 		return "", err
@@ -105,4 +113,17 @@ func (s *bytePlusTOSStore) PresignGet(ctx context.Context, key string, ttl time.
 func (s *bytePlusTOSStore) DeleteObject(ctx context.Context, key string) error {
 	_, err := s.client.DeleteObjectV2(ctx, &tos.DeleteObjectV2Input{Bucket: s.bucket, Key: strings.TrimSpace(key)})
 	return err
+}
+
+func bytePlusTOSPublicPresignEndpoint(endpoint string) string {
+	parsed, err := url.Parse(strings.TrimSpace(endpoint))
+	if err != nil {
+		return strings.TrimSpace(endpoint)
+	}
+	hostname := strings.ToLower(parsed.Hostname())
+	if strings.HasSuffix(hostname, ".ibytepluses.com") {
+		hostname = strings.TrimSuffix(hostname, ".ibytepluses.com") + ".bytepluses.com"
+	}
+	parsed.Host = hostname
+	return parsed.String()
 }

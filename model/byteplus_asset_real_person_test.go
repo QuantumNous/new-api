@@ -38,7 +38,7 @@ func TestMultipartAssetLocalTransactionRollsBackAssetAndBindingOnLedgerCASFailur
 	require.Nil(t, stored.AssetId)
 }
 
-func TestRealPersonAssetOutcomeUnknownLedgerSurvivesTerminalAssetCASLoss(t *testing.T) {
+func TestRealPersonAssetOutcomeUnknownRollsBackWhenAssetCASLoss(t *testing.T) {
 	newBytePlusRealPersonTestDB(t)
 	record := APIIdempotencyRecord{
 		UserId: 7, Route: "real_person_asset_create",
@@ -59,8 +59,34 @@ func TestRealPersonAssetOutcomeUnknownLedgerSurvivesTerminalAssetCASLoss(t *test
 
 	require.ErrorIs(t, err, ErrBytePlusAssetNotUpdatable)
 	require.NoError(t, DB.First(&record, record.Id).Error)
-	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
+	require.Equal(t, APIIdempotencyStatusCallingUpstream, record.Status)
 	require.NoError(t, DB.First(&asset, asset.Id).Error)
 	require.Equal(t, BytePlusAssetStatusActive, asset.Status)
 	require.Empty(t, asset.FailureCode)
+}
+
+func TestRealPersonAssetOutcomeUnknownMarksLedgerAndAssetAtomically(t *testing.T) {
+	newBytePlusRealPersonTestDB(t)
+	record := APIIdempotencyRecord{
+		UserId: 7, Route: "real_person_asset_create",
+		KeyHash:     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RequestHash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		Status:      APIIdempotencyStatusCallingUpstream, ResourceType: APIIdempotencyResourceAsset,
+		ResourcePublicId: "ast_unknown", LeaseUpdatedTime: 100, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(&record).Error)
+	asset := BytePlusAsset{
+		PublicId: "ast_unknown", UserId: 7, ChannelId: 101, AssetType: "Image",
+		ModerationStrategy: "Default", Status: BytePlusAssetStatusCreating,
+		CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, DB.Create(&asset).Error)
+
+	require.NoError(t, MarkBytePlusRealPersonAssetOutcomeUnknownForIdempotency(record.Id, 100, asset.Id, "custom_unknown", 200))
+
+	require.NoError(t, DB.First(&record, record.Id).Error)
+	require.Equal(t, APIIdempotencyStatusOutcomeUnknown, record.Status)
+	require.NoError(t, DB.First(&asset, asset.Id).Error)
+	require.Equal(t, BytePlusAssetStatusFailed, asset.Status)
+	require.Equal(t, "custom_unknown", asset.FailureCode)
 }

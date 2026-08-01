@@ -239,6 +239,36 @@ func TestCreateRealPersonAssetFromURLAllowsURLOnlyCredentialWithoutTOS(t *testin
 	require.Equal(t, 1, f.fake.createAssetCalls)
 }
 
+func TestCreateRealPersonAssetFromURLCrossUserSameIdempotencyKeyDoesNotPoisonOwner(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	key := "same-cross-user-key"
+	request := dto.BytePlusRealPersonAssetCreateRequest{
+		URL:       "https://example.com/person.png",
+		AssetType: "Image",
+		Name:      "front",
+	}
+
+	_, apiErr := CreateBytePlusRealPersonAssetFromURL(context.Background(), 8, f.profile.PublicId, key, request)
+
+	assertAssetError(t, apiErr, types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+	var user8Assets int64
+	require.NoError(t, model.DB.Model(&model.BytePlusAsset{}).Where("user_id = ?", 8).Count(&user8Assets).Error)
+	require.Zero(t, user8Assets)
+
+	resp, apiErr := CreateBytePlusRealPersonAssetFromURL(context.Background(), f.profile.UserId, f.profile.PublicId, key, request)
+
+	require.Nil(t, apiErr)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, resp.Status)
+	require.Equal(t, "asset://"+resp.ID, resp.AssetURI)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+	var asset model.BytePlusAsset
+	require.NoError(t, model.DB.First(&asset, "public_id = ?", resp.ID).Error)
+	require.Equal(t, f.profile.UserId, asset.UserId)
+	require.NotNil(t, asset.RealPersonProfileId)
+	require.Equal(t, f.profile.Id, *asset.RealPersonProfileId)
+}
+
 func TestCreateRealPersonAssetFromMultipartURLOnlyCredentialFailsBeforeUploadWhenGCSDisabled(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	t.Setenv("TEMP_MEDIA_BUCKET", " ")
@@ -273,7 +303,7 @@ func TestCreateRealPersonAssetFromMultipartFallsBackToGCSWhenTOSIncomplete(t *te
 func TestCreateRealPersonAssetFromMultipartRejectsMalformedTOSConfigEvenWhenGCSConfigured(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
-	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_bucket":"real-person-bucket","tos_region":"us-east-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", `{"api_key":"sentinel-structured-api-key","access_key_id":"sentinel-access-key-id","secret_access_key":"sentinel-secret-key","project_name":"test-project","real_person_assets":{"enabled":true,"tos_bucket":"real-person-bucket","tos_region":"us-east-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
 	req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", &failingReadCloser{t: t})
 	req.Header.Set("Content-Type", "multipart/form-data; boundary=unread")
 
@@ -291,15 +321,15 @@ func TestCreateRealPersonAssetFromMultipartRejectsPartialTOSConfigBeforeBodyRead
 	}{
 		{
 			name: "bucket only",
-			key:  `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_bucket":"real-person-bucket"}}`,
+			key:  `{"api_key":"sentinel-structured-api-key","access_key_id":"sentinel-access-key-id","secret_access_key":"sentinel-secret-key","project_name":"test-project","real_person_assets":{"enabled":true,"tos_bucket":"real-person-bucket"}}`,
 		},
 		{
 			name: "region only",
-			key:  `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_region":"ap-southeast-1"}}`,
+			key:  `{"api_key":"sentinel-structured-api-key","access_key_id":"sentinel-access-key-id","secret_access_key":"sentinel-secret-key","project_name":"test-project","real_person_assets":{"enabled":true,"tos_region":"ap-southeast-1"}}`,
 		},
 		{
 			name: "endpoint only",
-			key:  `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`,
+			key:  `{"api_key":"sentinel-structured-api-key","access_key_id":"sentinel-access-key-id","secret_access_key":"sentinel-secret-key","project_name":"test-project","real_person_assets":{"enabled":true,"tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`,
 		},
 	}
 	for _, tc := range cases {
@@ -339,6 +369,67 @@ func TestCreateRealPersonAssetFromMultipartNoBackendFailsBeforeBodyReadOrUpstrea
 	require.Zero(t, records)
 }
 
+func TestCreateRealPersonAssetFromMultipartInactiveProfileFailsBeforeBodyReadOrIdempotency(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	require.NoError(t, model.DB.Model(&model.BytePlusRealPersonProfile{}).
+		Where("id = ?", f.profile.Id).
+		Updates(map[string]any{"status": model.BytePlusRealPersonProfileStatusVerifying}).Error)
+	req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", &failingReadCloser{t: t})
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=unread")
+
+	_, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), f.profile.UserId, f.profile.PublicId, "inactive-profile-upload", req)
+
+	assertAssetError(t, apiErr, types.ErrorCodeRealPersonNotActive, http.StatusConflict)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+	require.Empty(t, f.store.puts)
+	var records, temps int64
+	require.NoError(t, model.DB.Model(&model.APIIdempotencyRecord{}).Count(&records).Error)
+	require.NoError(t, model.DB.Model(&model.BytePlusAssetTempObject{}).Count(&temps).Error)
+	require.Zero(t, records)
+	require.Zero(t, temps)
+}
+
+func TestCreateRealPersonAssetFromMultipartBlankUpstreamGroupFailsBeforeBodyReadOrIdempotency(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	blank := " "
+	require.NoError(t, model.DB.Model(&model.BytePlusRealPersonProfile{}).
+		Where("id = ?", f.profile.Id).
+		Update("upstream_group_id", &blank).Error)
+	req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", &failingReadCloser{t: t})
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=unread")
+
+	_, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), f.profile.UserId, f.profile.PublicId, "blank-group-upload", req)
+
+	assertAssetError(t, apiErr, types.ErrorCodeRealPersonNotActive, http.StatusConflict)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+	require.Empty(t, f.store.puts)
+	var records, temps int64
+	require.NoError(t, model.DB.Model(&model.APIIdempotencyRecord{}).Count(&records).Error)
+	require.NoError(t, model.DB.Model(&model.BytePlusAssetTempObject{}).Count(&temps).Error)
+	require.Zero(t, records)
+	require.Zero(t, temps)
+}
+
+func TestCreateRealPersonAssetFromMultipartDisabledRealPersonAssetsFailsBeforeBodyReadOrIdempotency(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	require.NoError(t, model.DB.Model(&model.Channel{}).
+		Where("id = ?", f.profile.ChannelId).
+		Update("key", `{"api_key":"sentinel-structured-api-key","access_key_id":"sentinel-access-key-id","secret_access_key":"sentinel-secret-key","project_name":"test-project","real_person_assets":{"enabled":false,"tos_bucket":"real-person-bucket","tos_region":"ap-southeast-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
+	req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", &failingReadCloser{t: t})
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=unread")
+
+	_, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), f.profile.UserId, f.profile.PublicId, "disabled-rp-assets-upload", req)
+
+	assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	require.Equal(t, 0, f.fake.createAssetCalls)
+	require.Empty(t, f.store.puts)
+	var records, temps int64
+	require.NoError(t, model.DB.Model(&model.APIIdempotencyRecord{}).Count(&records).Error)
+	require.NoError(t, model.DB.Model(&model.BytePlusAssetTempObject{}).Count(&temps).Error)
+	require.Zero(t, records)
+	require.Zero(t, temps)
+}
+
 func TestCreateRealPersonAssetFromMultipartPrefersTOSWhenBothBackendsConfigured(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
@@ -368,7 +459,7 @@ func TestCreateRealPersonAssetFromMultipartPrefersTOSWhenBothBackendsConfigured(
 	require.NotEqual(t, "gcs-real-person-bucket", temp.Bucket)
 }
 
-func TestBytePlusGCSTempObjectStoreUsesDefaultTempMediaBucketConvention(t *testing.T) {
+func TestBytePlusGCSTempObjectStoreRequiresExplicitTempMediaBucket(t *testing.T) {
 	oldBucket, hadBucket := os.LookupEnv("TEMP_MEDIA_BUCKET")
 	oldOrigin, hadOrigin := os.LookupEnv("APP_CONSOLE_ORIGIN")
 	oldFrontend, hadFrontend := os.LookupEnv("FRONTEND_BASE_URL")
@@ -393,8 +484,10 @@ func TestBytePlusGCSTempObjectStoreUsesDefaultTempMediaBucketConvention(t *testi
 		}
 	})
 
-	require.True(t, bytePlusGCSTempObjectStoreConfigured())
-	require.Equal(t, defaultTempMediaBucket, bytePlusGCSTempObjectBucket())
+	require.False(t, bytePlusGCSTempObjectStoreConfigured())
+	require.Empty(t, bytePlusGCSTempObjectBucket())
+	_, err := newBytePlusGCSTempObjectStore()
+	require.EqualError(t, err, "byteplus real-person gcs storage is unavailable")
 }
 
 func TestBytePlusGCSTempObjectStoreUsesTempMediaHooks(t *testing.T) {
@@ -635,20 +728,19 @@ func TestRealPersonAssetURLFailedReplaySurvivesProfileAndChannelDrift(t *testing
 	require.Equal(t, 1, f.fake.createAssetCalls)
 }
 
-func TestRealPersonAssetMultipartReplaySurvivesProfileAndChannelDriftAndCleansNewUpload(t *testing.T) {
+func TestRealPersonAssetMultipartReplayRejectsProfileDriftBeforeNewUpload(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
-	first, apiErr := f.createMultipart("replay-drift-upload", pngHeader(), "Image", "front")
+	_, apiErr := f.createMultipart("replay-drift-upload", pngHeader(), "Image", "front")
 	require.Nil(t, apiErr)
 	require.NoError(t, model.DB.Model(&model.BytePlusRealPersonProfile{}).Where("id = ?", f.profile.Id).Update("status", model.BytePlusRealPersonProfileStatusFailed).Error)
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("status", common.ChannelStatusManuallyDisabled).Error)
 
-	replay, apiErr := f.createMultipart("replay-drift-upload", pngHeader(), "Image", "front")
+	_, apiErr = f.createMultipart("replay-drift-upload", pngHeader(), "Image", "front")
 
-	require.Nil(t, apiErr)
-	require.Equal(t, first.ID, replay.ID)
+	assertAssetError(t, apiErr, types.ErrorCodeRealPersonNotActive, http.StatusConflict)
 	require.Equal(t, 1, f.fake.createAssetCalls)
-	require.Len(t, f.store.puts, 2)
-	require.Len(t, f.store.deletes, 1)
+	require.Len(t, f.store.puts, 1)
+	require.Empty(t, f.store.deletes)
 }
 
 func TestRealPersonAssetOwnerValidationFailureStoresFailedLedger(t *testing.T) {
@@ -856,7 +948,7 @@ func TestStaleMultipartResumeKeepsPersistedGCSProviderWhenTOSBucketNameMatches(t
 	f.store.bucket = "shared-bucket"
 	f.store.provider = bytePlusTempObjectProviderTOS
 	t.Setenv("TEMP_MEDIA_BUCKET", "shared-bucket")
-	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_bucket":"shared-bucket","tos_region":"ap-southeast-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", `{"api_key":"sentinel-structured-api-key","access_key_id":"sentinel-access-key-id","secret_access_key":"sentinel-secret-key","project_name":"test-project","real_person_assets":{"enabled":true,"tos_bucket":"shared-bucket","tos_region":"ap-southeast-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
 	originalSign := signTempMediaObject
 	t.Cleanup(func() { signTempMediaObject = originalSign })
 	var gcsSignedKeys []string
@@ -901,7 +993,7 @@ func TestStaleMultipartResumeRejectsInvalidTOSBucketEvenWhenCurrentGCSBucketName
 	f := newRealPersonAssetFixture(t)
 	t.Setenv("TEMP_MEDIA_BUCKET", "shared-bucket")
 	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
-	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", `{"api_key":"ark-structured","access_key_id":"ak-test","secret_access_key":"sk-test","project_name":"project3","real_person_assets":{"enabled":true,"tos_bucket":"shared-bucket","tos_region":"us-east-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", `{"api_key":"sentinel-structured-api-key","access_key_id":"sentinel-access-key-id","secret_access_key":"sentinel-secret-key","project_name":"test-project","real_person_assets":{"enabled":true,"tos_bucket":"shared-bucket","tos_region":"us-east-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
 	originalPut := putTempMediaObject
 	originalSign := signTempMediaObject
 	originalDelete := deleteTempMediaObject
@@ -985,7 +1077,7 @@ func TestListRealPersonAssetsScopesUserAndProfileAndHidesDeleted(t *testing.T) {
 	require.Equal(t, "asset://ast_visible", list.Data[0].AssetURI)
 	raw, err := common.Marshal(list)
 	require.NoError(t, err)
-	for _, forbidden := range []string{"upstream", "group", "channel", "project3", "sk-test"} {
+	for _, forbidden := range []string{"upstream", "group", "channel", "test-project", "sentinel-secret-key"} {
 		require.NotContains(t, strings.ToLower(string(raw)), forbidden)
 	}
 }

@@ -135,6 +135,9 @@ jobs:
       # The production rollout is complete; keep the console capability on for
       # every subsequent revision. Router is not the owner of this UI feature.
       TOKEN_BATCH_GROUP_ENABLED: "true"
+      TEMP_MEDIA_BUCKET: vocai-gemini-prod-flatkey-temp-media
+      BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL: https://router.flatkey.ai
+      BYTEPLUS_REAL_PERSON_CIPHER_SECRET: newapi-byteplus-real-person-cipher-key
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -196,7 +199,7 @@ jobs:
             VOC_DATA_MCP_URL VOC_DATA_MCP_SERVICE_KEY VOC_DATA_MCP_MODE VOC_DATA_MCP_AUTH_HEADER \
             VOC_DATA_MCP_TIMEOUT_SECONDS VOC_DATA_MCP_CATALOG_TTL_SECONDS \
             FLATKEY_DATA_TOOL_MARKUP_BPS FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD FLATKEY_DATA_TOOL_MIN_PLAN_RANK \
-            NODE_TYPE APP_ROLE TOKEN_BATCH_GROUP_ENABLED; do
+            NODE_TYPE APP_ROLE TOKEN_BATCH_GROUP_ENABLED TEMP_MEDIA_BUCKET BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL; do
             value="${!name:-}"
             if [[ -n "${value}" ]]; then
               env_vars+=("${name}=${value}")
@@ -226,6 +229,7 @@ jobs:
             --quiet \
             "${container_args[@]}" \
             --image="${{ needs.build.outputs.image_uri }}" \
+            --update-secrets="BYTEPLUS_REAL_PERSON_CIPHER_KEY=${BYTEPLUS_REAL_PERSON_CIPHER_SECRET}:latest" \
             "${env_args[@]}"
           new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
@@ -294,6 +298,9 @@ jobs:
       APP_ROLE: router
       # Keep in sync with deploy/gcp/envs/prod/terraform.tfvars.
       MAX_INSTANCES: 30
+      TEMP_MEDIA_BUCKET: vocai-gemini-prod-flatkey-temp-media
+      BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL: https://router.flatkey.ai
+      BYTEPLUS_REAL_PERSON_CIPHER_SECRET: newapi-byteplus-real-person-cipher-key
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -355,7 +362,7 @@ jobs:
             VOC_DATA_MCP_URL VOC_DATA_MCP_SERVICE_KEY VOC_DATA_MCP_MODE VOC_DATA_MCP_AUTH_HEADER \
             VOC_DATA_MCP_TIMEOUT_SECONDS VOC_DATA_MCP_CATALOG_TTL_SECONDS \
             FLATKEY_DATA_TOOL_MARKUP_BPS FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD FLATKEY_DATA_TOOL_MIN_PLAN_RANK \
-            NODE_TYPE APP_ROLE; do
+            NODE_TYPE APP_ROLE TEMP_MEDIA_BUCKET BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL; do
             value="${!name:-}"
             if [[ -n "${value}" ]]; then
               env_vars+=("${name}=${value}")
@@ -386,6 +393,7 @@ jobs:
             --quiet \
             "${container_args[@]}" \
             --image="${{ needs.build.outputs.image_uri }}" \
+            --update-secrets="BYTEPLUS_REAL_PERSON_CIPHER_KEY=${BYTEPLUS_REAL_PERSON_CIPHER_SECRET}:latest" \
             "${env_args[@]}"
           new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \

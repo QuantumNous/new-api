@@ -607,7 +607,7 @@ func insertMiddlewareBytePlusRealPersonAsset(t *testing.T, userID int, channelID
 }
 
 func structuredMiddlewareBytePlusKey(apiKey string) string {
-	return fmt.Sprintf(`{"api_key":%q,"access_key_id":"ak","secret_access_key":"sec","project_name":"project3"}`, apiKey)
+	return fmt.Sprintf(`{"api_key":%q,"access_key_id":"ak","secret_access_key":"sec","project_name":"test-project"}`, apiKey)
 }
 
 func useMiddlewareAutoGroupsForTest(t *testing.T, groups []string) func() {

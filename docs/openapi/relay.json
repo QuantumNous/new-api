@@ -525,10 +525,40 @@
             "$ref": "#/components/responses/BytePlusAssetError"
           },
           "413": {
-            "$ref": "#/components/responses/BytePlusAssetError"
+            "description": "The uploaded asset exceeds the supported size limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset file is too large",
+                    "type": "asset_file_too_large",
+                    "param": "",
+                    "code": "asset_file_too_large"
+                  }
+                }
+              }
+            }
           },
           "415": {
-            "$ref": "#/components/responses/BytePlusAssetError"
+            "description": "The uploaded asset media type is not supported.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset media type is not supported",
+                    "type": "asset_media_unsupported",
+                    "param": "",
+                    "code": "asset_media_unsupported"
+                  }
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/BytePlusAssetError"

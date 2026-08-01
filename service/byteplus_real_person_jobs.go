@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	bytePlusRealPersonJobInterval = 15 * time.Second
-	bytePlusRealPersonJobLease    = 2 * time.Minute
-	bytePlusRealPersonJobBatch    = 50
+	bytePlusRealPersonJobInterval    = 15 * time.Second
+	bytePlusRealPersonJobLease       = 2 * time.Minute
+	bytePlusRealPersonJobBatch       = 50
+	bytePlusRealPersonJobCallTimeout = bytePlusAssetRequestTimeout
 )
 
 type BytePlusRealPersonJobResult struct {
@@ -197,7 +198,9 @@ func runBytePlusRealPersonVerificationStatusJobs(ctx context.Context, now, stale
 			firstErr = firstNonNil(firstErr, retryBytePlusVerificationStatus(session, now))
 			continue
 		}
-		upstream, err := client.GetVisualValidateResult(ctx, creds, bytedToken)
+		callCtx, cancel := bytePlusRealPersonJobCallContext(ctx)
+		upstream, err := client.GetVisualValidateResult(callCtx, creds, bytedToken)
+		cancel()
 		if err != nil {
 			warnBytePlusRealPersonJobRow("verification_status")
 			firstErr = firstNonNil(firstErr, retryBytePlusVerificationStatus(session, now))
@@ -248,7 +251,9 @@ func runBytePlusRealPersonAssetStatusJobs(ctx context.Context, now, staleBefore 
 			firstErr = firstNonNil(firstErr, retryBytePlusAssetStatusCheck(asset, now))
 			continue
 		}
-		status, err := client.GetAsset(ctx, creds, asset.UpstreamAssetId)
+		callCtx, cancel := bytePlusRealPersonJobCallContext(ctx)
+		status, err := client.GetAsset(callCtx, creds, asset.UpstreamAssetId)
+		cancel()
 		if err != nil {
 			warnBytePlusRealPersonJobRow("asset_status")
 			firstErr = firstNonNil(firstErr, retryBytePlusAssetStatusCheck(asset, now))
@@ -312,7 +317,9 @@ func runBytePlusRealPersonAssetDeleteJobs(ctx context.Context, now, staleBefore 
 			firstErr = firstNonNil(firstErr, retryBytePlusAssetDeletion(asset, now))
 			continue
 		}
-		_, err = client.DeleteAsset(ctx, creds, asset.UpstreamAssetId)
+		callCtx, cancel := bytePlusRealPersonJobCallContext(ctx)
+		_, err = client.DeleteAsset(callCtx, creds, asset.UpstreamAssetId)
+		cancel()
 		if err == nil || isBytePlusNotFound(err) {
 			if ok, err := model.CompleteBytePlusAssetDeletion(asset.Id, asset.DeleteLeaseUpdatedTime, now); err != nil {
 				warnBytePlusRealPersonJobRow("asset_delete")
@@ -349,8 +356,15 @@ func runBytePlusRealPersonTOSCleanupJobs(ctx context.Context, now, staleBefore i
 	var firstErr error
 	for _, object := range objects {
 		if object.AssetId != nil && object.SignedURLExpiresAt > 0 && object.SignedURLExpiresAt <= now {
-			if err := finalBytePlusAssetStatusProbe(ctx, *object.AssetId); err != nil {
+			ready, err := finalBytePlusAssetStatusProbe(ctx, *object.AssetId)
+			if err != nil {
 				warnBytePlusRealPersonJobRow("tos_cleanup")
+				firstErr = firstNonNil(firstErr, retryBytePlusTempObjectCleanup(object, now))
+				continue
+			}
+			if !ready {
+				firstErr = firstNonNil(firstErr, retryBytePlusTempObjectCleanup(object, now))
+				continue
 			}
 		}
 		channelID := object.ChannelId
@@ -377,7 +391,10 @@ func runBytePlusRealPersonTOSCleanupJobs(ctx context.Context, now, staleBefore i
 			firstErr = firstNonNil(firstErr, retryBytePlusTempObjectCleanup(object, now))
 			continue
 		}
-		if err := store.DeleteObject(ctx, object.ObjectKey); err != nil {
+		callCtx, cancel := bytePlusRealPersonJobCallContext(ctx)
+		err = store.DeleteObject(callCtx, object.ObjectKey)
+		cancel()
+		if err != nil {
 			warnBytePlusRealPersonJobRow("tos_cleanup")
 			firstErr = firstNonNil(firstErr, retryBytePlusTempObjectCleanup(object, now))
 			continue
@@ -392,27 +409,50 @@ func runBytePlusRealPersonTOSCleanupJobs(ctx context.Context, now, staleBefore i
 	return processed, firstErr
 }
 
-func finalBytePlusAssetStatusProbe(ctx context.Context, assetID int64) error {
+func finalBytePlusAssetStatusProbe(ctx context.Context, assetID int64) (bool, error) {
 	asset, err := model.GetBytePlusAssetByID(assetID)
-	if err != nil || asset.Status != model.BytePlusAssetStatusProcessing || strings.TrimSpace(asset.UpstreamAssetId) == "" {
-		return err
+	if err != nil {
+		return false, err
+	}
+	if asset.Status != model.BytePlusAssetStatusProcessing {
+		return bytePlusAssetLocalStatusReadyForTempObjectCleanup(asset.Status), nil
+	}
+	if strings.TrimSpace(asset.UpstreamAssetId) == "" {
+		return false, nil
 	}
 	channel, creds, err := loadUsableBytePlusRealPersonChannel(asset.ChannelId, asset.UserId, "")
 	if err != nil {
-		return err
+		return false, err
 	}
 	client, err := realPersonClientForChannel(channel)
 	if err != nil {
-		return err
+		return false, err
 	}
-	status, err := client.GetAsset(ctx, creds, asset.UpstreamAssetId)
+	callCtx, cancel := bytePlusRealPersonJobCallContext(ctx)
+	status, err := client.GetAsset(callCtx, creds, asset.UpstreamAssetId)
+	cancel()
 	if err != nil {
-		return err
+		return false, err
 	}
-	if status.Status != model.BytePlusAssetStatusProcessing && (status.UpstreamAssetID == "" || status.UpstreamAssetID == asset.UpstreamAssetId) {
-		return model.UpdateBytePlusAssetStatus(asset.Id, status.Status, status.ErrorMessage, bytePlusAssetNow())
+	if bytePlusAssetLocalStatusReadyForTempObjectCleanup(status.Status) && (status.UpstreamAssetID == "" || status.UpstreamAssetID == asset.UpstreamAssetId) {
+		if err := model.UpdateBytePlusAssetStatus(asset.Id, status.Status, status.ErrorMessage, bytePlusAssetNow()); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
-	return nil
+	return false, nil
+}
+
+func bytePlusAssetLocalStatusReadyForTempObjectCleanup(status string) bool {
+	switch status {
+	case model.BytePlusAssetStatusActive,
+		model.BytePlusAssetStatusFailed,
+		model.BytePlusAssetStatusDeleting,
+		model.BytePlusAssetStatusDeleted:
+		return true
+	default:
+		return false
+	}
 }
 
 func retryBytePlusTempObjectCleanup(object model.BytePlusAssetTempObject, now int64) error {
@@ -425,6 +465,13 @@ func retryBytePlusTempObjectCleanup(object model.BytePlusAssetTempObject, now in
 	}
 	perfmetrics.RecordBytePlusRealPersonReconcile("tos_cleanup", "retry")
 	return nil
+}
+
+func bytePlusRealPersonJobCallContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	return context.WithTimeout(parent, bytePlusRealPersonJobCallTimeout)
 }
 
 func recordBytePlusRealPersonOperation(operation string, processed int, err error) bool {
