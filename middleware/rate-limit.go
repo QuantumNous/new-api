@@ -125,6 +125,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 	}
 }
 
+// memoryRateLimiter enforces an IP-based limit using process-local state.
 func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
 	key := mark + c.ClientIP()
 	if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
@@ -147,6 +148,7 @@ func writeRateLimited(c *gin.Context, retryAfterSeconds int64) {
 	})
 }
 
+// rateLimitFactory selects the configured backend for an IP-based rate limiter.
 func rateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gin.Context) {
 	if common.RedisEnabled {
 		return func(c *gin.Context) {
