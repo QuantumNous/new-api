@@ -92,6 +92,8 @@ if ($dockerfile -match '(?m)^ENV\s+GOEXPERIMENT=([A-Za-z0-9,]+)\s*$') {
 }
 
 $shortSha = $commitSha.Substring(0, 12)
+$release = "$shortSha-v1"
+$buildTime = [DateTime]::UtcNow.ToString('o')
 $repoParent = Split-Path -Parent $repoRoot
 $worktree = Join-Path $repoParent "new-api-build-$commitSha"
 
@@ -221,7 +223,7 @@ try {
         $env:GOARCH = 'amd64'
         $env:CGO_ENABLED = '0'
         $env:GOEXPERIMENT = $goExperiment
-        $ldflags = "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$version'"
+        $ldflags = "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$version' -X 'github.com/QuantumNous/new-api/common.BuildCommit=$commitSha' -X 'github.com/QuantumNous/new-api/common.BuildRelease=$release' -X 'github.com/QuantumNous/new-api/common.BuildTime=$buildTime'"
         Invoke-Native -Command 'go' -Arguments @('build', '-buildvcs=false', '-trimpath', '-ldflags', $ldflags, '-o', $binaryPath, '.') -WorkingDirectory $worktree
     }
     finally {
@@ -252,6 +254,8 @@ try {
         commit = $commitSha
         short_commit = $shortSha
         version = $version
+        release = $release
+        build_time = $buildTime
         target = 'linux/amd64'
         go_version = $localGoVersion
         goexperiment = $goExperiment

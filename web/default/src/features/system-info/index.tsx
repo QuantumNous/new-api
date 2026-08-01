@@ -22,6 +22,7 @@ import { SectionPageLayout } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 
 import { SystemInstancesPanel } from './components/system-instances-panel'
+import { ReleaseInfoPanel } from './components/release-info-panel'
 import { SystemTasksPanel } from './components/system-tasks-panel'
 
 export function SystemInfo() {
@@ -39,6 +40,7 @@ export function SystemInfo() {
       </SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <div className='space-y-4'>
+          <ReleaseInfoPanel />
           <SystemInstancesPanel />
           <SystemTasksPanel />
         </div>
