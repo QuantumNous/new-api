@@ -1,13 +1,4 @@
 {
-  "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "この環境では自動適用できません。リリースを手動でダウンロードするか GitHub ページを開いてください。",
-  "Backend update API unavailable; showing release notes only.": "バックエンド更新 API を利用できないため、リリースノートのみ表示します。",
-  "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Docker デプロイを検出しました。バイナリの直接更新は無効です。docker compose pull && docker compose up -d でアップグレードしてください。",
-  "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "インプレース更新は公式リリースバイナリをダウンロードし、実行中の実行ファイルを置き換えます（バイナリインストールのみ）。Docker では新しいイメージを pull してください。",
-  "Rollback completed. Please restart the new-api process.": "ロールバックが完了しました。new-api プロセスを再起動してください。",
-  "Rollback failed": "ロールバックに失敗しました",
-  "Rollback last backup": "直前のバックアップに戻す",
-  "Rollback versions": "ロールバック可能なバージョン",
-  "Rolling back...": "ロールバック中…",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5236,8 +5227,17 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
-  },
-  "Update completed. Please restart the new-api process to load the new binary.": "更新が完了しました。新しいバイナリを読み込むには new-api プロセスを再起動してください。",
-  "Update now": "今すぐ更新"
+    "Zoom": "ズーム",
+    "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "この環境では自動適用できません。リリースを手動でダウンロードするか GitHub ページを開いてください。",
+    "Backend update API unavailable; showing release notes only.": "バックエンド更新 API を利用できないため、リリースノートのみ表示します。",
+    "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Docker デプロイを検出しました。バイナリの直接更新は無効です。docker compose pull && docker compose up -d でアップグレードしてください。",
+    "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "インプレース更新は公式リリースバイナリをダウンロードし、実行中の実行ファイルを置き換えます（バイナリインストールのみ）。Docker では新しいイメージを pull してください。",
+    "Rollback completed. Please restart the new-api process.": "ロールバックが完了しました。new-api プロセスを再起動してください。",
+    "Rollback failed": "ロールバックに失敗しました",
+    "Rollback last backup": "直前のバックアップに戻す",
+    "Rollback versions": "ロールバック可能なバージョン",
+    "Rolling back...": "ロールバック中…",
+    "Update completed. Please restart the new-api process to load the new binary.": "更新が完了しました。新しいバイナリを読み込むには new-api プロセスを再起動してください。",
+    "Update now": "今すぐ更新"
+  }
 }

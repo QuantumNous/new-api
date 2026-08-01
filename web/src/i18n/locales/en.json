@@ -1,13 +1,4 @@
 {
-  "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.",
-  "Backend update API unavailable; showing release notes only.": "Backend update API unavailable; showing release notes only.",
-  "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d",
-  "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.",
-  "Rollback completed. Please restart the new-api process.": "Rollback completed. Please restart the new-api process.",
-  "Rollback failed": "Rollback failed",
-  "Rollback last backup": "Rollback last backup",
-  "Rollback versions": "Rollback versions",
-  "Rolling back...": "Rolling back...",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5236,8 +5227,17 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
-  },
-  "Update completed. Please restart the new-api process to load the new binary.": "Update completed. Please restart the new-api process to load the new binary.",
-  "Update now": "Update now"
+    "Zoom": "Zoom",
+    "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.",
+    "Backend update API unavailable; showing release notes only.": "Backend update API unavailable; showing release notes only.",
+    "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d",
+    "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.",
+    "Rollback completed. Please restart the new-api process.": "Rollback completed. Please restart the new-api process.",
+    "Rollback failed": "Rollback failed",
+    "Rollback last backup": "Rollback last backup",
+    "Rollback versions": "Rollback versions",
+    "Rolling back...": "Rolling back...",
+    "Update completed. Please restart the new-api process to load the new binary.": "Update completed. Please restart the new-api process to load the new binary.",
+    "Update now": "Update now"
+  }
 }

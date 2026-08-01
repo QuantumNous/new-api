@@ -1,13 +1,4 @@
 {
-  "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "目前環境無法自動套用更新。請手動下載發布包或開啟 GitHub 頁面。",
-  "Backend update API unavailable; showing release notes only.": "後端更新介面不可用；僅顯示發布說明。",
-  "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "偵測到 Docker 部署。已停用原地二進位更新。請使用：docker compose pull && docker compose up -d",
-  "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "原地更新會下載官方發布二進位並替換正在執行的可執行檔（僅適用於二進位安裝）。Docker 使用者應改為拉取新映像。",
-  "Rollback completed. Please restart the new-api process.": "回滾完成。請重啟 new-api 行程。",
-  "Rollback failed": "回滾失敗",
-  "Rollback last backup": "回滾到上次備份",
-  "Rollback versions": "可回滾版本",
-  "Rolling back...": "正在回滾…",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5236,8 +5227,17 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
-  },
-  "Update completed. Please restart the new-api process to load the new binary.": "更新完成。請重啟 new-api 行程以載入新二進位。",
-  "Update now": "立即更新"
+    "Zoom": "縮放",
+    "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "目前環境無法自動套用更新。請手動下載發布包或開啟 GitHub 頁面。",
+    "Backend update API unavailable; showing release notes only.": "後端更新介面不可用；僅顯示發布說明。",
+    "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "偵測到 Docker 部署。已停用原地二進位更新。請使用：docker compose pull && docker compose up -d",
+    "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "原地更新會下載官方發布二進位並替換正在執行的可執行檔（僅適用於二進位安裝）。Docker 使用者應改為拉取新映像。",
+    "Rollback completed. Please restart the new-api process.": "回滾完成。請重啟 new-api 行程。",
+    "Rollback failed": "回滾失敗",
+    "Rollback last backup": "回滾到上次備份",
+    "Rollback versions": "可回滾版本",
+    "Rolling back...": "正在回滾…",
+    "Update completed. Please restart the new-api process to load the new binary.": "更新完成。請重啟 new-api 行程以載入新二進位。",
+    "Update now": "立即更新"
+  }
 }

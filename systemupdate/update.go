@@ -117,7 +117,9 @@ type SystemUpdateService struct {
 	opMu sync.Mutex
 }
 
-var defaultSystemUpdateService *SystemUpdateService
+// defaultSystemUpdateService is published via atomic.Pointer so SetCurrentVersion
+// and GetSystemUpdateService can observe initialization without data races.
+var defaultSystemUpdateService atomic.Pointer[SystemUpdateService]
 var systemUpdateOnce sync.Once
 
 func init() {
@@ -132,20 +134,19 @@ func SetCurrentVersion(v string) {
 		return
 	}
 	runningVer.Store(v)
-	CurrentVersion = v // best-effort mirror for diagnostics; service uses runningVer
+	// Diagnostic mirror only; concurrent readers should use runningVer / the service.
+	CurrentVersion = v
 
-	// If the process-wide service is already live, refresh under cacheMu.
-	s := defaultSystemUpdateService
-	if s == nil {
-		return
+	// Load via atomic.Pointer so we never race with GetSystemUpdateService init.
+	if s := defaultSystemUpdateService.Load(); s != nil {
+		s.cacheMu.Lock()
+		if s.currentVer != v {
+			s.currentVer = v
+			s.cache = nil
+			s.cacheGen++
+		}
+		s.cacheMu.Unlock()
 	}
-	s.cacheMu.Lock()
-	if s.currentVer != v {
-		s.currentVer = v
-		s.cache = nil
-		s.cacheGen++
-	}
-	s.cacheMu.Unlock()
 }
 
 // GetSystemUpdateService returns the process-wide update service.
@@ -160,7 +161,7 @@ func GetSystemUpdateService() *SystemUpdateService {
 		if stored, ok := runningVer.Load().(string); ok && strings.TrimSpace(stored) != "" {
 			ver = stored
 		}
-		defaultSystemUpdateService = &SystemUpdateService{
+		s := &SystemUpdateService{
 			repo:  repo,
 			token: strings.TrimSpace(os.Getenv("UPDATE_GITHUB_TOKEN")),
 			apiClient: &http.Client{
@@ -171,13 +172,14 @@ func GetSystemUpdateService() *SystemUpdateService {
 			},
 			currentVer: ver,
 		}
+		defaultSystemUpdateService.Store(s)
 	})
+	s := defaultSystemUpdateService.Load()
 	// Refresh under cacheMu so concurrent checks cannot race with version/cache reads.
 	// Invalidate cache when the version changes so HasUpdate is not stale.
 	if v, ok := runningVer.Load().(string); ok {
 		v = strings.TrimSpace(v)
 		if v != "" {
-			s := defaultSystemUpdateService
 			s.cacheMu.Lock()
 			if s.currentVer != v {
 				s.currentVer = v
@@ -187,7 +189,7 @@ func GetSystemUpdateService() *SystemUpdateService {
 			s.cacheMu.Unlock()
 		}
 	}
-	return defaultSystemUpdateService
+	return s
 }
 
 // currentVersion returns the service's running version under cacheMu.

@@ -1,13 +1,4 @@
 {
-  "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "Автоматическое применение недоступно в этой среде. Скачайте релиз вручную или откройте страницу GitHub.",
-  "Backend update API unavailable; showing release notes only.": "API обновления бэкенда недоступен; показаны только примечания к выпуску.",
-  "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Обнаружено развёртывание Docker. Обновление бинарника на месте отключено. Обновите: docker compose pull && docker compose up -d",
-  "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "Обновление на месте скачивает официальный бинарник релиза и заменяет работающий исполняемый файл (только бинарные установки). Пользователям Docker следует pull нового образа.",
-  "Rollback completed. Please restart the new-api process.": "Откат завершён. Перезапустите процесс new-api.",
-  "Rollback failed": "Откат не выполнен",
-  "Rollback last backup": "Откатить к последнему бэкапу",
-  "Rollback versions": "Версии для отката",
-  "Rolling back...": "Откат…",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5236,8 +5227,17 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
-  },
-  "Update completed. Please restart the new-api process to load the new binary.": "Обновление завершено. Перезапустите процесс new-api, чтобы загрузить новый бинарник.",
-  "Update now": "Обновить сейчас"
+    "Zoom": "Zoom",
+    "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "Автоматическое применение недоступно в этой среде. Скачайте релиз вручную или откройте страницу GitHub.",
+    "Backend update API unavailable; showing release notes only.": "API обновления бэкенда недоступен; показаны только примечания к выпуску.",
+    "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Обнаружено развёртывание Docker. Обновление бинарника на месте отключено. Обновите: docker compose pull && docker compose up -d",
+    "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "Обновление на месте скачивает официальный бинарник релиза и заменяет работающий исполняемый файл (только бинарные установки). Пользователям Docker следует загрузить новый образ.",
+    "Rollback completed. Please restart the new-api process.": "Откат завершён. Перезапустите процесс new-api.",
+    "Rollback failed": "Откат не выполнен",
+    "Rollback last backup": "Откатить к последнему бэкапу",
+    "Rollback versions": "Версии для отката",
+    "Rolling back...": "Откат…",
+    "Update completed. Please restart the new-api process to load the new binary.": "Обновление завершено. Перезапустите процесс new-api, чтобы загрузить новый бинарник.",
+    "Update now": "Обновить сейчас"
+  }
 }

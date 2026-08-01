@@ -1,13 +1,4 @@
 {
-  "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "L'application automatique est indisponible dans cet environnement. Téléchargez la version manuellement ou ouvrez la page GitHub.",
-  "Backend update API unavailable; showing release notes only.": "API de mise à jour backend indisponible ; affichage des notes de version uniquement.",
-  "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Déploiement Docker détecté. La mise à jour binaire sur place est désactivée. Mettez à niveau avec : docker compose pull && docker compose up -d",
-  "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "La mise à jour sur place télécharge le binaire de release officiel et remplace l'exécutable en cours (installations binaires uniquement). Les utilisateurs Docker doivent tirer une nouvelle image.",
-  "Rollback completed. Please restart the new-api process.": "Rollback terminé. Veuillez redémarrer le processus new-api.",
-  "Rollback failed": "Échec du rollback",
-  "Rollback last backup": "Revenir à la dernière sauvegarde",
-  "Rollback versions": "Versions de rollback",
-  "Rolling back...": "Rollback en cours…",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -5236,8 +5227,17 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
-  },
-  "Update completed. Please restart the new-api process to load the new binary.": "Mise à jour terminée. Redémarrez le processus new-api pour charger le nouveau binaire.",
-  "Update now": "Mettre à jour maintenant"
+    "Zoom": "Zoom",
+    "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "L'application automatique est indisponible dans cet environnement. Téléchargez la version manuellement ou ouvrez la page GitHub.",
+    "Backend update API unavailable; showing release notes only.": "API de mise à jour backend indisponible ; affichage des notes de version uniquement.",
+    "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Déploiement Docker détecté. La mise à jour binaire sur place est désactivée. Mettez à niveau avec : docker compose pull && docker compose up -d",
+    "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "La mise à jour sur place télécharge le binaire de release officiel et remplace l'exécutable en cours (installations binaires uniquement). Les utilisateurs Docker doivent tirer une nouvelle image.",
+    "Rollback completed. Please restart the new-api process.": "Rollback terminé. Veuillez redémarrer le processus new-api.",
+    "Rollback failed": "Échec du rollback",
+    "Rollback last backup": "Revenir à la dernière sauvegarde",
+    "Rollback versions": "Versions de rollback",
+    "Rolling back...": "Rollback en cours…",
+    "Update completed. Please restart the new-api process to load the new binary.": "Mise à jour terminée. Redémarrez le processus new-api pour charger le nouveau binaire.",
+    "Update now": "Mettre à jour maintenant"
+  }
 }
