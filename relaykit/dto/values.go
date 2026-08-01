@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"strconv"
 )
 
@@ -53,6 +54,8 @@ func (i IntValue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(int(i))
 }
 
+// UnixTimestamp accepts integer and scientific-notation JSON timestamps while
+// preserving an integer Unix timestamp for downstream consumers.
 type UnixTimestamp int64
 
 func (t *UnixTimestamp) UnmarshalJSON(data []byte) error {
@@ -72,11 +75,15 @@ func (t *UnixTimestamp) UnmarshalJSON(data []byte) error {
 		*t = UnixTimestamp(i)
 		return nil
 	}
-	f, err := n.Float64()
-	if err != nil {
-		return err
+	rational, ok := new(big.Rat).SetString(n.String())
+	if !ok {
+		return fmt.Errorf("invalid timestamp %s", n.String())
 	}
-	*t = UnixTimestamp(int64(f))
+	i := new(big.Int).Quo(rational.Num(), rational.Denom())
+	if !i.IsInt64() {
+		return fmt.Errorf("timestamp %s is out of int64 range", n.String())
+	}
+	*t = UnixTimestamp(i.Int64())
 	return nil
 }
 

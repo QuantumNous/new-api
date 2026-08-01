@@ -15,10 +15,14 @@ import (
 )
 
 func TestOaiResponsesStreamHandlerForwardsScientificCreatedAtCompletion(t *testing.T) {
+	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
 	oldTimeout := constant.StreamingTimeout
 	constant.StreamingTimeout = 30
-	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+	t.Cleanup(func() {
+		gin.SetMode(oldMode)
+		constant.StreamingTimeout = oldTimeout
+	})
 
 	event := `{"type":"response.completed","response":{"id":"resp_test","created_at":1.76848816E9,"status":"completed","output":[]}}`
 	body := "event: response.completed\n" + "data: " + event + "\n\ndata: [DONE]\n\n"
