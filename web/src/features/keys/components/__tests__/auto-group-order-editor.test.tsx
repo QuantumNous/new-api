@@ -71,6 +71,8 @@ await i18n.use(initReactI18next).init({
         'Maximum {{max}} groups selected': 'Maximum {{max}} groups selected',
         'Move {{group}} down': 'Move {{group}} down',
         'Move {{group}} up': 'Move {{group}} up',
+        'No available groups in the global Auto order.':
+          'No available groups in the global Auto order.',
         'No custom groups. Saving will inherit the complete global Auto order.':
           'No custom groups. Saving will inherit the complete global Auto order.',
         'Remove {{group}}': 'Remove {{group}}',
@@ -79,6 +81,8 @@ await i18n.use(initReactI18next).init({
         'Search...': 'Search...',
         'No group found.': 'No group found.',
         'Select a group': 'Select a group',
+        'Using the complete global Auto order ({{count}} groups)':
+          'Using the complete global Auto order ({{count}} groups)',
       },
     },
   },
@@ -88,6 +92,12 @@ const reactTestGlobals = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean
 }
 reactTestGlobals.IS_REACT_ACT_ENVIRONMENT = true
+
+const globalOptions = [
+  { value: 'vip', label: 'VIP', desc: 'Priority access', ratio: 3 },
+  { value: 'default', label: 'Default', desc: 'Standard access', ratio: 1 },
+  { value: 'team', label: 'Team', desc: 'Shared access', ratio: 2 },
+]
 
 function Harness() {
   const [groups, setGroups] = useState(['default', 'vip'])
@@ -101,6 +111,24 @@ function Harness() {
           { value: 'vip', label: 'vip', ratio: 2 },
           { value: 'team', label: 'team', ratio: 3 },
         ]}
+        globalOptions={globalOptions}
+        maxCount={2}
+        onChange={setGroups}
+      />
+      <output data-testid='order'>{groups.join(',')}</output>
+    </I18nextProvider>
+  )
+}
+
+function InheritanceHarness(props: { globalOptions?: typeof globalOptions }) {
+  const [groups, setGroups] = useState<string[]>([])
+
+  return (
+    <I18nextProvider i18n={i18n}>
+      <AutoGroupOrderEditor
+        value={groups}
+        options={[{ value: 'auto', label: 'auto' }, ...globalOptions]}
+        globalOptions={props.globalOptions ?? globalOptions}
         maxCount={2}
         onChange={setGroups}
       />
@@ -207,8 +235,125 @@ describe('Auto group order editor', () => {
       ''
     )
     assert.equal(
-      container.textContent?.includes('Inherit global Auto order'),
+      container.textContent?.includes(
+        'Using the complete global Auto order (3 groups)'
+      ),
       true
+    )
+
+    const inheritedItems = container.querySelectorAll(
+      '[data-slot="global-auto-order"] > li'
+    )
+    assert.deepEqual(
+      [...inheritedItems].map(
+        (item) =>
+          item.querySelector('[data-slot="global-auto-order-name"]')
+            ?.textContent
+      ),
+      ['VIP', 'Default', 'Team']
+    )
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  test('shows the complete inherited order with metadata beyond the custom limit', async () => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    await act(async () => root.render(<InheritanceHarness />))
+
+    assert.equal(
+      container.textContent?.includes(
+        'Using the complete global Auto order (3 groups)'
+      ),
+      true
+    )
+    assert.equal(
+      container.textContent?.includes('0 / 2 groups selected'),
+      false
+    )
+
+    const order = container.querySelector<HTMLOListElement>(
+      '[data-slot="global-auto-order"]'
+    )
+    assert.ok(order)
+    assert.equal(order.classList.contains('overflow-y-auto'), true)
+
+    const items = [...order.querySelectorAll('li')]
+    assert.equal(items.length, 3)
+    assert.deepEqual(
+      items.map((item) => ({
+        index: item.querySelector('[data-slot="global-auto-order-index"]')
+          ?.textContent,
+        name: item.querySelector('[data-slot="global-auto-order-name"]')
+          ?.textContent,
+        description: item.querySelector(
+          '[data-slot="global-auto-order-description"]'
+        )?.textContent,
+        ratio: item.querySelector('[data-slot="badge"]')?.textContent,
+      })),
+      [
+        {
+          index: '1',
+          name: 'VIP',
+          description: 'Priority access',
+          ratio: '3x Ratio',
+        },
+        {
+          index: '2',
+          name: 'Default',
+          description: 'Standard access',
+          ratio: '1x Ratio',
+        },
+        {
+          index: '3',
+          name: 'Team',
+          description: 'Shared access',
+          ratio: '2x Ratio',
+        },
+      ]
+    )
+
+    assert.equal(container.querySelector('[aria-label^="Drag "]'), null)
+    assert.equal(container.querySelector('[aria-label^="Move "]'), null)
+    assert.equal(container.querySelector('[aria-label^="Remove "]'), null)
+
+    const restoreButton = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent?.includes('Restore global Auto')
+    )
+    assert.ok(restoreButton)
+    assert.equal(restoreButton.disabled, true)
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  test('shows an explicit empty state when the global Auto order has no groups', async () => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    await act(async () =>
+      root.render(<InheritanceHarness globalOptions={[]} />)
+    )
+
+    assert.equal(
+      container.textContent?.includes(
+        'Using the complete global Auto order (0 groups)'
+      ),
+      true
+    )
+    assert.equal(
+      container.textContent?.includes(
+        'No available groups in the global Auto order.'
+      ),
+      true
+    )
+    assert.equal(
+      container.querySelector('[data-slot="global-auto-order"]'),
+      null
     )
 
     await act(async () => root.unmount())

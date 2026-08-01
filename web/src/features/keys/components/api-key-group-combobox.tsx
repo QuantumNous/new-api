@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Check, ChevronsUpDown } from 'lucide-react'
+import { motion } from 'motion/react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -35,6 +36,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
 
 export type ApiKeyGroupOption = {
@@ -77,7 +79,11 @@ function getRatioBadgeClassName(ratio: ApiKeyGroupOption['ratio']) {
   return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
 }
 
-function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
+export function GroupRatioBadge({
+  ratio,
+}: {
+  ratio: ApiKeyGroupOption['ratio']
+}) {
   const { t } = useTranslation()
   const label = formatGroupRatio(ratio, t('Ratio'))
 
@@ -96,6 +102,24 @@ function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
   )
 }
 
+function AutoGroupShimmer(props: { shouldReduceMotion: boolean }) {
+  if (props.shouldReduceMotion) return null
+
+  return (
+    <motion.span
+      aria-hidden='true'
+      data-auto-group-shimmer='true'
+      className='via-primary/70 pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent to-transparent'
+      animate={{ x: ['-100%', '100%'] }}
+      transition={{
+        duration: 3.2,
+        ease: 'easeInOut',
+        repeat: Number.POSITIVE_INFINITY,
+      }}
+    />
+  )
+}
+
 export function ApiKeyGroupCombobox({
   options,
   value,
@@ -106,7 +130,9 @@ export function ApiKeyGroupCombobox({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
+  const shouldReduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const selectedOption = options.find((option) => option.value === value)
+  const isAutoSelected = selectedOption?.value === 'auto'
 
   const filteredOptions = useMemo(() => {
     const search = searchValue.trim().toLowerCase()
@@ -138,11 +164,19 @@ export function ApiKeyGroupCombobox({
             variant='outline'
             role='combobox'
             aria-expanded={open}
+            data-auto-group-effect={isAutoSelected ? 'trigger' : undefined}
             disabled={disabled}
-            className='border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 h-auto min-h-14 w-full justify-between gap-2 rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3'
+            className={cn(
+              'border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 relative h-auto min-h-14 w-full justify-between gap-2 overflow-hidden rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3',
+              isAutoSelected &&
+                'border-primary/50 from-primary/5 via-accent/45 to-primary/10 bg-linear-to-r shadow-sm shadow-primary/10 hover:border-primary/60 hover:from-primary/10 hover:via-accent/55 hover:to-primary/15 data-popup-open:border-primary/60 data-popup-open:ring-primary/20'
+            )}
           />
         }
       >
+        {isAutoSelected && (
+          <AutoGroupShimmer shouldReduceMotion={shouldReduceMotion} />
+        )}
         <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
           <span className='min-w-0'>
             <span className='block truncate font-medium'>
@@ -158,7 +192,10 @@ export function ApiKeyGroupCombobox({
             <GroupRatioBadge ratio={selectedOption?.ratio} />
           </span>
         </span>
-        <ChevronsUpDown className='h-4 w-4 shrink-0 opacity-50' />
+        <ChevronsUpDown
+          aria-hidden='true'
+          className='size-4 shrink-0 opacity-50'
+        />
       </PopoverTrigger>
       <PopoverContent
         className='data-closed:zoom-out-100 data-open:zoom-in-100 data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 w-[var(--anchor-width)] overflow-hidden rounded-xl p-0 shadow-lg data-closed:duration-75 data-open:duration-100'
@@ -175,32 +212,47 @@ export function ApiKeyGroupCombobox({
           <CommandList className='max-h-[360px]'>
             <CommandEmpty>{t('No group found.')}</CommandEmpty>
             <CommandGroup>
-              {filteredOptions.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  onSelect={() => handleSelect(option.value)}
-                  className='data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors'
-                >
-                  <Check
+              {filteredOptions.map((option) => {
+                const isAutoOption = option.value === 'auto'
+
+                return (
+                  <CommandItem
+                    key={option.value}
+                    value={option.value}
+                    data-auto-group-effect={isAutoOption ? 'option' : undefined}
+                    onSelect={() => handleSelect(option.value)}
                     className={cn(
-                      'mt-0.5 h-4 w-4',
-                      value === option.value ? 'opacity-100' : 'opacity-0'
+                      'data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors',
+                      isAutoOption &&
+                        'border-primary/35 from-primary/5 via-accent/40 to-primary/10 relative overflow-hidden border bg-linear-to-r shadow-sm shadow-primary/10 data-[selected=true]:border-primary/55 data-[selected=true]:from-primary/10 data-[selected=true]:via-accent/55 data-[selected=true]:to-primary/15 data-[selected=true]:bg-linear-to-r'
                     )}
-                  />
-                  <span className='min-w-0 flex-1'>
-                    <span className='block truncate font-medium'>
-                      {option.label}
-                    </span>
-                    {option.desc && (
-                      <span className='text-muted-foreground block truncate text-xs'>
-                        {option.desc}
+                  >
+                    {isAutoOption && (
+                      <AutoGroupShimmer
+                        shouldReduceMotion={shouldReduceMotion}
+                      />
+                    )}
+                    <Check
+                      aria-hidden='true'
+                      className={cn(
+                        'mt-0.5 size-4',
+                        value === option.value ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    <span className='min-w-0 flex-1'>
+                      <span className='block truncate font-medium'>
+                        {option.label}
                       </span>
-                    )}
-                  </span>
-                  <GroupRatioBadge ratio={option.ratio} />
-                </CommandItem>
-              ))}
+                      {option.desc && (
+                        <span className='text-muted-foreground block truncate text-xs'>
+                          {option.desc}
+                        </span>
+                      )}
+                    </span>
+                    <GroupRatioBadge ratio={option.ratio} />
+                  </CommandItem>
+                )
+              })}
             </CommandGroup>
           </CommandList>
         </Command>

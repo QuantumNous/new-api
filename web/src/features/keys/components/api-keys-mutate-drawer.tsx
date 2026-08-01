@@ -174,6 +174,13 @@ export function ApiKeysMutateDrawer({
       available.has(group)
     )
   }, [autoGroupsData, availableAutoGroupNames])
+  const globalAutoGroupOptions = useMemo(() => {
+    const groupsByValue = new Map(groups.map((group) => [group.value, group]))
+    return globalAutoGroups.flatMap((group) => {
+      const option = groupsByValue.get(group)
+      return option ? [option] : []
+    })
+  }, [globalAutoGroups, groups])
   const maxAutoGroups =
     Number.isInteger(autoGroupsData?.data?.max_count) &&
     Number(autoGroupsData?.data?.max_count) > 0
@@ -456,6 +463,7 @@ export function ApiKeysMutateDrawer({
                         <AutoGroupOrderEditor
                           value={field.value}
                           options={groups}
+                          globalOptions={globalAutoGroupOptions}
                           maxCount={maxAutoGroups}
                           onChange={(value) =>
                             field.onChange(value.slice(0, maxAutoGroups))

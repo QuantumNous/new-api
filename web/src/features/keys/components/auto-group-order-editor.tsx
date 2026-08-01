@@ -43,12 +43,14 @@ import { cn } from '@/lib/utils'
 
 import {
   ApiKeyGroupCombobox,
+  GroupRatioBadge,
   type ApiKeyGroupOption,
 } from './api-key-group-combobox'
 
 type AutoGroupOrderEditorProps = Omit<ComponentProps<'div'>, 'onChange'> & {
   value: string[]
   options: ApiKeyGroupOption[]
+  globalOptions: ApiKeyGroupOption[]
   maxCount: number
   onChange: (groups: string[]) => void
   'data-slot'?: string
@@ -154,6 +156,7 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
   const { t } = useTranslation()
   const maxCount =
     Number.isInteger(props.maxCount) && props.maxCount > 0 ? props.maxCount : 5
+  const isInheriting = props.value.length === 0
   const atLimit = props.value.length >= maxCount
   const candidates = useMemo(
     () =>
@@ -195,10 +198,14 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
     >
       <div className='flex items-center justify-between gap-3'>
         <p className='text-muted-foreground text-xs' aria-live='polite'>
-          {t('{{count}} / {{max}} groups selected', {
-            count: props.value.length,
-            max: maxCount,
-          })}
+          {isInheriting
+            ? t('Using the complete global Auto order ({{count}} groups)', {
+                count: props.globalOptions.length,
+              })
+            : t('{{count}} / {{max}} groups selected', {
+                count: props.value.length,
+                max: maxCount,
+              })}
         </p>
         <Button
           type='button'
@@ -223,18 +230,58 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
         disabled={atLimit || candidates.length === 0}
       />
 
-      {props.value.length === 0 ? (
+      {isInheriting && props.globalOptions.length === 0 && (
         <Empty className='min-h-28 border'>
           <EmptyHeader>
             <EmptyTitle>{t('Inherit global Auto order')}</EmptyTitle>
             <EmptyDescription>
-              {t(
-                'No custom groups. Saving will inherit the complete global Auto order.'
-              )}
+              {t('No available groups in the global Auto order.')}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
-      ) : (
+      )}
+
+      {isInheriting && props.globalOptions.length > 0 && (
+        <ol
+          data-slot='global-auto-order'
+          aria-label={t('Inherit global Auto order')}
+          className='flex max-h-56 flex-col gap-1 overflow-y-auto rounded-lg border p-1.5'
+        >
+          {props.globalOptions.map((option, index) => (
+            <li
+              key={option.value}
+              className='bg-muted/30 flex min-h-11 items-center gap-2 rounded-md px-2.5 py-2'
+            >
+              <span
+                data-slot='global-auto-order-index'
+                aria-hidden='true'
+                className='bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full text-xs tabular-nums'
+              >
+                {index + 1}
+              </span>
+              <span className='min-w-0 flex-1'>
+                <span
+                  data-slot='global-auto-order-name'
+                  className='block truncate text-sm font-medium'
+                >
+                  {option.label}
+                </span>
+                {option.desc && (
+                  <span
+                    data-slot='global-auto-order-description'
+                    className='text-muted-foreground block truncate text-xs'
+                  >
+                    {option.desc}
+                  </span>
+                )}
+              </span>
+              <GroupRatioBadge ratio={option.ratio} />
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {!isInheriting && (
         <Reorder.Group
           axis='y'
           values={props.value}
