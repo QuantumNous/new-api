@@ -453,6 +453,42 @@ func TestRecallEmailAcceptedSchedulesVersionedStagesRelativeToFirstAcceptance(t 
 	require.EqualValues(t, 1, stageTwoCount)
 }
 
+func TestRecallEmailStageOffsetsAreAbsoluteFromFirstSMTPAcceptance(t *testing.T) {
+	stages := []RecallEmailStage{
+		{StageNo: 1, DelaySeconds: 0, TemplateVersion: 21, Templates: map[string]RecallEmailTemplate{
+			"en": {Subject: "Stage 1", BodyText: "Body 1"},
+		}},
+		{StageNo: 2, DelaySeconds: 24 * 60 * 60, TemplateVersion: 22, Templates: map[string]RecallEmailTemplate{
+			"en": {Subject: "Stage 2", BodyText: "Body 2"},
+		}},
+		{StageNo: 3, DelaySeconds: 4 * 24 * 60 * 60, TemplateVersion: 23, Templates: map[string]RecallEmailTemplate{
+			"en": {Subject: "Stage 3", BodyText: "Body 3"},
+		}},
+	}
+	emailJSON, err := common.Marshal(stages)
+	require.NoError(t, err)
+	firstAcceptedAt := int64(recallEmailTestNow)
+	item := &model.RecallEmailWorkItem{
+		Campaign:  model.RecallCampaign{EmailSequenceConfig: string(emailJSON)},
+		Recipient: model.RecallRecipient{},
+		Message:   model.RecallMessage{StageNo: 1},
+	}
+
+	stageTwo, err := nextRecallEmailMessage(item, firstAcceptedAt)
+	require.NoError(t, err)
+	require.NotNil(t, stageTwo)
+	require.Equal(t, firstAcceptedAt+24*60*60, stageTwo.ScheduledAt)
+
+	stageTwoAcceptedAt := firstAcceptedAt + 2*24*60*60
+	item.Recipient.FirstSentAt = firstAcceptedAt
+	item.Message.StageNo = 2
+	stageThree, err := nextRecallEmailMessage(item, stageTwoAcceptedAt)
+	require.NoError(t, err)
+	require.NotNil(t, stageThree)
+	require.Equal(t, firstAcceptedAt+4*24*60*60, stageThree.ScheduledAt)
+	require.NotEqual(t, stageTwoAcceptedAt+4*24*60*60, stageThree.ScheduledAt)
+}
+
 func TestRecallEmailAccountBackedRecipientUsesRecipientUnsubscribeToken(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
 

@@ -433,7 +433,7 @@ func validRecallCampaignDraft(now time.Time) RecallCampaignDraft {
 				"en": {Subject: "Come back", BodyText: "A Stripe offer is waiting."},
 			},
 		}},
-		Schedule: RecallScheduleConfig{ScheduledAt: now.Add(time.Hour).Unix()},
+		Schedule: RecallScheduleConfig{ScheduledAt: now.Add(time.Hour).Unix(), Timezone: "Asia/Shanghai"},
 	}
 	english := draft.Emails[0].Templates["en"]
 	for _, language := range recallEmailTranslationLanguages {
@@ -822,6 +822,112 @@ func TestRecallCampaignSaveDraftValidatesAndNormalizes(t *testing.T) {
 	var emails []RecallEmailStage
 	require.NoError(t, common.Unmarshal([]byte(campaign.EmailSequenceConfig), &emails))
 	require.Equal(t, 1, emails[0].TemplateVersion)
+}
+
+func TestRecallCampaignScheduleProductChoicesNormalizeForPersistence(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	start := now.Add(2 * time.Hour).Unix()
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
+	service.now = func() time.Time { return now }
+
+	tests := []struct {
+		name          string
+		productChoice string
+		schedule      RecallScheduleConfig
+		wantMode      string
+		wantFrequency string
+	}{
+		{
+			name:          "Manual",
+			productChoice: "Manual",
+			schedule:      RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9},
+			wantMode:      "manual",
+		},
+		{
+			name:          "Once",
+			productChoice: "Once",
+			schedule:      RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai"},
+			wantMode:      "scheduled_once",
+		},
+		{
+			name:          "Daily",
+			productChoice: "Daily",
+			schedule:      RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai", Hour: 9, Minute: 15},
+			wantMode:      "recurring",
+			wantFrequency: "daily",
+		},
+		{
+			name:          "Weekly",
+			productChoice: "Weekly",
+			schedule:      RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai", Weekday: int(time.Friday), Hour: 9, Minute: 15},
+			wantMode:      "recurring",
+			wantFrequency: "weekly",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			draft.Name = "Schedule " + test.name
+			draft.ExecutionMode = test.productChoice
+			draft.Schedule = test.schedule
+
+			campaign, err := service.SaveDraft(context.Background(), 7, draft)
+
+			require.NoError(t, err)
+			require.Equal(t, test.wantMode, campaign.ExecutionMode)
+			if test.wantMode == "manual" {
+				require.Zero(t, campaign.ScheduledAt)
+				require.Empty(t, campaign.RecurrenceConfig)
+				return
+			}
+			require.Equal(t, start, campaign.ScheduledAt)
+			require.NotEmpty(t, campaign.RecurrenceConfig)
+			var storedSchedule RecallScheduleConfig
+			require.NoError(t, common.Unmarshal([]byte(campaign.RecurrenceConfig), &storedSchedule))
+			require.Equal(t, start, storedSchedule.ScheduledAt)
+			require.Equal(t, "Asia/Shanghai", storedSchedule.Timezone)
+			require.Equal(t, test.wantFrequency, storedSchedule.Frequency)
+			if test.wantFrequency == "weekly" {
+				require.Equal(t, int(time.Friday), storedSchedule.Weekday)
+			}
+			roundTrip, err := recallCampaignDraftFromModel(campaign)
+			require.NoError(t, err)
+			require.Equal(t, storedSchedule, roundTrip.Schedule)
+		})
+	}
+}
+
+func TestRecallCampaignScheduleRejectsNonManualWithoutIANATimezone(t *testing.T) {
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	for _, mode := range []string{"Once", "Daily", "Weekly"} {
+		t.Run(mode, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			draft.ExecutionMode = mode
+			draft.Schedule = RecallScheduleConfig{
+				ScheduledAt: now.Add(time.Hour).Unix(),
+				Timezone:    "Local",
+				Weekday:     int(time.Friday),
+				Hour:        9,
+			}
+
+			_, err := validateAndNormalizeRecallCampaignDraftForPersistence(draft, now)
+
+			require.ErrorContains(t, err, "IANA timezone")
+		})
+	}
+}
+
+func TestRecallCampaignScheduleRejectsOncePastStart(t *testing.T) {
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	draft := validRecallCampaignDraft(now)
+	draft.ExecutionMode = "Once"
+	draft.Schedule = RecallScheduleConfig{ScheduledAt: now.Add(-time.Second).Unix(), Timezone: "Asia/Shanghai"}
+
+	_, err := validateAndNormalizeRecallCampaignDraftForPersistence(draft, now)
+
+	require.ErrorContains(t, err, "must run in the future")
 }
 
 func TestRecallCampaignDraftCanonicalizesSpecifiedAudienceBeforeSave(t *testing.T) {
@@ -2212,24 +2318,24 @@ func TestRecallExistingCouponExpiryCompatibility(t *testing.T) {
 		{
 			name:     "scheduled once relative uses scheduled time",
 			redeemBy: scheduledAt + validSeconds,
-			draft:    RecallCampaignDraft{ExecutionMode: "scheduled_once", Schedule: RecallScheduleConfig{ScheduledAt: scheduledAt}, PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
+			draft:    RecallCampaignDraft{ExecutionMode: "scheduled_once", Schedule: RecallScheduleConfig{ScheduledAt: scheduledAt, Timezone: "Asia/Shanghai"}, PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
 		},
 		{
 			name:     "scheduled once relative rejects before scheduled expiry",
 			redeemBy: scheduledAt + validSeconds - 1,
-			draft:    RecallCampaignDraft{ExecutionMode: "scheduled_once", Schedule: RecallScheduleConfig{ScheduledAt: scheduledAt}, PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
+			draft:    RecallCampaignDraft{ExecutionMode: "scheduled_once", Schedule: RecallScheduleConfig{ScheduledAt: scheduledAt, Timezone: "Asia/Shanghai"}, PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
 			wantErr:  true,
 		},
 		{
 			name:     "recurring relative rejects finite redeem by",
 			redeemBy: activationNow.Add(24 * time.Hour).Unix(),
-			draft:    RecallCampaignDraft{ExecutionMode: "recurring", PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
+			draft:    RecallCampaignDraft{ExecutionMode: "recurring", Schedule: RecallScheduleConfig{Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}, PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
 			wantErr:  true,
 		},
 		{
 			name:     "recurring fixed uses fixed rule",
 			redeemBy: fixedExpiresAt,
-			draft:    RecallCampaignDraft{ExecutionMode: "recurring", PromotionExpiryMode: RecallPromotionExpiryFixed, PromotionExpiresAt: fixedExpiresAt},
+			draft:    RecallCampaignDraft{ExecutionMode: "recurring", Schedule: RecallScheduleConfig{Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}, PromotionExpiryMode: RecallPromotionExpiryFixed, PromotionExpiresAt: fixedExpiresAt},
 		},
 	}
 	for _, testCase := range tests {
@@ -2398,6 +2504,100 @@ func TestNextRecallRunUsesIANAWallClock(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, time.Date(2026, 3, 9, 6, 30, 0, 0, time.UTC), missingWallClock)
+}
+
+func TestRecallCampaignRecurringScheduleUsesStartBoundaryAndWeekday(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	start := time.Date(2026, 7, 16, 10, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.ExecutionMode = "Weekly"
+	draft.Schedule = RecallScheduleConfig{
+		ScheduledAt: start.Unix(),
+		Timezone:    "Asia/Shanghai",
+		Weekday:     int(time.Friday),
+		Hour:        9,
+		Minute:      30,
+	}
+
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, "recurring", stored.ExecutionMode)
+	require.Equal(t, start.Unix(), stored.ScheduledAt)
+	require.Equal(t, time.Date(2026, 7, 17, 1, 30, 0, 0, time.UTC).Unix(), stored.NextRunAt)
+	var storedSchedule RecallScheduleConfig
+	require.NoError(t, common.Unmarshal([]byte(stored.RecurrenceConfig), &storedSchedule))
+	require.Equal(t, start.Unix(), storedSchedule.ScheduledAt)
+	require.Equal(t, "weekly", storedSchedule.Frequency)
+	require.Equal(t, int(time.Friday), storedSchedule.Weekday)
+}
+
+func TestRecallCampaignRecurringScheduleAllowsLegacyZeroStartBoundary(t *testing.T) {
+	now := time.Date(2026, 7, 15, 0, 30, 0, 0, time.UTC)
+	draft := validRecallCampaignDraft(now)
+	draft.ExecutionMode = "recurring"
+	draft.Schedule = RecallScheduleConfig{Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}
+
+	normalized, err := validateAndNormalizeRecallCampaignDraftForPersistence(draft, now)
+
+	require.NoError(t, err)
+	require.Zero(t, normalized.Schedule.ScheduledAt)
+	require.Equal(t, "recurring", normalized.ExecutionMode)
+	require.Equal(t, "daily", normalized.Schedule.Frequency)
+}
+
+func TestRecallCampaignRecurringScheduleDSTFallBackUsesGoLocationChoice(t *testing.T) {
+	beforeFallBack := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
+
+	next, err := NextRecallRun(beforeFallBack, RecallScheduleConfig{
+		Timezone:  "America/New_York",
+		Frequency: "daily",
+		Hour:      1,
+		Minute:    30,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, time.Date(2026, 11, 1, 5, 30, 0, 0, time.UTC), next)
+}
+
+func TestRecallCampaignRecurringRunRequiresNextRunCASOwnership(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 0, 30, 0, 0, time.UTC)
+	createRecallCampaignEligibleUser(t, db, now, "recurring-cas")
+	draft := validRecallCampaignDraft(now)
+	draft.Audience.LastAPICallAgeDays = 0
+	draft.ExecutionMode = "Daily"
+	draft.Schedule = RecallScheduleConfig{ScheduledAt: now.Add(30 * time.Minute).Unix(), Timezone: "Asia/Shanghai", Hour: 9}
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+	staleA, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	staleB := *staleA
+
+	committedA, err := service.runDueCampaign(context.Background(), staleA, time.Unix(staleA.NextRunAt, 0))
+	require.NoError(t, err)
+	committedB, err := service.runDueCampaign(context.Background(), &staleB, time.Unix(staleB.NextRunAt, 0))
+	require.NoError(t, err)
+
+	require.True(t, committedA)
+	require.False(t, committedB)
+	var recipientCount int64
+	require.NoError(t, db.Model(&model.RecallRecipient{}).Count(&recipientCount).Error)
+	require.EqualValues(t, 1, recipientCount)
+	var eventCount int64
+	require.NoError(t, db.Model(&model.RecallEvent{}).Count(&eventCount).Error)
+	require.EqualValues(t, 1, eventCount)
 }
 
 func TestNextRecallRunRejectsInvalidSchedule(t *testing.T) {
@@ -2697,7 +2897,7 @@ func TestRecallCampaignScheduledOnceWaitsUntilDue(t *testing.T) {
 	draft := validRecallCampaignDraft(now)
 	draft.Audience.LastAPICallAgeDays = 0
 	draft.ExecutionMode = "scheduled_once"
-	draft.Schedule = RecallScheduleConfig{ScheduledAt: now.Add(time.Hour).Unix()}
+	draft.Schedule = RecallScheduleConfig{ScheduledAt: now.Add(time.Hour).Unix(), Timezone: "Asia/Shanghai"}
 	calls := &recallCampaignStripeCalls{}
 	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, calls))
 	service.now = func() time.Time { return now }

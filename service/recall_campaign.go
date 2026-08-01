@@ -1031,7 +1031,7 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 		}
 		return nil
 	case "recurring":
-		nextRun, err := NextRecallRun(activationNow, draft.Schedule)
+		nextRun, err := firstRecallRun(activationNow, draft.Schedule)
 		if err != nil {
 			return err
 		}
@@ -1591,20 +1591,33 @@ func validateAndNormalizeRecallCampaignDraftInternal(draft RecallCampaignDraft, 
 	switch draft.ExecutionMode {
 	case "manual":
 		draft.Schedule = RecallScheduleConfig{}
-	case "scheduled_once":
+	case "once", "scheduled_once":
+		draft.ExecutionMode = "scheduled_once"
+		if err := validateRecallScheduleTimezone(draft.Schedule.Timezone); err != nil {
+			return RecallCampaignDraft{}, err
+		}
 		if draft.Schedule.ScheduledAt <= now.Unix() {
 			return RecallCampaignDraft{}, fmt.Errorf("scheduled recall campaign must run in the future")
 		}
-		draft.Schedule = RecallScheduleConfig{ScheduledAt: draft.Schedule.ScheduledAt}
-	case "recurring":
-		if _, err := NextRecallRun(now, draft.Schedule); err != nil {
+		draft.Schedule = RecallScheduleConfig{
+			ScheduledAt: draft.Schedule.ScheduledAt,
+			Timezone:    strings.TrimSpace(draft.Schedule.Timezone),
+		}
+	case "daily":
+		draft.ExecutionMode = "recurring"
+		draft.Schedule.Frequency = "daily"
+		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now); err != nil {
 			return RecallCampaignDraft{}, err
 		}
-		draft.Schedule.ScheduledAt = 0
-		draft.Schedule.Timezone = strings.TrimSpace(draft.Schedule.Timezone)
-		draft.Schedule.Frequency = strings.ToLower(strings.TrimSpace(draft.Schedule.Frequency))
-		if draft.Schedule.Frequency == "daily" {
-			draft.Schedule.Weekday = 0
+	case "weekly":
+		draft.ExecutionMode = "recurring"
+		draft.Schedule.Frequency = "weekly"
+		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now); err != nil {
+			return RecallCampaignDraft{}, err
+		}
+	case "recurring":
+		if err := validateAndNormalizeRecallRecurringSchedule(&draft.Schedule, now); err != nil {
+			return RecallCampaignDraft{}, err
 		}
 	default:
 		return RecallCampaignDraft{}, fmt.Errorf("unsupported recall execution mode %q", draft.ExecutionMode)
@@ -1634,6 +1647,40 @@ func validateAndNormalizeRecallCampaignDraftInternal(draft RecallCampaignDraft, 
 	}
 	draft.Emails = emails
 	return draft, nil
+}
+
+func validateRecallScheduleTimezone(timezone string) error {
+	timezone = strings.TrimSpace(timezone)
+	if timezone == "" || timezone == "Local" {
+		return fmt.Errorf("recall schedule requires an IANA timezone")
+	}
+	if _, err := time.LoadLocation(timezone); err != nil {
+		return fmt.Errorf("invalid recall schedule timezone %q: %w", timezone, err)
+	}
+	return nil
+}
+
+func validateAndNormalizeRecallRecurringSchedule(schedule *RecallScheduleConfig, now time.Time) error {
+	if schedule == nil {
+		return fmt.Errorf("recall recurrence schedule is required")
+	}
+	if err := validateRecallScheduleTimezone(schedule.Timezone); err != nil {
+		return err
+	}
+	schedule.Timezone = strings.TrimSpace(schedule.Timezone)
+	schedule.Frequency = strings.ToLower(strings.TrimSpace(schedule.Frequency))
+	if schedule.Frequency != "daily" && schedule.Frequency != "weekly" {
+		return fmt.Errorf("recall recurrence frequency must be daily or weekly")
+	}
+	if schedule.Frequency == "daily" {
+		schedule.Weekday = 0
+	}
+	if schedule.ScheduledAt > 0 {
+		_, err := firstRecallRun(now, *schedule)
+		return err
+	}
+	_, err := NextRecallRun(now, *schedule)
+	return err
 }
 
 func validateAndNormalizeRecallPromotionDraft(draft RecallCampaignDraft, now time.Time, requireProducts bool) (RecallCampaignDraft, error) {
@@ -2294,7 +2341,7 @@ func recallCampaignModelFromDraft(draft RecallCampaignDraft, actorID int) (*mode
 		return nil, err
 	}
 	recurrenceJSON := ""
-	if draft.ExecutionMode == "recurring" {
+	if draft.ExecutionMode == "scheduled_once" || draft.ExecutionMode == "recurring" {
 		encoded, marshalErr := common.Marshal(draft.Schedule)
 		if marshalErr != nil {
 			return nil, marshalErr
@@ -2377,10 +2424,20 @@ func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaig
 	draft.Emails = normalizedEmails
 	switch campaign.ExecutionMode {
 	case "scheduled_once":
-		draft.Schedule.ScheduledAt = campaign.ScheduledAt
+		if strings.TrimSpace(campaign.RecurrenceConfig) != "" {
+			if err := common.Unmarshal([]byte(campaign.RecurrenceConfig), &draft.Schedule); err != nil {
+				return RecallCampaignDraft{}, fmt.Errorf("decode recall schedule config: %w", err)
+			}
+		}
+		if draft.Schedule.ScheduledAt == 0 {
+			draft.Schedule.ScheduledAt = campaign.ScheduledAt
+		}
 	case "recurring":
 		if err := common.Unmarshal([]byte(campaign.RecurrenceConfig), &draft.Schedule); err != nil {
 			return RecallCampaignDraft{}, fmt.Errorf("decode recall recurrence config: %w", err)
+		}
+		if draft.Schedule.ScheduledAt == 0 && campaign.ScheduledAt > 0 {
+			draft.Schedule.ScheduledAt = campaign.ScheduledAt
 		}
 	}
 	return draft, nil
@@ -2422,9 +2479,12 @@ func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCamp
 	case "manual":
 		draft.Schedule = RecallScheduleConfig{}
 	case "scheduled_once":
-		draft.Schedule = RecallScheduleConfig{ScheduledAt: draft.Schedule.ScheduledAt}
+		draft.Schedule.Timezone = strings.TrimSpace(draft.Schedule.Timezone)
+		draft.Schedule.Frequency = ""
+		draft.Schedule.Weekday = 0
+		draft.Schedule.Hour = 0
+		draft.Schedule.Minute = 0
 	case "recurring":
-		draft.Schedule.ScheduledAt = 0
 		draft.Schedule.Timezone = strings.TrimSpace(draft.Schedule.Timezone)
 		draft.Schedule.Frequency = strings.ToLower(strings.TrimSpace(draft.Schedule.Frequency))
 		if draft.Schedule.Frequency == "daily" {
@@ -2488,6 +2548,17 @@ func incrementRecallEmailTemplateVersions(current []RecallEmailStage, next []Rec
 		}
 	}
 	return updated, nil
+}
+
+func firstRecallRun(activationNow time.Time, cfg RecallScheduleConfig) (time.Time, error) {
+	if cfg.ScheduledAt <= 0 || cfg.ScheduledAt <= activationNow.Unix() {
+		return NextRecallRun(activationNow, cfg)
+	}
+	return nextRecallRunAtOrAfter(time.Unix(cfg.ScheduledAt, 0), cfg)
+}
+
+func nextRecallRunAtOrAfter(boundary time.Time, cfg RecallScheduleConfig) (time.Time, error) {
+	return NextRecallRun(boundary.Add(-time.Nanosecond), cfg)
 }
 
 func NextRecallRun(after time.Time, cfg RecallScheduleConfig) (time.Time, error) {
