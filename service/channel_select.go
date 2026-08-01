@@ -87,6 +87,14 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
+	// 区域路由：命中策略时收窄候选渠道并按策略排序，未命中时保持原有选渠道行为
+	routing := model.ResolveRegionRouting(detectRegion(param.Ctx), param.ModelName)
+	if routing.Active {
+		common.SetContextKey(param.Ctx, constant.ContextKeyRequestRegion, routing.Region)
+		logger.LogDebug(param.Ctx, "region routing hit: region=%s, strategy=%s, allowed channels=%v",
+			routing.Region, routing.Strategy, routing.AllowedIds)
+	}
+
 	if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
 			return nil, selectGroup, errors.New("auto groups is not enabled")
@@ -116,7 +124,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.RequestPath)
+			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.RequestPath, routing)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -154,10 +162,22 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath)
+		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath, routing)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+// detectRegion 解析当前请求的区域标识：优先取请求头 X-Region，
+// 其次取上下文中已解析过的区域（重试时复用，避免重复解析）。
+func detectRegion(ctx *gin.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if region := model.NormalizeRegion(ctx.GetHeader(constant.HeaderRegion)); region != "" {
+		return region
+	}
+	return model.NormalizeRegion(common.GetContextKeyString(ctx, constant.ContextKeyRequestRegion))
 }

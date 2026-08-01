@@ -105,7 +105,9 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+// GetChannel 在未开启内存缓存时直接查库选择渠道。
+// routing 为区域路由解析结果，语义与 GetRandomSatisfiedChannel 一致。
+func GetChannel(group string, model string, retry int, requestPath string, routing RegionRouting) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
@@ -122,6 +124,7 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 		return nil, err
 	}
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
+	abilities = filterAbilitiesByRegion(abilities, routing)
 	channel := Channel{}
 	if len(abilities) > 0 {
 		// Randomly choose one
@@ -144,6 +147,73 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
+}
+
+// filterAbilitiesByRegion 按区域路由收窄候选能力：先用白名单过滤渠道 id，
+// 再在区域策略生效时只保留策略分数最高的一批渠道。
+// 任一步骤过滤为空时都回退到过滤前的候选集，避免配置问题导致请求失败。
+func filterAbilitiesByRegion(abilities []Ability, routing RegionRouting) []Ability {
+	if !routing.Active || len(abilities) == 0 {
+		return abilities
+	}
+
+	if len(routing.AllowedIds) > 0 {
+		allowed := make(map[int]bool, len(routing.AllowedIds))
+		for _, id := range routing.AllowedIds {
+			allowed[int(id)] = true
+		}
+		filtered := make([]Ability, 0, len(abilities))
+		for _, ability := range abilities {
+			if allowed[ability.ChannelId] {
+				filtered = append(filtered, ability)
+			}
+		}
+		if len(filtered) > 0 {
+			abilities = filtered
+		}
+	}
+
+	if routing.Strategy == "" || len(abilities) < 2 {
+		return abilities
+	}
+
+	channelIds := make([]int, 0, len(abilities))
+	seen := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, ok := seen[ability.ChannelId]; ok {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channelIds = append(channelIds, ability.ChannelId)
+	}
+	var channels []*Channel
+	if err := DB.Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
+		return abilities
+	}
+	scores := make(map[int]int64, len(channels))
+	var bestScore int64
+	first := true
+	for _, channel := range channels {
+		score := regionStrategyScore(channel, routing.Strategy)
+		scores[channel.Id] = score
+		if first || score > bestScore {
+			bestScore = score
+			first = false
+		}
+	}
+	if first {
+		return abilities
+	}
+	best := make([]Ability, 0, len(abilities))
+	for _, ability := range abilities {
+		if score, ok := scores[ability.ChannelId]; ok && score == bestScore {
+			best = append(best, ability)
+		}
+	}
+	if len(best) == 0 {
+		return abilities
+	}
+	return best
 }
 
 // filterAbilitiesByRequestPathAndModel restricts candidates by request path and
