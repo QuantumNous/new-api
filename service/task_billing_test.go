@@ -828,6 +828,52 @@ func TestSettle_PerCallBilling_SkipsTotalTokens(t *testing.T) {
 	assert.Equal(t, int64(0), countLogs(t))
 }
 
+func TestSettle_NonPerCallSeedance_UsesTotalTokensAndScenarioRatio(t *testing.T) {
+	truncate(t)
+	restoreRatioSettings(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 33, 33, 33
+	const initQuota, preConsumed = 10000, 100
+	const tokenRemain = 5000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-seedance-token-settle", tokenRemain)
+	seedChannel(t, channelID)
+
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"seedance-2.0":0.391}`))
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.Properties.OriginModelName = "seedance-2.0"
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		ModelPrice:      -1,
+		ModelRatio:      0.391,
+		GroupRatio:      1,
+		OtherRatios:     map[string]float64{"video_input": 28.0 / 46.0},
+		OriginModelName: "seedance-2.0",
+		PerCallBilling:  false,
+	}
+
+	adaptor := &mockAdaptor{adjustReturn: 0}
+	taskResult := &relaycommon.TaskInfo{
+		Status:      model.TaskStatusSuccess,
+		TotalTokens: 1000,
+	}
+
+	settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+
+	const actualQuota = 238
+	const quotaDelta = actualQuota - preConsumed
+	assert.Equal(t, actualQuota, task.Quota)
+	assert.Equal(t, initQuota-quotaDelta, getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain-quotaDelta, getTokenRemainQuota(t, tokenID))
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeConsume, log.Type)
+	assert.Equal(t, quotaDelta, log.Quota)
+}
+
 func TestSettle_NonPerCall_AdaptorAdjustWorks(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()

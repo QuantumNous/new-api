@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestBytePlusFixedModelPricesApplyTierRatios(t *testing.T) {
+func TestBytePlusModelRatiosApplyTierRatios(t *testing.T) {
 	originalPrices := ratio_setting.ModelPrice2JSONString()
 	originalRatios := ratio_setting.ModelRatio2JSONString()
 	originalGroups := ratio_setting.GroupRatio2JSONString()
@@ -29,15 +29,15 @@ func TestBytePlusFixedModelPricesApplyTierRatios(t *testing.T) {
 		}
 	})
 
-	if err := ratio_setting.UpdateModelPriceByJSONString(`{
-		"seedance-2.0": 0.782,
-		"seedance-2.0-fast": 0.629,
-		"seedance-2.0-mini": 0.391
-	}`); err != nil {
-		t.Fatalf("configure model prices: %v", err)
+	if err := ratio_setting.UpdateModelPriceByJSONString(`{}`); err != nil {
+		t.Fatalf("clear model prices: %v", err)
 	}
-	if err := ratio_setting.UpdateModelRatioByJSONString(`{}`); err != nil {
-		t.Fatalf("clear model ratios: %v", err)
+	if err := ratio_setting.UpdateModelRatioByJSONString(`{
+		"seedance-2.0": 0.391,
+		"seedance-2.0-fast": 0.3145,
+		"seedance-2.0-mini": 0.1955
+	}`); err != nil {
+		t.Fatalf("configure model ratios: %v", err)
 	}
 	if err := ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`); err != nil {
 		t.Fatalf("configure group ratio: %v", err)
@@ -45,13 +45,13 @@ func TestBytePlusFixedModelPricesApplyTierRatios(t *testing.T) {
 
 	tests := []struct {
 		model         string
-		modelPrice    float64
+		modelRatio    float64
 		wantBaseQuota int
 		wantTierQuota int
 	}{
-		{model: "seedance-2.0", modelPrice: 0.782, wantBaseQuota: 391000, wantTierQuota: 238000},
-		{model: "seedance-2.0-fast", modelPrice: 0.629, wantBaseQuota: 314500, wantTierQuota: 187000},
-		{model: "seedance-2.0-mini", modelPrice: 0.391, wantBaseQuota: 195500, wantTierQuota: 119000},
+		{model: "seedance-2.0", modelRatio: 0.391, wantBaseQuota: 97750, wantTierQuota: 59500},
+		{model: "seedance-2.0-fast", modelRatio: 0.3145, wantBaseQuota: 78625, wantTierQuota: 46750},
+		{model: "seedance-2.0-mini", modelRatio: 0.1955, wantBaseQuota: 48875, wantTierQuota: 29750},
 	}
 
 	for _, tt := range tests {
@@ -81,13 +81,16 @@ func TestBytePlusFixedModelPricesApplyTierRatios(t *testing.T) {
 
 			priceData, err := helper.ModelPriceHelperPerCall(c, info)
 			if err != nil {
-				t.Fatalf("calculate fixed model price: %v", err)
+				t.Fatalf("calculate model ratio price: %v", err)
 			}
-			if !priceData.UsePrice {
-				t.Fatal("UsePrice = false, want fixed per-call billing")
+			if priceData.UsePrice {
+				t.Fatal("UsePrice = true, want token-ratio billing")
 			}
-			if priceData.ModelPrice != tt.modelPrice {
-				t.Fatalf("model price = %v, want %v", priceData.ModelPrice, tt.modelPrice)
+			if priceData.ModelPrice != -1 {
+				t.Fatalf("model price = %v, want -1", priceData.ModelPrice)
+			}
+			if priceData.ModelRatio != tt.modelRatio {
+				t.Fatalf("model ratio = %v, want %v", priceData.ModelRatio, tt.modelRatio)
 			}
 			if priceData.Quota != tt.wantBaseQuota {
 				t.Fatalf("base quota = %d, want %d", priceData.Quota, tt.wantBaseQuota)
