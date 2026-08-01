@@ -186,6 +186,517 @@
         ]
       }
     },
+    "/v1/real-persons": {
+      "post": {
+        "summary": "Create certified real-person profile",
+        "deprecated": false,
+        "description": "Create a Flatkey real-person profile and start BytePlus verification.",
+        "operationId": "createBytePlusRealPerson",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Required idempotency key for safe retry.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BytePlusRealPersonCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Profile created and verification session prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusRealPerson"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "409": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "503": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "List certified real-person profiles",
+        "deprecated": false,
+        "description": "List Flatkey real-person profiles for the current API key owner.",
+        "operationId": "listBytePlusRealPersons",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusRealPersonList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/real-persons/{person_id}": {
+      "get": {
+        "summary": "Get certified real-person profile",
+        "deprecated": false,
+        "description": "Get a Flatkey real-person profile without returning one-time verification links.",
+        "operationId": "getBytePlusRealPerson",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^rph_[A-Za-z0-9]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusRealPerson"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "404": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/real-persons/{person_id}/verification-sessions": {
+      "post": {
+        "summary": "Start another real-person verification session",
+        "deprecated": false,
+        "description": "Create a new one-time BytePlus verification session for an existing profile.",
+        "operationId": "reverifyBytePlusRealPerson",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^rph_[A-Za-z0-9]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Required idempotency key for safe retry.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verification session prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusRealPerson"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "404": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "409": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "503": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/real-persons/{person_id}/assets": {
+      "post": {
+        "summary": "Create real-person profile asset",
+        "deprecated": false,
+        "description": "Create an asset bound to one certified real-person profile from an HTTPS URL or multipart local file.",
+        "operationId": "createBytePlusRealPersonAsset",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^rph_[A-Za-z0-9]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Required idempotency key for safe retry.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BytePlusRealPersonAssetCreateRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "asset_type"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "asset_type": {
+                    "type": "string",
+                    "enum": [
+                      "Image",
+                      "Video",
+                      "Audio"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Asset creation accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusAsset"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "404": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "409": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "413": {
+            "description": "The uploaded asset exceeds the supported size limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset file is too large",
+                    "type": "asset_file_too_large",
+                    "param": "",
+                    "code": "asset_file_too_large"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The uploaded asset media type is not supported.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset media type is not supported",
+                    "type": "asset_media_unsupported",
+                    "param": "",
+                    "code": "asset_media_unsupported"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "503": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "List real-person profile assets",
+        "deprecated": false,
+        "description": "List visible assets for one real-person profile. Deleted assets are hidden.",
+        "operationId": "listBytePlusRealPersonAssets",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^rph_[A-Za-z0-9]+$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusRealPersonAssetList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "404": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/real-person-verifications/callback/{callback_token}": {
+      "get": {
+        "summary": "Receive real-person verification wake signal by GET",
+        "deprecated": false,
+        "description": "Anonymous BytePlus wake signal. Flatkey ignores result authority in this callback and checks verification status server-side.",
+        "operationId": "notifyBytePlusRealPersonVerificationByGet",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "callback_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Wake signal accepted."
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "Receive real-person verification wake signal by POST",
+        "deprecated": false,
+        "description": "Anonymous BytePlus wake signal. Flatkey ignores result authority in this callback and checks verification status server-side.",
+        "operationId": "notifyBytePlusRealPersonVerificationByPost",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "callback_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Wake signal accepted."
+          }
+        },
+        "security": []
+      }
+    },
     "/v1/assets": {
       "post": {
         "summary": "创建素材",
@@ -325,6 +836,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^ast_[A-Za-z0-9]{32}$",
               "example": "ast_1234567890abcdef1234567890abcdef"
             }
           }
@@ -468,6 +980,50 @@
               }
             },
             "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete real-person asset",
+        "deprecated": false,
+        "description": "Tombstone a Flatkey real-person asset. The first and repeated calls return an empty 204 for owned assets.",
+        "operationId": "deleteBytePlusAsset",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Flatkey asset ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^ast_[A-Za-z0-9]{32}$",
+              "example": "ast_1234567890abcdef1234567890abcdef"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Asset deleted or already tombstoned."
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "404": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
           }
         },
         "security": [
@@ -2169,7 +2725,7 @@
       "get": {
         "summary": "实时 WebSocket 连接",
         "deprecated": false,
-        "description": "建立 WebSocket 连接用于实时对话。\n\n**注意**: 这是一个 WebSocket 端点，需要使用 WebSocket 协议连接。\n\n连接 URL 示例: `wss://api.example.com/v1/realtime?model=gpt-4o-realtime`\n",
+        "description": "建立 WebSocket 连接用于实时对话。\n\n**注意**: 这是一个 WebSocket 端点，需要使用 WebSocket 协议连接。\n\n连接 URL 示例: `wss://router.flatkey.ai/v1/realtime?model=gpt-4o-realtime`\n",
         "operationId": "createRealtimeSession",
         "tags": [
           "Realtime"
@@ -2603,6 +3159,169 @@
   },
   "components": {
     "schemas": {
+      "BytePlusRealPersonCreateRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "example": "Ava Chen"
+          }
+        }
+      },
+      "BytePlusRealPerson": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "name",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^rph_[A-Za-z0-9]+$",
+            "example": "rph_1234567890abcdef"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "real_person"
+            ],
+            "example": "real_person"
+          },
+          "name": {
+            "type": "string",
+            "example": "Ava Chen"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_verification",
+              "verifying",
+              "active",
+              "failed",
+              "expired"
+            ],
+            "example": "pending_verification"
+          },
+          "verification_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "One-time verification URL returned only by create and reverify safe replay responses.",
+            "example": "https://verify.example.com/session"
+          },
+          "verification_expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1785293800
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1785292000
+          }
+        }
+      },
+      "BytePlusRealPersonList": {
+        "type": "object",
+        "required": [
+          "object",
+          "data",
+          "has_more"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ],
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BytePlusRealPerson"
+            }
+          },
+          "has_more": {
+            "type": "boolean",
+            "example": false
+          },
+          "next_after": {
+            "type": "string",
+            "example": "rph_1234567890abcdef"
+          }
+        }
+      },
+      "BytePlusRealPersonAssetCreateRequest": {
+        "type": "object",
+        "required": [
+          "url",
+          "asset_type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "description": "Public HTTPS media URL.",
+            "example": "https://example.com/portrait.mp4"
+          },
+          "asset_type": {
+            "type": "string",
+            "enum": [
+              "Image",
+              "Video",
+              "Audio"
+            ],
+            "example": "Video"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "example": "front-facing intro"
+          }
+        }
+      },
+      "BytePlusRealPersonAssetList": {
+        "type": "object",
+        "required": [
+          "object",
+          "data",
+          "has_more"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ],
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BytePlusAsset"
+            }
+          },
+          "has_more": {
+            "type": "boolean",
+            "example": false
+          },
+          "next_after": {
+            "type": "string",
+            "example": "ast_1234567890abcdef1234567890abcdef"
+          }
+        }
+      },
       "BytePlusAssetCreateRequest": {
         "type": "object",
         "required": [
@@ -2653,17 +3372,20 @@
           "object",
           "asset_type",
           "status",
-          "moderation",
           "created_at"
         ],
         "properties": {
           "id": {
             "type": "string",
+            "pattern": "^ast_[A-Za-z0-9]{32}$",
             "description": "Flatkey 素材 ID，可在 seedance-2.0 请求中写作 `asset://{id}`",
             "example": "ast_1234567890abcdef1234567890abcdef"
           },
           "object": {
             "type": "string",
+            "enum": [
+              "asset"
+            ],
             "description": "对象类型",
             "example": "asset"
           },
@@ -2682,15 +3404,31 @@
               "Creating",
               "Processing",
               "Active",
-              "Failed"
+              "Failed",
+              "Deleting"
             ],
             "example": "Processing"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "example": "front-facing intro"
+          },
+          "asset_uri": {
+            "type": "string",
+            "pattern": "^asset://ast_[A-Za-z0-9]{32}$",
+            "example": "asset://ast_1234567890abcdef1234567890abcdef"
+          },
+          "failure_code": {
+            "type": "string",
+            "example": "upstream_error"
           },
           "moderation": {
             "$ref": "#/components/schemas/BytePlusAssetModeration"
           },
           "created_at": {
             "type": "integer",
+            "format": "int64",
             "description": "创建时间戳",
             "example": 1785292000
           }
@@ -4983,7 +5721,18 @@
         }
       }
     },
-    "responses": {},
+    "responses": {
+      "BytePlusAssetError": {
+        "description": "OpenAI-compatible error envelope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
     "securitySchemes": {
       "BearerAuth": {
         "type": "http",
@@ -7672,7 +8421,11 @@
       }
     }
   },
-  "servers": [],
+  "servers": [
+    {
+      "url": "https://router.flatkey.ai"
+    }
+  ],
   "security": [
     {
       "BearerAuth": []

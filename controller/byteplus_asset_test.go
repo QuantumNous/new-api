@@ -44,7 +44,7 @@ func TestCreateBytePlusAssetBindsTokenContextAndReturnsPublicAsset(t *testing.T)
 			Object:    "asset",
 			AssetType: "Image",
 			Status:    model.BytePlusAssetStatusProcessing,
-			Moderation: dto.BytePlusAssetModeration{
+			Moderation: &dto.BytePlusAssetModeration{
 				Strategy: "Skip",
 			},
 			CreatedAt: 1784990000,
@@ -144,7 +144,7 @@ func TestGetBytePlusAssetUsesPathIDAndAuthenticatedUser(t *testing.T) {
 			Object:    "asset",
 			AssetType: "Video",
 			Status:    model.BytePlusAssetStatusActive,
-			Moderation: dto.BytePlusAssetModeration{
+			Moderation: &dto.BytePlusAssetModeration{
 				Strategy: "Default",
 			},
 			CreatedAt: 1784990001,
@@ -218,7 +218,7 @@ func TestGetBytePlusAssetMapsServiceErrorToI18nOpenAIEnvelopeWithoutLeaks(t *tes
 
 	getBytePlusAsset = func(context.Context, int, string) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
 		return nil, types.NewOpenAIError(
-			errors.New("raw db https://signed.example.com/private.png upstream-asset group-abc project3 sk-test"),
+			errors.New("raw db https://signed.example.com/private.png upstream-asset group-abc test-project sentinel-secret-key"),
 			types.ErrorCodeAssetNotFound,
 			http.StatusNotFound,
 			types.ErrOptionWithNoRecordErrorLog(),
@@ -288,10 +288,10 @@ func requireBytePlusAssetPublicBody(t *testing.T, body string) {
 	for _, forbidden := range []string{
 		"group-abc",
 		"upstream-asset",
-		"project3",
+		"test-project",
 		"signed.example.com",
 		"private.png",
-		"sk-test",
+		"sentinel-secret-key",
 		"Authorization",
 		"channel_key",
 		"source_url",

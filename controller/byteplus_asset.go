@@ -154,6 +154,32 @@ func bytePlusAssetI18nKey(code types.ErrorCode) string {
 		return i18n.MsgAssetUpstreamError
 	case types.ErrorCodeAssetStorageError:
 		return i18n.MsgAssetStorageError
+	case types.ErrorCodeInvalidRealPersonRequest:
+		return i18n.MsgRealPersonInvalidRequest
+	case types.ErrorCodeRealPersonNotFound:
+		return i18n.MsgRealPersonNotFound
+	case types.ErrorCodeRealPersonNotActive:
+		return i18n.MsgRealPersonNotActive
+	case types.ErrorCodeVerificationInProgress:
+		return i18n.MsgVerificationInProgress
+	case types.ErrorCodeIdempotencyConflict:
+		return i18n.MsgIdempotencyConflict
+	case types.ErrorCodeIdempotencyOutcomeUnknown:
+		return i18n.MsgIdempotencyOutcomeUnknown
+	case types.ErrorCodeAssetProfileConflict:
+		return i18n.MsgAssetProfileConflict
+	case types.ErrorCodeAssetFileTooLarge:
+		return i18n.MsgAssetFileTooLarge
+	case types.ErrorCodeAssetMediaUnsupported:
+		return i18n.MsgAssetMediaUnsupported
+	case types.ErrorCodeAssetUploadFailed:
+		return i18n.MsgAssetUploadFailed
+	case types.ErrorCodeVerificationUpstreamError:
+		return i18n.MsgVerificationUpstreamError
+	case types.ErrorCodeRealPersonChannelUnavailable:
+		return i18n.MsgRealPersonChannelUnavailable
+	case types.ErrorCodeRealPersonStorageError:
+		return i18n.MsgRealPersonStorageError
 	default:
 		return i18n.MsgAssetStorageError
 	}

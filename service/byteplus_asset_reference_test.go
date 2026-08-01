@@ -247,6 +247,215 @@ func TestResolveBytePlusAssetReferencesRejectsCrossChannelAssets(t *testing.T) {
 	}
 }
 
+func TestResolveBytePlusAssetReferencesAllowsMultipleAssetsFromSameRealPerson(t *testing.T) {
+	newBytePlusAssetReferenceDB(t)
+	profile := insertBytePlusReferenceProfile(t, 7, 131, "rph_same", model.BytePlusRealPersonProfileStatusActive)
+	image := insertBytePlusReferenceRealPersonAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusActive, "Image", profile.Id)
+	audio := insertBytePlusReferenceRealPersonAsset(t, 7, 131, "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "upstream-audio", model.BytePlusAssetStatusActive, "Audio", profile.Id)
+
+	resolution, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(
+		dto.SeedanceContentImage, image.PublicId,
+		dto.SeedanceContentAudio, audio.PublicId,
+	))
+	if apiErr != nil {
+		t.Fatalf("ResolveBytePlusAssetReferences error: %v", apiErr)
+	}
+	if resolution.PinnedChannelID != 131 {
+		t.Fatalf("PinnedChannelID = %d, want 131", resolution.PinnedChannelID)
+	}
+	if len(resolution.RewriteMap) != 2 {
+		t.Fatalf("rewrite map len = %d, want 2: %#v", len(resolution.RewriteMap), resolution.RewriteMap)
+	}
+	if resolution.RewriteMap["asset://"+image.PublicId] != "asset://upstream-image" {
+		t.Fatalf("image rewrite missing: %#v", resolution.RewriteMap)
+	}
+	if resolution.RewriteMap["asset://"+audio.PublicId] != "asset://upstream-audio" {
+		t.Fatalf("audio rewrite missing: %#v", resolution.RewriteMap)
+	}
+}
+
+func TestResolveBytePlusAssetReferencesRejectsTwoRealPersonProfiles(t *testing.T) {
+	newBytePlusAssetReferenceDB(t)
+	first := insertBytePlusReferenceProfile(t, 7, 131, "rph_first", model.BytePlusRealPersonProfileStatusActive)
+	second := insertBytePlusReferenceProfile(t, 7, 131, "rph_second", model.BytePlusRealPersonProfileStatusActive)
+	image := insertBytePlusReferenceRealPersonAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusActive, "Image", first.Id)
+	audio := insertBytePlusReferenceRealPersonAsset(t, 7, 131, "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "upstream-audio", model.BytePlusAssetStatusActive, "Audio", second.Id)
+
+	_, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(
+		dto.SeedanceContentImage, image.PublicId,
+		dto.SeedanceContentAudio, audio.PublicId,
+	))
+	if apiErr == nil {
+		t.Fatal("expected profile conflict")
+	}
+	if apiErr.GetErrorCode() != types.ErrorCodeAssetProfileConflict || apiErr.StatusCode != http.StatusConflict {
+		t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeAssetProfileConflict, http.StatusConflict)
+	}
+}
+
+func TestResolveBytePlusAssetReferencesAllowsSameChannelVirtualAndOneRealPerson(t *testing.T) {
+	newBytePlusAssetReferenceDB(t)
+	profile := insertBytePlusReferenceProfile(t, 7, 131, "rph_mixed", model.BytePlusRealPersonProfileStatusActive)
+	realPerson := insertBytePlusReferenceRealPersonAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-person", model.BytePlusAssetStatusActive, "Image", profile.Id)
+	virtual := insertBytePlusReferenceAsset(t, 7, 131, "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "upstream-virtual", model.BytePlusAssetStatusActive)
+
+	resolution, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(
+		dto.SeedanceContentImage, realPerson.PublicId,
+		dto.SeedanceContentImage, virtual.PublicId,
+	))
+	if apiErr != nil {
+		t.Fatalf("ResolveBytePlusAssetReferences error: %v", apiErr)
+	}
+	if resolution.PinnedChannelID != 131 {
+		t.Fatalf("PinnedChannelID = %d, want 131", resolution.PinnedChannelID)
+	}
+	if len(resolution.RewriteMap) != 2 {
+		t.Fatalf("rewrite map len = %d, want 2: %#v", len(resolution.RewriteMap), resolution.RewriteMap)
+	}
+}
+
+func TestResolveBytePlusAssetReferencesReturnsProfileConflictBeforeChannelConflictForTwoPeople(t *testing.T) {
+	newBytePlusAssetReferenceDB(t)
+	first := insertBytePlusReferenceProfile(t, 7, 131, "rph_first_channel", model.BytePlusRealPersonProfileStatusActive)
+	second := insertBytePlusReferenceProfile(t, 7, 132, "rph_second_channel", model.BytePlusRealPersonProfileStatusActive)
+	image := insertBytePlusReferenceRealPersonAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusActive, "Image", first.Id)
+	audio := insertBytePlusReferenceRealPersonAsset(t, 7, 132, "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "upstream-audio", model.BytePlusAssetStatusActive, "Audio", second.Id)
+
+	resolution, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(
+		dto.SeedanceContentImage, image.PublicId,
+		dto.SeedanceContentAudio, audio.PublicId,
+	))
+	if apiErr == nil {
+		t.Fatal("expected profile conflict")
+	}
+	if apiErr.GetErrorCode() != types.ErrorCodeAssetProfileConflict || apiErr.StatusCode != http.StatusConflict {
+		t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeAssetProfileConflict, http.StatusConflict)
+	}
+	if resolution.PinnedChannelID != 0 {
+		t.Fatalf("pinned channel id = %d, want 0 before channel conflict loop", resolution.PinnedChannelID)
+	}
+}
+
+func TestResolveBytePlusAssetReferencesRejectsDeletingAndDeleted(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     string
+		wantCode   types.ErrorCode
+		wantStatus int
+	}{
+		{name: "deleting", status: model.BytePlusAssetStatusDeleting, wantCode: types.ErrorCodeAssetNotReady, wantStatus: http.StatusConflict},
+		{name: "deleted", status: model.BytePlusAssetStatusDeleted, wantCode: types.ErrorCodeAssetNotFound, wantStatus: http.StatusNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newBytePlusAssetReferenceDB(t)
+			asset := insertBytePlusReferenceAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", tt.status)
+
+			_, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(dto.SeedanceContentImage, asset.PublicId))
+			if apiErr == nil {
+				t.Fatal("expected api error")
+			}
+			if apiErr.GetErrorCode() != tt.wantCode || apiErr.StatusCode != tt.wantStatus {
+				t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, tt.wantCode, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestResolveBytePlusAssetReferencesDeletedRealPersonAssetsHideProfileConflict(t *testing.T) {
+	newBytePlusAssetReferenceDB(t)
+	first := insertBytePlusReferenceProfile(t, 7, 131, "rph_deleted_first", model.BytePlusRealPersonProfileStatusActive)
+	second := insertBytePlusReferenceProfile(t, 7, 132, "rph_deleted_second", model.BytePlusRealPersonProfileStatusActive)
+	image := insertBytePlusReferenceRealPersonAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusDeleted, "Image", first.Id)
+	audio := insertBytePlusReferenceRealPersonAsset(t, 7, 132, "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "upstream-audio", model.BytePlusAssetStatusDeleted, "Audio", second.Id)
+
+	_, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(
+		dto.SeedanceContentImage, image.PublicId,
+		dto.SeedanceContentAudio, audio.PublicId,
+	))
+	if apiErr == nil {
+		t.Fatal("expected deleted asset error")
+	}
+	if apiErr.GetErrorCode() != types.ErrorCodeAssetNotFound || apiErr.StatusCode != http.StatusNotFound {
+		t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeAssetNotFound, http.StatusNotFound)
+	}
+}
+
+func TestResolveBytePlusAssetReferencesDeletedRealPersonAssetDoesNotObserveProfile(t *testing.T) {
+	tests := []struct {
+		name           string
+		profileStatus  string
+		profileChannel int
+		assetChannel   int
+	}{
+		{name: "inactive profile", profileStatus: model.BytePlusRealPersonProfileStatusVerifying, profileChannel: 131, assetChannel: 131},
+		{name: "profile channel mismatch", profileStatus: model.BytePlusRealPersonProfileStatusActive, profileChannel: 132, assetChannel: 131},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newBytePlusAssetReferenceDB(t)
+			profile := insertBytePlusReferenceProfile(t, 7, tt.profileChannel, "rph_deleted_"+strings.ReplaceAll(tt.name, " ", "_"), tt.profileStatus)
+			asset := insertBytePlusReferenceRealPersonAsset(t, 7, tt.assetChannel, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusDeleted, "Image", profile.Id)
+
+			_, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(dto.SeedanceContentImage, asset.PublicId))
+			if apiErr == nil {
+				t.Fatal("expected deleted asset error")
+			}
+			if apiErr.GetErrorCode() != types.ErrorCodeAssetNotFound || apiErr.StatusCode != http.StatusNotFound {
+				t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeAssetNotFound, http.StatusNotFound)
+			}
+		})
+	}
+}
+
+func TestResolveBytePlusAssetReferencesRejectsProfileOwnerOrChannelMismatch(t *testing.T) {
+	tests := []struct {
+		name           string
+		profileUserID  int
+		profileStatus  string
+		profileChannel int
+		assetChannel   int
+		wantCode       types.ErrorCode
+		wantStatus     int
+	}{
+		{name: "profile belongs to another user", profileUserID: 8, profileStatus: model.BytePlusRealPersonProfileStatusActive, profileChannel: 131, assetChannel: 131, wantCode: types.ErrorCodeAssetNotFound, wantStatus: http.StatusNotFound},
+		{name: "profile channel differs from asset", profileUserID: 7, profileStatus: model.BytePlusRealPersonProfileStatusActive, profileChannel: 132, assetChannel: 131, wantCode: types.ErrorCodeAssetChannelConflict, wantStatus: http.StatusConflict},
+		{name: "profile is not active", profileUserID: 7, profileStatus: model.BytePlusRealPersonProfileStatusVerifying, profileChannel: 131, assetChannel: 131, wantCode: types.ErrorCodeRealPersonNotActive, wantStatus: http.StatusConflict},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newBytePlusAssetReferenceDB(t)
+			profile := insertBytePlusReferenceProfile(t, tt.profileUserID, tt.profileChannel, "rph_"+strings.ReplaceAll(tt.name, " ", "_"), tt.profileStatus)
+			asset := insertBytePlusReferenceRealPersonAsset(t, 7, tt.assetChannel, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusActive, "Image", profile.Id)
+
+			_, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(dto.SeedanceContentImage, asset.PublicId))
+			if apiErr == nil {
+				t.Fatal("expected api error")
+			}
+			if apiErr.GetErrorCode() != tt.wantCode || apiErr.StatusCode != tt.wantStatus {
+				t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, tt.wantCode, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestResolveBytePlusAssetReferencesStillRejectsRealPersonMediaTypeMismatch(t *testing.T) {
+	newBytePlusAssetReferenceDB(t)
+	profile := insertBytePlusReferenceProfile(t, 7, 131, "rph_type", model.BytePlusRealPersonProfileStatusActive)
+	asset := insertBytePlusReferenceRealPersonAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-video", model.BytePlusAssetStatusActive, "Video", profile.Id)
+
+	resolution, apiErr := ResolveBytePlusAssetReferences(newAssetReferenceContext(), 7, newBytePlusReferenceRequest(dto.SeedanceContentImage, asset.PublicId))
+	if apiErr == nil {
+		t.Fatal("expected invalid asset request")
+	}
+	if apiErr.GetErrorCode() != types.ErrorCodeInvalidAssetRequest || apiErr.StatusCode != http.StatusBadRequest {
+		t.Fatalf("error code/status = %s/%d, want %s/%d", apiErr.GetErrorCode(), apiErr.StatusCode, types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	if resolution.HasReferences() {
+		t.Fatalf("unexpected references: %#v", resolution)
+	}
+}
+
 func TestResolveBytePlusAssetReferencesDetectsCrossChannelBeforeOwnedAssetValidationErrors(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -584,10 +793,25 @@ func newBytePlusAssetReferenceDB(t *testing.T) *gorm.DB {
 			t.Fatalf("get sqlite handle during cleanup: %v", err)
 		}
 	})
-	if err := db.AutoMigrate(&model.BytePlusAsset{}); err != nil {
+	if err := db.AutoMigrate(&model.BytePlusRealPersonProfile{}, &model.BytePlusAsset{}); err != nil {
 		t.Fatalf("migrate assets: %v", err)
 	}
 	return db
+}
+
+func insertBytePlusReferenceProfile(t *testing.T, userID, channelID int, publicID, status string) model.BytePlusRealPersonProfile {
+	t.Helper()
+	profile := model.BytePlusRealPersonProfile{
+		PublicId:  publicID,
+		UserId:    userID,
+		ChannelId: channelID,
+		Name:      publicID,
+		Status:    status,
+	}
+	if err := model.DB.Create(&profile).Error; err != nil {
+		t.Fatalf("insert real person profile: %v", err)
+	}
+	return profile
 }
 
 func insertBytePlusReferenceAsset(t *testing.T, userID, channelID int, publicID, upstreamID, status string) model.BytePlusAsset {
@@ -604,6 +828,38 @@ func insertBytePlusReferenceAsset(t *testing.T, userID, channelID int, publicID,
 		t.Fatalf("insert asset: %v", err)
 	}
 	return asset
+}
+
+func insertBytePlusReferenceRealPersonAsset(t *testing.T, userID, channelID int, publicID, upstreamID, status, assetType string, profileID int64) model.BytePlusAsset {
+	t.Helper()
+	asset := insertBytePlusReferenceAsset(t, userID, channelID, publicID, upstreamID, status)
+	if err := model.DB.Model(&asset).Updates(map[string]any{
+		"asset_type":             assetType,
+		"real_person_profile_id": profileID,
+	}).Error; err != nil {
+		t.Fatalf("update real person asset: %v", err)
+	}
+	asset.AssetType = assetType
+	asset.RealPersonProfileId = &profileID
+	return asset
+}
+
+func newBytePlusReferenceRequest(pairs ...string) *dto.SeedanceVideoRequest {
+	content := make([]dto.SeedanceContentItem, 0, len(pairs)/2)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		contentType, publicID := pairs[i], pairs[i+1]
+		item := dto.SeedanceContentItem{Type: contentType}
+		switch contentType {
+		case dto.SeedanceContentImage:
+			item.ImageURL = &dto.SeedanceURLObject{URL: "asset://" + publicID}
+		case dto.SeedanceContentVideo:
+			item.VideoURL = &dto.SeedanceURLObject{URL: "asset://" + publicID}
+		case dto.SeedanceContentAudio:
+			item.AudioURL = &dto.SeedanceURLObject{URL: "asset://" + publicID}
+		}
+		content = append(content, item)
+	}
+	return &dto.SeedanceVideoRequest{Content: content}
 }
 
 func newAssetReferenceContext() *gin.Context {

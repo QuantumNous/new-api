@@ -171,6 +171,8 @@ func main() {
 	// Codex subscription model governance task
 	controller.StartCodexModelGovernanceTask()
 
+	service.StartBytePlusRealPersonJobs()
+
 	if common.IsMasterNode && constant.UpdateTask {
 		gopool.Go(func() {
 			controller.UpdateMidjourneyTaskBulk()

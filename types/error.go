@@ -81,6 +81,20 @@ const (
 	ErrorCodeAssetUpstreamError      ErrorCode = "asset_upstream_error"
 	ErrorCodeAssetStorageError       ErrorCode = "asset_storage_error"
 
+	ErrorCodeInvalidRealPersonRequest     ErrorCode = "invalid_real_person_request"
+	ErrorCodeRealPersonNotFound           ErrorCode = "real_person_not_found"
+	ErrorCodeRealPersonNotActive          ErrorCode = "real_person_not_active"
+	ErrorCodeVerificationInProgress       ErrorCode = "verification_in_progress"
+	ErrorCodeIdempotencyConflict          ErrorCode = "idempotency_conflict"
+	ErrorCodeIdempotencyOutcomeUnknown    ErrorCode = "idempotency_outcome_unknown"
+	ErrorCodeAssetProfileConflict         ErrorCode = "asset_profile_conflict"
+	ErrorCodeAssetFileTooLarge            ErrorCode = "asset_file_too_large"
+	ErrorCodeAssetMediaUnsupported        ErrorCode = "asset_media_unsupported"
+	ErrorCodeAssetUploadFailed            ErrorCode = "asset_upload_failed"
+	ErrorCodeVerificationUpstreamError    ErrorCode = "verification_upstream_error"
+	ErrorCodeRealPersonChannelUnavailable ErrorCode = "real_person_channel_unavailable"
+	ErrorCodeRealPersonStorageError       ErrorCode = "real_person_storage_error"
+
 	// response error
 	ErrorCodeReadResponseBodyFailed ErrorCode = "read_response_body_failed"
 	ErrorCodeBadResponseStatusCode  ErrorCode = "bad_response_status_code"

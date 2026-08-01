@@ -131,6 +131,32 @@ func TestBytePlusAssetSpecificChannelConflictWinsOverOwnedAssetResolutionErrors(
 	}
 }
 
+func TestBytePlusAssetRealPersonProfileConflictStopsBeforeChannelSelection(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	insertMiddlewareBytePlusAssetChannel(t, 132, "default", common.ChannelStatusEnabled, 1000, 1000)
+	first := insertMiddlewareBytePlusRealPersonProfile(t, 7, 131, "rph_first", model.BytePlusRealPersonProfileStatusActive)
+	second := insertMiddlewareBytePlusRealPersonProfile(t, 7, 132, "rph_second", model.BytePlusRealPersonProfileStatusActive)
+	insertMiddlewareBytePlusRealPersonAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", "upstream-image", model.BytePlusAssetStatusActive, "Image", first.Id)
+	insertMiddlewareBytePlusRealPersonAsset(t, 7, 132, "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "upstream-audio", model.BytePlusAssetStatusActive, "Audio", second.Id)
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		c.String(http.StatusInternalServerError, "handler should not run")
+	})
+	recorder := performBytePlusAssetDistributorRequest(router, "", `{
+		"model":"seedance-2.0",
+		"content":[
+			{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"},
+			{"type":"audio_url","audio_url":{"url":"asset://ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"role":"reference_audio"}
+		]
+	}`)
+	require.Equal(t, http.StatusConflict, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "asset_profile_conflict")
+	require.NotContains(t, recorder.Body.String(), "asset_channel_conflict")
+}
+
 func TestBytePlusAssetPinnedChannelRequiresEnabledBytePlusAbility(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -479,7 +505,7 @@ func useMiddlewareBytePlusAssetDBForTest(t *testing.T) func() {
 
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.BytePlusAsset{}))
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.BytePlusRealPersonProfile{}, &model.BytePlusAsset{}))
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	model.DB = db
@@ -550,8 +576,38 @@ func insertMiddlewareBytePlusAssetWithType(t *testing.T, userID int, channelID i
 	}).Error)
 }
 
+func insertMiddlewareBytePlusRealPersonProfile(t *testing.T, userID int, channelID int, publicID string, status string) model.BytePlusRealPersonProfile {
+	t.Helper()
+	profile := model.BytePlusRealPersonProfile{
+		PublicId:  publicID,
+		UserId:    userID,
+		Name:      publicID,
+		ChannelId: channelID,
+		Status:    status,
+	}
+	require.NoError(t, model.DB.Create(&profile).Error)
+	return profile
+}
+
+func insertMiddlewareBytePlusRealPersonAsset(t *testing.T, userID int, channelID int, publicID string, upstreamID string, status string, assetType string, profileID int64) {
+	t.Helper()
+	require.NoError(t, model.DB.Create(&model.BytePlusAsset{
+		PublicId:               publicID,
+		UserId:                 userID,
+		ChannelId:              channelID,
+		UpstreamAssetId:        upstreamID,
+		AssetType:              assetType,
+		Status:                 status,
+		RealPersonProfileId:    &profileID,
+		ModerationStrategy:     "Default",
+		CreatedTime:            100,
+		UpdatedTime:            100,
+		DeleteLeaseUpdatedTime: 0,
+	}).Error)
+}
+
 func structuredMiddlewareBytePlusKey(apiKey string) string {
-	return fmt.Sprintf(`{"api_key":%q,"access_key_id":"ak","secret_access_key":"sec","project_name":"project3"}`, apiKey)
+	return fmt.Sprintf(`{"api_key":%q,"access_key_id":"ak","secret_access_key":"sec","project_name":"test-project"}`, apiKey)
 }
 
 func useMiddlewareAutoGroupsForTest(t *testing.T, groups []string) func() {

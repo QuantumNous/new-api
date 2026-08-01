@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -70,6 +69,30 @@ type bytePlusAssetResult struct {
 type bytePlusAssetResultErr struct {
 	Code    string `json:"Code"`
 	Message string `json:"Message"`
+}
+
+type BytePlusAPIError struct {
+	StatusCode int
+	RequestID  string
+	Code       string
+	Definitive bool
+}
+
+func (e *BytePlusAPIError) Error() string {
+	if e.RequestID == "" {
+		return "byteplus api request failed"
+	}
+	return "byteplus api request failed (request_id=" + e.RequestID + ")"
+}
+
+func isBytePlusDefinitiveResponse(err error) bool {
+	var apiErr *BytePlusAPIError
+	return errors.As(err, &apiErr) && apiErr.Definitive
+}
+
+func isBytePlusNotFound(err error) bool {
+	var apiErr *BytePlusAPIError
+	return errors.As(err, &apiErr) && apiErr.Definitive && apiErr.StatusCode == http.StatusNotFound
 }
 
 func NewBytePlusAssetClient(httpClient *http.Client, endpoint string) *BytePlusAssetClient {
@@ -198,7 +221,7 @@ func (c *BytePlusAssetClient) GetAsset(ctx context.Context, creds BytePlusCreden
 	}, nil
 }
 
-func (c *BytePlusAssetClient) do(ctx context.Context, creds BytePlusCredentials, action string, payload any, out *bytePlusAssetResponse) error {
+func (c *BytePlusAssetClient) do(ctx context.Context, creds BytePlusCredentials, action string, payload any, out any) error {
 	if ctx == nil {
 		return errors.New("byteplus asset request context is required")
 	}
@@ -242,21 +265,29 @@ func (c *BytePlusAssetClient) do(ctx context.Context, creds BytePlusCredentials,
 		return err
 	}
 	if len(raw) > bytePlusAssetResponseMaxBytes {
-		return upstreamAssetErr("response too large", "")
+		return &BytePlusAPIError{StatusCode: resp.StatusCode}
 	}
-	var envelope bytePlusAssetResponse
+	var metadataEnvelope struct {
+		ResponseMetadata bytePlusResponseMetadata `json:"ResponseMetadata"`
+	}
 	if len(bytes.TrimSpace(raw)) > 0 {
-		if err := common.Unmarshal(raw, &envelope); err != nil {
-			return upstreamAssetErr("invalid response", "")
+		if err := common.Unmarshal(raw, &metadataEnvelope); err != nil {
+			return &BytePlusAPIError{StatusCode: resp.StatusCode}
 		}
 	}
+	metadata := metadataEnvelope.ResponseMetadata
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return upstreamAssetErr("upstream error", envelope.ResponseMetadata.RequestID)
+		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code, Definitive: hasBytePlusMetadataError(metadata) || resp.StatusCode == http.StatusNotFound}
 	}
-	if envelope.ResponseMetadata.Error.Code != "" || envelope.ResponseMetadata.Error.Message != "" {
-		return upstreamAssetErr("upstream error", envelope.ResponseMetadata.RequestID)
+	if metadata.Error.Code != "" || metadata.Error.Message != "" {
+		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID, Code: metadata.Error.Code, Definitive: true}
 	}
-	*out = envelope
+	if out == nil || len(bytes.TrimSpace(raw)) == 0 {
+		return nil
+	}
+	if err := common.Unmarshal(raw, out); err != nil {
+		return &BytePlusAPIError{StatusCode: resp.StatusCode, RequestID: metadata.RequestID}
+	}
 	return nil
 }
 
@@ -273,10 +304,11 @@ func (c *BytePlusAssetClient) actionURL(action string) (string, error) {
 }
 
 func upstreamAssetErr(reason, requestID string) error {
-	if strings.TrimSpace(requestID) == "" {
-		return fmt.Errorf("byteplus asset %s", reason)
-	}
-	return fmt.Errorf("byteplus asset %s (request_id=%s)", reason, requestID)
+	return &BytePlusAPIError{StatusCode: http.StatusOK, RequestID: strings.TrimSpace(requestID)}
+}
+
+func hasBytePlusMetadataError(metadata bytePlusResponseMetadata) bool {
+	return strings.TrimSpace(metadata.Error.Code) != "" || strings.TrimSpace(metadata.Error.Message) != ""
 }
 
 func sanitizedAssetResultError(result bytePlusAssetResult) string {
