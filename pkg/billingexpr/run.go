@@ -26,11 +26,11 @@ func RunExpr(exprStr string, params TokenParams) (float64, TraceResult, error) {
 }
 
 func RunExprWithRequest(exprStr string, params TokenParams, request RequestInput) (float64, TraceResult, error) {
-	prog, err := CompileFromCache(exprStr)
+	entry, err := compileEntryFromCacheByHash(exprStr, ExprHashString(exprStr))
 	if err != nil {
 		return 0, TraceResult{}, err
 	}
-	return runProgram(prog, params, request)
+	return runProgram(entry.prog, entry.requestRules, params, request)
 }
 
 // RunExprByHash is like RunExpr but accepts a pre-computed hash for the cache
@@ -41,15 +41,17 @@ func RunExprByHash(exprStr, hash string, params TokenParams) (float64, TraceResu
 }
 
 func RunExprByHashWithRequest(exprStr, hash string, params TokenParams, request RequestInput) (float64, TraceResult, error) {
-	prog, err := CompileFromCacheByHash(exprStr, hash)
+	entry, err := compileEntryFromCacheByHash(exprStr, hash)
 	if err != nil {
 		return 0, TraceResult{}, err
 	}
-	return runProgram(prog, params, request)
+	return runProgram(entry.prog, entry.requestRules, params, request)
 }
 
-func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (float64, TraceResult, error) {
-	trace := TraceResult{}
+func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, params TokenParams, request RequestInput) (float64, TraceResult, error) {
+	trace := TraceResult{
+		RequestRules: append([]RequestRuleTrace(nil), requestRules...),
+	}
 	headers := normalizeHeaders(request.Headers)
 
 	env := map[string]interface{}{
@@ -68,12 +70,23 @@ func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (flo
 			trace.Cost = value
 			return value
 		},
-		"_trace": func(condition string, matched bool, multiplier float64) float64 {
-			if !matched {
-				return 1
+		requestRuleTraceFunction: func(ruleIndex int, matched bool, multiplier float64) float64 {
+			if matched && ruleIndex >= 0 && ruleIndex < len(trace.RequestRules) {
+				trace.RequestRules[ruleIndex].Matched = true
 			}
-			trace.MatchedRequestRules = append(trace.MatchedRequestRules, condition)
-			return multiplier
+			if matched {
+				return multiplier
+			}
+			return 1
+		},
+		requestRuleTraceIntFunction: func(ruleIndex int, matched bool, multiplier int) int {
+			if matched && ruleIndex >= 0 && ruleIndex < len(trace.RequestRules) {
+				trace.RequestRules[ruleIndex].Matched = true
+			}
+			if matched {
+				return multiplier
+			}
+			return 1
 		},
 		"header": func(key string) string {
 			return headers[strings.ToLower(strings.TrimSpace(key))]

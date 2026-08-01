@@ -36,11 +36,13 @@ import {
   SOURCE_TIME,
   normalizeTierLabel,
   parseTiersFromExpr,
+  requestRuleGroupsFromTrace,
   splitBillingExprAndRequestRules,
   tryParseRequestRuleExpr,
   type ParsedTier,
   type RequestCondition,
   type RequestRuleGroup,
+  type RequestRuleTrace,
   type TierCondition,
 } from '../lib/billing-expr'
 
@@ -52,8 +54,8 @@ type DynamicPricingBreakdownProps = {
    * the usage-log details dialog to show which tier the engine selected.
    */
   matchedTierLabel?: string | null
-  /** Canonical request conditions that matched for this request. */
-  matchedRequestRules?: string[] | null
+  /** Request-rule traces emitted by the settlement run. */
+  requestRules?: RequestRuleTrace[] | null
   /**
    * Hide cache-pricing columns regardless of the per-tier values. The log
    * details dialog passes this when the actual request did not consume any
@@ -150,15 +152,25 @@ function describeGroup(
   group: RequestRuleGroup,
   t: (key: string) => string
 ): string {
-  return (group.conditions || [])
-    .map((c) => describeCondition(c, t))
+  const description = (group.conditions || [])
+    .map((condition) => describeCondition(condition, t))
     .join(' && ')
+  return description || group.conditionText || ''
+}
+
+function nextOccurrenceKey(
+  baseKey: string,
+  occurrences: Map<string, number>
+): string {
+  const occurrence = occurrences.get(baseKey) || 0
+  occurrences.set(baseKey, occurrence + 1)
+  return `${baseKey}:${occurrence}`
 }
 
 export function DynamicPricingBreakdown({
   billingExpr,
   matchedTierLabel,
-  matchedRequestRules,
+  requestRules,
   hideCacheColumns = false,
   compact = false,
 }: DynamicPricingBreakdownProps) {
@@ -182,18 +194,22 @@ export function DynamicPricingBreakdown({
   const { tiers, ruleGroups } = useMemo(() => {
     const split = splitBillingExprAndRequestRules(expr)
     const parsedTiers = parseTiersFromExpr(split.billingExpr)
-    const parsedRules = tryParseRequestRuleExpr(split.requestRuleExpr || '')
+    const parsedRules =
+      requestRules != null
+        ? requestRuleGroupsFromTrace(requestRules)
+        : tryParseRequestRuleExpr(split.requestRuleExpr || '')
     return {
       tiers: parsedTiers,
       ruleGroups: parsedRules || [],
     }
-  }, [expr])
+  }, [expr, requestRules])
 
   const hasTiers = tiers.length > 0
   const hasRules = ruleGroups.length > 0
   const normalizedMatchedTierLabel = normalizeTierLabel(
     matchedTierLabel ?? undefined
   )
+
   if (!expr) return null
 
   if (!hasTiers) {
@@ -231,6 +247,8 @@ export function DynamicPricingBreakdown({
       (tier) => Number(tier[v.field as string as keyof ParsedTier] || 0) > 0
     )
   })
+  const mobileTierKeyOccurrences = new Map<string, number>()
+  const requestRuleKeyOccurrences = new Map<string, number>()
 
   return (
     <section className={cn('min-w-0', !compact && 'py-3 sm:py-4')}>
@@ -268,9 +286,13 @@ export function DynamicPricingBreakdown({
                 matchedTierLabel != null &&
                 matchedTierLabel !== '' &&
                 tier.label === matchedTierLabel
+              const rowKey = nextOccurrenceKey(
+                JSON.stringify(tier),
+                mobileTierKeyOccurrences
+              )
               return (
                 <div
-                  key={`tier-mobile-${tier.label || condSummary || 'default'}`}
+                  key={`tier-mobile-${rowKey}`}
                   className={cn(
                     'rounded-md border p-2',
                     isMatched && 'border-emerald-500/40 bg-emerald-500/10'
@@ -428,12 +450,14 @@ export function DynamicPricingBreakdown({
           </div>
           <ul className='space-y-1.5'>
             {ruleGroups.map((group) => {
-              const isMatched =
-                group.traceKey != null &&
-                matchedRequestRules?.includes(group.traceKey) === true
+              const isMatched = group.matched === true
+              const rowKey = nextOccurrenceKey(
+                `${group.conditionText || JSON.stringify(group.conditions)}:${group.multiplier}`,
+                requestRuleKeyOccurrences
+              )
               return (
                 <li
-                  key={`${group.traceKey}:${group.multiplier}`}
+                  key={`group-${rowKey}`}
                   className={cn(
                     'bg-muted/50 flex items-center justify-between gap-3 rounded-md border border-transparent px-3 py-2',
                     isMatched && 'border-emerald-500/40 bg-emerald-500/10'
