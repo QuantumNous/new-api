@@ -14,7 +14,7 @@ func TestClaude5DefaultRatios(t *testing.T) {
 		model      string
 		modelRatio float64
 	}{
-		{model: "claude-fable-5", modelRatio: 0.5},
+		{model: "claude-fable-5", modelRatio: 5.0},
 		{model: "claude-sonnet-5", modelRatio: 1.5},
 		{model: "claude-opus-5", modelRatio: 2.5},
 	}
