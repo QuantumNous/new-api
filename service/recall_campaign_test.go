@@ -1396,6 +1396,109 @@ func TestGenerateRecallEmailTranslationsFailurePersistsNothing(t *testing.T) {
 	require.Equal(t, campaign.ConfigRevision, stored.ConfigRevision)
 }
 
+func TestGenerateRecallEmailTranslationsSeparatesDifferentRequestsAtSameRevision(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{err: errors.New("provider unavailable")}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	first := cloneRecallCampaignTestStages(draft.Emails)
+	second := cloneRecallCampaignTestStages(draft.Emails)
+	first[0].Templates["en"] = RecallEmailTemplate{Subject: "First request", BodyText: "First body"}
+	second[0].Templates["en"] = RecallEmailTemplate{Subject: "Second request", BodyText: "Second body"}
+
+	_, firstErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         first,
+	})
+	_, secondErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         second,
+	})
+
+	require.Error(t, firstErr)
+	require.Error(t, secondErr)
+	var tasks []model.RecallTranslationTask
+	require.NoError(t, model.DB.Order("id ASC").Find(&tasks).Error)
+	require.Len(t, tasks, 2)
+	require.NotEqual(t, tasks[0].SourceHash, tasks[1].SourceHash)
+	require.NotEqual(t, tasks[0].IdempotencyKey, tasks[1].IdempotencyKey)
+}
+
+func TestGenerateRecallEmailTranslationsCoalescesCanonicalEquivalentRequests(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{err: errors.New("provider unavailable")}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	first := cloneRecallCampaignTestStages(draft.Emails)
+	second := cloneRecallCampaignTestStages(draft.Emails)
+	first[0].Templates["en"] = RecallEmailTemplate{Subject: " Same request ", BodyText: " Same body "}
+	second[0].Templates["en"] = RecallEmailTemplate{Subject: "Same request", BodyText: "Same body"}
+
+	_, firstErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           " " + campaign.Name + " ",
+		Emails:         first,
+	})
+	_, secondErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         second,
+	})
+
+	require.Error(t, firstErr)
+	require.Error(t, secondErr)
+	var count int64
+	require.NoError(t, model.DB.Model(&model.RecallTranslationTask{}).Count(&count).Error)
+	require.EqualValues(t, 1, count)
+}
+
+func TestGenerateRecallEmailTranslationsSeparatesDifferentNamesAtSameRevision(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{err: errors.New("provider unavailable")}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	emails := cloneRecallCampaignTestStages(draft.Emails)
+
+	_, firstErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         emails,
+	})
+	_, secondErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name + " renamed",
+		Emails:         emails,
+	})
+
+	require.Error(t, firstErr)
+	require.Error(t, secondErr)
+	var tasks []model.RecallTranslationTask
+	require.NoError(t, model.DB.Order("id ASC").Find(&tasks).Error)
+	require.Len(t, tasks, 2)
+	require.NotEqual(t, tasks[0].SourceHash, tasks[1].SourceHash)
+	require.NotEqual(t, tasks[0].IdempotencyKey, tasks[1].IdempotencyKey)
+}
+
 func TestGenerateRecallEmailTranslationsPropagatesProtectedContentValidation(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

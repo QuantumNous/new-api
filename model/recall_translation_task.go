@@ -5,8 +5,10 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -76,6 +78,29 @@ type RecallTranslationTask struct {
 	FinishedAt              int64  `json:"finished_at"`
 }
 
+type recallTranslationTaskSourceEnvelope struct {
+	CampaignType string             `json:"campaign_type"`
+	Name         string             `json:"name"`
+	Current      []recallEmailStage `json:"current_email_sequence"`
+	English      []recallEmailStage `json:"english_email_sequence"`
+}
+
+type recallEmailStage struct {
+	StageNo                  int                            `json:"stage_no"`
+	DelaySeconds             int64                          `json:"delay_seconds"`
+	TemplateVersion          int                            `json:"template_version"`
+	Templates                map[string]recallEmailTemplate `json:"templates"`
+	SourceRevision           int                            `json:"source_revision,omitempty"`
+	TranslatedSourceRevision int                            `json:"translated_source_revision,omitempty"`
+	ManualLocales            []string                       `json:"manual_locales,omitempty"`
+}
+
+type recallEmailTemplate struct {
+	Subject  string `json:"subject"`
+	BodyText string `json:"body_text"`
+	BodyHTML string `json:"body_html,omitempty"`
+}
+
 func SubmitRecallTranslationTask(ctx context.Context, submission RecallTranslationTaskSubmission) (*RecallTranslationTask, bool, error) {
 	if submission.CampaignID <= 0 || submission.RequestedConfigRevision <= 0 {
 		return nil, false, fmt.Errorf("recall translation task campaign and revision are required")
@@ -110,35 +135,62 @@ func SubmitRecallTranslationTask(ctx context.Context, submission RecallTranslati
 	if existing.Status != RecallTranslationTaskFailed {
 		return &existing, false, nil
 	}
-	var campaign RecallCampaign
-	if err := DB.WithContext(ctx).Select("id", "config_revision", "email_sequence_config").First(&campaign, existing.CampaignId).Error; err != nil {
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", existing.Id).First(&existing).Error; err != nil {
+			return err
+		}
+		if existing.Status != RecallTranslationTaskFailed {
+			return nil
+		}
+		var campaign RecallCampaign
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&campaign, existing.CampaignId).Error; err != nil {
+			return err
+		}
+		match, err := recallTranslationTaskMatchesCampaignSource(existing, campaign)
+		if err != nil {
+			return err
+		}
+		if !match {
+			return ErrRecallTranslationTaskSourceChanged
+		}
+		result := tx.Model(&RecallTranslationTask{}).
+			Where("id = ? AND status = ?", existing.Id, RecallTranslationTaskFailed).
+			Updates(map[string]any{
+				"status":           RecallTranslationTaskQueued,
+				"next_attempt_at":  submission.Now,
+				"lease_owner":      "",
+				"lease_expires_at": int64(0),
+				"error_code":       "",
+				"error_message":    "",
+				"finished_at":      int64(0),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 1 {
+			var refreshed RecallCampaign
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&refreshed, existing.CampaignId).Error; err != nil {
+				return err
+			}
+			match, err := recallTranslationTaskMatchesCampaignSource(existing, refreshed)
+			if err != nil {
+				return err
+			}
+			if !match {
+				return ErrRecallTranslationTaskSourceChanged
+			}
+			existing.Status = RecallTranslationTaskQueued
+			existing.NextAttemptAt = submission.Now
+			existing.LeaseOwner = ""
+			existing.LeaseExpiresAt = 0
+			existing.ErrorCode = ""
+			existing.ErrorMessage = ""
+			existing.FinishedAt = 0
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, false, err
-	}
-	if campaign.ConfigRevision != existing.RequestedConfigRevision || recallTranslationTaskSourceHash(campaign.EmailSequenceConfig) != existing.SourceHash {
-		return nil, false, ErrRecallTranslationTaskSourceChanged
-	}
-	result := DB.WithContext(ctx).Model(&RecallTranslationTask{}).
-		Where("id = ? AND status = ?", existing.Id, RecallTranslationTaskFailed).
-		Updates(map[string]any{
-			"status":           RecallTranslationTaskQueued,
-			"next_attempt_at":  submission.Now,
-			"lease_owner":      "",
-			"lease_expires_at": int64(0),
-			"error_code":       "",
-			"error_message":    "",
-			"finished_at":      int64(0),
-		})
-	if result.Error != nil {
-		return nil, false, result.Error
-	}
-	if result.RowsAffected == 1 {
-		existing.Status = RecallTranslationTaskQueued
-		existing.NextAttemptAt = submission.Now
-		existing.LeaseOwner = ""
-		existing.LeaseExpiresAt = 0
-		existing.ErrorCode = ""
-		existing.ErrorMessage = ""
-		existing.FinishedAt = 0
 	}
 	return &existing, false, nil
 }
@@ -256,9 +308,11 @@ func CompleteRecallTranslationTaskSuccess(ctx context.Context, completion Recall
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&campaign, task.CampaignId).Error; err != nil {
 			return err
 		}
-		if campaign.Status != RecallCampaignDraft ||
-			campaign.ConfigRevision != task.RequestedConfigRevision ||
-			recallTranslationTaskSourceHash(campaign.EmailSequenceConfig) != task.SourceHash {
+		sourceMatches, err := recallTranslationTaskMatchesCampaignSource(task, campaign)
+		if err != nil {
+			return err
+		}
+		if campaign.Status != RecallCampaignDraft || !sourceMatches {
 			if err := tx.Model(&RecallTranslationTask{}).
 				Where("id = ? AND status = ? AND lease_owner = ? AND lease_epoch = ?", task.Id, RecallTranslationTaskRunning, task.LeaseOwner, task.LeaseEpoch).
 				Updates(map[string]any{
@@ -317,4 +371,69 @@ func recallTranslationTaskIdempotencyKey(campaignID int64, revision int64, sourc
 func recallTranslationTaskSourceHash(source string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(source)))
 	return fmt.Sprintf("%x", sum[:])
+}
+
+func recallTranslationTaskMatchesCampaignSource(task RecallTranslationTask, campaign RecallCampaign) (bool, error) {
+	if campaign.ConfigRevision != task.RequestedConfigRevision {
+		return false, nil
+	}
+	var source recallTranslationTaskSourceEnvelope
+	if err := common.Unmarshal([]byte(task.SourceSnapshot), &source); err != nil {
+		return false, err
+	}
+	if len(source.Current) == 0 {
+		return recallTranslationTaskSourceHash(campaign.EmailSequenceConfig) == task.SourceHash, nil
+	}
+	if strings.TrimSpace(campaign.CampaignType) != strings.TrimSpace(source.CampaignType) ||
+		strings.TrimSpace(campaign.Name) != strings.TrimSpace(source.Name) {
+		return false, nil
+	}
+	sourceJSON, err := recallTranslationTaskCanonicalEmailStagesJSON(source.Current)
+	if err != nil {
+		return false, err
+	}
+	var live []recallEmailStage
+	if err := common.Unmarshal([]byte(campaign.EmailSequenceConfig), &live); err != nil {
+		return false, err
+	}
+	liveJSON, err := recallTranslationTaskCanonicalEmailStagesJSON(live)
+	if err != nil {
+		return false, err
+	}
+	return recallTranslationTaskSourceHash(string(liveJSON)) == recallTranslationTaskSourceHash(string(sourceJSON)), nil
+}
+
+func recallTranslationTaskCanonicalEmailStagesJSON(stages []recallEmailStage) ([]byte, error) {
+	normalized := make([]recallEmailStage, len(stages))
+	for i, stage := range stages {
+		normalized[i] = stage
+		templates := make(map[string]recallEmailTemplate, len(stage.Templates))
+		for language, template := range stage.Templates {
+			language = strings.ToLower(strings.TrimSpace(language))
+			if language == "" {
+				continue
+			}
+			template.Subject = strings.TrimSpace(template.Subject)
+			template.BodyText = strings.TrimSpace(template.BodyText)
+			template.BodyHTML = strings.TrimSpace(template.BodyHTML)
+			templates[language] = template
+		}
+		normalized[i].Templates = templates
+		locales := make([]string, 0, len(stage.ManualLocales))
+		seen := make(map[string]struct{}, len(stage.ManualLocales))
+		for _, locale := range stage.ManualLocales {
+			locale = strings.ToLower(strings.TrimSpace(locale))
+			if locale == "" {
+				continue
+			}
+			if _, exists := seen[locale]; exists {
+				continue
+			}
+			seen[locale] = struct{}{}
+			locales = append(locales, locale)
+		}
+		sort.Strings(locales)
+		normalized[i].ManualLocales = locales
+	}
+	return common.Marshal(normalized)
 }

@@ -758,14 +758,14 @@ func (s *RecallCampaignService) GenerateEmailTranslations(ctx context.Context, a
 		return RecallEmailGenerationResponse{}, err
 	}
 
-	sourceSnapshot, err := buildRecallTranslationSourceSnapshot(current.CampaignType, name, current.Emails, reconciled)
+	sourceSnapshot, err := buildRecallTranslationSourceSnapshot(current.CampaignType, name, current.Emails, englishStages)
 	if err != nil {
 		return RecallEmailGenerationResponse{}, err
 	}
 	task, _, err := model.SubmitRecallTranslationTask(ctx, model.RecallTranslationTaskSubmission{
 		CampaignID:              id,
 		RequestedConfigRevision: request.ConfigRevision,
-		SourceHash:              recallTranslationCanonicalSourceHash(stored.EmailSequenceConfig),
+		SourceHash:              recallTranslationCanonicalSourceHash(sourceSnapshot),
 		SourceSnapshot:          sourceSnapshot,
 		Now:                     s.now().Unix(),
 	})
@@ -854,7 +854,14 @@ func applyRecallEmailGenerationResult(campaignType string, stages []RecallEmailS
 		generated[i] = stage
 		generated[i].Templates = templates
 		generated[i].TranslatedSourceRevision = stage.SourceRevision
-		generated[i].ManualLocales = nil
+		manual := make(map[string]struct{}, len(stage.ManualLocales))
+		for _, language := range stage.ManualLocales {
+			manual[language] = struct{}{}
+			if template, exists := stage.Templates[language]; exists {
+				generated[i].Templates[language] = template
+			}
+		}
+		generated[i].ManualLocales = orderedRecallEmailManualLocales(manual)
 	}
 	return generated, nil
 }

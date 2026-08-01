@@ -290,9 +290,9 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 			var waitErr *RecallEmailQuotaWaitError
 			if errors.As(processErr, &waitErr) {
 				if releaseErr := releaseRemainingSafely(index + 1); releaseErr != nil {
-					return processed, fmt.Errorf("%w; release remaining recall email leases: %v", waitErr, releaseErr)
+					return processed, fmt.Errorf("%w; release remaining recall email leases: %v", processErr, releaseErr)
 				}
-				return processed, waitErr
+				return processed, processErr
 			}
 			processed++
 			if !errors.Is(processErr, ErrRecallEmailLeaseLost) && firstErr == nil {
@@ -534,6 +534,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 		return nil
 	}
 	if !attempt.Reserved {
+		waitErr := &RecallEmailQuotaWaitError{ResetsAt: attempt.Quota.ResetsAt}
 		if candidate != nil {
 			released, releaseErr := model.ReleaseRecallMessageLeaseForRetryWithContext(
 				ctx,
@@ -544,7 +545,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 				attempt.Quota.ResetsAt,
 			)
 			if releaseErr != nil {
-				return releaseErr
+				return fmt.Errorf("%w; release remaining recall email leases: %v", waitErr, releaseErr)
 			}
 			if !released {
 				return ErrRecallEmailLeaseLost
@@ -558,13 +559,13 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 				attempt.Quota.ResetsAt,
 			)
 			if deferErr != nil {
-				return deferErr
+				return fmt.Errorf("%w; release remaining recall email leases: %v", waitErr, deferErr)
 			}
 			if !deferred {
 				return ErrRecallEmailLeaseLost
 			}
 		}
-		return &RecallEmailQuotaWaitError{ResetsAt: attempt.Quota.ResetsAt}
+		return waitErr
 	}
 
 	if token, tokenErr := CreateRecallEmailOpenToken(item.Recipient.Id); tokenErr != nil {

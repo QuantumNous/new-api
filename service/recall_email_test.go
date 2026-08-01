@@ -1288,10 +1288,10 @@ func TestRecallMaintenanceLogsQuotaWaitWithLeaseCleanupFailure(t *testing.T) {
 		if !quotaRaceInjected || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallMessage" {
 			return
 		}
-		if recallMessageUpdatesAfterQuotaRace < 2 {
-			recallMessageUpdatesAfterQuotaRace++
+		if recallEmailUpdateState(tx) != model.RecallMessageRetryWait {
 			return
 		}
+		recallMessageUpdatesAfterQuotaRace++
 		tx.AddError(errors.New("injected release remaining recall email lease failure"))
 	}))
 	t.Cleanup(func() { _ = updateCallbacks.Remove(failRemainingReleaseCallback) })
@@ -1315,7 +1315,7 @@ func TestRecallMaintenanceLogsQuotaWaitWithLeaseCleanupFailure(t *testing.T) {
 	require.Contains(t, logOutput.String(), "release remaining recall email leases")
 	require.Contains(t, logOutput.String(), "injected release remaining recall email lease failure")
 	require.True(t, quotaRaceInjected)
-	require.Equal(t, 2, recallMessageUpdatesAfterQuotaRace)
+	require.Equal(t, 1, recallMessageUpdatesAfterQuotaRace)
 	require.Equal(t, model.RecallMessageLeased, secondStored.State)
 }
 

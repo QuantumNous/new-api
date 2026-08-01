@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestRecallTranslationTaskQueuedRunningSucceededLifecycle(t *testing.T) {
@@ -108,6 +109,54 @@ func TestRecallTranslationTaskTerminalFailureDuplicateAndConditionalRequeue(t *t
 	require.NoError(t, DB.Model(&RecallCampaign{}).Where("id = ?", campaign.Id).Update("config_revision", campaign.ConfigRevision+1).Error)
 	_, _, err = SubmitRecallTranslationTask(ctx, submission)
 	require.ErrorIs(t, err, ErrRecallTranslationTaskSourceChanged)
+}
+
+func TestRecallTranslationTaskFailedRequeueRejectsConcurrentCampaignChange(t *testing.T) {
+	setupRecallRepositoryFileDB(t)
+	ctx := context.Background()
+	campaign := seedRecallTranslationCampaign(t, 7, "draft", recallTranslationTaskSource("hello"))
+	submission := RecallTranslationTaskSubmission{
+		CampaignID:              campaign.Id,
+		RequestedConfigRevision: campaign.ConfigRevision,
+		SourceHash:              recallTranslationTaskSourceHash(campaign.EmailSequenceConfig),
+		SourceSnapshot:          recallTranslationTaskSource("hello"),
+		Now:                     100,
+	}
+	task, _, err := SubmitRecallTranslationTask(ctx, submission)
+	require.NoError(t, err)
+	claimed, won, err := ClaimDueRecallTranslationTask(ctx, task.Id, "worker-a", 110, 170)
+	require.NoError(t, err)
+	require.True(t, won)
+	won, err = FailRecallTranslationTask(ctx, RecallTranslationTaskFailure{
+		TaskID: task.Id, Owner: "worker-a", LeaseEpoch: claimed.LeaseEpoch, ErrorCode: "provider_error", FinishedAt: 120,
+	})
+	require.NoError(t, err)
+	require.True(t, won)
+
+	mutated := false
+	callbackName := "recall_translation_requeue_race_" + t.Name()
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if mutated || tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallTranslationTask" {
+			return
+		}
+		mutated = true
+		if err := tx.Session(&gorm.Session{NewDB: true}).Model(&RecallCampaign{}).
+			Where("id = ?", campaign.Id).
+			Updates(map[string]any{
+				"config_revision":       campaign.ConfigRevision + 1,
+				"email_sequence_config": recallTranslationTaskSource("changed"),
+			}).Error; err != nil {
+			tx.AddError(err)
+		}
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Update().Remove(callbackName) })
+
+	_, _, err = SubmitRecallTranslationTask(ctx, submission)
+
+	require.ErrorIs(t, err, ErrRecallTranslationTaskSourceChanged)
+	require.True(t, mutated)
+	stored := loadRecallTranslationTask(t, task.Id)
+	require.Equal(t, RecallTranslationTaskFailed, stored.Status)
 }
 
 func TestRecallTranslationTaskLeaseExpiryReclaimRenewalAndStaleEpochFence(t *testing.T) {

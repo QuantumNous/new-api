@@ -1446,9 +1446,18 @@ func TestListRecallOfferCandidatesChunksLargeSetBasedFinalLoads(t *testing.T) {
 	}))
 	t.Cleanup(func() { _ = DB.Callback().Query().Remove(callbackName) })
 
-	candidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now)
+	candidates := make([]RecallOfferCandidate, 0, candidateCount)
+	afterID := int64(0)
+	for {
+		page, err := ListRecallOfferCandidatePageForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now, afterID, recallOfferCandidateIDBatchSize)
+		require.NoError(t, err)
+		candidates = append(candidates, page.Candidates...)
+		if !page.HasMore {
+			break
+		}
+		afterID = page.NextAfterRecipientID
+	}
 
-	require.NoError(t, err)
 	require.Len(t, candidates, candidateCount)
 	require.Equal(t, 4, queryCounts["RecallRecipient"], "two bounded cursor scans plus two bounded final recipient loads")
 	require.Equal(t, 2, queryCounts["RecallCampaign"], "campaign hydration must use the same bounded batching")
@@ -3327,9 +3336,12 @@ func TestRecallRunIdempotencyCommitsLargeSnapshotsInBoundedBatches(t *testing.T)
 		require.NoError(t, DB.Model(table).Count(&count).Error)
 		require.EqualValues(t, total, count)
 	}
-	var eventCount int64
-	require.NoError(t, DB.Model(&RecallEvent{}).Count(&eventCount).Error)
-	require.EqualValues(t, 1, eventCount)
+	var runEventCount int64
+	require.NoError(t, DB.Model(&RecallEvent{}).Where("event_type = ?", "campaign_run").Count(&runEventCount).Error)
+	require.EqualValues(t, 1, runEventCount)
+	var messageEventCount int64
+	require.NoError(t, DB.Model(&RecallEvent{}).Where("event_type = ?", "message_state_changed").Count(&messageEventCount).Error)
+	require.EqualValues(t, total, messageEventCount)
 }
 
 func TestRecallRunIdempotencyRejectsAmbiguousMessageMapping(t *testing.T) {
