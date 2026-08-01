@@ -130,6 +130,14 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		}
 	}
 
+	if strings.HasPrefix(textRequest.Model, "claude-fable-5") ||
+		strings.HasPrefix(textRequest.Model, "claude-sonnet-5") ||
+		strings.HasPrefix(textRequest.Model, "claude-opus-5") {
+		claudeRequest.Temperature = nil
+		claudeRequest.TopP = nil
+		claudeRequest.TopK = nil
+	}
+
 	if baseModel, effortLevel, ok := reasoning.TrimEffortSuffix(textRequest.Model); ok && effortLevel != "" &&
 		(strings.HasPrefix(textRequest.Model, "claude-opus-4-6") ||
 			strings.HasPrefix(textRequest.Model, "claude-opus-4-7") ||

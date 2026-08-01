@@ -153,6 +153,9 @@ var defaultModelRatio = map[string]float64{
 	"claude-opus-4-8-high":                      2.5,
 	"claude-opus-4-8-medium":                    2.5,
 	"claude-opus-4-8-low":                       2.5,
+	"claude-fable-5":                            0.5,
+	"claude-sonnet-5":                           1.5,
+	"claude-opus-5":                             2.5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
 	"claude-opus-4-20250514":                    7.5,
 	"claude-opus-4-1-20250805":                  7.5,
@@ -539,7 +542,8 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 
 	if strings.Contains(name, "claude-3") {
 		return 5, true
-	} else if strings.Contains(name, "claude-sonnet-4") || strings.Contains(name, "claude-opus-4") || strings.Contains(name, "claude-haiku-4") {
+	} else if strings.Contains(name, "claude-sonnet-4") || strings.Contains(name, "claude-opus-4") || strings.Contains(name, "claude-haiku-4") ||
+		strings.Contains(name, "claude-fable-5") || strings.Contains(name, "claude-sonnet-5") || strings.Contains(name, "claude-opus-5") {
 		return 5, true
 	}
 
