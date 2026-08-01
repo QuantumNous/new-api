@@ -27,13 +27,18 @@ func ValidateRedirectURL(rawURL string) error {
 		return fmt.Errorf("invalid URL scheme: only http and https are allowed")
 	}
 
-	domain := strings.ToLower(parsedURL.Hostname())
+	domain := normalizeRedirectDomain(parsedURL.Hostname())
 
 	for _, trustedDomain := range constant.TrustedRedirectDomains {
+		trustedDomain = normalizeRedirectDomain(trustedDomain)
 		if domain == trustedDomain || strings.HasSuffix(domain, "."+trustedDomain) {
 			return nil
 		}
 	}
 
 	return fmt.Errorf("domain %s is not in the trusted domains list", domain)
+}
+
+func normalizeRedirectDomain(domain string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
 }
