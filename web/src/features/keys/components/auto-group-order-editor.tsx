@@ -245,36 +245,35 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
         <ol
           data-slot='global-auto-order'
           aria-label={t('Inherit global Auto order')}
-          className='flex max-h-56 flex-col gap-1 overflow-y-auto rounded-lg border p-1.5'
+          className='flex max-h-24 flex-wrap content-start gap-1.5 overflow-y-auto'
         >
           {props.globalOptions.map((option, index) => (
             <li
               key={option.value}
-              className='bg-muted/30 flex min-h-11 items-center gap-2 rounded-md px-2.5 py-2'
+              title={option.desc}
+              className='bg-muted/30 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1'
             >
               <span
                 data-slot='global-auto-order-index'
                 aria-hidden='true'
-                className='bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full text-xs tabular-nums'
+                className='text-muted-foreground text-xs tabular-nums'
               >
                 {index + 1}
               </span>
-              <span className='min-w-0 flex-1'>
-                <span
-                  data-slot='global-auto-order-name'
-                  className='block truncate text-sm font-medium'
-                >
-                  {option.label}
-                </span>
-                {option.desc && (
-                  <span
-                    data-slot='global-auto-order-description'
-                    className='text-muted-foreground block truncate text-xs'
-                  >
-                    {option.desc}
-                  </span>
-                )}
+              <span
+                data-slot='global-auto-order-name'
+                className='max-w-40 truncate text-xs font-medium'
+              >
+                {option.label}
               </span>
+              {option.desc && (
+                <span
+                  data-slot='global-auto-order-description'
+                  className='sr-only'
+                >
+                  {option.desc}
+                </span>
+              )}
               <GroupRatioBadge ratio={option.ratio} />
             </li>
           ))}

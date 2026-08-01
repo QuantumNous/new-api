@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { motion } from 'motion/react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -102,20 +101,14 @@ export function GroupRatioBadge({
   )
 }
 
-function AutoGroupShimmer(props: { shouldReduceMotion: boolean }) {
+function AutoGroupFlowBorder(props: { shouldReduceMotion: boolean }) {
   if (props.shouldReduceMotion) return null
 
   return (
-    <motion.span
+    <span
       aria-hidden='true'
-      data-auto-group-shimmer='true'
-      className='via-primary/70 pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent to-transparent'
-      animate={{ x: ['-100%', '100%'] }}
-      transition={{
-        duration: 3.2,
-        ease: 'easeInOut',
-        repeat: Number.POSITIVE_INFINITY,
-      }}
+      data-auto-group-flow-border='true'
+      className='auto-group-flow-border pointer-events-none absolute -inset-px'
     />
   )
 }
@@ -167,15 +160,15 @@ export function ApiKeyGroupCombobox({
             data-auto-group-effect={isAutoSelected ? 'trigger' : undefined}
             disabled={disabled}
             className={cn(
-              'border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 relative h-auto min-h-14 w-full justify-between gap-2 overflow-hidden rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3',
+              'border-input bg-muted/40 hover:bg-muted/55 hover:text-foreground active:bg-background data-popup-open:border-ring data-popup-open:bg-background data-popup-open:ring-ring/20 relative h-auto min-h-14 w-full justify-between gap-2 rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 data-popup-open:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3',
               isAutoSelected &&
-                'border-primary/50 from-primary/5 via-accent/45 to-primary/10 bg-linear-to-r shadow-sm shadow-primary/10 hover:border-primary/60 hover:from-primary/10 hover:via-accent/55 hover:to-primary/15 data-popup-open:border-primary/60 data-popup-open:ring-primary/20'
+                'border-primary/40 shadow-sm shadow-primary/10 hover:border-primary/55 data-popup-open:border-primary/55 data-popup-open:ring-primary/20'
             )}
           />
         }
       >
         {isAutoSelected && (
-          <AutoGroupShimmer shouldReduceMotion={shouldReduceMotion} />
+          <AutoGroupFlowBorder shouldReduceMotion={shouldReduceMotion} />
         )}
         <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
           <span className='min-w-0'>
@@ -224,11 +217,11 @@ export function ApiKeyGroupCombobox({
                     className={cn(
                       'data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors',
                       isAutoOption &&
-                        'border-primary/35 from-primary/5 via-accent/40 to-primary/10 relative overflow-hidden border bg-linear-to-r shadow-sm shadow-primary/10 data-[selected=true]:border-primary/55 data-[selected=true]:from-primary/10 data-[selected=true]:via-accent/55 data-[selected=true]:to-primary/15 data-[selected=true]:bg-linear-to-r'
+                        'border-primary/35 relative border shadow-sm shadow-primary/10 data-[selected=true]:border-primary/55'
                     )}
                   >
                     {isAutoOption && (
-                      <AutoGroupShimmer
+                      <AutoGroupFlowBorder
                         shouldReduceMotion={shouldReduceMotion}
                       />
                     )}

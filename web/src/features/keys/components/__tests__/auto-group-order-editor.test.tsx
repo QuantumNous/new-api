@@ -280,6 +280,7 @@ describe('Auto group order editor', () => {
     )
     assert.ok(order)
     assert.equal(order.classList.contains('overflow-y-auto'), true)
+    assert.equal(order.classList.contains('flex-wrap'), true)
 
     const items = [...order.querySelectorAll('li')]
     assert.equal(items.length, 3)
@@ -289,6 +290,7 @@ describe('Auto group order editor', () => {
           ?.textContent,
         name: item.querySelector('[data-slot="global-auto-order-name"]')
           ?.textContent,
+        title: item.getAttribute('title'),
         description: item.querySelector(
           '[data-slot="global-auto-order-description"]'
         )?.textContent,
@@ -298,23 +300,34 @@ describe('Auto group order editor', () => {
         {
           index: '1',
           name: 'VIP',
+          title: 'Priority access',
           description: 'Priority access',
           ratio: '3x Ratio',
         },
         {
           index: '2',
           name: 'Default',
+          title: 'Standard access',
           description: 'Standard access',
           ratio: '1x Ratio',
         },
         {
           index: '3',
           name: 'Team',
+          title: 'Shared access',
           description: 'Shared access',
           ratio: '2x Ratio',
         },
       ]
     )
+
+    for (const item of items) {
+      const description = item.querySelector(
+        '[data-slot="global-auto-order-description"]'
+      )
+      assert.ok(description)
+      assert.equal(description.classList.contains('sr-only'), true)
+    }
 
     assert.equal(container.querySelector('[aria-label^="Drag "]'), null)
     assert.equal(container.querySelector('[aria-label^="Move "]'), null)

@@ -139,7 +139,7 @@ describe('API key group combobox Auto effect', () => {
     domWindow.close()
   })
 
-  test('marks the selected Auto trigger and Auto option with an accessible decorative shimmer', async () => {
+  test('marks the selected Auto trigger and Auto option with an accessible decorative flow border', async () => {
     setReducedMotion(false)
     const container = document.createElement('div')
     document.body.append(container)
@@ -150,14 +150,22 @@ describe('API key group combobox Auto effect', () => {
     const trigger = getTrigger(container)
     assert.equal(trigger.getAttribute('aria-expanded'), 'false')
     assert.equal(trigger.dataset.autoGroupEffect, 'trigger')
-    assert.equal(trigger.classList.contains('bg-linear-to-r'), true)
+    assert.equal(trigger.classList.contains('bg-linear-to-r'), false)
+    assert.equal(trigger.classList.contains('overflow-hidden'), false)
 
-    const triggerShimmer = trigger.querySelector<HTMLElement>(
-      '[data-auto-group-shimmer]'
+    const triggerFlowBorder = trigger.querySelector<HTMLElement>(
+      '[data-auto-group-flow-border]'
     )
-    assert.ok(triggerShimmer)
-    assert.equal(triggerShimmer.getAttribute('aria-hidden'), 'true')
-    assert.equal(triggerShimmer.classList.contains('pointer-events-none'), true)
+    assert.ok(triggerFlowBorder)
+    assert.equal(triggerFlowBorder.getAttribute('aria-hidden'), 'true')
+    assert.equal(
+      triggerFlowBorder.classList.contains('pointer-events-none'),
+      true
+    )
+    assert.equal(
+      triggerFlowBorder.classList.contains('auto-group-flow-border'),
+      true
+    )
 
     await act(async () => trigger.click())
     assert.equal(trigger.getAttribute('aria-expanded'), 'true')
@@ -165,11 +173,15 @@ describe('API key group combobox Auto effect', () => {
     const autoOption = getCommandItem('Global automatic routing')
     assert.equal(autoOption.dataset.autoGroupEffect, 'option')
     assert.equal(autoOption.getAttribute('aria-selected'), 'true')
-    assert.ok(autoOption.querySelector('[data-auto-group-shimmer]'))
+    assert.equal(autoOption.classList.contains('bg-linear-to-r'), false)
+    assert.ok(autoOption.querySelector('[data-auto-group-flow-border]'))
 
     const defaultOption = getCommandItem('User group')
     assert.equal(defaultOption.hasAttribute('data-auto-group-effect'), false)
-    assert.equal(defaultOption.querySelector('[data-auto-group-shimmer]'), null)
+    assert.equal(
+      defaultOption.querySelector('[data-auto-group-flow-border]'),
+      null
+    )
 
     await act(async () => root.unmount())
     container.remove()
@@ -220,7 +232,7 @@ describe('API key group combobox Auto effect', () => {
     )
     assert.equal(trigger.getAttribute('aria-expanded'), 'false')
     assert.equal(trigger.hasAttribute('data-auto-group-effect'), false)
-    assert.equal(trigger.querySelector('[data-auto-group-shimmer]'), null)
+    assert.equal(trigger.querySelector('[data-auto-group-flow-border]'), null)
 
     await act(async () => root.unmount())
     container.remove()
@@ -236,12 +248,15 @@ describe('API key group combobox Auto effect', () => {
 
     const trigger = getTrigger(container)
     assert.equal(trigger.dataset.autoGroupEffect, 'trigger')
-    assert.equal(trigger.querySelector('[data-auto-group-shimmer]'), null)
+    assert.equal(trigger.querySelector('[data-auto-group-flow-border]'), null)
 
     await act(async () => trigger.click())
     const autoOption = getCommandItem('Global automatic routing')
     assert.equal(autoOption.dataset.autoGroupEffect, 'option')
-    assert.equal(autoOption.querySelector('[data-auto-group-shimmer]'), null)
+    assert.equal(
+      autoOption.querySelector('[data-auto-group-flow-border]'),
+      null
+    )
 
     await act(async () => root.unmount())
     container.remove()
