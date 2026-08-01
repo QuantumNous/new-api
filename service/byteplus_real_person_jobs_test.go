@@ -315,18 +315,27 @@ func TestBytePlusRealPersonVerificationJobsHandleExpirySuccessDefinitiveAndTrans
 		require.Equal(t, 1, fixture.fake.resultCalls)
 	})
 
-	t.Run("definitive upstream failure fails current session", func(t *testing.T) {
+	t.Run("definitive upstream failure retries while session unexpired", func(t *testing.T) {
 		fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
 		fixture.fake.resultErr = &BytePlusAPIError{StatusCode: 400, Code: "bad", Definitive: true}
 		profile, session := seedJobVerificationSession(t, "definitive", model.BytePlusVisualValidationSessionStatusPending, "byted", 3000)
+		bytedCiphertext := session.BytedTokenCiphertext
+		beforeRetry := prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "verification_status", "result": "retry"})
 
 		result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
 
 		require.NoError(t, result.Err)
+		require.Zero(t, result.Processed)
 		require.NoError(t, model.DB.First(&profile, profile.Id).Error)
-		require.Equal(t, model.BytePlusRealPersonProfileStatusFailed, profile.Status)
+		require.Equal(t, model.BytePlusRealPersonProfileStatusPendingVerification, profile.Status)
+		require.Empty(t, profile.ErrorCode)
+		require.Nil(t, profile.UpstreamGroupId)
 		require.NoError(t, model.DB.First(&session, session.Id).Error)
-		require.Equal(t, model.BytePlusVisualValidationSessionStatusFailed, session.Status)
+		require.Equal(t, model.BytePlusVisualValidationSessionStatusPending, session.Status)
+		require.Equal(t, int64(0), session.LeaseUpdatedTime)
+		require.Equal(t, int64(2060), session.UpdatedTime)
+		require.Equal(t, bytedCiphertext, session.BytedTokenCiphertext)
+		require.EqualValues(t, beforeRetry+1, prometheusSampleValueForJobTest(t, "newapi_byteplus_real_person_reconcile_total", map[string]string{"operation": "verification_status", "result": "retry"}))
 	})
 
 	t.Run("transient upstream failure records retry without operation error", func(t *testing.T) {

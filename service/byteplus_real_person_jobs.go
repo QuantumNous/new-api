@@ -200,14 +200,6 @@ func runBytePlusRealPersonVerificationStatusJobs(ctx context.Context, now, stale
 		upstream, err := client.GetVisualValidateResult(ctx, creds, bytedToken)
 		if err != nil {
 			warnBytePlusRealPersonJobRow("verification_status")
-			if isBytePlusDefinitiveResponse(err) {
-				if ok, err := model.FailBytePlusRealPersonSession(profile.Id, session.Id, "verification_upstream_error", now); err != nil && !errors.Is(err, model.ErrAPIIdempotencyCASLost) {
-					firstErr = firstNonNil(firstErr, err)
-				} else if ok {
-					processed++
-				}
-				continue
-			}
 			firstErr = firstNonNil(firstErr, retryBytePlusVerificationStatus(session, now))
 			continue
 		}

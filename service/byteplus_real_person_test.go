@@ -507,6 +507,37 @@ func TestBytePlusRealPersonCallbackUsesOnlyServerSideResultAuthority(t *testing.
 	require.Equal(t, "group-server-confirmed", *profile.UpstreamGroupId)
 }
 
+func TestSyncBytePlusRealPersonVerificationDefinitiveResultErrorRetriesWhileSessionUnexpired(t *testing.T) {
+	newBytePlusRealPersonServiceTestDB(t)
+	fake := &fakeBytePlusRealPersonClient{resultErr: &BytePlusAPIError{StatusCode: 400, RequestID: "req-secret", Code: "not_finished", Definitive: true}}
+	installBytePlusRealPersonServiceTestDeps(t, fake)
+	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
+
+	created, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 101, "definitive-result-create", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
+	require.Nil(t, apiErr)
+	profile, err := model.GetBytePlusRealPersonProfileForUser(7, created.ID)
+	require.NoError(t, err)
+	session, err := model.GetBytePlusVisualValidationSessionByPublicID("rvs_test_1")
+	require.NoError(t, err)
+	bytedCiphertext := session.BytedTokenCiphertext
+	h5Ciphertext := session.H5LinkCiphertext
+
+	apiErr = SyncBytePlusRealPersonVerification(context.Background(), 7, profile)
+
+	require.Nil(t, apiErr)
+	require.Equal(t, 1, fake.resultCalls)
+	require.NoError(t, model.DB.First(&profile, profile.Id).Error)
+	require.Equal(t, model.BytePlusRealPersonProfileStatusPendingVerification, profile.Status)
+	require.Empty(t, profile.ErrorCode)
+	require.Nil(t, profile.UpstreamGroupId)
+	require.NoError(t, model.DB.First(&session, session.Id).Error)
+	require.Equal(t, model.BytePlusVisualValidationSessionStatusPending, session.Status)
+	require.Equal(t, int64(0), session.LeaseUpdatedTime)
+	require.Equal(t, int64(2060), session.UpdatedTime)
+	require.Equal(t, bytedCiphertext, session.BytedTokenCiphertext)
+	require.Equal(t, h5Ciphertext, session.H5LinkCiphertext)
+}
+
 func newBytePlusRealPersonServiceTestDB(t *testing.T) {
 	t.Helper()
 	db := newBytePlusAssetServiceTestDB(t)

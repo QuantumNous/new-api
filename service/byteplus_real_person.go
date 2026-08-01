@@ -216,10 +216,6 @@ func SyncBytePlusRealPersonVerification(ctx context.Context, userID int, profile
 	}
 	result, err := client.GetVisualValidateResult(ctx, creds, bytedToken)
 	if err != nil {
-		if isBytePlusDefinitiveResponse(err) {
-			_, _ = model.FailBytePlusRealPersonSession(profile.Id, claimed.Id, "verification_upstream_error", bytePlusAssetNow())
-			return realPersonError(types.ErrorCodeVerificationUpstreamError, http.StatusBadGateway)
-		}
 		_, _ = model.RetryBytePlusVisualValidationSession(claimed.Id, claimed.LeaseUpdatedTime, bytePlusAssetNow()+bytePlusAssetDeleteRetryDelaySecs, bytePlusAssetNow())
 		return nil
 	}
