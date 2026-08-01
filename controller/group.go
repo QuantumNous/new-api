@@ -34,6 +34,7 @@ func GetUserGroups(c *gin.Context) {
 		if desc, ok := userUsableGroups[groupName]; ok {
 			usableGroups[groupName] = map[string]interface{}{
 				"ratio": service.GetUserGroupRatio(userGroup, groupName),
+				"name":  setting.GetGroupDisplayName(groupName),
 				"desc":  desc,
 			}
 		}
@@ -41,6 +42,7 @@ func GetUserGroups(c *gin.Context) {
 	if _, ok := userUsableGroups["auto"]; ok {
 		usableGroups["auto"] = map[string]interface{}{
 			"ratio": "自动",
+			"name":  setting.GetGroupDisplayName("auto"),
 			"desc":  setting.GetUsableGroupDescription("auto"),
 		}
 	}

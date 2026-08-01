@@ -64,6 +64,7 @@ import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 
 type GroupFormValues = {
   GroupRatio: string
+  GroupDisplayNames: string
   TopupGroupRatio: string
   UserUsableGroups: string
   GroupGroupRatio: string
@@ -76,16 +77,19 @@ type GroupRatioFormProps = {
   form: UseFormReturn<GroupFormValues>
   onSave: (values: GroupFormValues) => Promise<void>
   isSaving: boolean
+  savedGroupIdentifiers: string[]
 }
 
 export const GroupRatioForm = memo(function GroupRatioForm({
   form,
   onSave,
   isSaving,
+  savedGroupIdentifiers,
 }: GroupRatioFormProps) {
   const { t } = useTranslation()
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
   const [guideOpen, setGuideOpen] = useState(false)
+  const [areGroupIdentifiersValid, setAreGroupIdentifiersValid] = useState(true)
 
   const handleFieldChange = useCallback(
     (field: keyof GroupFormValues, value: string) => {
@@ -156,7 +160,9 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             type='button'
             size='sm'
             onClick={form.handleSubmit(onSave)}
-            disabled={isSaving}
+            disabled={
+              isSaving || (editMode === 'visual' && !areGroupIdentifiersValid)
+            }
           >
             {isSaving ? t('Saving...') : t('Save group ratios')}
           </Button>
@@ -165,11 +171,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
           <div className='space-y-6'>
             <GroupRatioVisualEditor
               groupRatio={form.watch('GroupRatio')}
+              groupDisplayNames={form.watch('GroupDisplayNames')}
               topupGroupRatio={form.watch('TopupGroupRatio')}
               userUsableGroups={form.watch('UserUsableGroups')}
               groupGroupRatio={form.watch('GroupGroupRatio')}
               autoGroups={form.watch('AutoGroups')}
               groupSpecialUsableGroup={form.watch('GroupSpecialUsableGroup')}
+              savedGroupIdentifiers={savedGroupIdentifiers}
+              onIdentifierValidityChange={setAreGroupIdentifiersValid}
               onChange={(field, value) =>
                 handleFieldChange(field as keyof GroupFormValues, value)
               }
@@ -226,6 +235,32 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'JSON map of group → ratio applied when the user selects the group explicitly.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupDisplayNames'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Group display names')}</FormLabel>
+                  <FormControl>
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'JSON map of stable group identifiers to editable display names.'
                     )}
                   </FormDescription>
                   <FormMessage />
