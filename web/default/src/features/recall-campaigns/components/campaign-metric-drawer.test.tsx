@@ -121,7 +121,11 @@ function setupDom() {
       }
       return null
     }
-    click() {}
+    click() {
+      if (this.tagName === 'A' && anchorClickThrows) {
+        throw new Error('safe click failure')
+      }
+    }
     focus() {}
   }
   class TextShim extends NodeShim {
@@ -153,6 +157,16 @@ function setupDom() {
     defaultView: globalThis,
   }
   Object.assign(body, { ownerDocument: documentShim })
+  const appendToBody = body.appendChild.bind(body)
+  body.appendChild = (node: NodeShim) => {
+    const appended = appendToBody(node)
+    if (node instanceof ElementShim && node.tagName === 'A') {
+      node.click = () => {
+        if (anchorClickThrows) throw new Error('safe click failure')
+      }
+    }
+    return appended
+  }
   Object.assign(globalThis, {
     document: documentShim,
     window: globalThis,
@@ -162,8 +176,13 @@ function setupDom() {
     Node: NodeShim,
     IS_REACT_ACT_ENVIRONMENT: true,
     URL: {
-      createObjectURL: () => 'blob:test',
-      revokeObjectURL: () => undefined,
+      createObjectURL: () => {
+        objectUrls.push('blob:test')
+        return 'blob:test'
+      },
+      revokeObjectURL: (url: string) => {
+        revokedUrls.push(url)
+      },
     },
   })
 }
@@ -178,6 +197,8 @@ const exportCalls: Array<{
   metric: RecallMetricKey
   filters: RecallMetricFilters
 }> = []
+const objectUrls: string[] = []
+const revokedUrls: string[] = []
 
 const defaultResult: RecallMetricResult = {
   items: [],
@@ -324,12 +345,43 @@ const pages: Record<string, RecallMetricResult[]> = {
       drilldown_complete: true,
     },
   ],
+  direct_topup: [
+    {
+      items: [
+        {
+          row_id: 30,
+          recipient_id: 40,
+          message_id: 0,
+          user_id: 801,
+          email: 'unknown-currency@example.com',
+          occurred_at: 1_900_000_400,
+          stage_no: 0,
+          state: 'converted',
+          conversion_kind: 'direct',
+          trade_no: 'trade_unknown',
+          payment_category: 'direct_topup',
+          currency: 'UNKNOWN',
+          amount_minor: 9_600,
+          failure_code: '',
+        },
+      ],
+      total: 1,
+      amounts: [{ currency: 'UNKNOWN', amount_minor: 9_600, user_count: 1 }],
+      snapshot: 'unknown-page-snapshot',
+      legacy_unidentified_count: 0,
+      drilldown_complete: true,
+    },
+  ],
 }
 let pendingMetricRequest: {
   metric: RecallMetricKey
   filters: RecallMetricFilters
   resolve: (value: { success: true; data: RecallMetricResult }) => void
+  reject?: (error: Error) => void
 } | null = null
+let metricUserError: Error | null = null
+let exportError: Error | null = null
+let anchorClickThrows = false
 
 mock.module('../api', () => ({
   exportRecallCampaignMetricUsers: async (
@@ -338,6 +390,7 @@ mock.module('../api', () => ({
     filters: RecallMetricFilters
   ) => {
     exportCalls.push({ metric, filters })
+    if (exportError) throw exportError
     return new Blob(['ok'], { type: 'text/csv' })
   },
   getRecallCampaignMetricUsers: async (
@@ -348,11 +401,12 @@ mock.module('../api', () => ({
     metricUserCalls.push({ metric, filters })
     if (pendingMetricRequest?.metric === metric) {
       return await new Promise<{ success: true; data: RecallMetricResult }>(
-        (resolve) => {
-          pendingMetricRequest = { metric, filters, resolve }
+        (resolve, reject) => {
+          pendingMetricRequest = { metric, filters, resolve, reject }
         }
       )
     }
+    if (metricUserError) throw metricUserError
     const pageIndex = filters.cursor ? 1 : 0
     return {
       success: true,
@@ -525,7 +579,12 @@ async function click(label: string) {
 afterEach(() => {
   metricUserCalls.length = 0
   exportCalls.length = 0
+  objectUrls.length = 0
+  revokedUrls.length = 0
   pendingMetricRequest = null
+  metricUserError = null
+  exportError = null
+  anchorClickThrows = false
   for (const key of Object.keys(inputProps)) delete inputProps[key]
   for (const key of Object.keys(buttonProps)) delete buttonProps[key]
 })
@@ -695,6 +754,132 @@ describe('CampaignMetricCardSection', () => {
     React.act(() => root.unmount())
   })
 
+  test('shows loading, empty, initial error, and retries metric row loads safely', async () => {
+    pendingMetricRequest = {
+      metric: 'messages_failed',
+      filters: {},
+      resolve: () => undefined,
+    }
+    const { container, root } = renderSection({
+      messages_failed: makeCard('messages_failed', 1, 'failed-card-snapshot'),
+    })
+
+    await click('Failed messages')
+    expect(container.textContent).toContain('Loading metric rows')
+
+    await React.act(async () => {
+      pendingMetricRequest?.reject?.(new Error('raw backend metric failure'))
+      pendingMetricRequest = null
+      await wait()
+    })
+    expect(container.textContent).toContain('Unable to load metric rows.')
+    expect(container.textContent).not.toContain('raw backend metric failure')
+
+    await click('Retry')
+    expect(metricUserCalls.at(-1)).toEqual({
+      metric: 'messages_failed',
+      filters: { limit: 50, snapshot: 'failed-card-snapshot' },
+    })
+
+    await React.act(async () => {
+      await wait()
+    })
+    expect(container.textContent).toContain('502')
+
+    React.act(() => root.unmount())
+
+    const empty = renderSection({
+      enrolled: makeCard('enrolled', 0, 'enrolled-card-snapshot', 'identity'),
+    })
+    await click('Enrolled')
+    await React.act(async () => {
+      await wait()
+    })
+    expect(empty.container.textContent).toContain('No metric rows found.')
+
+    React.act(() => empty.root.unmount())
+  })
+
+  test('keeps loaded rows and retries the same cursor after load-more failure', async () => {
+    const { container, root } = renderSection({
+      attributed_spend: makeAmountCard(
+        'attributed_spend',
+        'spend-card-snapshot',
+        9_600,
+        2
+      ),
+    })
+
+    await click('Attributed spend')
+    await React.act(async () => {
+      await wait()
+    })
+    expect(container.textContent).toContain('701')
+
+    pendingMetricRequest = {
+      metric: 'attributed_spend',
+      filters: {},
+      resolve: () => undefined,
+    }
+    await click('Load more')
+    await React.act(async () => {
+      pendingMetricRequest?.reject?.(new Error('raw cursor failure'))
+      pendingMetricRequest = null
+      await wait()
+    })
+
+    expect(container.textContent).toContain('701')
+    expect(container.textContent).not.toContain('702')
+    expect(container.textContent).toContain('Unable to load metric rows.')
+    expect(container.textContent).not.toContain('raw cursor failure')
+
+    await click('Retry')
+    await React.act(async () => {
+      await wait()
+    })
+
+    expect(
+      metricUserCalls.filter((call) => call.filters.cursor === 'spend-next')
+    ).toHaveLength(2)
+    expect(container.textContent).toContain('701')
+    expect(container.textContent).toContain('702')
+
+    React.act(() => root.unmount())
+  })
+
+  test('shows export failures safely, preserves filters, and revokes object URLs when click throws', async () => {
+    const { container, root } = renderSection({
+      messages_failed: makeCard('messages_failed', 1, 'failed-card-snapshot'),
+    })
+
+    await click('Failed messages')
+    await React.act(async () => {
+      inputProps['recall-metric-search']?.onChange?.({
+        target: { value: '502' },
+      } as React.ChangeEvent<HTMLInputElement>)
+      await wait()
+    })
+
+    exportError = new Error('raw export failure')
+    await click('Download current results')
+    expect(container.textContent).toContain('Unable to download metric rows.')
+    expect(container.textContent).not.toContain('raw export failure')
+    expect(buttonProps['Download current results']?.disabled).toBeFalse()
+
+    exportError = null
+    anchorClickThrows = true
+    await click('Download current results')
+
+    expect(exportCalls.at(-1)).toEqual({
+      metric: 'messages_failed',
+      filters: { q: '502', snapshot: 'failed-card-snapshot' },
+    })
+    expect(objectUrls).toEqual(['blob:test'])
+    expect(revokedUrls).toEqual(['blob:test'])
+
+    React.act(() => root.unmount())
+  })
+
   test('renders supported filter controls from metadata, including state only when declared', async () => {
     const { container, root } = renderSection({
       candidates: makeCard(
@@ -763,6 +948,34 @@ describe('CampaignMetricCardSection', () => {
     expect(container.textContent).toContain('$96.00 / 2')
     expect(container.textContent).toContain('$16.00 / 1')
     expect(container.textContent).toContain('¥1,600 / 1')
+
+    React.act(() => root.unmount())
+  })
+
+  test('formats zero, negative, and unknown currency amounts without blank count-only values', async () => {
+    const { container, root } = renderSection({
+      attributed_spend: {
+        ...makeAmountCard('attributed_spend', 'spend-card-snapshot', 0, 2),
+        amounts: [
+          { currency: 'USD', amount_minor: 0, user_count: 2 },
+          { currency: 'JPY', amount_minor: -1_600, user_count: 1 },
+        ],
+      },
+      direct_topup: {
+        ...makeAmountCard('direct_topup', 'unknown-card-snapshot', 9_600, 1),
+        amounts: [{ currency: 'UNKNOWN', amount_minor: 9_600, user_count: 1 }],
+      },
+    })
+
+    expect(container.textContent).toContain('$0.00 / 2')
+    expect(container.textContent).toContain('-¥1,600 / 1')
+    expect(container.textContent).toContain('UNKNOWN 9600 minor units / 1')
+
+    await click('Direct top-up')
+    await React.act(async () => {
+      await wait()
+    })
+    expect(container.textContent).toContain('UNKNOWN 9600 minor units')
 
     React.act(() => root.unmount())
   })

@@ -121,7 +121,7 @@ function displayCardValue(card: RecallMetricCard): string {
   return card.amounts
     .map((amount) =>
       [
-        formatRecallCurrencyAmount(amount.currency, amount.amount_minor),
+        formatMetricAmount(amount.currency, amount.amount_minor),
         amount.user_count,
       ]
         .filter((value) => value !== '' && value != null)
@@ -129,6 +129,12 @@ function displayCardValue(card: RecallMetricCard): string {
     )
     .filter(Boolean)
     .join(' / ')
+}
+
+function formatMetricAmount(currency: string, amountMinor: number): string {
+  const formatted = formatRecallCurrencyAmount(currency, amountMinor)
+  if (formatted) return formatted
+  return `${currency.toUpperCase()} ${amountMinor} minor units`
 }
 
 function supported(card: RecallMetricCard, filter: string): boolean {
@@ -172,11 +178,14 @@ function metricDownloadName(campaignId: number, metric: string): string {
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.click()
-  URL.revokeObjectURL(url)
+  try {
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = filename
+    anchor.click()
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
 function rowColumns(card: RecallMetricCard): Array<keyof RecallMetricRow> {
@@ -209,8 +218,8 @@ function formatCell(row: RecallMetricRow, column: keyof RecallMetricRow) {
   }
   if (column === 'amount_minor') {
     return row.currency
-      ? formatRecallCurrencyAmount(row.currency, row.amount_minor)
-      : String(row.amount_minor || '-')
+      ? formatMetricAmount(row.currency, row.amount_minor)
+      : '-'
   }
   return String(row[column] || '-')
 }
@@ -276,6 +285,7 @@ export function CampaignMetricDrawer(
   const [rows, setRows] = useState<RecallMetricRow[]>([])
   const pendingCursorRef = useRef('')
   const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
   const card = props.card
   const metric = card?.key
   const activeFilters = useMemo<RecallMetricFilters>(() => {
@@ -314,6 +324,7 @@ export function CampaignMetricDrawer(
     setCursor('')
     setRows([])
     pendingCursorRef.current = ''
+    setDownloadError('')
   }
   const visibleRows = cursor
     ? [...rows, ...(page?.items ?? [])]
@@ -323,6 +334,7 @@ export function CampaignMetricDrawer(
   const exportCurrent = async () => {
     if (downloading) return
     setDownloading(true)
+    setDownloadError('')
     try {
       const blob = await exportRecallCampaignMetricUsers(
         props.campaignId,
@@ -333,9 +345,15 @@ export function CampaignMetricDrawer(
         })
       )
       downloadBlob(blob, metricDownloadName(props.campaignId, card.key))
+    } catch (_error) {
+      setDownloadError('Unable to download metric rows.')
     } finally {
       setDownloading(false)
     }
+  }
+
+  const retryRows = () => {
+    void query.refetch()
   }
 
   return (
@@ -508,6 +526,11 @@ export function CampaignMetricDrawer(
               {downloading ? t('Downloading') : t('Download current results')}
             </Button>
           </div>
+          {downloadError ? (
+            <p role='alert' className='text-destructive text-sm'>
+              {t(downloadError)}
+            </p>
+          ) : null}
           <Table>
             <TableHeader>
               <TableRow>
@@ -528,6 +551,24 @@ export function CampaignMetricDrawer(
               ))}
             </TableBody>
           </Table>
+          {query.isLoading ? (
+            <p role='status' className='text-muted-foreground text-sm'>
+              {t('Loading metric rows')}
+            </p>
+          ) : null}
+          {query.isError ? (
+            <div role='alert' className='text-destructive space-y-2 text-sm'>
+              <p>{t('Unable to load metric rows.')}</p>
+              <Button type='button' variant='outline' onClick={retryRows}>
+                {t('Retry')}
+              </Button>
+            </div>
+          ) : null}
+          {!query.isLoading && !query.isError && visibleRows.length === 0 ? (
+            <p role='status' className='text-muted-foreground text-sm'>
+              {t('No metric rows found.')}
+            </p>
+          ) : null}
           {nextCursor ? (
             <Button
               variant='outline'

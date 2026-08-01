@@ -170,6 +170,14 @@ const testRecallCampaignKeys = {
   metrics: (id: number) => ['recall-campaigns', id, 'metrics'],
 }
 let previewError: Error | null = null
+let confirmError: Error | null = null
+let batchError: Error | null = null
+let confirmResponse: RecallExclusionPreview | null = null
+let pendingPreviewRequest: {
+  file: File
+  resolve: (value: { success: true; data: RecallExclusionPreview }) => void
+  reject: (error: Error) => void
+} | null = null
 
 function makePreview(
   overrides: Partial<RecallExclusionPreview> = {}
@@ -194,15 +202,27 @@ let nextPreview = makePreview()
 mock.module('../api', () => ({
   confirmRecallCampaignExclusionBatch: async (_id: number, batchId: number) => {
     confirmCalls.push(batchId)
-    return { success: true, data: makePreview({ batch_id: batchId }) }
+    if (confirmError) throw confirmError
+    return {
+      success: true,
+      data: confirmResponse ?? makePreview({ batch_id: batchId }),
+    }
   },
   getRecallCampaignExclusionBatch: async (_id: number, batchId: number) => {
     batchLoads.push(batchId)
+    if (batchError) throw batchError
     return { success: true, data: makePreview({ batch_id: batchId }) }
   },
   previewRecallCampaignExclusions: async (_id: number, file: File) => {
     previewCalls.push(file)
     if (previewError) throw previewError
+    if (pendingPreviewRequest) {
+      return await new Promise<{ success: true; data: RecallExclusionPreview }>(
+        (resolve, reject) => {
+          pendingPreviewRequest = { file, resolve, reject }
+        }
+      )
+    }
     return { success: true, data: nextPreview }
   },
   recallCampaignKeys: testRecallCampaignKeys,
@@ -320,6 +340,10 @@ afterEach(() => {
   confirmCalls.length = 0
   invalidatedKeys.length = 0
   previewError = null
+  confirmError = null
+  batchError = null
+  confirmResponse = null
+  pendingPreviewRequest = null
   for (const key of Object.keys(latestInputs)) delete latestInputs[key]
   for (const key of Object.keys(latestButtons)) delete latestButtons[key]
   nextPreview = makePreview()
@@ -411,7 +435,57 @@ describe('CampaignExclusionDialog', () => {
     expect(invalidatedKeys).toContainEqual(testRecallCampaignKeys.metrics(42))
     expect(invalidatedKeys).toContainEqual(testRecallCampaignKeys.detail(42))
     expect(container.textContent).toContain('Exclusions applied.')
-    expect(container.textContent).toContain('5 queued messages were cancelable')
+    expect(container.textContent).toContain('5 queued messages were canceled')
+
+    React.act(() => root.unmount())
+  })
+
+  test('keeps preview confirmable and retries safely after confirm failure', async () => {
+    const { container, root } = renderDialog({})
+    await chooseFile(new File(['email\nconfirm@example.com\n'], 'users.csv'))
+    await click('Preview exclusions')
+
+    confirmError = new Error('raw confirm failure')
+    await click('Apply exclusions')
+
+    expect(container.textContent).toContain('Unable to apply exclusions.')
+    expect(container.textContent).not.toContain('raw confirm failure')
+    expect(container.textContent).toContain('2 resolved users')
+    expect(latestButtons['Apply exclusions']?.disabled).toBeFalse()
+
+    confirmError = null
+    confirmResponse = makePreview({ batch_id: 73, cancelable_work: 7 })
+    await click('Apply exclusions')
+
+    expect(confirmCalls).toEqual([73, 73])
+    expect(container.textContent).toContain('Exclusions applied.')
+    expect(container.textContent).toContain('7 queued messages were canceled')
+    expect(container.textContent).not.toContain('2 resolved users')
+    expect(latestButtons['Apply exclusions']?.disabled).toBeTrue()
+
+    React.act(() => root.unmount())
+  })
+
+  test('does not restore stale recovered preview after successful confirm or reopen', async () => {
+    confirmResponse = makePreview({ batch_id: 88, cancelable_work: 7 })
+    const openChanges: boolean[] = []
+    const { container, root } = renderDialog({
+      initialBatchId: 88,
+      onOpenChange: (open) => openChanges.push(open),
+    })
+
+    await React.act(async () => {
+      await wait()
+    })
+    await click('Apply exclusions')
+
+    expect(container.textContent).toContain('7 queued messages were canceled')
+    expect(container.textContent).not.toContain('2 resolved users')
+    expect(latestButtons['Apply exclusions']?.disabled).toBeTrue()
+
+    await click('Close')
+    expect(openChanges).toContain(false)
+    expect(container.textContent).not.toContain('2 resolved users')
 
     React.act(() => root.unmount())
   })
@@ -429,6 +503,9 @@ describe('CampaignExclusionDialog', () => {
     expect(container.textContent).not.toContain('private@example.com')
 
     await click('Close')
+    await React.act(async () => {
+      await wait()
+    })
 
     expect(openChanges).toContain(false)
     expect(container.textContent).not.toContain('private@example.com')
@@ -455,6 +532,60 @@ describe('CampaignExclusionDialog', () => {
 
     expect(container.textContent).not.toContain('failed@example.com')
     expect(container.textContent).not.toContain('2 resolved users')
+
+    React.act(() => root.unmount())
+  })
+
+  test('clears raw state immediately and ignores late preview responses after close', async () => {
+    pendingPreviewRequest = {
+      file: new File([], 'placeholder.csv'),
+      resolve: () => undefined,
+      reject: () => undefined,
+    }
+    const { container, root } = renderDialog({})
+    await chooseFile(new File(['email\nlate@example.com\n'], 'users.csv'))
+    await click('Preview exclusions')
+    await click('Preview exclusions')
+
+    expect(previewCalls).toHaveLength(1)
+    await click('Close')
+    expect(container.textContent).not.toContain('late@example.com')
+    expect(container.textContent).not.toContain('2 resolved users')
+
+    await React.act(async () => {
+      pendingPreviewRequest?.resolve({
+        success: true,
+        data: makePreview({ resolved_users: 9 }),
+      })
+      await wait()
+    })
+
+    expect(container.textContent).not.toContain('9 resolved users')
+    expect(container.textContent).not.toContain('Unable to preview exclusions.')
+
+    React.act(() => root.unmount())
+  })
+
+  test('shows a safe retryable error when recovered exclusion batch load fails', async () => {
+    batchError = new Error('raw batch recovery failure')
+    const { container, root } = renderDialog({ initialBatchId: 88 })
+
+    await React.act(async () => {
+      await wait()
+    })
+
+    expect(container.textContent).toContain('Unable to load exclusion batch.')
+    expect(container.textContent).not.toContain('raw batch recovery failure')
+    expect(container.textContent).toContain('Retry')
+
+    batchError = null
+    await click('Retry')
+    await React.act(async () => {
+      await wait()
+    })
+
+    expect(batchLoads).toEqual([88, 88])
+    expect(container.textContent).toContain('2 resolved users')
 
     React.act(() => root.unmount())
   })
