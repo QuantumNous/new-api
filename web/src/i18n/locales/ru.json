@@ -5227,6 +5227,23 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Drag {{group}} to reorder": "Перетащите {{group}}, чтобы изменить порядок",
+    "Move {{group}} up": "Переместить {{group}} вверх",
+    "Move {{group}} down": "Переместить {{group}} вниз",
+    "Remove {{group}}": "Удалить {{group}}",
+    "{{count}} / {{max}} groups selected": "Выбрано групп: {{count}} из {{max}}",
+    "Restore global Auto": "Восстановить глобальный Auto",
+    "Maximum {{max}} groups selected": "Выбрано максимально допустимое число групп: {{max}}",
+    "Add Auto group": "Добавить группу Auto",
+    "Inherit global Auto order": "Наследовать глобальный порядок Auto",
+    "No custom groups. Saving will inherit the complete global Auto order.": "Пользовательские группы не заданы. После сохранения будет унаследован полный глобальный порядок Auto.",
+    "Auto group order": "Порядок групп Auto",
+    "Choose and order the groups this API key will try.": "Выберите и упорядочьте группы, которые будет использовать этот API-ключ.",
+    "Select at most {{max}} Auto groups": "Выберите не более {{max}} групп Auto",
+    "Auto groups must not contain duplicates": "Группы Auto не должны повторяться",
+    "Maximum custom groups per token": "Максимум пользовательских групп на токен",
+    "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.": "Ограничивает только снимки Auto для отдельных токенов. Глобальное наследование Auto не ограничено.",
+    "Enter a positive integer": "Введите положительное целое число"
   }
 }

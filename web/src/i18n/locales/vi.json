@@ -5227,6 +5227,23 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Drag {{group}} to reorder": "Kéo {{group}} để sắp xếp lại",
+    "Move {{group}} up": "Di chuyển {{group}} lên",
+    "Move {{group}} down": "Di chuyển {{group}} xuống",
+    "Remove {{group}}": "Xóa {{group}}",
+    "{{count}} / {{max}} groups selected": "Đã chọn {{count}} / {{max}} nhóm",
+    "Restore global Auto": "Khôi phục Auto toàn cục",
+    "Maximum {{max}} groups selected": "Đã chọn tối đa {{max}} nhóm",
+    "Add Auto group": "Thêm nhóm Auto",
+    "Inherit global Auto order": "Kế thừa thứ tự Auto toàn cục",
+    "No custom groups. Saving will inherit the complete global Auto order.": "Chưa có nhóm tùy chỉnh. Sau khi lưu, thứ tự Auto toàn cục đầy đủ sẽ được kế thừa.",
+    "Auto group order": "Thứ tự nhóm Auto",
+    "Choose and order the groups this API key will try.": "Chọn và sắp xếp các nhóm mà khóa API này sẽ thử.",
+    "Select at most {{max}} Auto groups": "Chọn tối đa {{max}} nhóm Auto",
+    "Auto groups must not contain duplicates": "Các nhóm Auto không được trùng lặp",
+    "Maximum custom groups per token": "Số nhóm tùy chỉnh tối đa cho mỗi token",
+    "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.": "Chỉ giới hạn cấu hình Auto riêng của token. Việc kế thừa Auto toàn cục không bị giới hạn.",
+    "Enter a positive integer": "Nhập một số nguyên dương"
   }
 }

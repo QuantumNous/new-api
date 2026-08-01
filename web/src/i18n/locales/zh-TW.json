@@ -5227,6 +5227,23 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Drag {{group}} to reorder": "拖曳 {{group}} 以重新排序",
+    "Move {{group}} up": "將 {{group}} 上移",
+    "Move {{group}} down": "將 {{group}} 下移",
+    "Remove {{group}}": "移除 {{group}}",
+    "{{count}} / {{max}} groups selected": "已選擇 {{count}} / {{max}} 個分組",
+    "Restore global Auto": "恢復全域 Auto",
+    "Maximum {{max}} groups selected": "已達到 {{max}} 個分組上限",
+    "Add Auto group": "新增 Auto 分組",
+    "Inherit global Auto order": "繼承全域 Auto 順序",
+    "No custom groups. Saving will inherit the complete global Auto order.": "未自訂分組。儲存後將繼承完整的全域 Auto 順序。",
+    "Auto group order": "Auto 分組順序",
+    "Choose and order the groups this API key will try.": "選擇此 API 金鑰要依序嘗試的分組並排序。",
+    "Select at most {{max}} Auto groups": "最多選擇 {{max}} 個 Auto 分組",
+    "Auto groups must not contain duplicates": "Auto 分組不得重複",
+    "Maximum custom groups per token": "每個令牌的最大自訂分組數",
+    "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.": "僅限制令牌專屬的 Auto 快照；繼承全域 Auto 時不受限制。",
+    "Enter a positive integer": "請輸入正整數"
   }
 }

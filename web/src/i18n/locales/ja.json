@@ -5227,6 +5227,23 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Drag {{group}} to reorder": "{{group}} をドラッグして並べ替え",
+    "Move {{group}} up": "{{group}} を上に移動",
+    "Move {{group}} down": "{{group}} を下に移動",
+    "Remove {{group}}": "{{group}} を削除",
+    "{{count}} / {{max}} groups selected": "{{count}} / {{max}} グループを選択済み",
+    "Restore global Auto": "グローバル Auto に戻す",
+    "Maximum {{max}} groups selected": "最大 {{max}} グループを選択済み",
+    "Add Auto group": "Auto グループを追加",
+    "Inherit global Auto order": "グローバル Auto 順序を継承",
+    "No custom groups. Saving will inherit the complete global Auto order.": "カスタムグループはありません。保存すると、グローバル Auto の全順序を継承します。",
+    "Auto group order": "Auto グループの順序",
+    "Choose and order the groups this API key will try.": "この API キーが試行するグループを選択して並べ替えます。",
+    "Select at most {{max}} Auto groups": "Auto グループは最大 {{max}} 個まで選択できます",
+    "Auto groups must not contain duplicates": "Auto グループを重複させることはできません",
+    "Maximum custom groups per token": "トークンごとのカスタムグループ上限",
+    "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.": "トークン固有の Auto スナップショットだけを制限します。グローバル Auto の継承には上限がありません。",
+    "Enter a positive integer": "正の整数を入力してください"
   }
 }

@@ -5227,6 +5227,23 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Drag {{group}} to reorder": "Drag {{group}} to reorder",
+    "Move {{group}} up": "Move {{group}} up",
+    "Move {{group}} down": "Move {{group}} down",
+    "Remove {{group}}": "Remove {{group}}",
+    "{{count}} / {{max}} groups selected": "{{count}} / {{max}} groups selected",
+    "Restore global Auto": "Restore global Auto",
+    "Maximum {{max}} groups selected": "Maximum {{max}} groups selected",
+    "Add Auto group": "Add Auto group",
+    "Inherit global Auto order": "Inherit global Auto order",
+    "No custom groups. Saving will inherit the complete global Auto order.": "No custom groups. Saving will inherit the complete global Auto order.",
+    "Auto group order": "Auto group order",
+    "Choose and order the groups this API key will try.": "Choose and order the groups this API key will try.",
+    "Select at most {{max}} Auto groups": "Select at most {{max}} Auto groups",
+    "Auto groups must not contain duplicates": "Auto groups must not contain duplicates",
+    "Maximum custom groups per token": "Maximum custom groups per token",
+    "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.": "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.",
+    "Enter a positive integer": "Enter a positive integer"
   }
 }
