@@ -1,10 +1,20 @@
 package model
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // setupChannelCache installs a synthetic in-memory channel cache for the given
@@ -17,6 +27,12 @@ func setupChannelCache(t *testing.T, group, modelName string, entries [][3]int) 
 	oldGroup2model := group2model2channels
 	oldChannelsIDM := channelsIDM
 	oldAdvanced := channel2advancedCustomConfig
+	oldCooldownEntries := make(map[any]any)
+	channelKeyCooldown.Range(func(key, value any) bool {
+		oldCooldownEntries[key] = value
+		channelKeyCooldown.Delete(key)
+		return true
+	})
 
 	common.MemoryCacheEnabled = true
 
@@ -44,6 +60,13 @@ func setupChannelCache(t *testing.T, group, modelName string, entries [][3]int) 
 		group2model2channels = oldGroup2model
 		channelsIDM = oldChannelsIDM
 		channel2advancedCustomConfig = oldAdvanced
+		channelKeyCooldown.Range(func(key, _ any) bool {
+			channelKeyCooldown.Delete(key)
+			return true
+		})
+		for key, value := range oldCooldownEntries {
+			channelKeyCooldown.Store(key, value)
+		}
 	}
 }
 
@@ -58,34 +81,21 @@ func TestGetRandomSatisfiedChannel_ExcludesFailedChannels(t *testing.T) {
 	// exclude ch1 -> must return ch2 or ch3, never ch1
 	for i := 0; i < 20; i++ {
 		ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", map[int]bool{1: true})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if ch == nil {
-			t.Fatal("expected a channel, got nil")
-		}
-		if ch.Id == 1 {
-			t.Fatalf("excluded channel #1 was returned")
-		}
+		require.NoError(t, err)
+		require.NotNil(t, ch)
+		require.NotEqual(t, 1, ch.Id, "excluded channel #1 was returned")
 	}
 
 	// exclude ch1+ch2 -> must return ch3
 	ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", map[int]bool{1: true, 2: true})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ch == nil || ch.Id != 3 {
-		t.Fatalf("expected ch3, got %v", ch)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, ch)
+	require.Equal(t, 3, ch.Id)
 
 	// exclude all -> no more channels to try
 	ch, err = GetRandomSatisfiedChannel("default", "gpt-x", "", map[int]bool{1: true, 2: true, 3: true})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ch != nil {
-		t.Fatalf("expected nil when all channels excluded, got #%d", ch.Id)
-	}
+	require.NoError(t, err)
+	require.Nil(t, ch)
 }
 
 // TestGetRandomSatisfiedChannel_PriorityDescentAfterExhaustion verifies bug #6:
@@ -102,22 +112,16 @@ func TestGetRandomSatisfiedChannel_PriorityDescentAfterExhaustion(t *testing.T) 
 	// exclude ch1 -> must still return ch2 (same top priority), not descend to ch3
 	for i := 0; i < 20; i++ {
 		ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", map[int]bool{1: true})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if ch == nil || ch.Id != 2 {
-			t.Fatalf("expected ch2 (same priority), got %v", ch)
-		}
+		require.NoError(t, err)
+		require.NotNil(t, ch)
+		require.Equal(t, 2, ch.Id)
 	}
 
 	// exclude ch1+ch2 -> descend to ch3
 	ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", map[int]bool{1: true, 2: true})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ch == nil || ch.Id != 3 {
-		t.Fatalf("expected ch3 after top priority exhausted, got %v", ch)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, ch)
+	require.Equal(t, 3, ch.Id)
 }
 
 // TestGetRandomSatisfiedChannel_NilExcludeBackwardCompat verifies that with no
@@ -131,12 +135,9 @@ func TestGetRandomSatisfiedChannel_NilExcludeBackwardCompat(t *testing.T) {
 
 	for i := 0; i < 20; i++ {
 		ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", nil)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if ch == nil || ch.Id != 1 {
-			t.Fatalf("expected top-priority ch1, got %v", ch)
-		}
+		require.NoError(t, err)
+		require.NotNil(t, ch)
+		require.Equal(t, 1, ch.Id)
 	}
 }
 
@@ -151,42 +152,28 @@ func TestCountAvailableChannels(t *testing.T) {
 	})
 	defer cleanup()
 
-	if n := CountAvailableChannels("default", "gpt-x", ""); n != 3 {
-		t.Fatalf("expected 3 available channels, got %d", n)
-	}
-	if n := CountAvailableChannels("default", "nonexistent", ""); n != 0 {
-		t.Fatalf("expected 0 for unknown model, got %d", n)
-	}
-	if n := CountAvailableChannels("nonexistent", "gpt-x", ""); n != 0 {
-		t.Fatalf("expected 0 for unknown group, got %d", n)
-	}
+	assert.Equal(t, 3, CountAvailableChannels("default", "gpt-x", ""))
+	assert.Equal(t, 0, CountAvailableChannels("default", "nonexistent", ""))
+	assert.Equal(t, 0, CountAvailableChannels("nonexistent", "gpt-x", ""))
 }
 
 // TestCountEnabledKeys verifies the per-channel enabled-key count used to size
 // how many times a multi-key channel may be re-selected within one request.
 func TestCountEnabledKeys(t *testing.T) {
 	single := &Channel{Id: 1, Key: "k1"}
-	if n := single.CountEnabledKeys(); n != 1 {
-		t.Fatalf("single-key channel: expected 1, got %d", n)
-	}
+	assert.Equal(t, 1, single.CountEnabledKeys())
 
 	multi := &Channel{Id: 2, Key: "k1\nk2\nk3"}
 	multi.ChannelInfo.IsMultiKey = true
-	if n := multi.CountEnabledKeys(); n != 3 {
-		t.Fatalf("multi-key all enabled: expected 3, got %d", n)
-	}
+	assert.Equal(t, 3, multi.CountEnabledKeys())
 
 	// Disable one key via status list -> count drops to 2.
 	multi.ChannelInfo.MultiKeyStatusList = map[int]int{1: common.ChannelStatusAutoDisabled}
-	if n := multi.CountEnabledKeys(); n != 2 {
-		t.Fatalf("multi-key one disabled: expected 2, got %d", n)
-	}
+	assert.Equal(t, 2, multi.CountEnabledKeys())
 
 	empty := &Channel{Id: 3}
 	empty.ChannelInfo.IsMultiKey = true
-	if n := empty.CountEnabledKeys(); n != 0 {
-		t.Fatalf("multi-key no keys: expected 0, got %d", n)
-	}
+	assert.Equal(t, 0, empty.CountEnabledKeys())
 }
 
 // TestCountAvailableChannels_MultiKeyWeighted verifies the retry budget counts a
@@ -204,7 +191,98 @@ func TestCountAvailableChannels_MultiKeyWeighted(t *testing.T) {
 	ch1.Key = "k1\nk2\nk3"
 	ch1.ChannelInfo.IsMultiKey = true
 
-	if n := CountAvailableChannels("default", "gpt-x", ""); n != 4 {
-		t.Fatalf("expected budget 4 (3 keys + 1), got %d", n)
+	assert.Equal(t, 4, CountAvailableChannels("default", "gpt-x", ""))
+}
+
+func setupChannelDB(t *testing.T, log logger.Interface) *gorm.DB {
+	t.Helper()
+	oldDB := DB
+	oldMemoryCache := common.MemoryCacheEnabled
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: log})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}))
+	DB = db
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() {
+		DB = oldDB
+		common.MemoryCacheEnabled = oldMemoryCache
+		sqlDB, err := db.DB()
+		if err == nil {
+			require.NoError(t, sqlDB.Close())
+		}
+	})
+	return db
+}
+
+func createChannelDBFixture(t *testing.T, db *gorm.DB, id int, group, modelName string, key string) {
+	t.Helper()
+	priority := int64(10)
+	weight := uint(100)
+	require.NoError(t, db.Create(&Channel{
+		Id: id, Key: key, Status: common.ChannelStatusEnabled,
+		Priority: &priority, Weight: &weight, Models: modelName, Group: group,
+	}).Error)
+	require.NoError(t, db.Create(&Ability{
+		Group: group, Model: modelName, ChannelId: id, Enabled: true,
+		Priority: &priority, Weight: weight,
+	}).Error)
+}
+
+func TestGetChannelDBFallsBackToNormalizedModel(t *testing.T) {
+	db := setupChannelDB(t, logger.Default.LogMode(logger.Silent))
+	const requested = "gpt-4o-gizmo-demo"
+	normalized := ratio_setting.FormatMatchingModelName(requested)
+	require.NotEmpty(t, normalized)
+	require.NotEqual(t, requested, normalized)
+	createChannelDBFixture(t, db, 4101, "default", normalized, "k1")
+
+	ch, err := GetChannel("default", requested, "", nil)
+	require.NoError(t, err)
+	require.NotNil(t, ch)
+	assert.Equal(t, 4101, ch.Id)
+}
+
+func TestGetChannelDBPrefersReadyKeyWithinPriority(t *testing.T) {
+	db := setupChannelDB(t, logger.Default.LogMode(logger.Silent))
+	createChannelDBFixture(t, db, 4201, "default", "gpt-x", "k1")
+	createChannelDBFixture(t, db, 4202, "default", "gpt-x", "k2")
+	MarkChannelKeyCooldown(4201, 0, 30)
+
+	for range 20 {
+		ch, err := GetChannel("default", "gpt-x", "", nil)
+		require.NoError(t, err)
+		require.NotNil(t, ch)
+		assert.Equal(t, 4202, ch.Id)
 	}
+
+	MarkChannelKeyCooldown(4202, 0, 30)
+	ch, err := GetChannel("default", "gpt-x", "", nil)
+	require.NoError(t, err)
+	require.NotNil(t, ch, "all-cooling must fall back instead of denying service")
+}
+
+type countingLogger struct {
+	logger.Interface
+	queries int
+}
+
+func (l *countingLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	l.queries++
+	l.Interface.Trace(ctx, begin, fc, err)
+}
+
+func TestCountAvailableChannelsDBBatchesChannelLookup(t *testing.T) {
+	counter := &countingLogger{Interface: logger.Default.LogMode(logger.Silent)}
+	db := setupChannelDB(t, counter)
+	createChannelDBFixture(t, db, 4301, "default", "gpt-x", "k1\nk2")
+	createChannelDBFixture(t, db, 4302, "default", "gpt-x", "k3")
+	var first Channel
+	require.NoError(t, db.First(&first, 4301).Error)
+	first.ChannelInfo.IsMultiKey = true
+	require.NoError(t, db.Model(&first).Update("channel_info", first.ChannelInfo).Error)
+
+	counter.queries = 0
+	assert.Equal(t, 3, CountAvailableChannels("default", "gpt-x", ""))
+	assert.LessOrEqual(t, counter.queries, 3, "ability/filter/channel count must stay batched")
 }

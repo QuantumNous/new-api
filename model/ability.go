@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -71,13 +72,25 @@ func GetChannel(group string, model string, requestPath string, excludeChannels 
 
 	// Load all enabled abilities for this group/model ordered by priority so we
 	// can pick the highest tier that still has non-excluded channels.
-	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
-		Order("priority DESC").
-		Find(&abilities).Error
-	if err != nil {
+	loadAbilities := func(modelName string) error {
+		abilities = nil
+		return DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, modelName, true).
+			Order("priority DESC").
+			Find(&abilities).Error
+	}
+	if err := loadAbilities(model); err != nil {
 		return nil, err
 	}
 	abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
+	if len(abilities) == 0 {
+		normalized := ratio_setting.FormatMatchingModelName(model)
+		if normalized != "" && normalized != model {
+			if err := loadAbilities(normalized); err != nil {
+				return nil, err
+			}
+			abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
+		}
+	}
 	if len(abilities) == 0 {
 		return nil, nil
 	}
@@ -106,8 +119,8 @@ func GetChannel(group string, model string, requestPath string, excludeChannels 
 		return nil, nil
 	}
 
-	weightSum := uint(0)
-	candidates := make([]Ability, 0, len(abilities))
+	priorityAbilities := make([]Ability, 0, len(abilities))
+	channelIDs := make([]int, 0, len(abilities))
 	for _, ability := range abilities {
 		if excludeChannels != nil && excludeChannels[ability.ChannelId] {
 			continue
@@ -115,24 +128,51 @@ func GetChannel(group string, model string, requestPath string, excludeChannels 
 		if abilityPriority(ability) != topPriority {
 			continue
 		}
-		candidates = append(candidates, ability)
-		weightSum += ability.Weight + 10
+		priorityAbilities = append(priorityAbilities, ability)
+		channelIDs = append(channelIDs, ability.ChannelId)
 	}
 
-	channel := Channel{}
+	var priorityChannels []Channel
+	if err := DB.Where("id IN ?", channelIDs).Find(&priorityChannels).Error; err != nil {
+		return nil, err
+	}
+	channelsByID := make(map[int]*Channel, len(priorityChannels))
+	for i := range priorityChannels {
+		channelsByID[priorityChannels[i].Id] = &priorityChannels[i]
+	}
+
+	readyAbilities := make([]Ability, 0, len(priorityAbilities))
+	for _, ability := range priorityAbilities {
+		channel, ok := channelsByID[ability.ChannelId]
+		if ok && !channel.EnabledKeysAllCoolingDown() {
+			readyAbilities = append(readyAbilities, ability)
+		}
+	}
+	if len(readyAbilities) > 0 {
+		priorityAbilities = readyAbilities
+	}
+
+	weightSum := uint(0)
+	for _, ability := range priorityAbilities {
+		weightSum += ability.Weight + 10
+	}
 	weight := common.GetRandomInt(int(weightSum))
-	for _, ability := range candidates {
+	selectedID := 0
+	for _, ability := range priorityAbilities {
 		weight -= int(ability.Weight) + 10
 		if weight <= 0 {
-			channel.Id = ability.ChannelId
+			selectedID = ability.ChannelId
 			break
 		}
 	}
-	if channel.Id == 0 {
-		channel.Id = candidates[len(candidates)-1].ChannelId
+	if selectedID == 0 {
+		selectedID = priorityAbilities[len(priorityAbilities)-1].ChannelId
 	}
-	err = DB.First(&channel, "id = ?", channel.Id).Error
-	return &channel, err
+	channel, ok := channelsByID[selectedID]
+	if !ok {
+		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", selectedID)
+	}
+	return channel, nil
 }
 
 // filterAbilitiesByRequestPathAndModel restricts candidates by request path and

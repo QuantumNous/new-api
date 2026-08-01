@@ -7,8 +7,10 @@ import (
 	"time"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 // newTestContext returns a gin.Context backed by a recorder, enough for
@@ -20,7 +22,15 @@ func newTestContext() *gin.Context {
 }
 
 // infoNotStarted builds a RelayInfo whose HasSendResponse() reports false
-// (no bytes written to the client yet).
+// (no first-response timing recorded yet).
+
+func withRetryStatusCodes(t *testing.T) {
+	t.Helper()
+	previous := operation_setting.AutomaticRetryStatusCodeRanges
+	operation_setting.AutomaticRetryStatusCodeRanges = []operation_setting.StatusCodeRange{{Start: 500, End: 599}}
+	t.Cleanup(func() { operation_setting.AutomaticRetryStatusCodeRanges = previous })
+}
+
 func infoNotStarted() *relaycommon.RelayInfo {
 	now := time.Now()
 	return &relaycommon.RelayInfo{
@@ -30,7 +40,7 @@ func infoNotStarted() *relaycommon.RelayInfo {
 }
 
 // infoStarted builds a RelayInfo whose HasSendResponse() reports true
-// (the response stream has already begun flushing to the client).
+// (the relay has begun reporting first-response timing).
 func infoStarted() *relaycommon.RelayInfo {
 	now := time.Now()
 	return &relaycommon.RelayInfo{
@@ -39,10 +49,11 @@ func infoStarted() *relaycommon.RelayInfo {
 	}
 }
 
-// A retryable upstream error (500) must NOT be retried once part of the
-// response has already been streamed to the client, otherwise the retry would
-// append a second response onto the partial output and corrupt it.
+// A retryable upstream error (500) must NOT be retried once first-response
+// timing has been recorded, because some adaptors are already at their render
+// boundary and a retry could append a second response to the same writer.
 func TestShouldRetry_NoRetryAfterResponseStarted(t *testing.T) {
+	withRetryStatusCodes(t)
 	c := newTestContext()
 	err := types.NewErrorWithStatusCode(
 		&stubErr{"upstream mid-stream failure"},
@@ -50,26 +61,21 @@ func TestShouldRetry_NoRetryAfterResponseStarted(t *testing.T) {
 		http.StatusInternalServerError,
 	)
 
-	if shouldRetry(c, infoStarted(), err, 3) {
-		t.Fatal("must not retry after bytes were sent to the client")
-	}
-	// Same error, nothing sent yet -> retry is allowed.
-	if !shouldRetry(c, infoNotStarted(), err, 3) {
-		t.Fatal("expected retry for a 500 when no response has been sent")
-	}
+	require.False(t, shouldRetry(c, infoStarted(), err, 3))
+	// Same error, no first-response timing -> retry is allowed.
+	require.True(t, shouldRetry(c, infoNotStarted(), err, 3))
 }
 
 // A nil RelayInfo must not panic and must fall through to the normal policy.
 func TestShouldRetry_NilInfoFallsThrough(t *testing.T) {
+	withRetryStatusCodes(t)
 	c := newTestContext()
 	err := types.NewErrorWithStatusCode(
 		&stubErr{"boom"},
 		types.ErrorCode("upstream_error"),
 		http.StatusInternalServerError,
 	)
-	if !shouldRetry(c, nil, err, 3) {
-		t.Fatal("expected retry for a 500 with nil info (no send-state to block on)")
-	}
+	require.True(t, shouldRetry(c, nil, err, 3))
 }
 
 type stubErr struct{ s string }

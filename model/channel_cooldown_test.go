@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChannelKeyCooldown_MarkIsClear(t *testing.T) {
@@ -14,35 +15,24 @@ func TestChannelKeyCooldown_MarkIsClear(t *testing.T) {
 		return true
 	})
 
-	if IsChannelKeyCoolingDown(100, 0) {
-		t.Fatal("fresh key should not be cooling down")
-	}
+	require.False(t, IsChannelKeyCoolingDown(100, 0))
 
 	MarkChannelKeyCooldown(100, 0, 30)
-	if !IsChannelKeyCoolingDown(100, 0) {
-		t.Fatal("key should be cooling down after Mark")
-	}
+	require.True(t, IsChannelKeyCoolingDown(100, 0))
 	// Different key index of the same channel is independent.
-	if IsChannelKeyCoolingDown(100, 1) {
-		t.Fatal("unrelated key index should not be cooling down")
-	}
+	require.False(t, IsChannelKeyCoolingDown(100, 1))
 
 	ClearChannelKeyCooldown(100, 0)
-	if IsChannelKeyCoolingDown(100, 0) {
-		t.Fatal("key should be selectable after Clear")
-	}
+	require.False(t, IsChannelKeyCoolingDown(100, 0))
 }
 
 func TestChannelKeyCooldown_Expiry(t *testing.T) {
 	// A cooldown that already expired must read as not cooling down and be
 	// cleaned up lazily.
 	channelKeyCooldown.Store(channelKeyCooldownMapKey(101, 0), time.Now().Unix()-1)
-	if IsChannelKeyCoolingDown(101, 0) {
-		t.Fatal("expired cooldown should read as not cooling down")
-	}
-	if _, ok := channelKeyCooldown.Load(channelKeyCooldownMapKey(101, 0)); ok {
-		t.Fatal("expired entry should be cleaned up on read")
-	}
+	require.False(t, IsChannelKeyCoolingDown(101, 0))
+	_, ok := channelKeyCooldown.Load(channelKeyCooldownMapKey(101, 0))
+	require.False(t, ok)
 }
 
 func TestChannelKeyCooldown_Clamp(t *testing.T) {
@@ -55,9 +45,8 @@ func TestChannelKeyCooldown_Clamp(t *testing.T) {
 	MarkChannelKeyCooldown(102, 0, MaxChannelCooldownSeconds+10_000)
 	v, _ := channelKeyCooldown.Load(channelKeyCooldownMapKey(102, 0))
 	until, _ := v.(int64)
-	if max := time.Now().Unix() + int64(MaxChannelCooldownSeconds); until > max {
-		t.Fatalf("cooldown not clamped: until=%d, max=%d", until, max)
-	}
+	maxUntil := time.Now().Unix() + int64(MaxChannelCooldownSeconds)
+	require.LessOrEqual(t, until, maxUntil)
 }
 
 func TestEnabledKeysAllCoolingDown_SingleKey(t *testing.T) {
@@ -67,13 +56,9 @@ func TestEnabledKeysAllCoolingDown_SingleKey(t *testing.T) {
 	})
 	ch := &Channel{Id: 200, Key: "k1"}
 
-	if ch.EnabledKeysAllCoolingDown() {
-		t.Fatal("single-key channel with no cooldown should be ready")
-	}
+	require.False(t, ch.EnabledKeysAllCoolingDown())
 	MarkChannelKeyCooldown(200, 0, 30)
-	if !ch.EnabledKeysAllCoolingDown() {
-		t.Fatal("single-key channel with its key cooling should report all-cooling")
-	}
+	require.True(t, ch.EnabledKeysAllCoolingDown())
 }
 
 func TestEnabledKeysAllCoolingDown_MultiKey(t *testing.T) {
@@ -86,15 +71,11 @@ func TestEnabledKeysAllCoolingDown_MultiKey(t *testing.T) {
 
 	// One of three keys cooling -> channel still has ready keys.
 	MarkChannelKeyCooldown(201, 0, 30)
-	if ch.EnabledKeysAllCoolingDown() {
-		t.Fatal("channel with 2 ready keys should not be all-cooling")
-	}
+	require.False(t, ch.EnabledKeysAllCoolingDown())
 	// All three cooling -> all-cooling.
 	MarkChannelKeyCooldown(201, 1, 30)
 	MarkChannelKeyCooldown(201, 2, 30)
-	if !ch.EnabledKeysAllCoolingDown() {
-		t.Fatal("channel with every key cooling should report all-cooling")
-	}
+	require.True(t, ch.EnabledKeysAllCoolingDown())
 }
 
 func TestEnabledKeysAllCoolingDown_SkipsDisabledKeys(t *testing.T) {
@@ -107,9 +88,7 @@ func TestEnabledKeysAllCoolingDown_SkipsDisabledKeys(t *testing.T) {
 	// Disable key 1; only key 0 counts. Cool key 0 -> all (enabled) cooling.
 	ch.ChannelInfo.MultiKeyStatusList = map[int]int{1: common.ChannelStatusAutoDisabled}
 	MarkChannelKeyCooldown(202, 0, 30)
-	if !ch.EnabledKeysAllCoolingDown() {
-		t.Fatal("only enabled key is cooling -> should report all-cooling")
-	}
+	require.True(t, ch.EnabledKeysAllCoolingDown())
 }
 
 // TestGetRandomSatisfiedChannel_SkipsCoolingChannel verifies selection prefers a
@@ -130,23 +109,16 @@ func TestGetRandomSatisfiedChannel_SkipsCoolingChannel(t *testing.T) {
 	MarkChannelKeyCooldown(1, 0, 30)
 	for i := 0; i < 20; i++ {
 		ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", nil)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if ch == nil || ch.Id != 2 {
-			t.Fatalf("expected ch2 (ch1 cooling), got %v", ch)
-		}
+		require.NoError(t, err)
+		require.NotNil(t, ch)
+		require.Equal(t, 2, ch.Id)
 	}
 
 	// Cool ch2 as well -> both cooling, must fall back (never deny service).
 	MarkChannelKeyCooldown(2, 0, 30)
 	ch, err := GetRandomSatisfiedChannel("default", "gpt-x", "", nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ch == nil {
-		t.Fatal("expected a fallback channel when all cooling, got nil")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, ch)
 }
 
 // TestGetNextEnabledKey_SkipsCoolingKey verifies multi-key selection avoids a
@@ -164,11 +136,7 @@ func TestGetNextEnabledKey_SkipsCoolingKey(t *testing.T) {
 	MarkChannelKeyCooldown(300, 0, 30)
 	for i := 0; i < 20; i++ {
 		_, idx, apiErr := ch.GetNextEnabledKey()
-		if apiErr != nil {
-			t.Fatalf("unexpected error: %v", apiErr)
-		}
-		if idx != 1 {
-			t.Fatalf("expected key idx 1 (idx 0 cooling), got %d", idx)
-		}
+		require.Nil(t, apiErr)
+		require.Equal(t, 1, idx)
 	}
 }

@@ -385,12 +385,11 @@ func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.N
 	if openaiErr == nil {
 		return false
 	}
-	// Never retry once any bytes have been written to the client. Retrying
-	// would reuse the same http.ResponseWriter and append a second response
-	// (e.g. a fresh SSE stream from another channel) onto the partial output
-	// already sent, corrupting what the client sees. Individual stream handlers
-	// mostly avoid propagating a retryable error after their first flush, but
-	// this is the single authoritative guard that closes any gap.
+	// HasSendResponse means the relay has recorded first-response timing. Some
+	// adaptors set it immediately before rendering, so treat it conservatively
+	// as the boundary after which a retry could append a second response to the
+	// same writer. This is intentionally stronger than claiming bytes are known
+	// to have been written on every adaptor path.
 	if info != nil && info.HasSendResponse() {
 		return false
 	}

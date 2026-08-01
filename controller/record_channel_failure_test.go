@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // channelErr builds a NewAPIError with an explicit status code and no
@@ -30,12 +32,8 @@ func TestRecordChannelFailure_ChannelLevelExcludesImmediately(t *testing.T) {
 		channelTries := map[int]int{}
 		// A 4-key channel; a single channel-level error must still exclude it at once.
 		recordChannelFailure(94, 4, channelErr(status), excludeChannels, channelTries)
-		if !excludeChannels[94] {
-			t.Fatalf("status %d: channel-level failure must exclude the whole channel on first failure", status)
-		}
-		if channelTries[94] != 0 {
-			t.Fatalf("status %d: channel-level failure must not advance the key-rotation counter, got %d", status, channelTries[94])
-		}
+		require.True(t, excludeChannels[94], "status %d must exclude the whole channel", status)
+		assert.Equal(t, 0, channelTries[94], "status %d must not rotate keys", status)
 	}
 }
 
@@ -50,19 +48,13 @@ func TestRecordChannelFailure_RateLimitRotatesThenExcludes(t *testing.T) {
 	// First two throttled keys: rotate, do not exclude.
 	for i := 1; i <= 2; i++ {
 		recordChannelFailure(94, enabledKeys, rateLimitErr(), excludeChannels, channelTries)
-		if excludeChannels[94] {
-			t.Fatalf("after %d of %d keys throttled the channel must remain selectable", i, enabledKeys)
-		}
-		if channelTries[94] != i {
-			t.Fatalf("expected channelTries=%d, got %d", i, channelTries[94])
-		}
+		require.False(t, excludeChannels[94], "after %d of %d keys the channel remains selectable", i, enabledKeys)
+		assert.Equal(t, i, channelTries[94])
 	}
 
 	// Third throttled key exhausts the channel: now exclude.
 	recordChannelFailure(94, enabledKeys, rateLimitErr(), excludeChannels, channelTries)
-	if !excludeChannels[94] {
-		t.Fatal("channel must be excluded once all enabled keys have been throttled")
-	}
+	require.True(t, excludeChannels[94])
 }
 
 // A single-key channel behaves identically for both failure classes: one
@@ -72,15 +64,22 @@ func TestRecordChannelFailure_SingleKeyExcludesOnFirstFailure(t *testing.T) {
 	excludeChannels := map[int]bool{}
 	channelTries := map[int]int{}
 	recordChannelFailure(8, 1, rateLimitErr(), excludeChannels, channelTries)
-	if !excludeChannels[8] {
-		t.Fatal("single-key channel must be excluded on its first rate-limit failure")
-	}
+	require.True(t, excludeChannels[8])
 
 	// Channel-level error on a single-key channel: excluded, counter untouched.
 	excludeChannels = map[int]bool{}
 	channelTries = map[int]int{}
 	recordChannelFailure(8, 1, channelErr(http.StatusServiceUnavailable), excludeChannels, channelTries)
-	if !excludeChannels[8] {
-		t.Fatal("single-key channel must be excluded on its first channel-level failure")
-	}
+	require.True(t, excludeChannels[8])
+}
+
+func TestRecordChannelFailure_RetryAfterOn5xxIsChannelLevel(t *testing.T) {
+	err := channelErr(http.StatusServiceUnavailable)
+	err.RetryAfterSeconds = 60
+	excludeChannels := map[int]bool{}
+	channelTries := map[int]int{}
+
+	recordChannelFailure(94, 4, err, excludeChannels, channelTries)
+	require.True(t, excludeChannels[94])
+	assert.Equal(t, 0, channelTries[94])
 }

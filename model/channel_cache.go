@@ -274,16 +274,27 @@ func CountAvailableChannels(group string, model string, requestPath string) int 
 		}
 		abilities = filterAbilitiesByRequestPathAndModel(abilities, requestPath, model)
 		seen := make(map[int]struct{}, len(abilities))
-		total := 0
+		channelIDs := make([]int, 0, len(abilities))
 		for _, ability := range abilities {
 			if _, ok := seen[ability.ChannelId]; ok {
 				continue
 			}
 			seen[ability.ChannelId] = struct{}{}
-			if channel, err := GetChannelById(ability.ChannelId, true); err == nil {
-				total += channel.CountEnabledKeys()
+			channelIDs = append(channelIDs, ability.ChannelId)
+		}
+
+		total := 0
+		if len(channelIDs) > 0 {
+			var channels []Channel
+			if err := DB.Select("id", commonKeyCol, "channel_info").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+				total = len(channelIDs)
 			} else {
-				total++
+				found := make(map[int]struct{}, len(channels))
+				for i := range channels {
+					found[channels[i].Id] = struct{}{}
+					total += channels[i].CountEnabledKeys()
+				}
+				total += len(channelIDs) - len(found)
 			}
 		}
 		if total == 0 {
