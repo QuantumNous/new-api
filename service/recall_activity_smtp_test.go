@@ -2,8 +2,12 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
+	"net"
+	"net/textproto"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -13,6 +17,46 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestRecallActivitySMTPClassifiesAttemptOutcomes(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want recallSMTPAttemptOutcome
+	}{
+		{name: "accepted", want: recallSMTPAttemptAccepted},
+		{name: "smtp_4xx_retryable", err: &textproto.Error{Code: 421, Msg: "service unavailable"}, want: recallSMTPAttemptRetryable},
+		{name: "smtp_5xx_permanent", err: &textproto.Error{Code: 550, Msg: "mailbox unavailable user@example.com"}, want: recallSMTPAttemptPermanent},
+		{name: "raw_4xx_retryable", err: errors.New("451 temporary local problem for user@example.com"), want: recallSMTPAttemptRetryable},
+		{name: "raw_5xx_permanent", err: errors.New("550 mailbox unavailable user@example.com"), want: recallSMTPAttemptPermanent},
+		{name: "connection_refused_retryable", err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}, want: recallSMTPAttemptRetryable},
+		{name: "post_data_uncertain", err: recallSMTPUncertainError{err: errors.New("connection reset after DATA")}, want: recallSMTPAttemptUncertain},
+		{name: "deterministic_content_rejection_permanent", err: errors.New("email headers must not contain CR or LF"), want: recallSMTPAttemptPermanent},
+		{name: "unknown_error_uncertain", err: errors.New("provider closed connection"), want: recallSMTPAttemptUncertain},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			require.Equal(t, testCase.want, classifyRecallSMTPAttempt(testCase.err).Outcome)
+		})
+	}
+}
+
+func TestRecallActivitySMTPRetryDelaysAreExactFourSlots(t *testing.T) {
+	require.Equal(t, [...]time.Duration{
+		30 * time.Second,
+		time.Minute,
+		2 * time.Minute,
+		4 * time.Minute,
+	}, recallSMTPRetryDelays)
+}
+
+func resetRecallSMTPOutcomeCountersForTest() {
+	recallSMTPOutcomeCounters.accepted.Store(0)
+	recallSMTPOutcomeCounters.retryable.Store(0)
+	recallSMTPOutcomeCounters.permanent.Store(0)
+	recallSMTPOutcomeCounters.uncertain.Store(0)
+}
 
 func setupRecallActivitySMTPServiceTest(t *testing.T) *gorm.DB {
 	t.Helper()
