@@ -14,12 +14,27 @@ import (
 // the /usage reconciliation endpoints. Empty => endpoints are closed (503).
 const UsageReconTokenEnv = "BLOCKRUN_USAGE_SUMMARY_TOKEN"
 
+// CustomerUsageTokenEnv is intentionally separate from the Channel Billing
+// credential. Customer consumption data must not be readable by existing
+// Channel Billing consumers.
+const CustomerUsageTokenEnv = "FLUERE_CUSTOMER_USAGE_TOKEN"
+
 // UsageReconAuth guards the reconciliation endpoints with a single static
 // Bearer token (env). It deliberately does NOT use the JWT / token / user
 // system: the token only authenticates the caller, it does not scope a user.
 func UsageReconAuth() gin.HandlerFunc {
+	return usageStaticBearerAuth(UsageReconTokenEnv)
+}
+
+// CustomerUsageAuth guards Customer Billing endpoints for the Fluere
+// server-to-server integration.
+func CustomerUsageAuth() gin.HandlerFunc {
+	return usageStaticBearerAuth(CustomerUsageTokenEnv)
+}
+
+func usageStaticBearerAuth(tokenEnv string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		want := strings.TrimSpace(common.GetEnvOrDefaultString(UsageReconTokenEnv, ""))
+		want := strings.TrimSpace(common.GetEnvOrDefaultString(tokenEnv, ""))
 		if want == "" {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "usage reconciliation token not configured"})
 			c.Abort()
