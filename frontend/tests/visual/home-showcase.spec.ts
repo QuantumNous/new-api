@@ -36,12 +36,12 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
       await assertNoHorizontalOverflow(page)
       await expect(page.locator('.scroll-activity-indicator')).toHaveCount(0)
       await expect(page.locator('[data-home-progress-dots]')).toHaveCount(1)
-      await expect(page.locator('[data-home-progress-dot]')).toHaveCount(12)
+      await expect(page.locator('[data-home-progress-dot]')).toHaveCount(2)
       if (viewport === 'desktop') {
         await expect(page.locator('[data-home-progress-dots]')).toBeVisible()
         expect(
           await page
-            .locator('[data-home-progress-dot][aria-current="step"] span')
+            .locator('[data-home-progress-dot][aria-current="location"] span')
             .evaluate((element) => getComputedStyle(element).animationName)
         ).toBe('none')
       } else {
@@ -155,6 +155,10 @@ test('home runtime workbench remains self-contained', async ({ page }) => {
   await expect(page.locator('.runtime-request-total')).toContainText('32,132')
   await expect(page.locator('.runtime-availability-bar')).toHaveCount(7)
   await expect(page.locator('.runtime-trend polyline')).toHaveCount(1)
+  await expect(page.locator('[data-home-channel-exchange]')).toHaveCount(0)
+  await expect(page.locator('[data-home-token-routing]')).toHaveCount(0)
+  await expect(page.getByText('渠道供应，也能自由买卖')).toHaveCount(0)
+  await expect(page.getByText('每一枚令牌，都有自己的路由表')).toHaveCount(0)
 })
 
 test('home showcase remains intact at narrow mobile width', async ({
@@ -184,28 +188,43 @@ test('home progress dots navigate and track page position', async ({
   await waitForStablePage(page)
 
   const dots = page.locator('[data-home-progress-dot]')
-  await expect(dots).toHaveCount(12)
-  await expect(dots.nth(0)).toHaveAttribute('aria-current', 'step')
+  await expect(dots).toHaveCount(2)
+  await expect(dots.nth(0)).toHaveAttribute('aria-current', 'location')
 
-  await dots.nth(11).click()
+  await dots.nth(1).click()
   await expect
     .poll(() => page.evaluate(() => window.scrollY), { timeout: 2_000 })
     .toBeGreaterThan(0)
-  await expect(dots.nth(11)).toHaveAttribute('aria-current', 'step')
+  await expect(dots.nth(1)).toHaveAttribute('aria-current', 'location')
+  await expect(page.locator('#home-runtime')).toBeInViewport()
 
   await dots.nth(0).focus()
   await page.keyboard.press('Enter')
   await expect
     .poll(() => page.evaluate(() => window.scrollY), { timeout: 2_000 })
     .toBeLessThan(2)
-  await expect(dots.nth(0)).toHaveAttribute('aria-current', 'step')
+  await expect(dots.nth(0)).toHaveAttribute('aria-current', 'location')
 
-  await dots.nth(5).focus()
+  await dots.nth(1).focus()
   await page.keyboard.press('Space')
   await expect
     .poll(() => page.evaluate(() => window.scrollY), { timeout: 2_000 })
     .toBeGreaterThan(0)
-  await expect(dots.nth(5)).toHaveAttribute('aria-current', 'step')
+  await expect(dots.nth(1)).toHaveAttribute('aria-current', 'location')
+})
+
+test('home progress dots activate the runtime section at a tall viewport', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1400 })
+  await configureStablePage(page, { theme: 'light', authenticated: true })
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await waitForStablePage(page)
+
+  const dots = page.locator('[data-home-progress-dot]')
+  await dots.nth(1).click()
+  await expect(dots.nth(1)).toHaveAttribute('aria-current', 'location')
+  await expect(page.locator('#home-runtime')).toBeInViewport()
 })
 
 test('homepage display fonts stay scoped away from the console', async ({

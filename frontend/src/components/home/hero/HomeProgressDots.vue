@@ -1,19 +1,19 @@
 <template>
   <nav
     class="home-progress-dots"
-    aria-label="首页进度导航"
+    :aria-label="t('showcase.progress.label')"
     data-home-progress-dots
   >
     <button
-      v-for="index in DOT_COUNT"
-      :key="index"
+      v-for="(section, index) in sections"
+      :key="section.id"
       type="button"
       class="home-progress-dots__dot"
-      :class="{ 'is-active': activeIndex === index - 1 }"
-      :aria-current="activeIndex === index - 1 ? 'step' : undefined"
-      :aria-label="`页面进度 ${index} / ${DOT_COUNT}`"
-      :data-home-progress-dot="index - 1"
-      @click="scrollToIndex(index - 1)"
+      :class="{ 'is-active': activeIndex === index }"
+      :aria-current="activeIndex === index ? 'location' : undefined"
+      :aria-label="section.label"
+      :data-home-progress-dot="index"
+      @click="scrollToIndex(index)"
     >
       <span aria-hidden="true" />
     </button>
@@ -22,34 +22,48 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
-const DOT_COUNT = 12
+const { t } = useI18n()
+const sections = computed(() => [
+  {
+    id: 'hero-immersive-stage',
+    label: t('showcase.progress.hero'),
+  },
+  {
+    id: 'home-runtime',
+    label: t('showcase.progress.runtime'),
+  },
+])
 
-const scrollProgress = ref(0)
+const activeIndex = ref(0)
 const reducedMotion = ref(false)
 
 let frameId: number | undefined
 let resizeObserver: ResizeObserver | undefined
 let mediaQuery: MediaQueryList | undefined
 
-const activeIndex = computed(() =>
-  Math.round(scrollProgress.value * (DOT_COUNT - 1))
-)
-
-function getScrollMetrics() {
+function updateProgress() {
+  const marker = window.innerHeight * 0.75
   const scrollRoot = document.scrollingElement ?? document.documentElement
   const maxScroll = Math.max(scrollRoot.scrollHeight - window.innerHeight, 0)
-  const currentScroll = Math.min(
-    Math.max(window.scrollY || scrollRoot.scrollTop, 0),
-    maxScroll
-  )
+  const currentScroll = Math.max(window.scrollY || scrollRoot.scrollTop, 0)
 
-  return { currentScroll, maxScroll }
-}
+  if (maxScroll > 0 && currentScroll >= maxScroll - 1) {
+    activeIndex.value = sections.value.length - 1
+    return
+  }
 
-function updateProgress() {
-  const { currentScroll, maxScroll } = getScrollMetrics()
-  scrollProgress.value = maxScroll > 0 ? currentScroll / maxScroll : 0
+  let nextIndex = 0
+
+  sections.value.forEach((section, index) => {
+    const element = document.getElementById(section.id)
+    if (element && element.getBoundingClientRect().top <= marker) {
+      nextIndex = index
+    }
+  })
+
+  activeIndex.value = nextIndex
 }
 
 function scheduleProgress() {
@@ -62,12 +76,12 @@ function scheduleProgress() {
 }
 
 function scrollToIndex(index: number) {
-  const { maxScroll } = getScrollMetrics()
-  const target = maxScroll * (index / (DOT_COUNT - 1))
+  const section = sections.value[index]
+  if (!section) return
 
-  window.scrollTo({
-    top: target,
+  document.getElementById(section.id)?.scrollIntoView({
     behavior: reducedMotion.value ? 'auto' : 'smooth',
+    block: 'start',
   })
 }
 

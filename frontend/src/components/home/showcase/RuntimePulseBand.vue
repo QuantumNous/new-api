@@ -176,6 +176,7 @@ watch(displayRequests, (v) => {
 
 <template>
   <section
+    id="home-runtime"
     ref="sectionRef"
     class="home-band runtime-band"
     aria-labelledby="runtime-title"
