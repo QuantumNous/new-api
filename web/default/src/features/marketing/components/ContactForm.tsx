@@ -144,7 +144,7 @@ export function ContactForm({ locale }: { locale: Locale }) {
         onChange={set('company')}
       />
       <div className='grid gap-4 sm:grid-cols-2'>
-        <Select value={form.region} onValueChange={(v) => setForm((f) => ({ ...f, region: v }))}>
+        <Select value={form.region} onValueChange={(v) => setForm((f) => ({ ...f, region: v ?? '' }))}>
           <SelectTrigger>
             <SelectValue placeholder={t('Region *', '地区 *')} />
           </SelectTrigger>
@@ -156,7 +156,7 @@ export function ContactForm({ locale }: { locale: Locale }) {
             ))}
           </SelectContent>
         </Select>
-        <Select value={form.use_case} onValueChange={(v) => setForm((f) => ({ ...f, use_case: v }))}>
+        <Select value={form.use_case} onValueChange={(v) => setForm((f) => ({ ...f, use_case: v ?? '' }))}>
           <SelectTrigger>
             <SelectValue placeholder={t('Use Case *', '使用场景 *')} />
           </SelectTrigger>
