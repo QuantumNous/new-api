@@ -90,7 +90,7 @@ func TestRecallTranslationTaskTerminalFailureDuplicateAndConditionalRequeue(t *t
 
 	requeued, created, err := SubmitRecallTranslationTask(ctx, submission)
 	require.NoError(t, err)
-	require.False(t, created)
+	require.True(t, created)
 	require.Equal(t, first.Id, requeued.Id)
 	require.Equal(t, RecallTranslationTaskQueued, requeued.Status)
 	require.Equal(t, 1, requeued.AttemptCount)

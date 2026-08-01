@@ -1314,6 +1314,49 @@ func TestEnqueueRecallEmailTranslationsRecordsQueuedObservationWithoutTranslatin
 	require.NotZero(t, response.ID)
 	require.Zero(t, translator.callCount())
 	requireRecallTranslationObservation(t, *observations, "queued", model.RecallTranslationTaskQueued, "", false)
+
+	duplicate, err := service.EnqueueEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+	require.NoError(t, err)
+	require.Equal(t, response.ID, duplicate.ID)
+	require.Zero(t, translator.callCount())
+	require.Equal(t, 1, countRecallTranslationObservations(*observations, "queued", model.RecallTranslationTaskQueued))
+
+	claimed, won, err := model.ClaimDueRecallTranslationTask(context.Background(), response.ID, "enqueue-test", now.Add(time.Second).Unix(), now.Add(time.Minute).Unix())
+	require.NoError(t, err)
+	require.True(t, won)
+	won, err = model.FailRecallTranslationTask(context.Background(), model.RecallTranslationTaskFailure{
+		TaskID:     response.ID,
+		Owner:      "enqueue-test",
+		LeaseEpoch: claimed.LeaseEpoch,
+		ErrorCode:  "translation_failed",
+		FinishedAt: now.Add(2 * time.Second).Unix(),
+	})
+	require.NoError(t, err)
+	require.True(t, won)
+
+	requeued, err := service.EnqueueEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+	require.NoError(t, err)
+	require.Equal(t, response.ID, requeued.ID)
+	require.Equal(t, model.RecallTranslationTaskQueued, requeued.Status)
+	require.Equal(t, 2, countRecallTranslationObservations(*observations, "queued", model.RecallTranslationTaskQueued))
+}
+
+func countRecallTranslationObservations(observations []recallTranslationTaskObservation, event string, status string) int {
+	count := 0
+	for _, observation := range observations {
+		if observation.Event == event && observation.Status == status {
+			count++
+		}
+	}
+	return count
 }
 
 func TestGenerateRecallEmailTranslationsRealPathPreservesManualLocalesOnly(t *testing.T) {

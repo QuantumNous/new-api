@@ -135,6 +135,7 @@ func SubmitRecallTranslationTask(ctx context.Context, submission RecallTranslati
 	if existing.Status != RecallTranslationTaskFailed {
 		return &existing, false, nil
 	}
+	queuedLifecycle := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", existing.Id).First(&existing).Error; err != nil {
 			return err
@@ -186,13 +187,14 @@ func SubmitRecallTranslationTask(ctx context.Context, submission RecallTranslati
 			existing.ErrorCode = ""
 			existing.ErrorMessage = ""
 			existing.FinishedAt = 0
+			queuedLifecycle = true
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, false, err
 	}
-	return &existing, false, nil
+	return &existing, queuedLifecycle, nil
 }
 
 func GetRecallTranslationTaskByCampaignAndID(ctx context.Context, campaignID int64, taskID int64) (*RecallTranslationTask, error) {
