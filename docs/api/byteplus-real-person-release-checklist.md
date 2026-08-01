@@ -116,11 +116,11 @@
 | unknown outcome | `sum(increase(newapi_byteplus_real_person_outcome_unknown_total[30m]))` = 0 | NOT RUN/NO-GO |
 | reconcile error | `sum(increase(newapi_byteplus_real_person_reconcile_total{result="error"}[30m]))` = 0 | NOT RUN/NO-GO |
 | callback bad statuses | `sum(increase(newapi_byteplus_real_person_callback_total{status=~"429|other_4xx|5xx"}[30m]))` = 0 | NOT RUN/NO-GO |
-| callback 2xx probes | callback 2xx increase >= 2 | NOT RUN/NO-GO |
+| callback 2xx probes | `sum(increase(newapi_byteplus_real_person_callback_total{status="2xx"}[30m]))` >= 2，明确覆盖 GET+POST probes | NOT RUN/NO-GO |
 | reconcile freshness | `time() - max(newapi_byteplus_real_person_reconcile_last_success_unixtime)` < 90s | NOT RUN/NO-GO |
 | ending backlog | ending `max by (kind) (newapi_byteplus_real_person_backlog{kind=~"deleting|tos_cleanup_due"})` both 0 | NOT RUN/NO-GO |
-| oldest age | 30m oldest-age query for `deleting` and `tos_cleanup_due` both < 300s | NOT RUN/NO-GO |
-| staging Cloud Run 5xx | staging Cloud Run 5xx increase = 0 | NOT RUN/NO-GO |
+| oldest age | `max_over_time((max by (kind) (newapi_byteplus_real_person_backlog_oldest_update_age_seconds{kind=~"deleting|tos_cleanup_due"}))[30m:])` both kinds < 300s | NOT RUN/NO-GO |
+| staging Cloud Run 5xx | `sum(increase(run_googleapis_com:request_count{monitored_resource="cloud_run_revision",service_name="newapi-staging",response_code_class="5xx"}[30m]))` threshold 0 | NOT RUN/NO-GO |
 
 ## F. 回滚
 
@@ -147,6 +147,9 @@ Drill evidence fields：
 ```powershell
 # Example only: disable capability for each verified channel, then keep workers alive.
 # Do not drop tables, clear tombstones, clear outbox, or revive legacy newapi.
+# Example only, not executed:
+gh workflow run gcp-rollback.yml -f rollback_target=router -f revision=$env:PREVIOUS_ROUTER_REVISION
+gh workflow run gcp-rollback.yml -f rollback_target=console -f revision=$env:PREVIOUS_CONSOLE_REVISION
 ```
 
 ## G. 发布决定
