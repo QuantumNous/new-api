@@ -52,15 +52,7 @@ func TestRecallActivitySMTPRetryDelaysAreExactFourSlots(t *testing.T) {
 	}, recallSMTPRetryDelays)
 }
 
-func resetRecallSMTPOutcomeCountersForTest() {
-	recallSMTPOutcomeCounters.accepted.Store(0)
-	recallSMTPOutcomeCounters.retryable.Store(0)
-	recallSMTPOutcomeCounters.permanent.Store(0)
-	recallSMTPOutcomeCounters.uncertain.Store(0)
-}
-
-func TestRecallSMTPOutcomeObservationLogsAggregateCounters(t *testing.T) {
-	resetRecallSMTPOutcomeCountersForTest()
+func TestRecallSMTPOutcomeObservationLogsSanitizedPerAttempt(t *testing.T) {
 	originalSysLog := recallSMTPOutcomeSysLog
 	var logs []string
 	recallSMTPOutcomeSysLog = func(message string) {
@@ -70,15 +62,18 @@ func TestRecallSMTPOutcomeObservationLogsAggregateCounters(t *testing.T) {
 		recallSMTPOutcomeSysLog = originalSysLog
 	})
 
-	observeRecallSMTPAttemptOutcome(recallSMTPAttemptAccepted)
 	observeRecallSMTPAttemptOutcome(recallSMTPAttemptUncertain)
 
-	require.Len(t, logs, 2)
-	require.Contains(t, logs[1], "outcome=uncertain")
-	require.Contains(t, logs[1], "accepted=1")
-	require.Contains(t, logs[1], "retryable=0")
-	require.Contains(t, logs[1], "permanent=0")
-	require.Contains(t, logs[1], "uncertain=1")
+	require.Len(t, logs, 1)
+	require.Contains(t, logs[0], "recall smtp attempt outcome")
+	require.Contains(t, logs[0], "outcome=uncertain")
+	require.Contains(t, logs[0], "scope=process")
+	require.Contains(t, logs[0], "payload=none")
+	require.NotContains(t, logs[0], "accepted=")
+	require.NotContains(t, logs[0], "retryable=")
+	require.NotContains(t, logs[0], "permanent=")
+	require.NotContains(t, logs[0], "uncertain=")
+	require.NotContains(t, logs[0], "@")
 }
 
 func setupRecallActivitySMTPServiceTest(t *testing.T) *gorm.DB {

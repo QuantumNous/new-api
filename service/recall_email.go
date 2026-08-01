@@ -727,9 +727,13 @@ func (w *RecallEmailWorker) finishErrorWithMessage(ctx context.Context, item *mo
 	if incrementAttempt {
 		attemptCount++
 	}
+	preSendAttemptCount := item.Message.PreSendAttemptCount
+	if retryable && !incrementAttempt {
+		preSendAttemptCount++
+	}
 	retryDelayAttempt := attemptCount
 	if !incrementAttempt {
-		retryDelayAttempt++
+		retryDelayAttempt = preSendAttemptCount
 	}
 	state := model.RecallMessageFailed
 	fields := map[string]any{
@@ -738,6 +742,9 @@ func (w *RecallEmailWorker) finishErrorWithMessage(ctx context.Context, item *mo
 		"failed_at":          w.now().Unix(),
 		"last_error_code":    errorCode,
 		"last_error_message": errorMessage,
+	}
+	if retryable && !incrementAttempt {
+		fields["pre_send_attempt_count"] = preSendAttemptCount
 	}
 	if retryable && retryDelayAttempt < recallEmailMaxAttempts {
 		state = model.RecallMessageRetryWait

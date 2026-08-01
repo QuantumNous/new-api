@@ -572,14 +572,14 @@ func TestRecallEmailLanguageUsesExactSnapshotThenFallsBackToEnglish(t *testing.T
 	}
 }
 
-func TestRecallEmailDefinitePreAcceptFailureRetriesWithNewClaimHash(t *testing.T) {
+func TestRecallEmailTypedSMTPPreDataFailureRetriesWithNewClaimHash(t *testing.T) {
 	calls := 0
 	messageIDs := make([]string, 0, 2)
 	fixture := newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string, _ common.EmailOptions) error {
 		calls++
 		messageIDs = append(messageIDs, messageID)
 		if calls == 1 {
-			return errors.New("temporary MAIL FROM rejection")
+			return &textproto.Error{Code: 421, Msg: "temporary MAIL FROM rejection"}
 		}
 		return nil
 	})
@@ -608,6 +608,88 @@ func TestRecallEmailDefinitePreAcceptFailureRetriesWithNewClaimHash(t *testing.T
 		fmt.Sprintf("<recall-%d-1@notify.example.com>", fixture.recipient.Id),
 		fmt.Sprintf("<recall-%d-1@notify.example.com>", fixture.recipient.Id),
 	}, messageIDs)
+}
+
+func TestRecallEmailPreSendRetryableFailureUsesDurableCounterAndStops(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	productJSON, err := common.Marshal(RecallProductScope{SubscriptionPriceIDs: []string{"price_sub"}})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).
+		Where("id = ?", fixture.campaign.Id).
+		Update("product_scope", string(productJSON)).Error)
+	callbackName := "recall_email_pre_send_retry_bound"
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "subscription_plans" {
+			tx.AddError(errors.New("temporary subscription plan lookup failure"))
+		}
+	}))
+	t.Cleanup(func() { _ = model.DB.Callback().Query().Remove(callbackName) })
+
+	messageID := fixture.message.Id
+	for attempt := 1; attempt <= recallEmailMaxAttempts; attempt++ {
+		attemptStartedAt := fixture.now.Unix()
+		require.NoError(t, fixture.worker.ProcessLeased(context.Background(), messageID))
+		stored := loadRecallEmailMessageByID(t, messageID)
+		require.Zero(t, stored.AttemptCount)
+		require.Equal(t, attempt, stored.PreSendAttemptCount)
+		if attempt == recallEmailMaxAttempts {
+			require.Equal(t, model.RecallMessageFailed, stored.State)
+			require.Zero(t, stored.NextAttemptAt)
+			break
+		}
+		require.Equal(t, model.RecallMessageRetryWait, stored.State)
+		require.Equal(t, attemptStartedAt+int64(recallSMTPRetryDelays[attempt-1]/time.Second), stored.NextAttemptAt)
+		*fixture.now = time.Unix(stored.NextAttemptAt, 0).UTC()
+		won, err := model.LeaseRecallMessage(stored.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
+		require.NoError(t, err)
+		require.True(t, won)
+	}
+}
+
+func TestRecallEmailPreSendRetryDoesNotConsumeExistingSMTPAttemptBudget(t *testing.T) {
+	fixture := newRecallEmailFixture(t, 1, nil)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Update("attempt_count", recallEmailMaxAttempts-1).Error)
+	productJSON, err := common.Marshal(RecallProductScope{SubscriptionPriceIDs: []string{"price_sub"}})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).
+		Where("id = ?", fixture.campaign.Id).
+		Update("product_scope", string(productJSON)).Error)
+	failProductLookup := true
+	callbackName := "recall_email_pre_send_retry_independent_from_smtp_attempts"
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if failProductLookup && tx.Statement.Table == "subscription_plans" {
+			tx.AddError(errors.New("temporary subscription plan lookup failure"))
+		}
+	}))
+	t.Cleanup(func() { _ = model.DB.Callback().Query().Remove(callbackName) })
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+	first := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageRetryWait, first.State)
+	require.Equal(t, recallEmailMaxAttempts-1, first.AttemptCount)
+	require.Equal(t, 1, first.PreSendAttemptCount)
+	require.Equal(t, recallEmailTestNow+30, first.NextAttemptAt)
+	require.Empty(t, *fixture.sent)
+
+	failProductLookup = false
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Title:         "Pro monthly",
+		PriceAmount:   20,
+		Currency:      "USD",
+		Enabled:       true,
+		StripePriceId: "price_sub",
+	}).Error)
+	*fixture.now = time.Unix(first.NextAttemptAt, 0).UTC()
+	won, err := model.LeaseRecallMessage(first.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
+	require.NoError(t, err)
+	require.True(t, won)
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), first.Id))
+
+	accepted := loadRecallEmailMessageByID(t, first.Id)
+	require.Equal(t, model.RecallMessageAccepted, accepted.State)
+	require.Equal(t, recallEmailMaxAttempts, accepted.AttemptCount)
+	require.Zero(t, accepted.PreSendAttemptCount)
+	require.Len(t, *fixture.sent, 1)
 }
 
 func TestRecallEmailRetryDelayIsBoundedExponential(t *testing.T) {
@@ -664,43 +746,48 @@ func TestRecallEmailPermanentSMTPFailureStopsImmediately(t *testing.T) {
 	require.NotContains(t, due, stored.Id)
 }
 
-func TestRecallEmailSMTPOutcomeCountersIncrementOncePerDurableOutcome(t *testing.T) {
+func TestRecallEmailSMTPOutcomeLogsOncePerDurableOutcome(t *testing.T) {
 	tests := []struct {
-		name       string
-		senderErr  error
-		wantState  string
-		wantCounts map[string]int64
+		name        string
+		senderErr   error
+		wantState   string
+		wantOutcome string
 	}{
 		{
-			name:      "accepted",
-			wantState: model.RecallMessageAccepted,
-			wantCounts: map[string]int64{
-				"accepted": 1,
-			},
+			name:        "accepted",
+			wantState:   model.RecallMessageAccepted,
+			wantOutcome: "accepted",
 		},
 		{
-			name:       "retryable",
-			senderErr:  &textproto.Error{Code: 421, Msg: "service temporarily unavailable"},
-			wantState:  model.RecallMessageRetryWait,
-			wantCounts: map[string]int64{"retryable": 1},
+			name:        "retryable",
+			senderErr:   &textproto.Error{Code: 421, Msg: "service temporarily unavailable"},
+			wantState:   model.RecallMessageRetryWait,
+			wantOutcome: "retryable",
 		},
 		{
-			name:       "permanent",
-			senderErr:  &textproto.Error{Code: 550, Msg: "mailbox unavailable snapshot@example.com"},
-			wantState:  model.RecallMessageFailed,
-			wantCounts: map[string]int64{"permanent": 1},
+			name:        "permanent",
+			senderErr:   &textproto.Error{Code: 550, Msg: "mailbox unavailable snapshot@example.com"},
+			wantState:   model.RecallMessageFailed,
+			wantOutcome: "permanent",
 		},
 		{
-			name:       "uncertain",
-			senderErr:  recallSMTPUncertainError{err: errors.New("connection reset after DATA")},
-			wantState:  model.RecallMessageUncertain,
-			wantCounts: map[string]int64{"uncertain": 1},
+			name:        "uncertain",
+			senderErr:   recallSMTPUncertainError{err: errors.New("connection reset after DATA")},
+			wantState:   model.RecallMessageUncertain,
+			wantOutcome: "uncertain",
 		},
 	}
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			resetRecallSMTPOutcomeCountersForTest()
+			originalSysLog := recallSMTPOutcomeSysLog
+			var logs []string
+			recallSMTPOutcomeSysLog = func(message string) {
+				logs = append(logs, message)
+			}
+			t.Cleanup(func() {
+				recallSMTPOutcomeSysLog = originalSysLog
+			})
 			fixture := newRecallEmailFixture(t, 1, func(_ common.SMTPConfig, subject, receiver, content, messageID string, _ common.EmailOptions) error {
 				return testCase.senderErr
 			})
@@ -709,10 +796,9 @@ func TestRecallEmailSMTPOutcomeCountersIncrementOncePerDurableOutcome(t *testing
 
 			stored := loadRecallEmailMessageByID(t, fixture.message.Id)
 			require.Equal(t, testCase.wantState, stored.State)
-			counts := RecallSMTPOutcomeCounterSnapshot()
-			for _, outcome := range []string{"accepted", "retryable", "permanent", "uncertain"} {
-				require.Equal(t, testCase.wantCounts[outcome], counts[outcome], outcome)
-			}
+			require.Equal(t, []string{
+				"recall smtp attempt outcome outcome=" + testCase.wantOutcome + " scope=process payload=none",
+			}, logs)
 		})
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"net/mail"
 	"net/textproto"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -55,13 +54,6 @@ func (e recallSMTPUncertainError) Error() string {
 
 func (e recallSMTPUncertainError) Unwrap() error {
 	return e.err
-}
-
-var recallSMTPOutcomeCounters struct {
-	accepted  atomic.Int64
-	retryable atomic.Int64
-	permanent atomic.Int64
-	uncertain atomic.Int64
 }
 
 type recallActivitySMTPError struct {
@@ -129,34 +121,7 @@ func isRecallSMTPDeterministicRejection(err error) bool {
 var recallSMTPOutcomeSysLog = common.SysLog
 
 func observeRecallSMTPAttemptOutcome(outcome recallSMTPAttemptOutcome) {
-	switch outcome {
-	case recallSMTPAttemptAccepted:
-		recallSMTPOutcomeCounters.accepted.Add(1)
-	case recallSMTPAttemptRetryable:
-		recallSMTPOutcomeCounters.retryable.Add(1)
-	case recallSMTPAttemptPermanent:
-		recallSMTPOutcomeCounters.permanent.Add(1)
-	case recallSMTPAttemptUncertain:
-		recallSMTPOutcomeCounters.uncertain.Add(1)
-	}
-	snapshot := RecallSMTPOutcomeCounterSnapshot()
-	recallSMTPOutcomeSysLog(fmt.Sprintf(
-		"recall smtp attempt outcome outcome=%s accepted=%d retryable=%d permanent=%d uncertain=%d",
-		outcome,
-		snapshot[string(recallSMTPAttemptAccepted)],
-		snapshot[string(recallSMTPAttemptRetryable)],
-		snapshot[string(recallSMTPAttemptPermanent)],
-		snapshot[string(recallSMTPAttemptUncertain)],
-	))
-}
-
-func RecallSMTPOutcomeCounterSnapshot() map[string]int64 {
-	return map[string]int64{
-		string(recallSMTPAttemptAccepted):  recallSMTPOutcomeCounters.accepted.Load(),
-		string(recallSMTPAttemptRetryable): recallSMTPOutcomeCounters.retryable.Load(),
-		string(recallSMTPAttemptPermanent): recallSMTPOutcomeCounters.permanent.Load(),
-		string(recallSMTPAttemptUncertain): recallSMTPOutcomeCounters.uncertain.Load(),
-	}
+	recallSMTPOutcomeSysLog(fmt.Sprintf("recall smtp attempt outcome outcome=%s scope=process payload=none", outcome))
 }
 
 type RecallActivitySMTPInput struct {

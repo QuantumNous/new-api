@@ -23,26 +23,27 @@ const (
 )
 
 type RecallMessage struct {
-	Id                int64   `json:"id" gorm:"primaryKey"`
-	RecipientId       int64   `json:"recipient_id" gorm:"uniqueIndex:idx_recall_recipient_stage,priority:1;index"`
-	StageNo           int     `json:"stage_no" gorm:"uniqueIndex:idx_recall_recipient_stage,priority:2"`
-	TemplateVersion   int     `json:"template_version"`
-	TemplateSnapshot  string  `json:"-" gorm:"not null"`
-	ScheduledAt       int64   `json:"scheduled_at" gorm:"index"`
-	State             string  `json:"state" gorm:"type:varchar(24);not null;index"`
-	StateVersion      int64   `json:"state_version"`
-	AttemptCount      int     `json:"attempt_count"`
-	NextAttemptAt     int64   `json:"next_attempt_at" gorm:"index"`
-	LeaseOwner        string  `json:"-" gorm:"type:varchar(96);index"`
-	LeaseExpiresAt    int64   `json:"-" gorm:"index"`
-	ProviderMessageId string  `json:"provider_message_id" gorm:"type:varchar(255)"`
-	ClaimTokenHash    *string `json:"-" gorm:"type:char(64);uniqueIndex"`
-	AcceptedAt        int64   `json:"accepted_at"`
-	FailedAt          int64   `json:"failed_at"`
-	LastErrorCode     string  `json:"last_error_code" gorm:"type:varchar(64)"`
-	LastErrorMessage  string  `json:"last_error_message" gorm:"type:varchar(512)"`
-	CreatedAt         int64   `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt         int64   `json:"updated_at" gorm:"autoUpdateTime"`
+	Id                  int64   `json:"id" gorm:"primaryKey"`
+	RecipientId         int64   `json:"recipient_id" gorm:"uniqueIndex:idx_recall_recipient_stage,priority:1;index"`
+	StageNo             int     `json:"stage_no" gorm:"uniqueIndex:idx_recall_recipient_stage,priority:2"`
+	TemplateVersion     int     `json:"template_version"`
+	TemplateSnapshot    string  `json:"-" gorm:"not null"`
+	ScheduledAt         int64   `json:"scheduled_at" gorm:"index"`
+	State               string  `json:"state" gorm:"type:varchar(24);not null;index"`
+	StateVersion        int64   `json:"state_version"`
+	AttemptCount        int     `json:"attempt_count"`
+	PreSendAttemptCount int     `json:"pre_send_attempt_count" gorm:"not null;default:0"`
+	NextAttemptAt       int64   `json:"next_attempt_at" gorm:"index"`
+	LeaseOwner          string  `json:"-" gorm:"type:varchar(96);index"`
+	LeaseExpiresAt      int64   `json:"-" gorm:"index"`
+	ProviderMessageId   string  `json:"provider_message_id" gorm:"type:varchar(255)"`
+	ClaimTokenHash      *string `json:"-" gorm:"type:char(64);uniqueIndex"`
+	AcceptedAt          int64   `json:"accepted_at"`
+	FailedAt            int64   `json:"failed_at"`
+	LastErrorCode       string  `json:"last_error_code" gorm:"type:varchar(64)"`
+	LastErrorMessage    string  `json:"last_error_message" gorm:"type:varchar(512)"`
+	CreatedAt           int64   `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt           int64   `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 type RecallEmailWorkItem struct {
@@ -494,16 +495,17 @@ func applyRecallMessageTransitionEventFields(message *RecallMessage, updates map
 
 func recallMessageTransitionAllowedFields() map[string]struct{} {
 	return map[string]struct{}{
-		"accepted_at":         {},
-		"failed_at":           {},
-		"provider_message_id": {},
-		"claim_token_hash":    {},
-		"attempt_count":       {},
-		"next_attempt_at":     {},
-		"last_error_code":     {},
-		"last_error_message":  {},
-		"lease_owner":         {},
-		"lease_expires_at":    {},
+		"accepted_at":            {},
+		"failed_at":              {},
+		"provider_message_id":    {},
+		"claim_token_hash":       {},
+		"attempt_count":          {},
+		"pre_send_attempt_count": {},
+		"next_attempt_at":        {},
+		"last_error_code":        {},
+		"last_error_message":     {},
+		"lease_owner":            {},
+		"lease_expires_at":       {},
 	}
 }
 
@@ -765,14 +767,15 @@ func LeaseRecallMessage(id int64, owner string, now int64, leaseUntil int64) (bo
 
 func CompleteRecallMessageLease(id int64, owner string, expectedLeaseUntil int64, from string, to string, fields map[string]any) (bool, error) {
 	allowedFields := map[string]struct{}{
-		"accepted_at":         {},
-		"failed_at":           {},
-		"provider_message_id": {},
-		"claim_token_hash":    {},
-		"attempt_count":       {},
-		"next_attempt_at":     {},
-		"last_error_code":     {},
-		"last_error_message":  {},
+		"accepted_at":            {},
+		"failed_at":              {},
+		"provider_message_id":    {},
+		"claim_token_hash":       {},
+		"attempt_count":          {},
+		"pre_send_attempt_count": {},
+		"next_attempt_at":        {},
+		"last_error_code":        {},
+		"last_error_message":     {},
 	}
 	updates := make(map[string]any, len(fields)+3)
 	for key, value := range fields {

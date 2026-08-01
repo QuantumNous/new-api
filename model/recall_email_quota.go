@@ -103,6 +103,9 @@ func BeginRecallEmailSMTPAttemptWithContext(
 			To:                 RecallMessageSending,
 			Owner:              owner,
 			ExpectedLeaseUntil: expectedLeaseUntil,
+			Fields: map[string]any{
+				"pre_send_attempt_count": 0,
+			},
 		}})
 		if err != nil {
 			return err

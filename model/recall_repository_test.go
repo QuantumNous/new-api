@@ -36,6 +36,7 @@ func TestRecallOperationsSchemaContract(t *testing.T) {
 	require.True(t, DB.Migrator().HasTable(&RecallCampaignExclusion{}))
 	require.True(t, DB.Migrator().HasTable(&RecallTranslationTask{}))
 	require.True(t, DB.Migrator().HasColumn(&RecallMessage{}, "StateVersion"))
+	require.True(t, DB.Migrator().HasColumn(&RecallMessage{}, "PreSendAttemptCount"))
 	require.True(t, DB.Migrator().HasIndex(&RecallCampaignExclusion{}, "idx_recall_exclusion_campaign_identity"))
 	require.True(t, DB.Migrator().HasIndex(&RecallTranslationTask{}, "idx_recall_translation_due"))
 	require.Equal(t, "BLOB", recallSQLiteColumnType(t, "recall_exclusion_batches", "resolved_user_ids_snapshot"))
@@ -123,6 +124,18 @@ func TestRecallOperationsSchemaColumnCapacities(t *testing.T) {
 	}
 }
 
+func TestRecallMessagePreSendAttemptCountUsesPortableIntegerType(t *testing.T) {
+	setupRecallRepositoryDB(t)
+	parsed, err := schema.Parse(&RecallMessage{}, &sync.Map{}, schema.NamingStrategy{})
+	require.NoError(t, err)
+	field := parsed.LookUpField("PreSendAttemptCount")
+	require.NotNil(t, field)
+	require.Equal(t, "bigint", mysql.New(mysql.Config{}).DataTypeOf(field))
+	require.Equal(t, "bigint", postgres.New(postgres.Config{}).DataTypeOf(field))
+	require.Equal(t, "integer", sqlite.Open(":memory:").DataTypeOf(field))
+	require.Equal(t, "integer", strings.ToLower(recallSQLiteColumnType(t, "recall_messages", "pre_send_attempt_count")))
+}
+
 func TestRecallTranslationSnapshotMySQLWideningSQLUsesLongText(t *testing.T) {
 	for _, columnName := range recallTranslationTaskSnapshotColumns {
 		sql := strings.ToLower(recallTranslationTaskSnapshotLongTextSQL(columnName))
@@ -171,6 +184,7 @@ func TestRecallOperationsMigrationDryRunSQLIsPortable(t *testing.T) {
 			require.NoError(t, db.Migrator().CreateTable(
 				&RecallExclusionBatch{},
 				&RecallCampaignExclusion{},
+				&RecallMessage{},
 				&RecallTranslationTask{},
 			))
 			generatedSQL := strings.ToLower(sqlLog.String())
@@ -182,6 +196,8 @@ func TestRecallOperationsMigrationDryRunSQLIsPortable(t *testing.T) {
 			require.NotEmpty(t, strings.TrimSpace(generatedSQL))
 			require.Contains(t, generatedSQL, "recall_exclusion_batches")
 			require.Contains(t, generatedSQL, "recall_campaign_exclusions")
+			require.Contains(t, generatedSQL, "recall_messages")
+			require.Contains(t, generatedSQL, "pre_send_attempt_count")
 			require.Contains(t, generatedSQL, "recall_translation_tasks")
 			for _, token := range test.typeTokens {
 				require.Contains(t, generatedSQL, token)
