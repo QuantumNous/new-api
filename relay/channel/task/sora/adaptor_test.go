@@ -99,6 +99,30 @@ func TestConvertToOpenAIVideoRewritesAuthContentURLs(t *testing.T) {
 	}
 }
 
+func TestParseTaskResultExtractsCDNURL(t *testing.T) {
+	raw := []byte(`{
+		"id":"task_up",
+		"status":"completed",
+		"progress":100,
+		"url":"https://tos.example.com/out.mp4",
+		"metadata":{"url":"https://tos.example.com/out.mp4"}
+	}`)
+	a := &TaskAdaptor{}
+	ti, err := a.ParseTaskResult(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ti.Status != model.TaskStatusSuccess {
+		t.Fatalf("status = %q, want SUCCESS", ti.Status)
+	}
+	if ti.Url != "https://tos.example.com/out.mp4" {
+		t.Fatalf("url = %q", ti.Url)
+	}
+	if ti.Progress != "100%" {
+		t.Fatalf("progress = %q", ti.Progress)
+	}
+}
+
 func TestConvertToOpenAIVideoKeepsCDNURLs(t *testing.T) {
 	publicID := "task_public456"
 	cdn := "https://cdn.example.com/out.mp4"

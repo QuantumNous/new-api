@@ -405,15 +405,16 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		Code: 0,
 	}
 
-	switch resTask.Status {
+	switch strings.ToLower(strings.TrimSpace(resTask.Status)) {
 	case "queued", "pending":
 		taskResult.Status = model.TaskStatusQueued
-	case "processing", "in_progress":
+	case "processing", "in_progress", "running":
 		taskResult.Status = model.TaskStatusInProgress
-	case "completed":
+	case "completed", "succeeded", "success":
 		taskResult.Status = model.TaskStatusSuccess
-		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
-	case "failed", "cancelled":
+		// OpenAI 官方成片常走 /content 代理；vshiai 等中转会直接返回 CDN url / metadata.url
+		taskResult.Url = extractSoraResultURL(respBody)
+	case "failed", "cancelled", "canceled", "error":
 		taskResult.Status = model.TaskStatusFailure
 		if resTask.Error != nil {
 			taskResult.Reason = resTask.Error.Message
@@ -422,11 +423,23 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		}
 	default:
 	}
-	if resTask.Progress > 0 && resTask.Progress < 100 {
+	if resTask.Progress >= 100 {
+		taskResult.Progress = "100%"
+	} else if resTask.Progress > 0 {
 		taskResult.Progress = fmt.Sprintf("%d%%", resTask.Progress)
 	}
 
 	return &taskResult, nil
+}
+
+func extractSoraResultURL(respBody []byte) string {
+	for _, path := range []string{"url", "video_url", "metadata.url", "metadata.video_url"} {
+		u := strings.TrimSpace(gjson.GetBytes(respBody, path).String())
+		if u != "" && strings.HasPrefix(u, "http") && !isAuthGatedVideoContentURL(u) {
+			return u
+		}
+	}
+	return ""
 }
 
 // authGatedVideoContentURLPaths are response fields that may carry upstream
@@ -463,12 +476,38 @@ func isAuthGatedVideoContentURL(raw string) bool {
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	data := task.Data
 	var err error
+
+	// Data 为空时回退到任务表字段，避免 NOT_START/空 payload 导致客户端看到 status=unknown
+	if len(bytes.TrimSpace(data)) == 0 || !gjson.ValidBytes(data) || gjson.GetBytes(data, "object").String() == "" && gjson.GetBytes(data, "status").String() == "" {
+		openAIVideo := task.ToOpenAIVideo()
+		if openAIVideo.TaskID == "" {
+			openAIVideo.TaskID = task.TaskID
+		}
+		data, err = common.Marshal(openAIVideo)
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal openai video failed")
+		}
+	}
+
 	if data, err = sjson.SetBytes(data, "id", task.TaskID); err != nil {
 		return nil, errors.Wrap(err, "set id failed")
 	}
-	if gjson.GetBytes(data, "task_id").Exists() {
-		if data, err = sjson.SetBytes(data, "task_id", task.TaskID); err != nil {
-			return nil, errors.Wrap(err, "set task_id failed")
+	if data, err = sjson.SetBytes(data, "task_id", task.TaskID); err != nil {
+		return nil, errors.Wrap(err, "set task_id failed")
+	}
+
+	// 用 DB 终态覆盖陈旧的 queued Data，并补齐 CDN 成片地址
+	if dbStatus := task.Status.ToVideoStatus(); dbStatus != dto.VideoStatusUnknown {
+		if data, err = sjson.SetBytes(data, "status", dbStatus); err != nil {
+			return nil, errors.Wrap(err, "set status failed")
+		}
+	}
+	if resultURL := strings.TrimSpace(task.GetResultURL()); resultURL != "" && !taskcommon.IsTaskProxyContentURL(resultURL, task.TaskID) {
+		if data, err = sjson.SetBytes(data, "url", resultURL); err != nil {
+			return nil, errors.Wrap(err, "set url failed")
+		}
+		if data, err = sjson.SetBytes(data, "metadata.url", resultURL); err != nil {
+			return nil, errors.Wrap(err, "set metadata.url failed")
 		}
 	}
 

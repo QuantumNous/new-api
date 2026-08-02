@@ -85,7 +85,10 @@ func ExtractVideoURLFromJSON(raw []byte) string {
 	}
 	s := string(raw)
 	for _, path := range []string{
+		"url",
 		"video_url",
+		"metadata.url",
+		"metadata.video_url",
 		"content.video_url",
 		"data.video_url",
 		"data.url",

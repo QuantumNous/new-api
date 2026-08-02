@@ -16,6 +16,21 @@ func TestExtractVideoURLFromJSONRemixedFromVideoID(t *testing.T) {
 	}
 }
 
+func TestExtractVideoURLFromJSONTopLevelAndMetadataURL(t *testing.T) {
+	raw := []byte(`{
+		"status":"completed",
+		"url":"https://tos.example.com/a.mp4",
+		"metadata":{"url":"https://tos.example.com/b.mp4"}
+	}`)
+	if got := ExtractVideoURLFromJSON(raw); got != "https://tos.example.com/a.mp4" {
+		t.Fatalf("unexpected url: %q", got)
+	}
+	rawMetaOnly := []byte(`{"status":"completed","metadata":{"url":"https://tos.example.com/meta.mp4"}}`)
+	if got := ExtractVideoURLFromJSON(rawMetaOnly); got != "https://tos.example.com/meta.mp4" {
+		t.Fatalf("unexpected metadata url: %q", got)
+	}
+}
+
 func TestExtractVideoURLFromJSONContentVideoURL(t *testing.T) {
 	raw := []byte(`{
 		"status": "succeeded",

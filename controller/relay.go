@@ -592,6 +592,9 @@ func RelayTask(c *gin.Context) {
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
+		// 创建已成功落库时不要停留在 NOT_START，否则 /v1/videos/{id} 会映射成 status=unknown
+		task.Status = model.TaskStatusQueued
+		task.Progress = "10%"
 		service.LogTaskConsumption(c, relayInfo, task.TaskID)
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
