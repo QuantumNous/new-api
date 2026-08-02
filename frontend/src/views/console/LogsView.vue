@@ -187,9 +187,9 @@ const COL_META: Record<
 > = {
   created: { labelKey: 'logs.colTime', width: '140px' },
   identity: { labelKey: 'logs.colIdentity', width: '165px' },
-  route: { labelKey: 'logs.colRoute', width: '200px' },
-  reasoning: { labelKey: 'logs.colReasoning', width: '120px' },
-  performance: { labelKey: 'logs.colPerformance', width: '250px' },
+  route: { labelKey: 'logs.colRoute', width: '178px' },
+  reasoning: { labelKey: 'logs.colReasoning', width: '104px' },
+  performance: { labelKey: 'logs.colPerformance', width: '220px' },
   usage: { labelKey: 'logs.colUsage', width: '190px' },
   cost: { labelKey: 'logs.colCost', width: '108px', align: 'right' },
   content: { labelKey: 'logs.colContent' },
