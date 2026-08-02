@@ -177,3 +177,19 @@ test('dark wide logs keeps a balanced content width', async ({ page }) => {
   await assertInteractiveCentersVisible(page)
   await expect(page).toHaveScreenshot('dark-wide-logs.png', { fullPage: false })
 })
+
+test('dark wide keys matches the balanced content width', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await configureStablePage(page, { theme: 'dark', authenticated: true })
+  await page.goto('/console/keys', { waitUntil: 'domcontentloaded' })
+  await waitForStablePage(page)
+
+  const keyPage = page.locator('[data-key-page]')
+  await expect(keyPage).toBeVisible()
+  expect(
+    await keyPage.evaluate((element) => element.getBoundingClientRect().width)
+  ).toBe(1276)
+  await assertNoHorizontalOverflow(page)
+  await assertInteractiveCentersVisible(page)
+  await expect(page).toHaveScreenshot('dark-wide-keys.png', { fullPage: false })
+})

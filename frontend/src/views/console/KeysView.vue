@@ -235,7 +235,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div @click.capture="captureClick">
+  <div
+    data-key-page
+    class="mx-auto max-w-[1276px]"
+    @click.capture="captureClick"
+  >
     <PageBreadcrumb :crumbs="[t('keys.breadcrumb.0'), t('keys.breadcrumb.1')]">
       <template #action>
         <KeyEndpointStrip />
