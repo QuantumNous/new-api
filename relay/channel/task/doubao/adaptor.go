@@ -134,7 +134,7 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 // EstimateBilling returns OtherRatios for per-second duration and optional video-input discount.
-// When billing_mode=per_second, multiplies by requested duration (default 10s if omitted).
+// When billing_mode=per_second, multiplies by requested duration (default 15s if omitted; settle by actual).
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
@@ -144,7 +144,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if billing_setting.IsPerSecondModel(info.OriginModelName) {
 		sec := durationFromRequest(&req)
 		if sec <= 0 {
-			sec = 10
+			sec = taskcommon.DefaultPerSecondPrechargeSeconds
 		}
 		ratios["seconds"] = float64(sec)
 	}

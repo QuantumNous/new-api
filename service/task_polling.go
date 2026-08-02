@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
@@ -551,17 +552,46 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		ReportTaskUsageToConsumeLog(task, taskResult)
 		return
 	}
-	// 2. 按次计费且无上游 cost 时保持预扣额度
+	// 2. per_second 固定单价：按上游返回的真实时长补差（即使历史任务误标了 PerCallBilling）
+	if actualQuota := quotaFromPerSecondActualDuration(task, taskResult); actualQuota > 0 {
+		RecalculateTaskQuota(ctx, task, actualQuota, "per_second实际时长结算", taskResult)
+		ReportTaskUsageToConsumeLog(task, taskResult)
+		return
+	}
+	// 3. 按次计费且无上游 cost / 时长时保持预扣额度
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过差额结算", task.TaskID))
 		return
 	}
 	if taskResult != nil && taskResult.TotalTokens > 0 {
-		// 2. 回退到 token 重算
+		// 4. 回退到 token 重算
 		RecalculateTaskQuotaByTokens(ctx, task, taskResult)
 	}
-	// 3. 将 usage 写回消费日志（与额度差额是否为零无关）
+	// 5. 将 usage 写回消费日志（与额度差额是否为零无关）
 	ReportTaskUsageToConsumeLog(task, taskResult)
+}
+
+// quotaFromPerSecondActualDuration settles ModelPrice×seconds using duration from poll JSON.
+func quotaFromPerSecondActualDuration(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	if task == nil || taskResult == nil || taskResult.Status != model.TaskStatusSuccess {
+		return 0
+	}
+	bc := task.PrivateData.BillingContext
+	if bc == nil || bc.ModelPrice <= 0 {
+		return 0
+	}
+	modelName := bc.OriginModelName
+	if modelName == "" {
+		modelName = task.Properties.OriginModelName
+	}
+	if !billing_setting.IsPerSecondModel(modelName) {
+		return 0
+	}
+	sec := taskcommon.ExtractDurationSecondsFromJSON(task.Data)
+	if sec <= 0 {
+		return 0
+	}
+	return taskcommon.QuotaFromPerSecondModelPrice(bc.ModelPrice, sec, bc.GroupRatio, bc.OtherRatios)
 }
 
 // mergeTaskUsageFromNestedJSON 从视频/方舟等嵌套 JSON 的 usage 块补全 TaskInfo（New API 轮询路径常不经 adaptor.ParseTaskResult）。

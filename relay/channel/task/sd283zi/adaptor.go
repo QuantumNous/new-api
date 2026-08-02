@@ -958,7 +958,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	}
 	sec := durationFromRequest(&req)
 	if sec <= 0 {
-		sec = 5
+		sec = taskcommon.DefaultPerSecondPrechargeSeconds
 	}
 	return map[string]float64{"seconds": float64(sec)}
 }

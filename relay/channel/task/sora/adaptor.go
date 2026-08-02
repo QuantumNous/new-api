@@ -21,6 +21,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -121,7 +122,11 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		seconds = req.Duration
 	}
 	if seconds <= 0 {
-		seconds = 4
+		if billing_setting.IsPerSecondModel(info.OriginModelName) {
+			seconds = taskcommon.DefaultPerSecondPrechargeSeconds
+		} else {
+			seconds = 4
+		}
 	}
 
 	size := req.Size

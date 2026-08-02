@@ -189,7 +189,7 @@ func TestEstimateBillingPerSecondUsesDuration(t *testing.T) {
 	}
 }
 
-func TestEstimateBillingPerSecondDefaultTen(t *testing.T) {
+func TestEstimateBillingPerSecondDefaultFifteen(t *testing.T) {
 	if err := config.GlobalConfig.LoadFromDB(map[string]string{
 		"billing_setting.billing_mode": `{"doubao-seedance-2.0":"per_second"}`,
 	}); err != nil {
@@ -209,7 +209,7 @@ func TestEstimateBillingPerSecondDefaultTen(t *testing.T) {
 	a := &TaskAdaptor{}
 	info := &relaycommon.RelayInfo{OriginModelName: "doubao-seedance-2.0"}
 	ratios := a.EstimateBilling(c, info)
-	if ratios == nil || ratios["seconds"] != 10 {
-		t.Fatalf("per-second billing should default seconds=10, got %#v", ratios)
+	if ratios == nil || ratios["seconds"] != 15 {
+		t.Fatalf("per-second billing should default seconds=15, got %#v", ratios)
 	}
 }

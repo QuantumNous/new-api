@@ -586,7 +586,9 @@ func RelayTask(c *gin.Context) {
 			ModelRatio:             relayInfo.PriceData.ModelRatio,
 			OtherRatios:            relayInfo.PriceData.OtherRatios,
 			OriginModelName:        relayInfo.OriginModelName,
-			PerCallBilling:         common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			// UsePrice 的按次模型才跳过补差；per_second 必须按实际上游时长结算
+			PerCallBilling: common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) ||
+				(relayInfo.PriceData.UsePrice && !billing_setting.IsPerSecondModel(relayInfo.OriginModelName)),
 			UpstreamCostMultiplier: billing_setting.ResolveUpstreamCostMultiplier(relayInfo.OriginModelName),
 		}
 		task.Quota = result.Quota

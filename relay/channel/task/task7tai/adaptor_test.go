@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
 func TestResolveUpstreamModel(t *testing.T) {
@@ -84,5 +85,27 @@ func TestApiOrigin(t *testing.T) {
 	}
 	if got := apiOrigin("https://api.7tai.cc/v1"); got != "https://api.7tai.cc/v1" {
 		t.Fatalf("apiOrigin with /v1 = %q", got)
+	}
+}
+
+func TestAdjustBillingOnCompleteByActualDuration(t *testing.T) {
+	a := &TaskAdaptor{}
+	task := &model.Task{
+		Data: []byte(`{"code":"success","data":{"data":{"duration":4,"status":"succeeded"}}}`),
+		PrivateData: model.TaskPrivateData{
+			BillingContext: &model.TaskBillingContext{
+				ModelPrice:      0.6,
+				GroupRatio:      1,
+				OriginModelName: "SD2.0-720p",
+				OtherRatios:     map[string]float64{"seconds": 1},
+			},
+		},
+		Properties: model.Properties{OriginModelName: "SD2.0-720p"},
+	}
+	ti := &relaycommon.TaskInfo{Status: model.TaskStatusSuccess}
+	got := a.AdjustBillingOnComplete(task, ti)
+	// 0.6 * 4 * 500000 = 1_200_000
+	if got != 1_200_000 {
+		t.Fatalf("AdjustBillingOnComplete = %d, want 1200000", got)
 	}
 }

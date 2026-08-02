@@ -541,9 +541,32 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	}
 	sec := durationFromRequest(&req)
 	if sec <= 0 {
-		sec = 5
+		sec = taskcommon.DefaultPerSecondPrechargeSeconds
 	}
 	return map[string]float64{"seconds": float64(sec)}
+}
+
+// AdjustBillingOnComplete settles per_second models by upstream actual duration (e.g. data.data.duration).
+func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	if task == nil || taskResult == nil || taskResult.Status != model.TaskStatusSuccess {
+		return 0
+	}
+	bc := task.PrivateData.BillingContext
+	if bc == nil || bc.ModelPrice <= 0 {
+		return 0
+	}
+	modelName := bc.OriginModelName
+	if modelName == "" {
+		modelName = task.Properties.OriginModelName
+	}
+	if !billing_setting.IsPerSecondModel(modelName) && !isPerSecondModel(modelName) {
+		return 0
+	}
+	sec := taskcommon.ExtractDurationSecondsFromJSON(task.Data)
+	if sec <= 0 {
+		return 0
+	}
+	return taskcommon.QuotaFromPerSecondModelPrice(bc.ModelPrice, sec, bc.GroupRatio, bc.OtherRatios)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
