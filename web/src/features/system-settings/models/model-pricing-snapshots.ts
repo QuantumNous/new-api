@@ -82,6 +82,7 @@ const ratioToPrice = (ratio?: string, denominator?: string) => {
 
 export const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
+  if (mode === 'utf8_bytes') return 'UTF-8 bytes'
   if (mode === 'tiered_expr') return 'Expression'
   return 'Per-token'
 }
@@ -91,6 +92,7 @@ export const getModeVariant = (
 ): 'warning' | 'info' | 'success' => {
   if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
+  if (mode === 'utf8_bytes') return 'info'
   return 'success'
 }
 
@@ -114,6 +116,13 @@ export const getPriceSummary = (
   }
   if (row.billingMode === 'per-request') {
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
+  }
+
+  if (row.billingMode === 'utf8_bytes') {
+    const inputPrice = ratioToPrice(row.ratio)
+    return inputPrice
+      ? `$${inputPrice} / 1M ${t('UTF-8 bytes')}`
+      : t('Unset price')
   }
 
   const inputPrice = ratioToPrice(row.ratio)
@@ -144,6 +153,9 @@ export const getPriceDetail = (
   }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')
+  }
+  if (row.billingMode === 'utf8_bytes') {
+    return t('UTF-8 input byte price')
   }
 
   const inputPrice = ratioToPrice(row.ratio)
@@ -229,7 +241,7 @@ export const buildModelSnapshots = ({
     ...Object.keys(billingExprMap),
   ])
 
-  return Array.from(modelNames).map((name) => {
+  return [...modelNames].map((name) => {
     const price = priceMap[name]?.toString() || ''
     const ratio = ratioMap[name]?.toString() || ''
     const cache = cacheMap[name]?.toString() || ''
@@ -257,6 +269,15 @@ export const buildModelSnapshots = ({
         imageRatio: image,
         audioRatio: audio,
         audioCompletionRatio: audioCompletion,
+        hasConflict: false,
+      }
+    }
+
+    if (modeForModel === 'utf8_bytes') {
+      return {
+        name,
+        ratio,
+        billingMode: 'utf8_bytes',
         hasConflict: false,
       }
     }

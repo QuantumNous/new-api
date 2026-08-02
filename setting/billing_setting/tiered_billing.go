@@ -10,6 +10,7 @@ import (
 
 const (
 	BillingModeRatio      = "ratio"
+	BillingModeUTF8Bytes  = "utf8_bytes"
 	BillingModeTieredExpr = "tiered_expr"
 	BillingModeField      = "billing_mode"
 	BillingExprField      = "billing_expr"
