@@ -837,10 +837,9 @@ func GetUserGroup(id int, fromDB bool) (group string, err error) {
 	}
 	fromDB = true
 	// Callers that install DB directly may bypass chooseDB, which normally
-	// initializes reserved-column quoting. Refresh it before querying.
-	if commonGroupCol == "" {
-		initCol()
-	}
+	// initializes reserved-column quoting. Refresh it before querying without
+	// racing concurrent request paths.
+	ensureColInitialized()
 	err = DB.Model(&User{}).Where("id = ?", id).Select(commonGroupCol).Find(&group).Error
 	if err != nil {
 		return "", err

@@ -6,7 +6,8 @@ Stage: development evidence only; not production authorization.
 
 ## Candidate identity
 
-- Branch: `codex/p2-release-candidate-20260801`
+- Branch: `codex/p2-pure-candidate-20260803`
+- Candidate commit: `fc6fcd1a3bf313693142348be6331d293017d0a1`
 - Candidate implementation head before this record: `291659953531e3d32ade33e29df2144cd2a93a3c`
 - Validation record commit: `77dd367` (`docs: record isolated race and migration checks`).
 - Production baseline ancestor: `19be7b44f4cacda68a5c45690e8c2af659d29473`
@@ -49,8 +50,10 @@ the P2 candidate scope and were reproduced after the candidate changes.
 
 ## Release gates still open
 
-- MySQL and PostgreSQL backup-copy migration/rollback drills and CREATE permission
-  checks are not completed; only the local SQLite smoke is recorded here.
+- A local disposable MySQL 8.4 backup-copy-style migration/rollback drill is now
+  complete, including CREATE/index/default checks, a targeted row read-through, and
+  cleanup. It is isolated evidence only and does not establish production backup
+  privileges or production authorization.
 - No local MySQL/PostgreSQL server is available. The Docker client is installed but
   its local socket is unavailable, and `psql` is only a client; no external or
   production endpoint was contacted.

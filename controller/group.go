@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -94,7 +96,12 @@ func ReplaceTokenGroupVisibilityPolicies(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	model.RecordLog(c.GetInt("id"), model.LogTypeSystem, "管理员批量替换令牌分组可见性策略")
+	auditItems := make([]string, 0, len(request.Policies))
+	for _, policy := range request.Policies {
+		auditItems = append(auditItems, fmt.Sprintf("%s=%s", policy.Group, policy.Visibility))
+	}
+	model.RecordLog(c.GetInt("id"), model.LogTypeSystem,
+		"管理员批量替换令牌分组可见性策略："+strings.Join(auditItems, ","))
 	common.ApiSuccess(c, request.Policies)
 }
 

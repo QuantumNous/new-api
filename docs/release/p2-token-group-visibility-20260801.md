@@ -2,7 +2,9 @@
 
 Status: release candidate prepared; production release is not authorized.
 
-Candidate branch: `codex/p2-release-candidate-20260801`
+Candidate branch: `codex/p2-pure-candidate-20260803`
+
+Candidate commit: `fc6fcd1a3bf313693142348be6331d293017d0a1`
 
 Production base: `19be7b44f4cacda68a5c45690e8c2af659d29473`
 Scope: P2 token-group visibility only, layered on the already-reviewed P1 candidate.
@@ -36,6 +38,12 @@ models and to keep SQLite/MySQL/PostgreSQL behavior equivalent:
 - `token_group_visibility_targets`: normalized `(visibility_id, username)` pairs
   for targeted policies.
 
+The GORM model tags use the same `NOT NULL` and `DEFAULT 0` constraints as these
+dialect-specific files. If a node is allowed to run `AutoMigrate`, verify the
+resulting schema before accepting traffic; the release path still requires
+`SKIP_DATABASE_MIGRATION=true` on every production node and the checked-in SQL
+file as the single schema source.
+
 ## Backup-copy migration drill
 
 1. Record the candidate commit and confirm the copy is not a production endpoint.
@@ -52,6 +60,12 @@ models and to keep SQLite/MySQL/PostgreSQL behavior equivalent:
    the matching rollback file. Confirm both tables are gone and the copy restores
    cleanly. Never run these destructive rollback files against production data.
 
+The rollback drill removes only the disposable schema. A code rollback must use the
+previous application image while retaining these two tables; dropping them in a
+production incident is not part of the rollback procedure. If a disposable drill
+does drop the tables, the binary must be rolled back together with that schema
+change, otherwise `AutoMigrate` can recreate them on the next startup.
+
 ## Release sequence (only after explicit authorization)
 
 1. Close the current production observation window and record the baseline health.
@@ -60,6 +74,11 @@ models and to keep SQLite/MySQL/PostgreSQL behavior equivalent:
    hidden, time boundaries, forged create/edit requests, admin-as-user selection,
    existing hidden-token execution, login/price/public-model baseline, and the
    intersection with ordinary group permissions.
+
+For a targeted policy whose start time is in the future, or whose end time has
+passed, fail-closed behavior hides the group from every user outside the active
+window. This is intentional and must be accepted as part of the product behavior;
+it prevents a stale or malformed targeting window from widening access.
 4. Publish the master only after the slave is healthy. Keep the flag off while
    observing the code/schema rollout.
 5. Enable the flag only for the explicitly approved target scope, then observe for

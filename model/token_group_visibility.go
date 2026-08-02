@@ -21,16 +21,16 @@ const (
 // user-usable-group rules. A missing row intentionally preserves legacy behavior.
 type TokenGroupVisibility struct {
 	Id         int    `json:"id"`
-	Group      string `json:"group" gorm:"type:varchar(64);uniqueIndex"`
-	Visibility string `json:"visibility" gorm:"type:varchar(16);index"`
+	Group      string `json:"group" gorm:"type:varchar(64);not null;uniqueIndex"`
+	Visibility string `json:"visibility" gorm:"type:varchar(16);not null;index"`
 	StartTime  int64  `json:"start_time" gorm:"bigint;default:0"`
 	EndTime    int64  `json:"end_time" gorm:"bigint;default:0"`
 }
 
 type TokenGroupVisibilityTarget struct {
 	Id           int    `json:"id"`
-	VisibilityId int    `json:"visibility_id" gorm:"index;uniqueIndex:idx_visibility_username"`
-	Username     string `json:"username" gorm:"type:varchar(64);uniqueIndex:idx_visibility_username"`
+	VisibilityId int    `json:"visibility_id" gorm:"not null;index;uniqueIndex:idx_visibility_username"`
+	Username     string `json:"username" gorm:"type:varchar(64);not null;uniqueIndex:idx_visibility_username"`
 }
 
 type TokenGroupVisibilityPolicy struct {
@@ -54,24 +54,38 @@ func GetTokenGroupVisibilityPolicies() ([]TokenGroupVisibilityPolicy, error) {
 		return nil, err
 	}
 	policies := make([]TokenGroupVisibilityPolicy, 0, len(rows))
-	for _, row := range rows {
+	targetsByVisibility := make(map[int][]string, len(rows))
+	if len(rows) > 0 {
 		var targets []TokenGroupVisibilityTarget
-		if err := DB.Where("visibility_id = ?", row.Id).Order("username asc").Find(&targets).Error; err != nil {
+		ids := make([]int, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.Id)
+		}
+		if err := DB.Where("visibility_id IN ?", ids).Order("username asc").Find(&targets).Error; err != nil {
 			return nil, err
 		}
-		policy := TokenGroupVisibilityPolicy{Group: row.Group, Visibility: row.Visibility, StartTime: row.StartTime, EndTime: row.EndTime}
 		for _, target := range targets {
-			policy.Usernames = append(policy.Usernames, target.Username)
+			targetsByVisibility[target.VisibilityId] = append(targetsByVisibility[target.VisibilityId], target.Username)
 		}
-		policies = append(policies, policy)
+	}
+	for _, row := range rows {
+		policies = append(policies, TokenGroupVisibilityPolicy{
+			Group: row.Group, Visibility: row.Visibility, StartTime: row.StartTime,
+			EndTime: row.EndTime, Usernames: targetsByVisibility[row.Id],
+		})
 	}
 	return policies, nil
 }
 
-func normalizeTokenGroupVisibilityPolicy(policy TokenGroupVisibilityPolicy) (TokenGroupVisibilityPolicy, error) {
+func normalizeTokenGroupVisibilityPolicy(policy TokenGroupVisibilityPolicy, allowExistingOrphan bool) (TokenGroupVisibilityPolicy, error) {
 	policy.Group = strings.TrimSpace(policy.Group)
 	policy.Visibility = strings.TrimSpace(policy.Visibility)
-	if !ratio_setting.ContainsGroupRatio(policy.Group) || policy.Group == "auto" {
+	groupExists := ratio_setting.ContainsGroupRatio(policy.Group)
+	if !groupExists && allowExistingOrphan && policy.Group != "auto" {
+		var existing TokenGroupVisibility
+		groupExists = DB.Where(map[string]interface{}{"group": policy.Group}).First(&existing).Error == nil
+	}
+	if !groupExists || policy.Group == "auto" {
 		return policy, errors.New("令牌分组不存在或不能为 auto")
 	}
 	if policy.Visibility != TokenGroupVisibilityPublic && policy.Visibility != TokenGroupVisibilityTargeted && policy.Visibility != TokenGroupVisibilityHidden {
@@ -132,7 +146,7 @@ func saveTokenGroupVisibilityPolicyTx(tx *gorm.DB, policy TokenGroupVisibilityPo
 }
 
 func SaveTokenGroupVisibilityPolicy(policy TokenGroupVisibilityPolicy) error {
-	normalized, err := normalizeTokenGroupVisibilityPolicy(policy)
+	normalized, err := normalizeTokenGroupVisibilityPolicy(policy, false)
 	if err != nil {
 		return err
 	}
@@ -147,7 +161,11 @@ func ReplaceTokenGroupVisibilityPolicies(policies []TokenGroupVisibilityPolicy) 
 	normalized := make([]TokenGroupVisibilityPolicy, 0, len(policies))
 	seenGroups := make(map[string]struct{}, len(policies))
 	for _, policy := range policies {
-		item, err := normalizeTokenGroupVisibilityPolicy(policy)
+		// A policy for a group that was later removed from GroupRatio is an
+		// inert, already-persisted row. Allowing it through a full replacement
+		// lets the admin remove or retain that row instead of locking the whole
+		// editor; runtime selection still intersects with the current usable set.
+		item, err := normalizeTokenGroupVisibilityPolicy(policy, true)
 		if err != nil {
 			return err
 		}

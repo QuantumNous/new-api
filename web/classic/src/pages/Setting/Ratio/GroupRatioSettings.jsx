@@ -74,7 +74,6 @@ export default function GroupRatioSettings(props) {
   const [editMode, setEditMode] = useState('visual');
   const [showGuide, setShowGuide] = useState(false);
   const [visibilityPolicies, setVisibilityPolicies] = useState('[]');
-  const [existingVisibilityGroups, setExistingVisibilityGroups] = useState([]);
 
   const [inputs, setInputs] = useState({
     GroupRatio: '',
@@ -97,9 +96,6 @@ export default function GroupRatioSettings(props) {
     const res = await API.get('/api/group/token-visibility');
     if (res.data.success) {
       setVisibilityPolicies(JSON.stringify(res.data.data.policies, null, 2));
-      setExistingVisibilityGroups(
-        res.data.data.policies.map((policy) => policy.group),
-      );
     }
   }, []);
 

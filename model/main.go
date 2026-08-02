@@ -24,8 +24,15 @@ var commonFalseVal string
 
 var logKeyCol string
 var logGroupCol string
+var initColMu sync.Mutex
 
 func initCol() {
+	initColMu.Lock()
+	defer initColMu.Unlock()
+	initColUnsafe()
+}
+
+func initColUnsafe() {
 	// init common column names
 	if common.UsingPostgreSQL {
 		commonGroupCol = `"group"`
@@ -59,6 +66,14 @@ func initCol() {
 	}
 	// log sql type and database type
 	//common.SysLog("Using Log SQL Type: " + common.LogSqlType)
+}
+
+func ensureColInitialized() {
+	initColMu.Lock()
+	defer initColMu.Unlock()
+	if commonGroupCol == "" {
+		initColUnsafe()
+	}
 }
 
 var DB *gorm.DB
