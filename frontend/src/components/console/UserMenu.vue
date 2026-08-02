@@ -72,12 +72,12 @@ onBeforeUnmount(() => {
 
     <div
       v-if="open"
-      class="absolute right-0 top-12 z-40 w-56 overflow-hidden rounded-2xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] py-1.5 shadow-[var(--overlay-shadow)] animate-scale-in"
+      class="absolute right-0 top-12 z-40 w-56 overflow-hidden rounded-2xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] shadow-[var(--overlay-shadow)] animate-scale-in"
       data-handdrawn="menu"
     >
       <button
         type="button"
-        class="group flex w-full items-center justify-between rounded-lg px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--accent-soft)]"
+        class="group flex w-full items-center justify-between rounded-none px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--accent-soft)]"
         data-user-menu-item
         @click="goto('wallet')"
       >
@@ -94,7 +94,7 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        class="block w-full rounded-lg px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        class="block w-full rounded-none px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
         data-user-menu-item
         @click="goto('profile')"
       >
@@ -102,7 +102,7 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        class="block w-full rounded-lg px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        class="block w-full rounded-none px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
         data-user-menu-item
         @click="goto('invite')"
       >
@@ -110,7 +110,7 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        class="flex w-full items-center justify-between rounded-lg px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        class="flex w-full items-center justify-between rounded-none px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
         data-user-menu-item
         @click="gotoRedeem"
       >
@@ -119,7 +119,7 @@ onBeforeUnmount(() => {
       <div class="mx-3 my-1 h-px bg-[var(--border-subtle)]" />
       <button
         type="button"
-        class="group block w-full rounded-lg px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--status-danger-soft)] hover:font-semibold"
+        class="group block w-full rounded-none px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--status-danger-soft)] hover:font-semibold"
         style="color: var(--status-danger-text)"
         data-user-menu-item
         @click="logout"
