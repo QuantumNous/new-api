@@ -83,7 +83,16 @@ func normalizeTokenGroupVisibilityPolicy(policy TokenGroupVisibilityPolicy, allo
 	groupExists := ratio_setting.ContainsGroupRatio(policy.Group)
 	if !groupExists && allowExistingOrphan && policy.Group != "auto" {
 		var existing TokenGroupVisibility
-		groupExists = DB.Where(map[string]interface{}{"group": policy.Group}).First(&existing).Error == nil
+		err := DB.Where(map[string]interface{}{"group": policy.Group}).First(&existing).Error
+		switch {
+		case err == nil:
+			groupExists = true
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			// A new group must still be present in GroupRatio. Only an
+			// already-persisted orphan may pass the replacement path.
+		default:
+			return policy, err
+		}
 	}
 	if !groupExists || policy.Group == "auto" {
 		return policy, errors.New("令牌分组不存在或不能为 auto")

@@ -9,7 +9,8 @@ Stage: development evidence only; not production authorization.
 - Branch: `codex/p2-pure-candidate-20260803`
 - Candidate commit: record the immutable SHA in the handoff entry immediately before
   any review or release gate.
-- Candidate implementation head before this record: `291659953531e3d32ade33e29df2144cd2a93a3c`
+- Candidate implementation head: record the immutable SHA in the handoff entry;
+  this document intentionally avoids a self-referential commit identifier.
 - Validation record commit: `77dd367` (`docs: record isolated race and migration checks`).
 - Production baseline ancestor: `19be7b44f4cacda68a5c45690e8c2af659d29473`
 - `TOKEN_GROUP_VISIBILITY_ENABLED` remains default-off.
@@ -29,9 +30,13 @@ token, or credential was accessed or changed.
   also covered fail-closed so malformed policy rows cannot widen access.
 - `go vet ./model ./service ./controller ./middleware ./router`: PASS.
 - `go test -race ./model ./service ./controller ./middleware ./router`: PASS.
+- Orphan-policy replacement regression: PASS; an existing orphan remains editable,
+  while a never-seen group and `auto` remain rejected on both save paths.
 - `go build ./...`: PASS.
 - Default frontend: `bun run typecheck && bun run build`: PASS.
 - Classic frontend: `NODE_OPTIONS=--max-old-space-size=4096 bun run build`: PASS.
+- `Saving...` is already present in all six default locale files; no fallback-key
+  gap was introduced by the P2 editor.
 - SQLite disposable schema smoke: migration created both tables and indexes;
   rollback removed both tables. No production or shared database was used.
 - Cross-dialect migration-shape check: the SQLite/MySQL/PostgreSQL migration and

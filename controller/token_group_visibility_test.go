@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 func setupTokenGroupVisibilityTestDB(t *testing.T) {
@@ -380,6 +381,54 @@ func TestReplaceTokenGroupVisibilityPoliciesIsAtomic(t *testing.T) {
 	}
 	if len(policies) != 0 {
 		t.Fatalf("empty desired state must remove all policies: %#v", policies)
+	}
+}
+
+func TestReplaceTokenGroupVisibilityPoliciesAllowsExistingOrphansOnly(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		if err := ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio); err != nil {
+			t.Fatalf("failed to restore group ratios: %v", err)
+		}
+	})
+
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityPublic,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ratio_setting.UpdateGroupRatioByJSONString(`{"svip":1}`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := model.ReplaceTokenGroupVisibilityPolicies([]model.TokenGroupVisibilityPolicy{
+		{Group: "default", Visibility: model.TokenGroupVisibilityHidden},
+	}); err != nil {
+		t.Fatalf("existing orphan should remain editable in full replacement: %v", err)
+	}
+	policies, err := model.GetTokenGroupVisibilityPolicies()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(policies) != 1 || policies[0].Group != "default" || policies[0].Visibility != model.TokenGroupVisibilityHidden {
+		t.Fatalf("existing orphan replacement was not persisted: %#v", policies)
+	}
+
+	if err := model.ReplaceTokenGroupVisibilityPolicies([]model.TokenGroupVisibilityPolicy{
+		{Group: "never-seen", Visibility: model.TokenGroupVisibilityPublic},
+	}); err == nil {
+		t.Fatal("a new group absent from GroupRatio must still be rejected")
+	}
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "auto", Visibility: model.TokenGroupVisibilityPublic,
+	}); err == nil {
+		t.Fatal("auto must be rejected by single-policy save")
+	}
+	if err := model.ReplaceTokenGroupVisibilityPolicies([]model.TokenGroupVisibilityPolicy{
+		{Group: "auto", Visibility: model.TokenGroupVisibilityPublic},
+	}); err == nil {
+		t.Fatal("auto must be rejected by full replacement")
 	}
 }
 
