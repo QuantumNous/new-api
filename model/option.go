@@ -186,6 +186,7 @@ func InitOptionMap() {
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
 	migrateLegacyAffiliateRewardOptions()
+	migrateAffiliateCampaignPresentationOptions()
 }
 
 func migrateLegacyAffiliateRewardOptions() {
@@ -212,6 +213,22 @@ func migrateLegacyAffiliateRewardOptions() {
 	}
 	if err := UpdateOptionsBulk(values); err != nil {
 		common.SysError("failed to migrate legacy affiliate rewards: " + err.Error())
+	}
+}
+
+func migrateAffiliateCampaignPresentationOptions() {
+	values := make(map[string]string)
+	var rewardRate Option
+	if err := DB.Where("key = ?", "affiliate_setting.reward_rate_bps").First(&rewardRate).Error; err == nil && strings.TrimSpace(rewardRate.Value) == "500" {
+		values[rewardRate.Key] = "2500"
+	}
+	var about Option
+	if err := DB.Where("key = ?", "About").First(&about).Error; err == nil &&
+		strings.Contains(about.Value, "1223288505") && !strings.Contains(about.Value, "3812160108") {
+		values[about.Key] = strings.Replace(about.Value, "1223288505", "3812160108、1223288505", 1)
+	}
+	if err := UpdateOptionsBulk(values); err != nil {
+		common.SysError("failed to migrate affiliate campaign presentation: " + err.Error())
 	}
 }
 

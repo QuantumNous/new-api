@@ -90,6 +90,7 @@ interface AffiliateCenterDialogProps {
   transferring: boolean
   onTransfer: (request: {
     amount_quota?: number
+    cash_cents?: number
     reward_id?: number
     request_key: string
   }) => Promise<AffiliateBalanceTransferResponse>
@@ -175,7 +176,12 @@ function getStatusClass(status: AffiliateTopUpStatus) {
 }
 
 function getAvailableReward(topUp: AffiliateInviteeTopUp) {
+  if (topUp.cash_reward_id > 0) return topUp.available_reward_cents
   return topUp.available_reward_quota ?? topUp.reward_quota
+}
+
+function formatReward(topUp: AffiliateInviteeTopUp, amount: number) {
+  return topUp.cash_reward_id > 0 ? formatCNY(amount) : formatQuotaAsCNY(amount)
 }
 
 function formatCashbackRule(
@@ -274,6 +280,7 @@ function TransferAction(props: {
 
 function HiddenTopUpFallback(props: {
   availableQuota: number
+  availableCashCents: number
   transferring: boolean
   onTransfer: () => void
 }) {
@@ -291,7 +298,10 @@ function HiddenTopUpFallback(props: {
       </EmptyHeader>
       <Button
         type='button'
-        disabled={props.availableQuota <= 0 || props.transferring}
+        disabled={
+          (props.availableCashCents <= 0 && props.availableQuota <= 0) ||
+          props.transferring
+        }
         onClick={props.onTransfer}
       >
         {props.transferring ? (
@@ -314,6 +324,10 @@ export function AffiliateCenterDialog(props: AffiliateCenterDialogProps) {
   const [selectedReward, setSelectedReward] =
     useState<AffiliateInviteeTopUp | null>(null)
   const account = props.summary?.account
+  const cashAccount = props.summary?.cash_account
+  const useCashAccount =
+    (cashAccount?.lifetime_earned_cents ?? 0) > 0 ||
+    props.summary?.campaign.enabled === true
   const rule = props.summary?.rule
   const activeStatus = props.topUpQuery.status
   const activeSort = props.topUpQuery.sort ?? 'recharge_time_desc'
@@ -356,7 +370,9 @@ export function AffiliateCenterDialog(props: AffiliateCenterDialogProps) {
     setTransferringRewardID(selectedReward.id)
     try {
       const response = await props.onTransfer({
-        reward_id: selectedReward.reward_id,
+        ...(selectedReward.cash_reward_id > 0
+          ? { cash_cents: selectedReward.available_reward_cents }
+          : { reward_id: selectedReward.reward_id }),
         request_key: crypto.randomUUID(),
       })
       if (response.success) setSelectedReward(null)
@@ -366,6 +382,19 @@ export function AffiliateCenterDialog(props: AffiliateCenterDialogProps) {
   }
 
   async function transferAllAvailable() {
+    const availableCashCents = cashAccount?.available_cents ?? 0
+    if (availableCashCents > 0) {
+      setTransferringRewardID(-1)
+      try {
+        await props.onTransfer({
+          cash_cents: availableCashCents,
+          request_key: crypto.randomUUID(),
+        })
+      } finally {
+        setTransferringRewardID(null)
+      }
+      return
+    }
     const availableQuota = account?.available_quota ?? 0
     if (availableQuota <= 0) return
     setTransferringRewardID(-1)
@@ -407,16 +436,34 @@ export function AffiliateCenterDialog(props: AffiliateCenterDialogProps) {
 
         <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
           {[
-            [t('Frozen cashback'), account?.pending_quota ?? 0],
-            [t('Available to transfer'), account?.available_quota ?? 0],
-            [t('Transferred'), account?.transferred_quota ?? 0],
-            [t('Lifetime earned'), account?.lifetime_earned_quota ?? 0],
+            [
+              t('Frozen cashback'),
+              useCashAccount
+                ? formatCNY(cashAccount?.pending_cents ?? 0)
+                : formatQuotaAsCNY(account?.pending_quota ?? 0),
+            ],
+            [
+              t('Available to transfer'),
+              useCashAccount
+                ? formatCNY(cashAccount?.available_cents ?? 0)
+                : formatQuotaAsCNY(account?.available_quota ?? 0),
+            ],
+            [
+              t('Transferred'),
+              useCashAccount
+                ? formatCNY(cashAccount?.transferred_cents ?? 0)
+                : formatQuotaAsCNY(account?.transferred_quota ?? 0),
+            ],
+            [
+              t('Lifetime earned'),
+              useCashAccount
+                ? formatCNY(cashAccount?.lifetime_earned_cents ?? 0)
+                : formatQuotaAsCNY(account?.lifetime_earned_quota ?? 0),
+            ],
           ].map(([label, value]) => (
             <div key={String(label)} className='border-border border-l-2 pl-3'>
               <div className='text-muted-foreground text-xs'>{label}</div>
-              <div className='mt-1 font-semibold tabular-nums'>
-                {formatQuotaAsCNY(Number(value))}
-              </div>
+              <div className='mt-1 font-semibold tabular-nums'>{value}</div>
             </div>
           ))}
         </div>
@@ -545,7 +592,7 @@ export function AffiliateCenterDialog(props: AffiliateCenterDialogProps) {
                           </TableCell>
                           <TableCell>
                             <div className='font-medium whitespace-nowrap'>
-                              {formatQuotaAsCNY(availableReward)}
+                              {formatReward(topUp, availableReward)}
                             </div>
                             <Badge
                               variant='outline'
@@ -597,6 +644,7 @@ export function AffiliateCenterDialog(props: AffiliateCenterDialogProps) {
         ) : (
           <HiddenTopUpFallback
             availableQuota={account?.available_quota ?? 0}
+            availableCashCents={cashAccount?.available_cents ?? 0}
             transferring={props.transferring || transferringRewardID === -1}
             onTransfer={transferAllAvailable}
           />
@@ -608,9 +656,9 @@ export function AffiliateCenterDialog(props: AffiliateCenterDialogProps) {
           }}
           title={t('Confirm cashback transfer')}
           desc={t('Transfer {{amount}} to your account balance?', {
-            amount: formatQuotaAsCNY(
-              selectedReward ? getAvailableReward(selectedReward) : 0
-            ),
+            amount: selectedReward
+              ? formatReward(selectedReward, getAvailableReward(selectedReward))
+              : formatCNY(0),
           })}
           confirmText={t('Transfer to account balance')}
           handleConfirm={confirmRewardTransfer}

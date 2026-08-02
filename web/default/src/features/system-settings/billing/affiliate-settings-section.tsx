@@ -91,6 +91,7 @@ import type {
   AffiliateUserOverrideView,
 } from '../types'
 import { AffiliateAdjustmentsSection } from './affiliate-adjustments-section'
+import { AffiliateCampaignSettings } from './affiliate-campaign-settings'
 
 const SECONDS_PER_DAY = 86_400
 
@@ -888,7 +889,13 @@ export function AffiliateSettingsSection() {
   return (
     <SettingsSection title={t('Referral Cashback')}>
       <Tabs defaultValue='global'>
-        <TabsList className='grid w-full max-w-2xl grid-cols-3'>
+        <TabsList className='grid w-full max-w-3xl grid-cols-4'>
+          <TabsTrigger
+            value='campaign'
+            className='h-auto min-h-9 py-2 text-center leading-tight whitespace-normal'
+          >
+            {t('Campaign')}
+          </TabsTrigger>
           <TabsTrigger
             value='global'
             className='h-auto min-h-9 py-2 text-center leading-tight whitespace-normal'
@@ -908,6 +915,9 @@ export function AffiliateSettingsSection() {
             {t('Manual adjustments')}
           </TabsTrigger>
         </TabsList>
+        <TabsContent value='campaign' className='pt-5'>
+          <AffiliateCampaignSettings />
+        </TabsContent>
         <TabsContent value='global' className='pt-5'>
           <GlobalAffiliateSettings />
         </TabsContent>

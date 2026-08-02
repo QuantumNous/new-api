@@ -29,6 +29,13 @@ import { formatQuotaAsCNY, formatTimestampToDate } from '@/lib/format'
 
 import type { AffiliateSummary } from '../types'
 
+function formatCNY(cents: number): string {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'CNY',
+  }).format(cents / 100)
+}
+
 interface AffiliateRewardsCardProps {
   summary?: AffiliateSummary
   affiliateLink: string
@@ -50,6 +57,10 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
   }
 
   const account = props.summary?.account
+  const cashAccount = props.summary?.cash_account
+  const useCashAccount =
+    (cashAccount?.lifetime_earned_cents ?? 0) > 0 ||
+    props.summary?.campaign.enabled === true
   const rule = props.summary?.rule
   let rewardDescription = t('{{rate}}% cashback after first qualification', {
     rate: 0,
@@ -77,9 +88,24 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
   }
 
   const stats = [
-    [t('Available'), formatQuotaAsCNY(account?.available_quota ?? 0)],
-    [t('Frozen cashback'), formatQuotaAsCNY(account?.pending_quota ?? 0)],
-    [t('Transferred'), formatQuotaAsCNY(account?.transferred_quota ?? 0)],
+    [
+      t('Available'),
+      useCashAccount
+        ? formatCNY(cashAccount?.available_cents ?? 0)
+        : formatQuotaAsCNY(account?.available_quota ?? 0),
+    ],
+    [
+      t('Frozen cashback'),
+      useCashAccount
+        ? formatCNY(cashAccount?.pending_cents ?? 0)
+        : formatQuotaAsCNY(account?.pending_quota ?? 0),
+    ],
+    [
+      t('Transferred'),
+      useCashAccount
+        ? formatCNY(cashAccount?.transferred_cents ?? 0)
+        : formatQuotaAsCNY(account?.transferred_quota ?? 0),
+    ],
     [t('Invites'), String(props.summary?.referral_count ?? 0)],
   ]
 

@@ -211,6 +211,8 @@ type AffiliateTopUpEvent struct {
 	CumulativePaidCents int64  `json:"cumulative_paid_cents" gorm:"type:bigint;not null"`
 	Qualified           bool   `json:"qualified" gorm:"index;not null"`
 	RewardID            *int   `json:"reward_id,omitempty" gorm:"index"`
+	CashRewardID        *int   `json:"cash_reward_id,omitempty" gorm:"index"`
+	QuotaGrantID        *int   `json:"quota_grant_id,omitempty" gorm:"index"`
 	CompletedAt         int64  `json:"completed_at" gorm:"index;not null"`
 	CreatedAt           int64  `json:"created_at" gorm:"autoCreateTime"`
 }
@@ -234,19 +236,23 @@ type AffiliateEffectiveRule struct {
 }
 
 type AffiliateSummary struct {
-	Enabled         bool                   `json:"enabled"`
-	ReferralCode    string                 `json:"referral_code"`
-	Currency        string                 `json:"currency"`
-	ReferralCount   int64                  `json:"referral_count"`
-	QualifiedCount  int64                  `json:"qualified_count"`
-	NextAvailableAt int64                  `json:"next_available_at"`
-	Rule            AffiliateEffectiveRule `json:"rule"`
-	Account         AffiliateQuotaAccount  `json:"account"`
+	Enabled                    bool                   `json:"enabled"`
+	ReferralCode               string                 `json:"referral_code"`
+	Currency                   string                 `json:"currency"`
+	ReferralCount              int64                  `json:"referral_count"`
+	QualifiedCount             int64                  `json:"qualified_count"`
+	NextAvailableAt            int64                  `json:"next_available_at"`
+	LifetimeCampaignBonusQuota int64                  `json:"lifetime_campaign_bonus_quota"`
+	Rule                       AffiliateEffectiveRule `json:"rule"`
+	Account                    AffiliateQuotaAccount  `json:"account"`
+	CashAccount                AffiliateCashAccount   `json:"cash_account"`
+	Campaign                   AffiliateCampaign      `json:"campaign"`
 }
 
 type AffiliateInviteeTopUp struct {
 	ID                     int    `json:"id"`
 	RewardID               int    `json:"reward_id"`
+	CashRewardID           int    `json:"cash_reward_id"`
 	MaskedEmail            string `json:"masked_email"`
 	InvitedAt              int64  `json:"invited_at"`
 	InvitationCode         string `json:"invitation_code"`
@@ -257,8 +263,11 @@ type AffiliateInviteeTopUp struct {
 	RewardRateBps          int64  `json:"reward_rate_bps"`
 	FixedRewardQuota       int64  `json:"fixed_reward_quota"`
 	RewardQuota            int64  `json:"reward_quota"`
+	RewardCents            int64  `json:"reward_cents"`
 	AvailableRewardQuota   int64  `json:"available_reward_quota"`
+	AvailableRewardCents   int64  `json:"available_reward_cents"`
 	TransferredRewardQuota int64  `json:"transferred_reward_quota"`
+	TransferredRewardCents int64  `json:"transferred_reward_cents"`
 	AvailableAt            int64  `json:"available_at"`
 	Status                 string `json:"status"`
 }
@@ -780,7 +789,13 @@ func EnsureAffiliateProfile(userID int) error {
 }
 
 func topUpPaidCents(topUp *TopUp) (int64, error) {
-	if topUp == nil || topUp.Money <= 0 {
+	if topUp == nil {
+		return 0, ErrAffiliateAmountInvalid
+	}
+	if topUp.PaidCents > 0 {
+		return topUp.PaidCents, nil
+	}
+	if topUp.Money <= 0 {
 		return 0, ErrAffiliateAmountInvalid
 	}
 	amount := decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromInt(100)).Round(0)
@@ -861,15 +876,25 @@ func qualifyAffiliateTopUpWithTx(tx *gorm.DB, topUp *TopUp) error {
 	if result.RowsAffected == 0 {
 		return nil
 	}
-	rule, _, err := effectiveAffiliateRuleWithTx(tx, relation.InviterUserID)
-	if err != nil {
-		return err
-	}
 	var inviter User
 	if err := tx.Select("id", "status").Where("id = ?", relation.InviterUserID).First(&inviter).Error; err != nil {
 		return err
 	}
-	if !rule.Enabled || inviter.Status != common.UserStatusEnabled {
+	if inviter.Status != common.UserStatusEnabled {
+		return nil
+	}
+	campaign, err := activeAffiliateCampaignWithTx(tx, completedAt)
+	if err != nil {
+		return err
+	}
+	if campaign != nil {
+		return settleAffiliateCampaignTopUpWithTx(tx, campaign, topUp, &relation, &event, paidCents)
+	}
+	rule, _, err := effectiveAffiliateRuleWithTx(tx, relation.InviterUserID)
+	if err != nil {
+		return err
+	}
+	if !rule.Enabled {
 		return nil
 	}
 	baseCents := paidCents
@@ -1063,6 +1088,14 @@ func GetAffiliateSummary(userID int) (*AffiliateSummary, error) {
 	if err != nil {
 		return nil, err
 	}
+	cashAccount, err := GetAffiliateCashAccount(userID)
+	if err != nil {
+		return nil, err
+	}
+	campaign, err := GetAffiliateCampaign()
+	if err != nil {
+		return nil, err
+	}
 	var user User
 	if err := DB.Select("aff_code").Where("id = ?", userID).First(&user).Error; err != nil {
 		return nil, err
@@ -1084,10 +1117,33 @@ func GetAffiliateSummary(userID int) (*AffiliateSummary, error) {
 		Select("COALESCE(MIN(available_at), 0)").Scan(&nextAvailableAt).Error; err != nil {
 		return nil, err
 	}
+	var cashNextAvailableAt int64
+	if err := DB.Model(&AffiliateCashReward{}).
+		Where("inviter_user_id = ? AND status = ?", userID, AffiliateRewardStatusPending).
+		Select("COALESCE(MIN(available_at), 0)").Scan(&cashNextAvailableAt).Error; err != nil {
+		return nil, err
+	}
+	if nextAvailableAt == 0 || (cashNextAvailableAt > 0 && cashNextAvailableAt < nextAvailableAt) {
+		nextAvailableAt = cashNextAvailableAt
+	}
+	var lifetimeCampaignBonusQuota int64
+	if err := DB.Model(&AffiliateQuotaGrant{}).
+		Where("user_id = ? AND status = ?", userID, AffiliateRewardStatusCredited).
+		Select("COALESCE(SUM(bonus_quota), 0)").Scan(&lifetimeCampaignBonusQuota).Error; err != nil {
+		return nil, err
+	}
+	if campaign.Enabled {
+		rule.Enabled = true
+		rule.RewardMode = operation_setting.AffiliateRewardModePercentage
+		rule.CashbackFrequency = operation_setting.AffiliateCashbackFrequencyEveryTopUp
+		rule.RewardRateBps = campaign.InviterCashbackRateBps
+	}
 	return &AffiliateSummary{
 		Enabled: rule.Enabled, ReferralCode: user.AffCode, Currency: "CNY",
 		ReferralCount: referralCount, QualifiedCount: qualifiedCount,
-		NextAvailableAt: nextAvailableAt, Rule: rule, Account: *account,
+		NextAvailableAt: nextAvailableAt, LifetimeCampaignBonusQuota: lifetimeCampaignBonusQuota,
+		Rule: rule, Account: *account,
+		CashAccount: *cashAccount, Campaign: *campaign,
 	}, nil
 }
 
@@ -1349,31 +1405,41 @@ func GetAffiliateInviteeTopUpsSorted(userID int, status string, keyword string, 
 	if err := releaseDueAffiliateRewardsForUser(userID, common.GetTimestamp()); err != nil {
 		return nil, 0, err
 	}
+	if err := releaseDueAffiliateCashRewardsForUser(userID, common.GetTimestamp()); err != nil {
+		return nil, 0, err
+	}
 	type row struct {
-		EventID          int
-		TopUpID          int
-		InviteeUserID    int
-		MaskedEmail      string
-		BoundAt          int64
-		CodeSnapshot     string
-		CompletedAt      int64
-		PaidCents        int64
-		Qualified        bool
-		RewardID         *int
-		RewardMode       *string
-		RewardRateBps    *int64
-		FixedRewardQuota *int64
-		ActualQuota      *int64
-		AdjustedQuota    *int64
-		TransferredQuota *int64
-		AvailableAt      *int64
-		RewardStatus     *string
+		EventID              int
+		TopUpID              int
+		InviteeUserID        int
+		MaskedEmail          string
+		BoundAt              int64
+		CodeSnapshot         string
+		CompletedAt          int64
+		PaidCents            int64
+		Qualified            bool
+		RewardID             *int
+		RewardMode           *string
+		RewardRateBps        *int64
+		FixedRewardQuota     *int64
+		ActualQuota          *int64
+		AdjustedQuota        *int64
+		TransferredQuota     *int64
+		AvailableAt          *int64
+		RewardStatus         *string
+		CashRewardID         *int
+		CashRewardRateBps    *int64
+		CashbackCents        *int64
+		CashTransferredCents *int64
+		CashAvailableAt      *int64
+		CashRewardStatus     *string
 	}
 	query := DB.Table("affiliate_top_up_events AS e").
-		Select("e.id AS event_id, e.top_up_id, e.invitee_user_id, e.masked_email, r.bound_at, r.code_snapshot, e.completed_at, e.paid_cents, e.qualified, e.reward_id, ar.reward_mode, ar.reward_rate_bps, ar.fixed_reward_quota, ar.actual_quota, ar.adjusted_quota, ar.transferred_quota, ar.available_at, ar.status AS reward_status").
+		Select("e.id AS event_id, e.top_up_id, e.invitee_user_id, e.masked_email, r.bound_at, r.code_snapshot, e.completed_at, e.paid_cents, e.qualified, e.reward_id, ar.reward_mode, ar.reward_rate_bps, ar.fixed_reward_quota, ar.actual_quota, ar.adjusted_quota, ar.transferred_quota, ar.available_at, ar.status AS reward_status, e.cash_reward_id, acr.reward_rate_bps AS cash_reward_rate_bps, acr.cashback_cents, acr.transferred_cents AS cash_transferred_cents, acr.available_at AS cash_available_at, acr.status AS cash_reward_status").
 		Joins("JOIN affiliate_referrals AS r ON r.id = e.referral_id").
 		Joins("JOIN users AS invitee ON invitee.id = e.invitee_user_id").
 		Joins("LEFT JOIN affiliate_rewards AS ar ON ar.id = e.reward_id").
+		Joins("LEFT JOIN affiliate_cash_rewards AS acr ON acr.id = e.cash_reward_id").
 		Where("e.inviter_user_id = ?", userID)
 	keyword = strings.TrimSpace(keyword)
 	if keyword != "" {
@@ -1395,7 +1461,7 @@ func GetAffiliateInviteeTopUpsSorted(userID int, status string, keyword string, 
 	case "unqualified":
 		query = query.Where("e.qualified = ?", false)
 	case AffiliateRewardStatusPending, AffiliateRewardStatusAvailable, AffiliateRewardStatusTransferred, AffiliateRewardStatusAdjusted:
-		query = query.Where("ar.status = ?", status)
+		query = query.Where("(ar.status = ? OR acr.status = ?)", status, status)
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
@@ -1449,6 +1515,30 @@ func GetAffiliateInviteeTopUpsSorted(userID int, status string, keyword string, 
 			}
 			if current.RewardStatus != nil {
 				item.Status = *current.RewardStatus
+			}
+		}
+		if current.CashRewardID != nil {
+			item.CashRewardID = *current.CashRewardID
+			item.RewardMode = operation_setting.AffiliateRewardModePercentage
+			if current.CashRewardRateBps != nil {
+				item.RewardRateBps = *current.CashRewardRateBps
+			}
+			if current.CashbackCents != nil {
+				item.RewardCents = *current.CashbackCents
+				item.AvailableRewardCents = *current.CashbackCents
+			}
+			if current.CashTransferredCents != nil {
+				item.TransferredRewardCents = *current.CashTransferredCents
+				item.AvailableRewardCents -= *current.CashTransferredCents
+			}
+			if item.AvailableRewardCents < 0 {
+				item.AvailableRewardCents = 0
+			}
+			if current.CashAvailableAt != nil {
+				item.AvailableAt = *current.CashAvailableAt
+			}
+			if current.CashRewardStatus != nil {
+				item.Status = *current.CashRewardStatus
 			}
 		}
 		items = append(items, item)

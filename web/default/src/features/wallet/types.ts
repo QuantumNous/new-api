@@ -69,6 +69,25 @@ export interface AffiliateAccount {
   lifetime_earned_quota: number
 }
 
+export interface AffiliateCashAccount {
+  pending_cents: number
+  available_cents: number
+  transferred_cents: number
+  lifetime_earned_cents: number
+}
+
+export interface AffiliateCampaign {
+  id: number
+  code: string
+  name: string
+  enabled: boolean
+  starts_at: number
+  ends_at: number
+  inviter_cashback_rate_bps: number
+  invitee_bonus_rate_bps: number
+  hold_seconds: number
+}
+
 export interface AffiliateSummary {
   enabled: boolean
   referral_code: string
@@ -76,8 +95,11 @@ export interface AffiliateSummary {
   referral_count: number
   qualified_count: number
   next_available_at: number
+  lifetime_campaign_bonus_quota: number
   rule: AffiliateEffectiveRule
   account: AffiliateAccount
+  cash_account: AffiliateCashAccount
+  campaign: AffiliateCampaign
 }
 
 export type AffiliateTopUpStatus =
@@ -92,6 +114,7 @@ export type AffiliateTopUpSort = 'recharge_time_desc' | 'recharge_time_asc'
 export interface AffiliateInviteeTopUp {
   id: number
   reward_id: number
+  cash_reward_id: number
   masked_email: string
   invited_at: number
   invitation_code: string
@@ -102,8 +125,11 @@ export interface AffiliateInviteeTopUp {
   reward_rate_bps: number
   fixed_reward_quota: number
   reward_quota: number
+  reward_cents: number
   available_reward_quota: number
+  available_reward_cents: number
   transferred_reward_quota: number
+  transferred_reward_cents: number
   available_at: number
   status: AffiliateTopUpStatus
 }
@@ -116,6 +142,11 @@ export interface AffiliateBalanceTransfer {
   user_quota_before: number
   user_quota_after: number
   created_at: number
+
+  amount_cents?: number
+  cash_balance_before?: number
+  cash_balance_after?: number
+  credited_quota?: number
 }
 
 export interface PaginatedData<T> {
@@ -139,6 +170,7 @@ export interface AffiliateBalanceTransfersQuery {
 }
 
 export type AffiliateSummaryResponse = ApiResponse<AffiliateSummary>
+export type AffiliateCampaignResponse = ApiResponse<AffiliateCampaign>
 export type AffiliateInviteeTopUpsResponse = ApiResponse<
   PaginatedData<AffiliateInviteeTopUp>
 >

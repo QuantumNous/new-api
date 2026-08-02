@@ -310,6 +310,12 @@ func migrateDB() error {
 		&AffiliateBalanceTransfer{},
 		&AffiliateAdjustment{},
 		&AffiliateTopUpEvent{},
+		&AffiliateCampaign{},
+		&AffiliateCashReward{},
+		&AffiliateCashAccount{},
+		&AffiliateCashLedger{},
+		&AffiliateCashTransfer{},
+		&AffiliateQuotaGrant{},
 	)
 	if err != nil {
 		return err
@@ -376,6 +382,12 @@ func migrateDBFast() error {
 		{&AffiliateBalanceTransfer{}, "AffiliateBalanceTransfer"},
 		{&AffiliateAdjustment{}, "AffiliateAdjustment"},
 		{&AffiliateTopUpEvent{}, "AffiliateTopUpEvent"},
+		{&AffiliateCampaign{}, "AffiliateCampaign"},
+		{&AffiliateCashReward{}, "AffiliateCashReward"},
+		{&AffiliateCashAccount{}, "AffiliateCashAccount"},
+		{&AffiliateCashLedger{}, "AffiliateCashLedger"},
+		{&AffiliateCashTransfer{}, "AffiliateCashTransfer"},
+		{&AffiliateQuotaGrant{}, "AffiliateQuotaGrant"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

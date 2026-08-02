@@ -16,6 +16,8 @@ type TopUp struct {
 	UserId           int     `json:"user_id" gorm:"index"`
 	Amount           int64   `json:"amount"`
 	Money            float64 `json:"money"`
+	PaidCents        int64   `json:"paid_cents" gorm:"type:bigint"`
+	CreditedQuota    int64   `json:"credited_quota" gorm:"type:bigint"`
 	TradeNo          string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod    string  `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider  string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
@@ -58,6 +60,19 @@ func (topUp *TopUp) Update() error {
 	var err error
 	err = DB.Save(topUp).Error
 	return err
+}
+
+func normalizeTopUpSettlement(topUp *TopUp, creditedQuota int64) error {
+	if creditedQuota <= 0 {
+		return ErrAffiliateAmountInvalid
+	}
+	paidCents, err := topUpPaidCents(topUp)
+	if err != nil {
+		return err
+	}
+	topUp.PaidCents = paidCents
+	topUp.CreditedQuota = creditedQuota
+	return nil
 }
 
 func GetTopUpById(id int) *TopUp {
@@ -139,6 +154,9 @@ func CompleteEpayTopUp(tradeNo string, paymentMethod string) (*TopUp, int, bool,
 		topUp.Status = common.TopUpStatusSuccess
 		topUp.CompletionSource = TopUpCompletionSourceOnlineWallet
 		topUp.CompleteTime = common.GetTimestamp()
+		if err := normalizeTopUpSettlement(&topUp, int64(quotaToAdd)); err != nil {
+			return err
+		}
 		if err := tx.Save(&topUp).Error; err != nil {
 			return err
 		}
@@ -182,14 +200,6 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 			return errors.New("充值订单状态错误")
 		}
 
-		topUp.CompleteTime = common.GetTimestamp()
-		topUp.Status = common.TopUpStatusSuccess
-		topUp.CompletionSource = TopUpCompletionSourceOnlineWallet
-		err = tx.Save(topUp).Error
-		if err != nil {
-			return err
-		}
-
 		var clamp *common.QuotaClamp
 		quota, clamp = common.QuotaFromDecimalChecked(decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
 		if clamp != nil {
@@ -197,6 +207,15 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		}
 		if quota <= 0 {
 			return errors.New("无效的充值额度")
+		}
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		topUp.CompletionSource = TopUpCompletionSourceOnlineWallet
+		if err := normalizeTopUpSettlement(topUp, int64(quota)); err != nil {
+			return err
+		}
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
 		}
 		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(map[string]interface{}{"stripe_customer": customerId, "quota": gorm.Expr("quota + ?", quota)}).Error
 		if err != nil {
@@ -428,6 +447,9 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		topUp.CompletionSource = TopUpCompletionSourceAdmin
+		if err := normalizeTopUpSettlement(topUp, int64(quotaToAdd)); err != nil {
+			return err
+		}
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
@@ -482,16 +504,20 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return errors.New("充值订单状态错误")
 		}
 
+		// Creem 直接使用 Amount 作为充值额度（整数）
+		quota = topUp.Amount
+		if quota <= 0 {
+			return errors.New("无效的充值额度")
+		}
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		topUp.CompletionSource = TopUpCompletionSourceOnlineWallet
-		err = tx.Save(topUp).Error
-		if err != nil {
+		if err := normalizeTopUpSettlement(topUp, quota); err != nil {
 			return err
 		}
-
-		// Creem 直接使用 Amount 作为充值额度（整数）
-		quota = topUp.Amount
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
 
 		// 构建更新字段，优先使用邮箱，如果邮箱为空则使用用户名
 		updateFields := map[string]interface{}{
@@ -576,6 +602,9 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		topUp.CompletionSource = TopUpCompletionSourceOnlineWallet
+		if err := normalizeTopUpSettlement(topUp, int64(quotaToAdd)); err != nil {
+			return err
+		}
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
@@ -642,6 +671,9 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		topUp.CompletionSource = TopUpCompletionSourceOnlineWallet
+		if err := normalizeTopUpSettlement(topUp, int64(quotaToAdd)); err != nil {
+			return err
+		}
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}

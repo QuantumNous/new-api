@@ -365,6 +365,18 @@ export type AffiliateSettings = {
   show_invitee_topups: boolean
 }
 
+export type AffiliateCampaign = {
+  id?: number
+  code?: string
+  name: string
+  enabled: boolean
+  starts_at: number
+  ends_at: number
+  inviter_cashback_rate_bps: number
+  invitee_bonus_rate_bps: number
+  hold_seconds: number
+}
+
 export type AffiliateUserOverride = {
   id?: number
   user_id?: number
@@ -401,6 +413,12 @@ export type AffiliateSettingsResponse = {
   success: boolean
   message: string
   data?: AffiliateSettings
+}
+
+export type AffiliateCampaignResponse = {
+  success: boolean
+  message: string
+  data?: AffiliateCampaign
 }
 
 export type AffiliateUserOverridesResponse = {
