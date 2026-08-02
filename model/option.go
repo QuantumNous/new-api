@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -212,6 +213,14 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
+	}
+	if key == "DefaultUserGroup" {
+		if value == "" {
+			return errors.New("默认分组不能为空")
+		}
+		if !ratio_setting.ContainsGroupRatio(value) {
+			return errors.New("默认分组不存在: " + value)
+		}
 	}
 	return nil
 }
