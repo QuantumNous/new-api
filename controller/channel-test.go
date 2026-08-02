@@ -692,6 +692,24 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
+// useMaxCompletionTokens reports whether the channel test request should send
+// max_completion_tokens instead of max_tokens for the given model. The rule is
+// kept in sync with the relay-side conversion in relay/channel/openai/adaptor.go
+// (o-series and gpt-5-series always use max_completion_tokens). Azure OpenAI
+// additionally rejects max_tokens for the gpt-4o / gpt-4.1 family, so those are
+// routed through max_completion_tokens as well when the channel is Azure.
+func useMaxCompletionTokens(model string, channel *model.Channel) bool {
+	if dto.IsOpenAIReasoningOModel(model) || dto.IsOpenAIGPT5Model(model) {
+		return true
+	}
+	if channel != nil && channel.Type == constant.ChannelTypeAzure {
+		if strings.HasPrefix(model, "gpt-4o") || strings.HasPrefix(model, "gpt-4.1") {
+			return true
+		}
+	}
+	return false
+}
+
 func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
@@ -735,10 +753,6 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			}
 		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
-			maxTokens := uint(16)
-			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
-				maxTokens = 3000
-			}
 			req := &dto.GeneralOpenAIRequest{
 				Model:  model,
 				Stream: lo.ToPtr(isStream),
@@ -748,10 +762,19 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 						Content: "hi",
 					},
 				},
-				MaxTokens: lo.ToPtr(maxTokens),
 			}
 			if isStream {
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+			}
+			// Gemini 期望较大的 max_tokens；其余模型默认 16。对要求
+			// max_completion_tokens 的模型（o 系列 / gpt-5 系列，以及 Azure 上
+			// 的 gpt-4o / gpt-4.1 系列），改用 MaxCompletionTokens。
+			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
+				req.MaxTokens = lo.ToPtr(uint(3000))
+			} else if useMaxCompletionTokens(model, channel) {
+				req.MaxCompletionTokens = lo.ToPtr(uint(16))
+			} else {
+				req.MaxTokens = lo.ToPtr(uint(16))
 			}
 			return req
 		}
@@ -810,7 +833,12 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		testRequest.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
 	}
 
-	if dto.IsOpenAIReasoningOModel(model) {
+	// Determine which max-tokens parameter to use. This must stay aligned with
+	// the relay-side conversion in relay/channel/openai/adaptor.go (o-series and
+	// gpt-5-series use max_completion_tokens). Azure additionally rejects
+	// max_tokens for the gpt-4o / gpt-4.1 family, so route those through
+	// max_completion_tokens too when the channel is Azure.
+	if useMaxCompletionTokens(model, channel) {
 		testRequest.MaxCompletionTokens = lo.ToPtr(uint(16))
 	} else if strings.Contains(model, "thinking") {
 		if !strings.Contains(model, "claude") {
