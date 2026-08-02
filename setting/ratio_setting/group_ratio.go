@@ -74,12 +74,16 @@ func GroupRatio2JSONString() string {
 
 func UpdateGroupRatioByJSONString(jsonStr string) error {
 	checkGroupRatio := make(map[string]float64)
-	if err := json.Unmarshal([]byte(jsonStr), &checkGroupRatio); err != nil {
+	if err := common.UnmarshalJsonStr(jsonStr, &checkGroupRatio); err != nil {
 		return err
 	}
-	// 拒绝移除当前默认分组，避免新用户被分配到不存在的分组
-	if _, ok := checkGroupRatio[common.GetDefaultUserGroup()]; !ok {
-		return errors.New("cannot remove default user group: " + common.GetDefaultUserGroup())
+	// 拒绝移除当前默认分组，避免新用户被分配到不存在的分组。
+	// 注意：此函数可能在 updateOptionMap 持有 OptionMapRWMutex 写锁时被调用，
+	// 因此这里直接读取 common.DefaultUserGroup（调用方负责持锁），
+	// 避免 GetDefaultUserGroup() 的读锁在写锁内造成死锁。
+	defaultGroup := common.DefaultUserGroup
+	if _, ok := checkGroupRatio[defaultGroup]; !ok {
+		return errors.New("cannot remove default user group: " + defaultGroup)
 	}
 	return types.LoadFromJsonString(groupRatioMap, jsonStr)
 }
