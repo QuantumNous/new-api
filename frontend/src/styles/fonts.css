@@ -26,6 +26,14 @@
   src: url(../assets/fonts/home/nishiki-teki.woff2) format('woff2');
 }
 
+@font-face {
+  font-family: 'Ren2AuthHuiwen';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(../assets/fonts/auth/huiwen-mingchao.woff2) format('woff2');
+}
+
 /* latin */
 @font-face {
   font-family: 'Ren2Inter';

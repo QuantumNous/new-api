@@ -25,9 +25,9 @@ html.light .landing-shell .hero-title {
 html.light .landing-shell .hero-title::after {
   content: '';
   position: absolute;
-  right: 2%;
+  right: 10%;
   bottom: -0.14em;
-  left: 9%;
+  left: 42%;
   height: 0.32em;
   border-top: 2px solid var(--pencil-line-soft);
   border-radius: 51% 49% 43% 57%;

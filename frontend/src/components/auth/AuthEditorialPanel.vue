@@ -12,9 +12,6 @@ import type { DotGlobe } from '@/canvas/DotGlobe'
 import { useTheme } from '@/composables/useTheme'
 import { useAppStore } from '@/stores'
 
-const props = withDefaults(defineProps<{ homeTypography?: boolean }>(), {
-  homeTypography: false,
-})
 const { t } = useI18n()
 const { resolvedTheme } = useTheme()
 const app = useAppStore()
@@ -105,8 +102,7 @@ onBeforeUnmount(() => {
       </p>
 
       <h1
-        class="display-title mt-6 leading-[1.14] text-[var(--text-primary)]"
-        :class="{ 'auth-editorial-title--home': props.homeTypography }"
+        class="auth-huiwen-title display-title mt-6 leading-[1.14] text-[var(--text-primary)]"
       >
         <span class="block text-5xl font-bold xl:text-6xl">{{
           t('auth.editorial.line1')
@@ -202,11 +198,12 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-html.light .auth-editorial-title--home,
-html.light .auth-editorial-title--home span {
-  font-family: 'Ren2HomeTime', var(--font-display);
+.auth-huiwen-title,
+.auth-huiwen-title span {
+  font-family: 'Ren2AuthHuiwen', var(--font-display);
   font-weight: 400;
   letter-spacing: 0;
+  font-synthesis: none;
 }
 
 /* 单一测量线：动画、标题块、脚注共用同一宽度，右边缘对齐。
