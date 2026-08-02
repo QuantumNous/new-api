@@ -4,7 +4,8 @@ Status: release candidate prepared; production release is not authorized.
 
 Candidate branch: `codex/p2-pure-candidate-20260803`
 
-Candidate commit: `517eb6baf47c97670972cd17dc11579b655f6c3e`
+Candidate commit: record the immutable SHA in the handoff entry immediately before
+any review or release gate; this runbook is not itself the approval object.
 
 Production base: `19be7b44f4cacda68a5c45690e8c2af659d29473`
 Scope: P2 token-group visibility only, layered on the already-reviewed P1 candidate.
