@@ -23,6 +23,8 @@ import { useToast } from '@/composables/useToast'
 import i18n, { loadMessageDomain, setLocale } from '@/i18n'
 import LogsView from '@/views/console/LogsView.vue'
 
+const initialFirstLogQuota = logs[0]!.quota
+
 beforeAll(async () => {
   await loadMessageDomain('console')
   setLocale('en')
@@ -38,6 +40,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  logs[0]!.quota = initialFirstLogQuota
   vi.restoreAllMocks()
   resetMockState()
   useToast().toasts.splice(0)
@@ -158,6 +161,7 @@ describe('LogsView', () => {
   })
 
   it('lets the detail column fill remaining space and opens an empty detail dialog', async () => {
+    logs[0]!.quota = -Math.abs(initialFirstLogQuota)
     const wrapper = mount(LogsView, {
       attachTo: document.body,
       global: { plugins: [i18n] },
@@ -170,10 +174,22 @@ describe('LogsView', () => {
       'clamp(1125px, 100%, 1276px)'
     )
     const trigger = wrapper.findAll('[data-log-detail-trigger]')[0]!
+    expect(
+      wrapper
+        .findAll('.data-table-header-clip thead td')
+        .find((header) => header.text() === 'Detail')
+        ?.classes()
+    ).toContain('text-right')
+    expect(trigger.classes()).toContain('text-right')
+    expect(
+      wrapper.get('[data-log-mobile-card] [data-log-detail-trigger]').classes()
+    ).toContain('text-left')
     expect(trigger.get('[data-log-detail-underline]').classes()).toContain(
       'group-hover:scale-x-100'
     )
-    expect(wrapper.get('[data-log-cost]').classes()).toContain('text-sm')
+    const costs = wrapper.findAll('[data-log-cost]')
+    expect(costs[0]!.classes()).toContain('text-sm')
+    expect(costs.every((cost) => !/[+-]/.test(cost.text()))).toBe(true)
 
     await trigger.trigger('click')
     await flushPromises()

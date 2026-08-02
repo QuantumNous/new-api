@@ -135,6 +135,15 @@ async function captureScenario(
     await waitForStablePage(page)
   }
   if (scenario.path === '/console/logs') {
+    expect(
+      await page
+        .locator('[data-log-cost]:visible')
+        .allTextContents()
+        .then((costs) => costs.every((cost) => !/[+-]/.test(cost.trim())))
+    ).toBe(true)
+    await expect(
+      page.locator('[data-log-detail-trigger]:visible').first()
+    ).toHaveCSS('text-align', viewport === 'desktop' ? 'right' : 'left')
     await assertNoHorizontalOverflow(page)
     if (!scenario.openUsageDetails && !scenario.openLogDetails) {
       await assertInteractiveCentersVisible(page)

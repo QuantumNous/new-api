@@ -40,10 +40,6 @@ const typeLabelKey: Record<LogType, string> = {
   error: 'logs.typeError',
   system: 'logs.typeSystem',
 }
-
-function quotaPrefix(type: LogType): string {
-  return ['topup', 'refund', 'manage', 'system'].includes(type) ? '+' : '-'
-}
 </script>
 
 <template>
@@ -71,6 +67,7 @@ function quotaPrefix(type: LogType): string {
         </p>
       </div>
       <p
+        data-log-cost
         class="shrink-0 text-sm font-semibold tabular-nums"
         :class="
           ['topup', 'refund', 'manage', 'system'].includes(log.type)
@@ -78,7 +75,7 @@ function quotaPrefix(type: LogType): string {
             : 'text-[var(--text-primary)]'
         "
       >
-        {{ quotaPrefix(log.type) }}{{ formatQuota(log.quota) }}
+        {{ formatQuota(Math.abs(log.quota)) }}
       </p>
     </header>
 

@@ -202,7 +202,7 @@ const COL_META: Record<
   performance: { labelKey: 'logs.colPerformance', width: '200px' },
   usage: { labelKey: 'logs.colUsage', width: '180px' },
   cost: { labelKey: 'logs.colCost', width: '96px', align: 'right' },
-  content: { labelKey: 'logs.colContent' },
+  content: { labelKey: 'logs.colContent', align: 'right' },
 }
 
 const columns = computed<TableColumn[]>(() =>
@@ -238,10 +238,6 @@ const typeLabelKey: Record<LogType, string> = {
   manage: 'logs.typeManage',
   error: 'logs.typeError',
   system: 'logs.typeSystem',
-}
-
-function quotaPrefix(type: LogType): string {
-  return ['topup', 'refund', 'manage', 'system'].includes(type) ? '+' : '-'
 }
 
 // ---------- data fetching ----------
@@ -702,12 +698,12 @@ onBeforeUnmount(() => {
                 : 'text-[var(--text-primary)]'
             "
           >
-            {{ quotaPrefix((row as LogItem).type)
-            }}{{ formatQuota((row as LogItem).quota) }}
+            {{ formatQuota(Math.abs((row as LogItem).quota)) }}
           </span>
         </template>
         <template #cell-content="{ row }">
           <LogDetailTrigger
+            align="right"
             :content="(row as LogItem).content"
             :label="t('logs.viewLogDetails')"
             @activate="openLogDetails(row as LogItem)"

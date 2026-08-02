@@ -1,8 +1,14 @@
 <script setup lang="ts">
-defineProps<{
-  content: string
-  label: string
-}>()
+withDefaults(
+  defineProps<{
+    align?: 'left' | 'right'
+    content: string
+    label: string
+  }>(),
+  {
+    align: 'left',
+  }
+)
 
 const emit = defineEmits<{
   activate: []
@@ -13,7 +19,8 @@ const emit = defineEmits<{
   <button
     type="button"
     data-log-detail-trigger
-    class="group block w-full min-w-0 text-left text-xs text-[var(--text-tertiary)] transition-colors hover:text-[var(--accent-text)] focus-visible:text-[var(--accent-text)] focus-visible:outline-none"
+    class="group block w-full min-w-0 text-xs text-[var(--text-tertiary)] transition-colors hover:text-[var(--accent-text)] focus-visible:text-[var(--accent-text)] focus-visible:outline-none"
+    :class="align === 'right' ? 'text-right' : 'text-left'"
     :title="content"
     :aria-label="label"
     @click="emit('activate')"
