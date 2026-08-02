@@ -101,7 +101,9 @@ onBeforeUnmount(() => {
         <span>{{ t('auth.editorial.word3') }}</span>
       </p>
 
-      <h1 class="display-title mt-6 leading-[1.14] text-[var(--text-primary)]">
+      <h1
+        class="auth-huiwen-title display-title mt-6 leading-[1.14] text-[var(--text-primary)]"
+      >
         <span class="block text-5xl font-bold xl:text-6xl">{{
           t('auth.editorial.line1')
         }}</span>
@@ -196,6 +198,14 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.auth-huiwen-title,
+.auth-huiwen-title span {
+  font-family: 'Ren2AuthHuiwen', var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0;
+  font-synthesis: none;
+}
+
 /* 单一测量线：动画、标题块、脚注共用同一宽度，右边缘对齐。
    1024 档留出余量给中转动画的上游簇；1280 起放宽到编辑级行长。 */
 .panel-measure {

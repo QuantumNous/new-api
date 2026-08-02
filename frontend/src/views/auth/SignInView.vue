@@ -44,16 +44,13 @@ async function submit() {
 <template>
   <AuthLayout>
     <div class="text-center">
-      <p class="text-xs italic tracking-wide text-[var(--text-tertiary)]">
-        {{ t('auth.cardMotto') }}
-      </p>
       <h1
-        class="display-title mt-3 text-3xl font-bold text-[var(--text-primary)]"
+        class="auth-huiwen-title display-title mt-3 text-3xl font-bold text-[var(--text-primary)]"
       >
         {{ t('auth.signInTitle') }}
       </h1>
-      <p class="mt-2 text-sm text-[var(--text-tertiary)]">
-        {{ t('auth.signInSubtitle') }}
+      <p class="mt-2 text-xs italic tracking-wide text-[var(--text-tertiary)]">
+        {{ t('auth.cardMotto') }}
       </p>
     </div>
 
@@ -139,3 +136,12 @@ async function submit() {
     </p>
   </AuthLayout>
 </template>
+
+<style scoped>
+.auth-huiwen-title {
+  font-family: 'Ren2AuthHuiwen', var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0;
+  font-synthesis: none;
+}
+</style>
