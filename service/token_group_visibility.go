@@ -50,6 +50,11 @@ func GetUserSelectableTokenGroups(userId int) (map[string]string, error) {
 			if !allowed {
 				delete(groups, policy.Group)
 			}
+		case model.TokenGroupVisibilityPublic:
+			// Public policies preserve the established base permission.
+		default:
+			// A malformed row must not widen an authorization boundary.
+			delete(groups, policy.Group)
 		}
 	}
 	return groups, nil

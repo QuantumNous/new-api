@@ -399,6 +399,23 @@ func TestPublicPolicyCannotExpandBaseGroupPermission(t *testing.T) {
 	}
 }
 
+func TestUnknownVisibilityPolicyFailsClosed(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	user := createVisibilityTestUser(t, 1, "malformed-policy", "default")
+	if err := model.DB.Create(&model.TokenGroupVisibility{Group: "default", Visibility: "invalid"}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	groups, err := service.GetUserSelectableTokenGroups(user.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := groups["default"]; ok {
+		t.Fatal("unknown visibility policy must not expose the group")
+	}
+}
+
 func TestVisibilityLookupDoesNotChangeExistingUserOrTokenState(t *testing.T) {
 	setupTokenGroupVisibilityTestDB(t)
 	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
