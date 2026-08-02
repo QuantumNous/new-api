@@ -219,7 +219,7 @@ test('dark wide logs keeps a balanced content width', async ({ page }) => {
     await detailTrigger.evaluate(
       (element) => element.closest('td')?.getBoundingClientRect().width ?? 0
     )
-  ).toBeGreaterThan(150)
+  ).toBeGreaterThan(140)
   await assertNoHorizontalOverflow(page)
   await assertInteractiveCentersVisible(page)
   await expect(page).toHaveScreenshot('dark-wide-logs.png', { fullPage: false })

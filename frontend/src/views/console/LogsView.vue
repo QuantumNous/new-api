@@ -196,13 +196,13 @@ const COL_META: Record<
   { labelKey: string; width?: string; align?: 'left' | 'right' | 'center' }
 > = {
   created: { labelKey: 'logs.colTime', width: '130px' },
-  identity: { labelKey: 'logs.colIdentity', width: '155px' },
-  route: { labelKey: 'logs.colRoute', width: '165px' },
-  reasoning: { labelKey: 'logs.colReasoning', width: '104px' },
-  performance: { labelKey: 'logs.colPerformance', width: '200px' },
-  usage: { labelKey: 'logs.colUsage', width: '180px' },
-  cost: { labelKey: 'logs.colCost', width: '96px', align: 'right' },
-  content: { labelKey: 'logs.colContent', align: 'right' },
+  identity: { labelKey: 'logs.colIdentity', width: '136px' },
+  route: { labelKey: 'logs.colRoute', width: '146px' },
+  reasoning: { labelKey: 'logs.colReasoning', width: '84px' },
+  performance: { labelKey: 'logs.colPerformance', width: '144px' },
+  usage: { labelKey: 'logs.colUsage', width: '162px' },
+  cost: { labelKey: 'logs.colCost', width: '80px', align: 'right' },
+  content: { labelKey: 'logs.colContent', width: '114px', align: 'right' },
 }
 
 const columns = computed<TableColumn[]>(() =>
@@ -216,6 +216,14 @@ const columns = computed<TableColumn[]>(() =>
     }
   })
 )
+
+const minTableWidth = computed(() => {
+  const width = columns.value.reduce(
+    (sum, column) => sum + Number.parseFloat(column.width ?? '0'),
+    0
+  )
+  return `${Math.max(720, width)}px`
+})
 
 // ---------- type tones ----------
 
@@ -636,7 +644,7 @@ onBeforeUnmount(() => {
         :skeleton-rows="pageSize"
         adaptive-scroll
         :page-size="pageSize"
-        min-table-width="clamp(1125px, 100%, 1276px)"
+        :min-table-width="minTableWidth"
         :scroll-region-label="t('logs.breadcrumb.1')"
         :empty-title="t('logs.emptyTitle')"
         :empty-hint="t('logs.emptyHint')"

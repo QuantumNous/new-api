@@ -170,9 +170,7 @@ describe('LogsView', () => {
     await settleLogRequests()
 
     const bodyTable = wrapper.get('.data-table-body-viewport table')
-    expect(bodyTable.attributes('style')).toContain(
-      'clamp(1125px, 100%, 1276px)'
-    )
+    expect(bodyTable.attributes('style')).toContain('min-width: 996px;')
     const trigger = wrapper.findAll('[data-log-detail-trigger]')[0]!
     expect(
       wrapper
