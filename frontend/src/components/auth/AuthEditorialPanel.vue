@@ -12,6 +12,9 @@ import type { DotGlobe } from '@/canvas/DotGlobe'
 import { useTheme } from '@/composables/useTheme'
 import { useAppStore } from '@/stores'
 
+const props = withDefaults(defineProps<{ homeTypography?: boolean }>(), {
+  homeTypography: false,
+})
 const { t } = useI18n()
 const { resolvedTheme } = useTheme()
 const app = useAppStore()
@@ -101,7 +104,10 @@ onBeforeUnmount(() => {
         <span>{{ t('auth.editorial.word3') }}</span>
       </p>
 
-      <h1 class="display-title mt-6 leading-[1.14] text-[var(--text-primary)]">
+      <h1
+        class="display-title mt-6 leading-[1.14] text-[var(--text-primary)]"
+        :class="{ 'auth-editorial-title--home': props.homeTypography }"
+      >
         <span class="block text-5xl font-bold xl:text-6xl">{{
           t('auth.editorial.line1')
         }}</span>
@@ -196,6 +202,13 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+html.light .auth-editorial-title--home,
+html.light .auth-editorial-title--home span {
+  font-family: 'Ren2HomeTime', var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
 /* 单一测量线：动画、标题块、脚注共用同一宽度，右边缘对齐。
    1024 档留出余量给中转动画的上游簇；1280 起放宽到编辑级行长。 */
 .panel-measure {

@@ -42,13 +42,15 @@ async function submit() {
 </script>
 
 <template>
-  <AuthLayout>
+  <AuthLayout home-typography>
     <div class="text-center">
-      <p class="text-xs italic tracking-wide text-[var(--text-tertiary)]">
+      <p
+        class="auth-card-motto text-xs italic tracking-wide text-[var(--text-tertiary)]"
+      >
         {{ t('auth.cardMotto') }}
       </p>
       <h1
-        class="display-title mt-3 text-3xl font-bold text-[var(--text-primary)]"
+        class="auth-sign-in-title display-title mt-3 text-3xl font-bold text-[var(--text-primary)]"
       >
         {{ t('auth.signInTitle') }}
       </h1>
@@ -139,3 +141,19 @@ async function submit() {
     </p>
   </AuthLayout>
 </template>
+
+<style scoped>
+html.light .auth-card-motto {
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+html.light .auth-sign-in-title {
+  font-family: 'Ren2HomeTime', var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+</style>

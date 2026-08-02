@@ -11,6 +11,9 @@ import LanguageSelector from '@/components/common/LanguageSelector.vue'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import { useAppStore } from '@/stores'
 
+const props = withDefaults(defineProps<{ homeTypography?: boolean }>(), {
+  homeTypography: false,
+})
 const { t } = useI18n()
 const app = useAppStore()
 </script>
@@ -32,6 +35,7 @@ const app = useAppStore()
         <BrandMark class="h-8 w-8 rounded-lg" />
         <span
           class="display-title text-lg font-bold tracking-tight text-[var(--text-primary)]"
+          :class="{ 'auth-brand--home': props.homeTypography }"
           >{{ app.systemName }}</span
         >
       </RouterLink>
@@ -51,7 +55,7 @@ const app = useAppStore()
     <div
       class="mx-auto grid w-full max-w-[1440px] flex-1 lg:grid-cols-[1fr_minmax(420px,480px)] lg:gap-10 lg:px-8 xl:gap-16 xl:px-12"
     >
-      <AuthEditorialPanel />
+      <AuthEditorialPanel :home-typography="props.homeTypography" />
 
       <!-- 表单卡：纸面上的悬浮实体卡 -->
       <div class="flex items-center justify-center px-4 py-8 lg:py-12">
@@ -67,6 +71,10 @@ const app = useAppStore()
 </template>
 
 <style scoped>
+html.light .auth-brand--home {
+  font-family: inherit;
+}
+
 /* Sketch radius + elevation come from the theme fork: hand-drawn card by day,
    Material card by night. */
 .auth-card {
