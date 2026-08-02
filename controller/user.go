@@ -1,9 +1,12 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"strconv"
 	"strings"
@@ -1086,6 +1089,114 @@ type ManageRequest struct {
 	Action string `json:"action"`
 	Value  int    `json:"value"`
 	Mode   string `json:"mode"`
+}
+
+const (
+	maxAdminEmailRecipients = 100
+	maxAdminEmailSubjectLen  = 200
+	maxAdminEmailContentLen  = 10000
+	adminEmailBatchTimeout   = 2 * time.Minute
+)
+
+type SendUserEmailRequest struct {
+	UserIds []int  `json:"user_ids"`
+	Subject string `json:"subject"`
+	Content string `json:"content"`
+}
+
+func (req *SendUserEmailRequest) validate() error {
+	req.Subject = strings.TrimSpace(req.Subject)
+	req.Content = strings.TrimSpace(req.Content)
+	if len(req.UserIds) == 0 || req.Subject == "" || req.Content == "" {
+		return errors.New("user_ids, subject and content are required")
+	}
+	if len([]rune(req.Subject)) > maxAdminEmailSubjectLen {
+		return fmt.Errorf("subject must be %d characters or fewer", maxAdminEmailSubjectLen)
+	}
+	if strings.ContainsAny(req.Subject, "\r\n") {
+		return errors.New("subject must not contain line breaks")
+	}
+	if len([]rune(req.Content)) > maxAdminEmailContentLen {
+		return fmt.Errorf("content must be %d characters or fewer", maxAdminEmailContentLen)
+	}
+
+	uniqueIds := make([]int, 0, len(req.UserIds))
+	seen := make(map[int]struct{}, len(req.UserIds))
+	for _, userId := range req.UserIds {
+		if userId <= 0 {
+			return errors.New("user_ids must contain positive integers")
+		}
+		if _, exists := seen[userId]; exists {
+			continue
+		}
+		seen[userId] = struct{}{}
+		uniqueIds = append(uniqueIds, userId)
+	}
+	if len(uniqueIds) > maxAdminEmailRecipients {
+		return fmt.Errorf("at most %d users can be emailed at once", maxAdminEmailRecipients)
+	}
+	req.UserIds = uniqueIds
+	return nil
+}
+
+func SendUserEmail(c *gin.Context) {
+	var req SendUserEmailRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if err := req.validate(); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	recipients, err := model.GetUserEmailRecipients(req.UserIds)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	myRole := c.GetInt("role")
+	sent := 0
+	failed := 0
+	skipped := len(req.UserIds) - len(recipients)
+	content := `<div style="white-space: pre-wrap;">` + html.EscapeString(req.Content) + `</div>`
+	batchCtx, cancel := context.WithTimeout(c.Request.Context(), adminEmailBatchTimeout)
+	defer cancel()
+	for index, recipient := range recipients {
+		if batchCtx.Err() != nil {
+			failed += len(recipients) - index
+			break
+		}
+		if !canManageTargetRole(myRole, recipient.Role) {
+			skipped++
+			continue
+		}
+		address, parseErr := mail.ParseAddress(strings.TrimSpace(recipient.Email))
+		if parseErr != nil || address.Address != strings.TrimSpace(recipient.Email) {
+			skipped++
+			continue
+		}
+		if err := common.SendEmailContext(batchCtx, req.Subject, address.Address, content); err != nil {
+			failed++
+			common.SysLog(fmt.Sprintf("failed to send custom admin email to user %d: %v", recipient.Id, err))
+			continue
+		}
+		sent++
+	}
+
+	recordManageAudit(c, "user.email_batch_send", map[string]interface{}{
+		"requested": len(req.UserIds),
+		"sent":      sent,
+		"skipped":   skipped,
+		"failed":    failed,
+	})
+	common.ApiSuccess(c, gin.H{
+		"requested": len(req.UserIds),
+		"sent":      sent,
+		"skipped":   skipped,
+		"failed":    failed,
+	})
 }
 
 // ManageUser Only admin user can do this

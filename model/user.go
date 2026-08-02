@@ -1163,6 +1163,25 @@ func GetUserEmail(id int) (email string, err error) {
 	return email, err
 }
 
+type UserEmailRecipient struct {
+	Id    int    `gorm:"column:id"`
+	Email string `gorm:"column:email"`
+	Role  int    `gorm:"column:role"`
+}
+
+// GetUserEmailRecipients returns active users needed for an admin email delivery.
+func GetUserEmailRecipients(ids []int) ([]UserEmailRecipient, error) {
+	var recipients []UserEmailRecipient
+	if len(ids) == 0 {
+		return recipients, nil
+	}
+	err := DB.Model(&User{}).
+		Select("id", "email", "role").
+		Where("id IN ?", ids).
+		Find(&recipients).Error
+	return recipients, err
+}
+
 // GetUserGroup gets group from Redis first, falls back to DB if needed
 func GetUserGroup(id int, fromDB bool) (group string, err error) {
 	defer func() {
