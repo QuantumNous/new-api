@@ -8,6 +8,81 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestClaudeMessagesRequestToOpenAIChatKeepsTextAlongsideToolCalls(t *testing.T) {
+	// Regression (NB-2): an assistant turn mixing text with tool_use must keep
+	// its text; previously the media content was dropped whenever tool calls
+	// were present.
+	req := dto.ClaudeRequest{
+		Model: "deepseek-r1",
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "北京天气"},
+			{Role: "assistant", Content: []any{
+				map[string]any{"type": "text", "text": "我来查一下"},
+				map[string]any{"type": "tool_use", "id": "call_1", "name": "get_weather", "input": map[string]any{}},
+			}},
+		},
+	}
+
+	got, err := ClaudeMessagesRequestToOpenAIChat(req, nil)
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 2)
+	assistant := got.Messages[1]
+	parts := assistant.ParseContent()
+	require.Len(t, parts, 1)
+	assert.Equal(t, dto.ContentTypeText, parts[0].Type)
+	assert.Equal(t, "我来查一下", parts[0].Text)
+	toolCalls := assistant.ParseToolCalls()
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "call_1", toolCalls[0].ID)
+}
+
+func TestClaudeMessagesRequestToOpenAIChatToolCallOnlyTurnKeepsNullContent(t *testing.T) {
+	// A pure tool_use assistant turn (no text) keeps the previous shape:
+	// null content with tool_calls.
+	req := dto.ClaudeRequest{
+		Model: "deepseek-r1",
+		Messages: []dto.ClaudeMessage{
+			{Role: "assistant", Content: []any{
+				map[string]any{"type": "tool_use", "id": "call_1", "name": "get_weather", "input": map[string]any{}},
+			}},
+		},
+	}
+
+	got, err := ClaudeMessagesRequestToOpenAIChat(req, nil)
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 1)
+	assert.Nil(t, got.Messages[0].Content)
+	assert.Len(t, got.Messages[0].ParseToolCalls(), 1)
+}
+
+func TestClaudeMessagesRequestToOpenAIChatKeepsThinkingTextAndToolCallTogether(t *testing.T) {
+	// The full Claude assistant turn shape (thinking + text + tool_use) must
+	// survive with all three parts mapped.
+	req := dto.ClaudeRequest{
+		Model: "deepseek-r1",
+		Messages: []dto.ClaudeMessage{
+			{Role: "assistant", Content: []any{
+				map[string]any{"type": "thinking", "thinking": "先定位城市"},
+				map[string]any{"type": "text", "text": "我来查一下"},
+				map[string]any{"type": "tool_use", "id": "call_1", "name": "get_weather", "input": map[string]any{}},
+			}},
+		},
+	}
+
+	got, err := ClaudeMessagesRequestToOpenAIChat(req, nil)
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 1)
+	assistant := got.Messages[0]
+	assert.Equal(t, "先定位城市", assistant.GetReasoningContent())
+	parts := assistant.ParseContent()
+	require.Len(t, parts, 1)
+	assert.Equal(t, "我来查一下", parts[0].Text)
+	assert.Len(t, assistant.ParseToolCalls(), 1)
+}
+
 func TestClaudeMessagesRequestToOpenAIChatPreservesThinkingBlocks(t *testing.T) {
 	req := dto.ClaudeRequest{
 		Model: "deepseek-r1",

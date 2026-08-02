@@ -211,7 +211,10 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 			if len(toolCalls) > 0 {
 				openAIMessage.SetToolCalls(toolCalls)
 			}
-			if len(mediaMessages) > 0 && len(toolCalls) == 0 {
+			// Keep the assistant turn's text/media content even when tool calls are
+			// present: Claude turns commonly mix text ("我来查一下") with tool_use,
+			// and dropping the text loses the model's stated intent downstream.
+			if len(mediaMessages) > 0 {
 				openAIMessage.SetMediaContent(mediaMessages)
 			}
 			if reasoning.Len() > 0 {
