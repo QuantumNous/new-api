@@ -73,6 +73,14 @@ func GroupRatio2JSONString() string {
 }
 
 func UpdateGroupRatioByJSONString(jsonStr string) error {
+	checkGroupRatio := make(map[string]float64)
+	if err := json.Unmarshal([]byte(jsonStr), &checkGroupRatio); err != nil {
+		return err
+	}
+	// 拒绝移除当前默认分组，避免新用户被分配到不存在的分组
+	if _, ok := checkGroupRatio[common.GetDefaultUserGroup()]; !ok {
+		return errors.New("cannot remove default user group: " + common.GetDefaultUserGroup())
+	}
 	return types.LoadFromJsonString(groupRatioMap, jsonStr)
 }
 
