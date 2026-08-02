@@ -19,13 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
+import {
+  PasswordConfirmationStatus,
+  PasswordStrength,
+} from '@/components/password-strength'
 import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
 import {
@@ -95,6 +99,11 @@ export function SignUpForm({
       password: '',
       confirmPassword: '',
     },
+  })
+  const passwordValue = useWatch({ control: form.control, name: 'password' })
+  const confirmationValue = useWatch({
+    control: form.control,
+    name: 'confirmPassword',
   })
 
   const emailValue = form.watch('email')
@@ -272,9 +281,17 @@ export function SignUpForm({
               <FormControl>
                 <PasswordInput
                   placeholder={t('Enter password (8-20 characters)')}
+                  autoComplete='new-password'
+                  minLength={8}
+                  maxLength={20}
+                  aria-describedby='sign-up-password-strength'
                   {...field}
                 />
               </FormControl>
+              <PasswordStrength
+                id='sign-up-password-strength'
+                value={passwordValue}
+              />
               <FormMessage />
             </FormItem>
           )}
@@ -288,8 +305,24 @@ export function SignUpForm({
             <FormItem>
               <FormLabel>{t('Confirm password')}</FormLabel>
               <FormControl>
-                <PasswordInput placeholder={t('Confirm password')} {...field} />
+                <PasswordInput
+                  placeholder={t('Confirm password')}
+                  autoComplete='new-password'
+                  minLength={8}
+                  maxLength={20}
+                  aria-describedby={
+                    confirmationValue
+                      ? 'sign-up-password-confirmation-status'
+                      : undefined
+                  }
+                  {...field}
+                />
               </FormControl>
+              <PasswordConfirmationStatus
+                id='sign-up-password-confirmation-status'
+                password={passwordValue}
+                confirmation={confirmationValue}
+              />
               <FormMessage />
             </FormItem>
           )}

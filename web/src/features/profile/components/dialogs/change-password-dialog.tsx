@@ -23,6 +23,10 @@ import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
+import {
+  PasswordConfirmationStatus,
+  PasswordStrength,
+} from '@/components/password-strength'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 
@@ -69,8 +73,8 @@ export function ChangePasswordDialog({
       return
     }
 
-    if (formData.newPassword.length < 8) {
-      toast.error(t('Password must be at least 8 characters'))
+    if (formData.newPassword.length < 8 || formData.newPassword.length > 20) {
+      toast.error(t('Password must be between 8 and 20 characters'))
       return
     }
 
@@ -102,7 +106,7 @@ export function ChangePasswordDialog({
       } else {
         toast.error(response.message || t('Failed to change password'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to change password'))
     } finally {
       setLoading(false)
@@ -163,11 +167,14 @@ export function ChangePasswordDialog({
             disabled={loading}
             required
             minLength={8}
+            maxLength={20}
             autoComplete='new-password'
+            aria-describedby='change-password-strength'
           />
-          <p className='text-muted-foreground text-xs'>
-            {t('Must be at least 8 characters')}
-          </p>
+          <PasswordStrength
+            id='change-password-strength'
+            value={formData.newPassword}
+          />
         </div>
 
         <div className='space-y-2'>
@@ -178,7 +185,19 @@ export function ChangePasswordDialog({
             onChange={(e) => handleChange('confirmPassword', e.target.value)}
             disabled={loading}
             required
+            minLength={8}
+            maxLength={20}
             autoComplete='new-password'
+            aria-describedby={
+              formData.confirmPassword
+                ? 'change-password-confirmation-status'
+                : undefined
+            }
+          />
+          <PasswordConfirmationStatus
+            id='change-password-confirmation-status'
+            password={formData.newPassword}
+            confirmation={formData.confirmPassword}
           />
         </div>
       </form>

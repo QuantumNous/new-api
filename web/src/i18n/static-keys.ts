@@ -551,6 +551,17 @@ export const STATIC_I18N_KEYS = [
   'The model that was requested',
   'The upstream channel that served the requests',
 
+  // Password strength labels and rules (passed to t at runtime)
+  'Password strength empty',
+  'Password strength weak',
+  'Password strength fair',
+  'Password strength good',
+  'Password strength strong',
+  '8–20 characters',
+  'Uppercase and lowercase letters',
+  'A number',
+  'A symbol',
+
   // Misc
   'Cancel',
   'Status',

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -208,8 +208,8 @@ export function SetupWizard() {
     if (setupStatus?.root_init) return true
 
     const username = form.getValues('username')?.trim()
-    const password = form.getValues('password')?.trim()
-    const confirmPassword = form.getValues('confirmPassword')?.trim()
+    const password = form.getValues('password')
+    const confirmPassword = form.getValues('confirmPassword')
 
     if (!username) {
       form.setError('username', {
@@ -220,12 +220,12 @@ export function SetupWizard() {
       return false
     }
 
-    if (!password || password.length < 8) {
+    if (!password || password.length < 8 || password.length > 20) {
       form.setError('password', {
         type: 'manual',
-        message: t('Password must be at least 8 characters'),
+        message: t('Password must be between 8 and 20 characters'),
       })
-      toast.error(t('Password must be at least 8 characters'))
+      toast.error(t('Password must be between 8 and 20 characters'))
       return false
     }
 
@@ -278,6 +278,29 @@ export function SetupWizard() {
     mutation.mutate(payload)
   }
 
+  let setupContent: ReactNode
+  if (isLoading) {
+    setupContent = <LoadingState message={t('Loading setup status…')} />
+  } else if (isError) {
+    setupContent = (
+      <ErrorState
+        title={t('We could not load the setup status.')}
+        onRetry={() => refetch()}
+      />
+    )
+  } else {
+    setupContent = (
+      <Form {...form}>
+        <form
+          className='space-y-6'
+          onSubmit={(event) => event.preventDefault()}
+        >
+          {currentStepComponent}
+        </form>
+      </Form>
+    )
+  }
+
   return (
     <div className='bg-muted/40 relative min-h-svh py-10'>
       <div className='absolute top-4 right-4 sm:top-6 sm:right-6'>
@@ -325,27 +348,31 @@ export function SetupWizard() {
               {STEPS.map((step, index) => {
                 const isActive = currentStep === index
                 const isCompleted = currentStep > index
+                let stepContainerStateClass = 'border-muted bg-card'
+                if (isActive) {
+                  stepContainerStateClass =
+                    'border-primary ring-primary/20 ring-2'
+                } else if (isCompleted) {
+                  stepContainerStateClass = 'border-primary/40 bg-primary/5'
+                }
+                const stepNumberStateClass =
+                  isActive || isCompleted
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-muted-foreground/40 text-muted-foreground'
+
                 return (
                   <li
                     key={step.titleKey}
                     className={cn(
                       'rounded-xl border p-3',
-                      isActive
-                        ? 'border-primary ring-primary/20 ring-2'
-                        : isCompleted
-                          ? 'border-primary/40 bg-primary/5'
-                          : 'border-muted bg-card'
+                      stepContainerStateClass
                     )}
                   >
                     <div className='flex items-start gap-3'>
                       <span
                         className={cn(
                           'flex size-6 items-center justify-center rounded-md border text-xs font-semibold',
-                          isActive
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : isCompleted
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'border-muted-foreground/40 text-muted-foreground'
+                          stepNumberStateClass
                         )}
                       >
                         {index + 1}
@@ -364,23 +391,7 @@ export function SetupWizard() {
               })}
             </ol>
 
-            {isLoading ? (
-              <LoadingState message={t('Loading setup status…')} />
-            ) : isError ? (
-              <ErrorState
-                title={t('We could not load the setup status.')}
-                onRetry={() => refetch()}
-              />
-            ) : (
-              <Form {...form}>
-                <form
-                  className='space-y-6'
-                  onSubmit={(event) => event.preventDefault()}
-                >
-                  {currentStepComponent}
-                </form>
-              </Form>
-            )}
+            {setupContent}
           </CardContent>
 
           {!isLoading && !isError && (
