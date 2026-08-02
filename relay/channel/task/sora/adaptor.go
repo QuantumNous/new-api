@@ -422,6 +422,17 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		} else {
 			taskResult.Reason = "task failed"
 		}
+	case "unknown", "":
+		// 上游中转（如另一套 new-api）在本地未轮询到终态时会返回 unknown。
+		// 若已有成片 URL 则按成功；否则继续排队/进行中，切勿直接判失败。
+		if u := extractSoraResultURL(respBody); u != "" {
+			taskResult.Status = model.TaskStatusSuccess
+			taskResult.Url = u
+		} else if resTask.Progress > 0 && resTask.Progress < 100 {
+			taskResult.Status = model.TaskStatusInProgress
+		} else {
+			taskResult.Status = model.TaskStatusQueued
+		}
 	default:
 	}
 	if resTask.Progress >= 100 {

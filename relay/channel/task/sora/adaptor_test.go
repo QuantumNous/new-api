@@ -123,6 +123,44 @@ func TestParseTaskResultExtractsCDNURL(t *testing.T) {
 	}
 }
 
+func TestParseTaskResultUnknownKeepsPolling(t *testing.T) {
+	raw := []byte(`{
+		"id":"task_up",
+		"object":"video",
+		"status":"unknown",
+		"progress":0,
+		"created_at":1785675970
+	}`)
+	a := &TaskAdaptor{}
+	ti, err := a.ParseTaskResult(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ti.Status != model.TaskStatusQueued {
+		t.Fatalf("status = %q, want QUEUED (keep polling)", ti.Status)
+	}
+}
+
+func TestParseTaskResultUnknownWithURLIsSuccess(t *testing.T) {
+	raw := []byte(`{
+		"id":"task_up",
+		"status":"unknown",
+		"progress":0,
+		"url":"https://tos.example.com/out.mp4"
+	}`)
+	a := &TaskAdaptor{}
+	ti, err := a.ParseTaskResult(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ti.Status != model.TaskStatusSuccess {
+		t.Fatalf("status = %q, want SUCCESS", ti.Status)
+	}
+	if ti.Url != "https://tos.example.com/out.mp4" {
+		t.Fatalf("url = %q", ti.Url)
+	}
+}
+
 func TestConvertToOpenAIVideoKeepsCDNURLs(t *testing.T) {
 	publicID := "task_public456"
 	cdn := "https://cdn.example.com/out.mp4"
