@@ -29,6 +29,7 @@ import pt from './locales/pt.json'
 import ru from './locales/ru.json'
 import vi from './locales/vi.json'
 import zh from './locales/zh.json'
+import { STATIC_I18N_KEYS } from './static-keys'
 
 const localeTranslations: Record<string, Record<string, string>> = {
   en: en.translation,
@@ -41,16 +42,60 @@ const localeTranslations: Record<string, Record<string, string>> = {
   zh: zh.translation,
 }
 
+const conversionAmountTranslations: Record<string, string> = {
+  en: 'Conversion amount',
+  zh: '转化金额',
+  ja: 'コンバージョン金額',
+  ru: 'Сумма конверсии',
+  es: 'Importe de la conversión',
+  fr: 'Montant de la conversion',
+  pt: 'Valor da conversão',
+  vi: 'Số tiền chuyển đổi',
+}
+
 const operationalActivityCopyKeys = [
+  'Manage exclusions',
+  'Candidates',
+  'Enrolled',
+  'Excluded',
+  'Accepted messages',
+  'Failed messages',
+  'Direct conversions',
+  'Assisted conversions',
+  'No-coupon conversions',
   'Attributed spend',
   'New external cash',
   'Direct top-up',
   'Balance-paid subscription',
   'Online-paid subscription',
+  'Unclassified attributed spend',
   'SMTP accepted',
   'Users who opened',
   'Observed clicks',
+  'Conversion rows',
+  'User rows',
+  'Message rows',
+  'Metric rows',
+  'Snapshot total',
+  'Payment category',
+  'User ID',
+  'Email',
+  'Occurred at',
+  'Recipient status',
+  'Stage',
+  'Failure code',
+  'Conversion kind',
+  'Trade number',
+  'Currency',
+  'Conversion amount',
+  'Translation task {{status}}',
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+  'superseded',
   'Historical excluded identities were not recorded',
+  'Exclude campaign users',
   'Preview the CSV before applying exclusions.',
   'CSV file',
   'Preview exclusions',
@@ -65,7 +110,19 @@ const operationalActivityCopyKeys = [
   '{{count}} unresolved rows',
   '{{count}} conflict rows',
   '{{count}} cancelable pending emails',
+  '{{count}} queued messages can be canceled',
+  '{{count}} queued messages were canceled',
   'Confirming will exclude resolved users and cancel pending campaign work that is still cancelable.',
+  'Duplicate CSV row ignored.',
+  'User is already enrolled in this campaign.',
+  'Row {{row}}',
+  'User ID must be a positive integer.',
+  'Email must be valid.',
+  'Row has no user ID or email.',
+  'Identity did not resolve to an existing user.',
+  'User ID and email resolve to different users.',
+  'Batch contains blocking errors from preview.',
+  'Row conflicts with a converted recipient.',
   'Apply exclusions',
   'Download current results',
   'Manual',
@@ -80,6 +137,7 @@ const operationalActivityCopyKeys = [
   'New campaign data is available.',
   'Refresh campaign data',
   'Regenerating will replace {{count}} manually edited translations.',
+  'Translation request was replaced by a newer request.',
   'This message has an uncertain delivery result. Retrying can send a duplicate email and requires explicit acknowledgment.',
   'I acknowledge that retrying an uncertain message may send a duplicate email.',
   'Start date and time',
@@ -87,6 +145,68 @@ const operationalActivityCopyKeys = [
   'Absolute offset from the first SMTP accepted email.',
   'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
   'Delivery status is uncertain. Check the mailbox provider before retrying.',
+] as const
+
+const dynamicOperationalActivityCopyKeys = [
+  'Candidates',
+  'Enrolled',
+  'Excluded',
+  'Accepted messages',
+  'Failed messages',
+  'Direct conversions',
+  'Assisted conversions',
+  'No-coupon conversions',
+  'Attributed spend',
+  'New external cash',
+  'Direct top-up',
+  'Balance-paid subscription',
+  'Online-paid subscription',
+  'Unclassified attributed spend',
+  'SMTP accepted',
+  'Users who opened',
+  'Observed clicks',
+  'Conversion rows',
+  'User rows',
+  'Message rows',
+  'Metric rows',
+  'Payment category',
+  'User ID',
+  'Email',
+  'Occurred at',
+  'Recipient status',
+  'Stage',
+  'Failure code',
+  'Conversion kind',
+  'Trade number',
+  'Currency',
+  'Conversion amount',
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+  'superseded',
+  'Duplicate CSV row ignored.',
+  'User is already enrolled in this campaign.',
+  'User ID must be a positive integer.',
+  'Email must be valid.',
+  'Row has no user ID or email.',
+  'Identity did not resolve to an existing user.',
+  'User ID and email resolve to different users.',
+  'Batch contains blocking errors from preview.',
+  'Row conflicts with a converted recipient.',
+  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
+  'Delivery status is uncertain. Check the mailbox provider before retrying.',
+  'Translation request was replaced by a newer request.',
+] as const
+
+const literalOperationalActivityCopyKeys = [
+  'Exclude campaign users',
+  'Preview exclusions',
+  '{{count}} queued messages can be canceled',
+  'Row {{row}}',
+  'Translation task {{status}}',
+  'Regenerating will replace {{count}} manually edited translations.',
+  'Download current results',
 ] as const
 
 function interpolationTokens(value: string): string[] {
@@ -110,6 +230,44 @@ describe('i18n language detection', () => {
 })
 
 describe('i18n operational Activity and Recall copy', () => {
+  test('locks exact Vietnamese global Email translation', () => {
+    expect(localeTranslations.vi.Email).toBe('Địa chỉ email')
+  })
+
+  test('locks exact Activity and Recall conversion amount translations', () => {
+    for (const [locale, expected] of Object.entries(
+      conversionAmountTranslations
+    )) {
+      expect(localeTranslations[locale]['Conversion amount']).toBe(expected)
+    }
+  })
+
+  test('locks exact Russian queued message cancellation copy', () => {
+    expect(
+      localeTranslations.ru['{{count}} queued messages can be canceled']
+    ).toBe('Можно отменить {{count}} сообщений в очереди')
+    expect(
+      localeTranslations.ru['{{count}} queued messages were canceled']
+    ).toBe('Отменено {{count}} сообщений в очереди')
+  })
+
+  test('registers dynamic Activity and Recall copy in static keys', () => {
+    for (const key of dynamicOperationalActivityCopyKeys) {
+      expect(STATIC_I18N_KEYS).toContain(key)
+    }
+    expect(STATIC_I18N_KEYS).toContain('Conversion amount')
+    expect(STATIC_I18N_KEYS).not.toContain('State')
+    expect(STATIC_I18N_KEYS).not.toContain('Amount')
+    expect(dynamicOperationalActivityCopyKeys).not.toContain('State')
+    expect(dynamicOperationalActivityCopyKeys).not.toContain('Amount')
+  })
+
+  test('does not register literal Activity and Recall copy in static keys', () => {
+    for (const key of literalOperationalActivityCopyKeys) {
+      expect(STATIC_I18N_KEYS).not.toContain(key)
+    }
+  })
+
   for (const [locale, translations] of Object.entries(localeTranslations)) {
     test(`${locale} covers Activity and Recall operational copy`, () => {
       for (const key of operationalActivityCopyKeys) {

@@ -456,7 +456,7 @@ export function CampaignTranslationWorkspace(
         <div role='status' className='space-y-1 rounded-md border p-3 text-sm'>
           <p>
             {t('Translation task {{status}}', {
-              status: props.translationTask.status,
+              status: t(props.translationTask.status),
             })}
           </p>
           {getTranslationTaskError(props.translationTask) ? (

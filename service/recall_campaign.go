@@ -259,110 +259,63 @@ func (s *RecallCampaignService) RetryRecipient(ctx context.Context, actorID int,
 	if err != nil {
 		return err
 	}
-	recipient, err := model.GetRecallRecipientByCampaignWithContext(ctx, campaignID, recipientID)
-	if err != nil {
-		return err
-	}
-	if recipient.State == model.RecallRecipientFailed {
-		nextState := model.RecallRecipientQueued
-		if strings.TrimSpace(recipient.StripeCustomerId) != "" {
-			nextState = model.RecallRecipientCustomerReady
-		}
-		if recipient.StripePromotionCodeId != nil && strings.TrimSpace(*recipient.StripePromotionCodeId) != "" && strings.TrimSpace(recipient.PromotionCode) != "" {
-			nextState = model.RecallRecipientCodeReady
-		}
-		event := model.RecallEvent{
-			CampaignId:    campaignID,
-			RecipientId:   recipientID,
-			EventType:     "recipient_retry",
-			Source:        "admin",
-			SourceEventId: recallAdminSourceEventID(ctx, "retry", fmt.Sprintf("actor:%d:campaign:%d:recipient:%d:state:%s:updated:%d", actorID, campaignID, recipientID, recipient.State, recipient.UpdatedAt)),
-			EventData: recallAdminEventData(actorID, map[string]any{
-				"action":           "retry",
-				"target":           "recipient",
-				"campaign_type":    campaignType,
-				"previous_state":   recipient.State,
-				"previous_updated": recipient.UpdatedAt,
-				"next_state":       nextState,
-			}),
-			CreatedAt: s.now().Unix(),
-		}
-		won, err := model.ManualRetryRecallRecipientAndAdminEventWithContext(ctx, campaignID, recipientID, recipient.UpdatedAt, nextState, event)
-		if err != nil {
-			return err
-		}
-		if !won {
-			return fmt.Errorf("recall recipient %d is no longer failed", recipientID)
-		}
-		return nil
-	}
-
-	messages, err := model.ListRecallMessagesForRecipientWithContext(ctx, recipientID)
-	if err != nil {
-		return err
-	}
-	var selected *model.RecallMessage
 	now := s.now().Unix()
-	for i := range messages {
-		if messages[i].State == model.RecallMessageFailed {
-			selected = &messages[i]
-			break
-		}
-	}
-	if selected == nil {
-		for i := range messages {
-			if messages[i].State == model.RecallMessageUncertain {
-				selected = &messages[i]
-				break
+	_, won, err := model.ManualRetryRecallRecipientCandidateAndAdminEventWithContext(ctx, campaignID, recipientID, acknowledgeUncertain, now, func(selection model.RecallManualRetrySelection) (model.RecallEvent, error) {
+		switch selection.Target {
+		case model.RecallManualRetryTargetRecipient:
+			return model.RecallEvent{
+				CampaignId:    campaignID,
+				RecipientId:   recipientID,
+				EventType:     "recipient_retry",
+				Source:        "admin",
+				SourceEventId: recallAdminSourceEventID(ctx, "retry", fmt.Sprintf("actor:%d:campaign:%d:recipient:%d:state:%s:updated:%d", actorID, campaignID, recipientID, selection.Recipient.State, selection.Recipient.UpdatedAt)),
+				EventData: recallAdminEventData(actorID, map[string]any{
+					"action":           "retry",
+					"target":           "recipient",
+					"campaign_type":    campaignType,
+					"previous_state":   selection.Recipient.State,
+					"previous_updated": selection.Recipient.UpdatedAt,
+					"next_state":       selection.NextRecipientState,
+				}),
+				CreatedAt: now,
+			}, nil
+		case model.RecallManualRetryTargetMessage:
+			selected := selection.Message
+			eventIdentity := fmt.Sprintf("actor:%d:campaign:%d:recipient:%d:message:%d:state:%s:attempt:%d:failed:%d:updated:%d", actorID, campaignID, recipientID, selected.Id, selected.State, selected.AttemptCount, selected.FailedAt, selected.UpdatedAt)
+			eventFields := map[string]any{
+				"action":                    "retry",
+				"target":                    "message",
+				"campaign_type":             campaignType,
+				"message_id":                selected.Id,
+				"previous_state":            selected.State,
+				"previous_attempt_count":    selected.AttemptCount,
+				"previous_failed_at":        selected.FailedAt,
+				"previous_template_version": selected.TemplateVersion,
+				"previous_updated":          selected.UpdatedAt,
+				"acknowledge_uncertain":     acknowledgeUncertain,
 			}
-		}
-	}
-	if selected == nil {
-		for i := range messages {
-			if messages[i].State == model.RecallMessageSending && messages[i].LeaseExpiresAt > 0 && messages[i].LeaseExpiresAt < now {
-				selected = &messages[i]
-				break
+			if selected.State == model.RecallMessageSending {
+				eventIdentity = fmt.Sprintf("%s:lease:%d", eventIdentity, selected.LeaseExpiresAt)
+				eventFields["previous_lease_expires_at"] = selected.LeaseExpiresAt
 			}
+			return model.RecallEvent{
+				CampaignId:    campaignID,
+				RecipientId:   recipientID,
+				EventType:     "recipient_retry",
+				Source:        "admin",
+				SourceEventId: recallAdminSourceEventID(ctx, "retry", eventIdentity),
+				EventData:     recallAdminEventData(actorID, eventFields),
+				CreatedAt:     now,
+			}, nil
+		default:
+			return model.RecallEvent{}, fmt.Errorf("unsupported recall retry target %q", selection.Target)
 		}
-	}
-	if selected == nil {
-		return fmt.Errorf("recall recipient %d has no failed message or failed recipient work", recipientID)
-	}
-	if (selected.State == model.RecallMessageUncertain || selected.State == model.RecallMessageSending) && !acknowledgeUncertain {
-		return fmt.Errorf("acknowledge_uncertain=true is required to retry uncertain recall message %d", selected.Id)
-	}
-	eventIdentity := fmt.Sprintf("actor:%d:campaign:%d:recipient:%d:message:%d:state:%s:attempt:%d:failed:%d:updated:%d", actorID, campaignID, recipientID, selected.Id, selected.State, selected.AttemptCount, selected.FailedAt, selected.UpdatedAt)
-	eventFields := map[string]any{
-		"action":                    "retry",
-		"target":                    "message",
-		"campaign_type":             campaignType,
-		"message_id":                selected.Id,
-		"previous_state":            selected.State,
-		"previous_attempt_count":    selected.AttemptCount,
-		"previous_failed_at":        selected.FailedAt,
-		"previous_template_version": selected.TemplateVersion,
-		"previous_updated":          selected.UpdatedAt,
-		"acknowledge_uncertain":     acknowledgeUncertain,
-	}
-	if selected.State == model.RecallMessageSending {
-		eventIdentity = fmt.Sprintf("%s:lease:%d", eventIdentity, selected.LeaseExpiresAt)
-		eventFields["previous_lease_expires_at"] = selected.LeaseExpiresAt
-	}
-	event := model.RecallEvent{
-		CampaignId:    campaignID,
-		RecipientId:   recipientID,
-		EventType:     "recipient_retry",
-		Source:        "admin",
-		SourceEventId: recallAdminSourceEventID(ctx, "retry", eventIdentity),
-		EventData:     recallAdminEventData(actorID, eventFields),
-		CreatedAt:     now,
-	}
-	won, err := model.ManualRetryRecallMessageAndAdminEventWithContext(ctx, selected.Id, selected.State, selected.UpdatedAt, now, event)
+	})
 	if err != nil {
 		return err
 	}
 	if !won {
-		return fmt.Errorf("recall message %d is no longer %s", selected.Id, selected.State)
+		return fmt.Errorf("recall recipient %d has no failed message or failed recipient work", recipientID)
 	}
 	return nil
 }

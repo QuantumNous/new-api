@@ -349,7 +349,7 @@ const pages: Record<string, RecallMetricResult[]> = {
           conversion_kind: 'direct',
           trade_no: 'trade_1',
           payment_category: 'direct_topup',
-          currency: 'USD',
+          currency: 'usd',
           amount_minor: 9_600,
           failure_code: '',
         },
@@ -546,7 +546,16 @@ const testI18n = createInstance()
 await testI18n.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
-  resources: { en: { translation: {} } },
+  resources: {
+    en: {
+      translation: {
+        'Recipient status': 'Recipient status',
+        converted: 'Paid recipient',
+        direct: 'Own-link attribution',
+        assisted: 'Follow-up attribution',
+      },
+    },
+  },
   interpolation: { escapeValue: false },
 })
 
@@ -707,6 +716,48 @@ describe('CampaignMetricCardSection', () => {
       'accepted-card-snapshot',
       'failed-card-snapshot',
     ])
+
+    React.act(() => root.unmount())
+  })
+
+  test('uses user-facing column and payment labels instead of API field names', async () => {
+    const { container, root } = renderSection({
+      attributed_spend: makeAmountCard(
+        'attributed_spend',
+        'spend-card-snapshot',
+        9_600,
+        2
+      ),
+    })
+
+    await click('Attributed spend')
+    await React.act(async () => {
+      await wait()
+    })
+
+    expect(container.textContent).toContain('User ID')
+    expect(container.textContent).toContain('Email')
+    expect(container.textContent).toContain('Occurred at')
+    expect(container.textContent).toContain('Recipient status')
+    expect(container.textContent).toContain('Trade number')
+    expect(container.textContent).toContain('Currency')
+    expect(container.textContent).toContain('Conversion amount')
+    expect(container.textContent).toContain('Paid recipient')
+    expect(container.textContent).toContain('Own-link attribution')
+    expect(container.textContent).toContain('USD')
+    expect(container.textContent).toContain('Direct top-up')
+    expect(container.textContent).toContain('Unclassified attributed spend')
+    expect(container.textContent).not.toContain('user_id')
+    expect(container.textContent).not.toContain('email')
+    expect(container.textContent).not.toContain('state')
+    expect(container.textContent).not.toContain('currency')
+    expect(container.textContent).not.toContain('State')
+    expect(container.textContent).not.toContain('Amount')
+    expect(container.textContent).not.toContain('converted')
+    expect(container.textContent).not.toContain('direct')
+    expect(container.textContent).not.toContain('usd')
+    expect(container.textContent).not.toContain('direct_topup')
+    expect(container.textContent).not.toContain('unclassified')
 
     React.act(() => root.unmount())
   })
@@ -952,10 +1003,12 @@ describe('CampaignMetricCardSection', () => {
 
     await click('Accepted messages')
     expect(container.textContent).toContain('Stage')
-    expect(container.textContent).not.toContain('State')
+    expect(inputProps['recall-metric-state']).toBeUndefined()
 
     await click('Candidates')
-    expect(container.textContent).toContain('State')
+    expect(container.textContent).toContain('Recipient status')
+    expect(container.textContent).not.toContain('State')
+    expect(inputProps['recall-metric-state']).toBeTruthy()
     await React.act(async () => {
       inputProps['recall-metric-state']?.onChange?.({
         target: { value: 'queued' },

@@ -1096,13 +1096,19 @@ describe('recall campaign detail guards', () => {
       getRecallRecipientRetry(
         makeRecipient('contacting', ['uncertain', 'failed'])
       )
-    ).toEqual({ allowed: true, acknowledgeUncertain: false })
+    ).toEqual({ allowed: true, acknowledgeUncertain: true })
     expect(
       getRecallRecipientRetry(makeRecipient('contacting', ['accepted']))
     ).toEqual({ allowed: false, acknowledgeUncertain: false })
     expect(
       getRecallRecipientRetry(
         makeRecipient('contacting', ['sending'], [998]),
+        999
+      )
+    ).toEqual({ allowed: true, acknowledgeUncertain: true })
+    expect(
+      getRecallRecipientRetry(
+        makeRecipient('contacting', ['sending', 'failed'], [998, 0]),
         999
       )
     ).toEqual({ allowed: true, acknowledgeUncertain: true })

@@ -40,6 +40,8 @@ func TestRecallOperationsSchemaContract(t *testing.T) {
 	require.True(t, DB.Migrator().HasIndex(&RecallCampaignExclusion{}, "idx_recall_exclusion_campaign_identity"))
 	require.True(t, DB.Migrator().HasIndex(&RecallTranslationTask{}, "idx_recall_translation_due"))
 	require.Equal(t, "BLOB", recallSQLiteColumnType(t, "recall_exclusion_batches", "resolved_user_ids_snapshot"))
+	require.Equal(t, "TEXT", recallSQLiteColumnType(t, "recall_exclusion_batches", "blocking_errors_snapshot"))
+	require.Equal(t, "TEXT", recallSQLiteColumnType(t, "recall_exclusion_batches", "warnings_snapshot"))
 	require.Equal(t, "TEXT", recallSQLiteColumnType(t, "recall_translation_tasks", "source_snapshot"))
 	require.Equal(t, "TEXT", recallSQLiteColumnType(t, "recall_translation_tasks", "result_snapshot"))
 }
@@ -49,11 +51,12 @@ func TestRecallOperationsSchemaUsesPortableSnapshotTypes(t *testing.T) {
 		name                    string
 		dialect                 gorm.Dialector
 		wantExclusionSnapshot   string
+		wantExclusionProblems   string
 		wantTranslationSnapshot string
 	}{
-		{name: "sqlite", dialect: sqlite.Open(":memory:"), wantExclusionSnapshot: "blob", wantTranslationSnapshot: "text"},
-		{name: "mysql", dialect: mysql.New(mysql.Config{}), wantExclusionSnapshot: "longblob", wantTranslationSnapshot: "text"},
-		{name: "postgres", dialect: postgres.New(postgres.Config{}), wantExclusionSnapshot: "bytea", wantTranslationSnapshot: "text"},
+		{name: "sqlite", dialect: sqlite.Open(":memory:"), wantExclusionSnapshot: "blob", wantExclusionProblems: "text", wantTranslationSnapshot: "text"},
+		{name: "mysql", dialect: mysql.New(mysql.Config{}), wantExclusionSnapshot: "longblob", wantExclusionProblems: "text", wantTranslationSnapshot: "text"},
+		{name: "postgres", dialect: postgres.New(postgres.Config{}), wantExclusionSnapshot: "bytea", wantExclusionProblems: "text", wantTranslationSnapshot: "text"},
 	}
 
 	for _, test := range tests {
@@ -63,6 +66,11 @@ func TestRecallOperationsSchemaUsesPortableSnapshotTypes(t *testing.T) {
 			exclusionSnapshot := exclusionSchema.LookUpField("ResolvedUserIDsSnapshot")
 			require.NotNil(t, exclusionSnapshot)
 			require.Equal(t, test.wantExclusionSnapshot, test.dialect.DataTypeOf(exclusionSnapshot))
+			for _, fieldName := range []string{"BlockingErrorsSnapshot", "WarningsSnapshot"} {
+				field := exclusionSchema.LookUpField(fieldName)
+				require.NotNil(t, field)
+				require.Equal(t, test.wantExclusionProblems, test.dialect.DataTypeOf(field))
+			}
 
 			translationSchema, err := schema.Parse(&RecallTranslationTask{}, &sync.Map{}, schema.NamingStrategy{})
 			require.NoError(t, err)
@@ -3431,7 +3439,19 @@ func TestRecallTransitionCampaignRequiresExpectedState(t *testing.T) {
 func TestRecallTransitionMessageRequiresLeaseOwnerAndExactState(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 
-	message := RecallMessage{RecipientId: 701, StageNo: 1, TemplateSnapshot: `{}`, ScheduledAt: 800, State: RecallMessageScheduled}
+	campaign := newRecallRepositoryCampaign("message lease owner fence")
+	require.NoError(t, DB.Create(&campaign).Error)
+	recipient := RecallRecipient{
+		CampaignId:          campaign.Id,
+		RecipientIdentity:   "user:701",
+		UserId:              701,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       "lease-owner-fence@example.com",
+		LanguageSnapshot:    "en",
+		State:               RecallRecipientContacting,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	message := RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: `{}`, ScheduledAt: 800, State: RecallMessageScheduled}
 	require.NoError(t, DB.Create(&message).Error)
 	won, err := LeaseRecallMessage(message.Id, "node-a", 800, 860)
 	require.NoError(t, err)
@@ -3462,8 +3482,20 @@ func TestRecallTransitionMessageRequiresLeaseOwnerAndExactState(t *testing.T) {
 func TestRecallTransitionMessageFencesSameOwnerReacquisition(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 
+	campaign := newRecallRepositoryCampaign("message reacquisition fence")
+	require.NoError(t, DB.Create(&campaign).Error)
+	recipient := RecallRecipient{
+		CampaignId:          campaign.Id,
+		RecipientIdentity:   "user:725",
+		UserId:              725,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       "reacquisition-fence@example.com",
+		LanguageSnapshot:    "en",
+		State:               RecallRecipientContacting,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
 	message := RecallMessage{
-		RecipientId:      725,
+		RecipientId:      recipient.Id,
 		StageNo:          1,
 		TemplateSnapshot: `{}`,
 		ScheduledAt:      100,

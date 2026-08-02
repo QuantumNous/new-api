@@ -35,6 +35,26 @@ function problemKey(problem: { row: number; code: string; message: string }) {
   return `${problem.row}:${problem.code}:${problem.message}`
 }
 
+const exclusionProblemCopyKeyByCode: Record<string, string> = {
+  malformed_user_id: 'User ID must be a positive integer.',
+  malformed_email: 'Email must be valid.',
+  missing_identity: 'Row has no user ID or email.',
+  unknown_user: 'Identity did not resolve to an existing user.',
+  identity_conflict: 'User ID and email resolve to different users.',
+  duplicate_identity: 'Duplicate CSV row ignored.',
+  stored_blocking_errors: 'Batch contains blocking errors from preview.',
+  duplicate_email: 'Duplicate CSV row ignored.',
+  campaign_member: 'User is already enrolled in this campaign.',
+  already_converted: 'Row conflicts with a converted recipient.',
+}
+
+function getExclusionProblemCopyKey(problem: {
+  code: string
+  message: string
+}): string {
+  return exclusionProblemCopyKeyByCode[problem.code] ?? problem.message
+}
+
 export function CampaignExclusionDialog(
   props: CampaignExclusionDialogProps
 ): React.JSX.Element {
@@ -301,7 +321,7 @@ export function CampaignExclusionDialog(
                   {visibleProblems.map((problem) => (
                     <li key={problemKey(problem)}>
                       {t('Row {{row}}', { row: problem.row })}:{' '}
-                      {t(problem.message)}
+                      {t(getExclusionProblemCopyKey(problem))}
                     </li>
                   ))}
                   {hiddenProblemCount > 0 ? (

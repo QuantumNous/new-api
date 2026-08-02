@@ -32,6 +32,8 @@ type RecallExclusionBatch struct {
 	ConflictRows            int64  `json:"conflict_rows"`
 	CancelledMessages       int64  `json:"cancelled_messages"`
 	ResolvedUserIDsSnapshot []byte `json:"-"`
+	BlockingErrorsSnapshot  string `json:"-" gorm:"type:text"`
+	WarningsSnapshot        string `json:"-" gorm:"type:text"`
 	UploadedBy              int    `json:"uploaded_by"`
 	CreatedAt               int64  `json:"created_at" gorm:"autoCreateTime"`
 	AppliedAt               int64  `json:"applied_at"`
@@ -62,6 +64,8 @@ type RecallExclusionBatchInput struct {
 	UnresolvedRows          int64
 	ConflictRows            int64
 	ResolvedUserIDsSnapshot []byte
+	BlockingErrorsSnapshot  string
+	WarningsSnapshot        string
 	UploadedBy              int
 	Blocked                 bool
 }
@@ -151,6 +155,8 @@ func CreateRecallExclusionBatchWithContext(ctx context.Context, input RecallExcl
 		UnresolvedRows:          input.UnresolvedRows,
 		ConflictRows:            input.ConflictRows,
 		ResolvedUserIDsSnapshot: input.ResolvedUserIDsSnapshot,
+		BlockingErrorsSnapshot:  input.BlockingErrorsSnapshot,
+		WarningsSnapshot:        input.WarningsSnapshot,
 		UploadedBy:              input.UploadedBy,
 	}
 	if batch.FileSHA256 == "" || len(batch.ResolvedUserIDsSnapshot) == 0 {

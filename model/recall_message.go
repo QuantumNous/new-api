@@ -786,15 +786,42 @@ func CompleteRecallMessageLease(id int64, owner string, expectedLeaseUntil int64
 	}
 	updates["lease_owner"] = ""
 	updates["lease_expires_at"] = int64(0)
-	won, err := TransitionRecallMessageWithEvent(context.Background(), RecallMessageTransition{
-		MessageID:          id,
-		From:               from,
-		To:                 to,
-		Owner:              owner,
-		ExpectedLeaseUntil: expectedLeaseUntil,
-		Fields:             updates,
+	completed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := serializeRecallSQLiteWriterTx(tx, "UPDATE recall_messages SET id = id WHERE id = ?", id); err != nil {
+			return err
+		}
+		var message RecallMessage
+		if err := tx.Select("id", "recipient_id").
+			Where("id = ? AND state = ? AND lease_owner = ? AND lease_expires_at = ?", id, from, owner, expectedLeaseUntil).
+			First(&message).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+		var recipient RecallRecipient
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", message.RecipientId).
+			First(&recipient).Error; err != nil {
+			return err
+		}
+		count, err := TransitionRecallMessagesWithEventsTx(tx, []RecallMessageTransition{{
+			MessageID:          id,
+			RecipientID:        recipient.Id,
+			From:               from,
+			To:                 to,
+			Owner:              owner,
+			ExpectedLeaseUntil: expectedLeaseUntil,
+			Fields:             updates,
+		}})
+		if err != nil {
+			return err
+		}
+		completed = count == 1
+		return nil
 	})
-	return won, err
+	return completed, err
 }
 
 func MarkRecallMessageSendingWithContext(ctx context.Context, id int64, owner string, expectedLeaseUntil int64) (bool, error) {

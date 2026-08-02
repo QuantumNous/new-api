@@ -756,6 +756,33 @@ func TestRecallMetricConversionRowsUseImmutableEventData(t *testing.T) {
 	require.Equal(t, []RecallMetricAmount{{Currency: "USD", AmountMinor: 123, UserCount: 1}}, page.Amounts)
 }
 
+func TestRecallMetricZeroAmountConversionAggregatesKnownCurrencyAndPreservesMissingCurrencySemantics(t *testing.T) {
+	db := setupRecallMetricServiceDB(t)
+	campaign := model.RecallCampaign{Name: "zero conversion amount", Status: model.RecallCampaignRunning}
+	require.NoError(t, db.Create(&campaign).Error)
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 612, EligibilitySnapshot: `{}`, EmailSnapshot: "zero-amount@example.com", LanguageSnapshot: "en", State: model.RecallRecipientConverted}
+	require.NoError(t, db.Create(&recipient).Error)
+	eventData := `{"conversion_kind":"direct","trade_no":"zero_trade","currency":"usd","amount_total":0,"payment_category":"direct_topup"}`
+	require.NoError(t, db.Create(&model.RecallEvent{CampaignId: campaign.Id, RecipientId: recipient.Id, EventType: "conversion", Source: "test", SourceEventId: "conversion:zero-amount", EventData: eventData, CreatedAt: 120}).Error)
+	missingCurrencyRecipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 613, EligibilitySnapshot: `{}`, EmailSnapshot: "zero-amount-missing-currency@example.com", LanguageSnapshot: "en", State: model.RecallRecipientConverted}
+	require.NoError(t, db.Create(&missingCurrencyRecipient).Error)
+	missingCurrencyEventData := `{"conversion_kind":"direct","trade_no":"zero_trade_missing_currency","amount_total":0,"payment_category":"direct_topup"}`
+	require.NoError(t, db.Create(&model.RecallEvent{CampaignId: campaign.Id, RecipientId: missingCurrencyRecipient.Id, EventType: "conversion", Source: "test", SourceEventId: "conversion:zero-amount-missing-currency", EventData: missingCurrencyEventData, CreatedAt: 121}).Error)
+	unknownCurrencyRecipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 614, EligibilitySnapshot: `{}`, EmailSnapshot: "nonzero-amount-missing-currency@example.com", LanguageSnapshot: "en", State: model.RecallRecipientConverted}
+	require.NoError(t, db.Create(&unknownCurrencyRecipient).Error)
+	unknownCurrencyEventData := `{"conversion_kind":"direct","trade_no":"nonzero_trade_missing_currency","amount_total":500,"payment_category":"direct_topup"}`
+	require.NoError(t, db.Create(&model.RecallEvent{CampaignId: campaign.Id, RecipientId: unknownCurrencyRecipient.Id, EventType: "conversion", Source: "test", SourceEventId: "conversion:nonzero-amount-missing-currency", EventData: unknownCurrencyEventData, CreatedAt: 122}).Error)
+
+	page, err := QueryRecallMetric(context.Background(), model.RecallMetricQuery{CampaignID: campaign.Id, Metric: "direct_conversions", Limit: 10}, time.Now())
+	require.NoError(t, err)
+	require.EqualValues(t, 3, page.Total)
+	require.EqualValues(t, 0, page.Items[0].AmountMinor)
+	require.Equal(t, []RecallMetricAmount{
+		{Currency: "UNKNOWN", AmountMinor: 500, UserCount: 1},
+		{Currency: "USD", AmountMinor: 0, UserCount: 1},
+	}, page.Amounts)
+}
+
 func TestRecallMetricLargeConversionSnapshotDoesNotMaterializeFail(t *testing.T) {
 	db := setupRecallMetricServiceDB(t)
 	campaign := model.RecallCampaign{Name: "large conversions", Status: model.RecallCampaignRunning}

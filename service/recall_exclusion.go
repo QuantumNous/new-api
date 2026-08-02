@@ -341,6 +341,14 @@ func (s *RecallExclusionService) persistPreview(ctx context.Context, campaignID 
 	if err != nil {
 		return preview, err
 	}
+	blockingSnapshot, err := encodeRecallExclusionProblems(preview.BlockingErrors)
+	if err != nil {
+		return preview, err
+	}
+	warningsSnapshot, err := encodeRecallExclusionProblems(preview.Warnings)
+	if err != nil {
+		return preview, err
+	}
 	batch, err := model.CreateRecallExclusionBatchWithContext(ctx, model.RecallExclusionBatchInput{
 		CampaignID:              campaignID,
 		FileSHA256:              digest,
@@ -350,6 +358,8 @@ func (s *RecallExclusionService) persistPreview(ctx context.Context, campaignID 
 		UnresolvedRows:          preview.UnresolvedRows,
 		ConflictRows:            preview.ConflictRows,
 		ResolvedUserIDsSnapshot: snapshot,
+		BlockingErrorsSnapshot:  blockingSnapshot,
+		WarningsSnapshot:        warningsSnapshot,
 		UploadedBy:              actorID,
 		Blocked:                 blocked,
 	})
@@ -366,8 +376,15 @@ func recallExclusionPreviewFromBatch(ctx context.Context, batch model.RecallExcl
 	if err != nil {
 		return RecallExclusionPreview{}, err
 	}
-	blockingErrors := []RecallExclusionProblem{}
-	if batch.Status == model.RecallExclusionBatchPreviewBlocked {
+	blockingErrors, err := decodeRecallExclusionProblems(batch.BlockingErrorsSnapshot)
+	if err != nil {
+		return RecallExclusionPreview{}, err
+	}
+	warnings, err := decodeRecallExclusionProblems(batch.WarningsSnapshot)
+	if err != nil {
+		return RecallExclusionPreview{}, err
+	}
+	if len(blockingErrors) == 0 && batch.Status == model.RecallExclusionBatchPreviewBlocked {
 		blockingErrors = append(blockingErrors, recallExclusionProblem(0, "stored_blocking_errors", "batch contains blocking errors from preview"))
 	}
 	cancelableWork := batch.CancelledMessages
@@ -389,10 +406,35 @@ func recallExclusionPreviewFromBatch(ctx context.Context, batch model.RecallExcl
 		UnresolvedRows: batch.UnresolvedRows,
 		ConflictRows:   batch.ConflictRows,
 		BlockingErrors: blockingErrors,
-		Warnings:       []RecallExclusionProblem{},
+		Warnings:       warnings,
 		CancelableWork: cancelableWork,
 		Confirmable:    batch.Status == model.RecallExclusionBatchPreviewed && batch.ResolvedUsers > 0 && batch.ConflictRows == 0 && model.RecallExclusionCampaignStatusConfirmable(campaign.Status),
 	}, nil
+}
+
+func encodeRecallExclusionProblems(problems []RecallExclusionProblem) (string, error) {
+	if len(problems) == 0 {
+		return "", nil
+	}
+	data, err := common.Marshal(problems)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func decodeRecallExclusionProblems(snapshot string) ([]RecallExclusionProblem, error) {
+	if strings.TrimSpace(snapshot) == "" {
+		return []RecallExclusionProblem{}, nil
+	}
+	var problems []RecallExclusionProblem
+	if err := common.Unmarshal([]byte(snapshot), &problems); err != nil {
+		return nil, err
+	}
+	if problems == nil {
+		return []RecallExclusionProblem{}, nil
+	}
+	return problems, nil
 }
 
 func recallExclusionProblem(row int64, code string, message string) RecallExclusionProblem {

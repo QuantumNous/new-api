@@ -25,6 +25,7 @@ import {
 import { getRecallDeliveryErrorCopyKey } from '../copy'
 import {
   formatRecallCampaignType,
+  formatRecallCurrencyAmount,
   getRecallEmailLocaleStatus,
   getRecallPageCount,
   getRecallRecipientRetry,
@@ -331,8 +332,10 @@ export function CampaignDetail(props: CampaignDetailProps) {
                             : '-'}
                         </div>
                         <div>
-                          {recipient.conversion_currency.toUpperCase()}{' '}
-                          {recipient.conversion_amount || 0}
+                          {formatRecallCurrencyAmount(
+                            recipient.conversion_currency,
+                            recipient.conversion_amount
+                          ) || '-'}
                         </div>
                       </TableCell>
                       <TableCell>

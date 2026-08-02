@@ -149,6 +149,30 @@ func TestRecallExclusionPreviewAndGetBatchUseCurrentCampaignEligibility(t *testi
 	require.False(t, fetched.Confirmable)
 }
 
+func TestRecallExclusionGetBatchRestoresOriginalPreviewProblems(t *testing.T) {
+	_ = setupRecallExclusionServiceTestDB(t)
+	campaign := seedRecallExclusionCampaign(t)
+	seedRecallExclusionUsers(t, model.User{Id: 101, Email: "ada@example.com", Username: "ada"})
+
+	service := NewRecallExclusionService()
+	preview, err := service.Preview(context.Background(), campaign.Id, 7, strings.NewReader("user_id,email\n101,ada@example.com\n101,\n,not-an-email\n999,\n"))
+	require.NoError(t, err)
+	require.False(t, preview.Confirmable)
+	require.Equal(t, []RecallExclusionProblem{
+		recallExclusionProblem(4, "malformed_email", "email must be valid"),
+	}, preview.BlockingErrors)
+	require.Equal(t, []RecallExclusionProblem{
+		recallExclusionProblem(3, "duplicate_identity", "duplicate identity collapsed"),
+		recallExclusionProblem(5, "unknown_user", "identity did not resolve to an existing user"),
+	}, preview.Warnings)
+
+	fetched, err := service.GetBatch(context.Background(), campaign.Id, preview.BatchID)
+	require.NoError(t, err)
+	require.Equal(t, preview.BlockingErrors, fetched.BlockingErrors)
+	require.Equal(t, preview.Warnings, fetched.Warnings)
+	require.False(t, fetched.Confirmable)
+}
+
 func TestRecallExclusionPreviewCapsProblemSamplesWithoutLosingCounts(t *testing.T) {
 	t.Run("malformed blocking samples", func(t *testing.T) {
 		_ = setupRecallExclusionServiceTestDB(t)
@@ -220,10 +244,34 @@ func TestRecallExclusionPersistedPreviewWithBlockingErrorsCannotBeConfirmed(t *t
 	fetched, err := service.GetBatch(context.Background(), campaign.Id, preview.BatchID)
 	require.NoError(t, err)
 	require.False(t, fetched.Confirmable)
-	require.Equal(t, []string{"stored_blocking_errors"}, recallExclusionProblemCodes(fetched.BlockingErrors))
+	require.Equal(t, []string{"malformed_email"}, recallExclusionProblemCodes(fetched.BlockingErrors))
 
 	_, err = service.Confirm(context.Background(), campaign.Id, preview.BatchID, 7)
 	require.ErrorContains(t, err, "not confirmable")
+}
+
+func TestRecallExclusionGetBatchFallsBackForLegacyBlockedPreviewWithoutProblemSnapshot(t *testing.T) {
+	db := setupRecallExclusionServiceTestDB(t)
+	campaign := seedRecallExclusionCampaign(t)
+	seedRecallExclusionUsers(t, model.User{Id: 101, Email: "ada@example.com", Username: "ada"})
+
+	service := NewRecallExclusionService()
+	preview, err := service.Preview(context.Background(), campaign.Id, 7, strings.NewReader("email\nada@example.com\nnot-an-email\n"))
+	require.NoError(t, err)
+	require.NotEmpty(t, preview.BlockingErrors)
+	require.NoError(t, db.Model(&model.RecallExclusionBatch{}).
+		Where("id = ?", preview.BatchID).
+		Updates(map[string]any{
+			"blocking_errors_snapshot": "",
+			"warnings_snapshot":        "",
+		}).Error)
+
+	fetched, err := service.GetBatch(context.Background(), campaign.Id, preview.BatchID)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"stored_blocking_errors"}, recallExclusionProblemCodes(fetched.BlockingErrors))
+	require.Empty(t, fetched.Warnings)
+	require.False(t, fetched.Confirmable)
 }
 
 func TestRecallExclusionPreviewEnforcesSizeAndRowBoundaries(t *testing.T) {

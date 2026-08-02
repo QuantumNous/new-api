@@ -17,9 +17,11 @@ func TestRecallExclusionUserIDSnapshotIsSortedUniqueAndGzipped(t *testing.T) {
 	require.Equal(t, []int{7, 9, 42}, userIDs)
 }
 
-func TestRecallExclusionBatchSchemaDoesNotAddBlockingErrorColumn(t *testing.T) {
+func TestRecallExclusionBatchSchemaUsesProblemSnapshotColumns(t *testing.T) {
 	db, _ := setupRecallRepositoryDB(t)
 
 	require.True(t, db.Migrator().HasTable(&RecallExclusionBatch{}))
 	require.False(t, db.Migrator().HasColumn(&RecallExclusionBatch{}, "BlockingErrorCount"))
+	require.True(t, db.Migrator().HasColumn(&RecallExclusionBatch{}, "BlockingErrorsSnapshot"))
+	require.True(t, db.Migrator().HasColumn(&RecallExclusionBatch{}, "WarningsSnapshot"))
 }

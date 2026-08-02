@@ -1623,6 +1623,161 @@ func TestRecallRetryAcceptsFailedWorkAndRequiresAcknowledgementForUncertainMail(
 	requireRecallFailure(t, retry(activeRecipient.Id, `{}`), "failed")
 }
 
+func TestRecallRetryPrioritizesMixedUncertainWorkOverFailedMessages(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		ambiguousMessage model.RecallMessage
+		wantState        string
+		wantLeaseCleared bool
+	}{
+		{
+			name: "failed plus uncertain",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          2,
+				TemplateVersion:  8,
+				TemplateSnapshot: "uncertain-template",
+				State:            model.RecallMessageUncertain,
+				AttemptCount:     1,
+				FailedAt:         recallControllerBoundary + 2,
+				UpdatedAt:        recallControllerBoundary + 2,
+			},
+			wantState: model.RecallMessageUncertain,
+		},
+		{
+			name: "failed plus expired sending",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          2,
+				TemplateVersion:  9,
+				TemplateSnapshot: "expired-sending-template",
+				State:            model.RecallMessageSending,
+				AttemptCount:     1,
+				LeaseOwner:       "crashed",
+				LeaseExpiresAt:   1,
+				UpdatedAt:        recallControllerBoundary + 3,
+			},
+			wantState:        model.RecallMessageSending,
+			wantLeaseCleared: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness := setupRecallControllerHarness(t)
+			campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+			seedRecallControllerUser(t, harness, 77, "retry-mixed")
+			recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 77, EligibilitySnapshot: `{}`, EmailSnapshot: "retry-mixed@example.com", LanguageSnapshot: "en", State: model.RecallRecipientContacting}
+			require.NoError(t, harness.db.Create(&recipient).Error)
+			failedMessage := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 7, TemplateSnapshot: "failed-template", State: model.RecallMessageFailed, AttemptCount: 2, FailedAt: recallControllerBoundary, UpdatedAt: recallControllerBoundary}
+			ambiguousMessage := test.ambiguousMessage
+			ambiguousMessage.RecipientId = recipient.Id
+			require.NoError(t, harness.db.Create(&failedMessage).Error)
+			require.NoError(t, harness.db.Create(&ambiguousMessage).Error)
+
+			retry := func(body string) *httptest.ResponseRecorder {
+				return invokeRecallHandler(t, RetryRecallRecipient, http.MethodPost, "/", []byte(body), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "rid", Value: fmt.Sprint(recipient.Id)}})
+			}
+			requireRecallFailure(t, retry(`{}`), "acknowledge_uncertain")
+			require.NoError(t, harness.db.First(&failedMessage, failedMessage.Id).Error)
+			require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+			require.NoError(t, harness.db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, test.wantState, ambiguousMessage.State)
+
+			require.Equal(t, true, decodeRecallEnvelope(t, retry(`{"acknowledge_uncertain":true}`))["success"])
+			require.NoError(t, harness.db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, model.RecallMessageRetryWait, ambiguousMessage.State)
+			if test.wantLeaseCleared {
+				require.Empty(t, ambiguousMessage.LeaseOwner)
+				require.Zero(t, ambiguousMessage.LeaseExpiresAt)
+			}
+			require.NoError(t, harness.db.First(&failedMessage, failedMessage.Id).Error)
+			require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+		})
+	}
+}
+
+func TestRecallRetryPrioritizesAmbiguousMessagesOverFailedRecipient(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		ambiguousMessage model.RecallMessage
+		wantState        string
+		wantLeaseCleared bool
+	}{
+		{
+			name: "failed recipient plus uncertain",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          1,
+				TemplateVersion:  8,
+				TemplateSnapshot: "uncertain-template",
+				State:            model.RecallMessageUncertain,
+				AttemptCount:     1,
+				FailedAt:         recallControllerBoundary + 2,
+				UpdatedAt:        recallControllerBoundary + 2,
+			},
+			wantState: model.RecallMessageUncertain,
+		},
+		{
+			name: "failed recipient plus expired sending",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          1,
+				TemplateVersion:  9,
+				TemplateSnapshot: "expired-sending-template",
+				State:            model.RecallMessageSending,
+				AttemptCount:     1,
+				LeaseOwner:       "crashed",
+				LeaseExpiresAt:   1,
+				UpdatedAt:        recallControllerBoundary + 3,
+			},
+			wantState:        model.RecallMessageSending,
+			wantLeaseCleared: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness := setupRecallControllerHarness(t)
+			campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+			seedRecallControllerUser(t, harness, 78, "retry-failed-recipient-mixed")
+			recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 78, EligibilitySnapshot: `{}`, EmailSnapshot: "retry-failed-recipient-mixed@example.com", LanguageSnapshot: "en", State: model.RecallRecipientFailed, LastErrorCode: "stripe_permanent", UpdatedAt: recallControllerBoundary}
+			require.NoError(t, harness.db.Create(&recipient).Error)
+			ambiguousMessage := test.ambiguousMessage
+			ambiguousMessage.RecipientId = recipient.Id
+			require.NoError(t, harness.db.Create(&ambiguousMessage).Error)
+
+			retry := func(body string) *httptest.ResponseRecorder {
+				return invokeRecallHandler(t, RetryRecallRecipient, http.MethodPost, "/", []byte(body), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "rid", Value: fmt.Sprint(recipient.Id)}})
+			}
+			requireRecallFailure(t, retry(`{}`), "acknowledge_uncertain")
+			require.NoError(t, harness.db.First(&recipient, recipient.Id).Error)
+			require.Equal(t, model.RecallRecipientFailed, recipient.State)
+			require.NoError(t, harness.db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, test.wantState, ambiguousMessage.State)
+
+			require.Equal(t, true, decodeRecallEnvelope(t, retry(`{"acknowledge_uncertain":true}`))["success"])
+			require.NoError(t, harness.db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, model.RecallMessageRetryWait, ambiguousMessage.State)
+			if test.wantLeaseCleared {
+				require.Empty(t, ambiguousMessage.LeaseOwner)
+				require.Zero(t, ambiguousMessage.LeaseExpiresAt)
+			}
+			require.NoError(t, harness.db.First(&recipient, recipient.Id).Error)
+			require.Equal(t, model.RecallRecipientFailed, recipient.State)
+		})
+	}
+}
+
+func TestRecallRetryPrioritizesFailedMessageOverFailedRecipientWithoutAmbiguousMail(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	seedRecallControllerUser(t, harness, 79, "retry-failed-message-before-recipient")
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 79, EligibilitySnapshot: `{}`, EmailSnapshot: "retry-failed-message-before-recipient@example.com", LanguageSnapshot: "en", State: model.RecallRecipientFailed, LastErrorCode: "stripe_permanent", UpdatedAt: recallControllerBoundary}
+	require.NoError(t, harness.db.Create(&recipient).Error)
+	failedMessage := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 7, TemplateSnapshot: "failed-template", State: model.RecallMessageFailed, AttemptCount: 2, FailedAt: recallControllerBoundary + 2, UpdatedAt: recallControllerBoundary + 2}
+	require.NoError(t, harness.db.Create(&failedMessage).Error)
+
+	recorder := invokeRecallHandler(t, RetryRecallRecipient, http.MethodPost, "/", []byte(`{}`), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "rid", Value: fmt.Sprint(recipient.Id)}})
+	require.Equal(t, true, decodeRecallEnvelope(t, recorder)["success"])
+	require.NoError(t, harness.db.First(&failedMessage, failedMessage.Id).Error)
+	require.Equal(t, model.RecallMessageRetryWait, failedMessage.State)
+	require.NoError(t, harness.db.First(&recipient, recipient.Id).Error)
+	require.Equal(t, model.RecallRecipientFailed, recipient.State)
+}
+
 func TestRecallCancelCompleteAndRetryWriteDeterministicAdminEvents(t *testing.T) {
 	harness := setupRecallControllerHarness(t)
 	cancelCampaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)

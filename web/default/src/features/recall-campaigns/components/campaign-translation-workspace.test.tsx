@@ -40,7 +40,17 @@ const testI18n = createInstance()
 await testI18n.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
-  resources: { en: { translation: {} } },
+  resources: {
+    en: {
+      translation: {
+        queued: 'localized-queued',
+        running: 'localized-running',
+        succeeded: 'localized-succeeded',
+        failed: 'localized-failed',
+        superseded: 'localized-superseded',
+      },
+    },
+  },
   interpolation: { escapeValue: false },
 })
 
@@ -413,7 +423,7 @@ describe('CampaignTranslationWorkspace', () => {
         }
       )
 
-      expect(html).toContain(`Translation task ${status}`)
+      expect(html).toContain(`Translation task localized-${status}`)
       if (status === 'failed') {
         expect(html).toContain('Translation generation failed')
         expect(html).not.toContain(
@@ -444,7 +454,7 @@ describe('CampaignTranslationWorkspace', () => {
       }
     )
 
-    expect(html).toContain('Translation task superseded')
+    expect(html).toContain('Translation task localized-superseded')
     expect(html).toContain(
       'Translation request was replaced by a newer request.'
     )

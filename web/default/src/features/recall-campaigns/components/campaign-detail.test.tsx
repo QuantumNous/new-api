@@ -12,6 +12,7 @@ import type {
   RecallEmailStage,
   RecallMetricCard,
   RecallMetricKey,
+  RecallRecipient,
 } from '../types'
 
 mock.module('@tanstack/react-router', () => ({
@@ -236,7 +237,8 @@ function makeDetail(campaignType: RecallCampaignType): RecallCampaignDetail {
 
 function renderCampaignDetail(
   campaignType: RecallCampaignType,
-  metrics: RecallCampaignMetrics = makeMetrics()
+  metrics: RecallCampaignMetrics = makeMetrics(),
+  recipients: RecallRecipient[] = []
 ): string {
   const campaignId = 42
   const queryClient = new QueryClient({
@@ -257,7 +259,12 @@ function renderCampaignDetail(
   })
   queryClient.setQueryData(recallCampaignKeys.recipients(campaignId, 1), {
     success: true,
-    data: { items: [], total: 0, page: 1, page_size: 100 },
+    data: {
+      items: recipients,
+      total: recipients.length,
+      page: 1,
+      page_size: 100,
+    },
   })
   queryClient.setQueryData(recallCampaignKeys.events(campaignId, 1), {
     success: true,
@@ -276,6 +283,14 @@ function renderCampaignDetail(
 function campaignMetricsMarkup(html: string): string {
   const start = html.indexOf('Campaign metrics')
   const end = html.indexOf('Recipients and messages')
+  expect(start).toBeGreaterThan(-1)
+  expect(end).toBeGreaterThan(start)
+  return html.slice(start, end)
+}
+
+function campaignRecipientsMarkup(html: string): string {
+  const start = html.indexOf('Recipients and messages')
+  const end = html.indexOf('Audit timeline')
   expect(start).toBeGreaterThan(-1)
   expect(end).toBeGreaterThan(start)
   return html.slice(start, end)
@@ -469,5 +484,41 @@ describe('CampaignDetail metric rendering', () => {
       'Campaign metric cards are not available yet.'
     )
     expect(metricsHtml).not.toContain('>999</span>')
+  })
+})
+
+describe('CampaignDetail recipient rendering', () => {
+  test('formats conversion amounts in currency major units', () => {
+    const recipient: RecallRecipient = {
+      id: 1,
+      campaign_id: 42,
+      user_id: 7824,
+      language_snapshot: 'en',
+      state: 'converted',
+      stripe_customer_id: '',
+      promotion_code_masked: '',
+      promotion_expires_at: 0,
+      first_sent_at: 0,
+      last_sent_at: 0,
+      clicked_at: 0,
+      converted_at: 0,
+      conversion_kind: 'direct',
+      conversion_trade_no: 'activity-14-7824',
+      conversion_currency: 'USD',
+      conversion_amount: 1_600,
+      discount_amount: 0,
+      last_error_code: '',
+      last_error_message: '',
+      created_at: 0,
+      updated_at: 0,
+      messages: [],
+    }
+
+    const recipientHtml = campaignRecipientsMarkup(
+      renderCampaignDetail('promotion', makeMetrics(), [recipient])
+    )
+
+    expect(recipientHtml).toContain('$16.00')
+    expect(recipientHtml).not.toContain('USD 1600')
   })
 })

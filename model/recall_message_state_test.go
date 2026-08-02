@@ -90,6 +90,192 @@ func TestRecallMessageTransitionRecordsRetryChainAndManualRequeue(t *testing.T) 
 	requireRecallMessageStateEvent(t, failed.Id, 2, RecallMessageFailed, RecallMessageRetryWait)
 }
 
+func TestRecallManualRetryRecipientCandidatePrioritizesMessagesInsideTransaction(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	campaign := seedRecallCampaignForMessageState(t)
+	recipient := RecallRecipient{
+		CampaignId:          campaign.Id,
+		UserId:              3001,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       "manual-retry-target@example.com",
+		LanguageSnapshot:    "en",
+		State:               RecallRecipientFailed,
+		UpdatedAt:           1_721_000_100,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	failed := RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageFailed, UpdatedAt: 1_721_000_110}
+	uncertain := RecallMessage{RecipientId: recipient.Id, StageNo: 2, TemplateSnapshot: `{}`, State: RecallMessageUncertain, UpdatedAt: 1_721_000_120}
+	require.NoError(t, DB.Create(&failed).Error)
+	require.NoError(t, DB.Create(&uncertain).Error)
+
+	_, won, err := ManualRetryRecallRecipientCandidateAndAdminEventWithContext(context.Background(), campaign.Id, recipient.Id, false, 1_721_000_200, recallManualRetryTestAdminEvent)
+	require.ErrorContains(t, err, "acknowledge_uncertain=true")
+	require.False(t, won)
+	require.NoError(t, DB.First(&failed, failed.Id).Error)
+	require.Equal(t, RecallMessageFailed, failed.State)
+	require.NoError(t, DB.First(&uncertain, uncertain.Id).Error)
+	require.Equal(t, RecallMessageUncertain, uncertain.State)
+	require.NoError(t, DB.First(&recipient, recipient.Id).Error)
+	require.Equal(t, RecallRecipientFailed, recipient.State)
+
+	selection, won, err := ManualRetryRecallRecipientCandidateAndAdminEventWithContext(context.Background(), campaign.Id, recipient.Id, true, 1_721_000_210, recallManualRetryTestAdminEvent)
+	require.NoError(t, err)
+	require.True(t, won)
+	require.Equal(t, RecallManualRetryTargetMessage, selection.Target)
+	require.Equal(t, uncertain.Id, selection.Message.Id)
+	require.NoError(t, DB.First(&uncertain, uncertain.Id).Error)
+	require.Equal(t, RecallMessageRetryWait, uncertain.State)
+	require.NoError(t, DB.First(&failed, failed.Id).Error)
+	require.Equal(t, RecallMessageFailed, failed.State)
+	require.NoError(t, DB.First(&recipient, recipient.Id).Error)
+	require.Equal(t, RecallRecipientFailed, recipient.State)
+}
+
+func TestRecallManualRetryRecipientCandidateFallbacks(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		recipient     RecallRecipient
+		wantNextState string
+	}{
+		{name: "queued", wantNextState: RecallRecipientQueued},
+		{name: "customer ready", recipient: RecallRecipient{StripeCustomerId: "cus_model_retry"}, wantNextState: RecallRecipientCustomerReady},
+		{name: "code ready", recipient: RecallRecipient{StripeCustomerId: "cus_model_retry", PromotionCode: "FKMODEL"}, wantNextState: RecallRecipientCodeReady},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			setupRecallRepositoryTestDB(t)
+			campaign := seedRecallCampaignForMessageState(t)
+			recipient := test.recipient
+			recipient.CampaignId = campaign.Id
+			recipient.UserId = 3101
+			recipient.EligibilitySnapshot = `{}`
+			recipient.EmailSnapshot = "manual-retry-fallback@example.com"
+			recipient.LanguageSnapshot = "en"
+			recipient.State = RecallRecipientFailed
+			recipient.UpdatedAt = 1_721_000_100
+			if recipient.PromotionCode != "" {
+				promotionID := "promo_model_retry"
+				recipient.StripePromotionCodeId = &promotionID
+			}
+			require.NoError(t, DB.Create(&recipient).Error)
+
+			selection, won, err := ManualRetryRecallRecipientCandidateAndAdminEventWithContext(context.Background(), campaign.Id, recipient.Id, false, 1_721_000_200, recallManualRetryTestAdminEvent)
+			require.NoError(t, err)
+			require.True(t, won)
+			require.Equal(t, RecallManualRetryTargetRecipient, selection.Target)
+			require.Equal(t, test.wantNextState, selection.NextRecipientState)
+			require.NoError(t, DB.First(&recipient, recipient.Id).Error)
+			require.Equal(t, test.wantNextState, recipient.State)
+		})
+	}
+}
+
+func TestRecallManualRetryRecipientCandidateFailedMessagePrecedesFailedRecipient(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	campaign := seedRecallCampaignForMessageState(t)
+	recipient := RecallRecipient{
+		CampaignId:          campaign.Id,
+		UserId:              3201,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       "manual-retry-failed-message@example.com",
+		LanguageSnapshot:    "en",
+		State:               RecallRecipientFailed,
+		UpdatedAt:           1_721_000_100,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	failed := RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageFailed, UpdatedAt: 1_721_000_110}
+	require.NoError(t, DB.Create(&failed).Error)
+
+	selection, won, err := ManualRetryRecallRecipientCandidateAndAdminEventWithContext(context.Background(), campaign.Id, recipient.Id, false, 1_721_000_200, recallManualRetryTestAdminEvent)
+	require.NoError(t, err)
+	require.True(t, won)
+	require.Equal(t, RecallManualRetryTargetMessage, selection.Target)
+	require.Equal(t, failed.Id, selection.Message.Id)
+	require.NoError(t, DB.First(&failed, failed.Id).Error)
+	require.Equal(t, RecallMessageRetryWait, failed.State)
+	require.NoError(t, DB.First(&recipient, recipient.Id).Error)
+	require.Equal(t, RecallRecipientFailed, recipient.State)
+}
+
+func TestRecallManualRetryRecipientCandidateRejectsMismatchedAdminEventTarget(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	campaign := seedRecallCampaignForMessageState(t)
+	recipient := RecallRecipient{
+		CampaignId:          campaign.Id,
+		UserId:              3301,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       "manual-retry-mismatch@example.com",
+		LanguageSnapshot:    "en",
+		State:               RecallRecipientFailed,
+		UpdatedAt:           1_721_000_100,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	failed := RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageFailed, UpdatedAt: 1_721_000_110}
+	require.NoError(t, DB.Create(&failed).Error)
+
+	_, won, err := ManualRetryRecallRecipientCandidateAndAdminEventWithContext(context.Background(), campaign.Id, recipient.Id, false, 1_721_000_200, func(selection RecallManualRetrySelection) (RecallEvent, error) {
+		event, err := recallManualRetryTestAdminEvent(selection)
+		if err != nil {
+			return RecallEvent{}, err
+		}
+		event.CampaignId = selection.CampaignID + 1
+		event.RecipientId = selection.RecipientID + 1
+		return event, nil
+	})
+	require.ErrorContains(t, err, "recall retry admin event target does not match")
+	require.False(t, won)
+	require.NoError(t, DB.First(&failed, failed.Id).Error)
+	require.Equal(t, RecallMessageFailed, failed.State)
+
+	var events int64
+	require.NoError(t, DB.Model(&RecallEvent{}).Where("event_type = ? AND source = ?", "recipient_retry", "admin").Count(&events).Error)
+	require.Zero(t, events)
+}
+
+func TestRecallCompleteSendingFailureLocksRecipientBeforeMessageTransition(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	message := seedRecallMessage(t, RecallMessageSending, 1)
+	message.LeaseOwner = "node-a"
+	message.LeaseExpiresAt = 1_721_000_300
+	require.NoError(t, DB.Save(&message).Error)
+
+	recipientLocked := false
+	sawMessageTransitionLock := false
+	callbackName := fmt.Sprintf("test:recall-complete-lock-order:%s", t.Name())
+	require.NoError(t, DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil {
+			return
+		}
+		if _, ok := tx.Statement.Clauses["FOR"]; !ok {
+			return
+		}
+		switch tx.Statement.Schema.Name {
+		case "RecallRecipient":
+			recipientLocked = true
+		case "RecallMessage":
+			sawMessageTransitionLock = true
+			if !recipientLocked {
+				tx.AddError(errors.New("recall sending failure completed before recipient lock"))
+			}
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Query().Remove(callbackName))
+		require.True(t, recipientLocked, "expected CompleteRecallMessageLease to lock recipient before candidate completion")
+		require.True(t, sawMessageTransitionLock, "expected CompleteRecallMessageLease to lock message for transition")
+	})
+
+	won, err := CompleteRecallMessageLease(message.Id, "node-a", message.LeaseExpiresAt, RecallMessageSending, RecallMessageUncertain, map[string]any{
+		"attempt_count":   1,
+		"last_error_code": "smtp_uncertain",
+	})
+	require.NoError(t, err)
+	require.True(t, won)
+}
+
 func TestRecallMessageLegacyTransitionWritesInlineBaselineBeforeTransition(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 
@@ -497,6 +683,18 @@ func registerRecallMessagePostSelectMutation(t *testing.T, messageID int64, muta
 		require.NoError(t, DB.Callback().Query().Remove(name))
 		require.True(t, triggered, "expected recall message select mutation callback to run")
 	})
+}
+
+func recallManualRetryTestAdminEvent(selection RecallManualRetrySelection) (RecallEvent, error) {
+	return RecallEvent{
+		CampaignId:    selection.CampaignID,
+		RecipientId:   selection.RecipientID,
+		EventType:     "recipient_retry",
+		Source:        "admin",
+		SourceEventId: fmt.Sprintf("manual-retry:%s:%d:%d", selection.Target, selection.RecipientID, selection.Now),
+		EventData:     fmt.Sprintf(`{"target":%q}`, selection.Target),
+		CreatedAt:     selection.Now,
+	}, nil
 }
 
 func failRecallMessageStateEventInserts(t *testing.T) {

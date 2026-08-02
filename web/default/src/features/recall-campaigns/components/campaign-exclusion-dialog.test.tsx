@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test'
 import { createInstance } from 'i18next'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
+import zhLocale from '../../../i18n/locales/zh.json'
 import * as recallApi from '../api'
 import type { RecallExclusionPreview } from '../types'
 
@@ -326,6 +327,9 @@ await testI18n.use(initReactI18next).init({
           'Translated converted-recipient conflict.',
       },
     },
+    zh: {
+      translation: zhLocale.translation,
+    },
   },
   interpolation: { escapeValue: false },
 })
@@ -425,7 +429,8 @@ async function chooseFile(file: File) {
   })
 }
 
-afterEach(() => {
+afterEach(async () => {
+  await testI18n.changeLanguage('en')
   previewCalls.length = 0
   batchLoads.length = 0
   confirmCalls.length = 0
@@ -491,6 +496,40 @@ describe('CampaignExclusionDialog', () => {
     )
     expect(latestButtons['Apply exclusions']?.disabled).toBeTrue()
     expect(container.textContent).not.toContain('blocked@example.com')
+
+    React.act(() => root.unmount())
+  })
+
+  test('renders known exclusion problem codes with stable localized copy', async () => {
+    await testI18n.changeLanguage('zh')
+    nextPreview = makePreview({
+      confirmable: false,
+      blocking_errors: [
+        {
+          row: 3,
+          code: 'campaign_member',
+          message: 'backend campaign member detail',
+        },
+      ],
+      warnings: [
+        {
+          row: 2,
+          code: 'duplicate_identity',
+          message: 'duplicate identity collapsed',
+        },
+      ],
+    })
+    const { container, root } = renderDialog({})
+
+    await chooseFile(new File(['email\nada@example.com\n'], 'users.csv'))
+    await click('预览排除项')
+
+    expect(container.textContent).toContain('第 2 行: 已忽略重复的 CSV 行。')
+    expect(container.textContent).toContain('第 3 行: 用户已加入此活动。')
+    expect(container.textContent).not.toContain('duplicate identity collapsed')
+    expect(container.textContent).not.toContain(
+      'backend campaign member detail'
+    )
 
     React.act(() => root.unmount())
   })

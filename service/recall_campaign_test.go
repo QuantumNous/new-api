@@ -4181,6 +4181,392 @@ func TestRecallCampaignRetryTreatsOnlyExpiredSendingAsAcknowledgedUncertainty(t 
 	require.True(t, won)
 }
 
+func TestRecallCampaignRetryPrioritizesMixedUncertainWorkOverFailedMessages(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		ambiguousMessage model.RecallMessage
+		wantState        string
+		wantLeaseCleared bool
+	}{
+		{
+			name: "failed plus uncertain",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          2,
+				TemplateVersion:  8,
+				TemplateSnapshot: `{"en":{"subject":"uncertain"}}`,
+				State:            model.RecallMessageUncertain,
+				AttemptCount:     1,
+				FailedAt:         1_721_199_930,
+				UpdatedAt:        1_721_199_930,
+			},
+			wantState: model.RecallMessageUncertain,
+		},
+		{
+			name: "failed plus expired sending",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          2,
+				TemplateVersion:  9,
+				TemplateSnapshot: `{"en":{"subject":"expired"}}`,
+				State:            model.RecallMessageSending,
+				AttemptCount:     1,
+				LeaseOwner:       "crashed-node",
+				LeaseExpiresAt:   1_721_199_999,
+				UpdatedAt:        1_721_199_940,
+			},
+			wantState:        model.RecallMessageSending,
+			wantLeaseCleared: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Unix(1_721_200_000, 0).UTC()
+			service := NewRecallCampaignService(nil, nil)
+			service.now = func() time.Time { return now }
+
+			campaign := model.RecallCampaign{
+				CampaignType:        model.RecallCampaignTypePromotion,
+				Name:                "mixed retry campaign",
+				Status:              model.RecallCampaignRunning,
+				AudienceTemplate:    "first_purchase",
+				AudienceConfig:      `{}`,
+				ExecutionMode:       "manual",
+				CouponSource:        "automatic",
+				DiscountConfig:      `{}`,
+				ProductScope:        `{}`,
+				EmailSequenceConfig: `[]`,
+				EnrollmentLimit:     100,
+				WorkerConcurrency:   2,
+			}
+			require.NoError(t, db.Create(&campaign).Error)
+			recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 971, EligibilitySnapshot: `{}`, EmailSnapshot: "mixed-retry@example.com", LanguageSnapshot: "en", State: model.RecallRecipientContacting}
+			require.NoError(t, db.Create(&recipient).Error)
+			failedMessage := model.RecallMessage{
+				RecipientId:      recipient.Id,
+				StageNo:          1,
+				TemplateVersion:  7,
+				TemplateSnapshot: `{"en":{"subject":"failed"}}`,
+				State:            model.RecallMessageFailed,
+				AttemptCount:     2,
+				FailedAt:         now.Unix() - 100,
+				UpdatedAt:        now.Unix() - 100,
+			}
+			ambiguousMessage := test.ambiguousMessage
+			ambiguousMessage.RecipientId = recipient.Id
+			require.NoError(t, db.Create(&failedMessage).Error)
+			require.NoError(t, db.Create(&ambiguousMessage).Error)
+
+			err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+			require.ErrorContains(t, err, "acknowledge_uncertain=true")
+			require.NoError(t, db.First(&failedMessage, failedMessage.Id).Error)
+			require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+			require.NoError(t, db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, test.wantState, ambiguousMessage.State)
+
+			err = service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, true)
+			require.NoError(t, err)
+			require.NoError(t, db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, model.RecallMessageRetryWait, ambiguousMessage.State)
+			require.Equal(t, now.Unix(), ambiguousMessage.NextAttemptAt)
+			if test.wantLeaseCleared {
+				require.Empty(t, ambiguousMessage.LeaseOwner)
+				require.Zero(t, ambiguousMessage.LeaseExpiresAt)
+			}
+			require.NoError(t, db.First(&failedMessage, failedMessage.Id).Error)
+			require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+		})
+	}
+}
+
+func TestRecallCampaignRetryPrioritizesAmbiguousMessagesOverFailedRecipient(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		ambiguousMessage model.RecallMessage
+		wantState        string
+		wantLeaseCleared bool
+	}{
+		{
+			name: "failed recipient plus uncertain",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          1,
+				TemplateVersion:  8,
+				TemplateSnapshot: `{"en":{"subject":"uncertain"}}`,
+				State:            model.RecallMessageUncertain,
+				AttemptCount:     1,
+				FailedAt:         1_721_199_930,
+				UpdatedAt:        1_721_199_930,
+			},
+			wantState: model.RecallMessageUncertain,
+		},
+		{
+			name: "failed recipient plus expired sending",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          1,
+				TemplateVersion:  9,
+				TemplateSnapshot: `{"en":{"subject":"expired"}}`,
+				State:            model.RecallMessageSending,
+				AttemptCount:     1,
+				LeaseOwner:       "crashed-node",
+				LeaseExpiresAt:   1_721_199_999,
+				UpdatedAt:        1_721_199_940,
+			},
+			wantState:        model.RecallMessageSending,
+			wantLeaseCleared: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Unix(1_721_200_000, 0).UTC()
+			service := NewRecallCampaignService(nil, nil)
+			service.now = func() time.Time { return now }
+
+			campaign := model.RecallCampaign{
+				CampaignType:        model.RecallCampaignTypePromotion,
+				Name:                "failed recipient mixed retry campaign",
+				Status:              model.RecallCampaignRunning,
+				AudienceTemplate:    "first_purchase",
+				AudienceConfig:      `{}`,
+				ExecutionMode:       "manual",
+				CouponSource:        "automatic",
+				DiscountConfig:      `{}`,
+				ProductScope:        `{}`,
+				EmailSequenceConfig: `[]`,
+				EnrollmentLimit:     100,
+				WorkerConcurrency:   2,
+			}
+			require.NoError(t, db.Create(&campaign).Error)
+			recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 981, EligibilitySnapshot: `{}`, EmailSnapshot: "failed-recipient-mixed@example.com", LanguageSnapshot: "en", State: model.RecallRecipientFailed, LastErrorCode: "stripe_permanent", UpdatedAt: now.Unix() - 200}
+			require.NoError(t, db.Create(&recipient).Error)
+			ambiguousMessage := test.ambiguousMessage
+			ambiguousMessage.RecipientId = recipient.Id
+			require.NoError(t, db.Create(&ambiguousMessage).Error)
+
+			err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+			require.ErrorContains(t, err, "acknowledge_uncertain=true")
+			require.NoError(t, db.First(&recipient, recipient.Id).Error)
+			require.Equal(t, model.RecallRecipientFailed, recipient.State)
+			require.NoError(t, db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, test.wantState, ambiguousMessage.State)
+
+			err = service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, true)
+			require.NoError(t, err)
+			require.NoError(t, db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, model.RecallMessageRetryWait, ambiguousMessage.State)
+			require.Equal(t, now.Unix(), ambiguousMessage.NextAttemptAt)
+			if test.wantLeaseCleared {
+				require.Empty(t, ambiguousMessage.LeaseOwner)
+				require.Zero(t, ambiguousMessage.LeaseExpiresAt)
+			}
+			require.NoError(t, db.First(&recipient, recipient.Id).Error)
+			require.Equal(t, model.RecallRecipientFailed, recipient.State)
+		})
+	}
+}
+
+func TestRecallCampaignRetryStillAllowsFailedRecipientWithoutAmbiguousMessages(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_200_000, 0).UTC()
+	service := NewRecallCampaignService(nil, nil)
+	service.now = func() time.Time { return now }
+
+	campaign := model.RecallCampaign{
+		CampaignType:        model.RecallCampaignTypePromotion,
+		Name:                "failed recipient retry campaign",
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "first_purchase",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "automatic",
+		DiscountConfig:      `{}`,
+		ProductScope:        `{}`,
+		EmailSequenceConfig: `[]`,
+		EnrollmentLimit:     100,
+		WorkerConcurrency:   2,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 982, EligibilitySnapshot: `{}`, EmailSnapshot: "failed-recipient@example.com", LanguageSnapshot: "en", State: model.RecallRecipientFailed, LastErrorCode: "stripe_permanent", UpdatedAt: now.Unix() - 200}
+	require.NoError(t, db.Create(&recipient).Error)
+
+	err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+	require.NoError(t, err)
+	require.NoError(t, db.First(&recipient, recipient.Id).Error)
+	require.Equal(t, model.RecallRecipientQueued, recipient.State)
+}
+
+func TestRecallCampaignRetryRechecksPrecedenceAfterStaleFailedMessageSnapshot(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_200_000, 0).UTC()
+	service := NewRecallCampaignService(nil, nil)
+	service.now = func() time.Time { return now }
+
+	campaign := model.RecallCampaign{
+		CampaignType:        model.RecallCampaignTypePromotion,
+		Name:                "stale retry campaign",
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "first_purchase",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "automatic",
+		DiscountConfig:      `{}`,
+		ProductScope:        `{}`,
+		EmailSequenceConfig: `[]`,
+		EnrollmentLimit:     100,
+		WorkerConcurrency:   2,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 983, EligibilitySnapshot: `{}`, EmailSnapshot: "stale-retry@example.com", LanguageSnapshot: "en", State: model.RecallRecipientContacting}
+	require.NoError(t, db.Create(&recipient).Error)
+	failedMessage := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 7, TemplateSnapshot: `{}`, State: model.RecallMessageFailed, AttemptCount: 2, FailedAt: now.Unix() - 100, UpdatedAt: now.Unix() - 100}
+	lateAmbiguous := model.RecallMessage{RecipientId: recipient.Id, StageNo: 2, TemplateVersion: 8, TemplateSnapshot: `{}`, State: model.RecallMessageScheduled, ScheduledAt: now.Unix() + 300}
+	require.NoError(t, db.Create(&failedMessage).Error)
+	require.NoError(t, db.Create(&lateAmbiguous).Error)
+
+	callbackName := "test:recall-retry-stale-failed-snapshot-campaign-after"
+	var triggered atomic.Bool
+	mutateToUncertain := func(tx *gorm.DB) {
+		require.NoError(t, tx.Session(&gorm.Session{NewDB: true}).Model(&model.RecallMessage{}).Where("id = ?", lateAmbiguous.Id).Updates(map[string]any{
+			"state":      model.RecallMessageUncertain,
+			"failed_at":  now.Unix() - 50,
+			"updated_at": now.Unix() - 50,
+		}).Error)
+	}
+	require.NoError(t, db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallCampaign" || strings.Contains(fmt.Sprintf("%T", tx.Statement.ConnPool), "sql.Tx") || !triggered.CompareAndSwap(false, true) {
+			return
+		}
+		mutateToUncertain(tx)
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, db.Callback().Query().Remove(callbackName))
+		require.True(t, triggered.Load(), "expected stale snapshot mutation callback to run")
+	})
+
+	err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+	require.ErrorContains(t, err, "acknowledge_uncertain=true")
+
+	require.NoError(t, db.First(&failedMessage, failedMessage.Id).Error)
+	require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+	require.NoError(t, db.First(&lateAmbiguous, lateAmbiguous.Id).Error)
+	require.Equal(t, model.RecallMessageUncertain, lateAmbiguous.State)
+
+	err = service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, true)
+	require.NoError(t, err)
+	require.NoError(t, db.First(&lateAmbiguous, lateAmbiguous.Id).Error)
+	require.Equal(t, model.RecallMessageRetryWait, lateAmbiguous.State)
+	require.NoError(t, db.First(&failedMessage, failedMessage.Id).Error)
+	require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+}
+
+func TestRecallCampaignRetryFailedRecipientFallbackStates(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		recipient     model.RecallRecipient
+		wantNextState string
+	}{
+		{
+			name:          "queued",
+			recipient:     model.RecallRecipient{},
+			wantNextState: model.RecallRecipientQueued,
+		},
+		{
+			name: "customer ready",
+			recipient: model.RecallRecipient{
+				StripeCustomerId: "cus_retry",
+			},
+			wantNextState: model.RecallRecipientCustomerReady,
+		},
+		{
+			name: "code ready",
+			recipient: model.RecallRecipient{
+				StripeCustomerId: "cus_retry",
+				PromotionCode:    "FKRETRY",
+			},
+			wantNextState: model.RecallRecipientCodeReady,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Unix(1_721_200_000, 0).UTC()
+			service := NewRecallCampaignService(nil, nil)
+			service.now = func() time.Time { return now }
+
+			campaign := model.RecallCampaign{
+				CampaignType:        model.RecallCampaignTypePromotion,
+				Name:                "failed recipient fallback campaign",
+				Status:              model.RecallCampaignRunning,
+				AudienceTemplate:    "first_purchase",
+				AudienceConfig:      `{}`,
+				ExecutionMode:       "manual",
+				CouponSource:        "automatic",
+				DiscountConfig:      `{}`,
+				ProductScope:        `{}`,
+				EmailSequenceConfig: `[]`,
+				EnrollmentLimit:     100,
+				WorkerConcurrency:   2,
+			}
+			require.NoError(t, db.Create(&campaign).Error)
+			recipient := test.recipient
+			recipient.CampaignId = campaign.Id
+			recipient.UserId = 984
+			recipient.EligibilitySnapshot = `{}`
+			recipient.EmailSnapshot = "failed-recipient-fallback@example.com"
+			recipient.LanguageSnapshot = "en"
+			recipient.State = model.RecallRecipientFailed
+			recipient.LastErrorCode = "stripe_permanent"
+			recipient.UpdatedAt = now.Unix() - 200
+			if recipient.PromotionCode != "" {
+				promotionID := "promo_retry"
+				recipient.StripePromotionCodeId = &promotionID
+			}
+			require.NoError(t, db.Create(&recipient).Error)
+
+			err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+			require.NoError(t, err)
+			require.NoError(t, db.First(&recipient, recipient.Id).Error)
+			require.Equal(t, test.wantNextState, recipient.State)
+		})
+	}
+}
+
+func TestRecallCampaignRetryFailedMessagePrecedesFailedRecipientWithoutAmbiguousMessages(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_200_000, 0).UTC()
+	service := NewRecallCampaignService(nil, nil)
+	service.now = func() time.Time { return now }
+
+	campaign := model.RecallCampaign{
+		CampaignType:        model.RecallCampaignTypePromotion,
+		Name:                "failed message before recipient campaign",
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "first_purchase",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "automatic",
+		DiscountConfig:      `{}`,
+		ProductScope:        `{}`,
+		EmailSequenceConfig: `[]`,
+		EnrollmentLimit:     100,
+		WorkerConcurrency:   2,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 985, EligibilitySnapshot: `{}`, EmailSnapshot: "failed-message-before-recipient@example.com", LanguageSnapshot: "en", State: model.RecallRecipientFailed, LastErrorCode: "stripe_permanent", UpdatedAt: now.Unix() - 200}
+	require.NoError(t, db.Create(&recipient).Error)
+	failedMessage := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 7, TemplateSnapshot: `{}`, State: model.RecallMessageFailed, AttemptCount: 2, FailedAt: now.Unix() - 100, UpdatedAt: now.Unix() - 100}
+	require.NoError(t, db.Create(&failedMessage).Error)
+
+	err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+	require.NoError(t, err)
+	require.NoError(t, db.First(&failedMessage, failedMessage.Id).Error)
+	require.Equal(t, model.RecallMessageRetryWait, failedMessage.State)
+	require.NoError(t, db.First(&recipient, recipient.Id).Error)
+	require.Equal(t, model.RecallRecipientFailed, recipient.State)
+}
+
 func TestRecallCampaignConfigurationEntryPointsRemainAvailableWhenRuntimeDisabled(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

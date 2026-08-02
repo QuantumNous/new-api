@@ -513,8 +513,8 @@ func recallMetricConversionResultFromStream(ctx context.Context, query RecallMet
 	result := RecallMetricResult{Snapshot: query.Snapshot, AmountMinorByCurrency: map[string]int64{}, AmountUserCountByCurrency: map[string]int64{}, DrilldownComplete: true}
 	_, err := StreamRecallMetricRows(ctx, scanQuery, recallMetricStreamingBatchSize, func(row RecallMetricRow) (bool, error) {
 		result.Total++
-		if row.AmountMinor != 0 {
-			currency := strings.ToUpper(strings.TrimSpace(row.Currency))
+		currency := strings.ToUpper(strings.TrimSpace(row.Currency))
+		if currency != "" || row.AmountMinor != 0 {
 			if currency == "" {
 				currency = "UNKNOWN"
 			}

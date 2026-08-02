@@ -30,6 +30,7 @@ import type {
   RecallMetricFilters,
   RecallMetricKey,
   RecallMetricRow,
+  RecallPaymentCategory,
 } from '../types'
 
 const METRIC_PAGE_SIZE = 50
@@ -74,6 +75,30 @@ const grainLabels: Record<string, string> = {
   conversion: 'Conversion rows',
   identity: 'User rows',
   message: 'Message rows',
+}
+
+const rowColumnLabels: Partial<Record<keyof RecallMetricRow, string>> = {
+  user_id: 'User ID',
+  email: 'Email',
+  occurred_at: 'Occurred at',
+  state: 'Recipient status',
+  stage_no: 'Stage',
+  failure_code: 'Failure code',
+  conversion_kind: 'Conversion kind',
+  trade_no: 'Trade number',
+  payment_category: 'Payment category',
+  currency: 'Currency',
+  amount_minor: 'Conversion amount',
+}
+
+const paymentCategoryLabels: Record<
+  Exclude<RecallPaymentCategory, ''>,
+  string
+> = {
+  direct_topup: 'Direct top-up',
+  balance_subscription: 'Balance-paid subscription',
+  online_subscription: 'Online-paid subscription',
+  unclassified: 'Unclassified attributed spend',
 }
 
 type DrawerFilters = Pick<
@@ -209,6 +234,14 @@ function rowColumns(card: RecallMetricCard): Array<keyof RecallMetricRow> {
   return base
 }
 
+function getRowColumnLabel(column: keyof RecallMetricRow): string {
+  return rowColumnLabels[column] ?? column
+}
+
+function getPaymentCategoryLabel(category: RecallPaymentCategory): string {
+  return category ? paymentCategoryLabels[category] : '-'
+}
+
 function formatCell(row: RecallMetricRow, column: keyof RecallMetricRow) {
   if (column === 'email') return maskEmail(row.email)
   if (column === 'occurred_at') {
@@ -220,6 +253,12 @@ function formatCell(row: RecallMetricRow, column: keyof RecallMetricRow) {
     return row.currency
       ? formatMetricAmount(row.currency, row.amount_minor)
       : '-'
+  }
+  if (column === 'payment_category') {
+    return getPaymentCategoryLabel(row.payment_category)
+  }
+  if (column === 'currency') {
+    return row.currency ? row.currency.toUpperCase() : '-'
   }
   return String(row[column] || '-')
 }
@@ -432,7 +471,9 @@ export function CampaignMetricDrawer(
             ) : null}
             {supported(card, 'state') ? (
               <div className='space-y-1'>
-                <Label htmlFor='recall-metric-state'>{t('State')}</Label>
+                <Label htmlFor='recall-metric-state'>
+                  {t('Recipient status')}
+                </Label>
                 <NativeSelect
                   id='recall-metric-state'
                   value={filters.state ?? ''}
@@ -506,16 +547,16 @@ export function CampaignMetricDrawer(
                 >
                   <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
                   <NativeSelectOption value='direct_topup'>
-                    {t('direct_topup')}
+                    {t(getPaymentCategoryLabel('direct_topup'))}
                   </NativeSelectOption>
                   <NativeSelectOption value='balance_subscription'>
-                    {t('balance_subscription')}
+                    {t(getPaymentCategoryLabel('balance_subscription'))}
                   </NativeSelectOption>
                   <NativeSelectOption value='online_subscription'>
-                    {t('online_subscription')}
+                    {t(getPaymentCategoryLabel('online_subscription'))}
                   </NativeSelectOption>
                   <NativeSelectOption value='unclassified'>
-                    {t('unclassified')}
+                    {t(getPaymentCategoryLabel('unclassified'))}
                   </NativeSelectOption>
                 </NativeSelect>
               </div>
@@ -535,7 +576,9 @@ export function CampaignMetricDrawer(
             <TableHeader>
               <TableRow>
                 {rowColumns(card).map((column) => (
-                  <TableHead key={column}>{t(column)}</TableHead>
+                  <TableHead key={column}>
+                    {t(getRowColumnLabel(column))}
+                  </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
@@ -544,7 +587,11 @@ export function CampaignMetricDrawer(
                 <TableRow key={`${row.row_id}:${row.message_id}`}>
                   {rowColumns(card).map((column) => (
                     <TableCell key={column}>
-                      {formatCell(row, column)}
+                      {column === 'payment_category' ||
+                      column === 'state' ||
+                      column === 'conversion_kind'
+                        ? t(formatCell(row, column))
+                        : formatCell(row, column)}
                     </TableCell>
                   ))}
                 </TableRow>
