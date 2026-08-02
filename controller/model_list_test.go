@@ -426,9 +426,13 @@ func TestListModelsIncludesConfiguredTokenLimits(t *testing.T) {
 func TestListModelsReturnsErrorWhenTokenLimitLookupDatabaseFails(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	db := setupModelListControllerTestDB(t)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	require.NoError(t, sqlDB.Close())
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "model-with-token-limit",
+		ChannelId: 1,
+		Enabled:   true,
+	}).Error)
+	require.NoError(t, db.Migrator().DropTable(&model.Model{}))
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
@@ -513,6 +517,12 @@ func TestListModelsUsesNameRuleTokenLimits(t *testing.T) {
 func TestListModelsMetadataDoesNotBypassTokenModelLimits(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "token-allowed-model",
+		ChannelId: 1,
+		Enabled:   true,
+	}).Error)
 	require.NoError(t, db.Create(&model.Model{
 		ModelName:       "metadata-only-model",
 		NameRule:        model.NameRuleExact,
