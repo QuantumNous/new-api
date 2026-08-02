@@ -129,6 +129,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &sub2api.Adaptor{}
 	case constant.APITypeNewAPI:
 		return &newapi.Adaptor{}
+	case constant.APITypeBaichuan:
+		return &openai.Adaptor{}
 	}
 	return nil
 }
