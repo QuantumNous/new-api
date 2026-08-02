@@ -98,6 +98,9 @@ func (a *TaskAdaptor) convertCreatePayload(c *gin.Context, req *relaycommon.Task
 		return nil, fmt.Errorf("upstream model is empty; use one of: %s", strings.Join(ModelList, ", "))
 	}
 
+	// VolcEngine official content[] → 7tai fields (all 7tai models).
+	volcNorm := detectAndNormalizeVolcOfficial(c, req)
+
 	payload := map[string]interface{}{
 		"model":  modelName,
 		"prompt": strings.TrimSpace(req.Prompt),
@@ -124,6 +127,8 @@ func (a *TaskAdaptor) convertCreatePayload(c *gin.Context, req *relaycommon.Task
 		payload["prompt"] = strings.TrimSpace(req.Prompt)
 	}
 	normalizeCreatePayload(payload)
+	applyVolcNormalized(payload, volcNorm)
+	normalize7taiResolution(payload, volcNorm != nil)
 	return payload, nil
 }
 
