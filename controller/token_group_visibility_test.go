@@ -226,6 +226,13 @@ func TestUpdateTokenAllowsEditingExistingHiddenGroupButRejectsMovingIntoIt(t *te
 	if err != nil || persisted.Status != common.TokenStatusEnabled || persisted.Group != "default" {
 		t.Fatalf("hidden policy must not alter an existing token: token=%#v err=%v", persisted, err)
 	}
+	runtimeCtx, _ := newAuthenticatedContext(t, http.MethodPost, "/v1/chat/completions", nil, user.Id)
+	if err := middleware.SetupContextForToken(runtimeCtx, persisted); err != nil {
+		t.Fatalf("existing hidden-group token must still enter the relay context: %v", err)
+	}
+	if got := common.GetContextKeyString(runtimeCtx, constant.ContextKeyTokenGroup); got != "default" {
+		t.Fatalf("relay context lost the existing token group: got %q", got)
+	}
 	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", map[string]any{
 		"id": token.Id, "name": "edited", "group": "default", "expired_time": -1, "unlimited_quota": true,
 	}, user.Id)
