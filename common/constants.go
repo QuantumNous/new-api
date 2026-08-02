@@ -122,6 +122,7 @@ var TelegramBotToken = ""
 var TelegramBotName = ""
 
 var QuotaForNewUser = 0
+var DefaultUserGroup = "default" // 新用户默认分组，管理员可配置，仅对新注册用户生效
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 var ChannelDisableThreshold = 5.0

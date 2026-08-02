@@ -41,3 +41,5 @@ service/relayconvert/chat_responses_live_local_test.go
 service/openaicompat/chat_responses_live_local_test.go
 go.work
 go.work.sum
+new-api-custom.tar
+new-api-custom.tar.gz
