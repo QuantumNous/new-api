@@ -161,3 +161,19 @@ test('light mobile dashboard-auto-route', async ({ page }) => {
   )!
   await captureScenario('light', 'mobile', scenario, page)
 })
+
+test('dark wide logs keeps a balanced content width', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await configureStablePage(page, { theme: 'dark', authenticated: true })
+  await page.goto('/console/logs', { waitUntil: 'domcontentloaded' })
+  await waitForStablePage(page)
+
+  const logPage = page.locator('[data-log-page]')
+  await expect(logPage).toBeVisible()
+  expect(
+    await logPage.evaluate((element) => element.getBoundingClientRect().width)
+  ).toBe(1276)
+  await assertNoHorizontalOverflow(page)
+  await assertInteractiveCentersVisible(page)
+  await expect(page).toHaveScreenshot('dark-wide-logs.png', { fullPage: false })
+})

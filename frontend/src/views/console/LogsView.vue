@@ -428,7 +428,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div>
+  <div data-log-page class="mx-auto max-w-[1276px]">
     <PageBreadcrumb
       :crumbs="[t('logs.breadcrumb.0'), t('logs.breadcrumb.1')]"
     />

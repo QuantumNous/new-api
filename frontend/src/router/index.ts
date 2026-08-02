@@ -106,7 +106,7 @@ const router = createRouter({
           path: 'logs',
           name: 'logs',
           component: () => import('@/views/console/LogsView.vue'),
-          meta: { noPageScroll: true },
+          meta: { wide: true, noPageScroll: true },
         },
         {
           path: 'channels',

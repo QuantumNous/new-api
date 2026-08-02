@@ -59,6 +59,16 @@ describe('application router', () => {
     })
   })
 
+  it('opens the log ledger in the wide console layout', async () => {
+    writeDemoUser(demoUser)
+    await router.push('/console/logs')
+
+    expect(router.currentRoute.value.meta).toMatchObject({
+      wide: true,
+      noPageScroll: true,
+    })
+  })
+
   it('opens the administrator order ledger as a wide admin route', async () => {
     writeDemoUser(demoUser)
     await router.push('/console/orders')
