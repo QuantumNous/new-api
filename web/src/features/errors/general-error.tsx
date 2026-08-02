@@ -17,12 +17,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate, useRouter } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
+import {
+  canReloadStaleChunk,
+  isStaleChunkLoadError,
+} from './lib/stale-chunk-recovery'
+
 const FEEDBACK_URL = 'https://github.com/QuantumNous/new-api/issues'
+const STALE_CHUNK_RELOAD_KEY = 'new-api:stale-chunk-reload-at'
 
 type GeneralErrorProps = React.HTMLAttributes<HTMLDivElement> & {
   minimal?: boolean
@@ -47,6 +54,22 @@ export function GeneralError({
   const { history } = useRouter()
   const status = getHttpStatus(error)
   const isRateLimited = status === 429
+
+  useEffect(() => {
+    if (!isStaleChunkLoadError(error)) return
+
+    try {
+      const now = Date.now()
+      const lastReloadAt = window.sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY)
+      if (!canReloadStaleChunk(lastReloadAt, now)) return
+
+      window.sessionStorage.setItem(STALE_CHUNK_RELOAD_KEY, String(now))
+      window.location.reload()
+    } catch {
+      // Keep the error page visible when browser storage is unavailable.
+    }
+  }, [error])
+
   const title = isRateLimited
     ? t('Too many requests')
     : `${t('Oops! Something went wrong')} ${`:')`}`

@@ -27,12 +27,22 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	router.Use(middleware.Cache())
 	router.Use(static.Serve("/", frontendFS))
 	router.NoRoute(func(c *gin.Context) {
-		c.Set(middleware.RouteTagKey, "web")
-		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
-			controller.RelayNotFound(c)
-			return
-		}
-		c.Header("Cache-Control", "no-cache")
-		c.Data(http.StatusOK, "text/html; charset=utf-8", assets.IndexPage)
+		handleWebFallback(c, assets.IndexPage)
 	})
+}
+
+func handleWebFallback(c *gin.Context, indexPage []byte) {
+	c.Set(middleware.RouteTagKey, "web")
+	requestPath := c.Request.URL.Path
+	if strings.HasPrefix(requestPath, "/v1") || strings.HasPrefix(requestPath, "/api") || strings.HasPrefix(requestPath, "/assets") {
+		controller.RelayNotFound(c)
+		return
+	}
+	if requestPath == "/static" || strings.HasPrefix(requestPath, "/static/") {
+		c.Header("Cache-Control", "no-store")
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	c.Header("Cache-Control", "no-cache")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
 }
