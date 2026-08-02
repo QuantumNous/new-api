@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 )
@@ -70,6 +73,116 @@ func TestAddTokenVisibilityFlagDisabledPreservesLegacyBehavior(t *testing.T) {
 	AddToken(ctx)
 	if !decodeAPIResponse(t, recorder).Success {
 		t.Fatalf("expected legacy behavior while disabled: %s", recorder.Body.String())
+	}
+}
+
+func TestGetUserGroupsAppliesTargetedVisibilityPerUser(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	target := createVisibilityTestUser(t, 1, "target", "default")
+	nonTarget := createVisibilityTestUser(t, 2, "non-target", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, Usernames: []string{"target"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	getGroups := func(userID int) map[string]map[string]interface{} {
+		t.Helper()
+		ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/user/groups", nil, userID)
+		GetUserGroups(ctx)
+		var response struct {
+			Success bool                              `json:"success"`
+			Data    map[string]map[string]interface{} `json:"data"`
+		}
+		if err := common.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to decode user groups response: %v", err)
+		}
+		if !response.Success {
+			t.Fatalf("user groups endpoint failed: %s", recorder.Body.String())
+		}
+		return response.Data
+	}
+
+	if _, ok := getGroups(target.Id)["default"]; !ok {
+		t.Fatal("target user must see the targeted group in the user groups endpoint")
+	}
+	if _, ok := getGroups(nonTarget.Id)["default"]; ok {
+		t.Fatal("non-target user must not see the targeted group in the user groups endpoint")
+	}
+}
+
+func TestAdminEntitlementTokenEnforcesTargetUserVisibility(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	if err := model.DB.AutoMigrate(&model.Log{}); err != nil {
+		t.Fatalf("failed to migrate audit log table: %v", err)
+	}
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	target := createVisibilityTestUser(t, 1, "target", "default")
+	nonTarget := createVisibilityTestUser(t, 2, "non-target", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, Usernames: []string{"target"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	createAdminToken := func(userID int, name string) tokenAPIResponse {
+		t.Helper()
+		ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/entitlement/admin-token", map[string]any{
+			"user_id":         userID,
+			"name":            name,
+			"group":           "default",
+			"expired_time":    -1,
+			"unlimited_quota": true,
+		}, 99)
+		CreateAdminEntitlementToken(ctx)
+		return decodeAPIResponse(t, recorder)
+	}
+
+	if response := createAdminToken(nonTarget.Id, "forged-admin-token"); response.Success {
+		t.Fatal("admin must not create a targeted group token for a non-target user")
+	}
+	count, err := model.CountUserTokens(nonTarget.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("rejected admin creation must not persist a token, got %d", count)
+	}
+
+	if response := createAdminToken(target.Id, "target-admin-token"); !response.Success {
+		t.Fatalf("admin should create a token for a target user: %#v", response)
+	}
+	count, err = model.CountUserTokens(target.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one admin-created token for target user, got %d", count)
+	}
+}
+
+func TestPlaygroundRejectsHiddenGroupSelection(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	user := createVisibilityTestUser(t, 1, "playground-user", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityHidden,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/pg/chat/completions", map[string]any{
+		"model": "gpt-4", "group": "default",
+	}, user.Id)
+	common.SetContextKey(ctx, constant.ContextKeyUsingGroup, user.Group)
+	if err := i18n.Init(); err != nil {
+		t.Fatalf("failed to initialize backend translations: %v", err)
+	}
+	middleware.Distribute()(ctx)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("expected Playground hidden-group selection to return 403, got %d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 
