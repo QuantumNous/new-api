@@ -20,6 +20,8 @@ interface Scenario {
   selectTabByName?: string
   /** Opens the first log usage popover before the capture. */
   openUsageDetails?: boolean
+  /** Opens the first log detail dialog before the capture. */
+  openLogDetails?: boolean
 }
 
 const darkScenarios: Scenario[] = [
@@ -45,6 +47,11 @@ const darkScenarios: Scenario[] = [
     name: 'logs-usage-details',
     path: '/console/logs',
     openUsageDetails: true,
+  },
+  {
+    name: 'logs-detail-dialog',
+    path: '/console/logs',
+    openLogDetails: true,
   },
   {
     name: 'plan-form-modal',
@@ -118,9 +125,18 @@ async function captureScenario(
     await expect(page.locator('[data-log-usage-popover]')).toBeVisible()
     await waitForStablePage(page)
   }
+  if (scenario.openLogDetails) {
+    const trigger = page.locator('[data-log-detail-trigger]:visible').first()
+    await expect(trigger).toBeVisible()
+    await trigger.click()
+    const dialog = page.locator('[role="dialog"][aria-modal="true"]')
+    await expect(dialog).toBeVisible()
+    await expect(dialog.locator('[data-log-detail-empty]')).toBeEmpty()
+    await waitForStablePage(page)
+  }
   if (scenario.path === '/console/logs') {
     await assertNoHorizontalOverflow(page)
-    if (!scenario.openUsageDetails) {
+    if (!scenario.openUsageDetails && !scenario.openLogDetails) {
       await assertInteractiveCentersVisible(page)
     }
   }
@@ -173,6 +189,20 @@ test('dark wide logs keeps a balanced content width', async ({ page }) => {
   expect(
     await logPage.evaluate((element) => element.getBoundingClientRect().width)
   ).toBe(1276)
+  const detailTrigger = page
+    .locator('[data-log-detail-trigger]:visible')
+    .first()
+  await detailTrigger.hover()
+  await expect(detailTrigger).toHaveCSS('text-decoration-line', 'underline')
+  await expect(page.locator('[data-log-cost]:visible').first()).toHaveCSS(
+    'font-size',
+    '14px'
+  )
+  expect(
+    await detailTrigger.evaluate(
+      (element) => element.closest('td')?.getBoundingClientRect().width ?? 0
+    )
+  ).toBeGreaterThan(150)
   await assertNoHorizontalOverflow(page)
   await assertInteractiveCentersVisible(page)
   await expect(page).toHaveScreenshot('dark-wide-logs.png', { fullPage: false })

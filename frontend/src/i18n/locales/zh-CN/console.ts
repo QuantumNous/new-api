@@ -1064,6 +1064,8 @@ export default {
     colTokens: '词元（输入/输出）',
     colQuota: '费用',
     colContent: '详情',
+    detailTitle: '日志详情',
+    viewLogDetails: '查看日志详情',
     usageDetails: '用量详情',
     viewUsageDetails: '查看用量详情',
     inputTokens: '输入 Token',

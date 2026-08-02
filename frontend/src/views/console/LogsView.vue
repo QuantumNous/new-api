@@ -63,6 +63,15 @@ const startDate = ref('')
 const endDate = ref('')
 const exportOpen = ref(false)
 const exportType = ref('csv')
+const detailLog = ref<LogItem | null>(null)
+
+function openLogDetails(log: LogItem): void {
+  detailLog.value = log
+}
+
+function closeLogDetails(): void {
+  detailLog.value = null
+}
 
 // ---------- column visibility ----------
 
@@ -185,13 +194,13 @@ const COL_META: Record<
   ColKey,
   { labelKey: string; width?: string; align?: 'left' | 'right' | 'center' }
 > = {
-  created: { labelKey: 'logs.colTime', width: '140px' },
-  identity: { labelKey: 'logs.colIdentity', width: '165px' },
-  route: { labelKey: 'logs.colRoute', width: '178px' },
+  created: { labelKey: 'logs.colTime', width: '130px' },
+  identity: { labelKey: 'logs.colIdentity', width: '155px' },
+  route: { labelKey: 'logs.colRoute', width: '165px' },
   reasoning: { labelKey: 'logs.colReasoning', width: '104px' },
-  performance: { labelKey: 'logs.colPerformance', width: '220px' },
-  usage: { labelKey: 'logs.colUsage', width: '190px' },
-  cost: { labelKey: 'logs.colCost', width: '108px', align: 'right' },
+  performance: { labelKey: 'logs.colPerformance', width: '200px' },
+  usage: { labelKey: 'logs.colUsage', width: '180px' },
+  cost: { labelKey: 'logs.colCost', width: '96px', align: 'right' },
   content: { labelKey: 'logs.colContent' },
 }
 
@@ -630,7 +639,7 @@ onBeforeUnmount(() => {
         :skeleton-rows="pageSize"
         adaptive-scroll
         :page-size="pageSize"
-        min-table-width="1300px"
+        min-table-width="clamp(1125px, 100%, 1276px)"
         :scroll-region-label="t('logs.breadcrumb.1')"
         :empty-title="t('logs.emptyTitle')"
         :empty-hint="t('logs.emptyHint')"
@@ -683,7 +692,7 @@ onBeforeUnmount(() => {
         <template #cell-cost="{ row }">
           <span
             data-log-cost
-            class="whitespace-nowrap text-xs font-semibold tabular-nums"
+            class="whitespace-nowrap text-sm font-semibold tabular-nums"
             :class="
               ['topup', 'refund', 'manage', 'system'].includes(
                 (row as LogItem).type
@@ -697,9 +706,16 @@ onBeforeUnmount(() => {
           </span>
         </template>
         <template #cell-content="{ row }">
-          <span class="text-xs text-[var(--text-tertiary)]">{{
-            (row as LogItem).content
-          }}</span>
+          <button
+            type="button"
+            data-log-detail-trigger
+            class="block w-full min-w-0 truncate text-left text-xs text-[var(--text-tertiary)] underline-offset-4 transition-colors hover:text-[var(--text-secondary)] hover:underline focus-visible:text-[var(--text-secondary)] focus-visible:underline focus-visible:outline-none"
+            :title="(row as LogItem).content"
+            :aria-label="t('logs.viewLogDetails')"
+            @click="openLogDetails(row as LogItem)"
+          >
+            {{ (row as LogItem).content }}
+          </button>
         </template>
 
         <template #footer>
@@ -724,7 +740,12 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-else-if="rows.length" class="space-y-3">
-        <LogMobileCard v-for="row in rows" :key="row.id" :log="row" />
+        <LogMobileCard
+          v-for="row in rows"
+          :key="row.id"
+          :log="row"
+          @view-details="openLogDetails"
+        />
       </div>
 
       <div
@@ -748,6 +769,22 @@ onBeforeUnmount(() => {
         />
       </div>
     </section>
+
+    <ConsoleModal
+      :open="detailLog !== null"
+      :title="t('logs.detailTitle')"
+      size="md"
+      @close="closeLogDetails"
+    >
+      <div data-log-detail-empty class="min-h-20" />
+      <template #footer>
+        <div class="flex justify-end">
+          <ConsoleButton variant="secondary" @click="closeLogDetails">
+            {{ t('common.close') }}
+          </ConsoleButton>
+        </div>
+      </template>
+    </ConsoleModal>
 
     <!-- export modal -->
     <ConsoleModal

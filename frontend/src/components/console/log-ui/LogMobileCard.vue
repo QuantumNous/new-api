@@ -13,6 +13,10 @@ defineProps<{
   log: LogItem
 }>()
 
+const emit = defineEmits<{
+  'view-details': [log: LogItem]
+}>()
+
 const { t } = useI18n()
 
 const typeTone: Record<
@@ -113,8 +117,17 @@ function quotaPrefix(type: LogType): string {
         class="col-span-2 min-w-0 border-t border-[var(--border-subtle)] pt-3"
       >
         <dt class="sr-only">{{ t('logs.colContent') }}</dt>
-        <dd class="truncate text-[var(--text-tertiary)]" :title="log.content">
-          {{ log.content }}
+        <dd>
+          <button
+            type="button"
+            data-log-detail-trigger
+            class="block w-full truncate text-left text-[var(--text-tertiary)] underline-offset-4 transition-colors hover:text-[var(--text-secondary)] hover:underline focus-visible:text-[var(--text-secondary)] focus-visible:underline focus-visible:outline-none"
+            :title="log.content"
+            :aria-label="t('logs.viewLogDetails')"
+            @click="emit('view-details', log)"
+          >
+            {{ log.content }}
+          </button>
         </dd>
       </div>
     </dl>

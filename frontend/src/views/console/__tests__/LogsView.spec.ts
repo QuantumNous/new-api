@@ -157,6 +157,32 @@ describe('LogsView', () => {
     expect(panel.text()).toContain('Detail')
   })
 
+  it('lets the detail column fill remaining space and opens an empty detail dialog', async () => {
+    const wrapper = mount(LogsView, {
+      attachTo: document.body,
+      global: { plugins: [i18n] },
+    })
+
+    await settleLogRequests()
+
+    const bodyTable = wrapper.get('.data-table-body-viewport table')
+    expect(bodyTable.attributes('style')).toContain(
+      'clamp(1125px, 100%, 1276px)'
+    )
+    const trigger = wrapper.findAll('[data-log-detail-trigger]')[0]!
+    expect(trigger.classes()).toContain('hover:underline')
+    expect(wrapper.get('[data-log-cost]').classes()).toContain('text-sm')
+
+    await trigger.trigger('click')
+    await flushPromises()
+
+    const dialog = new DOMWrapper(document.body).get(
+      '[role="dialog"][aria-modal="true"]'
+    )
+    expect(dialog.text()).toContain('Log details')
+    expect(dialog.get('[data-log-detail-empty]').text()).toBe('')
+  })
+
   it('exports every filtered page as CSV, not just the visible one', async () => {
     const captured = captureDownload()
     const wrapper = mount(LogsView, {

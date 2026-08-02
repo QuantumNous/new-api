@@ -1074,6 +1074,8 @@ export default {
     colTokens: 'Tokens (in/out)',
     colQuota: 'Cost',
     colContent: 'Detail',
+    detailTitle: 'Log details',
+    viewLogDetails: 'View log details',
     usageDetails: 'Usage details',
     viewUsageDetails: 'View usage details',
     inputTokens: 'Input tokens',
