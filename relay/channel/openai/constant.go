@@ -58,6 +58,8 @@ var ModelList = []string{
 	"gpt-realtime", "gpt-realtime-2025-08-28",
 	"gpt-realtime-mini", "gpt-realtime-mini-2025-10-06", "gpt-realtime-mini-2025-12-15",
 	"gpt-realtime-1.5",
+	"gpt-realtime-2", "gpt-realtime-2.1", "gpt-realtime-2.1-mini",
+	"gpt-realtime-whisper", "gpt-realtime-translate",
 	"text-embedding-ada-002", "text-embedding-3-small", "text-embedding-3-large",
 	"text-curie-001", "text-babbage-001", "text-ada-001",
 	"text-moderation-latest", "text-moderation-stable",
