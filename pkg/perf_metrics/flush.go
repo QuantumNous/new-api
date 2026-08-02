@@ -37,9 +37,14 @@ func flushCompletedBuckets() {
 			deleteOldEmptyBucket(k, key)
 			return true
 		}
+		channelID := (*int)(nil)
+		if k.channel > 0 {
+			channelID = &k.channel
+		}
 
 		err := model.UpsertPerfMetric(&model.PerfMetric{
 			ModelName:      k.model,
+			ChannelId:      channelID,
 			Group:          k.group,
 			BucketTs:       k.bucketTs,
 			RequestCount:   drained.requestCount,

@@ -10,6 +10,7 @@ type Store interface {
 type Sample struct {
 	Model        string
 	Group        string
+	Channel      int
 	LatencyMs    int64
 	TtftMs       int64
 	HasTtft      bool
@@ -19,13 +20,15 @@ type Sample struct {
 }
 
 type QueryParams struct {
-	Model string
-	Group string
-	Hours int
+	Model     string
+	Group     string
+	ChannelID *int
+	Hours     int
 }
 
 type BucketPoint struct {
 	Ts           int64   `json:"ts"`
+	ChannelID    int     `json:"channel_id"`
 	AvgTtftMs    int64   `json:"avg_ttft_ms"`
 	AvgLatencyMs int64   `json:"avg_latency_ms"`
 	SuccessRate  float64 `json:"success_rate"`
@@ -34,6 +37,7 @@ type BucketPoint struct {
 
 type GroupResult struct {
 	Group        string        `json:"group"`
+	ChannelID    int           `json:"channel_id"`
 	AvgTtftMs    int64         `json:"avg_ttft_ms"`
 	AvgLatencyMs int64         `json:"avg_latency_ms"`
 	SuccessRate  float64       `json:"success_rate"`
@@ -49,6 +53,7 @@ type QueryResult struct {
 
 type ModelSummary struct {
 	ModelName          string    `json:"model_name"`
+	ChannelID          int       `json:"channel_id"`
 	AvgLatencyMs       int64     `json:"avg_latency_ms"`
 	SuccessRate        float64   `json:"success_rate"`
 	AvgTps             float64   `json:"avg_tps"`
@@ -62,6 +67,7 @@ type SummaryAllResult struct {
 
 type bucketKey struct {
 	model    string
+	channel  int
 	group    string
 	bucketTs int64
 }
