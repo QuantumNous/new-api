@@ -158,14 +158,14 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.ChannelCreateTime < constant.AzureNoRemoveDotTime {
 		model_ = strings.Replace(model_, ".", "", -1)
 	}
-	// 新版 Azure AI Foundry 资源(host 形如 xxx.services.ai.azure.com)使用标准
-	// OpenAI 路径(/openai/v1/chat/completions),模型名放在请求体里而非 URL,
-	// 也不需要 api-version 查询参数。按 base URL 的域名区分新旧资源:
-	//   - 新版(services.ai.azure.com):走 /openai/v1/...,base URL 只填域名
-	//   - 经典(cognitiveservices.azure.com / openai.azure.com):走 deployment 路径
-	if strings.Contains(info.ChannelBaseUrl, "services.ai.azure.com") {
-		requestURL := "/openai" + info.RequestURLPath
-		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, requestURL, info.ChannelType), nil
+	// 新版 Azure AI Foundry 资源使用标准 OpenAI 路径(/openai/v1/chat/completions),
+	// 模型名放在请求体里而非 URL,也不需要 api-version 查询参数。
+	// 判断依据:用户在端点 URL 末尾填了 /openai(如 https://xxx.services.ai.azure.com/openai),
+	// 则走新版分支——把请求路径(/v1/chat/completions)直接追加到 base URL 之后。
+	// 经典 Azure OpenAI 资源(端点 URL 只填域名)仍走 deployment 路径。
+	baseUrl := strings.TrimRight(info.ChannelBaseUrl, "/")
+	if strings.HasSuffix(baseUrl, "/openai") {
+		return relaycommon.GetFullRequestURL(baseUrl, info.RequestURLPath, info.ChannelType), nil
 	}
 	// https://github.com/songquanpeng/one-api/issues/67
 	requestURL = fmt.Sprintf("/openai/deployments/%s/%s", model_, task)
