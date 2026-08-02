@@ -200,9 +200,7 @@ func detectResponsesEventStream(resp *http.Response) bool {
 		return false
 	}
 
-	const sniffLen = 64
 	reader := bufio.NewReader(resp.Body)
-	peeked, err := reader.Peek(sniffLen)
 	resp.Body = struct {
 		io.Reader
 		io.Closer
@@ -210,10 +208,27 @@ func detectResponsesEventStream(resp *http.Response) bool {
 		Reader: reader,
 		Closer: resp.Body,
 	}
-	if err != nil && len(peeked) == 0 {
-		return false
+	for n := 1; n <= 64; n++ {
+		peeked, err := reader.Peek(n)
+		prefix := strings.TrimLeft(string(peeked), " \t\r\n")
+		if strings.HasPrefix(prefix, "\ufeff") {
+			prefix = strings.TrimLeft(prefix[len("\ufeff"):], " \t\r\n")
+		} else if len(prefix) < len("\ufeff") && strings.HasPrefix("\ufeff", prefix) {
+			if err != nil {
+				return false
+			}
+			continue
+		}
+		if strings.HasPrefix(prefix, "event:") || strings.HasPrefix(prefix, "data:") {
+			return true
+		}
+		if len(prefix) > 0 && !strings.HasPrefix("event:", prefix) && !strings.HasPrefix("data:", prefix) {
+			return false
+		}
+		if err != nil {
+			return false
+		}
 	}
 
-	prefix := strings.TrimLeft(string(peeked), "\ufeff \t\r\n")
-	return strings.HasPrefix(prefix, "event:") || strings.HasPrefix(prefix, "data:")
+	return false
 }

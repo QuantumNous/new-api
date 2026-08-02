@@ -50,6 +50,49 @@ func TestDetectResponsesEventStreamSniffsMissingContentTypeAndPreservesBody(t *t
 	assert.Equal(t, body, string(got))
 }
 
+func TestDetectResponsesEventStreamDoesNotWaitForFullBuffer(t *testing.T) {
+	reader := &livePrefixReader{
+		prefix:     "event: ping\n\n",
+		secondRead: make(chan struct{}),
+		release:    make(chan struct{}),
+	}
+	t.Cleanup(func() { close(reader.release) })
+	resp := &http.Response{
+		Header: http.Header{},
+		Body:   io.NopCloser(reader),
+	}
+
+	result := make(chan bool, 1)
+	go func() {
+		result <- detectResponsesEventStream(resp)
+	}()
+
+	select {
+	case got := <-result:
+		assert.True(t, got)
+	case <-reader.secondRead:
+		require.Fail(t, "stream detection waited for more bytes after receiving an SSE prefix")
+	}
+}
+
+type livePrefixReader struct {
+	prefix     string
+	sent       bool
+	secondRead chan struct{}
+	release    chan struct{}
+}
+
+func (r *livePrefixReader) Read(p []byte) (int, error) {
+	if !r.sent {
+		r.sent = true
+		return copy(p, r.prefix), nil
+	}
+
+	close(r.secondRead)
+	<-r.release
+	return 0, io.EOF
+}
+
 func TestDetectResponsesEventStreamSkipsLeadingWhitespaceAndBOM(t *testing.T) {
 	tests := []struct {
 		name string
