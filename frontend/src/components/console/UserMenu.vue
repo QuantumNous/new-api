@@ -77,7 +77,7 @@ onBeforeUnmount(() => {
     >
       <button
         type="button"
-        class="group flex w-full items-center justify-between rounded-none px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--accent-soft)]"
+        class="group flex w-full items-center justify-between rounded-none px-4 py-2.5 text-left text-sm font-normal transition-colors hover:bg-[var(--accent-soft)]"
         data-user-menu-item
         @click="goto('wallet')"
       >
@@ -87,7 +87,7 @@ onBeforeUnmount(() => {
           {{ t('nav.balance') }}
         </span>
         <span
-          class="font-semibold text-[var(--text-primary)] transition-colors group-hover:text-[var(--accent-text)]"
+          class="text-[var(--text-primary)] transition-colors group-hover:text-[var(--accent-text)]"
         >
           {{ formatQuota(auth.user?.quota ?? 0) }}
         </span>
@@ -119,7 +119,7 @@ onBeforeUnmount(() => {
       <div class="mx-3 my-1 h-px bg-[var(--border-subtle)]" />
       <button
         type="button"
-        class="group block w-full rounded-none px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--status-danger-soft)] hover:font-semibold"
+        class="block w-full rounded-none px-4 py-2.5 text-left text-sm font-normal transition-colors hover:bg-[var(--status-danger-soft)]"
         style="color: var(--status-danger-text)"
         data-user-menu-item
         @click="logout"
