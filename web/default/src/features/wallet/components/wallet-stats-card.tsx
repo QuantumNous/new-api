@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Activity, BarChart3, WalletCards } from 'lucide-react'
+import { Activity, BarChart3, Gift, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
@@ -27,6 +27,8 @@ import type { UserWalletData } from '../types'
 
 interface WalletStatsCardProps {
   user: UserWalletData | null
+  lifetimeCampaignBonusQuota?: number
+  showCampaignBonus?: boolean
   loading?: boolean
 }
 
@@ -50,6 +52,7 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
     label: string
     value: string
     description: string
+    detail?: string
     icon: typeof WalletCards
     tone: IconBadgeTone
   }[] = [
@@ -57,6 +60,12 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
       label: t('Current Balance'),
       value: formatQuota(props.user?.quota ?? 0),
       description: t('Remaining quota'),
+      detail:
+        props.showCampaignBonus || (props.lifetimeCampaignBonusQuota ?? 0) > 0
+          ? t('Campaign bonus earned: {{amount}}', {
+              amount: formatQuota(props.lifetimeCampaignBonusQuota ?? 0),
+            })
+          : undefined,
       icon: WalletCards,
       tone: 'success',
     },
@@ -95,6 +104,12 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
           <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
             {item.description}
           </div>
+          {item.detail ? (
+            <div className='mt-1 flex items-start gap-1 text-[10px] leading-4 text-emerald-600 sm:text-xs dark:text-emerald-400'>
+              <Gift className='mt-0.5 size-3 shrink-0' aria-hidden='true' />
+              <span>{item.detail}</span>
+            </div>
+          ) : null}
         </div>
       ))}
     </div>

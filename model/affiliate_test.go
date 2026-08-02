@@ -70,6 +70,136 @@ func createAffiliateTopUp(t *testing.T, inviteeID int, tradeNo string, money flo
 	return topUp
 }
 
+func enableAffiliateCampaignForTest(t *testing.T, startsAt int64, endsAt int64, holdSeconds int64) *AffiliateCampaign {
+	t.Helper()
+	campaign, err := UpdateAffiliateCampaign(AffiliateCampaign{
+		Name: "Test referral campaign", Enabled: true, StartsAt: startsAt, EndsAt: endsAt,
+		InviterCashbackRateBps: 2500, InviteeBonusRateBps: 2000, HoldSeconds: holdSeconds,
+	})
+	require.NoError(t, err)
+	return campaign
+}
+
+func TestAffiliateCampaignCreditsCashAndInviteeBonusOnce(t *testing.T) {
+	truncateTables(t)
+	configureAffiliateTest(t, func(setting *operation_setting.AffiliateSetting) {
+		setting.Enabled = true
+		setting.RewardRateBps = 500
+	})
+	now := time.Now().Unix()
+	enableAffiliateCampaignForTest(t, now-60, now+3600, 0)
+	inviter, invitee := createAffiliateUsers(t, "campaign@example.com")
+	baseQuota := int64(100 * common.QuotaPerUnit)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", invitee.Id).Update("quota", baseQuota).Error)
+	topUp := createAffiliateTopUp(t, invitee.Id, "campaign-one-hundred", 100, TopUpCompletionSourceOnlineWallet)
+	topUp.PaidCents = 10_000
+	topUp.CreditedQuota = baseQuota
+	require.NoError(t, DB.Save(topUp).Error)
+
+	require.NoError(t, ProcessAffiliateTopUp(topUp.Id))
+	require.NoError(t, ProcessAffiliateTopUp(topUp.Id))
+
+	var reward AffiliateCashReward
+	require.NoError(t, DB.Where("top_up_id = ?", topUp.Id).First(&reward).Error)
+	assert.Equal(t, int64(2500), reward.CashbackCents)
+	assert.Equal(t, AffiliateRewardStatusAvailable, reward.Status)
+
+	var grant AffiliateQuotaGrant
+	require.NoError(t, DB.Where("top_up_id = ?", topUp.Id).First(&grant).Error)
+	assert.Equal(t, baseQuota/5, grant.BonusQuota)
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	assert.Equal(t, int(baseQuota+baseQuota/5), refreshedInvitee.Quota)
+	summary, err := GetAffiliateSummary(invitee.Id)
+	require.NoError(t, err)
+	assert.Equal(t, baseQuota/5, summary.LifetimeCampaignBonusQuota)
+
+	var account AffiliateCashAccount
+	require.NoError(t, DB.Where("user_id = ?", inviter.Id).First(&account).Error)
+	assert.Equal(t, int64(2500), account.AvailableCents)
+	assert.Equal(t, int64(2500), account.LifetimeEarnedCents)
+	var legacyRewardCount int64
+	require.NoError(t, DB.Model(&AffiliateReward{}).Where("top_up_id = ?", topUp.Id).Count(&legacyRewardCount).Error)
+	assert.Zero(t, legacyRewardCount)
+	items, total, err := GetAffiliateInviteeTopUpsSorted(inviter.Id, "", "", "recharge_time_desc", 0, 0, 0, 20)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, items, 1)
+	assert.Equal(t, int64(2500), items[0].AvailableRewardCents)
+}
+
+func TestAffiliateCampaignUsesStartInclusiveEndExclusiveWindow(t *testing.T) {
+	truncateTables(t)
+	configureAffiliateTest(t, func(setting *operation_setting.AffiliateSetting) {
+		setting.Enabled = false
+	})
+	now := time.Now().Unix()
+	enableAffiliateCampaignForTest(t, now, now+100, 0)
+	_, invitee := createAffiliateUsers(t, "window@example.com")
+
+	before := createAffiliateTopUp(t, invitee.Id, "campaign-before", 20, TopUpCompletionSourceOnlineWallet)
+	before.CompleteTime = now - 1
+	require.NoError(t, DB.Save(before).Error)
+	atStart := createAffiliateTopUp(t, invitee.Id, "campaign-start", 20, TopUpCompletionSourceOnlineWallet)
+	atStart.CompleteTime = now
+	require.NoError(t, DB.Save(atStart).Error)
+	atEnd := createAffiliateTopUp(t, invitee.Id, "campaign-end", 20, TopUpCompletionSourceOnlineWallet)
+	atEnd.CompleteTime = now + 100
+	require.NoError(t, DB.Save(atEnd).Error)
+
+	require.NoError(t, ProcessAffiliateTopUp(before.Id))
+	require.NoError(t, ProcessAffiliateTopUp(atStart.Id))
+	require.NoError(t, ProcessAffiliateTopUp(atEnd.Id))
+	var rewardCount int64
+	require.NoError(t, DB.Model(&AffiliateCashReward{}).Count(&rewardCount).Error)
+	assert.Equal(t, int64(1), rewardCount)
+}
+
+func TestAffiliateCampaignCashReleaseAndTransfer(t *testing.T) {
+	truncateTables(t)
+	configureAffiliateTest(t, func(setting *operation_setting.AffiliateSetting) {
+		setting.Enabled = false
+	})
+	now := time.Now().Unix()
+	enableAffiliateCampaignForTest(t, now-60, now+3600, 10)
+	inviter, invitee := createAffiliateUsers(t, "transfer@example.com")
+	topUp := createAffiliateTopUp(t, invitee.Id, "campaign-transfer", 100, TopUpCompletionSourceOnlineWallet)
+	topUp.PaidCents = 10_000
+	topUp.CreditedQuota = int64(100 * common.QuotaPerUnit)
+	require.NoError(t, DB.Save(topUp).Error)
+	require.NoError(t, ProcessAffiliateTopUp(topUp.Id))
+
+	released, err := ReleaseDueAffiliateCashRewards(topUp.CompleteTime+10, 100)
+	require.NoError(t, err)
+	assert.Equal(t, 1, released)
+	transfer, err := CreateAffiliateCashTransfer(inviter.Id, 2500, "campaign-transfer-request")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2500), transfer.AmountCents)
+	assert.Equal(t, int64(25*common.QuotaPerUnit), transfer.CreditedQuota)
+
+	var account AffiliateCashAccount
+	require.NoError(t, DB.Where("user_id = ?", inviter.Id).First(&account).Error)
+	assert.Zero(t, account.AvailableCents)
+	assert.Equal(t, int64(2500), account.TransferredCents)
+}
+
+func TestAffiliateCampaignPresentationMigrationIsIdempotent(t *testing.T) {
+	truncateTables(t)
+	common.OptionMap = map[string]string{}
+	require.NoError(t, DB.Create(&Option{Key: "affiliate_setting.reward_rate_bps", Value: "500"}).Error)
+	require.NoError(t, DB.Create(&Option{Key: "About", Value: "Support QQ: 1223288505"}).Error)
+
+	migrateAffiliateCampaignPresentationOptions()
+	migrateAffiliateCampaignPresentationOptions()
+
+	var rate Option
+	require.NoError(t, DB.First(&rate, "key = ?", "affiliate_setting.reward_rate_bps").Error)
+	assert.Equal(t, "2500", rate.Value)
+	var about Option
+	require.NoError(t, DB.First(&about, "key = ?", "About").Error)
+	assert.Equal(t, "Support QQ: 3812160108、1223288505", about.Value)
+}
+
 func TestAffiliateEveryTopUpUsesCumulativeFirstRewardThenCurrentPayment(t *testing.T) {
 	truncateTables(t)
 	unit := configureAffiliateTest(t, nil)
@@ -262,6 +392,8 @@ func TestAffiliateOverrideRequiresChangeReason(t *testing.T) {
 func TestAffiliateAdminCompletedTopUpIsExcluded(t *testing.T) {
 	truncateTables(t)
 	configureAffiliateTest(t, nil)
+	now := time.Now().Unix()
+	enableAffiliateCampaignForTest(t, now-60, now+3600, 0)
 	_, invitee := createAffiliateUsers(t, "")
 	topUp := createAffiliateTopUp(t, invitee.Id, "affiliate-admin-topup", 100, TopUpCompletionSourceAdmin)
 	require.NoError(t, ProcessAffiliateTopUp(topUp.Id))
@@ -270,6 +402,10 @@ func TestAffiliateAdminCompletedTopUpIsExcluded(t *testing.T) {
 	require.NoError(t, DB.Model(&AffiliateTopUpEvent{}).Count(&count).Error)
 	assert.Zero(t, count)
 	require.NoError(t, DB.Model(&AffiliateReward{}).Where("reward_type = ?", AffiliateRewardTypeCashback).Count(&count).Error)
+	assert.Zero(t, count)
+	require.NoError(t, DB.Model(&AffiliateCashReward{}).Count(&count).Error)
+	assert.Zero(t, count)
+	require.NoError(t, DB.Model(&AffiliateQuotaGrant{}).Count(&count).Error)
 	assert.Zero(t, count)
 }
 

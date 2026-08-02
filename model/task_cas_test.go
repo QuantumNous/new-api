@@ -37,6 +37,7 @@ func TestMain(m *testing.M) {
 	if err := db.AutoMigrate(
 		&Task{},
 		&User{},
+		&Option{},
 		&Token{},
 		&PasskeyCredential{},
 		&TwoFA{},
@@ -65,6 +66,12 @@ func TestMain(m *testing.M) {
 		&AffiliateBalanceTransfer{},
 		&AffiliateAdjustment{},
 		&AffiliateTopUpEvent{},
+		&AffiliateCampaign{},
+		&AffiliateCashReward{},
+		&AffiliateCashAccount{},
+		&AffiliateCashLedger{},
+		&AffiliateCashTransfer{},
+		&AffiliateQuotaGrant{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -82,6 +89,7 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM tokens")
 		DB.Exec("DELETE FROM user_oauth_bindings")
 		DB.Exec("DELETE FROM users")
+		DB.Exec("DELETE FROM options")
 		DB.Exec("DELETE FROM logs")
 		DB.Exec("DELETE FROM channels")
 		DB.Exec("DELETE FROM quota_data")
@@ -97,6 +105,12 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM channel_monitor_histories")
 		DB.Exec("DELETE FROM channel_monitors")
 		DB.Exec("DELETE FROM affiliate_adjustments")
+		DB.Exec("DELETE FROM affiliate_cash_ledgers")
+		DB.Exec("DELETE FROM affiliate_cash_transfers")
+		DB.Exec("DELETE FROM affiliate_quota_grants")
+		DB.Exec("DELETE FROM affiliate_cash_rewards")
+		DB.Exec("DELETE FROM affiliate_cash_accounts")
+		DB.Exec("DELETE FROM affiliate_promotion_campaigns")
 		DB.Exec("DELETE FROM affiliate_balance_transfers")
 		DB.Exec("DELETE FROM affiliate_quota_ledgers")
 		DB.Exec("DELETE FROM affiliate_top_up_events")

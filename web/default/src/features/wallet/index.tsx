@@ -269,7 +269,18 @@ export function Wallet(props: WalletProps) {
         <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
-            <WalletStatsCard user={user} loading={userLoading} />
+            <WalletStatsCard
+              user={user}
+              lifetimeCampaignBonusQuota={
+                affiliateSummary?.lifetime_campaign_bonus_quota
+              }
+              showCampaignBonus={
+                affiliateSummary?.campaign.enabled === true &&
+                affiliateSummary.campaign.ends_at >
+                  Math.floor(Date.now() / 1000)
+              }
+              loading={userLoading}
+            />
 
             <AffiliateRewardsCard
               summary={affiliateSummary}

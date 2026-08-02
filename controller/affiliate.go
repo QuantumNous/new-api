@@ -15,6 +15,7 @@ import (
 
 type affiliateBalanceTransferRequest struct {
 	AmountQuota int64  `json:"amount_quota"`
+	CashCents   int64  `json:"cash_cents"`
 	RewardID    int    `json:"reward_id"`
 	RequestKey  string `json:"request_key"`
 }
@@ -32,6 +33,15 @@ func GetAffiliateSummary(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, summary)
+}
+
+func GetAffiliateCampaign(c *gin.Context) {
+	campaign, err := model.GetAffiliateCampaign()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, campaign)
 }
 
 func GetAffiliateInviteeTopUps(c *gin.Context) {
@@ -65,9 +75,11 @@ func CreateAffiliateBalanceTransfer(c *gin.Context) {
 	if requestKey == "" {
 		requestKey = common.GetUUID()
 	}
-	var transfer *model.AffiliateBalanceTransfer
+	var transfer interface{}
 	var err error
-	if request.RewardID > 0 {
+	if request.CashCents > 0 {
+		transfer, err = model.CreateAffiliateCashTransfer(c.GetInt("id"), request.CashCents, requestKey)
+	} else if request.RewardID > 0 {
 		transfer, err = model.CreateAffiliateRewardBalanceTransfer(c.GetInt("id"), request.RewardID, requestKey)
 	} else {
 		transfer, err = model.CreateAffiliateBalanceTransfer(c.GetInt("id"), request.AmountQuota, requestKey)
@@ -93,6 +105,27 @@ func GetAffiliateBalanceTransfers(c *gin.Context) {
 
 func AdminGetAffiliateSettings(c *gin.Context) {
 	common.ApiSuccess(c, model.GetGlobalAffiliateSetting())
+}
+
+func AdminGetAffiliateCampaign(c *gin.Context) {
+	GetAffiliateCampaign(c)
+}
+
+func AdminUpdateAffiliateCampaign(c *gin.Context) {
+	var request model.AffiliateCampaign
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	campaign, err := model.UpdateAffiliateCampaign(request)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAudit(c, "affiliate.campaign.update", map[string]interface{}{
+		"enabled": request.Enabled, "starts_at": request.StartsAt, "ends_at": request.EndsAt,
+	})
+	common.ApiSuccess(c, campaign)
 }
 
 func AdminUpdateAffiliateSettings(c *gin.Context) {

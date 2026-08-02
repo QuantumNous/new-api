@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { lazy, Suspense } from 'react'
+
 import { useHomeCatalog } from '../../hooks'
 import { AiClientsSection } from './ai-clients-section'
 import { CapabilitiesSection } from './capabilities-section'
@@ -31,6 +33,12 @@ interface DefaultHomeProps {
   isAuthenticated: boolean
 }
 
+const AffiliateCampaignBanner = lazy(() =>
+  import('@/features/affiliate-campaign').then((module) => ({
+    default: module.AffiliateCampaignBanner,
+  }))
+)
+
 export function DefaultHome(props: DefaultHomeProps) {
   const catalog = useHomeCatalog()
 
@@ -40,6 +48,9 @@ export function DefaultHome(props: DefaultHomeProps) {
         isAuthenticated={props.isAuthenticated}
         catalogAvailable={catalog.isAvailable}
       />
+      <Suspense fallback={null}>
+        <AffiliateCampaignBanner />
+      </Suspense>
       <AiClientsSection />
       <FeaturedModelsSection catalogAvailable={catalog.isAvailable} />
       <CapabilitiesSection />

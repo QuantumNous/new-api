@@ -30,6 +30,7 @@ import type {
   StripePaymentResponse,
   AffiliateCodeResponse,
   AffiliateSummaryResponse,
+  AffiliateCampaignResponse,
   AffiliateInviteeTopUpsResponse,
   AffiliateBalanceTransfersResponse,
   AffiliateBalanceTransferResponse,
@@ -186,6 +187,11 @@ export async function getAffiliateSummary(): Promise<AffiliateSummaryResponse> {
   return res.data
 }
 
+export async function getAffiliateCampaign(): Promise<AffiliateCampaignResponse> {
+  const res = await api.get('/api/affiliate/campaign')
+  return res.data
+}
+
 export async function getAffiliateInviteeTopUps(
   query: AffiliateInviteeTopUpsQuery
 ): Promise<AffiliateInviteeTopUpsResponse> {
@@ -214,6 +220,7 @@ export async function getAffiliateBalanceTransfers(
 
 export async function createAffiliateBalanceTransfer(request: {
   amount_quota?: number
+  cash_cents?: number
   reward_id?: number
   request_key: string
 }): Promise<AffiliateBalanceTransferResponse> {

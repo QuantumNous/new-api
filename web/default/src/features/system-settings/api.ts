@@ -21,6 +21,8 @@ import { api } from '@/lib/api'
 import type {
   AffiliateSettings,
   AffiliateSettingsResponse,
+  AffiliateCampaign,
+  AffiliateCampaignResponse,
   AffiliateAdminRewardsResponse,
   AffiliateAdjustmentResponse,
   AffiliateUserOverride,
@@ -48,6 +50,21 @@ export async function getAffiliateSettings() {
 export async function updateAffiliateSettings(request: AffiliateSettings) {
   const res = await api.put<AffiliateSettingsResponse>(
     '/api/affiliate/admin/settings',
+    request
+  )
+  return res.data
+}
+
+export async function getAffiliateCampaign() {
+  const res = await api.get<AffiliateCampaignResponse>(
+    '/api/affiliate/admin/campaign'
+  )
+  return res.data
+}
+
+export async function updateAffiliateCampaign(request: AffiliateCampaign) {
+  const res = await api.put<AffiliateCampaignResponse>(
+    '/api/affiliate/admin/campaign',
     request
   )
   return res.data

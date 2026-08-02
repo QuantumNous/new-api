@@ -29,6 +29,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
 		apiRouter.GET("/about", controller.GetAbout)
+		apiRouter.GET("/affiliate/campaign", controller.GetAffiliateCampaign)
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
@@ -159,6 +160,8 @@ func SetApiRouter(router *gin.Engine) {
 		affiliateAdminRoute := apiRouter.Group("/affiliate/admin")
 		affiliateAdminRoute.Use(middleware.AdminAuth())
 		{
+			affiliateAdminRoute.GET("/campaign", controller.AdminGetAffiliateCampaign)
+			affiliateAdminRoute.PUT("/campaign", middleware.CriticalRateLimit(), controller.AdminUpdateAffiliateCampaign)
 			affiliateAdminRoute.GET("/settings", controller.AdminGetAffiliateSettings)
 			affiliateAdminRoute.PUT("/settings", middleware.CriticalRateLimit(), controller.AdminUpdateAffiliateSettings)
 			affiliateAdminRoute.GET("/user-overrides", controller.AdminGetAffiliateUserOverrides)
