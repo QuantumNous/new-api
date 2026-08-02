@@ -116,6 +116,33 @@ export function quotaUnitsToDollars(units: number): number {
   return usdAmount * exchangeRate
 }
 
+/** Convert a fixed CNY amount into quota, independent of the site display mode. */
+export function parseQuotaFromCNY(amount: number): number {
+  if (!Number.isFinite(amount)) return 0
+
+  const { config } = getCurrencyDisplay()
+  return Math.round((amount / config.usdExchangeRate) * config.quotaPerUnit)
+}
+
+/** Convert quota into CNY, independent of the site display mode. */
+export function quotaUnitsToCNY(units: number): number {
+  const { config } = getCurrencyDisplay()
+  return (units / config.quotaPerUnit) * config.usdExchangeRate
+}
+
+export function formatQuotaAsCNY(
+  quota: number,
+  locale?: Intl.LocalesArgument
+): string {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'CNY',
+    currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(quotaUnitsToCNY(quota))
+}
+
 // ============================================================================
 // Timestamp Formatting
 // ============================================================================

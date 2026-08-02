@@ -185,6 +185,34 @@ func InitOptionMap() {
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
+	migrateLegacyAffiliateRewardOptions()
+}
+
+func migrateLegacyAffiliateRewardOptions() {
+	var options []Option
+	if err := DB.Where("key IN ?", []string{
+		"affiliate_setting.inviter_reward_quota",
+		"affiliate_setting.invitee_reward_quota",
+	}).Find(&options).Error; err != nil || len(options) == 2 {
+		return
+	}
+	values := map[string]string{
+		"QuotaForInviter": "0",
+		"QuotaForInvitee": "0",
+	}
+	found := make(map[string]bool, len(options))
+	for _, option := range options {
+		found[option.Key] = true
+	}
+	if !found["affiliate_setting.inviter_reward_quota"] {
+		values["affiliate_setting.inviter_reward_quota"] = strconv.Itoa(common.QuotaForInviter)
+	}
+	if !found["affiliate_setting.invitee_reward_quota"] {
+		values["affiliate_setting.invitee_reward_quota"] = strconv.Itoa(common.QuotaForInvitee)
+	}
+	if err := UpdateOptionsBulk(values); err != nil {
+		common.SysError("failed to migrate legacy affiliate rewards: " + err.Error())
+	}
 }
 
 func loadOptionsFromDatabase() {

@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="920" viewBox="0 0 1536 920">
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#1f2937" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .font { font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif; }
+      .title { font-size: 27px; font-weight: 700; fill: #171b24; }
+      .subtitle { font-size: 16px; fill: #737b88; }
+      .label { font-size: 14px; fill: #7c8490; }
+      .value { font-size: 20px; font-weight: 700; fill: #171b24; }
+      .section { font-size: 18px; font-weight: 700; fill: #171b24; }
+      .table-head { font-size: 13px; font-weight: 600; fill: #737b88; }
+      .cell { font-size: 14px; fill: #252b36; }
+      .cell-strong { font-size: 14px; font-weight: 600; fill: #171b24; }
+      .muted { font-size: 12px; fill: #9098a5; }
+      .blue { fill: #1677ff; }
+      .green { fill: #1b9b67; }
+      .orange { fill: #b56b00; }
+    </style>
+  </defs>
+
+  <rect width="1536" height="920" fill="#eef1f5"/>
+  <rect x="24" y="18" width="1488" height="884" rx="25" fill="#ffffff" stroke="#d9dee7" filter="url(#shadow)"/>
+
+  <text x="48" y="62" class="font title">邀请返现</text>
+  <text x="48" y="89" class="font subtitle">查看被邀请者充值记录，并将已解冻返现转入账户余额。</text>
+  <path d="M1497 37 l14 14 M1511 37 l-14 14" stroke="#171b24" stroke-width="2" stroke-linecap="round"/>
+
+  <line x1="48" y1="117" x2="48" y2="173" stroke="#dfe3e8" stroke-width="2"/>
+  <text x="68" y="135" class="font label">已冻结返现</text>
+  <text x="68" y="162" class="font value">¥28.00</text>
+  <line x1="412" y1="117" x2="412" y2="173" stroke="#dfe3e8" stroke-width="2"/>
+  <text x="432" y="135" class="font label">可转入</text>
+  <text x="432" y="162" class="font value">¥40.00</text>
+  <line x1="776" y1="117" x2="776" y2="173" stroke="#dfe3e8" stroke-width="2"/>
+  <text x="796" y="135" class="font label">已转入</text>
+  <text x="796" y="162" class="font value">¥64.00</text>
+  <line x1="1140" y1="117" x2="1140" y2="173" stroke="#dfe3e8" stroke-width="2"/>
+  <text x="1160" y="135" class="font label">累计获得</text>
+  <text x="1160" y="162" class="font value">¥132.00</text>
+
+  <rect x="48" y="195" width="1440" height="48" rx="12" fill="#f8f9fb" stroke="#edf0f3"/>
+  <text x="72" y="225" class="font table-head">记录状态</text>
+  <rect x="150" y="203" width="104" height="32" rx="8" fill="#ffffff" stroke="#dce5f3"/>
+  <text x="202" y="224" text-anchor="middle" class="font blue" font-size="12">全部 12</text>
+  <rect x="264" y="203" width="104" height="32" rx="8" fill="transparent"/>
+  <text x="316" y="224" text-anchor="middle" class="font cell" font-size="12">冻结中 2</text>
+  <rect x="378" y="203" width="104" height="32" rx="8" fill="transparent"/>
+  <text x="430" y="224" text-anchor="middle" class="font cell" font-size="12">可转入 3</text>
+  <rect x="492" y="203" width="104" height="32" rx="8" fill="transparent"/>
+  <text x="544" y="224" text-anchor="middle" class="font cell" font-size="12">已转入 7</text>
+
+  <text x="48" y="285" class="font section">被邀请者充值记录</text>
+  <text x="48" y="310" class="font muted">按充值时间倒序排列，邮箱已脱敏，仅用于返现核对。</text>
+
+  <rect x="884" y="268" width="420" height="38" rx="8" fill="#ffffff" stroke="#dfe3e8"/>
+  <circle cx="906" cy="285" r="6" fill="none" stroke="#8c95a2" stroke-width="1.5"/>
+  <path d="M910.5 289.5 l5 5" fill="none" stroke="#8c95a2" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="927" y="292" class="font muted">搜索邮箱或充值时间</text>
+  <rect x="1324" y="268" width="164" height="38" rx="8" fill="#ffffff" stroke="#dfe3e8"/>
+  <text x="1340" y="292" class="font cell">最新充值</text>
+  <path d="M1464 284 l6 6 6-6" fill="none" stroke="#7b8490" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="48" y="332" width="1440" height="48" rx="8" fill="#f8f9fb"/>
+  <text x="72" y="362" class="font table-head">被邀请者（隐私保护）</text>
+  <text x="320" y="362" class="font table-head">充值时间</text>
+  <text x="500" y="362" class="font table-head">充值额度</text>
+  <text x="650" y="362" class="font table-head">返现方式</text>
+  <text x="865" y="362" class="font table-head">可返现余额</text>
+  <text x="1068" y="362" class="font table-head">解冻时间</text>
+  <text x="1322" y="362" class="font table-head">操作</text>
+
+  <line x1="48" y1="380" x2="1488" y2="380" stroke="#e7e9ed"/>
+  <text x="72" y="408" class="font cell-strong">a***@example.com</text>
+  <text x="72" y="430" class="font muted">邀请于 2026-07-26</text>
+  <text x="320" y="418" class="font cell">2026-08-02 14:20</text>
+  <text x="500" y="418" class="font cell">¥200.00</text>
+  <rect x="650" y="398" width="78" height="26" rx="13" fill="#edf4ff"/>
+  <text x="689" y="416" text-anchor="middle" class="font blue" font-size="12">比例 20%</text>
+  <text x="865" y="408" class="font cell-strong">¥40.00</text>
+  <rect x="865" y="416" width="50" height="20" rx="10" fill="#fff4df"/>
+  <text x="890" y="430" text-anchor="middle" class="font orange" font-size="11">冻结中</text>
+  <text x="1068" y="418" class="font cell">2026-08-09</text>
+  <rect x="1302" y="392" width="156" height="48" rx="8" fill="#f5f6f8" stroke="#e3e6ea"/>
+  <text x="1380" y="412" text-anchor="middle" class="font cell" fill="#98a0ac">转入账户余额</text>
+  <text x="1380" y="429" text-anchor="middle" class="font muted">还有 6 天解冻</text>
+
+  <line x1="48" y1="460" x2="1488" y2="460" stroke="#e7e9ed"/>
+  <text x="72" y="488" class="font cell-strong">m***@mail.com</text>
+  <text x="72" y="510" class="font muted">邀请于 2026-07-19</text>
+  <text x="320" y="498" class="font cell">2026-08-01 10:08</text>
+  <text x="500" y="498" class="font cell">¥100.00</text>
+  <rect x="650" y="478" width="78" height="26" rx="13" fill="#f1efff"/>
+  <text x="689" y="496" text-anchor="middle" class="font" font-size="12" fill="#6958c8">固定 ¥8.00</text>
+  <text x="865" y="488" class="font cell-strong">¥8.00</text>
+  <rect x="865" y="496" width="50" height="20" rx="10" fill="#eaf8f1"/>
+  <text x="890" y="510" text-anchor="middle" class="font green" font-size="11">可转入</text>
+  <text x="1068" y="498" class="font cell">已解冻</text>
+  <rect x="1302" y="478" width="156" height="40" rx="8" fill="#1677ff"/>
+  <path d="M1322 498 h17 M1334 492 l6 6 -6 6" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1401" y="503" text-anchor="middle" class="font" font-size="13" font-weight="600" fill="#fff">转入账户余额</text>
+
+  <line x1="48" y1="540" x2="1488" y2="540" stroke="#e7e9ed"/>
+  <text x="72" y="568" class="font cell-strong">l***@proton.me</text>
+  <text x="72" y="590" class="font muted">邀请于 2026-07-12</text>
+  <text x="320" y="578" class="font cell">2026-07-28 19:42</text>
+  <text x="500" y="578" class="font cell">¥50.00</text>
+  <rect x="650" y="558" width="78" height="26" rx="13" fill="#edf4ff"/>
+  <text x="689" y="576" text-anchor="middle" class="font blue" font-size="12">比例 10%</text>
+  <text x="865" y="568" class="font cell-strong">¥5.00</text>
+  <rect x="865" y="576" width="50" height="20" rx="10" fill="#f0f1f3"/>
+  <text x="890" y="590" text-anchor="middle" class="font" font-size="11" fill="#7c8490">已转入</text>
+  <text x="1068" y="578" class="font cell">2026-08-04</text>
+  <rect x="1302" y="558" width="156" height="40" rx="8" fill="#f2f3f5"/>
+  <text x="1380" y="583" text-anchor="middle" class="font cell" fill="#9aa1ac">已转入余额</text>
+
+  <line x1="48" y1="620" x2="1488" y2="620" stroke="#e7e9ed"/>
+  <text x="72" y="648" class="font cell-strong">s***@workspace.cn</text>
+  <text x="72" y="670" class="font muted">邀请于 2026-07-08</text>
+  <text x="320" y="658" class="font cell">2026-07-26 09:15</text>
+  <text x="500" y="658" class="font cell">¥300.00</text>
+  <rect x="650" y="638" width="78" height="26" rx="13" fill="#f1efff"/>
+  <text x="689" y="656" text-anchor="middle" class="font" font-size="12" fill="#6958c8">固定 ¥10.00</text>
+  <text x="865" y="648" class="font cell-strong">¥10.00</text>
+  <rect x="865" y="656" width="50" height="20" rx="10" fill="#eaf8f1"/>
+  <text x="890" y="670" text-anchor="middle" class="font green" font-size="11">可转入</text>
+  <text x="1068" y="658" class="font cell">已解冻</text>
+  <rect x="1302" y="638" width="156" height="40" rx="8" fill="#1677ff"/>
+  <path d="M1322 658 h17 M1334 652 l6 6 -6 6" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1401" y="663" text-anchor="middle" class="font" font-size="13" font-weight="600" fill="#fff">转入账户余额</text>
+
+  <line x1="48" y1="708" x2="1488" y2="708" stroke="#e7e9ed"/>
+  <text x="48" y="755" class="font muted">共 12 条记录 · 仅展示成功的钱包在线充值</text>
+  <rect x="1252" y="735" width="34" height="34" rx="7" fill="#f3f4f6"/>
+  <text x="1269" y="758" text-anchor="middle" class="font cell">‹</text>
+  <rect x="1294" y="735" width="34" height="34" rx="7" fill="#1677ff"/>
+  <text x="1311" y="758" text-anchor="middle" class="font" fill="#fff" font-size="13">1</text>
+  <rect x="1336" y="735" width="34" height="34" rx="7" fill="#fff" stroke="#e0e4e9"/>
+  <text x="1353" y="758" text-anchor="middle" class="font cell">2</text>
+  <rect x="1378" y="735" width="34" height="34" rx="7" fill="#fff" stroke="#e0e4e9"/>
+  <text x="1395" y="758" text-anchor="middle" class="font cell">3</text>
+  <rect x="1420" y="735" width="34" height="34" rx="7" fill="#f3f4f6"/>
+  <text x="1437" y="758" text-anchor="middle" class="font cell">›</text>
+
+  <rect x="48" y="798" width="1440" height="56" rx="10" fill="#f8fafc"/>
+  <circle cx="75" cy="826" r="6" fill="#1677ff"/>
+  <text x="91" y="831" class="font muted">返现余额在冻结期结束后才可转入；转入成功后将记录到账户余额变更。</text>
+</svg>

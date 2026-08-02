@@ -27,8 +27,6 @@ import {
 const defaultBillingSettings: BillingSettings = {
   QuotaForNewUser: 0,
   PreConsumedQuota: 0,
-  QuotaForInviter: 0,
-  QuotaForInvitee: 0,
   TopUpLink: '',
   'general_setting.docs_link': '',
   'quota_setting.enable_free_model_pre_consume': true,
@@ -107,12 +105,19 @@ const defaultBillingSettings: BillingSettings = {
   'checkin_setting.min_quota': 1000,
   'checkin_setting.max_quota': 10000,
   'affiliate_setting.enabled': false,
-  'affiliate_setting.currency': 'CNY',
+  'affiliate_setting.inviter_reward_quota': 0,
+  'affiliate_setting.invitee_reward_quota': 0,
+  'affiliate_setting.registration_reward_trigger': 'registration_success',
+  'affiliate_setting.reward_mode': 'percentage',
+  'affiliate_setting.cashback_frequency': 'first_qualified',
   'affiliate_setting.reward_rate_bps': 2500,
-  'affiliate_setting.reward_micros': 25_000_000,
-  'affiliate_setting.minimum_topup_micros': 20_000_000,
+  'affiliate_setting.fixed_reward_quota': 2_500_000,
+  'affiliate_setting.unlimited_reward': false,
+  'affiliate_setting.maximum_reward_quota': 12_500_000,
+  'affiliate_setting.minimum_topup_cents': 2_000,
   'affiliate_setting.hold_seconds': 604_800,
-  'affiliate_setting.minimum_withdrawal_micros': 20_000_000,
+  'affiliate_setting.minimum_transfer_quota': 500_000,
+  'affiliate_setting.show_invitee_topups': true,
 }
 
 export function BillingSettings() {

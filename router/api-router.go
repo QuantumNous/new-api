@@ -105,7 +105,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
 				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
 				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
-				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
+				selfRoute.POST("/aff_transfer", middleware.CriticalRateLimit(), controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
 				// 2FA routes
@@ -151,22 +151,22 @@ func SetApiRouter(router *gin.Engine) {
 		affiliateRoute.Use(middleware.UserAuth())
 		{
 			affiliateRoute.GET("/summary", controller.GetAffiliateSummary)
-			affiliateRoute.GET("/referrals", controller.GetAffiliateReferrals)
-			affiliateRoute.GET("/commissions", controller.GetAffiliateCommissions)
-			affiliateRoute.GET("/withdrawals", controller.GetAffiliateWithdrawals)
-			affiliateRoute.POST("/withdrawals", middleware.CriticalRateLimit(), controller.CreateAffiliateWithdrawal)
-			affiliateRoute.POST("/withdrawals/:id/cancel", middleware.CriticalRateLimit(), controller.CancelAffiliateWithdrawal)
-			affiliateRoute.GET("/statements", controller.GetAffiliateStatements)
-			affiliateRoute.GET("/statements/:id", controller.GetAffiliateStatement)
+			affiliateRoute.GET("/invitee-topups", controller.GetAffiliateInviteeTopUps)
+			affiliateRoute.GET("/balance-transfers", controller.GetAffiliateBalanceTransfers)
+			affiliateRoute.POST("/balance-transfers", middleware.CriticalRateLimit(), controller.CreateAffiliateBalanceTransfer)
 		}
 
 		affiliateAdminRoute := apiRouter.Group("/affiliate/admin")
 		affiliateAdminRoute.Use(middleware.AdminAuth())
 		{
-			affiliateAdminRoute.GET("/withdrawals", controller.AdminGetAffiliateWithdrawals)
-			affiliateAdminRoute.POST("/withdrawals/:id/approve", middleware.CriticalRateLimit(), controller.AdminApproveAffiliateWithdrawal)
-			affiliateAdminRoute.POST("/withdrawals/:id/reject", middleware.CriticalRateLimit(), controller.AdminRejectAffiliateWithdrawal)
-			affiliateAdminRoute.POST("/withdrawals/:id/paid", middleware.CriticalRateLimit(), controller.AdminMarkAffiliateWithdrawalPaid)
+			affiliateAdminRoute.GET("/settings", controller.AdminGetAffiliateSettings)
+			affiliateAdminRoute.PUT("/settings", middleware.CriticalRateLimit(), controller.AdminUpdateAffiliateSettings)
+			affiliateAdminRoute.GET("/user-overrides", controller.AdminGetAffiliateUserOverrides)
+			affiliateAdminRoute.GET("/user-overrides/:user_id", controller.AdminGetAffiliateUserOverride)
+			affiliateAdminRoute.PUT("/user-overrides/:user_id", middleware.CriticalRateLimit(), controller.AdminUpdateAffiliateUserOverride)
+			affiliateAdminRoute.DELETE("/user-overrides/:user_id", middleware.CriticalRateLimit(), controller.AdminDeleteAffiliateUserOverride)
+			affiliateAdminRoute.GET("/rewards", controller.AdminGetAffiliateRewards)
+			affiliateAdminRoute.POST("/rewards/:id/adjustments", middleware.CriticalRateLimit(), controller.AdminAdjustAffiliateReward)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

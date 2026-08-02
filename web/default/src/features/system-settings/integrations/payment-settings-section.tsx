@@ -806,7 +806,7 @@ export function PaymentSettingsSection({
             <div className='space-y-3'>
               <p>
                 {t(
-                  'Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.'
+                  'Payment, redemption codes, and subscription plans are locked until the root administrator confirms the compliance terms.'
                 )}
               </p>
               <ol className='list-decimal space-y-1 pl-5'>
@@ -848,7 +848,7 @@ export function PaymentSettingsSection({
         onOpenChange={setShowComplianceDialog}
         title={t('Confirm compliance terms')}
         description={t(
-          'This confirmation unlocks payment, redemption code, subscription plan, and invitation reward features. Please read the statements carefully.'
+          'This confirmation unlocks payment, redemption code, and subscription plan features. Please read the statements carefully.'
         )}
         items={complianceStatements}
         requiredText={complianceRequiredText}

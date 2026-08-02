@@ -89,6 +89,7 @@ export {
   getUserId,
   removeUserId,
   getAffiliateCode,
+  removeAffiliateCode,
   saveAffiliateCode,
 } from './lib/storage'
 

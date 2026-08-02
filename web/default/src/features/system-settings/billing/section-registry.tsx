@@ -61,8 +61,6 @@ const BILLING_SECTIONS = [
         defaultValues={{
           QuotaForNewUser: settings.QuotaForNewUser,
           PreConsumedQuota: settings.PreConsumedQuota,
-          QuotaForInviter: settings.QuotaForInviter,
-          QuotaForInvitee: settings.QuotaForInvitee,
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],
@@ -72,10 +70,6 @@ const BILLING_SECTIONS = [
               settings['quota_setting.enable_free_model_pre_consume'],
           },
         }}
-        complianceConfirmed={
-          (settings['payment_setting.compliance_confirmed'] ?? false) &&
-          settings['payment_setting.compliance_terms_version'] === 'v1'
-        }
       />
     ),
   },
@@ -192,20 +186,7 @@ const BILLING_SECTIONS = [
   {
     id: 'affiliate',
     titleKey: 'Referral Cashback',
-    build: (settings: BillingSettings) => (
-      <AffiliateSettingsSection
-        defaultValues={{
-          enabled: settings['affiliate_setting.enabled'],
-          rewardRateBps: settings['affiliate_setting.reward_rate_bps'],
-          rewardMicros: settings['affiliate_setting.reward_micros'],
-          minimumTopUpMicros:
-            settings['affiliate_setting.minimum_topup_micros'],
-          holdSeconds: settings['affiliate_setting.hold_seconds'],
-          minimumWithdrawalMicros:
-            settings['affiliate_setting.minimum_withdrawal_micros'],
-        }}
-      />
-    ),
+    build: () => <AffiliateSettingsSection />,
   },
   {
     id: 'checkin',

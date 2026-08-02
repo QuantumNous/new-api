@@ -40,56 +40,82 @@ export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
 }
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
-export type AffiliateTransferResponse = ApiResponse
+
+export type AffiliateRewardMode = 'percentage' | 'fixed'
+export type AffiliateCashbackFrequency = 'first_qualified' | 'every_topup'
+
+export interface AffiliateEffectiveRule {
+  enabled: boolean
+  inviter_reward_quota: number
+  invitee_reward_quota: number
+  registration_reward_trigger: 'registration_success' | 'first_qualified_topup'
+  reward_mode: AffiliateRewardMode
+  cashback_frequency: AffiliateCashbackFrequency
+  reward_rate_bps: number
+  fixed_reward_quota: number
+  unlimited_reward: boolean
+  maximum_reward_quota: number
+  minimum_topup_cents: number
+  hold_seconds: number
+  minimum_transfer_quota: number
+  show_invitee_topups: boolean
+  source: 'global' | 'user_override'
+}
 
 export interface AffiliateAccount {
-  pending_micros: number
-  available_micros: number
-  frozen_micros: number
-  withdrawn_micros: number
-  lifetime_earned_micros: number
+  pending_quota: number
+  available_quota: number
+  transferred_quota: number
+  lifetime_earned_quota: number
 }
 
 export interface AffiliateSummary {
   enabled: boolean
   referral_code: string
   currency: string
-  reward_rate_bps: number
-  reward_micros: number
-  minimum_topup_micros: number
-  minimum_withdrawal_micros: number
-  hold_seconds: number
   referral_count: number
   qualified_count: number
-  pending_withdrawal_count: number
+  next_available_at: number
+  rule: AffiliateEffectiveRule
   account: AffiliateAccount
 }
 
-export interface AffiliateWithdrawal {
+export type AffiliateTopUpStatus =
+  | 'unqualified'
+  | 'pending'
+  | 'available'
+  | 'transferred'
+  | 'adjusted'
+
+export type AffiliateTopUpSort = 'recharge_time_desc' | 'recharge_time_asc'
+
+export interface AffiliateInviteeTopUp {
   id: number
-  amount_micros: number
-  currency: string
-  status: 'pending' | 'approved' | 'paid' | 'rejected' | 'cancelled'
-  payout_method: string
-  payout_account: string
-  requested_at: number
-  reviewed_at: number
-  review_note: string
-  paid_at: number
-  payment_reference: string
+  reward_id: number
+  masked_email: string
+  invited_at: number
+  invitation_code: string
+  topup_id: number
+  topup_at: number
+  paid_cents: number
+  reward_mode?: AffiliateRewardMode
+  reward_rate_bps: number
+  fixed_reward_quota: number
+  reward_quota: number
+  available_reward_quota: number
+  transferred_reward_quota: number
+  available_at: number
+  status: AffiliateTopUpStatus
 }
 
-export interface AffiliateStatement {
+export interface AffiliateBalanceTransfer {
   id: number
-  currency: string
-  start_at: number
-  end_at: number
-  earned_micros: number
-  paid_micros: number
-  closing_pending_micros: number
-  closing_available_micros: number
-  closing_frozen_micros: number
-  closing_withdrawn_micros: number
+  amount_quota: number
+  affiliate_balance_before: number
+  affiliate_balance_after: number
+  user_quota_before: number
+  user_quota_after: number
+  created_at: number
 }
 
 export interface PaginatedData<T> {
@@ -97,13 +123,30 @@ export interface PaginatedData<T> {
   total: number
 }
 
+export interface AffiliateInviteeTopUpsQuery {
+  page: number
+  pageSize: number
+  keyword?: string
+  status?: AffiliateTopUpStatus
+  sort?: AffiliateTopUpSort
+  startAt?: number
+  endAt?: number
+}
+
+export interface AffiliateBalanceTransfersQuery {
+  page: number
+  pageSize: number
+}
+
 export type AffiliateSummaryResponse = ApiResponse<AffiliateSummary>
-export type AffiliateWithdrawalsResponse = ApiResponse<
-  PaginatedData<AffiliateWithdrawal>
+export type AffiliateInviteeTopUpsResponse = ApiResponse<
+  PaginatedData<AffiliateInviteeTopUp>
 >
-export type AffiliateStatementsResponse = ApiResponse<
-  PaginatedData<AffiliateStatement>
+export type AffiliateBalanceTransfersResponse = ApiResponse<
+  PaginatedData<AffiliateBalanceTransfer>
 >
+export type AffiliateBalanceTransferResponse =
+  ApiResponse<AffiliateBalanceTransfer>
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
@@ -273,14 +316,6 @@ export interface WaffoPancakePaymentRequest {
 export interface AmountRequest {
   /** Topup amount to calculate */
   amount: number
-}
-
-/**
- * Affiliate quota transfer request
- */
-export interface AffiliateTransferRequest {
-  /** Quota amount to transfer */
-  quota: number
 }
 
 /**

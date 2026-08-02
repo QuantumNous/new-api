@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { Share2, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatQuotaAsCNY, formatTimestampToDate } from '@/lib/format'
 
 import type { AffiliateSummary } from '../types'
 
@@ -15,13 +34,6 @@ interface AffiliateRewardsCardProps {
   affiliateLink: string
   onManage: () => void
   loading?: boolean
-}
-
-function formatMoney(micros: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: currency || 'CNY',
-  }).format(micros / 1_000_000)
 }
 
 export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
@@ -37,18 +49,43 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
     )
   }
 
-  const currency = props.summary?.currency ?? 'CNY'
   const account = props.summary?.account
+  const rule = props.summary?.rule
+  let rewardDescription = t('{{rate}}% cashback after first qualification', {
+    rate: 0,
+  })
+  if (rule?.reward_mode === 'fixed') {
+    const amount = formatQuotaAsCNY(rule.fixed_reward_quota)
+    if (rule.cashback_frequency === 'every_topup') {
+      rewardDescription = t('Fixed cashback {{amount}} on every top-up', {
+        amount,
+      })
+    } else {
+      rewardDescription = t(
+        'Fixed cashback {{amount}} after first qualification',
+        { amount }
+      )
+    }
+  } else if (rule?.cashback_frequency === 'every_topup') {
+    rewardDescription = t('{{rate}}% cashback on every top-up', {
+      rate: rule.reward_rate_bps / 100,
+    })
+  } else if (rule) {
+    rewardDescription = t('{{rate}}% cashback after first qualification', {
+      rate: rule.reward_rate_bps / 100,
+    })
+  }
+
   const stats = [
-    [t('Available'), formatMoney(account?.available_micros ?? 0, currency)],
-    [t('Pending'), formatMoney(account?.pending_micros ?? 0, currency)],
-    [t('Withdrawn'), formatMoney(account?.withdrawn_micros ?? 0, currency)],
+    [t('Available'), formatQuotaAsCNY(account?.available_quota ?? 0)],
+    [t('Frozen cashback'), formatQuotaAsCNY(account?.pending_quota ?? 0)],
+    [t('Transferred'), formatQuotaAsCNY(account?.transferred_quota ?? 0)],
     [t('Invites'), String(props.summary?.referral_count ?? 0)],
   ]
 
   return (
     <Card data-card-hover='false' className='bg-muted/20 py-0'>
-      <CardContent className='grid gap-4 p-4 xl:grid-cols-[minmax(180px,0.7fr)_minmax(280px,0.9fr)_minmax(420px,1.5fr)] xl:items-center'>
+      <CardContent className='grid gap-4 p-4 xl:grid-cols-[minmax(220px,0.8fr)_minmax(320px,1fr)_minmax(420px,1.5fr)] xl:items-center'>
         <div className='flex min-w-0 items-center gap-2.5'>
           <IconBadge tone='chart-3'>
             <Share2 />
@@ -62,14 +99,14 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
                 <Badge variant='outline'>{t('Disabled')}</Badge>
               ) : null}
             </div>
-            <p className='text-muted-foreground text-xs'>
-              {t('Confirmed referrals')}: {props.summary?.qualified_count ?? 0}
+            <p className='text-muted-foreground truncate text-xs'>
+              {rewardDescription}
             </p>
           </div>
         </div>
 
-        <div className='grid grid-cols-4 gap-2 text-center'>
-          {stats.map(([label, value]) => (
+        <div className='grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4'>
+          {stats.map(([label, value], index) => (
             <div key={label} className='min-w-0'>
               <div className='text-muted-foreground truncate text-[10px] font-medium uppercase'>
                 {label}
@@ -77,6 +114,15 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
               <div className='mt-0.5 truncate text-sm font-semibold tabular-nums'>
                 {value}
               </div>
+              {index === 1 && props.summary?.next_available_at ? (
+                <div className='text-muted-foreground mt-0.5 truncate text-[10px]'>
+                  {t('Unlocks {{time}}', {
+                    time: formatTimestampToDate(
+                      props.summary.next_available_at
+                    ),
+                  })}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -123,7 +169,7 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
           </div>
 
           <Button size='sm' className='h-9 shrink-0' onClick={props.onManage}>
-            <WalletCards />
+            <WalletCards data-icon='inline-start' />
             {t('Manage')}
           </Button>
         </div>

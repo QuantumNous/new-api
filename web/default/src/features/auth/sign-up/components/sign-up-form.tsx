@@ -47,6 +47,7 @@ import { useEmailVerification } from '@/features/auth/hooks/use-email-verificati
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import {
   getAffiliateCode,
+  removeAffiliateCode,
   saveAffiliateCode,
 } from '@/features/auth/lib/storage'
 import { useStatus } from '@/hooks/use-status'
@@ -144,7 +145,9 @@ export function SignUpForm({
     const affiliateCode = queryAffiliateCode || getAffiliateCode().trim()
     if (!affiliateCode) return
 
-    saveAffiliateCode(affiliateCode)
+    if (queryAffiliateCode) {
+      saveAffiliateCode(queryAffiliateCode)
+    }
     form.setValue('aff_code', affiliateCode, { shouldValidate: true })
   }, [form])
 
@@ -185,6 +188,7 @@ export function SignUpForm({
       })
 
       if (res?.success) {
+        removeAffiliateCode()
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       } else {

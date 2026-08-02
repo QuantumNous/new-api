@@ -23,7 +23,6 @@ import {
   FileText,
   FlaskConical,
   HeartPulse,
-  HandCoins,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -150,11 +149,6 @@ export function useSidebarData(): SidebarData {
             title: t('Redemption Codes'),
             url: '/redemption-codes',
             icon: Ticket,
-          },
-          {
-            title: t('Cashback Withdrawals'),
-            url: '/affiliate-withdrawals',
-            icon: HandCoins,
           },
           {
             title: t('Subscriptions'),

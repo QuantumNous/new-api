@@ -12,8 +12,7 @@ const affiliateSettlementBatchSize = 500
 type affiliateSettlementHandler struct{}
 
 type affiliateSettlementResult struct {
-	ReleasedCommissions int `json:"released_commissions"`
-	GeneratedStatements int `json:"generated_statements"`
+	ReleasedRewards int `json:"released_rewards"`
 }
 
 func (affiliateSettlementHandler) Type() string {
@@ -41,22 +40,16 @@ func (affiliateSettlementHandler) Run(ctx context.Context, task *model.SystemTas
 			return
 		default:
 		}
-		released, err := model.ReleaseDueAffiliateCommissions(time.Now().Unix(), affiliateSettlementBatchSize)
+		released, err := model.ReleaseDueAffiliateRewards(time.Now().Unix(), affiliateSettlementBatchSize)
 		if err != nil {
 			failSystemTask(task, runnerID, err)
 			return
 		}
-		result.ReleasedCommissions += released
+		result.ReleasedRewards += released
 		if released < affiliateSettlementBatchSize {
 			break
 		}
 	}
-	generated, err := model.GeneratePreviousMonthAffiliateStatements(time.Now())
-	if err != nil {
-		failSystemTask(task, runnerID, err)
-		return
-	}
-	result.GeneratedStatements = generated
 	if err := model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, result, ""); err != nil {
 		logSystemTaskLockError(ctx, task, err)
 	}

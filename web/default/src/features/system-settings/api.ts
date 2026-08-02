@@ -19,6 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  AffiliateSettings,
+  AffiliateSettingsResponse,
+  AffiliateAdminRewardsResponse,
+  AffiliateAdjustmentResponse,
+  AffiliateUserOverride,
+  AffiliateUserOverrideResponse,
+  AffiliateUserOverridesResponse,
   ConfirmPaymentComplianceResponse,
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
@@ -30,6 +37,78 @@ import type {
   UpstreamChannelsResponse,
   UpstreamRatiosResponse,
 } from './types'
+
+export async function getAffiliateSettings() {
+  const res = await api.get<AffiliateSettingsResponse>(
+    '/api/affiliate/admin/settings'
+  )
+  return res.data
+}
+
+export async function updateAffiliateSettings(request: AffiliateSettings) {
+  const res = await api.put<AffiliateSettingsResponse>(
+    '/api/affiliate/admin/settings',
+    request
+  )
+  return res.data
+}
+
+export async function searchAffiliateUserOverrides(keyword: string) {
+  const res = await api.get<AffiliateUserOverridesResponse>(
+    '/api/affiliate/admin/user-overrides',
+    { params: { keyword, p: 1, page_size: 20 } }
+  )
+  return res.data
+}
+
+export async function updateAffiliateUserOverride(
+  userId: number,
+  request: AffiliateUserOverride
+) {
+  const res = await api.put<AffiliateUserOverrideResponse>(
+    `/api/affiliate/admin/user-overrides/${userId}`,
+    request
+  )
+  return res.data
+}
+
+export async function deleteAffiliateUserOverride(userId: number) {
+  const res = await api.delete<AffiliateUserOverrideResponse>(
+    `/api/affiliate/admin/user-overrides/${userId}`
+  )
+  return res.data
+}
+
+export async function getAffiliateAdminRewards(params: {
+  page: number
+  pageSize: number
+  keyword?: string
+  status?: string
+}) {
+  const res = await api.get<AffiliateAdminRewardsResponse>(
+    '/api/affiliate/admin/rewards',
+    {
+      params: {
+        p: params.page,
+        page_size: params.pageSize,
+        keyword: params.keyword,
+        status: params.status,
+      },
+    }
+  )
+  return res.data
+}
+
+export async function adjustAffiliateReward(
+  rewardId: number,
+  request: { amount_quota: number; reason: string; request_key: string }
+) {
+  const res = await api.post<AffiliateAdjustmentResponse>(
+    `/api/affiliate/admin/rewards/${rewardId}/adjustments`,
+    request
+  )
+  return res.data
+}
 
 export async function getSystemOptions() {
   const res = await api.get<SystemOptionsResponse>('/api/option/')

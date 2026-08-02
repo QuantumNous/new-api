@@ -221,9 +221,7 @@ const PaymentSetting = () => {
               description={
                 <div className='flex flex-col gap-2'>
                   <span>
-                    {t(
-                      '确认前，支付、兑换码、订阅计划和邀请返利功能将保持锁定。',
-                    )}
+                    {t('确认前，支付、兑换码和订阅计划功能将保持锁定。')}
                   </span>
                   <Button
                     type='warning'
@@ -310,7 +308,7 @@ const PaymentSetting = () => {
           visible={complianceVisible}
           title={t('确认合规声明')}
           markdownContent={t(
-            '该操作将启用支付、兑换码、订阅计划和邀请返利相关功能。请仔细阅读并确认以下声明。',
+            '该操作将启用支付、兑换码和订阅计划相关功能。请仔细阅读并确认以下声明。',
           )}
           checklist={complianceStatements}
           inputPrompt={t('请输入以下文字以确认:')}

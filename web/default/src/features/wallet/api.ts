@@ -22,7 +22,6 @@ import type {
   RedemptionRequest,
   PaymentRequest,
   AmountRequest,
-  AffiliateTransferRequest,
   ApiResponse,
   TopupInfoResponse,
   RedemptionResponse,
@@ -30,11 +29,12 @@ import type {
   PaymentResponse,
   StripePaymentResponse,
   AffiliateCodeResponse,
-  AffiliateTransferResponse,
   AffiliateSummaryResponse,
-  AffiliateWithdrawalsResponse,
-  AffiliateStatementsResponse,
-  AffiliateWithdrawal,
+  AffiliateInviteeTopUpsResponse,
+  AffiliateBalanceTransfersResponse,
+  AffiliateBalanceTransferResponse,
+  AffiliateInviteeTopUpsQuery,
+  AffiliateBalanceTransfersQuery,
   BillingHistoryResponse,
   CompleteOrderRequest,
   CreemPaymentRequest,
@@ -186,46 +186,38 @@ export async function getAffiliateSummary(): Promise<AffiliateSummaryResponse> {
   return res.data
 }
 
-export async function getAffiliateWithdrawals(): Promise<AffiliateWithdrawalsResponse> {
-  const res = await api.get('/api/affiliate/withdrawals', {
-    params: { p: 1, page_size: 50 },
+export async function getAffiliateInviteeTopUps(
+  query: AffiliateInviteeTopUpsQuery
+): Promise<AffiliateInviteeTopUpsResponse> {
+  const res = await api.get('/api/affiliate/invitee-topups', {
+    params: {
+      p: query.page,
+      page_size: query.pageSize,
+      keyword: query.keyword,
+      status: query.status,
+      sort: query.sort,
+      start_at: query.startAt,
+      end_at: query.endAt,
+    },
   })
   return res.data
 }
 
-export async function getAffiliateStatements(): Promise<AffiliateStatementsResponse> {
-  const res = await api.get('/api/affiliate/statements', {
-    params: { p: 1, page_size: 24 },
+export async function getAffiliateBalanceTransfers(
+  query: AffiliateBalanceTransfersQuery
+): Promise<AffiliateBalanceTransfersResponse> {
+  const res = await api.get('/api/affiliate/balance-transfers', {
+    params: { p: query.page, page_size: query.pageSize },
   })
   return res.data
 }
 
-export async function createAffiliateWithdrawal(request: {
-  amount_micros: number
-  payout_method: string
-  payout_account: string
+export async function createAffiliateBalanceTransfer(request: {
+  amount_quota?: number
+  reward_id?: number
   request_key: string
-}): Promise<ApiResponse<AffiliateWithdrawal>> {
-  const res = await api.post('/api/affiliate/withdrawals', request)
-  return res.data
-}
-
-export async function cancelAffiliateWithdrawal(
-  withdrawalId: number
-): Promise<ApiResponse<AffiliateWithdrawal>> {
-  const res = await api.post(
-    `/api/affiliate/withdrawals/${withdrawalId}/cancel`
-  )
-  return res.data
-}
-
-/**
- * Transfer affiliate quota to balance
- */
-export async function transferAffiliateQuota(
-  request: AffiliateTransferRequest
-): Promise<AffiliateTransferResponse> {
-  const res = await api.post('/api/user/aff_transfer', request)
+}): Promise<AffiliateBalanceTransferResponse> {
+  const res = await api.post('/api/affiliate/balance-transfers', request)
   return res.data
 }
 

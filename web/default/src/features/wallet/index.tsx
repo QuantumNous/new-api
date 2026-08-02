@@ -52,6 +52,7 @@ import type {
   PaymentMethod,
   PresetAmount,
   CreemProduct,
+  AffiliateInviteeTopUpsQuery,
 } from './types'
 
 interface WalletProps {
@@ -69,6 +70,12 @@ export function Wallet(props: WalletProps) {
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [affiliateDialogOpen, setAffiliateDialogOpen] = useState(false)
+  const [affiliateTopUpQuery, setAffiliateTopUpQuery] =
+    useState<AffiliateInviteeTopUpsQuery>({
+      page: 1,
+      pageSize: 20,
+      sort: 'recharge_time_desc',
+    })
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
@@ -95,15 +102,16 @@ export function Wallet(props: WalletProps) {
   } = usePayment()
   const {
     summary: affiliateSummary,
-    withdrawals: affiliateWithdrawals,
-    statements: affiliateStatements,
+    topUps: affiliateTopUps,
+    topUpsTotal: affiliateTopUpsTotal,
     affiliateLink,
     loading: affiliateLoading,
-    submittingWithdrawal,
-    cancellingWithdrawal,
-    createWithdrawal,
-    cancelWithdrawal,
-  } = useAffiliate()
+    loadingDetails: affiliateDetailsLoading,
+    transferring: affiliateTransferring,
+    transferToBalance,
+  } = useAffiliate(affiliateDialogOpen, {
+    topUps: affiliateTopUpQuery,
+  })
   const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
   const { processWaffoPayment } = useWaffoPayment()
@@ -263,6 +271,13 @@ export function Wallet(props: WalletProps) {
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
             <WalletStatsCard user={user} loading={userLoading} />
 
+            <AffiliateRewardsCard
+              summary={affiliateSummary}
+              affiliateLink={affiliateLink}
+              onManage={() => setAffiliateDialogOpen(true)}
+              loading={affiliateLoading}
+            />
+
             <div
               className={
                 showSubscriptionPanel
@@ -311,13 +326,6 @@ export function Wallet(props: WalletProps) {
                 onPurchaseSuccess={fetchUser}
               />
             </div>
-
-            <AffiliateRewardsCard
-              summary={affiliateSummary}
-              affiliateLink={affiliateLink}
-              onManage={() => setAffiliateDialogOpen(true)}
-              loading={affiliateLoading}
-            />
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
@@ -339,13 +347,17 @@ export function Wallet(props: WalletProps) {
         open={affiliateDialogOpen}
         onOpenChange={setAffiliateDialogOpen}
         summary={affiliateSummary}
-        withdrawals={affiliateWithdrawals}
-        statements={affiliateStatements}
-        loading={affiliateLoading}
-        submitting={submittingWithdrawal}
-        cancelling={cancellingWithdrawal}
-        onSubmit={createWithdrawal}
-        onCancel={cancelWithdrawal}
+        topUps={affiliateTopUps}
+        topUpsTotal={affiliateTopUpsTotal}
+        topUpQuery={affiliateTopUpQuery}
+        onTopUpQueryChange={setAffiliateTopUpQuery}
+        loading={affiliateDetailsLoading}
+        transferring={affiliateTransferring}
+        onTransfer={async (request) => {
+          const response = await transferToBalance(request)
+          if (response.success) await fetchUser()
+          return response
+        }}
       />
 
       <BillingHistoryDialog

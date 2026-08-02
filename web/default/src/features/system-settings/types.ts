@@ -247,8 +247,6 @@ export type ModelSettings = {
 export type BillingSettings = {
   QuotaForNewUser: number
   PreConsumedQuota: number
-  QuotaForInviter: number
-  QuotaForInvitee: number
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
@@ -329,12 +327,139 @@ export type BillingSettings = {
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
   'affiliate_setting.enabled': boolean
-  'affiliate_setting.currency': string
+  'affiliate_setting.inviter_reward_quota': number
+  'affiliate_setting.invitee_reward_quota': number
+  'affiliate_setting.registration_reward_trigger': string
+  'affiliate_setting.reward_mode': string
+  'affiliate_setting.cashback_frequency': string
   'affiliate_setting.reward_rate_bps': number
-  'affiliate_setting.reward_micros': number
-  'affiliate_setting.minimum_topup_micros': number
+  'affiliate_setting.fixed_reward_quota': number
+  'affiliate_setting.unlimited_reward': boolean
+  'affiliate_setting.maximum_reward_quota': number
+  'affiliate_setting.minimum_topup_cents': number
   'affiliate_setting.hold_seconds': number
-  'affiliate_setting.minimum_withdrawal_micros': number
+  'affiliate_setting.minimum_transfer_quota': number
+  'affiliate_setting.show_invitee_topups': boolean
+}
+
+export type AffiliateRegistrationRewardTrigger =
+  | 'registration_success'
+  | 'first_qualified_topup'
+export type AffiliateRewardMode = 'percentage' | 'fixed'
+export type AffiliateCashbackFrequency = 'first_qualified' | 'every_topup'
+
+export type AffiliateSettings = {
+  enabled: boolean
+  inviter_reward_quota: number
+  invitee_reward_quota: number
+  registration_reward_trigger: AffiliateRegistrationRewardTrigger
+  reward_mode: AffiliateRewardMode
+  cashback_frequency: AffiliateCashbackFrequency
+  reward_rate_bps: number
+  fixed_reward_quota: number
+  unlimited_reward: boolean
+  maximum_reward_quota: number
+  minimum_topup_cents: number
+  hold_seconds: number
+  minimum_transfer_quota: number
+  show_invitee_topups: boolean
+}
+
+export type AffiliateUserOverride = {
+  id?: number
+  user_id?: number
+  enabled: boolean | null
+  inviter_reward_quota: number | null
+  invitee_reward_quota: number | null
+  registration_reward_trigger: AffiliateRegistrationRewardTrigger | null
+  reward_mode: AffiliateRewardMode | null
+  cashback_frequency: AffiliateCashbackFrequency | null
+  reward_rate_bps: number | null
+  fixed_reward_quota: number | null
+  unlimited_reward: boolean | null
+  maximum_reward_quota: number | null
+  minimum_topup_cents: number | null
+  hold_seconds: number | null
+  minimum_transfer_quota: number | null
+  show_invitee_topups: boolean | null
+  updated_by?: number
+  updated_at?: number
+  change_reason: string
+}
+
+export type AffiliateUserOverrideView = {
+  user_id: number
+  username: string
+  email: string
+  updated_by_username: string
+  override: AffiliateUserOverride | null
+  global_rule: AffiliateSettings & { source: string }
+  effective_rule: AffiliateSettings & { source: string }
+}
+
+export type AffiliateSettingsResponse = {
+  success: boolean
+  message: string
+  data?: AffiliateSettings
+}
+
+export type AffiliateUserOverridesResponse = {
+  success: boolean
+  message: string
+  data?: {
+    items: AffiliateUserOverrideView[]
+    total: number
+  }
+}
+
+export type AffiliateUserOverrideResponse = {
+  success: boolean
+  message: string
+  data?: AffiliateUserOverrideView
+}
+
+export type AffiliateAdminReward = {
+  id: number
+  inviter_user_id: number
+  inviter_username: string
+  invitee_user_id: number
+  invitee_email: string
+  invitation_code: string
+  topup_id: number
+  trade_no: string
+  paid_cents: number
+  actual_quota: number
+  adjusted_quota: number
+  transferred_quota: number
+  status: 'pending' | 'available' | 'transferred' | 'adjusted'
+  available_at: number
+  created_at: number
+}
+
+export type AffiliateAdminRewardsResponse = {
+  success: boolean
+  message: string
+  data?: {
+    items: AffiliateAdminReward[]
+    total: number
+  }
+}
+
+export type AffiliateAdjustment = {
+  id: number
+  reward_id: number
+  requested_quota: number
+  applied_quota: number
+  pending_manual_quota: number
+  status: 'applied' | 'manual_required'
+  reason: string
+  created_at: number
+}
+
+export type AffiliateAdjustmentResponse = {
+  success: boolean
+  message: string
+  data?: AffiliateAdjustment
 }
 
 export type OperationsSettings = {
