@@ -1,12 +1,15 @@
 import type { LogItem } from '@/types/console'
 import { formatTime } from '@/utils/format'
 
+import { getLogMetadata } from './logMetadata'
+
 export const LOG_EXPORT_HEADERS = [
   'time',
   'token',
   'type',
   'model',
   'channel',
+  'reasoning_effort',
   'request_mode',
   'first_token_latency',
   'prompt_tokens',
@@ -21,12 +24,14 @@ export const LOG_EXPORT_HEADERS = [
 ] as const
 
 export function getLogExportValues(log: LogItem): Array<string | number> {
+  const reasoningEffort = getLogMetadata(log).reasoningEffort
   return [
     formatTime(log.created),
     log.token_name,
     log.type,
     log.model,
     log.channel,
+    reasoningEffort ?? '',
     log.request_mode ?? '',
     log.first_token_latency ?? '',
     log.prompt_tokens,

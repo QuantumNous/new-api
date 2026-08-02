@@ -54,7 +54,7 @@ describe('LogUsageCell', () => {
     expect(wrapper.text()).not.toContain('99.82%')
   })
 
-  it('opens complete token details from the information button', async () => {
+  it('opens complete usage details with cache hit rate icon', async () => {
     const wrapper = mount(LogUsageCell, {
       props: { log: baseLog },
       global: { plugins: [i18n], stubs: { Teleport: true } },
@@ -65,7 +65,7 @@ describe('LogUsageCell', () => {
 
     const popover = wrapper.get('[data-log-usage-popover]')
     expect(trigger.attributes('aria-expanded')).toBe('true')
-    expect(popover.text()).toContain('Token details')
+    expect(popover.text()).toContain('Usage details')
     expect(popover.text()).toContain('Input tokens')
     expect(popover.text()).toContain('23')
     expect(popover.text()).toContain('Output tokens')
@@ -76,8 +76,35 @@ describe('LogUsageCell', () => {
     expect(popover.text()).toContain('826,998')
     expect(popover.text()).toContain('Cache hit rate')
     expect(popover.text()).toContain('99.82%')
+    expect(popover.find('[data-log-cache-hit-rate] svg').exists()).toBe(true)
+    expect(popover.find('[data-log-fast-mode]').exists()).toBe(false)
     expect(popover.text()).toContain('Total tokens')
     expect(popover.text()).toContain('828,463')
+  })
+
+  it('shows Fast only when an accepted signal is enabled', async () => {
+    for (const log of [
+      { ...baseLog, other: { fast_mode: true } },
+      { ...baseLog, other: { service_tier: 'fast' } },
+      { ...baseLog, speed: 'fast' },
+    ]) {
+      const wrapper = mount(LogUsageCell, {
+        props: { log },
+        global: { plugins: [i18n], stubs: { Teleport: true } },
+      })
+      await wrapper.get('[data-log-usage-trigger]').trigger('click')
+      expect(wrapper.get('[data-log-fast-mode]').text()).toContain('Enabled')
+      wrapper.unmount()
+    }
+
+    const disabled = mount(LogUsageCell, {
+      props: {
+        log: { ...baseLog, other: { fast_mode: false, speed: 'fast' } },
+      },
+      global: { plugins: [i18n], stubs: { Teleport: true } },
+    })
+    await disabled.get('[data-log-usage-trigger]').trigger('click')
+    expect(disabled.find('[data-log-fast-mode]').exists()).toBe(false)
   })
 
   it('closes token details on escape and scroll', async () => {

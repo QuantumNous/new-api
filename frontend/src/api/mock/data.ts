@@ -805,6 +805,28 @@ export const logs: LogItem[] = Array.from({ length: 67 }, (_, i) => {
     cacheWriteTokens === null ? null : cacheProfile % 2 === 0 ? '5m' : '1h'
   // tps: only meaningful for consume (non-zero completion)
   const tps = isConsume && latency > 0 ? Math.round(completion / latency) : 0
+  const reasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+  const otherMetadata: Record<string, unknown> = {}
+  let speed: string | null = null
+  if (isRequest) {
+    otherMetadata.reasoning_effort =
+      reasoningEfforts[requestSequence % reasoningEfforts.length]
+    switch (requestSequence % 6) {
+      case 0:
+        otherMetadata.fast_mode = true
+        break
+      case 1:
+        otherMetadata.service_tier = 'fast'
+        break
+      case 2:
+        speed = 'fast'
+        break
+      case 3:
+        otherMetadata.fast_mode = false
+        otherMetadata.speed = 'fast'
+        break
+    }
+  }
 
   const contentMap: Record<LogType, string> = {
     consume: '调用成功',
@@ -826,6 +848,8 @@ export const logs: LogItem[] = Array.from({ length: 67 }, (_, i) => {
     cache_read_tokens: cacheReadTokens,
     cache_write_tokens: cacheWriteTokens,
     cache_ttl: cacheTtl,
+    other: isRequest ? JSON.stringify(otherMetadata) : null,
+    speed,
     quota:
       type === 'topup'
         ? 2_500_000

@@ -6,6 +6,7 @@ import type { LogItem, LogType } from '@/types/console'
 import { formatQuota, formatTime } from '@/utils/format'
 
 import LogPerformanceCell from './LogPerformanceCell.vue'
+import LogReasoningEffort from './LogReasoningEffort.vue'
 import LogUsageCell from './LogUsageCell.vue'
 
 defineProps<{
@@ -90,6 +91,14 @@ function quotaPrefix(type: LogType): string {
           :title="log.token_name"
         >
           {{ log.token_name }}
+        </dd>
+      </div>
+      <div class="min-w-0">
+        <dt class="text-[var(--text-tertiary)]">
+          {{ t('logs.colReasoning') }}
+        </dt>
+        <dd class="mt-1">
+          <LogReasoningEffort :log="log" mobile />
         </dd>
       </div>
       <div

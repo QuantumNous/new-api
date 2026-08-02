@@ -115,7 +115,7 @@ async function confirmExport(): Promise<void> {
 }
 
 describe('LogsView', () => {
-  it('renders seven grouped desktop columns with separate usage and cost', async () => {
+  it('renders eight grouped desktop columns with reasoning effort, usage and cost', async () => {
     const wrapper = mount(LogsView, {
       global: { plugins: [i18n] },
     })
@@ -129,6 +129,7 @@ describe('LogsView', () => {
       'Time',
       'Token / type',
       'Model / channel',
+      'Reasoning effort',
       'Performance',
       'Usage',
       'Cost',
@@ -136,7 +137,7 @@ describe('LogsView', () => {
     ])
   })
 
-  it('keeps all seven grouped columns available from the desktop column settings', async () => {
+  it('keeps all eight grouped columns available from the desktop column settings', async () => {
     const wrapper = mount(LogsView, {
       global: { plugins: [i18n] },
     })
@@ -149,6 +150,7 @@ describe('LogsView', () => {
     expect(panel.text()).toContain('Time')
     expect(panel.text()).toContain('Token / type')
     expect(panel.text()).toContain('Model / channel')
+    expect(panel.text()).toContain('Reasoning effort')
     expect(panel.text()).toContain('Performance')
     expect(panel.text()).toContain('Usage')
     expect(panel.text()).toContain('Cost')

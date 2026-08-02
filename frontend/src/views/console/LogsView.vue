@@ -28,6 +28,7 @@ import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
 import LogMobileCard from '@/components/console/log-ui/LogMobileCard.vue'
+import LogReasoningEffort from '@/components/console/log-ui/LogReasoningEffort.vue'
 import {
   getLogExportValues,
   LOG_EXPORT_HEADERS,
@@ -69,6 +70,7 @@ type ColKey =
   | 'created'
   | 'identity'
   | 'route'
+  | 'reasoning'
   | 'performance'
   | 'usage'
   | 'cost'
@@ -78,6 +80,7 @@ const ALL_COL_KEYS: ColKey[] = [
   'created',
   'identity',
   'route',
+  'reasoning',
   'performance',
   'usage',
   'cost',
@@ -185,6 +188,7 @@ const COL_META: Record<
   created: { labelKey: 'logs.colTime', width: '140px' },
   identity: { labelKey: 'logs.colIdentity', width: '165px' },
   route: { labelKey: 'logs.colRoute', width: '200px' },
+  reasoning: { labelKey: 'logs.colReasoning', width: '120px' },
   performance: { labelKey: 'logs.colPerformance', width: '250px' },
   usage: { labelKey: 'logs.colUsage', width: '190px' },
   cost: { labelKey: 'logs.colCost', width: '108px', align: 'right' },
@@ -626,7 +630,7 @@ onBeforeUnmount(() => {
         :skeleton-rows="pageSize"
         adaptive-scroll
         :page-size="pageSize"
-        min-table-width="1180px"
+        min-table-width="1300px"
         :scroll-region-label="t('logs.breadcrumb.1')"
         :empty-title="t('logs.emptyTitle')"
         :empty-hint="t('logs.emptyHint')"
@@ -666,6 +670,9 @@ onBeforeUnmount(() => {
               {{ (row as LogItem).channel }}
             </p>
           </div>
+        </template>
+        <template #cell-reasoning="{ row }">
+          <LogReasoningEffort :log="row as LogItem" />
         </template>
         <template #cell-performance="{ row }">
           <LogPerformanceCell :log="row as LogItem" />

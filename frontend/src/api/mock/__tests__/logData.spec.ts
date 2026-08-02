@@ -38,4 +38,28 @@ describe('mock log usage data', () => {
         )
     ).toBe(true)
   })
+
+  it('covers reasoning efforts and Fast compatibility signals', () => {
+    const requestLogs = logs.filter((log) => log.request_mode !== null)
+    const efforts = new Set(
+      requestLogs.map((log) => JSON.parse(String(log.other)).reasoning_effort)
+    )
+    expect(efforts).toEqual(new Set(['low', 'medium', 'high', 'xhigh', 'max']))
+    expect(
+      requestLogs.some(
+        (log) => JSON.parse(String(log.other)).fast_mode === true
+      )
+    ).toBe(true)
+    expect(
+      requestLogs.some(
+        (log) => JSON.parse(String(log.other)).service_tier === 'fast'
+      )
+    ).toBe(true)
+    expect(requestLogs.some((log) => log.speed === 'fast')).toBe(true)
+    expect(
+      requestLogs.some(
+        (log) => JSON.parse(String(log.other)).fast_mode === false
+      )
+    ).toBe(true)
+  })
 })

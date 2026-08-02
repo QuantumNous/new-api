@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Database, Info, PenLine } from 'lucide-vue-next'
+import {
+  ArrowDown,
+  ArrowUp,
+  Database,
+  Gauge,
+  Info,
+  PenLine,
+  Zap,
+} from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -7,6 +15,7 @@ import type { LogItem } from '@/types/console'
 import { formatCompact, formatNumber } from '@/utils/format'
 
 import { formatLogCacheHitRate, getLogUsageSummary } from './logUsage'
+import { getLogMetadata } from './logMetadata'
 
 type PopoverPlacement = 'above' | 'below'
 
@@ -37,6 +46,7 @@ const popoverPosition = ref<PopoverPosition>({
   placement: 'below',
 })
 const usage = computed(() => getLogUsageSummary(props.log))
+const metadata = computed(() => getLogMetadata(props.log))
 const cacheSummaryAvailable = computed(
   () =>
     usage.value.cacheReadTokens !== null ||
@@ -199,7 +209,7 @@ onBeforeUnmount(() => {
       data-log-usage-trigger
       :aria-controls="popoverId"
       :aria-expanded="detailsOpen"
-      :aria-label="t('logs.viewTokenDetails')"
+      :aria-label="t('logs.viewUsageDetails')"
       class="inline-flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-full text-[var(--text-tertiary)] transition-colors duration-100 hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--focus-ring)]"
       @click="toggleDetails"
     >
@@ -236,7 +246,7 @@ onBeforeUnmount(() => {
           :id="popoverTitleId"
           class="text-sm font-semibold text-[var(--text-primary)]"
         >
-          {{ t('logs.tokenDetails') }}
+          {{ t('logs.usageDetails') }}
         </h4>
 
         <dl class="mt-2.5 space-y-2 text-xs">
@@ -301,11 +311,36 @@ onBeforeUnmount(() => {
             </dd>
           </div>
           <div class="flex items-center justify-between gap-4">
-            <dt class="text-[var(--text-tertiary)]">
+            <dt
+              data-log-cache-hit-rate
+              class="flex items-center gap-1.5 text-[var(--text-tertiary)]"
+            >
+              <Gauge
+                :size="14"
+                class="text-[var(--status-info-text)]"
+                aria-hidden="true"
+              />
               {{ t('logs.cacheHitRate') }}
             </dt>
             <dd class="font-medium tabular-nums text-[var(--text-primary)]">
               {{ cacheHitRateLabel }}
+            </dd>
+          </div>
+          <div
+            v-if="metadata.fastMode"
+            class="flex items-center justify-between gap-4"
+            data-log-fast-mode
+          >
+            <dt class="flex items-center gap-1.5 text-[var(--text-tertiary)]">
+              <Zap
+                :size="14"
+                class="text-[var(--accent-text)]"
+                aria-hidden="true"
+              />
+              {{ t('logs.fastMode') }}
+            </dt>
+            <dd class="font-medium text-[var(--accent-text)]">
+              {{ t('logs.fastEnabled') }}
             </dd>
           </div>
           <div

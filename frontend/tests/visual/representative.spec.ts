@@ -18,6 +18,8 @@ interface Scenario {
   openModalByButton?: string
   /** Accessible name of a dashboard tab selected before the capture. */
   selectTabByName?: string
+  /** Opens the first log usage popover before the capture. */
+  openUsageDetails?: boolean
 }
 
 const darkScenarios: Scenario[] = [
@@ -38,6 +40,12 @@ const darkScenarios: Scenario[] = [
   },
   { name: 'subscription', path: '/console/subscription' },
   { name: 'plan-management', path: '/console/plan-management' },
+  { name: 'logs', path: '/console/logs' },
+  {
+    name: 'logs-usage-details',
+    path: '/console/logs',
+    openUsageDetails: true,
+  },
   {
     name: 'plan-form-modal',
     path: '/console/plan-management',
@@ -62,6 +70,7 @@ const lightScenarios: Scenario[] = [
   // rows with disabled row actions), so the pencil rendering is worth pinning.
   { name: 'subscription', path: '/console/subscription' },
   { name: 'plan-management', path: '/console/plan-management' },
+  { name: 'logs', path: '/console/logs' },
 ]
 
 async function captureScenario(
@@ -101,6 +110,19 @@ async function captureScenario(
     ).toBeVisible()
     // The dialog animates in; settle before pixels are compared.
     await waitForStablePage(page)
+  }
+  if (scenario.openUsageDetails) {
+    const trigger = page.locator('[data-log-usage-trigger]:visible').first()
+    await expect(trigger).toBeVisible()
+    await trigger.click()
+    await expect(page.locator('[data-log-usage-popover]')).toBeVisible()
+    await waitForStablePage(page)
+  }
+  if (scenario.path === '/console/logs') {
+    await assertNoHorizontalOverflow(page)
+    if (!scenario.openUsageDetails) {
+      await assertInteractiveCentersVisible(page)
+    }
   }
   if (scenario.path === '/') {
     await assertHomeNavbarInitialState(page)

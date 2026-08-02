@@ -244,6 +244,8 @@ export type LogType =
 
 export type LogRequestMode = 'stream' | 'sync'
 
+export type LogOther = string | Record<string, unknown> | null
+
 export interface LogItem {
   id: number
   type: LogType
@@ -256,6 +258,13 @@ export interface LogItem {
   cache_read_tokens?: number | null
   cache_write_tokens?: number | null
   cache_ttl?: string | null
+  /** Raw request metadata. Production logs currently expose this as JSON. */
+  other?: LogOther
+  /** Optional flattened metadata accepted by alternate API adapters. */
+  reasoning_effort?: string | null
+  fast_mode?: boolean | null
+  service_tier?: string | null
+  speed?: string | null
   quota: number
   latency: number // 延迟（秒）
   first_token_latency: number | null // 首字延迟（秒），仅流式请求适用
