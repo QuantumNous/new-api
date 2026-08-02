@@ -260,8 +260,22 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserExists)
 		return
 	}
-	affCode := user.AffCode // this code is the inviter's code, not the user's own code
+	affCode := strings.TrimSpace(user.AffCode) // this code is the inviter's code, not the user's own code
+	if affCode == "" {
+		// fallback: allow ?aff= for links/API clients (UI sends aff_code in body)
+		affCode = strings.TrimSpace(c.Query("aff"))
+	}
+	// Bound length to reduce abuse of oversized aff parameters.
+	if len(affCode) > 32 {
+		affCode = affCode[:32]
+	}
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
+	// Refuse disabled inviters (defense-in-depth; Register should not attach to banned accounts).
+	if inviterId > 0 {
+		if inviter, err := model.GetUserById(inviterId, false); err != nil || inviter == nil || inviter.Status != common.UserStatusEnabled {
+			inviterId = 0
+		}
+	}
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
@@ -445,6 +459,10 @@ func TransferAffQuota(c *gin.Context) {
 	user, err := model.GetUserById(id, true)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if user.Status != common.UserStatusEnabled {
+		common.ApiErrorMsg(c, "账户已被禁用，无法转移邀请额度！")
 		return
 	}
 	tran := TransferAffQuotaRequest{}

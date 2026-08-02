@@ -12,7 +12,7 @@ import (
 
 var StartTime = time.Now().Unix() // unit: second
 var Version = "v0.0.0"            // this hard coding will be replaced automatically when building, no need to manually change
-var SystemName = "New API"
+var SystemName = "DaoXE"
 var Footer = ""
 var Logo = ""
 var TopUpLink = ""
@@ -124,6 +124,15 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+// Invite top-up rebate (invitee top-up → inviter aff_quota). Default off for safe merges.
+// Only top-ups completed at/after InviteTopupRebateEnabledAt are eligible.
+// Historical top-ups before the feature was turned on are never backfilled.
+var InviteTopupRebateEnabled = false
+var InviteTopupRebateRatioBp = 100 // 100 basis points = 1.00%
+var InviteTopupRebateBackfillMinutes = 5 // scheduled backfill interval; min 1, max 1440
+// InviteTopupRebateEnabledAt is unix seconds when the feature was last turned ON.
+// 0 means "never enabled" (or unknown) — backfill grants nothing until set on enable.
+var InviteTopupRebateEnabledAt int64 = 0
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false

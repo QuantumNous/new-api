@@ -111,6 +111,10 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
 				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
+				selfRoute.GET("/invite_rebate/summary", controller.GetSelfInviteRebateSummary)
+				selfRoute.GET("/invite_rebate/logs", controller.GetSelfInviteRebateLogs)
+				selfRoute.GET("/invite_rebate/invitees", controller.GetSelfInviteRebateInvitees)
+				selfRoute.GET("/invite_rebate/leaderboard", controller.GetInviteRebateLeaderboard)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
 				// 2FA routes
@@ -188,6 +192,13 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		apiRouter.POST("/subscription/epay/return", anonymousRequestBodyLimit, controller.SubscriptionEpayReturn)
+		inviteRebateAdminRoute := apiRouter.Group("/invite_rebate")
+		inviteRebateAdminRoute.Use(middleware.AdminAuth())
+		{
+			inviteRebateAdminRoute.GET("/", controller.GetAdminInviteRebates)
+			inviteRebateAdminRoute.GET("/summary", controller.GetAdminInviteRebateSummary)
+		}
+
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{
@@ -282,6 +293,7 @@ func SetApiRouter(router *gin.Engine) {
 		systemTaskRoute.Use(middleware.RootAuth())
 		{
 			systemTaskRoute.POST("/log-cleanup", controller.CreateLogCleanupSystemTask)
+			systemTaskRoute.POST("/invite-rebate-backfill", controller.CreateInviteRebateBackfillSystemTask)
 			systemTaskRoute.GET("/list", controller.ListSystemTasks)
 			systemTaskRoute.GET("/current", controller.GetCurrentSystemTask)
 			systemTaskRoute.GET("/:task_id", controller.GetSystemTask)

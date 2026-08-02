@@ -154,6 +154,11 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		return errors.New("充值失败，请稍后重试")
 	}
 
+	// After payment commit: rebate failures must not undo user credit.
+	if grantErr := GrantInviteTopupRebate(nil, topUp.UserId, int(quota), topUp); grantErr != nil {
+		common.SysError(fmt.Sprintf("invite topup rebate grant failed trade_no=%s user_id=%d err=%q", topUp.TradeNo, topUp.UserId, grantErr.Error()))
+	}
+
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 
 	return nil
@@ -385,6 +390,14 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		return err
 	}
 
+	if userId > 0 && quotaToAdd > 0 {
+		if topUpAfter := GetTopUpByTradeNo(tradeNo); topUpAfter != nil {
+			if grantErr := GrantInviteTopupRebate(nil, topUpAfter.UserId, quotaToAdd, topUpAfter); grantErr != nil {
+				common.SysError(fmt.Sprintf("invite topup rebate grant failed trade_no=%s user_id=%d err=%q", tradeNo, topUpAfter.UserId, grantErr.Error()))
+			}
+		}
+	}
+
 	// 事务外记录日志，避免阻塞
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
 	return nil
@@ -459,6 +472,10 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("充值失败，请稍后重试")
 	}
 
+	if grantErr := GrantInviteTopupRebate(nil, topUp.UserId, int(quota), topUp); grantErr != nil {
+		common.SysError(fmt.Sprintf("invite topup rebate grant failed trade_no=%s user_id=%d err=%q", topUp.TradeNo, topUp.UserId, grantErr.Error()))
+	}
+
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
 
 	return nil
@@ -521,6 +538,9 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
+		if grantErr := GrantInviteTopupRebate(nil, topUp.UserId, quotaToAdd, topUp); grantErr != nil {
+			common.SysError(fmt.Sprintf("invite topup rebate grant failed trade_no=%s user_id=%d err=%q", topUp.TradeNo, topUp.UserId, grantErr.Error()))
+		}
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
 	}
 
@@ -582,6 +602,9 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
+		if grantErr := GrantInviteTopupRebate(nil, topUp.UserId, quotaToAdd, topUp); grantErr != nil {
+			common.SysError(fmt.Sprintf("invite topup rebate grant failed trade_no=%s user_id=%d err=%q", topUp.TradeNo, topUp.UserId, grantErr.Error()))
+		}
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 	}
 

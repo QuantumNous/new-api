@@ -55,6 +55,9 @@ const quotaSchema = z.object({
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
+  InviteTopupRebateEnabled: z.boolean(),
+  InviteTopupRebateRatioBp: z.coerce.number().min(0).max(10000),
+  InviteTopupRebateBackfillMinutes: z.coerce.number().min(1).max(1440),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -263,7 +266,75 @@ export function QuotaSettingsSection({
               />
             </SettingsFormGridItem>
 
+                        <FormField
+              control={form.control}
+              name='InviteTopupRebateEnabled'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Invite Top-up Rebate')}</FormLabel>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Credit inviter when invitees complete top-ups')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
+              control={form.control}
+              name='InviteTopupRebateRatioBp'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Invite Top-up Rebate Ratio (bp)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Basis points: 100 = 1% of credited quota')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='InviteTopupRebateBackfillMinutes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Invite Rebate Backfill Interval (minutes)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('How often to scan for missing rebates (1-1440 minutes)')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+<FormField
               control={form.control}
               name='TopUpLink'
               render={({ field }) => (

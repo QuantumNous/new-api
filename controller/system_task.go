@@ -115,3 +115,40 @@ func GetSystemTask(c *gin.Context) {
 		"data":    task.ToResponse(),
 	})
 }
+
+
+// CreateInviteRebateBackfillSystemTask enqueues an on-demand invite rebate backfill.
+// Root only (route middleware). Optional query limit=1..500 (default 100).
+// If the feature is disabled, returns error without creating a task.
+func CreateInviteRebateBackfillSystemTask(c *gin.Context) {
+	if !common.InviteTopupRebateEnabled {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "invite top-up rebate is disabled",
+		})
+		return
+	}
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	task, created, err := service.EnqueueSystemTask(model.SystemTaskTypeInviteRebateBackfill, map[string]int{"limit": limit})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Also offer immediate sync execution for admin UX when no runner lag is desired:
+	// keep async-only to match other system tasks; runner wakes via notify.
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"task":    task.ToResponse(),
+			"created": created,
+			"limit":   limit,
+		},
+	})
+}

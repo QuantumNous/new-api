@@ -107,6 +107,13 @@ export type SystemTaskListResponse = {
 }
 
 export type SiteSettings = {
+  'SEO.Title'?: string
+  'SEO.TitleSuffix'?: string
+  'SEO.Description'?: string
+  'SEO.Keywords'?: string
+  'SEO.SiteURL'?: string
+  'SEO.OGImage'?: string
+  'SEO.RobotsIndex'?: boolean | string
   Notice: string
   SystemName: string
   Logo: string
@@ -251,6 +258,9 @@ export type BillingSettings = {
   PreConsumedQuota: number
   QuotaForInviter: number
   QuotaForInvitee: number
+  InviteTopupRebateEnabled: boolean
+  InviteTopupRebateRatioBp: number
+  InviteTopupRebateBackfillMinutes: number
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean

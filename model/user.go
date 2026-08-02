@@ -501,6 +501,10 @@ func inviteUser(inviterId int) (err error) {
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
+	// Reject non-positive amounts before min-unit check (negative would increase AffQuota).
+	if quota <= 0 {
+		return errors.New("转移额度必须为正数！")
+	}
 	// 检查quota是否小于最小额度
 	if float64(quota) < common.QuotaPerUnit {
 		return fmt.Errorf("转移额度最小为%s！", logger.LogQuota(int(common.QuotaPerUnit)))
@@ -517,6 +521,10 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	err := lockForUpdate(tx).First(&user, user.Id).Error
 	if err != nil {
 		return err
+	}
+
+	if user.Status != common.UserStatusEnabled {
+		return errors.New("账户已被禁用，无法转移邀请额度！")
 	}
 
 	// 再次检查用户的AffQuota是否足够
