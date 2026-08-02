@@ -275,6 +275,10 @@ func TestVisibilityTimeBoundariesAndDatabaseReadThrough(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertSelectable(true)
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityHidden, EndTime: now}); err != nil {
+		t.Fatal(err)
+	}
+	assertSelectable(true)
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityHidden, StartTime: now, EndTime: now + 60}); err != nil {
 		t.Fatal(err)
 	}
@@ -317,6 +321,14 @@ func TestTargetedVisibilityFailsClosedOutsideTimeWindow(t *testing.T) {
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
 		Group: "default", Visibility: model.TokenGroupVisibilityTargeted,
 		Usernames: []string{"alice"}, EndTime: now - 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assertUnavailableToBoth()
+
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted,
+		Usernames: []string{"alice"}, EndTime: now,
 	}); err != nil {
 		t.Fatal(err)
 	}
