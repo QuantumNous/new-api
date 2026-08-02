@@ -7,7 +7,7 @@ Stage: development evidence only; not production authorization.
 ## Candidate identity
 
 - Branch: `codex/p2-pure-candidate-20260803`
-- Candidate commit: `fc6fcd1a3bf313693142348be6331d293017d0a1`
+- Candidate commit: `517eb6baf47c97670972cd17dc11579b655f6c3e`
 - Candidate implementation head before this record: `291659953531e3d32ade33e29df2144cd2a93a3c`
 - Validation record commit: `77dd367` (`docs: record isolated race and migration checks`).
 - Production baseline ancestor: `19be7b44f4cacda68a5c45690e8c2af659d29473`

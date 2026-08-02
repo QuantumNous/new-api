@@ -4,7 +4,7 @@ Status: release candidate prepared; production release is not authorized.
 
 Candidate branch: `codex/p2-pure-candidate-20260803`
 
-Candidate commit: `fc6fcd1a3bf313693142348be6331d293017d0a1`
+Candidate commit: `517eb6baf47c97670972cd17dc11579b655f6c3e`
 
 Production base: `19be7b44f4cacda68a5c45690e8c2af659d29473`
 Scope: P2 token-group visibility only, layered on the already-reviewed P1 candidate.
