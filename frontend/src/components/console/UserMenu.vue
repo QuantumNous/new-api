@@ -33,6 +33,11 @@ function goto(routeName: string) {
   router.push({ name: routeName })
 }
 
+function gotoRedeem() {
+  open.value = false
+  router.push({ name: 'wallet', query: { panel: 'redeem' } })
+}
+
 function onClickOutside(e: MouseEvent) {
   if (root.value && !root.value.contains(e.target as Node)) open.value = false
 }
@@ -67,12 +72,13 @@ onBeforeUnmount(() => {
 
     <div
       v-if="open"
-      class="absolute right-0 top-12 z-40 w-56 rounded-2xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] py-1.5 shadow-[var(--overlay-shadow)] animate-scale-in"
+      class="absolute right-0 top-12 z-40 w-56 overflow-hidden rounded-2xl border border-[var(--overlay-border)] bg-[var(--surface-overlay)] py-1.5 shadow-[var(--overlay-shadow)] animate-scale-in"
       data-handdrawn="menu"
     >
       <button
         type="button"
-        class="flex w-full items-center justify-between px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-muted)]"
+        class="flex w-full items-center justify-between rounded-lg px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-muted)]"
+        data-user-menu-item
         @click="goto('wallet')"
       >
         <span class="text-[var(--text-secondary)]">{{ t('nav.balance') }}</span>
@@ -82,33 +88,34 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        class="block w-full px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        class="block w-full rounded-lg px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        data-user-menu-item
         @click="goto('profile')"
       >
         {{ t('nav.profile') }}
       </button>
       <button
         type="button"
-        class="block w-full px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        class="block w-full rounded-lg px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        data-user-menu-item
         @click="goto('invite')"
       >
         {{ t('nav.rebate') }}
       </button>
-      <div
-        class="flex w-full cursor-not-allowed items-center justify-between px-4 py-2 text-left text-sm text-[var(--text-tertiary)] opacity-60"
+      <button
+        type="button"
+        class="flex w-full items-center justify-between rounded-lg px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        data-user-menu-item
+        @click="gotoRedeem"
       >
         {{ t('nav.redeem') }}
-        <span
-          class="rounded bg-[var(--surface-muted)] px-1.5 py-px text-[10px]"
-        >
-          {{ t('nav.comingSoon') }}
-        </span>
-      </div>
+      </button>
       <div class="mx-3 my-1 h-px bg-[var(--border-subtle)]" />
       <button
         type="button"
-        class="block w-full px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--status-danger-soft)]"
+        class="block w-full rounded-lg px-4 py-2 text-left text-sm transition-colors hover:bg-[var(--status-danger-soft)]"
         style="color: var(--status-danger-text)"
+        data-user-menu-item
         @click="logout"
       >
         {{ t('common.logout') }}
