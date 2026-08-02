@@ -896,23 +896,34 @@ export const getModelPriceItems = (
   ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
 };
 
+export function getBillingCurrencyConfig() {
+  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  let symbol = '$';
+  let rate = 1;
+
+  try {
+    const status = JSON.parse(localStorage.getItem('status') || '{}');
+    if (quotaDisplayType === 'CNY') {
+      symbol = '¥';
+      const billingRate = Number(status?.billing_usd_to_cny_rate);
+      rate =
+        Number.isFinite(billingRate) && billingRate > 0
+          ? billingRate
+          : status?.usd_exchange_rate || 1;
+    } else if (quotaDisplayType === 'CUSTOM') {
+      symbol = status?.custom_currency_symbol || '¤';
+      rate = status?.custom_currency_exchange_rate || 1;
+    }
+  } catch (e) {}
+
+  return { symbol, rate, type: quotaDisplayType };
+}
+
 // 格式化动态计费摘要（用于卡片视图，与 formatPriceInfo 风格统一）
 export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
   if (!billingExpr) return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('动态计费')}</span>;
 
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
-  let symbol = '$';
-  let rate = 1;
-  try {
-    const s = JSON.parse(localStorage.getItem('status') || '{}');
-    if (quotaDisplayType === 'CNY') {
-      symbol = '¥';
-      rate = s?.usd_exchange_rate || 7;
-    } else if (quotaDisplayType === 'CUSTOM') {
-      symbol = s?.custom_currency_symbol || '¤';
-      rate = s?.custom_currency_exchange_rate || 1;
-    }
-  } catch (e) {}
+  const { symbol, rate } = getBillingCurrencyConfig();
 
   const gr = groupRatio || 1;
   const exprBody = billingExpr.replace(/^v\d+:/, '');

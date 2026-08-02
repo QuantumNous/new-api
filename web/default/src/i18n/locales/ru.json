@@ -51,6 +51,7 @@
     "{{count}} IP(s)": "{{count}} IP",
     "{{count}} log entries removed.": "Удалено {{count}} записей журнала.",
     "{{count}} minutes ago": "{{count}} минут назад",
+    "{{count}} model(s)": "{{count}} моделей",
     "{{count}} models": "моделей: {{count}}",
     "{{count}} models appear in multiple groups": "{{count}} моделей входят в несколько групп",
     "{{count}} months ago": "{{count}} месяцев назад",

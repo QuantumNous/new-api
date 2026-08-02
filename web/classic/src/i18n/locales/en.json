@@ -3830,6 +3830,8 @@
     "默认折叠侧边栏": "Default collapse sidebar",
     "默认测试模型": "Default Test Model",
     "默认用户消息": "Default User Message",
-    "默认补全倍率": "Default completion ratio"
+    "默认补全倍率": "Default completion ratio",
+    "计费汇率": "Billing exchange rate",
+    "将官方美元模型成本换算成人民币后，再应用消费分组倍率；不影响钱包余额和充值价格": "Converts official USD model costs to CNY before applying the usage group ratio. It does not affect wallet balances or top-up prices."
   }
 }

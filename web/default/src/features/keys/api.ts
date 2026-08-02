@@ -545,12 +545,13 @@ export async function getApiKeys(
   return normalizeApiKeysResponse(res.data)
 }
 
-// Search API keys by keyword or token (with pagination)
+// Search API keys with a unified query or legacy field-specific filters.
 export async function searchApiKeys(
   params: SearchApiKeysParams
 ): Promise<GetApiKeysResponse> {
-  const { keyword = '', token = '', p, size } = params
+  const { query = '', keyword = '', token = '', p, size } = params
   const queryParams = new URLSearchParams()
+  if (query) queryParams.set('query', query)
   if (keyword) queryParams.set('keyword', keyword)
   if (token) queryParams.set('token', token)
   if (p != null) queryParams.set('p', String(p))

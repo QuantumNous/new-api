@@ -51,6 +51,7 @@
     "{{count}} IP(s)": "{{count}} 個 IP",
     "{{count}} log entries removed.": "已刪除 {{count}} 條日誌。",
     "{{count}} minutes ago": "{{count}} 分鐘前",
+    "{{count}} model(s)": "{{count}} 個模型",
     "{{count}} models": "{{count}} 個模型",
     "{{count}} models appear in multiple groups": "{{count}} 個模型同時存在於多個分組",
     "{{count}} months ago": "{{count}} 個月前",

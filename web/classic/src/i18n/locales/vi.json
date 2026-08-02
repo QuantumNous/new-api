@@ -4218,6 +4218,8 @@
     "默认折叠侧边栏": "Mặc định thu gọn thanh bên",
     "默认测试模型": "Mô hình kiểm tra mặc định",
     "默认用户消息": "Xin chào",
-    "默认补全倍率": "Tỷ lệ hoàn thành mặc định"
+    "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
+    "计费汇率": "Tỷ giá tính phí",
+    "将官方美元模型成本换算成人民币后，再应用消费分组倍率；不影响钱包余额和充值价格": "Quy đổi chi phí mô hình chính thức từ USD sang CNY trước khi áp dụng hệ số nhóm sử dụng. Không ảnh hưởng đến số dư ví hoặc giá nạp tiền."
   }
 }

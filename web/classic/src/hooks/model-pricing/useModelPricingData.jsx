@@ -55,7 +55,7 @@ export const useModelPricingData = () => {
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
 
-  // 充值汇率（price）与美元兑人民币汇率（usd_exchange_rate）
+  // 充值价格、钱包展示汇率与模型计费汇率彼此独立。
   const priceRate = useMemo(
     () => statusState?.status?.price ?? 1,
     [statusState],
@@ -64,6 +64,14 @@ export const useModelPricingData = () => {
     () => statusState?.status?.usd_exchange_rate ?? priceRate,
     [statusState, priceRate],
   );
+  const configuredBillingRate = Number(
+    statusState?.status?.billing_usd_to_cny_rate,
+  );
+  const hasIndependentBillingRate =
+    Number.isFinite(configuredBillingRate) && configuredBillingRate > 0;
+  const billingUSDToCNYRate = hasIndependentBillingRate
+    ? configuredBillingRate
+    : usdExchangeRate;
   const customExchangeRate = useMemo(
     () => statusState?.status?.custom_currency_exchange_rate ?? 1,
     [statusState],
@@ -180,12 +188,12 @@ export const useModelPricingData = () => {
 
   const displayPrice = (usdPrice) => {
     let priceInUSD = usdPrice;
-    if (showWithRecharge) {
+    if (showWithRecharge && !hasIndependentBillingRate) {
       priceInUSD = (usdPrice * priceRate) / usdExchangeRate;
     }
 
     if (currency === 'CNY') {
-      return `¥${(priceInUSD * usdExchangeRate).toFixed(3)}`;
+      return `¥${(priceInUSD * billingUSDToCNYRate).toFixed(3)}`;
     } else if (currency === 'CUSTOM') {
       return `${customCurrencySymbol}${(priceInUSD * customExchangeRate).toFixed(3)}`;
     }
@@ -378,6 +386,7 @@ export const useModelPricingData = () => {
     // 计算属性
     priceRate,
     usdExchangeRate,
+    billingUSDToCNYRate,
     filteredModels,
     rowSelection,
 

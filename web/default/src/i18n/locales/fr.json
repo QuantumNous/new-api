@@ -51,6 +51,7 @@
     "{{count}} IP(s)": "{{count}} IP",
     "{{count}} log entries removed.": "{{count}} entrées de journal supprimées.",
     "{{count}} minutes ago": "il y a {{count}} minutes",
+    "{{count}} model(s)": "{{count}} modèle(s)",
     "{{count}} models": "{{count}} modèles",
     "{{count}} models appear in multiple groups": "{{count}} modèles figurent dans plusieurs groupes",
     "{{count}} months ago": "il y a {{count}} mois",

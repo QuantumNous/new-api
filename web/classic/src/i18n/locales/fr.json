@@ -3684,6 +3684,8 @@
     "默认折叠侧边栏": "Réduire la barre latérale par défaut",
     "默认测试模型": "Modèle de test par défaut",
     "默认用户消息": "Bonjour",
-    "默认补全倍率": "Taux de complétion par défaut"
+    "默认补全倍率": "Taux de complétion par défaut",
+    "计费汇率": "Taux de change de facturation",
+    "将官方美元模型成本换算成人民币后，再应用消费分组倍率；不影响钱包余额和充值价格": "Convertit les coûts officiels des modèles en USD en CNY avant d'appliquer le coefficient du groupe de consommation. Cela n'affecte ni le solde du portefeuille ni le prix des recharges."
   }
 }

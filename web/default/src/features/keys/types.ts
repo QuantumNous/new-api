@@ -77,6 +77,7 @@ export interface GetApiKeysResponse {
 }
 
 export interface SearchApiKeysParams {
+  query?: string
   keyword?: string
   token?: string
   p?: number

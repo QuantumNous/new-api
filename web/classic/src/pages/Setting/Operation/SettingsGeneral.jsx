@@ -53,6 +53,7 @@ export default function GeneralSettings(props) {
     QuotaPerUnit: '',
     RetryTimes: '',
     USDExchangeRate: '',
+    BillingUSDToCNYRate: '',
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
     DemoSiteEnabled: false,
@@ -297,6 +298,19 @@ export default function GeneralSettings(props) {
                     {t('自定义货币')}
                   </Form.Select.Option>
                 </Form.Select>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Input
+                  field='BillingUSDToCNYRate'
+                  label={t('计费汇率')}
+                  extraText={t(
+                    '将官方美元模型成本换算成人民币后，再应用消费分组倍率；不影响钱包余额和充值价格',
+                  )}
+                  type='number'
+                  min={0.0001}
+                  step={0.01}
+                  onChange={handleFieldChange('BillingUSDToCNYRate')}
+                />
               </Col>
               {quotaDisplayType !== 'USD' && (
                 <Col xs={24} sm={12} md={8} lg={8} xl={8}>
