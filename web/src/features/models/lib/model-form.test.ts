@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// @ts-expect-error Bun's test types are not included in the app tsconfig.
-import { describe, expect, test } from 'bun:test'
+import assert from 'node:assert/strict'
+import { describe, test } from 'node:test'
 
 import {
   modelFormSchema,
@@ -36,8 +36,8 @@ describe('model token limit fields', () => {
       updated_time: 0,
       name_rule: 0,
     })
-    expect(defaults.context_window).toBe(0)
-    expect(defaults.max_output_tokens).toBe(0)
+    assert.equal(defaults.context_window, 0)
+    assert.equal(defaults.max_output_tokens, 0)
   })
 
   test('rejects negative and fractional limits', () => {
@@ -46,7 +46,27 @@ describe('model token limit fields', () => {
       context_window: -1,
       max_output_tokens: 1.5,
     })
-    expect(result.success).toBe(false)
+    assert.equal(result.success, false)
+  })
+
+  test('rejects limits above the JavaScript safe integer range', () => {
+    const unsafeInteger = Number.MAX_SAFE_INTEGER + 1
+    assert.equal(
+      modelFormSchema.safeParse({
+        model_name: 'example',
+        context_window: unsafeInteger,
+        max_output_tokens: 0,
+      }).success,
+      false
+    )
+    assert.equal(
+      modelFormSchema.safeParse({
+        model_name: 'example',
+        context_window: 0,
+        max_output_tokens: unsafeInteger,
+      }).success,
+      false
+    )
   })
 
   test('submits raw integer token counts', () => {
@@ -56,7 +76,7 @@ describe('model token limit fields', () => {
       max_output_tokens: 32768,
     })
     const payload = transformFormDataToModelPayload(values)
-    expect(payload.context_window).toBe(262144)
-    expect(payload.max_output_tokens).toBe(32768)
+    assert.equal(payload.context_window, 262144)
+    assert.equal(payload.max_output_tokens, 32768)
   })
 })

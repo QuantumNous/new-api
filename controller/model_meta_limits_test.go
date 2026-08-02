@@ -38,7 +38,7 @@ func performModelMetaRequest(
 
 func requireRejectedModelMetaField(t *testing.T, recorder *httptest.ResponseRecorder, field string) {
 	t.Helper()
-	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Equal(t, http.StatusOK, recorder.Code)
 	var response modelMetaResponse
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	require.False(t, response.Success)

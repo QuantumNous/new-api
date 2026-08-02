@@ -3,7 +3,6 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -106,10 +105,7 @@ func CreateModelMeta(c *gin.Context) {
 		return
 	}
 	if err := validateModelTokenLimits(&m); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 	if m.ModelName == "" {
@@ -144,10 +140,7 @@ func UpdateModelMeta(c *gin.Context) {
 	}
 	if !statusOnly {
 		if err := validateModelTokenLimits(&m); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
+			common.ApiErrorMsg(c, err.Error())
 			return
 		}
 	}

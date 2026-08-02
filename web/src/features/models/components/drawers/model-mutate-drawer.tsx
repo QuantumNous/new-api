@@ -95,8 +95,12 @@ const extendedModelFormSchema = z.object({
   tags: z.array(z.string()),
   vendor_id: z.number().optional(),
   endpoints: z.string(),
-  context_window: z.number().int().nonnegative(),
-  max_output_tokens: z.number().int().nonnegative(),
+  context_window: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  max_output_tokens: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(Number.MAX_SAFE_INTEGER),
   name_rule: z.number(),
   status: z.boolean(),
   sync_official: z.boolean(),
@@ -483,8 +487,6 @@ export function ModelMutateDrawer({
           ...values,
           id: isEditing ? currentModelId : undefined,
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
-          context_window: values.context_window,
-          max_output_tokens: values.max_output_tokens,
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
         }
