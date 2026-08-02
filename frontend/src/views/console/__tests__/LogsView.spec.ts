@@ -170,7 +170,9 @@ describe('LogsView', () => {
       'clamp(1125px, 100%, 1276px)'
     )
     const trigger = wrapper.findAll('[data-log-detail-trigger]')[0]!
-    expect(trigger.classes()).toContain('hover:underline')
+    expect(trigger.get('[data-log-detail-underline]').classes()).toContain(
+      'group-hover:scale-x-100'
+    )
     expect(wrapper.get('[data-log-cost]').classes()).toContain('text-sm')
 
     await trigger.trigger('click')

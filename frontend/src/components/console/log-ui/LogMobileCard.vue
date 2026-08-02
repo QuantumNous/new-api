@@ -5,6 +5,7 @@ import StatusChip from '@/components/common/StatusChip.vue'
 import type { LogItem, LogType } from '@/types/console'
 import { formatQuota, formatTime } from '@/utils/format'
 
+import LogDetailTrigger from './LogDetailTrigger.vue'
 import LogPerformanceCell from './LogPerformanceCell.vue'
 import LogReasoningEffort from './LogReasoningEffort.vue'
 import LogUsageCell from './LogUsageCell.vue'
@@ -118,16 +119,11 @@ function quotaPrefix(type: LogType): string {
       >
         <dt class="sr-only">{{ t('logs.colContent') }}</dt>
         <dd>
-          <button
-            type="button"
-            data-log-detail-trigger
-            class="block w-full truncate text-left text-[var(--text-tertiary)] underline-offset-4 transition-colors hover:text-[var(--text-secondary)] hover:underline focus-visible:text-[var(--text-secondary)] focus-visible:underline focus-visible:outline-none"
-            :title="log.content"
-            :aria-label="t('logs.viewLogDetails')"
-            @click="emit('view-details', log)"
-          >
-            {{ log.content }}
-          </button>
+          <LogDetailTrigger
+            :content="log.content"
+            :label="t('logs.viewLogDetails')"
+            @activate="emit('view-details', log)"
+          />
         </dd>
       </div>
     </dl>

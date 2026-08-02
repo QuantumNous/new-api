@@ -192,8 +192,16 @@ test('dark wide logs keeps a balanced content width', async ({ page }) => {
   const detailTrigger = page
     .locator('[data-log-detail-trigger]:visible')
     .first()
+  const detailUnderline = detailTrigger.locator('[data-log-detail-underline]')
   await detailTrigger.hover()
-  await expect(detailTrigger).toHaveCSS('text-decoration-line', 'underline')
+  await expect
+    .poll(() =>
+      detailUnderline.evaluate(
+        (element) =>
+          new DOMMatrixReadOnly(getComputedStyle(element).transform).a
+      )
+    )
+    .toBeGreaterThan(0.99)
   await expect(page.locator('[data-log-cost]:visible').first()).toHaveCSS(
     'font-size',
     '14px'

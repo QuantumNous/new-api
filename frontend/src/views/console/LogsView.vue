@@ -27,6 +27,7 @@ import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
+import LogDetailTrigger from '@/components/console/log-ui/LogDetailTrigger.vue'
 import LogMobileCard from '@/components/console/log-ui/LogMobileCard.vue'
 import LogReasoningEffort from '@/components/console/log-ui/LogReasoningEffort.vue'
 import {
@@ -706,16 +707,11 @@ onBeforeUnmount(() => {
           </span>
         </template>
         <template #cell-content="{ row }">
-          <button
-            type="button"
-            data-log-detail-trigger
-            class="block w-full min-w-0 truncate text-left text-xs text-[var(--text-tertiary)] underline-offset-4 transition-colors hover:text-[var(--text-secondary)] hover:underline focus-visible:text-[var(--text-secondary)] focus-visible:underline focus-visible:outline-none"
-            :title="(row as LogItem).content"
-            :aria-label="t('logs.viewLogDetails')"
-            @click="openLogDetails(row as LogItem)"
-          >
-            {{ (row as LogItem).content }}
-          </button>
+          <LogDetailTrigger
+            :content="(row as LogItem).content"
+            :label="t('logs.viewLogDetails')"
+            @activate="openLogDetails(row as LogItem)"
+          />
         </template>
 
         <template #footer>
