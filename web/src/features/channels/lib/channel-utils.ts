@@ -113,6 +113,7 @@ export function getChannelTypeIcon(type: number): string {
     53: 'OpenAI', // Submodel
 
     // AI Proxy services
+    61: 'OpenAI', // AvalAI
     10: 'OpenAI', // AI Proxy
     21: 'OpenAI', // AI Proxy Library
     12: 'OpenAI', // API2GPT

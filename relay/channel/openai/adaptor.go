@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ai360"
+	"github.com/QuantumNous/new-api/relay/channel/avalai"
 	"github.com/QuantumNous/new-api/relay/channel/lingyiwanwu"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
@@ -674,6 +675,8 @@ func (a *Adaptor) GetModelList() []string {
 		return ai360.ModelList
 	case constant.ChannelTypeLingYiWanWu:
 		return lingyiwanwu.ModelList
+	case constant.ChannelTypeAvalAI:
+		return avalai.ModelList
 	//case constant.ChannelTypeMiniMax:
 	//	return minimax.ModelList
 	case constant.ChannelTypeXinference:
@@ -691,6 +694,8 @@ func (a *Adaptor) GetChannelName() string {
 		return ai360.ChannelName
 	case constant.ChannelTypeLingYiWanWu:
 		return lingyiwanwu.ChannelName
+	case constant.ChannelTypeAvalAI:
+		return avalai.ChannelName
 	//case constant.ChannelTypeMiniMax:
 	//	return minimax.ChannelName
 	case constant.ChannelTypeXinference:
