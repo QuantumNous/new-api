@@ -13,6 +13,8 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetRequestURLForImageGeneration(t *testing.T) {
@@ -47,14 +49,10 @@ func TestGetRequestURLForChatCompletionsUsesOpenAICompatibleEndpoint(t *testing.
 	}
 
 	got, err := GetRequestURL(info)
-	if err != nil {
-		t.Fatalf("GetRequestURL returned error: %v", err)
-	}
+	require.NoError(t, err, "GetRequestURL returned error")
 
 	want := "https://api.minimax.chat/v1/chat/completions"
-	if got != want {
-		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestConvertImageRequest(t *testing.T) {
