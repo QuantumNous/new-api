@@ -23,11 +23,11 @@ import (
 )
 
 type TaskSubmitResult struct {
-	UpstreamTaskID   string
-	TaskData         []byte
-	Platform         constant.TaskPlatform
-	Quota            int
-	SettleOnComplete bool
+	UpstreamTaskID          string
+	TaskData                []byte
+	Platform                constant.TaskPlatform
+	Quota                   int
+	AdjustBillingOnComplete bool
 	//PerCallPrice   types.PriceData
 }
 
@@ -258,13 +258,13 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		}
 	}
 
-	_, settleOnComplete := adaptor.(channel.CompletionBillingAdaptor)
+	_, adjustBillingOnComplete := adaptor.(channel.CompletionBillingAdaptor)
 	return &TaskSubmitResult{
-		UpstreamTaskID:   upstreamTaskID,
-		TaskData:         taskData,
-		Platform:         platform,
-		Quota:            finalQuota,
-		SettleOnComplete: settleOnComplete,
+		UpstreamTaskID:          upstreamTaskID,
+		TaskData:                taskData,
+		Platform:                platform,
+		Quota:                   finalQuota,
+		AdjustBillingOnComplete: adjustBillingOnComplete,
 	}, nil
 }
 

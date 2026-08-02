@@ -181,6 +181,11 @@ func TestTaskAdaptorRejectsInvalidMiniMaxH3Content(t *testing.T) {
 			code: "invalid_content",
 		},
 		{
+			name: "callback cannot expose upstream task id",
+			body: `{"model":"MiniMax-H3","content":[{"type":"text","text":"prompt"}],"resolution":"2K","duration":5,"ratio":"16:9","callback_url":"https://example.com/callback"}`,
+			code: "unsupported_callback_url",
+		},
+		{
 			name: "frame and reference inputs are mutually exclusive",
 			body: `{"model":"MiniMax-H3","content":[{"type":"text","text":"prompt"},{"type":"image_url","image_url":{"url":"https://example.com/first.png"},"role":"first_frame"},{"type":"image_url","image_url":{"url":"https://example.com/ref.png"},"role":"reference_image"}],"resolution":"2K","duration":5,"ratio":"adaptive"}`,
 			code: "invalid_content",

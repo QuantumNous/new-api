@@ -871,7 +871,7 @@ func TestSettle_CheckedAdaptorAdjustmentTakesPriority(t *testing.T) {
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
 	adaptor := &checkedMockAdaptor{
-		mockAdaptor:   &mockAdaptor{},
+		mockAdaptor:   &mockAdaptor{adjustReturn: 4000},
 		checkedReturn: actualQuota,
 		clamp: &common.QuotaClamp{
 			Op:      "QuotaFromFloat",

@@ -2,6 +2,7 @@ package hailuov2
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	taskdto "github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
@@ -63,10 +65,13 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 func validateVideoRequest(req *VideoRequest) (string, error) {
 	maxAllowedDuration := min(maxVideoDuration, relaycommon.MaxTaskDurationSeconds)
 	if req.Duration < minVideoDuration || req.Duration > maxAllowedDuration {
-		return "invalid_duration", fmt.Errorf("duration must be between 4 and 15")
+		return "invalid_duration", fmt.Errorf("duration must be between %d and %d", minVideoDuration, maxAllowedDuration)
 	}
 	if req.Resolution != "2K" {
 		return "invalid_resolution", fmt.Errorf("resolution must be 2K")
+	}
+	if req.CallbackURL != nil {
+		return "unsupported_callback_url", fmt.Errorf("callback_url is not supported")
 	}
 	validRatios := map[string]bool{
 		"adaptive": true, "21:9": true, "16:9": true, "4:3": true,
@@ -330,7 +335,12 @@ func (a *TaskAdaptor) AdjustBillingOnCompleteChecked(task *model.Task, _ *relayc
 		return 0, nil
 	}
 	var response QueryResponse
-	if err := common.Unmarshal(task.Data, &response); err != nil || response.Task.Usage.TotalSeconds <= 0 {
+	if err := common.Unmarshal(task.Data, &response); err != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf("MiniMax H3 task %s keeps its pre-consumed quota because completion usage could not be decoded: %v", task.TaskID, err))
+		return 0, nil
+	}
+	if response.Task.Usage.TotalSeconds <= 0 {
+		logger.LogWarn(context.Background(), fmt.Sprintf("MiniMax H3 task %s keeps its pre-consumed quota because completion usage is unavailable", task.TaskID))
 		return 0, nil
 	}
 
