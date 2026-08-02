@@ -40,13 +40,21 @@ describe('model token limit fields', () => {
     assert.equal(defaults.max_output_tokens, 0)
   })
 
-  test('rejects negative and fractional limits', () => {
-    const result = modelFormSchema.safeParse({
-      model_name: 'example',
-      context_window: -1,
-      max_output_tokens: 1.5,
-    })
-    assert.equal(result.success, false)
+  test('rejects negative and fractional limits independently', () => {
+    const invalidLimits = [
+      ['context_window', -1],
+      ['context_window', 1.5],
+      ['max_output_tokens', -1],
+      ['max_output_tokens', 1.5],
+    ] as const
+
+    for (const [field, value] of invalidLimits) {
+      const result = modelFormSchema.safeParse({
+        model_name: 'example',
+        [field]: value,
+      })
+      assert.equal(result.success, false, `${field} should reject ${value}`)
+    }
   })
 
   test('rejects limits above the JavaScript safe integer range', () => {
