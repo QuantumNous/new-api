@@ -9,6 +9,8 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 
 	"gorm.io/gorm"
+
+	"github.com/samber/lo"
 )
 
 type Redemption struct {
@@ -225,4 +227,28 @@ func DeleteInvalidRedemptions() (int64, error) {
 	now := common.GetTimestamp()
 	result := DB.Where("status IN ? OR (status = ? AND expired_time != 0 AND expired_time < ?)", []int{common.RedemptionCodeStatusUsed, common.RedemptionCodeStatusDisabled}, common.RedemptionCodeStatusEnabled, now).Delete(&Redemption{})
 	return result.RowsAffected, result.Error
+}
+
+
+func BatchDeleteRedemptions(ids []int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("ids 不能为空！")
+	}
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return 0, tx.Error
+	}
+	var deletedCount int64
+	for _, chunk := range lo.Chunk(ids, 200) {
+		result := tx.Where("id in (?)", chunk).Delete(&Redemption{})
+		if result.Error != nil {
+			tx.Rollback()
+			return 0, result.Error
+		}
+		deletedCount += result.RowsAffected
+	}
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+	return deletedCount, nil
 }
