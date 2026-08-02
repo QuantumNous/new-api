@@ -168,6 +168,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		var bodyMap map[string]interface{}
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
 			bodyMap["model"] = info.UpstreamModelName
+			normalizeVolcOfficialInBodyMap(bodyMap, cachedBody)
 			syncVideoDurationFields(bodyMap)
 			if a.facePass {
 				inURLs := facepass.CollectImageURLs(bodyMap, openaiImageURLBodyKeys)
