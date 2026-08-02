@@ -25,7 +25,7 @@
       "type": "function_call"
     },
     {
-      "call_id": "call_0",
+      "call_id": "call_1",
       "output": "{\"result\":\"15 degrees\"}",
       "type": "function_call_output"
     }

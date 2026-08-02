@@ -39,7 +39,7 @@
     {
       "role": "tool",
       "content": "{\"result\":\"15 degrees\"}",
-      "tool_call_id": "call_0"
+      "tool_call_id": "call_1"
     }
   ],
   "stream": false,
