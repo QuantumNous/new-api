@@ -4326,6 +4326,12 @@
     "Package #{{id}}": "Package #{{id}}",
     "Package #{{id}} (currently assigned)": "Package #{{id}} (currently assigned)",
     "Select entitlement packages": "Select entitlement packages",
-    "Your account has no active entitlement packages.": "Your account has no active entitlement packages."
+    "Your account has no active entitlement packages.": "Your account has no active entitlement packages.",
+    "Failed to save visibility policies.": "Failed to save visibility policies.",
+    "Optional policies: public, targeted (with usernames), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "Optional policies: public, targeted (with usernames), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.",
+    "Save visibility policies": "Save visibility policies",
+    "Token group visibility": "Token group visibility",
+    "Token group visibility policies saved.": "Token group visibility policies saved.",
+    "Visibility policies must be a JSON array.": "Visibility policies must be a JSON array."
   }
 }

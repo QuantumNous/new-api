@@ -4326,6 +4326,12 @@
     "Package #{{id}}": "Forfait n° {{id}}",
     "Package #{{id}} (currently assigned)": "Forfait n° {{id}} (actuellement affecté)",
     "Select entitlement packages": "Sélectionner les forfaits de droits",
-    "Your account has no active entitlement packages.": "Votre compte ne dispose d’aucun forfait de droits actif."
+    "Your account has no active entitlement packages.": "Votre compte ne dispose d’aucun forfait de droits actif.",
+    "Failed to save visibility policies.": "Échec de l’enregistrement des politiques de visibilité.",
+    "Optional policies: public, targeted (with usernames), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "Politiques facultatives : public, targeted (avec des noms d’utilisateur) ou hidden. Elles s’appliquent uniquement lorsque TOKEN_GROUP_VISIBILITY_ENABLED est activé.",
+    "Save visibility policies": "Enregistrer les politiques de visibilité",
+    "Token group visibility": "Visibilité des groupes de jetons",
+    "Token group visibility policies saved.": "Politiques de visibilité des groupes de jetons enregistrées.",
+    "Visibility policies must be a JSON array.": "Les politiques de visibilité doivent être un tableau JSON."
   }
 }

@@ -4326,6 +4326,12 @@
     "Package #{{id}}": "Gói #{{id}}",
     "Package #{{id}} (currently assigned)": "Gói #{{id}} (hiện đang được gán)",
     "Select entitlement packages": "Chọn gói quyền",
-    "Your account has no active entitlement packages.": "Tài khoản của bạn không có gói quyền nào đang hoạt động."
+    "Your account has no active entitlement packages.": "Tài khoản của bạn không có gói quyền nào đang hoạt động.",
+    "Failed to save visibility policies.": "Không thể lưu chính sách hiển thị.",
+    "Optional policies: public, targeted (with usernames), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "Chính sách tùy chọn: public, targeted (kèm tên người dùng) hoặc hidden. Chỉ áp dụng khi TOKEN_GROUP_VISIBILITY_ENABLED được bật.",
+    "Save visibility policies": "Lưu chính sách hiển thị",
+    "Token group visibility": "Hiển thị nhóm token",
+    "Token group visibility policies saved.": "Đã lưu chính sách hiển thị nhóm token.",
+    "Visibility policies must be a JSON array.": "Chính sách hiển thị phải là một mảng JSON."
   }
 }

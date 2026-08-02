@@ -4326,6 +4326,12 @@
     "Package #{{id}}": "Пакет №{{id}}",
     "Package #{{id}} (currently assigned)": "Пакет №{{id}} (назначен сейчас)",
     "Select entitlement packages": "Выберите пакеты прав",
-    "Your account has no active entitlement packages.": "У вашей учётной записи нет активных пакетов прав."
+    "Your account has no active entitlement packages.": "У вашей учётной записи нет активных пакетов прав.",
+    "Failed to save visibility policies.": "Не удалось сохранить политики видимости.",
+    "Optional policies: public, targeted (with usernames), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "Необязательные политики: public, targeted (с именами пользователей) или hidden. Они применяются только при включённом TOKEN_GROUP_VISIBILITY_ENABLED.",
+    "Save visibility policies": "Сохранить политики видимости",
+    "Token group visibility": "Видимость групп токенов",
+    "Token group visibility policies saved.": "Политики видимости групп токенов сохранены.",
+    "Visibility policies must be a JSON array.": "Политики видимости должны быть массивом JSON."
   }
 }

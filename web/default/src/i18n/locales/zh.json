@@ -4326,6 +4326,12 @@
     "Package #{{id}}": "权益包 #{{id}}",
     "Package #{{id}} (currently assigned)": "权益包 #{{id}}（当前已分配）",
     "Select entitlement packages": "选择权益包",
-    "Your account has no active entitlement packages.": "您的账户没有有效的权益包。"
+    "Your account has no active entitlement packages.": "您的账户没有有效的权益包。",
+    "Failed to save visibility policies.": "保存可见性策略失败。",
+    "Optional policies: public, targeted (with usernames), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "可选策略：public、targeted（需要用户名）或 hidden。仅在启用 TOKEN_GROUP_VISIBILITY_ENABLED 后生效。",
+    "Save visibility policies": "保存可见性策略",
+    "Token group visibility": "令牌分组可见性",
+    "Token group visibility policies saved.": "令牌分组可见性策略已保存。",
+    "Visibility policies must be a JSON array.": "可见性策略必须是 JSON 数组。"
   }
 }

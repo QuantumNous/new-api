@@ -4326,6 +4326,12 @@
     "Package #{{id}}": "パッケージ #{{id}}",
     "Package #{{id}} (currently assigned)": "パッケージ #{{id}}（現在割り当て済み）",
     "Select entitlement packages": "権限パッケージを選択",
-    "Your account has no active entitlement packages.": "アカウントに有効な権限パッケージがありません。"
+    "Your account has no active entitlement packages.": "アカウントに有効な権限パッケージがありません。",
+    "Failed to save visibility policies.": "可視性ポリシーの保存に失敗しました。",
+    "Optional policies: public, targeted (with usernames), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "任意のポリシー：public、targeted（ユーザー名が必要）、または hidden。TOKEN_GROUP_VISIBILITY_ENABLED が有効な場合のみ適用されます。",
+    "Save visibility policies": "可視性ポリシーを保存",
+    "Token group visibility": "トークングループの可視性",
+    "Token group visibility policies saved.": "トークングループの可視性ポリシーを保存しました。",
+    "Visibility policies must be a JSON array.": "可視性ポリシーは JSON 配列である必要があります。"
   }
 }
