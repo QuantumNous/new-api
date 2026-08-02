@@ -158,13 +158,12 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.ChannelCreateTime < constant.AzureNoRemoveDotTime {
 		model_ = strings.Replace(model_, ".", "", -1)
 	}
-	// 新版 Azure AI Foundry 资源(endpoint 形如 xxx.services.ai.azure.com)
-	// 使用标准 OpenAI 路径(/openai/v1/chat/completions),模型名放在请求体里而非 URL,
-	// 也不需要 api-version 查询参数。仅当原始请求路径以 /v1 开头时走此分支;
-	// 此时把 /v1 替换为 /openai/v1 拼接到域名 base URL 上。
-	// 经典 Azure OpenAI 资源(cognitiveservices.azure.com)仍走 deployment 路径。
-	// 注意:base URL 只填到域名(不要带 /openai/v1 后缀,否则路径会重复)。
-	if strings.HasPrefix(info.RequestURLPath, "/v1") {
+	// 新版 Azure AI Foundry 资源(host 形如 xxx.services.ai.azure.com)使用标准
+	// OpenAI 路径(/openai/v1/chat/completions),模型名放在请求体里而非 URL,
+	// 也不需要 api-version 查询参数。按 base URL 的域名区分新旧资源:
+	//   - 新版(services.ai.azure.com):走 /openai/v1/...,base URL 只填域名
+	//   - 经典(cognitiveservices.azure.com / openai.azure.com):走 deployment 路径
+	if strings.Contains(info.ChannelBaseUrl, "services.ai.azure.com") {
 		requestURL := "/openai" + info.RequestURLPath
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, requestURL, info.ChannelType), nil
 	}
