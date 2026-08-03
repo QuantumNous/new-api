@@ -31,6 +31,14 @@ type TaskSubmitResult struct {
 	//PerCallPrice   types.PriceData
 }
 
+type taskRequestValidatorAfterModelMapping interface {
+	ValidateRequestAfterModelMapping(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError
+}
+
+type taskPriceDataValidator interface {
+	ValidateTaskPriceData(info *relaycommon.RelayInfo) *dto.TaskError
+}
+
 // ResolveOriginTask 处理基于已有任务的提交（remix / continuation）：
 // 查找原始任务、从中提取模型名称、将渠道锁定到原始任务的渠道
 // （通过 info.LockedChannel，重试时复用同一渠道并轮换 key），
@@ -155,8 +163,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("invalid api platform: %s", platform), "invalid_api_platform", http.StatusBadRequest)
 	}
 	adaptor.Init(info)
-	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
-		return nil, taskErr
+	postMappingValidator, validateAfterMapping := adaptor.(taskRequestValidatorAfterModelMapping)
+	if !validateAfterMapping {
+		if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+			return nil, taskErr
+		}
 	}
 
 	// 2. 确定模型名称
@@ -171,6 +182,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
 		return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
 	}
+	if validateAfterMapping {
+		if taskErr := postMappingValidator.ValidateRequestAfterModelMapping(c, info); taskErr != nil {
+			return nil, taskErr
+		}
+	}
 
 	// 3. 预生成公开 task ID（仅首次）
 	if info.PublicTaskID == "" {
@@ -184,6 +200,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
 	}
 	info.PriceData = priceData
+	if validator, ok := adaptor.(taskPriceDataValidator); ok {
+		if taskErr := validator.ValidateTaskPriceData(info); taskErr != nil {
+			return nil, taskErr
+		}
+	}
 
 	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
 	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。

@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -87,9 +89,30 @@ type AliVideoOutput struct {
 
 // AliUsage 使用统计
 type AliUsage struct {
-	Duration   dto.IntValue `json:"duration,omitempty"`
+	Duration   AliDuration  `json:"duration,omitempty"`
 	VideoCount dto.IntValue `json:"video_count,omitempty"`
 	SR         dto.IntValue `json:"SR,omitempty"`
+}
+
+type AliDuration float64
+
+func (d *AliDuration) UnmarshalJSON(data []byte) error {
+	var value float64
+	if err := common.Unmarshal(data, &value); err == nil {
+		*d = AliDuration(value)
+		return nil
+	}
+
+	var text string
+	if err := common.Unmarshal(data, &text); err != nil {
+		return err
+	}
+	value, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		return err
+	}
+	*d = AliDuration(value)
+	return nil
 }
 
 type AliMetadata struct {
@@ -134,6 +157,42 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	return relaycommon.ValidateMultipartDirect(c, info)
 }
 
+func isHappyHorseModel(model string) bool {
+	switch model {
+	case "happyhorse-1.1-t2v", "happyhorse-1.1-i2v", "happyhorse-1.1-r2v", "happyhorse-1.0-video-edit":
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *TaskAdaptor) ValidateRequestAfterModelMapping(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	if !isHappyHorseModel(info.UpstreamModelName) {
+		return a.ValidateRequestAndSetAction(c, info)
+	}
+
+	if _, err := getHappyHorseRequestForModel(c, info.UpstreamModelName); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	if info.UpstreamModelName == "happyhorse-1.1-t2v" {
+		info.Action = constant.TaskActionTextGenerate
+	} else {
+		info.Action = constant.TaskActionGenerate
+	}
+	return nil
+}
+
+func (a *TaskAdaptor) ValidateTaskPriceData(info *relaycommon.RelayInfo) *dto.TaskError {
+	if isHappyHorseModel(info.UpstreamModelName) && !info.PriceData.UsePrice {
+		return service.TaskErrorWrapperLocal(
+			fmt.Errorf("fixed model price is required for %s", info.OriginModelName),
+			"model_price_error",
+			http.StatusBadRequest,
+		)
+	}
+	return nil
+}
+
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return fmt.Sprintf("%s/api/v1/services/aigc/video-generation/video-synthesis", a.baseURL), nil
 }
@@ -147,6 +206,19 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	if isHappyHorseModel(info.UpstreamModelName) {
+		req, err := getHappyHorseRequestForModel(c, info.UpstreamModelName)
+		if err != nil {
+			return nil, errors.Wrap(err, "get_happyhorse_request_failed")
+		}
+		logger.LogJson(c, "ali video request body", req)
+		bodyBytes, err := common.Marshal(req)
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal_happyhorse_request_failed")
+		}
+		return bytes.NewReader(bodyBytes), nil
+	}
+
 	taskReq, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil, errors.Wrap(err, "get_task_request_failed")
@@ -456,6 +528,18 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 // EstimateBilling 根据用户请求参数计算 OtherRatios（时长、分辨率等）。
 // 在 ValidateRequestAndSetAction 之后、价格计算之前调用。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	if isHappyHorseModel(info.UpstreamModelName) {
+		req, err := GetHappyHorseRequest(c)
+		if err != nil {
+			return nil
+		}
+		seconds, err := req.ReservationSeconds()
+		if err != nil {
+			return nil
+		}
+		return map[string]float64{"seconds": float64(seconds)}
+	}
+
 	taskReq, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
@@ -477,6 +561,44 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		otherRatios[k] = v
 	}
 	return otherRatios
+}
+
+func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, _ *relaycommon.TaskInfo) int {
+	if !isHappyHorseModel(task.Properties.UpstreamModelName) {
+		return 0
+	}
+
+	var response AliVideoResponse
+	if err := common.Unmarshal(task.Data, &response); err != nil || response.Usage == nil {
+		return 0
+	}
+	duration := float64(response.Usage.Duration)
+	if duration <= 0 || math.IsNaN(duration) || math.IsInf(duration, 0) {
+		return 0
+	}
+
+	billingContext := task.PrivateData.BillingContext
+	if billingContext == nil {
+		return 0
+	}
+	reservedSeconds, ok := billingContext.OtherRatios["seconds"]
+	if !ok || reservedSeconds <= 0 || math.IsNaN(reservedSeconds) || math.IsInf(reservedSeconds, 0) || task.Quota <= 0 {
+		return 0
+	}
+	baseQuotaFloat := float64(task.Quota) / reservedSeconds
+	if baseQuotaFloat <= 0 || baseQuotaFloat > float64(math.MaxInt) {
+		return 0
+	}
+	baseQuota := int(baseQuotaFloat)
+	actualQuotaFloat := float64(baseQuota) * duration
+	if actualQuotaFloat <= 0 || actualQuotaFloat > float64(math.MaxInt) {
+		return 0
+	}
+	return int(actualQuotaFloat)
+}
+
+func (a *TaskAdaptor) AdjustPerCallBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	return a.AdjustBillingOnComplete(task, taskResult)
 }
 
 // DoRequest delegates to common helper
