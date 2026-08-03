@@ -27,6 +27,7 @@ import { formatTimestampToDate } from '@/lib/format'
 import { getTeam } from '../api'
 import { TeamBillingTab } from './team-billing-tab'
 import { TeamMembersTab } from './team-members-tab'
+import { TeamProjectsTab } from './team-projects-tab'
 
 const route = getRouteApi('/_authenticated/teams/$teamId/')
 
@@ -83,10 +84,14 @@ export function TeamDetail() {
           <Tabs defaultValue='members'>
             <TabsList>
               <TabsTrigger value='members'>{t('Members')}</TabsTrigger>
+              <TabsTrigger value='projects'>{t('Projects')}</TabsTrigger>
               <TabsTrigger value='billing'>{t('Billing')}</TabsTrigger>
             </TabsList>
             <TabsContent value='members' className='pt-4'>
               <TeamMembersTab teamId={id} />
+            </TabsContent>
+            <TabsContent value='projects' className='pt-4'>
+              <TeamProjectsTab teamId={id} />
             </TabsContent>
             <TabsContent value='billing' className='pt-4'>
               <TeamBillingTab teamId={id} />
