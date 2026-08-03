@@ -38,7 +38,7 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/3metajun/new-api:${{ github.event.inputs.tag || github.ref_name }}
+          tags: ghcr.io/3metajun/metaproxy-newapi:${{ github.event.inputs.tag || github.ref_name }}
           labels: |
             org.opencontainers.image.source=https://github.com/3metaJun/new-api
             org.opencontainers.image.description=metaproxy minimal fork of QuantumNous/new-api
