@@ -638,7 +638,7 @@ func hasActiveRecallMigrationLeases(nowUnix int64) (bool, error) {
 
 func migrateLOGDB() error {
 	var err error
-	if err = LOG_DB.AutoMigrate(&Log{}, &LogRequestSample{}); err != nil {
+	if err = LOG_DB.AutoMigrate(&Log{}, &LogRequestSample{}, &CustomerUsageAdjustment{}); err != nil {
 		return err
 	}
 	return nil
