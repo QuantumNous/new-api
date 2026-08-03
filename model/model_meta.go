@@ -109,6 +109,16 @@ func GetAllModels(offset int, limit int) ([]*Model, error) {
 	return models, err
 }
 
+// GetModelByName 根据模型名称获取模型信息
+func GetModelByName(modelName string) (*Model, error) {
+	var model Model
+	err := DB.Where("model_name = ?", modelName).First(&model).Error
+	if err != nil {
+		return nil, err
+	}
+	return &model, nil
+}
+
 func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel, error) {
 	result := make(map[string][]BoundChannel)
 	if len(modelNames) == 0 {
