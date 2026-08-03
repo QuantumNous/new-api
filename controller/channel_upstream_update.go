@@ -430,6 +430,24 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return normalizeModelNames(ids), nil
 	}
 
+	// Cohere returns {models: [{name, endpoints, ...}]} instead of {data: [{id}]}. Import all names.
+	if channel.Type == constant.ChannelTypeCohere {
+		var cohereResult struct {
+			Models []struct {
+				Name string `json:"name"`
+			} `json:"models"`
+		}
+		if err := common.Unmarshal(body, &cohereResult); err != nil {
+			return nil, err
+		}
+		ids := lo.Map(cohereResult.Models, func(item struct {
+			Name string `json:"name"`
+		}, _ int) string {
+			return item.Name
+		})
+		return normalizeModelNames(ids), nil
+	}
+
 	var result OpenAIModelsResponse
 	if err := common.Unmarshal(body, &result); err != nil {
 		return nil, err
