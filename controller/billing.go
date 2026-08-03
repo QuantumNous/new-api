@@ -81,10 +81,17 @@ func GetFlatkeyStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	user, err := model.GetUserById(c.GetInt("id"), false)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "ok",
 		"remaining": credits.Remaining,
 		"used":      credits.Used,
+		"username":  user.Username,
+		"email":     user.Email,
 	})
 }
 

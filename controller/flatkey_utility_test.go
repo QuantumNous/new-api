@@ -27,6 +27,7 @@ func setupFlatkeyUtilityControllerTest(t *testing.T) {
 	if err := db.Create(&model.User{
 		Id:        901,
 		Username:  "flatkey-cli",
+		Email:     "flatkey-cli@example.com",
 		Quota:     4200,
 		UsedQuota: 800,
 		Status:    1,
@@ -66,12 +67,14 @@ func TestGetFlatkeyStatusReturnsRawOkStatus(t *testing.T) {
 		Status    string  `json:"status"`
 		Remaining float64 `json:"remaining"`
 		Used      float64 `json:"used"`
+		Username  string  `json:"username"`
+		Email     string  `json:"email"`
 	}
 	if err := common.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if body.Status != "ok" || body.Remaining != 42 || body.Used != 8 {
-		t.Fatalf("status body=%+v, want ok with remaining=42 used=8", body)
+	if body.Status != "ok" || body.Remaining != 42 || body.Used != 8 || body.Username != "flatkey-cli" || body.Email != "flatkey-cli@example.com" {
+		t.Fatalf("status body=%+v, want ok remaining=42 used=8 username=flatkey-cli email=flatkey-cli@example.com", body)
 	}
 }
 
