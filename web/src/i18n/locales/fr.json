@@ -3246,6 +3246,8 @@
     "Parameter settings": "Paramètres",
     "parameter.": "paramètre.",
     "Parameters": "Paramètres",
+    "PKCE (S256)": "PKCE (S256)",
+    "Require a proof key for authorization code exchanges": "Exiger une clé de preuve pour les échanges de codes d'autorisation",
     "Parsed {{count}} service account file(s)": "{{count}} fichier(s) de compte de service analysé(s)",
     "Partial Submission": "Soumission partielle",
     "Pass Headers": "Transmettre les en-têtes",

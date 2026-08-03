@@ -22,12 +22,18 @@ import { toast } from 'sonner'
 
 import { clearAuthentication, isAuthBundle } from '@/lib/api'
 
-import { createOAuthFlow, logout, telegramLogin } from '../api'
+import {
+  createOAuthFlow,
+  createOAuthFlowDetails,
+  logout,
+  telegramLogin,
+} from '../api'
 import {
   buildGitHubOAuthUrl,
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
+  buildCustomOAuthUrl,
 } from '../lib/oauth'
 import { pickTelegramAuthorization } from '../lib/telegram-login'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
@@ -209,19 +215,12 @@ export function useOAuthLogin(
     setIsLoading(true)
     try {
       await resetSession()
-      const state = await createOAuthFlow(provider.slug, 'login')
+      const flow = await createOAuthFlowDetails(provider.slug, 'login')
 
       const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
-      const url = new URL(provider.authorization_endpoint)
-      url.searchParams.set('client_id', provider.client_id)
-      url.searchParams.set('redirect_uri', redirectUri)
-      url.searchParams.set('response_type', 'code')
-      url.searchParams.set('state', state)
-      if (provider.scopes) {
-        url.searchParams.set('scope', provider.scopes)
-      }
+      const url = buildCustomOAuthUrl(provider, redirectUri, flow)
 
-      window.open(url.toString(), '_self')
+      window.open(url, '_self')
     } catch {
       toast.error(
         t('Failed to start {{provider}} login', { provider: provider.name })

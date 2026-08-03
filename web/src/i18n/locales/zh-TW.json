@@ -3246,6 +3246,8 @@
     "Parameter settings": "參數設定",
     "parameter.": "參數。",
     "Parameters": "參數",
+    "PKCE (S256)": "PKCE（S256）",
+    "Require a proof key for authorization code exchanges": "授權碼交換必須提供證明金鑰",
     "Parsed {{count}} service account file(s)": "已解析 {{count}} 個服務賬號檔案",
     "Partial Submission": "部分提交確認",
     "Pass Headers": "透傳請求頭",

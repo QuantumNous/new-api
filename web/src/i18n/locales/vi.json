@@ -3246,6 +3246,8 @@
     "Parameter settings": "Cài đặt tham số",
     "parameter.": "tham số",
     "Parameters": "Tham số",
+    "PKCE (S256)": "PKCE (S256)",
+    "Require a proof key for authorization code exchanges": "Yêu cầu khóa chứng minh khi trao đổi mã ủy quyền",
     "Parsed {{count}} service account file(s)": "Đã phân tích {{count}} tệp tài khoản dịch vụ",
     "Partial Submission": "Gửi một phần",
     "Pass Headers": "Chuyển tiếp tiêu đề",
