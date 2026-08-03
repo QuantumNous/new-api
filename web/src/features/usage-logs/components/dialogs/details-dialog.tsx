@@ -453,9 +453,16 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
     })
   }
 
-  if (other.image && other.image_output) {
+  if (other.image_input != null && other.image_input > 0) {
     rows.push({
-      label: t('Image Tokens'),
+      label: t('Image input'),
+      value: other.image_input.toLocaleString(),
+    })
+  }
+
+  if (other.image_output != null && other.image_output > 0) {
+    rows.push({
+      label: t('Image output'),
       value: other.image_output.toLocaleString(),
     })
   }

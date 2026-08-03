@@ -440,6 +440,26 @@ func newTestResponsesStreamState() *ResponsesToChatStreamState {
 	return state
 }
 
+func TestResponsesUsageNativeOutputDetailsTakePrecedenceAndClone(t *testing.T) {
+	native := &dto.OutputTokenDetails{ImageTokens: 8, TextTokens: 2}
+	resp := &dto.OpenAIResponsesResponse{
+		Usage: &dto.Usage{
+			InputTokens:            1,
+			OutputTokens:           10,
+			CompletionTokenDetails: dto.OutputTokenDetails{TextTokens: 10},
+			OutputTokensDetails:    native,
+		},
+	}
+
+	_, usage, err := ResponsesResponseToChatCompletionsResponse(resp, "chatcmpl_test")
+	require.NoError(t, err)
+	require.NotNil(t, usage.OutputTokensDetails)
+	assert.Equal(t, dto.OutputTokenDetails{ImageTokens: 8, TextTokens: 2}, usage.CompletionTokenDetails)
+	require.NotSame(t, native, usage.OutputTokensDetails)
+	native.ImageTokens = 1
+	assert.Equal(t, 8, usage.OutputTokensDetails.ImageTokens)
+}
+
 func mustStreamChunks(t *testing.T, state *ResponsesToChatStreamState, event *dto.ResponsesStreamResponse) []dto.ChatCompletionsStreamResponse {
 	t.Helper()
 	chunks, err := ResponsesStreamEventToChatChunks(event, state)

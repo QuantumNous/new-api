@@ -39,33 +39,41 @@ func appendToolSurchargeLogInfo(other map[string]interface{}, items []ToolSurcha
 }
 
 type textQuotaSummary struct {
-	PromptTokens           int
-	CompletionTokens       int
-	TotalTokens            int
-	CacheTokens            int
-	CacheCreationTokens    int
-	CacheCreationTokens5m  int
-	CacheCreationTokens1h  int
-	ImageTokens            int
-	AudioTokens            int
-	ModelName              string
-	TokenName              string
-	UseTimeSeconds         int64
-	CompletionRatio        float64
-	CacheRatio             float64
-	ImageRatio             float64
-	ModelRatio             float64
-	GroupRatio             float64
-	ModelPrice             float64
-	CacheCreationRatio     float64
-	CacheCreationRatio5m   float64
-	CacheCreationRatio1h   float64
-	Quota                  int
-	IsClaudeUsageSemantic  bool
-	UsageSemantic          string
-	AudioInputPrice        float64
-	ToolSurchargeItems     []ToolSurchargeItem
-	ToolCallSurchargeQuota decimal.Decimal
+	PromptTokens             int
+	CompletionTokens         int
+	TotalTokens              int
+	CacheTokens              int
+	CacheCreationTokens      int
+	CacheCreationTokens5m    int
+	CacheCreationTokens1h    int
+	ImageTokens              int
+	ImageOutputTokens        int
+	AudioTokens              int
+	ModelName                string
+	TokenName                string
+	UseTimeSeconds           int64
+	CompletionRatio          float64
+	CacheRatio               float64
+	ImageRatio               float64
+	ModelRatio               float64
+	GroupRatio               float64
+	ModelPrice               float64
+	CacheCreationRatio       float64
+	CacheCreationRatio5m     float64
+	CacheCreationRatio1h     float64
+	Quota                    int
+	IsClaudeUsageSemantic    bool
+	UsageSemantic            string
+	WebSearchPrice           float64
+	WebSearchCallCount       int
+	ClaudeWebSearchPrice     float64
+	ClaudeWebSearchCallCount int
+	FileSearchPrice          float64
+	FileSearchCallCount      int
+	AudioInputPrice          float64
+	ImageGenerationCallPrice float64
+	ToolSurchargeItems       []ToolSurchargeItem
+	ToolCallSurchargeQuota   decimal.Decimal
 }
 
 // hasBillableUsage reports whether this request should incur any charge.
@@ -74,6 +82,20 @@ type textQuotaSummary struct {
 // call), so token count alone is not sufficient to decide.
 func (s *textQuotaSummary) hasBillableUsage() bool {
 	return s.TotalTokens > 0 || !s.ToolCallSurchargeQuota.IsZero()
+}
+
+func appendImageUsageLogFields(other map[string]interface{}, summary textQuotaSummary) {
+	if summary.ImageTokens == 0 && summary.ImageOutputTokens == 0 {
+		return
+	}
+	other["image"] = true
+	if summary.ImageTokens != 0 {
+		other["image_input"] = summary.ImageTokens
+		other["image_ratio"] = summary.ImageRatio
+	}
+	if summary.ImageOutputTokens != 0 {
+		other["image_output"] = summary.ImageOutputTokens
+	}
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -262,6 +284,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.CacheCreationTokens5m = usage.ClaudeCacheCreation5mTokens
 	summary.CacheCreationTokens1h = usage.ClaudeCacheCreation1hTokens
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
+	summary.ImageOutputTokens = usage.CompletionTokenDetails.ImageTokens
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
 	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
@@ -480,10 +503,20 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
 	}
-	if summary.ImageTokens != 0 {
-		other["image"] = true
-		other["image_ratio"] = summary.ImageRatio
-		other["image_output"] = summary.ImageTokens
+	appendImageUsageLogFields(other, summary)
+	if summary.WebSearchCallCount > 0 {
+		other["web_search"] = true
+		other["web_search_call_count"] = summary.WebSearchCallCount
+		other["web_search_price"] = summary.WebSearchPrice
+	} else if summary.ClaudeWebSearchCallCount > 0 {
+		other["web_search"] = true
+		other["web_search_call_count"] = summary.ClaudeWebSearchCallCount
+		other["web_search_price"] = summary.ClaudeWebSearchPrice
+	}
+	if summary.FileSearchCallCount > 0 {
+		other["file_search"] = true
+		other["file_search_call_count"] = summary.FileSearchCallCount
+		other["file_search_price"] = summary.FileSearchPrice
 	}
 	appendToolSurchargeLogInfo(other, summary.ToolSurchargeItems)
 	if summary.AudioInputPrice > 0 && summary.AudioTokens > 0 {

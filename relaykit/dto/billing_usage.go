@@ -100,6 +100,9 @@ func HasOpenAIUsageTokens(usage *Usage) bool {
 		usage.CompletionTokenDetails.AudioTokens != 0 {
 		return true
 	}
+	if usage.OutputTokensDetails != nil {
+		return true
+	}
 	return usage.InputTokensDetails != nil
 }
 
@@ -158,6 +161,10 @@ func cloneOpenAIUsage(usage *Usage) *Usage {
 	if usage.InputTokensDetails != nil {
 		inputTokensDetails := *usage.InputTokensDetails
 		clone.InputTokensDetails = &inputTokensDetails
+	}
+	if usage.OutputTokensDetails != nil {
+		outputTokensDetails := *usage.OutputTokensDetails
+		clone.OutputTokensDetails = &outputTokensDetails
 	}
 	return &clone
 }
