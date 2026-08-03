@@ -19,7 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute } from '@tanstack/react-router'
 
 import { Home } from '@/features/home'
+import { MarketingHome } from '@/features/marketing/pages/Home'
+import { isMarketingMode } from '@/lib/marketing-mode'
 
 export const Route = createFileRoute('/')({
-  component: Home,
+  component: () => (isMarketingMode() ? <MarketingHome /> : <Home />),
 })

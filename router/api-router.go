@@ -22,6 +22,14 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", anonymousRequestBodyLimit, controller.PostSetup)
 		apiRouter.GET("/status", controller.GetStatus)
+		// 营销站公开接口（无需登录，复用全局限流 + 关键接口关键限流）
+		publicRouter := apiRouter.Group("/public")
+		{
+			publicRouter.GET("/site-config", controller.GetPublicSiteConfig)
+			publicRouter.GET("/pricing", controller.GetPublicPricing)
+			publicRouter.GET("/model-categories", controller.GetPublicModelCategories)
+			publicRouter.POST("/sales-lead", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.PostPublicSalesLead)
+		}
 		// 模型商店后台管理（管理员，需 AdminAuth）
 		marketModelRoute := apiRouter.Group("/admin/market-models")
 		marketModelRoute.Use(middleware.AdminAuth())

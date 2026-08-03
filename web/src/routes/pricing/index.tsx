@@ -22,6 +22,8 @@ import z from 'zod'
 import { Pricing } from '@/features/pricing'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
 import { useAuthStore } from '@/stores/auth-store'
+import { MarketingPricing } from '@/features/marketing/pages/Pricing'
+import { isMarketingMode } from '@/lib/marketing-mode'
 
 const pricingSearchSchema = z.object({
   search: z.string().optional(),
@@ -39,6 +41,8 @@ const pricingSearchSchema = z.object({
 export const Route = createFileRoute('/pricing/')({
   validateSearch: pricingSearchSchema,
   beforeLoad: async ({ location }) => {
+    // 营销模式下，/pricing 作为公开营销页，跳过模块开关与登录限制
+    if (isMarketingMode()) return
     const access = await getFreshModuleAccess('pricing')
     if (!access.enabled) {
       throw redirect({ to: '/' })
@@ -53,5 +57,5 @@ export const Route = createFileRoute('/pricing/')({
       }
     }
   },
-  component: Pricing,
+  component: () => (isMarketingMode() ? <MarketingPricing /> : <Pricing />),
 })

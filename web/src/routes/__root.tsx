@@ -43,6 +43,7 @@ import {
 import { subscribeAuthSessionEvents } from '@/lib/auth-session-sync'
 import { resolveLegacyRoute } from '@/lib/legacy-route'
 import { useAuthStore } from '@/stores/auth-store'
+import { resolveMarketingHostRedirect } from '@/lib/marketing-mode'
 
 function RootComponent() {
   const navigate = useNavigate()
@@ -147,6 +148,14 @@ export const Route = createRootRouteWithContext<{
     const legacyTarget = resolveLegacyRoute(location.href)
     if (legacyTarget) {
       throw redirect({ href: legacyTarget, replace: true })
+    }
+
+    // 营销站域名隔离：www↔app 跨域重定向（仅在真实域名下生效；localhost 用 ?marketing=1 预览）
+    const marketingRedirect = resolveMarketingHostRedirect(
+      location?.pathname || '',
+    )
+    if (marketingRedirect) {
+      throw redirect({ href: marketingRedirect, replace: true })
     }
 
     const pathname = location?.pathname || ''
