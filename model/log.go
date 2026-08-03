@@ -129,7 +129,7 @@ func formatUserLogs(logs []*Log, startIdx int) {
 				delete(otherMap, "savings_estimate")
 			}
 			// delete(otherMap, "reject_reason")
-			delete(otherMap, "stream_status")
+			// delete(otherMap, "stream_status")
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 	}
