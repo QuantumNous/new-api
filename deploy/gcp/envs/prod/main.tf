@@ -427,14 +427,18 @@ locals {
 }
 
 module "monitoring" {
-  source               = "../../modules/monitoring"
-  project_id           = var.project_id
-  region               = var.region
-  uptime_host          = local.uptime_host
-  alert_email          = var.alert_email
-  alert_emails         = var.alert_emails
-  router_service_name  = var.router_service_name
-  router_max_instances = var.router_max_instances
+  source                   = "../../modules/monitoring"
+  project_id               = var.project_id
+  region                   = var.region
+  uptime_host              = local.uptime_host
+  alert_email              = var.alert_email
+  alert_emails             = var.alert_emails
+  router_service_name      = var.router_service_name
+  router_max_instances     = var.router_max_instances
+  console_service_name     = var.console_service_name
+  console_max_instances    = var.console_max_instances
+  cloudsql_instance_name   = module.cloud_sql.instance_name
+  cloudsql_max_connections = module.cloud_sql.max_connections
   redis_instance_id = format(
     "projects/%s/locations/%s/instances/newapi-redis",
     var.project_id,

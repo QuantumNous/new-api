@@ -46,7 +46,7 @@ resource "google_sql_database_instance" "main" {
 
     database_flags {
       name  = "max_connections"
-      value = "300"
+      value = tostring(var.max_connections)
     }
     database_flags {
       name  = "character_set_server"
