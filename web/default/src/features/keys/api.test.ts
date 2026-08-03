@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { AxiosHeaders, type InternalAxiosRequestConfig } from 'axios'
 import { afterEach, describe, expect, test } from 'bun:test'
 import { api } from '@/lib/api'
-import { batchEditApiKeys, searchApiKeys } from './api'
+import { batchEditApiKeys, getApiKeys, searchApiKeys } from './api'
 
 const originalAdapter = api.defaults.adapter
 
@@ -45,6 +45,8 @@ describe('batchEditApiKeys', () => {
       ids: [4, 8],
       group: 'premium',
       remain_quota: 0,
+      model_limits_enabled: true,
+      model_limits: 'gpt-4o,gpt-4.1',
     })
 
     expect(request?.method).toBe('put')
@@ -53,13 +55,15 @@ describe('batchEditApiKeys', () => {
       ids: [4, 8],
       group: 'premium',
       remain_quota: 0,
+      model_limits_enabled: true,
+      model_limits: 'gpt-4o,gpt-4.1',
     })
     expect(result).toEqual({ success: true, data: 2 })
   })
 })
 
 describe('searchApiKeys', () => {
-  test('sends the status filter with pagination', async () => {
+  test('sends status and group filters with pagination', async () => {
     let request: InternalAxiosRequestConfig | undefined
     api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
       request = config
@@ -72,9 +76,32 @@ describe('searchApiKeys', () => {
       }
     }
 
-    await searchApiKeys({ status: 3, p: 1, size: 20 })
+    await searchApiKeys({ status: 3, group: 'vip', p: 1, size: 20 })
 
     expect(request?.method).toBe('get')
-    expect(request?.url).toBe('/api/token/search?status=3&p=1&size=20')
+    expect(request?.url).toBe(
+      '/api/token/search?status=3&group=vip&p=1&size=20'
+    )
+  })
+})
+
+describe('getApiKeys', () => {
+  test('sends the group filter with pagination', async () => {
+    let request: InternalAxiosRequestConfig | undefined
+    api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+      request = config
+      return {
+        data: { success: true, data: { items: [], total: 0 } },
+        status: 200,
+        statusText: 'OK',
+        headers: new AxiosHeaders(),
+        config,
+      }
+    }
+
+    await getApiKeys({ group: 'vip', p: 1, size: 20 })
+
+    expect(request?.method).toBe('get')
+    expect(request?.url).toBe('/api/token/?p=1&size=20&group=vip')
   })
 })

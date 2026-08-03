@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
@@ -36,6 +36,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useCanUseGroups } from '@/hooks/use-enterprise'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Empty,
@@ -59,6 +60,7 @@ import {
   API_KEY_STATUSES,
   ERROR_MESSAGES,
 } from '../constants'
+import { getBatchGroupOptions } from '../lib/api-key-batch-group'
 import { type ApiKey, type ApiKeyStats } from '../types'
 import { ApiKeyStatistics } from './api-key-statistics'
 import { ApiKeyCell, ModelLimitsCell } from './api-keys-cells'
@@ -206,7 +208,8 @@ function ApiKeysMobileList({
 
 export function ApiKeysTable() {
   const { t } = useTranslation()
-  const { refreshTrigger } = useApiKeys()
+  const { refreshTrigger, modelAccessQuery } = useApiKeys()
+  const canUseGroups = useCanUseGroups()
   const columns = useApiKeysColumns()
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
@@ -228,6 +231,7 @@ export function ApiKeysTable() {
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: '_tokenSearch', searchKey: 'token', type: 'string' },
+      { columnId: 'group', searchKey: 'keyGroup', type: 'array' },
     ],
   })
 
@@ -256,8 +260,16 @@ export function ApiKeysTable() {
     ((columnFilters.find((filter) => filter.id === 'status')?.value as
       | string[]
       | undefined) ?? [])[0] || ''
+  const groupFilter =
+    ((columnFilters.find((filter) => filter.id === 'group')?.value as
+      | string[]
+      | undefined) ?? [])[0] || ''
   const shouldSearch = Boolean(
-    globalFilter?.trim() || tokenFilter.trim() || statusFilter
+    globalFilter?.trim() || tokenFilter.trim() || statusFilter || groupFilter
+  )
+  const groupFilterOptions = useMemo(
+    () => getBatchGroupOptions(modelAccessQuery.data),
+    [modelAccessQuery.data]
   )
 
   // Fetch data with React Query
@@ -270,6 +282,7 @@ export function ApiKeysTable() {
       globalFilter,
       tokenFilter,
       statusFilter,
+      groupFilter,
       refreshTrigger,
     ],
     queryFn: async () => {
@@ -278,10 +291,12 @@ export function ApiKeysTable() {
             keyword: globalFilter,
             token: tokenFilter,
             status: statusFilter ? Number(statusFilter) : undefined,
+            group: groupFilter,
             p: pagination.pageIndex + 1,
             size: pagination.pageSize,
           })
         : await getApiKeys({
+            group: groupFilter,
             p: pagination.pageIndex + 1,
             size: pagination.pageSize,
           })
@@ -381,6 +396,16 @@ export function ApiKeysTable() {
               options: API_KEY_STATUS_OPTIONS,
               singleSelect: true,
             },
+            ...(canUseGroups
+              ? [
+                  {
+                    columnId: 'group',
+                    title: t('Group'),
+                    options: groupFilterOptions,
+                    singleSelect: true,
+                  },
+                ]
+              : []),
           ],
         }}
         mobile={<ApiKeysMobileList table={table} isLoading={isLoading} />}

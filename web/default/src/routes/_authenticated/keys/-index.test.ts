@@ -57,6 +57,22 @@ describe('validateApiKeySearch', () => {
       })
     ).toEqual({ create: 1, open: 'create', group: 'standard' })
   })
+
+  test('keeps the list group filter independent from create-dialog group', () => {
+    expect(
+      validateApiKeySearch({
+        keyGroup: ['vip'],
+        group: 'create-only-group',
+      })
+    ).toEqual({ keyGroup: ['vip'] })
+    expect(
+      validateApiKeySearch({
+        open: 'create',
+        group: 'standard',
+        keyGroup: ['vip'],
+      })
+    ).toEqual({ open: 'create', group: 'standard', keyGroup: ['vip'] })
+  })
 })
 
 describe('API key search cleanup', () => {

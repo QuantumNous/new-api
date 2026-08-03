@@ -88,10 +88,13 @@ func (token *Token) GetIpLimits() []string {
 	return ipLimits
 }
 
-func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
+func GetAllUserTokens(userId int, startIdx int, num int, group string) ([]*Token, error) {
 	var tokens []*Token
-	var err error
-	err = DB.Where("user_id = ?", userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
+	query := DB.Where("user_id = ?", userId)
+	if group != "" {
+		query = query.Where(&Token{Group: group})
+	}
+	err := query.Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
 	return tokens, err
 }
 
@@ -134,7 +137,7 @@ func sanitizeLikePattern(input string) (string, error) {
 
 const searchHardLimit = 100
 
-func SearchUserTokens(userId int, keyword string, token string, status int, offset int, limit int) (tokens []*Token, total int64, err error) {
+func SearchUserTokens(userId int, keyword string, token string, group string, status int, offset int, limit int) (tokens []*Token, total int64, err error) {
 	// model 层强制截断
 	if limit <= 0 || limit > searchHardLimit {
 		limit = searchHardLimit
@@ -162,6 +165,9 @@ func SearchUserTokens(userId int, keyword string, token string, status int, offs
 	}
 
 	baseQuery := DB.Model(&Token{}).Where("user_id = ?", userId)
+	if group != "" {
+		baseQuery = baseQuery.Where(&Token{Group: group})
+	}
 
 	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）
 	if keyword != "" {
@@ -624,18 +630,36 @@ func CountUserTokens(userId int) (int64, error) {
 	return total, err
 }
 
+func CountUserTokensByGroup(userId int, group string) (int64, error) {
+	if group == "" {
+		return CountUserTokens(userId)
+	}
+	var total int64
+	err := DB.Model(&Token{}).
+		Where("user_id = ?", userId).
+		Where(&Token{Group: group}).
+		Count(&total).Error
+	return total, err
+}
+
 type BatchUpdateTokensParams struct {
-	Ids         []int
-	UserId      int
-	Group       *string
-	RemainQuota *int
+	Ids                []int
+	UserId             int
+	Group              *string
+	RemainQuota        *int
+	ModelLimitsEnabled *bool
+	ModelLimits        *string
 }
 
 func BatchUpdateTokens(params BatchUpdateTokensParams) (int, error) {
 	if len(params.Ids) == 0 || len(params.Ids) > 100 || params.UserId <= 0 {
 		return 0, ErrTokenBatchInvalid
 	}
-	if params.Group == nil && params.RemainQuota == nil {
+	modelLimitsProvided := params.ModelLimitsEnabled != nil || params.ModelLimits != nil
+	if params.Group == nil && params.RemainQuota == nil && !modelLimitsProvided {
+		return 0, ErrTokenBatchInvalid
+	}
+	if (params.ModelLimitsEnabled == nil) != (params.ModelLimits == nil) {
 		return 0, ErrTokenBatchInvalid
 	}
 	if params.Group != nil && *params.Group == "" {
@@ -675,12 +699,16 @@ func BatchUpdateTokens(params BatchUpdateTokensParams) (int, error) {
 		for _, token := range tokens {
 			tokenKeys = append(tokenKeys, token.Key)
 		}
-		updates := make(map[string]interface{}, 2)
+		updates := make(map[string]interface{}, 4)
 		if params.Group != nil {
 			updates["group"] = *params.Group
 			if *params.Group == plgUserGroup {
 				updates["cross_group_retry"] = false
 			}
+		}
+		if params.ModelLimitsEnabled != nil {
+			updates["model_limits_enabled"] = *params.ModelLimitsEnabled
+			updates["model_limits"] = *params.ModelLimits
 		}
 		if len(updates) > 0 {
 			result := tx.Model(&Token{}).
@@ -706,7 +734,7 @@ func BatchUpdateTokens(params BatchUpdateTokensParams) (int, error) {
 
 	if common.RedisEnabled {
 		var err error
-		if params.RemainQuota != nil {
+		if params.RemainQuota != nil || params.ModelLimitsEnabled != nil {
 			err = cacheDeleteTokens(tokenKeys)
 		} else {
 			err = cachePatchTokenGroups(tokenKeys, *params.Group)
