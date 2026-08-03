@@ -6,6 +6,7 @@ import {
   getSkagLandingConfig,
   getSkagLandingConfigs,
   getSkagLandingCtaUrl,
+  getLocalizedSkagLandingEntries,
   getSkagLandingMetadataInput,
   getSkagLandingPathnames,
 } from "./skag-landing";
@@ -67,5 +68,26 @@ describe("SKAG landing configuration", () => {
       expect(input.locale).toBe("en");
       expect(input.locales).toEqual(["en"]);
     }
+  });
+
+  test("exposes the Portuguese Chinese AI models API landing variant", () => {
+    const config = getSkagLandingConfig("chinese-ai-models-api", "pt");
+
+    expect(`${config.h1Lead} ${config.h1Accent}`).toBe("Modelos Chineses de IA via API");
+    expect(config.locale).toBe("pt");
+    expect(config.pathname).toBe("/chinese-ai-models-api");
+    expect(config.secondaryCtaLabel).toBe("Ver preços ao vivo");
+    expect(config.trustLine).toContain("uma chave, uma fatura");
+    expect(config.exampleModel).toBe("deepseek-v4-flash");
+  });
+
+  test("Portuguese metadata and sitemap entries only point at pt", () => {
+    const input = getSkagLandingMetadataInput("chinese-ai-models-api", "pt");
+
+    expect(input.pathname).toBe("/chinese-ai-models-api");
+    expect(input.locale).toBe("pt");
+    expect(input.locales).toEqual(["pt"]);
+    expect(input.title).toContain("API de Modelos Chineses de IA");
+    expect(getLocalizedSkagLandingEntries()).toEqual([{ pathname: "/chinese-ai-models-api", locales: ["pt"] }]);
   });
 });

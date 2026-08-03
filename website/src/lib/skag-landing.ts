@@ -1,4 +1,5 @@
 import { buildConsoleUrl } from "@/lib/origins";
+import type { Locale } from "@/lib/locales";
 import type { SeoInput } from "@/lib/seo";
 
 // SKAG (single-keyword ad group) landing pages for Google Ads paid search.
@@ -19,6 +20,8 @@ export type SkagLandingSlug = (typeof SKAG_LANDING_SLUGS)[number];
 
 export type SkagLandingConfig = {
   slug: SkagLandingSlug;
+  locale?: Locale;
+  pathname?: string;
   /** The paid-search keyword this page belongs to (for reference/tests). */
   keyword: string;
   badge: string;
@@ -27,6 +30,8 @@ export type SkagLandingConfig = {
   h1Accent: string;
   description: string;
   ctaLabel: string;
+  secondaryCtaLabel?: string;
+  trustLine?: string;
   /** Shown under the price table. */
   priceFootnote: string;
   pricingTitle: string;
@@ -216,6 +221,81 @@ const CHINESE_AI_MODELS_API: SkagLandingConfig = {
   },
 };
 
+const PT_CHINESE_AI_MODELS_API: SkagLandingConfig = {
+  slug: "chinese-ai-models-api",
+  locale: "pt",
+  pathname: "/chinese-ai-models-api",
+  keyword: "api de modelos chineses de ia",
+  badge: "DeepSeek · Qwen · GLM · Kimi · Seedance",
+  h1Lead: "Modelos Chineses de IA",
+  h1Accent: "via API",
+  description:
+    "Execute DeepSeek, Qwen, GLM, Kimi e Seedance a partir de uma API compatível com OpenAI. Uma única chave flatkey substitui contas em fornecedores da China continental, recargas separadas e trabalho específico por SDK de cada provedor.",
+  ctaLabel: "Obter sua chave de API para modelos chineses",
+  secondaryCtaLabel: "Ver preços ao vivo",
+  trustLine: "GPT · Gemini · Claude · DeepSeek · Kimi · Seedance — uma chave, uma fatura · sem cartão de crédito para começar",
+  pricingTitle: "Cobertura de modelos pronta para produção",
+  priceRows: [
+    { label: "DeepSeek V4 Flash / 1M tokens", flatkey: "$0.056", official: "$0.14" },
+    { label: "GLM 5.2 / 1M tokens", flatkey: "$0.56", official: "$1.40" },
+    { label: "Vídeo Seedance 2.5", flatkey: "Por uso", official: "Apenas fornecedor" },
+    { label: "Qwen, Kimi, Hunyuan, Wan", flatkey: "Uma chave", official: "Contas separadas" },
+  ],
+  priceFootnote: "* Cobertura representativa do catálogo — veja os preços ao vivo para taxas atuais por modelo e status de acesso.",
+  exampleModel: "deepseek-v4-flash",
+  codeTitle: "Chame modelos chineses de IA via /v1",
+  features: [
+    {
+      title: "Cobertura de modelos da China",
+      body: "DeepSeek, Qwen, GLM, Kimi, Seedance, Kling, Wan, Hailuo, Vidu, MiniMax, Tencent Hunyuan, Baidu ERNIE e mais em um único catálogo.",
+    },
+    {
+      title: "API compatível com OpenAI",
+      body: "Use o SDK da OpenAI que você já tem. Altere base_url, defina uma chave de API flatkey e troque IDs de modelo como deepseek-v4-flash ou glm-5.2.",
+    },
+    {
+      title: "Sem configuração com fornecedor continental",
+      body: "Evite verificação por telefone chinês, recargas em RMB, perfis de cobrança locais e consoles separados por fornecedor ao testar ou lançar modelos chineses de IA.",
+    },
+    {
+      title: "Texto, raciocínio e vídeo",
+      body: "Encaminhe chat, código, raciocínio e geração de vídeo pela mesma conta, com controles de gasto unificados e uma única fatura.",
+    },
+  ],
+  faq: [
+    {
+      question: "Quais famílias de modelos chineses de IA posso testar?",
+      answer:
+        "Comece com DeepSeek, Qwen, GLM, Kimi e Seedance, depois compare outras famílias de modelos da China, como Kling, Wan, Hailuo, Vidu, MiniMax, Hunyuan e ERNIE conforme aparecerem no catálogo.",
+    },
+    {
+      question: "Esta API é compatível com SDKs da OpenAI?",
+      answer:
+        "Sim. Mantenha seu SDK da OpenAI e aponte-o para a base URL /v1 da flatkey. O formato da requisição continua familiar; apenas base_url, api_key e o ID do modelo mudam.",
+    },
+    {
+      question: "Preciso de telefone chinês, conta em RMB ou empresa local?",
+      answer:
+        "Não. A flatkey.ai oferece a equipes internacionais uma conta, uma chave e um fluxo de cobrança para modelos chineses de IA sem gerenciar diretamente cada conta de fornecedor continental.",
+    },
+    {
+      question: "Preciso alterar meu código?",
+      answer:
+        "Não. A flatkey.ai é compatível com OpenAI: mantenha seu SDK da OpenAI e troque base_url e api_key. Os IDs dos modelos permanecem iguais.",
+    },
+    {
+      question: "Como a cobrança funciona entre modelos?",
+      answer:
+        "Um plano cobre todos os modelos. Analytics de uso e uma única fatura mantêm o gasto visível antes de escalar.",
+    },
+  ],
+  seo: {
+    title: "API de Modelos Chineses de IA — DeepSeek, Qwen, GLM, Kimi, Seedance",
+    description:
+      "Use uma API de modelos chineses de IA para DeepSeek, Qwen, GLM, Kimi, Seedance e mais com uma chave compatível com OpenAI. Sem contas em fornecedores continentais ou reescrita de SDK.",
+  },
+};
+
 const OPENAI_COMPATIBLE: SkagLandingConfig = {
   slug: "openai-compatible",
   keyword: "openai compatible api",
@@ -319,7 +399,20 @@ const SKAG_CONFIGS: Record<SkagLandingSlug, SkagLandingConfig> = {
   gateway: GATEWAY,
 };
 
-export function getSkagLandingConfig(slug: SkagLandingSlug): SkagLandingConfig {
+const LOCALIZED_SKAG_CONFIGS: Partial<Record<Locale, Partial<Record<SkagLandingSlug, SkagLandingConfig>>>> = {
+  pt: {
+    "chinese-ai-models-api": PT_CHINESE_AI_MODELS_API,
+  },
+};
+
+export type LocalizedSkagLandingEntry = {
+  pathname: string;
+  locales: readonly Locale[];
+};
+
+export function getSkagLandingConfig(slug: SkagLandingSlug, locale: Locale = "en"): SkagLandingConfig {
+  const localizedConfig = LOCALIZED_SKAG_CONFIGS[locale]?.[slug];
+  if (localizedConfig) return localizedConfig;
   return SKAG_CONFIGS[slug];
 }
 
@@ -335,17 +428,26 @@ export function getSkagLandingPathnames(): string[] {
   return SKAG_LANDING_SLUGS.map((slug) => skagLandingPath(slug));
 }
 
+export function getLocalizedSkagLandingEntries(): LocalizedSkagLandingEntry[] {
+  return [
+    {
+      pathname: skagLandingPath("chinese-ai-models-api"),
+      locales: ["pt"],
+    },
+  ];
+}
+
 export function getSkagLandingCtaUrl(): string {
   return buildConsoleUrl("/register");
 }
 
-export function getSkagLandingMetadataInput(slug: SkagLandingSlug): SeoInput {
-  const config = getSkagLandingConfig(slug);
+export function getSkagLandingMetadataInput(slug: SkagLandingSlug, locale: Locale = "en"): SeoInput {
+  const config = getSkagLandingConfig(slug, locale);
   return {
     title: config.seo.title,
     description: config.seo.description,
-    pathname: skagLandingPath(slug),
-    locale: "en",
-    locales: ["en"],
+    pathname: config.pathname ?? skagLandingPath(slug),
+    locale,
+    locales: [locale],
   };
 }

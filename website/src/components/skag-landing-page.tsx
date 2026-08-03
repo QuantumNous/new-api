@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
+import { localizePath } from "@/lib/locales";
 import { ROUTER_ORIGIN } from "@/lib/origins";
 import {
   SKAG_TRUST_LINE,
@@ -20,9 +21,12 @@ type Props = {
 export function SkagLandingPage({ config }: Props) {
   const ctaUrl = getSkagLandingCtaUrl();
   const apiBaseUrl = `${ROUTER_ORIGIN}/v1`;
+  const locale = config.locale ?? "en";
+  const pathname = config.pathname ?? skagLandingPath(config.slug);
+  const trustLine = config.trustLine ?? SKAG_TRUST_LINE;
 
   return (
-    <SiteShell locale="en" pathname={skagLandingPath(config.slug)} hideLanguageSwitcher>
+    <SiteShell locale={locale} pathname={pathname} hideLanguageSwitcher>
       <div className="min-h-screen overflow-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_28%,#ffffff_58%,#f4f1ff_100%)] text-slate-950 dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_36%,#070712_72%,#03040b_100%)] dark:text-white">
         <section className="relative border-b border-violet-500/10 pt-20 pb-16 dark:border-white/10 md:pt-28 md:pb-24">
           <div
@@ -59,13 +63,13 @@ export function SkagLandingPage({ config }: Props) {
                   <ArrowRight className="size-4" />
                 </a>
                 <Link
-                  href="/pricing"
+                  href={localizePath("/pricing", locale)}
                   className="inline-flex min-h-14 w-full items-center justify-center rounded-lg border border-slate-300 bg-white/70 px-7 text-base font-extrabold text-slate-950 shadow-[0_18px_46px_rgba(15,23,42,0.08)] transition-colors hover:border-violet-400/70 dark:border-slate-600/70 dark:bg-slate-950/30 dark:text-white dark:shadow-none dark:hover:border-violet-300/60 sm:w-auto"
                 >
-                  See live pricing
+                  {config.secondaryCtaLabel ?? "See live pricing"}
                 </Link>
               </div>
-              <p className="mt-5 text-sm font-medium text-slate-500 dark:text-slate-500">{SKAG_TRUST_LINE}</p>
+              <p className="mt-5 text-sm font-medium text-slate-500 dark:text-slate-500">{trustLine}</p>
 
               <div className="mt-8 rounded-lg border border-violet-200/70 bg-white/80 p-5 text-left shadow-[0_18px_48px_rgba(79,70,229,0.08)] dark:border-slate-800 dark:bg-[#0d121c] dark:shadow-none">
                 <p className="font-mono text-xs font-bold tracking-[0.2em] text-slate-500 uppercase">{config.pricingTitle}</p>
@@ -118,7 +122,7 @@ export function SkagLandingPage({ config }: Props) {
                 {config.ctaLabel}
                 <ArrowRight className="size-4" />
               </a>
-              <p className="mt-4 text-xs font-medium text-slate-500 dark:text-slate-500">{SKAG_TRUST_LINE}</p>
+              <p className="mt-4 text-xs font-medium text-slate-500 dark:text-slate-500">{trustLine}</p>
             </div>
             <div className="space-y-4">
               {config.faq.map((faq) => (
