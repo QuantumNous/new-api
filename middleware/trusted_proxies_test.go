@@ -1,4 +1,4 @@
-package main
+package middleware
 
 import (
 	"net/http"
@@ -33,7 +33,7 @@ func TestConfigureTrustedProxiesDefaultsToLoopbackAndPrivateNetworks(t *testing.
 	gin.SetMode(gin.TestMode)
 	t.Setenv("TRUSTED_PROXIES", "")
 	router := newClientIPRouter()
-	require.NoError(t, configureTrustedProxies(router))
+	require.NoError(t, ConfigureTrustedProxies(router))
 
 	testCases := []struct {
 		name       string
@@ -59,7 +59,7 @@ func TestConfigureTrustedProxiesDefaultRejectsPublicPeerHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("TRUSTED_PROXIES", " \t ")
 	router := newClientIPRouter()
-	require.NoError(t, configureTrustedProxies(router))
+	require.NoError(t, ConfigureTrustedProxies(router))
 
 	clientIP := requestClientIP(router, "198.51.100.10:12345", "203.0.113.10")
 	assert.Equal(t, "198.51.100.10", clientIP, "a public peer must not make a spoofed X-Forwarded-For authoritative")
@@ -69,7 +69,7 @@ func TestConfigureTrustedProxiesDefaultStopsAtPublicClientInForwardedChain(t *te
 	gin.SetMode(gin.TestMode)
 	t.Setenv("TRUSTED_PROXIES", "")
 	router := newClientIPRouter()
-	require.NoError(t, configureTrustedProxies(router))
+	require.NoError(t, ConfigureTrustedProxies(router))
 
 	clientIP := requestClientIP(router, "172.20.0.2:12345", "192.0.2.99, 203.0.113.10")
 	assert.Equal(t, "203.0.113.10", clientIP, "the first public hop from the trusted proxy must win over a client-supplied prefix")
@@ -79,7 +79,7 @@ func TestConfigureTrustedProxiesNoneDisablesForwardedHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("TRUSTED_PROXIES", " NoNe ")
 	router := newClientIPRouter()
-	require.NoError(t, configureTrustedProxies(router))
+	require.NoError(t, ConfigureTrustedProxies(router))
 
 	clientIP := requestClientIP(router, "127.0.0.1:12345", "203.0.113.10")
 	assert.Equal(t, "127.0.0.1", clientIP)
@@ -89,7 +89,7 @@ func TestConfigureTrustedProxiesAcceptsTrimmedIPsAndCIDRs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("TRUSTED_PROXIES", " 192.0.2.0/24, 198.51.100.30 ")
 	router := newClientIPRouter()
-	require.NoError(t, configureTrustedProxies(router))
+	require.NoError(t, ConfigureTrustedProxies(router))
 
 	trustedClientIP := requestClientIP(router, "192.0.2.10:12345", "203.0.113.20")
 	assert.Equal(t, "203.0.113.20", trustedClientIP)
@@ -121,7 +121,7 @@ func TestConfigureTrustedProxiesRejectsInvalidConfiguration(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Setenv("TRUSTED_PROXIES", testCase.value)
 			router := newClientIPRouter()
-			assert.Error(t, configureTrustedProxies(router))
+			assert.Error(t, ConfigureTrustedProxies(router))
 		})
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -121,7 +122,7 @@ type RelayInfo struct {
 	// 必须在提交前锁定全额。
 	ForcePreConsume bool
 	// Billing 是计费会话，封装了预扣费/结算/退款的统一生命周期。
-	// 免费模型时为 nil。
+	// 初始免费组可为 nil；若 auto 重试切换到付费组，会在发送前创建。
 	Billing BillingSettler
 	// BillingSource indicates whether this request is billed from wallet quota or subscription.
 	// "" or "wallet" => wallet; "subscription" => subscription
@@ -155,15 +156,16 @@ type RelayInfo struct {
 	// *bytes.Reader/Buffer/strings.Reader). 0 means "let net/http decide".
 	UpstreamRequestBodySize int64
 
-	PriceData types.PriceData
+	PriceData hosttypes.PriceData
 
 	// QuotaClamp is set (non-nil) when a quota conversion saturated at the
 	// int32 bound (or NaN fallback) while computing this request's charge.
 	// It is surfaced onto the consume/task log's admin_info for auditing.
 	QuotaClamp *common.QuotaClamp
 
-	// TieredBillingSnapshot is a frozen snapshot of tiered billing rules
-	// captured at pre-consume time. Non-nil only when billing mode is "tiered_expr".
+	// TieredBillingSnapshot captures tiered billing rules at pre-consume time.
+	// Auto-group retries refresh its group-dependent fields before each attempt
+	// and again before settlement. Non-nil only when billing mode is "tiered_expr".
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
 	BillingRequestInput   *billingexpr.RequestInput
 

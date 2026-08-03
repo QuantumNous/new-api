@@ -28,6 +28,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
@@ -530,7 +531,7 @@ func attachTestBillingRequestInput(info *relaycommon.RelayInfo, request dto.Requ
 	return nil
 }
 
-func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage) (int, *billingexpr.TieredResult) {
+func settleTestQuota(info *relaycommon.RelayInfo, priceData hosttypes.PriceData, usage *dto.Usage) (int, *billingexpr.TieredResult) {
 	if usage != nil && info != nil && info.TieredBillingSnapshot != nil {
 		isClaudeUsageSemantic := usage.UsageSemantic == "anthropic" || info.GetFinalRequestRelayFormat() == types.RelayFormatClaude
 		usedVars := billingexpr.UsedVars(info.TieredBillingSnapshot.ExprString)
@@ -552,7 +553,7 @@ func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usa
 	return int(priceData.ModelPrice * common.QuotaPerUnit), nil
 }
 
-func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
+func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData hosttypes.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {

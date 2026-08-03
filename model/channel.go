@@ -954,6 +954,9 @@ func (channel *Channel) ValidateSettings() error {
 	if _, err := common.ParseProxyURLStrict(channelParams.Proxy); err != nil {
 		return fmt.Errorf("invalid channel proxy: %w", err)
 	}
+	if err := channelParams.ValidateHTTPTransport(); err != nil {
+		return err
+	}
 	channelOtherSettings := &dto.ChannelOtherSettings{}
 	if channel.OtherSettings != "" {
 		err := common.UnmarshalJsonStr(channel.OtherSettings, channelOtherSettings)

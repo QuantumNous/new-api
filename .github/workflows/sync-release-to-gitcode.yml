@@ -1,0 +1,248 @@
+name: Sync Release to GitCode
+
+permissions:
+  actions: read
+  contents: read
+
+on:
+  push:
+    tags:
+      - '*'
+      - '!*-alpha*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: GitHub release tag to sync
+        required: true
+        type: string
+
+concurrency:
+  group: gitcode-release-${{ inputs.tag_name || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare-release-assets:
+    name: Prepare GitHub release assets
+    if: ${{ vars.GITCODE_REPOSITORY != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      release_tag: ${{ steps.release.outputs.tag }}
+      release_body: ${{ steps.release.outputs.body }}
+      release_prerelease: ${{ steps.release.outputs.prerelease }}
+      bootstrap_asset: ${{ steps.release.outputs.bootstrap_asset }}
+      release_asset_matrix: ${{ steps.release.outputs.asset_matrix }}
+      has_bootstrap_asset: ${{ steps.release.outputs.has_bootstrap_asset }}
+      has_matrix_assets: ${{ steps.release.outputs.has_matrix_assets }}
+    steps:
+      - name: Wait for GitHub release workflows
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          wait_for_workflow() {
+            local workflow="$1"
+            local label="$2"
+            local last_state=""
+
+            for attempt in $(seq 1 180); do
+              run_json="$(
+                gh run list \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --workflow "$workflow" \
+                  --event push \
+                  --commit "$GITHUB_SHA" \
+                  --limit 1 \
+                  --json conclusion,status,url \
+                  --jq '.[0] // {}'
+              )"
+              status="$(jq -r '.status // empty' <<< "$run_json")"
+              conclusion="$(jq -r '.conclusion // empty' <<< "$run_json")"
+              state="${status:-not-found}/${conclusion:-pending}"
+
+              if [[ "$state" != "$last_state" ]]; then
+                echo "$label: $state"
+                last_state="$state"
+              fi
+
+              if [[ "$status" == "completed" ]]; then
+                if [[ "$conclusion" == "success" ]]; then
+                  return 0
+                fi
+                echo "::error::$label finished with conclusion: $conclusion"
+                return 1
+              fi
+
+              sleep 20
+            done
+
+            echo "::error::Timed out waiting for $label"
+            return 1
+          }
+
+          wait_for_workflow release.yml "Backend release"
+
+          if [[ "$GITHUB_REF_NAME" != *-* ]]; then
+            wait_for_workflow electron-build.yml "Electron release"
+          fi
+
+      - name: Download GitHub release assets
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITCODE_REPOSITORY: ${{ vars.GITCODE_REPOSITORY }}
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag_name || github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          mkdir release-assets
+          release_json="$(
+            gh release view "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json body,isPrerelease
+          )"
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir release-assets
+
+          if ! find release-assets -maxdepth 1 -type f -print -quit | grep -q .; then
+            echo "::error::GitHub release has no downloadable assets"
+            exit 1
+          fi
+
+          while IFS= read -r -d '' file; do
+            directory="$(dirname "$file")"
+            filename="$(basename "$file")"
+            safe_filename="$(sed 's/[^A-Za-z0-9._+-]/-/g' <<< "$filename")"
+            if [[ "$filename" != "$safe_filename" ]]; then
+              if [[ -e "$directory/$safe_filename" ]]; then
+                echo "::error::Asset filename collision after normalization: $safe_filename"
+                exit 1
+              fi
+              mv -- "$file" "$directory/$safe_filename"
+            fi
+          done < <(find release-assets -maxdepth 1 -type f -print0)
+
+          find release-assets -maxdepth 1 -type f -print | sort
+
+          local_assets="$(
+            find release-assets -maxdepth 1 -type f -printf '%s\t%f\n' \
+              | sort -n -k1,1 \
+              | cut -f2- \
+              | jq -Rsc 'split("\n") | map(select(length > 0))'
+          )"
+
+          gitcode_release_json="$(mktemp)"
+          gitcode_release_status="$(
+            curl -L -sS -o "$gitcode_release_json" -w "%{http_code}" \
+              -H "PRIVATE-TOKEN: $GITCODE_TOKEN" \
+              -H "Accept: application/json" \
+              "https://api.gitcode.com/api/v5/repos/$GITCODE_REPOSITORY/releases/tags/$RELEASE_TAG"
+          )"
+
+          case "$gitcode_release_status" in
+            200)
+              release_exists=true
+              existing_assets="$(jq -c '[.assets[]?.name]' "$gitcode_release_json")"
+              ;;
+            404)
+              release_exists=false
+              existing_assets='[]'
+              ;;
+            *)
+              echo "::error::Failed to inspect GitCode release. Response code: $gitcode_release_status"
+              cat "$gitcode_release_json"
+              exit 1
+              ;;
+          esac
+
+          missing_assets="$(
+            jq -cn \
+              --argjson local_assets "$local_assets" \
+              --argjson existing_assets "$existing_assets" \
+              '$local_assets - $existing_assets'
+          )"
+          jq -rn \
+            --argjson local_assets "$local_assets" \
+            --argjson missing_assets "$missing_assets" \
+            '$local_assets - $missing_assets | .[] | "Skipping existing GitCode asset: \(.)"'
+
+          if [[ "$release_exists" == "false" ]]; then
+            bootstrap_asset="$(jq -r '.[0] // ""' <<< "$missing_assets")"
+            asset_matrix="$(jq -c '.[1:]' <<< "$missing_assets")"
+          else
+            bootstrap_asset=""
+            asset_matrix="$missing_assets"
+          fi
+
+          if [[ -n "$bootstrap_asset" ]]; then
+            has_bootstrap_asset=true
+          else
+            has_bootstrap_asset=false
+          fi
+          has_matrix_assets="$(jq -r 'length > 0' <<< "$asset_matrix")"
+
+          delimiter="release-body-$(openssl rand -hex 16)"
+          {
+            echo "tag=$RELEASE_TAG"
+            echo "bootstrap_asset=$bootstrap_asset"
+            echo "asset_matrix=$asset_matrix"
+            echo "has_bootstrap_asset=$has_bootstrap_asset"
+            echo "has_matrix_assets=$has_matrix_assets"
+            echo "body<<$delimiter"
+            # sync_to_gitcode embeds this input in a single-quoted shell string.
+            # Replace ASCII apostrophes so release notes cannot break its script.
+            jq -r '.body // ""' <<< "$release_json" | sed "s/'/’/g"
+            echo "$delimiter"
+            echo "prerelease=$(jq -r '.isPrerelease' <<< "$release_json")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload release assets for GitCode
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gitcode-release-assets
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 1
+
+  gitcode-release-bootstrap:
+    name: Create GitCode release
+    needs: prepare-release-assets
+    if: ${{ vars.GITCODE_REPOSITORY != '' && needs.prepare-release-assets.outputs.has_bootstrap_asset == 'true' }}
+    uses: nvdacn/sync_to_gitcode/.github/workflows/CreateReleaseOnGitCode.yaml@18b70112d0e62260bc54085028e5510bbc6323b2
+    with:
+      artifact_name: gitcode-release-assets
+      gitcode_repository: ${{ vars.GITCODE_REPOSITORY }}
+      default_branch: main
+      tag_name: ${{ needs.prepare-release-assets.outputs.release_tag }}
+      body: ${{ needs.prepare-release-assets.outputs.release_body }}
+      prerelease: ${{ needs.prepare-release-assets.outputs.release_prerelease == 'true' }}
+      file_name: ${{ needs.prepare-release-assets.outputs.bootstrap_asset }}
+    secrets:
+      GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+
+  gitcode-release-assets:
+    name: Publish GitCode asset (${{ matrix.file_name }})
+    needs:
+      - prepare-release-assets
+      - gitcode-release-bootstrap
+    if: ${{ always() && vars.GITCODE_REPOSITORY != '' && needs.prepare-release-assets.result == 'success' && (needs.gitcode-release-bootstrap.result == 'success' || needs.gitcode-release-bootstrap.result == 'skipped') && needs.prepare-release-assets.outputs.has_matrix_assets == 'true' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        file_name: ${{ fromJSON(needs.prepare-release-assets.outputs.release_asset_matrix) }}
+    uses: nvdacn/sync_to_gitcode/.github/workflows/CreateReleaseOnGitCode.yaml@18b70112d0e62260bc54085028e5510bbc6323b2
+    with:
+      artifact_name: gitcode-release-assets
+      gitcode_repository: ${{ vars.GITCODE_REPOSITORY }}
+      default_branch: main
+      tag_name: ${{ needs.prepare-release-assets.outputs.release_tag }}
+      body: ${{ needs.prepare-release-assets.outputs.release_body }}
+      prerelease: ${{ needs.prepare-release-assets.outputs.release_prerelease == 'true' }}
+      file_name: ${{ matrix.file_name }}
+    secrets:
+      GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}

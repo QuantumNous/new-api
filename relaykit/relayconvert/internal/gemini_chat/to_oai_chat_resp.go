@@ -282,6 +282,107 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 	return &response, isStop
 }
 
+type GeminiToChatStreamState struct {
+	id            string
+	created       int64
+	sawToolCall   bool
+	finishEmitted bool
+	latestUsage   *dto.Usage
+}
+
+func NewGeminiToChatStreamState(id string, created int64) *GeminiToChatStreamState {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		id = fmt.Sprintf("chatcmpl-%s", kitutil.GetUUID())
+	}
+	if created == 0 {
+		created = kitutil.GetTimestamp()
+	}
+	return &GeminiToChatStreamState{id: id, created: created}
+}
+
+func (s *GeminiToChatStreamState) ConvertChunk(geminiResponse *dto.GeminiChatResponse, model string, usage *dto.Usage) []*dto.ChatCompletionsStreamResponse {
+	if s == nil || geminiResponse == nil {
+		return nil
+	}
+	hasNonStopFinish := false
+	for _, candidate := range geminiResponse.Candidates {
+		if candidate.FinishReason != nil && *candidate.FinishReason != "" && *candidate.FinishReason != "STOP" {
+			hasNonStopFinish = true
+			break
+		}
+	}
+	response, isStop := StreamResponseGeminiChat2OpenAI(geminiResponse)
+	if response == nil {
+		return nil
+	}
+	response.Id = s.id
+	response.Created = s.created
+	response.Model = model
+	response.Usage = usage
+
+	if response.IsToolCall() {
+		s.sawToolCall = true
+		if !hasNonStopFinish {
+			for i := range response.Choices {
+				if response.Choices[i].FinishReason != nil && *response.Choices[i].FinishReason == types.FinishReasonToolCalls {
+					response.Choices[i].FinishReason = nil
+				}
+			}
+		}
+	}
+	if usage != nil {
+		s.latestUsage = usage
+	}
+	for _, choice := range response.Choices {
+		if choice.FinishReason != nil && *choice.FinishReason != "" {
+			s.finishEmitted = true
+			break
+		}
+	}
+
+	responses := []*dto.ChatCompletionsStreamResponse{response}
+	if isStop && !s.finishEmitted {
+		responses = append(responses, s.terminalChunk(model))
+	}
+	return responses
+}
+
+func (s *GeminiToChatStreamState) Finalize(model string) []*dto.ChatCompletionsStreamResponse {
+	if s == nil || s.finishEmitted {
+		return nil
+	}
+	return []*dto.ChatCompletionsStreamResponse{s.terminalChunk(model)}
+}
+
+func (s *GeminiToChatStreamState) Usage() *dto.Usage {
+	if s == nil {
+		return nil
+	}
+	return s.latestUsage
+}
+
+func (s *GeminiToChatStreamState) terminalChunk(model string) *dto.ChatCompletionsStreamResponse {
+	finishReason := types.FinishReasonStop
+	if s.sawToolCall {
+		finishReason = types.FinishReasonToolCalls
+	}
+	s.finishEmitted = true
+	return &dto.ChatCompletionsStreamResponse{
+		Id:      s.id,
+		Object:  "chat.completion.chunk",
+		Created: s.created,
+		Model:   model,
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Delta:        dto.ChatCompletionsStreamResponseChoiceDelta{},
+				FinishReason: &finishReason,
+			},
+		},
+		Usage: s.latestUsage,
+	}
+}
+
 func geminiResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 	argsBytes, err := kitutil.Marshal(item.FunctionCall.Arguments)
 	if err != nil {

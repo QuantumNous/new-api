@@ -28,7 +28,32 @@ type Token struct {
 	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	AutoGroups         string         `json:"-" gorm:"type:text"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
+}
+
+func (token *Token) GetAutoGroups() ([]string, error) {
+	if token.AutoGroups == "" {
+		return nil, nil
+	}
+	var groups []string
+	if err := common.UnmarshalJsonStr(token.AutoGroups, &groups); err != nil {
+		return nil, err
+	}
+	return groups, nil
+}
+
+func (token *Token) SetAutoGroups(groups []string) error {
+	if len(groups) == 0 {
+		token.AutoGroups = ""
+		return nil
+	}
+	data, err := common.Marshal(groups)
+	if err != nil {
+		return err
+	}
+	token.AutoGroups = string(data)
+	return nil
 }
 
 func (token *Token) Clean() {
@@ -291,18 +316,16 @@ func (token *Token) Insert() error {
 
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (token *Token) Update() (err error) {
-	defer func() {
-		if shouldUpdateRedis(true, err) {
-			gopool.Go(func() {
-				err := cacheSetToken(*token)
-				if err != nil {
-					common.SysLog("failed to update token cache: " + err.Error())
-				}
-			})
-		}
-	}()
 	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
-		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry").Updates(token).Error
+		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "auto_groups").Updates(token).Error
+	if shouldUpdateRedis(true, err) {
+		if cacheErr := cacheSetToken(*token); cacheErr != nil {
+			common.SysLog("failed to update token cache: " + cacheErr.Error())
+			if deleteErr := cacheDeleteToken(token.Key); deleteErr != nil {
+				common.SysLog("failed to invalidate token cache after update: " + deleteErr.Error())
+			}
+		}
+	}
 	return err
 }
 

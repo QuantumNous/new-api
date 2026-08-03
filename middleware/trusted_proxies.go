@@ -1,4 +1,4 @@
-package main
+package middleware
 
 import (
 	"errors"
@@ -19,7 +19,7 @@ var defaultTrustedProxyCIDRs = []string{
 	"fc00::/7",
 }
 
-func configureTrustedProxies(engine *gin.Engine) error {
+func ConfigureTrustedProxies(engine *gin.Engine) error {
 	rawTrustedProxies := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES"))
 	if rawTrustedProxies == "" {
 		log.Print("WARNING: TRUSTED_PROXIES is unset or blank; trusting loopback, RFC 1918, and IPv6 ULA proxy addresses for compatibility. Set TRUSTED_PROXIES=none to trust no proxies, or configure explicit proxy IPs/CIDRs to replace these defaults.")

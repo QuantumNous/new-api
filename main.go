@@ -172,7 +172,7 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
-	if err := configureTrustedProxies(server); err != nil {
+	if err := middleware.ConfigureTrustedProxies(server); err != nil {
 		common.FatalLog("failed to configure trusted proxies: " + err.Error())
 		return
 	}

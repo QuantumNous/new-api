@@ -70,9 +70,10 @@ var builtinTextConverters = []TextConverterSpec{
 			Convert: convertOpenAIRequestToClaude,
 		},
 		Resp: TextResponseSide{
-			Convert:       convertOAIChatResponseToClaudeMessages,
-			ConvertStream: convertOAIChatStreamResponseToClaudeMessages,
-			Aliases:       []string{ResponseConverterOAIChatToClaudeMessages},
+			Convert:        convertOAIChatResponseToClaudeMessages,
+			ConvertStream:  convertOAIChatStreamResponseToClaudeMessages,
+			FinalizeStream: finalizeOAIChatStreamResponseToClaudeMessages,
+			Aliases:        []string{ResponseConverterOAIChatToClaudeMessages},
 		},
 	},
 	{
@@ -84,9 +85,12 @@ var builtinTextConverters = []TextConverterSpec{
 			Convert: convertGeminiRequestToOpenAI,
 		},
 		Resp: TextResponseSide{
-			Convert:       convertGeminiChatResponseToOAIChat,
-			ConvertStream: convertGeminiChatStreamResponseToOAIChat,
-			Aliases:       []string{ResponseConverterGeminiChatToOAIChat},
+			Convert:            convertGeminiChatResponseToOAIChat,
+			ConvertStream:      convertGeminiChatStreamResponseToOAIChat,
+			NewStreamState:     newGeminiChatToOAIChatStreamState,
+			ConvertStreamChunk: convertGeminiChatStreamResponseChunkToOAIChat,
+			FinalizeStream:     finalizeGeminiChatStreamResponseToOAIChat,
+			Aliases:            []string{ResponseConverterGeminiChatToOAIChat},
 		},
 	},
 	{

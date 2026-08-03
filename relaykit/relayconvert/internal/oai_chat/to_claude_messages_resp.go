@@ -17,6 +17,24 @@ func generateStopBlock(index int) *dto.ClaudeResponse {
 	}
 }
 
+func stopOpenBlocks(state *convmeta.ClaudeConvertInfo) []*dto.ClaudeResponse {
+	if state == nil {
+		return nil
+	}
+	switch state.LastMessagesType {
+	case convmeta.LastMessageTypeText, convmeta.LastMessageTypeThinking:
+		return []*dto.ClaudeResponse{generateStopBlock(state.Index)}
+	case convmeta.LastMessageTypeTools:
+		responses := make([]*dto.ClaudeResponse, 0, state.ToolCallMaxIndexOffset+1)
+		for offset := 0; offset <= state.ToolCallMaxIndexOffset; offset++ {
+			responses = append(responses, generateStopBlock(state.ToolCallBaseIndex+offset))
+		}
+		return responses
+	default:
+		return nil
+	}
+}
+
 func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	if oaiUsage == nil {
 		return nil
@@ -89,16 +107,8 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	// For text/thinking, there is at most one open block at state.Index.
 	// For tools, OpenAI tool_calls can stream multiple parallel tool_use blocks (indexed from 0),
 	// so we may have multiple open blocks and must stop each one explicitly.
-	stopOpenBlocks := func() {
-		switch state.LastMessagesType {
-		case convmeta.LastMessageTypeText, convmeta.LastMessageTypeThinking:
-			claudeResponses = append(claudeResponses, generateStopBlock(state.Index))
-		case convmeta.LastMessageTypeTools:
-			base := state.ToolCallBaseIndex
-			for offset := 0; offset <= state.ToolCallMaxIndexOffset; offset++ {
-				claudeResponses = append(claudeResponses, generateStopBlock(base+offset))
-			}
-		}
+	appendStopOpenBlocks := func() {
+		claudeResponses = append(claudeResponses, stopOpenBlocks(state)...)
 	}
 	// stopOpenBlocksAndAdvance closes the currently open block(s) and advances the content block index
 	// to the next available slot for subsequent content_block_start events.
@@ -109,7 +119,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		if state.LastMessagesType == convmeta.LastMessageTypeNone {
 			return
 		}
-		stopOpenBlocks()
+		appendStopOpenBlocks()
 		switch state.LastMessagesType {
 		case convmeta.LastMessageTypeTools:
 			state.Index = state.ToolCallBaseIndex + state.ToolCallMaxIndexOffset + 1
@@ -234,23 +244,24 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			}
 		}
 
-		// 如果首块就带 finish_reason，需要立即发送停止块
+		// A first chunk can carry finish_reason before usage; defer terminal events until usage arrives.
 		if len(openAIResponse.Choices) > 0 && openAIResponse.Choices[0].FinishReason != nil && *openAIResponse.Choices[0].FinishReason != "" {
 			state.FinishReason = *openAIResponse.Choices[0].FinishReason
-			stopOpenBlocks()
 			oaiUsage := openAIResponse.Usage
 			if oaiUsage == nil {
 				oaiUsage = state.Usage
 			}
-			if oaiUsage != nil {
-				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-					Type:  "message_delta",
-					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
-					Delta: &dto.ClaudeMediaMessage{
-						StopReason: kitutil.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
-					},
-				})
+			if oaiUsage == nil {
+				return claudeResponses
 			}
+			appendStopOpenBlocks()
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Type:  "message_delta",
+				Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
+				Delta: &dto.ClaudeMediaMessage{
+					StopReason: kitutil.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
+				},
+			})
 			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 				Type: "message_stop",
 			})
@@ -266,7 +277,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			oaiUsage = state.Usage
 		}
 		if oaiUsage != nil {
-			stopOpenBlocks()
+			appendStopOpenBlocks()
 			stopReason := stopReasonOpenAI2Claude(state.FinishReason)
 			if stopReason == "" {
 				stopReason = "end_turn"
@@ -403,7 +414,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		}
 
 		if doneChunk || state.Done {
-			stopOpenBlocks()
+			appendStopOpenBlocks()
 			oaiUsage := openAIResponse.Usage
 			if oaiUsage == nil {
 				oaiUsage = state.Usage
@@ -426,6 +437,34 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	}
 
 	return claudeResponses
+}
+
+func FinalizeStreamResponseOpenAI2Claude(info convmeta.Meta) []*dto.ClaudeResponse {
+	if info == nil {
+		info = &convmeta.Values{}
+	}
+	state := info.EnsureClaudeConvertInfo()
+	if state.Done {
+		return nil
+	}
+
+	stopReason := stopReasonOpenAI2Claude(state.FinishReason)
+	if stopReason == "" {
+		stopReason = "end_turn"
+	}
+	responses := stopOpenBlocks(state)
+	responses = append(responses,
+		&dto.ClaudeResponse{
+			Type:  "message_delta",
+			Usage: buildClaudeUsageFromOpenAIUsage(state.Usage),
+			Delta: &dto.ClaudeMediaMessage{
+				StopReason: kitutil.GetPointer[string](stopReason),
+			},
+		},
+		&dto.ClaudeResponse{Type: "message_stop"},
+	)
+	state.Done = true
+	return responses
 }
 
 func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta.Meta) *dto.ClaudeResponse {

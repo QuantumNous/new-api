@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -83,6 +84,60 @@ func TestOaiResponsesToChatStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 		`"finish_reason":"tool_calls"`,
 		`"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5`,
 		`data: [DONE]`,
+	)
+}
+
+func TestOaiResponsesToChatStreamHandlerConvertsClaudeSSETerminalsAndUsage(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","created_at":1710000000}}`,
+		`data: {"type":"response.output_text.delta","delta":"hello"}`,
+		`data: {"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":2,"output_tokens":3,"total_tokens":5}}}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	info.RelayFormat = types.RelayFormatClaude
+
+	usage, err := OaiResponsesToChatStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	assert.Equal(t, 2, usage.PromptTokens)
+	assert.Equal(t, 3, usage.CompletionTokens)
+	assert.Equal(t, 5, usage.TotalTokens)
+
+	got := recorder.Body.String()
+	assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+	assert.Equal(t, 1, strings.Count(got, "event: message_start\n"))
+	assert.Equal(t, 1, strings.Count(got, "event: content_block_stop\n"))
+	assert.Equal(t, 1, strings.Count(got, "event: message_delta\n"))
+	assert.Equal(t, 1, strings.Count(got, "event: message_stop\n"))
+
+	messageDeltaFrame := ""
+	for _, frame := range strings.Split(got, "\n\n") {
+		if strings.HasPrefix(frame, "event: message_delta\n") {
+			messageDeltaFrame = frame
+			break
+		}
+	}
+	require.NotEmpty(t, messageDeltaFrame)
+	assert.Contains(t, messageDeltaFrame, `"type":"message_delta"`)
+	assert.Contains(t, messageDeltaFrame, `"stop_reason":"end_turn"`)
+	assert.Contains(t, messageDeltaFrame, `"input_tokens":2`)
+	assert.Contains(t, messageDeltaFrame, `"output_tokens":3`)
+	requireOrderedSubstrings(t, got,
+		"event: message_start\n",
+		"event: content_block_stop\n",
+		"event: message_delta\n",
+		"event: message_stop\n",
 	)
 }
 
