@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
@@ -13,7 +14,7 @@ import (
 const CreemRecurringSource = "creem_recurring"
 
 const (
-	CreemCheckoutReservationTTL             = 30 * 60
+	CreemCheckoutReservationTTL             = SubscriptionCheckoutReservationTTL
 	CreemReconciliationResolved             = "resolved"
 	CreemReconciliationUnresolved           = "unresolved"
 	CreemFinancialNoticePendingManualReview = "pending_manual_review"
@@ -21,7 +22,7 @@ const (
 )
 
 var ErrCreemSubscriptionLinkNotFound = errors.New("creem subscription link not found")
-var ErrCreemCheckoutAlreadyPending = errors.New("a Creem subscription checkout is already pending")
+var ErrCreemCheckoutAlreadyPending = ErrSubscriptionCheckoutPending
 
 type CreemWebhookEvent struct {
 	Id               int    `json:"id"`
@@ -50,6 +51,8 @@ type CreemSubscriptionLink struct {
 	ExpectedAmount            int64  `json:"expected_amount"`
 	Currency                  string `json:"currency" gorm:"type:varchar(8)"`
 	AmountTotal               int64  `json:"amount_total" gorm:"type:bigint"`
+	WeeklyAmount              int64  `json:"weekly_amount" gorm:"type:bigint"`
+	MaxActivePerUser          int    `json:"max_active_per_user" gorm:"type:int"`
 	AllowWalletOverflow       bool   `json:"allow_wallet_overflow"`
 	UpgradeGroup              string `json:"upgrade_group" gorm:"type:varchar(64)"`
 	DowngradeGroup            string `json:"downgrade_group" gorm:"type:varchar(64)"`
@@ -77,13 +80,7 @@ type CreemSubscriptionPayment struct {
 	UpdatedAt            int64  `json:"updated_at" gorm:"type:bigint"`
 }
 
-type CreemSubscriptionCheckoutReservation struct {
-	Id        int    `json:"id"`
-	UserId    int    `json:"user_id" gorm:"uniqueIndex;not null"`
-	TradeNo   string `json:"trade_no" gorm:"uniqueIndex;type:varchar(255);not null"`
-	ExpiresAt int64  `json:"expires_at" gorm:"type:bigint;index;not null"`
-	CreatedAt int64  `json:"created_at" gorm:"type:bigint"`
-}
+type CreemSubscriptionCheckoutReservation = SubscriptionCheckoutReservation
 
 type CreemFinancialNotice struct {
 	Id                  int    `json:"id"`
@@ -192,9 +189,11 @@ func creemPlanSnapshot(link *CreemSubscriptionLink) (*SubscriptionPlan, error) {
 		DurationValue:       1,
 		CreemProductId:      link.ProductId,
 		MaxPurchasePerUser:  0,
+		MaxActivePerUser:    link.MaxActivePerUser,
 		UpgradeGroup:        link.UpgradeGroup,
 		DowngradeGroup:      link.DowngradeGroup,
 		TotalAmount:         link.AmountTotal,
+		WeeklyAmount:        link.WeeklyAmount,
 		QuotaResetPeriod:    SubscriptionResetNever,
 		AllowWalletOverflow: &allowWalletOverflow,
 	}, nil
@@ -260,6 +259,8 @@ func setCreemSubscriptionPeriodTx(tx *gorm.DB, subscription *UserSubscription, p
 	}
 	subscription.AmountTotal = plan.TotalAmount
 	subscription.AmountUsed = 0
+	subscription.WeeklyAmountTotal = plan.WeeklyAmount
+	subscription.WeeklyAmountUsed = 0
 	subscription.StartTime = start
 	subscription.EndTime = end
 	subscription.Status = "active"
@@ -267,6 +268,10 @@ func setCreemSubscriptionPeriodTx(tx *gorm.DB, subscription *UserSubscription, p
 	subscription.AllowWalletOverflow = allowWalletOverflow
 	subscription.LastResetTime = 0
 	subscription.NextResetTime = 0
+	subscription.NextWeeklyResetTime = 0
+	if plan.WeeklyAmount > 0 {
+		subscription.NextWeeklyResetTime = calcNextWeeklyResetTime(time.Unix(start, 0), end)
+	}
 	return tx.Save(subscription).Error
 }
 
@@ -300,6 +305,8 @@ func upsertCreemLinkTx(tx *gorm.DB, input CreemPaymentInput, order *Subscription
 	link.ExpectedAmount = input.Amount
 	link.Currency = input.Currency
 	link.AmountTotal = plan.TotalAmount
+	link.WeeklyAmount = plan.WeeklyAmount
+	link.MaxActivePerUser = plan.MaxActivePerUser
 	link.AllowWalletOverflow = allowWalletOverflow
 	link.UpgradeGroup = plan.UpgradeGroup
 	link.DowngradeGroup = plan.DowngradeGroup
@@ -531,7 +538,7 @@ func ProcessCreemRenewal(input CreemPaymentInput, providerPayload string) error 
 		if err != nil {
 			return err
 		}
-		subscription, err := CreateUserSubscriptionFromPlanTx(tx, link.UserId, plan, CreemRecurringSource)
+		subscription, err := createPaidUserSubscriptionFromPlanTx(tx, link.UserId, plan, CreemRecurringSource)
 		if err != nil {
 			return err
 		}
@@ -755,68 +762,11 @@ func HasBlockingCreemSubscription(userId int) (bool, error) {
 }
 
 func ReserveCreemSubscriptionCheckout(userId int, order *SubscriptionOrder) error {
-	if userId <= 0 || order == nil || order.UserId != userId || strings.TrimSpace(order.TradeNo) == "" {
-		return errors.New("invalid Creem checkout reservation")
-	}
-	if order.PaymentProvider != PaymentProviderCreem || order.Status != common.TopUpStatusPending {
-		return errors.New("Creem checkout order must be pending")
-	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		var user User
-		if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
-			return err
-		}
-		var blocking int64
-		if err := tx.Model(&CreemSubscriptionLink{}).Where("user_id = ? AND provider_status IN ?", userId, []string{"active", "trialing", "scheduled_cancel", "past_due", "unpaid"}).Count(&blocking).Error; err != nil {
-			return err
-		}
-		if blocking > 0 {
-			return ErrCreemCheckoutAlreadyPending
-		}
-		now := getDBTimestampTx(tx)
-		var reservation CreemSubscriptionCheckoutReservation
-		result := tx.Where("user_id = ?", userId).First(&reservation)
-		if result.Error == nil {
-			if reservation.ExpiresAt > now {
-				return ErrCreemCheckoutAlreadyPending
-			}
-			if err := tx.Model(&SubscriptionOrder{}).Where("trade_no = ? AND status = ?", reservation.TradeNo, common.TopUpStatusPending).Updates(map[string]any{"status": common.TopUpStatusExpired, "complete_time": now}).Error; err != nil {
-				return err
-			}
-			if err := tx.Delete(&reservation).Error; err != nil {
-				return err
-			}
-		} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return result.Error
-		}
-		if order.CreateTime == 0 {
-			order.CreateTime = now
-		}
-		if err := tx.Create(order).Error; err != nil {
-			return err
-		}
-		reservation = CreemSubscriptionCheckoutReservation{UserId: userId, TradeNo: order.TradeNo, ExpiresAt: now + CreemCheckoutReservationTTL, CreatedAt: now}
-		if err := tx.Create(&reservation).Error; err != nil {
-			if strings.Contains(strings.ToLower(err.Error()), "unique") || strings.Contains(strings.ToLower(err.Error()), "duplicate") {
-				return ErrCreemCheckoutAlreadyPending
-			}
-			return err
-		}
-		return nil
-	})
+	return ReserveSubscriptionCheckout(userId, order)
 }
 
 func ReleaseCreemSubscriptionCheckout(tradeNo string) error {
-	if strings.TrimSpace(tradeNo) == "" {
-		return errors.New("missing Creem checkout trade number")
-	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		now := getDBTimestampTx(tx)
-		if err := tx.Model(&SubscriptionOrder{}).Where("trade_no = ? AND payment_provider = ? AND status = ?", tradeNo, PaymentProviderCreem, common.TopUpStatusPending).Updates(map[string]any{"status": common.TopUpStatusExpired, "complete_time": now}).Error; err != nil {
-			return err
-		}
-		return tx.Where("trade_no = ?", tradeNo).Delete(&CreemSubscriptionCheckoutReservation{}).Error
-	})
+	return ReleaseSubscriptionCheckout(tradeNo, PaymentProviderCreem)
 }
 
 func MarkCreemScheduledCancel(userId int, subscriptionId string) error {

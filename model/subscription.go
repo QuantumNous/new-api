@@ -36,11 +36,13 @@ const (
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
+	ErrSubscriptionCheckoutPending    = errors.New("a subscription checkout is already pending")
 )
 
 const (
 	subscriptionPlanCacheNamespace     = "new-api:subscription_plan:v1"
 	subscriptionPlanInfoCacheNamespace = "new-api:subscription_plan_info:v1"
+	SubscriptionCheckoutReservationTTL = 30 * 60
 )
 
 var (
@@ -249,6 +251,19 @@ type SubscriptionOrder struct {
 	DowngradeGroup      string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 }
 
+// SubscriptionCheckoutReservation serializes checkout creation across all
+// external payment providers. The row is intentionally keyed by user instead
+// of (user, provider): otherwise two concurrent providers can both collect
+// payment for a plan whose active limit is one.
+type SubscriptionCheckoutReservation struct {
+	Id              int    `json:"id"`
+	UserId          int    `json:"user_id" gorm:"uniqueIndex;not null"`
+	TradeNo         string `json:"trade_no" gorm:"uniqueIndex;type:varchar(255);not null"`
+	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);not null"`
+	ExpiresAt       int64  `json:"expires_at" gorm:"type:bigint;index;not null"`
+	CreatedAt       int64  `json:"created_at" gorm:"type:bigint"`
+}
+
 func (o *SubscriptionOrder) Insert() error {
 	if o.CreateTime == 0 {
 		o.CreateTime = common.GetTimestamp()
@@ -269,6 +284,135 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 		return nil
 	}
 	return &order
+}
+
+func isUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "unique") || strings.Contains(message, "duplicate")
+}
+
+// ReserveSubscriptionCheckout atomically validates subscription limits,
+// persists the pending order and claims the user's single checkout slot.
+func ReserveSubscriptionCheckout(userId int, order *SubscriptionOrder) error {
+	if userId <= 0 || order == nil || order.UserId != userId || strings.TrimSpace(order.TradeNo) == "" {
+		return errors.New("invalid subscription checkout reservation")
+	}
+	if strings.TrimSpace(order.PaymentProvider) == "" || order.Status != common.TopUpStatusPending {
+		return errors.New("subscription checkout order must be pending")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
+			return err
+		}
+
+		plan, err := subscriptionOrderPlanTx(tx, order)
+		if err != nil {
+			return err
+		}
+		now := getDBTimestampTx(tx)
+		if plan.MaxActivePerUser > 0 {
+			var activeCount int64
+			if err := tx.Model(&UserSubscription{}).
+				Where("user_id = ? AND status = ? AND start_time <= ? AND end_time > ?", userId, "active", now, now).
+				Count(&activeCount).Error; err != nil {
+				return err
+			}
+			if activeCount >= int64(plan.MaxActivePerUser) {
+				return errors.New("user already has the maximum number of active subscriptions")
+			}
+		}
+		if plan.MaxPurchasePerUser > 0 {
+			var purchaseCount int64
+			if err := tx.Model(&UserSubscription{}).
+				Where("user_id = ? AND plan_id = ?", userId, plan.Id).
+				Count(&purchaseCount).Error; err != nil {
+				return err
+			}
+			if purchaseCount >= int64(plan.MaxPurchasePerUser) {
+				return errors.New("已达到该套餐购买上限")
+			}
+		}
+		if order.PaymentProvider == PaymentProviderCreem {
+			var blocking int64
+			if err := tx.Model(&CreemSubscriptionLink{}).
+				Where("user_id = ? AND provider_status IN ?", userId, []string{"active", "trialing", "scheduled_cancel", "past_due", "unpaid"}).
+				Count(&blocking).Error; err != nil {
+				return err
+			}
+			if blocking > 0 {
+				return ErrSubscriptionCheckoutPending
+			}
+		}
+
+		var reservation SubscriptionCheckoutReservation
+		result := tx.Where("user_id = ?", userId).First(&reservation)
+		if result.Error == nil {
+			if reservation.ExpiresAt > now {
+				return ErrSubscriptionCheckoutPending
+			}
+			if err := tx.Model(&SubscriptionOrder{}).
+				Where("trade_no = ? AND status = ?", reservation.TradeNo, common.TopUpStatusPending).
+				Updates(map[string]any{"status": common.TopUpStatusExpired, "complete_time": now}).Error; err != nil {
+				return err
+			}
+			if err := tx.Delete(&reservation).Error; err != nil {
+				return err
+			}
+		} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return result.Error
+		}
+
+		if order.CreateTime == 0 {
+			order.CreateTime = now
+		}
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+		reservation = SubscriptionCheckoutReservation{
+			UserId:          userId,
+			TradeNo:         order.TradeNo,
+			PaymentProvider: order.PaymentProvider,
+			ExpiresAt:       now + SubscriptionCheckoutReservationTTL,
+			CreatedAt:       now,
+		}
+		if err := tx.Create(&reservation).Error; err != nil {
+			if isUniqueConstraintError(err) {
+				return ErrSubscriptionCheckoutPending
+			}
+			return err
+		}
+		return nil
+	})
+}
+
+func ReleaseSubscriptionCheckout(tradeNo string, expectedPaymentProvider string) error {
+	if strings.TrimSpace(tradeNo) == "" {
+		return errors.New("missing subscription checkout trade number")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		refCol := "`trade_no`"
+		if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+			refCol = `"trade_no"`
+		}
+		var order SubscriptionOrder
+		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+			return ErrSubscriptionOrderNotFound
+		}
+		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
+			return ErrPaymentMethodMismatch
+		}
+		now := getDBTimestampTx(tx)
+		if order.Status == common.TopUpStatusPending {
+			if err := tx.Model(&order).Updates(map[string]any{"status": common.TopUpStatusExpired, "complete_time": now}).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Where("trade_no = ?", tradeNo).Delete(&SubscriptionCheckoutReservation{}).Error
+	})
 }
 
 // User subscription instance
@@ -550,6 +694,17 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 }
 
 func CreateUserSubscriptionFromPlanWithRefTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, sourceRef string) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanWithRefTx(tx, userId, plan, source, sourceRef, true)
+}
+
+// createPaidUserSubscriptionFromPlanTx is reserved for authenticated provider
+// callbacks. Checkout creation already serialized and validated the limits; a
+// settled order must always receive the entitlement it paid for.
+func createPaidUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanWithRefTx(tx, userId, plan, source, "", false)
+}
+
+func createUserSubscriptionFromPlanWithRefTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, sourceRef string, enforceLimits bool) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -559,7 +714,7 @@ func CreateUserSubscriptionFromPlanWithRefTx(tx *gorm.DB, userId int, plan *Subs
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
 	}
-	if plan.MaxActivePerUser > 0 {
+	if enforceLimits && plan.MaxActivePerUser > 0 {
 		// Lock the user row so two payment callbacks cannot both pass the active
 		// count and create overlapping entitlements for the same user.
 		var lockedUser User
@@ -568,8 +723,17 @@ func CreateUserSubscriptionFromPlanWithRefTx(tx *gorm.DB, userId int, plan *Subs
 		}
 		var activeCount int64
 		now := getDBTimestampTx(tx)
+		var pendingCheckoutCount int64
+		if err := tx.Model(&SubscriptionCheckoutReservation{}).
+			Where("user_id = ? AND expires_at > ?", userId, now).
+			Count(&pendingCheckoutCount).Error; err != nil {
+			return nil, err
+		}
+		if pendingCheckoutCount > 0 {
+			return nil, ErrSubscriptionCheckoutPending
+		}
 		if err := tx.Model(&UserSubscription{}).
-			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+			Where("user_id = ? AND status = ? AND start_time <= ? AND end_time > ?", userId, "active", now, now).
 			Count(&activeCount).Error; err != nil {
 			return nil, err
 		}
@@ -577,7 +741,7 @@ func CreateUserSubscriptionFromPlanWithRefTx(tx *gorm.DB, userId int, plan *Subs
 			return nil, errors.New("user already has the maximum number of active subscriptions")
 		}
 	}
-	if plan.MaxPurchasePerUser > 0 {
+	if enforceLimits && plan.MaxPurchasePerUser > 0 {
 		var count int64
 		if err := tx.Model(&UserSubscription{}).
 			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
@@ -753,7 +917,7 @@ func CompleteSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 	if order.Status != common.TopUpStatusPending {
 		return nil, nil, nil, false, ErrSubscriptionOrderStatusInvalid
 	}
-	subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+	subscription, err := createPaidUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
@@ -769,6 +933,9 @@ func CompleteSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 		order.PaymentMethod = actualPaymentMethod
 	}
 	if err := tx.Save(&order).Error; err != nil {
+		return nil, nil, nil, false, err
+	}
+	if err := tx.Where("trade_no = ?", order.TradeNo).Delete(&SubscriptionCheckoutReservation{}).Error; err != nil {
 		return nil, nil, nil, false, err
 	}
 	return &order, plan, subscription, true, nil
@@ -811,28 +978,7 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 }
 
 func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) error {
-	if tradeNo == "" {
-		return errors.New("tradeNo is empty")
-	}
-	refCol := "`trade_no`"
-	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
-		refCol = `"trade_no"`
-	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		var order SubscriptionOrder
-		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
-			return ErrSubscriptionOrderNotFound
-		}
-		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
-			return ErrPaymentMethodMismatch
-		}
-		if order.Status != common.TopUpStatusPending {
-			return nil
-		}
-		order.Status = common.TopUpStatusExpired
-		order.CompleteTime = common.GetTimestamp()
-		return tx.Save(&order).Error
-	})
+	return ReleaseSubscriptionCheckout(tradeNo, expectedPaymentProvider)
 }
 
 // Admin bind (no payment). Creates a UserSubscription from a plan.

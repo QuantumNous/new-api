@@ -171,7 +171,7 @@ const TopUp = () => {
     }
     setIsSubmitting(true);
     try {
-      const res = await API.post('/api/user/topup', {
+      const res = await API.post('/api/user/redeem', {
         key: redemptionCode,
       });
       const { success, message, data } = res.data;
@@ -179,13 +179,16 @@ const TopUp = () => {
         showSuccess(t('兑换成功！'));
         Modal.success({
           title: t('兑换成功！'),
-          content: t('成功兑换额度：') + renderQuota(data),
+          content:
+            data.kind === 'balance'
+              ? t('成功兑换额度：') + renderQuota(data.quota)
+              : data.plan_title,
           centered: true,
         });
-        if (userState.user) {
+        if (data.kind === 'balance' && userState.user) {
           const updatedUser = {
             ...userState.user,
-            quota: userState.user.quota + data,
+            quota: userState.user.quota + data.quota,
           };
           userDispatch({ type: 'login', payload: updatedUser });
         }
