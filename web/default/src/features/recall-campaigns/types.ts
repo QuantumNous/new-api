@@ -169,6 +169,48 @@ export type RecallMessageState =
   | 'cancelled'
 
 export type RecallConversionKind = 'direct' | 'assisted' | 'no_coupon' | ''
+export type RecallPaymentCategory =
+  | 'direct_topup'
+  | 'balance_subscription'
+  | 'online_subscription'
+  | 'unclassified'
+  | ''
+
+export type RecallMetricKey =
+  | 'candidates'
+  | 'enrolled'
+  | 'excluded'
+  | 'opened_recipients'
+  | 'observed_clicks'
+  | 'messages_accepted'
+  | 'messages_failed'
+  | 'direct_conversions'
+  | 'assisted_conversions'
+  | 'no_coupon_conversions'
+  | 'attributed_spend'
+  | 'new_external_cash'
+  | 'direct_topup'
+  | 'balance_subscription'
+  | 'online_subscription'
+
+export type RecallTranslationTaskStatus =
+  | 'queued'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'superseded'
+
+export interface RecallMetricFilters {
+  q?: string
+  stage_no?: number
+  state?: string
+  conversion_kind?: RecallConversionKind
+  payment_category?: RecallPaymentCategory
+  currency?: string
+  snapshot?: string
+  cursor?: string
+  limit?: number
+}
 
 export interface ApiResponse<T = unknown> {
   success: boolean
@@ -221,11 +263,6 @@ export interface RecallCampaignDetail extends RecallCampaignSummary {
 export interface RecallEmailGenerationRequest {
   config_revision: number
   name: string
-  email_sequence: RecallEmailStage[]
-}
-
-export interface RecallEmailGenerationResponse {
-  config_revision: number
   email_sequence: RecallEmailStage[]
 }
 
@@ -356,6 +393,96 @@ export interface RecallCampaignMetrics {
   assisted_count: number
   no_coupon_count: number
   currency_metrics: RecallCurrencyMetrics[]
+  metric_cards?: Record<string, RecallMetricCard>
+}
+
+export interface RecallMetricAmount {
+  currency: string
+  amount_minor: number
+  user_count: number
+}
+
+export interface RecallMetricCard {
+  key: RecallMetricKey
+  total: number
+  amounts: RecallMetricAmount[]
+  row_grain: 'identity' | 'message' | 'conversion' | string
+  snapshot: string
+  legacy_unidentified_count: number
+  drilldown_complete: boolean
+  supported_filters: Record<string, boolean>
+}
+
+export interface RecallMetricRow {
+  row_id: number
+  recipient_id: number
+  message_id: number
+  user_id: number
+  email: string
+  occurred_at: number
+  stage_no: number
+  state: string
+  conversion_kind: RecallConversionKind
+  trade_no: string
+  payment_category: RecallPaymentCategory
+  currency: string
+  amount_minor: number
+  failure_code: string
+}
+
+export interface RecallMetricResult {
+  items: RecallMetricRow[]
+  total: number
+  amounts: RecallMetricAmount[]
+  snapshot: string
+  next_cursor?: string
+  legacy_unidentified_count: number
+  drilldown_complete: boolean
+}
+
+export interface RecallTranslationTask {
+  id: number
+  campaign_id: number
+  requested_config_revision: number
+  result_config_revision?: number
+  status: RecallTranslationTaskStatus
+  attempt_count: number
+  error_code?: string
+  error_copy_key?: string
+  created_at: number
+  started_at?: number
+  finished_at?: number
+}
+
+export interface RecallExclusionProblem {
+  row: number
+  code: string
+  message: string
+}
+
+export interface RecallExclusionPreview {
+  batch_id: number
+  total_rows: number
+  resolved_users: number
+  duplicate_rows: number
+  unresolved_rows: number
+  conflict_rows: number
+  blocking_errors: RecallExclusionProblem[]
+  warnings: RecallExclusionProblem[]
+  cancelable_work: number
+  confirmable: boolean
+}
+
+export function isRecallTranslationTaskActive(
+  status: RecallTranslationTaskStatus
+): boolean {
+  return status === 'queued' || status === 'running'
+}
+
+export function isRecallTranslationTaskTerminal(
+  status: RecallTranslationTaskStatus
+): boolean {
+  return !isRecallTranslationTaskActive(status)
 }
 
 export interface RecallAudienceCandidate {

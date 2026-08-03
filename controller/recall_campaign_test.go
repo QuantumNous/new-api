@@ -7,12 +7,14 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
+	_ "unsafe"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -28,6 +30,9 @@ import (
 )
 
 const recallControllerBoundary = int64(1_721_100_000)
+
+//go:linkname modelCommonKeyCol github.com/QuantumNous/new-api/model.commonKeyCol
+var modelCommonKeyCol string
 
 type recallControllerStripeFake struct {
 	createCoupon        int
@@ -138,6 +143,7 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 	originalPrice := setting.StripePriceId
 	originalPrice20 := setting.StripePriceId20
 	originalPrice200 := setting.StripePriceId200
+	originalCommonKeyCol := modelCommonKeyCol
 	t.Setenv("SQL_DSN", "")
 	common.SQLitePath = tempDir + "/init.db"
 	common.IsMasterNode = false
@@ -152,6 +158,7 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 	require.NoError(t, err)
 	model.DB = db
 	model.LOG_DB = db
+	modelCommonKeyCol = "`key`"
 	common.RedisEnabled = false
 	common.CryptoSecret = "recall-controller-secret"
 	common.OptionMap = map[string]string{}
@@ -172,6 +179,9 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 		&model.RecallMessage{},
 		&model.RecallEvent{},
 		&model.RecallEmailQuotaWindow{},
+		&model.RecallExclusionBatch{},
+		&model.RecallCampaignExclusion{},
+		&model.RecallTranslationTask{},
 	))
 
 	setRecallControllerEnabled(t, true)
@@ -206,6 +216,7 @@ func setupRecallControllerHarness(t *testing.T) *recallControllerHarness {
 		setting.StripePriceId = originalPrice
 		setting.StripePriceId20 = originalPrice20
 		setting.StripePriceId200 = originalPrice200
+		modelCommonKeyCol = originalCommonKeyCol
 		_ = sqlDB.Close()
 	})
 	return harness
@@ -303,6 +314,29 @@ func invokeRecallHandlerWithRequestID(t *testing.T, handler gin.HandlerFunc, met
 	return recorder
 }
 
+func invokeRecallMultipartHandler(t *testing.T, handler gin.HandlerFunc, target string, field string, filename string, payload []byte, actorID int, params gin.Params) *httptest.ResponseRecorder {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile(field, filename)
+	require.NoError(t, err)
+	_, err = part.Write(payload)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	request := httptest.NewRequest(http.MethodPost, target, &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = request
+	ctx.Params = params
+	if actorID != 0 {
+		ctx.Set("id", actorID)
+	}
+	handler(ctx)
+	return recorder
+}
+
 func recallControllerAdminEventID(action string, identity string) string {
 	digest := sha256.Sum256([]byte(identity))
 	return fmt.Sprintf("admin:%s:%x", action, digest)
@@ -313,6 +347,19 @@ func decodeRecallEnvelope(t *testing.T, recorder *httptest.ResponseRecorder) map
 	payload := map[string]any{}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
 	return payload
+}
+
+func decodeRecallExclusionPreview(t *testing.T, recorder *httptest.ResponseRecorder) service.RecallExclusionPreview {
+	t.Helper()
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Success bool                           `json:"success"`
+		Message string                         `json:"message"`
+		Data    service.RecallExclusionPreview `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success, payload.Message)
+	return payload.Data
 }
 
 func requireRecallFailure(t *testing.T, recorder *httptest.ResponseRecorder, contains string) {
@@ -844,7 +891,7 @@ func TestRecallCampaignCreateAndUpdateRequireJSONAndAdminActor(t *testing.T) {
 	require.Equal(t, draft.Name, campaign.Name)
 }
 
-func TestRecallEmailGenerationHandlerUpdatesAllTranslations(t *testing.T) {
+func TestRecallEmailTranslationGenerateEnqueuesTaskAndReturnsAcceptedWithoutTranslating(t *testing.T) {
 	harness := setupRecallControllerHarness(t)
 	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
 	detail, err := harness.runtime.Campaigns.GetDetail(context.Background(), campaign.Id)
@@ -859,14 +906,154 @@ func TestRecallEmailGenerationHandlerUpdatesAllTranslations(t *testing.T) {
 
 	recorder := invokeRecallHandler(t, GenerateRecallEmailTranslations, http.MethodPost, "/", body, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
 
+	require.Equal(t, http.StatusAccepted, recorder.Code)
 	payload := decodeRecallEnvelope(t, recorder)
 	require.Equal(t, true, payload["success"])
-	require.Equal(t, beforeCalls+1, harness.translator.calls)
+	require.Equal(t, beforeCalls, harness.translator.calls)
 	data := payload["data"].(map[string]any)
-	require.Equal(t, float64(campaign.ConfigRevision+1), data["config_revision"])
-	emails := data["email_sequence"].([]any)
-	templates := emails[0].(map[string]any)["templates"].(map[string]any)
-	require.Equal(t, "fr:Generated English", templates["fr"].(map[string]any)["subject"])
+	require.NotZero(t, data["id"])
+	require.Equal(t, float64(campaign.Id), data["campaign_id"])
+	require.Equal(t, float64(campaign.ConfigRevision), data["requested_config_revision"])
+	require.Equal(t, "queued", data["status"])
+	require.NotContains(t, recorder.Body.String(), "source_snapshot")
+	require.NotContains(t, recorder.Body.String(), "result_snapshot")
+	require.NotContains(t, recorder.Body.String(), "Generated body")
+
+	duplicate := invokeRecallHandler(t, GenerateRecallEmailTranslations, http.MethodPost, "/", body, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+	require.Equal(t, http.StatusAccepted, duplicate.Code)
+	duplicateData := decodeRecallEnvelope(t, duplicate)["data"].(map[string]any)
+	require.Equal(t, data["id"], duplicateData["id"])
+	require.Equal(t, beforeCalls, harness.translator.calls)
+}
+
+func TestRecallEmailTranslationTaskPollingScopesAndSanitizesResponses(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
+	otherCampaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
+	task := model.RecallTranslationTask{
+		CampaignId:              campaign.Id,
+		RequestedConfigRevision: campaign.ConfigRevision,
+		ResultConfigRevision:    campaign.ConfigRevision + 1,
+		Status:                  model.RecallTranslationTaskSucceeded,
+		AttemptCount:            1,
+		SourceHash:              strings.Repeat("a", 64),
+		IdempotencyKey:          strings.Repeat("b", 64),
+		SourceSnapshot:          "secret source",
+		ResultSnapshot:          "secret translated output",
+		ErrorCode:               "provider_raw_error",
+		ErrorMessage:            "provider said token secret",
+		CreatedAt:               100,
+		StartedAt:               110,
+		FinishedAt:              120,
+	}
+	require.NoError(t, harness.db.Create(&task).Error)
+	failed := model.RecallTranslationTask{
+		CampaignId:              campaign.Id,
+		RequestedConfigRevision: campaign.ConfigRevision,
+		Status:                  model.RecallTranslationTaskFailed,
+		AttemptCount:            1,
+		SourceHash:              strings.Repeat("c", 64),
+		IdempotencyKey:          strings.Repeat("d", 64),
+		SourceSnapshot:          "failed source",
+		ErrorCode:               "raw-provider-502",
+		ErrorMessage:            "provider leaked raw error",
+		CreatedAt:               200,
+		FinishedAt:              210,
+	}
+	require.NoError(t, harness.db.Create(&failed).Error)
+	running := model.RecallTranslationTask{
+		CampaignId:              campaign.Id,
+		RequestedConfigRevision: campaign.ConfigRevision,
+		Status:                  model.RecallTranslationTaskRunning,
+		AttemptCount:            2,
+		SourceHash:              strings.Repeat("g", 64),
+		IdempotencyKey:          strings.Repeat("h", 64),
+		SourceSnapshot:          "running source",
+		ResultSnapshot:          "running result",
+		ErrorCode:               "stale-provider-error",
+		ErrorMessage:            "stale provider leak",
+		CreatedAt:               250,
+		StartedAt:               255,
+	}
+	require.NoError(t, harness.db.Create(&running).Error)
+	campaignSuperseded := model.RecallTranslationTask{
+		CampaignId:              campaign.Id,
+		RequestedConfigRevision: campaign.ConfigRevision,
+		Status:                  model.RecallTranslationTaskSuperseded,
+		SourceHash:              strings.Repeat("i", 64),
+		IdempotencyKey:          strings.Repeat("j", 64),
+		SourceSnapshot:          "superseded source",
+		ErrorCode:               "ignored-provider-error",
+		ErrorMessage:            "ignored provider leak",
+		CreatedAt:               275,
+		FinishedAt:              280,
+	}
+	require.NoError(t, harness.db.Create(&campaignSuperseded).Error)
+	superseded := model.RecallTranslationTask{
+		CampaignId:              otherCampaign.Id,
+		RequestedConfigRevision: otherCampaign.ConfigRevision,
+		Status:                  model.RecallTranslationTaskSuperseded,
+		SourceHash:              strings.Repeat("e", 64),
+		IdempotencyKey:          strings.Repeat("f", 64),
+		SourceSnapshot:          "other source",
+		CreatedAt:               300,
+		FinishedAt:              310,
+	}
+	require.NoError(t, harness.db.Create(&superseded).Error)
+
+	successRecorder := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(task.Id)}})
+	require.Equal(t, http.StatusOK, successRecorder.Code)
+	successData := decodeRecallEnvelope(t, successRecorder)["data"].(map[string]any)
+	require.Equal(t, float64(task.Id), successData["id"])
+	require.Equal(t, "succeeded", successData["status"])
+	require.Equal(t, float64(campaign.ConfigRevision+1), successData["result_config_revision"])
+	require.NotContains(t, successRecorder.Body.String(), "source")
+	require.NotContains(t, successRecorder.Body.String(), "translated")
+	require.NotContains(t, successRecorder.Body.String(), "provider")
+	require.NotContains(t, successData, "error_code")
+	require.NotContains(t, successData, "error_copy_key")
+
+	runningRecorder := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(running.Id)}})
+	require.Equal(t, http.StatusOK, runningRecorder.Code)
+	runningData := decodeRecallEnvelope(t, runningRecorder)["data"].(map[string]any)
+	require.Equal(t, "running", runningData["status"])
+	require.NotContains(t, runningRecorder.Body.String(), "running source")
+	require.NotContains(t, runningRecorder.Body.String(), "running result")
+	require.NotContains(t, runningRecorder.Body.String(), "provider")
+	require.NotContains(t, runningData, "error_code")
+	require.NotContains(t, runningData, "error_copy_key")
+
+	supersededRecorder := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(campaignSuperseded.Id)}})
+	require.Equal(t, http.StatusOK, supersededRecorder.Code)
+	supersededData := decodeRecallEnvelope(t, supersededRecorder)["data"].(map[string]any)
+	require.Equal(t, "superseded", supersededData["status"])
+	require.Equal(t, "translation_superseded", supersededData["error_code"])
+	require.Equal(t, "recall.translation.error.translation_superseded", supersededData["error_copy_key"])
+	require.NotContains(t, supersededRecorder.Body.String(), "ignored-provider")
+	require.NotContains(t, supersededRecorder.Body.String(), "provider leak")
+
+	latestRecorder := invokeRecallHandler(t, GetLatestRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+	require.Equal(t, http.StatusOK, latestRecorder.Code)
+	latestData := decodeRecallEnvelope(t, latestRecorder)["data"].(map[string]any)
+	require.Equal(t, float64(campaignSuperseded.Id), latestData["id"])
+	require.Equal(t, "superseded", latestData["status"])
+	require.Equal(t, "translation_superseded", latestData["error_code"])
+	require.Equal(t, "recall.translation.error.translation_superseded", latestData["error_copy_key"])
+	require.NotContains(t, latestRecorder.Body.String(), "raw-provider")
+	require.NotContains(t, latestRecorder.Body.String(), "provider leaked")
+
+	failedRecorder := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(failed.Id)}})
+	require.Equal(t, http.StatusOK, failedRecorder.Code)
+	failedData := decodeRecallEnvelope(t, failedRecorder)["data"].(map[string]any)
+	require.Equal(t, "failed", failedData["status"])
+	require.Equal(t, "translation_failed", failedData["error_code"])
+	require.Equal(t, "recall.translation.error.translation_failed", failedData["error_copy_key"])
+	require.NotContains(t, failedRecorder.Body.String(), "raw-provider")
+	require.NotContains(t, failedRecorder.Body.String(), "provider leaked")
+
+	crossCampaign := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(superseded.Id)}})
+	require.Equal(t, http.StatusNotFound, crossCampaign.Code)
+	require.NotContains(t, crossCampaign.Body.String(), "other source")
 }
 
 func TestRecallEmailGenerationActivationReturnsStructuredBlockers(t *testing.T) {
@@ -991,6 +1178,59 @@ func TestRecallCampaignPreviewReturnsAudienceAndStripeWithoutCreateOrSend(t *tes
 	require.Zero(t, harness.stripe.createCustomer)
 	require.Zero(t, harness.stripe.createPromotionCode)
 	require.Zero(t, harness.sendCount)
+}
+
+func TestRecallExclusionHandlersPreviewFetchAndConfirm(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	user := seedRecallControllerUser(t, harness, 8801, "exclusion")
+	recipient := model.RecallRecipient{
+		CampaignId:        campaign.Id,
+		UserId:            user.Id,
+		State:             model.RecallRecipientQueued,
+		EmailSnapshot:     user.Email,
+		LanguageSnapshot:  "en",
+		RecipientIdentity: model.RecallRecipientIdentityForUser(user.Id),
+	}
+	require.NoError(t, harness.db.Create(&recipient).Error)
+	require.NoError(t, harness.db.Create(&model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: "scheduled", State: model.RecallMessageScheduled}).Error)
+
+	previewRecorder := invokeRecallMultipartHandler(t, PreviewRecallCampaignExclusions, "/api/recall-campaigns/1/exclusions/preview", "file", "users.csv", []byte(fmt.Sprintf("EMAIL\n %s \n", strings.ToUpper(user.Email))), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+	preview := decodeRecallExclusionPreview(t, previewRecorder)
+	require.True(t, preview.Confirmable)
+	require.Equal(t, int64(1), preview.ResolvedUsers)
+
+	fetch := decodeRecallExclusionPreview(t, invokeRecallHandler(t, GetRecallCampaignExclusionBatch, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "batch_id", Value: fmt.Sprint(preview.BatchID)}}))
+	require.Equal(t, preview.BatchID, fetch.BatchID)
+	require.True(t, fetch.Confirmable)
+
+	wrongCampaign := invokeRecallHandler(t, GetRecallCampaignExclusionBatch, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id + 1)}, {Key: "batch_id", Value: fmt.Sprint(preview.BatchID)}})
+	requireRecallFailure(t, wrongCampaign, "record not found")
+
+	confirmed := decodeRecallExclusionPreview(t, invokeRecallHandler(t, ConfirmRecallCampaignExclusionBatch, http.MethodPost, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "batch_id", Value: fmt.Sprint(preview.BatchID)}}))
+	require.Equal(t, int64(1), confirmed.CancelableWork)
+	var exclusion model.RecallCampaignExclusion
+	require.NoError(t, harness.db.Where("campaign_id = ? AND user_id = ?", campaign.Id, user.Id).First(&exclusion).Error)
+	require.Equal(t, "operator_csv", exclusion.PersistentReasonCode)
+	var message model.RecallMessage
+	require.NoError(t, harness.db.First(&message, "recipient_id = ?", recipient.Id).Error)
+	require.Equal(t, model.RecallMessageCancelled, message.State)
+}
+
+func TestRecallExclusionHandlersRejectMissingAndOversizedUploads(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	params := gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}}
+
+	missingFile := invokeRecallMultipartHandler(t, PreviewRecallCampaignExclusions, "/api/recall-campaigns/1/exclusions/preview", "not_file", "users.csv", []byte("email\nnobody@example.com\n"), 7, params)
+	requireRecallFailure(t, missingFile, "CSV file is required")
+
+	oversizedFile := append([]byte("email\n"), bytes.Repeat([]byte{'a'}, 5<<20)...)
+	tooLargeFile := invokeRecallMultipartHandler(t, PreviewRecallCampaignExclusions, "/api/recall-campaigns/1/exclusions/preview", "file", "users.csv", oversizedFile, 7, params)
+	requireRecallFailure(t, tooLargeFile, "exceeds maximum")
+
+	oversizedBody := invokeRecallMultipartHandler(t, PreviewRecallCampaignExclusions, "/api/recall-campaigns/1/exclusions/preview", "file", "users.csv", bytes.Repeat([]byte{'a'}, 6<<20), 7, params)
+	requireRecallFailure(t, oversizedBody, "invalid recall exclusion upload")
 }
 
 func TestRecallCampaignReadsMaskCodesAndOmitClaimAndTemplateSecrets(t *testing.T) {
@@ -1388,6 +1628,161 @@ func TestRecallRetryAcceptsFailedWorkAndRequiresAcknowledgementForUncertainMail(
 	require.Equal(t, model.RecallMessageSending, liveSendingMessage.State)
 
 	requireRecallFailure(t, retry(activeRecipient.Id, `{}`), "failed")
+}
+
+func TestRecallRetryPrioritizesMixedUncertainWorkOverFailedMessages(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		ambiguousMessage model.RecallMessage
+		wantState        string
+		wantLeaseCleared bool
+	}{
+		{
+			name: "failed plus uncertain",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          2,
+				TemplateVersion:  8,
+				TemplateSnapshot: "uncertain-template",
+				State:            model.RecallMessageUncertain,
+				AttemptCount:     1,
+				FailedAt:         recallControllerBoundary + 2,
+				UpdatedAt:        recallControllerBoundary + 2,
+			},
+			wantState: model.RecallMessageUncertain,
+		},
+		{
+			name: "failed plus expired sending",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          2,
+				TemplateVersion:  9,
+				TemplateSnapshot: "expired-sending-template",
+				State:            model.RecallMessageSending,
+				AttemptCount:     1,
+				LeaseOwner:       "crashed",
+				LeaseExpiresAt:   1,
+				UpdatedAt:        recallControllerBoundary + 3,
+			},
+			wantState:        model.RecallMessageSending,
+			wantLeaseCleared: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness := setupRecallControllerHarness(t)
+			campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+			seedRecallControllerUser(t, harness, 77, "retry-mixed")
+			recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 77, EligibilitySnapshot: `{}`, EmailSnapshot: "retry-mixed@example.com", LanguageSnapshot: "en", State: model.RecallRecipientContacting}
+			require.NoError(t, harness.db.Create(&recipient).Error)
+			failedMessage := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 7, TemplateSnapshot: "failed-template", State: model.RecallMessageFailed, AttemptCount: 2, FailedAt: recallControllerBoundary, UpdatedAt: recallControllerBoundary}
+			ambiguousMessage := test.ambiguousMessage
+			ambiguousMessage.RecipientId = recipient.Id
+			require.NoError(t, harness.db.Create(&failedMessage).Error)
+			require.NoError(t, harness.db.Create(&ambiguousMessage).Error)
+
+			retry := func(body string) *httptest.ResponseRecorder {
+				return invokeRecallHandler(t, RetryRecallRecipient, http.MethodPost, "/", []byte(body), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "rid", Value: fmt.Sprint(recipient.Id)}})
+			}
+			requireRecallFailure(t, retry(`{}`), "acknowledge_uncertain")
+			require.NoError(t, harness.db.First(&failedMessage, failedMessage.Id).Error)
+			require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+			require.NoError(t, harness.db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, test.wantState, ambiguousMessage.State)
+
+			require.Equal(t, true, decodeRecallEnvelope(t, retry(`{"acknowledge_uncertain":true}`))["success"])
+			require.NoError(t, harness.db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, model.RecallMessageRetryWait, ambiguousMessage.State)
+			if test.wantLeaseCleared {
+				require.Empty(t, ambiguousMessage.LeaseOwner)
+				require.Zero(t, ambiguousMessage.LeaseExpiresAt)
+			}
+			require.NoError(t, harness.db.First(&failedMessage, failedMessage.Id).Error)
+			require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+		})
+	}
+}
+
+func TestRecallRetryPrioritizesAmbiguousMessagesOverFailedRecipient(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		ambiguousMessage model.RecallMessage
+		wantState        string
+		wantLeaseCleared bool
+	}{
+		{
+			name: "failed recipient plus uncertain",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          1,
+				TemplateVersion:  8,
+				TemplateSnapshot: "uncertain-template",
+				State:            model.RecallMessageUncertain,
+				AttemptCount:     1,
+				FailedAt:         recallControllerBoundary + 2,
+				UpdatedAt:        recallControllerBoundary + 2,
+			},
+			wantState: model.RecallMessageUncertain,
+		},
+		{
+			name: "failed recipient plus expired sending",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          1,
+				TemplateVersion:  9,
+				TemplateSnapshot: "expired-sending-template",
+				State:            model.RecallMessageSending,
+				AttemptCount:     1,
+				LeaseOwner:       "crashed",
+				LeaseExpiresAt:   1,
+				UpdatedAt:        recallControllerBoundary + 3,
+			},
+			wantState:        model.RecallMessageSending,
+			wantLeaseCleared: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness := setupRecallControllerHarness(t)
+			campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+			seedRecallControllerUser(t, harness, 78, "retry-failed-recipient-mixed")
+			recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 78, EligibilitySnapshot: `{}`, EmailSnapshot: "retry-failed-recipient-mixed@example.com", LanguageSnapshot: "en", State: model.RecallRecipientFailed, LastErrorCode: "stripe_permanent", UpdatedAt: recallControllerBoundary}
+			require.NoError(t, harness.db.Create(&recipient).Error)
+			ambiguousMessage := test.ambiguousMessage
+			ambiguousMessage.RecipientId = recipient.Id
+			require.NoError(t, harness.db.Create(&ambiguousMessage).Error)
+
+			retry := func(body string) *httptest.ResponseRecorder {
+				return invokeRecallHandler(t, RetryRecallRecipient, http.MethodPost, "/", []byte(body), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "rid", Value: fmt.Sprint(recipient.Id)}})
+			}
+			requireRecallFailure(t, retry(`{}`), "acknowledge_uncertain")
+			require.NoError(t, harness.db.First(&recipient, recipient.Id).Error)
+			require.Equal(t, model.RecallRecipientFailed, recipient.State)
+			require.NoError(t, harness.db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, test.wantState, ambiguousMessage.State)
+
+			require.Equal(t, true, decodeRecallEnvelope(t, retry(`{"acknowledge_uncertain":true}`))["success"])
+			require.NoError(t, harness.db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, model.RecallMessageRetryWait, ambiguousMessage.State)
+			if test.wantLeaseCleared {
+				require.Empty(t, ambiguousMessage.LeaseOwner)
+				require.Zero(t, ambiguousMessage.LeaseExpiresAt)
+			}
+			require.NoError(t, harness.db.First(&recipient, recipient.Id).Error)
+			require.Equal(t, model.RecallRecipientFailed, recipient.State)
+		})
+	}
+}
+
+func TestRecallRetryPrioritizesFailedMessageOverFailedRecipientWithoutAmbiguousMail(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	seedRecallControllerUser(t, harness, 79, "retry-failed-message-before-recipient")
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 79, EligibilitySnapshot: `{}`, EmailSnapshot: "retry-failed-message-before-recipient@example.com", LanguageSnapshot: "en", State: model.RecallRecipientFailed, LastErrorCode: "stripe_permanent", UpdatedAt: recallControllerBoundary}
+	require.NoError(t, harness.db.Create(&recipient).Error)
+	failedMessage := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 7, TemplateSnapshot: "failed-template", State: model.RecallMessageFailed, AttemptCount: 2, FailedAt: recallControllerBoundary + 2, UpdatedAt: recallControllerBoundary + 2}
+	require.NoError(t, harness.db.Create(&failedMessage).Error)
+
+	recorder := invokeRecallHandler(t, RetryRecallRecipient, http.MethodPost, "/", []byte(`{}`), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "rid", Value: fmt.Sprint(recipient.Id)}})
+	require.Equal(t, true, decodeRecallEnvelope(t, recorder)["success"])
+	require.NoError(t, harness.db.First(&failedMessage, failedMessage.Id).Error)
+	require.Equal(t, model.RecallMessageRetryWait, failedMessage.State)
+	require.NoError(t, harness.db.First(&recipient, recipient.Id).Error)
+	require.Equal(t, model.RecallRecipientFailed, recipient.State)
 }
 
 func TestRecallCancelCompleteAndRetryWriteDeterministicAdminEvents(t *testing.T) {

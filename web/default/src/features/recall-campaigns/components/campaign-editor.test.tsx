@@ -18,8 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createFormControl, type UseFormReturn } from 'react-hook-form'
+import {
+  environmentManager,
+  QueryClient,
+  QueryClientProvider,
+  timeoutManager,
+} from '@tanstack/react-query'
 import {
   afterAll,
   beforeAll,
@@ -39,7 +44,11 @@ import {
   RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   RECALL_EMAIL_STARTER_HTML,
 } from '../helpers'
-import type { RecallAudienceTemplate, RecallCampaignDraft } from '../types'
+import type {
+  RecallAudienceTemplate,
+  RecallCampaignDraft,
+  RecallTranslationTask,
+} from '../types'
 
 const commonHelp =
   'Audience templates define the base audience. The rules shown below narrow it further, and built-in eligibility filters also apply. Preview the audience before activation.'
@@ -79,29 +88,17 @@ const generateMutation = mock(
     }
   }) => {
     operationOrder.push('generate')
+    const task = {
+      id: 55,
+      campaign_id: value.id,
+      requested_config_revision: value.request.config_revision,
+      status: 'queued',
+      attempt_count: 0,
+      created_at: 1_900_000_000,
+    } satisfies RecallTranslationTask
     return {
       success: true,
-      data: {
-        config_revision: value.request.config_revision + 1,
-        email_sequence: value.request.email_sequence.map((stage) => ({
-          ...stage,
-          source_revision: Math.max(1, stage.source_revision ?? 0),
-          translated_source_revision: Math.max(1, stage.source_revision ?? 0),
-          manual_locales: [],
-          templates: {
-            ...stage.templates,
-            ...Object.fromEntries(
-              ['zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'].map((locale) => [
-                locale,
-                {
-                  subject: `${locale} subject`,
-                  body_html: `<p>${locale} body</p>`,
-                },
-              ])
-            ),
-          },
-        })),
-      },
+      data: task,
     }
   }
 )
@@ -116,6 +113,7 @@ let latestSpecifiedUsersProps:
   | undefined
 let latestAudienceTemplateChange: ((value: string) => void) | undefined
 let latestCampaignTypeChange: ((value: string) => void) | undefined
+let latestExecutionScheduleModeChange: ((value: string) => void) | undefined
 const latestInputProps: Record<
   string,
   React.InputHTMLAttributes<HTMLInputElement>
@@ -128,6 +126,26 @@ const latestSwitchProps: Record<
     onCheckedChange?: (checked: boolean) => void
   }
 > = {}
+const testQueryClients = new Set<QueryClient>()
+
+type TimeoutProvider = Parameters<typeof timeoutManager.setTimeoutProvider>[0]
+
+const realTimeoutProvider: TimeoutProvider = {
+  clearInterval: (timerId) => clearInterval(timerId),
+  clearTimeout: (timerId) => clearTimeout(timerId),
+  setInterval: (callback, delay) => setInterval(callback, delay),
+  setTimeout: (callback, delay) => setTimeout(callback, delay),
+}
+let activeTimeoutProvider = realTimeoutProvider
+
+timeoutManager.setTimeoutProvider({
+  clearInterval: (timerId) => activeTimeoutProvider.clearInterval(timerId),
+  clearTimeout: (timerId) => activeTimeoutProvider.clearTimeout(timerId),
+  setInterval: (callback, delay) =>
+    activeTimeoutProvider.setInterval(callback, delay),
+  setTimeout: (callback, delay) =>
+    activeTimeoutProvider.setTimeout(callback, delay),
+})
 
 spyOn(recallApi, 'useRecallCampaignMutations').mockImplementation(() => ({
   create: { isPending: false, mutateAsync: createMutation },
@@ -141,6 +159,35 @@ spyOn(recallApi, 'useRecallCampaignMutations').mockImplementation(() => ({
     mutateAsync: mock(async () => ({ success: true })),
   },
   generate: { isPending: false, mutateAsync: generateMutation },
+}))
+
+const getTranslationTask = spyOn(
+  recallApi,
+  'getRecallEmailTranslationTask'
+).mockImplementation(async (_id: number, taskId: number) => ({
+  success: true,
+  data: {
+    id: taskId,
+    campaign_id: 9,
+    requested_config_revision: 4,
+    status: 'running',
+    attempt_count: 1,
+    created_at: 1_900_000_000,
+  },
+}))
+const getLatestTranslationTask = spyOn(
+  recallApi,
+  'getLatestRecallEmailTranslationTask'
+).mockImplementation(async (id: number) => ({
+  success: true,
+  data: {
+    id: 44,
+    campaign_id: id,
+    requested_config_revision: 4,
+    status: 'running',
+    attempt_count: 1,
+    created_at: 1_899_999_000,
+  },
 }))
 
 mock.module('@/components/ui/select', () => ({
@@ -161,6 +208,9 @@ mock.module('@/components/ui/select', () => ({
     }
     if (name === 'campaign_type') {
       latestCampaignTypeChange = props.onValueChange
+    }
+    if (props.items?.some((item) => item.value === 'once')) {
+      latestExecutionScheduleModeChange = props.onValueChange
     }
     return (
       <>
@@ -259,9 +309,8 @@ mock.module('@/components/multi-select', () => ({
   ),
 }))
 
-const { CampaignOfferValidityFields } = await import(
-  './campaign-offer-validity-fields'
-)
+const { CampaignOfferValidityFields } =
+  await import('./campaign-offer-validity-fields')
 const { CampaignEditor, createRecallCampaignFormDraft } =
   await import('./campaign-editor')
 
@@ -570,18 +619,19 @@ function setupDom() {
 }
 
 setupDom()
+environmentManager.setIsServer(() => false)
 
 function createQueryClient() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        enabled: false,
         retry: false,
         retryOnMount: false,
         refetchOnMount: false,
       },
     },
   })
+  testQueryClients.add(queryClient)
   queryClient.setQueryData(recallApi.recallCampaignKeys.userGroups, {
     success: true,
     data: ['admin', 'default', 'plg'],
@@ -628,7 +678,7 @@ function renderEditor(
 function renderEditorDom(
   draft: RecallCampaignDraft,
   props: Partial<React.ComponentProps<typeof CampaignEditor>> = {}
-): { root: Root; container: HTMLElement } {
+): { root: Root; container: HTMLElement; queryClient: QueryClient } {
   const queryClient = createQueryClient()
   const container = document.createElement('div')
   const root = createRoot(container)
@@ -647,7 +697,7 @@ function renderEditorDom(
     )
   })
 
-  return { root, container }
+  return { root, container, queryClient }
 }
 
 function createOfferValidityForm(
@@ -724,6 +774,27 @@ async function clickByID(container: HTMLElement, id: string) {
   })
 }
 
+async function flushReactWork() {
+  await React.act(async () => {
+    await Promise.resolve()
+  })
+}
+
+async function waitFor(
+  predicate: () => boolean,
+  timeout = 1000
+): Promise<void> {
+  const startedAt = Date.now()
+  while (!predicate()) {
+    if (Date.now() - startedAt > timeout) {
+      throw new Error('Timed out waiting for assertion')
+    }
+    await React.act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+  }
+}
+
 async function changeInputProp(id: string, value: string) {
   await React.act(async () => {
     latestInputProps[id]?.onChange?.({
@@ -788,6 +859,7 @@ beforeEach(() => {
   latestSpecifiedUsersProps = undefined
   latestAudienceTemplateChange = undefined
   latestCampaignTypeChange = undefined
+  latestExecutionScheduleModeChange = undefined
   for (const key of Object.keys(latestInputProps)) {
     delete latestInputProps[key]
   }
@@ -799,35 +871,57 @@ beforeEach(() => {
   generateMutation.mockClear()
   generateMutation.mockImplementation(async (value) => {
     operationOrder.push('generate')
+    const task = {
+      id: 55,
+      campaign_id: value.id,
+      requested_config_revision: value.request.config_revision,
+      status: 'queued',
+      attempt_count: 0,
+      created_at: 1_900_000_000,
+    } satisfies RecallTranslationTask
     return {
       success: true,
-      data: {
-        config_revision: value.request.config_revision + 1,
-        email_sequence: value.request.email_sequence.map((stage) => ({
-          ...stage,
-          source_revision: Math.max(1, stage.source_revision ?? 0),
-          translated_source_revision: Math.max(1, stage.source_revision ?? 0),
-          manual_locales: [],
-          templates: {
-            ...stage.templates,
-            ...Object.fromEntries(
-              ['zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'].map((locale) => [
-                locale,
-                {
-                  subject: `${locale} subject`,
-                  body_html: `<p>${locale} body</p>`,
-                },
-              ])
-            ),
-          },
-        })),
-      },
+      data: task,
     }
   })
+  getTranslationTask.mockClear()
+  getTranslationTask.mockImplementation(
+    async (_id: number, taskId: number) => ({
+      success: true,
+      data: {
+        id: taskId,
+        campaign_id: 9,
+        requested_config_revision: 4,
+        status: 'running',
+        attempt_count: 1,
+        created_at: 1_900_000_000,
+      },
+    })
+  )
+  getLatestTranslationTask.mockClear()
+  getLatestTranslationTask.mockImplementation(async (id: number) => ({
+    success: true,
+    data: {
+      id: 44,
+      campaign_id: id,
+      requested_config_revision: 4,
+      status: 'running',
+      attempt_count: 1,
+      created_at: 1_899_999_000,
+    },
+  }))
   operationOrder.length = 0
 })
 
-afterAll(() => {
+afterAll(async () => {
+  for (const queryClient of testQueryClients) {
+    queryClient.clear()
+  }
+  testQueryClients.clear()
+  await React.act(async () => {
+    await Promise.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
   mock.restore()
   restoreTestGlobals()
 })
@@ -1284,6 +1378,213 @@ describe('CampaignEditor audience rules', () => {
   })
 })
 
+describe('CampaignEditor schedule modes', () => {
+  test('presents Manual, Once, Daily, and Weekly as direct mutually exclusive modes', () => {
+    const html = renderEditor('first_purchase')
+
+    expect(html).toContain('value="manual"')
+    expect(html).toContain('value="once"')
+    expect(html).toContain('value="daily"')
+    expect(html).toContain('value="weekly"')
+    expect(html).not.toContain('value="recurring"')
+    expect(html).not.toContain('Scheduled once')
+  })
+
+  test('hides start controls for Manual mode', () => {
+    const draft = makeDraft('first_purchase')
+    draft.execution_mode = 'manual'
+
+    const html = renderEditor('first_purchase', draft)
+
+    expect(html).not.toContain('Start date and time')
+    expect(html).not.toContain('IANA timezone')
+    expect(html).not.toContain('Weekday')
+  })
+
+  test.each([
+    ['scheduled_once', 'daily', false],
+    ['recurring', 'daily', false],
+    ['recurring', 'weekly', true],
+  ] as const)(
+    'shows start controls for %s/%s and weekday only for weekly',
+    (executionMode, frequency, showsWeekday) => {
+      const draft = makeDraft('first_purchase')
+      draft.execution_mode = executionMode
+      draft.schedule = {
+        scheduled_at: 2_000_100_000,
+        timezone: 'Asia/Shanghai',
+        frequency,
+        weekday: 2,
+        hour: 10,
+        minute: 30,
+      }
+
+      const html = renderEditor('first_purchase', draft)
+
+      expect(html).toContain('Start date and time')
+      expect(html).toContain('IANA timezone')
+      expect(html).toContain('Asia/Shanghai')
+      if (showsWeekday) expect(html).toContain('Weekday')
+      else expect(html).not.toContain('Weekday')
+    }
+  )
+
+  test('maps Once, Daily, and Weekly selections to the backend wire contract on submit', async () => {
+    for (const [mode, executionMode, frequency] of [
+      ['once', 'scheduled_once', 'daily'],
+      ['daily', 'recurring', 'daily'],
+      ['weekly', 'recurring', 'weekly'],
+      ['manual', 'manual', 'daily'],
+    ] as const) {
+      createMutation.mockClear()
+      const draft = makeDraft('first_purchase')
+      draft.schedule.timezone = ''
+      const { root, container } = renderEditorDom(draft)
+
+      React.act(() => {
+        latestExecutionScheduleModeChange?.(mode)
+      })
+      await submit(container)
+
+      const submitted = createMutation.mock.calls.at(
+        -1
+      )?.[0] as RecallCampaignDraft
+      expect(submitted.execution_mode).toBe(executionMode)
+      expect(submitted.schedule.frequency).toBe(frequency)
+      if (mode === 'once' || mode === 'daily') {
+        expect(submitted.schedule.timezone).toBe('Asia/Shanghai')
+        expect(submitted.schedule.scheduled_at).toBeGreaterThan(0)
+      }
+      if (mode === 'daily') {
+        expect(submitted.schedule.weekday).toBe(1)
+      }
+      if (mode === 'manual') {
+        expect(submitted.schedule.scheduled_at).toBe(0)
+      }
+      dispose(root)
+    }
+  })
+
+  test('preserves explicit UTC and falls back only for blank schedule timezones', async () => {
+    const utcDraft = makeDraft('first_purchase')
+    utcDraft.execution_mode = 'scheduled_once'
+    utcDraft.schedule.scheduled_at = 2_000_100_000
+    utcDraft.schedule.timezone = 'UTC'
+    const { root: utcRoot, container: utcContainer } = renderEditorDom(utcDraft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('daily')
+    })
+    await submit(utcContainer)
+
+    expect(
+      (createMutation.mock.calls.at(-1)?.[0] as RecallCampaignDraft).schedule
+        .timezone
+    ).toBe('UTC')
+    dispose(utcRoot)
+
+    createMutation.mockClear()
+    const blankDraft = makeDraft('first_purchase')
+    blankDraft.execution_mode = 'scheduled_once'
+    blankDraft.schedule.scheduled_at = 2_000_100_000
+    blankDraft.schedule.timezone = '  '
+    const { root: blankRoot, container: blankContainer } =
+      renderEditorDom(blankDraft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('daily')
+    })
+    await submit(blankContainer)
+
+    expect(
+      (createMutation.mock.calls.at(-1)?.[0] as RecallCampaignDraft).schedule
+        .timezone
+    ).toBe('Asia/Shanghai')
+    dispose(blankRoot)
+  })
+
+  test('submits manual mode with an inert canonical schedule payload', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.execution_mode = 'recurring'
+    draft.schedule = {
+      scheduled_at: 2_000_100_000,
+      timezone: 'UTC',
+      frequency: 'weekly',
+      weekday: 5,
+      hour: 18,
+      minute: 45,
+    }
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('manual')
+    })
+    await submit(container)
+
+    expect(
+      (createMutation.mock.calls.at(-1)?.[0] as RecallCampaignDraft).schedule
+    ).toEqual({
+      scheduled_at: 0,
+      timezone: '',
+      frequency: 'daily',
+      weekday: 1,
+      hour: 0,
+      minute: 0,
+    })
+    dispose(root)
+  })
+
+  test('converts scheduled input using the selected IANA timezone wall clock', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.execution_mode = 'scheduled_once'
+    draft.schedule.timezone = 'America/New_York'
+    draft.schedule.scheduled_at = Date.UTC(2030, 0, 2, 14, 0) / 1_000
+    draft.schedule.hour = 9
+    draft.schedule.minute = 0
+    const { root, container } = renderEditorDom(draft)
+
+    expect(latestInputProps['recall-schedule-start-at']?.value).toBe(
+      '2030-01-02T09:00'
+    )
+
+    React.act(() => {
+      latestInputProps['recall-schedule-start-at'].onChange?.({
+        target: { name: 'schedule.scheduled_at', value: '2030-01-02T10:30' },
+        type: 'change',
+      } as React.ChangeEvent<HTMLInputElement>)
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted.schedule.scheduled_at).toBe(
+      Date.UTC(2030, 0, 2, 15, 30) / 1_000
+    )
+    expect(submitted.schedule.hour).toBe(10)
+    expect(submitted.schedule.minute).toBe(30)
+    dispose(root)
+  })
+
+  test('describes follow-up email offsets as absolute offsets from the first SMTP accepted email', () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence.push({
+      stage_no: 2,
+      delay_seconds: 86_400,
+      template_version: 1,
+      templates: {
+        en: { subject: 'Follow-up', body_text: 'Follow-up body' },
+      },
+    })
+
+    const html = renderEditor('first_purchase', draft)
+
+    expect(html).toContain(
+      'Absolute offset from the first SMTP accepted email.'
+    )
+  })
+})
+
 describe('CampaignEditor offer validity', () => {
   test('replaces raw validity and minimum-currency inputs with guided controls', () => {
     const html = renderEditor('first_purchase')
@@ -1524,7 +1825,7 @@ describe('CampaignEditor email sequence', () => {
     expect(html).toContain('Generate 7 translations')
   })
 
-  test('saves a new draft before one all-stage generation request', async () => {
+  test('saves a new draft before one all-stage translation task request', async () => {
     const draft = makeDraft('first_purchase')
     draft.email_sequence[0].templates = {
       en: draft.email_sequence[0].templates.en,
@@ -1543,7 +1844,333 @@ describe('CampaignEditor email sequence', () => {
       id: 123,
       request: { config_revision: 7, name: 'Test campaign' },
     })
-    expect(container.textContent).toContain('7 / 7 ready')
+    expect(container.textContent).toContain('0 / 7 ready')
+    expect(container.textContent).toContain('Translation task queued')
+    dispose(root)
+  })
+
+  test('polls an active generated translation task roughly every two seconds and stops on terminal status', async () => {
+    type ControlledInterval = {
+      active: boolean
+      callback: () => void
+      delay: number
+      id: number
+    }
+    const intervals: ControlledInterval[] = []
+    let nextTimerID = 1
+    activeTimeoutProvider = {
+      clearInterval: (timerId) => {
+        const interval = intervals.find((current) => current.id === timerId)
+        if (interval) interval.active = false
+      },
+      clearTimeout: (timerId) => clearTimeout(timerId),
+      setInterval: (callback, delay) => {
+        const interval = {
+          active: true,
+          callback,
+          delay,
+          id: nextTimerID,
+        }
+        intervals.push(interval)
+        nextTimerID += 1
+        return interval.id
+      },
+      setTimeout: (callback, delay) => setTimeout(callback, delay),
+    }
+    generateMutation.mockImplementationOnce(async (value) => ({
+      success: true,
+      data: {
+        id: 55,
+        campaign_id: value.id,
+        requested_config_revision: value.request.config_revision,
+        status: 'queued',
+        attempt_count: 0,
+        created_at: 1_900_000_000,
+      } satisfies RecallTranslationTask,
+    }))
+    const statuses: RecallTranslationTask['status'][] = [
+      'queued',
+      'running',
+      'succeeded',
+    ]
+    getTranslationTask.mockImplementation(async (_id, taskId) => {
+      const status = statuses.shift() ?? 'succeeded'
+      return {
+        success: true,
+        data: {
+          id: taskId,
+          campaign_id: 9,
+          requested_config_revision: 4,
+          result_config_revision: status === 'succeeded' ? 5 : undefined,
+          status,
+          attempt_count: 1,
+          created_at: 1_900_000_000,
+        },
+      }
+    })
+    const draft = makeDraft('first_purchase')
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+    const runPollingInterval = async () => {
+      const interval = intervals.find(
+        (current) => current.active && current.delay === 2_000
+      )
+      expect(interval).toBeTruthy()
+      await React.act(async () => {
+        interval?.callback()
+        await Promise.resolve()
+      })
+      await flushReactWork()
+    }
+
+    try {
+      await clickByID(container, 'recall-generate-translations')
+      expect(container.textContent).toContain('Translation task queued')
+      await flushReactWork()
+      expect(getTranslationTask).toHaveBeenCalledTimes(1)
+      await flushReactWork()
+      expect(
+        intervals.some(
+          (interval) => interval.active && interval.delay === 2_000
+        )
+      ).toBe(true)
+
+      await runPollingInterval()
+      expect(getTranslationTask).toHaveBeenCalledTimes(2)
+
+      await runPollingInterval()
+      expect(getTranslationTask).toHaveBeenCalledTimes(3)
+      await waitFor(() =>
+        Boolean(container.textContent?.includes('Translation task succeeded'))
+      )
+      const callsAfterTerminal = getTranslationTask.mock.calls.length
+
+      expect(
+        intervals.some(
+          (interval) => interval.active && interval.delay === 2_000
+        )
+      ).toBe(false)
+      expect(getTranslationTask).toHaveBeenCalledTimes(callsAfterTerminal)
+    } finally {
+      activeTimeoutProvider = realTimeoutProvider
+      dispose(root)
+    }
+  })
+
+  test('recovers the latest active translation task after remount', async () => {
+    const draft = makeDraft('first_purchase')
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    await waitFor(() => getLatestTranslationTask.mock.calls.length > 0)
+
+    expect(getLatestTranslationTask).toHaveBeenCalledWith(9)
+    await waitFor(() =>
+      Boolean(container.textContent?.includes('Translation task running'))
+    )
+    dispose(root)
+  })
+
+  test('ignores a stale latest task response after starting a newer generated task', async () => {
+    let resolveLatest:
+      | ((
+          response: Awaited<
+            ReturnType<typeof recallApi.getLatestRecallEmailTranslationTask>
+          >
+        ) => void)
+      | undefined
+    getLatestTranslationTask.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveLatest = resolve
+        })
+    )
+    generateMutation.mockImplementationOnce(async (value) => ({
+      success: true,
+      data: {
+        id: 55,
+        campaign_id: value.id,
+        requested_config_revision: value.request.config_revision,
+        status: 'queued',
+        attempt_count: 0,
+        created_at: 1_900_000_000,
+      } satisfies RecallTranslationTask,
+    }))
+    const draft = makeDraft('first_purchase')
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    await waitFor(() => getLatestTranslationTask.mock.calls.length > 0)
+    await clickByID(container, 'recall-generate-translations')
+    React.act(() => {
+      resolveLatest?.({
+        success: true,
+        data: {
+          id: 44,
+          campaign_id: 9,
+          requested_config_revision: 4,
+          status: 'running',
+          attempt_count: 1,
+          created_at: 1_899_999_000,
+        },
+      })
+    })
+    await flushReactWork()
+
+    expect(container.textContent).toContain('Translation task queued')
+    expect(getTranslationTask.mock.calls.some((call) => call[1] === 55)).toBe(
+      true
+    )
+    expect(getTranslationTask.mock.calls.some((call) => call[1] === 44)).toBe(
+      false
+    )
+    dispose(root)
+  })
+
+  test('succeeded translation task invalidates campaign detail without resetting dirty local edits', async () => {
+    generateMutation.mockImplementationOnce(async (value) => ({
+      success: true,
+      data: {
+        id: 55,
+        campaign_id: value.id,
+        requested_config_revision: value.request.config_revision,
+        status: 'queued',
+        attempt_count: 0,
+        created_at: 1_900_000_000,
+      } satisfies RecallTranslationTask,
+    }))
+    getTranslationTask.mockImplementationOnce(async (_id, taskId) => ({
+      success: true,
+      data: {
+        id: taskId,
+        campaign_id: 9,
+        requested_config_revision: 4,
+        result_config_revision: 5,
+        status: 'succeeded',
+        attempt_count: 1,
+        created_at: 1_900_000_000,
+        finished_at: 1_900_000_010,
+      },
+    }))
+    const draft = makeDraft('first_purchase')
+    const nextDraft = makeDraft('first_purchase')
+    nextDraft.email_sequence[0].templates.en.subject =
+      'Server refreshed subject'
+    const { root, container, queryClient } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+    const invalidate = spyOn(queryClient, 'invalidateQueries')
+
+    React.act(() => {
+      latestInputProps['recall-email-0-en-subject'].onChange?.({
+        target: {
+          name: 'email_sequence.0.templates.en.subject',
+          value: 'Unsaved local subject',
+        },
+        type: 'change',
+      } as React.ChangeEvent<HTMLInputElement>)
+    })
+    await clickByID(container, 'recall-generate-translations')
+    React.act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <I18nextProvider i18n={testI18n}>
+            <CampaignEditor
+              campaignId={9}
+              configRevision={5}
+              initialDraft={nextDraft}
+              specifiedUsersSelector={MockSpecifiedUsersSelector}
+            />
+          </I18nextProvider>
+        </QueryClientProvider>
+      )
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: recallApi.recallCampaignKeys.detail(9),
+    })
+    expect(container.textContent).toContain('Refresh campaign data')
+    await submit(container)
+    expect(updateMutation.mock.calls.at(-1)?.[0]).toMatchObject({
+      draft: {
+        email_sequence: [
+          {
+            templates: {
+              en: { subject: 'Unsaved local subject' },
+            },
+          },
+        ],
+      },
+    })
+    dispose(root)
+  })
+
+  test('clears translation task and dirty refresh state when switching campaign identity', async () => {
+    const draftA = makeDraft('first_purchase')
+    draftA.email_sequence[0].templates.en.subject = 'Campaign A subject'
+    const draftB = makeDraft('first_purchase')
+    draftB.email_sequence[0].templates.en.subject = 'Campaign B subject'
+    const { root, container, queryClient } = renderEditorDom(draftA, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+    await flushReactWork()
+
+    React.act(() => {
+      latestInputProps['recall-email-0-en-subject'].onChange?.({
+        target: {
+          name: 'email_sequence.0.templates.en.subject',
+          value: 'Unsaved Campaign A subject',
+        },
+        type: 'change',
+      } as React.ChangeEvent<HTMLInputElement>)
+    })
+
+    getTranslationTask.mockClear()
+    getLatestTranslationTask.mockClear()
+    updateMutation.mockClear()
+    React.act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <I18nextProvider i18n={testI18n}>
+            <CampaignEditor
+              campaignId={10}
+              configRevision={1}
+              initialDraft={draftB}
+              specifiedUsersSelector={MockSpecifiedUsersSelector}
+            />
+          </I18nextProvider>
+        </QueryClientProvider>
+      )
+    })
+    await flushReactWork()
+
+    expect(container.textContent).not.toContain('Unsaved Campaign A subject')
+    expect(container.textContent).not.toContain('Refresh campaign data')
+    expect(getTranslationTask.mock.calls).not.toContainEqual([10, 44])
+    expect(
+      getLatestTranslationTask.mock.calls.some((call) => call[0] === 10)
+    ).toBe(true)
+    await submit(container)
+    expect(updateMutation.mock.calls.at(-1)?.[0]).toMatchObject({
+      id: 10,
+      draft: {
+        email_sequence: [
+          {
+            templates: {
+              en: { subject: 'Campaign B subject' },
+            },
+          },
+        ],
+      },
+    })
     dispose(root)
   })
 
@@ -1583,6 +2210,33 @@ describe('CampaignEditor email sequence', () => {
   })
 
   test('updates the persisted draft before generating again in the same new editor', async () => {
+    generateMutation.mockImplementation(async (value) => {
+      operationOrder.push('generate')
+      return {
+        success: true,
+        data: {
+          id: 55 + generateMutation.mock.calls.length,
+          campaign_id: value.id,
+          requested_config_revision: value.request.config_revision,
+          result_config_revision: value.request.config_revision,
+          status: 'succeeded',
+          attempt_count: 1,
+          created_at: 1_900_000_000,
+        } satisfies RecallTranslationTask,
+      }
+    })
+    getTranslationTask.mockImplementation(async (_id, taskId) => ({
+      success: true,
+      data: {
+        id: taskId,
+        campaign_id: 123,
+        requested_config_revision: 7,
+        result_config_revision: 7,
+        status: 'succeeded',
+        attempt_count: 1,
+        created_at: 1_900_000_000,
+      },
+    }))
     const draft = makeDraft('first_purchase')
     draft.email_sequence[0].templates = {
       en: draft.email_sequence[0].templates.en,
@@ -1684,7 +2338,8 @@ describe('CampaignEditor email sequence', () => {
       '#recall-email-0-fr-subject'
     ) as HTMLInputElement | null
     expect(french?.value).toBe('Sujet français')
-    expect(container.textContent).toContain('Translation unavailable')
+    expect(container.textContent).toContain('Translation generation failed')
+    expect(container.textContent).not.toContain('Translation unavailable')
     dispose(root)
   })
 

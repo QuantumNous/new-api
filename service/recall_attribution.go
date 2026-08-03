@@ -24,6 +24,7 @@ type RecallPaymentFact struct {
 	PromotionCodeID   string
 	ClaimCampaignID   int64
 	ClaimRecipientID  int64
+	PaymentCategory   model.RecallRevenueCategory
 
 	hasDiscount           bool
 	discountDetailsLoaded bool
@@ -39,25 +40,40 @@ type RecallCurrencyMetrics struct {
 }
 
 type RecallCampaignMetrics struct {
-	CandidateCount         int64                   `json:"candidate_count"`
-	EnrolledCount          int64                   `json:"enrolled_count"`
-	ExcludedCount          int64                   `json:"excluded_count"`
-	CustomerSuccessCount   int64                   `json:"customer_success_count"`
-	CustomerFailureCount   int64                   `json:"customer_failure_count"`
-	CodeSuccessCount       int64                   `json:"code_success_count"`
-	CodeFailureCount       int64                   `json:"code_failure_count"`
-	MessagesScheduledCount int64                   `json:"messages_scheduled_count"`
-	MessagesAcceptedCount  int64                   `json:"messages_accepted_count"`
-	MessagesFailedCount    int64                   `json:"messages_failed_count"`
-	MessagesCancelledCount int64                   `json:"messages_cancelled_count"`
-	ObservedClickCount     int64                   `json:"observed_click_count"`
-	OpenedRecipientCount   int64                   `json:"opened_recipient_count"`
-	DirectCount            int64                   `json:"direct_count"`
-	AssistedCount          int64                   `json:"assisted_count"`
-	NoCouponCount          int64                   `json:"no_coupon_count"`
-	CurrencyMetrics        []RecallCurrencyMetrics `json:"currency_metrics"`
+	CandidateCount         int64                                 `json:"candidate_count"`
+	EnrolledCount          int64                                 `json:"enrolled_count"`
+	ExcludedCount          int64                                 `json:"excluded_count"`
+	CustomerSuccessCount   int64                                 `json:"customer_success_count"`
+	CustomerFailureCount   int64                                 `json:"customer_failure_count"`
+	CodeSuccessCount       int64                                 `json:"code_success_count"`
+	CodeFailureCount       int64                                 `json:"code_failure_count"`
+	MessagesScheduledCount int64                                 `json:"messages_scheduled_count"`
+	MessagesAcceptedCount  int64                                 `json:"messages_accepted_count"`
+	MessagesFailedCount    int64                                 `json:"messages_failed_count"`
+	MessagesCancelledCount int64                                 `json:"messages_cancelled_count"`
+	ObservedClickCount     int64                                 `json:"observed_click_count"`
+	OpenedRecipientCount   int64                                 `json:"opened_recipient_count"`
+	DirectCount            int64                                 `json:"direct_count"`
+	AssistedCount          int64                                 `json:"assisted_count"`
+	NoCouponCount          int64                                 `json:"no_coupon_count"`
+	CurrencyMetrics        []RecallCurrencyMetrics               `json:"currency_metrics"`
+	RevenueMetrics         []model.RecallRevenueTotals           `json:"revenue_metrics"`
+	MetricSnapshots        map[string]model.RecallMetricSnapshot `json:"-"`
+	MetricCards            map[string]RecallMetricCard           `json:"metric_cards"`
 }
 
+type RecallMetricCard struct {
+	Key                      string                     `json:"key"`
+	Total                    int64                      `json:"total"`
+	Amounts                  []RecallMetricAmount       `json:"amounts"`
+	RowGrain                 string                     `json:"row_grain"`
+	SnapshotToken            string                     `json:"snapshot"`
+	LegacyUnidentifiedCount  int64                      `json:"legacy_unidentified_count"`
+	DrilldownComplete        bool                       `json:"drilldown_complete"`
+	SupportedFilters         map[string]bool            `json:"supported_filters"`
+	AmountMinorByCurrency    map[string]int64           `json:"-"`
+	SnapshotHighWaterForTest model.RecallMetricSnapshot `json:"-"`
+}
 type RecallAttributionService struct {
 	stripe RecallStripeClient
 	now    func() time.Time
@@ -181,6 +197,7 @@ func (s *RecallAttributionService) Attribute(ctx context.Context, fact RecallPay
 		fresh.SourceEventID = fact.SourceEventID
 		fresh.TradeNo = fact.TradeNo
 		fresh.UserID = fact.UserID
+		fresh.PaymentCategory = fact.PaymentCategory
 		if fresh.ClaimCampaignID == 0 {
 			fresh.ClaimCampaignID = fact.ClaimCampaignID
 		}
@@ -246,6 +263,7 @@ func (s *RecallAttributionService) Attribute(ctx context.Context, fact RecallPay
 		"currency":            strings.ToUpper(strings.TrimSpace(fact.Currency)),
 		"amount_total":        fact.AmountTotal,
 		"discount_amount":     fact.DiscountAmount,
+		"payment_category":    recallPaymentCategoryOrDefault(fact.PaymentCategory),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal recall conversion event: %w", err)
@@ -359,6 +377,7 @@ func (s *RecallAttributionService) ReconcileBatch(ctx context.Context, limit int
 		fact.SourceEventID = "reconcile:" + candidate.CheckoutSessionId
 		fact.TradeNo = candidate.TradeNo
 		fact.UserID = candidate.UserId
+		fact.PaymentCategory = candidate.PaymentCategory
 		if attributeErr := s.Attribute(ctx, fact); attributeErr != nil {
 			if firstErr == nil {
 				firstErr = attributeErr
@@ -380,6 +399,13 @@ func (s *RecallAttributionService) ReconcileBatch(ctx context.Context, limit int
 		}
 	}
 	return processed, firstErr
+}
+
+func recallPaymentCategoryOrDefault(category model.RecallRevenueCategory) model.RecallRevenueCategory {
+	if category == "" {
+		return model.RecallRevenueCategoryDirectTopUp
+	}
+	return category
 }
 
 func recallCheckoutDiscountIdentityLoaded(discounts []*stripe.CheckoutSessionDiscount) bool {
@@ -435,15 +461,40 @@ func (s *RecallAttributionService) GetMetrics(ctx context.Context, campaignID in
 	if err != nil {
 		return RecallCampaignMetrics{}, err
 	}
-	metrics := RecallCampaignMetrics{CurrencyMetrics: make([]RecallCurrencyMetrics, 0)}
+	metrics := RecallCampaignMetrics{CurrencyMetrics: make([]RecallCurrencyMetrics, 0), MetricSnapshots: make(map[string]model.RecallMetricSnapshot), MetricCards: make(map[string]RecallMetricCard)}
+	now := time.Now()
+	snapshotResult, snapshotErr := model.StreamRecallMetricRows(ctx, model.RecallMetricQuery{CampaignID: campaignID, Metric: "messages_accepted", Limit: 500}, 500, nil)
+	if snapshotErr != nil {
+		return RecallCampaignMetrics{}, snapshotErr
+	}
+	snapshot := snapshotResult.Snapshot
+	for key, entry := range model.RecallMetricRegistry() {
+		query := model.RecallMetricQuery{CampaignID: campaignID, Metric: key, Snapshot: snapshot, Limit: 500}
+		page, pageErr := QueryRecallMetric(ctx, query, now)
+		if pageErr != nil {
+			return RecallCampaignMetrics{}, pageErr
+		}
+		card := RecallMetricCard{
+			Key:                      string(key),
+			Total:                    page.Total,
+			Amounts:                  page.Amounts,
+			RowGrain:                 entry.RowGrain,
+			SnapshotToken:            page.SnapshotToken,
+			LegacyUnidentifiedCount:  page.LegacyUnidentifiedCount,
+			DrilldownComplete:        page.DrilldownComplete,
+			SupportedFilters:         entry.SupportedFilters,
+			AmountMinorByCurrency:    page.AmountMinorByCurrency,
+			SnapshotHighWaterForTest: page.Snapshot,
+		}
+		metrics.MetricCards[string(key)] = card
+		metrics.MetricSnapshots[string(key)] = page.Snapshot
+		applyRecallMetricCardToLegacyFields(&metrics, key, card)
+	}
+	if revenue, revenueErr := model.GetRecallRevenueTotalsWithContext(ctx, campaignID); revenueErr == nil {
+		metrics.RevenueMetrics = revenue
+	}
 	for _, row := range countRows {
 		switch row.Metric {
-		case "candidates":
-			metrics.CandidateCount = row.Count
-		case "enrolled":
-			metrics.EnrolledCount = row.Count
-		case "excluded":
-			metrics.ExcludedCount = row.Count
 		case "customer_success":
 			metrics.CustomerSuccessCount = row.Count
 		case "customer_failure":
@@ -454,22 +505,8 @@ func (s *RecallAttributionService) GetMetrics(ctx context.Context, campaignID in
 			metrics.CodeFailureCount = row.Count
 		case "messages_scheduled":
 			metrics.MessagesScheduledCount = row.Count
-		case "messages_accepted":
-			metrics.MessagesAcceptedCount = row.Count
-		case "messages_failed":
-			metrics.MessagesFailedCount = row.Count
 		case "messages_cancelled":
 			metrics.MessagesCancelledCount = row.Count
-		case "observed_clicks":
-			metrics.ObservedClickCount = row.Count
-		case "opened_recipients":
-			metrics.OpenedRecipientCount = row.Count
-		case "direct":
-			metrics.DirectCount = row.Count
-		case "assisted":
-			metrics.AssistedCount = row.Count
-		case "no_coupon":
-			metrics.NoCouponCount = row.Count
 		}
 	}
 	indexByCurrency := make(map[string]int)
@@ -493,4 +530,29 @@ func (s *RecallAttributionService) GetMetrics(ctx context.Context, campaignID in
 		currency.DiscountAmount += row.DiscountAmount
 	}
 	return metrics, nil
+}
+
+func applyRecallMetricCardToLegacyFields(metrics *RecallCampaignMetrics, key model.RecallMetricKey, card RecallMetricCard) {
+	switch key {
+	case "candidates":
+		metrics.CandidateCount = card.Total
+	case "enrolled":
+		metrics.EnrolledCount = card.Total
+	case "excluded":
+		metrics.ExcludedCount = card.Total
+	case "messages_accepted":
+		metrics.MessagesAcceptedCount = card.Total
+	case "messages_failed":
+		metrics.MessagesFailedCount = card.Total
+	case "observed_clicks":
+		metrics.ObservedClickCount = card.Total
+	case "opened_recipients":
+		metrics.OpenedRecipientCount = card.Total
+	case "direct_conversions":
+		metrics.DirectCount = card.Total
+	case "assisted_conversions":
+		metrics.AssistedCount = card.Total
+	case "no_coupon_conversions":
+		metrics.NoCouponCount = card.Total
+	}
 }

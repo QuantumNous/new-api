@@ -21,6 +21,8 @@ var prometheusPendingBuckets sync.Map
 var prometheusChannelBuckets sync.Map
 var prometheusChannelModelBuckets sync.Map
 var prometheusModelPerformanceBuckets sync.Map
+var prometheusRecallTranslationBuckets sync.Map
+var prometheusRecallTranslationDurationBuckets sync.Map
 var prometheusModelAdmissionMu sync.Mutex
 var prometheusModelDroppedSamples prometheusModelDropCounters
 

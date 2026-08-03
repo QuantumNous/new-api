@@ -10,6 +10,9 @@ import type {
   RecallCampaignMetrics,
   RecallCampaignType,
   RecallEmailStage,
+  RecallMetricCard,
+  RecallMetricKey,
+  RecallRecipient,
 } from '../types'
 
 mock.module('@tanstack/react-router', () => ({
@@ -52,7 +55,6 @@ const {
   CampaignDetail,
   formatRecallDeliveryErrorMessage,
   getRecallActivationReadiness,
-  getRecallCampaignMetricCards,
 } = await import('./campaign-detail')
 
 const locales = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'] as const
@@ -90,30 +92,65 @@ function makeStage(): RecallEmailStage {
 
 function makeMetrics(): RecallCampaignMetrics {
   return {
-    candidate_count: 10,
-    enrolled_count: 8,
-    excluded_count: 2,
+    candidate_count: 999,
+    enrolled_count: 999,
+    excluded_count: 999,
     customer_success_count: 7,
     customer_failure_count: 1,
     code_success_count: 6,
     code_failure_count: 1,
     messages_scheduled_count: 9,
-    messages_accepted_count: 4,
-    messages_failed_count: 2,
+    messages_accepted_count: 999,
+    messages_failed_count: 999,
     messages_cancelled_count: 1,
-    opened_recipient_count: 5,
-    observed_click_count: 3,
-    direct_count: 1,
-    assisted_count: 2,
-    no_coupon_count: 1,
+    opened_recipient_count: 999,
+    observed_click_count: 999,
+    direct_count: 999,
+    assisted_count: 999,
+    no_coupon_count: 999,
     currency_metrics: [],
+    metric_cards: {
+      candidates: makeMetricCard('candidates', 10, 'identity'),
+      enrolled: makeMetricCard('enrolled', 8, 'identity'),
+      excluded: makeMetricCard('excluded', 2, 'identity'),
+      opened_recipients: makeMetricCard('opened_recipients', 5, 'identity'),
+      observed_clicks: makeMetricCard('observed_clicks', 3, 'identity'),
+      messages_accepted: makeMetricCard('messages_accepted', 4, 'message'),
+      messages_failed: makeMetricCard('messages_failed', 2, 'message'),
+      direct_conversions: makeMetricCard('direct_conversions', 1, 'conversion'),
+      assisted_conversions: makeMetricCard(
+        'assisted_conversions',
+        2,
+        'conversion'
+      ),
+      no_coupon_conversions: makeMetricCard(
+        'no_coupon_conversions',
+        1,
+        'conversion'
+      ),
+      attributed_spend: {
+        ...makeMetricCard('attributed_spend', 2, 'conversion'),
+        amounts: [{ currency: 'USD', amount_minor: 9_600, user_count: 2 }],
+      },
+    },
   }
 }
 
-function makeLegacyMetricsWithoutOpenedCount(): RecallCampaignMetrics {
-  const { opened_recipient_count: _openedRecipientCount, ...legacyMetrics } =
-    makeMetrics()
-  return legacyMetrics as RecallCampaignMetrics
+function makeMetricCard(
+  key: RecallMetricKey,
+  total: number,
+  rowGrain: string
+): RecallMetricCard {
+  return {
+    key,
+    total,
+    amounts: [],
+    row_grain: rowGrain,
+    snapshot: `${key}-snapshot`,
+    legacy_unidentified_count: 0,
+    drilldown_complete: true,
+    supported_filters: { search: true },
+  }
 }
 
 function makeDetail(campaignType: RecallCampaignType): RecallCampaignDetail {
@@ -200,7 +237,8 @@ function makeDetail(campaignType: RecallCampaignType): RecallCampaignDetail {
 
 function renderCampaignDetail(
   campaignType: RecallCampaignType,
-  metrics: RecallCampaignMetrics = makeMetrics()
+  metrics: RecallCampaignMetrics = makeMetrics(),
+  recipients: RecallRecipient[] = []
 ): string {
   const campaignId = 42
   const queryClient = new QueryClient({
@@ -221,7 +259,12 @@ function renderCampaignDetail(
   })
   queryClient.setQueryData(recallCampaignKeys.recipients(campaignId, 1), {
     success: true,
-    data: { items: [], total: 0, page: 1, page_size: 100 },
+    data: {
+      items: recipients,
+      total: recipients.length,
+      page: 1,
+      page_size: 100,
+    },
   })
   queryClient.setQueryData(recallCampaignKeys.events(campaignId, 1), {
     success: true,
@@ -240,6 +283,14 @@ function renderCampaignDetail(
 function campaignMetricsMarkup(html: string): string {
   const start = html.indexOf('Campaign metrics')
   const end = html.indexOf('Recipients and messages')
+  expect(start).toBeGreaterThan(-1)
+  expect(end).toBeGreaterThan(start)
+  return html.slice(start, end)
+}
+
+function campaignRecipientsMarkup(html: string): string {
+  const start = html.indexOf('Recipients and messages')
+  const end = html.indexOf('Audit timeline')
   expect(start).toBeGreaterThan(-1)
   expect(end).toBeGreaterThan(start)
   return html.slice(start, end)
@@ -372,42 +423,8 @@ describe('Recall campaign delivery errors', () => {
   })
 })
 
-describe('Recall campaign metric cards', () => {
-  test('shows opened users as a same-level engagement metric for content-only campaigns', () => {
-    const cards = getRecallCampaignMetricCards(makeMetrics(), false)
-
-    expect(cards).toContainEqual(['Users who opened', 5])
-    expect(cards).toContainEqual(['Observed clicks', 3])
-    expect(cards).not.toContainEqual(['Direct conversions', 1])
-
-    const openedIndex = cards.findIndex(
-      ([label]) => label === 'Users who opened'
-    )
-    const clickIndex = cards.findIndex(([label]) => label === 'Observed clicks')
-    expect(openedIndex).toBeGreaterThan(-1)
-    expect(clickIndex).toBe(openedIndex + 1)
-  })
-
-  test('keeps opened users beside observed clicks while retaining promotion conversion metrics', () => {
-    const cards = getRecallCampaignMetricCards(makeMetrics(), true)
-
-    expect(cards).toContainEqual(['Users who opened', 5])
-    expect(cards).toContainEqual(['Observed clicks', 3])
-    expect(cards).toContainEqual(['Direct conversions', 1])
-    expect(cards).toContainEqual(['Assisted conversions', 2])
-    expect(cards).toContainEqual(['No-coupon conversions', 1])
-
-    const openedIndex = cards.findIndex(
-      ([label]) => label === 'Users who opened'
-    )
-    const clickIndex = cards.findIndex(([label]) => label === 'Observed clicks')
-    expect(openedIndex).toBeGreaterThan(-1)
-    expect(clickIndex).toBe(openedIndex + 1)
-  })
-})
-
 describe('CampaignDetail metric rendering', () => {
-  test('renders opened users beside observed clicks for content-only campaign metrics', () => {
+  test('renders opened users beside observed clicks from authoritative metric cards', () => {
     const metricsHtml = campaignMetricsMarkup(
       renderCampaignDetail('content_only')
     )
@@ -416,10 +433,11 @@ describe('CampaignDetail metric rendering', () => {
     expect(metricsHtml).toContain('>5</div>')
     expect(metricsHtml).toContain('Observed clicks')
     expect(metricsHtml).toContain('>3</div>')
-    expect(metricsHtml).not.toContain('Direct conversions')
+    expect(metricsHtml).toContain('Direct conversions')
+    expect(metricsHtml).not.toContain('>999</span>')
   })
 
-  test('renders opened users and keeps promotion conversion metrics for promotion campaigns', () => {
+  test('renders promotion conversion metric cards with backend totals', () => {
     const metricsHtml = campaignMetricsMarkup(renderCampaignDetail('promotion'))
 
     expect(metricsHtml).toContain('Users who opened')
@@ -429,19 +447,78 @@ describe('CampaignDetail metric rendering', () => {
     expect(metricsHtml).toContain('Direct conversions')
     expect(metricsHtml).toContain('Assisted conversions')
     expect(metricsHtml).toContain('No-coupon conversions')
+    expect(metricsHtml).not.toContain('>999</span>')
   })
 
-  test('renders zero opened users for legacy metrics responses without opened counts', () => {
+  test('ignores legacy currency metrics when authoritative money cards exist', () => {
+    const metrics = makeMetrics()
+    metrics.currency_metrics = [
+      {
+        currency: 'usd',
+        direct_count: 1,
+        assisted_count: 0,
+        no_coupon_count: 0,
+        payment_amount: 9_600,
+        discount_amount: 2_400,
+      },
+    ]
+
     const metricsHtml = campaignMetricsMarkup(
-      renderCampaignDetail(
-        'content_only',
-        makeLegacyMetricsWithoutOpenedCount()
-      )
+      renderCampaignDetail('promotion', metrics)
     )
 
-    expect(metricsHtml).toContain('Users who opened')
-    expect(metricsHtml).toContain('>0</div>')
-    expect(metricsHtml).toContain('Observed clicks')
-    expect(metricsHtml).toContain('>3</div>')
+    expect(metricsHtml).toContain('Attributed spend')
+    expect(metricsHtml).toContain('$96.00 / 2')
+    expect(metricsHtml).not.toContain('Payment amount')
+    expect(metricsHtml).not.toContain('9600')
+  })
+
+  test('does not reconstruct cards from legacy fields when metric cards are absent', () => {
+    const metrics = makeMetrics()
+    delete metrics.metric_cards
+    const metricsHtml = campaignMetricsMarkup(
+      renderCampaignDetail('content_only', metrics)
+    )
+
+    expect(metricsHtml).toContain(
+      'Campaign metric cards are not available yet.'
+    )
+    expect(metricsHtml).not.toContain('>999</span>')
+  })
+})
+
+describe('CampaignDetail recipient rendering', () => {
+  test('formats conversion amounts in currency major units', () => {
+    const recipient: RecallRecipient = {
+      id: 1,
+      campaign_id: 42,
+      user_id: 7824,
+      language_snapshot: 'en',
+      state: 'converted',
+      stripe_customer_id: '',
+      promotion_code_masked: '',
+      promotion_expires_at: 0,
+      first_sent_at: 0,
+      last_sent_at: 0,
+      clicked_at: 0,
+      converted_at: 0,
+      conversion_kind: 'direct',
+      conversion_trade_no: 'activity-14-7824',
+      conversion_currency: 'USD',
+      conversion_amount: 1_600,
+      discount_amount: 0,
+      last_error_code: '',
+      last_error_message: '',
+      created_at: 0,
+      updated_at: 0,
+      messages: [],
+    }
+
+    const recipientHtml = campaignRecipientsMarkup(
+      renderCampaignDetail('promotion', makeMetrics(), [recipient])
+    )
+
+    expect(recipientHtml).toContain('$16.00')
+    expect(recipientHtml).not.toContain('USD 1600')
   })
 })

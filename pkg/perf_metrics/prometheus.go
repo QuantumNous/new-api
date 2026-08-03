@@ -22,6 +22,8 @@ func BuildPrometheusText(_ context.Context) (string, error) {
 	mergePrometheusPendingSnapshots(series)
 	channelSnapshots := snapshotPrometheusChannels()
 	channelModelSnapshots := snapshotPrometheusChannelModels()
+	recallTranslationSnapshots := snapshotPrometheusRecallTranslations()
+	recallTranslationDurationSnapshots := snapshotPrometheusRecallTranslationDurations()
 	modelPerformanceSnapshots := snapshotPrometheusModelPerformances(time.Now())
 	bytePlusRealPersonSnapshot, bytePlusRealPersonActive := snapshotBytePlusRealPersonMetrics()
 	baseSeriesCount := len(series)
@@ -31,6 +33,7 @@ func BuildPrometheusText(_ context.Context) (string, error) {
 	for _, snapshot := range channelModelSnapshots {
 		baseSeriesCount += snapshot.seriesCount()
 	}
+	baseSeriesCount += recallTranslationSeriesCount(recallTranslationSnapshots, recallTranslationDurationSnapshots)
 	maxSeries := prometheusMaxSeriesPerScrape()
 	bytePlusRealPersonFixedSeriesCount := bytePlusRealPersonMetricSeriesCount(true)
 	hasNonBytePlusMetrics := baseSeriesCount > 0 || len(modelPerformanceSnapshots) > 0
@@ -94,6 +97,7 @@ func BuildPrometheusText(_ context.Context) (string, error) {
 	writeBytePlusRealPersonMetrics(&b, bytePlusRealPersonSnapshot, bytePlusRealPersonEnabled)
 	writePrometheusChannelMetrics(&b, channelSnapshots)
 	writePrometheusChannelModelMetrics(&b, channelModelSnapshots)
+	writePrometheusRecallTranslationMetrics(&b, recallTranslationSnapshots, recallTranslationDurationSnapshots)
 
 	return b.String(), nil
 }

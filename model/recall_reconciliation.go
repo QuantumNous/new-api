@@ -268,15 +268,17 @@ func recallAttributionDuplicateSubscriptionsWithContext(ctx context.Context, tra
 
 func recallAttributionCandidateFromOrderRow(row recallAttributionOrderRow, phase string, enrolledAt int64) (RecallAttributionCandidate, bool) {
 	sessionID := strings.TrimSpace(row.CheckoutSessionId)
+	paymentCategory := RecallRevenueCategoryDirectTopUp
 	if phase == recallAttributionPhaseSubscription {
 		sessionID = StripeCheckoutSessionIDFromProviderPayload(row.ProviderPayload)
+		paymentCategory = RecallRevenueCategoryOnlineSubscription
 	}
 	if sessionID == "" {
 		return RecallAttributionCandidate{}, false
 	}
 	return RecallAttributionCandidate{
 		TradeNo: strings.TrimSpace(row.TradeNo), UserId: row.UserId, CheckoutSessionId: sessionID,
-		OrderCreatedAt: row.OrderCreatedAt, EnrolledAt: enrolledAt,
+		OrderCreatedAt: row.OrderCreatedAt, EnrolledAt: enrolledAt, PaymentCategory: paymentCategory,
 	}, true
 }
 

@@ -14,14 +14,15 @@ import (
 )
 
 type RecallEvent struct {
-	Id            int64  `json:"id" gorm:"primaryKey"`
-	CampaignId    int64  `json:"campaign_id" gorm:"index"`
-	RecipientId   int64  `json:"recipient_id" gorm:"index"`
-	EventType     string `json:"event_type" gorm:"type:varchar(48);not null;index"`
-	Source        string `json:"source" gorm:"type:varchar(32);uniqueIndex:idx_recall_source_event,priority:1"`
+	Id            int64  `json:"id" gorm:"primaryKey;index:idx_recall_metric_fact_rep,priority:5;index:idx_recall_metric_fact_scan,priority:4;index:idx_recall_metric_message_state,priority:5"`
+	CampaignId    int64  `json:"campaign_id" gorm:"index;index:idx_recall_metric_fact_rep,priority:1;index:idx_recall_metric_fact_scan,priority:1;index:idx_recall_metric_message_state,priority:1"`
+	RecipientId   int64  `json:"recipient_id" gorm:"index;index:idx_recall_metric_fact_rep,priority:3;index:idx_recall_metric_fact_scan,priority:5"`
+	EventType     string `json:"event_type" gorm:"type:varchar(48);not null;index;index:idx_recall_metric_fact_rep,priority:2;index:idx_recall_metric_fact_scan,priority:2;index:idx_recall_metric_message_state,priority:2"`
+	Source        string `json:"source" gorm:"type:varchar(32);uniqueIndex:idx_recall_source_event,priority:1;index:idx_recall_metric_message_state,priority:3"`
+	MessageId     int64  `json:"message_id" gorm:"index:idx_recall_metric_message_state,priority:4"`
 	SourceEventId string `json:"source_event_id" gorm:"type:varchar(160);uniqueIndex:idx_recall_source_event,priority:2"`
 	EventData     string `json:"event_data" gorm:"type:text"`
-	CreatedAt     int64  `json:"created_at" gorm:"autoCreateTime;index"`
+	CreatedAt     int64  `json:"created_at" gorm:"autoCreateTime;index;index:idx_recall_metric_fact_rep,priority:4;index:idx_recall_metric_fact_scan,priority:3"`
 }
 
 var errRecallRunNotOwned = errors.New("recall campaign run not owned")
@@ -29,6 +30,27 @@ var errRecallConversionNotOwned = errors.New("recall conversion not owned")
 var errRecallAdminEventNotOwned = errors.New("recall admin audit event already exists")
 
 const recallRunBatchSize = 200
+
+type RecallCampaignRunExclusion struct {
+	RecipientIdentity string
+	UserId            int
+	ReasonCode        string
+}
+
+type RecallCampaignRunExclusionSource interface {
+	ForEachRecallCampaignRunExclusion(func(RecallCampaignRunExclusion) error) error
+}
+
+type RecallCampaignRunExclusions []RecallCampaignRunExclusion
+
+func (exclusions RecallCampaignRunExclusions) ForEachRecallCampaignRunExclusion(visit func(RecallCampaignRunExclusion) error) error {
+	for _, exclusion := range exclusions {
+		if err := visit(exclusion); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 type RecallClaimClickOutcome string
 
@@ -126,6 +148,7 @@ func CommitRecallCampaignRun(
 	recipients []RecallRecipient,
 	messages []RecallMessage,
 	runEvent RecallEvent,
+	runExclusions RecallCampaignRunExclusionSource,
 ) (bool, int, error) {
 	if len(from) == 0 {
 		return false, 0, nil
@@ -171,6 +194,9 @@ func CommitRecallCampaignRun(
 		if eventResult.RowsAffected == 0 {
 			return errRecallRunNotOwned
 		}
+		if err := upsertRecallCampaignRunExclusionsTx(tx, campaignID, runEvent.Id, runEvent.CreatedAt, runExclusions); err != nil {
+			return err
+		}
 		if len(recipients) > 0 {
 			result := tx.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "campaign_id"}, {Name: "recipient_identity"}},
@@ -214,10 +240,15 @@ func CommitRecallCampaignRun(
 			}
 			messages[i].RecipientId = recipientID
 		}
-		return tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "recipient_id"}, {Name: "stage_no"}},
-			DoNothing: true,
-		}).CreateInBatches(&messages, recallRunBatchSize).Error
+		occurredAt := runEvent.CreatedAt
+		if occurredAt == 0 {
+			var err error
+			occurredAt, err = getDBTimestamp(tx)
+			if err != nil {
+				return err
+			}
+		}
+		return CreateRecallMessagesWithStateEventsTx(tx, campaignID, messages, occurredAt)
 	})
 	if errors.Is(err, errRecallRunNotOwned) {
 		return false, 0, nil
@@ -226,6 +257,74 @@ func CommitRecallCampaignRun(
 		return false, 0, err
 	}
 	return owned, int(inserted), nil
+}
+
+func upsertRecallCampaignRunExclusionsTx(tx *gorm.DB, campaignID int64, runEventID int64, seenAt int64, runExclusions RecallCampaignRunExclusionSource) error {
+	if tx == nil {
+		return fmt.Errorf("recall run exclusion ledger requires a transaction")
+	}
+	if campaignID <= 0 || runEventID <= 0 || runExclusions == nil {
+		return nil
+	}
+	if seenAt == 0 {
+		var err error
+		seenAt, err = getDBTimestamp(tx)
+		if err != nil {
+			return err
+		}
+	}
+	rows := make([]RecallCampaignExclusion, 0, recallRunBatchSize)
+	flush := func() error {
+		if len(rows) == 0 {
+			return nil
+		}
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "campaign_id"}, {Name: "recipient_identity"}},
+			DoNothing: true,
+		}).CreateInBatches(rows, recallRunBatchSize).Error; err != nil {
+			return err
+		}
+		for _, row := range rows {
+			if err := tx.Model(&RecallCampaignExclusion{}).
+				Where("campaign_id = ? AND recipient_identity = ?", campaignID, row.RecipientIdentity).
+				Updates(map[string]any{
+					"user_id":              gorm.Expr("CASE WHEN user_id = 0 THEN ? ELSE user_id END", row.UserId),
+					"first_run_event_id":   gorm.Expr("CASE WHEN first_run_event_id = 0 THEN ? ELSE first_run_event_id END", runEventID),
+					"last_run_event_id":    runEventID,
+					"last_run_reason_code": row.LastRunReasonCode,
+					"first_seen_at":        gorm.Expr("CASE WHEN first_seen_at = 0 THEN ? ELSE first_seen_at END", seenAt),
+					"last_seen_at":         seenAt,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		rows = rows[:0]
+		return nil
+	}
+	if err := runExclusions.ForEachRecallCampaignRunExclusion(func(exclusion RecallCampaignRunExclusion) error {
+		identity := strings.TrimSpace(exclusion.RecipientIdentity)
+		reason := sanitizeRecallErrorCode(exclusion.ReasonCode)
+		if identity == "" || reason == "" {
+			return nil
+		}
+		rows = append(rows, RecallCampaignExclusion{
+			CampaignId:        campaignID,
+			RecipientIdentity: identity,
+			UserId:            exclusion.UserId,
+			LastRunReasonCode: reason,
+			FirstRunEventId:   runEventID,
+			LastRunEventId:    runEventID,
+			FirstSeenAt:       seenAt,
+			LastSeenAt:        seenAt,
+		})
+		if len(rows) >= recallRunBatchSize {
+			return flush()
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return flush()
 }
 
 func RecordRecallClaimClickWithContext(ctx context.Context, recipientID int64, campaignID int64, clickedAt int64) (RecallClaimClickOutcome, error) {

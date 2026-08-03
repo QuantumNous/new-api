@@ -1,11 +1,13 @@
 package model
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,8 +18,228 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 )
+
+func setupRecallRepositoryDB(t *testing.T) (*gorm.DB, *gorm.DB) {
+	t.Helper()
+	return setupRecallRepositoryTestDB(t)
+}
+
+func TestRecallOperationsSchemaContract(t *testing.T) {
+	setupRecallRepositoryDB(t)
+
+	require.True(t, DB.Migrator().HasTable(&RecallExclusionBatch{}))
+	require.True(t, DB.Migrator().HasTable(&RecallCampaignExclusion{}))
+	require.True(t, DB.Migrator().HasTable(&RecallTranslationTask{}))
+	require.True(t, DB.Migrator().HasColumn(&RecallMessage{}, "StateVersion"))
+	require.True(t, DB.Migrator().HasColumn(&RecallMessage{}, "PreSendAttemptCount"))
+	require.True(t, DB.Migrator().HasIndex(&RecallCampaignExclusion{}, "idx_recall_exclusion_campaign_identity"))
+	require.True(t, DB.Migrator().HasIndex(&RecallTranslationTask{}, "idx_recall_translation_due"))
+	require.Equal(t, "BLOB", recallSQLiteColumnType(t, "recall_exclusion_batches", "resolved_user_ids_snapshot"))
+	require.Equal(t, "TEXT", recallSQLiteColumnType(t, "recall_exclusion_batches", "blocking_errors_snapshot"))
+	require.Equal(t, "TEXT", recallSQLiteColumnType(t, "recall_exclusion_batches", "warnings_snapshot"))
+	require.Equal(t, "TEXT", recallSQLiteColumnType(t, "recall_translation_tasks", "source_snapshot"))
+	require.Equal(t, "TEXT", recallSQLiteColumnType(t, "recall_translation_tasks", "result_snapshot"))
+}
+
+func TestRecallOperationsSchemaUsesPortableSnapshotTypes(t *testing.T) {
+	tests := []struct {
+		name                    string
+		dialect                 gorm.Dialector
+		wantExclusionSnapshot   string
+		wantExclusionProblems   string
+		wantTranslationSnapshot string
+	}{
+		{name: "sqlite", dialect: sqlite.Open(":memory:"), wantExclusionSnapshot: "blob", wantExclusionProblems: "text", wantTranslationSnapshot: "text"},
+		{name: "mysql", dialect: mysql.New(mysql.Config{}), wantExclusionSnapshot: "longblob", wantExclusionProblems: "text", wantTranslationSnapshot: "text"},
+		{name: "postgres", dialect: postgres.New(postgres.Config{}), wantExclusionSnapshot: "bytea", wantExclusionProblems: "text", wantTranslationSnapshot: "text"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			exclusionSchema, err := schema.Parse(&RecallExclusionBatch{}, &sync.Map{}, schema.NamingStrategy{})
+			require.NoError(t, err)
+			exclusionSnapshot := exclusionSchema.LookUpField("ResolvedUserIDsSnapshot")
+			require.NotNil(t, exclusionSnapshot)
+			require.Equal(t, test.wantExclusionSnapshot, test.dialect.DataTypeOf(exclusionSnapshot))
+			for _, fieldName := range []string{"BlockingErrorsSnapshot", "WarningsSnapshot"} {
+				field := exclusionSchema.LookUpField(fieldName)
+				require.NotNil(t, field)
+				require.Equal(t, test.wantExclusionProblems, test.dialect.DataTypeOf(field))
+			}
+
+			translationSchema, err := schema.Parse(&RecallTranslationTask{}, &sync.Map{}, schema.NamingStrategy{})
+			require.NoError(t, err)
+			for _, fieldName := range []string{"SourceSnapshot", "ResultSnapshot"} {
+				field := translationSchema.LookUpField(fieldName)
+				require.NotNil(t, field)
+				require.Equal(t, test.wantTranslationSnapshot, test.dialect.DataTypeOf(field))
+			}
+		})
+	}
+}
+
+func TestRecallTranslationSnapshotsDeclareTextColumnType(t *testing.T) {
+	translationSchema, err := schema.Parse(&RecallTranslationTask{}, &sync.Map{}, schema.NamingStrategy{})
+	require.NoError(t, err)
+	for _, fieldName := range []string{"SourceSnapshot", "ResultSnapshot"} {
+		field := translationSchema.LookUpField(fieldName)
+		require.NotNil(t, field)
+		require.Equal(t, "text", field.TagSettings["TYPE"])
+	}
+}
+
+func TestRecallOperationsSchemaColumnCapacities(t *testing.T) {
+	setupRecallRepositoryDB(t)
+
+	tests := []struct {
+		model      any
+		fieldName  string
+		table      string
+		column     string
+		wantType   string
+		sqliteType string
+	}{
+		{model: &RecallExclusionBatch{}, fieldName: "Status", table: "recall_exclusion_batches", column: "status", wantType: "varchar(16)", sqliteType: "varchar(16)"},
+		{model: &RecallExclusionBatch{}, fieldName: "FileSHA256", table: "recall_exclusion_batches", column: "file_sha256", wantType: "char(64)", sqliteType: "char(64)"},
+		{model: &RecallCampaignExclusion{}, fieldName: "RecipientIdentity", table: "recall_campaign_exclusions", column: "recipient_identity", wantType: "varchar(96)", sqliteType: "varchar(96)"},
+		{model: &RecallCampaignExclusion{}, fieldName: "PersistentReasonCode", table: "recall_campaign_exclusions", column: "persistent_reason_code", wantType: "varchar(64)", sqliteType: "varchar(64)"},
+		{model: &RecallCampaignExclusion{}, fieldName: "LastRunReasonCode", table: "recall_campaign_exclusions", column: "last_run_reason_code", wantType: "varchar(64)", sqliteType: "varchar(64)"},
+		{model: &RecallTranslationTask{}, fieldName: "SourceHash", table: "recall_translation_tasks", column: "source_hash", wantType: "char(64)", sqliteType: "char(64)"},
+		{model: &RecallTranslationTask{}, fieldName: "IdempotencyKey", table: "recall_translation_tasks", column: "idempotency_key", wantType: "char(64)", sqliteType: "char(64)"},
+		{model: &RecallTranslationTask{}, fieldName: "Status", table: "recall_translation_tasks", column: "status", wantType: "varchar(16)", sqliteType: "varchar(16)"},
+		{model: &RecallTranslationTask{}, fieldName: "LeaseOwner", table: "recall_translation_tasks", column: "lease_owner", wantType: "varchar(96)", sqliteType: "varchar(96)"},
+		{model: &RecallTranslationTask{}, fieldName: "ErrorCode", table: "recall_translation_tasks", column: "error_code", wantType: "varchar(64)", sqliteType: "varchar(64)"},
+		{model: &RecallTranslationTask{}, fieldName: "ErrorMessage", table: "recall_translation_tasks", column: "error_message", wantType: "varchar(512)", sqliteType: "varchar(512)"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.table+"/"+test.column, func(t *testing.T) {
+			parsed, err := schema.Parse(test.model, &sync.Map{}, schema.NamingStrategy{})
+			require.NoError(t, err)
+			field := parsed.LookUpField(test.fieldName)
+			require.NotNil(t, field)
+			require.Equal(t, test.wantType, field.TagSettings["TYPE"])
+			require.Equal(t, test.wantType, mysql.New(mysql.Config{}).DataTypeOf(field))
+			require.Equal(t, test.wantType, postgres.New(postgres.Config{}).DataTypeOf(field))
+			require.Equal(t, test.wantType, sqlite.Open(":memory:").DataTypeOf(field))
+			require.Equal(t, test.sqliteType, recallSQLiteColumnType(t, test.table, test.column))
+		})
+	}
+}
+
+func TestRecallMessagePreSendAttemptCountUsesPortableIntegerType(t *testing.T) {
+	setupRecallRepositoryDB(t)
+	parsed, err := schema.Parse(&RecallMessage{}, &sync.Map{}, schema.NamingStrategy{})
+	require.NoError(t, err)
+	field := parsed.LookUpField("PreSendAttemptCount")
+	require.NotNil(t, field)
+	require.Equal(t, "bigint", mysql.New(mysql.Config{}).DataTypeOf(field))
+	require.Equal(t, "bigint", postgres.New(postgres.Config{}).DataTypeOf(field))
+	require.Equal(t, "integer", sqlite.Open(":memory:").DataTypeOf(field))
+	require.Equal(t, "integer", strings.ToLower(recallSQLiteColumnType(t, "recall_messages", "pre_send_attempt_count")))
+}
+
+func TestRecallTranslationSnapshotMySQLWideningSQLUsesLongText(t *testing.T) {
+	for _, columnName := range recallTranslationTaskSnapshotColumns {
+		sql := strings.ToLower(recallTranslationTaskSnapshotLongTextSQL(columnName))
+		require.Contains(t, sql, "alter table `recall_translation_tasks`")
+		require.Contains(t, sql, "modify column `"+columnName+"` longtext")
+		require.NotContains(t, sql, "alter column")
+		require.NotContains(t, sql, " where ")
+		require.NotContains(t, sql, "json_set")
+		require.NotContains(t, sql, "json_extract")
+		require.NotContains(t, sql, "jsonb")
+	}
+}
+
+func TestRecallOperationsMigrationDryRunSQLIsPortable(t *testing.T) {
+	sqliteDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := sqliteDB.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	dialects := map[string]struct {
+		dialect    gorm.Dialector
+		typeTokens []string
+	}{
+		"mysql": {
+			dialect: mysql.New(mysql.Config{
+				Conn:                      sqlDB,
+				SkipInitializeWithVersion: true,
+			}),
+			typeTokens: []string{"longblob", "longtext"},
+		},
+		"postgres": {
+			dialect:    postgres.New(postgres.Config{Conn: sqlDB}),
+			typeTokens: []string{"bytea", "text"},
+		},
+	}
+	for name, test := range dialects {
+		t.Run(name, func(t *testing.T) {
+			var sqlLog bytes.Buffer
+			db, err := gorm.Open(test.dialect, &gorm.Config{
+				DryRun:               true,
+				DisableAutomaticPing: true,
+				Logger:               logger.New(log.New(&sqlLog, "", 0), logger.Config{LogLevel: logger.Info}),
+			})
+			require.NoError(t, err)
+			require.NoError(t, db.Migrator().CreateTable(
+				&RecallExclusionBatch{},
+				&RecallCampaignExclusion{},
+				&RecallMessage{},
+				&RecallTranslationTask{},
+			))
+			generatedSQL := strings.ToLower(sqlLog.String())
+			if name == "mysql" {
+				for _, columnName := range recallTranslationTaskSnapshotColumns {
+					generatedSQL += "\n" + strings.ToLower(recallTranslationTaskSnapshotLongTextSQL(columnName))
+				}
+			}
+			require.NotEmpty(t, strings.TrimSpace(generatedSQL))
+			require.Contains(t, generatedSQL, "recall_exclusion_batches")
+			require.Contains(t, generatedSQL, "recall_campaign_exclusions")
+			require.Contains(t, generatedSQL, "recall_messages")
+			require.Contains(t, generatedSQL, "pre_send_attempt_count")
+			require.Contains(t, generatedSQL, "recall_translation_tasks")
+			for _, token := range test.typeTokens {
+				require.Contains(t, generatedSQL, token)
+			}
+			require.NotContains(t, generatedSQL, "alter column")
+			require.NotContains(t, generatedSQL, " where ")
+			require.NotContains(t, generatedSQL, "json_set")
+			require.NotContains(t, generatedSQL, "json_extract")
+			require.NotContains(t, generatedSQL, "jsonb")
+		})
+	}
+}
+
+func recallSQLiteColumnType(t *testing.T, table string, column string) string {
+	t.Helper()
+	rows, err := DB.Raw("PRAGMA table_info(" + table + ")").Rows()
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name string
+		var columnType string
+		var notNull int
+		var defaultValue sql.NullString
+		var pk int
+		require.NoError(t, rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk))
+		if name == column {
+			return columnType
+		}
+	}
+	require.NoError(t, rows.Err())
+	require.Failf(t, "column not found", "%s.%s", table, column)
+	return ""
+}
 
 func setupRecallRepositoryTestDB(t *testing.T) (*gorm.DB, *gorm.DB) {
 	t.Helper()
@@ -48,7 +270,11 @@ func setupRecallRepositoryTestDB(t *testing.T) (*gorm.DB, *gorm.DB) {
 		&RecallCampaign{},
 		&RecallRecipient{},
 		&RecallMessage{},
+		&RecallExclusionBatch{},
+		&RecallCampaignExclusion{},
+		&RecallTranslationTask{},
 		&RecallEvent{},
+		&RecallEmailQuotaWindow{},
 	))
 	return mainDB, logDB
 }
@@ -72,10 +298,15 @@ func setupRecallRepositoryFileDB(t *testing.T) *gorm.DB {
 	})
 
 	require.NoError(t, DB.AutoMigrate(
+		&User{},
 		&RecallCampaign{},
 		&RecallRecipient{},
 		&RecallMessage{},
+		&RecallExclusionBatch{},
+		&RecallCampaignExclusion{},
+		&RecallTranslationTask{},
 		&RecallEvent{},
+		&RecallEmailQuotaWindow{},
 	))
 	return db
 }
@@ -1223,9 +1454,18 @@ func TestListRecallOfferCandidatesChunksLargeSetBasedFinalLoads(t *testing.T) {
 	}))
 	t.Cleanup(func() { _ = DB.Callback().Query().Remove(callbackName) })
 
-	candidates, err := ListRecallOfferCandidatesForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now)
+	candidates := make([]RecallOfferCandidate, 0, candidateCount)
+	afterID := int64(0)
+	for {
+		page, err := ListRecallOfferCandidatePageForUserWithContext(context.Background(), user.Id, strings.ToLower(user.Email), now, afterID, recallOfferCandidateIDBatchSize)
+		require.NoError(t, err)
+		candidates = append(candidates, page.Candidates...)
+		if !page.HasMore {
+			break
+		}
+		afterID = page.NextAfterRecipientID
+	}
 
-	require.NoError(t, err)
 	require.Len(t, candidates, candidateCount)
 	require.Equal(t, 4, queryCounts["RecallRecipient"], "two bounded cursor scans plus two bounded final recipient loads")
 	require.Equal(t, 2, queryCounts["RecallCampaign"], "campaign hydration must use the same bounded batching")
@@ -2675,9 +2915,12 @@ func TestRecallRunIdempotencyInsertsRecipientsMessagesAndEventOnce(t *testing.T)
 	require.Len(t, storedMessages, 2)
 	require.Equal(t, storedRecipients[0].Id, storedMessages[0].RecipientId)
 	require.Equal(t, storedRecipients[1].Id, storedMessages[1].RecipientId)
-	var eventCount int64
-	require.NoError(t, DB.Model(&RecallEvent{}).Count(&eventCount).Error)
-	require.Equal(t, int64(1), eventCount)
+	var runEventCount int64
+	require.NoError(t, DB.Model(&RecallEvent{}).Where("event_type = ?", "campaign_run").Count(&runEventCount).Error)
+	require.EqualValues(t, 1, runEventCount)
+	var messageEventCount int64
+	require.NoError(t, DB.Model(&RecallEvent{}).Where("event_type = ?", "message_state_changed").Count(&messageEventCount).Error)
+	require.EqualValues(t, 2, messageEventCount)
 }
 
 func TestRecallRunIdempotencyMixedRecipientConflictBindsMessagesByUser(t *testing.T) {
@@ -2816,6 +3059,7 @@ func TestRecallRunCommitIdentityAlignsEmailOnlyRecipientsAndReplays(t *testing.T
 		recipients,
 		messages,
 		runEvent,
+		nil,
 	)
 	require.NoError(t, err)
 	require.True(t, committed)
@@ -2832,6 +3076,7 @@ func TestRecallRunCommitIdentityAlignsEmailOnlyRecipientsAndReplays(t *testing.T
 		recipients,
 		messages,
 		runEvent,
+		nil,
 	)
 	require.NoError(t, err)
 	require.False(t, committed)
@@ -2884,6 +3129,7 @@ func TestRecallCampaignRunRejectsDuplicateIdentityInputsBeforeWrites(t *testing.
 		recipients,
 		messages,
 		runEvent,
+		nil,
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "duplicate recipient identity")
@@ -2894,6 +3140,160 @@ func TestRecallCampaignRunRejectsDuplicateIdentityInputsBeforeWrites(t *testing.
 	require.NoError(t, DB.First(&storedCampaign, campaign.Id).Error)
 	require.Equal(t, RecallCampaignScheduled, storedCampaign.Status)
 	requireRecallRunTablesEmpty(t)
+}
+
+func TestRecallAudienceExclusionLedgerUpsertUsesInsertedRunEventAndPreservesPersistentFields(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+	campaign := newRecallRepositoryCampaign("run exclusion ledger")
+	campaign.Status = RecallCampaignRunning
+	require.NoError(t, CreateRecallCampaign(&campaign))
+	persistent := RecallCampaignExclusion{
+		CampaignId: campaign.Id, RecipientIdentity: RecallRecipientIdentityForUser(9101), UserId: 9101,
+		Persistent: true, PersistentReasonCode: "operator_csv", SourceBatchId: 77, CreatedBy: 42,
+		FirstSeenAt: 90, LastSeenAt: 90,
+	}
+	require.NoError(t, DB.Create(&persistent).Error)
+
+	runOne := RecallEvent{EventType: "campaign_run", Source: "scheduler", SourceEventId: "ledger:run:1", EventData: `{}`, CreatedAt: 100}
+	committed, _, err := CommitRecallCampaignRun(
+		context.Background(),
+		campaign.Id,
+		[]string{RecallCampaignRunning},
+		RecallCampaignRunning,
+		nil,
+		campaign.ConfigRevision,
+		map[string]any{},
+		nil,
+		nil,
+		runOne,
+		RecallCampaignRunExclusions{
+			{RecipientIdentity: RecallRecipientIdentityForUser(9101), UserId: 9101, ReasonCode: "threshold_not_met"},
+			{RecipientIdentity: RecallRecipientIdentityForUser(9102), UserId: 9102, ReasonCode: "disabled"},
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, committed)
+
+	var firstRun RecallEvent
+	require.NoError(t, DB.Where("source = ? AND source_event_id = ?", "scheduler", "ledger:run:1").First(&firstRun).Error)
+	var rows []RecallCampaignExclusion
+	require.NoError(t, DB.Where("campaign_id = ?", campaign.Id).Order("user_id ASC").Find(&rows).Error)
+	require.Len(t, rows, 2)
+	require.True(t, rows[0].Persistent)
+	require.Equal(t, "operator_csv", rows[0].PersistentReasonCode)
+	require.Equal(t, int64(77), rows[0].SourceBatchId)
+	require.Equal(t, 42, rows[0].CreatedBy)
+	require.Equal(t, firstRun.Id, rows[0].FirstRunEventId)
+	require.Equal(t, firstRun.Id, rows[0].LastRunEventId)
+	require.Equal(t, "threshold_not_met", rows[0].LastRunReasonCode)
+	require.Equal(t, int64(90), rows[0].FirstSeenAt)
+	require.Equal(t, int64(100), rows[0].LastSeenAt)
+	require.False(t, rows[1].Persistent)
+	require.Equal(t, firstRun.Id, rows[1].FirstRunEventId)
+	require.Equal(t, firstRun.Id, rows[1].LastRunEventId)
+	require.Equal(t, "disabled", rows[1].LastRunReasonCode)
+	require.Equal(t, int64(100), rows[1].FirstSeenAt)
+	require.Equal(t, int64(100), rows[1].LastSeenAt)
+
+	runTwo := RecallEvent{EventType: "campaign_run", Source: "scheduler", SourceEventId: "ledger:run:2", EventData: `{}`, CreatedAt: 200}
+	committed, _, err = CommitRecallCampaignRun(
+		context.Background(),
+		campaign.Id,
+		[]string{RecallCampaignRunning},
+		RecallCampaignRunning,
+		nil,
+		campaign.ConfigRevision,
+		map[string]any{},
+		nil,
+		nil,
+		runTwo,
+		RecallCampaignRunExclusions{
+			{RecipientIdentity: RecallRecipientIdentityForUser(9101), UserId: 9101, ReasonCode: "recent_api_activity"},
+			{RecipientIdentity: RecallRecipientIdentityForUser(9102), UserId: 9102, ReasonCode: "opted_out"},
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, committed)
+	var secondRun RecallEvent
+	require.NoError(t, DB.Where("source = ? AND source_event_id = ?", "scheduler", "ledger:run:2").First(&secondRun).Error)
+	require.NoError(t, DB.Where("campaign_id = ?", campaign.Id).Order("user_id ASC").Find(&rows).Error)
+	require.Equal(t, firstRun.Id, rows[0].FirstRunEventId)
+	require.Equal(t, secondRun.Id, rows[0].LastRunEventId)
+	require.Equal(t, "recent_api_activity", rows[0].LastRunReasonCode)
+	require.True(t, rows[0].Persistent)
+	require.Equal(t, "operator_csv", rows[0].PersistentReasonCode)
+	require.Equal(t, int64(77), rows[0].SourceBatchId)
+	require.Equal(t, 42, rows[0].CreatedBy)
+	require.Equal(t, firstRun.Id, rows[1].FirstRunEventId)
+	require.Equal(t, secondRun.Id, rows[1].LastRunEventId)
+	require.Equal(t, "opted_out", rows[1].LastRunReasonCode)
+}
+
+func TestRecallExclusionRaceConfirmationVsBeginSMTPAttemptChoosesOneDurableOutcome(t *testing.T) {
+	setupRecallRepositoryFileDB(t)
+	campaign := newRecallRepositoryCampaign("exclusion send race")
+	campaign.Status = RecallCampaignRunning
+	require.NoError(t, CreateRecallCampaign(&campaign))
+	user := User{Id: 9201, Username: "race-user", Email: "race@example.com", Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(&user).Error)
+	recipient := RecallRecipient{
+		CampaignId: campaign.Id, UserId: user.Id, RecipientIdentity: RecallRecipientIdentityForUser(user.Id),
+		EligibilitySnapshot: `{}`, EmailSnapshot: user.Email, LanguageSnapshot: "en", State: RecallRecipientContacting,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	message := RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: `{}`, State: RecallMessageLeased, LeaseOwner: "node-a", LeaseExpiresAt: 200}
+	require.NoError(t, DB.Create(&message).Error)
+	snapshot, err := EncodeRecallExclusionUserIDs([]int{user.Id})
+	require.NoError(t, err)
+	batch := RecallExclusionBatch{
+		CampaignId: campaign.Id, Status: RecallExclusionBatchPreviewed, FileSHA256: strings.Repeat("a", 64),
+		TotalRows: 1, ResolvedUsers: 1, ResolvedUserIDsSnapshot: snapshot, UploadedBy: 7,
+	}
+	require.NoError(t, DB.Create(&batch).Error)
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+	var attempt RecallEmailSMTPAttempt
+	var beginErr error
+	var applyErr error
+	go func() {
+		defer wg.Done()
+		<-start
+		attempt, beginErr = BeginRecallEmailSMTPAttemptWithContext(context.Background(), message.Id, "node-a", 200, 1)
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		_, applyErr = ApplyRecallExclusionBatchWithContext(context.Background(), campaign.Id, batch.Id, 7, 150)
+	}()
+	close(start)
+	wg.Wait()
+
+	require.NoError(t, beginErr)
+	require.NoError(t, applyErr)
+	var stored RecallMessage
+	require.NoError(t, DB.First(&stored, message.Id).Error)
+	require.Contains(t, []string{RecallMessageCancelled, RecallMessageSending}, stored.State)
+	status, err := GetRecallEmailQuotaStatusWithContext(context.Background(), 1)
+	require.NoError(t, err)
+	switch stored.State {
+	case RecallMessageCancelled:
+		require.False(t, attempt.Reserved)
+		require.Zero(t, status.Used)
+	case RecallMessageSending:
+		require.True(t, attempt.Reserved)
+		require.Equal(t, 1, status.Used)
+	}
+	var eventCount int64
+	require.NoError(t, DB.Model(&RecallEvent{}).
+		Where("message_id = ? AND event_type = ? AND event_data LIKE ?", message.Id, "message_state_changed", "%\"to_state\":\"sending\"%").
+		Count(&eventCount).Error)
+	if stored.State == RecallMessageSending {
+		require.EqualValues(t, 1, eventCount)
+	} else {
+		require.Zero(t, eventCount)
+	}
 }
 
 func TestRecallRunIdempotencyCommitsLargeSnapshotsInBoundedBatches(t *testing.T) {
@@ -2933,6 +3333,7 @@ func TestRecallRunIdempotencyCommitsLargeSnapshotsInBoundedBatches(t *testing.T)
 		recipients,
 		messages,
 		RecallEvent{EventType: "campaign_run", Source: "scheduler", SourceEventId: "large:run", EventData: `{}`},
+		nil,
 	)
 
 	require.NoError(t, err)
@@ -2943,9 +3344,12 @@ func TestRecallRunIdempotencyCommitsLargeSnapshotsInBoundedBatches(t *testing.T)
 		require.NoError(t, DB.Model(table).Count(&count).Error)
 		require.EqualValues(t, total, count)
 	}
-	var eventCount int64
-	require.NoError(t, DB.Model(&RecallEvent{}).Count(&eventCount).Error)
-	require.EqualValues(t, 1, eventCount)
+	var runEventCount int64
+	require.NoError(t, DB.Model(&RecallEvent{}).Where("event_type = ?", "campaign_run").Count(&runEventCount).Error)
+	require.EqualValues(t, 1, runEventCount)
+	var messageEventCount int64
+	require.NoError(t, DB.Model(&RecallEvent{}).Where("event_type = ?", "message_state_changed").Count(&messageEventCount).Error)
+	require.EqualValues(t, total, messageEventCount)
 }
 
 func TestRecallRunIdempotencyRejectsAmbiguousMessageMapping(t *testing.T) {
@@ -3035,7 +3439,19 @@ func TestRecallTransitionCampaignRequiresExpectedState(t *testing.T) {
 func TestRecallTransitionMessageRequiresLeaseOwnerAndExactState(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 
-	message := RecallMessage{RecipientId: 701, StageNo: 1, TemplateSnapshot: `{}`, ScheduledAt: 800, State: RecallMessageScheduled}
+	campaign := newRecallRepositoryCampaign("message lease owner fence")
+	require.NoError(t, DB.Create(&campaign).Error)
+	recipient := RecallRecipient{
+		CampaignId:          campaign.Id,
+		RecipientIdentity:   "user:701",
+		UserId:              701,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       "lease-owner-fence@example.com",
+		LanguageSnapshot:    "en",
+		State:               RecallRecipientContacting,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
+	message := RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateSnapshot: `{}`, ScheduledAt: 800, State: RecallMessageScheduled}
 	require.NoError(t, DB.Create(&message).Error)
 	won, err := LeaseRecallMessage(message.Id, "node-a", 800, 860)
 	require.NoError(t, err)
@@ -3066,8 +3482,20 @@ func TestRecallTransitionMessageRequiresLeaseOwnerAndExactState(t *testing.T) {
 func TestRecallTransitionMessageFencesSameOwnerReacquisition(t *testing.T) {
 	setupRecallRepositoryTestDB(t)
 
+	campaign := newRecallRepositoryCampaign("message reacquisition fence")
+	require.NoError(t, DB.Create(&campaign).Error)
+	recipient := RecallRecipient{
+		CampaignId:          campaign.Id,
+		RecipientIdentity:   "user:725",
+		UserId:              725,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       "reacquisition-fence@example.com",
+		LanguageSnapshot:    "en",
+		State:               RecallRecipientContacting,
+	}
+	require.NoError(t, DB.Create(&recipient).Error)
 	message := RecallMessage{
-		RecipientId:      725,
+		RecipientId:      recipient.Id,
 		StageNo:          1,
 		TemplateSnapshot: `{}`,
 		ScheduledAt:      100,
@@ -3336,7 +3764,7 @@ func TestRecallManualRetryExpiredSendingWritesAdminEventAndFencesActiveLease(t *
 	require.Equal(t, now+1, active.LeaseExpiresAt)
 
 	var events []RecallEvent
-	require.NoError(t, DB.Order("id ASC").Find(&events).Error)
+	require.NoError(t, DB.Where("recipient_id = ? AND event_type = ? AND source = ?", messages[0].RecipientId, "recipient_retry", "admin").Order("id ASC").Find(&events).Error)
 	require.Len(t, events, 1)
 	require.Equal(t, expiredEvent.SourceEventId, events[0].SourceEventId)
 }

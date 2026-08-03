@@ -1,15 +1,19 @@
 import { createFormControl } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { describe, expect, test } from 'bun:test'
+import { createRecallCampaignFormDraft } from './components/campaign-editor'
 import {
   convertRecallBodyTextToHtml,
   createDefaultRecallMinimumSpendConfig,
+  formatRecallCurrencyAmount,
   formatRecallMinorAmount,
   formatRecallCampaignType,
   getRecallEffectivePromotionExpiry,
   getRecallEmailLocaleStatus,
   getRecallPageCount,
   getRecallRecipientRetry,
+  recallWallClockInputToUnixSeconds,
+  recallUnixSecondsToWallClockInput,
   isRecallPromotionCampaign,
   insertRecallEmailAction,
   hydrateRecallMinimumSpendConfig,
@@ -26,12 +30,13 @@ import {
   setRecallCampaignGroupMode,
 } from './helpers'
 import { recallCampaignDraftSchema } from './schemas'
-import { createRecallCampaignFormDraft } from './components/campaign-editor'
-import type {
-  RecallCampaignDraft,
-  RecallEmailStage,
-  RecallMinimumSpendConfig,
-  RecallRecipient,
+import {
+  type RecallCampaignDraft,
+  type RecallEmailStage,
+  type RecallMinimumSpendConfig,
+  type RecallRecipient,
+  isRecallTranslationTaskActive,
+  isRecallTranslationTaskTerminal,
 } from './types'
 
 function makeDraft(): RecallCampaignDraft {
@@ -138,6 +143,30 @@ function makeRecipient(
 }
 
 describe('recall campaign editor normalization', () => {
+  test('canonicalizes manual schedule at the submit boundary without a mode switch', () => {
+    const draft = makeValidDraft()
+    draft.execution_mode = 'manual'
+    draft.schedule = {
+      scheduled_at: 2_000_100_000,
+      timezone: 'America/New_York',
+      frequency: 'weekly',
+      weekday: 5,
+      hour: 18,
+      minute: 45,
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.schedule).toEqual({
+      scheduled_at: 0,
+      timezone: '',
+      frequency: 'daily',
+      weekday: 1,
+      hour: 0,
+      minute: 0,
+    })
+  })
+
   test('normalizes every localized template to editable HTML', () => {
     const draft = makeValidDraft()
     draft.email_sequence[0].templates = {
@@ -451,9 +480,9 @@ describe('recall campaign editor normalization', () => {
     'treats legacy %s stage templates as empty at submit',
     (shape) => {
       const draft = makeValidDraft()
-      draft.email_sequence[0].templates = (
-        shape === 'null' ? null : undefined
-      ) as unknown as RecallEmailStage['templates']
+      draft.email_sequence[0].templates = (shape === 'null'
+        ? null
+        : undefined) as unknown as RecallEmailStage['templates']
       draft.email_sequence[0].manual_locales = ['es']
 
       const normalized = prepareRecallCampaignSubmitDraft(draft)
@@ -467,9 +496,9 @@ describe('recall campaign editor normalization', () => {
     'hydrates default English editor template for legacy %s stage templates',
     (shape) => {
       const draft = makeValidDraft()
-      draft.email_sequence[0].templates = (
-        shape === 'null' ? null : undefined
-      ) as unknown as RecallEmailStage['templates']
+      draft.email_sequence[0].templates = (shape === 'null'
+        ? null
+        : undefined) as unknown as RecallEmailStage['templates']
 
       const hydrated = createRecallCampaignFormDraft(draft)
 
@@ -913,8 +942,9 @@ describe('recall campaign editor normalization', () => {
     'treats legacy %s templates as a missing locale state',
     (shape) => {
       const stage = makeStage(1, 0)
-      stage.templates = (shape === 'null' ? null : undefined) as unknown as
-        | RecallEmailStage['templates']
+      stage.templates = (shape === 'null'
+        ? null
+        : undefined) as unknown as RecallEmailStage['templates']
 
       expect(getRecallEmailLocaleStatus(stage, 'en')).toBe('missing')
     }
@@ -969,6 +999,21 @@ describe('recall campaign editor normalization', () => {
     expect(formatRecallMinorAmount('JPY', 750)).toBe('750')
   })
 
+  test('formats metric minor-unit amounts for display using ISO currency precision', () => {
+    expect(formatRecallCurrencyAmount('USD', 9_600)).toBe('$96.00')
+    expect(formatRecallCurrencyAmount('USD', 0)).toBe('$0.00')
+    expect(formatRecallCurrencyAmount('USD', -1)).toBe('-$0.01')
+    expect(formatRecallCurrencyAmount('JPY', 9_600)).toBe('¥9,600')
+  })
+
+  test('returns an empty display amount for unsupported metric currencies', () => {
+    expect(formatRecallCurrencyAmount('UNKNOWN', 9_600)).toBe('')
+  })
+
+  test('keeps raw form minor-unit formatting separate from display currency formatting', () => {
+    expect(formatRecallMinorAmount('USD', 9_600)).toBe('96.00')
+  })
+
   test('renumbers stages after removing a middle stage', () => {
     const stages = [
       makeStage(1, 0),
@@ -980,6 +1025,47 @@ describe('recall campaign editor normalization', () => {
       makeStage(1, 0),
       { ...makeStage(3, 172_800), stage_no: 2 },
     ])
+  })
+})
+
+describe('recall email translation task guards', () => {
+  test('identifies active translation task states', () => {
+    expect(isRecallTranslationTaskActive('queued')).toBe(true)
+    expect(isRecallTranslationTaskActive('running')).toBe(true)
+    expect(isRecallTranslationTaskActive('succeeded')).toBe(false)
+    expect(isRecallTranslationTaskActive('failed')).toBe(false)
+    expect(isRecallTranslationTaskActive('superseded')).toBe(false)
+  })
+
+  test('identifies terminal translation task states', () => {
+    expect(isRecallTranslationTaskTerminal('queued')).toBe(false)
+    expect(isRecallTranslationTaskTerminal('running')).toBe(false)
+    expect(isRecallTranslationTaskTerminal('succeeded')).toBe(true)
+    expect(isRecallTranslationTaskTerminal('failed')).toBe(true)
+    expect(isRecallTranslationTaskTerminal('superseded')).toBe(true)
+  })
+})
+
+describe('recall timezone datetime helpers', () => {
+  test('converts New York winter wall clock time without using the browser timezone', () => {
+    const timestamp = recallWallClockInputToUnixSeconds(
+      '2030-01-02T09:00',
+      'America/New_York'
+    )
+
+    expect(timestamp).toBe(Date.UTC(2030, 0, 2, 14, 0) / 1_000)
+    expect(
+      recallUnixSecondsToWallClockInput(timestamp, 'America/New_York')
+    ).toBe('2030-01-02T09:00')
+  })
+
+  test('returns an empty value for invalid timezone wall clock input', () => {
+    expect(
+      recallWallClockInputToUnixSeconds('2030-03-10T02:30', 'America/New_York')
+    ).toBe(0)
+    expect(recallWallClockInputToUnixSeconds('2030-01-02T09:00', '')).toBe(0)
+    expect(recallUnixSecondsToWallClockInput(0, 'America/New_York')).toBe('')
+    expect(recallUnixSecondsToWallClockInput(1_893_600_000, '')).toBe('')
   })
 })
 
@@ -1010,13 +1096,19 @@ describe('recall campaign detail guards', () => {
       getRecallRecipientRetry(
         makeRecipient('contacting', ['uncertain', 'failed'])
       )
-    ).toEqual({ allowed: true, acknowledgeUncertain: false })
+    ).toEqual({ allowed: true, acknowledgeUncertain: true })
     expect(
       getRecallRecipientRetry(makeRecipient('contacting', ['accepted']))
     ).toEqual({ allowed: false, acknowledgeUncertain: false })
     expect(
       getRecallRecipientRetry(
         makeRecipient('contacting', ['sending'], [998]),
+        999
+      )
+    ).toEqual({ allowed: true, acknowledgeUncertain: true })
+    expect(
+      getRecallRecipientRetry(
+        makeRecipient('contacting', ['sending', 'failed'], [998, 0]),
         999
       )
     ).toEqual({ allowed: true, acknowledgeUncertain: true })

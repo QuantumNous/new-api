@@ -85,6 +85,25 @@ export function formatRecallMinorAmount(
   return currency === 'JPY' ? String(value) : (value / scale).toFixed(2)
 }
 
+export function formatRecallCurrencyAmount(
+  currency: string,
+  value: number,
+  locale = 'en-US'
+): string {
+  if (!Number.isSafeInteger(value)) return ''
+  try {
+    const formatter = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+    })
+    const digits = formatter.resolvedOptions().maximumFractionDigits ?? 0
+    return formatter.format(value / 10 ** digits)
+  } catch (error) {
+    if (error instanceof RangeError) return ''
+    throw error
+  }
+}
+
 export function createDefaultRecallMinimumSpendConfig(): RecallMinimumSpendConfig {
   return { enabled: false, amounts: {} }
 }
@@ -257,6 +276,17 @@ export function prepareRecallCampaignSubmitDraft(
 
   return {
     ...draft,
+    schedule:
+      draft.execution_mode === 'manual'
+        ? {
+            scheduled_at: 0,
+            timezone: '',
+            frequency: 'daily',
+            weekday: 1,
+            hour: 0,
+            minute: 0,
+          }
+        : draft.schedule,
     discount_config: {
       ...discountConfig,
       ...normalizeRecallMinimumSpendForSubmit(discountConfig),
@@ -430,9 +460,7 @@ export function recallPromotionSecondsToDuration(
 export function getRecallEffectivePromotionExpiry(
   draft: Pick<
     RecallCampaignDraft,
-    | 'promotion_expiry_mode'
-    | 'promotion_expires_at'
-    | 'promotion_valid_seconds'
+    'promotion_expiry_mode' | 'promotion_expires_at' | 'promotion_valid_seconds'
   >,
   runAtSeconds: number
 ): number {
@@ -495,12 +523,6 @@ export function getRecallRecipientRetry(
   allowed: boolean
   acknowledgeUncertain: boolean
 } {
-  if (
-    recipient.state === 'failed' ||
-    recipient.messages.some((message) => message.state === 'failed')
-  ) {
-    return { allowed: true, acknowledgeUncertain: false }
-  }
   if (recipient.messages.some((message) => message.state === 'uncertain')) {
     return { allowed: true, acknowledgeUncertain: true }
   }
@@ -513,6 +535,12 @@ export function getRecallRecipientRetry(
     )
   ) {
     return { allowed: true, acknowledgeUncertain: true }
+  }
+  if (
+    recipient.state === 'failed' ||
+    recipient.messages.some((message) => message.state === 'failed')
+  ) {
+    return { allowed: true, acknowledgeUncertain: false }
   }
   return { allowed: false, acknowledgeUncertain: false }
 }
@@ -565,6 +593,56 @@ function getRecallZonedDateParts(
   }
 }
 
+function formatRecallDateTimeInputPart(value: number): string {
+  return String(value).padStart(2, '0')
+}
+
+export function recallUnixSecondsToWallClockInput(
+  timestamp: number,
+  timezone: string
+): string {
+  const normalizedTimezone = timezone.trim()
+  if (timestamp <= 0 || !normalizedTimezone || normalizedTimezone === 'Local') {
+    return ''
+  }
+  try {
+    const parts = getRecallZonedDateParts(
+      new Date(timestamp * 1_000),
+      normalizedTimezone
+    )
+    if (!parts) return ''
+    return `${parts.year}-${formatRecallDateTimeInputPart(
+      parts.month
+    )}-${formatRecallDateTimeInputPart(parts.day)}T${formatRecallDateTimeInputPart(
+      parts.hour
+    )}:${formatRecallDateTimeInputPart(parts.minute)}`
+  } catch {
+    return ''
+  }
+}
+
+export function recallWallClockInputToUnixSeconds(
+  value: string,
+  timezone: string
+): number {
+  const normalizedTimezone = timezone.trim()
+  if (!normalizedTimezone || normalizedTimezone === 'Local') return 0
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim())
+  if (!match) return 0
+  const [, year, month, day, hour, minute] = match
+  const timestamp = recallWallClockToUnixSeconds(
+    {
+      year: Number(year),
+      month: Number(month),
+      day: Number(day),
+      hour: Number(hour),
+      minute: Number(minute),
+    },
+    normalizedTimezone
+  )
+  return timestamp ?? 0
+}
+
 function recallDateOnlyAfterDays(
   parts: Pick<RecallZonedDateParts, 'year' | 'month' | 'day'>,
   days: number
@@ -578,9 +656,18 @@ function recallDateOnlyAfterDays(
 }
 
 function recallLocalDateKey(
-  parts: Pick<RecallZonedDateParts, 'year' | 'month' | 'day' | 'hour' | 'minute'>
+  parts: Pick<
+    RecallZonedDateParts,
+    'year' | 'month' | 'day' | 'hour' | 'minute'
+  >
 ): number {
-  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute)
+  return Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute
+  )
 }
 
 function recallWallClockToUnixSeconds(
@@ -641,7 +728,10 @@ export function getRecallFirstRecurringRunAt(
 
   let afterParts: RecallZonedDateParts | null
   try {
-    afterParts = getRecallZonedDateParts(new Date(afterSeconds * 1_000), timezone)
+    afterParts = getRecallZonedDateParts(
+      new Date(afterSeconds * 1_000),
+      timezone
+    )
   } catch {
     return null
   }

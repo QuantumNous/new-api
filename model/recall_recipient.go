@@ -88,6 +88,24 @@ type RecallRecipientExportSnapshot struct {
 	Total int64 `gorm:"column:total"`
 }
 
+const (
+	RecallManualRetryTargetMessage   = "message"
+	RecallManualRetryTargetRecipient = "recipient"
+)
+
+type RecallManualRetrySelection struct {
+	CampaignID           int64
+	RecipientID          int64
+	Target               string
+	Message              RecallMessage
+	Recipient            RecallRecipient
+	NextRecipientState   string
+	AcknowledgeUncertain bool
+	Now                  int64
+}
+
+type RecallManualRetryAdminEventBuilder func(selection RecallManualRetrySelection) (RecallEvent, error)
+
 type RecallClaimRecord struct {
 	Recipient      RecallRecipient
 	Campaign       RecallCampaign
@@ -140,6 +158,7 @@ type RecallAttributionCandidate struct {
 	CheckoutSessionId string
 	OrderCreatedAt    int64
 	EnrolledAt        int64
+	PaymentCategory   RecallRevenueCategory
 }
 
 func GetRecallRecipientByPromotionCodeWithContext(ctx context.Context, userID int, promotionCodeID string) (*RecallRecipient, bool, error) {
@@ -983,10 +1002,11 @@ func ScheduleRecallStageOneFromStatesAndAdvance(ctx context.Context, recipientID
 		message.RecipientId = recipientID
 		message.State = RecallMessageScheduled
 		message.ClaimTokenHash = nil
-		if err := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "recipient_id"}, {Name: "stage_no"}},
-			DoNothing: true,
-		}).Create(&message).Error; err != nil {
+		occurredAt, err := getDBTimestamp(tx)
+		if err != nil {
+			return err
+		}
+		if err := CreateRecallMessagesWithStateEventsTx(tx, 0, []RecallMessage{message}, occurredAt); err != nil {
 			return err
 		}
 		won = true
@@ -1090,21 +1110,18 @@ func SetRecallMarketingOptOutWithContext(ctx context.Context, userID int, now in
 		if err := tx.Model(&User{}).Where("id = ?", userID).Update("setting", string(settingJSON)).Error; err != nil {
 			return err
 		}
-		recipientIDs := tx.Model(&RecallRecipient{}).Select("id").Where("user_id = ?", userID)
-		return tx.Model(&RecallMessage{}).
-			Where("recipient_id IN (?) AND state IN ?", recipientIDs, []string{RecallMessageScheduled, RecallMessageRetryWait, RecallMessageLeased, RecallMessageSending}).
-			Updates(map[string]any{
-				"state":              RecallMessageCancelled,
-				"next_attempt_at":    int64(0),
-				"lease_owner":        "",
-				"lease_expires_at":   int64(0),
-				"failed_at":          now,
-				"last_error_code":    "user_opted_out",
-				"last_error_message": "",
-			}).Error
+		_, err = cancelRecallMessagesInBatches(tx, func(afterID int64) *gorm.DB {
+			return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
+				Where("recall_messages.id > ? AND recall_recipients.user_id = ? AND recall_messages.state IN ?", afterID, userID, cancellableRecallMessageStates())
+		}, 0, "user_opted_out", now)
+		return err
 	})
-	if err != nil || !found {
-		return found, err
+	if err != nil {
+		return false, err
+	}
+	if !found {
+		return false, nil
 	}
 	return true, invalidateUserCache(userID)
 }
@@ -1146,17 +1163,10 @@ func SuppressRecallRecipientWithContext(ctx context.Context, recipientID int64, 
 				return ErrRecallRecipientBindingConflict
 			}
 		}
-		if err := tx.Model(&RecallMessage{}).
-			Where("recipient_id = ? AND state IN ?", recipientID, []string{RecallMessageScheduled, RecallMessageRetryWait, RecallMessageLeased, RecallMessageSending}).
-			Updates(map[string]any{
-				"state":              RecallMessageCancelled,
-				"next_attempt_at":    int64(0),
-				"lease_owner":        "",
-				"lease_expires_at":   int64(0),
-				"failed_at":          now,
-				"last_error_code":    "recipient_unsubscribed",
-				"last_error_message": "",
-			}).Error; err != nil {
+		if _, err := cancelRecallMessagesInBatches(tx, func(afterID int64) *gorm.DB {
+			return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("recipient_id = ? AND id > ? AND state IN ?", recipientID, afterID, cancellableRecallMessageStates())
+		}, 0, "recipient_unsubscribed", now); err != nil {
 			return err
 		}
 		suppressed = true
@@ -1248,10 +1258,15 @@ func InsertRecallRecipientsAndRunEvent(campaignID int64, recipients []RecallReci
 		if len(messages) == 0 {
 			return nil
 		}
-		return tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "recipient_id"}, {Name: "stage_no"}},
-			DoNothing: true,
-		}).Create(&messages).Error
+		occurredAt := runEvent.CreatedAt
+		if occurredAt == 0 {
+			var err error
+			occurredAt, err = getDBTimestamp(tx)
+			if err != nil {
+				return err
+			}
+		}
+		return CreateRecallMessagesWithStateEventsTx(tx, campaignID, messages, occurredAt)
 	})
 	if err != nil {
 		return 0, err
@@ -1345,6 +1360,136 @@ func ManualRetryRecallRecipientAndAdminEventWithContext(ctx context.Context, cam
 		return false, err
 	}
 	return retried, nil
+}
+
+func ManualRetryRecallRecipientCandidateAndAdminEventWithContext(
+	ctx context.Context,
+	campaignID int64,
+	recipientID int64,
+	acknowledgeUncertain bool,
+	now int64,
+	buildEvent RecallManualRetryAdminEventBuilder,
+) (RecallManualRetrySelection, bool, error) {
+	if campaignID <= 0 || recipientID <= 0 {
+		return RecallManualRetrySelection{}, false, fmt.Errorf("recall campaign and recipient IDs must be positive")
+	}
+	if buildEvent == nil {
+		return RecallManualRetrySelection{}, false, fmt.Errorf("recall retry admin event builder is required")
+	}
+	var selection RecallManualRetrySelection
+	retried := false
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := serializeRecallSQLiteWriterTx(tx, "UPDATE recall_recipients SET id = id WHERE id = ?", recipientID); err != nil {
+			return err
+		}
+		var recipient RecallRecipient
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND campaign_id = ?", recipientID, campaignID).
+			First(&recipient).Error; err != nil {
+			return err
+		}
+
+		var messages []RecallMessage
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("recipient_id = ?", recipientID).
+			Order("id ASC").
+			Find(&messages).Error; err != nil {
+			return err
+		}
+		selection = selectRecallManualRetryTarget(campaignID, recipient, messages, acknowledgeUncertain, now)
+		if selection.Target == "" {
+			return nil
+		}
+		if selection.Target == RecallManualRetryTargetMessage && (selection.Message.State == RecallMessageUncertain || selection.Message.State == RecallMessageSending) && !acknowledgeUncertain {
+			return fmt.Errorf("acknowledge_uncertain=true is required to retry uncertain recall message %d", selection.Message.Id)
+		}
+		event, err := buildEvent(selection)
+		if err != nil {
+			return err
+		}
+		if event.CampaignId != campaignID || event.RecipientId != recipientID {
+			return fmt.Errorf("recall retry admin event target does not match recipient %d", recipientID)
+		}
+		if err := validateRecallAdminEvent(&event); err != nil {
+			return err
+		}
+
+		switch selection.Target {
+		case RecallManualRetryTargetMessage:
+			won, err := manualRetryRecallMessageState(tx, selection.Message.Id, recipientID, selection.Message.State, selection.Message.UpdatedAt, now)
+			if err != nil {
+				return err
+			}
+			if !won {
+				return nil
+			}
+		case RecallManualRetryTargetRecipient:
+			won, err := manualRetryRecallRecipient(tx, campaignID, recipientID, selection.Recipient.UpdatedAt, selection.NextRecipientState)
+			if err != nil {
+				return err
+			}
+			if !won {
+				return nil
+			}
+		default:
+			return fmt.Errorf("unsupported recall retry target %q", selection.Target)
+		}
+		if err := insertRequiredRecallAdminEvent(tx, &event); err != nil {
+			return err
+		}
+		retried = true
+		return nil
+	})
+	if err != nil {
+		return RecallManualRetrySelection{}, false, err
+	}
+	if !retried {
+		return selection, false, nil
+	}
+	return selection, true, nil
+}
+
+func selectRecallManualRetryTarget(campaignID int64, recipient RecallRecipient, messages []RecallMessage, acknowledgeUncertain bool, now int64) RecallManualRetrySelection {
+	selection := RecallManualRetrySelection{
+		CampaignID:           campaignID,
+		RecipientID:          recipient.Id,
+		Recipient:            recipient,
+		AcknowledgeUncertain: acknowledgeUncertain,
+		Now:                  now,
+	}
+	for i := range messages {
+		if messages[i].State == RecallMessageUncertain {
+			selection.Target = RecallManualRetryTargetMessage
+			selection.Message = messages[i]
+			return selection
+		}
+	}
+	for i := range messages {
+		if messages[i].State == RecallMessageSending && messages[i].LeaseExpiresAt > 0 && messages[i].LeaseExpiresAt < now {
+			selection.Target = RecallManualRetryTargetMessage
+			selection.Message = messages[i]
+			return selection
+		}
+	}
+	for i := range messages {
+		if messages[i].State == RecallMessageFailed {
+			selection.Target = RecallManualRetryTargetMessage
+			selection.Message = messages[i]
+			return selection
+		}
+	}
+	if recipient.State != RecallRecipientFailed {
+		return selection
+	}
+	selection.Target = RecallManualRetryTargetRecipient
+	selection.NextRecipientState = RecallRecipientQueued
+	if strings.TrimSpace(recipient.StripeCustomerId) != "" {
+		selection.NextRecipientState = RecallRecipientCustomerReady
+	}
+	if recipient.StripePromotionCodeId != nil && strings.TrimSpace(*recipient.StripePromotionCodeId) != "" && strings.TrimSpace(recipient.PromotionCode) != "" {
+		selection.NextRecipientState = RecallRecipientCodeReady
+	}
+	return selection
 }
 
 func manualRetryRecallRecipient(db *gorm.DB, campaignID int64, recipientID int64, expectedUpdatedAt int64, to string) (bool, error) {

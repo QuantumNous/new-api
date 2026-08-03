@@ -324,11 +324,12 @@ func TestEmailMessageManualTLSClassifiesRealSMTPPhases(t *testing.T) {
 		script        smtpTestScript
 		wantUncertain bool
 		wantError     bool
+		commands      []string
 	}{
-		{name: "final 250 accepted", script: smtpTestScript{useTLS: true}},
-		{name: "RCPT rejection is definite", script: smtpTestScript{useTLS: true, failAt: "RCPT"}, wantError: true},
-		{name: "connection loss after DATA is uncertain", script: smtpTestScript{useTLS: true, closeBeforeDataResponse: true}, wantError: true, wantUncertain: true},
-		{name: "cleanup reset after final 250 stays accepted", script: smtpTestScript{useTLS: true, resetAfterFinalResponse: true}},
+		{name: "final 250 accepted", script: smtpTestScript{useTLS: true}, commands: []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA", "QUIT"}},
+		{name: "RCPT rejection is definite", script: smtpTestScript{useTLS: true, failAt: "RCPT"}, wantError: true, commands: []string{"EHLO", "AUTH", "MAIL", "RCPT"}},
+		{name: "connection loss after DATA is uncertain", script: smtpTestScript{useTLS: true, closeBeforeDataResponse: true}, wantError: true, wantUncertain: true, commands: []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}},
+		{name: "cleanup reset after final 250 stays accepted", script: smtpTestScript{useTLS: true, resetAfterFinalResponse: true}, commands: []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -343,7 +344,7 @@ func TestEmailMessageManualTLSClassifiesRealSMTPPhases(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}[:len(result.commands)], smtpCommandNames(result.commands))
+			require.Equal(t, testCase.commands, smtpCommandNames(result.commands))
 			if testCase.script.failAt == "" {
 				require.Contains(t, result.data, "Message-ID: <recall-1-1@example.com>")
 			}
@@ -351,18 +352,52 @@ func TestEmailMessageManualTLSClassifiesRealSMTPPhases(t *testing.T) {
 	}
 }
 
-func TestEmailMessageNonTLSReturnedErrorIsConservativelyUncertain(t *testing.T) {
-	port, wait := startSMTPTestServer(t, smtpTestScript{failAt: "MAIL"})
+func TestEmailMessageNonImplicitTLSPreDATAErrorsAreDeterminate(t *testing.T) {
+	tests := []struct {
+		name     string
+		script   smtpTestScript
+		commands []string
+	}{
+		{name: "MAIL 421", script: smtpTestScript{failAt: "MAIL", failReply: "421 4.3.0 service unavailable\r\n"}, commands: []string{"EHLO", "AUTH", "MAIL"}},
+		{name: "RCPT 550", script: smtpTestScript{failAt: "RCPT", failReply: "550 5.1.1 mailbox unavailable\r\n"}, commands: []string{"EHLO", "AUTH", "MAIL", "RCPT"}},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			port, wait := startSMTPTestServer(t, testCase.script)
+			configureSMTPTestClient(t, port, false)
+
+			err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+			result := wait()
+			require.Error(t, err)
+			require.False(t, IsEmailSendUncertain(err))
+			require.Equal(t, testCase.commands, smtpCommandNames(result.commands))
+		})
+	}
+}
+
+func TestEmailMessageNonImplicitTLSESMTPWithoutAUTHReturnsUnsupportedAUTH(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{omitAuth: true})
 	configureSMTPTestClient(t, port, false)
 
 	err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
 	result := wait()
-	require.Error(t, err)
-	require.True(t, IsEmailSendUncertain(err))
-	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
+	require.ErrorContains(t, err, "smtp: server doesn't support AUTH")
+	require.False(t, IsEmailSendUncertain(err))
+	require.Equal(t, []string{"EHLO"}, smtpCommandNames(result.commands))
 }
 
-func TestSendEmailWithSMTPConfigNonTLSClassifiesSMTPPhasesWhileGlobalWrapperStaysUncertain(t *testing.T) {
+func TestEmailMessageNonImplicitTLSHELOFallbackSkipsAUTH(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{heloFallback: true})
+	configureSMTPTestClient(t, port, false)
+
+	err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.NoError(t, err)
+	require.Equal(t, []string{"EHLO", "HELO", "MAIL", "RCPT", "DATA", "QUIT"}, smtpCommandNames(result.commands))
+	require.Contains(t, result.data, "Message-ID: <recall-1-1@example.com>")
+}
+
+func TestSendEmailWithSMTPConfigNonTLSClassifiesSMTPPhases(t *testing.T) {
 	tests := []struct {
 		name          string
 		script        smtpTestScript
@@ -402,7 +437,7 @@ func TestSendEmailWithSMTPConfigNonTLSClassifiesSMTPPhasesWhileGlobalWrapperStay
 	err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
 	result := wait()
 	require.Error(t, err)
-	require.True(t, IsEmailSendUncertain(err))
+	require.False(t, IsEmailSendUncertain(err))
 	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
 }
 
@@ -431,7 +466,7 @@ func TestGlobalImplicitTLSWrapperKeepsLegacyInsecureCertificateCompatibility(t *
 	result := wait()
 
 	require.NoError(t, err)
-	require.Equal(t, []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}, smtpCommandNames(result.commands))
+	require.Equal(t, []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA", "QUIT"}, smtpCommandNames(result.commands))
 }
 
 func TestSendEmailWithSMTPConfigRefusesRemotePlaintextAuthWithoutSTARTTLS(t *testing.T) {
@@ -471,7 +506,7 @@ func TestSendEmailWithSMTPConfigAllowsLocalPlaintextAuthWithoutSTARTTLS(t *testi
 	result := wait()
 
 	require.NoError(t, err)
-	require.Equal(t, []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}, smtpCommandNames(result.commands))
+	require.Equal(t, []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA", "QUIT"}, smtpCommandNames(result.commands))
 }
 
 func TestSendEmailWithSMTPConfigTimesOutWhenSMTPServerStalls(t *testing.T) {
@@ -556,14 +591,17 @@ func TestSendEmailWithSMTPConfigSuppressesCommonLayerNonTLSFailureLog(t *testing
 	result = wait()
 
 	require.Error(t, err)
-	require.True(t, IsEmailSendUncertain(err))
+	require.False(t, IsEmailSendUncertain(err))
 	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
 	require.Contains(t, logOutput.String(), "failed to send email to global-recipient@example.com")
 }
 
 type smtpTestScript struct {
 	useTLS                  bool
+	omitAuth                bool
+	heloFallback            bool
 	failAt                  string
+	failReply               string
 	closeBeforeDataResponse bool
 	resetAfterFinalResponse bool
 }
@@ -638,16 +676,23 @@ func runSMTPTestScript(conn net.Conn, rawConn net.Conn, script smtpTestScript, r
 		}
 		return writer.Flush()
 	}
-	readCommand := func(name string) error {
+	readLine := func() (string, error) {
 		line, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		line = strings.TrimSpace(line)
+		result.commands = append(result.commands, line)
+		return line, nil
+	}
+	readCommand := func(name string) error {
+		line, err := readLine()
 		if err != nil {
 			return err
 		}
-		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(strings.ToUpper(line), name) {
 			return fmt.Errorf("expected SMTP %s command, got %q", name, line)
 		}
-		result.commands = append(result.commands, line)
 		return nil
 	}
 	if err := writeReply("220 localhost ESMTP ready\r\n"); err != nil {
@@ -656,21 +701,88 @@ func runSMTPTestScript(conn net.Conn, rawConn net.Conn, script smtpTestScript, r
 	if err := readCommand("EHLO"); err != nil {
 		return err
 	}
-	if err := writeReply("250-localhost\r\n250 AUTH PLAIN\r\n"); err != nil {
-		return err
+	if script.heloFallback {
+		if err := writeReply("500 5.5.1 EHLO not supported\r\n"); err != nil {
+			return err
+		}
+		if err := readCommand("HELO"); err != nil {
+			return err
+		}
+		if err := writeReply("250 localhost\r\n"); err != nil {
+			return err
+		}
+	} else if script.omitAuth {
+		if err := writeReply("250-localhost\r\n250 HELP\r\n"); err != nil {
+			return err
+		}
+	} else {
+		if err := writeReply("250-localhost\r\n250 AUTH PLAIN\r\n"); err != nil {
+			return err
+		}
+		if err := readCommand("AUTH"); err != nil {
+			return err
+		}
+		if err := writeReply("235 2.7.0 authenticated\r\n"); err != nil {
+			return err
+		}
 	}
-	if err := readCommand("AUTH"); err != nil {
-		return err
-	}
-	if err := writeReply("235 2.7.0 authenticated\r\n"); err != nil {
-		return err
+	if script.omitAuth || script.heloFallback {
+		line, err := readLine()
+		if err != nil {
+			if script.omitAuth && errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		if strings.HasPrefix(strings.ToUpper(line), "AUTH") {
+			return writeReply("502 5.5.1 AUTH not supported\r\n")
+		}
+		if !strings.HasPrefix(strings.ToUpper(line), "MAIL") {
+			return fmt.Errorf("expected SMTP MAIL command, got %q", line)
+		}
+		if script.failAt == "MAIL" {
+			reply := script.failReply
+			if reply == "" {
+				reply = "550 5.1.0 scripted rejection\r\n"
+			}
+			return writeReply(reply)
+		}
+		if err := writeReply("250 2.1.0 ok\r\n"); err != nil {
+			return err
+		}
+		for _, command := range []string{"RCPT", "DATA"} {
+			if err := readCommand(command); err != nil {
+				return err
+			}
+			if script.failAt == command {
+				reply := script.failReply
+				if reply == "" {
+					reply = "550 5.1.0 scripted rejection\r\n"
+				}
+				return writeReply(reply)
+			}
+			if command == "DATA" {
+				if err := writeReply("354 send message, end with dot\r\n"); err != nil {
+					return err
+				}
+				break
+			}
+			if err := writeReply("250 2.1.0 ok\r\n"); err != nil {
+				return err
+			}
+		}
+		goto data
 	}
 	for _, command := range []string{"MAIL", "RCPT", "DATA"} {
 		if err := readCommand(command); err != nil {
 			return err
 		}
 		if script.failAt == command {
-			return writeReply("550 5.1.0 scripted rejection\r\n")
+			reply := script.failReply
+			if reply == "" {
+				reply = "550 5.1.0 scripted rejection\r\n"
+			}
+			return writeReply(reply)
 		}
 		if command == "DATA" {
 			if err := writeReply("354 send message, end with dot\r\n"); err != nil {
@@ -682,6 +794,7 @@ func runSMTPTestScript(conn net.Conn, rawConn net.Conn, script smtpTestScript, r
 			return err
 		}
 	}
+data:
 	var data strings.Builder
 	for {
 		line, err := reader.ReadString('\n')

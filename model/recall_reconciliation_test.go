@@ -80,6 +80,7 @@ func TestRecallAttributionCandidateDiscoveryAdvancesPastIrrelevantRawHistory(t *
 	want := RecallAttributionCandidate{
 		TradeNo: "trade_relevant_17", UserId: userID, CheckoutSessionId: "cs_relevant_17",
 		OrderCreatedAt: nowUnix + maxScannedRows + 1, EnrolledAt: nowUnix,
+		PaymentCategory: RecallRevenueCategoryDirectTopUp,
 	}
 	require.NoError(t, DB.Create(&TopUp{
 		UserId: userID, TradeNo: want.TradeNo, GatewayTradeNo: want.CheckoutSessionId,
@@ -133,6 +134,7 @@ func TestRecallAttributionCandidateDiscoveryFiltersOnlyWithinBoundedRawPages(t *
 	require.Contains(t, got, RecallAttributionCandidate{
 		TradeNo: "trade_bounded", UserId: userID, CheckoutSessionId: "cs_bounded",
 		OrderCreatedAt: nowUnix + 4, EnrolledAt: nowUnix,
+		PaymentCategory: RecallRevenueCategoryDirectTopUp,
 	})
 	require.Positive(t, stats.maxEnrollmentVariables)
 	require.LessOrEqual(t, stats.maxEnrollmentVariables, len(recallClaimActiveRecipientStates())+pageSize)
@@ -347,5 +349,6 @@ func createRecallAttributionDiscoveryOrder(t *testing.T, index int, createdAt in
 	return RecallAttributionCandidate{
 		TradeNo: tradeNo, UserId: userID, CheckoutSessionId: sessionID,
 		OrderCreatedAt: createdAt, EnrolledAt: enrolledAt,
+		PaymentCategory: RecallRevenueCategoryDirectTopUp,
 	}
 }

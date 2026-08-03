@@ -205,10 +205,12 @@ func setupRecallCampaignTestDB(t *testing.T) *gorm.DB {
 		&model.SubscriptionPlan{},
 		&model.UserSubscription{},
 		&model.RecallCampaign{},
+		&model.RecallTranslationTask{},
 		&model.RecallRecipient{},
 		&model.RecallMessage{},
 		&model.RecallEmailQuotaWindow{},
 		&model.RecallEvent{},
+		&model.RecallCampaignExclusion{},
 		&model.Log{},
 	))
 	return db
@@ -432,7 +434,7 @@ func validRecallCampaignDraft(now time.Time) RecallCampaignDraft {
 				"en": {Subject: "Come back", BodyText: "A Stripe offer is waiting."},
 			},
 		}},
-		Schedule: RecallScheduleConfig{ScheduledAt: now.Add(time.Hour).Unix()},
+		Schedule: RecallScheduleConfig{ScheduledAt: now.Add(time.Hour).Unix(), Timezone: "Asia/Shanghai"},
 	}
 	english := draft.Emails[0].Templates["en"]
 	for _, language := range recallEmailTranslationLanguages {
@@ -823,6 +825,131 @@ func TestRecallCampaignSaveDraftValidatesAndNormalizes(t *testing.T) {
 	require.Equal(t, 1, emails[0].TemplateVersion)
 }
 
+func TestRecallCampaignScheduleProductChoicesNormalizeForPersistence(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	start := now.Add(2 * time.Hour).Unix()
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
+	service.now = func() time.Time { return now }
+
+	tests := []struct {
+		name          string
+		productChoice string
+		schedule      RecallScheduleConfig
+		wantMode      string
+		wantFrequency string
+	}{
+		{
+			name:          "Manual",
+			productChoice: "Manual",
+			schedule:      RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9},
+			wantMode:      "manual",
+		},
+		{
+			name:          "Once",
+			productChoice: "Once",
+			schedule:      RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai"},
+			wantMode:      "scheduled_once",
+		},
+		{
+			name:          "Daily",
+			productChoice: "Daily",
+			schedule:      RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai", Hour: 9, Minute: 15},
+			wantMode:      "recurring",
+			wantFrequency: "daily",
+		},
+		{
+			name:          "Weekly",
+			productChoice: "Weekly",
+			schedule:      RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai", Weekday: int(time.Friday), Hour: 9, Minute: 15},
+			wantMode:      "recurring",
+			wantFrequency: "weekly",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			draft.Name = "Schedule " + test.name
+			draft.ExecutionMode = test.productChoice
+			draft.Schedule = test.schedule
+
+			campaign, err := service.SaveDraft(context.Background(), 7, draft)
+
+			require.NoError(t, err)
+			require.Equal(t, test.wantMode, campaign.ExecutionMode)
+			if test.wantMode == "manual" {
+				require.Zero(t, campaign.ScheduledAt)
+				require.Empty(t, campaign.RecurrenceConfig)
+				return
+			}
+			require.Equal(t, start, campaign.ScheduledAt)
+			require.NotEmpty(t, campaign.RecurrenceConfig)
+			var storedSchedule RecallScheduleConfig
+			require.NoError(t, common.Unmarshal([]byte(campaign.RecurrenceConfig), &storedSchedule))
+			require.Equal(t, start, storedSchedule.ScheduledAt)
+			require.Equal(t, "Asia/Shanghai", storedSchedule.Timezone)
+			require.Equal(t, test.wantFrequency, storedSchedule.Frequency)
+			if test.wantFrequency == "weekly" {
+				require.Equal(t, int(time.Friday), storedSchedule.Weekday)
+			}
+			roundTrip, err := recallCampaignDraftFromModel(campaign)
+			require.NoError(t, err)
+			require.Equal(t, storedSchedule, roundTrip.Schedule)
+		})
+	}
+}
+
+func TestRecallCampaignScheduleRejectsNonManualWithoutIANATimezone(t *testing.T) {
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	for _, mode := range []string{"Once", "Daily", "Weekly"} {
+		t.Run(mode, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			draft.ExecutionMode = mode
+			draft.Schedule = RecallScheduleConfig{
+				ScheduledAt: now.Add(time.Hour).Unix(),
+				Timezone:    "Local",
+				Weekday:     int(time.Friday),
+				Hour:        9,
+			}
+
+			_, err := validateAndNormalizeRecallCampaignDraftForPersistence(draft, now)
+
+			require.ErrorContains(t, err, "IANA timezone")
+		})
+	}
+}
+
+func TestRecallCampaignScheduleRejectsOncePastStart(t *testing.T) {
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	draft := validRecallCampaignDraft(now)
+	draft.ExecutionMode = "Once"
+	draft.Schedule = RecallScheduleConfig{ScheduledAt: now.Add(-time.Second).Unix(), Timezone: "Asia/Shanghai"}
+
+	_, err := validateAndNormalizeRecallCampaignDraftForPersistence(draft, now)
+
+	require.ErrorContains(t, err, "must run in the future")
+}
+
+func TestRecallCampaignScheduleRejectsProductRecurringWithoutStartBoundary(t *testing.T) {
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	for _, mode := range []string{"Daily", "Weekly"} {
+		t.Run(mode, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			draft.ExecutionMode = mode
+			draft.Schedule = RecallScheduleConfig{
+				Timezone: "Asia/Shanghai",
+				Weekday:  int(time.Friday),
+				Hour:     9,
+			}
+
+			_, err := validateAndNormalizeRecallCampaignDraftForPersistence(draft, now)
+
+			require.ErrorContains(t, err, "start boundary")
+		})
+	}
+}
+
 func TestRecallCampaignDraftCanonicalizesSpecifiedAudienceBeforeSave(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -1124,7 +1251,7 @@ func TestGenerateRecallEmailTranslationsUpdatesEveryStageAtomically(t *testing.T
 	translator := &recallCampaignFakeEmailTranslator{}
 	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
 	service.now = func() time.Time { return now }
-	draft := validRecallCampaignDraft(now)
+	draft := englishOnlyRecallCampaignDraft(now)
 	draft.DeferLocalization = true
 	draft.Emails = append(draft.Emails, RecallEmailStage{
 		StageNo:      2,
@@ -1138,7 +1265,7 @@ func TestGenerateRecallEmailTranslationsUpdatesEveryStageAtomically(t *testing.T
 	require.Zero(t, translator.callCount())
 	storedDraft, err := recallCampaignDraftFromModel(campaign)
 	require.NoError(t, err)
-	require.Len(t, storedDraft.Emails[0].ManualLocales, len(recallEmailTranslationLanguages))
+	require.Empty(t, storedDraft.Emails[0].ManualLocales)
 
 	response, err := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
 		ConfigRevision: campaign.ConfigRevision,
@@ -1156,8 +1283,242 @@ func TestGenerateRecallEmailTranslationsUpdatesEveryStageAtomically(t *testing.T
 		require.Equal(t, stage.SourceRevision, stage.TranslatedSourceRevision)
 		require.Empty(t, stage.ManualLocales)
 	}
-	require.Equal(t, 1, response.Emails[0].TemplateVersion, "unchanged generated content must not bump the version")
+	require.Equal(t, 2, response.Emails[0].TemplateVersion, "new target content must bump the version once")
 	require.Equal(t, 2, response.Emails[1].TemplateVersion, "new target content must bump the version once")
+}
+
+func TestEnqueueRecallEmailTranslationsRecordsQueuedObservationWithoutTranslating(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.Zero(t, translator.callCount())
+	storedDraft, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	observations := captureRecallTranslationTaskObservations(t)
+
+	response, err := service.EnqueueEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, model.RecallTranslationTaskQueued, response.Status)
+	require.NotZero(t, response.ID)
+	require.Zero(t, translator.callCount())
+	requireRecallTranslationObservation(t, *observations, "queued", model.RecallTranslationTaskQueued, "", false)
+
+	duplicate, err := service.EnqueueEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+	require.NoError(t, err)
+	require.Equal(t, response.ID, duplicate.ID)
+	require.Zero(t, translator.callCount())
+	require.Equal(t, 1, countRecallTranslationObservations(*observations, "queued", model.RecallTranslationTaskQueued))
+
+	claimed, won, err := model.ClaimDueRecallTranslationTask(context.Background(), response.ID, "enqueue-test", now.Add(time.Second).Unix(), now.Add(time.Minute).Unix())
+	require.NoError(t, err)
+	require.True(t, won)
+	won, err = model.FailRecallTranslationTask(context.Background(), model.RecallTranslationTaskFailure{
+		TaskID:     response.ID,
+		Owner:      "enqueue-test",
+		LeaseEpoch: claimed.LeaseEpoch,
+		ErrorCode:  "translation_failed",
+		FinishedAt: now.Add(2 * time.Second).Unix(),
+	})
+	require.NoError(t, err)
+	require.True(t, won)
+
+	requeued, err := service.EnqueueEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+	require.NoError(t, err)
+	require.Equal(t, response.ID, requeued.ID)
+	require.Equal(t, model.RecallTranslationTaskQueued, requeued.Status)
+	require.Zero(t, requeued.StartedAt)
+	require.Zero(t, requeued.FinishedAt)
+	require.Equal(t, 2, countRecallTranslationObservations(*observations, "queued", model.RecallTranslationTaskQueued))
+}
+
+func TestGenerateRecallEmailTranslationsDoesNotRepeatQueuedObservationForDuplicateLifecycle(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	storedDraft, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	observations := captureRecallTranslationTaskObservations(t)
+
+	queued, err := service.EnqueueEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.RecallTranslationTaskQueued, queued.Status)
+	require.Equal(t, 1, countRecallTranslationObservations(*observations, "queued", model.RecallTranslationTaskQueued))
+
+	generated, err := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         storedDraft.Emails,
+	})
+	require.NoError(t, err)
+	require.Equal(t, queued.ID, generated.TaskID)
+	require.Equal(t, model.RecallTranslationTaskSucceeded, generated.TaskStatus)
+	require.Equal(t, 1, translator.callCount())
+	require.Equal(t, 1, countRecallTranslationObservations(*observations, "queued", model.RecallTranslationTaskQueued))
+}
+
+func countRecallTranslationObservations(observations []recallTranslationTaskObservation, event string, status string) int {
+	count := 0
+	for _, observation := range observations {
+		if observation.Event == event && observation.Status == status {
+			count++
+		}
+	}
+	return count
+}
+
+func TestGenerateRecallEmailTranslationsRealPathPreservesManualLocalesOnly(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, englishOnlyRecallCampaignDraft(now))
+	require.NoError(t, err)
+	require.Equal(t, 1, translator.callCount())
+	edit, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	edit.DeferLocalization = true
+	edit.Emails[0].Templates["es"] = RecallEmailTemplate{Subject: "Manual ES", BodyText: "Manual body"}
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, edit)
+	require.NoError(t, err)
+	updatedDraft, err := recallCampaignDraftFromModel(updated)
+	require.NoError(t, err)
+	require.Equal(t, []string{"es"}, updatedDraft.Emails[0].ManualLocales)
+	observations := captureRecallTranslationTaskObservations(t)
+
+	response, err := service.GenerateEmailTranslations(context.Background(), 7, updated.Id, RecallEmailGenerationRequest{
+		ConfigRevision: updated.ConfigRevision,
+		Name:           updated.Name,
+		Emails:         updatedDraft.Emails,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, translator.callCount())
+	requireRecallTranslationObservation(t, *observations, "queued", model.RecallTranslationTaskQueued, "", false)
+	require.Len(t, response.Emails, 1)
+	require.Equal(t, []string{"es"}, response.Emails[0].ManualLocales)
+	require.Equal(t, RecallEmailTemplate{Subject: "Manual ES", BodyText: "Manual body"}, response.Emails[0].Templates["es"])
+	require.Equal(t, "fr:"+updatedDraft.Emails[0].Templates["en"].Subject, response.Emails[0].Templates["fr"].Subject)
+	for _, generated := range []string{"zh", "fr", "pt", "ru", "ja", "vi"} {
+		require.NotContains(t, response.Emails[0].ManualLocales, generated)
+	}
+}
+
+func TestGenerateRecallEmailTranslationsRealPathPreservesRevisionsWithManualLocales(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, englishOnlyRecallCampaignDraft(now))
+	require.NoError(t, err)
+	edit, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	edit.DeferLocalization = true
+	edit.Emails[0].Templates["es"] = RecallEmailTemplate{Subject: "Manual ES", BodyText: "Manual body"}
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, edit)
+	require.NoError(t, err)
+	edit, err = recallCampaignDraftFromModel(updated)
+	require.NoError(t, err)
+	edit.DeferLocalization = true
+	edit.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "Updated English", BodyText: "Updated body"}
+	updated, err = service.UpdateDraft(context.Background(), 7, updated.Id, edit)
+	require.NoError(t, err)
+	updatedDraft, err := recallCampaignDraftFromModel(updated)
+	require.NoError(t, err)
+	require.Equal(t, []string{"es"}, updatedDraft.Emails[0].ManualLocales)
+	require.Equal(t, 2, updatedDraft.Emails[0].SourceRevision)
+	require.Equal(t, 1, updatedDraft.Emails[0].TranslatedSourceRevision)
+
+	response, err := service.GenerateEmailTranslations(context.Background(), 7, updated.Id, RecallEmailGenerationRequest{
+		ConfigRevision: updated.ConfigRevision,
+		Name:           updated.Name,
+		Emails:         updatedDraft.Emails,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, response.Emails, 1)
+	require.Equal(t, []string{"es"}, response.Emails[0].ManualLocales)
+	require.Equal(t, 2, response.Emails[0].SourceRevision)
+	require.Equal(t, 2, response.Emails[0].TranslatedSourceRevision)
+	require.Equal(t, RecallEmailTemplate{Subject: "Manual ES", BodyText: "Manual body"}, response.Emails[0].Templates["es"])
+	stored, err := model.GetRecallCampaignByID(updated.Id)
+	require.NoError(t, err)
+	var raw []RecallEmailStage
+	require.NoError(t, common.Unmarshal([]byte(stored.EmailSequenceConfig), &raw))
+	require.Len(t, raw, 1)
+	require.Equal(t, []string{"es"}, raw[0].ManualLocales)
+	require.Equal(t, 2, raw[0].SourceRevision)
+	require.Equal(t, 2, raw[0].TranslatedSourceRevision)
+}
+
+func TestGenerateRecallEmailTranslationsRealPathPreservesAllManualLocales(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, englishOnlyRecallCampaignDraft(now))
+	require.NoError(t, err)
+	edit, err := recallCampaignDraftFromModel(campaign)
+	require.NoError(t, err)
+	edit.DeferLocalization = true
+	manualTemplates := recallCampaignManualLocaleTemplates()
+	for _, language := range recallEmailTranslationLanguages {
+		edit.Emails[0].Templates[language] = manualTemplates[language]
+	}
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, edit)
+	require.NoError(t, err)
+	updatedDraft, err := recallCampaignDraftFromModel(updated)
+	require.NoError(t, err)
+	require.Equal(t, recallEmailTranslationLanguages, updatedDraft.Emails[0].ManualLocales)
+
+	response, err := service.GenerateEmailTranslations(context.Background(), 7, updated.Id, RecallEmailGenerationRequest{
+		ConfigRevision: updated.ConfigRevision,
+		Name:           updated.Name,
+		Emails:         updatedDraft.Emails,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, response.Emails, 1)
+	require.Equal(t, recallEmailTranslationLanguages, response.Emails[0].ManualLocales)
+	for _, language := range recallEmailTranslationLanguages {
+		require.Equal(t, manualTemplates[language], response.Emails[0].Templates[language], language)
+	}
 }
 
 func TestGenerateRecallEmailTranslationsUsesStoredContentOnlyCampaignType(t *testing.T) {
@@ -1269,6 +1630,109 @@ func TestGenerateRecallEmailTranslationsFailurePersistsNothing(t *testing.T) {
 	require.Equal(t, campaign.ConfigRevision, stored.ConfigRevision)
 }
 
+func TestGenerateRecallEmailTranslationsSeparatesDifferentRequestsAtSameRevision(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{err: errors.New("provider unavailable")}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	first := cloneRecallCampaignTestStages(draft.Emails)
+	second := cloneRecallCampaignTestStages(draft.Emails)
+	first[0].Templates["en"] = RecallEmailTemplate{Subject: "First request", BodyText: "First body"}
+	second[0].Templates["en"] = RecallEmailTemplate{Subject: "Second request", BodyText: "Second body"}
+
+	_, firstErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         first,
+	})
+	_, secondErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         second,
+	})
+
+	require.Error(t, firstErr)
+	require.Error(t, secondErr)
+	var tasks []model.RecallTranslationTask
+	require.NoError(t, model.DB.Order("id ASC").Find(&tasks).Error)
+	require.Len(t, tasks, 2)
+	require.NotEqual(t, tasks[0].SourceHash, tasks[1].SourceHash)
+	require.NotEqual(t, tasks[0].IdempotencyKey, tasks[1].IdempotencyKey)
+}
+
+func TestGenerateRecallEmailTranslationsCoalescesCanonicalEquivalentRequests(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{err: errors.New("provider unavailable")}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	first := cloneRecallCampaignTestStages(draft.Emails)
+	second := cloneRecallCampaignTestStages(draft.Emails)
+	first[0].Templates["en"] = RecallEmailTemplate{Subject: " Same request ", BodyText: " Same body "}
+	second[0].Templates["en"] = RecallEmailTemplate{Subject: "Same request", BodyText: "Same body"}
+
+	_, firstErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           " " + campaign.Name + " ",
+		Emails:         first,
+	})
+	_, secondErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         second,
+	})
+
+	require.Error(t, firstErr)
+	require.Error(t, secondErr)
+	var count int64
+	require.NoError(t, model.DB.Model(&model.RecallTranslationTask{}).Count(&count).Error)
+	require.EqualValues(t, 1, count)
+}
+
+func TestGenerateRecallEmailTranslationsSeparatesDifferentNamesAtSameRevision(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
+	translator := &recallCampaignFakeEmailTranslator{err: errors.New("provider unavailable")}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), nil, translator)
+	service.now = func() time.Time { return now }
+	draft := englishOnlyRecallCampaignDraft(now)
+	draft.DeferLocalization = true
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	emails := cloneRecallCampaignTestStages(draft.Emails)
+
+	_, firstErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name,
+		Emails:         emails,
+	})
+	_, secondErr := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+		ConfigRevision: campaign.ConfigRevision,
+		Name:           campaign.Name + " renamed",
+		Emails:         emails,
+	})
+
+	require.Error(t, firstErr)
+	require.Error(t, secondErr)
+	var tasks []model.RecallTranslationTask
+	require.NoError(t, model.DB.Order("id ASC").Find(&tasks).Error)
+	require.Len(t, tasks, 2)
+	require.NotEqual(t, tasks[0].SourceHash, tasks[1].SourceHash)
+	require.NotEqual(t, tasks[0].IdempotencyKey, tasks[1].IdempotencyKey)
+}
+
 func TestGenerateRecallEmailTranslationsPropagatesProtectedContentValidation(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -1362,7 +1826,7 @@ func TestGenerateRecallEmailTranslationsRejectsConcurrentStatusChangeWithoutPart
 	require.Equal(t, campaign.ConfigRevision, stored.ConfigRevision)
 }
 
-func TestGenerateRecallEmailTranslationsUpdatesActiveCampaignAtomically(t *testing.T) {
+func TestGenerateRecallEmailTranslationsDoesNotMutateActiveCampaign(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
 	now := time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC)
@@ -1379,20 +1843,18 @@ func TestGenerateRecallEmailTranslationsUpdatesActiveCampaignAtomically(t *testi
 	require.NoError(t, err)
 	activeDraft.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "Active English", BodyText: "Active body"}
 
-	response, err := service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
+	_, err = service.GenerateEmailTranslations(context.Background(), 7, campaign.Id, RecallEmailGenerationRequest{
 		ConfigRevision: stored.ConfigRevision,
 		Name:           stored.Name,
 		Emails:         activeDraft.Emails,
 	})
 
+	require.ErrorContains(t, err, "status or config revision changed")
+	after, err := model.GetRecallCampaignByID(campaign.Id)
 	require.NoError(t, err)
-	require.EqualValues(t, stored.ConfigRevision+1, response.ConfigRevision)
-	require.Equal(t, "Active English", response.Emails[0].Templates["en"].Subject)
-	require.Equal(t, "fr:Active English", response.Emails[0].Templates["fr"].Subject)
-	require.Equal(t, 2, response.Emails[0].TemplateVersion)
-	stored, err = model.GetRecallCampaignByID(campaign.Id)
-	require.NoError(t, err)
-	require.Equal(t, model.RecallCampaignRunning, stored.Status)
+	require.Equal(t, model.RecallCampaignRunning, after.Status)
+	require.Equal(t, stored.ConfigRevision, after.ConfigRevision)
+	require.Equal(t, stored.EmailSequenceConfig, after.EmailSequenceConfig)
 }
 
 func TestRecallCampaignSaveDraftFallsBackToEnglishWhenTranslationIsNotConfigured(t *testing.T) {
@@ -2211,24 +2673,24 @@ func TestRecallExistingCouponExpiryCompatibility(t *testing.T) {
 		{
 			name:     "scheduled once relative uses scheduled time",
 			redeemBy: scheduledAt + validSeconds,
-			draft:    RecallCampaignDraft{ExecutionMode: "scheduled_once", Schedule: RecallScheduleConfig{ScheduledAt: scheduledAt}, PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
+			draft:    RecallCampaignDraft{ExecutionMode: "scheduled_once", Schedule: RecallScheduleConfig{ScheduledAt: scheduledAt, Timezone: "Asia/Shanghai"}, PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
 		},
 		{
 			name:     "scheduled once relative rejects before scheduled expiry",
 			redeemBy: scheduledAt + validSeconds - 1,
-			draft:    RecallCampaignDraft{ExecutionMode: "scheduled_once", Schedule: RecallScheduleConfig{ScheduledAt: scheduledAt}, PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
+			draft:    RecallCampaignDraft{ExecutionMode: "scheduled_once", Schedule: RecallScheduleConfig{ScheduledAt: scheduledAt, Timezone: "Asia/Shanghai"}, PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
 			wantErr:  true,
 		},
 		{
 			name:     "recurring relative rejects finite redeem by",
 			redeemBy: activationNow.Add(24 * time.Hour).Unix(),
-			draft:    RecallCampaignDraft{ExecutionMode: "recurring", PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
+			draft:    RecallCampaignDraft{ExecutionMode: "recurring", Schedule: RecallScheduleConfig{Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}, PromotionExpiryMode: RecallPromotionExpiryRelative, PromotionValidSeconds: validSeconds},
 			wantErr:  true,
 		},
 		{
 			name:     "recurring fixed uses fixed rule",
 			redeemBy: fixedExpiresAt,
-			draft:    RecallCampaignDraft{ExecutionMode: "recurring", PromotionExpiryMode: RecallPromotionExpiryFixed, PromotionExpiresAt: fixedExpiresAt},
+			draft:    RecallCampaignDraft{ExecutionMode: "recurring", Schedule: RecallScheduleConfig{Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}, PromotionExpiryMode: RecallPromotionExpiryFixed, PromotionExpiresAt: fixedExpiresAt},
 		},
 	}
 	for _, testCase := range tests {
@@ -2397,6 +2859,165 @@ func TestNextRecallRunUsesIANAWallClock(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, time.Date(2026, 3, 9, 6, 30, 0, 0, time.UTC), missingWallClock)
+}
+
+func TestRecallCampaignRecurringScheduleUsesStartBoundaryAndWeekday(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	start := time.Date(2026, 7, 16, 10, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	draft := validRecallCampaignDraft(now)
+	draft.ExecutionMode = "Weekly"
+	draft.Schedule = RecallScheduleConfig{
+		ScheduledAt: start.Unix(),
+		Timezone:    "Asia/Shanghai",
+		Weekday:     int(time.Friday),
+		Hour:        9,
+		Minute:      30,
+	}
+
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, "recurring", stored.ExecutionMode)
+	require.Equal(t, start.Unix(), stored.ScheduledAt)
+	require.Equal(t, time.Date(2026, 7, 17, 1, 30, 0, 0, time.UTC).Unix(), stored.NextRunAt)
+	var storedSchedule RecallScheduleConfig
+	require.NoError(t, common.Unmarshal([]byte(stored.RecurrenceConfig), &storedSchedule))
+	require.Equal(t, start.Unix(), storedSchedule.ScheduledAt)
+	require.Equal(t, "weekly", storedSchedule.Frequency)
+	require.Equal(t, int(time.Friday), storedSchedule.Weekday)
+}
+
+func TestRecallCampaignRecurringScheduleAllowsLegacyZeroStartBoundary(t *testing.T) {
+	now := time.Date(2026, 7, 15, 0, 30, 0, 0, time.UTC)
+	draft := validRecallCampaignDraft(now)
+	draft.ExecutionMode = "recurring"
+	draft.Schedule = RecallScheduleConfig{Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}
+
+	normalized, err := validateAndNormalizeRecallCampaignDraftForPersistence(draft, now)
+
+	require.NoError(t, err)
+	require.Zero(t, normalized.Schedule.ScheduledAt)
+	require.Equal(t, "recurring", normalized.ExecutionMode)
+	require.Equal(t, "daily", normalized.Schedule.Frequency)
+}
+
+func TestRecallCampaignRecurringScheduleDSTFallBackUsesGoLocationChoice(t *testing.T) {
+	beforeFallBack := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
+
+	next, err := NextRecallRun(beforeFallBack, RecallScheduleConfig{
+		Timezone:  "America/New_York",
+		Frequency: "daily",
+		Hour:      1,
+		Minute:    30,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, time.Date(2026, 11, 1, 5, 30, 0, 0, time.UTC), next)
+}
+
+func TestRecallCampaignRecurringRunRequiresNextRunCASOwnership(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 0, 30, 0, 0, time.UTC)
+	createRecallCampaignEligibleUser(t, db, now, "recurring-cas")
+	draft := validRecallCampaignDraft(now)
+	draft.Audience.LastAPICallAgeDays = 0
+	draft.ExecutionMode = "Daily"
+	draft.Schedule = RecallScheduleConfig{ScheduledAt: now.Add(30 * time.Minute).Unix(), Timezone: "Asia/Shanghai", Hour: 9}
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return now }
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+	staleA, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	staleB := *staleA
+
+	committedA, err := service.runDueCampaign(context.Background(), staleA, time.Unix(staleA.NextRunAt, 0))
+	require.NoError(t, err)
+	committedB, err := service.runDueCampaign(context.Background(), &staleB, time.Unix(staleB.NextRunAt, 0))
+	require.NoError(t, err)
+
+	require.True(t, committedA)
+	require.False(t, committedB)
+	var recipientCount int64
+	require.NoError(t, db.Model(&model.RecallRecipient{}).Count(&recipientCount).Error)
+	require.EqualValues(t, 1, recipientCount)
+	var eventCount int64
+	require.NoError(t, db.Model(&model.RecallEvent{}).Count(&eventCount).Error)
+	require.EqualValues(t, 1, eventCount)
+}
+
+func TestRecallCampaignRecurringRunNextRunCASAllowsOneMultiConnectionWinner(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(4)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 0, 30, 0, 0, time.UTC)
+	createRecallCampaignEligibleUser(t, db, now, "recurring-cas-race")
+	draft := validRecallCampaignDraft(now)
+	draft.Audience.LastAPICallAgeDays = 0
+	draft.ExecutionMode = "Daily"
+	draft.Schedule = RecallScheduleConfig{ScheduledAt: now.Add(30 * time.Minute).Unix(), Timezone: "Asia/Shanghai", Hour: 9}
+	serviceA := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	serviceB := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	serviceA.now = func() time.Time { return now }
+	serviceB.now = func() time.Time { return now }
+	campaign, err := serviceA.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.NoError(t, serviceA.Activate(context.Background(), 7, campaign.Id))
+	stale, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	staleA := *stale
+	staleB := *stale
+	runAt := time.Unix(stale.NextRunAt, 0)
+
+	type runResult struct {
+		committed bool
+		err       error
+	}
+	start := make(chan struct{})
+	results := make(chan runResult, 2)
+	runNode := func(service *RecallCampaignService, campaign model.RecallCampaign) {
+		<-start
+		committed, runErr := service.runDueCampaign(context.Background(), &campaign, runAt)
+		results <- runResult{committed: committed, err: runErr}
+	}
+	go runNode(serviceA, staleA)
+	go runNode(serviceB, staleB)
+	close(start)
+
+	winners := 0
+	timeout := time.After(5 * time.Second)
+	for i := 0; i < 2; i++ {
+		select {
+		case result := <-results:
+			require.NoError(t, result.err)
+			if result.committed {
+				winners++
+			}
+		case <-timeout:
+			t.Fatal("timed out waiting for concurrent recall campaign CAS race result")
+		}
+	}
+	require.Equal(t, 1, winners)
+	var recipientCount int64
+	require.NoError(t, db.Model(&model.RecallRecipient{}).Count(&recipientCount).Error)
+	require.EqualValues(t, 1, recipientCount)
+	var eventCount int64
+	require.NoError(t, db.Model(&model.RecallEvent{}).Count(&eventCount).Error)
+	require.EqualValues(t, 1, eventCount)
+	stored, err := model.GetRecallCampaignByID(campaign.Id)
+	require.NoError(t, err)
+	require.Greater(t, stored.NextRunAt, stale.NextRunAt)
 }
 
 func TestNextRecallRunRejectsInvalidSchedule(t *testing.T) {
@@ -2696,7 +3317,7 @@ func TestRecallCampaignScheduledOnceWaitsUntilDue(t *testing.T) {
 	draft := validRecallCampaignDraft(now)
 	draft.Audience.LastAPICallAgeDays = 0
 	draft.ExecutionMode = "scheduled_once"
-	draft.Schedule = RecallScheduleConfig{ScheduledAt: now.Add(time.Hour).Unix()}
+	draft.Schedule = RecallScheduleConfig{ScheduledAt: now.Add(time.Hour).Unix(), Timezone: "Asia/Shanghai"}
 	calls := &recallCampaignStripeCalls{}
 	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, calls))
 	service.now = func() time.Time { return now }
@@ -3192,6 +3813,83 @@ func TestRecallCampaignActivatedUpdateOnlyChangesFutureEmailVersion(t *testing.T
 	require.Equal(t, 3, stages[0].TemplateVersion)
 }
 
+func TestRecallCampaignActivatedEmailUpdateAcceptsProductScheduleAliases(t *testing.T) {
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	start := now.Add(2 * time.Hour)
+	shanghai, err := time.LoadLocation("Asia/Shanghai")
+	require.NoError(t, err)
+	localStart := start.In(shanghai)
+	tests := []struct {
+		name        string
+		productMode string
+		schedule    RecallScheduleConfig
+		wantMode    string
+	}{
+		{
+			name:        "Once",
+			productMode: "Once",
+			schedule:    RecallScheduleConfig{ScheduledAt: start.Unix(), Timezone: "Asia/Shanghai"},
+			wantMode:    "scheduled_once",
+		},
+		{
+			name:        "Daily",
+			productMode: "Daily",
+			schedule: RecallScheduleConfig{
+				ScheduledAt: start.Unix(),
+				Timezone:    "Asia/Shanghai",
+				Hour:        localStart.Hour(),
+				Minute:      localStart.Minute(),
+			},
+			wantMode: "recurring",
+		},
+		{
+			name:        "Weekly",
+			productMode: "Weekly",
+			schedule: RecallScheduleConfig{
+				ScheduledAt: start.Unix(),
+				Timezone:    "Asia/Shanghai",
+				Weekday:     int(localStart.Weekday()),
+				Hour:        localStart.Hour(),
+				Minute:      localStart.Minute(),
+			},
+			wantMode: "recurring",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupRecallCampaignTestDB(t)
+			createRecallCampaignEligibleUser(t, db, now, "alias-update-"+strings.ToLower(test.name))
+			draft := validRecallCampaignDraft(now)
+			draft.Audience.LastAPICallAgeDays = 0
+			draft.ExecutionMode = test.productMode
+			draft.Schedule = test.schedule
+			service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+			service.now = func() time.Time { return now }
+			campaign, err := service.SaveDraft(context.Background(), 7, draft)
+			require.NoError(t, err)
+			require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+			storedBefore, err := model.GetRecallCampaignByID(campaign.Id)
+			require.NoError(t, err)
+			require.Equal(t, test.wantMode, storedBefore.ExecutionMode)
+
+			edit := draft
+			edit.ExecutionMode = test.productMode
+			edit.Schedule = test.schedule
+			edit.Emails[0].Templates["en"] = RecallEmailTemplate{Subject: "Alias update " + test.name, BodyText: "Updated body"}
+			updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, edit)
+
+			require.NoError(t, err)
+			require.Equal(t, storedBefore.ScheduledAt, updated.ScheduledAt)
+			require.Equal(t, storedBefore.RecurrenceConfig, updated.RecurrenceConfig)
+			require.Equal(t, storedBefore.NextRunAt, updated.NextRunAt)
+			var stages []RecallEmailStage
+			require.NoError(t, common.Unmarshal([]byte(updated.EmailSequenceConfig), &stages))
+			require.Equal(t, 2, stages[0].TemplateVersion)
+		})
+	}
+}
+
 func TestRecallCampaignActivatedEmailUpdateIgnoresPastImmutableTimestamps(t *testing.T) {
 	db := setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -3469,7 +4167,7 @@ func TestRecallCampaignRetryTreatsOnlyExpiredSendingAsAcknowledgedUncertainty(t 
 	require.Equal(t, "live-node", active.LeaseOwner)
 
 	var events []model.RecallEvent
-	require.NoError(t, db.Where("recipient_id = ?", recipients[0].Id).Find(&events).Error)
+	require.NoError(t, db.Where("recipient_id = ? AND event_type = ? AND source = ?", recipients[0].Id, "recipient_retry", "admin").Find(&events).Error)
 	require.Len(t, events, 1)
 	require.Contains(t, events[0].EventData, `"previous_state":"sending"`)
 	require.Contains(t, events[0].EventData, `"acknowledge_uncertain":true`)
@@ -3481,6 +4179,392 @@ func TestRecallCampaignRetryTreatsOnlyExpiredSendingAsAcknowledgedUncertainty(t 
 	won, err := model.LeaseRecallMessage(messages[0].Id, "next-worker", now.Unix(), now.Unix()+60)
 	require.NoError(t, err)
 	require.True(t, won)
+}
+
+func TestRecallCampaignRetryPrioritizesMixedUncertainWorkOverFailedMessages(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		ambiguousMessage model.RecallMessage
+		wantState        string
+		wantLeaseCleared bool
+	}{
+		{
+			name: "failed plus uncertain",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          2,
+				TemplateVersion:  8,
+				TemplateSnapshot: `{"en":{"subject":"uncertain"}}`,
+				State:            model.RecallMessageUncertain,
+				AttemptCount:     1,
+				FailedAt:         1_721_199_930,
+				UpdatedAt:        1_721_199_930,
+			},
+			wantState: model.RecallMessageUncertain,
+		},
+		{
+			name: "failed plus expired sending",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          2,
+				TemplateVersion:  9,
+				TemplateSnapshot: `{"en":{"subject":"expired"}}`,
+				State:            model.RecallMessageSending,
+				AttemptCount:     1,
+				LeaseOwner:       "crashed-node",
+				LeaseExpiresAt:   1_721_199_999,
+				UpdatedAt:        1_721_199_940,
+			},
+			wantState:        model.RecallMessageSending,
+			wantLeaseCleared: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Unix(1_721_200_000, 0).UTC()
+			service := NewRecallCampaignService(nil, nil)
+			service.now = func() time.Time { return now }
+
+			campaign := model.RecallCampaign{
+				CampaignType:        model.RecallCampaignTypePromotion,
+				Name:                "mixed retry campaign",
+				Status:              model.RecallCampaignRunning,
+				AudienceTemplate:    "first_purchase",
+				AudienceConfig:      `{}`,
+				ExecutionMode:       "manual",
+				CouponSource:        "automatic",
+				DiscountConfig:      `{}`,
+				ProductScope:        `{}`,
+				EmailSequenceConfig: `[]`,
+				EnrollmentLimit:     100,
+				WorkerConcurrency:   2,
+			}
+			require.NoError(t, db.Create(&campaign).Error)
+			recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 971, EligibilitySnapshot: `{}`, EmailSnapshot: "mixed-retry@example.com", LanguageSnapshot: "en", State: model.RecallRecipientContacting}
+			require.NoError(t, db.Create(&recipient).Error)
+			failedMessage := model.RecallMessage{
+				RecipientId:      recipient.Id,
+				StageNo:          1,
+				TemplateVersion:  7,
+				TemplateSnapshot: `{"en":{"subject":"failed"}}`,
+				State:            model.RecallMessageFailed,
+				AttemptCount:     2,
+				FailedAt:         now.Unix() - 100,
+				UpdatedAt:        now.Unix() - 100,
+			}
+			ambiguousMessage := test.ambiguousMessage
+			ambiguousMessage.RecipientId = recipient.Id
+			require.NoError(t, db.Create(&failedMessage).Error)
+			require.NoError(t, db.Create(&ambiguousMessage).Error)
+
+			err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+			require.ErrorContains(t, err, "acknowledge_uncertain=true")
+			require.NoError(t, db.First(&failedMessage, failedMessage.Id).Error)
+			require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+			require.NoError(t, db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, test.wantState, ambiguousMessage.State)
+
+			err = service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, true)
+			require.NoError(t, err)
+			require.NoError(t, db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, model.RecallMessageRetryWait, ambiguousMessage.State)
+			require.Equal(t, now.Unix(), ambiguousMessage.NextAttemptAt)
+			if test.wantLeaseCleared {
+				require.Empty(t, ambiguousMessage.LeaseOwner)
+				require.Zero(t, ambiguousMessage.LeaseExpiresAt)
+			}
+			require.NoError(t, db.First(&failedMessage, failedMessage.Id).Error)
+			require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+		})
+	}
+}
+
+func TestRecallCampaignRetryPrioritizesAmbiguousMessagesOverFailedRecipient(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		ambiguousMessage model.RecallMessage
+		wantState        string
+		wantLeaseCleared bool
+	}{
+		{
+			name: "failed recipient plus uncertain",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          1,
+				TemplateVersion:  8,
+				TemplateSnapshot: `{"en":{"subject":"uncertain"}}`,
+				State:            model.RecallMessageUncertain,
+				AttemptCount:     1,
+				FailedAt:         1_721_199_930,
+				UpdatedAt:        1_721_199_930,
+			},
+			wantState: model.RecallMessageUncertain,
+		},
+		{
+			name: "failed recipient plus expired sending",
+			ambiguousMessage: model.RecallMessage{
+				StageNo:          1,
+				TemplateVersion:  9,
+				TemplateSnapshot: `{"en":{"subject":"expired"}}`,
+				State:            model.RecallMessageSending,
+				AttemptCount:     1,
+				LeaseOwner:       "crashed-node",
+				LeaseExpiresAt:   1_721_199_999,
+				UpdatedAt:        1_721_199_940,
+			},
+			wantState:        model.RecallMessageSending,
+			wantLeaseCleared: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Unix(1_721_200_000, 0).UTC()
+			service := NewRecallCampaignService(nil, nil)
+			service.now = func() time.Time { return now }
+
+			campaign := model.RecallCampaign{
+				CampaignType:        model.RecallCampaignTypePromotion,
+				Name:                "failed recipient mixed retry campaign",
+				Status:              model.RecallCampaignRunning,
+				AudienceTemplate:    "first_purchase",
+				AudienceConfig:      `{}`,
+				ExecutionMode:       "manual",
+				CouponSource:        "automatic",
+				DiscountConfig:      `{}`,
+				ProductScope:        `{}`,
+				EmailSequenceConfig: `[]`,
+				EnrollmentLimit:     100,
+				WorkerConcurrency:   2,
+			}
+			require.NoError(t, db.Create(&campaign).Error)
+			recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 981, EligibilitySnapshot: `{}`, EmailSnapshot: "failed-recipient-mixed@example.com", LanguageSnapshot: "en", State: model.RecallRecipientFailed, LastErrorCode: "stripe_permanent", UpdatedAt: now.Unix() - 200}
+			require.NoError(t, db.Create(&recipient).Error)
+			ambiguousMessage := test.ambiguousMessage
+			ambiguousMessage.RecipientId = recipient.Id
+			require.NoError(t, db.Create(&ambiguousMessage).Error)
+
+			err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+			require.ErrorContains(t, err, "acknowledge_uncertain=true")
+			require.NoError(t, db.First(&recipient, recipient.Id).Error)
+			require.Equal(t, model.RecallRecipientFailed, recipient.State)
+			require.NoError(t, db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, test.wantState, ambiguousMessage.State)
+
+			err = service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, true)
+			require.NoError(t, err)
+			require.NoError(t, db.First(&ambiguousMessage, ambiguousMessage.Id).Error)
+			require.Equal(t, model.RecallMessageRetryWait, ambiguousMessage.State)
+			require.Equal(t, now.Unix(), ambiguousMessage.NextAttemptAt)
+			if test.wantLeaseCleared {
+				require.Empty(t, ambiguousMessage.LeaseOwner)
+				require.Zero(t, ambiguousMessage.LeaseExpiresAt)
+			}
+			require.NoError(t, db.First(&recipient, recipient.Id).Error)
+			require.Equal(t, model.RecallRecipientFailed, recipient.State)
+		})
+	}
+}
+
+func TestRecallCampaignRetryStillAllowsFailedRecipientWithoutAmbiguousMessages(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_200_000, 0).UTC()
+	service := NewRecallCampaignService(nil, nil)
+	service.now = func() time.Time { return now }
+
+	campaign := model.RecallCampaign{
+		CampaignType:        model.RecallCampaignTypePromotion,
+		Name:                "failed recipient retry campaign",
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "first_purchase",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "automatic",
+		DiscountConfig:      `{}`,
+		ProductScope:        `{}`,
+		EmailSequenceConfig: `[]`,
+		EnrollmentLimit:     100,
+		WorkerConcurrency:   2,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 982, EligibilitySnapshot: `{}`, EmailSnapshot: "failed-recipient@example.com", LanguageSnapshot: "en", State: model.RecallRecipientFailed, LastErrorCode: "stripe_permanent", UpdatedAt: now.Unix() - 200}
+	require.NoError(t, db.Create(&recipient).Error)
+
+	err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+	require.NoError(t, err)
+	require.NoError(t, db.First(&recipient, recipient.Id).Error)
+	require.Equal(t, model.RecallRecipientQueued, recipient.State)
+}
+
+func TestRecallCampaignRetryRechecksPrecedenceAfterStaleFailedMessageSnapshot(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_200_000, 0).UTC()
+	service := NewRecallCampaignService(nil, nil)
+	service.now = func() time.Time { return now }
+
+	campaign := model.RecallCampaign{
+		CampaignType:        model.RecallCampaignTypePromotion,
+		Name:                "stale retry campaign",
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "first_purchase",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "automatic",
+		DiscountConfig:      `{}`,
+		ProductScope:        `{}`,
+		EmailSequenceConfig: `[]`,
+		EnrollmentLimit:     100,
+		WorkerConcurrency:   2,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 983, EligibilitySnapshot: `{}`, EmailSnapshot: "stale-retry@example.com", LanguageSnapshot: "en", State: model.RecallRecipientContacting}
+	require.NoError(t, db.Create(&recipient).Error)
+	failedMessage := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 7, TemplateSnapshot: `{}`, State: model.RecallMessageFailed, AttemptCount: 2, FailedAt: now.Unix() - 100, UpdatedAt: now.Unix() - 100}
+	lateAmbiguous := model.RecallMessage{RecipientId: recipient.Id, StageNo: 2, TemplateVersion: 8, TemplateSnapshot: `{}`, State: model.RecallMessageScheduled, ScheduledAt: now.Unix() + 300}
+	require.NoError(t, db.Create(&failedMessage).Error)
+	require.NoError(t, db.Create(&lateAmbiguous).Error)
+
+	callbackName := "test:recall-retry-stale-failed-snapshot-campaign-after"
+	var triggered atomic.Bool
+	mutateToUncertain := func(tx *gorm.DB) {
+		require.NoError(t, tx.Session(&gorm.Session{NewDB: true}).Model(&model.RecallMessage{}).Where("id = ?", lateAmbiguous.Id).Updates(map[string]any{
+			"state":      model.RecallMessageUncertain,
+			"failed_at":  now.Unix() - 50,
+			"updated_at": now.Unix() - 50,
+		}).Error)
+	}
+	require.NoError(t, db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallCampaign" || strings.Contains(fmt.Sprintf("%T", tx.Statement.ConnPool), "sql.Tx") || !triggered.CompareAndSwap(false, true) {
+			return
+		}
+		mutateToUncertain(tx)
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, db.Callback().Query().Remove(callbackName))
+		require.True(t, triggered.Load(), "expected stale snapshot mutation callback to run")
+	})
+
+	err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+	require.ErrorContains(t, err, "acknowledge_uncertain=true")
+
+	require.NoError(t, db.First(&failedMessage, failedMessage.Id).Error)
+	require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+	require.NoError(t, db.First(&lateAmbiguous, lateAmbiguous.Id).Error)
+	require.Equal(t, model.RecallMessageUncertain, lateAmbiguous.State)
+
+	err = service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, true)
+	require.NoError(t, err)
+	require.NoError(t, db.First(&lateAmbiguous, lateAmbiguous.Id).Error)
+	require.Equal(t, model.RecallMessageRetryWait, lateAmbiguous.State)
+	require.NoError(t, db.First(&failedMessage, failedMessage.Id).Error)
+	require.Equal(t, model.RecallMessageFailed, failedMessage.State)
+}
+
+func TestRecallCampaignRetryFailedRecipientFallbackStates(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		recipient     model.RecallRecipient
+		wantNextState string
+	}{
+		{
+			name:          "queued",
+			recipient:     model.RecallRecipient{},
+			wantNextState: model.RecallRecipientQueued,
+		},
+		{
+			name: "customer ready",
+			recipient: model.RecallRecipient{
+				StripeCustomerId: "cus_retry",
+			},
+			wantNextState: model.RecallRecipientCustomerReady,
+		},
+		{
+			name: "code ready",
+			recipient: model.RecallRecipient{
+				StripeCustomerId: "cus_retry",
+				PromotionCode:    "FKRETRY",
+			},
+			wantNextState: model.RecallRecipientCodeReady,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			now := time.Unix(1_721_200_000, 0).UTC()
+			service := NewRecallCampaignService(nil, nil)
+			service.now = func() time.Time { return now }
+
+			campaign := model.RecallCampaign{
+				CampaignType:        model.RecallCampaignTypePromotion,
+				Name:                "failed recipient fallback campaign",
+				Status:              model.RecallCampaignRunning,
+				AudienceTemplate:    "first_purchase",
+				AudienceConfig:      `{}`,
+				ExecutionMode:       "manual",
+				CouponSource:        "automatic",
+				DiscountConfig:      `{}`,
+				ProductScope:        `{}`,
+				EmailSequenceConfig: `[]`,
+				EnrollmentLimit:     100,
+				WorkerConcurrency:   2,
+			}
+			require.NoError(t, db.Create(&campaign).Error)
+			recipient := test.recipient
+			recipient.CampaignId = campaign.Id
+			recipient.UserId = 984
+			recipient.EligibilitySnapshot = `{}`
+			recipient.EmailSnapshot = "failed-recipient-fallback@example.com"
+			recipient.LanguageSnapshot = "en"
+			recipient.State = model.RecallRecipientFailed
+			recipient.LastErrorCode = "stripe_permanent"
+			recipient.UpdatedAt = now.Unix() - 200
+			if recipient.PromotionCode != "" {
+				promotionID := "promo_retry"
+				recipient.StripePromotionCodeId = &promotionID
+			}
+			require.NoError(t, db.Create(&recipient).Error)
+
+			err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+			require.NoError(t, err)
+			require.NoError(t, db.First(&recipient, recipient.Id).Error)
+			require.Equal(t, test.wantNextState, recipient.State)
+		})
+	}
+}
+
+func TestRecallCampaignRetryFailedMessagePrecedesFailedRecipientWithoutAmbiguousMessages(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Unix(1_721_200_000, 0).UTC()
+	service := NewRecallCampaignService(nil, nil)
+	service.now = func() time.Time { return now }
+
+	campaign := model.RecallCampaign{
+		CampaignType:        model.RecallCampaignTypePromotion,
+		Name:                "failed message before recipient campaign",
+		Status:              model.RecallCampaignRunning,
+		AudienceTemplate:    "first_purchase",
+		AudienceConfig:      `{}`,
+		ExecutionMode:       "manual",
+		CouponSource:        "automatic",
+		DiscountConfig:      `{}`,
+		ProductScope:        `{}`,
+		EmailSequenceConfig: `[]`,
+		EnrollmentLimit:     100,
+		WorkerConcurrency:   2,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 985, EligibilitySnapshot: `{}`, EmailSnapshot: "failed-message-before-recipient@example.com", LanguageSnapshot: "en", State: model.RecallRecipientFailed, LastErrorCode: "stripe_permanent", UpdatedAt: now.Unix() - 200}
+	require.NoError(t, db.Create(&recipient).Error)
+	failedMessage := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 7, TemplateSnapshot: `{}`, State: model.RecallMessageFailed, AttemptCount: 2, FailedAt: now.Unix() - 100, UpdatedAt: now.Unix() - 100}
+	require.NoError(t, db.Create(&failedMessage).Error)
+
+	err := service.RetryRecipient(context.Background(), 7, campaign.Id, recipient.Id, false)
+	require.NoError(t, err)
+	require.NoError(t, db.First(&failedMessage, failedMessage.Id).Error)
+	require.Equal(t, model.RecallMessageRetryWait, failedMessage.State)
+	require.NoError(t, db.First(&recipient, recipient.Id).Error)
+	require.Equal(t, model.RecallRecipientFailed, recipient.State)
 }
 
 func TestRecallCampaignConfigurationEntryPointsRemainAvailableWhenRuntimeDisabled(t *testing.T) {
@@ -3695,7 +4779,10 @@ func TestRecallCampaignRecurringSnapshotSkipsExistingIdentityBeforeInsert(t *tes
 	}
 	require.NoError(t, db.Create(&existing).Error)
 
-	recipients, _, err := service.snapshotRecurringAudience(context.Background(), campaign.Id, draft, 10, now)
+	recipients, _, source, err := service.snapshotRecurringAudience(context.Background(), campaign.Id, draft, 10, now)
+	if closer, ok := source.(interface{ Close() error }); ok {
+		t.Cleanup(func() { _ = closer.Close() })
+	}
 
 	require.NoError(t, err)
 	require.Empty(t, recipients)
@@ -3727,11 +4814,42 @@ func TestRecallCampaignRecurringSnapshotDeduplicatesNormalizedEmailWithinRun(t *
 	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 	require.NoError(t, err)
 
-	recipients, _, err := service.snapshotRecurringAudience(context.Background(), campaign.Id, draft, 10, now)
+	recipients, _, source, err := service.snapshotRecurringAudience(context.Background(), campaign.Id, draft, 10, now)
+	if closer, ok := source.(interface{ Close() error }); ok {
+		t.Cleanup(func() { _ = closer.Close() })
+	}
 
 	require.NoError(t, err)
 	require.Len(t, recipients, 1)
 	require.Equal(t, "same-run@example.com", recipients[0].EmailSnapshot)
+}
+
+func TestRecallCampaignRunClosesExclusionLedgerWhenCommitLosesRunEvent(t *testing.T) {
+	db := setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 0, 30, 0, 0, time.UTC)
+	createRecallAudienceUser(t, db, now.Unix(), "commit_cleanup_disabled", func(user *model.User) {
+		user.Status = common.UserStatusDisabled
+	})
+	draft := validRecallCampaignDraft(now)
+	draft.Audience.LastAPICallAgeDays = 0
+	campaign := model.RecallCampaign{
+		Name: "commit cleanup", Status: model.RecallCampaignRunning, AudienceTemplate: draft.AudienceTemplate,
+		AudienceConfig: `{}`, ExecutionMode: "manual", PromotionValidSeconds: 3600, EmailSequenceConfig: `[]`,
+		ConfigRevision: 1,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	require.NoError(t, db.Create(&model.RecallEvent{
+		CampaignId: campaign.Id, EventType: "campaign_run", Source: "scheduler", SourceEventId: "cleanup-conflict", EventData: `{}`,
+	}).Error)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	before := recallAudienceTempLedgerCount(t)
+
+	committed, err := service.commitCampaignRun(context.Background(), &campaign, draft, []string{model.RecallCampaignRunning}, model.RecallCampaignRunning, nil, map[string]any{}, "cleanup-conflict", now)
+
+	require.NoError(t, err)
+	require.False(t, committed)
+	require.Equal(t, before, recallAudienceTempLedgerCount(t))
 }
 
 func mustRunDueCampaigns(t *testing.T, service *RecallCampaignService, now time.Time) int {

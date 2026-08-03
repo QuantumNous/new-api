@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -406,25 +407,13 @@ func cancelRecallCampaignWithContext(ctx context.Context, id int64, from []strin
 			return nil
 		}
 		cancelled = true
-		recipientIDs := tx.Model(&RecallRecipient{}).
-			Select("id").
-			Where("campaign_id = ?", id)
-		if err := tx.Model(&RecallMessage{}).
-			Where("recipient_id IN (?) AND state IN ?", recipientIDs, []string{
-				RecallMessageScheduled,
-				RecallMessageRetryWait,
-				RecallMessageLeased,
-				RecallMessageSending,
-			}).
-			Updates(map[string]any{
-				"state":              RecallMessageCancelled,
-				"next_attempt_at":    int64(0),
-				"lease_owner":        "",
-				"lease_expires_at":   int64(0),
-				"last_error_code":    reasonCode,
-				"last_error_message": "",
-				"failed_at":          now,
-			}).Error; err != nil {
+		if _, err := cancelRecallMessagesInBatches(tx, func(afterID int64) *gorm.DB {
+			recipientIDs := tx.Model(&RecallRecipient{}).
+				Select("id").
+				Where("campaign_id = ?", id)
+			return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("id > ? AND recipient_id IN (?) AND state IN ?", afterID, recipientIDs, cancellableRecallMessageStates())
+		}, id, reasonCode, now); err != nil {
 			return err
 		}
 		if err := markRecallPromotionRevocationsPending(tx, id, now, false); err != nil {

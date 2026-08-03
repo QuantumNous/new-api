@@ -1,27 +1,34 @@
 import { AxiosHeaders, type InternalAxiosRequestConfig } from 'axios'
-import { afterEach, describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, mock, test } from 'bun:test'
 import { api } from '@/lib/api'
 import {
   createRecallCampaign,
   exportRecallCampaign,
+  exportRecallCampaignMetricUsers,
   generateRecallEmailTranslations,
   getRecallActivitySMTPStatus,
+  getLatestRecallEmailTranslationTask,
+  getRecallCampaignExclusionBatch,
   getRecallEmailQuotaStatus,
+  getRecallEmailTranslationTask,
   updateRecallEmailQuotaLimit,
   getRecallSubscriptionProductConfiguration,
   getRecallTopUpProductConfiguration,
   getRecallUserGroups,
   getRecallCampaign,
   getRecallCampaignMetrics,
+  getRecallCampaignMetricUsers,
   listRecallAudienceUsers,
   listRecallCampaigns,
   listRecallEvents,
   listRecallRecipients,
   previewRecallEmail,
   previewRecallCampaign,
+  previewRecallCampaignExclusions,
   recallCampaignKeys,
   retryRecallRecipient,
   runRecallCampaignAction,
+  confirmRecallCampaignExclusionBatch,
   updateRecallCampaign,
   updateRecallActivitySMTP,
   validateRecallStripeConfig,
@@ -31,17 +38,20 @@ import type {
   RecallActivitySMTPInput,
   RecallCampaignDraft,
   RecallEmailGenerationRequest,
+  RecallMetricFilters,
+  RecallMetricResult,
+  RecallTranslationTask,
 } from './types'
 
 const originalAdapter = api.defaults.adapter
 let capturedConfig: InternalAxiosRequestConfig | undefined
 
-function respondWith(data: unknown): void {
+function respondWith(data: unknown, status = 200): void {
   api.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
     capturedConfig = config
     return {
       data,
-      status: 200,
+      status,
       statusText: 'OK',
       headers: new AxiosHeaders(),
       config,
@@ -147,6 +157,20 @@ describe('recall campaign API contracts', () => {
     await expect(call()).rejects.toThrow('Recall request failed')
   })
 
+  test('serializes uncertain recipient retry acknowledgment in the request body', async () => {
+    respondWith({ success: true })
+
+    await retryRecallRecipient(42, 73, true)
+
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/recipients/73/retry'
+    )
+    expect(capturedConfig?.method).toBe('post')
+    expect(JSON.parse(String(capturedConfig?.data))).toEqual({
+      acknowledge_uncertain: true,
+    })
+  })
+
   test('rejects a JSON failure envelope returned from export as a Blob', async () => {
     respondWith(
       new Blob(
@@ -156,6 +180,246 @@ describe('recall campaign API contracts', () => {
     )
 
     await expect(exportRecallCampaign(1)).rejects.toThrow('Export unavailable')
+  })
+
+  test('rejects non-envelope JSON returned from export as a Blob', async () => {
+    respondWith(
+      new Blob([JSON.stringify({ error: 'Export unavailable' })], {
+        type: 'application/json',
+      })
+    )
+
+    await expect(exportRecallCampaign(1)).rejects.toThrow(
+      'Recall campaign export returned JSON instead of CSV'
+    )
+  })
+
+  test('rejects empty-MIME JSON failure envelopes returned from CSV exports', async () => {
+    respondWith(
+      new Blob(
+        [JSON.stringify({ success: false, message: 'Export unavailable' })],
+        { type: '' }
+      )
+    )
+    await expect(exportRecallCampaign(1)).rejects.toThrow('Export unavailable')
+
+    respondWith(
+      new Blob(
+        [
+          JSON.stringify({
+            success: false,
+            message: 'Metric export unavailable',
+          }),
+        ],
+        { type: '' }
+      )
+    )
+    await expect(
+      exportRecallCampaignMetricUsers(42, 'messages_failed', {})
+    ).rejects.toThrow('Metric export unavailable')
+  })
+
+  test('returns empty-MIME CSV exports without JSON envelope handling', async () => {
+    const csv = new Blob(['email,amount\nalice@example.com,9600\n'], {
+      type: '',
+    })
+    const text = mock(csv.text.bind(csv))
+    Object.defineProperty(csv, 'text', { value: text })
+    respondWith(csv)
+
+    await expect(exportRecallCampaign(1)).resolves.toBe(csv)
+    expect(text).not.toHaveBeenCalled()
+  })
+
+  test('loads metric users with metric and supplied filters in query params', async () => {
+    const filters: RecallMetricFilters = {
+      q: 'alice',
+      stage_no: 2,
+      state: 'converted',
+      conversion_kind: 'direct',
+      payment_category: 'direct_topup',
+      currency: 'USD',
+      snapshot: '2026-08-01T00:00:00Z',
+      cursor: 'next-page',
+      limit: 50,
+    }
+    const result: RecallMetricResult = {
+      items: [],
+      total: 0,
+      amounts: [],
+      snapshot: filters.snapshot,
+      legacy_unidentified_count: 0,
+      drilldown_complete: true,
+    }
+    respondWith({ success: true, data: result })
+
+    await getRecallCampaignMetricUsers(42, 'direct_conversions', filters)
+
+    expect(capturedConfig?.url).toBe('/api/recall-campaigns/42/metric-users')
+    expect(capturedConfig?.method).toBe('get')
+    expect(capturedConfig?.params).toEqual({
+      metric: 'direct_conversions',
+      ...filters,
+    })
+  })
+
+  test('keeps the explicit metric argument ahead of a forged runtime filter metric', async () => {
+    const forgedFilters = {
+      metric: 'messages_failed',
+      state: 'converted',
+      currency: 'USD',
+    } as RecallMetricFilters & { metric: string }
+    respondWith({
+      success: true,
+      data: {
+        items: [],
+        total: 0,
+        amounts: [],
+        snapshot: '',
+        legacy_unidentified_count: 0,
+        drilldown_complete: true,
+      },
+    })
+
+    await getRecallCampaignMetricUsers(42, 'direct_conversions', forgedFilters)
+
+    expect(capturedConfig?.params).toEqual({
+      ...forgedFilters,
+      metric: 'direct_conversions',
+    })
+  })
+
+  test('exports metric users with the same query contract and blob duplicate protection', async () => {
+    const csv = new Blob(['email,amount\nalice@example.com,9600\n'], {
+      type: 'text/csv',
+    })
+    const filters: RecallMetricFilters = {
+      state: 'converted',
+      currency: 'USD',
+      snapshot: '2026-08-01T00:00:00Z',
+      cursor: 'export-cursor',
+      limit: 500,
+    }
+    respondWith(csv)
+
+    const result = await exportRecallCampaignMetricUsers(
+      42,
+      'attributed_spend',
+      filters
+    )
+
+    expect(result).toBe(csv)
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/metric-users/export'
+    )
+    expect(capturedConfig?.method).toBe('get')
+    expect(capturedConfig?.responseType).toBe('blob')
+    expect(capturedConfig?.disableDuplicate).toBe(true)
+    expect(capturedConfig?.params).toEqual({
+      metric: 'attributed_spend',
+      ...filters,
+    })
+  })
+
+  test('keeps the explicit export metric ahead of a forged runtime filter metric', async () => {
+    const csv = new Blob(['email,amount\nalice@example.com,9600\n'], {
+      type: 'text/csv',
+    })
+    const forgedFilters = {
+      metric: 'messages_failed',
+      currency: 'USD',
+      snapshot: '2026-08-01T00:00:00Z',
+    } as RecallMetricFilters & { metric: string }
+    respondWith(csv)
+
+    await exportRecallCampaignMetricUsers(42, 'attributed_spend', forgedFilters)
+
+    expect(capturedConfig?.params).toEqual({
+      ...forgedFilters,
+      metric: 'attributed_spend',
+    })
+  })
+
+  test('rejects a JSON failure envelope returned from metric export as a Blob', async () => {
+    respondWith(
+      new Blob(
+        [
+          JSON.stringify({
+            success: false,
+            message: 'Metric export unavailable',
+          }),
+        ],
+        { type: 'application/json' }
+      )
+    )
+
+    await expect(
+      exportRecallCampaignMetricUsers(42, 'messages_failed', {})
+    ).rejects.toThrow('Metric export unavailable')
+  })
+
+  test('previews exclusion uploads as multipart form data with a file field', async () => {
+    const file = new File(['email\nalice@example.com\n'], 'exclusions.csv', {
+      type: 'text/csv',
+    })
+    respondWith({
+      success: true,
+      data: {
+        batch_id: 73,
+        total_rows: 1,
+        resolved_users: 1,
+        duplicate_rows: 0,
+        unresolved_rows: 0,
+        conflict_rows: 0,
+        blocking_errors: [],
+        warnings: [],
+        cancelable_work: 0,
+        confirmable: true,
+      },
+    })
+
+    await previewRecallCampaignExclusions(42, file)
+
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/exclusions/preview'
+    )
+    expect(capturedConfig?.method).toBe('post')
+    expect(capturedConfig?.data).toBeInstanceOf(FormData)
+    const uploaded = (capturedConfig?.data as FormData).get('file')
+    expect(uploaded).toBeInstanceOf(File)
+    expect((uploaded as File).name).toBe('exclusions.csv')
+    expect((uploaded as File).type).toBe('text/csv')
+    expect(await (uploaded as File).text()).toBe('email\nalice@example.com\n')
+  })
+
+  test('loads and confirms an exclusion batch', async () => {
+    respondWith({
+      success: true,
+      data: {
+        batch_id: 73,
+        total_rows: 1,
+        resolved_users: 1,
+        duplicate_rows: 0,
+        unresolved_rows: 0,
+        conflict_rows: 0,
+        blocking_errors: [],
+        warnings: [],
+        cancelable_work: 0,
+        confirmable: true,
+      },
+    })
+
+    await getRecallCampaignExclusionBatch(42, 73)
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/exclusions/batches/73'
+    )
+    expect(capturedConfig?.method).toBe('get')
+
+    await confirmRecallCampaignExclusionBatch(42, 73)
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/exclusions/batches/73/confirm'
+    )
+    expect(capturedConfig?.method).toBe('post')
   })
 
   test('preserves structured failure data for activation recovery', async () => {
@@ -218,6 +482,75 @@ describe('recall campaign API contracts', () => {
       '/api/recall-campaigns/42/email-translations/generate'
     )
     expect(JSON.parse(String(capturedConfig?.data))).toEqual(request)
+  })
+
+  test('starts an email translation task from the HTTP 202 success envelope', async () => {
+    const request: RecallEmailGenerationRequest = {
+      config_revision: 7,
+      name: 'Win back customers',
+      email_sequence: [],
+    }
+    const task: RecallTranslationTask = {
+      id: 55,
+      campaign_id: 42,
+      status: 'queued',
+      requested_config_revision: 7,
+      attempt_count: 0,
+      created_at: 1_900_000_000,
+      started_at: 0,
+    }
+    respondWith({ success: true, data: task }, 202)
+
+    const response = await generateRecallEmailTranslations(42, request)
+
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/email-translations/generate'
+    )
+    expect(response.data).toEqual(task)
+  })
+
+  test('loads email translation tasks by id and latest campaign task', async () => {
+    const task: RecallTranslationTask = {
+      id: 55,
+      campaign_id: 42,
+      status: 'succeeded',
+      requested_config_revision: 7,
+      result_config_revision: 8,
+      attempt_count: 1,
+      created_at: 1_900_000_000,
+      started_at: 1_900_000_000,
+      finished_at: 1_900_000_001,
+    }
+    respondWith({ success: true, data: task })
+
+    await getRecallEmailTranslationTask(42, 55)
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/email-translations/tasks/55'
+    )
+    expect(capturedConfig?.method).toBe('get')
+
+    await getLatestRecallEmailTranslationTask(42)
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/email-translations/tasks/latest'
+    )
+    expect(capturedConfig?.method).toBe('get')
+  })
+
+  test('exposes stable email translation task query keys', () => {
+    expect(recallCampaignKeys.translationTask(42, 55)).toEqual([
+      'recall-campaigns',
+      42,
+      'email-translations',
+      'tasks',
+      55,
+    ])
+    expect(recallCampaignKeys.latestTranslationTask(42)).toEqual([
+      'recall-campaigns',
+      42,
+      'email-translations',
+      'tasks',
+      'latest',
+    ])
   })
 
   test('loads the activity email quota from its dedicated endpoint', async () => {

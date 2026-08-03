@@ -132,11 +132,12 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy new revision (direct 100% traffic — staging, no canary)
+      - name: Deploy new revision without traffic
         id: deploy
         run: |
           set -euo pipefail
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
+          candidate_tag="staging-candidate"
           host="${STAGING_APP_CONSOLE_ORIGIN#http://}"
           host="${host#https://}"
           host="${host%%/*}"
@@ -177,12 +178,60 @@ jobs:
             --update-env-vars="${env_arg}" \
             --update-secrets="BYTEPLUS_REAL_PERSON_CIPHER_KEY=${STAGING_BYTEPLUS_REAL_PERSON_CIPHER_SECRET}:latest" \
             --revision-suffix="${revision_suffix}" \
+            --tag="${candidate_tag}" \
+            --no-traffic \
             --quiet
-          new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
+          service_json="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
-            --format='value(status.latestCreatedRevisionName)')"
+            --format=json)"
+          new_rev="$(jq -r '.status.latestCreatedRevisionName // empty' <<< "${service_json}")"
+          candidate_url="$(jq -r --arg tag "${candidate_tag}" \
+            '.status.traffic[] | select(.tag == $tag) | .url' \
+            <<< "${service_json}")"
+          if [[ -z "${new_rev}" || -z "${candidate_url}" ]]; then
+            echo "Could not resolve the deployed revision or candidate URL" >&2
+            jq '.status | {latestCreatedRevisionName, traffic}' <<< "${service_json}" >&2
+            exit 1
+          fi
           echo "new_revision=${new_rev}" >> "$GITHUB_OUTPUT"
+          echo "candidate_url=${candidate_url}" >> "$GITHUB_OUTPUT"
           echo "Deployed revision: ${new_rev}"
+
+      - name: Health check candidate revision
+        run: |
+          set -euo pipefail
+          new_rev="${{ steps.deploy.outputs.new_revision }}"
+          url="${{ steps.deploy.outputs.candidate_url }}"
+          echo "Probing candidate ${new_rev} at ${url}/api/status ..."
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${url}/api/status" || true)
+            echo "attempt $i -> $code"
+            if [[ "${code}" == "200" ]]; then exit 0; fi
+            sleep 5
+          done
+          echo "Candidate health check failed; traffic was not promoted" >&2
+          exit 1
+
+      - name: Promote the new revision to 100% traffic
+        run: |
+          set -euo pipefail
+          new_rev="${{ steps.deploy.outputs.new_revision }}"
+          gcloud run services update-traffic "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --to-revisions="${new_rev}=100" \
+            --quiet
+          traffic_json="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format=json)"
+          if ! jq -e --arg revision "${new_rev}" \
+            '[.status.traffic[] | select((.percent // 0) > 0)] as $active | ($active | length == 1) and ($active[0].revisionName == $revision) and ($active[0].percent == 100)' \
+            <<< "${traffic_json}" > /dev/null; then
+            echo "Expected ${new_rev} to be the only revision serving 100% traffic; actual traffic:" >&2
+            jq '.status.traffic' <<< "${traffic_json}" >&2
+            exit 1
+          fi
 
       - name: Health check
         run: |

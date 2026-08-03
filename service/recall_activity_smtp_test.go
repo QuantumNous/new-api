@@ -2,8 +2,12 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
+	"net"
+	"net/textproto"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -13,6 +17,64 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestRecallActivitySMTPClassifiesAttemptOutcomes(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want recallSMTPAttemptOutcome
+	}{
+		{name: "accepted", want: recallSMTPAttemptAccepted},
+		{name: "smtp_4xx_retryable", err: &textproto.Error{Code: 421, Msg: "service unavailable"}, want: recallSMTPAttemptRetryable},
+		{name: "smtp_5xx_permanent", err: &textproto.Error{Code: 550, Msg: "mailbox unavailable user@example.com"}, want: recallSMTPAttemptPermanent},
+		{name: "raw_4xx_uncertain", err: errors.New("451 temporary local problem for user@example.com"), want: recallSMTPAttemptUncertain},
+		{name: "raw_5xx_uncertain", err: errors.New("550 mailbox unavailable user@example.com"), want: recallSMTPAttemptUncertain},
+		{name: "connection_refused_retryable", err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}, want: recallSMTPAttemptRetryable},
+		{name: "post_data_uncertain", err: recallSMTPUncertainError{err: errors.New("connection reset after DATA")}, want: recallSMTPAttemptUncertain},
+		{name: "deterministic_content_rejection_permanent", err: errors.New("email headers must not contain CR or LF"), want: recallSMTPAttemptPermanent},
+		{name: "ambiguous_temporary_text_uncertain", err: errors.New("temporary provider failure"), want: recallSMTPAttemptUncertain},
+		{name: "unknown_error_uncertain", err: errors.New("connection refused after DATA"), want: recallSMTPAttemptUncertain},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			require.Equal(t, testCase.want, classifyRecallSMTPAttempt(testCase.err).Outcome)
+		})
+	}
+}
+
+func TestRecallActivitySMTPRetryDelaysAreExactFourSlots(t *testing.T) {
+	require.Equal(t, [...]time.Duration{
+		30 * time.Second,
+		time.Minute,
+		2 * time.Minute,
+		4 * time.Minute,
+	}, recallSMTPRetryDelays)
+}
+
+func TestRecallSMTPOutcomeObservationLogsSanitizedPerAttempt(t *testing.T) {
+	originalSysLog := recallSMTPOutcomeSysLog
+	var logs []string
+	recallSMTPOutcomeSysLog = func(message string) {
+		logs = append(logs, message)
+	}
+	t.Cleanup(func() {
+		recallSMTPOutcomeSysLog = originalSysLog
+	})
+
+	observeRecallSMTPAttemptOutcome(recallSMTPAttemptUncertain)
+
+	require.Len(t, logs, 1)
+	require.Contains(t, logs[0], "recall smtp attempt outcome")
+	require.Contains(t, logs[0], "outcome=uncertain")
+	require.Contains(t, logs[0], "scope=process")
+	require.Contains(t, logs[0], "payload=none")
+	require.NotContains(t, logs[0], "accepted=")
+	require.NotContains(t, logs[0], "retryable=")
+	require.NotContains(t, logs[0], "permanent=")
+	require.NotContains(t, logs[0], "uncertain=")
+	require.NotContains(t, logs[0], "@")
+}
 
 func setupRecallActivitySMTPServiceTest(t *testing.T) *gorm.DB {
 	t.Helper()
