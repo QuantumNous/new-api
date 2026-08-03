@@ -144,7 +144,7 @@ const zh: SiteContent = {
   ],
   hero: {
     badge: '中国大模型与全球大模型的统一入口',
-    title: '中国与世界大模型的统一 API 网关',
+    title: '大模型统一API网关',
     subtitle:
       '元点流商 OriginFlow 用一把密钥、一张账单、一个控制台，统一接入 DeepSeek、通义千问、GPT、Claude、Gemini 等全部主流模型。',
     primaryCta: '立即开始',
