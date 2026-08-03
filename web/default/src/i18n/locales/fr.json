@@ -4314,6 +4314,18 @@
     "Unset price": "Prix non défini",
     "Use the full-width table to scan prices, then select a row to edit it here.": "Parcourez les prix dans le tableau, puis sélectionnez une ligne pour la modifier ici.",
     "extras": "suppléments",
-    "tiers": "paliers"
+    "tiers": "paliers",
+    "Bind this API key to one or more entitlement packages": "Associer cette clé API à un ou plusieurs forfaits de droits",
+    "Directed Entitlements": "Droits ciblés",
+    "Entitlement assignments could not be loaded. Existing assignments will not be changed.": "Impossible de charger les affectations de droits. Les affectations existantes ne seront pas modifiées.",
+    "Entitlement Packages": "Forfaits de droits",
+    "Entitlement packages could not be loaded. Existing assignments will not be changed.": "Impossible de charger les forfaits de droits. Les affectations existantes ne seront pas modifiées.",
+    "Entitlement packages could not be loaded. This API key can still be created without entitlement assignments.": "Impossible de charger les forfaits de droits. Cette clé API peut toujours être créée sans affectation de droits.",
+    "Loading entitlement packages...": "Chargement des forfaits de droits...",
+    "Only packages granted to your account can be selected.": "Seuls les forfaits accordés à votre compte peuvent être sélectionnés.",
+    "Package #{{id}}": "Forfait n° {{id}}",
+    "Package #{{id}} (currently assigned)": "Forfait n° {{id}} (actuellement affecté)",
+    "Select entitlement packages": "Sélectionner les forfaits de droits",
+    "Your account has no active entitlement packages.": "Votre compte ne dispose d’aucun forfait de droits actif."
   }
 }

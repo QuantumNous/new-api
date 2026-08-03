@@ -312,16 +312,13 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
 	}
-	err = cleanToken.Update()
-	if err != nil {
+	var entitlementPackageIds *[]int
+	if statusOnly == "" {
+		entitlementPackageIds = req.EntitlementPackageIds
+	}
+	if err := model.UpdateTokenWithEntitlements(cleanToken, userId, entitlementPackageIds); err != nil {
 		common.ApiError(c, err)
 		return
-	}
-	if statusOnly == "" && req.EntitlementPackageIds != nil {
-		if err := model.SetTokenEntitlementPackages(cleanToken.Id, userId, *req.EntitlementPackageIds, false); err != nil {
-			common.ApiError(c, err)
-			return
-		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

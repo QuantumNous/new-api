@@ -64,6 +64,40 @@ export interface SearchApiKeysParams {
   size?: number
 }
 
+/**
+ * A directed entitlement package currently granted to the signed-in user.
+ *
+ * The self-service endpoint returns package records while token assignments
+ * only carry package IDs. Keep these response types separate so the key form
+ * never needs admin-only package APIs.
+ */
+export interface EntitlementPackage {
+  id: number
+  name: string
+  description?: string
+  status?: number
+  group?: string
+  models?: string
+  priority?: number
+  allow_public_fallback?: boolean
+  start_time?: number
+  end_time?: number
+  daily_quota?: number
+  daily_request_limit?: number
+  total_quota?: number
+  total_request_limit?: number
+}
+
+export interface TokenEntitlementAssignment {
+  id: number
+  package_id: number
+  token_id: number
+  user_id: number
+  status: number
+  start_time?: number
+  end_time?: number
+}
+
 export interface ApiKeyFormData {
   name: string
   remain_quota: number
@@ -74,6 +108,8 @@ export interface ApiKeyFormData {
   allow_ips: string
   group: string
   cross_group_retry: boolean
+  // Omission is meaningful for updates: the backend preserves assignments.
+  entitlement_package_ids?: number[]
 }
 
 // ============================================================================

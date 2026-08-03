@@ -4314,6 +4314,18 @@
     "Unset price": "価格未設定",
     "Use the full-width table to scan prices, then select a row to edit it here.": "表で価格を確認し、行を選択してここで編集します。",
     "extras": "追加項目",
-    "tiers": "階層"
+    "tiers": "階層",
+    "Bind this API key to one or more entitlement packages": "この API キーを 1 つ以上の権限パッケージに紐付けます",
+    "Directed Entitlements": "対象限定権限",
+    "Entitlement assignments could not be loaded. Existing assignments will not be changed.": "権限の割り当てを読み込めませんでした。既存の割り当ては変更されません。",
+    "Entitlement Packages": "権限パッケージ",
+    "Entitlement packages could not be loaded. Existing assignments will not be changed.": "権限パッケージを読み込めませんでした。既存の割り当ては変更されません。",
+    "Entitlement packages could not be loaded. This API key can still be created without entitlement assignments.": "権限パッケージを読み込めませんでした。権限を割り当てずにこの API キーを作成できます。",
+    "Loading entitlement packages...": "権限パッケージを読み込み中...",
+    "Only packages granted to your account can be selected.": "アカウントに付与されたパッケージのみ選択できます。",
+    "Package #{{id}}": "パッケージ #{{id}}",
+    "Package #{{id}} (currently assigned)": "パッケージ #{{id}}（現在割り当て済み）",
+    "Select entitlement packages": "権限パッケージを選択",
+    "Your account has no active entitlement packages.": "アカウントに有効な権限パッケージがありません。"
   }
 }

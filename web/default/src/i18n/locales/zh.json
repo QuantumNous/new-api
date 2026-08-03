@@ -4314,6 +4314,18 @@
     "Unset price": "未设置价格",
     "Use the full-width table to scan prices, then select a row to edit it here.": "先在表格中快速浏览价格，然后选择一行在这里编辑。",
     "extras": "额外项",
-    "tiers": "档"
+    "tiers": "档",
+    "Bind this API key to one or more entitlement packages": "将此 API 密钥绑定到一个或多个权益包",
+    "Directed Entitlements": "定向权益",
+    "Entitlement assignments could not be loaded. Existing assignments will not be changed.": "无法加载权益分配。现有分配不会更改。",
+    "Entitlement Packages": "权益包",
+    "Entitlement packages could not be loaded. Existing assignments will not be changed.": "无法加载权益包。现有分配不会更改。",
+    "Entitlement packages could not be loaded. This API key can still be created without entitlement assignments.": "无法加载权益包。仍可创建此 API 密钥，但不会分配权益包。",
+    "Loading entitlement packages...": "正在加载权益包...",
+    "Only packages granted to your account can be selected.": "只能选择已授予您账户的权益包。",
+    "Package #{{id}}": "权益包 #{{id}}",
+    "Package #{{id}} (currently assigned)": "权益包 #{{id}}（当前已分配）",
+    "Select entitlement packages": "选择权益包",
+    "Your account has no active entitlement packages.": "您的账户没有有效的权益包。"
   }
 }

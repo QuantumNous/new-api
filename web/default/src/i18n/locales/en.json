@@ -4314,6 +4314,18 @@
     "Unset price": "Unset price",
     "Use the full-width table to scan prices, then select a row to edit it here.": "Use the full-width table to scan prices, then select a row to edit it here.",
     "extras": "extras",
-    "tiers": "tiers"
+    "tiers": "tiers",
+    "Bind this API key to one or more entitlement packages": "Bind this API key to one or more entitlement packages",
+    "Directed Entitlements": "Directed Entitlements",
+    "Entitlement assignments could not be loaded. Existing assignments will not be changed.": "Entitlement assignments could not be loaded. Existing assignments will not be changed.",
+    "Entitlement Packages": "Entitlement Packages",
+    "Entitlement packages could not be loaded. Existing assignments will not be changed.": "Entitlement packages could not be loaded. Existing assignments will not be changed.",
+    "Entitlement packages could not be loaded. This API key can still be created without entitlement assignments.": "Entitlement packages could not be loaded. This API key can still be created without entitlement assignments.",
+    "Loading entitlement packages...": "Loading entitlement packages...",
+    "Only packages granted to your account can be selected.": "Only packages granted to your account can be selected.",
+    "Package #{{id}}": "Package #{{id}}",
+    "Package #{{id}} (currently assigned)": "Package #{{id}} (currently assigned)",
+    "Select entitlement packages": "Select entitlement packages",
+    "Your account has no active entitlement packages.": "Your account has no active entitlement packages."
   }
 }

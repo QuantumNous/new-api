@@ -294,8 +294,37 @@ func (token *Token) Update() (err error) {
 			})
 		}
 	}()
-	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
+	err = updateTokenRecord(DB, token)
+	return err
+}
+
+func updateTokenRecord(tx *gorm.DB, token *Token) error {
+	return tx.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
 		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry").Updates(token).Error
+}
+
+// UpdateTokenWithEntitlements commits token fields and optional entitlement
+// assignments atomically. A nil packageIds preserves the current assignments.
+func UpdateTokenWithEntitlements(token *Token, userId int, packageIds *[]int) (err error) {
+	if token == nil {
+		return errors.New("令牌不能为空")
+	}
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := updateTokenRecord(tx, token); err != nil {
+			return err
+		}
+		if packageIds == nil {
+			return nil
+		}
+		return setTokenEntitlementPackagesTx(tx, token.Id, userId, *packageIds, false)
+	})
+	if shouldUpdateRedis(true, err) {
+		gopool.Go(func() {
+			if cacheErr := cacheSetToken(*token); cacheErr != nil {
+				common.SysLog("failed to update token cache: " + cacheErr.Error())
+			}
+		})
+	}
 	return err
 }
 

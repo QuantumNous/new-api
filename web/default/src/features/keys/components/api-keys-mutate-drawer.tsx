@@ -1,16 +1,18 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import {
   ChevronDown,
   KeyRound,
+  PackageCheck,
   Settings2,
   WalletCards,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
@@ -44,7 +46,13 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { MultiSelect } from '@/components/multi-select'
-import { createApiKey, updateApiKey, getApiKey } from '../api'
+import {
+  createApiKey,
+  getApiKey,
+  getSelfEntitlementPackages,
+  getTokenEntitlementAssignments,
+  updateApiKey,
+} from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   apiKeyFormSchema,
@@ -53,6 +61,7 @@ import {
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
+import { getActiveEntitlementPackageIds } from '../lib/api-key-form'
 import { type ApiKey } from '../types'
 import {
   ApiKeyGroupCombobox,
@@ -73,6 +82,8 @@ type ApiKeyFormSectionProps = {
   icon: LucideIcon
   children: ReactNode
 }
+
+type LoadState = 'idle' | 'loading' | 'ready' | 'unavailable'
 
 function ApiKeyFormSection(props: ApiKeyFormSectionProps) {
   const Icon = props.icon
@@ -105,8 +116,12 @@ export function ApiKeysMutateDrawer({
   const isUpdate = !!currentRow
   const { triggerRefresh } = useApiKeys()
   const { status } = useStatus()
+  const currentUserId = useAuthStore((state) => state.auth.user?.id)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [updateKeyState, setUpdateKeyState] = useState<LoadState>('idle')
+  const [entitlementAssignmentsState, setEntitlementAssignmentsState] =
+    useState<LoadState>('idle')
   const defaultUseAutoGroup = status?.default_use_auto_group === true
 
   // Fetch models
@@ -121,6 +136,17 @@ export function ApiKeysMutateDrawer({
     queryKey: ['user-groups'],
     queryFn: getUserGroups,
     staleTime: 5 * 60 * 1000,
+  })
+
+  const {
+    data: entitlementPackagesData,
+    isError: entitlementPackagesIsError,
+    isLoading: entitlementPackagesLoading,
+  } = useQuery({
+    queryKey: ['self-entitlement-packages', currentUserId],
+    queryFn: getSelfEntitlementPackages,
+    staleTime: 5 * 60 * 1000,
+    enabled: open,
   })
 
   const models = modelsData?.data || []
@@ -148,25 +174,129 @@ export function ApiKeysMutateDrawer({
     defaultValues: getApiKeyFormDefaultValues(defaultUseAutoGroup),
   })
 
+  const selectedEntitlementPackageIds = form.watch('entitlement_package_ids')
+  const entitlementPackagesReady =
+    entitlementPackagesData?.success === true &&
+    Array.isArray(entitlementPackagesData.data)
+  const entitlementPackagesUnavailable =
+    entitlementPackagesIsError ||
+    (entitlementPackagesData !== undefined && !entitlementPackagesReady)
+  const entitlementAssignmentsReady =
+    !isUpdate || entitlementAssignmentsState === 'ready'
+  const canEditEntitlementAssignments =
+    entitlementPackagesReady && entitlementAssignmentsReady
+
+  const entitlementPackageOptions = useMemo(() => {
+    if (!entitlementPackagesReady) return []
+
+    const options = (entitlementPackagesData.data || []).map((item) => {
+      const name = item.name?.trim() || t('Package #{{id}}', { id: item.id })
+      const description = item.description?.trim()
+      return {
+        value: String(item.id),
+        label: description ? `${name} — ${description}` : name,
+      }
+    })
+    const knownPackageIds = new Set(options.map((option) => option.value))
+
+    for (const packageId of selectedEntitlementPackageIds) {
+      if (!knownPackageIds.has(packageId)) {
+        options.push({
+          value: packageId,
+          label: t('Package #{{id}} (currently assigned)', { id: packageId }),
+        })
+      }
+    }
+
+    return options
+  }, [
+    entitlementPackagesData?.data,
+    entitlementPackagesReady,
+    selectedEntitlementPackageIds,
+    t,
+  ])
+
   // Load existing data when updating
   useEffect(() => {
+    let cancelled = false
+
     if (open && isUpdate && currentRow) {
-      // For update, fetch fresh data
-      getApiKey(currentRow.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformApiKeyToFormDefaults(result.data))
+      setUpdateKeyState('loading')
+      setEntitlementAssignmentsState('loading')
+
+      const loadExistingKey = async () => {
+        const [apiKeyResult, assignmentResult] = await Promise.allSettled([
+          getApiKey(currentRow.id),
+          getTokenEntitlementAssignments(currentRow.id),
+        ])
+        if (cancelled) return
+
+        if (
+          apiKeyResult.status !== 'fulfilled' ||
+          !apiKeyResult.value.success ||
+          !apiKeyResult.value.data
+        ) {
+          setUpdateKeyState('unavailable')
+          setEntitlementAssignmentsState('unavailable')
+          const message =
+            apiKeyResult.status === 'fulfilled'
+              ? apiKeyResult.value.message
+              : undefined
+          toast.error(message || t(ERROR_MESSAGES.UPDATE_FAILED))
+          return
         }
-      })
+
+        let entitlementPackageIds: number[] = []
+        const assignmentSnapshotReady =
+          assignmentResult.status === 'fulfilled' &&
+          assignmentResult.value.success &&
+          Array.isArray(assignmentResult.value.data)
+
+        if (assignmentSnapshotReady && assignmentResult.value.data) {
+          entitlementPackageIds = getActiveEntitlementPackageIds(
+            assignmentResult.value.data
+          )
+        }
+
+        form.reset(
+          transformApiKeyToFormDefaults(
+            apiKeyResult.value.data,
+            entitlementPackageIds
+          )
+        )
+        setUpdateKeyState('ready')
+        setEntitlementAssignmentsState(
+          assignmentSnapshotReady ? 'ready' : 'unavailable'
+        )
+      }
+
+      void loadExistingKey()
     } else if (open && !isUpdate) {
       // For create, reset to defaults
       form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup))
+      setUpdateKeyState('ready')
+      setEntitlementAssignmentsState('ready')
+    } else if (!open) {
+      setUpdateKeyState('idle')
+      setEntitlementAssignmentsState('idle')
     }
-  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup])
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, t])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
     try {
-      const basePayload = transformFormDataToPayload(data)
+      const entitlementSelectionChanged = form.getFieldState(
+        'entitlement_package_ids'
+      ).isDirty
+      const basePayload = transformFormDataToPayload(data, {
+        includeEntitlementPackageIds:
+          canEditEntitlementAssignments &&
+          (!isUpdate || entitlementSelectionChanged),
+      })
 
       if (isUpdate && currentRow) {
         const result = await updateApiKey({
@@ -241,6 +371,71 @@ export function ApiKeysMutateDrawer({
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
   const unlimitedQuota = form.watch('unlimited_quota')
+  const entitlementControlLoading =
+    entitlementPackagesLoading ||
+    (isUpdate && entitlementAssignmentsState === 'loading')
+  const updateFormUnavailable = isUpdate && updateKeyState !== 'ready'
+  const saveDisabled =
+    isSubmitting || entitlementControlLoading || updateFormUnavailable
+
+  const entitlementPlaceholder = t('Select entitlement packages')
+
+  let entitlementContent: ReactNode
+  if (entitlementControlLoading) {
+    entitlementContent = (
+      <p className='text-muted-foreground text-sm'>
+        {t('Loading entitlement packages...')}
+      </p>
+    )
+  } else if (entitlementPackagesUnavailable) {
+    let message = t(
+      'Entitlement packages could not be loaded. This API key can still be created without entitlement assignments.'
+    )
+    if (isUpdate) {
+      message = t(
+        'Entitlement packages could not be loaded. Existing assignments will not be changed.'
+      )
+    }
+    entitlementContent = <p className='text-destructive text-sm'>{message}</p>
+  } else if (isUpdate && entitlementAssignmentsState === 'unavailable') {
+    entitlementContent = (
+      <p className='text-destructive text-sm'>
+        {t(
+          'Entitlement assignments could not be loaded. Existing assignments will not be changed.'
+        )}
+      </p>
+    )
+  } else if (entitlementPackageOptions.length === 0) {
+    entitlementContent = (
+      <p className='text-muted-foreground text-sm'>
+        {t('Your account has no active entitlement packages.')}
+      </p>
+    )
+  } else {
+    entitlementContent = (
+      <FormField
+        control={form.control}
+        name='entitlement_package_ids'
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('Entitlement Packages')}</FormLabel>
+            <FormControl>
+              <MultiSelect
+                options={entitlementPackageOptions}
+                selected={field.value}
+                onChange={field.onChange}
+                placeholder={entitlementPlaceholder}
+              />
+            </FormControl>
+            <FormDescription>
+              {t('Only packages granted to your account can be selected.')}
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    )
+  }
 
   return (
     <Sheet
@@ -428,6 +623,16 @@ export function ApiKeysMutateDrawer({
             </ApiKeyFormSection>
 
             <ApiKeyFormSection
+              title={t('Directed Entitlements')}
+              description={t(
+                'Bind this API key to one or more entitlement packages'
+              )}
+              icon={PackageCheck}
+            >
+              {entitlementContent}
+            </ApiKeyFormSection>
+
+            <ApiKeyFormSection
               title={t('Quota Settings')}
               description={t('Set quota amount and limits')}
               icon={WalletCards}
@@ -586,7 +791,7 @@ export function ApiKeysMutateDrawer({
           <Button
             form='api-key-form'
             type='submit'
-            disabled={isSubmitting}
+            disabled={saveDisabled}
             className='w-full sm:w-auto'
           >
             {isSubmitting ? t('Saving...') : t('Save changes')}

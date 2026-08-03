@@ -1,7 +1,11 @@
 import { z } from 'zod'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 import { DEFAULT_GROUP } from '../constants'
-import { type ApiKeyFormData, type ApiKey } from '../types'
+import {
+  type ApiKeyFormData,
+  type ApiKey,
+  type TokenEntitlementAssignment,
+} from '../types'
 
 // ============================================================================
 // Form Schema
@@ -16,6 +20,7 @@ export const apiKeyFormSchema = z.object({
   allow_ips: z.string().optional(),
   group: z.string().optional(),
   cross_group_retry: z.boolean().optional(),
+  entitlement_package_ids: z.array(z.string()),
   tokenCount: z.number().min(1).optional(),
 })
 
@@ -34,6 +39,7 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   allow_ips: '',
   group: DEFAULT_GROUP,
   cross_group_retry: true,
+  entitlement_package_ids: [],
   tokenCount: 1,
 }
 
@@ -54,10 +60,15 @@ export function getApiKeyFormDefaultValues(
 /**
  * Transform form data to API payload
  */
+type ApiKeyPayloadOptions = {
+  includeEntitlementPackageIds?: boolean
+}
+
 export function transformFormDataToPayload(
-  data: ApiKeyFormValues
+  data: ApiKeyFormValues,
+  options: ApiKeyPayloadOptions = {}
 ): ApiKeyFormData {
-  return {
+  const payload: ApiKeyFormData = {
     name: data.name,
     remain_quota: data.unlimited_quota
       ? 0
@@ -72,13 +83,39 @@ export function transformFormDataToPayload(
     group: data.group || '',
     cross_group_retry: data.group === 'auto' ? !!data.cross_group_retry : false,
   }
+
+  if (options.includeEntitlementPackageIds !== false) {
+    payload.entitlement_package_ids = [
+      ...new Set(
+        data.entitlement_package_ids
+          .map(Number)
+          .filter((id) => Number.isInteger(id) && id > 0)
+      ),
+    ]
+  }
+
+  return payload
+}
+
+export function getActiveEntitlementPackageIds(
+  assignments: TokenEntitlementAssignment[]
+): number[] {
+  return [
+    ...new Set(
+      assignments
+        .filter((item) => item.status === 1)
+        .map((item) => item.package_id)
+        .filter((id) => Number.isInteger(id) && id > 0)
+    ),
+  ]
 }
 
 /**
  * Transform API key data to form defaults
  */
 export function transformApiKeyToFormDefaults(
-  apiKey: ApiKey
+  apiKey: ApiKey,
+  entitlementPackageIds: number[] = []
 ): ApiKeyFormValues {
   return {
     name: apiKey.name,
@@ -94,6 +131,7 @@ export function transformApiKeyToFormDefaults(
     allow_ips: apiKey.allow_ips || '',
     group: apiKey.group || DEFAULT_GROUP,
     cross_group_retry: !!apiKey.cross_group_retry,
+    entitlement_package_ids: entitlementPackageIds.map(String),
     tokenCount: 1,
   }
 }

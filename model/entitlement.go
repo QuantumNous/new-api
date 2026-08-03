@@ -384,6 +384,12 @@ func SetTokenEntitlementPackages(tokenId, userId int, packageIds []int, autoGran
 	if err != nil {
 		return err
 	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		return setTokenEntitlementPackagesTx(tx, token.Id, userId, packageIds, autoGrant)
+	})
+}
+
+func setTokenEntitlementPackagesTx(tx *gorm.DB, tokenId, userId int, packageIds []int, autoGrant bool) error {
 	selected := make(map[int]bool, len(packageIds))
 	for _, packageId := range packageIds {
 		if packageId <= 0 {
@@ -391,76 +397,74 @@ func SetTokenEntitlementPackages(tokenId, userId int, packageIds []int, autoGran
 		}
 		selected[packageId] = true
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		now := common.GetTimestamp()
-		var existing []TokenEntitlement
-		if err := tx.Where("token_id = ?", token.Id).Find(&existing).Error; err != nil {
+	now := common.GetTimestamp()
+	var existing []TokenEntitlement
+	if err := tx.Where("token_id = ?", tokenId).Find(&existing).Error; err != nil {
+		return err
+	}
+	for _, item := range existing {
+		targetStatus := EntitlementStatusDisabled
+		if selected[item.PackageId] {
+			targetStatus = EntitlementStatusEnabled
+			delete(selected, item.PackageId)
+		}
+		if item.Status != targetStatus {
+			if err := tx.Model(&item).Updates(map[string]interface{}{
+				"status":       targetStatus,
+				"updated_time": now,
+			}).Error; err != nil {
+				return err
+			}
+		}
+	}
+	for packageId := range selected {
+		var pkg EntitlementPackage
+		if err := tx.First(&pkg, packageId).Error; err != nil {
 			return err
 		}
-		for _, item := range existing {
-			targetStatus := EntitlementStatusDisabled
-			if selected[item.PackageId] {
-				targetStatus = EntitlementStatusEnabled
-				delete(selected, item.PackageId)
+		var userGrant UserEntitlement
+		err := tx.Where("package_id = ? AND user_id = ?", packageId, userId).First(&userGrant).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) && autoGrant {
+			userGrant = UserEntitlement{
+				PackageId:   packageId,
+				UserId:      userId,
+				Status:      EntitlementStatusEnabled,
+				CreatedTime: now,
+				UpdatedTime: now,
 			}
-			if item.Status != targetStatus {
-				if err := tx.Model(&item).Updates(map[string]interface{}{
-					"status":       targetStatus,
-					"updated_time": now,
-				}).Error; err != nil {
-					return err
-				}
-			}
-		}
-		for packageId := range selected {
-			var pkg EntitlementPackage
-			if err := tx.First(&pkg, packageId).Error; err != nil {
+			if err := tx.Create(&userGrant).Error; err != nil {
 				return err
 			}
-			var userGrant UserEntitlement
-			err := tx.Where("package_id = ? AND user_id = ?", packageId, userId).First(&userGrant).Error
-			if errors.Is(err, gorm.ErrRecordNotFound) && autoGrant {
-				userGrant = UserEntitlement{
-					PackageId:   packageId,
-					UserId:      userId,
-					Status:      EntitlementStatusEnabled,
-					CreatedTime: now,
-					UpdatedTime: now,
-				}
-				if err := tx.Create(&userGrant).Error; err != nil {
-					return err
-				}
-			} else if err != nil {
-				return errors.New("用户尚未获得该权益包授权")
-			} else if userGrant.Status != EntitlementStatusEnabled {
-				if !autoGrant {
-					return errors.New("用户权益包授权未启用")
-				}
-				if err := tx.Model(&userGrant).Updates(map[string]interface{}{
-					"status":       EntitlementStatusEnabled,
-					"updated_time": now,
-				}).Error; err != nil {
-					return err
-				}
+		} else if err != nil {
+			return errors.New("用户尚未获得该权益包授权")
+		} else if userGrant.Status != EntitlementStatusEnabled {
+			if !autoGrant {
+				return errors.New("用户权益包授权未启用")
 			}
-			item := TokenEntitlement{
-				PackageId:                 packageId,
-				TokenId:                   token.Id,
-				UserId:                    userId,
-				Status:                    EntitlementStatusEnabled,
-				DailyQuotaOverride:        -1,
-				DailyRequestLimitOverride: -1,
-				TotalQuotaOverride:        -1,
-				TotalRequestLimitOverride: -1,
-				CreatedTime:               now,
-				UpdatedTime:               now,
-			}
-			if err := tx.Create(&item).Error; err != nil {
+			if err := tx.Model(&userGrant).Updates(map[string]interface{}{
+				"status":       EntitlementStatusEnabled,
+				"updated_time": now,
+			}).Error; err != nil {
 				return err
 			}
 		}
-		return nil
-	})
+		item := TokenEntitlement{
+			PackageId:                 packageId,
+			TokenId:                   tokenId,
+			UserId:                    userId,
+			Status:                    EntitlementStatusEnabled,
+			DailyQuotaOverride:        -1,
+			DailyRequestLimitOverride: -1,
+			TotalQuotaOverride:        -1,
+			TotalRequestLimitOverride: -1,
+			CreatedTime:               now,
+			UpdatedTime:               now,
+		}
+		if err := tx.Create(&item).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func CreateTokenWithEntitlements(token *Token, packageIds []int, autoGrant bool) error {
@@ -537,8 +541,12 @@ func ResolveTokenEntitlement(tokenId, userId int, modelName string, now time.Tim
 	protected := false
 	matchingIds := make([]int, 0)
 	packageById := make(map[int]EntitlementPackage)
+	nowUnix := now.Unix()
 	for _, item := range packages {
 		if !entitlementContainsModel(item.Models, modelName) {
+			continue
+		}
+		if active, _ := entitlementTimeActive(item.Status, item.StartTime, item.EndTime, nowUnix); !active {
 			continue
 		}
 		if !item.AllowPublicFallback {
@@ -564,7 +572,6 @@ func ResolveTokenEntitlement(tokenId, userId int, modelName string, now time.Tim
 	}
 
 	var firstInactiveReason string
-	nowUnix := now.Unix()
 	tokenGrantByPackage := make(map[int]TokenEntitlement, len(tokenGrants))
 	for _, item := range tokenGrants {
 		tokenGrantByPackage[item.PackageId] = item

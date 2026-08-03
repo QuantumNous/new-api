@@ -4314,6 +4314,18 @@
     "Unset price": "Цена не задана",
     "Use the full-width table to scan prices, then select a row to edit it here.": "Просмотрите цены в таблице, затем выберите строку для редактирования здесь.",
     "extras": "доп. пункты",
-    "tiers": "уровни"
+    "tiers": "уровни",
+    "Bind this API key to one or more entitlement packages": "Привязать этот API-ключ к одному или нескольким пакетам прав",
+    "Directed Entitlements": "Целевые права",
+    "Entitlement assignments could not be loaded. Existing assignments will not be changed.": "Не удалось загрузить назначения прав. Существующие назначения не будут изменены.",
+    "Entitlement Packages": "Пакеты прав",
+    "Entitlement packages could not be loaded. Existing assignments will not be changed.": "Не удалось загрузить пакеты прав. Существующие назначения не будут изменены.",
+    "Entitlement packages could not be loaded. This API key can still be created without entitlement assignments.": "Не удалось загрузить пакеты прав. Этот API-ключ всё равно можно создать без назначения прав.",
+    "Loading entitlement packages...": "Загрузка пакетов прав...",
+    "Only packages granted to your account can be selected.": "Можно выбрать только пакеты, предоставленные вашей учётной записи.",
+    "Package #{{id}}": "Пакет №{{id}}",
+    "Package #{{id}} (currently assigned)": "Пакет №{{id}} (назначен сейчас)",
+    "Select entitlement packages": "Выберите пакеты прав",
+    "Your account has no active entitlement packages.": "У вашей учётной записи нет активных пакетов прав."
   }
 }

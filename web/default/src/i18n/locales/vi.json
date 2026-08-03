@@ -4314,6 +4314,18 @@
     "Unset price": "Chưa đặt giá",
     "Use the full-width table to scan prices, then select a row to edit it here.": "Duyệt giá trong bảng, rồi chọn một hàng để chỉnh sửa tại đây.",
     "extras": "mục bổ sung",
-    "tiers": "tầng"
+    "tiers": "tầng",
+    "Bind this API key to one or more entitlement packages": "Liên kết khóa API này với một hoặc nhiều gói quyền",
+    "Directed Entitlements": "Quyền truy cập định hướng",
+    "Entitlement assignments could not be loaded. Existing assignments will not be changed.": "Không thể tải các quyền đã gán. Các quyền hiện có sẽ không bị thay đổi.",
+    "Entitlement Packages": "Gói quyền",
+    "Entitlement packages could not be loaded. Existing assignments will not be changed.": "Không thể tải các gói quyền. Các quyền hiện có sẽ không bị thay đổi.",
+    "Entitlement packages could not be loaded. This API key can still be created without entitlement assignments.": "Không thể tải các gói quyền. Vẫn có thể tạo khóa API này mà không gán quyền.",
+    "Loading entitlement packages...": "Đang tải các gói quyền...",
+    "Only packages granted to your account can be selected.": "Chỉ có thể chọn các gói đã được cấp cho tài khoản của bạn.",
+    "Package #{{id}}": "Gói #{{id}}",
+    "Package #{{id}} (currently assigned)": "Gói #{{id}} (hiện đang được gán)",
+    "Select entitlement packages": "Chọn gói quyền",
+    "Your account has no active entitlement packages.": "Tài khoản của bạn không có gói quyền nào đang hoạt động."
   }
 }

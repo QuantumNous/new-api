@@ -6,6 +6,8 @@ import type {
   GetApiKeysResponse,
   SearchApiKeysParams,
   ApiKeyFormData,
+  EntitlementPackage,
+  TokenEntitlementAssignment,
 } from './types'
 
 // ============================================================================
@@ -54,6 +56,22 @@ export async function updateApiKey(
   data: ApiKeyFormData & { id: number }
 ): Promise<ApiResponse<ApiKey>> {
   const res = await api.put('/api/token/', data)
+  return res.data
+}
+
+// Get active directed entitlement packages granted to the signed-in user.
+export async function getSelfEntitlementPackages(): Promise<
+  ApiResponse<EntitlementPackage[]>
+> {
+  const res = await api.get('/api/entitlement/self/packages')
+  return res.data
+}
+
+// Get all directed entitlement assignments for the signed-in user's API key.
+export async function getTokenEntitlementAssignments(
+  id: number
+): Promise<ApiResponse<TokenEntitlementAssignment[]>> {
+  const res = await api.get(`/api/entitlement/self/token/${id}`)
   return res.data
 }
 
