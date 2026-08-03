@@ -6,13 +6,13 @@ Stage: development evidence only; not production authorization.
 
 ## Candidate identity
 
-- Branch: `codex/p2-pure-candidate-20260803`
+- Branch: `codex/p2-on-p1-20260804`
 - Candidate commit: record the immutable SHA in the handoff entry immediately before
   any review or release gate.
 - Candidate implementation head: record the immutable SHA in the handoff entry;
   this document intentionally avoids a self-referential commit identifier.
 - Validation record commit: `77dd367` (`docs: record isolated race and migration checks`).
-- Production baseline ancestor: `19be7b44f4cacda68a5c45690e8c2af659d29473`
+- Production baseline ancestor: `24fa0a872d4a3f2a67d6bf6e07e104c5c8063ef2`
 - `TOKEN_GROUP_VISIBILITY_ENABLED` remains default-off.
 
 ## Evidence run
@@ -37,6 +37,12 @@ token, or credential was accessed or changed.
 - Classic frontend: `NODE_OPTIONS=--max-old-space-size=4096 bun run build`: PASS.
 - `Saving...` is already present in all six default locale files; no fallback-key
   gap was introduced by the P2 editor.
+- Targeted policies now persist and enforce immutable `user_id` values. Legacy
+  `usernames` input is resolved once during validation only; the release runbook
+  records the inspected-backup migration and rollback strategy.
+- With the flag off, the admin visibility GET returns an empty disabled payload
+  without touching the optional tables; save/replace/delete return a schema-first
+  guidance error instead of failing on a missing table.
 - SQLite disposable schema smoke: migration created both tables and indexes;
   rollback removed both tables. No production or shared database was used.
 - Cross-dialect migration-shape check: the SQLite/MySQL/PostgreSQL migration and

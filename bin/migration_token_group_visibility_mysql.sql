@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS `token_group_visibilities` (
 CREATE TABLE IF NOT EXISTS `token_group_visibility_targets` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `visibility_id` bigint NOT NULL,
-  `username` varchar(64) NOT NULL,
+  `user_id` bigint NOT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_token_group_visibility_targets_visibility_id` (`visibility_id`),
-  UNIQUE KEY `idx_visibility_username` (`visibility_id`, `username`)
+  UNIQUE KEY `idx_visibility_user` (`visibility_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

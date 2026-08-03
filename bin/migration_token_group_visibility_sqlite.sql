@@ -18,10 +18,10 @@ CREATE INDEX IF NOT EXISTS "idx_token_group_visibilities_visibility"
 CREATE TABLE IF NOT EXISTS "token_group_visibility_targets" (
   "id" integer PRIMARY KEY AUTOINCREMENT,
   "visibility_id" bigint NOT NULL,
-  "username" varchar(64) NOT NULL
+  "user_id" bigint NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS "idx_token_group_visibility_targets_visibility_id"
   ON "token_group_visibility_targets" ("visibility_id");
-CREATE UNIQUE INDEX IF NOT EXISTS "idx_visibility_username"
-  ON "token_group_visibility_targets" ("visibility_id", "username");
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_visibility_user"
+  ON "token_group_visibility_targets" ("visibility_id", "user_id");

@@ -4332,6 +4332,9 @@
     "Save visibility policies": "Enregistrer les politiques de visibilité",
     "Token group visibility": "Visibilité des groupes de jetons",
     "Token group visibility policies saved.": "Politiques de visibilité des groupes de jetons enregistrées.",
-    "Visibility policies must be a JSON array.": "Les politiques de visibilité doivent être un tableau JSON."
+    "Visibility policies must be a JSON array.": "Les politiques de visibilité doivent être un tableau JSON.",
+    "Optional policies: public, targeted (with user_ids), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "Politiques facultatives : public, targeted (avec des user_ids) ou hidden. Elles s’appliquent uniquement lorsque TOKEN_GROUP_VISIBILITY_ENABLED est activé.",
+    "Enable TOKEN_GROUP_VISIBILITY_ENABLED after the schema-first migration.": "Activez TOKEN_GROUP_VISIBILITY_ENABLED après la migration schema-first.",
+    "Visibility is disabled until the schema-first migration is complete.": "La visibilité est désactivée jusqu’à la fin de la migration schema-first."
   }
 }

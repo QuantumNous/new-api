@@ -2,12 +2,12 @@
 
 Status: release candidate prepared; production release is not authorized.
 
-Candidate branch: `codex/p2-pure-candidate-20260803`
+Candidate branch: `codex/p2-on-p1-20260804`
 
 Candidate commit: record the immutable SHA in the handoff entry immediately before
 any review or release gate; this runbook is not itself the approval object.
 
-Production base: `19be7b44f4cacda68a5c45690e8c2af659d29473`
+Production base: `24fa0a872d4a3f2a67d6bf6e07e104c5c8063ef2`
 Scope: P2 token-group visibility only, layered on the already-reviewed P1 candidate.
 
 ## Safety boundary
@@ -36,8 +36,9 @@ models and to keep SQLite/MySQL/PostgreSQL behavior equivalent:
 
 - `token_group_visibilities`: one row per configured group, with `public`,
   `targeted`, or `hidden` visibility and optional `[start_time, end_time)` bounds.
-- `token_group_visibility_targets`: normalized `(visibility_id, username)` pairs
-  for targeted policies.
+- `token_group_visibility_targets`: normalized `(visibility_id, user_id)` pairs
+  for targeted policies. Runtime authorization compares the immutable user ID;
+  mutable usernames are not stored in this table.
 
 The GORM model tags use the same `NOT NULL` and `DEFAULT 0` constraints as these
 dialect-specific files. If a node is allowed to run `AutoMigrate`, verify the
@@ -66,6 +67,34 @@ previous application image while retaining these two tables; dropping them in a
 production incident is not part of the rollback procedure. If a disposable drill
 does drop the tables, the binary must be rolled back together with that schema
 change, otherwise `AutoMigrate` can recreate them on the next startup.
+
+### Legacy username-target migration and rollback
+
+The checked-in SQL files create the stable `user_id` schema and must not be run over
+an existing username-target table with `IF NOT EXISTS` and assumed to be an upgrade.
+Before any rollout, inspect a verified backup copy. If the copy still has a
+`username` column, keep the flag off and perform a separately reviewed conversion:
+
+1. Export the existing policy and target rows, then add a nullable `user_id` column
+   to the backup copy. Backfill it by joining `users.username` to the target row
+   (`UPDATE ... JOIN` on MySQL, `UPDATE ... FROM` on PostgreSQL, or a correlated
+   `UPDATE` subquery on SQLite).
+2. Abort if any username is missing, maps to more than one row, or produces a
+   duplicate `(visibility_id, user_id)` pair. Record row counts and the export
+   checksum before creating `idx_visibility_user`.
+3. Verify every converted policy through the read path while the flag remains off,
+   then switch the application to the stable-ID build. Only after acceptance may
+   the legacy `username` column and old unique index be removed from the backup
+   copy. The release SQL is intentionally fresh-schema-only so this destructive
+   step cannot happen implicitly at startup.
+
+Rollback for an incomplete conversion is restore-from-export/backup, not an
+in-place drop or rename. For a code incident after conversion, keep the new tables,
+set the flag off, and roll back the application image; do not restore the old
+username-based binary against the new schema without first restoring the matching
+backup copy. Admin GET is deliberately safe with the flag off and does not query
+the optional tables, so schema-first order is: backup/DDL → read-only verification
+→ code rollout with flag off → explicit flag enable.
 
 ## Release sequence (only after explicit authorization)
 
@@ -100,7 +129,7 @@ or if any login, balance, price, or public-model regression appears.
 
 ## Evidence to attach before handoff
 
-- Candidate commit and `git diff` against `19be7b44`.
+- Candidate commit and `git diff` against `24fa0a872d4a3f2a67d6bf6e07e104c5c8063ef2`.
 - Output of `go test ./model ./service ./controller` and `go test ./middleware ./router`.
 - Full Go test/build result, with any unrelated baseline failures identified.
 - Successful `web/default` typecheck/build and `web/classic` build artifacts.

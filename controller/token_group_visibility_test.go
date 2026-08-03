@@ -12,12 +12,16 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/gin-gonic/gin"
 )
 
 func setupTokenGroupVisibilityTestDB(t *testing.T) {
 	t.Helper()
 	db := openTokenControllerTestDB(t)
-	if err := db.AutoMigrate(&model.Token{}, &model.User{}, &model.TokenGroupVisibility{}, &model.TokenGroupVisibilityTarget{}); err != nil {
+	if err := db.AutoMigrate(
+		&model.Token{}, &model.User{}, &model.TokenGroupVisibility{}, &model.TokenGroupVisibilityTarget{},
+		&model.EntitlementPackage{}, &model.UserEntitlement{}, &model.TokenEntitlement{}, &model.EntitlementDailyUsage{},
+	); err != nil {
 		t.Fatalf("failed to migrate token visibility tables: %v", err)
 	}
 }
@@ -31,13 +35,58 @@ func createVisibilityTestUser(t *testing.T, id int, username, group string) *mod
 	return user
 }
 
+func TestTokenGroupVisibilityAdminFlagOffDoesNotRequireSchema(t *testing.T) {
+	t.Helper()
+	db := openTokenControllerTestDB(t)
+	if err := db.AutoMigrate(&model.Token{}, &model.User{}); err != nil {
+		t.Fatalf("failed to migrate baseline tables: %v", err)
+	}
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "false")
+
+	getCtx, getRecorder := newAuthenticatedContext(t, http.MethodGet, "/api/group/token-visibility", nil, 99)
+	GetTokenGroupVisibilityPolicies(getCtx)
+	getResponse := decodeAPIResponse(t, getRecorder)
+	if !getResponse.Success {
+		t.Fatalf("flag-off visibility GET must succeed without P2 tables: %s", getRecorder.Body.String())
+	}
+	var getData struct {
+		Enabled  bool                               `json:"enabled"`
+		Policies []model.TokenGroupVisibilityPolicy `json:"policies"`
+	}
+	if err := common.Unmarshal(getResponse.Data, &getData); err != nil {
+		t.Fatalf("failed to decode flag-off visibility response: %v", err)
+	}
+	if getData.Enabled || len(getData.Policies) != 0 {
+		t.Fatalf("unexpected flag-off visibility response: %#v", getData)
+	}
+
+	for name, invoke := range map[string]func(*gin.Context){
+		"save":    func(ctx *gin.Context) { SaveTokenGroupVisibilityPolicy(ctx) },
+		"replace": func(ctx *gin.Context) { ReplaceTokenGroupVisibilityPolicies(ctx) },
+		"delete":  func(ctx *gin.Context) { DeleteTokenGroupVisibilityPolicy(ctx) },
+	} {
+		var body any
+		if name == "save" {
+			body = model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityPublic}
+		} else if name == "replace" {
+			body = map[string]any{"policies": []model.TokenGroupVisibilityPolicy{}}
+		}
+		ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/group/token-visibility", body, 99)
+		invoke(ctx)
+		response := decodeAPIResponse(t, recorder)
+		if response.Success {
+			t.Fatalf("flag-off %s must not mutate optional schema", name)
+		}
+	}
+}
+
 func TestAddTokenEnforcesTargetedVisibility(t *testing.T) {
 	setupTokenGroupVisibilityTestDB(t)
 	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
 	createVisibilityTestUser(t, 1, "alice", "default")
 	createVisibilityTestUser(t, 2, "bob", "default")
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
-		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, Usernames: []string{"alice"},
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{1},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -56,6 +105,34 @@ func TestAddTokenEnforcesTargetedVisibility(t *testing.T) {
 	AddToken(ctx)
 	if !decodeAPIResponse(t, allowed).Success {
 		t.Fatalf("expected targeted user to create token: %s", allowed.Body.String())
+	}
+}
+
+func TestLegacyUsernameTargetInputIsResolvedToStableUserId(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	user := createVisibilityTestUser(t, 1, "legacy-name", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, Usernames: []string{"legacy-name"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var target model.TokenGroupVisibilityTarget
+	if err := model.DB.Where("visibility_id = ?", 1).First(&target).Error; err != nil {
+		t.Fatal(err)
+	}
+	if target.UserId != user.Id {
+		t.Fatalf("legacy username input must persist stable user_id=%d, got %#v", user.Id, target)
+	}
+	if err := model.DB.Model(user).Update("username", "renamed-user").Error; err != nil {
+		t.Fatal(err)
+	}
+	groups, err := service.GetUserSelectableTokenGroups(user.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := groups["default"]; !ok {
+		t.Fatal("renaming a targeted user must not revoke the user_id-bound policy")
 	}
 }
 
@@ -83,7 +160,7 @@ func TestGetUserGroupsAppliesTargetedVisibilityPerUser(t *testing.T) {
 	target := createVisibilityTestUser(t, 1, "target", "default")
 	nonTarget := createVisibilityTestUser(t, 2, "non-target", "default")
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
-		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, Usernames: []string{"target"},
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{1},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +199,7 @@ func TestAdminEntitlementTokenEnforcesTargetUserVisibility(t *testing.T) {
 	target := createVisibilityTestUser(t, 1, "target", "default")
 	nonTarget := createVisibilityTestUser(t, 2, "non-target", "default")
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
-		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, Usernames: []string{"target"},
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{1},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -184,6 +261,73 @@ func TestPlaygroundRejectsHiddenGroupSelection(t *testing.T) {
 
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("expected Playground hidden-group selection to return 403, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestEntitlementRemainsIndependentFromHiddenAndTargetedVisibility(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	oldEntitlementFeatureEnabled := common.EntitlementFeatureEnabled
+	common.EntitlementFeatureEnabled = true
+	t.Cleanup(func() { common.EntitlementFeatureEnabled = oldEntitlementFeatureEnabled })
+
+	target := createVisibilityTestUser(t, 1, "entitled-target", "default")
+	nonTarget := createVisibilityTestUser(t, 2, "entitled-non-target", "default")
+	targetToken := seedToken(t, model.DB, target.Id, "entitled-target-token", "entitled-target-key")
+	nonTargetToken := seedToken(t, model.DB, nonTarget.Id, "entitled-non-target-token", "entitled-non-target-key")
+	pkg := &model.EntitlementPackage{
+		Name: "visibility-independent-entitlement", Status: model.EntitlementStatusEnabled,
+		Group: "default", Models: "visibility-independent-model", AllowPublicFallback: false,
+	}
+	if err := model.SaveEntitlementPackage(pkg); err != nil {
+		t.Fatal(err)
+	}
+	if err := model.UpsertUserEntitlement(&model.UserEntitlement{
+		PackageId: pkg.Id, UserId: target.Id, Status: model.EntitlementStatusEnabled,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := model.SetTokenEntitlementPackages(targetToken.Id, target.Id, []int{pkg.Id}, false); err != nil {
+		t.Fatal(err)
+	}
+
+	setVisibility := func(visibility string) {
+		t.Helper()
+		if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+			Group: "default", Visibility: visibility, UserIds: []int{target.Id},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertGroupVisible := func(userId int, want bool) {
+		t.Helper()
+		groups, err := service.GetUserSelectableTokenGroups(userId)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, got := groups["default"]
+		if got != want {
+			t.Fatalf("default selectable for user %d = %t, want %t", userId, got, want)
+		}
+	}
+
+	setVisibility(model.TokenGroupVisibilityHidden)
+	assertGroupVisible(target.Id, false)
+	grant, protected, err := model.ResolveTokenEntitlement(targetToken.Id, target.Id, "visibility-independent-model", time.Now())
+	if err != nil || grant == nil || !protected {
+		t.Fatalf("hidden P2 visibility must not revoke the P1 entitlement grant: grant=%#v protected=%t err=%v", grant, protected, err)
+	}
+
+	setVisibility(model.TokenGroupVisibilityTargeted)
+	assertGroupVisible(target.Id, true)
+	assertGroupVisible(nonTarget.Id, false)
+	grant, protected, err = model.ResolveTokenEntitlement(targetToken.Id, target.Id, "visibility-independent-model", time.Now())
+	if err != nil || grant == nil || !protected {
+		t.Fatalf("targeted P2 visibility must preserve the target user's P1 entitlement grant: grant=%#v protected=%t err=%v", grant, protected, err)
+	}
+	grant, protected, err = model.ResolveTokenEntitlement(nonTargetToken.Id, nonTarget.Id, "visibility-independent-model", time.Now())
+	if grant != nil || !protected || err == nil {
+		t.Fatalf("non-target must remain protected by P1 entitlement enforcement: grant=%#v protected=%t err=%v", grant, protected, err)
 	}
 }
 
@@ -291,6 +435,46 @@ func TestVisibilityTimeBoundariesAndDatabaseReadThrough(t *testing.T) {
 	assertSelectable(true)
 }
 
+func TestTargetedVisibilityReadsUserIdTargetsThroughDatabase(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	target := createVisibilityTestUser(t, 1, "cache-target", "default")
+	other := createVisibilityTestUser(t, 2, "cache-other", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{target.Id},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assertSelectable := func(userId int, want bool) {
+		t.Helper()
+		groups, err := service.GetUserSelectableTokenGroups(userId)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, got := groups["default"]
+		if got != want {
+			t.Fatalf("default selectable for user %d = %t, want %t", userId, got, want)
+		}
+	}
+	assertSelectable(target.Id, true)
+	assertSelectable(other.Id, false)
+
+	var policy model.TokenGroupVisibility
+	if err := model.DB.Where(map[string]interface{}{"group": "default"}).First(&policy).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := model.DB.Where("visibility_id = ?", policy.Id).Delete(&model.TokenGroupVisibilityTarget{}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := model.DB.Create(&model.TokenGroupVisibilityTarget{VisibilityId: policy.Id, UserId: other.Id}).Error; err != nil {
+		t.Fatal(err)
+	}
+	// The policy lookup must observe an external target update immediately;
+	// no process-local authorization cache may retain the old target.
+	assertSelectable(target.Id, false)
+	assertSelectable(other.Id, true)
+}
+
 func TestTargetedVisibilityFailsClosedOutsideTimeWindow(t *testing.T) {
 	setupTokenGroupVisibilityTestDB(t)
 	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
@@ -313,7 +497,7 @@ func TestTargetedVisibilityFailsClosedOutsideTimeWindow(t *testing.T) {
 
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
 		Group: "default", Visibility: model.TokenGroupVisibilityTargeted,
-		Usernames: []string{"alice"}, StartTime: now + 60,
+		UserIds: []int{1}, StartTime: now + 60,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +505,7 @@ func TestTargetedVisibilityFailsClosedOutsideTimeWindow(t *testing.T) {
 
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
 		Group: "default", Visibility: model.TokenGroupVisibilityTargeted,
-		Usernames: []string{"alice"}, EndTime: now - 1,
+		UserIds: []int{1}, EndTime: now - 1,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +513,7 @@ func TestTargetedVisibilityFailsClosedOutsideTimeWindow(t *testing.T) {
 
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
 		Group: "default", Visibility: model.TokenGroupVisibilityTargeted,
-		Usernames: []string{"alice"}, EndTime: now,
+		UserIds: []int{1}, EndTime: now,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -338,6 +522,7 @@ func TestTargetedVisibilityFailsClosedOutsideTimeWindow(t *testing.T) {
 
 func TestReplaceTokenGroupVisibilityPoliciesIsAtomic(t *testing.T) {
 	setupTokenGroupVisibilityTestDB(t)
+	createVisibilityTestUser(t, 1, "alice", "default")
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
 		Group: "default", Visibility: model.TokenGroupVisibilityPublic,
 	}); err != nil {
@@ -360,7 +545,7 @@ func TestReplaceTokenGroupVisibilityPoliciesIsAtomic(t *testing.T) {
 	}
 
 	if err := model.ReplaceTokenGroupVisibilityPolicies([]model.TokenGroupVisibilityPolicy{
-		{Group: "default", Visibility: model.TokenGroupVisibilityTargeted, Usernames: []string{"alice"}},
+		{Group: "default", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{1}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -368,7 +553,7 @@ func TestReplaceTokenGroupVisibilityPoliciesIsAtomic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(policies) != 1 || policies[0].Visibility != model.TokenGroupVisibilityTargeted || len(policies[0].Usernames) != 1 || policies[0].Usernames[0] != "alice" {
+	if len(policies) != 1 || policies[0].Visibility != model.TokenGroupVisibilityTargeted || len(policies[0].UserIds) != 1 || policies[0].UserIds[0] != 1 {
 		t.Fatalf("valid batch was not applied completely: %#v", policies)
 	}
 

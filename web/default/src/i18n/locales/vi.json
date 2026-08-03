@@ -4332,6 +4332,9 @@
     "Save visibility policies": "Lưu chính sách hiển thị",
     "Token group visibility": "Hiển thị nhóm token",
     "Token group visibility policies saved.": "Đã lưu chính sách hiển thị nhóm token.",
-    "Visibility policies must be a JSON array.": "Chính sách hiển thị phải là một mảng JSON."
+    "Visibility policies must be a JSON array.": "Chính sách hiển thị phải là một mảng JSON.",
+    "Optional policies: public, targeted (with user_ids), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "Chính sách tùy chọn: public, targeted (kèm user_ids) hoặc hidden. Chỉ áp dụng khi TOKEN_GROUP_VISIBILITY_ENABLED được bật.",
+    "Enable TOKEN_GROUP_VISIBILITY_ENABLED after the schema-first migration.": "Bật TOKEN_GROUP_VISIBILITY_ENABLED sau khi hoàn tất di chuyển schema-first.",
+    "Visibility is disabled until the schema-first migration is complete.": "Tính năng hiển thị bị tắt cho đến khi hoàn tất di chuyển schema-first."
   }
 }

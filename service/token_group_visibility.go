@@ -41,8 +41,8 @@ func GetUserSelectableTokenGroups(userId int) (map[string]string, error) {
 				continue
 			}
 			allowed := false
-			for _, username := range policy.Usernames {
-				if username == user.Username {
+			for _, targetUserId := range policy.UserIds {
+				if targetUserId == user.Id {
 					allowed = true
 					break
 				}

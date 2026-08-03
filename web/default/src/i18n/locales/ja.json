@@ -4332,6 +4332,9 @@
     "Save visibility policies": "可視性ポリシーを保存",
     "Token group visibility": "トークングループの可視性",
     "Token group visibility policies saved.": "トークングループの可視性ポリシーを保存しました。",
-    "Visibility policies must be a JSON array.": "可視性ポリシーは JSON 配列である必要があります。"
+    "Visibility policies must be a JSON array.": "可視性ポリシーは JSON 配列である必要があります。",
+    "Optional policies: public, targeted (with user_ids), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "任意のポリシー：public、targeted（user_ids が必要）、または hidden。TOKEN_GROUP_VISIBILITY_ENABLED が有効な場合のみ適用されます。",
+    "Enable TOKEN_GROUP_VISIBILITY_ENABLED after the schema-first migration.": "schema-first 移行後に TOKEN_GROUP_VISIBILITY_ENABLED を有効にしてください。",
+    "Visibility is disabled until the schema-first migration is complete.": "schema-first 移行が完了するまで可視性は無効です。"
   }
 }

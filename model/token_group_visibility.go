@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -28,17 +29,22 @@ type TokenGroupVisibility struct {
 }
 
 type TokenGroupVisibilityTarget struct {
-	Id           int    `json:"id"`
-	VisibilityId int    `json:"visibility_id" gorm:"not null;index;uniqueIndex:idx_visibility_username"`
-	Username     string `json:"username" gorm:"type:varchar(64);not null;uniqueIndex:idx_visibility_username"`
+	Id           int `json:"id"`
+	VisibilityId int `json:"visibility_id" gorm:"not null;index;uniqueIndex:idx_visibility_user"`
+	UserId       int `json:"user_id" gorm:"not null;index;uniqueIndex:idx_visibility_user"`
 }
 
 type TokenGroupVisibilityPolicy struct {
-	Group      string   `json:"group"`
-	Visibility string   `json:"visibility"`
-	StartTime  int64    `json:"start_time"`
-	EndTime    int64    `json:"end_time"`
-	Usernames  []string `json:"usernames"`
+	Group      string `json:"group"`
+	Visibility string `json:"visibility"`
+	StartTime  int64  `json:"start_time"`
+	EndTime    int64  `json:"end_time"`
+	// UserIds is the canonical targeting field. Authorization always compares
+	// these immutable IDs; it never compares a mutable username.
+	UserIds []int `json:"user_ids,omitempty"`
+	// Usernames is accepted only as a legacy input compatibility field. It is
+	// resolved to IDs during validation and is never persisted as a target.
+	Usernames []string `json:"usernames,omitempty"`
 }
 
 func TokenGroupVisibilityEnabled() bool {
@@ -54,27 +60,101 @@ func GetTokenGroupVisibilityPolicies() ([]TokenGroupVisibilityPolicy, error) {
 		return nil, err
 	}
 	policies := make([]TokenGroupVisibilityPolicy, 0, len(rows))
-	targetsByVisibility := make(map[int][]string, len(rows))
+	targetsByVisibility := make(map[int][]int, len(rows))
 	if len(rows) > 0 {
 		var targets []TokenGroupVisibilityTarget
 		ids := make([]int, 0, len(rows))
 		for _, row := range rows {
 			ids = append(ids, row.Id)
 		}
-		if err := DB.Where("visibility_id IN ?", ids).Order("username asc").Find(&targets).Error; err != nil {
+		if err := DB.Where("visibility_id IN ?", ids).Order("user_id asc").Find(&targets).Error; err != nil {
 			return nil, err
 		}
 		for _, target := range targets {
-			targetsByVisibility[target.VisibilityId] = append(targetsByVisibility[target.VisibilityId], target.Username)
+			targetsByVisibility[target.VisibilityId] = append(targetsByVisibility[target.VisibilityId], target.UserId)
 		}
 	}
 	for _, row := range rows {
 		policies = append(policies, TokenGroupVisibilityPolicy{
 			Group: row.Group, Visibility: row.Visibility, StartTime: row.StartTime,
-			EndTime: row.EndTime, Usernames: targetsByVisibility[row.Id],
+			EndTime: row.EndTime, UserIds: targetsByVisibility[row.Id],
 		})
 	}
 	return policies, nil
+}
+
+func resolveTokenGroupVisibilityTargetUserIds(userIds []int, usernames []string) ([]int, error) {
+	ids := make([]int, 0, len(userIds)+len(usernames))
+	seenIds := make(map[int]struct{}, len(userIds)+len(usernames))
+	for _, userId := range userIds {
+		if userId <= 0 {
+			return nil, errors.New("定向展示策略包含无效用户 ID")
+		}
+		if _, exists := seenIds[userId]; !exists {
+			seenIds[userId] = struct{}{}
+			ids = append(ids, userId)
+		}
+	}
+
+	normalizedNames := make([]string, 0, len(usernames))
+	seenNames := make(map[string]struct{}, len(usernames))
+	for _, username := range usernames {
+		username = strings.TrimSpace(username)
+		if username == "" {
+			continue
+		}
+		if _, exists := seenNames[username]; !exists {
+			seenNames[username] = struct{}{}
+			normalizedNames = append(normalizedNames, username)
+		}
+	}
+	if len(normalizedNames) > 0 {
+		var users []User
+		if err := DB.Where("username IN ?", normalizedNames).Select("id, username").Find(&users).Error; err != nil {
+			return nil, err
+		}
+		idsByName := make(map[string]int, len(users))
+		for _, user := range users {
+			idsByName[user.Username] = user.Id
+		}
+		legacyIds := make([]int, 0, len(normalizedNames))
+		for _, username := range normalizedNames {
+			userId, exists := idsByName[username]
+			if !exists {
+				return nil, fmt.Errorf("定向展示策略包含不存在的用户名：%s", username)
+			}
+			legacyIds = append(legacyIds, userId)
+		}
+		if len(userIds) > 0 {
+			// When both fields are supplied, IDs are authoritative. Reject a
+			// mismatch instead of silently broadening a targeting policy.
+			for _, userId := range legacyIds {
+				if _, exists := seenIds[userId]; !exists {
+					return nil, errors.New("user_ids 与 legacy usernames 不一致")
+				}
+			}
+		} else {
+			for _, userId := range legacyIds {
+				if _, exists := seenIds[userId]; !exists {
+					seenIds[userId] = struct{}{}
+					ids = append(ids, userId)
+				}
+			}
+		}
+	}
+
+	if len(ids) == 0 {
+		return nil, errors.New("定向展示策略至少需要一个有效用户 ID")
+	}
+	var existingIds []int
+	if err := DB.Model(&User{}).Where("id IN ?", ids).Pluck("id", &existingIds).Error; err != nil {
+		return nil, err
+	}
+	if len(existingIds) != len(ids) {
+		return nil, errors.New("定向展示策略包含不存在的用户 ID")
+	}
+	sort.Ints(ids)
+	return ids, nil
 }
 
 func normalizeTokenGroupVisibilityPolicy(policy TokenGroupVisibilityPolicy, allowExistingOrphan bool) (TokenGroupVisibilityPolicy, error) {
@@ -103,27 +183,18 @@ func normalizeTokenGroupVisibilityPolicy(policy TokenGroupVisibilityPolicy, allo
 	if policy.EndTime != 0 && policy.StartTime != 0 && policy.EndTime <= policy.StartTime {
 		return policy, errors.New("结束时间必须晚于开始时间")
 	}
-	if policy.Visibility == TokenGroupVisibilityTargeted && len(policy.Usernames) == 0 {
-		return policy, errors.New("定向展示策略至少需要一个用户名")
-	}
-	seen := make(map[string]struct{}, len(policy.Usernames))
-	targets := make([]string, 0, len(policy.Usernames))
-	for _, username := range policy.Usernames {
-		username = strings.TrimSpace(username)
-		if username == "" {
-			continue
+	if policy.Visibility == TokenGroupVisibilityTargeted {
+		userIds, err := resolveTokenGroupVisibilityTargetUserIds(policy.UserIds, policy.Usernames)
+		if err != nil {
+			return policy, err
 		}
-		if _, ok := seen[username]; ok {
-			continue
-		}
-		seen[username] = struct{}{}
-		targets = append(targets, username)
+		policy.UserIds = userIds
+	} else {
+		policy.UserIds = nil
 	}
-	sort.Strings(targets)
-	if policy.Visibility == TokenGroupVisibilityTargeted && len(targets) == 0 {
-		return policy, errors.New("定向展示策略至少需要一个有效用户名")
-	}
-	policy.Usernames = targets
+	// Legacy names are input-only and must not be echoed back into persisted
+	// policy state or used by the runtime authorization path.
+	policy.Usernames = nil
 	return policy, nil
 }
 
@@ -145,8 +216,8 @@ func saveTokenGroupVisibilityPolicyTx(tx *gorm.DB, policy TokenGroupVisibilityPo
 		return err
 	}
 	if policy.Visibility == TokenGroupVisibilityTargeted {
-		for _, username := range policy.Usernames {
-			if err := tx.Create(&TokenGroupVisibilityTarget{VisibilityId: row.Id, Username: username}).Error; err != nil {
+		for _, userId := range policy.UserIds {
+			if err := tx.Create(&TokenGroupVisibilityTarget{VisibilityId: row.Id, UserId: userId}).Error; err != nil {
 				return err
 			}
 		}

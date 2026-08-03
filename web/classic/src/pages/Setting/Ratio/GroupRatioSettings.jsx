@@ -74,6 +74,7 @@ export default function GroupRatioSettings(props) {
   const [editMode, setEditMode] = useState('visual');
   const [showGuide, setShowGuide] = useState(false);
   const [visibilityPolicies, setVisibilityPolicies] = useState('[]');
+  const [visibilityEnabled, setVisibilityEnabled] = useState(false);
 
   const [inputs, setInputs] = useState({
     GroupRatio: '',
@@ -95,11 +96,16 @@ export default function GroupRatioSettings(props) {
   const loadVisibilityPolicies = useCallback(async () => {
     const res = await API.get('/api/group/token-visibility');
     if (res.data.success) {
-      setVisibilityPolicies(JSON.stringify(res.data.data.policies, null, 2));
+      setVisibilityEnabled(Boolean(res.data.data.enabled));
+      setVisibilityPolicies(JSON.stringify(res.data.data.policies || [], null, 2));
     }
   }, []);
 
   const saveVisibilityPolicies = async () => {
+    if (!visibilityEnabled) {
+      showWarning(t('请先完成 schema-first 迁移并启用 TOKEN_GROUP_VISIBILITY_ENABLED'));
+      return;
+    }
     let policies;
     try {
       policies = JSON.parse(visibilityPolicies);
@@ -294,15 +300,21 @@ export default function GroupRatioSettings(props) {
           style={{ display: 'block', marginBottom: 12 }}
         >
           {t(
-            '可选策略为 public、targeted（需要 usernames）和 hidden；仅在启用 TOKEN_GROUP_VISIBILITY_ENABLED 后生效。',
+            '可选策略为 public、targeted（需要 user_ids）和 hidden；仅在启用 TOKEN_GROUP_VISIBILITY_ENABLED 后生效。',
           )}
         </Text>
+        {!visibilityEnabled && (
+          <Text type='warning' size='small' style={{ display: 'block', marginBottom: 12 }}>
+            {t('可见性功能未启用；请先完成 schema-first 迁移。')}
+          </Text>
+        )}
         <Form.TextArea
           value={visibilityPolicies}
           rows={10}
           onChange={setVisibilityPolicies}
+          disabled={!visibilityEnabled || loading}
         />
-        <Button style={{ marginTop: 12 }} onClick={saveVisibilityPolicies}>
+        <Button style={{ marginTop: 12 }} onClick={saveVisibilityPolicies} disabled={!visibilityEnabled || loading}>
           {t('保存令牌分组可见性策略')}
         </Button>
       </Form.Section>

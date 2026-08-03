@@ -10,18 +10,23 @@ type TokenGroupVisibilityPolicy = {
   visibility: 'public' | 'targeted' | 'hidden'
   start_time?: number
   end_time?: number
+  user_ids?: number[]
+  // Accepted by the API only for legacy clients; new editors use user_ids.
   usernames?: string[]
 }
 
 export function TokenGroupVisibilityEditor() {
   const { t } = useTranslation()
   const [value, setValue] = useState('[]')
+  const [visibilityEnabled, setVisibilityEnabled] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const loadPolicies = async () => {
     await api.get('/api/group/token-visibility').then((res) => {
       if (res.data.success) {
-        const policies = res.data.data.policies as TokenGroupVisibilityPolicy[]
+        setVisibilityEnabled(Boolean(res.data.data.enabled))
+        const policies = (res.data.data.policies ||
+          []) as TokenGroupVisibilityPolicy[]
         setValue(JSON.stringify(policies, null, 2))
       }
     })
@@ -32,6 +37,14 @@ export function TokenGroupVisibilityEditor() {
   }, [])
 
   const save = async () => {
+    if (!visibilityEnabled) {
+      toast.warning(
+        t(
+          'Enable TOKEN_GROUP_VISIBILITY_ENABLED after the schema-first migration.'
+        )
+      )
+      return
+    }
     let policies: TokenGroupVisibilityPolicy[]
     try {
       policies = JSON.parse(value) as TokenGroupVisibilityPolicy[]
@@ -69,17 +82,29 @@ export function TokenGroupVisibilityEditor() {
         <h3 className='text-base font-medium'>{t('Token group visibility')}</h3>
         <p className='text-muted-foreground text-sm'>
           {t(
-            'Optional policies: public, targeted (with usernames), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.'
+            'Optional policies: public, targeted (with user_ids), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.'
           )}
         </p>
+        {!visibilityEnabled && (
+          <p className='text-sm text-amber-600'>
+            {t(
+              'Visibility is disabled until the schema-first migration is complete.'
+            )}
+          </p>
+        )}
       </div>
       <Textarea
         value={value}
         onChange={(event) => setValue(event.target.value)}
         rows={10}
+        disabled={!visibilityEnabled || saving}
       />
       <div>
-        <Button type='button' onClick={save} disabled={saving}>
+        <Button
+          type='button'
+          onClick={save}
+          disabled={!visibilityEnabled || saving}
+        >
           {saving ? t('Saving...') : t('Save visibility policies')}
         </Button>
       </div>

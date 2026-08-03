@@ -4332,6 +4332,9 @@
     "Save visibility policies": "Save visibility policies",
     "Token group visibility": "Token group visibility",
     "Token group visibility policies saved.": "Token group visibility policies saved.",
-    "Visibility policies must be a JSON array.": "Visibility policies must be a JSON array."
+    "Visibility policies must be a JSON array.": "Visibility policies must be a JSON array.",
+    "Optional policies: public, targeted (with user_ids), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "Optional policies: public, targeted (with user_ids), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.",
+    "Enable TOKEN_GROUP_VISIBILITY_ENABLED after the schema-first migration.": "Enable TOKEN_GROUP_VISIBILITY_ENABLED after the schema-first migration.",
+    "Visibility is disabled until the schema-first migration is complete.": "Visibility is disabled until the schema-first migration is complete."
   }
 }

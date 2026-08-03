@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -28,7 +29,10 @@ func GetGroups(c *gin.Context) {
 
 func GetUserGroups(c *gin.Context) {
 	userId := c.GetInt("id")
-	userGroup, err := model.GetUserGroup(userId, false)
+	// Visibility selection is read-through from the database. Read the base
+	// group from the same source so a stale Redis group cache cannot produce a
+	// ratio/description response inconsistent with the authorization result.
+	userGroup, err := model.GetUserGroup(userId, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -62,6 +66,12 @@ func GetUserGroups(c *gin.Context) {
 }
 
 func GetTokenGroupVisibilityPolicies(c *gin.Context) {
+	if !model.TokenGroupVisibilityEnabled() {
+		// Flag-off is a safe compatibility mode. It must not touch the optional
+		// P2 tables, because schema-first rollout intentionally creates them later.
+		common.ApiSuccess(c, gin.H{"enabled": false, "policies": []model.TokenGroupVisibilityPolicy{}})
+		return
+	}
 	policies, err := model.GetTokenGroupVisibilityPolicies()
 	if err != nil {
 		common.ApiError(c, err)
@@ -71,6 +81,10 @@ func GetTokenGroupVisibilityPolicies(c *gin.Context) {
 }
 
 func SaveTokenGroupVisibilityPolicy(c *gin.Context) {
+	if !model.TokenGroupVisibilityEnabled() {
+		common.ApiError(c, errors.New("令牌分组可见性功能未启用；请先完成 schema-first 部署"))
+		return
+	}
 	var policy model.TokenGroupVisibilityPolicy
 	if err := c.ShouldBindJSON(&policy); err != nil {
 		common.ApiError(c, err)
@@ -85,6 +99,10 @@ func SaveTokenGroupVisibilityPolicy(c *gin.Context) {
 }
 
 func ReplaceTokenGroupVisibilityPolicies(c *gin.Context) {
+	if !model.TokenGroupVisibilityEnabled() {
+		common.ApiError(c, errors.New("令牌分组可见性功能未启用；请先完成 schema-first 部署"))
+		return
+	}
 	var request struct {
 		Policies []model.TokenGroupVisibilityPolicy `json:"policies"`
 	}
@@ -106,6 +124,10 @@ func ReplaceTokenGroupVisibilityPolicies(c *gin.Context) {
 }
 
 func DeleteTokenGroupVisibilityPolicy(c *gin.Context) {
+	if !model.TokenGroupVisibilityEnabled() {
+		common.ApiError(c, errors.New("令牌分组可见性功能未启用；请先完成 schema-first 部署"))
+		return
+	}
 	if err := model.DeleteTokenGroupVisibilityPolicy(c.Param("group")); err != nil {
 		common.ApiError(c, err)
 		return

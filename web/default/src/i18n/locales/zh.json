@@ -4332,6 +4332,9 @@
     "Save visibility policies": "保存可见性策略",
     "Token group visibility": "令牌分组可见性",
     "Token group visibility policies saved.": "令牌分组可见性策略已保存。",
-    "Visibility policies must be a JSON array.": "可见性策略必须是 JSON 数组。"
+    "Visibility policies must be a JSON array.": "可见性策略必须是 JSON 数组。",
+    "Optional policies: public, targeted (with user_ids), or hidden. They apply only when TOKEN_GROUP_VISIBILITY_ENABLED is enabled.": "可选策略：public、targeted（需要 user_ids）或 hidden。仅在启用 TOKEN_GROUP_VISIBILITY_ENABLED 后生效。",
+    "Enable TOKEN_GROUP_VISIBILITY_ENABLED after the schema-first migration.": "完成 schema-first 迁移后再启用 TOKEN_GROUP_VISIBILITY_ENABLED。",
+    "Visibility is disabled until the schema-first migration is complete.": "完成 schema-first 迁移前，可见性功能保持关闭。"
   }
 }
