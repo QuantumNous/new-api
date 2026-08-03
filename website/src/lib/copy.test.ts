@@ -55,11 +55,10 @@ describe("blog copy", () => {
       expect(blog.latestInCategory).toContain("{{category}}");
       expect(blog.categoryTitle).toContain("{{category}}");
 
-      if (locale !== "en" && locale !== "id") {
-        // `id` is a staged locale: homepage + market landings are translated,
-        // other surfaces fall back to English until translated.
+      if (locale !== "en") {
         expect(blog.searchPlaceholder).not.toBe(english.searchPlaceholder);
         expect(blog.emptyTitle).not.toBe(english.emptyTitle);
+        expect(blog.relatedArticles).not.toBe(english.relatedArticles);
       }
     }
   });
