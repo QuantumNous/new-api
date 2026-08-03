@@ -590,7 +590,7 @@ func TestRecallMetricExportUsesSingleMetricQueryForAllRows(t *testing.T) {
 	}
 	snapshot, err := model.CaptureRecallMetricSnapshot(context.Background(), campaign.Id)
 	require.NoError(t, err)
-	queries := captureRecallMetricSQL(t, db)
+	queries := captureServiceRecallMetricSQL(t, db)
 
 	var out bytes.Buffer
 	result, err := ExportRecallMetricCSVWithLimits(context.Background(), &out, model.RecallMetricQuery{CampaignID: campaign.Id, Metric: "enrolled", Snapshot: snapshot, Limit: 1}, time.Now(), RecallMetricExportLimits{MaxRows: 3, MaxBytes: 10_000, BatchSize: 1})
@@ -885,8 +885,8 @@ func TestRecallMetricPaymentFallbackLooksUpOnlyMissingEventCategories(t *testing
 	for _, query := range captured {
 		normalized := normalizeServiceRecallMetricSQL(query.SQL)
 		if strings.Contains(normalized, "from top_ups") || strings.Contains(normalized, "from subscription_orders") {
-			require.False(t, recallMetricSQLVarsContain(query.Vars, "explicit_trade"), "explicit event category should not be part of fallback lookup: %s vars=%v", normalized, query.Vars)
-			require.True(t, recallMetricSQLVarsContain(query.Vars, "missing_trade"), "missing event category should be part of fallback lookup: %s vars=%v", normalized, query.Vars)
+			require.False(t, serviceRecallMetricSQLVarsContain(query.Vars, "explicit_trade"), "explicit event category should not be part of fallback lookup: %s vars=%v", normalized, query.Vars)
+			require.True(t, serviceRecallMetricSQLVarsContain(query.Vars, "missing_trade"), "missing event category should be part of fallback lookup: %s vars=%v", normalized, query.Vars)
 		}
 	}
 }
@@ -1036,7 +1036,7 @@ func TestRecallMetricCandidateStreamDoesNotRepeatCountsOrLegacyScansPerBatch(t *
 		if strings.Contains(query.SQL, "count(") {
 			countQueries++
 		}
-		if strings.Contains(query.SQL, "from recall_events") && recallMetricSQLVarsContain(query.Vars, "campaign_run") {
+		if strings.Contains(query.SQL, "from recall_events") && serviceRecallMetricSQLVarsContain(query.Vars, "campaign_run") {
 			campaignRunScans++
 		}
 	}
@@ -1344,4 +1344,13 @@ func normalizeServiceRecallMetricSQL(sql string) string {
 	sql = strings.ToLower(sql)
 	sql = strings.NewReplacer("`", "", `"`, "", "[", "", "]", "").Replace(sql)
 	return regexp.MustCompile(`\s+`).ReplaceAllString(sql, " ")
+}
+
+func serviceRecallMetricSQLVarsContain(vars []any, value string) bool {
+	for _, variable := range vars {
+		if variable == value {
+			return true
+		}
+	}
+	return false
 }

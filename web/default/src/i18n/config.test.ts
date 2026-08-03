@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
+import { recallDeliveryErrorCopyByCode } from '../features/recall-campaigns/copy'
 import {
   LANGUAGE_DETECTION_OPTIONS,
   LANGUAGE_PREFERENCE_COOKIE,
@@ -143,8 +144,7 @@ const operationalActivityCopyKeys = [
   'Start date and time',
   'IANA timezone',
   'Absolute offset from the first SMTP accepted email.',
-  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
-  'Delivery status is uncertain. Check the mailbox provider before retrying.',
+  ...Object.values(recallDeliveryErrorCopyByCode),
 ] as const
 
 const dynamicOperationalActivityCopyKeys = [
@@ -194,8 +194,7 @@ const dynamicOperationalActivityCopyKeys = [
   'User ID and email resolve to different users.',
   'Batch contains blocking errors from preview.',
   'Row conflicts with a converted recipient.',
-  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
-  'Delivery status is uncertain. Check the mailbox provider before retrying.',
+  ...Object.values(recallDeliveryErrorCopyByCode),
   'Translation request was replaced by a newer request.',
 ] as const
 

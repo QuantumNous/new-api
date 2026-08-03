@@ -75,6 +75,7 @@ export const STATIC_I18N_KEYS = [
   'Row conflicts with a converted recipient.',
   'Translation request was replaced by a newer request.',
   'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
+  'Activity SMTP is not configured. Configure it before sending.',
   'Delivery status is uncertain. Check the mailbox provider before retrying.',
 
   // Header navigation

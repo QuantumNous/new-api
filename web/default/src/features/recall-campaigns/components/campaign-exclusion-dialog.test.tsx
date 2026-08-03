@@ -1,7 +1,15 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test'
+import {
+  afterAll,
+  afterEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from 'bun:test'
 import { createInstance } from 'i18next'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
 import zhLocale from '../../../i18n/locales/zh.json'
@@ -208,6 +216,11 @@ const latestButtons: Record<
   React.ButtonHTMLAttributes<HTMLButtonElement>
 > = {}
 const testRecallCampaignKeys = recallApi.recallCampaignKeys
+const testRenders = new Set<{
+  container: HTMLElement
+  queryClient: QueryClient
+  root: ReturnType<typeof createRoot>
+}>()
 let previewError: Error | null = null
 let confirmError: Error | null = null
 let batchError: Error | null = null
@@ -243,9 +256,12 @@ function makePreview(
 
 let nextPreview = makePreview()
 
-mock.module('../api', () => ({
-  ...recallApi,
-  confirmRecallCampaignExclusionBatch: async (_id: number, batchId: number) => {
+const confirmExclusionBatchSpy = spyOn(
+  recallApi,
+  'confirmRecallCampaignExclusionBatch'
+)
+confirmExclusionBatchSpy.mockImplementation(
+  async (_id: number, batchId: number) => {
     confirmCalls.push(batchId)
     if (confirmError) throw confirmError
     if (pendingConfirmRequest) {
@@ -259,25 +275,31 @@ mock.module('../api', () => ({
       success: true,
       data: confirmResponse ?? makePreview({ batch_id: batchId }),
     }
-  },
-  getRecallCampaignExclusionBatch: async (_id: number, batchId: number) => {
+  }
+)
+
+const getExclusionBatchSpy = spyOn(recallApi, 'getRecallCampaignExclusionBatch')
+getExclusionBatchSpy.mockImplementation(
+  async (_id: number, batchId: number) => {
     batchLoads.push(batchId)
     if (batchError) throw batchError
     return { success: true, data: makePreview({ batch_id: batchId }) }
-  },
-  previewRecallCampaignExclusions: async (_id: number, file: File) => {
-    previewCalls.push(file)
-    if (previewError) throw previewError
-    if (pendingPreviewRequest) {
-      return await new Promise<{ success: true; data: RecallExclusionPreview }>(
-        (resolve, reject) => {
-          pendingPreviewRequest = { file, resolve, reject }
-        }
-      )
-    }
-    return { success: true, data: nextPreview }
-  },
-}))
+  }
+)
+
+const previewExclusionsSpy = spyOn(recallApi, 'previewRecallCampaignExclusions')
+previewExclusionsSpy.mockImplementation(async (_id: number, file: File) => {
+  previewCalls.push(file)
+  if (previewError) throw previewError
+  if (pendingPreviewRequest) {
+    return await new Promise<{ success: true; data: RecallExclusionPreview }>(
+      (resolve, reject) => {
+        pendingPreviewRequest = { file, resolve, reject }
+      }
+    )
+  }
+  return { success: true, data: nextPreview }
+})
 
 mock.module('@/components/ui/button', () => ({
   Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => {
@@ -363,6 +385,7 @@ function renderDialog(props: {
       </QueryClientProvider>
     )
   })
+  testRenders.add({ container, queryClient, root })
   return { container, queryClient, root }
 }
 
@@ -396,6 +419,7 @@ function renderControlledDialog(props: { initialBatchId?: number }) {
     )
   }
   React.act(render)
+  testRenders.add({ container, queryClient, root })
   return {
     container,
     queryClient,
@@ -409,6 +433,38 @@ function renderControlledDialog(props: { initialBatchId?: number }) {
 
 async function wait(ms = 0) {
   await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function drainReactWork() {
+  await React.act(async () => {
+    await Promise.resolve()
+    await wait()
+  })
+}
+
+async function waitForCondition(
+  condition: () => boolean,
+  message: string,
+  timeoutMs = 1000
+) {
+  const startedAt = Date.now()
+  do {
+    await drainReactWork()
+    if (condition()) return
+  } while (Date.now() - startedAt < timeoutMs)
+
+  throw new Error(message)
+}
+
+function cleanupRoot(root: ReturnType<typeof createRoot>) {
+  for (const render of testRenders) {
+    if (render.root !== root) continue
+    React.act(() => render.root.unmount())
+    render.queryClient.clear()
+    render.container.parentNode?.removeChild(render.container)
+    testRenders.delete(render)
+    return
+  }
 }
 
 async function click(label: string) {
@@ -430,6 +486,13 @@ async function chooseFile(file: File) {
 }
 
 afterEach(async () => {
+  for (const render of Array.from(testRenders)) {
+    React.act(() => render.root.unmount())
+    render.queryClient.clear()
+    render.container.parentNode?.removeChild(render.container)
+    testRenders.delete(render)
+  }
+  await drainReactWork()
   await testI18n.changeLanguage('en')
   previewCalls.length = 0
   batchLoads.length = 0
@@ -446,7 +509,11 @@ afterEach(async () => {
   nextPreview = makePreview()
 })
 
-afterAll(() => {
+afterAll(async () => {
+  await drainReactWork()
+  confirmExclusionBatchSpy.mockRestore()
+  getExclusionBatchSpy.mockRestore()
+  previewExclusionsSpy.mockRestore()
   mock.restore()
   restoreTestGlobals()
 })
@@ -471,7 +538,7 @@ describe('CampaignExclusionDialog', () => {
     ).toBeTrue()
     expect(container.textContent).not.toContain('raw@example.com')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('disables confirmation for blocking conflicts and renders bounded problem messages', async () => {
@@ -497,7 +564,7 @@ describe('CampaignExclusionDialog', () => {
     expect(latestButtons['Apply exclusions']?.disabled).toBeTrue()
     expect(container.textContent).not.toContain('blocked@example.com')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('renders known exclusion problem codes with stable localized copy', async () => {
@@ -531,7 +598,7 @@ describe('CampaignExclusionDialog', () => {
       'backend campaign member detail'
     )
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('limits rendered problem samples to twenty entries', async () => {
@@ -552,15 +619,18 @@ describe('CampaignExclusionDialog', () => {
     expect(container.textContent).not.toContain('Safe fixed problem 21')
     expect(container.textContent).toContain('5 more problems not shown')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('recovers saved preview by numeric batch id and refreshes metrics after confirm', async () => {
     const { container, root } = renderDialog({ initialBatchId: 88 })
 
-    await React.act(async () => {
-      await wait()
-    })
+    await waitForCondition(
+      () =>
+        batchLoads.length === 1 &&
+        container.textContent?.includes('2 resolved users') === true,
+      'Recovered exclusion batch did not render before timeout'
+    )
 
     expect(batchLoads).toEqual([88])
     expect(container.textContent).toContain('2 resolved users')
@@ -573,7 +643,7 @@ describe('CampaignExclusionDialog', () => {
     expect(container.textContent).toContain('Exclusions applied.')
     expect(container.textContent).toContain('5 queued messages were canceled')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('keeps preview confirmable and retries safely after confirm failure', async () => {
@@ -599,7 +669,7 @@ describe('CampaignExclusionDialog', () => {
     expect(container.textContent).not.toContain('2 resolved users')
     expect(latestButtons['Apply exclusions']?.disabled).toBeTrue()
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('does not restore stale recovered preview after successful confirm or reopen', async () => {
@@ -610,9 +680,12 @@ describe('CampaignExclusionDialog', () => {
       onOpenChange: (open) => openChanges.push(open),
     })
 
-    await React.act(async () => {
-      await wait()
-    })
+    await waitForCondition(
+      () =>
+        batchLoads.length === 1 &&
+        container.textContent?.includes('2 resolved users') === true,
+      'Recovered exclusion batch did not render before timeout'
+    )
     await click('Apply exclusions')
 
     expect(container.textContent).toContain('7 queued messages were canceled')
@@ -623,7 +696,7 @@ describe('CampaignExclusionDialog', () => {
     expect(openChanges).toContain(false)
     expect(container.textContent).not.toContain('2 resolved users')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('shows unconfirmed recovered preview again after parent closes and reopens', async () => {
@@ -631,9 +704,12 @@ describe('CampaignExclusionDialog', () => {
       initialBatchId: 88,
     })
 
-    await React.act(async () => {
-      await wait()
-    })
+    await waitForCondition(
+      () =>
+        batchLoads.length === 1 &&
+        container.textContent?.includes('2 resolved users') === true,
+      'Recovered exclusion batch did not render before timeout'
+    )
     expect(container.textContent).toContain('2 resolved users')
 
     await click('Close')
@@ -641,14 +717,15 @@ describe('CampaignExclusionDialog', () => {
     expect(container.textContent).not.toContain('2 resolved users')
 
     setOpen(true)
-    await React.act(async () => {
-      await wait()
-    })
+    await waitForCondition(
+      () => container.textContent?.includes('2 resolved users') === true,
+      'Recovered exclusion batch did not render after reopen before timeout'
+    )
 
     expect(container.textContent).toContain('2 resolved users')
     expect(latestButtons['Apply exclusions']?.disabled).toBeFalse()
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('runs global confirm side effects after close without restoring recovered batch', async () => {
@@ -661,9 +738,12 @@ describe('CampaignExclusionDialog', () => {
       initialBatchId: 88,
     })
 
-    await React.act(async () => {
-      await wait()
-    })
+    await waitForCondition(
+      () =>
+        batchLoads.length === 1 &&
+        container.textContent?.includes('2 resolved users') === true,
+      'Recovered exclusion batch did not render before timeout'
+    )
     await click('Apply exclusions')
     expect(confirmCalls).toEqual([88])
 
@@ -692,14 +772,12 @@ describe('CampaignExclusionDialog', () => {
     expect(container.textContent).not.toContain('Exclusions applied.')
 
     setOpen(true)
-    await React.act(async () => {
-      await wait()
-    })
+    await drainReactWork()
 
     expect(container.textContent).not.toContain('2 resolved users')
     expect(latestButtons['Apply exclusions']?.disabled).toBeTrue()
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('clears raw state on confirm and close', async () => {
@@ -723,7 +801,7 @@ describe('CampaignExclusionDialog', () => {
     expect(container.textContent).not.toContain('private@example.com')
     expect(container.textContent).not.toContain('2 resolved users')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('clears File mutation variables and preview state after preview failure and close', async () => {
@@ -745,7 +823,7 @@ describe('CampaignExclusionDialog', () => {
     expect(container.textContent).not.toContain('failed@example.com')
     expect(container.textContent).not.toContain('2 resolved users')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('clears raw state immediately and ignores late preview responses after close', async () => {
@@ -775,16 +853,20 @@ describe('CampaignExclusionDialog', () => {
     expect(container.textContent).not.toContain('9 resolved users')
     expect(container.textContent).not.toContain('Unable to preview exclusions.')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('shows a safe retryable error when recovered exclusion batch load fails', async () => {
     batchError = new Error('raw batch recovery failure')
     const { container, root } = renderDialog({ initialBatchId: 88 })
 
-    await React.act(async () => {
-      await wait()
-    })
+    await waitForCondition(
+      () =>
+        batchLoads.length === 1 &&
+        container.textContent?.includes('Unable to load exclusion batch.') ===
+          true,
+      'Recovered exclusion batch failure did not render before timeout'
+    )
 
     expect(container.textContent).toContain('Unable to load exclusion batch.')
     expect(container.textContent).not.toContain('raw batch recovery failure')
@@ -792,13 +874,16 @@ describe('CampaignExclusionDialog', () => {
 
     batchError = null
     await click('Retry')
-    await React.act(async () => {
-      await wait()
-    })
+    await waitForCondition(
+      () =>
+        batchLoads.length === 2 &&
+        container.textContent?.includes('2 resolved users') === true,
+      'Recovered exclusion batch retry did not render before timeout'
+    )
 
     expect(batchLoads).toEqual([88, 88])
     expect(container.textContent).toContain('2 resolved users')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 })

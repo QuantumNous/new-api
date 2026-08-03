@@ -24,6 +24,7 @@ type RecallPaymentFact struct {
 	PromotionCodeID   string
 	ClaimCampaignID   int64
 	ClaimRecipientID  int64
+	PaymentCategory   model.RecallRevenueCategory
 
 	hasDiscount           bool
 	discountDetailsLoaded bool
@@ -196,6 +197,7 @@ func (s *RecallAttributionService) Attribute(ctx context.Context, fact RecallPay
 		fresh.SourceEventID = fact.SourceEventID
 		fresh.TradeNo = fact.TradeNo
 		fresh.UserID = fact.UserID
+		fresh.PaymentCategory = fact.PaymentCategory
 		if fresh.ClaimCampaignID == 0 {
 			fresh.ClaimCampaignID = fact.ClaimCampaignID
 		}
@@ -261,7 +263,7 @@ func (s *RecallAttributionService) Attribute(ctx context.Context, fact RecallPay
 		"currency":            strings.ToUpper(strings.TrimSpace(fact.Currency)),
 		"amount_total":        fact.AmountTotal,
 		"discount_amount":     fact.DiscountAmount,
-		"payment_category":    model.RecallRevenueCategoryDirectTopUp,
+		"payment_category":    recallPaymentCategoryOrDefault(fact.PaymentCategory),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal recall conversion event: %w", err)
@@ -375,6 +377,7 @@ func (s *RecallAttributionService) ReconcileBatch(ctx context.Context, limit int
 		fact.SourceEventID = "reconcile:" + candidate.CheckoutSessionId
 		fact.TradeNo = candidate.TradeNo
 		fact.UserID = candidate.UserId
+		fact.PaymentCategory = candidate.PaymentCategory
 		if attributeErr := s.Attribute(ctx, fact); attributeErr != nil {
 			if firstErr == nil {
 				firstErr = attributeErr
@@ -396,6 +399,13 @@ func (s *RecallAttributionService) ReconcileBatch(ctx context.Context, limit int
 		}
 	}
 	return processed, firstErr
+}
+
+func recallPaymentCategoryOrDefault(category model.RecallRevenueCategory) model.RecallRevenueCategory {
+	if category == "" {
+		return model.RecallRevenueCategoryDirectTopUp
+	}
+	return category
 }
 
 func recallCheckoutDiscountIdentityLoaded(discounts []*stripe.CheckoutSessionDiscount) bool {

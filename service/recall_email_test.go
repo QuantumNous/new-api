@@ -2498,7 +2498,64 @@ func newRecallEmailUncertainError(t *testing.T) error {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
-	require.NoError(t, listener.Close())
+	serverDone := make(chan error, 1)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			serverDone <- acceptErr
+			return
+		}
+		defer conn.Close()
+		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+		tp := textproto.NewConn(conn)
+		defer tp.Close()
+		if err := tp.PrintfLine("220 localhost ESMTP ready"); err != nil {
+			serverDone <- err
+			return
+		}
+		if _, err := tp.ReadLine(); err != nil {
+			serverDone <- err
+			return
+		}
+		if err := tp.PrintfLine("250-localhost"); err != nil {
+			serverDone <- err
+			return
+		}
+		if err := tp.PrintfLine("250 AUTH PLAIN"); err != nil {
+			serverDone <- err
+			return
+		}
+		if _, err := tp.ReadLine(); err != nil {
+			serverDone <- err
+			return
+		}
+		if err := tp.PrintfLine("235 2.7.0 authenticated"); err != nil {
+			serverDone <- err
+			return
+		}
+		for _, reply := range []string{"250 2.1.0 ok", "250 2.1.0 ok", "354 send message, end with dot"} {
+			if _, err := tp.ReadLine(); err != nil {
+				serverDone <- err
+				return
+			}
+			if err := tp.PrintfLine("%s", reply); err != nil {
+				serverDone <- err
+				return
+			}
+		}
+		for {
+			line, err := tp.ReadLine()
+			if err != nil {
+				serverDone <- err
+				return
+			}
+			if line == "." {
+				serverDone <- nil
+				return
+			}
+		}
+	}()
+	t.Cleanup(func() { _ = listener.Close() })
 
 	originalServer := common.SMTPServer
 	originalPort := common.SMTPPort
@@ -2521,6 +2578,12 @@ func newRecallEmailUncertainError(t *testing.T) error {
 	common.SMTPToken = originalToken
 	require.Error(t, err)
 	require.True(t, common.IsEmailSendUncertain(err))
+	select {
+	case serverErr := <-serverDone:
+		require.NoError(t, serverErr)
+	case <-time.After(6 * time.Second):
+		require.FailNow(t, "scripted SMTP uncertain server timed out")
+	}
 	return err
 }
 

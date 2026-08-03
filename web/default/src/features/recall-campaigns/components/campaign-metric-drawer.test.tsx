@@ -1,7 +1,15 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test'
+import {
+  afterAll,
+  afterEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from 'bun:test'
 import { createInstance } from 'i18next'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
 import * as recallApi from '../api'
@@ -241,6 +249,11 @@ const exportCalls: Array<{
 }> = []
 const objectUrls: string[] = []
 const revokedUrls: string[] = []
+const testRenders = new Set<{
+  container: HTMLElement
+  queryClient: QueryClient
+  root: ReturnType<typeof createRoot>
+}>()
 
 const defaultResult: RecallMetricResult = {
   items: [],
@@ -425,9 +438,9 @@ let metricUserError: Error | null = null
 let exportError: Error | null = null
 let anchorClickThrows = false
 
-mock.module('../api', () => ({
-  ...recallApi,
-  exportRecallCampaignMetricUsers: async (
+const exportMetricUsersSpy = spyOn(recallApi, 'exportRecallCampaignMetricUsers')
+exportMetricUsersSpy.mockImplementation(
+  async (
     _campaignId: number,
     metric: RecallMetricKey,
     filters: RecallMetricFilters
@@ -435,8 +448,12 @@ mock.module('../api', () => ({
     exportCalls.push({ metric, filters })
     if (exportError) throw exportError
     return new Blob(['ok'], { type: 'text/csv' })
-  },
-  getRecallCampaignMetricUsers: async (
+  }
+)
+
+const getMetricUsersSpy = spyOn(recallApi, 'getRecallCampaignMetricUsers')
+getMetricUsersSpy.mockImplementation(
+  async (
     _campaignId: number,
     metric: RecallMetricKey,
     filters: RecallMetricFilters
@@ -455,16 +472,8 @@ mock.module('../api', () => ({
       success: true,
       data: pages[metric]?.[pageIndex] ?? pages[metric]?.[0] ?? defaultResult,
     }
-  },
-  recallCampaignKeys: {
-    ...recallApi.recallCampaignKeys,
-    metricUsers: (
-      campaignId: number,
-      metric: RecallMetricKey,
-      filters: RecallMetricFilters
-    ) => ['recall-campaigns', campaignId, 'metric-users', metric, filters],
-  },
-}))
+  }
+)
 
 const inputProps: Record<
   string,
@@ -613,11 +622,30 @@ function renderSection(cards: Record<string, RecallMetricCard>) {
       </QueryClientProvider>
     )
   })
-  return { container, root }
+  testRenders.add({ container, queryClient, root })
+  return { container, queryClient, root }
 }
 
 async function wait(ms = 0) {
   await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function drainReactWork() {
+  await React.act(async () => {
+    await Promise.resolve()
+    await wait()
+  })
+}
+
+function cleanupRoot(root: ReturnType<typeof createRoot>) {
+  for (const render of testRenders) {
+    if (render.root !== root) continue
+    React.act(() => render.root.unmount())
+    render.queryClient.clear()
+    render.container.parentNode?.removeChild(render.container)
+    testRenders.delete(render)
+    return
+  }
 }
 
 async function click(label: string) {
@@ -629,7 +657,14 @@ async function click(label: string) {
   })
 }
 
-afterEach(() => {
+afterEach(async () => {
+  for (const render of Array.from(testRenders)) {
+    React.act(() => render.root.unmount())
+    render.queryClient.clear()
+    render.container.parentNode?.removeChild(render.container)
+    testRenders.delete(render)
+  }
+  await drainReactWork()
   metricUserCalls.length = 0
   exportCalls.length = 0
   objectUrls.length = 0
@@ -642,7 +677,10 @@ afterEach(() => {
   for (const key of Object.keys(buttonProps)) delete buttonProps[key]
 })
 
-afterAll(() => {
+afterAll(async () => {
+  await drainReactWork()
+  exportMetricUsersSpy.mockRestore()
+  getMetricUsersSpy.mockRestore()
   mock.restore()
   restoreTestGlobals()
 })
@@ -690,7 +728,7 @@ describe('CampaignMetricCardSection', () => {
       filters: { q: '501', snapshot: 'accepted-card-snapshot' },
     })
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('keeps accepted and failed message exports as separate metric calls', async () => {
@@ -717,7 +755,7 @@ describe('CampaignMetricCardSection', () => {
       'failed-card-snapshot',
     ])
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('uses user-facing column and payment labels instead of API field names', async () => {
@@ -759,7 +797,7 @@ describe('CampaignMetricCardSection', () => {
     expect(container.textContent).not.toContain('direct_topup')
     expect(container.textContent).not.toContain('unclassified')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('prunes unsupported filters and resets snapshot when switching metric cards', async () => {
@@ -810,7 +848,7 @@ describe('CampaignMetricCardSection', () => {
       filters: { snapshot: 'candidate-card-snapshot' },
     })
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('uses next_cursor for pagination, appends rows, and blocks duplicate page clicks while pending', async () => {
@@ -851,7 +889,7 @@ describe('CampaignMetricCardSection', () => {
     expect(container.textContent).toContain('701')
     expect(container.textContent).toContain('702')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('shows loading, empty, initial error, and retries metric row loads safely', async () => {
@@ -886,7 +924,7 @@ describe('CampaignMetricCardSection', () => {
     })
     expect(container.textContent).toContain('502')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
 
     const empty = renderSection({
       enrolled: makeCard('enrolled', 0, 'enrolled-card-snapshot', 'identity'),
@@ -897,7 +935,7 @@ describe('CampaignMetricCardSection', () => {
     })
     expect(empty.container.textContent).toContain('No metric rows found.')
 
-    React.act(() => empty.root.unmount())
+    cleanupRoot(empty.root)
   })
 
   test('keeps loaded rows and retries the same cursor after load-more failure', async () => {
@@ -944,7 +982,7 @@ describe('CampaignMetricCardSection', () => {
     expect(container.textContent).toContain('701')
     expect(container.textContent).toContain('702')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('shows export failures safely, preserves filters, and revokes object URLs when click throws', async () => {
@@ -977,7 +1015,7 @@ describe('CampaignMetricCardSection', () => {
     expect(objectUrls).toEqual(['blob:test'])
     expect(revokedUrls).toEqual(['blob:test'])
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('renders supported filter controls from metadata, including state only when declared', async () => {
@@ -1021,7 +1059,7 @@ describe('CampaignMetricCardSection', () => {
       state: 'queued',
     })
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('formats amount cards with money and user counts without merging currencies', () => {
@@ -1051,7 +1089,7 @@ describe('CampaignMetricCardSection', () => {
     expect(container.textContent).toContain('$16.00 / 1')
     expect(container.textContent).toContain('¥1,600 / 1')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 
   test('formats zero, negative, and unknown currency amounts without blank count-only values', async () => {
@@ -1079,6 +1117,6 @@ describe('CampaignMetricCardSection', () => {
     })
     expect(container.textContent).toContain('UNKNOWN 9600 minor units')
 
-    React.act(() => root.unmount())
+    cleanupRoot(root)
   })
 })

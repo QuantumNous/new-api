@@ -243,6 +243,9 @@ func TestRecallAttributionClassifiesOwnedPayments(t *testing.T) {
 			require.Len(t, events, 1)
 			require.Equal(t, "evt_123", events[0].SourceEventId)
 			require.Equal(t, recipient.Id, events[0].RecipientId)
+			var eventData map[string]any
+			require.NoError(t, common.Unmarshal([]byte(events[0].EventData), &eventData))
+			require.Equal(t, string(model.RecallRevenueCategoryDirectTopUp), eventData["payment_category"])
 		})
 	}
 }
@@ -835,6 +838,45 @@ func TestRecallAttributionReconcileUsesOnlyRecoverableSuccessfulStripeOrders(t *
 	var subscriptions int64
 	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Count(&subscriptions).Error)
 	require.Zero(t, subscriptions, "reconciliation must never provision subscriptions")
+}
+
+func TestRecallAttributionReconcilePreservesSubscriptionPaymentCategory(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	campaign, recipient := createRecallAttributionRecipient(t, "promo_sub_category")
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: recipient.UserId, Username: "subscription-category", Email: "subscription-category@example.com",
+		AffCode: "subscription-category-aff",
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{Id: 1, Title: "subscription category plan"}).Error)
+	require.NoError(t, model.DB.Create(&model.SubscriptionOrder{
+		UserId: recipient.UserId, PlanId: 1, TradeNo: "trade_sub_category", PaymentProvider: model.PaymentProviderStripe,
+		Status: common.TopUpStatusSuccess, CreateTime: 1_700_000_100, CompleteTime: 1_700_000_200,
+		ProviderPayload: `{"checkout_session_id":"cs_sub_category"}`,
+	}).Error)
+	client := &recallStripeFakeClient{getCheckoutSessionFn: func(_ context.Context, id string, _ ...string) (*stripe.CheckoutSession, error) {
+		require.Equal(t, "cs_sub_category", id)
+		return &stripe.CheckoutSession{
+			ID: id, Created: 1_700_000_100, PaymentStatus: stripe.CheckoutSessionPaymentStatusPaid,
+			AmountTotal: 5000, Currency: stripe.CurrencyUSD,
+			Metadata: map[string]string{
+				"recall_campaign_id":  fmt.Sprintf("%d", campaign.Id),
+				"recall_recipient_id": fmt.Sprintf("%d", recipient.Id),
+			},
+			TotalDetails: &stripe.CheckoutSessionTotalDetails{},
+		}, nil
+	}}
+	service := NewRecallAttributionService(client)
+	service.now = func() time.Time { return time.Unix(1_700_000_300, 0).UTC() }
+
+	processed, err := service.ReconcileBatch(context.Background(), 1)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	var event model.RecallEvent
+	require.NoError(t, model.DB.Where("recipient_id = ? AND event_type = ?", recipient.Id, "conversion").First(&event).Error)
+	var eventData map[string]any
+	require.NoError(t, common.Unmarshal([]byte(event.EventData), &eventData))
+	require.Equal(t, string(model.RecallRevenueCategoryOnlineSubscription), eventData["payment_category"])
 }
 
 func TestRecallAttributionReconcileAdvancesPastTerminalOrders(t *testing.T) {

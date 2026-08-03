@@ -158,6 +158,7 @@ type RecallAttributionCandidate struct {
 	CheckoutSessionId string
 	OrderCreatedAt    int64
 	EnrolledAt        int64
+	PaymentCategory   RecallRevenueCategory
 }
 
 func GetRecallRecipientByPromotionCodeWithContext(ctx context.Context, userID int, promotionCodeID string) (*RecallRecipient, bool, error) {

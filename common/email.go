@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/mail"
 	"net/smtp"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -194,15 +195,11 @@ func sendEmailWithSMTPConfigAndLogPolicy(config SMTPConfig, subject string, rece
 	if config.Port == 465 || config.SSLEnabled {
 		return sendEmailTLS(config, addr, sender, recipients, auth, message, logTransportFailure)
 	}
-	if !logTransportFailure {
-		return sendEmailSMTPByPhase(config, addr, sender, recipients, auth, message)
-	}
-	if err := smtp.SendMail(addr, auth, sender, recipients, message); err != nil {
-		wrapped := &emailSendError{Uncertain: true, Err: err}
+	if err := sendEmailSMTPByPhase(config, addr, sender, recipients, auth, message); err != nil {
 		if logTransportFailure {
-			SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, wrapped))
+			SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, err))
 		}
-		return wrapped
+		return err
 	}
 	return nil
 }
@@ -228,7 +225,10 @@ func sendEmailSMTPByPhase(config SMTPConfig, addr string, sender string, recipie
 	} else if auth != nil && !isLocalSMTPHost(config.Server) {
 		return &emailSendError{Err: fmt.Errorf("SMTP server %s does not advertise STARTTLS; refusing plaintext SMTP auth", config.Server)}
 	}
-	if auth != nil {
+	if auth != nil && smtpClientHasExtensions(client) {
+		if ok, _ := client.Extension("AUTH"); !ok {
+			return &emailSendError{Err: errors.New("smtp: server doesn't support AUTH")}
+		}
 		if err := client.Auth(auth); err != nil {
 			return &emailSendError{Err: err}
 		}
@@ -251,6 +251,7 @@ func sendEmailSMTPByPhase(config SMTPConfig, addr string, sender string, recipie
 	if err := w.Close(); err != nil {
 		return &emailSendError{Uncertain: true, Err: err}
 	}
+	_ = client.Quit()
 	return nil
 }
 
@@ -401,6 +402,18 @@ func sendEmailTLS(config SMTPConfig, addr string, sender string, recipients []st
 	if err := client.Auth(auth); err != nil {
 		return &emailSendError{Err: err}
 	}
+	return sendEmailSMTPWithClient(client, sender, recipients, message)
+}
+
+func smtpClientHasExtensions(client *smtp.Client) bool {
+	if client == nil {
+		return false
+	}
+	ext := reflect.ValueOf(client).Elem().FieldByName("ext")
+	return ext.IsValid() && ext.Kind() == reflect.Map && !ext.IsNil()
+}
+
+func sendEmailSMTPWithClient(client *smtp.Client, sender string, recipients []string, message []byte) error {
 	if err := client.Mail(sender); err != nil {
 		return &emailSendError{Err: err}
 	}
@@ -421,6 +434,7 @@ func sendEmailTLS(config SMTPConfig, addr string, sender string, recipients []st
 	if err := w.Close(); err != nil {
 		return &emailSendError{Uncertain: true, Err: err}
 	}
+	_ = client.Quit()
 	return nil
 }
 

@@ -269,6 +269,28 @@ describe('recall translation task error copy', () => {
   })
 })
 
+describe('recall delivery error copy', () => {
+  test('maps stable backend delivery error codes to safe frontend copy', () => {
+    expect(
+      recallCopy.getRecallDeliveryErrorCopyKey('activity_smtp_not_configured')
+    ).toBe('Activity SMTP is not configured. Configure it before sending.')
+    expect(
+      recallCopy.getRecallDeliveryErrorCopyKey('activity_smtp_send_failed')
+    ).toBe(
+      'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+    )
+    expect(recallCopy.getRecallDeliveryErrorCopyKey('smtp_uncertain')).toBe(
+      'Delivery status is uncertain. Check the mailbox provider before retrying.'
+    )
+  })
+
+  test('does not expose unknown backend delivery error codes as copy', () => {
+    expect(
+      recallCopy.getRecallDeliveryErrorCopyKey('raw backend transport detail')
+    ).toBeUndefined()
+    expect(recallCopy.getRecallDeliveryErrorCopyKey(null)).toBeUndefined()
+  })
+})
 describe('recall campaign copy', () => {
   test('maps each audience template to its explanation', () => {
     expect(audienceTemplateDescriptionKeys).toEqual({
