@@ -93,7 +93,9 @@ const AddEditSubscriptionModal = ({
     enabled: true,
     sort_order: 0,
     max_purchase_per_user: 0,
+    max_active_per_user: 0,
     total_amount: 0,
+    weekly_amount: 0,
     upgrade_group: '',
     stripe_price_id: '',
     creem_product_id: '',
@@ -117,8 +119,12 @@ const AddEditSubscriptionModal = ({
       enabled: p.enabled !== false,
       sort_order: Number(p.sort_order || 0),
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
+      max_active_per_user: Number(p.max_active_per_user || 0),
       total_amount: Number(
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
+      ),
+      weekly_amount: Number(
+        quotaToDisplayAmount(p.weekly_amount || 0).toFixed(2),
       ),
       upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
@@ -162,7 +168,9 @@ const AddEditSubscriptionModal = ({
               : 0,
           sort_order: Number(values.sort_order || 0),
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
+          max_active_per_user: Number(values.max_active_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
+          weekly_amount: displayAmountToQuota(values.weekly_amount),
           upgrade_group: values.upgrade_group || '',
         },
       };
@@ -323,6 +331,17 @@ const AddEditSubscriptionModal = ({
                     </Col>
 
                     <Col span={12}>
+                      <Form.InputNumber
+                        field='weekly_amount'
+                        label={t('每周软上限')}
+                        min={0}
+                        precision={2}
+                        extraText={`${t('0 表示不限制')} · ${t('包含在总额度内')}`}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+
+                    <Col span={12}>
                       <Form.Select
                         field='upgrade_group'
                         label={t('升级分组')}
@@ -367,6 +386,17 @@ const AddEditSubscriptionModal = ({
                         min={0}
                         precision={0}
                         extraText={t('0 表示不限')}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.InputNumber
+                        field='max_active_per_user'
+                        label={t('生效中订阅上限')}
+                        min={0}
+                        precision={0}
+                        extraText={t('0 表示不限；1 表示同时只能有一个生效套餐')}
                         style={{ width: '100%' }}
                       />
                     </Col>

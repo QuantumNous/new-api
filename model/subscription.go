@@ -36,11 +36,13 @@ const (
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
+	ErrSubscriptionCheckoutPending    = errors.New("a subscription checkout is already pending")
 )
 
 const (
 	subscriptionPlanCacheNamespace     = "new-api:subscription_plan:v1"
 	subscriptionPlanInfoCacheNamespace = "new-api:subscription_plan_info:v1"
+	SubscriptionCheckoutReservationTTL = 30 * 60
 )
 
 var (
@@ -172,6 +174,10 @@ type SubscriptionPlan struct {
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
 
+	// Max simultaneously active subscriptions for a user (0 = unlimited).
+	// Unlike MaxPurchasePerUser this is not a lifetime limit.
+	MaxActivePerUser int `json:"max_active_per_user" gorm:"type:int;default:0"`
+
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 
@@ -180,6 +186,11 @@ type SubscriptionPlan struct {
 
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
+
+	// Weekly soft cap inside TotalAmount (amount in quota units, 0 = disabled).
+	// Reaching it makes subscription-first billing fall back to wallet; it never
+	// replenishes or enlarges TotalAmount.
+	WeeklyAmount int64 `json:"weekly_amount" gorm:"type:bigint;not null;default:0"`
 
 	// Quota reset period for plan
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
@@ -233,9 +244,24 @@ type SubscriptionOrder struct {
 	Currency            string `json:"currency" gorm:"type:varchar(8);default:''"`
 	PlanTitle           string `json:"plan_title" gorm:"type:varchar(128);default:''"`
 	AmountTotal         int64  `json:"amount_total" gorm:"type:bigint;not null;default:0"`
+	WeeklyAmount        int64  `json:"weekly_amount" gorm:"type:bigint;not null;default:0"`
+	MaxActivePerUser    int    `json:"max_active_per_user" gorm:"type:int;default:0"`
 	AllowWalletOverflow bool   `json:"allow_wallet_overflow"`
 	UpgradeGroup        string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 	DowngradeGroup      string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
+}
+
+// SubscriptionCheckoutReservation serializes checkout creation across all
+// external payment providers. The row is intentionally keyed by user instead
+// of (user, provider): otherwise two concurrent providers can both collect
+// payment for a plan whose active limit is one.
+type SubscriptionCheckoutReservation struct {
+	Id              int    `json:"id"`
+	UserId          int    `json:"user_id" gorm:"uniqueIndex;not null"`
+	TradeNo         string `json:"trade_no" gorm:"uniqueIndex;type:varchar(255);not null"`
+	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);not null"`
+	ExpiresAt       int64  `json:"expires_at" gorm:"type:bigint;index;not null"`
+	CreatedAt       int64  `json:"created_at" gorm:"type:bigint"`
 }
 
 func (o *SubscriptionOrder) Insert() error {
@@ -260,6 +286,135 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 	return &order
 }
 
+func isUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "unique") || strings.Contains(message, "duplicate")
+}
+
+// ReserveSubscriptionCheckout atomically validates subscription limits,
+// persists the pending order and claims the user's single checkout slot.
+func ReserveSubscriptionCheckout(userId int, order *SubscriptionOrder) error {
+	if userId <= 0 || order == nil || order.UserId != userId || strings.TrimSpace(order.TradeNo) == "" {
+		return errors.New("invalid subscription checkout reservation")
+	}
+	if strings.TrimSpace(order.PaymentProvider) == "" || order.Status != common.TopUpStatusPending {
+		return errors.New("subscription checkout order must be pending")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
+			return err
+		}
+
+		plan, err := subscriptionOrderPlanTx(tx, order)
+		if err != nil {
+			return err
+		}
+		now := getDBTimestampTx(tx)
+		if plan.MaxActivePerUser > 0 {
+			var activeCount int64
+			if err := tx.Model(&UserSubscription{}).
+				Where("user_id = ? AND status = ? AND start_time <= ? AND end_time > ?", userId, "active", now, now).
+				Count(&activeCount).Error; err != nil {
+				return err
+			}
+			if activeCount >= int64(plan.MaxActivePerUser) {
+				return errors.New("user already has the maximum number of active subscriptions")
+			}
+		}
+		if plan.MaxPurchasePerUser > 0 {
+			var purchaseCount int64
+			if err := tx.Model(&UserSubscription{}).
+				Where("user_id = ? AND plan_id = ?", userId, plan.Id).
+				Count(&purchaseCount).Error; err != nil {
+				return err
+			}
+			if purchaseCount >= int64(plan.MaxPurchasePerUser) {
+				return errors.New("已达到该套餐购买上限")
+			}
+		}
+		if order.PaymentProvider == PaymentProviderCreem {
+			var blocking int64
+			if err := tx.Model(&CreemSubscriptionLink{}).
+				Where("user_id = ? AND provider_status IN ?", userId, []string{"active", "trialing", "scheduled_cancel", "past_due", "unpaid"}).
+				Count(&blocking).Error; err != nil {
+				return err
+			}
+			if blocking > 0 {
+				return ErrSubscriptionCheckoutPending
+			}
+		}
+
+		var reservation SubscriptionCheckoutReservation
+		result := tx.Where("user_id = ?", userId).First(&reservation)
+		if result.Error == nil {
+			if reservation.ExpiresAt > now {
+				return ErrSubscriptionCheckoutPending
+			}
+			if err := tx.Model(&SubscriptionOrder{}).
+				Where("trade_no = ? AND status = ?", reservation.TradeNo, common.TopUpStatusPending).
+				Updates(map[string]any{"status": common.TopUpStatusExpired, "complete_time": now}).Error; err != nil {
+				return err
+			}
+			if err := tx.Delete(&reservation).Error; err != nil {
+				return err
+			}
+		} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return result.Error
+		}
+
+		if order.CreateTime == 0 {
+			order.CreateTime = now
+		}
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+		reservation = SubscriptionCheckoutReservation{
+			UserId:          userId,
+			TradeNo:         order.TradeNo,
+			PaymentProvider: order.PaymentProvider,
+			ExpiresAt:       now + SubscriptionCheckoutReservationTTL,
+			CreatedAt:       now,
+		}
+		if err := tx.Create(&reservation).Error; err != nil {
+			if isUniqueConstraintError(err) {
+				return ErrSubscriptionCheckoutPending
+			}
+			return err
+		}
+		return nil
+	})
+}
+
+func ReleaseSubscriptionCheckout(tradeNo string, expectedPaymentProvider string) error {
+	if strings.TrimSpace(tradeNo) == "" {
+		return errors.New("missing subscription checkout trade number")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		refCol := "`trade_no`"
+		if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+			refCol = `"trade_no"`
+		}
+		var order SubscriptionOrder
+		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+			return ErrSubscriptionOrderNotFound
+		}
+		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
+			return ErrPaymentMethodMismatch
+		}
+		now := getDBTimestampTx(tx)
+		if order.Status == common.TopUpStatusPending {
+			if err := tx.Model(&order).Updates(map[string]any{"status": common.TopUpStatusExpired, "complete_time": now}).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Where("trade_no = ?", tradeNo).Delete(&SubscriptionCheckoutReservation{}).Error
+	})
+}
+
 // User subscription instance
 type UserSubscription struct {
 	Id     int `json:"id"`
@@ -269,11 +424,16 @@ type UserSubscription struct {
 	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
 
+	WeeklyAmountTotal   int64 `json:"weekly_amount_total" gorm:"type:bigint;not null;default:0"`
+	WeeklyAmountUsed    int64 `json:"weekly_amount_used" gorm:"type:bigint;not null;default:0"`
+	NextWeeklyResetTime int64 `json:"next_weekly_reset_time" gorm:"type:bigint;default:0;index"`
+
 	StartTime int64  `json:"start_time" gorm:"bigint"`
 	EndTime   int64  `json:"end_time" gorm:"bigint;index;index:idx_user_sub_active,priority:3"`
 	Status    string `json:"status" gorm:"type:varchar(32);index;index:idx_user_sub_active,priority:2"` // active/expired/cancelled
 
-	Source string `json:"source" gorm:"type:varchar(32);default:'order'"` // order/admin
+	Source    string `json:"source" gorm:"type:varchar(32);default:'order'"` // order/admin/redemption
+	SourceRef string `json:"source_ref" gorm:"type:varchar(128);default:'';index"`
 
 	LastResetTime int64 `json:"last_reset_time" gorm:"type:bigint;default:0"`
 	NextResetTime int64 `json:"next_reset_time" gorm:"type:bigint;default:0;index"`
@@ -393,6 +553,24 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 	return next.Unix()
 }
 
+// calcNextWeeklyResetTime returns the next calendar-week boundary without
+// changing the subscription's monthly/lifetime quota. The plan-level weekly
+// cap is deliberately independent from QuotaResetPeriod: the latter renews
+// AmountTotal, while this boundary only renews WeeklyAmountTotal.
+func calcNextWeeklyResetTime(base time.Time, endUnix int64) int64 {
+	weekday := int(base.Weekday()) // Sunday=0
+	if weekday == 0 {
+		weekday = 7
+	}
+	daysUntil := 8 - weekday
+	next := time.Date(base.Year(), base.Month(), base.Day(), 0, 0, 0, 0, base.Location()).
+		AddDate(0, 0, daysUntil)
+	if endUnix > 0 && next.Unix() > endUnix {
+		return 0
+	}
+	return next.Unix()
+}
+
 func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
 	return getSubscriptionPlanByIdTx(nil, id)
 }
@@ -432,6 +610,25 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+func CheckActiveSubscriptionLimit(userId int, plan *SubscriptionPlan) error {
+	if userId <= 0 || plan == nil {
+		return errors.New("invalid active subscription limit arguments")
+	}
+	if plan.MaxActivePerUser <= 0 {
+		return nil
+	}
+	var count int64
+	if err := DB.Model(&UserSubscription{}).
+		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", GetDBTimestamp()).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count >= int64(plan.MaxActivePerUser) {
+		return errors.New("user already has the maximum number of active subscriptions")
+	}
+	return nil
 }
 
 func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
@@ -493,6 +690,21 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 }
 
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+	return CreateUserSubscriptionFromPlanWithRefTx(tx, userId, plan, source, "")
+}
+
+func CreateUserSubscriptionFromPlanWithRefTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, sourceRef string) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanWithRefTx(tx, userId, plan, source, sourceRef, true)
+}
+
+// createPaidUserSubscriptionFromPlanTx is reserved for authenticated provider
+// callbacks. Checkout creation already serialized and validated the limits; a
+// settled order must always receive the entitlement it paid for.
+func createPaidUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanWithRefTx(tx, userId, plan, source, "", false)
+}
+
+func createUserSubscriptionFromPlanWithRefTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, sourceRef string, enforceLimits bool) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -502,7 +714,34 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
 	}
-	if plan.MaxPurchasePerUser > 0 {
+	if enforceLimits && plan.MaxActivePerUser > 0 {
+		// Lock the user row so two payment callbacks cannot both pass the active
+		// count and create overlapping entitlements for the same user.
+		var lockedUser User
+		if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&lockedUser).Error; err != nil {
+			return nil, err
+		}
+		var activeCount int64
+		now := getDBTimestampTx(tx)
+		var pendingCheckoutCount int64
+		if err := tx.Model(&SubscriptionCheckoutReservation{}).
+			Where("user_id = ? AND expires_at > ?", userId, now).
+			Count(&pendingCheckoutCount).Error; err != nil {
+			return nil, err
+		}
+		if pendingCheckoutCount > 0 {
+			return nil, ErrSubscriptionCheckoutPending
+		}
+		if err := tx.Model(&UserSubscription{}).
+			Where("user_id = ? AND status = ? AND start_time <= ? AND end_time > ?", userId, "active", now, now).
+			Count(&activeCount).Error; err != nil {
+			return nil, err
+		}
+		if activeCount >= int64(plan.MaxActivePerUser) {
+			return nil, errors.New("user already has the maximum number of active subscriptions")
+		}
+	}
+	if enforceLimits && plan.MaxPurchasePerUser > 0 {
 		var count int64
 		if err := tx.Model(&UserSubscription{}).
 			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
@@ -521,6 +760,10 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	resetBase := now
 	nextReset := calcNextResetTime(resetBase, plan, endUnix)
+	nextWeeklyReset := int64(0)
+	if plan.WeeklyAmount > 0 {
+		nextWeeklyReset = calcNextWeeklyResetTime(resetBase, endUnix)
+	}
 	lastReset := int64(0)
 	if nextReset > 0 {
 		lastReset = now.Unix()
@@ -549,10 +792,14 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		PlanId:              plan.Id,
 		AmountTotal:         plan.TotalAmount,
 		AmountUsed:          0,
+		WeeklyAmountTotal:   plan.WeeklyAmount,
+		WeeklyAmountUsed:    0,
+		NextWeeklyResetTime: nextWeeklyReset,
 		StartTime:           now.Unix(),
 		EndTime:             endUnix,
 		Status:              "active",
 		Source:              source,
+		SourceRef:           strings.TrimSpace(sourceRef),
 		LastResetTime:       lastReset,
 		NextResetTime:       nextReset,
 		UpgradeGroup:        upgradeGroup,
@@ -625,9 +872,11 @@ func subscriptionOrderPlanTx(tx *gorm.DB, order *SubscriptionOrder) (*Subscripti
 		DurationValue:       1,
 		CreemProductId:      order.ProviderProductId,
 		MaxPurchasePerUser:  0,
+		MaxActivePerUser:    order.MaxActivePerUser,
 		UpgradeGroup:        order.UpgradeGroup,
 		DowngradeGroup:      order.DowngradeGroup,
 		TotalAmount:         order.AmountTotal,
+		WeeklyAmount:        order.WeeklyAmount,
 		QuotaResetPeriod:    SubscriptionResetNever,
 		AllowWalletOverflow: &allowWalletOverflow,
 	}, nil
@@ -665,10 +914,19 @@ func CompleteSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 		}
 		return &order, plan, nil, false, nil
 	}
+	// Provider checkout URLs can outlive the local reservation. A callback only
+	// reaches this function after the controller has verified the provider
+	// signature, so an expired-but-paid order must be restored and delivered.
+	// The paid path bypasses purchase limits because withholding an entitlement
+	// after settlement is never an acceptable enforcement mechanism.
+	if order.Status == common.TopUpStatusExpired && expectedPaymentProvider != "" {
+		order.Status = common.TopUpStatusPending
+		order.CompleteTime = 0
+	}
 	if order.Status != common.TopUpStatusPending {
 		return nil, nil, nil, false, ErrSubscriptionOrderStatusInvalid
 	}
-	subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+	subscription, err := createPaidUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
@@ -684,6 +942,9 @@ func CompleteSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 		order.PaymentMethod = actualPaymentMethod
 	}
 	if err := tx.Save(&order).Error; err != nil {
+		return nil, nil, nil, false, err
+	}
+	if err := tx.Where("trade_no = ?", order.TradeNo).Delete(&SubscriptionCheckoutReservation{}).Error; err != nil {
 		return nil, nil, nil, false, err
 	}
 	return &order, plan, subscription, true, nil
@@ -726,28 +987,7 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 }
 
 func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) error {
-	if tradeNo == "" {
-		return errors.New("tradeNo is empty")
-	}
-	refCol := "`trade_no`"
-	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
-		refCol = `"trade_no"`
-	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		var order SubscriptionOrder
-		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
-			return ErrSubscriptionOrderNotFound
-		}
-		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
-			return ErrPaymentMethodMismatch
-		}
-		if order.Status != common.TopUpStatusPending {
-			return nil
-		}
-		order.Status = common.TopUpStatusExpired
-		order.CompleteTime = common.GetTimestamp()
-		return tx.Save(&order).Error
-	})
+	return ReleaseSubscriptionCheckout(tradeNo, expectedPaymentProvider)
 }
 
 // Admin bind (no payment). Creates a UserSubscription from a plan.
@@ -1326,6 +1566,36 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	return tx.Save(sub).Error
 }
 
+func maybeResetWeeklyUsageTx(tx *gorm.DB, sub *UserSubscription, now int64) error {
+	if tx == nil || sub == nil {
+		return errors.New("invalid weekly reset args")
+	}
+	if sub.WeeklyAmountTotal <= 0 {
+		return nil
+	}
+
+	next := sub.NextWeeklyResetTime
+	if next <= 0 {
+		next = calcNextWeeklyResetTime(time.Unix(sub.StartTime, 0), sub.EndTime)
+	}
+	advanced := false
+	for next > 0 && next <= now {
+		advanced = true
+		next = calcNextWeeklyResetTime(time.Unix(next, 0), sub.EndTime)
+	}
+	if !advanced {
+		if sub.NextWeeklyResetTime == 0 && next > 0 {
+			sub.NextWeeklyResetTime = next
+			return tx.Save(sub).Error
+		}
+		return nil
+	}
+
+	sub.WeeklyAmountUsed = 0
+	sub.NextWeeklyResetTime = next
+	return tx.Save(sub).Error
+}
+
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
@@ -1382,10 +1652,19 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
 			}
+			if err := maybeResetWeeklyUsageTx(tx, &sub, now); err != nil {
+				return err
+			}
 			usedBefore := sub.AmountUsed
 			if sub.AmountTotal > 0 {
 				remain := sub.AmountTotal - usedBefore
 				if remain < amount {
+					continue
+				}
+			}
+			if sub.WeeklyAmountTotal > 0 {
+				weeklyRemain := sub.WeeklyAmountTotal - sub.WeeklyAmountUsed
+				if weeklyRemain < amount {
 					continue
 				}
 			}
@@ -1412,6 +1691,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				return err
 			}
 			sub.AmountUsed += amount
+			if sub.WeeklyAmountTotal > 0 {
+				sub.WeeklyAmountUsed += amount
+			}
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
@@ -1456,15 +1738,16 @@ func RefundSubscriptionPreConsume(requestId string) error {
 	})
 }
 
-// ResetDueSubscriptions resets subscriptions whose next_reset_time has passed.
+// ResetDueSubscriptions resets either the plan's renewable quota period or the
+// independent weekly soft-cap window. The weekly reset never touches AmountUsed.
 func ResetDueSubscriptions(limit int) (int, error) {
 	if limit <= 0 {
 		limit = 200
 	}
 	now := GetDBTimestamp()
 	var subs []UserSubscription
-	if err := DB.Where("next_reset_time > 0 AND next_reset_time <= ? AND status = ?", now, "active").
-		Order("next_reset_time asc").
+	if err := DB.Where("status = ? AND ((next_reset_time > 0 AND next_reset_time <= ?) OR (next_weekly_reset_time > 0 AND next_weekly_reset_time <= ?))", "active", now, now).
+		Order("id asc").
 		Limit(limit).
 		Find(&subs).Error; err != nil {
 		return 0, err
@@ -1482,11 +1765,14 @@ func ResetDueSubscriptions(limit int) (int, error) {
 		err = DB.Transaction(func(tx *gorm.DB) error {
 			var locked UserSubscription
 			if err := lockForUpdate(tx).
-				Where("id = ? AND next_reset_time > 0 AND next_reset_time <= ?", subCopy.Id, now).
+				Where("id = ? AND ((next_reset_time > 0 AND next_reset_time <= ?) OR (next_weekly_reset_time > 0 AND next_weekly_reset_time <= ?))", subCopy.Id, now, now).
 				First(&locked).Error; err != nil {
 				return nil
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &locked, plan, now); err != nil {
+				return err
+			}
+			if err := maybeResetWeeklyUsageTx(tx, &locked, now); err != nil {
 				return err
 			}
 			resetCount++
@@ -1553,6 +1839,9 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 			First(&sub).Error; err != nil {
 			return err
 		}
+		if err := maybeResetWeeklyUsageTx(tx, &sub, getDBTimestampTx(tx)); err != nil {
+			return err
+		}
 		newUsed := sub.AmountUsed + delta
 		if newUsed < 0 {
 			newUsed = 0
@@ -1561,6 +1850,16 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
 		}
 		sub.AmountUsed = newUsed
+		if sub.WeeklyAmountTotal > 0 {
+			newWeeklyUsed := sub.WeeklyAmountUsed + delta
+			if newWeeklyUsed < 0 {
+				newWeeklyUsed = 0
+			}
+			if newWeeklyUsed > sub.WeeklyAmountTotal {
+				return fmt.Errorf("subscription used exceeds weekly cap, used=%d weekly=%d", newWeeklyUsed, sub.WeeklyAmountTotal)
+			}
+			sub.WeeklyAmountUsed = newWeeklyUsed
+		}
 		return tx.Save(&sub).Error
 	})
 }

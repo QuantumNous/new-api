@@ -15,8 +15,8 @@ func seedCreemRecurringOrder(t *testing.T, tradeNo string) {
 	t.Helper()
 	require.NoError(t, DB.Create(&User{Id: 7001, Username: "creem-user", Password: "password1", Group: "default"}).Error)
 	allow := true
-	require.NoError(t, DB.Create(&SubscriptionPlan{Id: 7101, Title: "Monthly", PriceAmount: 12, Currency: "USD", DurationUnit: SubscriptionDurationMonth, DurationValue: 1, Enabled: true, AllowWalletOverflow: &allow, CreemProductId: "prod_recurring", TotalAmount: 9000, QuotaResetPeriod: SubscriptionResetNever}).Error)
-	require.NoError(t, DB.Create(&SubscriptionOrder{UserId: 7001, PlanId: 7101, Money: 12, TradeNo: tradeNo, PaymentMethod: PaymentMethodCreem, PaymentProvider: PaymentProviderCreem, Status: common.TopUpStatusPending, CreateTime: common.GetTimestamp(), ContractSnapshot: true, ProviderProductId: "prod_recurring", Currency: "USD", PlanTitle: "Monthly", AmountTotal: 9000, AllowWalletOverflow: true}).Error)
+	require.NoError(t, DB.Create(&SubscriptionPlan{Id: 7101, Title: "Monthly", PriceAmount: 12, Currency: "USD", DurationUnit: SubscriptionDurationMonth, DurationValue: 1, Enabled: true, AllowWalletOverflow: &allow, CreemProductId: "prod_recurring", TotalAmount: 9000, WeeklyAmount: 4500, MaxActivePerUser: 1, QuotaResetPeriod: SubscriptionResetNever}).Error)
+	require.NoError(t, DB.Create(&SubscriptionOrder{UserId: 7001, PlanId: 7101, Money: 12, TradeNo: tradeNo, PaymentMethod: PaymentMethodCreem, PaymentProvider: PaymentProviderCreem, Status: common.TopUpStatusPending, CreateTime: common.GetTimestamp(), ContractSnapshot: true, ProviderProductId: "prod_recurring", Currency: "USD", PlanTitle: "Monthly", AmountTotal: 9000, WeeklyAmount: 4500, MaxActivePerUser: 1, AllowWalletOverflow: true}).Error)
 }
 
 func TestCreemCheckoutAndPaidUseTransactionDedupe(t *testing.T) {
@@ -90,6 +90,10 @@ func TestCreemRenewalCreatesExactNewPeriodAndReplayIsNoOp(t *testing.T) {
 	assert.EqualValues(t, renewal.PeriodEnd, subscriptions[1].EndTime)
 	assert.EqualValues(t, 9000, subscriptions[1].AmountTotal)
 	assert.Zero(t, subscriptions[1].AmountUsed)
+	assert.EqualValues(t, 4500, subscriptions[1].WeeklyAmountTotal)
+	assert.Zero(t, subscriptions[1].WeeklyAmountUsed)
+	assert.Greater(t, subscriptions[1].NextWeeklyResetTime, renewal.PeriodStart)
+	assert.LessOrEqual(t, subscriptions[1].NextWeeklyResetTime, renewal.PeriodEnd)
 	var renewalLogs []Log
 	require.NoError(t, DB.Where("user_id = ? AND type = ? AND content = ?", 7001, LogTypeTopup, "订阅续费成功，套餐: Monthly，支付金额: 12.00，支付方式: creem").Find(&renewalLogs).Error)
 	assert.Len(t, renewalLogs, 1)
@@ -249,6 +253,8 @@ func TestCreemActiveAndPastDueLinksBlockNewCheckout(t *testing.T) {
 func TestCreemCheckoutReservationSerializesAndRecoversExpiredRows(t *testing.T) {
 	truncateTables(t)
 	require.NoError(t, DB.Create(&User{Id: 9201, Username: "reservation-user", Password: "password1", Group: "default"}).Error)
+	allow := true
+	require.NoError(t, DB.Create(&SubscriptionPlan{Id: 1, Title: "Reserved", PriceAmount: 1, Currency: "USD", DurationUnit: SubscriptionDurationMonth, DurationValue: 1, Enabled: true, AllowWalletOverflow: &allow}).Error)
 	first := &SubscriptionOrder{UserId: 9201, PlanId: 1, TradeNo: "sub_reservation_first", PaymentProvider: PaymentProviderCreem, Status: common.TopUpStatusPending}
 	require.NoError(t, ReserveCreemSubscriptionCheckout(9201, first))
 	second := &SubscriptionOrder{UserId: 9201, PlanId: 1, TradeNo: "sub_reservation_second", PaymentProvider: PaymentProviderCreem, Status: common.TopUpStatusPending}
