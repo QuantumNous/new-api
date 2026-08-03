@@ -51,6 +51,10 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
+	if err := model.CheckActiveSubscriptionLimit(userId, plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	if plan.MaxPurchasePerUser > 0 {
 		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
 		if err != nil {

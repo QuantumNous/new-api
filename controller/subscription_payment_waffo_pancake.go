@@ -53,6 +53,10 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
+	if err := model.CheckActiveSubscriptionLimit(userId, plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	user, err := model.GetUserById(userId, false)
 	if err != nil {
 		common.ApiError(c, err)

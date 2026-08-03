@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -198,4 +200,92 @@ func TestAdminResetPlanSubscriptionsNoMatchSucceeds(t *testing.T) {
 	assert.Zero(t, result.ResetCount)
 	assert.Zero(t, result.UserCount)
 	assert.Empty(t, result.AffectedUserIds)
+}
+
+func TestSubscriptionWeeklyCapDoesNotRenewMonthlyTotal(t *testing.T) {
+	truncateTables(t)
+
+	require.NoError(t, DB.Create(&User{Id: 9701, Username: "weekly-user", Password: "password1", Group: "default"}).Error)
+	allowOverflow := true
+	plan := &SubscriptionPlan{
+		Id:                  9702,
+		Title:               "Weekly soft cap",
+		PriceAmount:         19,
+		DurationUnit:        SubscriptionDurationMonth,
+		DurationValue:       1,
+		TotalAmount:         500,
+		WeeklyAmount:        100,
+		MaxActivePerUser:    1,
+		QuotaResetPeriod:    SubscriptionResetNever,
+		AllowWalletOverflow: &allowOverflow,
+	}
+	seedSubscriptionResetPlan(t, plan)
+
+	var sub *UserSubscription
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		sub, err = CreateUserSubscriptionFromPlanTx(tx, 9701, plan, "test")
+		return err
+	}))
+	require.NotNil(t, sub)
+	assert.EqualValues(t, 100, sub.WeeklyAmountTotal)
+	assert.Zero(t, sub.WeeklyAmountUsed)
+	assert.NotZero(t, sub.NextWeeklyResetTime)
+
+	_, err := PreConsumeUserSubscription("weekly-80", 9701, "gpt-test", 0, 80)
+	require.NoError(t, err)
+	_, err = PreConsumeUserSubscription("weekly-over", 9701, "gpt-test", 0, 21)
+	require.ErrorContains(t, err, "subscription quota insufficient")
+
+	require.NoError(t, PostConsumeUserSubscriptionDelta(sub.Id, -20))
+	_, err = PreConsumeUserSubscription("weekly-fill", 9701, "gpt-test", 0, 40)
+	require.NoError(t, err)
+
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("id = ?", sub.Id).
+		Update("next_weekly_reset_time", GetDBTimestamp()-1).Error)
+	resetCount, err := ResetDueSubscriptions(10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, resetCount)
+
+	got := getSubscriptionResetSub(t, sub.Id)
+	assert.EqualValues(t, 100, got.AmountUsed, "weekly reset must not replenish the monthly total")
+	assert.Zero(t, got.WeeklyAmountUsed)
+}
+
+func TestSubscriptionMaxActiveLimitExpiresWithEntitlement(t *testing.T) {
+	truncateTables(t)
+
+	require.NoError(t, DB.Create(&User{Id: 9801, Username: "single-active", Password: "password1", Group: "default"}).Error)
+	plan := &SubscriptionPlan{
+		Id:               9802,
+		Title:            "One active",
+		PriceAmount:      49,
+		DurationUnit:     SubscriptionDurationMonth,
+		DurationValue:    1,
+		TotalAmount:      1000,
+		WeeklyAmount:     500,
+		MaxActivePerUser: 1,
+	}
+	seedSubscriptionResetPlan(t, plan)
+
+	var first *UserSubscription
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		first, err = CreateUserSubscriptionFromPlanTx(tx, 9801, plan, "test")
+		return err
+	}))
+	require.NotNil(t, first)
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		_, createErr := CreateUserSubscriptionFromPlanTx(tx, 9801, plan, "test")
+		return createErr
+	})
+	require.ErrorContains(t, err, "maximum number of active subscriptions")
+
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("id = ?", first.Id).
+		Updates(map[string]any{"status": "expired", "end_time": GetDBTimestamp() - 1}).Error)
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		_, createErr := CreateUserSubscriptionFromPlanTx(tx, 9801, plan, "test")
+		return createErr
+	}))
 }

@@ -214,8 +214,16 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
+	if req.Plan.MaxActivePerUser < 0 {
+		common.ApiErrorMsg(c, "生效中订阅上限不能为负数")
+		return
+	}
 	if req.Plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
+		return
+	}
+	if req.Plan.WeeklyAmount < 0 || (req.Plan.TotalAmount > 0 && req.Plan.WeeklyAmount > req.Plan.TotalAmount) {
+		common.ApiErrorMsg(c, "周额度必须介于零和总额度之间")
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
@@ -288,8 +296,16 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
+	if req.Plan.MaxActivePerUser < 0 {
+		common.ApiErrorMsg(c, "生效中订阅上限不能为负数")
+		return
+	}
 	if req.Plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
+		return
+	}
+	if req.Plan.WeeklyAmount < 0 || (req.Plan.TotalAmount > 0 && req.Plan.WeeklyAmount > req.Plan.TotalAmount) {
+		common.ApiErrorMsg(c, "周额度必须介于零和总额度之间")
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
@@ -328,7 +344,9 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"creem_product_id":           req.Plan.CreemProductId,
 			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
+			"max_active_per_user":        req.Plan.MaxActivePerUser,
 			"total_amount":               req.Plan.TotalAmount,
+			"weekly_amount":              req.Plan.WeeklyAmount,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"downgrade_group":            req.Plan.DowngradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,

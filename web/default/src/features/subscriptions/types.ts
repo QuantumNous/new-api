@@ -38,7 +38,9 @@ export const subscriptionPlanSchema = z.object({
   allow_balance_pay: z.boolean().optional().default(true),
   allow_wallet_overflow: z.boolean().optional().default(true),
   max_purchase_per_user: z.number(),
+  max_active_per_user: z.number().default(0),
   total_amount: z.number(),
+  weekly_amount: z.number().default(0),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
@@ -66,6 +68,9 @@ export const userSubscriptionSchema = z.object({
   end_time: z.number(),
   amount_total: z.number(),
   amount_used: z.number(),
+  weekly_amount_total: z.number().optional(),
+  weekly_amount_used: z.number().optional(),
+  next_weekly_reset_time: z.number().optional(),
   next_reset_time: z.number().optional(),
 })
 
