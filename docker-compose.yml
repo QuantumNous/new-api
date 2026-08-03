@@ -1,8 +1,12 @@
 # New-API Docker Compose Configuration
 # 
 # Quick Start:
-#   1. docker-compose up -d
+#   1. docker compose up -d --build
 #   2. Access at http://localhost:3000
+#
+# The new-api image is built from this repository's source (see Dockerfile).
+# After changing Go or web code, rebuild with:
+#   docker compose up -d --build new-api
 #
 # Using MySQL instead of PostgreSQL:
 #   1. Comment out the postgres service and SQL_DSN line 15
@@ -16,7 +20,18 @@ version: '3.4' # For compatibility with older Docker versions
 
 services:
   new-api:
-    image: calciumion/new-api:latest
+    # 使用本仓库源码构建，而非上游发行镜像，否则二次开发的功能不会包含在内
+    # (Build from this repository's source instead of the upstream release image,
+    #  otherwise none of the in-house features are included.)
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 网络较慢时用就近镜像源，避免大体积依赖下载超时导致 integrity 校验失败
+        # (Use a nearby mirror on slow links; large deps otherwise time out and
+        #  fail bun's integrity check.) Override via NPM_REGISTRY in your shell.
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    image: new-api:local
     container_name: new-api
     restart: always
     command: --log-dir /app/logs

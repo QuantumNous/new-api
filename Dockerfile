@@ -1,8 +1,22 @@
 FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder
 
 WORKDIR /build/web
-COPY web/package.json web/bun.lock ./
-RUN bun install --frozen-lockfile
+# .npmrc must land before `bun install`, otherwise the registry it configures is
+# ignored (it would only arrive with the later `COPY ./web ./`).
+COPY web/package.json web/bun.lock web/.npmrc ./
+# Point at a nearby mirror when the default registry is slow, e.g.
+#   docker build --build-arg NPM_REGISTRY=https://repo.huaweicloud.com/repository/npm/ .
+ARG NPM_REGISTRY=
+# Bun's default fetch concurrency corrupts large tarballs (react-icons is 22MB,
+# @hugeicons/core-free-icons larger still) on constrained links, surfacing as
+# "Integrity check failed" on a different package each run. Cap concurrency and
+# retry so a single dropped connection doesn't fail the whole build.
+RUN if [ -n "$NPM_REGISTRY" ]; then echo "registry=$NPM_REGISTRY" > .npmrc; fi \
+    && for attempt in 1 2 3; do \
+         echo "bun install attempt $attempt" \
+         && BUN_CONFIG_MAX_HTTP_REQUESTS=8 bun install --frozen-lockfile && break \
+         || { [ "$attempt" = 3 ] && exit 1; echo "retrying..."; sleep 5; }; \
+       done
 COPY ./web ./
 COPY ./VERSION /build/VERSION
 RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
