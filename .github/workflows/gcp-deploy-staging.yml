@@ -132,7 +132,7 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy new revision (direct 100% traffic — staging, no canary)
+      - name: Deploy new revision without traffic
         id: deploy
         run: |
           set -euo pipefail
@@ -177,12 +177,34 @@ jobs:
             --update-env-vars="${env_arg}" \
             --update-secrets="BYTEPLUS_REAL_PERSON_CIPHER_KEY=${STAGING_BYTEPLUS_REAL_PERSON_CIPHER_SECRET}:latest" \
             --revision-suffix="${revision_suffix}" \
+            --no-traffic \
             --quiet
           new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
             --format='value(status.latestCreatedRevisionName)')"
           echo "new_revision=${new_rev}" >> "$GITHUB_OUTPUT"
           echo "Deployed revision: ${new_rev}"
+
+      - name: Promote the new revision to 100% traffic
+        run: |
+          set -euo pipefail
+          new_rev="${{ steps.deploy.outputs.new_revision }}"
+          gcloud run services update-traffic "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --to-revisions="${new_rev}=100" \
+            --quiet
+          traffic_json="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format=json)"
+          if ! jq -e --arg revision "${new_rev}" \
+            '[.status.traffic[] | select((.percent // 0) > 0)] as $active | ($active | length == 1) and ($active[0].revisionName == $revision) and ($active[0].percent == 100)' \
+            <<< "${traffic_json}" > /dev/null; then
+            echo "Expected ${new_rev} to be the only revision serving 100% traffic; actual traffic:" >&2
+            jq '.status.traffic' <<< "${traffic_json}" >&2
+            exit 1
+          fi
 
       - name: Health check
         run: |
