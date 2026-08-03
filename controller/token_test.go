@@ -41,10 +41,13 @@ type tokenPageResponse struct {
 }
 
 type tokenResponseItem struct {
-	ID     int    `json:"id"`
-	Name   string `json:"name"`
-	Key    string `json:"key"`
-	Status int    `json:"status"`
+	ID                 int    `json:"id"`
+	Name               string `json:"name"`
+	Key                string `json:"key"`
+	Status             int    `json:"status"`
+	Group              string `json:"group"`
+	ModelLimitsEnabled bool   `json:"model_limits_enabled"`
+	ModelLimits        string `json:"model_limits"`
 }
 
 type tokenKeyResponse struct {
@@ -589,6 +592,45 @@ func TestSearchTokensMasksKeyInResponse(t *testing.T) {
 	}
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("search response leaked raw token key: %s", recorder.Body.String())
+	}
+}
+
+func TestTokenListEndpointsFilterByGroup(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	defaultToken := seedToken(t, db, 1, "default-token", "default1234token")
+	vipToken := seedToken(t, db, 1, "vip-token", "vip1234token")
+	vipToken.Group = "vip"
+	require.NoError(t, db.Save(vipToken).Error)
+
+	testCases := []struct {
+		name    string
+		path    string
+		handler func(*gin.Context)
+	}{
+		{name: "list", path: "/api/token/?group=vip&p=1&size=10", handler: GetAllTokens},
+		{name: "search", path: "/api/token/search?group=vip&p=1&size=10", handler: SearchTokens},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, recorder := newAuthenticatedContext(t, http.MethodGet, testCase.path, nil, 1)
+			testCase.handler(ctx)
+
+			response := decodeAPIResponse(t, recorder)
+			require.True(t, response.Success, response.Message)
+			var page struct {
+				Items []tokenResponseItem  `json:"items"`
+				Total int                  `json:"total"`
+				Stats model.UserTokenStats `json:"stats"`
+			}
+			require.NoError(t, common.Unmarshal(response.Data, &page))
+			require.Len(t, page.Items, 1)
+			require.Equal(t, vipToken.Id, page.Items[0].ID)
+			require.Equal(t, "vip", page.Items[0].Group)
+			require.Equal(t, 1, page.Total)
+			require.EqualValues(t, 2, page.Stats.Total)
+			require.NotContains(t, recorder.Body.String(), defaultToken.Key)
+		})
 	}
 }
 
@@ -1533,6 +1575,79 @@ func TestUpdateTokenBatchCombinesGroupAndQuota(t *testing.T) {
 	require.True(t, stored.CrossGroupRetry)
 }
 
+func TestUpdateTokenBatchUpdatesModelLimits(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 38)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	first := seedToken(t, db, user.Id, "first", "batch-model-first")
+	second := seedToken(t, db, user.Id, "second", "batch-model-second")
+	first.RemainQuota = 321
+	require.NoError(t, db.Save(first).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":                  []int{first.Id, second.Id},
+		"model_limits_enabled": true,
+		"model_limits":         "gpt-4o,gpt-4.1",
+	}, user.Id)
+	UpdateTokenBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var updated int
+	require.NoError(t, common.Unmarshal(response.Data, &updated))
+	require.Equal(t, 2, updated)
+
+	var stored []model.Token
+	require.NoError(t, db.Order("id").Find(&stored, []int{first.Id, second.Id}).Error)
+	require.Len(t, stored, 2)
+	for _, token := range stored {
+		require.True(t, token.ModelLimitsEnabled)
+		require.Equal(t, "gpt-4o,gpt-4.1", token.ModelLimits)
+		require.Equal(t, "default", token.Group)
+	}
+	require.Equal(t, 321, stored[0].RemainQuota)
+
+	disableCtx, disableRecorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":                  []int{first.Id, second.Id},
+		"model_limits_enabled": false,
+		"model_limits":         "must-be-cleared",
+	}, user.Id)
+	UpdateTokenBatch(disableCtx)
+
+	disableResponse := decodeAPIResponse(t, disableRecorder)
+	require.True(t, disableResponse.Success, disableResponse.Message)
+	require.NoError(t, db.Order("id").Find(&stored, []int{first.Id, second.Id}).Error)
+	for _, token := range stored {
+		require.False(t, token.ModelLimitsEnabled)
+		require.Empty(t, token.ModelLimits)
+	}
+}
+
+func TestUpdateTokenBatchModelLimitsDeletesCachedTokens(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	mr := setupTokenControllerRedisTest(t)
+	user := seedTokenUser(t, db, 39)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	token := seedToken(t, db, user.Id, "cached", "batch-model-cached")
+	cacheKey := "token:" + common.GenerateHMAC(token.Key)
+	mr.HSet(cacheKey, "__complete", "1", "ModelLimitsEnabled", "false", "ModelLimits", "")
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":                  []int{token.Id},
+		"model_limits_enabled": true,
+		"model_limits":         "gpt-4o",
+	}, user.Id)
+	UpdateTokenBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	require.False(t, mr.Exists(cacheKey))
+}
+
 func TestUpdateTokenGroupBatchRejectsQuotaFields(t *testing.T) {
 	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
 	db := setupInitialTokenControllerTestDB(t)
@@ -1823,6 +1938,8 @@ func TestUpdateTokenBatchRejectsInvalidPayloads(t *testing.T) {
 		{name: "quota above max", body: map[string]any{"ids": []int{1}, "remain_quota": int(1000000000*common.QuotaPerUnit) + 1}},
 		{name: "unlimited quota unsupported", body: map[string]any{"ids": []int{1}, "unlimited_quota": true}},
 		{name: "unlimited quota null unsupported", body: map[string]any{"ids": []int{1}, "remain_quota": 1, "unlimited_quota": nil}},
+		{name: "model enabled without limits", body: map[string]any{"ids": []int{1}, "model_limits_enabled": true}},
+		{name: "model limits without enabled", body: map[string]any{"ids": []int{1}, "model_limits": "gpt-4o"}},
 	}
 
 	for _, testCase := range testCases {

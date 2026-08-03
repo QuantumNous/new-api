@@ -26,6 +26,8 @@ export type BatchEditApiKeysPayload = {
   ids: number[]
   group?: string
   remain_quota?: number
+  model_limits_enabled?: boolean
+  model_limits?: string
 }
 
 export type BatchEditApiKeysSuccessEffects = {
@@ -58,8 +60,20 @@ export function buildBatchEditApiKeysPayload(
       `Batch edits require 1-${MAX_BATCH_EDIT_API_KEYS} API keys`
     )
   }
-  if (edits.group === undefined && edits.remain_quota === undefined) {
+  const modelLimitsProvided =
+    edits.model_limits_enabled !== undefined || edits.model_limits !== undefined
+  if (
+    edits.group === undefined &&
+    edits.remain_quota === undefined &&
+    !modelLimitsProvided
+  ) {
     throw new Error('At least one batch edit is required')
+  }
+  if (
+    (edits.model_limits_enabled === undefined) !==
+    (edits.model_limits === undefined)
+  ) {
+    throw new Error('Model allowlist fields must be provided together')
   }
   if (edits.group !== undefined && edits.group.length === 0) {
     throw new Error('The selected group cannot be empty')
@@ -75,6 +89,12 @@ export function buildBatchEditApiKeysPayload(
   if (edits.group !== undefined) payload.group = edits.group
   if (edits.remain_quota !== undefined) {
     payload.remain_quota = edits.remain_quota
+  }
+  if (edits.model_limits_enabled !== undefined) {
+    payload.model_limits_enabled = edits.model_limits_enabled
+    payload.model_limits = edits.model_limits_enabled
+      ? (edits.model_limits ?? '')
+      : ''
   }
   return payload
 }
@@ -127,6 +147,8 @@ export async function coordinateBatchEditApiKeys(
   const payload = buildBatchEditApiKeysPayload(params.payload.ids, {
     group: params.payload.group,
     remain_quota: params.payload.remain_quota,
+    model_limits_enabled: params.payload.model_limits_enabled,
+    model_limits: params.payload.model_limits,
   })
   const response = await params.request(payload)
 

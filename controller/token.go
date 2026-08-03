@@ -42,8 +42,9 @@ type tokenPageWithStats struct {
 
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
+	group := c.Query("group")
 	pageInfo := common.GetPageQuery(c)
-	tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -53,7 +54,15 @@ func GetAllTokens(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	pageInfo.SetTotal(int(stats.Total))
+	total := stats.Total
+	if group != "" {
+		total, err = model.CountUserTokensByGroup(userId, group)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
 	common.ApiSuccess(c, tokenPageWithStats{PageInfo: pageInfo, Stats: stats})
 }
@@ -62,6 +71,7 @@ func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	keyword := c.Query("keyword")
 	token := c.Query("token")
+	group := c.Query("group")
 	status := 0
 	if rawStatus := c.Query("status"); rawStatus != "" {
 		parsedStatus, err := strconv.Atoi(rawStatus)
@@ -74,7 +84,7 @@ func SearchTokens(c *gin.Context) {
 
 	pageInfo := common.GetPageQuery(c)
 
-	tokens, total, err := model.SearchUserTokens(userId, keyword, token, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	tokens, total, err := model.SearchUserTokens(userId, keyword, token, group, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -468,6 +478,8 @@ type tokenBatchUpdateRequest struct {
 	Ids                       []int           `json:"ids"`
 	Group                     *string         `json:"group"`
 	RemainQuota               *int            `json:"remain_quota"`
+	ModelLimitsEnabled        *bool           `json:"model_limits_enabled"`
+	ModelLimits               *string         `json:"model_limits"`
 	UnsupportedUnlimitedQuota json.RawMessage `json:"unlimited_quota"`
 }
 
@@ -490,11 +502,14 @@ func updateTokenBatch(c *gin.Context, groupOnly bool) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if len(request.UnsupportedUnlimitedQuota) != 0 || (request.Group == nil && request.RemainQuota == nil) {
+	modelLimitsProvided := request.ModelLimitsEnabled != nil || request.ModelLimits != nil
+	if len(request.UnsupportedUnlimitedQuota) != 0 ||
+		(request.Group == nil && request.RemainQuota == nil && !modelLimitsProvided) ||
+		(request.ModelLimitsEnabled == nil) != (request.ModelLimits == nil) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if groupOnly && (request.Group == nil || request.RemainQuota != nil) {
+	if groupOnly && (request.Group == nil || request.RemainQuota != nil || modelLimitsProvided) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
@@ -516,6 +531,10 @@ func updateTokenBatch(c *gin.Context, groupOnly bool) {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
 			return
 		}
+	}
+	if request.ModelLimitsEnabled != nil && !*request.ModelLimitsEnabled {
+		emptyLimits := ""
+		request.ModelLimits = &emptyLimits
 	}
 
 	seen := make(map[int]struct{}, len(request.Ids))
@@ -546,10 +565,12 @@ func updateTokenBatch(c *gin.Context, groupOnly bool) {
 	}
 
 	count, err := model.BatchUpdateTokens(model.BatchUpdateTokensParams{
-		Ids:         request.Ids,
-		UserId:      userId,
-		Group:       request.Group,
-		RemainQuota: request.RemainQuota,
+		Ids:                request.Ids,
+		UserId:             userId,
+		Group:              request.Group,
+		RemainQuota:        request.RemainQuota,
+		ModelLimitsEnabled: request.ModelLimitsEnabled,
+		ModelLimits:        request.ModelLimits,
 	})
 	if errors.Is(err, model.ErrTokenBatchInvalid) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)

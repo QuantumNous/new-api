@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 import type { Table } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
@@ -41,11 +41,14 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
+import { MultiSelect } from '@/components/multi-select'
 import { batchEditApiKeys } from '../api'
 import {
   coordinateBatchEditApiKeys,
   isBatchQuotaInputValid,
 } from '../lib/api-key-batch-group'
+import { getApiKeyModelAllowlistOptions } from '../lib/api-key-model-access'
 import type { ApiKey } from '../types'
 import {
   ApiKeyGroupCombobox,
@@ -72,10 +75,13 @@ export function ApiKeysBatchEditDialog<TData>(
   props: ApiKeysBatchEditDialogProps<TData>
 ) {
   const { t } = useTranslation()
-  const { triggerRefresh } = useApiKeys()
+  const { triggerRefresh, modelAccessQuery } = useApiKeys()
   const [group, setGroup] = useState<string>()
   const [updateQuota, setUpdateQuota] = useState(false)
   const [quotaInput, setQuotaInput] = useState('')
+  const [updateModelLimits, setUpdateModelLimits] = useState(false)
+  const [modelLimitsEnabled, setModelLimitsEnabled] = useState(true)
+  const [modelLimits, setModelLimits] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const selectedRows = props.table.getFilteredSelectedRowModel().rows
   const { meta: currencyMeta } = getCurrencyDisplay()
@@ -84,12 +90,23 @@ export function ApiKeysBatchEditDialog<TData>(
   const parsedQuotaInput = Number(quotaInput)
   const quotaIsValid =
     !updateQuota || isBatchQuotaInputValid(quotaInput, tokensOnly)
-  const hasEdit = (props.canEditGroup && group !== undefined) || updateQuota
+  const hasEdit =
+    (props.canEditGroup && group !== undefined) ||
+    updateQuota ||
+    updateModelLimits
+  const modelLimitsPayload = modelLimitsEnabled ? modelLimits.join(',') : ''
+  const modelOptions = useMemo(
+    () => getApiKeyModelAllowlistOptions(modelAccessQuery.data?.models ?? []),
+    [modelAccessQuery.data?.models]
+  )
 
   const resetForm = () => {
     setGroup(undefined)
     setUpdateQuota(false)
     setQuotaInput('')
+    setUpdateModelLimits(false)
+    setModelLimitsEnabled(true)
+    setModelLimits([])
   }
 
   const handleOpenChange = (open: boolean) => {
@@ -112,6 +129,10 @@ export function ApiKeysBatchEditDialog<TData>(
           remain_quota: updateQuota
             ? parseQuotaFromDollars(parsedQuotaInput)
             : undefined,
+          model_limits_enabled: updateModelLimits
+            ? modelLimitsEnabled
+            : undefined,
+          model_limits: updateModelLimits ? modelLimitsPayload : undefined,
         },
         successEffects: {
           resetSelection: () => props.table.resetRowSelection(),
@@ -172,6 +193,71 @@ export function ApiKeysBatchEditDialog<TData>(
               </FieldDescription>
             </Field>
           )}
+
+          <Field data-disabled={isSubmitting || undefined}>
+            <div className='flex items-start gap-3 rounded-lg border p-3'>
+              <Checkbox
+                id='batch-update-model-limits'
+                checked={updateModelLimits}
+                onCheckedChange={(checked) =>
+                  setUpdateModelLimits(checked === true)
+                }
+                disabled={isSubmitting}
+                className='mt-0.5'
+              />
+              <div className='flex min-w-0 flex-1 flex-col gap-1'>
+                <FieldLabel htmlFor='batch-update-model-limits'>
+                  {t('Model Limits')}
+                </FieldLabel>
+                <FieldDescription>
+                  {t('Limit which models can be used with this key')}
+                </FieldDescription>
+              </div>
+            </div>
+
+            {updateModelLimits && (
+              <div className='space-y-3'>
+                <div className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                  <div className='flex flex-col gap-0.5'>
+                    <FieldLabel htmlFor='batch-model-limits-enabled'>
+                      {t('Enable model allowlist')}
+                    </FieldLabel>
+                    <FieldDescription>
+                      {t(
+                        'When disabled, every model in the current API key scope is allowed.'
+                      )}
+                    </FieldDescription>
+                  </div>
+                  <Switch
+                    id='batch-model-limits-enabled'
+                    checked={modelLimitsEnabled}
+                    onCheckedChange={setModelLimitsEnabled}
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                {modelLimitsEnabled && (
+                  <Field>
+                    <FieldLabel>{t('Allowed models')}</FieldLabel>
+                    <MultiSelect
+                      options={modelOptions}
+                      selected={modelLimits}
+                      onChange={setModelLimits}
+                      placeholder={t('Select allowed models')}
+                      emptyText={t('No models found')}
+                      disabled={isSubmitting}
+                      maxVisibleChips={5}
+                    />
+                    <FieldDescription>
+                      {t(
+                        'Only selected models can be called. An empty allowlist permits zero models.'
+                      )}
+                    </FieldDescription>
+                  </Field>
+                )}
+              </div>
+            )}
+          </Field>
 
           <Field data-disabled={isSubmitting || undefined}>
             <div className='flex items-start gap-3 rounded-lg border p-3'>

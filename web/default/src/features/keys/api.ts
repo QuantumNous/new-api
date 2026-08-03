@@ -39,8 +39,12 @@ import type {
 export async function getApiKeys(
   params: GetApiKeysParams = {}
 ): Promise<GetApiKeysResponse> {
-  const { p = 1, size = 10 } = params
-  const res = await api.get(`/api/token/?p=${p}&size=${size}`)
+  const { p = 1, size = 10, group = '' } = params
+  const queryParams = new URLSearchParams()
+  queryParams.set('p', String(p))
+  queryParams.set('size', String(size))
+  if (group) queryParams.set('group', group)
+  const res = await api.get(`/api/token/?${queryParams.toString()}`)
   return res.data
 }
 
@@ -48,11 +52,12 @@ export async function getApiKeys(
 export async function searchApiKeys(
   params: SearchApiKeysParams
 ): Promise<GetApiKeysResponse> {
-  const { keyword = '', token = '', status, p, size } = params
+  const { keyword = '', token = '', status, group = '', p, size } = params
   const queryParams = new URLSearchParams()
   if (keyword) queryParams.set('keyword', keyword)
   if (token) queryParams.set('token', token)
   if (status != null) queryParams.set('status', String(status))
+  if (group) queryParams.set('group', group)
   if (p != null) queryParams.set('p', String(p))
   if (size != null) queryParams.set('size', String(size))
   const res = await api.get(`/api/token/search?${queryParams.toString()}`)
@@ -110,6 +115,8 @@ export async function batchEditApiKeys(
     buildBatchEditApiKeysPayload(payload.ids, {
       group: payload.group,
       remain_quota: payload.remain_quota,
+      model_limits_enabled: payload.model_limits_enabled,
+      model_limits: payload.model_limits,
     })
   )
   return res.data

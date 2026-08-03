@@ -83,7 +83,7 @@ function createSuccessEffects() {
 }
 
 describe('batch API key edits', () => {
-  test('builds group-only, quota-only, and combined payloads', () => {
+  test('builds group, quota, and model-limit payloads', () => {
     expect(buildBatchEditApiKeysPayload([3, 9], { group: 'premium' })).toEqual({
       ids: [3, 9],
       group: 'premium',
@@ -98,6 +98,26 @@ describe('batch API key edits', () => {
         remain_quota: 500000,
       })
     ).toEqual({ ids: [3, 9], group: 'premium', remain_quota: 500000 })
+    expect(
+      buildBatchEditApiKeysPayload([3, 9], {
+        model_limits_enabled: true,
+        model_limits: 'gpt-4o,gpt-4.1',
+      })
+    ).toEqual({
+      ids: [3, 9],
+      model_limits_enabled: true,
+      model_limits: 'gpt-4o,gpt-4.1',
+    })
+    expect(
+      buildBatchEditApiKeysPayload([3, 9], {
+        model_limits_enabled: false,
+        model_limits: 'ignored',
+      })
+    ).toEqual({
+      ids: [3, 9],
+      model_limits_enabled: false,
+      model_limits: '',
+    })
   })
 
   test('rejects invalid IDs, empty edits, and invalid finite quotas', () => {
@@ -117,6 +137,12 @@ describe('batch API key edits', () => {
     ).toThrow()
     expect(() =>
       buildBatchEditApiKeysPayload([1], { remain_quota: Number.NaN })
+    ).toThrow()
+    expect(() =>
+      buildBatchEditApiKeysPayload([1], { model_limits_enabled: true })
+    ).toThrow()
+    expect(() =>
+      buildBatchEditApiKeysPayload([1], { model_limits: 'gpt-4o' })
     ).toThrow()
   })
 
@@ -162,7 +188,13 @@ describe('batch API key edits', () => {
   test('runs all success effects once after the request succeeds', async () => {
     const requestedPayloads: BatchEditApiKeysPayload[] = []
     const effects = createSuccessEffects()
-    const payload = { ids: [3, 9], group: 'premium', remain_quota: 0 }
+    const payload = {
+      ids: [3, 9],
+      group: 'premium',
+      remain_quota: 0,
+      model_limits_enabled: true,
+      model_limits: 'gpt-4o',
+    }
 
     const result = await coordinateBatchEditApiKeys({
       request: async (requestPayload) => {

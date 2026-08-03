@@ -31,6 +31,7 @@ const apiKeySearchSchema = z.object({
     .catch([]),
   filter: z.string().optional().catch(''),
   token: z.string().optional().catch(''),
+  keyGroup: z.array(z.string()).optional().catch([]),
   open: z.literal('create').optional().catch(undefined),
   group: z.string().min(1).optional().catch(undefined),
 })
