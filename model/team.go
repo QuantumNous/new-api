@@ -150,12 +150,16 @@ func DeleteTeamProject(teamId, projectId int64) error {
 	return DB.Where("team_id = ? AND id = ?", teamId, projectId).Delete(&TeamProject{}).Error
 }
 
-// TeamBilling 部门账单汇总（基于成员额度近似，日志级打点留后续）。
+// TeamBilling 部门账单汇总：成员额度近似 + 团队实际用量（按 team_id 聚合消耗日志）。
 type TeamBilling struct {
-	TeamId      int64 `json:"team_id"`
-	MemberCount int64 `json:"member_count"`
-	Allocated   int64 `json:"allocated"` // 成员额度总和
-	Used        int64 `json:"used"`      // 成员已用额度总和
+	TeamId           int64 `json:"team_id"`
+	MemberCount      int64 `json:"member_count"`
+	Allocated        int64 `json:"allocated"`         // 成员额度总和
+	Used             int64 `json:"used"`              // 成员已用额度总和
+	UsageQuota       int64 `json:"usage_quota"`       // 团队实际消耗配额（来自消耗日志，按 team_id 聚合）
+	PromptTokens     int64 `json:"prompt_tokens"`     // 团队实际 prompt tokens
+	CompletionTokens int64 `json:"completion_tokens"` // 团队实际 completion tokens
+	RequestCount     int64 `json:"request_count"`     // 团队实际请求数
 }
 
 // GetTeamBilling 汇总团队成员的额度与用量。
@@ -177,5 +181,21 @@ func GetTeamBilling(teamId int64) (*TeamBilling, error) {
 	}
 	billing.Allocated = allocated
 	billing.Used = used
+
+	// 实际用量：按 team_id 聚合消耗日志（LOG_DB 未启用时跳过，避免空指针）
+	if LOG_DB != nil {
+		var usageQuota, promptTokens, completionTokens, requestCount int64
+		if err := LOG_DB.Table("logs").
+			Select("COALESCE(SUM(quota),0), COALESCE(SUM(prompt_tokens),0), COALESCE(SUM(completion_tokens),0), COUNT(*)").
+			Where("team_id = ? AND type = ?", teamId, LogTypeConsume).
+			Row().Scan(&usageQuota, &promptTokens, &completionTokens, &requestCount); err != nil {
+			return nil, err
+		}
+		billing.UsageQuota = usageQuota
+		billing.PromptTokens = promptTokens
+		billing.CompletionTokens = completionTokens
+		billing.RequestCount = requestCount
+	}
+
 	return billing, nil
 }

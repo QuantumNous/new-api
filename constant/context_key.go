@@ -77,6 +77,16 @@ const (
 	// used by region-based channel routing (see model.ResolveRegionRouting).
 	// It is distinct from the vertex-specific "region" key set in the distributor.
 	ContextKeyRequestRegion ContextKey = "request_region"
+
+	// ContextKeyUserRegionPreference stores the authenticated user's preferred
+	// region (see User.RegionPreference). Region-based channel routing falls back
+	// to it when no X-Region header or request-region context is present.
+	ContextKeyUserRegionPreference ContextKey = "user_region_preference"
+
+	// ContextKeyUserTeamId stores the authenticated user's enterprise team id
+	// (see User.TeamId). Consume logs are stamped with it for per-team billing
+	// aggregation.
+	ContextKeyUserTeamId ContextKey = "user_team_id"
 )
 
 // HeaderRegion is the request header declaring the caller's region for

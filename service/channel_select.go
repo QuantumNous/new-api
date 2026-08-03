@@ -170,8 +170,10 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	return channel, selectGroup, nil
 }
 
-// detectRegion 解析当前请求的区域标识：优先取请求头 X-Region，
-// 其次取上下文中已解析过的区域（重试时复用，避免重复解析）。
+// detectRegion 解析当前请求的区域标识：
+// 优先取请求头 X-Region，其次取上下文中已解析过的区域（重试时复用），
+// 最后退回已登录用户的区域偏好（User.RegionPreference）。
+// 三者皆空时返回 ""，由调用方保持原有选渠道行为。
 func detectRegion(ctx *gin.Context) string {
 	if ctx == nil {
 		return ""
@@ -179,5 +181,8 @@ func detectRegion(ctx *gin.Context) string {
 	if region := model.NormalizeRegion(ctx.GetHeader(constant.HeaderRegion)); region != "" {
 		return region
 	}
-	return model.NormalizeRegion(common.GetContextKeyString(ctx, constant.ContextKeyRequestRegion))
+	if region := model.NormalizeRegion(common.GetContextKeyString(ctx, constant.ContextKeyRequestRegion)); region != "" {
+		return region
+	}
+	return model.NormalizeRegion(common.GetContextKeyString(ctx, constant.ContextKeyUserRegionPreference))
 }
