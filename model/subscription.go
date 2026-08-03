@@ -914,6 +914,15 @@ func CompleteSubscriptionOrderTx(tx *gorm.DB, tradeNo string, providerPayload st
 		}
 		return &order, plan, nil, false, nil
 	}
+	// Provider checkout URLs can outlive the local reservation. A callback only
+	// reaches this function after the controller has verified the provider
+	// signature, so an expired-but-paid order must be restored and delivered.
+	// The paid path bypasses purchase limits because withholding an entitlement
+	// after settlement is never an acceptable enforcement mechanism.
+	if order.Status == common.TopUpStatusExpired && expectedPaymentProvider != "" {
+		order.Status = common.TopUpStatusPending
+		order.CompleteTime = 0
+	}
 	if order.Status != common.TopUpStatusPending {
 		return nil, nil, nil, false, ErrSubscriptionOrderStatusInvalid
 	}

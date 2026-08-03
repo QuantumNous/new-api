@@ -63,3 +63,29 @@ func TestSettledSubscriptionOrderAlwaysDeliversReservedEntitlement(t *testing.T)
 	require.NoError(t, DB.Where("trade_no = ?", order.TradeNo).First(order).Error)
 	assert.Equal(t, common.TopUpStatusSuccess, order.Status)
 }
+
+func TestExpiredCheckoutPaidAfterReplacementStillDeliversBothOrders(t *testing.T) {
+	truncateTables(t)
+	plan := seedCheckoutPlan(t, 9303, 7303)
+	oldOrder := &SubscriptionOrder{UserId: 9303, PlanId: plan.Id, Money: plan.PriceAmount, TradeNo: "sub_old_checkout", PaymentMethod: "nowpayments", PaymentProvider: PaymentProviderEpay, Status: common.TopUpStatusPending}
+	require.NoError(t, ReserveSubscriptionCheckout(9303, oldOrder))
+	require.NoError(t, DB.Model(&SubscriptionCheckoutReservation{}).Where("trade_no = ?", oldOrder.TradeNo).Update("expires_at", GetDBTimestamp()-1).Error)
+
+	newOrder := &SubscriptionOrder{UserId: 9303, PlanId: plan.Id, Money: plan.PriceAmount, TradeNo: "sub_replacement_checkout", PaymentMethod: PaymentMethodStripe, PaymentProvider: PaymentProviderStripe, Status: common.TopUpStatusPending}
+	require.NoError(t, ReserveSubscriptionCheckout(9303, newOrder))
+	require.NoError(t, DB.Where("trade_no = ?", oldOrder.TradeNo).First(oldOrder).Error)
+	assert.Equal(t, common.TopUpStatusExpired, oldOrder.Status)
+
+	require.NoError(t, CompleteSubscriptionOrder(oldOrder.TradeNo, "{}", PaymentProviderEpay, "nowpayments"))
+	var liveReservation SubscriptionCheckoutReservation
+	require.NoError(t, DB.Where("trade_no = ?", newOrder.TradeNo).First(&liveReservation).Error)
+	require.NoError(t, CompleteSubscriptionOrder(newOrder.TradeNo, "{}", PaymentProviderStripe, PaymentMethodStripe))
+
+	var subscriptions int64
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("user_id = ?", 9303).Count(&subscriptions).Error)
+	assert.EqualValues(t, 2, subscriptions)
+	for _, order := range []*SubscriptionOrder{oldOrder, newOrder} {
+		require.NoError(t, DB.Where("trade_no = ?", order.TradeNo).First(order).Error)
+		assert.Equal(t, common.TopUpStatusSuccess, order.Status)
+	}
+}
