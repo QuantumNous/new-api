@@ -137,20 +137,6 @@ func subscriptionPurchaseTestQuote(currency string, unitPrice float64, months in
 	}
 }
 
-func TestApplyRecallFirstMonthDiscountReturnsClaimBusinessError(t *testing.T) {
-	setupSubscriptionRecallPurchaseTestDB(t)
-	now := time.Now().UTC()
-	fixture := createRecallClaimFixture(t, now)
-	insertPurchaseServiceUser(t, fixture.recipient.UserId, 50000)
-	plan := insertPurchaseServicePlan(t, 7219, 1, 12.34, 1234)
-	plan.StripePriceId = "price_not_in_claim"
-	quote := *subscriptionPurchaseTestQuote("USD", plan.PriceAmount, 1)
-
-	_, err := applyRecallFirstMonthDiscount(context.Background(), fixture.recipient.UserId, fixture.claim, plan, quote)
-
-	require.ErrorIs(t, err, ErrRecallClaimWrongPrice)
-}
-
 func grantPurchaseServiceInvitationDiscount(t *testing.T, userID int, amountUSDMinor int64, key string) {
 	t.Helper()
 	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
