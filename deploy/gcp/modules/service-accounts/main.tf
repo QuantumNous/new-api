@@ -62,6 +62,12 @@ resource "google_project_iam_member" "deployer_artifact_writer" {
   member  = "serviceAccount:${google_service_account.deployer.email}"
 }
 
+resource "google_project_iam_member" "deployer_monitoring_editor" {
+  project = var.project_id
+  role    = "roles/monitoring.editor"
+  member  = "serviceAccount:${google_service_account.deployer.email}"
+}
+
 resource "google_project_iam_member" "deployer_sa_user" {
   // Required so deployer can deploy a Cloud Run revision that runs as the runtime SA
   project = var.project_id
