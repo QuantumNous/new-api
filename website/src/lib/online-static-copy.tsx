@@ -621,6 +621,20 @@ export function getOnlineStaticText(locale: Locale, key: string, fallback: strin
   return getStaticDicts()[locale]?.[key] ?? fallback;
 }
 
+function normalizeInlineHtml(value: string) {
+  const signupHref = consoleUrl("/sign-up");
+  return value.replace(
+    /\bhref=(["'])(?:https?:\/\/flatkey\.ai\/)?\/?(?:login|signup)(?:\.html)?\1/gi,
+    `href="${signupHref}"`
+  );
+}
+
+function getOnlineStaticInlineHtml(locale: Locale, key: string, fallback: ReactNode) {
+  const html = getOnlineStaticText(locale, key, "");
+  if (!html) return fallback;
+  return <span dangerouslySetInnerHTML={{ __html: normalizeInlineHtml(html) }} />;
+}
+
 export function getOnlineHomeToolText(locale: Locale, keyPath: string, fallback: string) {
   if (locale === "en") return fallback;
   const root = getHomeToolDicts()[locale] as Record<string, unknown> | undefined;
@@ -629,6 +643,33 @@ export function getOnlineHomeToolText(locale: Locale, keyPath: string, fallback:
     return (current as Record<string, unknown>)[key];
   }, root);
   return typeof value === "string" ? value : fallback;
+}
+
+function getOnlineContactCopy(locale: Locale): OnlineCopy["contact"] {
+  return {
+    ...en.contact,
+    discord: getOnlineStaticText(locale, "ct.dc", en.contact.discord),
+    email: getOnlineStaticText(locale, "ct.mail", en.contact.email),
+    fine: getOnlineStaticInlineHtml(locale, "ct.fine", en.contact.fine),
+    formTitle: getOnlineStaticText(locale, "ct.h2", en.contact.formTitle),
+    heading: getOnlineStaticInlineHtml(locale, "ct.head", en.contact.heading),
+    linkedin: getOnlineStaticText(locale, "ct.li", en.contact.linkedin),
+    placeholders: {
+      company: getOnlineStaticText(locale, "ct.ph3", en.contact.placeholders.company),
+      email: getOnlineStaticText(locale, "ct.ph2", en.contact.placeholders.email),
+      message: getOnlineStaticText(locale, "ct.ph5", en.contact.placeholders.message),
+      name: getOnlineStaticText(locale, "ct.ph1", en.contact.placeholders.name),
+      volume: getOnlineStaticText(locale, "ct.ph4", en.contact.placeholders.volume),
+    },
+    send: getOnlineStaticText(locale, "ct.send", en.contact.send),
+    sub: getOnlineStaticText(locale, "ct.sub", en.contact.sub),
+    why: [
+      { num: "01", title: getOnlineStaticText(locale, "ct.w1t", en.contact.why[0].title), body: getOnlineStaticText(locale, "ct.w1p", en.contact.why[0].body) },
+      { num: "02", title: getOnlineStaticText(locale, "ct.w2t", en.contact.why[1].title), body: getOnlineStaticText(locale, "ct.w2p", en.contact.why[1].body) },
+      { num: "03", title: getOnlineStaticText(locale, "ct.w3t", en.contact.why[2].title), body: getOnlineStaticText(locale, "ct.w3p", en.contact.why[2].body) },
+      { num: "04", title: getOnlineStaticText(locale, "ct.w4t", en.contact.why[3].title), body: getOnlineStaticText(locale, "ct.w4p", en.contact.why[3].body) },
+    ],
+  };
 }
 
 export function getOnlineStaticCopy(locale: Locale): OnlineCopy {
@@ -640,6 +681,7 @@ export function getOnlineStaticCopy(locale: Locale): OnlineCopy {
 
   return {
     ...en,
+    contact: getOnlineContactCopy(locale),
     footer: {
       ...en.footer,
       about: getOnlineStaticText(locale, "ft.about", en.footer.about),
