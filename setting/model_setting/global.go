@@ -35,6 +35,7 @@ func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channe
 type GlobalSettings struct {
 	PassThroughRequestEnabled        bool                             `json:"pass_through_request_enabled"`
 	ThinkingModelBlacklist           []string                         `json:"thinking_model_blacklist"`
+	ReasoningContentModels           []string                         `json:"reasoning_content_models"`
 	ChatCompletionsToResponsesPolicy ChatCompletionsToResponsesPolicy `json:"chat_completions_to_responses_policy"`
 }
 
@@ -44,6 +45,12 @@ var defaultOpenaiSettings = GlobalSettings{
 	ThinkingModelBlacklist: []string{
 		"moonshotai/kimi-k2-thinking",
 		"kimi-k2-thinking",
+	},
+	ReasoningContentModels: []string{
+		"deepseek",
+		"glm",
+		"kimi",
+		"mimo",
 	},
 	ChatCompletionsToResponsesPolicy: ChatCompletionsToResponsesPolicy{
 		Enabled:     false,
@@ -72,6 +79,24 @@ func ShouldPreserveThinkingSuffix(modelName string) bool {
 
 	for _, entry := range globalSettings.ThinkingModelBlacklist {
 		if strings.TrimSpace(entry) == target {
+			return true
+		}
+	}
+	return false
+}
+
+// ShouldPreserveReasoningContent reports whether request protocol conversions
+// should preserve reasoning_content for the mapped upstream model. Matching is
+// case-insensitive substring matching after channel model mapping.
+func ShouldPreserveReasoningContent(modelName string) bool {
+	target := strings.ToLower(strings.TrimSpace(modelName))
+	if target == "" {
+		return false
+	}
+
+	for _, model := range globalSettings.ReasoningContentModels {
+		match := strings.ToLower(strings.TrimSpace(model))
+		if match != "" && strings.Contains(target, match) {
 			return true
 		}
 	}

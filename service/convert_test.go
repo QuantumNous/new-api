@@ -6,6 +6,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -83,6 +84,48 @@ func TestRequestConverterFacadeAcceptsTypedNilRelayInfo(t *testing.T) {
 			assert.Equal(t, target, result.To)
 		})
 	}
+}
+
+func TestReasoningContentConversionsUseConfiguredUpstreamModel(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	original := append([]string(nil), settings.ReasoningContentModels...)
+	t.Cleanup(func() {
+		settings.ReasoningContentModels = original
+	})
+	settings.ReasoningContentModels = []string{"mimo"}
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "xiaomi-mimo-v2-flash"},
+	}
+	request := &dto.OpenAIResponsesRequest{
+		Model: "xiaomi-mimo-v2-flash",
+		Input: []byte(`[{"type":"reasoning","summary":[{"type":"summary_text","text":"Need the lookup."}]},{"type":"function_call","call_id":"call_1","name":"lookup","arguments":"{}"},{"type":"function_call_output","call_id":"call_1","output":"done"}]`),
+	}
+
+	result, err := ConvertRequest(nil, info, types.RelayFormatOpenAI, request)
+	require.NoError(t, err)
+	converted, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, converted.Messages, 2)
+	assert.Equal(t, "Need the lookup.", converted.Messages[0].GetReasoningContent())
+	assert.Len(t, converted.Messages[0].ParseToolCalls(), 1)
+
+	reasoning := "Need the lookup."
+	result, err = ConvertRequest(nil, info, types.RelayFormatGemini, &dto.GeneralOpenAIRequest{
+		Model: "xiaomi-mimo-v2-flash",
+		Messages: []dto.Message{{
+			Role:             "assistant",
+			Content:          "Calling the tool.",
+			ReasoningContent: &reasoning,
+		}},
+	})
+	require.NoError(t, err)
+	geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.NotEmpty(t, geminiRequest.Contents)
+	require.NotEmpty(t, geminiRequest.Contents[0].Parts)
+	assert.True(t, geminiRequest.Contents[0].Parts[0].Thought)
+	assert.Equal(t, reasoning, geminiRequest.Contents[0].Parts[0].Text)
 }
 
 func TestStreamResponseConverterFacadesAcceptTypedNilRelayInfo(t *testing.T) {

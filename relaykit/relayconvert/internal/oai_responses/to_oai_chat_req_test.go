@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +20,7 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *t
 	maxOutputTokens := uint(128)
 	parallelToolCalls := true
 
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(nil, &dto.OpenAIResponsesRequest{
 		Model:                "gpt-test",
 		Instructions:         mustRawMessage(t, "system rules"),
 		Input:                mustRawMessage(t, "hello"),
@@ -68,7 +69,7 @@ func TestResponsesRequestToChatCompletionsRequestPreservesQwenThinkingBudget(t *
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+			got, err := ResponsesRequestToChatCompletionsRequest(nil, &dto.OpenAIResponsesRequest{
 				Model:          "qwen-plus",
 				Input:          mustRawMessage(t, "hello"),
 				EnableThinking: json.RawMessage(`true`),
@@ -89,7 +90,7 @@ func TestResponsesRequestToChatCompletionsRequestPreservesQwenThinkingBudget(t *
 }
 
 func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(nil, &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
 		Input: mustRawMessage(t, []map[string]any{
 			{
@@ -123,7 +124,7 @@ func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
 }
 
 func TestResponsesRequestToChatCompletionsRequestAssistantTextAndFunctionCallCoexist(t *testing.T) {
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(nil, &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
 		Input: mustRawMessage(t, []map[string]any{
 			{
@@ -161,8 +162,140 @@ func TestResponsesRequestToChatCompletionsRequestAssistantTextAndFunctionCallCoe
 	assert.JSONEq(t, `{"ok":true}`, got.Messages[1].StringContent())
 }
 
+func TestResponsesRequestToChatCompletionsRequestPreservesConfiguredToolCallReasoning(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         []map[string]any
+		wantContent   string
+		wantReasoning string
+		wantCalls     int
+		wantMessages  int
+	}{
+		{
+			name: "reasoning summary before parallel function calls",
+			input: []map[string]any{
+				{
+					"type": "reasoning",
+					"summary": []map[string]any{
+						{"type": "summary_text", "text": "Need both "},
+						{"type": "summary_text", "text": "tool results."},
+					},
+				},
+				{"type": "function_call", "call_id": "call_1", "name": "first", "arguments": `{}`},
+				{"type": "function_call", "call_id": "call_2", "name": "second", "arguments": `{}`},
+				{"type": "function_call_output", "call_id": "call_1", "output": "one"},
+				{"type": "function_call_output", "call_id": "call_2", "output": "two"},
+			},
+			wantReasoning: "Need both tool results.",
+			wantCalls:     2,
+		},
+		{
+			name: "reasoning content between assistant text and function call",
+			input: []map[string]any{
+				{
+					"role":    "assistant",
+					"content": []map[string]any{{"type": "output_text", "text": "Checking now."}},
+				},
+				{
+					"type":    "reasoning",
+					"content": []map[string]any{{"type": "reasoning_text", "text": "Need the lookup."}},
+				},
+				{"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": `{}`},
+				{"type": "function_call_output", "call_id": "call_1", "output": "done"},
+			},
+			wantContent:   "Checking now.",
+			wantReasoning: "Need the lookup.",
+			wantCalls:     1,
+		},
+		{
+			name: "reasoning_content embedded in function call",
+			input: []map[string]any{
+				{
+					"type":              "function_call",
+					"call_id":           "call_1",
+					"name":              "lookup",
+					"arguments":         `{}`,
+					"reasoning_content": "Need the lookup.",
+				},
+				{"type": "function_call_output", "call_id": "call_1", "output": "done"},
+			},
+			wantReasoning: "Need the lookup.",
+			wantCalls:     1,
+		},
+		{
+			name: "reasoning alias embedded in custom tool call",
+			input: []map[string]any{
+				{
+					"type":      "custom_tool_call",
+					"call_id":   "call_1",
+					"name":      "apply_patch",
+					"input":     "patch",
+					"reasoning": "Need to edit.",
+				},
+			},
+			wantReasoning: "Need to edit.",
+			wantCalls:     1,
+			wantMessages:  1,
+		},
+	}
+
+	meta := &convmeta.Values{
+		Options: &convmeta.Options{PreserveReasoningContent: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResponsesRequestToChatCompletionsRequest(meta, &dto.OpenAIResponsesRequest{
+				Model: "mimo-v2-flash",
+				Input: mustRawMessage(t, tt.input),
+			})
+			require.NoError(t, err)
+
+			wantMessages := tt.wantMessages
+			if wantMessages == 0 {
+				wantMessages = tt.wantCalls + 1
+			}
+			require.Len(t, got.Messages, wantMessages)
+			assistant := got.Messages[0]
+			assert.Equal(t, "assistant", assistant.Role)
+			assert.Equal(t, tt.wantContent, assistant.StringContent())
+			assert.Equal(t, tt.wantReasoning, assistant.GetReasoningContent())
+			assert.Len(t, assistant.ParseToolCalls(), tt.wantCalls)
+		})
+	}
+}
+
+func TestResponsesRequestToChatCompletionsRequestDropsUnconfiguredReasoningWithoutCreatingUserMessage(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(nil, &dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{"role": "user", "content": "hello"},
+			{
+				"type":    "reasoning",
+				"summary": []map[string]any{{"type": "summary_text", "text": "Need the lookup."}},
+			},
+			{
+				"type":              "function_call",
+				"call_id":           "call_1",
+				"name":              "lookup",
+				"arguments":         `{}`,
+				"reasoning_content": "Inline reasoning.",
+			},
+			{"type": "function_call_output", "call_id": "call_1", "output": "done"},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 3)
+	assert.Equal(t, "user", got.Messages[0].Role)
+	assert.Equal(t, "hello", got.Messages[0].StringContent())
+	assert.Equal(t, "assistant", got.Messages[1].Role)
+	assert.Empty(t, got.Messages[1].GetReasoningContent())
+	assert.Len(t, got.Messages[1].ParseToolCalls(), 1)
+	assert.Equal(t, "tool", got.Messages[2].Role)
+}
+
 func TestResponsesRequestToChatCompletionsRequestOnlyFunctionCallCreatesAssistant(t *testing.T) {
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(nil, &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
 		Input: mustRawMessage(t, []map[string]any{
 			{
@@ -184,7 +317,7 @@ func TestResponsesRequestToChatCompletionsRequestOnlyFunctionCallCreatesAssistan
 }
 
 func TestResponsesRequestToChatCompletionsRequestToolsToolChoiceAndTextFormat(t *testing.T) {
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(nil, &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
 		Input: mustRawMessage(t, "hello"),
 		Tools: mustRawMessage(t, []map[string]any{
@@ -233,7 +366,7 @@ func TestResponsesRequestToChatCompletionsRequestToolsToolChoiceAndTextFormat(t 
 }
 
 func TestResponsesRequestToChatCompletionsRequestCustomToolCallPreservesRawShape(t *testing.T) {
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(nil, &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
 		Input: mustRawMessage(t, []map[string]any{
 			{
@@ -287,7 +420,7 @@ func TestResponsesRequestToChatCompletionsRequestRejectsStatefulFields(t *testin
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ResponsesRequestToChatCompletionsRequest(tt.req)
+			_, err := ResponsesRequestToChatCompletionsRequest(nil, tt.req)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.want)
 			assert.Contains(t, err.Error(), "stateful fields")

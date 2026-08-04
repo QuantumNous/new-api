@@ -55,6 +55,12 @@ const thinkingBlacklistExample = JSON.stringify(
   2
 )
 
+const reasoningContentModelsExample = JSON.stringify(
+  ['deepseek', 'glm', 'kimi', 'mimo'],
+  null,
+  2
+)
+
 const chatToResponsesPolicyExample = JSON.stringify(
   {
     enabled: true,
@@ -91,6 +97,7 @@ const schema = z.object({
   global: z.object({
     pass_through_request_enabled: z.boolean(),
     thinking_model_blacklist: jsonString,
+    reasoning_content_models: jsonString,
     chat_completions_to_responses_policy: jsonString,
   }),
   general_setting: z.object({
@@ -105,6 +112,7 @@ type GlobalModelSettingsFormInput = z.input<typeof schema>
 type FlatGlobalModelSettings = {
   'global.pass_through_request_enabled': boolean
   'global.thinking_model_blacklist': string
+  'global.reasoning_content_models': string
   'global.chat_completions_to_responses_policy': string
   'general_setting.ping_interval_enabled': boolean
   'general_setting.ping_interval_seconds': number
@@ -117,6 +125,10 @@ const flattenGlobalValues = (
     values.global.pass_through_request_enabled,
   'global.thinking_model_blacklist': normalizeJsonText(
     values.global.thinking_model_blacklist,
+    '[]'
+  ),
+  'global.reasoning_content_models': normalizeJsonText(
+    values.global.reasoning_content_models,
     '[]'
   ),
   'global.chat_completions_to_responses_policy': normalizeJsonText(
@@ -231,6 +243,33 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                 <FormDescription>
                   {t(
                     'Models listed here will not automatically append or remove -thinking / -nothinking suffixes.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='global.reasoning_content_models'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Reasoning Content Models')}</FormLabel>
+                <FormControl>
+                  <JsonCodeEditor
+                    value={field.value}
+                    onChange={(value) => field.onChange(value)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    textareaRef={field.ref}
+                    placeholder={`${t('Example:')}\n${reasoningContentModelsExample}`}
+                    heightClassName='h-32 min-h-32 max-h-32'
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    "For matching upstream models, request protocol conversions preserve assistant reasoning through reasoning_content or the target protocol's equivalent field. Entries use case-insensitive substring matching after channel model mapping."
                   )}
                 </FormDescription>
                 <FormMessage />

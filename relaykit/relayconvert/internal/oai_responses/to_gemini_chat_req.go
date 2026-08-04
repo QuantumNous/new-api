@@ -27,6 +27,7 @@ func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info convmeta.
 
 func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIResponsesRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
 	opts := convmeta.OptionsOf(info)
+	preserveReasoning := opts.PreserveReasoningContent
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
@@ -123,13 +124,22 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 		return nil, err
 	}
 	callNames := make(map[string]string)
+	pendingReasoning := ""
 	for _, item := range inputItems {
 		itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 		switch itemType {
+		case responsesInputTypeReasoning:
+			if preserveReasoning {
+				appendPendingReasoning(&pendingReasoning, responsesItemReasoningText(item))
+			}
 		case ResponsesInputTypeFunctionCall:
 			part, callID, err := responsesFunctionCallItemToGeminiPart(item)
 			if err != nil {
 				return nil, err
+			}
+			if preserveReasoning {
+				appendPendingReasoning(&pendingReasoning, responsesItemReasoningText(item))
+				flushPendingReasoningToGemini(geminiRequest, &pendingReasoning)
 			}
 			sharedgemini.AttachFunctionCallThoughtSignature(opts, &part)
 			if callID != "" {
@@ -137,6 +147,9 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 			}
 			appendGeminiContentPart(geminiRequest, "model", part)
 		case ResponsesInputTypeFunctionCallOutput:
+			if preserveReasoning {
+				flushPendingReasoningToGemini(geminiRequest, &pendingReasoning)
+			}
 			part := responsesFunctionOutputItemToGeminiPart(item, callNames)
 			appendGeminiContentPart(geminiRequest, "user", part)
 		default:
@@ -144,6 +157,15 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 			parts, err := responsesInputContentToGeminiParts(c, item["content"])
 			if err != nil {
 				return nil, err
+			}
+			if preserveReasoning && role == "model" {
+				appendPendingReasoning(&pendingReasoning, responsesItemReasoningText(item))
+				if pendingReasoning != "" {
+					parts = append([]dto.GeminiPart{{Text: pendingReasoning, Thought: true}}, parts...)
+					pendingReasoning = ""
+				}
+			} else if preserveReasoning {
+				flushPendingReasoningToGemini(geminiRequest, &pendingReasoning)
 			}
 			if role == "system" {
 				for _, part := range parts {
@@ -161,7 +183,9 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 			}
 		}
 	}
-
+	if preserveReasoning {
+		flushPendingReasoningToGemini(geminiRequest, &pendingReasoning)
+	}
 	if len(systemTexts) > 0 {
 		geminiRequest.SystemInstructions = &dto.GeminiChatContent{
 			Parts: []dto.GeminiPart{{Text: strings.Join(systemTexts, "\n")}},
@@ -272,12 +296,34 @@ func responsesFunctionOutputItemToGeminiPart(item map[string]any, callNames map[
 	}
 }
 
+func flushPendingReasoningToGemini(req *dto.GeminiChatRequest, pending *string) {
+	if pending == nil || *pending == "" {
+		return
+	}
+	reasoning := *pending
+	*pending = ""
+	thought := dto.GeminiPart{Text: reasoning, Thought: true}
+	if len(req.Contents) == 0 || req.Contents[len(req.Contents)-1].Role != "model" {
+		appendGeminiContentPart(req, "model", thought)
+		return
+	}
+	parts := req.Contents[len(req.Contents)-1].Parts
+	insertAt := 0
+	for insertAt < len(parts) && parts[insertAt].Thought {
+		insertAt++
+	}
+	parts = append(parts, dto.GeminiPart{})
+	copy(parts[insertAt+1:], parts[insertAt:])
+	parts[insertAt] = thought
+	req.Contents[len(req.Contents)-1].Parts = parts
+}
+
 func appendGeminiContentPart(req *dto.GeminiChatRequest, role string, part dto.GeminiPart) {
 	if len(req.Contents) > 0 && req.Contents[len(req.Contents)-1].Role == role {
 		if role == "model" && part.FunctionCall != nil {
 			parts := req.Contents[len(req.Contents)-1].Parts
 			insertAt := 0
-			for insertAt < len(parts) && parts[insertAt].FunctionCall != nil {
+			for insertAt < len(parts) && (parts[insertAt].Thought || parts[insertAt].FunctionCall != nil) {
 				insertAt++
 			}
 			parts = append(parts, dto.GeminiPart{})

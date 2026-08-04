@@ -800,8 +800,9 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 			SupportsImagine:                       model_setting.IsGeminiModelSupportImagine,
 			SafetySetting:                         model_setting.GetGeminiSafetySetting,
 		},
-		OpenRouterDialect:      info != nil && info.GetChannelType() == constant.ChannelTypeOpenRouter,
-		PreserveThinkingSuffix: model_setting.ShouldPreserveThinkingSuffix,
+		OpenRouterDialect:        info != nil && info.GetChannelType() == constant.ChannelTypeOpenRouter,
+		PreserveThinkingSuffix:   model_setting.ShouldPreserveThinkingSuffix,
+		PreserveReasoningContent: info != nil && model_setting.ShouldPreserveReasoningContent(info.GetUpstreamModelName()),
 	}
 	if info != nil {
 		info.convOptions = options

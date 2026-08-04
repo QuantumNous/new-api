@@ -50,6 +50,10 @@ const MODELS_SECTIONS = [
               settings['global.thinking_model_blacklist'],
               '[]'
             ),
+            reasoning_content_models: formatJsonForEditor(
+              settings['global.reasoning_content_models'],
+              '["deepseek","glm","kimi","mimo"]'
+            ),
             chat_completions_to_responses_policy: formatJsonForEditor(
               settings['global.chat_completions_to_responses_policy'],
               '{}'
