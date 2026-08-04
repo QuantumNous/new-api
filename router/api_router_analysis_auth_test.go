@@ -163,20 +163,29 @@ func nextRealAnalysisIP() string {
 }
 
 func TestSetApiRouterAnalysisAuthRunsBeforeRateLimit(t *testing.T) {
-	adminSession := &model.User{Id: 811, Username: "real-admin-session", AffCode: "real-admin-session", Role: common.RoleAdminUser, Status: common.UserStatusEnabled}
-	userSession := &model.User{Id: 812, Username: "real-user-session", AffCode: "real-user-session", Role: common.RoleCommonUser, Status: common.UserStatusEnabled}
-	adminTokenA := &model.User{Id: 821, Username: "real-admin-token-a", AffCode: "real-admin-token-a", Role: common.RoleAdminUser, Status: common.UserStatusEnabled}
-	adminTokenB := &model.User{Id: 822, Username: "real-admin-token-b", AffCode: "real-admin-token-b", Role: common.RoleAdminUser, Status: common.UserStatusEnabled}
-	userTokenA := &model.User{Id: 823, Username: "real-user-token-a", AffCode: "real-user-token-a", Role: common.RoleCommonUser, Status: common.UserStatusEnabled}
-	userTokenB := &model.User{Id: 824, Username: "real-user-token-b", AffCode: "real-user-token-b", Role: common.RoleCommonUser, Status: common.UserStatusEnabled}
-	adminTokenC := &model.User{Id: 825, Username: "real-admin-token-c", AffCode: "real-admin-token-c", Role: common.RoleAdminUser, Status: common.UserStatusEnabled}
-	adminSession.SetAccessToken("real-admin-session-token")
-	userSession.SetAccessToken("real-user-session-token")
-	adminTokenA.SetAccessToken("real-admin-token-a-key")
-	adminTokenB.SetAccessToken("real-admin-token-b-key")
-	userTokenA.SetAccessToken("real-user-token-a-key")
-	userTokenB.SetAccessToken("real-user-token-b-key")
-	adminTokenC.SetAccessToken("real-admin-token-c-key")
+	// The in-memory AN/CT limiter deliberately survives for the process
+	// lifetime. Allocate a fresh ID/name/token block for every test invocation
+	// so `-count=N` cannot reuse a prior user's bucket.
+	block := 10000 + int(atomic.AddUint64(&realAnalysisRouteCounter, 1))*10
+	newUser := func(offset int, role int, label string) *model.User {
+		name := fmt.Sprintf("ra-%d-%s", block, label)
+		user := &model.User{
+			Id:       block + offset,
+			Username: name,
+			AffCode:  name,
+			Role:     role,
+			Status:   common.UserStatusEnabled,
+		}
+		user.SetAccessToken(fmt.Sprintf("ra-t-%d-%s", block, label))
+		return user
+	}
+	adminSession := newUser(1, common.RoleAdminUser, "as")
+	userSession := newUser(2, common.RoleCommonUser, "us")
+	adminTokenA := newUser(3, common.RoleAdminUser, "ata")
+	adminTokenB := newUser(4, common.RoleAdminUser, "atb")
+	userTokenA := newUser(5, common.RoleCommonUser, "uta")
+	userTokenB := newUser(6, common.RoleCommonUser, "utb")
+	adminTokenC := newUser(7, common.RoleAdminUser, "atc")
 
 	setupRealAnalysisRouterDB(t, adminSession, userSession, adminTokenA, adminTokenB, userTokenA, userTokenB, adminTokenC)
 	roles := map[int]int{
