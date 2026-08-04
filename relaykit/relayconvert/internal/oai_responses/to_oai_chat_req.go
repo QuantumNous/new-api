@@ -63,6 +63,8 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 		MaxCompletionTokens:  req.MaxOutputTokens,
 		Temperature:          req.Temperature,
 		TopP:                 req.TopP,
+		FrequencyPenalty:     req.FrequencyPenalty,
+		PresencePenalty:      req.PresencePenalty,
 		TopLogProbs:          req.TopLogProbs,
 		ResponseFormat:       responseFormat,
 		Tools:                tools,

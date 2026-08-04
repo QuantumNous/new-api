@@ -382,6 +382,8 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		ToolChoice:        toolChoiceRaw,
 		Tools:             toolsRaw,
 		TopP:              topP,
+		FrequencyPenalty:  req.FrequencyPenalty,
+		PresencePenalty:   req.PresencePenalty,
 		User:              req.User,
 		ParallelToolCalls: parallelToolCallsRaw,
 		Store:             req.Store,

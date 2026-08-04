@@ -861,12 +861,14 @@ type OpenAIResponsesRequest struct {
 	// Background         json.RawMessage `json:"background,omitempty"`
 	Conversation       json.RawMessage `json:"conversation,omitempty"`
 	ContextManagement  json.RawMessage `json:"context_management,omitempty"`
+	FrequencyPenalty   *float64        `json:"frequency_penalty,omitempty"`
 	Instructions       json.RawMessage `json:"instructions,omitempty"`
 	MaxOutputTokens    *uint           `json:"max_output_tokens,omitempty"`
 	TopLogProbs        *int            `json:"top_logprobs,omitempty"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
 	Moderation         json.RawMessage `json:"moderation,omitempty"`
 	ParallelToolCalls  json.RawMessage `json:"parallel_tool_calls,omitempty"`
+	PresencePenalty    *float64        `json:"presence_penalty,omitempty"`
 	PreviousResponseID string          `json:"previous_response_id,omitempty"`
 	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
 	// ServiceTier specifies upstream service level and may affect billing.
