@@ -271,4 +271,5 @@ export interface FAQItem {
   id?: number
   question: string
   answer: string
+  translations?: import('@/lib/localized-content').ContentTranslations
 }

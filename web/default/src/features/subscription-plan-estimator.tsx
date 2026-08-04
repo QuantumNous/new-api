@@ -52,6 +52,7 @@ import { useTopupInfo } from '@/features/wallet/hooks'
 import { getSelf } from '@/lib/api'
 import { formatSubscriptionPlanPrice } from '@/lib/currency'
 import { formatQuota, formatTokens } from '@/lib/format'
+import { getLocalizedField } from '@/lib/localized-content'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -62,7 +63,7 @@ function formatTokenCapacity(value: number): string {
 }
 
 export function Plans() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const user = useAuthStore((state) => state.auth.user)
@@ -92,13 +93,31 @@ export function Plans() {
   const planRecords = useMemo(() => {
     return [...(plansQuery.data?.data || [])]
       .filter((record) => record.plan.enabled)
+      .map((record) => ({
+        ...record,
+        plan: {
+          ...record.plan,
+          title: getLocalizedField(
+            record.plan,
+            'title',
+            i18n.resolvedLanguage,
+            t
+          ),
+          subtitle: getLocalizedField(
+            record.plan,
+            'subtitle',
+            i18n.resolvedLanguage,
+            t
+          ),
+        },
+      }))
       .sort((left, right) => {
         if (left.plan.sort_order !== right.plan.sort_order) {
           return right.plan.sort_order - left.plan.sort_order
         }
         return right.plan.id - left.plan.id
       })
-  }, [plansQuery.data])
+  }, [i18n.resolvedLanguage, plansQuery.data, t])
 
   const plans = useMemo(
     () => planRecords.map((record) => record.plan),

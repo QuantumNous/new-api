@@ -58,6 +58,7 @@ import type {
 } from '@/features/subscriptions/types'
 import { formatSubscriptionPlanPrice } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
+import { getLocalizedField } from '@/lib/localized-content'
 import { cn } from '@/lib/utils'
 
 import type { PaymentMethod, TopupInfo } from '../types'
@@ -101,7 +102,7 @@ export function SubscriptionPlansCard({
   onPurchaseSuccess,
   hideAvailablePlans = false,
 }: SubscriptionPlansCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const [plans, setPlans] = useState<PlanRecord[]>([])
   const [activeSubscriptions, setActiveSubscriptions] = useState<
@@ -218,11 +219,14 @@ export function SubscriptionPlansCard({
     const map = new Map<number, string>()
     for (const p of plans) {
       if (p?.plan?.id) {
-        map.set(p.plan.id, p.plan.title || '')
+        map.set(
+          p.plan.id,
+          getLocalizedField(p.plan, 'title', i18n.resolvedLanguage, t)
+        )
       }
     }
     return map
-  }, [plans])
+  }, [i18n.resolvedLanguage, plans, t])
 
   const getRemainingDays = (sub: UserSubscriptionRecord) => {
     const endTime = sub?.subscription?.end_time || 0
@@ -247,8 +251,8 @@ export function SubscriptionPlansCard({
         <CardContent className='space-y-4 p-3 sm:p-5'>
           <Skeleton className='h-20 w-full' />
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className='h-48 w-full' />
+            {['first', 'second', 'third'].map((key) => (
+              <Skeleton key={key} className='h-48 w-full' />
             ))}
           </div>
         </CardContent>
@@ -414,6 +418,19 @@ export function SubscriptionPlansCard({
                   const isCancelled = subscription?.status === 'cancelled'
                   const isActive =
                     subscription?.status === 'active' && !isExpired
+                  const nextResetTime = subscription?.next_reset_time ?? 0
+                  let statusLabel = t('Expired')
+                  let statusVariant: 'neutral' | 'success' = 'neutral'
+                  let endTimeLabel = t('Expired at')
+
+                  if (isActive) {
+                    statusLabel = t('Active')
+                    statusVariant = 'success'
+                    endTimeLabel = t('Until')
+                  } else if (isCancelled) {
+                    statusLabel = t('Cancelled')
+                    endTimeLabel = t('Cancelled at')
+                  }
 
                   return (
                     <div
@@ -427,25 +444,11 @@ export function SubscriptionPlansCard({
                               ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
                               : `${t('Subscription')} #${subscription?.id}`}
                           </span>
-                          {isActive ? (
-                            <StatusBadge
-                              label={t('Active')}
-                              variant='success'
-                              copyable={false}
-                            />
-                          ) : isCancelled ? (
-                            <StatusBadge
-                              label={t('Cancelled')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          ) : (
-                            <StatusBadge
-                              label={t('Expired')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          )}
+                          <StatusBadge
+                            label={statusLabel}
+                            variant={statusVariant}
+                            copyable={false}
+                          />
                         </div>
                         {isActive && (
                           <span className='text-muted-foreground'>
@@ -456,21 +459,15 @@ export function SubscriptionPlansCard({
                         )}
                       </div>
                       <div className='text-muted-foreground mt-1.5'>
-                        {isActive
-                          ? t('Until')
-                          : isCancelled
-                            ? t('Cancelled at')
-                            : t('Expired at')}{' '}
+                        {endTimeLabel}{' '}
                         {new Date(
                           (subscription?.end_time || 0) * 1000
                         ).toLocaleString()}
                       </div>
-                      {isActive && (subscription?.next_reset_time ?? 0) > 0 && (
+                      {isActive && nextResetTime > 0 && (
                         <div className='text-muted-foreground mt-1'>
                           {t('Next reset')}:{' '}
-                          {new Date(
-                            subscription!.next_reset_time! * 1000
-                          ).toLocaleString()}
+                          {new Date(nextResetTime * 1000).toLocaleString()}
                         </div>
                       )}
                       <div className='text-muted-foreground mt-1'>
@@ -521,6 +518,18 @@ export function SubscriptionPlansCard({
             {plans.map((p, index) => {
               const plan = p?.plan
               if (!plan) return null
+              const planTitle = getLocalizedField(
+                plan,
+                'title',
+                i18n.resolvedLanguage,
+                t
+              )
+              const planSubtitle = getLocalizedField(
+                plan,
+                'subtitle',
+                i18n.resolvedLanguage,
+                t
+              )
               const totalAmount = Number(plan.total_amount || 0)
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
@@ -551,11 +560,11 @@ export function SubscriptionPlansCard({
                     <div className='mb-2 flex items-start justify-between gap-3'>
                       <div className='min-w-0'>
                         <h4 className='truncate font-semibold'>
-                          {plan.title || t('Subscription Plans')}
+                          {planTitle || t('Subscription Plans')}
                         </h4>
-                        {plan.subtitle && (
+                        {planSubtitle && (
                           <p className='text-muted-foreground truncate text-xs'>
-                            {plan.subtitle}
+                            {planSubtitle}
                           </p>
                         )}
                       </div>

@@ -35,6 +35,12 @@ import { toast } from 'sonner'
 import { IconGithub } from '@/assets/brand-icons'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -45,6 +51,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Markdown } from '@/components/ui/markdown'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getPricing } from '@/features/pricing/api'
@@ -55,15 +62,14 @@ import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
 import { api } from '@/lib/api'
 import { formatSubscriptionPlanPrice, getCurrencyDisplay } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
+import {
+  getLocalizedField,
+  type ContentTranslations,
+} from '@/lib/localized-content'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
-import {
-  imageModelPricingConfig,
-  imagePricingHeaderConfig,
-  modelPricingConfig,
-  pricingHeaderConfig,
-} from './model-pricing-config'
+import { modelPricingConfig, pricingHeaderConfig } from './model-pricing-config'
 
 interface ModelPricingRow {
   name: string
@@ -74,12 +80,6 @@ interface ModelPricingRow {
   discount: string
 }
 
-interface ImageModelPricingRow {
-  name: string
-  types: string
-  price: string
-}
-
 interface HomePricingResponse {
   data?: PricingModel[]
   group_ratio?: Record<string, number>
@@ -88,9 +88,18 @@ interface HomePricingResponse {
 
 interface HomeStatusResponse {
   data?: {
+    faq?: HomeFAQItem[]
+    faq_enabled?: boolean
     server_address?: string
     serverAddress?: string
   }
+}
+
+interface HomeFAQItem {
+  id?: number
+  question: string
+  answer: string
+  translations?: ContentTranslations
 }
 
 const TRUST_SIGNALS = [
@@ -234,50 +243,6 @@ function formatOfficialPrice(value: number | null): string {
   return formatTruncatedCurrency(value, '$', 'USD')
 }
 
-function getImagePriceRangeUSD(
-  model: PricingModel,
-  groupRatios: Record<string, number>,
-  usableGroups: Record<string, { desc: string; ratio: number }>,
-  multiplier: number
-): { min: number; max: number } | null {
-  const groups = getModelUsableGroupRatios(model, groupRatios, usableGroups)
-  const ranges = groups
-    .map((ratio) => {
-      if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
-        return (model.model_price || 0) * ratio * multiplier
-      }
-
-      const imageRatio = hasNumber(model.image_ratio)
-        ? Number(model.image_ratio)
-        : 1
-      return model.model_ratio * 2 * ratio * imageRatio * multiplier
-    })
-    .filter((value) => Number.isFinite(value) && value > 0)
-
-  if (ranges.length === 0) return null
-
-  return {
-    min: Math.min(...ranges),
-    max: Math.max(...ranges),
-  }
-}
-
-function formatPriceRange(range: { min: number; max: number } | null): string {
-  if (!range) return '-'
-  if (Math.abs(range.min - range.max) < 0.000001) {
-    return formatPrice(range.min)
-  }
-  return `${formatPrice(range.min)}~${formatPrice(range.max)}`
-}
-
-function formatPerRequestPriceRange(
-  range: { min: number; max: number } | null,
-  requestLabel: string
-): string {
-  const price = formatPriceRange(range)
-  return price === '-' ? price : `${price}/${requestLabel}`
-}
-
 function getDiscountPercent(actual: number, official: number): number | null {
   if (!hasNumber(actual) || !hasNumber(official) || official <= 0) return null
   return (1 - actual / official) * 100
@@ -289,17 +254,6 @@ function formatDiscountPercent(value: number | null): string {
   if (rounded > 0) return `-${rounded}%`
   if (rounded < 0) return `+${Math.abs(rounded)}%`
   return '0%'
-}
-
-function findPricingModel(
-  modelMap: Map<string, PricingModel>,
-  names: string[]
-): PricingModel | null {
-  for (const name of names) {
-    const model = modelMap.get(name)
-    if (model) return model
-  }
-  return null
 }
 
 export function Home() {
@@ -322,6 +276,15 @@ export function Home() {
     statusData?.data?.server_address ||
     statusData?.data?.serverAddress ||
     (typeof window !== 'undefined' ? window.location.origin : '')
+  const faqItems = useMemo(() => {
+    const items =
+      statusData?.data?.faq_enabled === false ? [] : statusData?.data?.faq || []
+    return items.map((item) => ({
+      ...item,
+      question: getLocalizedField(item, 'question', i18n.resolvedLanguage, t),
+      answer: getLocalizedField(item, 'answer', i18n.resolvedLanguage, t),
+    }))
+  }, [i18n.resolvedLanguage, statusData, t])
   const { data: pricingData } = useQuery<HomePricingResponse>({
     queryKey: ['home-pricing'],
     queryFn: getPricing,
@@ -336,11 +299,29 @@ export function Home() {
   const subscriptionPlans = useMemo(() => {
     return (subscriptionPlansData?.data || [])
       .filter((item) => item.plan?.enabled)
+      .map((item) => ({
+        ...item,
+        plan: {
+          ...item.plan,
+          title: getLocalizedField(
+            item.plan,
+            'title',
+            i18n.resolvedLanguage,
+            t
+          ),
+          subtitle: getLocalizedField(
+            item.plan,
+            'subtitle',
+            i18n.resolvedLanguage,
+            t
+          ),
+        },
+      }))
       .sort(
         (a, b) =>
           Number(b.plan?.sort_order || 0) - Number(a.plan?.sort_order || 0)
       )
-  }, [subscriptionPlansData])
+  }, [i18n.resolvedLanguage, subscriptionPlansData, t])
 
   const subscriptionPlanGroups = useMemo(
     () =>
@@ -429,29 +410,6 @@ export function Home() {
       .filter((item): item is ModelPricingRow => item !== null)
   }, [pricingData])
 
-  const imageModelPricingRows = useMemo<ImageModelPricingRow[]>(() => {
-    const pricingModels = pricingData?.data || []
-    const groupRatios = pricingData?.group_ratio || {}
-    const usableGroups = pricingData?.usable_group || {}
-    const modelMap = new Map(
-      pricingModels.map((model) => [model.model_name, model])
-    )
-
-    return imageModelPricingConfig.map((configItem) => {
-      const typeLabels = configItem.types.map((typeItem) => typeItem.type)
-      const model = findPricingModel(modelMap, [configItem.name])
-      const priceRange = model
-        ? getImagePriceRangeUSD(model, groupRatios, usableGroups, 1)
-        : null
-
-      return {
-        name: configItem.name,
-        types: typeLabels.join(', '),
-        price: formatPerRequestPriceRange(priceRange, t('request')),
-      }
-    })
-  }, [pricingData, t])
-
   const displayHomePageContent = async () => {
     const cached = localStorage.getItem('home_page_content') || ''
     setHomePageContent(cached)
@@ -500,6 +458,7 @@ export function Home() {
               src={homePageContent}
               className='h-screen w-full border-none'
               title={t('Custom Home Page')}
+              sandbox='allow-forms allow-popups allow-scripts'
             />
           ) : (
             <div
@@ -707,69 +666,6 @@ export function Home() {
                   </CardContent>
                 </Card>
 
-                <Card className='bg-card/70 mt-6 w-full max-w-5xl rounded-3xl text-left backdrop-blur-md'>
-                  <CardHeader className='items-center text-center'>
-                    <CardTitle
-                      role='heading'
-                      aria-level={2}
-                      className='text-xl font-semibold md:text-2xl'
-                    >
-                      {t('Image Models')}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className='px-0'>
-                    <div className='text-muted-foreground hidden grid-cols-3 px-5 py-3 text-xs font-semibold tracking-wider uppercase sm:grid'>
-                      <span className='text-left'>
-                        {t(imagePricingHeaderConfig.model)}
-                      </span>
-                      <span className='text-center'>
-                        {t(imagePricingHeaderConfig.type)}
-                      </span>
-                      <span className='text-center'>
-                        {t(imagePricingHeaderConfig.price)}
-                      </span>
-                    </div>
-
-                    <Separator className='mx-5 w-auto' />
-
-                    {imageModelPricingRows.length === 0 ? (
-                      <div className='text-muted-foreground px-5 py-6 text-sm'>
-                        {t('No pricing data available')}
-                      </div>
-                    ) : (
-                      imageModelPricingRows.map((item) => (
-                        <div
-                          key={item.name}
-                          className='hover:bg-muted/45 grid grid-cols-2 items-center gap-3 px-5 py-4 text-sm transition-colors sm:grid-cols-3 sm:gap-0 sm:py-3.5'
-                        >
-                          <span
-                            className='text-foreground col-span-2 truncate text-left font-medium sm:col-span-1 sm:pr-2'
-                            title={item.name}
-                          >
-                            {item.name}
-                          </span>
-                          <span className='flex flex-col gap-1 text-left sm:block sm:text-center'>
-                            <span className='text-muted-foreground text-xs sm:hidden'>
-                              {t(imagePricingHeaderConfig.type)}
-                            </span>
-                            <span className='text-muted-foreground font-mono'>
-                              {item.types}
-                            </span>
-                          </span>
-                          <span className='flex flex-col gap-1 text-left sm:block sm:text-center'>
-                            <span className='text-muted-foreground text-xs sm:hidden'>
-                              {t(imagePricingHeaderConfig.price)}
-                            </span>
-                            <span className='text-foreground font-mono font-semibold'>
-                              {item.price}
-                            </span>
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-
                 {subscriptionPlans.length > 0 && (
                   <div className='mt-6 w-full max-w-5xl'>
                     <h2 className='mb-6 text-center text-xl font-semibold md:text-2xl'>
@@ -876,6 +772,52 @@ export function Home() {
                       ))}
                     </Tabs>
                   </div>
+                )}
+
+                {faqItems.length > 0 && (
+                  <section
+                    aria-labelledby='home-faq-title'
+                    className='mt-16 w-full max-w-4xl text-left md:mt-20'
+                  >
+                    <div className='mb-8 text-center'>
+                      <h2
+                        id='home-faq-title'
+                        className='text-2xl font-semibold md:text-3xl'
+                      >
+                        {t('FAQ')}
+                      </h2>
+                      <p className='text-muted-foreground mt-2 text-base'>
+                        {t('Answers for common access and billing questions')}
+                      </p>
+                    </div>
+
+                    <Card className='bg-card/70 rounded-3xl px-5 backdrop-blur-md sm:px-7'>
+                      <Accordion className='w-full'>
+                        {faqItems.map((item, index) => {
+                          const itemKey = item.id ?? `faq-${index}`
+
+                          return (
+                            <AccordionItem
+                              key={itemKey}
+                              value={`faq-${itemKey}`}
+                              className='border-border/60'
+                            >
+                              <AccordionTrigger className='py-5 text-base font-semibold hover:no-underline'>
+                                <Markdown className='pr-4 text-base leading-relaxed font-semibold'>
+                                  {item.question}
+                                </Markdown>
+                              </AccordionTrigger>
+                              <AccordionContent className='pb-5'>
+                                <Markdown className='text-muted-foreground text-base leading-relaxed'>
+                                  {item.answer}
+                                </Markdown>
+                              </AccordionContent>
+                            </AccordionItem>
+                          )
+                        })}
+                      </Accordion>
+                    </Card>
+                  </section>
                 )}
               </div>
             </div>

@@ -28,17 +28,6 @@ export interface ModelPricingConfig {
   officialOutputPrice?: number
 }
 
-export interface ImageModelPricingTypeConfig {
-  type: string
-  multiplier: number
-  aliases?: string[]
-}
-
-export interface ImageModelPricingConfig {
-  name: string
-  types: ImageModelPricingTypeConfig[]
-}
-
 /**
  * 货币单位配置
  * currency: 'USD' | 'CNY' - 美元或人民币
@@ -61,12 +50,6 @@ export const pricingHeaderConfig = {
   output: 'Minimum Output (1M)',
   official: 'Official Input / Output (1M)',
   discount: 'Discount',
-}
-
-export const imagePricingHeaderConfig = {
-  model: 'Model Name',
-  type: 'Image Type',
-  price: 'Price',
 }
 
 export const featuredModelNames = [
@@ -143,28 +126,5 @@ export const modelPricingConfig: ModelPricingConfig[] = [
   {
     name: 'gpt-5.3-codex',
     cacheHit: '>93%',
-  },
-]
-
-export const imageModelPricingConfig: ImageModelPricingConfig[] = [
-  {
-    name: 'gpt-image-2',
-    types: [
-      {
-        type: '1K',
-        multiplier: 1,
-        aliases: ['gpt-image-2-1k', 'gpt-image-2-1K'],
-      },
-      {
-        type: '2K',
-        multiplier: 4,
-        aliases: ['gpt-image-2-2k', 'gpt-image-2-2K'],
-      },
-      {
-        type: '4K',
-        multiplier: 16,
-        aliases: ['gpt-image-2-4k', 'gpt-image-2-4K'],
-      },
-    ],
   },
 ]

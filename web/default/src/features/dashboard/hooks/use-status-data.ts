@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useStatus } from '@/hooks/use-status'
+import { getLocalizedField } from '@/lib/localized-content'
 
 import type { AnnouncementItem, ApiInfoItem, FAQItem } from '../types'
 
@@ -55,7 +59,19 @@ export function useAnnouncements() {
  * Get FAQ list
  */
 export function useFAQ() {
-  return useStatusData<FAQItem>('faq_enabled', 'faq')
+  const { i18n, t } = useTranslation()
+  const result = useStatusData<FAQItem>('faq_enabled', 'faq')
+  const items = useMemo(
+    () =>
+      result.items.map((item) => ({
+        ...item,
+        question: getLocalizedField(item, 'question', i18n.resolvedLanguage, t),
+        answer: getLocalizedField(item, 'answer', i18n.resolvedLanguage, t),
+      })),
+    [i18n.resolvedLanguage, result.items, t]
+  )
+
+  return { ...result, items }
 }
 
 /**

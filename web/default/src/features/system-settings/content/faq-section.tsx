@@ -24,6 +24,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
+import {
+  ContentLanguageSelect,
+  type EditableContentLocale,
+} from '@/components/content-language-select'
 import { StaticDataTable } from '@/components/data-table/static/static-data-table'
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
 import { Dialog } from '@/components/dialog'
@@ -50,6 +54,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import type { ContentTranslations } from '@/lib/localized-content'
 
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
@@ -59,6 +64,7 @@ type FAQ = {
   id: number
   question: string
   answer: string
+  translations?: ContentTranslations
 }
 
 type FAQSectionProps = {
@@ -92,6 +98,9 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [editingFaq, setEditingFaq] = useState<FAQ | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<'single' | 'batch'>('single')
+  const [editingLocale, setEditingLocale] =
+    useState<EditableContentLocale>('default')
+  const [translations, setTranslations] = useState<ContentTranslations>({})
 
   const form = useForm<FAQFormValues>({
     resolver: zodResolver(faqSchema),
@@ -140,6 +149,8 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
       question: '',
       answer: '',
     })
+    setEditingLocale('default')
+    setTranslations({})
     setShowDialog(true)
   }
 
@@ -149,6 +160,8 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
       question: faq.question,
       answer: faq.answer,
     })
+    setEditingLocale('default')
+    setTranslations(faq.translations || {})
     setShowDialog(true)
   }
 
@@ -189,16 +202,32 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
   }
 
   const handleSubmitForm = (values: FAQFormValues) => {
+    const normalizedTranslations = Object.fromEntries(
+      Object.entries(translations)
+        .map(([locale, translation]) => [
+          locale,
+          {
+            question: translation?.question?.trim() || undefined,
+            answer: translation?.answer?.trim() || undefined,
+          },
+        ])
+        .filter(([, translation]) =>
+          Object.values(translation as Record<string, string | undefined>).some(
+            Boolean
+          )
+        )
+    )
+    const nextValues = { ...values, translations: normalizedTranslations }
     if (editingFaq) {
       setFaqList((prev) =>
         prev.map((item) =>
-          item.id === editingFaq.id ? { ...item, ...values } : item
+          item.id === editingFaq.id ? { ...item, ...nextValues } : item
         )
       )
       toast.success(t('FAQ updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...faqList.map((item) => item.id), 0) + 1
-      setFaqList((prev) => [...prev, { id: newId, ...values }])
+      setFaqList((prev) => [...prev, { id: newId, ...nextValues }])
       toast.success(t('FAQ added. Click "Save Settings" to apply.'))
     }
     setHasChanges(true)
@@ -348,47 +377,98 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
             onSubmit={form.handleSubmit(handleSubmitForm)}
             className='space-y-4'
           >
-            <FormField
-              control={form.control}
-              name='question'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Question')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('How to reset my quota?')}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t('Maximum 200 characters')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+            <ContentLanguageSelect
+              value={editingLocale}
+              onValueChange={setEditingLocale}
             />
-            <FormField
-              control={form.control}
-              name='answer'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Answer')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder={t(
-                        'Visit Settings → General and adjust quota options...'
+            {editingLocale === 'default' ? (
+              <FormField
+                control={form.control}
+                name='question'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Question')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('How to reset my quota?')}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Maximum 200 characters')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <FormItem>
+                <FormLabel>{t('Question')}</FormLabel>
+                <FormControl>
+                  <Input
+                    value={translations[editingLocale]?.question || ''}
+                    onChange={(event) =>
+                      setTranslations((current) => ({
+                        ...current,
+                        [editingLocale]: {
+                          ...current[editingLocale],
+                          question: event.target.value,
+                        },
+                      }))
+                    }
+                    placeholder={t('Question')}
+                    maxLength={200}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+            {editingLocale === 'default' ? (
+              <FormField
+                control={form.control}
+                name='answer'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Answer')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder={t(
+                          'Visit Settings → General and adjust quota options...'
+                        )}
+                        rows={8}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Maximum 1000 characters. Supports Markdown and HTML.'
                       )}
-                      rows={8}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t('Maximum 1000 characters. Supports Markdown and HTML.')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <FormItem>
+                <FormLabel>{t('Answer')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    value={translations[editingLocale]?.answer || ''}
+                    onChange={(event) =>
+                      setTranslations((current) => ({
+                        ...current,
+                        [editingLocale]: {
+                          ...current[editingLocale],
+                          answer: event.target.value,
+                        },
+                      }))
+                    }
+                    placeholder={t('Answer')}
+                    rows={8}
+                    maxLength={1000}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
           </form>
         </Form>
       </Dialog>

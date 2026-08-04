@@ -37,6 +37,7 @@ import { Separator } from '@/components/ui/separator'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { formatSubscriptionPlanPrice } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
+import { getLocalizedField } from '@/lib/localized-content'
 import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
 
 import {
@@ -70,7 +71,7 @@ interface Props {
 }
 
 export function SubscriptionPurchaseDialog(props: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
@@ -85,6 +86,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   const plan = props.plan?.plan
   if (!plan) return null
+  const planTitle = getLocalizedField(plan, 'title', i18n.resolvedLanguage, t)
 
   const hasStripe = props.enableStripe && !!plan.stripe_price_id
   const hasCreem = props.enableCreem && !!plan.creem_product_id
@@ -277,7 +279,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
               {t('Plan Name')}
             </span>
             <span className='max-w-[200px] truncate text-sm font-medium'>
-              {plan.title}
+              {planTitle}
             </span>
           </div>
           <div className='flex items-center justify-between'>
@@ -407,12 +409,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
             {hasEpay && (
               <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
                 <Select
-                  items={[
-                    ...(props.epayMethods || []).map((m) => ({
-                      value: m.type,
-                      label: m.name || m.type,
-                    })),
-                  ]}
+                  items={(props.epayMethods || []).map((m) => ({
+                    value: m.type,
+                    label: m.name || m.type,
+                  }))}
                   value={selectedEpayMethod}
                   onValueChange={(v) => v !== null && setSelectedEpayMethod(v)}
                   disabled={limitReached}
