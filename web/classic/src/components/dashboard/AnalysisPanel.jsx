@@ -4,17 +4,13 @@ import { Download, BarChart3, TrendingUp } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 import { getQuotaPerUnit } from '../../helpers/quota';
 import { getAnalysisTableDimensions } from '../../hooks/dashboard/analysisCsv';
+import {
+  buildAnalysisModelChartSpec,
+  buildAnalysisTrendChartSpec,
+} from './analysisChartSpec';
 
 const formatMoney = (quota) =>
   `$${(Number(quota || 0) / (getQuotaPerUnit() || 500000)).toFixed(2)}`;
-
-const formatPeriod = (period) => {
-  if (!period) return '-';
-  return new Date(Number(period) * 1000).toLocaleString('zh-CN', {
-    hour12: false,
-    timeZone: 'Asia/Shanghai',
-  });
-};
 
 const AnalysisPanel = ({
   analysis,
@@ -48,59 +44,15 @@ const AnalysisPanel = ({
     [rows],
   );
 
-  const modelChartSpec = useMemo(() => {
-    const byModel = new Map();
-    rows.forEach((row) => {
-      const key = row.model_name || t('未标记模型');
-      byModel.set(key, (byModel.get(key) || 0) + Number(row.quota || 0));
-    });
-    const values = [...byModel.entries()]
-      .map(([model, quota]) => ({
-        model,
-        amount: quota / (getQuotaPerUnit() || 500000),
-      }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 12);
-    return {
-      type: 'bar',
-      data: [{ id: 'analysisModelData', values }],
-      xField: 'amount',
-      yField: 'model',
-      direction: 'horizontal',
-      seriesField: 'model',
-      legends: { visible: false },
-      axes: {
-        x: { title: { visible: true, text: t('消费金额（USD）') } },
-        y: { label: { style: { fontSize: 11 } } },
-      },
-      tooltip: { visible: true },
-    };
-  }, [rows, t]);
+  const modelChartSpec = useMemo(
+    () => buildAnalysisModelChartSpec(rows, t, getQuotaPerUnit()),
+    [rows, t],
+  );
 
-  const trendChartSpec = useMemo(() => {
-    const byPeriod = new Map();
-    rows.forEach((row) => {
-      const key = Number(row.period || 0);
-      byPeriod.set(key, (byPeriod.get(key) || 0) + Number(row.quota || 0));
-    });
-    const values = [...byPeriod.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([period, quota]) => ({
-        period: formatPeriod(period),
-        amount: quota / (getQuotaPerUnit() || 500000),
-      }));
-    return {
-      type: 'line',
-      data: [{ id: 'analysisTrendData', values }],
-      xField: 'period',
-      yField: 'amount',
-      point: { visible: values.length < 32 },
-      smooth: true,
-      line: { style: { lineWidth: 3 } },
-      axes: { y: { title: { visible: true, text: t('USD') } } },
-      tooltip: { visible: true },
-    };
-  }, [rows, t]);
+  const trendChartSpec = useMemo(
+    () => buildAnalysisTrendChartSpec(rows, t, getQuotaPerUnit()),
+    [rows, t],
+  );
 
   return (
     <Card
