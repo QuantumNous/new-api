@@ -50,6 +50,8 @@ var claudeModelMap = map[string]string{
 
 const anthropicVersion = "vertex-2023-10-16"
 
+const geminiEmbedding001MaxDimensions = 3072
+
 type Adaptor struct {
 	RequestMode        int
 	AccountCredentials Credentials
@@ -170,6 +172,10 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	suffix := ""
 	if a.RequestMode == RequestModeGemini {
+		if info.RelayMode == constant.RelayModeEmbeddings {
+			return a.getRequestUrl(info, info.UpstreamModelName, "predict")
+		}
+
 		if model_setting.GetGeminiSettings().ThinkingAdapterEnabled &&
 			!model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
 			// 新增逻辑：处理 -thinking-<budget> 格式
@@ -323,8 +329,75 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	input, inputErr := parseSingleVertexEmbeddingInput(request.Input)
+	if inputErr != nil {
+		return nil, invalidVertexEmbeddingRequest(inputErr)
+	}
+	if request.EncodingFormat != "" && request.EncodingFormat != "float" {
+		return nil, invalidVertexEmbeddingRequest(
+			fmt.Errorf("Vertex embedding does not support encoding_format %q", request.EncodingFormat),
+		)
+	}
+	if request.Dimensions != nil && *request.Dimensions <= 0 {
+		return nil, invalidVertexEmbeddingRequest(errors.New("Vertex embedding dimensions must be greater than zero"))
+	}
+	if request.Dimensions != nil && info.UpstreamModelName == "gemini-embedding-001" && *request.Dimensions > geminiEmbedding001MaxDimensions {
+		return nil, invalidVertexEmbeddingRequest(
+			fmt.Errorf(
+				"Vertex model %s supports at most %d embedding dimensions",
+				info.UpstreamModelName,
+				geminiEmbedding001MaxDimensions,
+			),
+		)
+	}
+
+	vertexRequest := &VertexEmbeddingRequest{
+		Instances: []VertexEmbeddingInstance{{Content: input}},
+	}
+	if request.Dimensions != nil {
+		vertexRequest.Parameters = &VertexEmbeddingParameters{
+			OutputDimensionality: request.Dimensions,
+		}
+	}
+	return vertexRequest, nil
+}
+
+func parseSingleVertexEmbeddingInput(input any) (string, error) {
+	var value any
+	switch typedInput := input.(type) {
+	case string:
+		value = typedInput
+	case []any:
+		if len(typedInput) != 1 {
+			return "", fmt.Errorf("Vertex embedding requires exactly one input, got %d", len(typedInput))
+		}
+		value = typedInput[0]
+	case []string:
+		if len(typedInput) != 1 {
+			return "", fmt.Errorf("Vertex embedding requires exactly one input, got %d", len(typedInput))
+		}
+		value = typedInput[0]
+	default:
+		return "", fmt.Errorf("Vertex embedding input must be a string or a single-element string array, got %T", input)
+	}
+
+	text, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("Vertex embedding input array must contain a string, got %T", value)
+	}
+	if strings.TrimSpace(text) == "" {
+		return "", errors.New("Vertex embedding input must not be empty")
+	}
+	return text, nil
+}
+
+func invalidVertexEmbeddingRequest(err error) *types.NewAPIError {
+	return types.NewErrorWithStatusCode(
+		err,
+		types.ErrorCodeInvalidRequest,
+		http.StatusBadRequest,
+		types.ErrOptionWithSkipRetry(),
+	)
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
@@ -337,6 +410,10 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info.RelayMode == constant.RelayModeEmbeddings {
+		return VertexEmbeddingHandler(c, info, resp)
+	}
+
 	claudeAdaptor := claude.Adaptor{}
 	if info.IsStream {
 		switch a.RequestMode {
