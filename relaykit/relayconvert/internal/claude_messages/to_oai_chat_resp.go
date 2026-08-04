@@ -13,12 +13,13 @@ import (
 )
 
 type ClaudeResponseInfo struct {
-	ResponseId   string
-	Created      int64
-	Model        string
-	ResponseText strings.Builder
-	Usage        *dto.Usage
-	Done         bool
+	ResponseId          string
+	Created             int64
+	Model               string
+	ResponseText        strings.Builder
+	Usage               *dto.Usage
+	Done                bool
+	MessageStopReceived bool
 }
 
 func StopReasonClaudeToOpenAI(reason string) string {
@@ -331,6 +332,10 @@ func setMessageDeltaUsageInt(data string, path string, localValue int) string {
 
 func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
 	if claudeInfo == nil {
+		return false
+	}
+	if claudeResponse.Type == "message_stop" {
+		claudeInfo.MessageStopReceived = true
 		return false
 	}
 	if claudeInfo.Usage == nil {

@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -9,19 +11,30 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code ...types.ErrorCode) {
-	codeStr := ""
+func abortWithRelayMessage(c *gin.Context, statusCode int, message string, code ...types.ErrorCode) {
+	errorCode := types.ErrorCode("")
 	if len(code) > 0 {
-		codeStr = string(code[0])
+		errorCode = code[0]
 	}
 	userId := c.GetInt("id")
-	c.JSON(statusCode, gin.H{
-		"error": gin.H{
-			"message": common.MessageWithRequestId(message, c.GetString(common.RequestIdKey)),
-			"type":    "new_api_error",
-			"code":    codeStr,
-		},
-	})
+	requestID := c.GetString(common.RequestIdKey)
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/messages") {
+		newAPIError := types.NewClaudeError(
+			errors.New(message),
+			errorCode,
+			statusCode,
+			types.ErrOptionWithClaudeRequestID(requestID),
+		)
+		c.JSON(statusCode, newAPIError.ToClaudeErrorResponse())
+	} else {
+		c.JSON(statusCode, gin.H{
+			"error": gin.H{
+				"message": common.MessageWithRequestId(message, requestID),
+				"type":    "new_api_error",
+				"code":    string(errorCode),
+			},
+		})
+	}
 	c.Abort()
 	logger.LogError(c.Request.Context(), fmt.Sprintf("user %d | %s", userId, message))
 }

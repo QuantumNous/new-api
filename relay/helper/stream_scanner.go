@@ -197,6 +197,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	}
 
 	dataChan := make(chan string, 10)
+	dataHandlerDone := make(chan struct{})
 
 	wg.Add(1)
 	gopool.Go(func() {
@@ -206,6 +207,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPanic, fmt.Errorf("handler panic: %v", r))
 			}
 			stop()
+			close(dataHandlerDone)
 			wg.Done()
 		}()
 		sr := newStreamResult(info.StreamStatus)
@@ -226,8 +228,11 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	// Scanner goroutine with improved error handling
 	wg.Add(1)
 	common.RelayCtxGo(ctx, func() {
+		dataChanClosed := false
 		defer func() {
-			close(dataChan)
+			if !dataChanClosed {
+				close(dataChan)
+			}
 			if r := recover(); r != nil {
 				logger.LogError(c, fmt.Sprintf("scanner goroutine panic: %v", r))
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPanic, fmt.Errorf("scanner panic: %v", r))
@@ -285,6 +290,19 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				logger.LogError(c, "scanner error: "+err.Error())
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
 			}
+		}
+		if info.StreamTerminalRequired {
+			// Native protocols such as Anthropic terminate with a semantic event
+			// rather than by closing the connection. Drain queued events before
+			// deciding whether EOF truncated the stream.
+			close(dataChan)
+			dataChanClosed = true
+			<-dataHandlerDone
+			info.StreamStatus.SetEndReason(
+				relaycommon.StreamEndReasonIncomplete,
+				fmt.Errorf("stream ended before its terminal event"),
+			)
+			return
 		}
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
 	})

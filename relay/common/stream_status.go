@@ -17,6 +17,7 @@ const (
 	StreamEndReasonScannerErr  StreamEndReason = "scanner_error"
 	StreamEndReasonHandlerStop StreamEndReason = "handler_stop"
 	StreamEndReasonEOF         StreamEndReason = "eof"
+	StreamEndReasonIncomplete  StreamEndReason = "incomplete"
 	StreamEndReasonPanic       StreamEndReason = "panic"
 	StreamEndReasonPingFail    StreamEndReason = "ping_fail"
 )
@@ -92,6 +93,10 @@ func (s *StreamStatus) IsNormalEnd() bool {
 	return s.EndReason == StreamEndReasonDone ||
 		s.EndReason == StreamEndReasonEOF ||
 		s.EndReason == StreamEndReasonHandlerStop
+}
+
+func (s *StreamStatus) IsSuccessful() bool {
+	return s.IsNormalEnd() && !s.HasErrors()
 }
 
 func (s *StreamStatus) Summary() string {

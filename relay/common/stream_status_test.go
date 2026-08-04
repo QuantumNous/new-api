@@ -48,6 +48,7 @@ func TestStreamStatus_SetEndReason_Concurrent(t *testing.T) {
 		StreamEndReasonScannerErr,
 		StreamEndReasonHandlerStop,
 		StreamEndReasonEOF,
+		StreamEndReasonIncomplete,
 		StreamEndReasonPanic,
 		StreamEndReasonPingFail,
 	}
@@ -140,6 +141,7 @@ func TestStreamStatus_IsNormalEnd(t *testing.T) {
 		{StreamEndReasonTimeout, false},
 		{StreamEndReasonClientGone, false},
 		{StreamEndReasonScannerErr, false},
+		{StreamEndReasonIncomplete, false},
 		{StreamEndReasonPanic, false},
 		{StreamEndReasonPingFail, false},
 		{StreamEndReasonNone, false},
@@ -155,6 +157,26 @@ func TestStreamStatus_IsNormalEnd_NilSafe(t *testing.T) {
 	t.Parallel()
 	var s *StreamStatus
 	assert.True(t, s.IsNormalEnd())
+}
+
+func TestStreamStatus_IsSuccessful(t *testing.T) {
+	t.Parallel()
+
+	done := NewStreamStatus()
+	done.SetEndReason(StreamEndReasonDone, nil)
+	assert.True(t, done.IsSuccessful())
+
+	doneWithErrors := NewStreamStatus()
+	doneWithErrors.SetEndReason(StreamEndReasonDone, nil)
+	doneWithErrors.RecordError("malformed chunk")
+	assert.False(t, doneWithErrors.IsSuccessful())
+
+	incomplete := NewStreamStatus()
+	incomplete.SetEndReason(StreamEndReasonIncomplete, fmt.Errorf("missing terminal event"))
+	assert.False(t, incomplete.IsSuccessful())
+
+	var absent *StreamStatus
+	assert.True(t, absent.IsSuccessful())
 }
 
 func TestStreamStatus_Summary(t *testing.T) {

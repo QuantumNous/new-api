@@ -150,6 +150,44 @@ func TestRelayErrorHandlerKeepsInvalidJSONBodyInDebugLog(t *testing.T) {
 	require.Contains(t, logBuffer.String(), body)
 }
 
+func TestRelayClaudeErrorHandlerPreservesNativeEnvelope(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusServiceUnavailable,
+		Header:     http.Header{"Request-Id": []string{"req_header_fallback"}},
+		Body: io.NopCloser(strings.NewReader(
+			`{"type":"error","error":{"type":"overloaded_error","message":"upstream overloaded"}}`,
+		)),
+	}
+
+	newAPIError := RelayClaudeErrorHandler(context.Background(), resp, false)
+
+	require.NotNil(t, newAPIError)
+	require.Equal(t, http.StatusServiceUnavailable, newAPIError.StatusCode)
+	require.Equal(t, types.ErrorTypeClaudeError, newAPIError.GetErrorType())
+	require.Equal(t, types.ErrorCode("overloaded_error"), newAPIError.GetErrorCode())
+	require.Equal(t, types.ClaudeErrorResponse{
+		Type:      "error",
+		Error:     types.ClaudeError{Type: "overloaded_error", Message: "upstream overloaded"},
+		RequestID: "req_header_fallback",
+	}, newAPIError.ToClaudeErrorResponse())
+}
+
+func TestRelayClaudeErrorHandlerMapsMalformed503WithoutLeakingBody(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusServiceUnavailable,
+		Body:       io.NopCloser(strings.NewReader(`{"secret":"do-not-return"}`)),
+	}
+
+	newAPIError := RelayClaudeErrorHandler(context.Background(), resp, false)
+
+	require.NotNil(t, newAPIError)
+	claudeError := newAPIError.ToClaudeError()
+	require.Equal(t, "overloaded_error", claudeError.Type)
+	require.NotContains(t, claudeError.Message, "do-not-return")
+}
+
 func withDebugEnabled(t *testing.T, enabled bool) {
 	t.Helper()
 

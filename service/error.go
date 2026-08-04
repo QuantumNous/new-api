@@ -137,6 +137,54 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	return
 }
 
+type claudeUpstreamErrorResponse struct {
+	Type      string            `json:"type"`
+	Error     types.ClaudeError `json:"error"`
+	RequestID string            `json:"request_id"`
+}
+
+// RelayClaudeErrorHandler preserves the native Anthropic error envelope.
+// Claude relays must not round-trip errors through OpenAIError because
+// Anthropic's error.type has no required OpenAI code equivalent.
+func RelayClaudeErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) *types.NewAPIError {
+	statusCode := resp.StatusCode
+	responseBody, err := io.ReadAll(resp.Body)
+	CloseResponseBodyGracefully(resp)
+	if err != nil {
+		return types.NewClaudeError(err, types.ErrorCodeReadResponseBodyFailed, statusCode)
+	}
+
+	var errorResponse claudeUpstreamErrorResponse
+	if err := common.Unmarshal(responseBody, &errorResponse); err == nil &&
+		errorResponse.Type == "error" &&
+		errorResponse.Error.Type != "" {
+		requestID := errorResponse.RequestID
+		if requestID == "" {
+			requestID = resp.Header.Get("request-id")
+		}
+		return types.WithClaudeError(
+			errorResponse.Error,
+			statusCode,
+			types.ErrOptionWithClaudeRequestID(requestID),
+		)
+	}
+
+	responseBodyText := string(responseBody)
+	responseBodyPreview := common.LocalLogPreview(responseBodyText)
+	message := fmt.Sprintf("bad response status code %d", statusCode)
+	if showBodyWhenFail {
+		message = fmt.Sprintf("%s, body: %s", message, responseBodyText)
+	} else {
+		logger.LogError(ctx, fmt.Sprintf("Claude upstream returned an invalid error envelope, status %d, body: %s", statusCode, responseBodyPreview))
+	}
+	return types.NewClaudeError(
+		errors.New(message),
+		types.ErrorCodeBadResponseStatusCode,
+		statusCode,
+		types.ErrOptionWithClaudeRequestID(resp.Header.Get("request-id")),
+	)
+}
+
 func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) {
 	if newApiErr == nil {
 		return
