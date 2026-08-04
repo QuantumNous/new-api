@@ -29,6 +29,11 @@ const darkScenarios: Scenario[] = [
   { name: 'login', path: '/auth/sign-in', authenticated: false },
   { name: 'dashboard', path: '/console/dashboard' },
   {
+    name: 'dashboard-stats',
+    path: '/console/dashboard',
+    selectTabByName: '统计数据',
+  },
+  {
     name: 'dashboard-auto-route',
     path: '/console/dashboard',
     selectTabByName: '自动路由',
@@ -67,6 +72,11 @@ const lightScenarios: Scenario[] = [
   { name: 'home', path: '/' },
   { name: 'login', path: '/auth/sign-in', authenticated: false },
   { name: 'dashboard', path: '/console/dashboard' },
+  {
+    name: 'dashboard-stats',
+    path: '/console/dashboard',
+    selectTabByName: '统计数据',
+  },
   {
     name: 'dashboard-auto-route',
     path: '/console/dashboard',
@@ -186,6 +196,13 @@ test('light mobile dashboard-auto-route', async ({ page }) => {
   )!
   await captureScenario('light', 'mobile', scenario, page)
 })
+
+for (const name of ['dashboard', 'dashboard-stats'] as const) {
+  test(`light mobile ${name}`, async ({ page }) => {
+    const scenario = lightScenarios.find((item) => item.name === name)!
+    await captureScenario('light', 'mobile', scenario, page)
+  })
+}
 
 test('dark wide logs keeps a balanced content width', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 900 })

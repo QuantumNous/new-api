@@ -97,12 +97,12 @@ useEChart(
     <!-- h-36 is the floor; `grow` fills the row set by the model table beside it -->
     <div
       v-if="loading"
-      class="h-36 grow animate-pulse rounded-xl bg-[var(--surface-muted)]"
+      class="h-52 grow animate-pulse rounded-xl bg-[var(--surface-muted)] sm:h-44 xl:h-36"
     />
     <div
       v-else
       ref="el"
-      class="h-36 w-full grow"
+      class="h-52 w-full grow sm:h-44 xl:h-36"
       role="img"
       :aria-label="t('dashboard.stats.hourlyDist')"
     />

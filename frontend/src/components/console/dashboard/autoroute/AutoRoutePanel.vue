@@ -15,12 +15,12 @@ onMounted(() => void load())
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-3 sm:space-y-4" data-auto-route-panel>
     <!-- header card: explains the per-vendor optimum and hosts refresh -->
     <div
-      class="relative overflow-hidden rounded-2xl border border-[var(--accent-soft)] bg-[var(--accent-soft)] px-4 py-3"
+      class="relative overflow-hidden rounded-xl border border-[var(--accent-soft)] bg-[var(--accent-soft)] px-4 py-3 sm:rounded-2xl"
     >
-      <div class="relative flex items-center gap-3">
+      <div class="relative flex items-start gap-3 sm:items-center">
         <div class="min-w-0 flex-1">
           <p class="text-sm text-[var(--text-secondary)]">
             {{ t('dashboard.autoRoute.subtitle') }}

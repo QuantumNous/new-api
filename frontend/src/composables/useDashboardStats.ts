@@ -31,8 +31,14 @@ export interface HourlyPoint {
   requests: number
 }
 
+export interface StatsComparison {
+  quotaDelta: number | null
+  requestsDelta: number | null
+}
+
 export interface StatsPeriod {
   kpi: StatsKpi
+  comparison: StatsComparison
   models: StatsModelRow[]
   hourly: HourlyPoint[]
   flow: FlowPoint[]

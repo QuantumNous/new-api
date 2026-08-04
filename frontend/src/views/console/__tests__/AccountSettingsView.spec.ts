@@ -65,8 +65,15 @@ describe('AccountSettingsView', () => {
   it('renders the two account-center panels and all binding providers', async () => {
     const { wrapper } = await mountView()
 
-    expect(wrapper.text()).toContain('账户与安全')
-    expect(wrapper.text()).toContain('偏好与通知')
+    expect(wrapper.text()).toContain(
+      String(i18n.global.t('settings.accountSecurityPanel'))
+    )
+    expect(wrapper.text()).toContain(
+      String(i18n.global.t('settings.preferencesPanel'))
+    )
+    expect(wrapper.text()).not.toContain(
+      String(i18n.global.t('settings.demoBadge'))
+    )
     for (const provider of [
       '邮箱',
       'GitHub',

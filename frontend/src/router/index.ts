@@ -182,7 +182,7 @@ const router = createRouter({
         {
           path: 'profile',
           name: 'profile',
-          component: () => import('@/views/console/ProfileView.vue'),
+          component: () => import('@/views/console/AccountCenterView.vue'),
         },
         {
           path: 'farm',

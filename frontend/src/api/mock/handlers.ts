@@ -144,6 +144,7 @@ import {
   prizeRecords,
 } from './bigame'
 import { getMockDelay, mockRuntime } from './state'
+import { usageDistributionHistory } from './usageDistributionData'
 
 type Ctx = RequestOptions & { headers: Record<string, string> }
 
@@ -1066,6 +1067,9 @@ export async function dispatchMock<T>(
   }
   if (path === '/api/data/flow/self' && method === 'GET') {
     return ok(flowSeries) as ApiResponse<T>
+  }
+  if (path === '/api/data/distribution/self' && method === 'GET') {
+    return ok(usageDistributionHistory) as ApiResponse<T>
   }
   if (path === '/api/data/route' && method === 'GET') {
     const { routingChannels } = await import('./routing')

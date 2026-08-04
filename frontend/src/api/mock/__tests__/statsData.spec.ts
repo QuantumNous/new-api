@@ -5,7 +5,13 @@ import { flowSeries, mockUser } from '@/api/mock/data'
 import { dispatchMock } from '@/api/mock/handlers'
 import { resetMockState, setMockDelay } from '@/api/mock/state'
 import { buildStatsRange, statsData } from '@/api/mock/statsData'
+import {
+  usageDistributionHistory,
+  usageHistoryDurationDays,
+} from '@/api/mock/usageDistributionData'
+import type { FlowPoint } from '@/composables/useDashboard'
 import type { StatsPeriod } from '@/composables/useDashboardStats'
+import type { UsageDistributionPoint } from '@/composables/useUsageDistribution'
 
 /** 'YYYY-MM-DD' local-time key, N days from today. */
 function dateKey(offsetDays: number): string {
@@ -16,6 +22,15 @@ function dateKey(offsetDays: number): string {
 }
 
 const full = statsData['30d']!
+
+function toFlow(points: UsageDistributionPoint[]): FlowPoint[] {
+  return points.map((point) => ({
+    date: point.date.slice(5),
+    consume: point.consume,
+    requests: point.requests,
+    topup: 0,
+  }))
+}
 
 beforeEach(() => {
   resetMockState()
@@ -28,12 +43,12 @@ describe('buildStatsRange', () => {
     const period = buildStatsRange(dateKey(-6), dateKey(0))
 
     expect(period.flow).toHaveLength(7)
-    expect(period.flow).toEqual(flowSeries.slice(-7))
+    expect(period.flow).toEqual(toFlow(usageDistributionHistory.slice(-7)))
   })
 
   it('sums spend and requests from the window rather than the full period', () => {
     const period = buildStatsRange(dateKey(-6), dateKey(0))
-    const slice = flowSeries.slice(-7)
+    const slice = usageDistributionHistory.slice(-7)
 
     expect(period.kpi.totalQuota).toBe(slice.reduce((s, f) => s + f.consume, 0))
     expect(period.kpi.totalRequests).toBe(
@@ -63,20 +78,22 @@ describe('buildStatsRange', () => {
   it('clamps dates that fall outside the series instead of emptying the chart', () => {
     const period = buildStatsRange(dateKey(-900), dateKey(900))
 
-    expect(period.flow).toEqual(flowSeries)
-    expect(period.kpi.totalRequests).toBe(full.kpi.totalRequests)
+    expect(period.flow).toEqual(toFlow(usageDistributionHistory))
+    expect(period.flow).toHaveLength(365)
   })
 
   it('falls back to the full period on unparseable input', () => {
-    expect(buildStatsRange('', '').flow).toEqual(flowSeries)
-    expect(buildStatsRange('not-a-date', dateKey(0)).flow).toEqual(flowSeries)
+    expect(buildStatsRange('', '').flow).toEqual(full.flow)
+    expect(buildStatsRange('not-a-date', dateKey(0)).flow).toEqual(full.flow)
   })
 
   it('returns a single day when both ends are the same', () => {
     const period = buildStatsRange(dateKey(0), dateKey(0))
 
     expect(period.flow).toHaveLength(1)
-    expect(period.flow[0]).toEqual(flowSeries.at(-1))
+    expect(period.flow[0]).toEqual(
+      toFlow(usageDistributionHistory.slice(-1))[0]
+    )
   })
 })
 
@@ -92,6 +109,41 @@ describe('statsData presets', () => {
     expect(statsData['7d']!.kpi.totalRequests).toBe(
       buildStatsRange(dateKey(-6), dateKey(0)).kpi.totalRequests
     )
+  })
+
+  it('keeps the public 30-day flow values unchanged', () => {
+    expect(
+      usageDistributionHistory.slice(-30).map((point) => point.consume)
+    ).toEqual(flowSeries.map((point) => point.consume))
+    expect(
+      usageDistributionHistory.slice(-30).map((point) => point.requests)
+    ).toEqual(flowSeries.map((point) => point.requests))
+  })
+
+  it('compares each preset with the preceding equal-length period', () => {
+    const current = usageDistributionHistory.slice(-7)
+    const previous = usageDistributionHistory.slice(-14, -7)
+    const currentRequests = current.reduce(
+      (sum, point) => sum + point.requests,
+      0
+    )
+    const previousRequests = previous.reduce(
+      (sum, point) => sum + point.requests,
+      0
+    )
+    const expected =
+      Math.round(
+        ((currentRequests - previousRequests) / previousRequests) * 1000
+      ) / 10
+
+    expect(statsData['7d']!.comparison.requestsDelta).toBe(expected)
+  })
+
+  it('omits comparisons when no equal previous window exists', () => {
+    const first = usageDistributionHistory[0]!.date
+    const period = buildStatsRange(first, first)
+
+    expect(period.comparison).toEqual({ quotaDelta: null, requestsDelta: null })
   })
 })
 
@@ -110,7 +162,7 @@ describe('GET /api/data/stats', () => {
     )
 
     expect(res.success).toBe(true)
-    expect(res.data!.flow).toEqual(flowSeries.slice(-7))
+    expect(res.data!.flow).toEqual(toFlow(usageDistributionHistory.slice(-7)))
   })
 
   it('serves the preset periods by key', async () => {
@@ -130,6 +182,18 @@ describe('GET /api/data/stats', () => {
       ctx({ range: 'nonsense' })
     )
 
-    expect(res.data!.flow).toEqual(flowSeries)
+    expect(res.data!.flow).toEqual(full.flow)
+  })
+
+  it('serves one deterministic year to the distribution card', async () => {
+    const res = await dispatchMock<UsageDistributionPoint[]>(
+      'GET',
+      '/api/data/distribution/self',
+      ctx({})
+    )
+
+    expect(res.success).toBe(true)
+    expect(res.data).toEqual(usageDistributionHistory)
+    expect(usageHistoryDurationDays()).toBe(365)
   })
 })

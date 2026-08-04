@@ -19,7 +19,6 @@ import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import FilterSelect from '@/components/common/FilterSelect.vue'
 import SegmentedToggle from '@/components/common/SegmentedToggle.vue'
-import StatusChip from '@/components/common/StatusChip.vue'
 import { useBalanceVisibility } from '@/composables/useDashboard'
 import { useTheme, type ThemePreference } from '@/composables/useTheme'
 import { useToast } from '@/composables/useToast'
@@ -150,7 +149,7 @@ function changeTheme(value: string): void {
 <template>
   <ConsoleCard :padded="false" class="overflow-hidden">
     <header
-      class="flex items-center justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-5 sm:px-6"
+      class="flex items-center justify-between gap-5 border-b border-[var(--border-subtle)] px-6 py-6 sm:px-7"
     >
       <div class="flex min-w-0 items-center gap-3">
         <SlidersHorizontal
@@ -160,10 +159,10 @@ function changeTheme(value: string): void {
           aria-hidden="true"
         />
         <div class="min-w-0">
-          <h2 class="truncate text-lg font-semibold text-[var(--text-primary)]">
+          <h2 class="truncate text-xl font-semibold text-[var(--text-primary)]">
             {{ t('settings.preferencesPanel') }}
           </h2>
-          <p class="mt-0.5 text-xs text-[var(--text-tertiary)]">
+          <p class="mt-1 text-sm leading-5 text-[var(--text-tertiary)]">
             {{ t('settings.preferencesSubtitle') }}
           </p>
         </div>
@@ -179,9 +178,7 @@ function changeTheme(value: string): void {
         index="01"
         :icon="Bell"
         :title="t('settings.notificationSettings')"
-      >
-        <StatusChip tone="info">{{ t('settings.demoBadge') }}</StatusChip>
-      </SettingsSectionHeading>
+      />
       <div
         class="space-y-6 border-t border-[var(--border-subtle)] px-5 py-5 sm:px-6"
       >
@@ -383,10 +380,7 @@ function changeTheme(value: string): void {
           </div>
         </div>
 
-        <div class="flex items-center justify-between gap-4">
-          <span class="text-xs text-[var(--text-tertiary)]">{{
-            t('settings.prototypeSessionOnly')
-          }}</span>
+        <div class="flex justify-end">
           <ConsoleButton @click="saveNotification">{{
             t('settings.saveNotificationSettings')
           }}</ConsoleButton>
@@ -468,9 +462,7 @@ function changeTheme(value: string): void {
         index="03"
         :icon="RadioTower"
         :title="t('settings.behaviorPreferences')"
-      >
-        <StatusChip tone="info">{{ t('settings.demoBadge') }}</StatusChip>
-      </SettingsSectionHeading>
+      />
       <div
         class="divide-y divide-[var(--border-subtle)] border-t border-[var(--border-subtle)]"
       >

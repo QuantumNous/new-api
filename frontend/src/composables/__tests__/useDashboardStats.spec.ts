@@ -18,6 +18,7 @@ function statsPeriod(marker: number): StatsPeriod {
       avgLatency: 0,
       successRate: 0,
     },
+    comparison: { quotaDelta: null, requestsDelta: null },
     models: [],
     hourly: [],
     flow: [],

@@ -68,6 +68,7 @@ describe('VendorRouteGroup', () => {
   it('shows six monitoring buckets and the group availability', () => {
     const wrapper = render()
 
+    expect(wrapper.attributes('data-route-vendor')).toBe('')
     expect(wrapper.findAll('[data-route-health-cell]')).toHaveLength(6)
     expect(wrapper.text()).toContain('1h 100.00%')
     expect(wrapper.text()).toContain('Operational')
@@ -83,6 +84,9 @@ describe('VendorRouteGroup', () => {
 
     await wrapper.find('button[aria-expanded]').trigger('click')
     expect(wrapper.findAll('[title="Group best"]')).toHaveLength(1)
+    expect(wrapper.findAll('[data-route-channel]')).toHaveLength(
+      channels.length
+    )
   })
 
   it('keeps the monitor visible while channel details are expanded', async () => {

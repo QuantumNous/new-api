@@ -89,7 +89,10 @@ const segments = computed(() => {
 </script>
 
 <template>
-  <div class="flex items-center gap-3 py-3 first:pt-0">
+  <div
+    class="flex items-center gap-2 py-3 first:pt-0 sm:gap-3"
+    data-route-channel
+  >
     <span
       v-if="entry.rank === 1"
       class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-text)]"
@@ -114,25 +117,27 @@ const segments = computed(() => {
     </span>
 
     <div class="min-w-0 flex-1 space-y-2">
-      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <div class="flex min-w-0 items-center justify-between gap-2">
         <p
           class="min-w-0 truncate text-sm font-medium text-[var(--text-primary)]"
         >
           {{ entry.name }}
         </p>
-        <span
-          class="flex items-center gap-1 text-xs tabular-nums text-[var(--text-tertiary)]"
-          :title="t('dashboard.autoRoute.factorLatency')"
-        >
-          <Timer :size="12" aria-hidden="true" />
-          {{ latencyLabel(entry.latency) }}
-        </span>
-        <span
-          class="flex items-center gap-1 font-mono text-xs text-[var(--text-tertiary)]"
-          :title="t('dashboard.autoRoute.cost')"
-        >
-          <Percent :size="12" aria-hidden="true" />
-          {{ (entry.upstreamMult * entry.channelMult).toFixed(2) }}×
+        <span class="flex shrink-0 items-center gap-2">
+          <span
+            class="flex items-center gap-1 text-[11px] tabular-nums text-[var(--text-tertiary)] sm:text-xs"
+            :title="t('dashboard.autoRoute.factorLatency')"
+          >
+            <Timer :size="12" aria-hidden="true" />
+            {{ latencyLabel(entry.latency) }}
+          </span>
+          <span
+            class="flex items-center gap-1 font-mono text-[11px] text-[var(--text-tertiary)] sm:text-xs"
+            :title="t('dashboard.autoRoute.cost')"
+          >
+            <Percent :size="12" aria-hidden="true" />
+            {{ (entry.upstreamMult * entry.channelMult).toFixed(2) }}×
+          </span>
         </span>
       </div>
 

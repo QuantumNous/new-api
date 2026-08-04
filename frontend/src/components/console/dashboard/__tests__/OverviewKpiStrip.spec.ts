@@ -84,6 +84,13 @@ describe('OverviewKpiStrip', () => {
     expect(wrapper.text()).not.toContain('5.8')
   })
 
+  it('uses the full final row for the fifth metric on compact screens', () => {
+    const cells = render().findAll('[class*="px-5"]')
+
+    expect(cells.at(-1)?.classes()).toContain('col-span-2')
+    expect(cells.at(-1)?.classes()).toContain('sm:col-span-1')
+  })
+
   it('draws a sparkline for each series cell and a ring for RPM', () => {
     const wrapper = render({
       flow: flowPoints,

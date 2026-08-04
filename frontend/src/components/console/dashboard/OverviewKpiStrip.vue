@@ -143,6 +143,7 @@ const rpmCaption = computed(() => {
   <section
     class="pencil-surface overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
     data-handdrawn="surface-clipped"
+    data-overview-kpi
   >
     <!--
       Divided strip: hairline separators between cells rather than gaps, so the
@@ -159,66 +160,73 @@ const rpmCaption = computed(() => {
         class="group relative flex flex-col px-5 py-4 text-left transition-colors"
         :class="[
           ...kpiDividerClasses(i),
+          i === cells.length - 1 ? 'col-span-2 sm:col-span-1' : '',
           cell.drillDown ? 'hover:bg-[var(--surface-muted)] focus-ring' : '',
         ]"
         @click="cell.drillDown && emit('switchTab', 'stats')"
       >
-        <!-- Label + icon -->
-        <p
-          class="flex items-center gap-1.5 text-xs text-[var(--text-tertiary)]"
+        <div
+          :class="
+            i === cells.length - 1
+              ? 'grid grid-cols-[minmax(0,1fr)_minmax(7rem,1fr)] items-end gap-4 sm:block'
+              : ''
+          "
         >
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path :d="cell.icon" />
-          </svg>
-          <span class="truncate">{{ cell.label }}</span>
-        </p>
+          <div class="min-w-0">
+            <p
+              class="flex items-center gap-1.5 text-xs text-[var(--text-tertiary)]"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path :d="cell.icon" />
+              </svg>
+              <span class="truncate">{{ cell.label }}</span>
+            </p>
 
-        <!-- Figure -->
-        <p
-          v-if="loading"
-          class="mt-1.5 h-7 animate-pulse rounded bg-[var(--surface-muted)]"
-          :class="cell.skeleton"
-        />
-        <p
-          v-else
-          class="mt-1 truncate text-2xl font-bold leading-tight tabular-nums tracking-tight"
-          :style="{ color: cell.color }"
-        >
-          {{ cell.value }}
-        </p>
+            <p
+              v-if="loading"
+              class="mt-1.5 h-7 animate-pulse rounded bg-[var(--surface-muted)]"
+              :class="cell.skeleton"
+            />
+            <p
+              v-else
+              class="mt-1 truncate text-2xl font-bold leading-tight tabular-nums tracking-tight"
+              :style="{ color: cell.color }"
+            >
+              {{ cell.value }}
+            </p>
+          </div>
 
-        <!-- Mini visual: ring for RPM, sparkline for the series cells -->
-        <div v-if="cell.key === 'rpm'" class="mt-2 flex items-center gap-2.5">
-          <RpmRing
-            v-if="limits"
-            :current="limits.current_rpm"
-            :limit="limits.rate_limit"
-            :size="34"
-            :show-inner-label="false"
-            :show-side-label="false"
-          />
-          <span class="truncate text-xs text-[var(--text-tertiary)]">
-            {{ rpmCaption }}
-          </span>
-        </div>
-        <div v-else class="mt-2">
-          <MiniSparkline
-            v-if="!loading && cell.series && cell.series.length > 1"
-            :points="cell.series"
-            :color="cell.color"
-            :height="30"
-          />
-          <!-- Keeps every cell the same height when a series is missing -->
-          <div v-else class="h-[30px]" />
+          <div v-if="cell.key === 'rpm'" class="mt-2 flex items-center gap-2.5">
+            <RpmRing
+              v-if="limits"
+              :current="limits.current_rpm"
+              :limit="limits.rate_limit"
+              :size="34"
+              :show-inner-label="false"
+              :show-side-label="false"
+            />
+            <span class="truncate text-xs text-[var(--text-tertiary)]">
+              {{ rpmCaption }}
+            </span>
+          </div>
+          <div v-else class="mt-2">
+            <MiniSparkline
+              v-if="!loading && cell.series && cell.series.length > 1"
+              :points="cell.series"
+              :color="cell.color"
+              :height="30"
+            />
+            <div v-else class="h-[30px]" />
+          </div>
         </div>
       </component>
     </div>

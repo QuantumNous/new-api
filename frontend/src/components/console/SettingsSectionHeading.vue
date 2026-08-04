@@ -13,7 +13,7 @@ withDefaults(
 </script>
 
 <template>
-  <div class="flex items-center justify-between gap-3 px-5 py-4 sm:px-6">
+  <div class="flex items-center justify-between gap-4 px-5 py-5 sm:px-6">
     <div class="flex min-w-0 items-center gap-3">
       <span
         class="shrink-0 font-mono text-xs font-semibold"
@@ -34,7 +34,7 @@ withDefaults(
         aria-hidden="true"
       />
       <h3
-        class="truncate text-sm font-semibold sm:text-base"
+        class="break-words text-base font-semibold"
         :style="{
           color: danger ? 'var(--status-danger-text)' : 'var(--text-primary)',
         }"

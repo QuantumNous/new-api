@@ -188,7 +188,7 @@ function confirmUnbind(): void {
 <template>
   <ConsoleCard :padded="false" class="overflow-hidden">
     <header
-      class="flex items-center justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-5 sm:px-6"
+      class="flex items-center justify-between gap-5 border-b border-[var(--border-subtle)] px-6 py-6 sm:px-7"
     >
       <div class="flex min-w-0 items-center gap-3">
         <ShieldCheck
@@ -198,10 +198,10 @@ function confirmUnbind(): void {
           aria-hidden="true"
         />
         <div class="min-w-0">
-          <h2 class="truncate text-lg font-semibold text-[var(--text-primary)]">
+          <h2 class="truncate text-xl font-semibold text-[var(--text-primary)]">
             {{ t('settings.accountSecurityPanel') }}
           </h2>
-          <p class="mt-0.5 text-xs text-[var(--text-tertiary)]">
+          <p class="mt-1 text-sm leading-5 text-[var(--text-tertiary)]">
             {{ t('settings.accountSecuritySubtitle') }}
           </p>
         </div>
@@ -285,9 +285,7 @@ function confirmUnbind(): void {
         index="02"
         :icon="KeyRound"
         :title="t('settings.passkeyLogin')"
-      >
-        <StatusChip tone="info">{{ t('settings.demoBadge') }}</StatusChip>
-      </SettingsSectionHeading>
+      />
       <div class="border-t border-[var(--border-subtle)] px-5 py-5 sm:px-6">
         <div
           class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
@@ -343,9 +341,7 @@ function confirmUnbind(): void {
         index="03"
         :icon="LockKeyhole"
         :title="t('settings.twoFA')"
-      >
-        <StatusChip tone="info">{{ t('settings.demoBadge') }}</StatusChip>
-      </SettingsSectionHeading>
+      />
       <div class="border-t border-[var(--border-subtle)] px-5 py-5 sm:px-6">
         <div class="flex flex-col gap-4">
           <div class="flex items-start gap-3">
@@ -487,11 +483,10 @@ function confirmUnbind(): void {
   <ConsoleModal
     :open="passkeyRegisterOpen"
     :title="t('settings.enablePasskey')"
-    :subtitle="t('settings.prototypeSecurityNotice')"
     size="sm"
     @close="passkeyRegisterOpen = false"
   >
-    <div class="settings-demo-callout">
+    <div class="settings-context-callout">
       <KeyRound :size="20" aria-hidden="true" />
       <p>{{ t('settings.prototypePasskeyPrompt') }}</p>
     </div>
@@ -521,7 +516,6 @@ function confirmUnbind(): void {
   <ConsoleModal
     :open="twoFASetupOpen"
     :title="t('settings.twoFASetup')"
-    :subtitle="t('settings.prototypeSecurityNotice')"
     size="sm"
     @close="twoFASetupOpen = false"
   >
@@ -540,7 +534,7 @@ function confirmUnbind(): void {
       <div
         class="w-full rounded-lg bg-[var(--surface-muted)] px-4 py-3 text-center font-mono text-xs text-[var(--text-secondary)]"
       >
-        DEMO-TOTP-REN2-HUB
+        REN2-TOTP-SETUP
       </div>
       <FormField
         :label="t('settings.twoFACode')"
@@ -574,7 +568,6 @@ function confirmUnbind(): void {
         ? t('settings.regenerateBackupCodes')
         : t('settings.disableTwoFA')
     "
-    :subtitle="t('settings.prototypeSecurityNotice')"
     size="sm"
     @close="twoFAAction = null"
   >
@@ -605,7 +598,6 @@ function confirmUnbind(): void {
   <ConsoleModal
     :open="backupCodesOpen"
     :title="t('settings.backupCodes')"
-    :subtitle="t('settings.prototypeBackupCodesNotice')"
     size="sm"
     @close="backupCodesOpen = false"
   >
@@ -632,7 +624,6 @@ function confirmUnbind(): void {
   <ConsoleModal
     :open="bindTarget !== null"
     :title="t('settings.bindProvider', { provider: currentBindLabel })"
-    :subtitle="t('settings.prototypeBindingNotice')"
     size="sm"
     @close="bindTarget = null"
   >
@@ -656,7 +647,7 @@ function confirmUnbind(): void {
         />
       </FormField>
     </div>
-    <div v-else class="settings-demo-callout">
+    <div v-else class="settings-context-callout">
       <AtSign :size="20" aria-hidden="true" />
       <p>
         {{ t('settings.prototypeOAuthPrompt', { provider: currentBindLabel }) }}
@@ -728,7 +719,7 @@ function confirmUnbind(): void {
   color: var(--accent-text);
 }
 
-.settings-demo-callout {
+.settings-context-callout {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;

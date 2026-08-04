@@ -112,7 +112,7 @@ async function deleteAccount(): Promise<void> {
       </p>
     </PageHero>
 
-    <div class="grid items-start gap-5 xl:grid-cols-2">
+    <div class="grid items-start gap-8 2xl:grid-cols-2 2xl:gap-10">
       <AccountSecurityPanel
         :user="auth.user"
         @edit-profile="openProfile"

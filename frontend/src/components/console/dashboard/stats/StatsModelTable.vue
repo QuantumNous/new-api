@@ -41,9 +41,10 @@ const colors = SERIES_TOKENS
     -->
     <div
       v-else-if="models.length"
-      class="subtle-scroll max-h-64 overflow-y-auto overflow-x-auto pr-2"
+      class="subtle-scroll max-h-[22rem] overflow-y-auto overflow-x-auto pr-2 sm:max-h-64"
+      data-stats-model-scroll
     >
-      <table class="w-full border-collapse text-sm">
+      <table class="w-full min-w-[600px] border-collapse text-sm xl:min-w-0">
         <!--
           Sticky lives on the cells, not on thead: with border-collapse the
           rows scroll through a sticky thead's background instead of behind it.
@@ -83,7 +84,7 @@ const colors = SERIES_TOKENS
             :key="row.model"
             class="border-t border-[var(--border-subtle)] transition-colors hover:bg-[var(--surface-muted)]"
           >
-            <td class="py-2.5 pr-4">
+            <td class="py-2.5 pr-3">
               <span class="flex items-center gap-2">
                 <span
                   class="h-2.5 w-2.5 shrink-0 rounded-sm"
@@ -97,17 +98,17 @@ const colors = SERIES_TOKENS
               </span>
             </td>
             <td
-              class="py-2.5 pr-4 text-right tabular-nums text-[var(--text-secondary)]"
+              class="py-2.5 pr-3 text-right tabular-nums text-[var(--text-secondary)]"
             >
               {{ formatNumber(row.tokens) }}
             </td>
             <td
-              class="py-2.5 pr-4 text-right font-semibold tabular-nums text-[var(--text-primary)]"
+              class="py-2.5 pr-3 text-right font-semibold tabular-nums text-[var(--text-primary)]"
             >
               {{ formatQuota(row.quota) }}
             </td>
             <td
-              class="py-2.5 pr-4 text-right tabular-nums text-[var(--text-secondary)]"
+              class="py-2.5 pr-3 text-right tabular-nums text-[var(--text-secondary)]"
             >
               {{ formatNumber(row.requests) }}
             </td>

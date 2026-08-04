@@ -181,6 +181,33 @@ export default {
       range7d: 'Last 7 days',
       range30d: 'Last 30 days',
       rangeCustom: 'Custom',
+      trendMode: 'Trend metric',
+    },
+    distribution: {
+      title: 'Usage distribution',
+      periodMonth: 'Month',
+      periodQuarter: 'Quarter',
+      periodYear: 'Year',
+      periodSummary: {
+        month: 'Last 30 days',
+        quarter: 'Last 13 weeks',
+        year: 'Last 52 weeks',
+      },
+      metricRequests: 'Calls',
+      metricConsume: 'Spend',
+      metricTokens: 'Tokens',
+      periodControl: 'Reporting period',
+      metricControl: 'Distribution metric',
+      gridLabel: '{period} {metric} heatmap',
+      cellLabel: '{date}, {metric} {value}',
+      topDays: 'Most active',
+      weekdayRhythm: 'Weekday rhythm',
+      activeDays: '{count} active days',
+      peak: 'Peak',
+      less: 'Less',
+      more: 'More',
+      emptyTitle: 'No usage distribution',
+      emptyHint: 'There is no usage data in the selected period yet.',
     },
     autoRoute: {
       tabLabel: 'Auto Route',
@@ -1415,7 +1442,7 @@ export default {
   },
 
   settings: {
-    title: 'Settings',
+    title: 'Account Settings',
     breadcrumb: ['Settings'],
     menuProfile: 'Profile',
     menuSecurity: 'Privacy & security',
@@ -1460,13 +1487,13 @@ export default {
     demoOnly: 'Prototype demo — changes stay in this browser',
     demoBadge: 'Demo',
     pageSubtitle:
-      'Manage account security, linked providers, notifications, and console preferences.',
-    accountSecurityPanel: 'Account & security',
+      'Manage sign-in methods, authentication sources, notification channels, and interface preferences.',
+    accountSecurityPanel: 'Sign-in & account',
     accountSecuritySubtitle:
-      'Protect sign-in credentials and manage linked accounts.',
-    preferencesPanel: 'Preferences & notifications',
+      'Manage identity details, sign-in credentials, and linked accounts.',
+    preferencesPanel: 'Notifications & preferences',
     preferencesSubtitle:
-      'Configure delivery methods and account behavior preferences.',
+      'Set notification channels, interface appearance, and usage preferences.',
     accountProfile: 'Account profile',
     loginEmail: 'Login email',
     loginPassword: 'Login password',
@@ -1482,22 +1509,22 @@ export default {
     neverUsed: 'Not used yet',
     prototypeSecurityNotice:
       'This is a frontend interaction prototype and does not change real login security.',
-    prototypePasskeyPrompt: 'Confirm to simulate registering a device passkey.',
-    prototypePasskeyEnabled: 'Passkey prototype enabled',
-    prototypePasskeyRemoved: 'Passkey prototype removed',
+    prototypePasskeyPrompt:
+      'Continue to confirm a passkey for the current device.',
+    prototypePasskeyEnabled: 'Passkey enabled',
+    prototypePasskeyRemoved: 'Passkey removed',
     prototypeRemovePasskeyConfirm:
-      'The prototype will return to its disabled state for this browser session.',
+      'This device will no longer be available for passkey sign-in.',
     enableTwoFA: 'Enable two-factor auth',
     disableTwoFA: 'Disable 2FA',
     regenerateBackupCodes: 'Regenerate backup codes',
     backupCodes: 'Backup codes',
     backupCodesRemaining: 'Backup codes remaining: {count}',
-    prototypeSixDigitHint:
-      'Enter any six digits to complete the demo verification.',
+    prototypeSixDigitHint: 'Enter the six-digit verification code.',
     prototypeBackupCodesNotice:
-      'These codes only demonstrate the interaction and are not real security credentials.',
-    prototypeTwoFAEnabled: 'Two-factor auth prototype enabled',
-    prototypeTwoFADisabled: 'Two-factor auth prototype disabled',
+      'Store these backup codes safely. Each code can only be used once.',
+    prototypeTwoFAEnabled: 'Two-factor auth enabled',
+    prototypeTwoFADisabled: 'Two-factor auth disabled',
     prototypeBackupCodesRegenerated: 'Backup codes regenerated',
     prototypeBackupCodesCopied: 'Backup codes copied',
     authSources: 'Authentication sources',
@@ -1512,15 +1539,14 @@ export default {
     unbindProvider: 'Unlink {provider}',
     prototypeBindingNotice:
       'This is a frontend interaction prototype and does not open third-party authorization.',
-    prototypeOAuthPrompt:
-      'Confirm to simulate linking your {provider} account.',
+    prototypeOAuthPrompt: 'Continue to connect your {provider} account.',
     prototypeEmailCodeHint:
-      'Enter any six digits to complete the demo verification.',
+      'Enter the six-digit code sent to your email address.',
     prototypeEmailBindingInvalid: 'Enter a valid email and six-digit code.',
-    prototypeBindingSaved: 'Binding prototype state updated',
-    prototypeBindingRemoved: 'Binding prototype state removed',
+    prototypeBindingSaved: 'Account link updated',
+    prototypeBindingRemoved: 'Account link removed',
     prototypeUnbindConfirm:
-      'You can link this provider again during the current prototype session.',
+      'This provider will no longer be available for sign-in.',
     notificationSettings: 'Notification settings',
     notificationMethod: 'Notification method',
     notifyEmail: 'Email',
@@ -1561,7 +1587,7 @@ export default {
     errorHttpUrl: 'Enter a valid HTTP or HTTPS URL.',
     errorRequired: 'This field is required.',
     errorGotifyPriority: 'Priority must be an integer from 0 to 10.',
-    prototypeNotificationSaved: 'Notification prototype saved',
+    prototypeNotificationSaved: 'Notification settings saved',
   },
 
   invite: {
@@ -1800,8 +1826,12 @@ export default {
   },
 
   profile: {
-    title: 'Member Profile',
-    subtitle: 'Your identity, security settings and account overview',
+    title: 'Member Center',
+    subtitle: 'Review membership details and manage security and preferences',
+    settingsSectionEyebrow: 'ACCOUNT SETTINGS',
+    settingsSectionTitle: 'Account settings',
+    settingsSectionSubtitle:
+      'Manage sign-in methods, authentication sources, notification channels, and interface preferences.',
     roleRoot: 'Root administrator',
     roleAdmin: 'Administrator',
     roleUser: 'Member',
@@ -1810,7 +1840,7 @@ export default {
     tierGold: 'Gold',
     tierSilver: 'Silver',
     tierBronze: 'Bronze',
-    breadcrumb: ['Home', 'Profile'],
+    breadcrumb: ['Home', 'Member Center'],
     memberNo: 'Member No.',
     joinDate: 'Joined',
     totalCalls: 'Total Calls',

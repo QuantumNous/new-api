@@ -98,7 +98,7 @@ onBeforeUnmount(() => {
         data-user-menu-item
         @click="goto('profile')"
       >
-        {{ t('nav.profile') }}
+        {{ t('profile.title') }}
       </button>
       <button
         type="button"

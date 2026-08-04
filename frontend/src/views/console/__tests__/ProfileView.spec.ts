@@ -7,7 +7,7 @@ import { api } from '@/api/console'
 import i18n, { loadMessageDomain, setLocale } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsPrototypeStore } from '@/stores/settingsPrototype'
-import ProfileView from '@/views/console/ProfileView.vue'
+import AccountCenterView from '@/views/console/AccountCenterView.vue'
 
 beforeEach(async () => {
   sessionStorage.clear()
@@ -17,7 +17,7 @@ beforeEach(async () => {
 
 afterEach(() => vi.restoreAllMocks())
 
-describe('ProfileView', () => {
+describe('AccountCenterView', () => {
   it('embeds account settings and removes the legacy profile sections', async () => {
     vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
       if (url === '/api/data/self') {
@@ -68,12 +68,12 @@ describe('ProfileView', () => {
 
     const router = createRouter({
       history: createMemoryHistory(),
-      routes: [{ path: '/', name: 'profile', component: ProfileView }],
+      routes: [{ path: '/', name: 'profile', component: AccountCenterView }],
     })
     await router.push('/')
     await router.isReady()
 
-    const wrapper = mount(ProfileView, {
+    const wrapper = mount(AccountCenterView, {
       global: { plugins: [pinia, i18n, router] },
     })
     await flushPromises()
@@ -83,6 +83,13 @@ describe('ProfileView', () => {
     )
     expect(wrapper.text()).toContain(
       String(i18n.global.t('settings.preferencesPanel'))
+    )
+    expect(wrapper.text()).toContain(
+      String(i18n.global.t('profile.settingsSectionTitle'))
+    )
+    expect(wrapper.find('[data-title-side="right"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain(
+      String(i18n.global.t('profile.breadcrumb.1'))
     )
     expect(wrapper.text()).not.toContain(
       String(i18n.global.t('profile.quickNav'))
@@ -94,6 +101,11 @@ describe('ProfileView', () => {
       String(i18n.global.t('profile.security'))
     )
     expect(wrapper.text()).toContain(String(i18n.global.t('settings.enabled')))
-    expect(wrapper.text()).toContain('已绑定')
+    expect(wrapper.text()).not.toContain(
+      String(i18n.global.t('settings.demoBadge'))
+    )
+    expect(wrapper.text()).not.toContain(
+      String(i18n.global.t('settings.prototypeSessionOnly'))
+    )
   })
 })

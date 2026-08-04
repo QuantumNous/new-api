@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import OverviewKpiStrip from '@/components/console/dashboard/OverviewKpiStrip.vue'
 import BalanceCard from '@/components/console/dashboard/BalanceCard.vue'
 import DiscountCard from '@/components/console/dashboard/DiscountCard.vue'
-import TrendDualCard from '@/components/console/dashboard/TrendDualCard.vue'
+import UsageDistributionCard from '@/components/console/dashboard/UsageDistributionCard.vue'
 import TokenTrendCard from '@/components/console/dashboard/TokenTrendCard.vue'
 import ModelDistributionCard from '@/components/console/dashboard/ModelDistributionCard.vue'
 import SystemStatusCard from '@/components/console/dashboard/SystemStatusCard.vue'
@@ -19,6 +19,7 @@ import PageHero from '@/components/console/PageHero.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import { useDashboard } from '@/composables/useDashboard'
 import { useDashboardStats } from '@/composables/useDashboardStats'
+import { useUsageDistribution } from '@/composables/useUsageDistribution'
 import type { StatsRange } from '@/composables/useDashboardStats'
 import { useAuthStore } from '@/stores/auth'
 import { dateInputValue } from '@/utils/format'
@@ -37,8 +38,12 @@ const {
   load,
 } = useDashboard()
 const statsComposable = useDashboardStats()
+const distribution = useUsageDistribution()
 
-onMounted(() => void load())
+onMounted(() => {
+  void load()
+  void distribution.load()
+})
 
 /**
  * Rolling 7-day burn feeds the balance runway estimate — steadier than
@@ -110,7 +115,7 @@ const rangeOptions = computed(() => [
 </script>
 
 <template>
-  <div>
+  <div data-dashboard-page>
     <PageHero
       v-model:tab="activeTab"
       :title="greeting"
@@ -121,13 +126,14 @@ const rangeOptions = computed(() => [
 
     <div
       :id="dashboardPanelId"
+      class="min-w-0"
       role="tabpanel"
       :aria-labelledby="`${dashboardPanelId}-tab-${activeTab}`"
     >
       <!-- ══════════════════════════════════════════
          Tab: Overview
     ══════════════════════════════════════════ -->
-      <div v-if="activeTab === 'overview'" class="space-y-5">
+      <div v-if="activeTab === 'overview'" class="space-y-4 sm:space-y-5">
         <!-- KPI strip — 4 clickable chips, jumps to Stats tab -->
         <OverviewKpiStrip
           :stats="stats"
@@ -139,7 +145,10 @@ const rangeOptions = computed(() => [
         />
 
         <!-- Skeleton -->
-        <div v-if="loading" class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div
+          v-if="loading"
+          class="grid gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3"
+        >
           <div
             v-for="i in 6"
             :key="i"
@@ -160,7 +169,7 @@ const rangeOptions = computed(() => [
         shrink and the container waits for the canvas, so the column never
         comes back down.
       -->
-        <div v-else class="grid gap-5 xl:grid-cols-3">
+        <div v-else class="grid gap-4 sm:gap-5 xl:grid-cols-3">
           <!-- 总额度（限速已并入 KPI 条的 RPM 格） -->
           <BalanceCard
             class="min-w-0"
@@ -169,12 +178,11 @@ const rangeOptions = computed(() => [
             :today-quota="stats?.today_quota"
             :daily-burn="dailyBurn"
           />
-          <!-- 消费 / 请求 双轴趋势 -->
-          <TrendDualCard
+          <!-- Usage distribution -->
+          <UsageDistributionCard
             class="min-w-0 xl:col-span-2"
-            :stats="stats"
-            :flow="flow"
-            :loading="loading"
+            :points="distribution.points.value"
+            :loading="distribution.loading.value"
           />
 
           <!-- 系统状态 -->
@@ -205,17 +213,17 @@ const rangeOptions = computed(() => [
       <!-- ══════════════════════════════════════════
          Tab: Statistics
     ══════════════════════════════════════════ -->
-      <div v-else-if="activeTab === 'stats'" class="space-y-5">
+      <div v-else-if="activeTab === 'stats'" class="space-y-4 sm:space-y-5">
         <!-- Range picker — same segmented control as the trend card's mode toggle -->
         <div class="flex flex-wrap items-center gap-3">
           <div
-            class="flex rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-0.5 text-sm"
+            class="grid w-full grid-cols-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-0.5 text-sm sm:w-auto"
           >
             <button
               v-for="opt in rangeOptions"
               :key="opt.key"
               type="button"
-              class="rounded-lg px-3 py-1.5 font-medium transition-all focus-ring"
+              class="min-w-0 rounded-lg px-2 py-1.5 font-medium transition-all focus-ring sm:px-3"
               :class="
                 statsComposable.range.value === opt.key
                   ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
@@ -241,6 +249,8 @@ const rangeOptions = computed(() => [
           :loading="statsComposable.loading.value"
         />
         <StatsDualTrend
+          :kpi="statsComposable.data.value?.kpi ?? null"
+          :comparison="statsComposable.data.value?.comparison ?? null"
           :flow="statsComposable.data.value?.flow ?? []"
           :loading="statsComposable.loading.value"
         />
@@ -249,7 +259,7 @@ const rangeOptions = computed(() => [
         chart grows to share its bottom edge. min-w-0 for the same canvas
         reason as the overview grid.
       -->
-        <div class="grid gap-5 lg:grid-cols-2">
+        <div class="grid gap-4 sm:gap-5 xl:grid-cols-2">
           <StatsModelTable
             class="min-w-0"
             :models="statsComposable.data.value?.models ?? []"
@@ -266,7 +276,7 @@ const rangeOptions = computed(() => [
       <!-- ══════════════════════════════════════════
          Tab: Auto Route
     ══════════════════════════════════════════ -->
-      <div v-else-if="activeTab === 'autoroute'">
+      <div v-else-if="activeTab === 'autoroute'" class="min-w-0">
         <AutoRoutePanel />
       </div>
     </div>
