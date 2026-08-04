@@ -1,5 +1,5 @@
 import { buildConsoleUrl } from "@/lib/origins";
-import type { Locale } from "@/lib/locales";
+import { LOCALES, type Locale } from "@/lib/locales";
 import type { SeoInput } from "@/lib/seo";
 
 // SKAG (single-keyword ad group) landing pages for Google Ads paid search.
@@ -391,33 +391,29 @@ const GATEWAY: SkagLandingConfig = {
   },
 };
 
-const SKAG_CONFIGS: Record<SkagLandingSlug, SkagLandingConfig> = {
-  "gpt-api-alternative": GPT_API_ALTERNATIVE,
-  "chinese-ai": CHINESE_AI,
-  "chinese-ai-models-api": CHINESE_AI_MODELS_API,
-  "openai-compatible": OPENAI_COMPATIBLE,
-  gateway: GATEWAY,
+const CHINESE_AI_MODELS_API_COPY: Partial<Record<Locale, SkagLandingConfig>> = {
+  en: CHINESE_AI_MODELS_API,
+  pt: PT_CHINESE_AI_MODELS_API,
 };
 
-const LOCALIZED_SKAG_CONFIGS: Partial<Record<Locale, Partial<Record<SkagLandingSlug, SkagLandingConfig>>>> = {
-  pt: {
-    "chinese-ai-models-api": PT_CHINESE_AI_MODELS_API,
-  },
-};
-
-export type LocalizedSkagLandingEntry = {
-  pathname: string;
-  locales: readonly Locale[];
+const SKAG_CONFIGS: Record<SkagLandingSlug, Partial<Record<Locale, SkagLandingConfig>>> = {
+  "gpt-api-alternative": { en: GPT_API_ALTERNATIVE },
+  "chinese-ai": { en: CHINESE_AI },
+  "chinese-ai-models-api": CHINESE_AI_MODELS_API_COPY,
+  "openai-compatible": { en: OPENAI_COMPATIBLE },
+  gateway: { en: GATEWAY },
 };
 
 export function getSkagLandingConfig(slug: SkagLandingSlug, locale: Locale = "en"): SkagLandingConfig {
-  const localizedConfig = LOCALIZED_SKAG_CONFIGS[locale]?.[slug];
-  if (localizedConfig) return localizedConfig;
-  return SKAG_CONFIGS[slug];
+  return SKAG_CONFIGS[slug][locale] ?? SKAG_CONFIGS[slug].en!;
+}
+
+export function getSkagLandingLocales(slug: SkagLandingSlug): readonly Locale[] {
+  return LOCALES.filter((locale) => SKAG_CONFIGS[slug][locale]);
 }
 
 export function getSkagLandingConfigs(): SkagLandingConfig[] {
-  return SKAG_LANDING_SLUGS.map((slug) => SKAG_CONFIGS[slug]);
+  return SKAG_LANDING_SLUGS.map((slug) => getSkagLandingConfig(slug));
 }
 
 export function skagLandingPath(slug: SkagLandingSlug): string {
@@ -426,15 +422,6 @@ export function skagLandingPath(slug: SkagLandingSlug): string {
 
 export function getSkagLandingPathnames(): string[] {
   return SKAG_LANDING_SLUGS.map((slug) => skagLandingPath(slug));
-}
-
-export function getLocalizedSkagLandingEntries(): LocalizedSkagLandingEntry[] {
-  return [
-    {
-      pathname: skagLandingPath("chinese-ai-models-api"),
-      locales: ["pt"],
-    },
-  ];
 }
 
 export function getSkagLandingCtaUrl(): string {
@@ -448,6 +435,6 @@ export function getSkagLandingMetadataInput(slug: SkagLandingSlug, locale: Local
     description: config.seo.description,
     pathname: config.pathname ?? skagLandingPath(slug),
     locale,
-    locales: [locale],
+    locales: getSkagLandingLocales(slug),
   };
 }
