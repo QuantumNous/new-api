@@ -870,6 +870,23 @@
         showAudioWatermark: false,
         showMingizSend: false,
       },
+      "MiniMax-H3": {
+        label: "MiniMax-H3（ApiMart）",
+        family: "apimart",
+        hint: "ApiMart MiniMax-H3 · POST /v1/video/generations · resolution=2K/768P · aspect_ratio · 文生 / 首尾帧 / 多模态参考（图+视频+音频 URL）。渠道类型选 ApiMart，国内 Base 可用 https://api.apib.ai。",
+        createPath: "/v1/video/generations",
+        queryPath: (id) => `/v1/video/generations/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        defaultDuration: 5,
+        resolutions: ["2K", "768P"],
+        defaultResolution: "2K",
+        aspectRatios: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: false,
+      },
     };
 
     const SIZE_MAP = {
@@ -1006,6 +1023,7 @@
       const name = String(modelName || "");
       if (MODEL_PROFILES[name]) return name;
       const n = name.toLowerCase();
+      if (n.includes("minimax")) return "MiniMax-H3";
       // th12345ai client models must be matched before generic sd2 → mingiz.
       if (n.includes("sd2-fast-431") || n.includes("sd2fast-431") || n === "videos_stable_fast") {
         return "sd2-fast-431";
@@ -1036,7 +1054,7 @@
       const eps = item.supported_endpoint_types || [];
       if (eps.includes("openai-video")) return true;
       const blob = `${name} ${item.tags || ""} ${item.description || ""}`;
-      return /seedance|mingiz|wstar|vyro|sd2-431|sd2-fast-431|videos_stable|(^|[^a-z0-9])sd2([^a-z0-9]|$)/i.test(blob);
+      return /seedance|mingiz|wstar|vyro|minimax|sd2-431|sd2-fast-431|videos_stable|(^|[^a-z0-9])sd2([^a-z0-9]|$)/i.test(blob);
     }
     function authHeaders(extra = {}) {
       return { Authorization: `Bearer ${token()}`, ...extra };
@@ -1998,6 +2016,47 @@
       return body;
     }
 
+    // ApiMart MiniMax-H3: T2V / first+last I2V / multimodal R2V (mutually exclusive).
+    function buildApimartBody(submitAssets) {
+      const body = {
+        model: activeModelName(),
+        prompt: promptText(),
+        duration: Number(els.duration.value),
+        resolution: els.resolution.value || "2K",
+        aspect_ratio: els.aspectRatio.value || "16:9",
+      };
+      const images = [];
+      const videos = [];
+      const audios = [];
+      for (const asset of submitAssets) {
+        const url = asset.publicUrl;
+        if (!url) continue;
+        if (asset.kind === "video") videos.push(url);
+        else if (asset.kind === "audio") audios.push(url);
+        else images.push(url);
+      }
+      const useI2V = els.mode.value === "image_to_video" && images.length > 0 && !videos.length && !audios.length;
+      if (useI2V) {
+        if (images.length === 1) {
+          body.first_frame_image = images[0];
+        } else {
+          body.image_with_roles = [
+            { url: images[0], role: "first_frame" },
+            { url: images[1], role: "last_frame" },
+          ];
+        }
+        return body;
+      }
+      if (images.length || videos.length || audios.length) {
+        if (images.length) {
+          body.image_with_roles = images.map((url) => ({ url, role: "reference_image" }));
+        }
+        if (videos.length) body.video_urls = videos;
+        if (audios.length) body.audio_urls = audios;
+      }
+      return body;
+    }
+
     function buildRequestPlan() {
       const p = profile();
       const submitAssets = getSubmitAssets();
@@ -2010,6 +2069,9 @@
       }
       if (p.family === "th12345ai") {
         return { kind: "json", path: p.createPath, body: buildTh12345aiBody(submitAssets), assets: submitAssets, preferMultipart: false };
+      }
+      if (p.family === "apimart") {
+        return { kind: "json", path: p.createPath, body: buildApimartBody(submitAssets), assets: submitAssets, preferMultipart: false };
       }
       if (preferMultipart) {
         return {
@@ -2069,6 +2131,18 @@
         const allowed = p.durations || [];
         if (!allowed.includes(seconds)) {
           return `${activeModelName()} 时长需为 ${allowed.join(" / ")} 秒。`;
+        }
+      }
+      if (p.family === "apimart") {
+        const seconds = Number(els.duration.value);
+        const allowed = p.durations || [];
+        if (!allowed.includes(seconds)) {
+          return `MiniMax-H3 时长需为 ${allowed.join(" / ")} 秒。`;
+        }
+        const hasAudio = submitAssets.some((a) => a.kind === "audio");
+        const hasImageOrVideo = submitAssets.some((a) => a.kind === "image" || a.kind === "video");
+        if (hasAudio && !hasImageOrVideo) {
+          return "MiniMax-H3 不能单独传音频，需同时提供参考图或参考视频。";
         }
       }
       return "";
@@ -2545,6 +2619,18 @@
       const cur = Number(els.duration.value) || p.defaultDuration;
       els.duration.innerHTML = p.durations.map((d) =>
         `<option value="${d}" ${d === (p.durations.includes(cur) ? cur : p.defaultDuration) ? "selected" : ""}>${d} 秒</option>`
+      ).join("");
+      const resOptions = p.resolutions || ["480p", "720p", "1080p"];
+      const curRes = els.resolution.value;
+      const pickRes = resOptions.includes(curRes) ? curRes : (p.defaultResolution || resOptions[0]);
+      els.resolution.innerHTML = resOptions.map((r) =>
+        `<option value="${r}" ${r === pickRes ? "selected" : ""}>${r}</option>`
+      ).join("");
+      const ratioOptions = p.aspectRatios || ["16:9", "9:16", "1:1"];
+      const curRatio = els.aspectRatio.value;
+      const pickRatio = ratioOptions.includes(curRatio) ? curRatio : "16:9";
+      els.aspectRatio.innerHTML = ratioOptions.map((r) =>
+        `<option value="${r}" ${r === pickRatio ? "selected" : ""}>${r}</option>`
       ).join("");
       els.apiBaseHint.textContent = els.model.value
         ? `当前请求：${apiBase()}${p.createPath} · model=${activeModelName()}`
