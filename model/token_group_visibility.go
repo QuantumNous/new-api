@@ -24,14 +24,14 @@ type TokenGroupVisibility struct {
 	Id         int    `json:"id"`
 	Group      string `json:"group" gorm:"type:varchar(64);not null;uniqueIndex"`
 	Visibility string `json:"visibility" gorm:"type:varchar(16);not null;index"`
-	StartTime  int64  `json:"start_time" gorm:"bigint;default:0"`
-	EndTime    int64  `json:"end_time" gorm:"bigint;default:0"`
+	StartTime  int64  `json:"start_time" gorm:"type:bigint;default:0"`
+	EndTime    int64  `json:"end_time" gorm:"type:bigint;default:0"`
 }
 
 type TokenGroupVisibilityTarget struct {
 	Id           int `json:"id"`
-	VisibilityId int `json:"visibility_id" gorm:"not null;index;uniqueIndex:idx_visibility_user"`
-	UserId       int `json:"user_id" gorm:"not null;index;uniqueIndex:idx_visibility_user"`
+	VisibilityId int `json:"visibility_id" gorm:"type:bigint;not null;index;uniqueIndex:idx_visibility_user"`
+	UserId       int `json:"user_id" gorm:"type:bigint;not null;index;uniqueIndex:idx_visibility_user"`
 }
 
 type TokenGroupVisibilityPolicy struct {

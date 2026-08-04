@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS "token_group_visibilities" (
   "end_time" bigint NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "uni_token_group_visibilities_group"
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_token_group_visibilities_group"
   ON "token_group_visibilities" ("group");
 CREATE INDEX IF NOT EXISTS "idx_token_group_visibilities_visibility"
   ON "token_group_visibilities" ("visibility");
@@ -23,5 +23,7 @@ CREATE TABLE IF NOT EXISTS "token_group_visibility_targets" (
 
 CREATE INDEX IF NOT EXISTS "idx_token_group_visibility_targets_visibility_id"
   ON "token_group_visibility_targets" ("visibility_id");
+CREATE INDEX IF NOT EXISTS "idx_token_group_visibility_targets_user_id"
+  ON "token_group_visibility_targets" ("user_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_visibility_user"
   ON "token_group_visibility_targets" ("visibility_id", "user_id");
