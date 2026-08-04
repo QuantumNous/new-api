@@ -112,6 +112,12 @@ func streamImageResponse(c *gin.Context, resp *http.Response, info *relaycommon.
 			// Degrade rather than fail: settlement is already committed.
 			evt["url"] = item.Url
 		}
+		if item.ExpiresAt > 0 {
+			evt["expiresAt"] = item.ExpiresAt
+		}
+		if item.ExpiresIn > 0 {
+			evt["expiresIn"] = item.ExpiresIn
+		}
 		if len(ir.Data) > 1 {
 			evt["index"] = idx
 		}

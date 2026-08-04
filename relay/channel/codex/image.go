@@ -1,6 +1,8 @@
 package codex
 
 import (
+	"bytes"
+	"context"
 	"bufio"
 	"encoding/base64"
 	"errors"
@@ -23,6 +25,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
+
+var uploadTempMediaImageForCodex = service.UploadTempMediaImage
 
 // codexImageStreamReadLimit 限制 SSE 响应总字节数，防止恶意上游耗尽内存。
 // 不对单行做上限（base64 图像行可能合法地超过 1MB），只约束整体读取量。
@@ -48,16 +52,16 @@ func resolveImageCarrierModel(info *relaycommon.RelayInfo) string {
 }
 
 // ValidateCodexImageRequest 在请求进入上游之前做客户端侧校验。
-// 目前仅校验 response_format：codex 图像路径只能返回 base64（无托管 URL），
-// 因此除空值（默认 b64_json）与显式 "b64_json" 外的任何值（尤其 "url"）都直接拒绝，
-// 避免静默回退到空 url 误导客户端（F7）。
+// 目前主要校验 response_format：codex 图像路径默认只能返回 base64（无托管 URL），
+// 除空值（默认 b64_json）与显式 "b64_json" 外其他值直接拒绝；若客户端同时带
+// temp_url=true，则允许显式传入 "url" 并在下游改为返回临时下载链接。
 //
 // 设计 seam：adaptor.go 的 ConvertImageRequest 拥有 request，应在构建上游 body 前
 // 调用本函数。把校验放在 image.go 是为了让规则与 codex 图像的其余逻辑同处一文件、
 // 可独立测试；adaptor.go（由另一 agent 维护）只需 `if err := ValidateCodexImageRequest(request); err != nil { return nil, err }`。
 func ValidateCodexImageRequest(request dto.ImageRequest) error {
 	rf := strings.TrimSpace(request.ResponseFormat)
-	if rf != "" && rf != "b64_json" {
+	if rf != "" && rf != "b64_json" && !(rf == "url" && request.TempUrl != nil && *request.TempUrl) {
 		return fmt.Errorf("codex image: response_format %q not supported; codex image only supports b64_json", rf)
 	}
 	return nil
@@ -243,10 +247,60 @@ func detectCodexImageMime(filename string) string {
 	}
 }
 
+func inferCodexImageContentTypeAndExt(format string) (contentType string, ext string) {
+	switch strings.ToLower(strings.TrimPrefix(strings.TrimSpace(format), ".")) {
+	case "png", "":
+		return "image/png", ".png"
+	case "jpg", "jpeg":
+		return "image/jpeg", ".jpg"
+	case "webp":
+		return "image/webp", ".webp"
+	}
+
+	return "image/png", ".png"
+}
+
+func uploadCodexImageToTempURL(ctx context.Context, userID int, rawImage, outputFormat string) (*service.TempMediaUploadResult, error) {
+	rawImage = strings.TrimSpace(rawImage)
+	if rawImage == "" {
+		return nil, errors.New("codex image result is empty")
+	}
+
+	if strings.HasPrefix(rawImage, "data:") {
+		if commaIdx := strings.Index(rawImage, ","); commaIdx >= 0 {
+			rawImage = rawImage[commaIdx+1:]
+		}
+	}
+
+	bytesData, err := base64.StdEncoding.DecodeString(rawImage)
+	if err != nil {
+		return nil, fmt.Errorf("decode codex image result failed: %w", err)
+	}
+
+	contentType, ext := inferCodexImageContentTypeAndExt(outputFormat)
+	result, err := uploadTempMediaImageForCodex(ctx, service.TempMediaUploadRequest{
+		UserID:      userID,
+		Filename:    "gpt-image-" + ext,
+		ContentType: contentType,
+		Size:        int64(len(bytesData)),
+		Body:        bytes.NewReader(bytesData),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("upload temp media image failed: %w", err)
+	}
+
+	return result, nil
+}
+
 // RelayImageOverCodex 读取 codex Responses SSE 流，抽取 image_generation_call 的 base64 结果
 // 与 tool_usage.image_gen 用量，回写标准 OpenAI 图像响应，返回计费用量。
 func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
+
+	tempURL := false
+	if req, ok := info.Request.(*dto.ImageRequest); ok && req != nil {
+		tempURL = req.TempUrl != nil && *req.TempUrl
+	}
 
 	// 用 io.LimitReader 约束 SSE 总字节数（不是单行），防止恶意上游耗尽内存；
 	// 仍支持合法的大体积 base64 图像行。多读 1 字节作为哨兵：若 LimitReader 在 EOF
@@ -283,12 +337,27 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 						item := gjson.Get(payload, "item")
 						if item.Get("type").String() == "image_generation_call" {
 							if result := item.Get("result").String(); result != "" {
-								data = append(data, dto.ImageData{
-									B64Json:       result,
-									RevisedPrompt: item.Get("revised_prompt").String(),
-								})
+								entry := dto.ImageData{RevisedPrompt: item.Get("revised_prompt").String()}
+								if tempURL {
+									requestContext := context.Background()
+									if c != nil && c.Request != nil {
+										requestContext = c.Request.Context()
+									}
+									uploadResult, upErr := uploadCodexImageToTempURL(requestContext, info.UserId, result, item.Get("output_format").String())
+									if upErr != nil {
+										common.SysError(fmt.Sprintf("codex image: failed to upload temp media: %v", upErr))
+										return nil, types.NewOpenAIError(upErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+									}
+									entry.Url = uploadResult.SignedURL
+									entry.ExpiresAt = uploadResult.ExpiresAt
+									entry.ExpiresIn = uploadResult.ExpiresIn
+								} else {
+									entry.B64Json = result
+								}
+								data = append(data, entry)
 							}
 						}
+					}
 					case "response.completed":
 						created = gjson.Get(payload, "response.created_at").Int()
 						if u := gjson.Get(payload, "response.tool_usage.image_gen"); u.Exists() {

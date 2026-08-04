@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -220,6 +221,18 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			if hasWatermark {
 				watermark := formData.Get("watermark") == "true"
 				imageRequest.Watermark = &watermark
+			}
+
+			tempURLValue := formData.Get("temp_url")
+			if tempURLValue == "" {
+				tempURLValue = formData.Get("tempUrl")
+			}
+			if tempURLValue != "" {
+				tempUrl, err := strconv.ParseBool(tempURLValue)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse temp_url: %w", err)
+				}
+				imageRequest.TempUrl = &tempUrl
 			}
 			break
 		}

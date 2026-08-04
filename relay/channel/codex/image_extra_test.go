@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -22,8 +23,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// F7 接线测试：ConvertImageRequest（生产路径）必须真正拒绝 response_format=url，
-// 防止 ValidateCodexImageRequest 沦为死代码（max-review 复审曾发现未接线）。
+// F7 接线测试：ConvertImageRequest（生产路径）默认拒绝 response_format=url，
+// 防止 ValidateCodexImageRequest 沦为死代码（max-review 复审曾发现未接线）；
+// 当 temp_url=true 时允许透传 URL 模式请求，用于返回临时链接。
 func TestConvertImageRequest_RejectsURLResponseFormat(t *testing.T) {
 	a := &Adaptor{}
 	rec := httptest.NewRecorder()
@@ -186,6 +188,10 @@ func TestValidateCodexImageRequest_ResponseFormat(t *testing.T) {
 	}
 	if err := ValidateCodexImageRequest(dto.ImageRequest{ResponseFormat: "b64_json"}); err != nil {
 		t.Fatalf("response_format=b64_json must pass: %v", err)
+	}
+
+	if err := ValidateCodexImageRequest(dto.ImageRequest{ResponseFormat: "url", TempUrl: common.GetPointer(true)}); err != nil {
+		t.Fatalf("response_format=url with temp_url=true should pass: %v", err)
 	}
 }
 

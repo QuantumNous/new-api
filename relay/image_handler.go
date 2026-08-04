@@ -65,6 +65,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	// 不影响其它渠道的透传行为。ImageHelper 仅在图像 relay mode 下被调用，故此处
 	// 判断 ApiType 即等价于「codex 渠道 + 图像模式」。
 	codexImagePath := info.ApiType == constant.APITypeCodex
+	tempURLSupportedImageChannel := info.ApiType == constant.APITypeCodex || info.ApiType == constant.APITypeBlockRun
+	if imageReq.TempUrl != nil && *imageReq.TempUrl && !tempURLSupportedImageChannel {
+		return types.NewErrorWithStatusCode(fmt.Errorf("temp_url is only supported for codex and blockrun image channels"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
 
 	if !codexImagePath && (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) {
 		storage, err := common.GetBodyStorage(c)

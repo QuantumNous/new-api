@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/service"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 
 	"github.com/gin-gonic/gin"
@@ -104,6 +106,59 @@ func TestRelayImageOverCodex_ParsesImageAndUsage(t *testing.T) {
 	}
 	if out.Data[0].RevisedPrompt != "a red circle" {
 		t.Fatalf("revised_prompt = %q", out.Data[0].RevisedPrompt)
+	}
+}
+
+func TestRelayImageOverCodex_ReturnsTempURLWhenRequested(t *testing.T) {
+	oldUpload := uploadTempMediaImageForCodex
+	defer func() { uploadTempMediaImageForCodex = oldUpload }()
+	uploadTempMediaImageForCodex = func(ctx context.Context, request service.TempMediaUploadRequest) (*service.TempMediaUploadResult, error) {
+		return &service.TempMediaUploadResult{
+			SignedURL: "https://tmp.example/object",
+			ExpiresAt: 1700003600,
+			ExpiresIn: 3600,
+		}, nil
+	}
+
+	sse := strings.Join([]string{
+		`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","id":"ig_1","result":"QUJD","output_format":"png","revised_prompt":"a red circle"}}`,
+		`data: {"type":"response.completed","response":{"created_at":1700000000}}`,
+		"data: [DONE]",
+		"",
+	}, "\n\n")
+
+	resp := &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(sse)),
+		Header:     http.Header{},
+	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	request := dto.ImageRequest{TempUrl: common.GetPointer(true)}
+	usage, apiErr := RelayImageOverCodex(c, &relaycommon.RelayInfo{Request: &request}, resp)
+	if apiErr != nil {
+		t.Fatalf("unexpected error: %v", apiErr)
+	}
+	if usage.TotalTokens != defaultCodexImageOutputTokens {
+		t.Fatalf("usage should fall back to default %d, got %+v", defaultCodexImageOutputTokens, usage)
+	}
+
+	var out dto.ImageResponse
+	if err := common.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("client body not ImageResponse: %v / %s", err, rec.Body.String())
+	}
+	if len(out.Data) != 1 {
+		t.Fatalf("expected one image data, got %+v", out.Data)
+	}
+	if out.Data[0].Url != "https://tmp.example/object" || out.Data[0].B64Json != "" {
+		t.Fatalf("temp url response expected, got %+v", out.Data)
+	}
+	if out.Data[0].ExpiresAt != 1700003600 {
+		t.Fatalf("expected expiresAt to be set from temp upload result, got %d", out.Data[0].ExpiresAt)
+	}
+	if out.Data[0].ExpiresIn != 3600 {
+		t.Fatalf("expected expiresIn to be set from temp upload result, got %d", out.Data[0].ExpiresIn)
 	}
 }
 

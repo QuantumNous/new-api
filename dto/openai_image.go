@@ -18,6 +18,7 @@ type ImageRequest struct {
 	Size              string          `json:"size,omitempty"`
 	Quality           string          `json:"quality,omitempty"`
 	ResponseFormat    string          `json:"response_format,omitempty"`
+	TempUrl           *bool           `json:"temp_url,omitempty"`
 	Style             json.RawMessage `json:"style,omitempty"`
 	User              json.RawMessage `json:"user,omitempty"`
 	ExtraFields       json.RawMessage `json:"extra_fields,omitempty"`
@@ -64,6 +65,15 @@ func (i *ImageRequest) UnmarshalJSON(data []byte) error {
 			i.Extra[k] = v
 		}
 	}
+
+	if rawTempURL, ok := rawMap["tempUrl"]; ok && i.TempUrl == nil {
+		var parsed bool
+		if err := common.Unmarshal(rawTempURL, &parsed); err != nil {
+			return err
+		}
+		i.TempUrl = &parsed
+	}
+
 	return nil
 }
 
@@ -181,4 +191,6 @@ type ImageData struct {
 	Url           string `json:"url"`
 	B64Json       string `json:"b64_json"`
 	RevisedPrompt string `json:"revised_prompt"`
+	ExpiresAt     int64  `json:"expiresAt,omitempty"`
+	ExpiresIn     int64  `json:"expiresIn,omitempty"`
 }
