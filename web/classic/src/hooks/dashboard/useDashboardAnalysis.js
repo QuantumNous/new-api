@@ -1,30 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { API, showError, showSuccess } from '../../helpers';
 import { getQuotaPerUnit } from '../../helpers/quota';
 import { buildDashboardAnalysisCsv } from './analysisCsv';
+import {
+  emptyDashboardAnalysis,
+  getAnalysisFailureMessage,
+  isAnalysisRequestCurrent,
+  isRequestCanceled,
+  isTooManyRowsError,
+} from './analysisState';
 import { parseDashboardDateRange } from './time';
 
 export const ADMIN_ANALYSIS_DIMENSIONS = ['period', 'model_name'];
 export const USER_ANALYSIS_DIMENSIONS = ['period', 'model_name'];
 export const ANALYSIS_FALLBACK_DIMENSIONS = ['period'];
 
-const isTooManyRowsError = (error) =>
-  error?.code === 'analysis_too_many_rows' ||
-  String(error?.message || '').includes('超过 5000');
-
 export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
   const defaultDimensions = isAdminUser
     ? ADMIN_ANALYSIS_DIMENSIONS
     : USER_ANALYSIS_DIMENSIONS;
-  const [analysis, setAnalysis] = useState({
-    rows: [],
-    granularity: 'day',
-    dimensions: defaultDimensions,
-    margin_status: 'unknown',
-    cost_basis_note: '',
-  });
+  const [analysis, setAnalysis] = useState(() =>
+    emptyDashboardAnalysis(defaultDimensions),
+  );
+  const requestGeneration = useRef(0);
+  const abortController = useRef(null);
 
   const buildQuery = useCallback(
     (dimensions) => {
@@ -53,7 +55,7 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
   );
 
   const requestAnalysis = useCallback(
-    async (dimensions) => {
+    async (dimensions, signal) => {
       const query = buildQuery(dimensions);
       if (!query) {
         return {
@@ -63,14 +65,24 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
       }
       const path = isAdminUser ? '/api/log/analysis' : '/api/log/self/analysis';
       try {
-        const res = await API.get(`${path}?${query.toString()}`);
+        const res = await API.get(`${path}?${query.toString()}`, {
+          signal,
+          // Dashboard analysis owns its error presentation so a failed
+          // fallback can show the exact server response rather than a second
+          // generic interceptor toast.
+          skipErrorHandler: true,
+          disableDuplicate: true,
+        });
         return res.data || { success: false, message: t('分析响应为空') };
       } catch (error) {
+        if (isRequestCanceled(error, signal)) {
+          return { success: false, canceled: true };
+        }
         const payload = error?.response?.data || {};
         return {
           success: false,
           code: payload.code,
-          message: payload.message || error?.message || t('加载消费分析失败'),
+          message: getAnalysisFailureMessage(error, t('加载消费分析失败')),
         };
       }
     },
@@ -78,19 +90,50 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
   );
 
   const reload = useCallback(async () => {
+    const generation = requestGeneration.current + 1;
+    requestGeneration.current = generation;
+    abortController.current?.abort();
+    const controller = new AbortController();
+    abortController.current = controller;
+    const isCurrent = () =>
+      isAnalysisRequestCurrent(
+        generation,
+        requestGeneration.current,
+        controller.signal,
+      );
+    const clearAnalysis = () => {
+      setAnalysis(emptyDashboardAnalysis(defaultDimensions));
+      setNotice('');
+    };
+
     setLoading(true);
+    setError('');
     setNotice('');
+    // Invalidate the previous financial result before starting a new query.
+    // This also makes export unavailable while the new filter is loading.
+    setAnalysis(emptyDashboardAnalysis(defaultDimensions));
     try {
-      const primary = await requestAnalysis(defaultDimensions);
+      const primary = await requestAnalysis(
+        defaultDimensions,
+        controller.signal,
+      );
+      if (!isCurrent()) return;
       if (primary.success) {
-        setAnalysis(primary.data || { rows: [] });
+        setAnalysis(primary.data || emptyDashboardAnalysis(defaultDimensions));
         return;
       }
 
       if (isTooManyRowsError(primary)) {
-        const fallback = await requestAnalysis(ANALYSIS_FALLBACK_DIMENSIONS);
+        const fallback = await requestAnalysis(
+          ANALYSIS_FALLBACK_DIMENSIONS,
+          controller.signal,
+        );
+        if (!isCurrent()) return;
         if (fallback.success) {
-          setAnalysis(fallback.data || { rows: [] });
+          setAnalysis(
+            fallback.data ||
+              emptyDashboardAnalysis(ANALYSIS_FALLBACK_DIMENSIONS),
+          );
           setNotice(
             t(
               '结果超过 5000 个分组，已自动降级为仅按时间分组；如需明细，请缩小筛选范围或降低时间粒度。',
@@ -98,13 +141,34 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
           );
           return;
         }
+        const fallbackMessage = getAnalysisFailureMessage(
+          fallback,
+          t('加载消费分析失败'),
+        );
+        clearAnalysis();
+        setError(fallbackMessage);
+        showError(fallbackMessage);
+        return;
       }
 
-      showError(primary.message || t('加载消费分析失败'));
+      const primaryMessage = getAnalysisFailureMessage(
+        primary,
+        t('加载消费分析失败'),
+      );
+      clearAnalysis();
+      setError(primaryMessage);
+      showError(primaryMessage);
     } catch (error) {
-      showError(`${t('加载消费分析失败')}: ${error?.message || ''}`);
+      if (!isCurrent() || isRequestCanceled(error, controller.signal)) return;
+      const requestMessage = `${t('加载消费分析失败')}: ${error?.message || ''}`;
+      clearAnalysis();
+      setError(requestMessage);
+      showError(requestMessage);
     } finally {
-      setLoading(false);
+      if (isCurrent()) {
+        setLoading(false);
+        abortController.current = null;
+      }
     }
   }, [defaultDimensions, isAdminUser, requestAnalysis, t]);
 
@@ -137,12 +201,17 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
     showSuccess(t('消费分析导出成功'));
   }, [analysis.rows, inputs.start_timestamp, isAdminUser, t]);
 
+  // SearchModal edits are intentionally staged; the query is reloaded only
+  // after the user confirms, avoiding a request per keystroke.
   useEffect(() => {
-    reload();
-    // SearchModal edits are intentionally staged; the query is reloaded only
-    // after the user confirms, avoiding a request per keystroke.
+    void reload();
+    return () => {
+      requestGeneration.current += 1;
+      abortController.current?.abort();
+      abortController.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdminUser]);
 
-  return { analysis, loading, notice, reload, exportAnalysis };
+  return { analysis, loading, notice, error, reload, exportAnalysis };
 };

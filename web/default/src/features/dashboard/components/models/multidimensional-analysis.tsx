@@ -60,17 +60,24 @@ export function MultidimensionalAnalysis({
     : USER_ANALYSIS_DIMENSIONS
 
   useEffect(() => {
+    const abortController = new AbortController()
     let active = true
     setLoading(true)
     setError(false)
     setNotice('')
+    setAnalysis(null)
 
     const loadAnalysis = async () => {
       const request = async (
         dimensions: readonly string[]
       ): Promise<AnalysisRequestResult> => {
         try {
-          return await getLogUsageAnalysis(filters, isAdmin, dimensions)
+          return await getLogUsageAnalysis(
+            filters,
+            isAdmin,
+            dimensions,
+            abortController.signal
+          )
         } catch (requestError) {
           const payload = (
             requestError as { response?: { data?: Record<string, string> } }
@@ -84,7 +91,7 @@ export function MultidimensionalAnalysis({
       }
 
       const primary = await request(defaultDimensions)
-      if (!active) return
+      if (!active || abortController.signal.aborted) return
       if (primary.success && primary.data) {
         setAnalysis(primary.data)
         return
@@ -96,7 +103,7 @@ export function MultidimensionalAnalysis({
         primaryError.message?.includes('超过 5000')
       ) {
         const fallback = await request(ANALYSIS_FALLBACK_DIMENSIONS)
-        if (!active) return
+        if (!active || abortController.signal.aborted) return
         if (fallback.success && fallback.data) {
           setAnalysis(fallback.data)
           setNotice(
@@ -112,15 +119,16 @@ export function MultidimensionalAnalysis({
 
     loadAnalysis()
       .catch(() => {
-        if (!active) return
+        if (!active || abortController.signal.aborted) return
         setAnalysis(null)
         setError(true)
       })
       .finally(() => {
-        if (active) setLoading(false)
+        if (active && !abortController.signal.aborted) setLoading(false)
       })
     return () => {
       active = false
+      abortController.abort()
     }
   }, [filters, isAdmin])
 

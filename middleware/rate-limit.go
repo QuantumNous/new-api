@@ -108,15 +108,47 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
-// AnalysisRateLimit keeps dashboard analysis traffic in its own per-IP
-// bucket.  It intentionally reuses the critical-rate-limit configuration for
+// AnalysisRateLimit keeps dashboard analysis traffic in its own bucket. It
+// intentionally reuses the critical-rate-limit configuration for
 // capacity/duration, but uses a distinct mark so a read-only analysis burst
 // cannot consume the login, 2FA, passkey, password-reset, or payment bucket.
 func AnalysisRateLimit() func(c *gin.Context) {
 	if common.CriticalRateLimitEnable {
-		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "AN")
+		return analysisRateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration)
 	}
 	return defNext
+}
+
+// analysisRateLimitFactory gives authenticated dashboard callers a stable
+// user-specific bucket while keeping unauthenticated probes behind a separate
+// per-IP bucket.  The middleware is mounted after TryUserAuth and before the
+// required AdminAuth/UserAuth handler: a valid session therefore contributes
+// to AN:user:<id>, while a request without a session can only consume AN+IP.
+// This ordering prevents an unauthenticated NAT peer from exhausting another
+// user's dashboard budget, while still bounding unauthenticated traffic.
+func analysisRateLimitFactory(maxRequestNum int, duration int64) func(c *gin.Context) {
+	if common.RedisEnabled {
+		return func(c *gin.Context) {
+			if userId := c.GetInt("id"); userId > 0 {
+				userRedisRateLimiter(c, maxRequestNum, duration, fmt.Sprintf("rateLimit:AN:user:%d", userId))
+				return
+			}
+			redisRateLimiter(c, maxRequestNum, duration, "AN")
+		}
+	}
+
+	// It's safe to call multiple times.
+	inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
+	return func(c *gin.Context) {
+		key := "AN" + c.ClientIP()
+		if userId := c.GetInt("id"); userId > 0 {
+			key = fmt.Sprintf("AN:user:%d", userId)
+		}
+		if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
+			c.Status(http.StatusTooManyRequests)
+			c.Abort()
+		}
+	}
 }
 
 func DownloadRateLimit() func(c *gin.Context) {

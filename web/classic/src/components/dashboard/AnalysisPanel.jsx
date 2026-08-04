@@ -19,6 +19,7 @@ const AnalysisPanel = ({
   analysis,
   loading,
   notice,
+  error,
   isAdminUser,
   exportAnalysis,
   CARD_PROPS,
@@ -173,6 +174,10 @@ const AnalysisPanel = ({
       {loading ? (
         <div className='h-48 flex items-center justify-center text-gray-400'>
           {t('正在加载消费分析')}…
+        </div>
+      ) : error ? (
+        <div className='rounded-lg bg-red-50 px-3 py-3 text-sm text-red-800'>
+          {error}
         </div>
       ) : rows.length === 0 ? (
         <Empty description={t('当前筛选条件下暂无消费记录')} />

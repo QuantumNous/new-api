@@ -187,6 +187,7 @@ const Dashboard = () => {
         analysis={dashboardAnalysis.analysis}
         loading={dashboardAnalysis.loading}
         notice={dashboardAnalysis.notice}
+        error={dashboardAnalysis.error}
         isAdminUser={dashboardData.isAdminUser}
         exportAnalysis={dashboardAnalysis.exportAnalysis}
         CARD_PROPS={CARD_PROPS}

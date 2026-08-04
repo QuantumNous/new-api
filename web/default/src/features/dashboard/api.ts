@@ -62,11 +62,11 @@ export async function getUptimeStatus() {
   return res.data
 }
 
-export async function getLogUsageAnalysis(
+export function buildLogUsageAnalysisParams(
   filters: DashboardFilters | undefined,
   isAdmin: boolean,
   dimensionsOverride?: readonly string[]
-): Promise<{ success: boolean; data?: LogUsageAnalysisResponse }> {
+) {
   const range = computeTimeRange(
     getDefaultDays(filters?.time_granularity),
     filters?.start_timestamp,
@@ -77,16 +77,33 @@ export async function getLogUsageAnalysis(
     dimensionsOverride ||
     (isAdmin ? ADMIN_ANALYSIS_DIMENSIONS : USER_ANALYSIS_DIMENSIONS)
   ).join(',')
+  const username = isAdmin ? filters?.username?.trim() : undefined
+  return {
+    ...range,
+    granularity,
+    dimensions,
+    ...(username ? { username } : {}),
+  }
+}
+
+export async function getLogUsageAnalysis(
+  filters: DashboardFilters | undefined,
+  isAdmin: boolean,
+  dimensionsOverride?: readonly string[],
+  signal?: AbortSignal
+): Promise<{ success: boolean; data?: LogUsageAnalysisResponse }> {
+  const params = buildLogUsageAnalysisParams(
+    filters,
+    isAdmin,
+    dimensionsOverride
+  )
   const endpoint = isAdmin ? '/api/log/analysis' : '/api/log/self/analysis'
   const res = await api.get<{
     success: boolean
     data?: LogUsageAnalysisResponse
   }>(endpoint, {
-    params: {
-      ...range,
-      granularity,
-      dimensions,
-    },
+    params,
+    signal,
   })
   return res.data
 }

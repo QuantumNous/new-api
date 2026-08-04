@@ -4,6 +4,17 @@
 const CST_OFFSET_SECONDS = 8 * 60 * 60;
 const LOCAL_DATE_TIME_RE =
   /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?$/;
+const CST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+  hour12: false,
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
 
 const toCstEpochSeconds = (
   year,
@@ -29,16 +40,21 @@ const toCstEpochSeconds = (
 export const parseDashboardTimestamp = (value) => {
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return Number.NaN;
-    // Semi UI's DatePicker supplies a Date whose local components represent
-    // the selected wall-clock value.  Read components, then attach CST.
+    // A Date is an instant.  Convert its components through a fixed
+    // Asia/Shanghai formatter instead of getHours()/getDate(), whose local
+    // timezone can normalize a DST gap (for example America/New_York).
+    const parts = Object.fromEntries(
+      CST_DATE_TIME_FORMATTER.formatToParts(value).map(
+        ({ type, value: part }) => [type, part],
+      ),
+    );
     return toCstEpochSeconds(
-      value.getFullYear(),
-      value.getMonth() + 1,
-      value.getDate(),
-      value.getHours(),
-      value.getMinutes(),
-      value.getSeconds(),
-      value.getMilliseconds(),
+      Number(parts.year),
+      Number(parts.month),
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second),
     );
   }
 

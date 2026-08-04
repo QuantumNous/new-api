@@ -23,6 +23,16 @@ func runRateLimitProbe(handler gin.HandlerFunc, method, path, ip string) int {
 	return context.Writer.Status()
 }
 
+func runRateLimitProbeAsUser(handler gin.HandlerFunc, method, path, ip string, userID int) int {
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(method, path, nil)
+	context.Request.RemoteAddr = ip + ":443"
+	context.Set("id", userID)
+	handler(context)
+	return context.Writer.Status()
+}
+
 // TestAnalysisRateLimitDoesNotBlockLoginBucket is the regression probe for
 // the shared-IP bucket reported by the dashboard review: after 21 analysis
 // requests from one IP, the login request must still reach the independent
@@ -61,4 +71,37 @@ func TestAnalysisRateLimitDoesNotBlockLoginBucket(t *testing.T) {
 	require.Equal(t, http.StatusOK,
 		runRateLimitProbe(loginRateLimit, http.MethodPost, "/api/user/login", ip),
 		"analysis traffic must not consume the login CriticalRateLimit bucket")
+}
+
+func TestAnalysisRateLimitSeparatesUnauthenticatedNATFromAuthenticatedUsers(t *testing.T) {
+	previousEnabled := common.CriticalRateLimitEnable
+	previousRedis := common.RedisEnabled
+	previousNum := common.CriticalRateLimitNum
+	previousDuration := common.CriticalRateLimitDuration
+	t.Cleanup(func() {
+		common.CriticalRateLimitEnable = previousEnabled
+		common.RedisEnabled = previousRedis
+		common.CriticalRateLimitNum = previousNum
+		common.CriticalRateLimitDuration = previousDuration
+	})
+
+	common.CriticalRateLimitEnable = true
+	common.RedisEnabled = false
+	common.CriticalRateLimitNum = 2
+	common.CriticalRateLimitDuration = 20 * 60
+
+	probeID := atomic.AddUint64(&rateLimitProbeCounter, 1)
+	ip := fmt.Sprintf("198.51.100.%d", probeID%254+1)
+	analysisRateLimit := AnalysisRateLimit()
+
+	// Unauthenticated requests behind the same NAT address share only the
+	// anonymous per-IP bucket and cannot consume either user's dashboard key.
+	require.Equal(t, http.StatusOK, runRateLimitProbe(analysisRateLimit, http.MethodGet, "/api/log/analysis", ip))
+	require.Equal(t, http.StatusOK, runRateLimitProbe(analysisRateLimit, http.MethodGet, "/api/log/analysis", ip))
+	require.Equal(t, http.StatusTooManyRequests, runRateLimitProbe(analysisRateLimit, http.MethodGet, "/api/log/analysis", ip))
+
+	// Two authenticated principals on the same NAT address each retain an
+	// independent user bucket, even though the anonymous IP bucket is full.
+	require.Equal(t, http.StatusOK, runRateLimitProbeAsUser(analysisRateLimit, http.MethodGet, "/api/log/analysis", ip, 100000+int(probeID)*2))
+	require.Equal(t, http.StatusOK, runRateLimitProbeAsUser(analysisRateLimit, http.MethodGet, "/api/log/analysis", ip, 100001+int(probeID)*2))
 }
