@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	tokenConcurrencyKeyPrefix    = "aibuff:token-concurrency:v1"
+	tokenConcurrencyKeyPrefix    = "aibuff:token-concurrency:v2"
 	tokenConcurrencyRedisTimeout = 2 * time.Second
 )
 

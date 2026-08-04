@@ -205,6 +205,23 @@ func TestTokenConcurrencySeparatesTokenAndGroupKeys(t *testing.T) {
 	require.NoError(t, acquireTokenConcurrency(context.Background(), rdb, keys[0], "lease-5", 1, time.Minute))
 }
 
+func TestTokenConcurrencyV2DoesNotTouchLegacyV1Hash(t *testing.T) {
+	rdb := tokenConcurrencyTestRedis(t)
+	ctx := context.Background()
+	legacyKey := "aibuff:token-concurrency:v1:token:910018:group:schema-isolation"
+	v2Key := tokenConcurrencyKey(910018, "schema-isolation")
+	t.Cleanup(func() { _ = rdb.Del(ctx, legacyKey, v2Key).Err() })
+
+	require.Equal(t, "aibuff:token-concurrency:v2:token:910018:group:schema-isolation", v2Key)
+	require.NoError(t, rdb.HSet(ctx, legacyKey, "legacy-lease", "1").Err())
+	require.NoError(t, acquireTokenConcurrency(ctx, rdb, v2Key, "v2-lease", 1, time.Minute))
+	require.Equal(t, int64(1), rdb.HLen(ctx, legacyKey).Val(), "legacy v1 hash must remain untouched")
+	require.Equal(t, "1", rdb.HGet(ctx, legacyKey, "legacy-lease").Val())
+	require.Equal(t, int64(1), rdb.ZCard(ctx, v2Key).Val())
+	require.NoError(t, releaseTokenConcurrency(ctx, rdb, v2Key, "v2-lease"))
+	require.Equal(t, int64(1), rdb.HLen(ctx, legacyKey).Val(), "v2 release must not delete the legacy hash")
+}
+
 func TestTokenConcurrencyRedisFailureOnlyBlocksConfiguredGroup(t *testing.T) {
 	setTokenConcurrencyTestPolicy(t, "restricted-group=1")
 	gin.SetMode(gin.TestMode)
