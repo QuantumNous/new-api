@@ -48,6 +48,20 @@ const view = computed(() =>
   buildUsageDistributionView(props.points, period.value, metric.value)
 )
 
+const visibleCells = computed(() =>
+  view.value.cells.flatMap((cell, index) =>
+    cell.inRange && !cell.future
+      ? [
+          {
+            cell,
+            column: Math.floor(index / 7) + 1,
+            row: (index % 7) + 1,
+          },
+        ]
+      : []
+  )
+)
+
 const periodOptions = computed(() => [
   { key: 'month' as const, label: t('dashboard.distribution.periodMonth') },
   { key: 'quarter' as const, label: t('dashboard.distribution.periodQuarter') },
@@ -226,18 +240,18 @@ onMounted(() => void alignLatest())
     stretch
     data-usage-distribution
   >
-    <div v-if="loading" class="flex grow flex-col gap-4" data-usage-loading>
+    <div v-if="loading" class="flex flex-col gap-3" data-usage-loading>
       <div class="flex flex-wrap justify-between gap-4">
         <div
-          class="h-14 w-40 animate-pulse rounded-xl bg-[var(--surface-muted)]"
+          class="h-12 w-52 animate-pulse rounded-xl bg-[var(--surface-muted)]"
         />
         <div
-          class="h-16 w-64 animate-pulse rounded-xl bg-[var(--surface-muted)]"
+          class="h-10 w-72 animate-pulse rounded-xl bg-[var(--surface-muted)]"
         />
       </div>
-      <div class="grid grow gap-5 lg:grid-cols-[minmax(0,1fr)_12rem]">
-        <div class="h-56 animate-pulse rounded-xl bg-[var(--surface-muted)]" />
-        <div class="h-56 animate-pulse rounded-xl bg-[var(--surface-muted)]" />
+      <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_13rem]">
+        <div class="h-48 animate-pulse rounded-xl bg-[var(--surface-muted)]" />
+        <div class="h-48 animate-pulse rounded-xl bg-[var(--surface-muted)]" />
       </div>
     </div>
 
@@ -247,22 +261,39 @@ onMounted(() => void alignLatest())
       :hint="t('dashboard.distribution.emptyHint')"
     />
 
-    <div v-else ref="root" class="relative flex grow flex-col">
-      <div class="flex flex-wrap items-start justify-between gap-4">
+    <div v-else ref="root" class="relative flex flex-col">
+      <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="min-w-0">
           <p class="text-xs text-[var(--text-tertiary)]">
             {{ periodLabel }} · {{ metricLabel }}
           </p>
-          <p
-            class="mt-1 truncate text-2xl font-bold tabular-nums text-[var(--text-primary)]"
-            aria-live="polite"
-            data-usage-total
-          >
-            {{ formatMetric(view.total) }}
-          </p>
+          <div class="mt-0.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <p
+              class="truncate text-xl font-bold tabular-nums text-[var(--text-primary)] sm:text-2xl"
+              aria-live="polite"
+              data-usage-total
+            >
+              {{ formatMetric(view.total) }}
+            </p>
+            <span class="text-[11px] text-[var(--text-tertiary)]">
+              {{
+                t('dashboard.distribution.activeDays', {
+                  count: view.activeDays,
+                })
+              }}
+            </span>
+            <span class="text-[11px] text-[var(--text-tertiary)]">
+              {{ t('dashboard.distribution.peak') }}
+              <strong class="font-semibold text-[var(--text-secondary)]">
+                {{ view.peak ? formatMetric(view.peak.value) : '--' }}
+              </strong>
+            </span>
+          </div>
         </div>
 
-        <div class="grid w-full gap-2 sm:w-auto sm:justify-items-end">
+        <div
+          class="grid w-full gap-2 min-[360px]:grid-cols-2 sm:w-auto sm:justify-items-end"
+        >
           <div
             class="grid grid-cols-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-0.5 text-xs"
             :aria-label="t('dashboard.distribution.periodControl')"
@@ -271,7 +302,7 @@ onMounted(() => void alignLatest())
               v-for="option in periodOptions"
               :key="option.key"
               type="button"
-              class="rounded-lg px-3 py-1.5 font-medium transition-all focus-ring"
+              class="min-w-0 rounded-lg px-2.5 py-1.5 font-medium transition-all focus-ring"
               :class="
                 period === option.key
                   ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
@@ -292,7 +323,7 @@ onMounted(() => void alignLatest())
               v-for="option in metricOptions"
               :key="option.key"
               type="button"
-              class="rounded-lg px-3 py-1.5 font-medium transition-all focus-ring"
+              class="min-w-0 rounded-lg px-2.5 py-1.5 font-medium transition-all focus-ring"
               :class="
                 metric === option.key
                   ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
@@ -308,7 +339,7 @@ onMounted(() => void alignLatest())
         </div>
       </div>
 
-      <div class="mt-5 grid grow gap-5 lg:grid-cols-[minmax(0,1fr)_12rem]">
+      <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_13rem]">
         <div class="min-w-0 self-center">
           <div class="flex min-w-0 gap-2">
             <div
@@ -347,40 +378,36 @@ onMounted(() => void alignLatest())
                     })
                   "
                 >
-                  <template v-for="cell in view.cells" :key="cell.date">
-                    <button
-                      v-if="cell.inRange && !cell.future"
-                      type="button"
-                      class="usage-cell focus-ring"
-                      :style="cellStyle(cell)"
-                      :tabindex="focusDate === cell.date ? 0 : -1"
-                      :aria-label="cellLabel(cell)"
-                      :aria-describedby="
-                        tooltip?.date === cell.date ? tooltipId : undefined
-                      "
-                      :data-usage-date="cell.date"
-                      :data-usage-level="cell.level"
-                      role="gridcell"
-                      @focus="onCellFocus($event, cell)"
-                      @blur="hideTooltip(cell.date)"
-                      @mouseenter="showTooltip($event, cell)"
-                      @mouseleave="hideTooltip(cell.date)"
-                      @keydown="onCellKeydown($event, cell)"
-                    />
-                    <span
-                      v-else
-                      class="usage-cell border-transparent"
-                      :style="cellStyle(cell)"
-                      aria-hidden="true"
-                    />
-                  </template>
+                  <button
+                    v-for="{ cell, column, row } in visibleCells"
+                    :key="cell.date"
+                    type="button"
+                    class="usage-cell focus-ring"
+                    :style="[
+                      cellStyle(cell),
+                      { gridColumn: column, gridRow: row },
+                    ]"
+                    :tabindex="focusDate === cell.date ? 0 : -1"
+                    :aria-label="cellLabel(cell)"
+                    :aria-describedby="
+                      tooltip?.date === cell.date ? tooltipId : undefined
+                    "
+                    :data-usage-date="cell.date"
+                    :data-usage-level="cell.level"
+                    role="gridcell"
+                    @focus="onCellFocus($event, cell)"
+                    @blur="hideTooltip(cell.date)"
+                    @mouseenter="showTooltip($event, cell)"
+                    @mouseleave="hideTooltip(cell.date)"
+                    @keydown="onCellKeydown($event, cell)"
+                  />
                 </div>
               </div>
             </div>
           </div>
 
           <div
-            class="mt-2 flex items-center gap-1.5 text-[10px] text-[var(--text-tertiary)]"
+            class="mt-1.5 flex items-center gap-1.5 text-[10px] text-[var(--text-tertiary)]"
           >
             <span>{{ t('dashboard.distribution.less') }}</span>
             <span
@@ -403,13 +430,13 @@ onMounted(() => void alignLatest())
         </div>
 
         <aside
-          class="space-y-5 border-t border-[var(--border-subtle)] pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"
+          class="grid gap-4 border-t border-[var(--border-subtle)] pt-3 min-[360px]:grid-cols-2 lg:block lg:space-y-4 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0"
         >
           <section>
             <h3 class="text-xs font-medium text-[var(--text-tertiary)]">
               {{ t('dashboard.distribution.topDays') }}
             </h3>
-            <div v-if="view.topDays.length" class="mt-3 space-y-3">
+            <div v-if="view.topDays.length" class="mt-2 space-y-2">
               <div v-for="day in view.topDays" :key="day.date">
                 <div class="flex items-center justify-between gap-2 text-xs">
                   <span class="text-[var(--text-secondary)]">{{
@@ -421,7 +448,7 @@ onMounted(() => void alignLatest())
                   >
                 </div>
                 <div
-                  class="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+                  class="mt-1 h-1 overflow-hidden rounded-full bg-[var(--surface-muted)]"
                 >
                   <div
                     class="h-full rounded-full"
@@ -442,7 +469,7 @@ onMounted(() => void alignLatest())
             <h3 class="text-xs font-medium text-[var(--text-tertiary)]">
               {{ t('dashboard.distribution.weekdayRhythm') }}
             </h3>
-            <div class="mt-3 space-y-1.5">
+            <div class="mt-2 space-y-1">
               <div
                 v-for="entry in view.weekdays"
                 :key="entry.weekday"
@@ -452,7 +479,7 @@ onMounted(() => void alignLatest())
                   weekdays[entry.weekday]
                 }}</span>
                 <div
-                  class="h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+                  class="h-1 overflow-hidden rounded-full bg-[var(--surface-muted)]"
                 >
                   <div
                     class="h-full rounded-full opacity-70"
@@ -473,20 +500,6 @@ onMounted(() => void alignLatest())
       </div>
 
       <div
-        class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-tertiary)]"
-      >
-        <span>{{
-          t('dashboard.distribution.activeDays', { count: view.activeDays })
-        }}</span>
-        <span>
-          {{ t('dashboard.distribution.peak') }}
-          <strong class="font-semibold text-[var(--text-secondary)]">{{
-            view.peak ? formatMetric(view.peak.value) : '--'
-          }}</strong>
-        </span>
-      </div>
-
-      <div
         v-if="tooltip"
         :id="tooltipId"
         class="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-overlay)] px-3 py-2 text-xs text-[var(--text-primary)] shadow-[var(--overlay-shadow)]"
@@ -501,8 +514,8 @@ onMounted(() => void alignLatest())
 
 <style scoped>
 .usage-heat-content {
-  --usage-cell-size: 24px;
-  --usage-gap: 4px;
+  --usage-cell-size: 21px;
+  --usage-gap: 3px;
   width: calc(
     var(--usage-weeks) * (var(--usage-cell-size) + var(--usage-gap)) -
       var(--usage-gap)
@@ -517,15 +530,14 @@ onMounted(() => void alignLatest())
 
 .usage-grid {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: var(--usage-cell-size);
+  grid-template-columns: repeat(var(--usage-weeks), var(--usage-cell-size));
   grid-template-rows: repeat(7, var(--usage-cell-size));
   gap: var(--usage-gap);
 }
 
 .usage-weekdays {
-  grid-template-rows: repeat(7, 24px);
-  gap: 4px;
+  grid-template-rows: repeat(7, 21px);
+  gap: 3px;
 }
 
 .usage-weekdays > span {
@@ -555,12 +567,12 @@ button.usage-cell:focus-visible {
 
 @media (max-width: 639px) {
   .usage-heat-content {
-    --usage-cell-size: 22px;
+    --usage-cell-size: 20px;
     --usage-gap: 3px;
   }
 
   .usage-weekdays {
-    grid-template-rows: repeat(7, 22px);
+    grid-template-rows: repeat(7, 20px);
     gap: 3px;
   }
 }

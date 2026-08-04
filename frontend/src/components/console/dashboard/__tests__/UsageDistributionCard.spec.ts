@@ -67,6 +67,8 @@ describe('UsageDistributionCard', () => {
       wrapper.get('[data-usage-metric="requests"]').attributes('aria-pressed')
     ).toBe('true')
     expect(wrapper.findAll('[data-usage-date]')).toHaveLength(91)
+    expect(wrapper.findAll('.usage-cell')).toHaveLength(91)
+    expect(wrapper.findAll('[aria-hidden="true"].usage-cell')).toHaveLength(0)
     expect(
       wrapper
         .findAll('[data-usage-date]')
