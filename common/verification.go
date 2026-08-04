@@ -1,10 +1,14 @@
 package common
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 )
 
@@ -23,6 +27,19 @@ var verificationMap map[string]verificationValue
 var verificationMapMaxSize = 10
 var VerificationValidMinutes = 10
 
+func verificationKey(key string, purpose string) string {
+	return purpose + key
+}
+
+func verificationRedisEnabled() bool {
+	return RedisEnabled && RDB != nil
+}
+
+func verificationRedisKey(key string, purpose string) string {
+	sum := sha256.Sum256([]byte(purpose + ":" + key))
+	return "verification:" + purpose + ":" + hex.EncodeToString(sum[:])
+}
+
 func GenerateVerificationCode(length int) string {
 	code := uuid.New().String()
 	code = strings.Replace(code, "-", "", -1)
@@ -32,10 +49,25 @@ func GenerateVerificationCode(length int) string {
 	return code[:length]
 }
 
-func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
+func RegisterVerificationCodeWithKey(key string, code string, purpose string) error {
+	if verificationRedisEnabled() {
+		err := RedisSet(verificationRedisKey(key, purpose), code, time.Duration(VerificationValidMinutes)*time.Minute)
+		if err != nil {
+			SysLog("failed to save verification code to Redis: " + err.Error())
+			deleteVerificationCodeInMemory(key, purpose)
+			return err
+		}
+		deleteVerificationCodeInMemory(key, purpose)
+		return nil
+	}
+	registerVerificationCodeInMemory(key, code, purpose)
+	return nil
+}
+
+func registerVerificationCodeInMemory(key string, code string, purpose string) {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
-	verificationMap[purpose+key] = verificationValue{
+	verificationMap[verificationKey(key, purpose)] = verificationValue{
 		code: code,
 		time: time.Now(),
 	}
@@ -45,9 +77,23 @@ func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
 }
 
 func VerifyCodeWithKey(key string, code string, purpose string) bool {
+	if verificationRedisEnabled() {
+		value, err := RedisGet(verificationRedisKey(key, purpose))
+		if err == nil {
+			return code == value
+		}
+		if !errors.Is(err, redis.Nil) {
+			SysLog("failed to get verification code from Redis: " + err.Error())
+		}
+		return false
+	}
+	return verifyCodeWithKeyInMemory(key, code, purpose)
+}
+
+func verifyCodeWithKeyInMemory(key string, code string, purpose string) bool {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
-	value, okay := verificationMap[purpose+key]
+	value, okay := verificationMap[verificationKey(key, purpose)]
 	now := time.Now()
 	if !okay || int(now.Sub(value.time).Seconds()) >= VerificationValidMinutes*60 {
 		return false
@@ -56,9 +102,19 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 }
 
 func DeleteKey(key string, purpose string) {
+	if verificationRedisEnabled() {
+		err := RedisDelKey(verificationRedisKey(key, purpose))
+		if err != nil {
+			SysLog("failed to delete verification code from Redis: " + err.Error())
+		}
+	}
+	deleteVerificationCodeInMemory(key, purpose)
+}
+
+func deleteVerificationCodeInMemory(key string, purpose string) {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
-	delete(verificationMap, purpose+key)
+	delete(verificationMap, verificationKey(key, purpose))
 }
 
 // no lock inside, so the caller must lock the verificationMap before calling!
