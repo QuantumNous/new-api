@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -7,13 +7,17 @@ import PageHero from '@/components/console/PageHero.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { adminUserRoleTone } from '@/constants/adminUsers'
 import { useAuthStore } from '@/stores/auth'
+import { useSettingsPrototypeStore } from '@/stores/settingsPrototype'
 import { useDashboard } from '@/composables/useDashboard'
 import { formatQuota, formatCompact, formatDate } from '@/utils/format'
 
 const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
+const settingsPrototype = useSettingsPrototypeStore()
 const { stats, load: loadDash } = useDashboard()
+
+settingsPrototype.initialize(auth.user)
 
 onMounted(() => {
   void loadDash()
@@ -88,10 +92,7 @@ const tier = computed(() => {
   }
 })
 
-// ── mock security state (matches SettingsView defaults) ───
-const twoFAEnabled = ref(false)
 const emailBound = computed(() => Boolean(auth.user?.email))
-const githubBound = ref(false)
 
 // ── quick nav items ───────────────────────────────────────
 const navItems = computed(() => [
@@ -469,9 +470,11 @@ const navItems = computed(() => [
               <span class="text-sm text-[var(--text-secondary)]">{{
                 t('profile.twoFA')
               }}</span>
-              <StatusChip :tone="twoFAEnabled ? 'success' : 'neutral'">
+              <StatusChip
+                :tone="settingsPrototype.twoFAEnabled ? 'success' : 'neutral'"
+              >
                 {{
-                  twoFAEnabled
+                  settingsPrototype.twoFAEnabled
                     ? t('profile.twoFAEnabled')
                     : t('profile.twoFADisabled')
                 }}
@@ -493,7 +496,7 @@ const navItems = computed(() => [
                     },
                     {
                       label: t('profile.bindingGithub'),
-                      bound: githubBound,
+                      bound: settingsPrototype.githubBound,
                       value: null,
                     },
                   ]"
