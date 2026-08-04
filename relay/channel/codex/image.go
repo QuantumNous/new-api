@@ -52,16 +52,20 @@ func resolveImageCarrierModel(info *relaycommon.RelayInfo) string {
 }
 
 // ValidateCodexImageRequest 在请求进入上游之前做客户端侧校验。
-// 目前主要校验 response_format：codex 图像路径默认只能返回 base64（无托管 URL），
-// 除空值（默认 b64_json）与显式 "b64_json" 外其他值直接拒绝；若客户端同时带
-// temp_url=true，则允许显式传入 "url" 并在下游改为返回临时下载链接。
+// 目前主要校验 response_format：codex 图像路径默认只能返回 base64（无托管 URL）。
+// 若客户端设置 temp_url=true，则无视 response_format 的显式约束（默认按临时链接返回），
+// 不再要求必须带 "url"，避免上游返回 400 卡死客户端。
 //
 // 设计 seam：adaptor.go 的 ConvertImageRequest 拥有 request，应在构建上游 body 前
 // 调用本函数。把校验放在 image.go 是为了让规则与 codex 图像的其余逻辑同处一文件、
 // 可独立测试；adaptor.go（由另一 agent 维护）只需 `if err := ValidateCodexImageRequest(request); err != nil { return nil, err }`。
 func ValidateCodexImageRequest(request dto.ImageRequest) error {
+	if request.TempUrl != nil && *request.TempUrl {
+		return nil
+	}
+
 	rf := strings.TrimSpace(request.ResponseFormat)
-	if rf != "" && rf != "b64_json" && !(rf == "url" && request.TempUrl != nil && *request.TempUrl) {
+	if rf != "" && rf != "b64_json" {
 		return fmt.Errorf("codex image: response_format %q not supported; codex image only supports b64_json", rf)
 	}
 	return nil

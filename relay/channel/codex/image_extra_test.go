@@ -25,19 +25,25 @@ import (
 
 // F7 接线测试：ConvertImageRequest（生产路径）默认拒绝 response_format=url，
 // 防止 ValidateCodexImageRequest 沦为死代码（max-review 复审曾发现未接线）；
-// 当 temp_url=true 时允许透传 URL 模式请求，用于返回临时链接。
+// 当 temp_url=true 时不再要求 response_format=url，支持更稳妥的兼容返回。
 func TestConvertImageRequest_RejectsURLResponseFormat(t *testing.T) {
 	a := &Adaptor{}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}
 
-	// url 在 ValidateCodexImageRequest 处即被拒绝（早于 resolveImageCarrierModel），
+	// url 在 ValidateCodexImageRequest 处即被拒绝（temp_url=false 分支），
 	// 证明校验确已接入生产路径，而非死代码。
 	if _, err := a.ConvertImageRequest(c, info, dto.ImageRequest{Model: "gpt-image-2", Prompt: "x", ResponseFormat: "url"}); err == nil {
 		t.Fatalf("ConvertImageRequest must reject response_format=url")
 	} else if !strings.Contains(err.Error(), "response_format") {
 		t.Fatalf("expected response_format rejection, got: %v", err)
+	}
+
+	// temp_url=true 时允许不带或带 response_format=url，两种都走临时链接模式。
+	info.Request = &dto.ImageRequest{TempUrl: common.GetPointer(true)}
+	if _, err := a.ConvertImageRequest(c, info, dto.ImageRequest{Model: "gpt-image-2", Prompt: "x", TempUrl: common.GetPointer(true), ResponseFormat: "url"}); err != nil {
+		t.Fatalf("response_format=url should pass when temp_url=true, got: %v", err)
 	}
 }
 
@@ -176,7 +182,8 @@ func TestRelayImageOverCodex_OversizedStreamReturnsDistinctError(t *testing.T) {
 	}
 }
 
-// F7：response_format 非 b64_json（如 "url"）必须被拒绝；空与 b64_json 通过。
+// F7：response_format 非 b64_json（如 "url"）在 temp_url=false 下被拒绝；
+// 空与 b64_json 通过；temp_url=true 下不限制 response_format。
 func TestValidateCodexImageRequest_ResponseFormat(t *testing.T) {
 	if err := ValidateCodexImageRequest(dto.ImageRequest{ResponseFormat: "url"}); err == nil {
 		t.Fatalf("response_format=url must be rejected")
@@ -189,9 +196,11 @@ func TestValidateCodexImageRequest_ResponseFormat(t *testing.T) {
 	if err := ValidateCodexImageRequest(dto.ImageRequest{ResponseFormat: "b64_json"}); err != nil {
 		t.Fatalf("response_format=b64_json must pass: %v", err)
 	}
-
-	if err := ValidateCodexImageRequest(dto.ImageRequest{ResponseFormat: "url", TempUrl: common.GetPointer(true)}); err != nil {
-		t.Fatalf("response_format=url with temp_url=true should pass: %v", err)
+	if err := ValidateCodexImageRequest(dto.ImageRequest{TempUrl: common.GetPointer(true), ResponseFormat: "url"}); err != nil {
+		t.Fatalf("response_format=url should pass when temp_url=true: %v", err)
+	}
+	if err := ValidateCodexImageRequest(dto.ImageRequest{TempUrl: common.GetPointer(true)}); err != nil {
+		t.Fatalf("empty response_format should pass when temp_url=true: %v", err)
 	}
 }
 
