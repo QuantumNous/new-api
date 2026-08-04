@@ -607,8 +607,33 @@ func TestAvailableModelTypeInference(t *testing.T) {
 	require.Equal(t, "audio", availableModelType("gemini-2.5-flash-tts", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("eleven_multilingual_v2", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("eleven_sound_v1", []constant.EndpointType{constant.EndpointTypeOpenAI}))
-	require.Equal(t, "audio", availableModelType("eleven_music_v1", []constant.EndpointType{constant.EndpointTypeOpenAI}))
+	require.Equal(t, "audio", availableModelType("sonilo-video-to-music", []constant.EndpointType{constant.EndpointTypeVideoToMusic}))
 	require.Equal(t, "text", availableModelType("gpt-5.5", []constant.EndpointType{constant.EndpointTypeOpenAI}))
+}
+
+func TestAvailableModelsIncludesSoniloWithoutModelMeta(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	priority := int64(0)
+	weight := uint(100)
+	require.NoError(t, db.Create(&model.Channel{
+		Id: 92012, Type: constant.ChannelTypeSonilo, Status: common.ChannelStatusEnabled,
+		Models: "sonilo-video-to-music", Group: "default", Priority: &priority, Weight: &weight,
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group: "default", Model: "sonilo-video-to-music", ChannelId: 92012,
+		Enabled: true, Priority: &priority, Weight: weight,
+	}).Error)
+
+	models := requestAvailableModels(t, func(ctx *gin.Context) {
+		common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+		common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "default")
+	})
+
+	require.Len(t, models, 1)
+	require.Equal(t, "sonilo-video-to-music", models[0].Id)
+	require.Equal(t, "audio", models[0].Type)
+	require.Contains(t, models[0].SupportedEndpointTypes, constant.EndpointTypeVideoToMusic)
 }
 
 func TestAvailableModelsUsesAutoGroupUnion(t *testing.T) {

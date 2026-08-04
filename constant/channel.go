@@ -65,9 +65,10 @@ const (
 	ChannelTypeJimengProxy      = 103 // Jimeng reverse proxy (iptag/jimeng-api): OpenAI-compatible image/video proxy, sessionid auth
 	ChannelTypeJimengZhizinan   = 104 // Jimeng reverse proxy (zhizinan1997/jimeng-free-api-all)
 	ChannelTypeTechMobiVideo    = 105 // TechMobi Seedance-compatible async video API
-	ChannelTypeElevenLabs       = 106 // ElevenLabs voice/music/SFX — native endpoints passthrough (xi-api-key)
+	ChannelTypeElevenLabs       = 106 // ElevenLabs voice/SFX — native endpoints passthrough (xi-api-key)
 	ChannelTypeBytePlus         = 107 // BytePlus Ark Seedance async video API
 	ChannelTypeXaiGrokVideo     = 108 // xAI Grok Imagine async video API (submit → poll); whitelabel
+	ChannelTypeSonilo           = 109 // Sonilo async video-to-music API; whitelabel
 	ChannelTypeDummy                  // this one is only for count, do not add any channel after this
 
 )
@@ -147,6 +148,7 @@ var ChannelBaseURLs = []string{
 	"https://api.elevenlabs.io",    // 106 ElevenLabs
 	"https://ark.ap-southeast.bytepluses.com", // 107 BytePlus
 	"https://api.x.ai",                        // 108 XaiGrokVideo
+	"https://api.sonilo.com",                  // 109 Sonilo
 }
 
 var ChannelTypeNames = map[int]string{
@@ -214,6 +216,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeElevenLabs:       "ElevenLabs",
 	ChannelTypeBytePlus:         "BytePlus",
 	ChannelTypeXaiGrokVideo:     "XaiGrokVideo",
+	ChannelTypeSonilo:           "Sonilo",
 }
 
 func GetChannelTypeName(channelType int) string {

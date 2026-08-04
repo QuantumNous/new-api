@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel/task/byteplus"
+	"github.com/QuantumNous/new-api/relay/channel/task/sonilo"
 )
 
 func TestGetTaskAdaptor_JimengProxy(t *testing.T) {
@@ -15,6 +16,13 @@ func TestGetTaskAdaptor_JimengProxy(t *testing.T) {
 	}
 	if adaptor.GetChannelName() != "JimengProxy" {
 		t.Fatalf("channel name = %q, want JimengProxy", adaptor.GetChannelName())
+	}
+}
+
+func TestGetTaskAdaptor_Sonilo(t *testing.T) {
+	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeSonilo)))
+	if _, ok := adaptor.(*sonilo.TaskAdaptor); !ok {
+		t.Fatalf("adaptor type = %T, want *sonilo.TaskAdaptor", adaptor)
 	}
 }
 

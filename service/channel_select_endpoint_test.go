@@ -416,3 +416,14 @@ func TestRequestedEndpointTypeDoesNotFilterLegacyEndpointModes(t *testing.T) {
 		})
 	}
 }
+
+func TestVideoToMusicEndpointSelectsOnlySonilo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/video-to-music", nil)
+
+	require.Equal(t, constant.EndpointTypeVideoToMusic, requestedEndpointType(ctx))
+	require.True(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{Type: constant.ChannelTypeSonilo}, "sonilo-video-to-music"))
+	require.False(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{Type: constant.ChannelTypeElevenLabs}, "sonilo-video-to-music"))
+}

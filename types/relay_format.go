@@ -17,7 +17,7 @@ const (
 	RelayFormatTask    = "task"
 	RelayFormatMjProxy = "mj_proxy"
 
-	// RelayFormatElevenLabs passes ElevenLabs' native voice/music/SFX endpoints
+	// RelayFormatElevenLabs passes ElevenLabs' native voice/SFX endpoints
 	// through verbatim (see relay.ElevenLabsHelper).
 	RelayFormatElevenLabs = "elevenlabs"
 )

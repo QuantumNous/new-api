@@ -150,8 +150,8 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIAudio)
 		})
 
-		// ElevenLabs native voice/music/SFX endpoints (passthrough; xi-api-key injected
-		// by the elevenlabs adaptor, billed per char (TTS) / per second (SFX/music)).
+		// ElevenLabs native voice/SFX endpoints (passthrough; xi-api-key injected
+		// by the elevenlabs adaptor, billed per char (TTS) / per second (SFX)).
 		httpRouter.POST("/text-to-speech/:voice_id", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatElevenLabs)
 		})
@@ -161,10 +161,6 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/sound-generation", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatElevenLabs)
 		})
-		httpRouter.POST("/music", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatElevenLabs)
-		})
-
 		// rerank related routes
 		httpRouter.POST("/rerank", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatRerank)

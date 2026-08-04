@@ -85,7 +85,7 @@ func TestGetUserModelAccessOrdinaryAutoUnionAndPublicMetadata(t *testing.T) {
 	})
 	vendor := model.Vendor{Name: "Public Vendor", Icon: "public", Status: 1}
 	require.NoError(t, db.Create(&vendor).Error)
-	require.NoError(t, db.Create(&model.Model{ModelName: "public-model", VendorID: vendor.Id, Status: 1}).Error)
+	require.NoError(t, db.Create(&model.Model{ModelName: "public-model", Description: "A public model introduction.", VendorID: vendor.Id, Status: 1}).Error)
 
 	recorder, payload := requestUserModelAccess(t, 501)
 	access := payload.Data
@@ -120,6 +120,7 @@ func TestGetUserModelAccessOrdinaryAutoUnionAndPublicMetadata(t *testing.T) {
 		metadata[item.ID] = item
 	}
 	require.Equal(t, "Public Vendor", metadata["public-model"].Vendor.Name)
+	require.Equal(t, "A public model introduction.", metadata["public-model"].Description)
 	require.Nil(t, metadata["vip-model"].Vendor)
 	require.Equal(t, "public-model", metadata["public-model"].AllowlistMatchKey)
 	require.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAI}, metadata["public-model"].SupportedEndpointTypes)
@@ -159,7 +160,7 @@ func TestGetUserModelAccessOrdinaryAutoUnionAndPublicMetadata(t *testing.T) {
 	rawModels := rawData["models"].([]any)
 	require.NotEmpty(t, rawModels)
 	requireExactJSONKeys(t, rawModels[0].(map[string]any),
-		"id", "allowlist_match_key", "vendor", "supported_endpoint_types", "availability_status",
+		"id", "allowlist_match_key", "description", "vendor", "supported_endpoint_types", "availability_status",
 	)
 	for _, rawModel := range rawModels {
 		item := rawModel.(map[string]any)

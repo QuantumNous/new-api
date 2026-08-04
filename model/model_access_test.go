@@ -85,14 +85,16 @@ func TestGetPublicModelMetadataMapUsesPublicVendorAndNilFallback(t *testing.T) {
 	vendor := Vendor{Name: "Public Vendor", Icon: "public", Status: 1}
 	require.NoError(t, db.Create(&vendor).Error)
 	require.NoError(t, db.Create(&[]Model{
-		{ModelName: "exact-model", VendorID: vendor.Id, Status: 1, NameRule: NameRuleExact},
-		{ModelName: "prefix-", VendorID: vendor.Id, Status: 1, NameRule: NameRulePrefix},
+		{ModelName: "exact-model", Description: "Exact model introduction", VendorID: vendor.Id, Status: 1, NameRule: NameRuleExact},
+		{ModelName: "prefix-", Description: "Model family introduction", VendorID: vendor.Id, Status: 1, NameRule: NameRulePrefix},
 	}).Error)
 
 	metadata, err := GetPublicModelMetadataMap([]string{"exact-model", "prefix-child", "missing"})
 	require.NoError(t, err)
 	require.Equal(t, "Public Vendor", metadata["exact-model"].Vendor.Name)
+	require.Equal(t, "Exact model introduction", metadata["exact-model"].Description)
 	require.Equal(t, "Public Vendor", metadata["prefix-child"].Vendor.Name)
+	require.Equal(t, "Model family introduction", metadata["prefix-child"].Description)
 	_, exists := metadata["missing"]
 	require.False(t, exists)
 }

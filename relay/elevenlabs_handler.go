@@ -15,11 +15,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ElevenLabsHelper proxies ElevenLabs' native voice/music/SFX endpoints. The channel
+// ElevenLabsHelper proxies ElevenLabs' native voice/SFX endpoints. The channel
 // (and its upstream key) was already selected by the Distribute middleware from the
 // path-resolved model; here we forward the body verbatim through the ElevenLabs
 // adaptor (which swaps in the xi-api-key), stream the audio back, and settle the
-// per-model quota. Billing units (chars for TTS, seconds for SFX/music) were computed
+// per-model quota. Billing units (chars for TTS, seconds for SFX) were computed
 // in GetAndValidElevenLabsRequest and are applied as the estimate below.
 func ElevenLabsHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	info.InitChannelMeta(c)
@@ -71,7 +71,7 @@ func ElevenLabsHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPI
 		return newAPIError
 	}
 
-	// The voices list is not billed (0 units); TTS/SFX/music settle the per-model quota.
+	// The voices list is not billed (0 units); TTS/SFX settle the per-model quota.
 	if u, ok := usage.(*dto.Usage); ok && u.PromptTokens > 0 {
 		service.PostTextConsumeQuota(c, info, u, nil)
 	}

@@ -209,6 +209,22 @@ describe('available models browser filters', () => {
     ).toEqual(['image-main'])
   })
 
+  test('matches public model descriptions case-insensitively', () => {
+    const describedModels = [
+      {
+        ...models[0],
+        description: 'Generate synchronized music from video.',
+      },
+      models[1],
+    ]
+
+    expect(
+      filterModelAccessModels(describedModels, 'SYNCHRONIZED MUSIC', 'all').map(
+        (model) => model.id
+      )
+    ).toEqual([models[0].id])
+  })
+
   test('builds dynamic vendor filters without hardcoding vendors', () => {
     const withMoreVendors = [
       ...models,

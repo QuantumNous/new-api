@@ -216,6 +216,9 @@ func requestedEndpointType(c *gin.Context) constant.EndpointType {
 	if strings.HasPrefix(path, "/v1/responses") {
 		return constant.EndpointTypeOpenAIResponse
 	}
+	if strings.HasPrefix(path, "/v1/video-to-music") {
+		return constant.EndpointTypeVideoToMusic
+	}
 	// Non-Responses endpoint modes still rely on model/group abilities here. Do
 	// not opt them into endpoint filtering until provider metadata is complete.
 	return ""

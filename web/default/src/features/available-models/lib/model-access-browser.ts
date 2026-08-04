@@ -223,8 +223,8 @@ export function filterModelAccessModels(
   return models.filter((model) => {
     if (!matchesVendor(model, vendor)) return false
     if (!normalizedQuery) return true
-    return [model.id, model.vendor?.name ?? ''].some((value) =>
-      value.toLocaleLowerCase().includes(normalizedQuery)
+    return [model.id, model.description ?? '', model.vendor?.name ?? ''].some(
+      (value) => value.toLocaleLowerCase().includes(normalizedQuery)
     )
   })
 }

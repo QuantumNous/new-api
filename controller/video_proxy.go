@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	taskblockrunseedance "github.com/QuantumNous/new-api/relay/channel/task/blockrunseedance"
 	taskjimengzhizinan "github.com/QuantumNous/new-api/relay/channel/task/jimengzhizinan"
+	tasksonilo "github.com/QuantumNous/new-api/relay/channel/task/sonilo"
 	tasktechmobi "github.com/QuantumNous/new-api/relay/channel/task/techmobi"
 	taskxaigrok "github.com/QuantumNous/new-api/relay/channel/task/xaigrok"
 	"github.com/QuantumNous/new-api/service"
@@ -139,6 +141,17 @@ func VideoProxy(c *gin.Context) {
 		videoURL = extractBytePlusVideoURL(task)
 	case constant.ChannelTypeXaiGrokVideo:
 		videoURL = taskxaigrok.ExtractUpstreamVideoURL(task.Data)
+	case constant.ChannelTypeSonilo:
+		variant := 0
+		if raw := c.Query("variant"); raw != "" {
+			parsed, parseErr := strconv.Atoi(raw)
+			if parseErr != nil || parsed < 0 {
+				videoProxyError(c, http.StatusBadRequest, "invalid_request_error", "variant must be a non-negative integer")
+				return
+			}
+			variant = parsed
+		}
+		videoURL = tasksonilo.ExtractUpstreamAudioURL(task.Data, variant)
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()
