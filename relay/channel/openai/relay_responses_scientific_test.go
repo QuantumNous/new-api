@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,7 +43,7 @@ func TestOaiResponsesStreamHandlerForwardsScientificCreatedAtCompletion(t *testi
 
 	_, apiErr := OaiResponsesStreamHandler(c, info, resp)
 	require.Nil(t, apiErr)
-	require.Contains(t, recorder.Body.String(), "event: response.completed\n")
-	require.Contains(t, recorder.Body.String(), "data: "+event)
-	require.Zero(t, info.StreamStatus.TotalErrorCount())
+	assert.Contains(t, recorder.Body.String(), "event: response.completed\n")
+	assert.Contains(t, recorder.Body.String(), "data: "+event)
+	assert.Zero(t, info.StreamStatus.TotalErrorCount())
 }
