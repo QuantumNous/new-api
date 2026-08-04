@@ -144,6 +144,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models exposed by this channel',
     },
   },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'volcengine',
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com',
+    hints: {
+      key: 'Fire Ark API Key',
+      models: 'Use the Fire Ark native model ID',
+      other: 'Only supports /api/v3/images/generations and /api/v3/contents/generations/tasks',
+    },
+  },
 }
 
 /**
