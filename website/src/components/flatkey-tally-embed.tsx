@@ -5,18 +5,8 @@ import { cn } from "@/lib/utils";
 import type { Locale } from "@/lib/locales";
 
 const TALLY_EMBED_SCRIPT_SRC = "https://tally.so/widgets/embed.js";
-const UTM_PARAM_NAMES = ["utm_source", "utm_medium", "utm_campaign"] as const;
-const DEFAULT_TALLY_FORM_ID = "1A6gM4";
-const TALLY_FORM_IDS = {
-  en: DEFAULT_TALLY_FORM_ID,
-  zh: "9qMPGE",
-  ja: "RGk1Rl",
-  ru: "EkMebL",
-  fr: "5BMo8v",
-  vi: "VLDXb6",
-} as const;
-
-type SupportedTallyLanguage = keyof typeof TALLY_FORM_IDS;
+const TALLY_FORM_ID = "1A6gM4";
+const TALLY_EMBED_SRC = `https://tally.so/embed/${TALLY_FORM_ID}?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1`;
 
 declare global {
   interface Window {
@@ -30,9 +20,7 @@ let tallyEmbedScriptPromise: Promise<void> | null = null;
 
 export function FlatkeyTallyEmbed(props: { locale: Locale; className?: string; iframeClassName?: string; loading?: "lazy" | "eager" }) {
   const [loadFailed, setLoadFailed] = useState(false);
-  const language = getSupportedTallyLanguage(props.locale);
-  const tallyFormId = TALLY_FORM_IDS[language];
-  const tallyEmbedSrc = useMemo(() => getTallyEmbedSrc(language), [language]);
+  const tallyEmbedSrc = useMemo(() => TALLY_EMBED_SRC, []);
 
   useEffect(() => {
     let mounted = true;
@@ -68,14 +56,14 @@ export function FlatkeyTallyEmbed(props: { locale: Locale; className?: string; i
         marginHeight={0}
         marginWidth={0}
         allow="clipboard-write"
-        title="Enterprise sales inquiry form"
+        title="Talk to sales"
       />
       {loadFailed ? (
         <div className="border-border/70 bg-background/92 text-muted-foreground mt-3 rounded-lg border px-3 py-2 text-sm">
           Sales inquiry form could not be loaded.{" "}
           <a
             className="font-medium text-violet-700 underline-offset-4 hover:underline"
-            href={`https://tally.so/r/${tallyFormId}`}
+            href={`https://tally.so/r/${TALLY_FORM_ID}`}
             rel="noreferrer"
             target="_blank"
           >
@@ -85,41 +73,6 @@ export function FlatkeyTallyEmbed(props: { locale: Locale; className?: string; i
       ) : null}
     </div>
   );
-}
-
-function getSupportedTallyLanguage(language: string): SupportedTallyLanguage {
-  const normalized = language.toLowerCase();
-  if (normalized.startsWith("zh")) return "zh";
-  if (normalized.startsWith("ja")) return "ja";
-  if (normalized.startsWith("ru")) return "ru";
-  if (normalized.startsWith("fr")) return "fr";
-  if (normalized.startsWith("vi")) return "vi";
-  return "en";
-}
-
-function getTallyEmbedSrc(language: SupportedTallyLanguage): string {
-  const params = new URLSearchParams({
-    dynamicHeight: "1",
-    transparentBackground: "1",
-    hideTitle: "1",
-    hideBranding: "1",
-    alignLeft: "1",
-    brand: "flatkey",
-    plan: "enterprise",
-    source: "pricing",
-    originPage: "pricing",
-    language,
-  });
-
-  if (typeof window !== "undefined") {
-    const currentParams = new URLSearchParams(window.location.search);
-    for (const paramName of UTM_PARAM_NAMES) {
-      const value = currentParams.get(paramName);
-      if (value) params.set(paramName, value);
-    }
-  }
-
-  return `https://tally.so/embed/${TALLY_FORM_IDS[language]}?${params.toString()}`;
 }
 
 function loadTallyEmbedScript(): Promise<void> {

@@ -21,16 +21,8 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 
 const TALLY_EMBED_SCRIPT_SRC = 'https://tally.so/widgets/embed.js'
-const UTM_PARAM_NAMES = ['utm_source', 'utm_medium', 'utm_campaign'] as const
-const DEFAULT_TALLY_FORM_ID = '1A6gM4'
-const TALLY_FORM_IDS = {
-  en: DEFAULT_TALLY_FORM_ID,
-  zh: '9qMPGE',
-  ja: 'RGk1Rl',
-  ru: 'EkMebL',
-  fr: '5BMo8v',
-  vi: 'VLDXb6',
-} as const
+const TALLY_FORM_ID = '1A6gM4'
+const TALLY_EMBED_SRC = `https://tally.so/embed/${TALLY_FORM_ID}?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1`
 
 let tallyEmbedScriptPromise: Promise<void> | null = null
 
@@ -42,55 +34,8 @@ declare global {
   }
 }
 
-type SupportedTallyLanguage = keyof typeof TALLY_FORM_IDS
-
 export type FlatkeyTallyEmbedProps = {
   className?: string
-}
-
-const getSupportedTallyLanguage = (language: string): SupportedTallyLanguage => {
-  const normalized = language.toLowerCase()
-
-  if (normalized.startsWith('zh')) return 'zh'
-  if (normalized.startsWith('ja')) return 'ja'
-  if (normalized.startsWith('ru')) return 'ru'
-  if (normalized.startsWith('fr')) return 'fr'
-  if (normalized.startsWith('vi')) return 'vi'
-
-  return 'en'
-}
-
-const getTallyFormId = (language: SupportedTallyLanguage): string =>
-  TALLY_FORM_IDS[language]
-
-const getTallyEmbedSrc = (language: SupportedTallyLanguage): string => {
-  const formId = getTallyFormId(language)
-  const params = new URLSearchParams({
-    dynamicHeight: '1',
-    transparentBackground: '1',
-    hideTitle: '1',
-    hideBranding: '1',
-    alignLeft: '1',
-    brand: 'flatkey',
-    plan: 'enterprise',
-    source: 'pricing',
-    originPage: 'pricing',
-    language,
-  })
-
-  if (typeof window !== 'undefined') {
-    const currentParams = new URLSearchParams(window.location.search)
-
-    UTM_PARAM_NAMES.forEach((paramName) => {
-      const value = currentParams.get(paramName)
-
-      if (value) {
-        params.set(paramName, value)
-      }
-    })
-  }
-
-  return `https://tally.so/embed/${formId}?${params.toString()}`
 }
 
 const loadTallyEmbedScript = (): Promise<void> => {
@@ -136,13 +81,9 @@ const loadTallyEmbedScript = (): Promise<void> => {
 }
 
 export function FlatkeyTallyEmbed(props: FlatkeyTallyEmbedProps) {
-  const { i18n, t } = useTranslation()
+  const { t } = useTranslation()
   const [loadFailed, setLoadFailed] = useState(false)
-  const language = getSupportedTallyLanguage(
-    i18n.resolvedLanguage || i18n.language || 'en'
-  )
-  const tallyFormId = getTallyFormId(language)
-  const tallyEmbedSrc = useMemo(() => getTallyEmbedSrc(language), [language])
+  const tallyEmbedSrc = useMemo(() => TALLY_EMBED_SRC, [])
 
   useEffect(() => {
     let mounted = true
@@ -179,14 +120,14 @@ export function FlatkeyTallyEmbed(props: FlatkeyTallyEmbedProps) {
         marginHeight={0}
         marginWidth={0}
         allow='clipboard-write'
-        title={t('Enterprise sales inquiry form')}
+        title={t('Talk to sales')}
       />
       {loadFailed && (
         <div className='border-border/70 bg-background/92 text-muted-foreground mt-3 rounded-lg border px-3 py-2 text-sm'>
           {t('Sales inquiry form could not be loaded.')}{' '}
           <a
             className='font-medium text-violet-700 underline-offset-4 hover:underline dark:text-violet-100'
-            href={`https://tally.so/r/${tallyFormId}`}
+            href={`https://tally.so/r/${TALLY_FORM_ID}`}
             rel='noreferrer'
             target='_blank'
           >

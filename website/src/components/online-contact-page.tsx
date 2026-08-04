@@ -1,6 +1,6 @@
-import Link from "next/link";
+import { FlatkeyTallyEmbed } from "@/components/flatkey-tally-embed";
 import { OnlineFooter, OnlineNav } from "@/components/online-static-shell";
-import { type Locale, localizePath } from "@/lib/locales";
+import type { Locale } from "@/lib/locales";
 import { getOnlineStaticCopy } from "@/lib/online-static-copy";
 
 export function OnlineContactPage(props: { locale: Locale }) {
@@ -43,25 +43,11 @@ export function OnlineContactPage(props: { locale: Locale }) {
           <div className="box">
           <h2 style={{ fontSize: 29, letterSpacing: -1, fontWeight: 800 }}>{copy.contact.formTitle}</h2>
           <p style={{ color: "var(--ink2)", margin: "10px 0 22px", fontSize: 15 }}>{copy.contact.sub}</p>
-          <form action="https://formsubmit.co/mguozhen@gmail.com" method="POST">
-            <input type="hidden" name="_subject" value="[flatkey] Contact sales lead" />
-            <input type="hidden" name="_captcha" value="false" />
-            <input type="hidden" name="_next" value={`https://flatkey.ai${localizePath("/contact", props.locale)}?sent=1`} />
-            <div className="slot">
-              <input type="text" name="name" required placeholder={copy.contact.placeholders.name} />
-              <input name="email" type="email" required placeholder={copy.contact.placeholders.email} />
-            </div>
-            <div className="slot">
-              <input type="text" name="company" required placeholder={copy.contact.placeholders.company} />
-              <input type="text" name="volume" placeholder={copy.contact.placeholders.volume} />
-            </div>
-            <div className="slot" style={{ gridTemplateColumns: "1fr" }}>
-              <textarea name="message" rows={4} required placeholder={copy.contact.placeholders.message} style={{ border: "1.5px solid var(--line)", borderRadius: 8, padding: "12px 14px", fontSize: 14, fontFamily: "var(--sans)", color: "var(--ink)", resize: "vertical" }} />
-            </div>
-            <button type="submit" className="act dark" style={{ width: "100%", border: "none", fontFamily: "var(--sans)" }}>
-              {copy.contact.send}
-            </button>
-          </form>
+          <FlatkeyTallyEmbed
+            locale={props.locale}
+            className="mt-4"
+            iframeClassName="block h-[512px] w-full border-0 bg-transparent"
+          />
           <a className="act" href="mailto:support@flatkey.ai" style={{ marginTop: 2 }}>{copy.contact.email}</a>
           <a className="act" href="https://discord.gg/VrbZFDXj5g" style={{ background: "#5865F2", color: "#fff", boxShadow: "none" }}>{copy.contact.discord}</a>
           <a className="act" href="https://www.linkedin.com/company/flatkey/" style={{ background: "#0A66C2", color: "#fff", boxShadow: "none" }}>{copy.contact.linkedin}</a>
