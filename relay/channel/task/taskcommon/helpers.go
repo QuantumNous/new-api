@@ -29,6 +29,7 @@ var whitelabelChannels = map[int]struct{}{
 	constant.ChannelTypeTechMobiVideo:    {},
 	constant.ChannelTypeBytePlus:         {},
 	constant.ChannelTypeXaiGrokVideo:     {},
+	constant.ChannelTypeSonilo:           {},
 }
 
 // ShouldWhitelabelPlatform reports whether tasks on the given platform must
@@ -65,6 +66,7 @@ var brandKeywords = []string{
 	"techmobi", "chatgpttech",
 	"byteplus",
 	"xai", "grok", "x.ai", "vidgen.x.ai",
+	"sonilo", "api.sonilo.com",
 }
 
 var endpointIDPattern = regexp.MustCompile(`(?i)(^|[^a-z0-9])ep-[a-z0-9][a-z0-9-]*`)

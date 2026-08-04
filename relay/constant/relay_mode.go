@@ -53,7 +53,7 @@ const (
 
 	RelayModeResponsesCompact
 
-	RelayModeElevenLabs // ElevenLabs native voice/music/SFX endpoints (passthrough)
+	RelayModeElevenLabs // ElevenLabs native voice/SFX endpoints (passthrough)
 )
 
 func Path2RelayMode(path string) int {
@@ -80,7 +80,6 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeResponses
 	} else if strings.HasPrefix(path, "/v1/text-to-speech/") ||
 		strings.HasPrefix(path, "/v1/sound-generation") ||
-		strings.HasPrefix(path, "/v1/music") ||
 		strings.HasPrefix(path, "/v1/voices") {
 		relayMode = RelayModeElevenLabs
 	} else if strings.HasPrefix(path, "/v1/audio/speech") {

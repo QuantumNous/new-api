@@ -133,6 +133,24 @@ describe('ModelAccessList', () => {
     expect(html).toContain('Unknown failure')
   })
 
+  test('renders the public model introduction when available', () => {
+    const html = renderList(
+      [
+        {
+          id: 'sonilo-video-to-music',
+          allowlist_match_key: 'sonilo-video-to-music',
+          description: 'Generate synchronized music from any video.',
+          vendor: { id: 1, name: 'Sonilo' },
+          supported_endpoint_types: ['video-to-music'],
+          availability_status: 'available',
+        },
+      ],
+      false
+    )
+
+    expect(html).toContain('Generate synchronized music from any video.')
+  })
+
   test('renders explicit compatible endpoint labels and deduplicates variants', () => {
     const html = renderList(
       [

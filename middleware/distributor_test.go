@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"bytes"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -86,6 +88,38 @@ func TestGetModelRequestGenerationTasksFetch(t *testing.T) {
 	relayMode, ok := c.Get("relay_mode")
 	require.True(t, ok)
 	require.Equal(t, relayconstant.RelayModeVideoFetchByID, relayMode)
+}
+
+func TestGetModelRequestVideoToMusicMultipart(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	require.NoError(t, w.WriteField("model", "sonilo-video-to-music"))
+	require.NoError(t, w.WriteField("duration_seconds", "10"))
+	require.NoError(t, w.Close())
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video-to-music", bytes.NewReader(body.Bytes()))
+	c.Request.Header.Set("Content-Type", w.FormDataContentType())
+
+	modelRequest, shouldSelectChannel, err := getModelRequest(c)
+	require.NoError(t, err)
+	require.True(t, shouldSelectChannel)
+	require.Equal(t, "sonilo-video-to-music", modelRequest.Model)
+	require.Equal(t, relayconstant.RelayModeVideoSubmit, c.GetInt("relay_mode"))
+}
+
+func TestGetModelRequestVideoToMusicFetch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/video-to-music/task_abc", nil)
+
+	_, shouldSelectChannel, err := getModelRequest(c)
+	require.NoError(t, err)
+	require.False(t, shouldSelectChannel)
+	require.Equal(t, relayconstant.RelayModeVideoFetchByID, c.GetInt("relay_mode"))
 }
 
 func TestResolvePlaygroundUsingGroupDoesNotExpandAccessFromTokenGroup(t *testing.T) {

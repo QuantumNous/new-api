@@ -6,11 +6,9 @@ package elevenlabs
 const (
 	ModelMultilingualV2 = "eleven_multilingual_v2" // Text-to-Speech (billed per input character)
 	ModelSoundV1        = "eleven_sound_v1"        // Sound effects (billed per requested second)
-	ModelMusicV1        = "eleven_music_v1"        // Music generation (billed per requested second)
 )
 
 var ModelList = []string{
 	ModelMultilingualV2,
 	ModelSoundV1,
-	ModelMusicV1,
 }

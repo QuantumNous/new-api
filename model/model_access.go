@@ -17,9 +17,10 @@ type ModelAccessRow struct {
 
 // PublicModelMetadata contains only metadata that is safe to expose to users.
 type PublicModelMetadata struct {
-	ModelName string
-	Endpoints string
-	Vendor    *Vendor
+	ModelName   string
+	Description string
+	Endpoints   string
+	Vendor      *Vendor
 }
 
 // GetModelAccessRowsForGroups loads all enabled group/model/channel-type rows
@@ -115,9 +116,10 @@ func GetPublicModelMetadataMap(modelNames []string) (map[string]PublicModelMetad
 			vendor = &copy
 		}
 		result[modelName] = PublicModelMetadata{
-			ModelName: modelName,
-			Endpoints: item.Endpoints,
-			Vendor:    vendor,
+			ModelName:   modelName,
+			Description: item.Description,
+			Endpoints:   item.Endpoints,
+			Vendor:      vendor,
 		}
 	}
 	return result, nil

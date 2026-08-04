@@ -217,7 +217,7 @@ func TestResolveStrictModelAccessBillingVisibilityVendorAndStableDedup(t *testin
 	)
 	vendor := model.Vendor{Name: "Public Vendor", Icon: "public", Status: 1}
 	require.NoError(t, db.Create(&vendor).Error)
-	require.NoError(t, db.Create(&model.Model{ModelName: "vendor-model", VendorID: vendor.Id, Status: 1}).Error)
+	require.NoError(t, db.Create(&model.Model{ModelName: "vendor-model", Description: "A public model introduction.", VendorID: vendor.Id, Status: 1}).Error)
 
 	strict, err := ResolveTokenModelAccess(TokenModelAccessInput{IdentityGroup: "default", TokenGroup: "default"})
 	require.NoError(t, err)
@@ -228,6 +228,7 @@ func TestResolveStrictModelAccessBillingVisibilityVendorAndStableDedup(t *testin
 		byID[item.ID] = item
 	}
 	require.Equal(t, "Public Vendor", byID["vendor-model"].Vendor.Name)
+	require.Equal(t, "A public model introduction.", byID["vendor-model"].Description)
 	require.Nil(t, byID["custom-model"].Vendor)
 	require.ElementsMatch(t, []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}, byID["vendor-model"].SupportedEndpointTypes)
 

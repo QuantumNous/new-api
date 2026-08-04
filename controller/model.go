@@ -354,6 +354,8 @@ func availableModelType(modelID string, endpointTypes []constant.EndpointType) s
 		switch endpointType {
 		case constant.EndpointTypeOpenAIVideo:
 			return "video"
+		case constant.EndpointTypeVideoToMusic:
+			return "audio"
 		case constant.EndpointTypeImageGeneration:
 			return "image"
 		case constant.EndpointTypeJinaRerank:
@@ -365,7 +367,7 @@ func availableModelType(modelID string, endpointTypes []constant.EndpointType) s
 	case strings.Contains(normalized, "seedance") ||
 		strings.Contains(normalized, "veo") ||
 		strings.Contains(normalized, "sora") ||
-		strings.Contains(normalized, "video"):
+		strings.Contains(normalized, "video") && !strings.Contains(normalized, "music"):
 		return "video"
 	case strings.Contains(normalized, "image") ||
 		strings.Contains(normalized, "imagen") ||

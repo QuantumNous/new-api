@@ -81,3 +81,9 @@ type TaskAdaptor interface {
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }
+
+// VideoToMusicConverter emits the provider-neutral Flatkey response contract
+// for asynchronous video-to-music tasks.
+type VideoToMusicConverter interface {
+	ConvertToVideoToMusic(originTask *model.Task) ([]byte, error)
+}

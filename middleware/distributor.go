@@ -528,8 +528,6 @@ func elevenLabsPathModel(path string) (string, bool) {
 		return "eleven_multilingual_v2", true
 	case path == "/v1/sound-generation":
 		return "eleven_sound_v1", true
-	case path == "/v1/music":
-		return "eleven_music_v1", true
 	case path == "/v1/voices":
 		// Listing voices still needs a channel to proxy through; not billed.
 		return "eleven_multilingual_v2", true
@@ -581,10 +579,26 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		c.Set("platform", string(constant.TaskPlatformSuno))
 		c.Set("relay_mode", relayMode)
 	} else if elModel, ok := elevenLabsPathModel(c.Request.URL.Path); ok {
-		// ElevenLabs native voice/music/SFX endpoints resolve their billing model from
+		// ElevenLabs native voice/SFX endpoints resolve their billing model from
 		// the path (like /suno/ above), since the request body carries no OpenAI "model"
 		// field. The resolved model is registered as an ability on the ElevenLabs channel.
 		modelRequest.Model = elModel
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/video-to-music") {
+		relayMode := relayconstant.RelayModeVideoSubmit
+		if c.Request.Method == http.MethodPost {
+			req, err := getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+			if req != nil {
+				modelRequest.Model = req.Model
+			}
+		} else if c.Request.Method == http.MethodGet {
+			relayMode = relayconstant.RelayModeVideoFetchByID
+			shouldSelectChannel = false
+			modelRequest.Model = getTaskOriginModelName(c)
+		}
+		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/videos/") && strings.HasSuffix(c.Request.URL.Path, "/remix") {
 		relayMode := relayconstant.RelayModeVideoSubmit
 		c.Set("relay_mode", relayMode)

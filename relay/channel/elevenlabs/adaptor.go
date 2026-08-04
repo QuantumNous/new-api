@@ -1,6 +1,6 @@
-// Package elevenlabs adapts ElevenLabs' native voice/music/SFX endpoints
+// Package elevenlabs adapts ElevenLabs' native voice/SFX endpoints
 // (POST /v1/text-to-speech/{voice_id}, GET /v1/voices, POST /v1/sound-generation,
-// POST /v1/music) to the flatkey gateway. Clients authenticate with their flatkey
+// to the flatkey gateway. Clients authenticate with their flatkey
 // Bearer key; the gateway forwards the request verbatim to api.elevenlabs.io with
 // the channel's key in the xi-api-key header and streams the audio bytes back.
 //
@@ -8,7 +8,6 @@
 // ratio chosen so the effective price matches ElevenLabs' official rates:
 //   - eleven_multilingual_v2 : PromptTokens = input characters   (ratio 50   -> $0.10 / 1k chars)
 //   - eleven_sound_v1        : PromptTokens = requested seconds   (ratio 1000 -> $0.12 / min)
-//   - eleven_music_v1        : PromptTokens = requested seconds   (ratio 1250 -> $0.15 / min)
 //
 // The helper (relay.ElevenLabsHelper) computes and sets the estimate before the call.
 package elevenlabs
@@ -35,7 +34,7 @@ type Adaptor struct{}
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {}
 
 // GetRequestURL forwards the exact inbound path to the ElevenLabs base URL, so
-// /v1/text-to-speech/{voice_id}, /v1/voices, /v1/sound-generation and /v1/music all
+// /v1/text-to-speech/{voice_id}, /v1/voices and /v1/sound-generation all
 // map straight through without per-endpoint URL logic.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	base := strings.TrimSuffix(info.ChannelBaseUrl, "/")

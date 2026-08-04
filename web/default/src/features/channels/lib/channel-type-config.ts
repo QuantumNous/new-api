@@ -186,6 +186,20 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Ark Seedance video channel. Configure account endpoint IDs with model mapping; moderation bypass is enforced by the server.',
     },
   },
+  109: {
+    id: 109,
+    name: CHANNEL_TYPES[109],
+    icon: 'suno',
+    defaultBaseUrl: 'https://api.sonilo.com',
+    supportedModels: ['sonilo-video-to-music'],
+    hints: {
+      baseUrl: 'Default: https://api.sonilo.com',
+      key: 'Sonilo API key',
+      models: 'sonilo-video-to-music',
+      other:
+        'Async video-to-music channel. The gateway reserves by declared duration and serves completed audio through a Flatkey proxy.',
+    },
+  },
 }
 
 /**

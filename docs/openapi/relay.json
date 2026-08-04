@@ -1682,6 +1682,200 @@
         ]
       }
     },
+    "/v1/video-to-music": {
+      "post": {
+        "summary": "从视频生成配乐",
+        "deprecated": false,
+        "description": "提交异步 video-to-music 任务。`duration_seconds` 仅供 Flatkey 预扣计费，不会转发给上游；每个 variant 最低按 10 秒计费。必须且只能提供 `video` 或 `video_url` 之一。",
+        "operationId": "createVideoToMusic",
+        "tags": [
+          "OpenAI音频(Audio)"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "duration_seconds"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "sonilo-video-to-music"
+                    ]
+                  },
+                  "video": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "video_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "duration_seconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 3600
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "segments": {
+                    "type": "string",
+                    "description": "JSON-encoded segment instructions"
+                  },
+                  "output_format": {
+                    "type": "string",
+                    "enum": [
+                      "mp3",
+                      "m4a",
+                      "wav"
+                    ],
+                    "default": "mp3"
+                  },
+                  "preserve_speech": {
+                    "type": "boolean"
+                  },
+                  "ducking": {
+                    "type": "boolean"
+                  },
+                  "variants_num": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已创建",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoToMusicResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/video-to-music/{task_id}": {
+      "get": {
+        "summary": "查询视频配乐任务",
+        "deprecated": false,
+        "operationId": "getVideoToMusic",
+        "tags": [
+          "OpenAI音频(Audio)"
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "任务状态与 Flatkey 音频代理地址",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoToMusicResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/video-to-music/{task_id}/content": {
+      "get": {
+        "summary": "获取生成的配乐文件",
+        "deprecated": false,
+        "description": "通过不可猜测的 Flatkey task ID 代理音频文件；多 variant 使用 `variant` 参数选择。",
+        "operationId": "getVideoToMusicContent",
+        "tags": [
+          "OpenAI音频(Audio)"
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "variant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "音频文件",
+            "content": {
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/kling/v1/videos/text2video": {
       "post": {
         "summary": "Kling 文生视频",
@@ -5370,6 +5564,75 @@
             "type": "string",
             "description": "任务状态",
             "example": "queued"
+          }
+        }
+      },
+      "VideoToMusicResponse": {
+        "type": "object",
+        "description": "异步视频配乐任务响应",
+        "required": [
+          "id",
+          "task_id",
+          "status",
+          "model"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "task_abc123"
+          },
+          "task_id": {
+            "type": "string",
+            "example": "task_abc123"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "processing",
+              "succeeded",
+              "failed"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "example": "sonilo-video-to-music"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "duration_seconds": {
+            "type": "number"
+          },
+          "audio": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "Flatkey audio proxy URL"
+                },
+                "content_type": {
+                  "type": "string"
+                },
+                "file_size_bytes": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "stream_index": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            }
           }
         }
       },

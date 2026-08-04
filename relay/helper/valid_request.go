@@ -60,7 +60,7 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 
 // GetAndValidElevenLabsRequest builds the passthrough request for ElevenLabs native
 // endpoints and pre-computes the billable units from the (verbatim-forwarded) body:
-// input characters for TTS, requested seconds for SFX/music, 0 for the voices list.
+// input characters for TTS, requested seconds for SFX, 0 for the voices list.
 func GetAndValidElevenLabsRequest(c *gin.Context) (*dto.ElevenLabsRequest, error) {
 	req := &dto.ElevenLabsRequest{}
 	path := c.Request.URL.Path
@@ -77,12 +77,6 @@ func GetAndValidElevenLabsRequest(c *gin.Context) (*dto.ElevenLabsRequest, error
 		}
 		_ = common.UnmarshalBodyReusable(c, &body)
 		req.BillTokens = ceilSeconds(body.DurationSeconds, 5) // ElevenLabs auto-length -> default 5s estimate
-	case strings.HasPrefix(path, "/v1/music"):
-		var body struct {
-			MusicLengthMs int `json:"music_length_ms"`
-		}
-		_ = common.UnmarshalBodyReusable(c, &body)
-		req.BillTokens = ceilSeconds(float64(body.MusicLengthMs)/1000.0, 30) // default 30s
 	default: // /v1/voices — listing, not billed
 		req.BillTokens = 0
 	}

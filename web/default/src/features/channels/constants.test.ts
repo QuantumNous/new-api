@@ -32,3 +32,10 @@ test('BytePlus channel is selectable with its regional Ark base URL', () => {
   expect(MODEL_FETCHABLE_TYPES.has(107)).toBe(false)
   expect(getDefaultBaseUrl(107)).toBe('https://ark.ap-southeast.bytepluses.com')
 })
+
+test('Sonilo channel is selectable with video-to-music defaults', () => {
+  expect(CHANNEL_TYPES[109]).toBe('Sonilo')
+  expect(CHANNEL_TYPE_OPTIONS.some((option) => option.value === 109)).toBe(true)
+  expect(MODEL_FETCHABLE_TYPES.has(109)).toBe(false)
+  expect(getDefaultBaseUrl(109)).toBe('https://api.sonilo.com')
+})

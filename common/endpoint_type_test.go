@@ -47,3 +47,10 @@ func TestGetEndpointTypesByChannelType_GPTImage2(t *testing.T) {
 		t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeImageGeneration, got)
 	}
 }
+
+func TestGetEndpointTypesByChannelType_Sonilo(t *testing.T) {
+	got := GetEndpointTypesByChannelType(constant.ChannelTypeSonilo, "sonilo-video-to-music")
+	if !containsEndpointType(got, constant.EndpointTypeVideoToMusic) {
+		t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeVideoToMusic, got)
+	}
+}

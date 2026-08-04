@@ -292,7 +292,7 @@ func taskSubmitStatusError(platform constant.TaskPlatform, resp *http.Response) 
 		responseBody, _ = io.ReadAll(resp.Body)
 	}
 	message := string(responseBody)
-	if string(platform) == strconv.Itoa(constant.ChannelTypeBytePlus) {
+	if channelType, err := strconv.Atoi(string(platform)); err == nil && taskcommon.ShouldWhitelabelChannelType(channelType) {
 		message = "task failed at upstream provider"
 	}
 	return service.TaskErrorWrapper(fmt.Errorf("%s", message), "fail_to_fetch_task", statusCode)
@@ -418,6 +418,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	}
 
 	isOpenAIVideoAPI := isOpenAIVideoFetchPath(c.Request.URL.Path)
+	isVideoToMusicAPI := isVideoToMusicFetchPath(c.Request.URL.Path)
 	isGenerationTasksAPI := isGenerationTasksFetchPath(c.Request.URL.Path)
 
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
@@ -430,6 +431,24 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		respBody, err = generationTaskRespBody(originTask)
 		if err != nil {
 			taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if isVideoToMusicAPI {
+		adaptor := GetTaskAdaptor(originTask.Platform)
+		if adaptor == nil {
+			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
+			return
+		}
+		converter, ok := adaptor.(channel.VideoToMusicConverter)
+		if !ok {
+			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
+			return
+		}
+		respBody, err = converter.ConvertToVideoToMusic(originTask)
+		if err != nil {
+			taskResp = service.TaskErrorWrapper(err, "convert_to_video_to_music_failed", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -470,6 +489,10 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 
 func isOpenAIVideoFetchPath(path string) bool {
 	return strings.HasPrefix(path, "/v1/videos/")
+}
+
+func isVideoToMusicFetchPath(path string) bool {
+	return strings.HasPrefix(path, "/v1/video-to-music/")
 }
 
 func isGenerationTasksFetchPath(path string) bool {
