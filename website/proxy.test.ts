@@ -38,6 +38,12 @@ describe("website proxy language redirects", () => {
     expect(response?.headers.get("location")).toBe("https://flatkey.ai/ja/pricing?vendor=OpenAI");
   });
 
+  test("keeps the bare homepage on the default locale", () => {
+    const response = proxy(request("/", { "accept-language": "ja-JP,ja;q=0.9", cookie: "fk_locale=ja" }));
+
+    expect(response?.headers.get("location")).toBeNull();
+  });
+
   test("does not redirect declared AI crawlers", () => {
     const response = proxy(
       request("/pricing", {
