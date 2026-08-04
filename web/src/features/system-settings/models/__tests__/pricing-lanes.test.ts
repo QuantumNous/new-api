@@ -29,18 +29,21 @@ import {
 const translate = (key: string) => key
 
 describe('model pricing lanes', () => {
-  test('exposes only output and cache prices beside the required input price', () => {
+  test('renames the core price labels without removing image or audio lanes', () => {
     assert.deepEqual(
       laneConfigs.map((lane) => [lane.key, lane.titleKey]),
       [
         ['completion', 'Output price'],
         ['cache', 'Cache read price'],
         ['createCache', 'Cache create price'],
+        ['image', 'Image input price'],
+        ['audioInput', 'Audio input price'],
+        ['audioOutput', 'Audio output price'],
       ]
     )
   })
 
-  test('keeps hidden image and audio ratios out of the visible lane state', () => {
+  test('keeps image and audio ratios in the visible lane state', () => {
     const state = createInitialLaneState({
       name: 'multimodal-model',
       ratio: '1.5',
@@ -56,17 +59,23 @@ describe('model pricing lanes', () => {
       completion: '15',
       cache: '0.3',
       createCache: '3.75',
+      image: '6',
+      audioInput: '9',
+      audioOutput: '36',
     })
     assert.deepEqual(state.enabled, {
       completion: true,
       cache: true,
       createCache: true,
+      image: true,
+      audioInput: true,
+      audioOutput: true,
     })
   })
 
-  test('renders exactly four token pricing rows in the preview', () => {
+  test('renders all seven token pricing rows in the preview', () => {
     const values: ModelPricingFormValues = {
-      name: 'text-model',
+      name: 'multimodal-model',
       price: '',
       ratio: '1.5',
       completionRatio: '5',
@@ -83,14 +92,36 @@ describe('model pricing lanes', () => {
       '',
       '',
       '3',
-      { completion: '15', cache: '0.3', createCache: '3.75' },
-      { completion: true, cache: true, createCache: true },
+      {
+        completion: '15',
+        cache: '0.3',
+        createCache: '3.75',
+        image: '6',
+        audioInput: '9',
+        audioOutput: '36',
+      },
+      {
+        completion: true,
+        cache: true,
+        createCache: true,
+        image: true,
+        audioInput: true,
+        audioOutput: true,
+      },
       translate
     )
 
     assert.deepEqual(
       rows.map((row) => row.label),
-      ['Input price', 'Output price', 'Cache read price', 'Cache create price']
+      [
+        'Input price',
+        'Output price',
+        'Cache read price',
+        'Cache create price',
+        'Image input price',
+        'Audio input price',
+        'Audio output price',
+      ]
     )
   })
 })
