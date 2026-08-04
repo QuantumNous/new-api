@@ -178,6 +178,10 @@ func buildImage2SmartRouter(req Image2RequestCapability, channels []*model.Chann
 		seenChannelIDs[channel.Id] = struct{}{}
 		setting, err := channel.ParseSetting()
 		if err != nil {
+			// A malformed setting is an explicit invalid-configuration signal. Treat
+			// it as configured for fallback purposes so a corrupted Image2 opt-in
+			// cannot silently re-enter the legacy router.
+			configured = true
 			router.decisions = append(router.decisions, Image2CandidateDecision{ChannelID: channel.Id, Reason: "image2_capability_invalid"})
 			continue
 		}

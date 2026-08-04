@@ -229,6 +229,22 @@ func TestImage2SmartRouterDoesNotRepairMalformedSettingOnRequestPath(t *testing.
 	require.True(t, types.IsSkipRetryError(err))
 }
 
+func TestImage2SmartRouterMalformedOnlyCapabilityDoesNotFallBackToLegacy(t *testing.T) {
+	rawSetting := "{not-json"
+	channel := &model.Channel{Id: 9, Setting: &rawSetting}
+
+	router, configured := newImage2SmartRouterIfConfigured(
+		Image2RequestCapability{Operation: "generations", Resolution: "1024", N: 1},
+		[]*model.Channel{channel},
+	)
+
+	require.True(t, configured, "a malformed opt-in setting must block legacy fallback")
+	require.NotNil(t, router)
+	require.Contains(t, router.DecisionSummary(), "9:image2_capability_invalid")
+	_, err := router.Next()
+	require.True(t, types.IsSkipRetryError(err), "an invalid sole capability must fail closed")
+}
+
 func TestImage2SmartRouterFallsBackOnlyWhenAllCapabilitiesAreMissing(t *testing.T) {
 	unconfigured := []*model.Channel{nil, {Id: 1}, {Id: 2}}
 	request := Image2RequestCapability{Operation: "generations", Resolution: "1024", N: 1}
