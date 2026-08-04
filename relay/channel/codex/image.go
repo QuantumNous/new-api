@@ -1,8 +1,6 @@
 package codex
 
 import (
-	"bytes"
-	"context"
 	"bufio"
 	"bytes"
 	"context"
@@ -359,7 +357,6 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 								data = append(data, entry)
 							}
 						}
-					}
 					case "response.completed":
 						created = gjson.Get(payload, "response.created_at").Int()
 						if u := gjson.Get(payload, "response.tool_usage.image_gen"); u.Exists() {
