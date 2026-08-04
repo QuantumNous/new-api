@@ -265,3 +265,35 @@ func TestOaiResponsesStreamHandlerDoesNotCountPartialImageEvent(t *testing.T) {
 
 	assert.Equal(t, 0, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
 }
+
+func TestOaiResponsesStreamHandlerMarksBillableOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"type":"response.output_text.delta","delta":"hello"}`,
+		`data: {"type":"response.output_item.done","item":{"type":"file_search_call"}}`,
+		`data: {"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`,
+		`data: [DONE]`,
+		"",
+	}, "\n\n")
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.1",
+		DisablePing:     true,
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "gpt-5.1"},
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+
+	_, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	assert.True(t, common.GetContextKeyBool(c, constant.ContextKeyResponsesBillableStreamOutput))
+}

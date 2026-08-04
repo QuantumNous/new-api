@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"math"
 	"net/http/httptest"
 	"testing"
@@ -352,6 +353,110 @@ func TestCacheWriteTokensTotal(t *testing.T) {
 		}
 		require.Equal(t, 30, cacheWriteTokensTotal(summary))
 	})
+}
+
+func newMissingUsageQuotaTestContext(markOutput bool) *gin.Context {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	if markOutput {
+		common.SetContextKey(ctx, constant.ContextKeyResponsesBillableStreamOutput, true)
+	}
+	return ctx
+}
+
+func newMissingUsageRelayInfo(format types.RelayFormat, reason relaycommon.StreamEndReason) *relaycommon.RelayInfo {
+	status := relaycommon.NewStreamStatus()
+	status.SetEndReason(reason, nil)
+	return &relaycommon.RelayInfo{
+		IsStream:        true,
+		RelayFormat:     format,
+		OriginModelName: "gpt-5.5",
+		PriceData: hosttypes.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime:             time.Now(),
+		StreamStatus:          status,
+		FinalPreConsumedQuota: 5000,
+	}
+}
+
+func TestCalculateTextQuotaSummaryKeepsPreConsumedQuotaForInterruptedResponsesStream(t *testing.T) {
+	ctx := newMissingUsageQuotaTestContext(true)
+	relayInfo := newMissingUsageRelayInfo(types.RelayFormatOpenAIResponses, relaycommon.StreamEndReasonClientGone)
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	assert.Equal(t, 0, summary.TotalTokens)
+	assert.Equal(t, 5000, summary.Quota)
+	assert.True(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryDoesNotKeepPreConsumedQuotaForNormalResponsesEnd(t *testing.T) {
+	ctx := newMissingUsageQuotaTestContext(true)
+	relayInfo := newMissingUsageRelayInfo(types.RelayFormatOpenAIResponses, relaycommon.StreamEndReasonDone)
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	assert.Equal(t, 0, summary.Quota)
+	assert.False(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryKeepsPreConsumedQuotaForHandlerStopError(t *testing.T) {
+	ctx := newMissingUsageQuotaTestContext(true)
+	relayInfo := newMissingUsageRelayInfo(types.RelayFormatOpenAIResponses, relaycommon.StreamEndReasonHandlerStop)
+	relayInfo.StreamStatus.EndError = errors.New("client disconnected")
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	assert.Equal(t, 5000, summary.Quota)
+	assert.True(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryDoesNotKeepPreConsumedQuotaWithoutBillableOutputMarker(t *testing.T) {
+	ctx := newMissingUsageQuotaTestContext(false)
+	relayInfo := newMissingUsageRelayInfo(types.RelayFormatOpenAIResponses, relaycommon.StreamEndReasonClientGone)
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	assert.Equal(t, 0, summary.Quota)
+	assert.False(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryActualUsageOverridesMissingUsageFallback(t *testing.T) {
+	ctx := newMissingUsageQuotaTestContext(true)
+	relayInfo := newMissingUsageRelayInfo(types.RelayFormatOpenAIResponses, relaycommon.StreamEndReasonClientGone)
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 20,
+	})
+
+	assert.Equal(t, 120, summary.TotalTokens)
+	assert.Equal(t, 120, summary.Quota)
+	assert.False(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryDoesNotKeepPreConsumedQuotaForNonResponsesStream(t *testing.T) {
+	ctx := newMissingUsageQuotaTestContext(true)
+	relayInfo := newMissingUsageRelayInfo(types.RelayFormatOpenAI, relaycommon.StreamEndReasonClientGone)
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	assert.Equal(t, 0, summary.Quota)
+	assert.False(t, summary.MissingUsagePreConsumed)
+}
+
+func TestCalculateTextQuotaSummaryTreatsBillingSessionPreConsumedQuotaAsAuthoritative(t *testing.T) {
+	ctx := newMissingUsageQuotaTestContext(true)
+	relayInfo := newMissingUsageRelayInfo(types.RelayFormatOpenAIResponses, relaycommon.StreamEndReasonClientGone)
+	relayInfo.Billing = &recordingBillingSettler{}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	assert.Equal(t, 0, summary.Quota)
+	assert.False(t, summary.MissingUsagePreConsumed)
 }
 
 func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testing.T) {

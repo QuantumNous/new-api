@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -123,6 +124,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 							idx := i
 							imageCounter.Observe(&streamResponse.Response.Output[i], &idx)
 						}
+						if imageCounter.Count() > 0 {
+							common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
+						}
 						imageCounter.Commit(info)
 						imageCommitted = true
 					}
@@ -139,19 +143,32 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		case "response.output_text.delta":
 			// 处理输出文本
-			responseTextBuilder.WriteString(streamResponse.Delta)
+			if streamResponse.Delta != "" {
+				common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
+				responseTextBuilder.WriteString(streamResponse.Delta)
+			}
 		case dto.ResponsesOutputTypeItemDone:
 			if streamResponse.Item != nil {
 				switch streamResponse.Item.Type {
 				case dto.BuildInCallWebSearchCall:
+					common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
 					info.CountBillableToolCall(dto.BuildInCallWebSearchCall, "")
 				case dto.BuildInCallFileSearchCall:
+					common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
 					info.CountBillableToolCall(dto.BuildInCallFileSearchCall, "")
 				case dto.BuildInCallFunctionCall:
+					before := responseToolCallCount(info)
 					info.CountBillableToolCall(dto.BuildInCallFunctionCall, streamResponse.Item.Name)
+					if responseToolCallCount(info) > before {
+						common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
+					}
 				case dto.ResponsesOutputTypeImageGenerationCall:
+					before := imageCounter.Count()
 					if !imageCommitted {
 						imageCounter.Observe(streamResponse.Item, streamResponse.OutputIndex)
+					}
+					if imageCounter.Count() > before {
+						common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
 					}
 				}
 			}
@@ -175,4 +192,17 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func responseToolCallCount(info *relaycommon.RelayInfo) int {
+	if info == nil || info.ResponsesUsageInfo == nil {
+		return 0
+	}
+	total := 0
+	for _, tool := range info.ResponsesUsageInfo.BuiltInTools {
+		if tool != nil && tool.CallCount > 0 {
+			total += tool.CallCount
+		}
+	}
+	return total
 }
