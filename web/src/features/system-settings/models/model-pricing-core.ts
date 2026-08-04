@@ -41,13 +41,7 @@ export type ModelPricingFormValues = z.infer<
 
 export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
 
-export type LaneKey =
-  | 'completion'
-  | 'cache'
-  | 'createCache'
-  | 'image'
-  | 'audioInput'
-  | 'audioOutput'
+export type LaneKey = 'completion' | 'cache' | 'createCache'
 
 export type ModelRatioData = {
   name: string
@@ -77,27 +71,18 @@ export const EMPTY_LANE_PRICES: Record<LaneKey, string> = {
   completion: '',
   cache: '',
   createCache: '',
-  image: '',
-  audioInput: '',
-  audioOutput: '',
 }
 
 export const EMPTY_LANE_ENABLED: Record<LaneKey, boolean> = {
   completion: false,
   cache: false,
   createCache: false,
-  image: false,
-  audioInput: false,
-  audioOutput: false,
 }
 
 export const ratioFieldByLane: Record<LaneKey, keyof ModelPricingFormValues> = {
   completion: 'completionRatio',
   cache: 'cacheRatio',
   createCache: 'createCacheRatio',
-  image: 'imageRatio',
-  audioInput: 'audioRatio',
-  audioOutput: 'audioCompletionRatio',
 }
 
 export const laneConfigs: Array<{
@@ -108,7 +93,7 @@ export const laneConfigs: Array<{
 }> = [
   {
     key: 'completion',
-    titleKey: 'Completion price',
+    titleKey: 'Output price',
     descriptionKey: 'Output token price for generated tokens.',
     placeholder: '15',
   },
@@ -120,27 +105,9 @@ export const laneConfigs: Array<{
   },
   {
     key: 'createCache',
-    titleKey: 'Cache write price',
+    titleKey: 'Cache create price',
     descriptionKey: 'Token price for creating cache entries.',
     placeholder: '3.75',
-  },
-  {
-    key: 'image',
-    titleKey: 'Image input price',
-    descriptionKey: 'Token price for image input.',
-    placeholder: '2.5',
-  },
-  {
-    key: 'audioInput',
-    titleKey: 'Audio input price',
-    descriptionKey: 'Token price for audio input.',
-    placeholder: '3.81',
-  },
-  {
-    key: 'audioOutput',
-    titleKey: 'Audio output price',
-    descriptionKey: 'Token price for audio output.',
-    placeholder: '15.11',
   },
 ]
 
@@ -183,14 +150,10 @@ export function createInitialLaneState(data?: ModelRatioData | null) {
   }
 
   const promptPrice = ratioToBasePrice(data.ratio)
-  const audioInputPrice = deriveLanePrice(data.audioRatio, promptPrice)
   const prices: Record<LaneKey, string> = {
     completion: deriveLanePrice(data.completionRatio, promptPrice),
     cache: deriveLanePrice(data.cacheRatio, promptPrice),
     createCache: deriveLanePrice(data.createCacheRatio, promptPrice),
-    image: deriveLanePrice(data.imageRatio, promptPrice),
-    audioInput: audioInputPrice,
-    audioOutput: deriveLanePrice(data.audioCompletionRatio, audioInputPrice),
   }
 
   return {
@@ -200,9 +163,6 @@ export function createInitialLaneState(data?: ModelRatioData | null) {
       completion: hasValue(data.completionRatio),
       cache: hasValue(data.cacheRatio),
       createCache: hasValue(data.createCacheRatio),
-      image: hasValue(data.imageRatio),
-      audioInput: hasValue(data.audioRatio),
-      audioOutput: hasValue(data.audioCompletionRatio),
     },
   }
 }
@@ -248,7 +208,7 @@ export function buildPreviewRows(
     },
     {
       key: 'completion',
-      label: t('Completion price'),
+      label: t('Output price'),
       value:
         laneEnabled.completion && lanePrices.completion
           ? `$${lanePrices.completion}`
@@ -264,34 +224,10 @@ export function buildPreviewRows(
     },
     {
       key: 'createCache',
-      label: t('Cache write price'),
+      label: t('Cache create price'),
       value:
         laneEnabled.createCache && lanePrices.createCache
           ? `$${lanePrices.createCache}`
-          : t('Empty'),
-    },
-    {
-      key: 'image',
-      label: t('Image input price'),
-      value:
-        laneEnabled.image && lanePrices.image
-          ? `$${lanePrices.image}`
-          : t('Empty'),
-    },
-    {
-      key: 'audio',
-      label: t('Audio input price'),
-      value:
-        laneEnabled.audioInput && lanePrices.audioInput
-          ? `$${lanePrices.audioInput}`
-          : t('Empty'),
-    },
-    {
-      key: 'audioCompletion',
-      label: t('Audio output price'),
-      value:
-        laneEnabled.audioOutput && lanePrices.audioOutput
-          ? `$${lanePrices.audioOutput}`
           : t('Empty'),
     },
   ]

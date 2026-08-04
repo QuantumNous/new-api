@@ -188,13 +188,13 @@ export const ModelPricingEditorPanel = forwardRef<
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
-      setPricingMode(
-        editData.billingMode === 'tiered_expr'
-          ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
-      )
+      let nextPricingMode: PricingMode = 'per-token'
+      if (editData.billingMode === 'tiered_expr') {
+        nextPricingMode = 'tiered_expr'
+      } else if (editData.price) {
+        nextPricingMode = 'per-request'
+      }
+      setPricingMode(nextPricingMode)
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {
@@ -227,20 +227,9 @@ export const ModelPricingEditorPanel = forwardRef<
     })
   }
 
-  const deriveLaneRatio = (
-    lane: LaneKey,
-    price: string,
-    nextPromptPrice = promptPrice,
-    nextLanePrices = lanePrices
-  ) => {
+  const deriveLaneRatio = (price: string, nextPromptPrice = promptPrice) => {
     const priceNumber = toNumberOrNull(price)
     if (priceNumber === null) return ''
-
-    if (lane === 'audioOutput') {
-      const audioInputPrice = toNumberOrNull(nextLanePrices.audioInput)
-      if (audioInputPrice === null || audioInputPrice === 0) return ''
-      return formatPricingNumber(priceNumber / audioInputPrice)
-    }
 
     const inputPrice = toNumberOrNull(nextPromptPrice)
     if (inputPrice === null || inputPrice === 0) return ''
@@ -266,12 +255,7 @@ export const ModelPricingEditorPanel = forwardRef<
       }
       setFormValue(
         ratioField,
-        deriveLaneRatio(
-          key,
-          nextLanePrices[key],
-          nextPromptPrice,
-          nextLanePrices
-        )
+        deriveLaneRatio(nextLanePrices[key], nextPromptPrice)
       )
     })
   }
@@ -288,22 +272,7 @@ export const ModelPricingEditorPanel = forwardRef<
     setLanePrices(nextLanePrices)
 
     if (laneEnabled[lane]) {
-      setFormValue(
-        ratioFieldByLane[lane],
-        deriveLaneRatio(lane, value, promptPrice, nextLanePrices)
-      )
-    }
-
-    if (lane === 'audioInput' && laneEnabled.audioOutput) {
-      setFormValue(
-        'audioCompletionRatio',
-        deriveLaneRatio(
-          'audioOutput',
-          nextLanePrices.audioOutput,
-          promptPrice,
-          nextLanePrices
-        )
-      )
+      setFormValue(ratioFieldByLane[lane], deriveLaneRatio(value, promptPrice))
     }
   }
 
@@ -314,11 +283,6 @@ export const ModelPricingEditorPanel = forwardRef<
     if (!checked) {
       nextPrices = { ...nextPrices, [lane]: '' }
       setFormValue(ratioFieldByLane[lane], '')
-      if (lane === 'audioInput') {
-        nextEnabled.audioOutput = false
-        nextPrices.audioOutput = ''
-        setFormValue('audioCompletionRatio', '')
-      }
     }
 
     setLaneEnabled(nextEnabled)
@@ -327,7 +291,7 @@ export const ModelPricingEditorPanel = forwardRef<
     if (checked) {
       setFormValue(
         ratioFieldByLane[lane],
-        deriveLaneRatio(lane, nextPrices[lane], promptPrice, nextPrices)
+        deriveLaneRatio(nextPrices[lane], promptPrice)
       )
     }
   }
@@ -399,14 +363,6 @@ export const ModelPricingEditorPanel = forwardRef<
       )
     }
 
-    if (
-      pricingMode === 'per-token' &&
-      laneEnabled.audioOutput &&
-      !hasValue(lanePrices.audioInput)
-    ) {
-      nextWarnings.push(t('Audio output price requires an audio input price.'))
-    }
-
     return nextWarnings
   }, [editData, laneEnabled, lanePrices, pricingMode, promptPrice, t])
 
@@ -420,17 +376,6 @@ export const ModelPricingEditorPanel = forwardRef<
     ) {
       form.setError('ratio', {
         message: t('Input price is required before saving dependent prices.'),
-      })
-      return false
-    }
-
-    if (
-      pricingMode === 'per-token' &&
-      laneEnabled.audioOutput &&
-      !hasValue(lanePrices.audioInput)
-    ) {
-      form.setError('audioRatio', {
-        message: t('Audio output price requires an audio input price.'),
       })
       return false
     }
@@ -572,10 +517,6 @@ export const ModelPricingEditorPanel = forwardRef<
 
                       <div className='grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(400px,1fr))]'>
                         {laneConfigs.map((lane) => {
-                          const disabled =
-                            lane.key === 'audioOutput' &&
-                            (!laneEnabled.audioInput ||
-                              !hasValue(lanePrices.audioInput))
                           return (
                             <PriceLane
                               key={lane.key}
@@ -584,7 +525,6 @@ export const ModelPricingEditorPanel = forwardRef<
                               placeholder={lane.placeholder}
                               value={lanePrices[lane.key]}
                               enabled={laneEnabled[lane.key]}
-                              disabled={disabled}
                               onEnabledChange={(checked) =>
                                 handleLaneToggle(lane.key, checked)
                               }
