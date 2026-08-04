@@ -26,32 +26,56 @@ const (
 var (
 	errTokenConcurrencyLimit       = errors.New("token concurrency limit reached")
 	errTokenConcurrencyUnavailable = errors.New("token concurrency unavailable")
+	errTokenConcurrencyLeaseLost   = errors.New("token concurrency lease lost")
 )
 
 var tokenConcurrencyAcquireScript = redis.NewScript(`
-local current = redis.call('HLEN', KEYS[1])
+local now = redis.call('TIME')
+local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
+local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', now_ms)
+for i = 1, #expired do
+  redis.call('ZREM', KEYS[1], expired[i])
+end
+
 local limit = tonumber(ARGV[1])
-if not limit or limit <= 0 then
+local lease_ttl_ms = tonumber(ARGV[3])
+if not limit or limit <= 0 or not lease_ttl_ms or lease_ttl_ms <= 0 then
   return -1
 end
+local current = redis.call('ZCARD', KEYS[1])
 if current >= limit then
   return 0
 end
-redis.call('HSET', KEYS[1], ARGV[2], '1')
+redis.call('ZADD', KEYS[1], now_ms + lease_ttl_ms, ARGV[2])
 redis.call('PEXPIRE', KEYS[1], ARGV[3])
 return 1
 `)
 
 var tokenConcurrencyReleaseScript = redis.NewScript(`
-local removed = redis.call('HDEL', KEYS[1], ARGV[1])
-if redis.call('HLEN', KEYS[1]) == 0 then
+local now = redis.call('TIME')
+local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
+local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', now_ms)
+for i = 1, #expired do
+  redis.call('ZREM', KEYS[1], expired[i])
+end
+local removed = redis.call('ZREM', KEYS[1], ARGV[1])
+if redis.call('ZCARD', KEYS[1]) == 0 then
   redis.call('DEL', KEYS[1])
 end
 return removed
 `)
 
 var tokenConcurrencyRefreshScript = redis.NewScript(`
-if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then
+local now = redis.call('TIME')
+local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
+local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', now_ms)
+for i = 1, #expired do
+  redis.call('ZREM', KEYS[1], expired[i])
+end
+local current_expiry = redis.call('ZSCORE', KEYS[1], ARGV[1])
+local lease_ttl_ms = tonumber(ARGV[2])
+if current_expiry and tonumber(current_expiry) > now_ms and lease_ttl_ms and lease_ttl_ms > 0 then
+  redis.call('ZADD', KEYS[1], now_ms + lease_ttl_ms, ARGV[1])
   redis.call('PEXPIRE', KEYS[1], ARGV[2])
   return 1
 end
@@ -62,11 +86,20 @@ func tokenConcurrencyKey(tokenID int, group string) string {
 	return fmt.Sprintf("%s:token:%d:group:%s", tokenConcurrencyKeyPrefix, tokenID, group)
 }
 
+func tokenConcurrencyKeyTTL(ttl time.Duration) int64 {
+	ttlMillis := ttl.Milliseconds()
+	if ttlMillis < 1 {
+		return 1
+	}
+	return ttlMillis
+}
+
 func acquireTokenConcurrency(ctx context.Context, rdb *redis.Client, key, leaseID string, limit int, ttl time.Duration) error {
 	if rdb == nil || limit <= 0 || ttl <= 0 {
 		return errTokenConcurrencyUnavailable
 	}
-	result, err := tokenConcurrencyAcquireScript.Run(ctx, rdb, []string{key}, limit, leaseID, ttl.Milliseconds()).Int64()
+	ttlMillis := tokenConcurrencyKeyTTL(ttl)
+	result, err := tokenConcurrencyAcquireScript.Run(ctx, rdb, []string{key}, limit, leaseID, ttlMillis, ttlMillis).Int64()
 	if err != nil {
 		return fmt.Errorf("acquire token concurrency: %w", err)
 	}
@@ -94,13 +127,17 @@ func refreshTokenConcurrency(ctx context.Context, rdb *redis.Client, key, leaseI
 	if rdb == nil || ttl <= 0 {
 		return errTokenConcurrencyUnavailable
 	}
-	if _, err := tokenConcurrencyRefreshScript.Run(ctx, rdb, []string{key}, leaseID, ttl.Milliseconds()).Int64(); err != nil {
+	result, err := tokenConcurrencyRefreshScript.Run(ctx, rdb, []string{key}, leaseID, tokenConcurrencyKeyTTL(ttl)).Int64()
+	if err != nil {
 		return fmt.Errorf("refresh token concurrency: %w", err)
+	}
+	if result == 0 {
+		return errTokenConcurrencyLeaseLost
 	}
 	return nil
 }
 
-func startTokenConcurrencyHeartbeat(rdb *redis.Client, key, leaseID string, ttl time.Duration) (stop, done chan struct{}) {
+func startTokenConcurrencyHeartbeat(rdb *redis.Client, key, leaseID string, ttl time.Duration, onFailure func(error)) (stop, done chan struct{}) {
 	stop = make(chan struct{})
 	done = make(chan struct{})
 	interval := ttl / 3
@@ -117,8 +154,14 @@ func startTokenConcurrencyHeartbeat(rdb *redis.Client, key, leaseID string, ttl 
 				return
 			case <-ticker.C:
 				refreshCtx, cancel := context.WithTimeout(context.Background(), tokenConcurrencyRedisTimeout)
-				_ = refreshTokenConcurrency(refreshCtx, rdb, key, leaseID, ttl)
+				err := refreshTokenConcurrency(refreshCtx, rdb, key, leaseID, ttl)
 				cancel()
+				if err != nil {
+					if onFailure != nil {
+						onFailure(err)
+					}
+					return
+				}
 			}
 		}
 	}()
@@ -171,7 +214,8 @@ func tokenConcurrencyGate(redisClient func() *redis.Client) gin.HandlerFunc {
 		key := tokenConcurrencyKey(tokenID, group)
 		leaseID := uuid.NewString()
 		acquireCtx, cancel := context.WithTimeout(c.Request.Context(), tokenConcurrencyRedisTimeout)
-		err := acquireTokenConcurrency(acquireCtx, redisClient(), key, leaseID, policy.Limit, policy.LeaseTTL)
+		rdb := redisClient()
+		err := acquireTokenConcurrency(acquireCtx, rdb, key, leaseID, policy.Limit, policy.LeaseTTL)
 		cancel()
 		if errors.Is(err, errTokenConcurrencyLimit) {
 			abortWithOpenAiMessage(c, http.StatusTooManyRequests, "token_concurrency_limit_reached", types.ErrorCodeTokenConcurrencyLimit)
@@ -182,13 +226,20 @@ func tokenConcurrencyGate(redisClient func() *redis.Client) gin.HandlerFunc {
 			return
 		}
 
-		heartbeatRedis := redisClient()
-		heartbeatStop, heartbeatDone := startTokenConcurrencyHeartbeat(heartbeatRedis, key, leaseID, policy.LeaseTTL)
+		requestContext, requestCancel := context.WithCancel(c.Request.Context())
+		c.Request = c.Request.WithContext(requestContext)
+		heartbeatStop, heartbeatDone := startTokenConcurrencyHeartbeat(rdb, key, leaseID, policy.LeaseTTL, func(error) {
+			// Cancel only the request context. The gate deliberately does not
+			// write a response from the heartbeat goroutine while Gin or an
+			// upstream handler may still be using the response writer.
+			requestCancel()
+		})
 		defer func() {
 			close(heartbeatStop)
 			<-heartbeatDone
+			requestCancel()
 			releaseCtx, releaseCancel := context.WithTimeout(context.Background(), tokenConcurrencyRedisTimeout)
-			if releaseErr := releaseTokenConcurrency(releaseCtx, heartbeatRedis, key, leaseID); releaseErr != nil {
+			if releaseErr := releaseTokenConcurrency(releaseCtx, rdb, key, leaseID); releaseErr != nil {
 				logger.LogError(context.Background(), fmt.Sprintf("token concurrency release failed: group=%s limit=%d", group, policy.Limit))
 			}
 			releaseCancel()

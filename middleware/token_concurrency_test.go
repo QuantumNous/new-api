@@ -2,10 +2,12 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -16,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 )
 
@@ -246,6 +249,36 @@ func TestTokenConcurrencyLeaseTTLRecoversUnreleasedProcess(t *testing.T) {
 	require.NoError(t, releaseTokenConcurrency(context.Background(), rdb, key, "recovered-lease"))
 }
 
+func TestTokenConcurrencyPerLeaseExpiryDoesNotConsumeLiveSlot(t *testing.T) {
+	rdb := tokenConcurrencyTestRedis(t)
+	key := tokenConcurrencyKey(910011, "per-lease-expiry")
+	t.Cleanup(func() { _ = rdb.Del(context.Background(), key).Err() })
+
+	require.NoError(t, acquireTokenConcurrency(context.Background(), rdb, key, "orphan-lease", 2, 100*time.Millisecond))
+	require.NoError(t, acquireTokenConcurrency(context.Background(), rdb, key, "live-lease", 2, time.Second))
+	time.Sleep(150 * time.Millisecond)
+	require.NoError(t, acquireTokenConcurrency(context.Background(), rdb, key, "replacement-lease", 2, time.Second), "expired orphan must not consume a live slot")
+	require.Equal(t, int64(2), rdb.ZCard(context.Background(), key).Val())
+	require.NoError(t, releaseTokenConcurrency(context.Background(), rdb, key, "live-lease"))
+	require.NoError(t, releaseTokenConcurrency(context.Background(), rdb, key, "replacement-lease"))
+}
+
+func TestTokenConcurrencyLimitFiftyRejectsFiftyFirst(t *testing.T) {
+	rdb := tokenConcurrencyTestRedis(t)
+	key := tokenConcurrencyKey(910012, "limit-fifty")
+	t.Cleanup(func() { _ = rdb.Del(context.Background(), key).Err() })
+	leases := make([]string, 0, 50)
+	for i := 0; i < 50; i++ {
+		lease := fmt.Sprintf("lease-%d", i)
+		require.NoError(t, acquireTokenConcurrency(context.Background(), rdb, key, lease, 50, time.Minute))
+		leases = append(leases, lease)
+	}
+	require.ErrorIs(t, acquireTokenConcurrency(context.Background(), rdb, key, "lease-51", 50, time.Minute), errTokenConcurrencyLimit)
+	for _, lease := range leases {
+		require.NoError(t, releaseTokenConcurrency(context.Background(), rdb, key, lease))
+	}
+}
+
 func TestTokenConcurrencyHeartbeatKeepsLongHTTPLease(t *testing.T) {
 	rdb := tokenConcurrencyTestRedis(t)
 	t.Setenv("TOKEN_CONCURRENCY_ENABLED", "true")
@@ -273,6 +306,185 @@ func TestTokenConcurrencyHeartbeatKeepsLongHTTPLease(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, (<-second).status, "heartbeat must retain a live long-running HTTP lease")
 	release <- struct{}{}
 	require.Equal(t, http.StatusOK, (<-first).status)
+}
+
+func TestTokenConcurrencyHeartbeatFailureCancelsRequestContext(t *testing.T) {
+	rdb := tokenConcurrencyTestRedis(t)
+	t.Setenv("TOKEN_CONCURRENCY_ENABLED", "true")
+	t.Setenv("TOKEN_CONCURRENCY_LIMITS", "heartbeat-failure=1")
+	t.Setenv("TOKEN_CONCURRENCY_LEASE_TTL_SECONDS", "1")
+	gin.SetMode(gin.TestMode)
+	entered := make(chan struct{}, 1)
+	canceled := make(chan struct{}, 1)
+	router := gin.New()
+	router.POST("/relay", testTokenContext(910013, "heartbeat-failure"), TokenConcurrencyGateWithRedis(rdb), func(c *gin.Context) {
+		entered <- struct{}{}
+		select {
+		case <-c.Request.Context().Done():
+			canceled <- struct{}{}
+			c.Status(499)
+		case <-time.After(3 * time.Second):
+			c.Status(http.StatusOK)
+		}
+	})
+	server := httptest.NewServer(router)
+	defer server.Close()
+	client := &http.Client{Timeout: 5 * time.Second}
+	request := postTestRequest(t, client, server.URL+"/relay")
+	waitForTestSignal(t, entered)
+	require.NoError(t, rdb.Close(), "closing only the isolated Redis client simulates a refresh failure")
+	select {
+	case <-canceled:
+	case <-time.After(3 * time.Second):
+		t.Fatal("heartbeat failure did not cancel the request context")
+	}
+	require.Equal(t, 499, (<-request).status)
+}
+
+func TestTokenConcurrencyRedisRestartAfterTTLDoesNotOverlapHTTP200(t *testing.T) {
+	if os.Getenv("TOKEN_CONCURRENCY_TEST_ALLOW_REDIS_RESTART") != "1" {
+		t.Skip("TOKEN_CONCURRENCY_TEST_ALLOW_REDIS_RESTART=1 is required for the localhost Redis stop/restart test")
+	}
+	const port = "16401"
+	startRedis := func() {
+		require.NoError(t, exec.Command("redis-server", "--bind", "127.0.0.1", "--port", port, "--save", "", "--appendonly", "no", "--daemonize", "yes").Run())
+		client := redis.NewClient(&redis.Options{Addr: "127.0.0.1:" + port})
+		t.Cleanup(func() { _ = client.Close() })
+		require.Eventually(t, func() bool { return client.Ping(context.Background()).Err() == nil }, 2*time.Second, 20*time.Millisecond)
+	}
+	stopRedis := func() {
+		_ = exec.Command("redis-cli", "-h", "127.0.0.1", "-p", port, "shutdown", "nosave").Run()
+	}
+	startRedis()
+	t.Cleanup(stopRedis)
+	rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:" + port})
+	defer rdb.Close()
+	t.Setenv("TOKEN_CONCURRENCY_ENABLED", "true")
+	t.Setenv("TOKEN_CONCURRENCY_LIMITS", "redis-restart=1")
+	t.Setenv("TOKEN_CONCURRENCY_LEASE_TTL_SECONDS", "1")
+	gin.SetMode(gin.TestMode)
+	entered := make(chan struct{}, 1)
+	router := gin.New()
+	router.POST("/relay", testTokenContext(910017, "redis-restart"), TokenConcurrencyGateWithRedis(rdb), func(c *gin.Context) {
+		entered <- struct{}{}
+		select {
+		case <-c.Request.Context().Done():
+			c.Status(499)
+		case <-time.After(4 * time.Second):
+			c.Status(http.StatusOK)
+		}
+	})
+	server := httptest.NewServer(router)
+	defer server.Close()
+	client := &http.Client{Timeout: 8 * time.Second}
+	first := postTestRequest(t, client, server.URL+"/relay")
+	waitForTestSignal(t, entered)
+	stopRedis()
+	time.Sleep(1500 * time.Millisecond)
+	startRedis()
+	second := <-postTestRequest(t, client, server.URL+"/relay")
+	require.Equal(t, http.StatusOK, second.status, "a new request may proceed after the old request was canceled")
+	require.Equal(t, 499, (<-first).status, "the Redis outage must cancel the old in-flight request")
+}
+
+func TestTokenConcurrencyUncooperativeHandlerIsNotForceKilled(t *testing.T) {
+	rdb := tokenConcurrencyTestRedis(t)
+	t.Setenv("TOKEN_CONCURRENCY_ENABLED", "true")
+	t.Setenv("TOKEN_CONCURRENCY_LIMITS", "uncooperative=1")
+	t.Setenv("TOKEN_CONCURRENCY_LEASE_TTL_SECONDS", "1")
+	gin.SetMode(gin.TestMode)
+	entered := make(chan struct{}, 1)
+	router := gin.New()
+	router.POST("/relay", testTokenContext(910014, "uncooperative"), TokenConcurrencyGateWithRedis(rdb), func(c *gin.Context) {
+		entered <- struct{}{}
+		// This deliberately ignores request context. The gate cannot safely
+		// kill arbitrary downstream code; the test prevents claiming otherwise.
+		time.Sleep(600 * time.Millisecond)
+		c.Status(http.StatusOK)
+	})
+	server := httptest.NewServer(router)
+	defer server.Close()
+	request := postTestRequest(t, &http.Client{Timeout: 3 * time.Second}, server.URL+"/relay")
+	waitForTestSignal(t, entered)
+	require.NoError(t, rdb.Close())
+	require.Equal(t, http.StatusOK, (<-request).status)
+}
+
+func TestTokenConcurrencyAsyncTaskIDReleasesAtHTTPReturn(t *testing.T) {
+	rdb := tokenConcurrencyTestRedis(t)
+	setTokenConcurrencyTestPolicy(t, "async-task=1")
+	key := tokenConcurrencyKey(910015, "async-task")
+	t.Cleanup(func() { _ = rdb.Del(context.Background(), key).Err() })
+	backgroundRelease := make(chan struct{})
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/submit", testTokenContext(910015, "async-task"), TokenConcurrencyGateWithRedis(rdb), func(c *gin.Context) {
+		go func() { <-backgroundRelease }()
+		c.JSON(http.StatusAccepted, gin.H{"task_id": "local-task-1"})
+	})
+	server := httptest.NewServer(router)
+	defer server.Close()
+	client := &http.Client{Timeout: 3 * time.Second}
+	require.Equal(t, http.StatusAccepted, (<-postTestRequest(t, client, server.URL+"/submit")).status)
+	second := <-postTestRequest(t, client, server.URL+"/submit")
+	require.Equal(t, http.StatusAccepted, second.status, "task ID response ends the in-flight HTTP lease")
+	close(backgroundRelease)
+}
+
+func TestTokenConcurrencyRealtimeWebSocketLifecycleAndLimit(t *testing.T) {
+	rdb := tokenConcurrencyTestRedis(t)
+	setTokenConcurrencyTestPolicy(t, "realtime=1")
+	gin.SetMode(gin.TestMode)
+	entered := make(chan struct{}, 2)
+	done := make(chan struct{}, 2)
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	router := gin.New()
+	router.GET("/v1/realtime", testTokenContext(910016, "realtime"), TokenConcurrencyGateWithRedis(rdb), func(c *gin.Context) {
+		connection, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			return
+		}
+		entered <- struct{}{}
+		_, _, _ = connection.ReadMessage()
+		_ = connection.Close()
+		done <- struct{}{}
+	})
+	server := httptest.NewServer(router)
+	defer server.Close()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/v1/realtime"
+	dialer := websocket.Dialer{}
+	first, response, err := dialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	require.Equal(t, http.StatusSwitchingProtocols, response.StatusCode)
+	_ = response.Body.Close()
+	waitForTestSignal(t, entered)
+
+	second, response, err := dialer.Dial(wsURL, nil)
+	require.Error(t, err)
+	require.Nil(t, second)
+	require.NotNil(t, response)
+	require.Equal(t, http.StatusTooManyRequests, response.StatusCode)
+	_ = response.Body.Close()
+
+	require.NoError(t, first.Close())
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("websocket handler did not return after client close")
+	}
+
+	third, response, err := dialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	require.Equal(t, http.StatusSwitchingProtocols, response.StatusCode)
+	_ = response.Body.Close()
+	require.NoError(t, third.Close())
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("second websocket handler did not return after client close")
+	}
 }
 
 func TestTokenConcurrencyReleasesAfterHTTP4xx5xxCancelAndPanic(t *testing.T) {
