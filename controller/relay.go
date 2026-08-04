@@ -192,6 +192,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.LastError = nil
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+		resetUpstreamIdsForAttempt(c)
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
@@ -251,6 +252,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	if newAPIError != nil {
 		perfmetrics.RecordRelaySample(relayInfo, false, 0, newAPIError)
 	}
+}
+
+func resetUpstreamIdsForAttempt(c *gin.Context) {
+	delete(c.Keys, common.UpstreamRequestIdKey)
+	delete(c.Keys, common.UpstreamResponseIdKey)
 }
 
 func writeRelayError(c *gin.Context, relayFormat types.RelayFormat, ws *websocket.Conn, apiErr *types.NewAPIError) {

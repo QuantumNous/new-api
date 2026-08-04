@@ -74,8 +74,8 @@ func TestCaptureUpstreamID_NonStream(t *testing.T) {
 			if string(got) != tc.body {
 				t.Fatalf("body passthrough mismatch:\n got %q\nwant %q", got, tc.body)
 			}
-			if id := c.GetString(common.UpstreamRequestIdKey); id != tc.want {
-				t.Fatalf("UpstreamRequestId = %q, want %q", id, tc.want)
+			if id := c.GetString(common.UpstreamResponseIdKey); id != tc.want {
+				t.Fatalf("UpstreamResponseId = %q, want %q", id, tc.want)
 			}
 		})
 	}
@@ -143,8 +143,8 @@ func TestCaptureUpstreamID_Stream(t *testing.T) {
 				if string(out) != tc.body {
 					t.Fatalf("stream passthrough mismatch (chunk=%d):\n got %q\nwant %q", chunk, out, tc.body)
 				}
-				if id := c.GetString(common.UpstreamRequestIdKey); id != tc.want {
-					t.Fatalf("chunk=%d UpstreamRequestId = %q, want %q", chunk, id, tc.want)
+				if id := c.GetString(common.UpstreamResponseIdKey); id != tc.want {
+					t.Fatalf("chunk=%d UpstreamResponseId = %q, want %q", chunk, id, tc.want)
 				}
 			})
 		}

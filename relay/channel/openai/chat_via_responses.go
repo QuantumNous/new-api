@@ -59,6 +59,9 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	if oaiError := responsesResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
+	if responsesResp.ID != "" {
+		c.Set(common.UpstreamResponseIdKey, responsesResp.ID)
+	}
 
 	chatId := helper.GetResponseID(c)
 	chatResp, usage, err := service.ResponsesResponseToChatCompletionsResponse(&responsesResp, chatId)
@@ -310,6 +313,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			logger.LogError(c, "failed to unmarshal responses stream event: "+err.Error())
 			sr.Error(err)
 			return
+		}
+		if streamResp.Response != nil && streamResp.Response.ID != "" {
+			c.Set(common.UpstreamResponseIdKey, streamResp.Response.ID)
 		}
 
 		switch streamResp.Type {

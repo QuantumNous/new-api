@@ -794,6 +794,9 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
+	if claudeResponse.Type == "message_start" && claudeResponse.Message != nil && claudeResponse.Message.Id != "" {
+		c.Set(common.UpstreamResponseIdKey, claudeResponse.Message.Id)
+	}
 	if claudeResponse.StopReason != "" {
 		maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
 	}
@@ -900,6 +903,9 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	}
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
+	}
+	if claudeResponse.Id != "" {
+		c.Set(common.UpstreamResponseIdKey, claudeResponse.Id)
 	}
 	maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
 	if claudeInfo.Usage == nil {

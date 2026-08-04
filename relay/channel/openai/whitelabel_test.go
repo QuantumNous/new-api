@@ -111,6 +111,7 @@ func TestOpenaiHandler_Whitelabel(t *testing.T) {
 		require.Contains(t, out, whitelabelOriginModel)
 		// unrelated content preserved
 		require.Contains(t, out, `"hi"`)
+		require.Equal(t, "chatcmpl-abc", c.GetString(common.UpstreamResponseIdKey))
 	})
 
 	t.Run("flag off leaves body unchanged", func(t *testing.T) {
@@ -124,4 +125,14 @@ func TestOpenaiHandler_Whitelabel(t *testing.T) {
 		require.Contains(t, out, whitelabelUpstreamModel)
 		require.NotContains(t, out, whitelabelOriginModel)
 	})
+}
+
+func TestCaptureUpstreamResponseIdFromJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	captureUpstreamResponseIdFromJSON(c, `{"id":"chatcmpl-stream-123","choices":[]}`)
+	captureUpstreamResponseIdFromJSON(c, `{"id":"chatcmpl-later","choices":[]}`)
+
+	require.Equal(t, "chatcmpl-stream-123", c.GetString(common.UpstreamResponseIdKey))
 }
