@@ -14,13 +14,39 @@ export const formatAnalysisPeriod = (period) => {
     .replaceAll('/', '-');
 };
 
+const ANALYSIS_DIMENSION_ORDER = [
+  'period',
+  'username',
+  'model_name',
+  'token_name',
+  'group',
+  'channel',
+];
+
+export const getAnalysisTableDimensions = (isAdminUser, dimensions) => {
+  const selected = new Set(Array.isArray(dimensions) ? dimensions : []);
+  return ANALYSIS_DIMENSION_ORDER.filter(
+    (dimension) =>
+      selected.has(dimension) &&
+      (isAdminUser || !['username', 'channel'].includes(dimension)),
+  );
+};
+
 export const buildDashboardAnalysisCsv = ({
   rows = [],
   isAdminUser,
   t = (value) => value,
   quotaPerUnit = 1,
+  dimensions,
 }) => {
   if (!rows.length) return '';
+
+  // The server-confirmed dimensions are the display contract. Missing metadata
+  // fails closed so an omitted dimension cannot become a dead CSV column.
+  const selectedDimensions = new Set(
+    getAnalysisTableDimensions(isAdminUser, dimensions),
+  );
+  const hasDimension = (dimension) => selectedDimensions.has(dimension);
 
   const normalizedQuotaPerUnit = Number(quotaPerUnit);
   const safeQuotaPerUnit =
@@ -28,24 +54,24 @@ export const buildDashboardAnalysisCsv = ({
       ? normalizedQuotaPerUnit
       : 1;
   const headers = [
-    t('时间'),
-    ...(isAdminUser ? [t('用户')] : []),
-    t('模型'),
-    t('令牌名称'),
-    t('分组'),
-    ...(isAdminUser ? [t('渠道')] : []),
+    ...(hasDimension('period') ? [t('时间')] : []),
+    ...(hasDimension('username') ? [t('用户')] : []),
+    ...(hasDimension('model_name') ? [t('模型')] : []),
+    ...(hasDimension('token_name') ? [t('令牌名称')] : []),
+    ...(hasDimension('group') ? [t('分组')] : []),
+    ...(hasDimension('channel') ? [t('渠道')] : []),
     t('成功请求数'),
     t('输入 Tokens'),
     t('输出 Tokens'),
     t('消费金额（USD）'),
   ];
   const values = rows.map((row) => [
-    formatAnalysisPeriod(row.period),
-    ...(isAdminUser ? [row.username || ''] : []),
-    row.model_name || '',
-    row.token_name || '',
-    row.group || '',
-    ...(isAdminUser ? [row.channel_id || ''] : []),
+    ...(hasDimension('period') ? [formatAnalysisPeriod(row.period)] : []),
+    ...(hasDimension('username') ? [row.username || ''] : []),
+    ...(hasDimension('model_name') ? [row.model_name || ''] : []),
+    ...(hasDimension('token_name') ? [row.token_name || ''] : []),
+    ...(hasDimension('group') ? [row.group || ''] : []),
+    ...(hasDimension('channel') ? [row.channel_id || ''] : []),
     Number(row.request_count || 0),
     Number(row.prompt_tokens || 0),
     Number(row.completion_tokens || 0),

@@ -3,6 +3,7 @@ import { Button, Card, Empty, Tag } from '@douyinfe/semi-ui';
 import { Download, BarChart3, TrendingUp } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 import { getQuotaPerUnit } from '../../helpers/quota';
+import { getAnalysisTableDimensions } from '../../hooks/dashboard/analysisCsv';
 
 const formatMoney = (quota) =>
   `$${(Number(quota || 0) / (getQuotaPerUnit() || 500000)).toFixed(2)}`;
@@ -27,6 +28,11 @@ const AnalysisPanel = ({
   t,
 }) => {
   const rows = analysis?.rows || [];
+  const tableDimensions = getAnalysisTableDimensions(
+    isAdminUser,
+    analysis?.dimensions,
+  );
+  const hasDimension = (dimension) => tableDimensions.includes(dimension);
   const totals = useMemo(
     () =>
       rows.reduce(
@@ -205,12 +211,24 @@ const AnalysisPanel = ({
             <table className='min-w-full text-sm'>
               <thead className='bg-gray-50 text-left text-xs text-gray-500'>
                 <tr>
-                  <th className='px-3 py-2'>{t('时间')}</th>
-                  {isAdminUser && <th className='px-3 py-2'>{t('用户')}</th>}
-                  <th className='px-3 py-2'>{t('模型')}</th>
-                  <th className='px-3 py-2'>{t('令牌')}</th>
-                  <th className='px-3 py-2'>{t('分组')}</th>
-                  {isAdminUser && <th className='px-3 py-2'>{t('渠道')}</th>}
+                  {hasDimension('period') && (
+                    <th className='px-3 py-2'>{t('时间')}</th>
+                  )}
+                  {hasDimension('username') && (
+                    <th className='px-3 py-2'>{t('用户')}</th>
+                  )}
+                  {hasDimension('model_name') && (
+                    <th className='px-3 py-2'>{t('模型')}</th>
+                  )}
+                  {hasDimension('token_name') && (
+                    <th className='px-3 py-2'>{t('令牌')}</th>
+                  )}
+                  {hasDimension('group') && (
+                    <th className='px-3 py-2'>{t('分组')}</th>
+                  )}
+                  {hasDimension('channel') && (
+                    <th className='px-3 py-2'>{t('渠道')}</th>
+                  )}
                   <th className='px-3 py-2 text-right'>{t('请求数')}</th>
                   <th className='px-3 py-2 text-right'>{t('消费')}</th>
                 </tr>
@@ -221,16 +239,24 @@ const AnalysisPanel = ({
                     key={`${row.period}-${row.model_name}-${index}`}
                     className='border-t border-gray-50'
                   >
-                    <td className='px-3 py-2 whitespace-nowrap'>
-                      {formatPeriod(row.period)}
-                    </td>
-                    {isAdminUser && (
+                    {hasDimension('period') && (
+                      <td className='px-3 py-2 whitespace-nowrap'>
+                        {formatPeriod(row.period)}
+                      </td>
+                    )}
+                    {hasDimension('username') && (
                       <td className='px-3 py-2'>{row.username || '-'}</td>
                     )}
-                    <td className='px-3 py-2'>{row.model_name || '-'}</td>
-                    <td className='px-3 py-2'>{row.token_name || '-'}</td>
-                    <td className='px-3 py-2'>{row.group || '-'}</td>
-                    {isAdminUser && (
+                    {hasDimension('model_name') && (
+                      <td className='px-3 py-2'>{row.model_name || '-'}</td>
+                    )}
+                    {hasDimension('token_name') && (
+                      <td className='px-3 py-2'>{row.token_name || '-'}</td>
+                    )}
+                    {hasDimension('group') && (
+                      <td className='px-3 py-2'>{row.group || '-'}</td>
+                    )}
+                    {hasDimension('channel') && (
                       <td className='px-3 py-2'>{row.channel_id || '-'}</td>
                     )}
                     <td className='px-3 py-2 text-right'>

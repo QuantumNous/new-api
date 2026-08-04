@@ -153,6 +153,7 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
     const csv = buildDashboardAnalysisCsv({
       rows,
       isAdminUser,
+      dimensions: analysis.dimensions,
       t,
       quotaPerUnit,
     });
@@ -170,7 +171,13 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
     link.remove();
     URL.revokeObjectURL(url);
     showSuccess(t('消费分析导出成功'));
-  }, [analysis.rows, inputs.start_timestamp, isAdminUser, t]);
+  }, [
+    analysis.dimensions,
+    analysis.rows,
+    inputs.start_timestamp,
+    isAdminUser,
+    t,
+  ]);
 
   // SearchModal edits are intentionally staged; the query is reloaded only
   // after the user confirms, avoiding a request per keystroke.

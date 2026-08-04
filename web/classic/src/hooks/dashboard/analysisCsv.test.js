@@ -54,6 +54,14 @@ test('CSV period formatting is fixed to Asia/Shanghai', () => {
 test('admin CSV preserves formula safety and amount conservation', () => {
   const csv = buildDashboardAnalysisCsv({
     isAdminUser: true,
+    dimensions: [
+      'period',
+      'username',
+      'model_name',
+      'token_name',
+      'group',
+      'channel',
+    ],
     quotaPerUnit: 500000,
     t: (value) => value,
     rows: [
@@ -97,4 +105,94 @@ test('admin CSV preserves formula safety and amount conservation', () => {
   expect(rows[1][4]).toBe("' @GROUP");
   expect(rows[2][2]).toBe("'@MODEL");
   expect(rows[2][3]).toBe('quoted,"token"');
+});
+
+test('CSV follows the dimensions returned by the analysis query', () => {
+  const csv = buildDashboardAnalysisCsv({
+    isAdminUser: true,
+    dimensions: ['period', 'model_name'],
+    quotaPerUnit: 500000,
+    rows: [
+      {
+        period: 1704067200,
+        username: 'hidden-user',
+        model_name: 'visible-model',
+        token_name: 'hidden-token',
+        group: 'hidden-group',
+        channel_id: 48,
+        request_count: 1,
+        quota: 500000,
+      },
+    ],
+  });
+
+  const rows = parseCsv(csv);
+  expect(rows[0]).toEqual([
+    '时间',
+    '模型',
+    '成功请求数',
+    '输入 Tokens',
+    '输出 Tokens',
+    '消费金额（USD）',
+  ]);
+  expect(rows[1]).toEqual([
+    '2024-1-1 08:00:00',
+    'visible-model',
+    '1',
+    '0',
+    '0',
+    '1.000000',
+  ]);
+});
+
+test('user CSV never exports admin-only dimensions', () => {
+  const csv = buildDashboardAnalysisCsv({
+    isAdminUser: false,
+    dimensions: ['period', 'username', 'model_name', 'channel'],
+    rows: [
+      {
+        period: 1704067200,
+        username: 'must-not-export',
+        model_name: 'visible-model',
+        channel_id: 49,
+        request_count: 1,
+      },
+    ],
+  });
+
+  const rows = parseCsv(csv);
+  expect(rows[0]).toEqual([
+    '时间',
+    '模型',
+    '成功请求数',
+    '输入 Tokens',
+    '输出 Tokens',
+    '消费金额（USD）',
+  ]);
+  expect(rows[1][1]).toBe('visible-model');
+  expect(rows[1]).not.toContain('must-not-export');
+  expect(rows[1]).not.toContain('49');
+});
+
+test('CSV fails closed when the response omits dimensions metadata', () => {
+  const csv = buildDashboardAnalysisCsv({
+    isAdminUser: true,
+    rows: [
+      {
+        period: 1704067200,
+        username: 'must-not-export',
+        model_name: 'must-not-export',
+        request_count: 1,
+      },
+    ],
+  });
+
+  const rows = parseCsv(csv);
+  expect(rows[0]).toEqual([
+    '成功请求数',
+    '输入 Tokens',
+    '输出 Tokens',
+    '消费金额（USD）',
+  ]);
+  expect(rows[1]).toEqual(['1', '0', '0', '0.000000']);
 });
