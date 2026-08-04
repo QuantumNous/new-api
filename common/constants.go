@@ -136,15 +136,25 @@ var RetryTimes = 0
 // until the target node explicitly opts in.
 var SafeFailoverV1Enabled = false
 
+// DefaultSafeFailoverMaxAttempts is the bounded default number of
+// cross-channel retries after the initial attempt.
+const DefaultSafeFailoverMaxAttempts = 1
+
 // SafeFailoverMaxAttempts is an optional maximum number of cross-channel
-// retries after the initial attempt. Zero means to exhaust every eligible
-// channel once; a positive value provides an operator-defined upper bound.
-var SafeFailoverMaxAttempts = 0
+// retries after the initial attempt. When the environment variable is absent,
+// the bounded default is used. An explicit zero means to exhaust every
+// eligible channel once; a positive value provides an operator-defined upper
+// bound.
+var SafeFailoverMaxAttempts = DefaultSafeFailoverMaxAttempts
 
 // SafeFailoverImageGuardSeconds is a conservative upper bound for proving
 // that an image request has not entered an irreversible generation stage.
 // Reaching this bound blocks failover; it never triggers a retry.
 var SafeFailoverImageGuardSeconds = 60
+
+// Image2SmartRoutingEnabled gates capability-driven routing for gpt-image-2.
+// It defaults off so a deployment preserves the established channel selector.
+var Image2SmartRoutingEnabled = false
 
 // EntitlementFeatureEnabled gates the directed entitlement enforcement path.
 // Operators can set ENTITLEMENT_FEATURE_ENABLED=false for an emergency rollback

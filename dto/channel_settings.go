@@ -1,5 +1,10 @@
 package dto
 
+import (
+	"fmt"
+	"strings"
+)
+
 type ChannelSettings struct {
 	ForceFormat            bool   `json:"force_format,omitempty"`
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
@@ -7,6 +12,79 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	// Image2Capability is an opt-in declaration used by the Image2 smart
+	// router. It deliberately describes capabilities instead of channel IDs so
+	// operators can change upstreams without a code deployment.
+	Image2Capability *Image2ChannelCapability `json:"image2_capability,omitempty"`
+}
+
+// Image2ChannelCapability declares the Image2 request shapes an upstream can
+// safely accept. RoutePriority is only compared among compatible candidates;
+// it is not a price, channel priority, or weight.
+type Image2ChannelCapability struct {
+	Enabled       bool     `json:"enabled,omitempty"`
+	Operations    []string `json:"operations,omitempty"`  // generations, edits
+	Resolutions   []string `json:"resolutions,omitempty"` // 1024, 2048, uhd
+	Qualities     []string `json:"qualities,omitempty"`
+	MaxN          uint     `json:"max_n,omitempty"` // zero means no declared limit
+	RoutePriority int      `json:"route_priority,omitempty"`
+	EditsAccepted bool     `json:"edits_accepted,omitempty"`
+}
+
+func (capability *Image2ChannelCapability) Validate() error {
+	if capability == nil {
+		return nil
+	}
+	if !capability.Enabled {
+		return nil
+	}
+	if len(capability.Operations) == 0 {
+		return fmt.Errorf("image2_capability.operations is required when enabled")
+	}
+	if len(capability.Resolutions) == 0 {
+		return fmt.Errorf("image2_capability.resolutions is required when enabled")
+	}
+	if err := validateImage2CapabilityValues("operations", capability.Operations, map[string]struct{}{
+		"generations": {},
+		"edits":       {},
+	}); err != nil {
+		return err
+	}
+	if err := validateImage2CapabilityValues("resolutions", capability.Resolutions, map[string]struct{}{
+		"1024": {},
+		"2048": {},
+		"uhd":  {},
+	}); err != nil {
+		return err
+	}
+	if !capability.EditsAccepted {
+		for _, operation := range capability.Operations {
+			if strings.EqualFold(strings.TrimSpace(operation), "edits") {
+				return fmt.Errorf("image2_capability.edits_accepted must be true when operations includes edits")
+			}
+		}
+	}
+	for _, quality := range capability.Qualities {
+		if strings.TrimSpace(quality) == "" {
+			return fmt.Errorf("image2_capability.qualities cannot contain an empty value")
+		}
+	}
+	return nil
+}
+
+func validateImage2CapabilityValues(field string, values []string, allowed map[string]struct{}) error {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		if _, ok := allowed[normalized]; !ok {
+			return fmt.Errorf("image2_capability.%s contains unsupported value %q", field, value)
+		}
+		if _, duplicate := seen[normalized]; duplicate {
+			return fmt.Errorf("image2_capability.%s contains duplicate value %q", field, value)
+		}
+		seen[normalized] = struct{}{}
+	}
+	return nil
 }
 
 type VertexKeyType string

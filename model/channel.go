@@ -894,25 +894,32 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 }
 
 func (channel *Channel) ValidateSettings() error {
-	channelParams := &dto.ChannelSettings{}
+	channelParams, err := channel.ParseSetting()
+	if err != nil {
+		return err
+	}
+	return channelParams.Image2Capability.Validate()
+}
+
+// ParseSetting decodes channel settings without mutating the channel or
+// writing to the database. Request-time routing must use this variant so a
+// malformed cached row cannot trigger an unsynchronized repair write.
+func (channel *Channel) ParseSetting() (dto.ChannelSettings, error) {
+	setting := dto.ChannelSettings{}
 	if channel.Setting != nil && *channel.Setting != "" {
-		err := common.Unmarshal([]byte(*channel.Setting), channelParams)
-		if err != nil {
-			return err
+		if err := common.Unmarshal([]byte(*channel.Setting), &setting); err != nil {
+			return dto.ChannelSettings{}, err
 		}
 	}
-	return nil
+	return setting, nil
 }
 
 func (channel *Channel) GetSetting() dto.ChannelSettings {
-	setting := dto.ChannelSettings{}
-	if channel.Setting != nil && *channel.Setting != "" {
-		err := common.Unmarshal([]byte(*channel.Setting), &setting)
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
-			channel.Setting = nil // 清空设置以避免后续错误
-			_ = channel.Save()    // 保存修改
-		}
+	setting, err := channel.ParseSetting()
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
+		channel.Setting = nil // 清空设置以避免后续错误
+		_ = channel.Save()    // 保存修改
 	}
 	return setting
 }

@@ -105,16 +105,13 @@ func InitEnv() {
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
 	SafeFailoverV1Enabled = GetEnvOrDefaultBool("SAFE_FAILOVER_V1", false)
-	SafeFailoverMaxAttempts = GetEnvOrDefault("SAFE_FAILOVER_MAX_ATTEMPTS", 0)
-	if SafeFailoverMaxAttempts < 0 {
-		SysLog("SAFE_FAILOVER_MAX_ATTEMPTS must not be negative; using 0 (exhaust eligible channels)")
-		SafeFailoverMaxAttempts = 0
-	}
+	SafeFailoverMaxAttempts = safeFailoverMaxAttemptsFromEnv()
 	SafeFailoverImageGuardSeconds = GetEnvOrDefault("SAFE_FAILOVER_IMAGE_GUARD_SECONDS", 60)
 	if SafeFailoverImageGuardSeconds < 1 {
 		SysLog("SAFE_FAILOVER_IMAGE_GUARD_SECONDS must be positive; using 60")
 		SafeFailoverImageGuardSeconds = 60
 	}
+	Image2SmartRoutingEnabled = GetEnvOrDefaultBool("IMAGE2_SMART_ROUTING_ENABLED", false)
 	EntitlementFeatureEnabled = GetEnvOrDefaultBool("ENTITLEMENT_FEATURE_ENABLED", true)
 
 	// Initialize string variables with GetEnvOrDefaultString
@@ -138,6 +135,18 @@ func InitEnv() {
 	SearchRateLimitNum = GetEnvOrDefault("SEARCH_RATE_LIMIT", 10)
 	SearchRateLimitDuration = int64(GetEnvOrDefault("SEARCH_RATE_LIMIT_DURATION", 60))
 	initConstantEnv()
+}
+
+func safeFailoverMaxAttemptsFromEnv() int {
+	maxAttempts := GetEnvOrDefault("SAFE_FAILOVER_MAX_ATTEMPTS", DefaultSafeFailoverMaxAttempts)
+	if maxAttempts < 0 {
+		SysLog(fmt.Sprintf(
+			"SAFE_FAILOVER_MAX_ATTEMPTS must not be negative; using %d (bounded default)",
+			DefaultSafeFailoverMaxAttempts,
+		))
+		return DefaultSafeFailoverMaxAttempts
+	}
+	return maxAttempts
 }
 
 func initConstantEnv() {

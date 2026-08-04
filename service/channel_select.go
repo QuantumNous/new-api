@@ -22,8 +22,12 @@ type RetryParam struct {
 	// ExhaustiveSafeFailover tries each eligible channel at most once, exhausting
 	// channels within a priority before moving to the next priority.
 	ExhaustiveSafeFailover bool
-	excludedChannelIDs     map[int]struct{}
-	resetNextTry           bool
+	// Image2Router is an optional capability-ordered attempt chain. Keeping it
+	// on RetryParam lets the existing retry loop retain its de-duplication and
+	// stopping guarantees.
+	Image2Router       *Image2SmartRouter
+	excludedChannelIDs map[int]struct{}
+	resetNextTry       bool
 }
 
 func (p *RetryParam) GetRetry() int {

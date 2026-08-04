@@ -1747,14 +1747,30 @@ const EditChannelModal = (props) => {
     }
 
     // 生成渠道额外设置JSON
-    const channelExtraSettings = {
-      force_format: localInputs.force_format || false,
-      thinking_to_content: localInputs.thinking_to_content || false,
-      proxy: localInputs.proxy || '',
-      pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
-      system_prompt: localInputs.system_prompt || '',
-      system_prompt_override: localInputs.system_prompt_override || false,
-    };
+    let channelExtraSettings = {};
+    if (localInputs.setting) {
+      try {
+        const parsedSetting = JSON.parse(localInputs.setting);
+        if (
+          parsedSetting &&
+          typeof parsedSetting === 'object' &&
+          !Array.isArray(parsedSetting)
+        ) {
+          channelExtraSettings = parsedSetting;
+        }
+      } catch (error) {
+        console.error('保留现有渠道设置失败:', error);
+      }
+    }
+    channelExtraSettings.force_format = localInputs.force_format || false;
+    channelExtraSettings.thinking_to_content =
+      localInputs.thinking_to_content || false;
+    channelExtraSettings.proxy = localInputs.proxy || '';
+    channelExtraSettings.pass_through_body_enabled =
+      localInputs.pass_through_body_enabled || false;
+    channelExtraSettings.system_prompt = localInputs.system_prompt || '';
+    channelExtraSettings.system_prompt_override =
+      localInputs.system_prompt_override || false;
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
     // 处理 settings 字段（包括企业账户设置和字段透传控制）

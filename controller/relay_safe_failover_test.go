@@ -62,6 +62,26 @@ func TestInitialContextChannelIsNeverReusedForRetry(t *testing.T) {
 	require.False(t, shouldUseInitialContextChannel(info, retryParam))
 }
 
+func TestGetChannelKeepsSpecificallySelectedInitialChannel(t *testing.T) {
+	c := safeFailoverContext()
+	c.Set("specific_channel_id", "47")
+	c.Set("channel_id", 47)
+	c.Set("channel_type", 1)
+	c.Set("channel_name", "pinned-adobe")
+	c.Set("auto_ban", true)
+
+	info := &relaycommon.RelayInfo{OriginModelName: "gpt-image-2"}
+	retryParam := &service.RetryParam{
+		Retry:        common.GetPointer(0),
+		Image2Router: nil, // NewImage2SmartRouter bypasses pinned requests.
+	}
+
+	channel, err := getChannel(c, info, retryParam)
+	require.Nil(t, err)
+	require.Equal(t, 47, channel.Id)
+	require.Equal(t, "pinned-adobe", channel.Name)
+}
+
 func TestShouldRetrySafeModeAllowsChannelErrorsUntilCandidatesExhaust(t *testing.T) {
 	setupSafeFailoverTest(t)
 	c := safeFailoverContext()
@@ -96,6 +116,41 @@ func TestShouldRetrySafeModeContinuesLongImageServerFailure(t *testing.T) {
 	)
 
 	require.True(t, shouldRetry(c, info, upstreamErr, 1, 61*time.Second))
+}
+
+func TestShouldRetryImage2RouterUsesStrictReplayAllowlist(t *testing.T) {
+	setupSafeFailoverTest(t)
+	common.SafeFailoverV1Enabled = false
+	c := safeFailoverContext()
+	c.Set("image2_smart_router_active", true)
+	info := &relaycommon.RelayInfo{
+		RetryIndex:      0,
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		OriginModelName: "gpt-image-2",
+	}
+
+	for _, status := range []int{
+		http.StatusBadRequest,
+		http.StatusUnauthorized,
+		http.StatusForbidden,
+		http.StatusNotFound,
+	} {
+		err := types.NewErrorWithStatusCode(
+			errors.New("deterministic client or mapping error"),
+			types.ErrorCodeBadResponseStatusCode,
+			status,
+		)
+		require.False(t, shouldRetry(c, info, err, 10, time.Second), "status %d must not switch Image2 channels", status)
+	}
+
+	for _, status := range []int{http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable} {
+		err := types.NewErrorWithStatusCode(
+			errors.New("replayable upstream failure"),
+			types.ErrorCodeBadResponseStatusCode,
+			status,
+		)
+		require.True(t, shouldRetry(c, info, err, 0, time.Second), "status %d may switch to a compatible Image2 channel", status)
+	}
 }
 
 func TestShouldRetryLegacyModePreservesChannelErrorBehavior(t *testing.T) {

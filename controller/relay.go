@@ -124,6 +124,22 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	var image2Router *service.Image2SmartRouter
+	if imageRequest, ok := request.(*dto.ImageRequest); ok {
+		var routerErr error
+		image2Router, routerErr = service.NewImage2SmartRouter(c, relayInfo, imageRequest)
+		if routerErr != nil {
+			// Smart routing is an opt-in optimization. Any capability parsing,
+			// group resolution, or candidate lookup failure must preserve the
+			// established selector instead of rejecting a valid client request.
+			logger.LogWarn(c, fmt.Sprintf("image2 smart routing unavailable; using legacy routing: %s", routerErr.Error()))
+			image2Router = nil
+		}
+		if image2Router != nil {
+			c.Set("image2_smart_router_active", true)
+		}
+	}
+
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
@@ -184,15 +200,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		TokenGroup:             relayInfo.TokenGroup,
 		ModelName:              relayInfo.OriginModelName,
 		Retry:                  common.GetPointer(0),
-		StopAtExhaustion:       common.SafeFailoverV1Enabled,
-		ExhaustiveSafeFailover: common.SafeFailoverV1Enabled,
+		StopAtExhaustion:       common.SafeFailoverV1Enabled || image2Router != nil,
+		ExhaustiveSafeFailover: common.SafeFailoverV1Enabled || image2Router != nil,
+		Image2Router:           image2Router,
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
 	maxRetries := effectiveRelayRetryTimes()
+	safeFailoverActive := common.SafeFailoverV1Enabled || image2Router != nil
 
-	for ; common.SafeFailoverV1Enabled || retryParam.GetRetry() <= maxRetries; retryParam.IncreaseRetry() {
+	for ; safeFailoverActive || retryParam.GetRetry() <= maxRetries; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
@@ -201,7 +219,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
-		if common.SafeFailoverV1Enabled && retryParam.IsChannelExcluded(channel.Id) {
+		if safeFailoverActive && retryParam.IsChannelExcluded(channel.Id) {
 			newAPIError = types.NewError(
 				fmt.Errorf("safe failover selected channel #%d more than once", channel.Id),
 				types.ErrorCodeGetChannelFailed,
@@ -211,7 +229,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		addUsedChannel(c, channel.Id)
-		if common.SafeFailoverV1Enabled {
+		if safeFailoverActive {
 			retryParam.ExcludeChannel(channel.Id)
 		}
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
@@ -315,6 +333,16 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
+	if retryParam.Image2Router != nil {
+		channel, err := retryParam.Image2Router.Next()
+		if err != nil {
+			return nil, err
+		}
+		if setupErr := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName); setupErr != nil {
+			return nil, setupErr
+		}
+		return channel, nil
+	}
 	if shouldUseInitialContextChannel(info, retryParam) {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
@@ -357,7 +385,7 @@ func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.N
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		return false
 	}
-	if common.SafeFailoverV1Enabled {
+	if common.SafeFailoverV1Enabled || c.GetBool("image2_smart_router_active") {
 		if _, ok := c.Get("specific_channel_id"); ok {
 			return false
 		}
@@ -366,7 +394,7 @@ func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.N
 		if c.Request != nil {
 			requestContextErr = c.Request.Context().Err()
 		}
-		decision := service.EvaluateSafeFailover(service.SafeFailoverInput{
+		failoverInput := service.SafeFailoverInput{
 			RetryIndex:            info.RetryIndex,
 			MaxAttempts:           common.SafeFailoverMaxAttempts,
 			RelayMode:             info.RelayMode,
@@ -378,7 +406,11 @@ func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.N
 			ImageGuard:            time.Duration(common.SafeFailoverImageGuardSeconds) * time.Second,
 			RequestContextErr:     requestContextErr,
 			Error:                 openaiErr,
-		})
+		}
+		decision := service.EvaluateSafeFailover(failoverInput)
+		if c.GetBool("image2_smart_router_active") {
+			decision = service.EvaluateImage2SafeFailover(failoverInput)
+		}
 		logger.LogInfo(c, fmt.Sprintf(
 			"safe failover decision: retry=%t reason=%s attempt=%d status=%d error_code=%s elapsed_ms=%d",
 			decision.Retry,
