@@ -30,10 +30,12 @@ import AnnouncementsPanel from './AnnouncementsPanel';
 import FaqPanel from './FaqPanel';
 import UptimePanel from './UptimePanel';
 import SearchModal from './modals/SearchModal';
+import AnalysisPanel from './AnalysisPanel';
 
 import { useDashboardData } from '../../hooks/dashboard/useDashboardData';
 import { useDashboardStats } from '../../hooks/dashboard/useDashboardStats';
 import { useDashboardCharts } from '../../hooks/dashboard/useDashboardCharts';
+import { useDashboardAnalysis } from '../../hooks/dashboard/useDashboardAnalysis';
 
 import {
   CHART_CONFIG,
@@ -70,6 +72,12 @@ const Dashboard = () => {
     dashboardData.setPieData,
     dashboardData.setLineData,
     dashboardData.setModelColors,
+    dashboardData.t,
+  );
+
+  const dashboardAnalysis = useDashboardAnalysis(
+    dashboardData.inputs,
+    dashboardData.isAdminUser,
     dashboardData.t,
   );
 
@@ -116,6 +124,7 @@ const Dashboard = () => {
   const handleSearchConfirm = async () => {
     await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
     await loadUserData();
+    await dashboardAnalysis.reload();
   };
 
   // ========== 数据准备 ==========
@@ -171,6 +180,17 @@ const Dashboard = () => {
         dataExportDefaultTime={dashboardData.dataExportDefaultTime}
         timeOptions={dashboardData.timeOptions}
         handleInputChange={dashboardData.handleInputChange}
+        t={dashboardData.t}
+      />
+
+      <AnalysisPanel
+        analysis={dashboardAnalysis.analysis}
+        loading={dashboardAnalysis.loading}
+        notice={dashboardAnalysis.notice}
+        isAdminUser={dashboardData.isAdminUser}
+        exportAnalysis={dashboardAnalysis.exportAnalysis}
+        CARD_PROPS={CARD_PROPS}
+        CHART_CONFIG={CHART_CONFIG}
         t={dashboardData.t}
       />
 

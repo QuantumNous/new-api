@@ -18,6 +18,7 @@ import { ApiInfoPanel } from './components/overview/api-info-panel'
 import { FAQPanel } from './components/overview/faq-panel'
 import { SummaryCards } from './components/overview/summary-cards'
 import { UptimePanel } from './components/overview/uptime-panel'
+import { MultidimensionalAnalysis } from './components/models/multidimensional-analysis'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
@@ -218,6 +219,9 @@ export function Dashboard() {
           {activeSection === 'overview' && (
             <>
               <SummaryCards />
+              <FadeIn>
+                <MultidimensionalAnalysis filters={modelFilters} />
+              </FadeIn>
               <CardStaggerContainer className='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2'>
                 <CardStaggerItem>
                   <ApiInfoPanel />

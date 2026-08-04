@@ -42,7 +42,15 @@ const SearchModal = ({
     <Component {...FORM_FIELD_PROPS} {...props} />
   );
 
-  const { start_timestamp, end_timestamp, username } = inputs;
+  const {
+    start_timestamp,
+    end_timestamp,
+    username,
+    token_name,
+    model_name,
+    group,
+    channel,
+  } = inputs;
 
   return (
     <Modal
@@ -94,6 +102,43 @@ const SearchModal = ({
             placeholder: t('可选值'),
             name: 'username',
             onChange: (value) => handleInputChange(value, 'username'),
+          })}
+
+        {createFormField(Form.Input, {
+          field: 'model_name',
+          label: t('模型'),
+          value: model_name,
+          placeholder: t('可选，支持模型名匹配'),
+          name: 'model_name',
+          onChange: (value) => handleInputChange(value, 'model_name'),
+        })}
+
+        {createFormField(Form.Input, {
+          field: 'token_name',
+          label: t('令牌名称'),
+          value: token_name,
+          placeholder: t('可选，按令牌名称筛选'),
+          name: 'token_name',
+          onChange: (value) => handleInputChange(value, 'token_name'),
+        })}
+
+        {createFormField(Form.Input, {
+          field: 'group',
+          label: t('分组'),
+          value: group,
+          placeholder: t('可选，按分组筛选'),
+          name: 'group',
+          onChange: (value) => handleInputChange(value, 'group'),
+        })}
+
+        {isAdminUser &&
+          createFormField(Form.Input, {
+            field: 'channel',
+            label: t('渠道 ID'),
+            value: channel,
+            placeholder: t('可选，按渠道筛选'),
+            name: 'channel',
+            onChange: (value) => handleInputChange(value, 'channel'),
           })}
       </Form>
     </Modal>

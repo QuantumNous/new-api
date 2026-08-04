@@ -1,0 +1,148 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { API, showError, showSuccess } from '../../helpers';
+import { getQuotaPerUnit } from '../../helpers/quota';
+import { buildDashboardAnalysisCsv } from './analysisCsv';
+import { parseDashboardDateRange } from './time';
+
+export const ADMIN_ANALYSIS_DIMENSIONS = ['period', 'model_name'];
+export const USER_ANALYSIS_DIMENSIONS = ['period', 'model_name'];
+export const ANALYSIS_FALLBACK_DIMENSIONS = ['period'];
+
+const isTooManyRowsError = (error) =>
+  error?.code === 'analysis_too_many_rows' ||
+  String(error?.message || '').includes('超过 5000');
+
+export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState('');
+  const defaultDimensions = isAdminUser
+    ? ADMIN_ANALYSIS_DIMENSIONS
+    : USER_ANALYSIS_DIMENSIONS;
+  const [analysis, setAnalysis] = useState({
+    rows: [],
+    granularity: 'day',
+    dimensions: defaultDimensions,
+    margin_status: 'unknown',
+    cost_basis_note: '',
+  });
+
+  const buildQuery = useCallback(
+    (dimensions) => {
+      const { start, end } = parseDashboardDateRange(
+        inputs.start_timestamp,
+        inputs.end_timestamp,
+      );
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+      const params = new URLSearchParams({
+        start_timestamp: String(start),
+        end_timestamp: String(end),
+        granularity:
+          inputs.data_export_default_time === 'hour' ? 'hour' : 'day',
+        dimensions: dimensions.join(','),
+      });
+      ['token_name', 'model_name', 'group'].forEach((field) => {
+        if (inputs[field]) params.set(field, inputs[field]);
+      });
+      if (isAdminUser) {
+        if (inputs.username) params.set('username', inputs.username);
+        if (inputs.channel) params.set('channel', inputs.channel);
+      }
+      return params;
+    },
+    [inputs, isAdminUser],
+  );
+
+  const requestAnalysis = useCallback(
+    async (dimensions) => {
+      const query = buildQuery(dimensions);
+      if (!query) {
+        return {
+          success: false,
+          message: t('请选择有效的分析时间范围'),
+        };
+      }
+      const path = isAdminUser ? '/api/log/analysis' : '/api/log/self/analysis';
+      try {
+        const res = await API.get(`${path}?${query.toString()}`);
+        return res.data || { success: false, message: t('分析响应为空') };
+      } catch (error) {
+        const payload = error?.response?.data || {};
+        return {
+          success: false,
+          code: payload.code,
+          message: payload.message || error?.message || t('加载消费分析失败'),
+        };
+      }
+    },
+    [buildQuery, isAdminUser, t],
+  );
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setNotice('');
+    try {
+      const primary = await requestAnalysis(defaultDimensions);
+      if (primary.success) {
+        setAnalysis(primary.data || { rows: [] });
+        return;
+      }
+
+      if (isTooManyRowsError(primary)) {
+        const fallback = await requestAnalysis(ANALYSIS_FALLBACK_DIMENSIONS);
+        if (fallback.success) {
+          setAnalysis(fallback.data || { rows: [] });
+          setNotice(
+            t(
+              '结果超过 5000 个分组，已自动降级为仅按时间分组；如需明细，请缩小筛选范围或降低时间粒度。',
+            ),
+          );
+          return;
+        }
+      }
+
+      showError(primary.message || t('加载消费分析失败'));
+    } catch (error) {
+      showError(`${t('加载消费分析失败')}: ${error?.message || ''}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [defaultDimensions, isAdminUser, requestAnalysis, t]);
+
+  const exportAnalysis = useCallback(() => {
+    const rows = analysis.rows || [];
+    if (!rows.length) {
+      showError(t('当前筛选条件下没有消费记录'));
+      return;
+    }
+    const quotaPerUnit = getQuotaPerUnit() || 500000;
+    const csv = buildDashboardAnalysisCsv({
+      rows,
+      isAdminUser,
+      t,
+      quotaPerUnit,
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `aibuff-dashboard-${isAdminUser ? 'admin' : 'self'}-${String(
+      inputs.start_timestamp,
+    )
+      .slice(0, 10)
+      .replaceAll('-', '')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showSuccess(t('消费分析导出成功'));
+  }, [analysis.rows, inputs.start_timestamp, isAdminUser, t]);
+
+  useEffect(() => {
+    reload();
+    // SearchModal edits are intentionally staged; the query is reloaded only
+    // after the user confirms, avoiding a request per keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdminUser]);
+
+  return { analysis, loading, notice, reload, exportAnalysis };
+};

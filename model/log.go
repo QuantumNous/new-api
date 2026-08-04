@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -450,6 +451,172 @@ type LogUsageSummary struct {
 	PromptTokens     int64  `json:"prompt_tokens"`
 	CompletionTokens int64  `json:"completion_tokens"`
 	Quota            int64  `json:"quota"`
+}
+
+// LogUsageAnalysisFilter controls the multidimensional dashboard query. The
+// query deliberately stays on the consumption log projection: it never
+// selects prompt content, IP addresses, request bodies, or full token values.
+type LogUsageAnalysisFilter struct {
+	LogUsageSummaryFilter
+	Granularity string
+	Dimensions  []string
+	// Context is supplied by the HTTP handler so an analysis request cannot
+	// hold a database connection indefinitely. Nil keeps direct callers
+	// backwards-compatible and uses the database's default context.
+	Context context.Context
+}
+
+type LogUsageAnalysisRow struct {
+	Period           int64  `json:"period" gorm:"column:period_bucket"`
+	Username         string `json:"username,omitempty"`
+	TokenName        string `json:"token_name,omitempty"`
+	ModelName        string `json:"model_name,omitempty"`
+	GroupName        string `json:"group,omitempty"`
+	Channel          int    `json:"channel_id,omitempty"`
+	RequestCount     int64  `json:"request_count"`
+	PromptTokens     int64  `json:"prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens"`
+	Quota            int64  `json:"quota"`
+}
+
+var ErrLogUsageAnalysisTooManyRows = errors.New("匹配的分析分组超过 5000 条，请缩小筛选范围或降低时间粒度")
+
+// logUsageAnalysisPeriodExpression returns an integer-valued epoch bucket for
+// the selected SQL dialect.  The result is deliberately kept as a BIGINT (or
+// the dialect's equivalent) all the way through the arithmetic so GORM can
+// scan period_bucket into the API's int64 field.  In particular, PostgreSQL's
+// FLOOR(bigint / bigint) returns double precision, which is not safe for that
+// scan and was the source of the original dashboard failure.
+func logUsageAnalysisPeriodExpression(dialect string, offsetSeconds, stepSeconds int64) string {
+	// SQLite's INTEGER division and CAST are both integer-valued.  Keep an
+	// explicit CAST for drivers that expose created_at as a wider numeric type.
+	if dialect == "sqlite" {
+		return fmt.Sprintf("CAST((created_at + %d) / %d AS INTEGER) * %d - %d", offsetSeconds, stepSeconds, stepSeconds, offsetSeconds)
+	}
+	// MySQL supports DIV for integer quotient and CAST(... AS SIGNED) for a
+	// portable signed 64-bit result.  DIV avoids introducing a DECIMAL/float
+	// intermediate that can be returned as a string by some drivers.
+	if dialect == "mysql" {
+		return fmt.Sprintf("CAST((created_at + %d) DIV %d AS SIGNED) * %d - %d", offsetSeconds, stepSeconds, stepSeconds, offsetSeconds)
+	}
+	// PostgreSQL integer division on bigint operands is integer-valued; the
+	// explicit BIGINT cast documents and enforces the scan contract.
+	if dialect == "postgres" {
+		return fmt.Sprintf("CAST((created_at + %d) / %d AS BIGINT) * %d - %d", offsetSeconds, stepSeconds, stepSeconds, offsetSeconds)
+	}
+	// Unknown drivers get the SQLite-compatible integer expression rather than
+	// a floating-point function.  This is safe for the integer epoch column and
+	// keeps the result compatible with the int64 API contract.
+	return fmt.Sprintf("CAST((created_at + %d) / %d AS INTEGER) * %d - %d", offsetSeconds, stepSeconds, stepSeconds, offsetSeconds)
+}
+
+// GetLogUsageAnalysis returns a bounded, server-side grouped projection for
+// the dashboard. Gross margin is intentionally not calculated here: logs hold
+// customer-billed quota but do not contain an auditable upstream cost ledger.
+func GetLogUsageAnalysis(filter LogUsageAnalysisFilter) (summary []LogUsageAnalysisRow, err error) {
+	granularity := filter.Granularity
+	if granularity != "hour" && granularity != "day" {
+		return nil, errors.New("分析时间粒度仅支持 hour 或 day")
+	}
+	step := int64(24 * 60 * 60)
+	if granularity == "hour" {
+		step = 60 * 60
+	}
+	const cstOffsetSeconds int64 = 8 * 60 * 60
+
+	// Integer timestamps are used so the API stays timezone-neutral;
+	// subtracting the offset after multiplying the bucket index keeps both day
+	// and hour boundaries at 00:00/HH:00 Asia/Shanghai rather than UTC.  Each
+	// supported dialect has a distinct integer expression; do not use FLOOR,
+	// whose PostgreSQL result is double precision and cannot be scanned into
+	// int64 reliably.
+	dialect := "sqlite"
+	if LOG_DB != nil && LOG_DB.Dialector != nil {
+		dialect = LOG_DB.Dialector.Name()
+	}
+	periodExpr := logUsageAnalysisPeriodExpression(dialect, cstOffsetSeconds, step)
+
+	dimensions := make(map[string]bool, len(filter.Dimensions))
+	for _, dimension := range filter.Dimensions {
+		dimensions[dimension] = true
+	}
+	selectParts := []string{periodExpr + " AS period_bucket"}
+	groupParts := []string{periodExpr}
+	addDimension := func(name, expression, zeroExpression string) {
+		if dimensions[name] {
+			selectParts = append(selectParts, expression+" AS "+name)
+			groupParts = append(groupParts, expression)
+			return
+		}
+		selectParts = append(selectParts, zeroExpression+" AS "+name)
+	}
+	addDimension("username", "username", "''")
+	addDimension("token_name", "token_name", "''")
+	addDimension("model_name", "model_name", "''")
+	if dimensions["group"] {
+		selectParts = append(selectParts, logGroupCol+" AS group_name")
+		groupParts = append(groupParts, logGroupCol)
+	} else {
+		selectParts = append(selectParts, "'' AS group_name")
+	}
+	addDimension("channel", "channel_id", "0")
+	selectParts = append(selectParts,
+		"count(*) AS request_count",
+		"coalesce(sum(prompt_tokens), 0) AS prompt_tokens",
+		"coalesce(sum(completion_tokens), 0) AS completion_tokens",
+		"coalesce(sum(quota), 0) AS quota",
+	)
+
+	db := LOG_DB
+	if filter.Context != nil {
+		db = db.WithContext(filter.Context)
+	}
+	tx := db.Table("logs").Select(strings.Join(selectParts, ", ")).
+		Where("type = ?", LogTypeConsume)
+	if filter.UserId != 0 {
+		tx = tx.Where("user_id = ?", filter.UserId)
+	}
+	if filter.Username != "" {
+		tx = tx.Where("username = ?", filter.Username)
+	}
+	if filter.TokenName != "" {
+		tx = tx.Where("token_name = ?", filter.TokenName)
+	}
+	if filter.ModelName != "" {
+		modelNamePattern, sanitizeErr := sanitizeLikePattern(filter.ModelName)
+		if sanitizeErr != nil {
+			return nil, sanitizeErr
+		}
+		tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+	}
+	if filter.StartTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", filter.StartTimestamp)
+	}
+	if filter.EndTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", filter.EndTimestamp)
+	}
+	if filter.Channel != 0 {
+		tx = tx.Where("channel_id = ?", filter.Channel)
+	}
+	if filter.Group != "" {
+		tx = tx.Where(logGroupCol+" = ?", filter.Group)
+	}
+	if filter.RequestId != "" {
+		tx = tx.Where("request_id = ?", filter.RequestId)
+	}
+
+	query := tx.Group(strings.Join(groupParts, ", ")).Order("period_bucket asc, quota desc").Limit(5001)
+	if err = query.Scan(&summary).Error; err != nil {
+		common.SysError("failed to query log usage analysis: " + err.Error())
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			return nil, err
+		}
+		return nil, errors.New("查询多维消费分析失败")
+	}
+	if len(summary) > 5000 {
+		return nil, ErrLogUsageAnalysisTooManyRows
+	}
+	return summary, nil
 }
 
 // GetLogUsageSummary returns successful consumption grouped by model. It

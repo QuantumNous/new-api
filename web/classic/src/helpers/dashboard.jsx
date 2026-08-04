@@ -23,13 +23,7 @@ import {
   IllustrationConstruction,
   IllustrationConstructionDark,
 } from '@douyinfe/semi-illustrations';
-import {
-  timestamp2string,
-  timestamp2string1,
-  isDataCrossYear,
-  copy,
-  showSuccess,
-} from './utils';
+import { timestamp2string1, isDataCrossYear, copy, showSuccess } from './utils';
 import {
   STORAGE_KEYS,
   DEFAULT_TIME_INTERVALS,
@@ -48,17 +42,35 @@ export const getTimeInterval = (timeType, isSeconds = false) => {
   return isSeconds ? intervals.seconds : intervals.minutes;
 };
 
+export const formatDashboardTimestamp = (timestamp) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    hour12: false,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(timestamp * 1000));
+  const values = Object.fromEntries(
+    parts.map(({ type, value }) => [type, value]),
+  );
+  return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}`;
+};
+
 export const getInitialTimestamp = () => {
   const defaultTime = getDefaultTime();
   const now = new Date().getTime() / 1000;
 
   switch (defaultTime) {
     case 'hour':
-      return timestamp2string(now - 86400);
+      return formatDashboardTimestamp(now - 86400);
     case 'week':
-      return timestamp2string(now - 86400 * 30);
+      return formatDashboardTimestamp(now - 86400 * 30);
     default:
-      return timestamp2string(now - 86400 * 7);
+      return formatDashboardTimestamp(now - 86400 * 7);
   }
 };
 

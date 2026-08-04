@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -67,4 +69,116 @@ func TestGetLogUsageSummaryFilterRejectsInvalidAdminChannel(t *testing.T) {
 	_, err := getLogUsageSummaryFilter(c, 0, true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "渠道 ID")
+}
+
+func TestGetLogUsageAnalysisFilterDefaultsAndSelfBoundary(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		"GET",
+		"/api/log/analysis?start_timestamp=100&end_timestamp=200&granularity=hour",
+		nil,
+	)
+	filter, err := getLogUsageAnalysisFilter(c, 0, true)
+	require.NoError(t, err)
+	assert.Equal(t, "hour", filter.Granularity)
+	assert.Equal(t, []string{"period", "model_name"}, filter.Dimensions)
+
+	c, _ = gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		"GET",
+		"/api/log/self/analysis?start_timestamp=100&end_timestamp=200",
+		nil,
+	)
+	filter, err = getLogUsageAnalysisFilter(c, 123, false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"period", "model_name"}, filter.Dimensions)
+
+	c, _ = gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		"GET",
+		"/api/log/self/analysis?start_timestamp=100&end_timestamp=200&dimensions=period,model_name,channel",
+		nil,
+	)
+	_, err = getLogUsageAnalysisFilter(c, 123, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "不允许")
+}
+
+func TestGetLogUsageAnalysisFilterRejectsUnknownDimension(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		"GET",
+		"/api/log/analysis?start_timestamp=100&end_timestamp=200&dimensions=period,ip",
+		nil,
+	)
+	_, err := getLogUsageAnalysisFilter(c, 0, true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "不支持")
+}
+
+func TestGetLogUsageAnalysisFilterRejectsSelfAdminQueryParams(t *testing.T) {
+	queries := []string{
+		"start_timestamp=100&end_timestamp=200&username=other",
+		"start_timestamp=100&end_timestamp=200&channel=44",
+		"start_timestamp=100&end_timestamp=200&username=",
+		"start_timestamp=100&end_timestamp=200&channel=",
+	}
+	for _, query := range queries {
+		t.Run(query, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest("GET", "/api/log/self/analysis?"+query, nil)
+
+			_, err := getLogUsageAnalysisFilter(c, 123, false)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "不允许")
+		})
+	}
+}
+
+func TestGetLogUsageAnalysisFilterAcceptsExactlyThirtyOneDays(t *testing.T) {
+	const startTimestamp int64 = 100
+	const maxRange int64 = 31 * 24 * 60 * 60
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		"GET",
+		"/api/log/analysis?start_timestamp=100&end_timestamp=2678500",
+		nil,
+	)
+	filter, err := getLogUsageAnalysisFilter(c, 0, true)
+	require.NoError(t, err)
+	assert.Equal(t, startTimestamp+maxRange, filter.EndTimestamp)
+
+	c, _ = gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		"GET",
+		"/api/log/analysis?start_timestamp=100&end_timestamp=2678501",
+		nil,
+	)
+	_, err = getLogUsageAnalysisFilter(c, 0, true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "31 天")
+}
+
+func TestGetLogSelfUsageAnalysisReturnsFourHundredForExplicitScopeParameters(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		"GET",
+		"/api/log/self/analysis?start_timestamp=100&end_timestamp=200&username=",
+		nil,
+	)
+	c.Set("id", 123)
+
+	GetLogSelfUsageAnalysis(c)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	assert.Equal(t, false, body["success"])
+	assert.Contains(t, body["message"], "不允许")
 }

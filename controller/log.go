@@ -1,9 +1,12 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -12,6 +15,29 @@ import (
 )
 
 const maxLogUsageExportRangeSeconds int64 = 31 * 24 * 60 * 60
+const logUsageAnalysisTimeout = 5 * time.Second
+
+var allowedLogAnalysisDimensions = map[string]bool{
+	"period":     true,
+	"username":   true,
+	"token_name": true,
+	"model_name": true,
+	"group":      true,
+	"channel":    true,
+}
+
+// Keep the automatic dashboard query bounded by low-cardinality dimensions.
+// Administrators can still request additional dimensions explicitly, but the
+// initial page load must not fan out across user/token/group/channel values.
+var defaultLogAnalysisDimensions = []string{"period", "model_name"}
+
+type logUsageAnalysisResponse struct {
+	Rows          []model.LogUsageAnalysisRow `json:"rows"`
+	Granularity   string                      `json:"granularity"`
+	Dimensions    []string                    `json:"dimensions"`
+	MarginStatus  string                      `json:"margin_status"`
+	CostBasisNote string                      `json:"cost_basis_note"`
+}
 
 func getLogUsageSummaryFilter(c *gin.Context, userId int, allowAdminFilters bool) (model.LogUsageSummaryFilter, error) {
 	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
@@ -77,6 +103,105 @@ func GetLogSelfUsageSummary(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, summary)
+}
+
+func getLogUsageAnalysisFilter(c *gin.Context, userId int, allowAdminFilters bool) (model.LogUsageAnalysisFilter, error) {
+	if !allowAdminFilters {
+		if _, exists := c.GetQuery("username"); exists {
+			return model.LogUsageAnalysisFilter{}, errors.New("用户分析不允许查询用户参数")
+		}
+		if _, exists := c.GetQuery("channel"); exists {
+			return model.LogUsageAnalysisFilter{}, errors.New("用户分析不允许查询渠道参数")
+		}
+	}
+	base, err := getLogUsageSummaryFilter(c, userId, allowAdminFilters)
+	if err != nil {
+		return model.LogUsageAnalysisFilter{}, err
+	}
+	granularity := c.DefaultQuery("granularity", "day")
+	if granularity != "day" && granularity != "hour" {
+		return model.LogUsageAnalysisFilter{}, errors.New("分析时间粒度仅支持 day 或 hour")
+	}
+
+	defaultDimensions := append([]string(nil), defaultLogAnalysisDimensions...)
+	dimensionRaw := strings.TrimSpace(c.Query("dimensions"))
+	dimensions := defaultDimensions
+	if dimensionRaw != "" {
+		dimensions = nil
+		seen := make(map[string]bool)
+		for _, raw := range strings.Split(dimensionRaw, ",") {
+			dimension := strings.TrimSpace(raw)
+			if dimension == "" || !allowedLogAnalysisDimensions[dimension] {
+				return model.LogUsageAnalysisFilter{}, errors.New("包含不支持的分析维度")
+			}
+			if !allowAdminFilters && (dimension == "username" || dimension == "channel") {
+				return model.LogUsageAnalysisFilter{}, errors.New("用户分析不允许查询用户或渠道维度")
+			}
+			if !seen[dimension] {
+				seen[dimension] = true
+				dimensions = append(dimensions, dimension)
+			}
+		}
+	}
+	return model.LogUsageAnalysisFilter{
+		LogUsageSummaryFilter: base,
+		Granularity:           granularity,
+		Dimensions:            dimensions,
+	}, nil
+}
+
+func writeLogUsageAnalysis(c *gin.Context, userId int, allowAdminFilters bool) {
+	filter, err := getLogUsageAnalysisFilter(c, userId, allowAdminFilters)
+	if err != nil {
+		// Analysis is a public HTTP API boundary. Unlike legacy handlers that
+		// use the application's 200+success:false envelope, malformed filters
+		// and self-scope violations must be visible to clients as 4xx.
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	queryContext, cancel := context.WithTimeout(c.Request.Context(), logUsageAnalysisTimeout)
+	defer cancel()
+	filter.Context = queryContext
+	rows, err := model.GetLogUsageAnalysis(filter)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, model.ErrLogUsageAnalysisTooManyRows) {
+			status = http.StatusBadRequest
+		} else if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			status = http.StatusGatewayTimeout
+		}
+		body := gin.H{
+			"success": false,
+			"message": err.Error(),
+		}
+		if errors.Is(err, model.ErrLogUsageAnalysisTooManyRows) {
+			// Keep the existing human-readable message while giving both Classic
+			// and Default clients a stable signal to retry with a lower-cardinality
+			// projection instead of showing a generic HTTP error.
+			body["code"] = "analysis_too_many_rows"
+			body["hint"] = "可自动降级为仅按时间分组；也可以缩小筛选范围或降低时间粒度。"
+		}
+		c.AbortWithStatusJSON(status, body)
+		return
+	}
+	common.ApiSuccess(c, logUsageAnalysisResponse{
+		Rows:          rows,
+		Granularity:   filter.Granularity,
+		Dimensions:    filter.Dimensions,
+		MarginStatus:  "unknown",
+		CostBasisNote: "当前日志仅有平台计费额度，未关联可审计的上游成本台账；毛利率不计算、不展示为 0。",
+	})
+}
+
+func GetLogUsageAnalysis(c *gin.Context) {
+	writeLogUsageAnalysis(c, 0, true)
+}
+
+func GetLogSelfUsageAnalysis(c *gin.Context) {
+	writeLogUsageAnalysis(c, c.GetInt("id"), false)
 }
 
 func GetAllLogs(c *gin.Context) {

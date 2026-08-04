@@ -42,6 +42,27 @@ export interface DashboardFilters {
   username?: string
 }
 
+export interface LogUsageAnalysisRow {
+  period: number
+  username?: string
+  token_name?: string
+  model_name?: string
+  group?: string
+  channel_id?: number
+  request_count?: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  quota?: number
+}
+
+export interface LogUsageAnalysisResponse {
+  rows: LogUsageAnalysisRow[]
+  granularity: 'day' | 'hour'
+  dimensions: string[]
+  margin_status?: string
+  cost_basis_note?: string
+}
+
 export type ConsumptionDistributionChartType = 'bar' | 'area'
 
 export type ModelAnalyticsChartTab = 'trend' | 'proportion' | 'top'

@@ -108,6 +108,17 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// AnalysisRateLimit keeps dashboard analysis traffic in its own per-IP
+// bucket.  It intentionally reuses the critical-rate-limit configuration for
+// capacity/duration, but uses a distinct mark so a read-only analysis burst
+// cannot consume the login, 2FA, passkey, password-reset, or payment bucket.
+func AnalysisRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "AN")
+	}
+	return defNext
+}
+
 func DownloadRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.DownloadRateLimitNum, common.DownloadRateLimitDuration, "DW")
 }
