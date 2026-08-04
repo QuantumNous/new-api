@@ -208,4 +208,12 @@ func TestTokenGroupVisibilityStartEndTagsUseExplicitBigintType(t *testing.T) {
 		require.Equal(t, "bigint", field.TagSettings["TYPE"], "unexpected %s type tag", column)
 		require.Equal(t, "0", field.TagSettings["DEFAULT"], "unexpected %s default tag", column)
 	}
+
+	parsedTarget, err := schema.Parse(&TokenGroupVisibilityTarget{}, &sync.Map{}, schema.NamingStrategy{})
+	require.NoError(t, err)
+	for _, column := range []string{"visibility_id", "user_id"} {
+		field, ok := parsedTarget.FieldsByDBName[column]
+		require.True(t, ok, "missing %s field", column)
+		require.Equal(t, "bigint", field.TagSettings["TYPE"], "unexpected %s type tag", column)
+	}
 }

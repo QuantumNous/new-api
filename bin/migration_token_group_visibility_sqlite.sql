@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS "token_group_visibilities" (
   "end_time" bigint NOT NULL DEFAULT 0
 );
 
+-- Keep each CREATE INDEX declaration on one line: glebarez/sqlite v1.9.0's DDL parser expects `ON` on the same line.
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_token_group_visibilities_group" ON "token_group_visibilities" ("group");
 CREATE INDEX IF NOT EXISTS "idx_token_group_visibilities_visibility" ON "token_group_visibilities" ("visibility");
 
