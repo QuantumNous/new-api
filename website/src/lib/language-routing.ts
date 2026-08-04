@@ -77,6 +77,7 @@ export function getLanguageRedirectPath(input: LanguageRedirectInput): string | 
 
   const pathname = normalizePathname(input.pathname);
   if (shouldIgnorePath(pathname)) return null;
+  if (pathname === "/") return null;
   if (hasLocalePrefix(pathname)) return null;
 
   const locale = resolvePreferredLocale(input.cookieLocale, input.acceptLanguage);
