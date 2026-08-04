@@ -151,7 +151,12 @@ func RelayClaudeErrorHandler(ctx context.Context, resp *http.Response, showBodyW
 	responseBody, err := io.ReadAll(resp.Body)
 	CloseResponseBodyGracefully(resp)
 	if err != nil {
-		return types.NewClaudeError(err, types.ErrorCodeReadResponseBodyFailed, statusCode)
+		return types.NewClaudeError(
+			err,
+			types.ErrorCodeReadResponseBodyFailed,
+			statusCode,
+			types.ErrOptionWithClaudeRequestID(resp.Header.Get("request-id")),
+		)
 	}
 
 	var errorResponse claudeUpstreamErrorResponse

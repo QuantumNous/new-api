@@ -15,6 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type failingReadCloser struct{}
+
+func (failingReadCloser) Read([]byte) (int, error) {
+	return 0, io.ErrUnexpectedEOF
+}
+
+func (failingReadCloser) Close() error {
+	return nil
+}
+
 func TestResetStatusCode(t *testing.T) {
 	t.Parallel()
 
@@ -172,6 +182,26 @@ func TestRelayClaudeErrorHandlerPreservesNativeEnvelope(t *testing.T) {
 		Error:     types.ClaudeError{Type: "overloaded_error", Message: "upstream overloaded"},
 		RequestID: "req_header_fallback",
 	}, newAPIError.ToClaudeErrorResponse())
+}
+
+func TestRelayClaudeErrorHandlerPreservesRequestIDWhenBodyReadFails(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusServiceUnavailable,
+		Header:     http.Header{"Request-Id": []string{"req_body_read_failed"}},
+		Body:       failingReadCloser{},
+	}
+
+	newAPIError := RelayClaudeErrorHandler(context.Background(), resp, false)
+
+	require.NotNil(t, newAPIError)
+	require.Equal(t, http.StatusServiceUnavailable, newAPIError.StatusCode)
+	require.Equal(
+		t,
+		"req_body_read_failed",
+		newAPIError.ToClaudeErrorResponse().RequestID,
+	)
 }
 
 func TestRelayClaudeErrorHandlerMapsMalformed503WithoutLeakingBody(t *testing.T) {
