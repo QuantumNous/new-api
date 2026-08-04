@@ -509,16 +509,18 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
         />
       </div>
 
-      <ChannelSelectorDialog
-        open={channelDialogOpen}
-        onOpenChange={setChannelDialogOpen}
-        channels={channels}
-        selectedChannelIds={selectedChannelIds}
-        onSelectedChannelIdsChange={setSelectedChannelIds}
-        channelEndpoints={channelEndpoints}
-        onChannelEndpointsChange={setChannelEndpoints}
-        onConfirm={handleConfirmChannelSelection}
-      />
+      {channelDialogOpen ? (
+        <ChannelSelectorDialog
+          open
+          onOpenChange={setChannelDialogOpen}
+          channels={channels}
+          selectedChannelIds={selectedChannelIds}
+          onSelectedChannelIdsChange={setSelectedChannelIds}
+          channelEndpoints={channelEndpoints}
+          onChannelEndpointsChange={setChannelEndpoints}
+          onConfirm={handleConfirmChannelSelection}
+        />
+      ) : null}
 
       <ConflictConfirmDialog
         open={conflictDialogOpen}
