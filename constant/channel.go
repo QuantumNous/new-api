@@ -128,7 +128,7 @@ var ChannelBaseURLs = []string{
 	"https://api.replicate.com",                 //56
 	"https://chatgpt.com",                       //57
 	"https://saast.fuwenhao.com",                //58 ApiWenhao
-	"https://api.apimart.ai",                    //59 ApiMart
+	"https://api.apimart.ai",                    //59 ApiMart (CN: https://api.apib.ai)
 	"https://apihub.agnes-ai.com",               //60 Agnes
 	"https://996k.cn/v1",                        //61 VyroSeedance (996k vyro-seedance-2)
 	"https://sd2.83zi.com",                      //62 83zi SD2 video

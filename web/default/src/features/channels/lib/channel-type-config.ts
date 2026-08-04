@@ -153,9 +153,11 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     defaultBaseUrl: 'https://api.apimart.ai',
     hints: {
       key: 'Format: sk-... (Bearer token)',
-      models: 'grok-imagine-1.0-video-apimart',
-      baseUrl: 'Default: https://api.apimart.ai',
-      other: 'Async video: POST /v1/videos/generations, poll GET /v1/tasks/{id}',
+      models: 'grok-imagine-1.0-video-apimart,MiniMax-H3',
+      baseUrl:
+        'Default: https://api.apimart.ai (CN: https://api.apib.ai)',
+      other:
+        'Async video: POST /v1/videos/generations, poll GET /v1/tasks/{id}. MiniMax-H3 supports resolution/aspect_ratio/image_with_roles/video_urls/audio_urls',
     },
   },
   60: {

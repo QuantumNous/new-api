@@ -31,7 +31,9 @@ const (
 	defaultQueryLang  = "zh"
 )
 
-// TaskAdaptor implements ApiMart async video API (e.g. grok-imagine-1.0-video-apimart).
+// TaskAdaptor implements ApiMart async video API
+// (grok-imagine-1.0-video-apimart, MiniMax-H3 / Hailuo, etc.).
+// Base URL may be https://api.apimart.ai or domestic https://api.apib.ai.
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
 	baseURL string
@@ -99,6 +101,27 @@ func (a *TaskAdaptor) convertCreatePayload(c *gin.Context, req *relaycommon.Task
 		return nil, fmt.Errorf("upstream model is empty; configure model mapping on the channel")
 	}
 
+	var (
+		payload map[string]interface{}
+		err     error
+	)
+	if isMiniMaxModel(modelName) {
+		payload, err = convertMiniMaxCreatePayload(c, req, modelName)
+	} else {
+		payload, err = convertGrokCreatePayload(c, req, modelName)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return payload, nil
+}
+
+func isMiniMaxModel(modelName string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(modelName)), "minimax")
+}
+
+// convertGrokCreatePayload keeps legacy size/quality/image_urls mapping for grok-imagine etc.
+func convertGrokCreatePayload(c *gin.Context, req *relaycommon.TaskSubmitReq, modelName string) (map[string]interface{}, error) {
 	payload := map[string]interface{}{
 		"model":  modelName,
 		"prompt": req.Prompt,
@@ -116,9 +139,9 @@ func (a *TaskAdaptor) convertCreatePayload(c *gin.Context, req *relaycommon.Task
 	if images := collectImageURLs(c, req); len(images) > 0 {
 		payload["image_urls"] = images
 	}
-	applyRawCreateFields(c, payload)
+	applyGrokRawCreateFields(c, payload)
 
-	normalizeApimartCreatePayload(payload)
+	normalizeGrokCreatePayload(payload)
 
 	if err := taskcommon.UnmarshalMetadata(req.Metadata, &payload); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
@@ -127,8 +150,45 @@ func (a *TaskAdaptor) convertCreatePayload(c *gin.Context, req *relaycommon.Task
 	if strings.TrimSpace(req.Prompt) != "" {
 		payload["prompt"] = req.Prompt
 	}
-	// metadata 可能带入 images，再次归一为 image_urls
-	normalizeApimartCreatePayload(payload)
+	normalizeGrokCreatePayload(payload)
+	return payload, nil
+}
+
+// convertMiniMaxCreatePayload maps MiniMax-H3 / Hailuo fields per ApiMart docs
+// (resolution, aspect_ratio, image_with_roles, video_urls, audio_urls, …).
+func convertMiniMaxCreatePayload(c *gin.Context, req *relaycommon.TaskSubmitReq, modelName string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"model":  modelName,
+		"prompt": req.Prompt,
+	}
+
+	if d := apimartDurationFromRequest(req); d > 0 {
+		payload["duration"] = d
+	}
+	if ar := apimartSizeFromRequest(req); ar != "" {
+		payload["aspect_ratio"] = ar
+	}
+	if res := apimartResolutionFromRequest(req); res != "" {
+		payload["resolution"] = res
+	}
+
+	// Avoid mixing I2V role fields with plain image_urls (upstream returns 400).
+	if !rawHasI2VFields(c) {
+		if images := collectImageURLs(c, req); len(images) > 0 {
+			payload["image_urls"] = images
+		}
+	}
+	applyMiniMaxRawCreateFields(c, payload)
+	normalizeMiniMaxCreatePayload(payload)
+
+	if err := taskcommon.UnmarshalMetadata(req.Metadata, &payload); err != nil {
+		return nil, errors.Wrap(err, "unmarshal metadata failed")
+	}
+	payload["model"] = modelName
+	if strings.TrimSpace(req.Prompt) != "" {
+		payload["prompt"] = req.Prompt
+	}
+	normalizeMiniMaxCreatePayload(payload)
 	return payload, nil
 }
 
@@ -157,6 +217,17 @@ func apimartQualityFromRequest(req *relaycommon.TaskSubmitReq) string {
 	return ""
 }
 
+func apimartResolutionFromRequest(req *relaycommon.TaskSubmitReq) string {
+	if res := strings.TrimSpace(req.Resolution); res != "" {
+		return normalizeMiniMaxResolution(res)
+	}
+	size := strings.TrimSpace(req.Size)
+	if size != "" && !strings.Contains(size, ":") {
+		return normalizeMiniMaxResolution(size)
+	}
+	return ""
+}
+
 func normalizeQuality(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -165,6 +236,22 @@ func normalizeQuality(s string) string {
 	lower := strings.ToLower(s)
 	if strings.HasSuffix(lower, "p") && !strings.Contains(lower, ":") {
 		return lower
+	}
+	return s
+}
+
+// normalizeMiniMaxResolution keeps ApiMart MiniMax values: 2K / 768P.
+func normalizeMiniMaxResolution(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	upper := strings.ToUpper(s)
+	switch upper {
+	case "2K":
+		return "2K"
+	case "768P", "768":
+		return "768P"
 	}
 	return s
 }
@@ -179,14 +266,50 @@ func apimartDurationFromRequest(req *relaycommon.TaskSubmitReq) int {
 	return 0
 }
 
-// applyRawCreateFields copies ApiMart-specific keys from the client JSON when absent on TaskSubmitReq.
-func applyRawCreateFields(c *gin.Context, payload map[string]interface{}) {
+func rawBodyBytes(c *gin.Context) []byte {
+	if c == nil {
+		return nil
+	}
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
-		return
+		return nil
 	}
 	raw, err := storage.Bytes()
 	if err != nil {
+		return nil
+	}
+	return raw
+}
+
+func rawHasI2VFields(c *gin.Context) bool {
+	raw := rawBodyBytes(c)
+	if len(raw) == 0 {
+		return false
+	}
+	if strings.TrimSpace(gjson.GetBytes(raw, "first_frame_image").String()) != "" {
+		return true
+	}
+	if strings.TrimSpace(gjson.GetBytes(raw, "last_frame_image").String()) != "" {
+		return true
+	}
+	arr := gjson.GetBytes(raw, "image_with_roles")
+	if !arr.IsArray() {
+		return false
+	}
+	for _, item := range arr.Array() {
+		role := strings.ToLower(strings.TrimSpace(item.Get("role").String()))
+		switch role {
+		case "first_frame", "first", "last_frame", "last":
+			return true
+		}
+	}
+	return false
+}
+
+// applyGrokRawCreateFields copies grok-style keys from the client JSON.
+func applyGrokRawCreateFields(c *gin.Context, payload map[string]interface{}) {
+	raw := rawBodyBytes(c)
+	if len(raw) == 0 {
 		return
 	}
 	if _, ok := payload["quality"]; !ok {
@@ -204,6 +327,62 @@ func applyRawCreateFields(c *gin.Context, payload map[string]interface{}) {
 	}
 }
 
+// applyMiniMaxRawCreateFields copies MiniMax-H3 / Hailuo fields from client JSON.
+func applyMiniMaxRawCreateFields(c *gin.Context, payload map[string]interface{}) {
+	raw := rawBodyBytes(c)
+	if len(raw) == 0 {
+		return
+	}
+	if _, ok := payload["resolution"]; !ok {
+		if res := strings.TrimSpace(gjson.GetBytes(raw, "resolution").String()); res != "" {
+			payload["resolution"] = normalizeMiniMaxResolution(res)
+		} else if q := strings.TrimSpace(gjson.GetBytes(raw, "quality").String()); q != "" {
+			payload["resolution"] = normalizeMiniMaxResolution(q)
+		}
+	}
+	if _, ok := payload["aspect_ratio"]; !ok {
+		if ar := strings.TrimSpace(gjson.GetBytes(raw, "aspect_ratio").String()); ar != "" {
+			payload["aspect_ratio"] = ar
+		} else if ar := strings.TrimSpace(gjson.GetBytes(raw, "ratio").String()); ar != "" {
+			payload["aspect_ratio"] = ar
+		} else if s := strings.TrimSpace(gjson.GetBytes(raw, "size").String()); s != "" && strings.Contains(s, ":") {
+			payload["aspect_ratio"] = s
+		}
+	}
+	setRawStringIfAbsent(payload, raw, "first_frame_image")
+	setRawStringIfAbsent(payload, raw, "last_frame_image")
+	setRawValueIfAbsent(payload, raw, "image_with_roles")
+	setRawValueIfAbsent(payload, raw, "image_urls")
+	setRawValueIfAbsent(payload, raw, "video_urls")
+	setRawValueIfAbsent(payload, raw, "audio_urls")
+	if gjson.GetBytes(raw, "watermark").Exists() {
+		payload["watermark"] = gjson.GetBytes(raw, "watermark").Value()
+	} else if gjson.GetBytes(raw, "aigc_watermark").Exists() {
+		payload["aigc_watermark"] = gjson.GetBytes(raw, "aigc_watermark").Value()
+	}
+	setRawStringIfAbsent(payload, raw, "webhook")
+}
+
+func setRawStringIfAbsent(payload map[string]interface{}, raw []byte, key string) {
+	if _, ok := payload[key]; ok {
+		return
+	}
+	if v := strings.TrimSpace(gjson.GetBytes(raw, key).String()); v != "" {
+		payload[key] = v
+	}
+}
+
+func setRawValueIfAbsent(payload map[string]interface{}, raw []byte, key string) {
+	if _, ok := payload[key]; ok {
+		return
+	}
+	v := gjson.GetBytes(raw, key)
+	if !v.Exists() {
+		return
+	}
+	payload[key] = v.Value()
+}
+
 func collectImageURLs(c *gin.Context, req *relaycommon.TaskSubmitReq) []string {
 	out := make([]string, 0, len(req.Images)+2)
 	for _, u := range req.Images {
@@ -219,15 +398,13 @@ func collectImageURLs(c *gin.Context, req *relaycommon.TaskSubmitReq) []string {
 	}
 	// 兜底：body 里 images 为 URL 字符串数组（与 VectorEngine 一致）
 	if len(out) == 0 {
-		if storage, err := common.GetBodyStorage(c); err == nil {
-			if raw, err := storage.Bytes(); err == nil {
-				arr := gjson.GetBytes(raw, "images")
-				if arr.IsArray() {
-					for _, item := range arr.Array() {
-						if item.Type == gjson.String {
-							if u := strings.TrimSpace(item.String()); u != "" {
-								out = append(out, u)
-							}
+		if raw := rawBodyBytes(c); len(raw) > 0 {
+			arr := gjson.GetBytes(raw, "images")
+			if arr.IsArray() {
+				for _, item := range arr.Array() {
+					if item.Type == gjson.String {
+						if u := strings.TrimSpace(item.String()); u != "" {
+							out = append(out, u)
 						}
 					}
 				}
@@ -237,17 +414,9 @@ func collectImageURLs(c *gin.Context, req *relaycommon.TaskSubmitReq) []string {
 	return out
 }
 
-// normalizeApimartCreatePayload: images[] -> image_urls[]；aspect_ratio / 720P 字段映射。
-func normalizeApimartCreatePayload(payload map[string]interface{}) {
-	if _, ok := payload["image_urls"]; !ok {
-		if imgs, ok := payload["images"].([]string); ok && len(imgs) > 0 {
-			payload["image_urls"] = imgs
-		} else if imgs := gjsonParseStringArray(payload["images"]); len(imgs) > 0 {
-			payload["image_urls"] = imgs
-		}
-	}
-	delete(payload, "images")
-	delete(payload, "image")
+// normalizeGrokCreatePayload: images[] -> image_urls[]；aspect_ratio / 720P 字段映射。
+func normalizeGrokCreatePayload(payload map[string]interface{}) {
+	normalizeSharedImages(payload)
 
 	if ar, ok := payload["aspect_ratio"].(string); ok {
 		ar = strings.TrimSpace(ar)
@@ -268,6 +437,78 @@ func normalizeApimartCreatePayload(payload map[string]interface{}) {
 			delete(payload, "size")
 		}
 	}
+}
+
+// normalizeMiniMaxCreatePayload keeps resolution/aspect_ratio; maps aliases from size/quality/images.
+func normalizeMiniMaxCreatePayload(payload map[string]interface{}) {
+	normalizeSharedImages(payload)
+
+	if ar, ok := payload["aspect_ratio"].(string); ok {
+		ar = strings.TrimSpace(ar)
+		if ar == "" {
+			delete(payload, "aspect_ratio")
+		} else {
+			payload["aspect_ratio"] = ar
+		}
+	}
+	if ratio, ok := payload["ratio"].(string); ok {
+		ratio = strings.TrimSpace(ratio)
+		if ratio != "" {
+			if cur, _ := payload["aspect_ratio"].(string); strings.TrimSpace(cur) == "" {
+				payload["aspect_ratio"] = ratio
+			}
+		}
+		delete(payload, "ratio")
+	}
+
+	if size, ok := payload["size"].(string); ok {
+		size = strings.TrimSpace(size)
+		if size != "" {
+			if strings.Contains(size, ":") {
+				if cur, _ := payload["aspect_ratio"].(string); strings.TrimSpace(cur) == "" {
+					payload["aspect_ratio"] = size
+				}
+			} else if _, hasRes := payload["resolution"]; !hasRes {
+				payload["resolution"] = normalizeMiniMaxResolution(size)
+			}
+		}
+		delete(payload, "size")
+	}
+
+	if q, ok := payload["quality"].(string); ok {
+		q = strings.TrimSpace(q)
+		if q != "" {
+			if _, hasRes := payload["resolution"]; !hasRes {
+				payload["resolution"] = normalizeMiniMaxResolution(q)
+			}
+		}
+		delete(payload, "quality")
+	}
+
+	if res, ok := payload["resolution"].(string); ok {
+		if n := normalizeMiniMaxResolution(res); n != "" {
+			payload["resolution"] = n
+		} else {
+			delete(payload, "resolution")
+		}
+	}
+}
+
+func normalizeSharedImages(payload map[string]interface{}) {
+	if _, ok := payload["image_urls"]; !ok {
+		if imgs, ok := payload["images"].([]string); ok && len(imgs) > 0 {
+			payload["image_urls"] = imgs
+		} else if imgs := gjsonParseStringArray(payload["images"]); len(imgs) > 0 {
+			payload["image_urls"] = imgs
+		}
+	}
+	delete(payload, "images")
+	delete(payload, "image")
+}
+
+// normalizeApimartCreatePayload is kept for tests / callers expecting the grok normalizer name.
+func normalizeApimartCreatePayload(payload map[string]interface{}) {
+	normalizeGrokCreatePayload(payload)
 }
 
 func gjsonParseStringArray(v any) []string {
@@ -528,7 +769,10 @@ func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *rela
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	return []string{"grok-imagine-1.0-video-apimart"}
+	return []string{
+		"grok-imagine-1.0-video-apimart",
+		"MiniMax-H3",
+	}
 }
 
 func (a *TaskAdaptor) GetChannelName() string {

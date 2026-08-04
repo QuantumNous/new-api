@@ -1,10 +1,16 @@
 package apimart
 
 import (
+	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestParseCreateTaskID(t *testing.T) {
@@ -127,5 +133,207 @@ func TestApimartSizeAndQualityFromRequest(t *testing.T) {
 	}
 	if got := apimartDurationFromRequest(&req); got != 6 {
 		t.Fatalf("duration = %d", got)
+	}
+}
+
+func TestIsMiniMaxModel(t *testing.T) {
+	if !isMiniMaxModel("MiniMax-H3") {
+		t.Fatal("MiniMax-H3 should match")
+	}
+	if !isMiniMaxModel("minimax-hailuo-02") {
+		t.Fatal("minimax-hailuo-02 should match")
+	}
+	if isMiniMaxModel("grok-imagine-1.0-video-apimart") {
+		t.Fatal("grok should not match")
+	}
+}
+
+func TestNormalizeMiniMaxCreatePayload(t *testing.T) {
+	payload := map[string]interface{}{
+		"model":        "MiniMax-H3",
+		"prompt":       "test",
+		"images":       []interface{}{"https://example.com/ref.png"},
+		"aspect_ratio": "16:9",
+		"size":         "16:9",
+		"quality":      "2K",
+	}
+	normalizeMiniMaxCreatePayload(payload)
+	if _, ok := payload["images"]; ok {
+		t.Fatal("images should be removed")
+	}
+	if _, ok := payload["size"]; ok {
+		t.Fatal("size should be removed")
+	}
+	if _, ok := payload["quality"]; ok {
+		t.Fatal("quality should be removed")
+	}
+	if payload["aspect_ratio"] != "16:9" {
+		t.Fatalf("aspect_ratio = %#v", payload["aspect_ratio"])
+	}
+	if payload["resolution"] != "2K" {
+		t.Fatalf("resolution = %#v", payload["resolution"])
+	}
+	urls, ok := payload["image_urls"].([]string)
+	if !ok || len(urls) != 1 || urls[0] != "https://example.com/ref.png" {
+		t.Fatalf("image_urls = %#v", payload["image_urls"])
+	}
+}
+
+func TestConvertMiniMaxTextToVideo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{
+		"model":"MiniMax-H3",
+		"prompt":"一个男孩在海边打篮球",
+		"duration":5,
+		"resolution":"2K",
+		"aspect_ratio":"16:9"
+	}`)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	storage, err := common.CreateBodyStorage(body)
+	if err != nil {
+		t.Fatalf("CreateBodyStorage: %v", err)
+	}
+	c.Set(common.KeyBodyStorage, storage)
+
+	req := relaycommon.TaskSubmitReq{
+		Prompt:      "一个男孩在海边打篮球",
+		Duration:    5,
+		Resolution:  "2K",
+		AspectRatio: "16:9",
+	}
+	payload, err := convertMiniMaxCreatePayload(c, &req, "MiniMax-H3")
+	if err != nil {
+		t.Fatalf("convertMiniMaxCreatePayload: %v", err)
+	}
+	if payload["model"] != "MiniMax-H3" {
+		t.Fatalf("model = %#v", payload["model"])
+	}
+	if payload["resolution"] != "2K" {
+		t.Fatalf("resolution = %#v", payload["resolution"])
+	}
+	if payload["aspect_ratio"] != "16:9" {
+		t.Fatalf("aspect_ratio = %#v", payload["aspect_ratio"])
+	}
+	if payload["duration"] != 5 {
+		t.Fatalf("duration = %#v", payload["duration"])
+	}
+	if _, ok := payload["quality"]; ok {
+		t.Fatalf("quality should not be set for MiniMax, got %#v", payload["quality"])
+	}
+	if _, ok := payload["size"]; ok {
+		t.Fatalf("size should not be set for MiniMax, got %#v", payload["size"])
+	}
+}
+
+func TestConvertMiniMaxMultimodalReference(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{
+		"model":"MiniMax-H3",
+		"prompt":"角色说话：Follow the wind",
+		"image_with_roles":[{"url":"https://cdn.example.com/char.png","role":"reference_image"}],
+		"video_urls":["https://cdn.example.com/ref_motion.mp4"],
+		"audio_urls":["https://cdn.example.com/ref_voice.mp3"],
+		"duration":5,
+		"resolution":"2K"
+	}`)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	storage, err := common.CreateBodyStorage(body)
+	if err != nil {
+		t.Fatalf("CreateBodyStorage: %v", err)
+	}
+	c.Set(common.KeyBodyStorage, storage)
+
+	req := relaycommon.TaskSubmitReq{
+		Prompt:     "角色说话：Follow the wind",
+		Duration:   5,
+		Resolution: "2K",
+	}
+	payload, err := convertMiniMaxCreatePayload(c, &req, "MiniMax-H3")
+	if err != nil {
+		t.Fatalf("convertMiniMaxCreatePayload: %v", err)
+	}
+	roles, ok := payload["image_with_roles"].([]interface{})
+	if !ok || len(roles) != 1 {
+		t.Fatalf("image_with_roles = %#v", payload["image_with_roles"])
+	}
+	vids, ok := payload["video_urls"].([]interface{})
+	if !ok || len(vids) != 1 || vids[0] != "https://cdn.example.com/ref_motion.mp4" {
+		t.Fatalf("video_urls = %#v", payload["video_urls"])
+	}
+	auds, ok := payload["audio_urls"].([]interface{})
+	if !ok || len(auds) != 1 || auds[0] != "https://cdn.example.com/ref_voice.mp3" {
+		t.Fatalf("audio_urls = %#v", payload["audio_urls"])
+	}
+	if payload["resolution"] != "2K" {
+		t.Fatalf("resolution = %#v", payload["resolution"])
+	}
+}
+
+func TestConvertMiniMaxFirstLastFrame(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{
+		"model":"MiniMax-H3",
+		"prompt":"transition",
+		"first_frame_image":"https://cdn.example.com/morning.png",
+		"last_frame_image":"https://cdn.example.com/sunset.png",
+		"duration":8,
+		"images":["https://cdn.example.com/should-not-mix.png"]
+	}`)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	storage, err := common.CreateBodyStorage(body)
+	if err != nil {
+		t.Fatalf("CreateBodyStorage: %v", err)
+	}
+	c.Set(common.KeyBodyStorage, storage)
+
+	req := relaycommon.TaskSubmitReq{
+		Prompt:   "transition",
+		Duration: 8,
+		Images:   []string{"https://cdn.example.com/should-not-mix.png"},
+	}
+	payload, err := convertMiniMaxCreatePayload(c, &req, "MiniMax-H3")
+	if err != nil {
+		t.Fatalf("convertMiniMaxCreatePayload: %v", err)
+	}
+	if payload["first_frame_image"] != "https://cdn.example.com/morning.png" {
+		t.Fatalf("first_frame_image = %#v", payload["first_frame_image"])
+	}
+	if payload["last_frame_image"] != "https://cdn.example.com/sunset.png" {
+		t.Fatalf("last_frame_image = %#v", payload["last_frame_image"])
+	}
+	if _, ok := payload["image_urls"]; ok {
+		t.Fatalf("image_urls must not mix with I2V fields, got %#v", payload["image_urls"])
+	}
+}
+
+func TestGetModelListIncludesMiniMaxH3(t *testing.T) {
+	list := (&TaskAdaptor{}).GetModelList()
+	found := false
+	for _, m := range list {
+		if m == "MiniMax-H3" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("GetModelList missing MiniMax-H3: %v", list)
+	}
+}
+
+func TestApiOriginKeepsDomesticBase(t *testing.T) {
+	if got := apiOrigin("https://api.apib.ai"); got != "https://api.apib.ai" {
+		t.Fatalf("apiOrigin = %q", got)
+	}
+	if got := apiOrigin("https://api.apib.ai/v1/videos/generations"); got != "https://api.apib.ai" {
+		t.Fatalf("apiOrigin strip path = %q", got)
+	}
+	if got := apiOrigin("https://api.apimart.ai/"); got != "https://api.apimart.ai" {
+		t.Fatalf("apiOrigin intl = %q", got)
 	}
 }

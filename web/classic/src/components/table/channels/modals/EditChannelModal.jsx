@@ -703,7 +703,7 @@ const EditChannelModal = (props) => {
         case 59: // ApiMart
           setInputs((prevInputs) => ({
             ...prevInputs,
-            base_url: 'https://api.apimart.ai',
+            base_url: 'https://api.apimart.ai', // CN domestic: https://api.apib.ai
           }));
           break;
         case 60: // Agnes
