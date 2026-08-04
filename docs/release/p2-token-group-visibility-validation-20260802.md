@@ -15,6 +15,22 @@ Stage: development evidence only; not production authorization.
 - Production baseline ancestor: `24fa0a872d4a3f2a67d6bf6e07e104c5c8063ef2`
 - `TOKEN_GROUP_VISIBILITY_ENABLED` remains default-off.
 
+## Semantic boundary retained by the P2 rework
+
+`targeted` and `hidden` affect only group selection during token creation or
+editing. They do not filter pricing responses or model lists, change prices or
+model/channel mappings, or block existing tokens during runtime relay. Entitlement
+packages remain independent and may override the request's `UsingGroup` with the
+package's configured group. These are deliberate P2 boundaries, not missing global
+visibility behavior.
+
+SQLite migration evidence is dialect-scoped. With `glebarez/sqlite v1.9.0`, the
+handwritten script must keep each `CREATE INDEX ... ON ...` statement on one line to
+avoid `invalid DDL`. The same driver may rebuild the target table on a later
+AutoMigrate because it misclassifies a composite unique index. Final schema/data
+equivalence may be recorded, but this must not be described as zero SQLite DDL or
+as evidence for MySQL production migration safety.
+
 ## Evidence run
 
 All commands ran in the isolated `/tmp/aibuff-p2-release-20260801` worktree.
@@ -74,6 +90,9 @@ the P2 candidate scope and were reproduced after the candidate changes.
   before a server could start. This is recorded as an environment limitation, not
   as migration evidence.
 - No owner authorization exists for production DDL, code rollout, or flag enable.
+- A2 remains open: no positive, node-by-node production readback has verified
+  `SKIP_DATABASE_MIGRATION=true`; the local development evidence must not be
+  presented as production proof.
 - P1 production observation must close before P2 release sequencing begins.
 - Slave-first production rollout, fresh-session dual-node acceptance, and 15-minute,
   1-hour, and 24-hour observations are not performed.

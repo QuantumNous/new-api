@@ -21,6 +21,21 @@ any production release.
 flag off preserves legacy selection behavior. Do not enable it until the schema,
 slave-first rollout, fresh-session UI checks, and API checks below have passed.
 
+## Semantic boundary
+
+`targeted` and `hidden` control only which groups may be selected while creating or
+editing a token (including the admin-as-user, Playground, and direct write paths).
+They do not hide the group from pricing responses or model lists, do not change
+prices, model/channel mappings, or balances, and do not stop an existing token from
+running at request time. The established runtime group authorization remains in
+place so legacy tokens keep working. Do not interpret token-group visibility as a
+global model or pricing visibility feature.
+
+Entitlement packages remain an independent authority: the distributor may rewrite
+the request's `UsingGroup` to the package's configured `Group`. A package can
+therefore override the selected group even when that group's token-selection policy
+is `targeted` or `hidden`; P2 preserves this behavior and does not expand it.
+
 ## Schema and migration order
 
 The application includes the two models in `AutoMigrate`, but production master nodes
@@ -45,6 +60,19 @@ dialect-specific files. If a node is allowed to run `AutoMigrate`, verify the
 resulting schema before accepting traffic; the release path still requires
 `SKIP_DATABASE_MIGRATION=true` on every production node and the checked-in SQL
 file as the single schema source.
+
+The positive production check of `SKIP_DATABASE_MIGRATION=true` on every node is
+not satisfied by this development runbook or by an expected configuration value.
+Node-specific readback of the effective configuration and startup evidence remains
+an open A2 gate; until that evidence is collected, production release is blocked.
+
+The repository currently uses `glebarez/sqlite v1.9.0`. Its DDL parser requires
+`CREATE INDEX ... ON ...` to remain on one line and misreports columns from a
+composite unique index as individually unique. Even a schema created by GORM itself
+may therefore be rebuilt on a second SQLite AutoMigrate while ending with equivalent
+columns and indexes. SQLite acceptance is limited to no `invalid DDL`, preserved
+data, and final schema semantics; it is not evidence of zero DDL. MySQL production
+must still use the explicit script and per-node migration skip gate.
 
 ## Backup-copy migration drill
 
@@ -135,4 +163,6 @@ or if any login, balance, price, or public-model regression appears.
 - Successful `web/default` typecheck/build and `web/classic` build artifacts.
 - Backup-copy migration and rollback logs for the selected dialect.
 - Fresh-session acceptance screenshots/API responses and 15m/1h/24h observation notes.
+- Positive, node-by-node `SKIP_DATABASE_MIGRATION=true` readback and startup evidence;
+  a runbook expectation is not evidence for A2.
 - Explicit owner authorization, or a recorded block if any release gate is missing.
