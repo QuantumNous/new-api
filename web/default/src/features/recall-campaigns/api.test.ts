@@ -536,6 +536,21 @@ describe('recall campaign API contracts', () => {
     expect(capturedConfig?.method).toBe('get')
   })
 
+  test('accepts a missing latest email translation task as null data', async () => {
+    const emptyLatestTaskResponse: Awaited<
+      ReturnType<typeof getLatestRecallEmailTranslationTask>
+    > = { success: true, data: null }
+    respondWith(emptyLatestTaskResponse)
+
+    const response = await getLatestRecallEmailTranslationTask(42)
+
+    expect(capturedConfig?.url).toBe(
+      '/api/recall-campaigns/42/email-translations/tasks/latest'
+    )
+    expect(capturedConfig?.method).toBe('get')
+    expect(response.data).toBeNull()
+  })
+
   test('exposes stable email translation task query keys', () => {
     expect(recallCampaignKeys.translationTask(42, 55)).toEqual([
       'recall-campaigns',

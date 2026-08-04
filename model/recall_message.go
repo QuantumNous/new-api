@@ -282,7 +282,7 @@ func ReconcileRecallMessageStateEventBaseline(ctx context.Context, limit int) (i
 		if err := tx.Model(&RecallMessage{}).
 			Select("recall_messages.*, recall_recipients.campaign_id").
 			Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
-			Where("recall_messages.state_version = 0").
+			Where("recall_messages.state_version = 0 OR NOT EXISTS (?)", recallMessageStateEventExistsSubquery(tx)).
 			Order("recall_messages.id ASC").
 			Limit(limit).
 			Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -297,17 +297,21 @@ func ReconcileRecallMessageStateEventBaseline(ctx context.Context, limit int) (i
 			return err
 		}
 		for _, row := range rows {
-			result := tx.Model(&RecallMessage{}).
-				Where("id = ? AND state_version = 0", row.Id).
-				Update("state_version", 1)
-			if result.Error != nil {
-				return result.Error
+			version := row.StateVersion
+			if row.StateVersion == 0 {
+				result := tx.Model(&RecallMessage{}).
+					Where("id = ? AND state_version = 0", row.Id).
+					Update("state_version", 1)
+				if result.Error != nil {
+					return result.Error
+				}
+				if result.RowsAffected == 0 {
+					continue
+				}
+				row.StateVersion = 1
+				version = 1
 			}
-			if result.RowsAffected == 0 {
-				continue
-			}
-			row.StateVersion = 1
-			event, err := recallMessageStateEvent(row, "", row.State, 1, occurredAt)
+			event, err := recallMessageStateEvent(row, "", row.State, version, occurredAt)
 			if err != nil {
 				return err
 			}
@@ -316,7 +320,14 @@ func ReconcileRecallMessageStateEventBaseline(ctx context.Context, limit int) (i
 				return err
 			}
 			if !inserted && tx.Migrator().HasTable(&RecallEvent{}) {
-				return fmt.Errorf("recall message baseline event was not inserted for message %d", row.Id)
+				exists, existsErr := recallMessageStateEventExists(tx, event)
+				if existsErr != nil {
+					return fmt.Errorf("check existing recall message baseline event for message %d: %w", row.Id, existsErr)
+				}
+				if !exists {
+					return fmt.Errorf("recall message baseline event was not inserted for message %d", row.Id)
+				}
+				continue
 			}
 			pending++
 		}
@@ -331,11 +342,21 @@ func ReconcileRecallMessageStateEventBaseline(ctx context.Context, limit int) (i
 
 func CountUnbaselinedRecallMessagesForCampaign(ctx context.Context, campaignID int64) (int64, error) {
 	var count int64
-	err := DB.WithContext(ctx).Model(&RecallMessage{}).
+	db := DB.WithContext(ctx)
+	err := db.Model(&RecallMessage{}).
 		Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
-		Where("recall_recipients.campaign_id = ? AND recall_messages.state_version = 0", campaignID).
+		Where("recall_recipients.campaign_id = ?", campaignID).
+		Where("recall_messages.state_version = 0 OR NOT EXISTS (?)", recallMessageStateEventExistsSubquery(db)).
 		Count(&count).Error
 	return count, err
+}
+
+func recallMessageStateEventExistsSubquery(db *gorm.DB) *gorm.DB {
+	return db.Model(&RecallEvent{}).
+		Select("1").
+		Where("recall_events.campaign_id = recall_recipients.campaign_id").
+		Where("recall_events.message_id = recall_messages.id").
+		Where("recall_events.event_type = ? AND recall_events.source = ?", "message_state_changed", "message_state")
 }
 
 type recallMessageWithCampaign struct {
@@ -457,7 +478,13 @@ func insertInlineRecallMessageBaseline(tx *gorm.DB, row recallMessageWithCampaig
 		return false, err
 	}
 	if !inserted && tx.Migrator().HasTable(&RecallEvent{}) {
-		return false, fmt.Errorf("recall message baseline event was not inserted for message %d", row.Id)
+		exists, existsErr := recallMessageStateEventExists(tx, event)
+		if existsErr != nil {
+			return false, fmt.Errorf("check existing recall message baseline event for message %d: %w", row.Id, existsErr)
+		}
+		if !exists {
+			return false, fmt.Errorf("recall message baseline event was not inserted for message %d", row.Id)
+		}
 	}
 	return true, nil
 }
@@ -572,6 +599,17 @@ func insertRecallMessageStateEvent(tx *gorm.DB, event *RecallEvent) (bool, error
 		return false, result.Error
 	}
 	return result.RowsAffected == 1, nil
+}
+
+func recallMessageStateEventExists(tx *gorm.DB, event RecallEvent) (bool, error) {
+	var count int64
+	err := tx.Model(&RecallEvent{}).
+		Where("campaign_id = ? AND event_type = ? AND source = ? AND message_id = ? AND source_event_id = ?", event.CampaignId, event.EventType, event.Source, event.MessageId, event.SourceEventId).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func ListDueRecallMessages(now int64, limit int) ([]RecallDueMessage, error) {

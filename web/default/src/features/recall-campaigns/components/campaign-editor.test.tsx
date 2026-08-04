@@ -1975,6 +1975,32 @@ describe('CampaignEditor email sequence', () => {
     dispose(root)
   })
 
+  test('treats a null latest translation task as no active polling work', async () => {
+    const emptyLatestTaskResponse: Awaited<
+      ReturnType<typeof recallApi.getLatestRecallEmailTranslationTask>
+    > = {
+      success: true,
+      data: null,
+    }
+    getLatestTranslationTask.mockResolvedValueOnce(emptyLatestTaskResponse)
+    const draft = makeDraft('first_purchase')
+    const { root, container } = renderEditorDom(draft, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    try {
+      await waitFor(() => getLatestTranslationTask.mock.calls.length > 0)
+      await flushReactWork()
+
+      expect(getLatestTranslationTask).toHaveBeenCalledWith(9)
+      expect(getTranslationTask).not.toHaveBeenCalled()
+      expect(container.textContent).not.toContain('Translation task')
+    } finally {
+      dispose(root)
+    }
+  })
+
   test('ignores a stale latest task response after starting a newer generated task', async () => {
     let resolveLatest:
       | ((

@@ -930,6 +930,7 @@ func TestRecallEmailTranslationTaskPollingScopesAndSanitizesResponses(t *testing
 	harness := setupRecallControllerHarness(t)
 	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
 	otherCampaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
+	emptyCampaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)
 	task := model.RecallTranslationTask{
 		CampaignId:              campaign.Id,
 		RequestedConfigRevision: campaign.ConfigRevision,
@@ -1042,6 +1043,17 @@ func TestRecallEmailTranslationTaskPollingScopesAndSanitizesResponses(t *testing
 	require.NotContains(t, latestRecorder.Body.String(), "raw-provider")
 	require.NotContains(t, latestRecorder.Body.String(), "provider leaked")
 
+	emptyLatestRecorder := invokeRecallHandler(t, GetLatestRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(emptyCampaign.Id)}})
+	require.Equal(t, http.StatusOK, emptyLatestRecorder.Code)
+	emptyLatestPayload := decodeRecallEnvelope(t, emptyLatestRecorder)
+	require.Equal(t, true, emptyLatestPayload["success"])
+	emptyLatestData, hasEmptyLatestData := emptyLatestPayload["data"]
+	require.True(t, hasEmptyLatestData)
+	require.Nil(t, emptyLatestData)
+
+	missingCampaignLatest := invokeRecallHandler(t, GetLatestRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(emptyCampaign.Id + 1000)}})
+	require.Equal(t, http.StatusNotFound, missingCampaignLatest.Code)
+
 	failedRecorder := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(failed.Id)}})
 	require.Equal(t, http.StatusOK, failedRecorder.Code)
 	failedData := decodeRecallEnvelope(t, failedRecorder)["data"].(map[string]any)
@@ -1054,6 +1066,9 @@ func TestRecallEmailTranslationTaskPollingScopesAndSanitizesResponses(t *testing
 	crossCampaign := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(superseded.Id)}})
 	require.Equal(t, http.StatusNotFound, crossCampaign.Code)
 	require.NotContains(t, crossCampaign.Body.String(), "other source")
+
+	missingTask := invokeRecallHandler(t, GetRecallEmailTranslationTask, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}, {Key: "task_id", Value: fmt.Sprint(superseded.Id + 1000)}})
+	require.Equal(t, http.StatusNotFound, missingTask.Code)
 }
 
 func TestRecallEmailGenerationActivationReturnsStructuredBlockers(t *testing.T) {

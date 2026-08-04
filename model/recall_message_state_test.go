@@ -495,6 +495,131 @@ func TestRecallMessageBaselineIsBoundedCampaignLocalAndIdempotent(t *testing.T) 
 	requireRecallMessageStateEvent(t, second.Id, 1, "", RecallMessageCancelled)
 }
 
+func TestRecallMessageBaselineReconcilesVersionedRowsWithoutStateEvents(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	message := seedRecallMessage(t, RecallMessageAccepted, 3)
+	campaignID := firstCampaignIDForMessageState(t, message.Id)
+
+	count, err := CountUnbaselinedRecallMessagesForCampaign(context.Background(), campaignID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, count)
+
+	reconciled, err := ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, reconciled)
+
+	var stored RecallMessage
+	require.NoError(t, DB.First(&stored, message.Id).Error)
+	require.Equal(t, int64(3), stored.StateVersion)
+	requireRecallMessageStateEvent(t, message.Id, 3, "", RecallMessageAccepted)
+
+	count, err = CountUnbaselinedRecallMessagesForCampaign(context.Background(), campaignID)
+	require.NoError(t, err)
+	require.Zero(t, count)
+	reconciled, err = ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, reconciled)
+	requireRecallMessageStateEventCount(t, 1)
+}
+
+func TestRecallMessageBaselineConcurrentExactEventDoesNotCountReconciled(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	message := seedRecallMessage(t, RecallMessageAccepted, 3)
+	campaignID := firstCampaignIDForMessageState(t, message.Id)
+	insertDuplicateRecallMessageStateEventBeforeCreate(t)
+
+	reconciled, err := ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, reconciled)
+	requireRecallMessageStateEvent(t, message.Id, 3, "", RecallMessageAccepted)
+
+	count, err := CountUnbaselinedRecallMessagesForCampaign(context.Background(), campaignID)
+	require.NoError(t, err)
+	require.Zero(t, count)
+	reconciled, err = ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, reconciled)
+	requireRecallMessageStateEventCount(t, 1)
+}
+
+func TestRecallMessageBaselineRejectsExactEventFromDifferentCampaign(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	message := seedRecallMessage(t, RecallMessageAccepted, 3)
+	campaignID := firstCampaignIDForMessageState(t, message.Id)
+	conflictingEvent, err := recallMessageStateEvent(recallMessageWithCampaign{
+		RecallMessage: message,
+		CampaignID:    campaignID + 1,
+	}, "", message.State, message.StateVersion, 1_721_000_000)
+	require.NoError(t, err)
+	require.NoError(t, DB.Create(&conflictingEvent).Error)
+
+	count, err := CountUnbaselinedRecallMessagesForCampaign(context.Background(), campaignID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, count)
+
+	reconciled, err := ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+	require.ErrorContains(t, err, "baseline event was not inserted")
+	require.Zero(t, reconciled)
+}
+
+func TestRecallMessageBaselineMissingStateEventSubqueryCorrelatesCampaign(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	message := seedRecallMessage(t, RecallMessageAccepted, 3)
+	queries := captureRecallMessageStateNormalizedQueries(t)
+
+	campaignID := firstCampaignIDForMessageState(t, message.Id)
+	count, err := CountUnbaselinedRecallMessagesForCampaign(context.Background(), campaignID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, count)
+	reconciled, err := ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, reconciled)
+
+	missingStateEventQueries := 0
+	for _, query := range *queries {
+		if !strings.Contains(query, "not exists") || !strings.Contains(query, "from recall_events") {
+			continue
+		}
+		missingStateEventQueries++
+		require.Contains(t, query, "recall_events.campaign_id = recall_recipients.campaign_id")
+	}
+	require.GreaterOrEqual(t, missingStateEventQueries, 2)
+}
+
+func TestRecallMessageBaselineDuplicateExactLookupErrorPropagates(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	message := seedRecallMessage(t, RecallMessageAccepted, 3)
+	insertDuplicateRecallMessageStateEventBeforeCreate(t)
+	failExactRecallMessageStateEventLookup(t)
+
+	reconciled, err := ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+	require.ErrorContains(t, err, "forced exact recall message state event lookup failure")
+	require.Zero(t, reconciled)
+	require.NotContains(t, err.Error(), "baseline event was not inserted")
+
+	var stored RecallMessage
+	require.NoError(t, DB.First(&stored, message.Id).Error)
+	require.Equal(t, int64(3), stored.StateVersion)
+}
+
+func TestRecallMessageInlineBaselineDuplicateExactLookupErrorPropagates(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	message := seedRecallMessage(t, RecallMessageScheduled, 0)
+	insertDuplicateRecallMessageStateEventBeforeCreate(t)
+	failExactRecallMessageStateEventLookup(t)
+
+	won, err := LeaseRecallMessage(message.Id, "node-a", 1_721_000_000, 1_721_000_060)
+	require.ErrorContains(t, err, "forced exact recall message state event lookup failure")
+	require.False(t, won)
+	require.NotContains(t, err.Error(), "baseline event was not inserted")
+}
+
 func TestRecallMessageLeaseDueRequiresExactDueFieldFence(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -715,6 +840,73 @@ func failRecallMessageStateEventInserts(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, DB.Callback().Create().Remove(name))
 		require.True(t, triggered, "expected recall message state event insert callback to run")
+	})
+}
+
+func insertDuplicateRecallMessageStateEventBeforeCreate(t *testing.T) {
+	t.Helper()
+	name := fmt.Sprintf("test:recall-message-event-insert-duplicate:%s", t.Name())
+	triggered := false
+	require.NoError(t, DB.Callback().Create().Before("gorm:create").Register(name, func(tx *gorm.DB) {
+		if triggered || tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallEvent" {
+			return
+		}
+		event, ok := tx.Statement.Dest.(*RecallEvent)
+		if !ok || event.EventType != "message_state_changed" || event.Source != "message_state" {
+			return
+		}
+		triggered = true
+		duplicate := *event
+		duplicate.Id = 0
+		if err := tx.Session(&gorm.Session{NewDB: true, SkipHooks: true}).Create(&duplicate).Error; err != nil {
+			tx.AddError(err)
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Create().Remove(name))
+		require.True(t, triggered, "expected recall message state event duplicate callback to run")
+	})
+}
+
+func captureRecallMessageStateNormalizedQueries(t *testing.T) *[]string {
+	t.Helper()
+	name := fmt.Sprintf("test:recall-message-state-query-capture:%s", t.Name())
+	queries := make([]string, 0)
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(name, func(tx *gorm.DB) {
+		if tx.Statement == nil {
+			return
+		}
+		queries = append(queries, normalizeRecallMessageStateSQL(tx.Statement.SQL.String()))
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Query().Remove(name))
+	})
+	return &queries
+}
+
+func normalizeRecallMessageStateSQL(sql string) string {
+	sql = strings.ToLower(sql)
+	sql = strings.NewReplacer("`", "", `"`, "", "[", "", "]", "").Replace(sql)
+	return strings.Join(strings.Fields(sql), " ")
+}
+
+func failExactRecallMessageStateEventLookup(t *testing.T) {
+	t.Helper()
+	name := fmt.Sprintf("test:recall-message-event-exact-lookup-fail:%s", t.Name())
+	triggered := false
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register(name, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallEvent" {
+			return
+		}
+		if !strings.Contains(normalizeRecallMessageStateSQL(tx.Statement.SQL.String()), "source_event_id") {
+			return
+		}
+		triggered = true
+		tx.AddError(errors.New("forced exact recall message state event lookup failure"))
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Query().Remove(name))
+		require.True(t, triggered, "expected exact recall message state event lookup callback to run")
 	})
 }
 

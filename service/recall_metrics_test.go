@@ -520,18 +520,50 @@ func TestRecallMetricCardsShareRegistryQueryTotalsAndTokens(t *testing.T) {
 }
 
 func TestRecallMetricCardsFreshMessageSnapshotRetriesBeforePublishingCards(t *testing.T) {
-	db := setupRecallMetricServiceDB(t)
-	campaign := model.RecallCampaign{Name: "card message baseline readiness", Status: model.RecallCampaignRunning}
-	require.NoError(t, db.Create(&campaign).Error)
-	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 58_100, RecipientIdentity: model.RecallRecipientIdentityForUser(58_100), EligibilitySnapshot: `{}`, EmailSnapshot: "card-message-readiness@example.com", LanguageSnapshot: "en", State: model.RecallRecipientQueued}
-	require.NoError(t, db.Create(&recipient).Error)
-	message := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 1, TemplateSnapshot: "template", ScheduledAt: 100, State: model.RecallMessageScheduled, StateVersion: 0}
-	require.NoError(t, db.Create(&message).Error)
+	t.Run("version0", func(t *testing.T) {
+		db := setupRecallMetricServiceDB(t)
+		campaign := model.RecallCampaign{Name: "card message baseline readiness", Status: model.RecallCampaignRunning}
+		require.NoError(t, db.Create(&campaign).Error)
+		recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 58_100, RecipientIdentity: model.RecallRecipientIdentityForUser(58_100), EligibilitySnapshot: `{}`, EmailSnapshot: "card-message-readiness@example.com", LanguageSnapshot: "en", State: model.RecallRecipientQueued}
+		require.NoError(t, db.Create(&recipient).Error)
+		message := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 1, TemplateSnapshot: "template", ScheduledAt: 100, State: model.RecallMessageScheduled, StateVersion: 0}
+		require.NoError(t, db.Create(&message).Error)
 
-	metrics, err := NewRecallAttributionService(nil).GetMetrics(context.Background(), campaign.Id)
-	require.ErrorIs(t, err, model.ErrRecallMetricRetry)
-	require.Empty(t, metrics.MetricCards)
-	require.Empty(t, metrics.MetricSnapshots)
+		metrics, err := NewRecallAttributionService(nil).GetMetrics(context.Background(), campaign.Id)
+		require.ErrorIs(t, err, model.ErrRecallMetricRetry)
+		require.Empty(t, metrics.MetricCards)
+		require.Empty(t, metrics.MetricSnapshots)
+	})
+
+	t.Run("version3", func(t *testing.T) {
+		db := setupRecallMetricServiceDB(t)
+		campaign := model.RecallCampaign{Name: "card versioned message baseline readiness", Status: model.RecallCampaignRunning}
+		require.NoError(t, db.Create(&campaign).Error)
+		recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 58_101, RecipientIdentity: model.RecallRecipientIdentityForUser(58_101), EligibilitySnapshot: `{}`, EmailSnapshot: "card-versioned-message-readiness@example.com", LanguageSnapshot: "en", State: model.RecallRecipientQueued}
+		require.NoError(t, db.Create(&recipient).Error)
+		message := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 1, TemplateSnapshot: "template", ScheduledAt: 100, State: model.RecallMessageAccepted, StateVersion: 3, AcceptedAt: 200}
+		require.NoError(t, db.Create(&message).Error)
+
+		metrics, err := NewRecallAttributionService(nil).GetMetrics(context.Background(), campaign.Id)
+		require.ErrorIs(t, err, model.ErrRecallMetricRetry)
+		require.Empty(t, metrics.MetricCards)
+		require.Empty(t, metrics.MetricSnapshots)
+
+		reconciled, err := model.ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+		require.NoError(t, err)
+		require.Equal(t, 1, reconciled)
+
+		metrics, err = NewRecallAttributionService(nil).GetMetrics(context.Background(), campaign.Id)
+		require.NoError(t, err)
+		card := metrics.MetricCards["messages_accepted"]
+		require.EqualValues(t, 1, card.Total)
+
+		page, err := QueryRecallMetric(context.Background(), model.RecallMetricQuery{CampaignID: campaign.Id, Metric: "messages_accepted", Limit: 10}, time.Now())
+		require.NoError(t, err)
+		require.EqualValues(t, 1, page.Total)
+		require.Len(t, page.Items, 1)
+		require.Equal(t, recipient.Id, page.Items[0].RecipientID)
+	})
 }
 
 func TestRecallMetricCursorRequiresMatchingSnapshot(t *testing.T) {
@@ -678,18 +710,46 @@ func TestRecallMetricExportLeavesWriterEmptyOnInitialDBQueryError(t *testing.T) 
 }
 
 func TestRecallMetricExportFreshMessageSnapshotRetriesBeforeWritingCSV(t *testing.T) {
-	db := setupRecallMetricServiceDB(t)
-	campaign := model.RecallCampaign{Name: "export message baseline readiness", Status: model.RecallCampaignRunning}
-	require.NoError(t, db.Create(&campaign).Error)
-	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 57_100, RecipientIdentity: model.RecallRecipientIdentityForUser(57_100), EligibilitySnapshot: `{}`, EmailSnapshot: "export-message-readiness@example.com", LanguageSnapshot: "en", State: model.RecallRecipientQueued}
-	require.NoError(t, db.Create(&recipient).Error)
-	message := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 1, TemplateSnapshot: "template", ScheduledAt: 100, State: model.RecallMessageScheduled, StateVersion: 0}
-	require.NoError(t, db.Create(&message).Error)
+	t.Run("version0", func(t *testing.T) {
+		db := setupRecallMetricServiceDB(t)
+		campaign := model.RecallCampaign{Name: "export message baseline readiness", Status: model.RecallCampaignRunning}
+		require.NoError(t, db.Create(&campaign).Error)
+		recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 57_100, RecipientIdentity: model.RecallRecipientIdentityForUser(57_100), EligibilitySnapshot: `{}`, EmailSnapshot: "export-message-readiness@example.com", LanguageSnapshot: "en", State: model.RecallRecipientQueued}
+		require.NoError(t, db.Create(&recipient).Error)
+		message := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 1, TemplateSnapshot: "template", ScheduledAt: 100, State: model.RecallMessageScheduled, StateVersion: 0}
+		require.NoError(t, db.Create(&message).Error)
 
-	var out bytes.Buffer
-	_, err := ExportRecallMetricCSVWithLimits(context.Background(), &out, model.RecallMetricQuery{CampaignID: campaign.Id, Metric: "messages_accepted", Limit: 10}, time.Now(), RecallMetricExportLimits{MaxRows: 10, MaxBytes: 10_000, BatchSize: 10})
-	require.ErrorIs(t, err, model.ErrRecallMetricRetry)
-	require.Empty(t, out.String())
+		var out bytes.Buffer
+		_, err := ExportRecallMetricCSVWithLimits(context.Background(), &out, model.RecallMetricQuery{CampaignID: campaign.Id, Metric: "messages_accepted", Limit: 10}, time.Now(), RecallMetricExportLimits{MaxRows: 10, MaxBytes: 10_000, BatchSize: 10})
+		require.ErrorIs(t, err, model.ErrRecallMetricRetry)
+		require.Empty(t, out.String())
+	})
+
+	t.Run("version3", func(t *testing.T) {
+		db := setupRecallMetricServiceDB(t)
+		campaign := model.RecallCampaign{Name: "export versioned message baseline readiness", Status: model.RecallCampaignRunning}
+		require.NoError(t, db.Create(&campaign).Error)
+		recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 57_101, RecipientIdentity: model.RecallRecipientIdentityForUser(57_101), EligibilitySnapshot: `{}`, EmailSnapshot: "export-versioned-message-readiness@example.com", LanguageSnapshot: "en", State: model.RecallRecipientQueued}
+		require.NoError(t, db.Create(&recipient).Error)
+		message := model.RecallMessage{RecipientId: recipient.Id, StageNo: 1, TemplateVersion: 1, TemplateSnapshot: "template", ScheduledAt: 100, State: model.RecallMessageAccepted, StateVersion: 3, AcceptedAt: 200}
+		require.NoError(t, db.Create(&message).Error)
+
+		var out bytes.Buffer
+		_, err := ExportRecallMetricCSVWithLimits(context.Background(), &out, model.RecallMetricQuery{CampaignID: campaign.Id, Metric: "messages_accepted", Limit: 10}, time.Now(), RecallMetricExportLimits{MaxRows: 10, MaxBytes: 10_000, BatchSize: 10})
+		require.ErrorIs(t, err, model.ErrRecallMetricRetry)
+		require.Empty(t, out.String())
+
+		reconciled, err := model.ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+		require.NoError(t, err)
+		require.Equal(t, 1, reconciled)
+
+		_, err = ExportRecallMetricCSVWithLimits(context.Background(), &out, model.RecallMetricQuery{CampaignID: campaign.Id, Metric: "messages_accepted", Limit: 10}, time.Now(), RecallMetricExportLimits{MaxRows: 10, MaxBytes: 10_000, BatchSize: 10})
+		require.NoError(t, err)
+		rows, err := csv.NewReader(strings.NewReader(out.String())).ReadAll()
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+		require.Contains(t, rows[1], "export-versioned-message-readiness@example.com")
+	})
 }
 
 func TestRecallMetricExportDoesNotSilentlyClampAtPublicPageLimit(t *testing.T) {

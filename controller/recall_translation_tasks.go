@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -47,6 +48,18 @@ func GetLatestRecallEmailTranslationTask(c *gin.Context) {
 	}
 	response, err := runtime.Campaigns.GetLatestEmailTranslationTask(c.Request.Context(), campaignID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if _, campaignErr := model.GetRecallCampaignByIDWithContext(c.Request.Context(), campaignID); campaignErr != nil {
+				if errors.Is(campaignErr, gorm.ErrRecordNotFound) {
+					recallTranslationTaskError(c, err)
+					return
+				}
+				common.ApiError(c, campaignErr)
+				return
+			}
+			common.ApiSuccess(c, nil)
+			return
+		}
 		recallTranslationTaskError(c, err)
 		return
 	}

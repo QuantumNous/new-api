@@ -190,7 +190,7 @@ export async function getRecallEmailTranslationTask(
 
 export async function getLatestRecallEmailTranslationTask(
   id: number
-): Promise<ApiResponse<RecallTranslationTask>> {
+): Promise<ApiResponse<RecallTranslationTask | null>> {
   const response = await api.get(
     `/api/recall-campaigns/${id}/email-translations/tasks/latest`
   )
