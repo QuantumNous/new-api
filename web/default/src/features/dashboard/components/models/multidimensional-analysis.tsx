@@ -6,6 +6,11 @@ import { formatNumber, formatQuota } from '@/lib/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  getAnalysisFailureMessage,
+  runAnalysisRequest,
+  type AnalysisRequestResult,
+} from '@/features/dashboard/analysisState'
+import {
   ADMIN_ANALYSIS_DIMENSIONS,
   ANALYSIS_FALLBACK_DIMENSIONS,
   getLogUsageAnalysis,
@@ -36,13 +41,6 @@ interface MultidimensionalAnalysisProps {
   filters?: DashboardFilters
 }
 
-interface AnalysisRequestResult {
-  success: boolean
-  data?: LogUsageAnalysisResponse
-  code?: string
-  message?: string
-}
-
 export function MultidimensionalAnalysis({
   filters,
 }: MultidimensionalAnalysisProps) {
@@ -53,7 +51,7 @@ export function MultidimensionalAnalysis({
     null
   )
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const defaultDimensions = isAdmin
     ? ADMIN_ANALYSIS_DIMENSIONS
@@ -63,7 +61,7 @@ export function MultidimensionalAnalysis({
     const abortController = new AbortController()
     let active = true
     setLoading(true)
-    setError(false)
+    setError('')
     setNotice('')
     setAnalysis(null)
 
@@ -85,43 +83,42 @@ export function MultidimensionalAnalysis({
           return {
             success: false,
             code: payload?.code,
-            message: payload?.message || 'Analysis unavailable',
+            message:
+              payload?.message ||
+              payload?.error ||
+              (requestError as { message?: string })?.message ||
+              'Analysis unavailable',
+            status: (requestError as { response?: { status?: number } })
+              ?.response?.status,
           }
         }
       }
 
-      const primary = await request(defaultDimensions)
-      if (!active || abortController.signal.aborted) return
-      if (primary.success && primary.data) {
-        setAnalysis(primary.data)
-        return
-      }
-
-      const primaryError = primary as { code?: string; message?: string }
-      if (
-        primaryError.code === 'analysis_too_many_rows' ||
-        primaryError.message?.includes('超过 5000')
-      ) {
-        const fallback = await request(ANALYSIS_FALLBACK_DIMENSIONS)
-        if (!active || abortController.signal.aborted) return
-        if (fallback.success && fallback.data) {
-          setAnalysis(fallback.data)
-          setNotice(
-            '结果超过 5000 个分组，已自动降级为仅按时间分组；如需明细，请缩小筛选范围或降低时间粒度。'
-          )
-          return
-        }
-      }
-
-      setAnalysis(null)
-      setError(true)
+      await runAnalysisRequest({
+        defaultDimensions,
+        fallbackDimensions: ANALYSIS_FALLBACK_DIMENSIONS,
+        requestAnalysis: request,
+        isCurrent: () => active && !abortController.signal.aborted,
+        defaultFailureMessage: 'Analysis unavailable',
+        fallbackNotice:
+          '结果超过 5000 个分组，已自动降级为仅按时间分组；如需明细，请缩小筛选范围或降低时间粒度。',
+        setAnalysis,
+        setNotice,
+        setError,
+      })
     }
 
     loadAnalysis()
-      .catch(() => {
+      .catch((loadError) => {
         if (!active || abortController.signal.aborted) return
         setAnalysis(null)
-        setError(true)
+        setNotice('')
+        setError(
+          getAnalysisFailureMessage(
+            { success: false, message: loadError?.message },
+            'Analysis unavailable'
+          )
+        )
       })
       .finally(() => {
         if (active && !abortController.signal.aborted) setLoading(false)
@@ -164,9 +161,7 @@ export function MultidimensionalAnalysis({
         {loading ? (
           <Skeleton className='h-28 w-full' />
         ) : error ? (
-          <p className='text-muted-foreground text-sm'>
-            {t('Analysis unavailable')}
-          </p>
+          <p className='text-muted-foreground text-sm'>{error}</p>
         ) : rows.length === 0 ? (
           <p className='text-muted-foreground text-sm'>
             {t('No consumption records in this range')}

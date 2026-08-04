@@ -120,30 +120,33 @@ func AnalysisRateLimit() func(c *gin.Context) {
 }
 
 // analysisRateLimitFactory gives authenticated dashboard callers a stable
-// user-specific bucket while keeping unauthenticated probes behind a separate
-// per-IP bucket.  The middleware is mounted after TryUserAuth and before the
-// required AdminAuth/UserAuth handler: a valid session therefore contributes
-// to AN:user:<id>, while a request without a session can only consume AN+IP.
-// This ordering prevents an unauthenticated NAT peer from exhausting another
-// user's dashboard budget, while still bounding unauthenticated traffic.
+// user-specific bucket. It is intentionally fail-closed when authentication
+// has not populated c.Set("id"): the route must run AdminAuth/UserAuth before
+// this middleware, and the API-wide GlobalAPIRateLimit already provides the
+// existing generic per-IP guard for anonymous API traffic.
 func analysisRateLimitFactory(maxRequestNum int, duration int64) func(c *gin.Context) {
 	if common.RedisEnabled {
 		return func(c *gin.Context) {
-			if userId := c.GetInt("id"); userId > 0 {
-				userRedisRateLimiter(c, maxRequestNum, duration, fmt.Sprintf("rateLimit:AN:user:%d", userId))
+			userId := c.GetInt("id")
+			if userId <= 0 {
+				c.Status(http.StatusUnauthorized)
+				c.Abort()
 				return
 			}
-			redisRateLimiter(c, maxRequestNum, duration, "AN")
+			userRedisRateLimiter(c, maxRequestNum, duration, fmt.Sprintf("rateLimit:AN:user:%d", userId))
 		}
 	}
 
 	// It's safe to call multiple times.
 	inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
 	return func(c *gin.Context) {
-		key := "AN" + c.ClientIP()
-		if userId := c.GetInt("id"); userId > 0 {
-			key = fmt.Sprintf("AN:user:%d", userId)
+		userId := c.GetInt("id")
+		if userId <= 0 {
+			c.Status(http.StatusUnauthorized)
+			c.Abort()
+			return
 		}
+		key := fmt.Sprintf("AN:user:%d", userId)
 		if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()

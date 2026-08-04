@@ -16,6 +16,9 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.Use(middleware.RouteTag("api"))
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	apiRouter.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
+	// Keep the existing generic per-IP guard for anonymous API traffic. The
+	// dashboard analysis limiter is mounted after route authentication and is
+	// intentionally scoped to authenticated user IDs only.
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	{
 		apiRouter.GET("/setup", controller.GetSetup)
@@ -316,10 +319,10 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)
 		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
 		logRoute.GET("/export/summary", middleware.AdminAuth(), controller.GetLogUsageSummary)
-		logRoute.GET("/analysis", middleware.CORS(), middleware.TryUserAuth(), middleware.AnalysisRateLimit(), middleware.AdminAuth(), controller.GetLogUsageAnalysis)
+		logRoute.GET("/analysis", middleware.CORS(), middleware.AdminAuth(), middleware.AnalysisRateLimit(), controller.GetLogUsageAnalysis)
 		logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
 		logRoute.GET("/self/export/summary", middleware.UserAuth(), controller.GetLogSelfUsageSummary)
-		logRoute.GET("/self/analysis", middleware.CORS(), middleware.TryUserAuth(), middleware.AnalysisRateLimit(), middleware.UserAuth(), controller.GetLogSelfUsageAnalysis)
+		logRoute.GET("/self/analysis", middleware.CORS(), middleware.UserAuth(), middleware.AnalysisRateLimit(), controller.GetLogSelfUsageAnalysis)
 		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), controller.GetChannelAffinityUsageCacheStats)
 		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)

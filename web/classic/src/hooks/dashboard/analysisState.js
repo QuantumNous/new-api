@@ -7,8 +7,8 @@ export const emptyDashboardAnalysis = (dimensions) => ({
 });
 
 export const isTooManyRowsError = (error) =>
-  error?.code === 'analysis_too_many_rows' ||
-  String(error?.message || '').includes('超过 5000');
+  error?.code === 'analysis_too_many_rows' &&
+  (error?.status === undefined || error.status === 400);
 
 export const isAnalysisRequestCurrent = (
   generation,
@@ -23,6 +23,7 @@ export const getAnalysisFailureMessage = (failure, defaultMessage) => {
   if (payload?.error) return payload.error;
   if (failure?.message) return failure.message;
   if (failure?.response?.status) return `HTTP ${failure.response.status}`;
+  if (failure?.status) return `HTTP ${failure.status}`;
   return defaultMessage;
 };
 
@@ -31,3 +32,62 @@ export const isRequestCanceled = (error, signal) =>
   error?.code === 'ERR_CANCELED' ||
   error?.name === 'CanceledError' ||
   error?.name === 'AbortError';
+
+/**
+ * Execute the dashboard primary/fallback request chain and invalidate the
+ * displayed rows whenever the chain fails. The hook supplies the state
+ * setters, while tests can exercise this exact request path without mounting
+ * React.
+ */
+export const runDashboardAnalysisRequest = async ({
+  defaultDimensions,
+  fallbackDimensions,
+  signal,
+  requestAnalysis,
+  isCurrent,
+  defaultFailureMessage,
+  fallbackNotice,
+  setAnalysis,
+  setNotice,
+  setError,
+  showError,
+}) => {
+  const clearAnalysis = () => {
+    setAnalysis(emptyDashboardAnalysis(defaultDimensions));
+    setNotice('');
+  };
+
+  const primary = await requestAnalysis(defaultDimensions, signal);
+  if (!isCurrent()) return { status: 'stale' };
+  if (primary.success) {
+    setAnalysis(primary.data || emptyDashboardAnalysis(defaultDimensions));
+    return { status: 'success', usedFallback: false };
+  }
+
+  if (isTooManyRowsError(primary)) {
+    const fallback = await requestAnalysis(fallbackDimensions, signal);
+    if (!isCurrent()) return { status: 'stale' };
+    if (fallback.success) {
+      setAnalysis(fallback.data || emptyDashboardAnalysis(fallbackDimensions));
+      setNotice(fallbackNotice);
+      return { status: 'success', usedFallback: true };
+    }
+    const fallbackMessage = getAnalysisFailureMessage(
+      fallback,
+      defaultFailureMessage,
+    );
+    clearAnalysis();
+    setError(fallbackMessage);
+    showError(fallbackMessage);
+    return { status: 'error', message: fallbackMessage };
+  }
+
+  const primaryMessage = getAnalysisFailureMessage(
+    primary,
+    defaultFailureMessage,
+  );
+  clearAnalysis();
+  setError(primaryMessage);
+  showError(primaryMessage);
+  return { status: 'error', message: primaryMessage };
+};

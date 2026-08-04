@@ -7,7 +7,7 @@ import {
   getAnalysisFailureMessage,
   isAnalysisRequestCurrent,
   isRequestCanceled,
-  isTooManyRowsError,
+  runDashboardAnalysisRequest,
 } from './analysisState';
 import { parseDashboardDateRange } from './time';
 
@@ -82,6 +82,7 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
         return {
           success: false,
           code: payload.code,
+          status: error?.response?.status,
           message: getAnalysisFailureMessage(error, t('加载消费分析失败')),
         };
       }
@@ -113,51 +114,21 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
     // This also makes export unavailable while the new filter is loading.
     setAnalysis(emptyDashboardAnalysis(defaultDimensions));
     try {
-      const primary = await requestAnalysis(
+      await runDashboardAnalysisRequest({
         defaultDimensions,
-        controller.signal,
-      );
-      if (!isCurrent()) return;
-      if (primary.success) {
-        setAnalysis(primary.data || emptyDashboardAnalysis(defaultDimensions));
-        return;
-      }
-
-      if (isTooManyRowsError(primary)) {
-        const fallback = await requestAnalysis(
-          ANALYSIS_FALLBACK_DIMENSIONS,
-          controller.signal,
-        );
-        if (!isCurrent()) return;
-        if (fallback.success) {
-          setAnalysis(
-            fallback.data ||
-              emptyDashboardAnalysis(ANALYSIS_FALLBACK_DIMENSIONS),
-          );
-          setNotice(
-            t(
-              '结果超过 5000 个分组，已自动降级为仅按时间分组；如需明细，请缩小筛选范围或降低时间粒度。',
-            ),
-          );
-          return;
-        }
-        const fallbackMessage = getAnalysisFailureMessage(
-          fallback,
-          t('加载消费分析失败'),
-        );
-        clearAnalysis();
-        setError(fallbackMessage);
-        showError(fallbackMessage);
-        return;
-      }
-
-      const primaryMessage = getAnalysisFailureMessage(
-        primary,
-        t('加载消费分析失败'),
-      );
-      clearAnalysis();
-      setError(primaryMessage);
-      showError(primaryMessage);
+        fallbackDimensions: ANALYSIS_FALLBACK_DIMENSIONS,
+        signal: controller.signal,
+        requestAnalysis,
+        isCurrent,
+        defaultFailureMessage: t('加载消费分析失败'),
+        fallbackNotice: t(
+          '结果超过 5000 个分组，已自动降级为仅按时间分组；如需明细，请缩小筛选范围或降低时间粒度。',
+        ),
+        setAnalysis,
+        setNotice,
+        setError,
+        showError,
+      });
     } catch (error) {
       if (!isCurrent() || isRequestCanceled(error, controller.signal)) return;
       const requestMessage = `${t('加载消费分析失败')}: ${error?.message || ''}`;

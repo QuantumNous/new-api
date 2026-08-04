@@ -98,12 +98,17 @@ export async function getLogUsageAnalysis(
     dimensionsOverride
   )
   const endpoint = isAdmin ? '/api/log/analysis' : '/api/log/self/analysis'
+  const analysisConfig = {
+    params,
+    signal,
+    // Analysis owns cancellation and the fallback error presentation. Do not
+    // let a stale GET promise or the global interceptor consume that state.
+    disableDuplicate: true,
+    skipErrorHandler: true,
+  } as unknown as Parameters<typeof api.get>[1]
   const res = await api.get<{
     success: boolean
     data?: LogUsageAnalysisResponse
-  }>(endpoint, {
-    params,
-    signal,
-  })
+  }>(endpoint, analysisConfig)
   return res.data
 }
