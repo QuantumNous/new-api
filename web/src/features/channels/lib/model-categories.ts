@@ -96,7 +96,7 @@ const MODEL_CATEGORY_RULES: readonly ModelCategoryRule[] = [
   {
     name: 'Tencent',
     keywords: ['tencent', 'hunyuan'],
-    pattern: /(?:^|[/.:])hy(?=$|[-_.:])/,
+    pattern: /(?:^|[/.:])hy\d*(?=$|[-_.:])/,
   },
   { name: 'Baichuan', keywords: ['baichuan'] },
   { name: 'InternLM', keywords: ['internlm'] },
