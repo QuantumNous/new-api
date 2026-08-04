@@ -112,9 +112,11 @@ func VideoProxy(c *gin.Context) {
 		req.Header.Set("Authorization", "Bearer "+channel.Key)
 	default:
 		// Video URL is stored in PrivateData.ResultURL; fall back to task data when proxy URL self-references.
+		// Also re-fetch upstream when SUCCESS was recorded with an empty CDN URL (proxy-only placeholder).
+		repairTaskResultURLIfNeeded(task)
 		videoURL = taskcommon.ResolveTaskVideoURL(task)
-		if videoURL == "" || taskcommon.IsLikelyExpiredSignedVideoURL(videoURL) {
-			if refreshedURL, responseBody, refreshErr := refreshTaskVideoURL(channel, task); refreshErr == nil && refreshedURL != "" {
+		if videoURL == "" || taskcommon.IsLikelyExpiredSignedVideoURL(videoURL) || taskcommon.IsTaskProxyContentURL(task.GetResultURL(), task.TaskID) {
+			if refreshedURL, responseBody, refreshErr := refreshTaskVideoURL(channel, task); refreshErr == nil && refreshedURL != "" && !taskcommon.IsTaskProxyContentURL(refreshedURL, task.TaskID) {
 				videoURL = refreshedURL
 				persistRefreshedTaskVideo(task, refreshedURL, responseBody)
 			}

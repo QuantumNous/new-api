@@ -43,6 +43,20 @@ func TestExtractVideoURLFromJSONContentVideoURL(t *testing.T) {
 	}
 }
 
+func TestExtractVideoURLFromJSONUpstreamResponse(t *testing.T) {
+	raw := []byte(`{
+		"id": 33,
+		"status": "succeeded",
+		"upstream_response": {
+			"status": "succeeded",
+			"content": {"video_url": "https://cdn.example.com/gw.mp4"}
+		}
+	}`)
+	if got := ExtractVideoURLFromJSON(raw); got != "https://cdn.example.com/gw.mp4" {
+		t.Fatalf("unexpected url: %q", got)
+	}
+}
+
 func TestResolveTaskVideoURLAvoidsProxySelfReference(t *testing.T) {
 	task := &model.Task{
 		TaskID: "task_public",

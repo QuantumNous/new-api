@@ -443,6 +443,11 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 
 	isOpenAIVideoAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/videos/")
 
+	// Recover SUCCESS tasks that were finalized before upstream attached the CDN URL.
+	if originTask.Status == model.TaskStatusSuccess {
+		service.RepairTaskResultURLIfNeeded(originTask)
+	}
+
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
 	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI); len(realtimeResp) > 0 {
 		respBody = realtimeResp

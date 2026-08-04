@@ -476,9 +476,16 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusInProgress
 		taskResult.Progress = "50%"
 	case "succeeded":
+		videoURL := strings.TrimSpace(resTask.Content.VideoURL)
+		// Upstream may report succeeded before the CDN URL is attached; keep polling.
+		if videoURL == "" || !strings.HasPrefix(videoURL, "http") {
+			taskResult.Status = model.TaskStatusInProgress
+			taskResult.Progress = "90%"
+			return &taskResult, nil
+		}
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
-		taskResult.Url = resTask.Content.VideoURL
+		taskResult.Url = videoURL
 		// 解析 usage 信息用于按倍率计费
 		taskResult.CompletionTokens = resTask.Usage.CompletionTokens
 		taskResult.TotalTokens = resTask.Usage.TotalTokens
@@ -501,12 +508,22 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		return nil, errors.Wrap(err, "unmarshal doubao task data failed")
 	}
 
+	videoURL := strings.TrimSpace(dResp.Content.VideoURL)
+	if videoURL == "" || taskcommon.IsTaskProxyContentURL(videoURL, originTask.TaskID) {
+		if u := taskcommon.ResolveTaskVideoURL(originTask); u != "" {
+			videoURL = u
+		}
+	}
+	if videoURL == "" {
+		videoURL = originTask.GetResultURL()
+	}
+
 	openAIVideo := dto.NewOpenAIVideo()
 	openAIVideo.ID = originTask.TaskID
 	openAIVideo.TaskID = originTask.TaskID
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
-	openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	openAIVideo.SetMetadata("url", videoURL)
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 	openAIVideo.Model = originTask.Properties.OriginModelName

@@ -151,6 +151,38 @@ func TestParseTaskResultGatewayWrapper(t *testing.T) {
 	}
 }
 
+func TestParseTaskResultSucceededEmptyURLKeepsPolling(t *testing.T) {
+	t.Parallel()
+
+	body := `{"id":"cgt-empty","status":"succeeded","content":{"video_url":""},"usage":{"completion_tokens":10,"total_tokens":10}}`
+	ti, err := (&TaskAdaptor{}).ParseTaskResult([]byte(body))
+	if err != nil {
+		t.Fatalf("ParseTaskResult: %v", err)
+	}
+	if ti.Status != model.TaskStatusInProgress {
+		t.Fatalf("got status %q, want IN_PROGRESS", ti.Status)
+	}
+	if ti.Progress != "90%" {
+		t.Fatalf("got progress %q, want 90%%", ti.Progress)
+	}
+	if ti.Url != "" {
+		t.Fatalf("got url %q, want empty", ti.Url)
+	}
+}
+
+func TestParseTaskResultGatewaySucceededEmptyURLKeepsPolling(t *testing.T) {
+	t.Parallel()
+
+	body := `{"id":33,"status":"succeeded","upstream_response":{"id":"cgt-empty","status":"succeeded","content":{"video_url":""}}}`
+	ti, err := (&TaskAdaptor{}).ParseTaskResult([]byte(body))
+	if err != nil {
+		t.Fatalf("ParseTaskResult: %v", err)
+	}
+	if ti.Status != model.TaskStatusInProgress {
+		t.Fatalf("got status %q, want IN_PROGRESS", ti.Status)
+	}
+}
+
 func TestEstimateBillingPerCallSkipsSeconds(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())

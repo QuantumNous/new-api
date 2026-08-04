@@ -90,7 +90,9 @@ func ExtractVideoURLFromJSON(raw []byte) string {
 		"metadata.url",
 		"metadata.video_url",
 		"content.video_url",
+		"upstream_response.content.video_url",
 		"data.video_url",
+		"data.content.video_url",
 		"data.url",
 		"remixed_from_video_id",
 	} {
