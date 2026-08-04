@@ -37,6 +37,29 @@ func TestResponsesViaChatRetriesRateLimitErrorBeforeOutput(t *testing.T) {
 	require.True(t, shouldRetry(c, relayErr, 1))
 }
 
+func TestResponsesViaChatRetriesCodeOnlyRateLimitBeforeOutput(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	oldRanges := operation_setting.AutomaticRetryStatusCodeRanges
+	constant.StreamingTimeout = 30
+	operation_setting.AutomaticRetryStatusCodeRanges = []operation_setting.StatusCodeRange{
+		{Start: 429, End: 429},
+	}
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldTimeout
+		operation_setting.AutomaticRetryStatusCodeRanges = oldRanges
+	})
+
+	body := "data: {\"error\":{\"message\":\"rate limited\",\"code\":\"rate_limit_exceeded\"}}\n\n"
+	c, recorder, resp, info := newResponsesViaChatRetryContext(body)
+
+	usage, relayErr := relayopenai.OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, usage)
+	require.NotNil(t, relayErr)
+	require.Equal(t, http.StatusTooManyRequests, relayErr.StatusCode)
+	require.Zero(t, recorder.Body.Len())
+	require.True(t, shouldRetry(c, relayErr, 1))
+}
+
 func TestResponsesViaChatDoesNotRetryRateLimitAfterOutput(t *testing.T) {
 	oldTimeout := constant.StreamingTimeout
 	oldRanges := operation_setting.AutomaticRetryStatusCodeRanges

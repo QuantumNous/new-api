@@ -97,7 +97,7 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 		var errorResp dto.OpenAITextResponse
 		if err := common.UnmarshalJsonStr(data, &errorResp); err == nil {
-			if oaiError := errorResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
+			if oaiError := errorResp.GetOpenAIError(); oaiError != nil {
 				statusCode := responsesViaChatStreamErrorStatus(resp.StatusCode, oaiError, c.Writer.Written())
 				streamErr = types.WithOpenAIError(*oaiError, statusCode)
 				sr.Stop(streamErr)
