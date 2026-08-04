@@ -18,7 +18,7 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('ProfileView', () => {
-  it('reads 2FA and GitHub summaries from the shared prototype store', async () => {
+  it('embeds account settings and removes the legacy profile sections', async () => {
     vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
       if (url === '/api/data/self') {
         return {
@@ -78,7 +78,22 @@ describe('ProfileView', () => {
     })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('已开启')
+    expect(wrapper.text()).toContain(
+      String(i18n.global.t('settings.accountSecurityPanel'))
+    )
+    expect(wrapper.text()).toContain(
+      String(i18n.global.t('settings.preferencesPanel'))
+    )
+    expect(wrapper.text()).not.toContain(
+      String(i18n.global.t('profile.quickNav'))
+    )
+    expect(wrapper.text()).not.toContain(
+      String(i18n.global.t('profile.personalInfo'))
+    )
+    expect(wrapper.text()).not.toContain(
+      String(i18n.global.t('profile.security'))
+    )
+    expect(wrapper.text()).toContain(String(i18n.global.t('settings.enabled')))
     expect(wrapper.text()).toContain('已绑定')
   })
 })

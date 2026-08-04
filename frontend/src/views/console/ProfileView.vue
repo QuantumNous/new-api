@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 
 import PageHero from '@/components/console/PageHero.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
+import AccountSettingsView from '@/views/console/AccountSettingsView.vue'
 import { adminUserRoleTone } from '@/constants/adminUsers'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsPrototypeStore } from '@/stores/settingsPrototype'
@@ -47,6 +48,7 @@ const joinDate = computed(() => {
   return formatDate(ts)
 })
 const joinedDays = 35
+const showLegacySections = false
 
 // ── tier (5-level from farm rebate ladder) ────────────────
 const tier = computed(() => {
@@ -340,7 +342,7 @@ const navItems = computed(() => [
     </section>
 
     <!-- ④ Two-column content -->
-    <div class="grid gap-5 lg:grid-cols-3">
+    <div v-if="showLegacySections" class="grid gap-5 lg:grid-cols-3">
       <!-- LEFT: personal info + security -->
       <div class="space-y-5 lg:col-span-2">
         <!-- 个人资料 -->
@@ -596,5 +598,7 @@ const navItems = computed(() => [
         </article>
       </div>
     </div>
+
+    <AccountSettingsView embedded />
   </div>
 </template>

@@ -18,6 +18,10 @@ import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsPrototypeStore } from '@/stores/settingsPrototype'
 
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
+  embedded: false,
+})
+
 const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
@@ -99,6 +103,7 @@ async function deleteAccount(): Promise<void> {
 <template>
   <div class="space-y-6" data-handdrawn-page="settings">
     <PageHero
+      v-if="!props.embedded"
       :title="t('settings.title')"
       :crumbs="[t('nav.profile'), t('settings.title')]"
     >
