@@ -4805,6 +4805,7 @@
     "Upstream prices fetched successfully": "Цены провайдера успешно получены",
     "Upstream ratios fetched successfully": "Коэффициенты upstream успешно получены",
     "Upstream Request ID": "ID вышестоящего запроса",
+    "Upstream Response ID": "ID ответа вышестоящего сервиса",
     "Upstream Response": "Ответ Upstream",
     "upstream services integrated": "интеграций с вышестоящими сервисами",
     "Upstream Updates": "Обновления вышестоящих моделей",

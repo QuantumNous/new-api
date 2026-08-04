@@ -69,6 +69,7 @@ type usageSummaryResponse struct {
 type usageTransaction struct {
 	SourceID            string `json:"source_id"`
 	UpstreamRequestID   string `json:"upstream_request_id,omitempty"`
+	UpstreamResponseID  string `json:"upstream_response_id,omitempty"`
 	RequestID           string `json:"request_id"`
 	APIKeyID            string `json:"api_key_id"`
 	APIKeyName          string `json:"api_key_name"`
@@ -212,6 +213,11 @@ func parseUsageOther(s string) map[string]interface{} {
 		return nil
 	}
 	return m
+}
+
+func usageOtherString(other map[string]interface{}, key string) string {
+	value, _ := other[key].(string)
+	return value
 }
 
 // usageOtherInt reads an integer-valued key from the Other map. common.Unmarshal
@@ -959,6 +965,7 @@ func buildUsageTransactions(logs []*model.Log, channels map[int]model.BlockRunCh
 		txns = append(txns, usageTransaction{
 			SourceID:            strconv.Itoa(log.Id),
 			UpstreamRequestID:   log.UpstreamRequestId,
+			UpstreamResponseID:  usageOtherString(other, "upstream_response_id"),
 			RequestID:           log.RequestId,
 			APIKeyID:            strconv.Itoa(log.TokenId),
 			APIKeyName:          log.TokenName,

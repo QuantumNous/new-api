@@ -139,6 +139,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		captureUpstreamResponseIdFromJSON(c, data)
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
@@ -231,6 +232,9 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if simpleResponse.Id != "" {
+		c.Set(common.UpstreamResponseIdKey, simpleResponse.Id)
+	}
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
@@ -319,6 +323,18 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	return &simpleResponse.Usage, nil
+}
+
+func captureUpstreamResponseIdFromJSON(c *gin.Context, data string) {
+	if c.GetString(common.UpstreamResponseIdKey) != "" || data == "" {
+		return
+	}
+	var response struct {
+		ID string `json:"id"`
+	}
+	if common.UnmarshalJsonStr(data, &response) == nil && response.ID != "" {
+		c.Set(common.UpstreamResponseIdKey, response.ID)
+	}
 }
 
 func streamTTSResponse(c *gin.Context, resp *http.Response) {

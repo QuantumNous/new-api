@@ -34,6 +34,9 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
+	if responsesResponse.ID != "" {
+		c.Set(common.UpstreamResponseIdKey, responsesResponse.ID)
+	}
 
 	if responsesResponse.HasImageGenerationCall() {
 		c.Set("image_generation_call", true)
@@ -89,6 +92,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
 			sr.Error(err)
 			return
+		}
+		if streamResponse.Response != nil && streamResponse.Response.ID != "" {
+			c.Set(common.UpstreamResponseIdKey, streamResponse.Response.ID)
 		}
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {

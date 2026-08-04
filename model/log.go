@@ -41,6 +41,18 @@ func normalizeLogTextFilterValue(value string) string {
 	return value
 }
 
+func addUpstreamResponseIdToLogOther(c *gin.Context, other map[string]interface{}) map[string]interface{} {
+	upstreamResponseId := c.GetString(common.UpstreamResponseIdKey)
+	if upstreamResponseId == "" {
+		return other
+	}
+	if other == nil {
+		other = make(map[string]interface{})
+	}
+	other["upstream_response_id"] = upstreamResponseId
+	return other
+}
+
 // fuzzyUsernameUserIDLimit 限制模糊匹配时从 user 表物化到内存的 user_id 数量。
 // 日志库可能经 LOG_SQL_DSN 独立部署（LOG_DB != DB，见 model/main.go），因此不能
 // 用基于主库 DB 的子查询去拼 LOG_DB 的 WHERE（会产生跨库引用）；只能在应用侧把
@@ -291,7 +303,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
-	otherStr := common.MapToJsonStr(other)
+	otherStr := common.MapToJsonStr(addUpstreamResponseIdToLogOther(c, other))
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -365,7 +377,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
-	otherStr := common.MapToJsonStr(params.Other)
+	otherStr := common.MapToJsonStr(addUpstreamResponseIdToLogOther(c, params.Other))
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {

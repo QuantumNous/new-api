@@ -136,8 +136,11 @@ func TestBlockRunDoResponse_NativeResponsesJSON(t *testing.T) {
 	if rec.Body.String() != body {
 		t.Fatalf("native Responses body was reshaped:\n got %s\nwant %s", rec.Body.String(), body)
 	}
-	if got := c.GetString(common.UpstreamRequestIdKey); got != "resp_native_json" {
+	if got := c.GetString(common.UpstreamResponseIdKey); got != "resp_native_json" {
 		t.Fatalf("captured upstream id = %q, want resp_native_json", got)
+	}
+	if got := c.GetString(common.UpstreamRequestIdKey); got != "" {
+		t.Fatalf("response body id must not overwrite upstream request id, got %q", got)
 	}
 }
 
@@ -197,8 +200,11 @@ func TestBlockRunDoResponse_NativeResponsesStream(t *testing.T) {
 			t.Fatalf("downstream SSE missing %q:\n%s", want, rec.Body.String())
 		}
 	}
-	if got := c.GetString(common.UpstreamRequestIdKey); got != "resp_native_stream" {
+	if got := c.GetString(common.UpstreamResponseIdKey); got != "resp_native_stream" {
 		t.Fatalf("captured upstream id = %q, want resp_native_stream", got)
+	}
+	if got := c.GetString(common.UpstreamRequestIdKey); got != "" {
+		t.Fatalf("response body id must not overwrite upstream request id, got %q", got)
 	}
 }
 

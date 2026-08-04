@@ -540,6 +540,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 mono
               />
             )}
+            {other?.upstream_response_id && (
+              <DetailRow
+                label={t('Upstream Response ID')}
+                value={String(other.upstream_response_id)}
+                mono
+              />
+            )}
 
             {props.isAdmin && props.log.channel > 0 && (
               <DetailRow
