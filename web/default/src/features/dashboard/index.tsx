@@ -13,12 +13,12 @@ import {
 } from '@/components/page-transition'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
+import { MultidimensionalAnalysis } from './components/models/multidimensional-analysis'
 import { AnnouncementsPanel } from './components/overview/announcements-panel'
 import { ApiInfoPanel } from './components/overview/api-info-panel'
 import { FAQPanel } from './components/overview/faq-panel'
 import { SummaryCards } from './components/overview/summary-cards'
 import { UptimePanel } from './components/overview/uptime-panel'
-import { MultidimensionalAnalysis } from './components/models/multidimensional-analysis'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
