@@ -161,6 +161,10 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
+		if channel != nil && !channelSupportsRequestPath(channel, c.Request.URL.Path, modelRequest.Model) {
+			abortWithOpenAiMessage(c, http.StatusBadRequest, "the selected channel does not support this request path")
+			return
+		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
 		c.Next()
@@ -171,11 +175,15 @@ func Distribute() func(c *gin.Context) {
 }
 
 // channelSupportsRequestPath reports whether a channel can serve the request path.
-// Only Advanced Custom (type 58) channels are path-checked; all other channel types
-// always pass. A type-58 channel is usable only when one of its routes matches.
+// Advanced Custom channels use their configured route list. Volc Native channels
+// are deliberately limited to Fire Ark's native /api/v3 endpoints so a native
+// channel is never selected for an OpenAI-compatible /v1 request.
 func channelSupportsRequestPath(channel *model.Channel, requestPath string, requestModel string) bool {
 	if channel == nil {
 		return false
+	}
+	if channel.Type == constant.ChannelTypeVolcNative {
+		return isVolcNativePath(requestPath)
 	}
 	if channel.Type != constant.ChannelTypeAdvancedCustom {
 		return true
@@ -336,6 +344,22 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
 		}
+	} else if strings.HasPrefix(c.Request.URL.Path, "/api/v3/contents/generations/tasks") {
+		if c.Request.Method == http.MethodPost {
+			req, err := getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+			modelRequest.Model = req.Model
+		} else {
+			shouldSelectChannel = false
+		}
+	} else if strings.HasPrefix(c.Request.URL.Path, "/api/v3/images/generations") {
+		req, err := getModelFromRequest(c)
+		if err != nil {
+			return nil, false, err
+		}
+		modelRequest.Model = req.Model
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
@@ -414,6 +438,11 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}
 	return &modelRequest, shouldSelectChannel, nil
+}
+
+func isVolcNativePath(requestPath string) bool {
+	return strings.HasPrefix(requestPath, "/api/v3/images/generations") ||
+		strings.HasPrefix(requestPath, "/api/v3/contents/generations/tasks")
 }
 
 // 修复 #4834: GET /v1/video/generations/:task_id && /v1/video/:task_id 此前不解析 model，

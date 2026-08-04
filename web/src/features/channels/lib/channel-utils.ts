@@ -81,6 +81,7 @@ export function getChannelTypeIcon(type: number): string {
     31: 'Yi', // LingYiWanWu
     35: 'Minimax', // MiniMax
     45: 'Volcengine', // VolcEngine
+    61: 'Volcengine', // Volc Native
 
     // Other AI providers
     4: 'Ollama', // Ollama

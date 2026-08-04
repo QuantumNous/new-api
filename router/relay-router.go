@@ -203,6 +203,15 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatGemini)
 		})
 	}
+
+	volcNativeRouter := router.Group("/api/v3")
+	volcNativeRouter.Use(middleware.RouteTag("relay"))
+	volcNativeRouter.Use(middleware.SystemPerformanceCheck())
+	volcNativeRouter.Use(middleware.TokenAuth())
+	volcNativeRouter.Use(middleware.ModelRequestRateLimit())
+	{
+		volcNativeRouter.POST("/images/generations", middleware.Distribute(), controller.RelayVolcNativeImage)
+	}
 }
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {

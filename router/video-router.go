@@ -31,6 +31,20 @@ func SetVideoRouter(router *gin.Engine) {
 		videoV1Router.GET("/videos/:task_id", controller.RelayTaskFetch)
 	}
 
+	// Fire Ark native async content-generation API. These routes deliberately
+	// stay outside /v1 so only ChannelTypeVolcNative can serve them.
+	volcNativeRouter := router.Group("/api/v3")
+	volcNativeRouter.Use(middleware.RouteTag("relay"))
+	volcNativeRouter.Use(middleware.SystemPerformanceCheck())
+	volcNativeRouter.Use(middleware.TokenAuth())
+	volcNativeRouter.Use(middleware.ModelRequestRateLimit())
+	{
+		volcNativeRouter.POST("/contents/generations/tasks", middleware.Distribute(), controller.RelayTask)
+		volcNativeRouter.GET("/contents/generations/tasks", middleware.Distribute(), controller.RelayVolcNativeTaskList)
+		volcNativeRouter.GET("/contents/generations/tasks/:task_id", middleware.Distribute(), controller.RelayVolcNativeTaskFetch)
+		volcNativeRouter.DELETE("/contents/generations/tasks/:task_id", middleware.Distribute(), controller.RelayVolcNativeTaskDelete)
+	}
+
 	klingV1Router := router.Group("/kling/v1")
 	klingV1Router.Use(middleware.RouteTag("relay"))
 	klingV1Router.Use(middleware.KlingRequestConvert(), middleware.TokenAuth(), middleware.Distribute())

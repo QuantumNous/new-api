@@ -454,6 +454,16 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("task %s not found", taskId)
 	}
 	key := ch.Key
+	// Volc Native tasks use the channel's key selector for every poll. This
+	// avoids handing a newline-delimited multi-key bundle to Fire Ark and keeps
+	// credentials in the channel store rather than task payloads.
+	if ch.Type == constant.ChannelTypeVolcNative {
+		selectedKey, _, keyErr := ch.GetNextEnabledKey()
+		if keyErr != nil {
+			return fmt.Errorf("select key for task %s failed: %w", taskId, keyErr)
+		}
+		key = selectedKey
+	}
 
 	privateData := task.PrivateData
 	if privateData.Key != "" {
