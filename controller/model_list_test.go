@@ -43,7 +43,10 @@ func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}))
+	require.NoError(t, db.AutoMigrate(
+		&model.User{}, &model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{},
+		&model.TokenGroupVisibility{}, &model.TokenGroupVisibilityTarget{},
+	))
 
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()
@@ -239,4 +242,52 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-tiered-empty-expr-model")
 	require.NotContains(t, ids, "zz-token-tiered-missing-expr-model")
 	require.NotContains(t, ids, "zz-token-unpriced-model")
+}
+
+func TestModelListsHonorTargetedGroupVisibility(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	withTieredBillingConfig(t, map[string]string{"zz-targeted-only-model": "tiered_expr"}, map[string]string{
+		"zz-targeted-only-model": `tier("base", p * 1 + c * 2)`,
+	})
+	db := setupModelListControllerTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	target := &model.User{Id: 2001, Username: "targeted-model-user", Password: "password", Group: "default", AffCode: "targeted-model-aff", Status: common.UserStatusEnabled}
+	nonTarget := &model.User{Id: 2002, Username: "non-targeted-model-user", Password: "password", Group: "default", AffCode: "non-targeted-model-aff", Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create([]*model.User{target, nonTarget}).Error)
+	require.NoError(t, db.Create(&model.Ability{Group: "default", Model: "zz-targeted-only-model", ChannelId: 1, Enabled: true}).Error)
+	require.NoError(t, model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{target.Id},
+	}))
+
+	listModels := func(userID int) map[string]struct{} {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+		ctx.Set("id", userID)
+		ListModels(ctx, constant.ChannelTypeOpenAI)
+		return decodeListModelsResponse(t, recorder)
+	}
+	if _, ok := listModels(target.Id)["zz-targeted-only-model"]; !ok {
+		t.Fatal("target user must see the targeted model")
+	}
+	if _, ok := listModels(nonTarget.Id)["zz-targeted-only-model"]; ok {
+		t.Fatal("non-target user must not see a model owned only by the targeted group")
+	}
+
+	selfModels := func(userID int) []string {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self/models", nil)
+		ctx.Set("id", userID)
+		GetUserModels(ctx)
+		var response struct {
+			Success bool     `json:"success"`
+			Data    []string `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.True(t, response.Success)
+		return response.Data
+	}
+	require.Contains(t, selfModels(target.Id), "zz-targeted-only-model")
+	require.NotContains(t, selfModels(nonTarget.Id), "zz-targeted-only-model")
 }

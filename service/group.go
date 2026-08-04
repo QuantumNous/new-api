@@ -3,6 +3,7 @@ package service
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
@@ -44,6 +45,25 @@ func GroupInUserUsableGroups(userGroup, groupName string) bool {
 // GetUserAutoGroup 根据用户分组获取自动分组设置
 func GetUserAutoGroup(userGroup string) []string {
 	groups := GetUserUsableGroups(userGroup)
+	return getAutoGroupsFromUsableGroups(groups)
+}
+
+// GetUserAutoGroupForUser applies the current runtime visibility policy before
+// returning auto-group candidates. A policy read error is returned so callers
+// can fail closed instead of routing through an unverified group.
+func GetUserAutoGroupForUser(userId int, userGroup string) ([]string, error) {
+	groups := GetUserUsableGroups(userGroup)
+	if userId > 0 {
+		var err error
+		groups, err = GetUserSelectableTokenGroups(userId)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return getAutoGroupsFromUsableGroups(groups), nil
+}
+
+func getAutoGroupsFromUsableGroups(groups map[string]string) []string {
 	autoGroups := make([]string, 0)
 	for _, group := range setting.GetAutoGroups() {
 		if _, ok := groups[group]; ok {
@@ -51,6 +71,47 @@ func GetUserAutoGroup(userGroup string) []string {
 		}
 	}
 	return autoGroups
+}
+
+// FilterModelsByUserGroups removes models that are available only through a
+// group currently hidden from the user. Models not associated with any
+// configured group remain eligible for the existing token-model-limit and
+// custom-model semantics.
+func FilterModelsByUserGroups(userId int, modelNames []string) ([]string, error) {
+	if userId <= 0 {
+		return modelNames, nil
+	}
+	user, err := model.GetUserById(userId, false)
+	if err != nil {
+		return nil, err
+	}
+	allGroups := GetUserUsableGroups(user.Group)
+	authorizedGroups, err := GetUserSelectableTokenGroups(userId)
+	if err != nil {
+		return nil, err
+	}
+	managedModels := make(map[string]struct{})
+	authorizedModels := make(map[string]struct{})
+	for group := range allGroups {
+		for _, modelName := range model.GetGroupEnabledModels(group) {
+			managedModels[modelName] = struct{}{}
+		}
+	}
+	for group := range authorizedGroups {
+		for _, modelName := range model.GetGroupEnabledModels(group) {
+			authorizedModels[modelName] = struct{}{}
+		}
+	}
+	filtered := make([]string, 0, len(modelNames))
+	for _, modelName := range modelNames {
+		if _, managed := managedModels[modelName]; managed {
+			if _, authorized := authorizedModels[modelName]; !authorized {
+				continue
+			}
+		}
+		filtered = append(filtered, modelName)
+	}
+	return filtered, nil
 }
 
 // GetUserGroupRatio 获取用户使用某个分组的倍率

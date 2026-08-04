@@ -61,6 +61,10 @@ func Distribute() func(c *gin.Context) {
 				return
 			}
 			if entitlementGrant != nil {
+				if err := service.ValidateUserRuntimeGroup(c.GetInt("id"), entitlementGrant.Package.Group); err != nil {
+					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
+					return
+				}
 				common.SetContextKey(c, constant.ContextKeyUsingGroup, entitlementGrant.Package.Group)
 				common.SetContextKey(c, constant.ContextKeyTokenGroup, entitlementGrant.Package.Group)
 				c.Set("entitlement_id", entitlementGrant.TokenGrant.Id)
@@ -146,7 +150,11 @@ func Distribute() func(c *gin.Context) {
 							}
 						} else if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
+							autoGroups, autoErr := service.GetUserAutoGroupForUser(c.GetInt("id"), userGroup)
+							if autoErr != nil {
+								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
+								return
+							}
 							for _, g := range autoGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
 									selectGroup = g

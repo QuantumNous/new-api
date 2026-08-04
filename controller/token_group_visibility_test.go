@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -261,6 +263,58 @@ func TestPlaygroundRejectsHiddenGroupSelection(t *testing.T) {
 
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("expected Playground hidden-group selection to return 403, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestAutoCrossGroupSelectionFiltersTargetedGroupAtRuntime(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	if err := model.DB.AutoMigrate(&model.Channel{}, &model.Ability{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	oldAutoGroups := setting.AutoGroups2JsonString()
+	t.Cleanup(func() { _ = setting.UpdateAutoGroupsByJsonString(oldAutoGroups) })
+	if err := setting.UpdateAutoGroupsByJsonString(`["default","vip"]`); err != nil {
+		t.Fatal(err)
+	}
+	target := createVisibilityTestUser(t, 1, "auto-target", "default")
+	nonTarget := createVisibilityTestUser(t, 2, "auto-non-target", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{target.Id},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for id, group := range map[int]string{101: "default", 102: "vip"} {
+		if err := model.DB.Create(&model.Channel{Id: id, Type: 1, Key: "test-key", Status: common.ChannelStatusEnabled, Group: group}).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := model.DB.Create(&model.Ability{Group: group, Model: "auto-cross-model", ChannelId: id, Enabled: true}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	oldMemoryCache := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() { common.MemoryCacheEnabled = oldMemoryCache })
+	selectGroup := func(user *model.User) string {
+		t.Helper()
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		common.SetContextKey(ctx, constant.ContextKeyUserId, user.Id)
+		common.SetContextKey(ctx, constant.ContextKeyUserGroup, user.Group)
+		common.SetContextKey(ctx, constant.ContextKeyTokenCrossGroupRetry, true)
+		retry := 0
+		channel, group, err := service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+			Ctx: ctx, TokenGroup: "auto", ModelName: "auto-cross-model", Retry: &retry,
+		})
+		if err != nil || channel == nil {
+			t.Fatalf("auto/cross-group selection failed for user %d: channel=%#v group=%s err=%v", user.Id, channel, group, err)
+		}
+		return group
+	}
+	if got := selectGroup(target); got != "default" {
+		t.Fatalf("target user selected group %q, want default", got)
+	}
+	if got := selectGroup(nonTarget); got != "vip" {
+		t.Fatalf("non-target user selected group %q, want vip", got)
 	}
 }
 

@@ -42,20 +42,34 @@ func GetPricing(c *gin.Context) {
 		groupRatio[s] = f
 	}
 	var group string
+	autoGroups := []string{}
 	if exists {
 		user, err := model.GetUserCache(userId.(int))
-		if err == nil {
-			group = user.Group
-			for g := range groupRatio {
-				ratio, ok := ratio_setting.GetGroupGroupRatio(group, g)
-				if ok {
-					groupRatio[g] = ratio
-				}
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		group = user.Group
+		usableGroup, err = service.GetUserSelectableTokenGroups(user.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		for g := range groupRatio {
+			ratio, ok := ratio_setting.GetGroupGroupRatio(group, g)
+			if ok {
+				groupRatio[g] = ratio
 			}
 		}
+		autoGroups, err = service.GetUserAutoGroupForUser(user.Id, group)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	} else {
+		usableGroup = service.GetUserUsableGroups(group)
+		autoGroups = service.GetUserAutoGroup(group)
 	}
-
-	usableGroup = service.GetUserUsableGroups(group)
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
@@ -71,7 +85,7 @@ func GetPricing(c *gin.Context) {
 		"group_ratio":        groupRatio,
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
-		"auto_groups":        service.GetUserAutoGroup(group),
+		"auto_groups":        autoGroups,
 		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
 }

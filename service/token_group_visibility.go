@@ -61,6 +61,14 @@ func GetUserSelectableTokenGroups(userId int) (map[string]string, error) {
 }
 
 func ValidateUserSelectableTokenGroup(userId int, group string) error {
+	return ValidateUserRuntimeGroup(userId, group)
+}
+
+// ValidateUserRuntimeGroup is the request-time authorization boundary for a
+// resolved UsingGroup. It deliberately shares the live policy read used by
+// token selection, so historical tokens and entitlement rewrites cannot skip
+// targeted/hidden enforcement.
+func ValidateUserRuntimeGroup(userId int, group string) error {
 	if !model.TokenGroupVisibilityEnabled() || group == "" {
 		return nil
 	}

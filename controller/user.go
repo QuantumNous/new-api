@@ -522,12 +522,11 @@ func GetUserModels(c *gin.Context) {
 	if err != nil {
 		id = c.GetInt("id")
 	}
-	user, err := model.GetUserCache(id)
+	groups, err := service.GetUserSelectableTokenGroups(id)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	groups := service.GetUserUsableGroups(user.Group)
 	var models []string
 	for group := range groups {
 		for _, g := range model.GetGroupEnabledModels(group) {
@@ -539,6 +538,9 @@ func GetUserModels(c *gin.Context) {
 	entitlementPackages, entitlementErr := model.GetUserEntitlementPackages(id, true)
 	if entitlementErr == nil {
 		for _, item := range entitlementPackages {
+			if _, authorized := groups[item.Group]; !authorized {
+				continue
+			}
 			for _, entitlementModel := range strings.Split(item.Models, ",") {
 				entitlementModel = strings.TrimSpace(entitlementModel)
 				if entitlementModel != "" && !common.StringsContains(models, entitlementModel) {

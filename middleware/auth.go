@@ -382,8 +382,10 @@ func TokenAuth() func(c *gin.Context) {
 		userGroup := userCache.Group
 		tokenGroup := token.Group
 		if tokenGroup != "" {
-			// check common.UserUsableGroups[userGroup]
-			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
+			// Re-read the current policy for the final token group. This is
+			// intentionally request-time so historical tokens cannot retain
+			// access after a targeted/hidden policy changes.
+			if err := service.ValidateUserRuntimeGroup(token.UserId, tokenGroup); err != nil {
 				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
 				return
 			}
@@ -395,6 +397,10 @@ func TokenAuth() func(c *gin.Context) {
 				}
 			}
 			userGroup = tokenGroup
+		}
+		if err := service.ValidateUserRuntimeGroup(token.UserId, userGroup); err != nil {
+			abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", userGroup))
+			return
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 

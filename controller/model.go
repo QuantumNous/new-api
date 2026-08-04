@@ -112,6 +112,16 @@ func init() {
 
 func ListModels(c *gin.Context, modelType int) {
 	userOpenAiModels := make([]dto.OpenAIModels, 0)
+	userId := c.GetInt("id")
+	var authorizedGroups map[string]string
+	if userId > 0 {
+		var err error
+		authorizedGroups, err = service.GetUserSelectableTokenGroups(userId)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 
 	acceptUnsetRatioModel := operation_setting.SelfUseModeEnabled
 	if !acceptUnsetRatioModel {
@@ -153,7 +163,6 @@ func ListModels(c *gin.Context, modelType int) {
 			}
 		}
 	} else {
-		userId := c.GetInt("id")
 		userGroup, err := model.GetUserGroup(userId, false)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
@@ -169,7 +178,12 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 		var models []string
 		if tokenGroup == "auto" {
-			for _, autoGroup := range service.GetUserAutoGroup(userGroup) {
+			autoGroups, autoErr := service.GetUserAutoGroupForUser(userId, userGroup)
+			if autoErr != nil {
+				common.ApiError(c, autoErr)
+				return
+			}
+			for _, autoGroup := range autoGroups {
 				groupModels := model.GetGroupEnabledModels(autoGroup)
 				for _, g := range groupModels {
 					if !common.StringsContains(models, g) {
@@ -183,6 +197,9 @@ func ListModels(c *gin.Context, modelType int) {
 		entitlementPackages, entitlementErr := model.GetActiveTokenEntitlementPackages(c.GetInt("token_id"), userId)
 		if entitlementErr == nil {
 			for _, item := range entitlementPackages {
+				if _, authorized := authorizedGroups[item.Group]; !authorized {
+					continue
+				}
 				for _, entitlementModel := range strings.Split(item.Models, ",") {
 					entitlementModel = strings.TrimSpace(entitlementModel)
 					if entitlementModel != "" && !common.StringsContains(models, entitlementModel) {
@@ -190,6 +207,11 @@ func ListModels(c *gin.Context, modelType int) {
 					}
 				}
 			}
+		}
+		models, err = service.FilterModelsByUserGroups(userId, models)
+		if err != nil {
+			common.ApiError(c, err)
+			return
 		}
 		for _, modelName := range models {
 			if !acceptUnsetRatioModel {
@@ -210,6 +232,28 @@ func ListModels(c *gin.Context, modelType int) {
 				})
 			}
 		}
+	}
+	if userId > 0 && modelLimitEnable {
+		modelNames := make([]string, 0, len(userOpenAiModels))
+		for _, item := range userOpenAiModels {
+			modelNames = append(modelNames, item.Id)
+		}
+		allowedNames, err := service.FilterModelsByUserGroups(userId, modelNames)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		allowed := make(map[string]struct{}, len(allowedNames))
+		for _, modelName := range allowedNames {
+			allowed[modelName] = struct{}{}
+		}
+		filtered := make([]dto.OpenAIModels, 0, len(userOpenAiModels))
+		for _, item := range userOpenAiModels {
+			if _, ok := allowed[item.Id]; ok {
+				filtered = append(filtered, item)
+			}
+		}
+		userOpenAiModels = filtered
 	}
 
 	if tokenId := c.GetInt("token_id"); tokenId > 0 {
