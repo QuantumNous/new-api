@@ -153,7 +153,7 @@ func TestDoResponseAndPollAreWhitelabeled(t *testing.T) {
 	require.NotContains(t, recorder.Body.String(), "api.sonilo.com")
 	require.Contains(t, recorder.Body.String(), "task_public")
 
-	result, err := adaptor.ParseTaskResult([]byte(`{"task_id":"upstream-secret-id","status":"succeeded","duration_seconds":5,"audio":[{"url":"https://audio.example/file.mp3"}]}`))
+	result, err := adaptor.ParseTaskResult([]byte(`{"task_id":"upstream-secret-id","status":"succeeded","title":{"source":"generated"},"duration_seconds":5,"audio":[{"url":"https://audio.example/file.mp3"}]}`))
 	require.NoError(t, err)
 	require.Equal(t, string(model.TaskStatusSuccess), result.Status)
 	require.Equal(t, "https://audio.example/file.mp3", result.Url)

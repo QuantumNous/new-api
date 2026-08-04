@@ -42,7 +42,6 @@ type upstreamTask struct {
 	TaskID          string          `json:"task_id"`
 	Status          string          `json:"status"`
 	Type            string          `json:"type,omitempty"`
-	Title           string          `json:"title,omitempty"`
 	DurationSeconds float64         `json:"duration_seconds,omitempty"`
 	Audio           []upstreamAudio `json:"audio,omitempty"`
 	Error           any             `json:"error,omitempty"`
