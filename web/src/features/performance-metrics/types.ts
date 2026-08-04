@@ -59,3 +59,79 @@ export type PerfSummaryAllData = {
     models: PerfModelSummary[]
   }
 }
+
+export type AdminPerformanceHealth =
+  | 'critical'
+  | 'degraded'
+  | 'healthy'
+  | 'insufficient_samples'
+  | 'no_samples'
+
+export type AdminPerformanceTimeRange = {
+  start: number
+  end: number
+}
+
+export type AdminPerformanceMetricValues = {
+  request_count: number
+  success_count: number
+  failure_count: number
+  success_rate: number | null
+  avg_latency_ms: number | null
+  avg_ttft_ms: number | null
+  ttft_sample_count: number
+  output_tokens: number
+  avg_tps: number | null
+  active_group_count: number
+}
+
+export type AdminPerformanceMetricChanges = {
+  request_count_pct: number | null
+  success_rate_pp: number | null
+  avg_latency_pct: number | null
+  avg_ttft_pct: number | null
+  avg_tps_pct: number | null
+}
+
+export type AdminPerformanceGroup = {
+  group: string
+  enabled: boolean
+  health: AdminPerformanceHealth
+  health_reasons: string[]
+  metrics: AdminPerformanceMetricValues
+  previous_metrics: AdminPerformanceMetricValues
+  changes: AdminPerformanceMetricChanges
+}
+
+export type AdminPerformanceModel = {
+  model_name: string
+  enabled: boolean
+  health: AdminPerformanceHealth
+  health_reasons: string[]
+  metrics: AdminPerformanceMetricValues
+  previous_metrics: AdminPerformanceMetricValues
+  changes: AdminPerformanceMetricChanges
+  groups: AdminPerformanceGroup[]
+}
+
+export type AdminPerformanceData = {
+  metrics_enabled: boolean
+  generated_at: number
+  bucket_seconds: number
+  expected_max_lag_seconds: number
+  requested_period: AdminPerformanceTimeRange
+  actual_period: AdminPerformanceTimeRange
+  previous_period: AdminPerformanceTimeRange
+  available_range: {
+    oldest_bucket_ts: number | null
+    newest_bucket_ts: number | null
+  }
+  has_complete_buckets: boolean
+  models: AdminPerformanceModel[]
+}
+
+export type AdminPerformanceResponse = {
+  success: boolean
+  message?: string
+  data: AdminPerformanceData
+}

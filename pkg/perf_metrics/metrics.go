@@ -15,6 +15,7 @@ import (
 )
 
 var hotBuckets sync.Map
+var hotBucketsMu sync.RWMutex
 
 // seriesSchema is a stable client cache/schema marker. Do not change it when
 // hiding fields or making response-only privacy hardening changes.
@@ -86,6 +87,9 @@ func Query(params QueryParams) (QueryResult, error) {
 	endTs := time.Now().Unix()
 	startTs := endTs - int64(params.Hours)*3600
 
+	hotBucketsMu.RLock()
+	defer hotBucketsMu.RUnlock()
+
 	merged := map[bucketKey]counters{}
 	rows, err := model.GetPerfMetrics(params.Model, params.Group, startTs, endTs)
 	if err != nil {
@@ -132,6 +136,9 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 	endTs := time.Now().Unix()
 	startTs := endTs - int64(hours)*3600
 	allowedGroups := allowedGroupSet(groups)
+
+	hotBucketsMu.RLock()
+	defer hotBucketsMu.RUnlock()
 
 	rows, err := model.GetPerfMetricsSummaryBucketsAll(startTs, endTs, groups)
 	if err != nil {

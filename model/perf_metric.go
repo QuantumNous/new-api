@@ -1,6 +1,7 @@
 package model
 
 import (
+	"database/sql"
 	"time"
 
 	"gorm.io/gorm"
@@ -113,6 +114,54 @@ func GetPerfMetricsSummaryBucketsAll(startTs int64, endTs int64, groups []string
 		Order("bucket_ts ASC").
 		Find(&summaries).Error
 	return summaries, err
+}
+
+type PerfMetricGroupSummary struct {
+	ModelName      string `json:"model_name"`
+	Group          string `json:"group"`
+	RequestCount   int64  `json:"request_count"`
+	SuccessCount   int64  `json:"success_count"`
+	TotalLatencyMs int64  `json:"total_latency_ms"`
+	TtftSumMs      int64  `json:"ttft_sum_ms"`
+	TtftCount      int64  `json:"ttft_count"`
+	OutputTokens   int64  `json:"output_tokens"`
+	GenerationMs   int64  `json:"generation_ms"`
+}
+
+func GetPerfMetricGroupSummaries(startTs int64, endTs int64) ([]PerfMetricGroupSummary, error) {
+	summaries := make([]PerfMetricGroupSummary, 0)
+	if endTs <= startTs {
+		return summaries, nil
+	}
+	err := DB.Model(&PerfMetric{}).
+		Select("model_name, "+commonGroupCol+", SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(ttft_sum_ms) as ttft_sum_ms, SUM(ttft_count) as ttft_count, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
+		Where("bucket_ts >= ? AND bucket_ts < ?", startTs, endTs).
+		Group("model_name, " + commonGroupCol).
+		Having("SUM(request_count) > 0").
+		Find(&summaries).Error
+	return summaries, err
+}
+
+func GetPerfMetricAvailableRange() (*int64, *int64, error) {
+	var bounds struct {
+		Oldest sql.NullInt64
+		Newest sql.NullInt64
+	}
+	err := DB.Model(&PerfMetric{}).
+		Select("MIN(bucket_ts) as oldest, MAX(bucket_ts) as newest").
+		Scan(&bounds).Error
+	if err != nil {
+		return nil, nil, err
+	}
+	var oldest *int64
+	var newest *int64
+	if bounds.Oldest.Valid {
+		oldest = &bounds.Oldest.Int64
+	}
+	if bounds.Newest.Valid {
+		newest = &bounds.Newest.Int64
+	}
+	return oldest, newest, nil
 }
 
 func DeletePerfMetricsBefore(cutoffTs int64) error {

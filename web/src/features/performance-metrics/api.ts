@@ -18,7 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { PerformanceMetricsData, PerfSummaryAllData } from './types'
+import type {
+  AdminPerformanceResponse,
+  PerformanceMetricsData,
+  PerfSummaryAllData,
+} from './types'
 
 export async function getPerfMetricsSummary(
   hours = 24
@@ -39,5 +43,21 @@ export async function getPerfMetrics(
       hours,
     },
   })
+  return res.data
+}
+
+export async function getAdminModelPerformance(
+  startTimestamp: number,
+  endTimestamp: number
+): Promise<AdminPerformanceResponse> {
+  const res = await api.get<AdminPerformanceResponse>(
+    '/api/perf-metrics/admin/models',
+    {
+      params: {
+        start_timestamp: startTimestamp,
+        end_timestamp: endTimestamp,
+      },
+    }
+  )
   return res.data
 }

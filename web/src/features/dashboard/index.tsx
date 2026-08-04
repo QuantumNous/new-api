@@ -101,6 +101,12 @@ const LazyPerformanceOverview = lazy(() =>
   }))
 )
 
+const LazyModelPerformanceTable = lazy(() =>
+  import('./components/models/model-performance-table').then((m) => ({
+    default: m.ModelPerformanceTable,
+  }))
+)
+
 const LazyUserCharts = lazy(() =>
   import('./components/users/user-charts').then((m) => ({
     default: m.UserCharts,
@@ -356,11 +362,18 @@ export function Dashboard() {
                 </Suspense>
               </FadeIn>
               {isAdmin && (
-                <FadeIn delay={0.05}>
-                  <Suspense fallback={<PerformanceOverviewFallback />}>
-                    <LazyPerformanceOverview />
-                  </Suspense>
-                </FadeIn>
+                <>
+                  <FadeIn delay={0.05}>
+                    <Suspense fallback={<PerformanceOverviewFallback />}>
+                      <LazyPerformanceOverview />
+                    </Suspense>
+                  </FadeIn>
+                  <FadeIn delay={0.1}>
+                    <Suspense fallback={<ModelChartsFallback />}>
+                      <LazyModelPerformanceTable filters={modelFilters} />
+                    </Suspense>
+                  </FadeIn>
+                </>
               )}
               <FadeIn delay={0.1}>
                 <Suspense fallback={<ModelChartsFallback />}>

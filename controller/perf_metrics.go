@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -71,6 +72,38 @@ func GetPerfMetrics(c *gin.Context) {
 		"success": true,
 		"data":    result,
 	})
+}
+
+func GetAdminModelPerfMetrics(c *gin.Context) {
+	const maxRangeSeconds = int64(30 * 24 * 60 * 60)
+	rawStart := c.Query("start_timestamp")
+	rawEnd := c.Query("end_timestamp")
+	if rawStart == "" || rawEnd == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "start_timestamp and end_timestamp are required"})
+		return
+	}
+
+	startTs, startErr := strconv.ParseInt(rawStart, 10, 64)
+	endTs, endErr := strconv.ParseInt(rawEnd, 10, 64)
+	if startErr != nil || endErr != nil || startTs <= 0 || endTs <= startTs {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid performance metric time range"})
+		return
+	}
+	if endTs > time.Now().Unix() {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "end_timestamp cannot be in the future"})
+		return
+	}
+	if endTs-startTs > maxRangeSeconds {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "performance metric time range cannot exceed 30 days"})
+		return
+	}
+
+	result, err := perfmetrics.QueryAdmin(startTs, endTs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
 }
 
 func filterActiveGroups(groups []perfmetrics.GroupResult) []perfmetrics.GroupResult {

@@ -15,22 +15,17 @@ func flushLoop() {
 		interval := perf_metrics_setting.GetFlushIntervalMinutes()
 		time.Sleep(time.Duration(interval) * time.Minute)
 		setting := perf_metrics_setting.GetSetting()
-		if !setting.Enabled {
-			continue
-		}
-		flushCompletedBuckets()
+		flushPerfBuckets()
 		cleanupExpiredMetrics(setting.RetentionDays)
 	}
 }
 
-func flushCompletedBuckets() {
-	currentBucket := bucketStart(time.Now().Unix())
+func flushPerfBuckets() {
+	hotBucketsMu.Lock()
+	defer hotBucketsMu.Unlock()
+
 	hotBuckets.Range(func(key, value any) bool {
 		k := key.(bucketKey)
-		if k.bucketTs >= currentBucket {
-			return true
-		}
-
 		bucket := value.(*atomicBucket)
 		drained := bucket.drain()
 		if drained.requestCount == 0 {
