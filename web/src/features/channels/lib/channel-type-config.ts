@@ -164,6 +164,16 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'Gondola',
+    defaultBaseUrl: 'https://api.gondola-ai.com',
+    hints: {
+      key: 'Gondola API Key, starts with gnd_',
+      models: 'Models fetched from upstream /v1/models',
+    },
+  },
 }
 
 /**
