@@ -52,7 +52,7 @@ func TestValidateAfterModelMappingStoresForcedUpstreamRequest(t *testing.T) {
 
 	adaptor := &TaskAdaptor{}
 	require.Nil(t, adaptor.ValidateRequestAfterModelMapping(c, info))
-	require.Equal(t, constant.TaskActionGenerate, info.Action)
+	require.Equal(t, constant.TaskActionTextGenerate, info.Action)
 
 	requestBody, err := adaptor.BuildRequestBody(c, info)
 	require.NoError(t, err)
@@ -65,6 +65,48 @@ func TestValidateAfterModelMappingStoresForcedUpstreamRequest(t *testing.T) {
 	require.Equal(t, ModelName, request.Model)
 	require.NotNil(t, request.AIGCWatermark)
 	require.False(t, *request.AIGCWatermark)
+}
+
+func TestValidateAfterModelMappingClassifiesVideoAction(t *testing.T) {
+	tests := []struct {
+		name   string
+		body   string
+		action string
+	}{
+		{
+			name:   "text only",
+			body:   `{"model":"client-alias","content":[{"type":"text","text":"prompt"}],"resolution":"768P","duration":4,"ratio":"16:9"}`,
+			action: constant.TaskActionTextGenerate,
+		},
+		{
+			name:   "single frame",
+			body:   `{"model":"client-alias","content":[{"type":"text","text":"prompt"},{"type":"image_url","image_url":{"url":"https://example.com/first.png"},"role":"first_frame"}],"resolution":"768P","duration":4,"ratio":"adaptive"}`,
+			action: constant.TaskActionGenerate,
+		},
+		{
+			name:   "first and last frames",
+			body:   `{"model":"client-alias","content":[{"type":"text","text":"prompt"},{"type":"image_url","image_url":{"url":"https://example.com/first.png"},"role":"first_frame"},{"type":"image_url","image_url":{"url":"https://example.com/last.png"},"role":"last_frame"}],"resolution":"768P","duration":4,"ratio":"adaptive"}`,
+			action: constant.TaskActionFirstTailGenerate,
+		},
+		{
+			name:   "reference image",
+			body:   `{"model":"client-alias","content":[{"type":"text","text":"prompt"},{"type":"image_url","image_url":{"url":"https://example.com/reference.png"},"role":"reference_image"}],"resolution":"768P","duration":4,"ratio":"adaptive"}`,
+			action: constant.TaskActionReferenceGenerate,
+		},
+		{
+			name:   "reference media",
+			body:   `{"model":"client-alias","content":[{"type":"text","text":"prompt"},{"type":"video_url","video_url":{"url":"https://example.com/reference.mp4"},"role":"reference_video"},{"type":"audio_url","audio_url":{"url":"https://example.com/reference.mp3"},"role":"reference_audio"}],"resolution":"768P","duration":4,"ratio":"adaptive"}`,
+			action: constant.TaskActionReferenceGenerate,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c, info := newVideoContext(test.body, ModelName)
+			require.Nil(t, (&TaskAdaptor{}).ValidateRequestAfterModelMapping(c, info))
+			require.Equal(t, test.action, info.Action)
+		})
+	}
 }
 
 func TestValidateAfterModelMappingRejectsUnsupportedMappedModel(t *testing.T) {

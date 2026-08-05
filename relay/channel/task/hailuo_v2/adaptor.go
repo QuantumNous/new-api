@@ -99,9 +99,46 @@ func (a *TaskAdaptor) validateAndStoreRequest(c *gin.Context, info *relaycommon.
 	}
 
 	req.Model = info.UpstreamModelName
-	info.Action = constant.TaskActionGenerate
+	info.Action = videoAction(&req)
 	c.Set(requestContextKey, req)
 	return nil
+}
+
+func videoAction(req *VideoRequest) string {
+	hasFirstFrame := false
+	hasLastFrame := false
+	hasReference := false
+
+	for _, item := range req.Content {
+		role := ""
+		if item.Role != nil {
+			role = strings.TrimSpace(*item.Role)
+		}
+		switch item.Type {
+		case "image_url":
+			switch role {
+			case "", "first_frame":
+				hasFirstFrame = true
+			case "last_frame":
+				hasLastFrame = true
+			case "reference_image":
+				hasReference = true
+			}
+		case "video_url", "audio_url":
+			hasReference = true
+		}
+	}
+
+	if hasReference {
+		return constant.TaskActionReferenceGenerate
+	}
+	if hasFirstFrame && hasLastFrame {
+		return constant.TaskActionFirstTailGenerate
+	}
+	if hasFirstFrame || hasLastFrame {
+		return constant.TaskActionGenerate
+	}
+	return constant.TaskActionTextGenerate
 }
 
 func validateVideoRequest(req *VideoRequest) (string, error) {
