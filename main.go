@@ -161,6 +161,7 @@ func main() {
 		}
 		return a
 	}
+	controller.StartAssetTaskWorker()
 
 	// Channel upstream model update check task
 	controller.StartChannelUpstreamModelUpdateTask()

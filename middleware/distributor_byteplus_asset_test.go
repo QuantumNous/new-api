@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +23,32 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+type middlewareAssetMaterializer struct {
+	createErr error
+	calls     *int
+}
+
+func (m middlewareAssetMaterializer) CreateAsset(ctx context.Context, input service.AssetMaterializeInput) (service.AssetMaterializeResult, error) {
+	if m.calls != nil {
+		*m.calls = *m.calls + 1
+	}
+	if m.createErr != nil {
+		return service.AssetMaterializeResult{}, m.createErr
+	}
+	return service.AssetMaterializeResult{
+		UpstreamGroupID: "group-" + fmt.Sprint(input.Channel.Id),
+		UpstreamAssetID: "upstream-" + input.Asset.PublicId,
+		Status:          model.AssetStatusActive,
+	}, nil
+}
+
+func (m middlewareAssetMaterializer) GetAsset(ctx context.Context, input service.AssetMaterializeInput, upstreamAssetID string) (service.AssetMaterializeResult, error) {
+	if m.calls != nil {
+		*m.calls = *m.calls + 1
+	}
+	return service.AssetMaterializeResult{UpstreamAssetID: upstreamAssetID, Status: model.AssetStatusActive}, nil
+}
 
 func TestBytePlusAssetPinnedChannelOverridesRandomSelectionAndStoresRewrite(t *testing.T) {
 	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
@@ -129,6 +156,32 @@ func TestBytePlusAssetSpecificChannelConflictWinsOverOwnedAssetResolutionErrors(
 			require.NotContains(t, recorder.Body.String(), "invalid_asset_request")
 		})
 	}
+}
+
+func TestBytePlusAssetBlankUpstreamKeepsPinnedReferenceSemantics(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	insertMiddlewareBytePlusAssetChannel(t, 132, "default", common.ChannelStatusEnabled, 1, 1)
+	insertMiddlewareBytePlusAsset(t, 7, 131, "ast_1234567890abcdefABCDEF1234567890", " \t\n ", model.BytePlusAssetStatusActive)
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		c.String(http.StatusInternalServerError, "handler should not run")
+	})
+	body := `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`
+
+	conflict := performBytePlusAssetDistributorRequest(router, "132", body)
+	require.Equal(t, http.StatusConflict, conflict.Code, conflict.Body.String())
+	require.Contains(t, conflict.Body.String(), "asset_channel_conflict")
+	require.NotContains(t, conflict.Body.String(), "asset_not_ready")
+
+	notReady := performBytePlusAssetDistributorRequest(router, "", body)
+	require.Equal(t, http.StatusConflict, notReady.Code, notReady.Body.String())
+	require.Contains(t, notReady.Body.String(), "asset_not_ready")
 }
 
 func TestBytePlusAssetRealPersonProfileConflictStopsBeforeChannelSelection(t *testing.T) {
@@ -462,6 +515,226 @@ func TestBytePlusAssetNoAssetReferenceKeepsExistingSelection(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 }
 
+func TestAssetReferenceRecoverableGeneralizedAssetWithoutBindingMaterializesCompleteRewrite(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeBytePlus, middlewareAssetMaterializer{})
+	defer restoreMaterializer()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	publicID := "ast_1234567890abcdefABCDEF1234567890"
+	insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyAssetMaterializeEnabled, true)
+		channel, err := model.GetChannelById(common.GetContextKeyInt(c, constant.ContextKeyChannelId), true)
+		require.NoError(t, err)
+		require.Nil(t, RefreshAssetRewriteMapForSelectedChannel(c, channel))
+		require.Equal(t, 131, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		rewriteMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		if !ok || rewriteMap["asset://"+publicID] != "asset://upstream-"+publicID {
+			c.String(http.StatusInternalServerError, "rewrite map = %#v ok=%v", rewriteMap, ok)
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+
+	recorder := performBytePlusAssetDistributorRequest(router, "", `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+}
+
+func TestAssetReferenceExternalRequestDefersMaterializationUntilWorkerFlag(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	calls := 0
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeBytePlus, middlewareAssetMaterializer{calls: &calls})
+	defer restoreMaterializer()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	publicID := "ast_1234567890abcdefABCDEF1234567890"
+	insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		require.Equal(t, 131, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		_, hasRewrite := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		require.False(t, hasRewrite, "external distributor must not materialize or rewrite recoverable assets")
+		c.Status(http.StatusOK)
+	})
+
+	recorder := performBytePlusAssetDistributorRequest(router, "", `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, 0, calls)
+}
+
+func TestAssetReferenceMaterializationFailuresAbortBeforeHandler(t *testing.T) {
+	tests := []struct {
+		name         string
+		materializer service.AssetMaterializer
+		seedBinding  func(t *testing.T, asset model.Asset)
+		wantStatus   int
+		wantCode     string
+	}{
+		{
+			name:         "no materializer",
+			materializer: nil,
+			wantStatus:   http.StatusServiceUnavailable,
+			wantCode:     "asset_channel_unavailable",
+		},
+		{
+			name:         "provider create fail",
+			materializer: middlewareAssetMaterializer{createErr: errors.New("BytePlus secret sk-live signed=https://signed.example/?X-Goog-Signature=abc")},
+			wantStatus:   http.StatusServiceUnavailable,
+			wantCode:     "asset_channel_unavailable",
+		},
+		{
+			name:         "poll timeout",
+			materializer: middlewareAssetMaterializer{},
+			wantStatus:   http.StatusConflict,
+			wantCode:     "asset_not_ready",
+			seedBinding: func(t *testing.T, asset model.Asset) {
+				require.NoError(t, model.DB.Create(&model.AssetBinding{
+					AssetId:        asset.Id,
+					ChannelId:      131,
+					Status:         model.AssetBindingStatusLeased,
+					LeaseOwner:     "other-node",
+					LeaseExpiresAt: time.Now().Add(time.Minute).Unix(),
+					CreatedAt:      time.Now().Unix(),
+					UpdatedAt:      time.Now().Unix(),
+				}).Error)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+			defer restoreDB()
+			restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeBytePlus, tt.materializer)
+			defer restoreMaterializer()
+			insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+			publicID := "ast_1234567890abcdefABCDEF1234567890"
+			asset := insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+			if tt.seedBinding != nil {
+				tt.seedBinding(t, asset)
+			}
+			model.InitChannelCache()
+
+			router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+				c.String(http.StatusInternalServerError, "handler should not run")
+			})
+			recorder := performBytePlusAssetDistributorRequestWithMaterialize(router, "", `{
+				"model":"seedance-2.0",
+				"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+			}`)
+
+			require.Equal(t, tt.wantStatus, recorder.Code, recorder.Body.String())
+			require.Contains(t, recorder.Body.String(), tt.wantCode)
+			require.NotContains(t, recorder.Body.String(), "BytePlus")
+			require.NotContains(t, recorder.Body.String(), "sk-live")
+			require.NotContains(t, recorder.Body.String(), "signed.example")
+			require.NotContains(t, recorder.Body.String(), "other-node")
+		})
+	}
+}
+
+func TestAssetReferenceRewriteMapUsesSelectedChannelOnly(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	insertMiddlewareBytePlusAssetChannel(t, 132, "default", common.ChannelStatusEnabled, 100, 1000)
+	asset := insertMiddlewareGeneralizedAsset(t, 7, "ast_1234567890abcdefABCDEF1234567890", "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+	insertMiddlewareGeneralizedAssetBinding(t, asset.Id, 131, "upstream-131", model.AssetStatusActive)
+	insertMiddlewareGeneralizedAssetBinding(t, asset.Id, 132, "upstream-132", model.AssetStatusActive)
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		require.Equal(t, 132, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		rewriteMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		if !ok || rewriteMap["asset://ast_1234567890abcdefABCDEF1234567890"] != "asset://upstream-132" {
+			c.String(http.StatusInternalServerError, "rewrite map = %#v ok=%v", rewriteMap, ok)
+			return
+		}
+		if strings.Contains(fmt.Sprintf("%#v", rewriteMap), "upstream-131") {
+			c.String(http.StatusInternalServerError, "rewrite map contains non-selected channel: %#v", rewriteMap)
+			return
+		}
+		legacyMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyBytePlusAssetRewriteMap)
+		if !ok || legacyMap["asset://ast_1234567890abcdefABCDEF1234567890"] != "asset://upstream-132" {
+			c.String(http.StatusInternalServerError, "legacy rewrite map = %#v ok=%v", legacyMap, ok)
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+
+	recorder := performBytePlusAssetDistributorRequest(router, "", `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+}
+
+func TestAssetReferenceGeneralizedRowOutranksCoexistingLegacyPin(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	insertMiddlewareBytePlusAssetChannel(t, 132, "default", common.ChannelStatusEnabled, 100, 1000)
+	publicID := "ast_1234567890abcdefABCDEF1234567890"
+	insertMiddlewareBytePlusAsset(t, 7, 131, publicID, "legacy-upstream", model.BytePlusAssetStatusActive)
+	asset := insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusUnavailable, 0)
+	insertMiddlewareGeneralizedAssetBinding(t, asset.Id, 132, "generalized-upstream", model.AssetStatusActive)
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		require.Equal(t, 132, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		rewriteMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		require.True(t, ok)
+		require.Equal(t, "asset://generalized-upstream", rewriteMap["asset://"+publicID])
+		require.NotContains(t, fmt.Sprintf("%#v", rewriteMap), "legacy-upstream")
+		c.Status(http.StatusOK)
+	})
+
+	recorder := performBytePlusAssetDistributorRequest(router, "", `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+}
+
+func TestAssetReferenceMixedRecoverableGeneralizedAndLegacyBindingSelectsPartialChannel(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeBytePlus, middlewareAssetMaterializer{createErr: errors.New("provider failed")})
+	defer restoreMaterializer()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	insertMiddlewareBytePlusAssetChannel(t, 132, "default", common.ChannelStatusEnabled, 100, 1000)
+	recoverableID := "ast_1234567890abcdefABCDEF1234567890"
+	legacyID := "ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	insertMiddlewareGeneralizedAsset(t, 7, recoverableID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+	insertMiddlewareBytePlusAsset(t, 7, 131, legacyID, "legacy-upstream", model.BytePlusAssetStatusActive)
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		c.String(http.StatusInternalServerError, "handler should not run")
+	})
+
+	recorder := performBytePlusAssetDistributorRequestWithMaterialize(router, "", `{
+		"model":"seedance-2.0",
+		"content":[
+			{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"},
+			{"type":"image_url","image_url":{"url":"asset://ast_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"role":"reference_image"}
+		]
+	}`)
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "asset_channel_unavailable")
+	require.NotContains(t, recorder.Body.String(), "legacy-upstream")
+	require.NotContains(t, recorder.Body.String(), recoverableID)
+}
+
 func newBytePlusAssetDistributorRouter(handler gin.HandlerFunc) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -472,6 +745,9 @@ func newBytePlusAssetDistributorRouter(handler gin.HandlerFunc) *gin.Engine {
 		if specific := c.GetHeader("X-Test-Specific-Channel"); specific != "" {
 			common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, specific)
 		}
+		if c.GetHeader("X-Test-Materialize-Assets") == "true" {
+			common.SetContextKey(c, constant.ContextKeyAssetMaterializeEnabled, true)
+		}
 		c.Next()
 	})
 	router.Use(Distribute())
@@ -481,6 +757,18 @@ func newBytePlusAssetDistributorRouter(handler gin.HandlerFunc) *gin.Engine {
 
 func performBytePlusAssetDistributorRequest(router *gin.Engine, specific string, body string) *httptest.ResponseRecorder {
 	return performBytePlusAssetDistributorRequestForPath(router, "/v1/videos", specific, body)
+}
+
+func performBytePlusAssetDistributorRequestWithMaterialize(router *gin.Engine, specific string, body string) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/videos", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Test-Materialize-Assets", "true")
+	if specific != "" {
+		request.Header.Set("X-Test-Specific-Channel", specific)
+	}
+	router.ServeHTTP(recorder, request)
+	return recorder
 }
 
 func performBytePlusAssetDistributorRequestForPath(router *gin.Engine, path string, specific string, body string) *httptest.ResponseRecorder {
@@ -505,7 +793,7 @@ func useMiddlewareBytePlusAssetDBForTest(t *testing.T) func() {
 
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.BytePlusRealPersonProfile{}, &model.BytePlusAsset{}))
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.BytePlusRealPersonProfile{}, &model.BytePlusAsset{}, &model.Asset{}, &model.AssetBinding{}))
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	model.DB = db
@@ -573,6 +861,37 @@ func insertMiddlewareBytePlusAssetWithType(t *testing.T, userID int, channelID i
 		UpstreamAssetId: upstreamID,
 		AssetType:       assetType,
 		Status:          status,
+	}).Error)
+}
+
+func insertMiddlewareGeneralizedAsset(t *testing.T, userID int, publicID string, assetType string, sourceStatus string, sourceExpiresAt int64) model.Asset {
+	t.Helper()
+	asset := model.Asset{
+		PublicId:        publicID,
+		UserId:          userID,
+		AssetType:       assetType,
+		Status:          model.AssetStatusActive,
+		SourceStatus:    sourceStatus,
+		StorageBackend:  "gcs",
+		StorageBucket:   "bucket",
+		ObjectKey:       "assets/" + publicID,
+		SourceExpiresAt: sourceExpiresAt,
+		CreatedAt:       time.Now().Unix(),
+		UpdatedAt:       time.Now().Unix(),
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	return asset
+}
+
+func insertMiddlewareGeneralizedAssetBinding(t *testing.T, assetID int64, channelID int, upstreamID string, status string) {
+	t.Helper()
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         assetID,
+		ChannelId:       channelID,
+		UpstreamAssetId: upstreamID,
+		Status:          status,
+		CreatedAt:       time.Now().Unix(),
+		UpdatedAt:       time.Now().Unix(),
 	}).Error)
 }
 

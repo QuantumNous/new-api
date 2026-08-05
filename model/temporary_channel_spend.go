@@ -34,31 +34,39 @@ func AddTemporaryChannelModelSpend(modelName string, quota int64, nowUnix int64)
 	}
 	var total int64
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		// seed placeholder row (idempotent across replicas), then accumulate.
-		seed := &TemporaryChannelModelSpend{ModelName: modelName, UpdatedTime: nowUnix}
-		if e := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(seed).Error; e != nil {
-			return e
-		}
-		if e := tx.Model(&TemporaryChannelModelSpend{}).
-			Where("model_name = ?", modelName).
-			Updates(map[string]interface{}{
-				"quota":        gorm.Expr("quota + ?", quota),
-				"count":        gorm.Expr("count + ?", 1),
-				"updated_time": nowUnix,
-			}).Error; e != nil {
-			return e
-		}
-		var record TemporaryChannelModelSpend
-		if e := tx.Select("quota").Where("model_name = ?", modelName).First(&record).Error; e != nil {
-			return e
-		}
-		total = record.Quota
-		return nil
+		var e error
+		total, e = AddTemporaryChannelModelSpendTx(tx, modelName, quota, nowUnix)
+		return e
 	})
 	if err != nil {
 		return 0, err
 	}
 	return total, nil
+}
+
+func AddTemporaryChannelModelSpendTx(tx *gorm.DB, modelName string, quota int64, nowUnix int64) (int64, error) {
+	modelName = strings.TrimSpace(modelName)
+	if tx == nil || modelName == "" || quota <= 0 {
+		return 0, nil
+	}
+	seed := &TemporaryChannelModelSpend{ModelName: modelName, UpdatedTime: nowUnix}
+	if e := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(seed).Error; e != nil {
+		return 0, e
+	}
+	if e := tx.Model(&TemporaryChannelModelSpend{}).
+		Where("model_name = ?", modelName).
+		Updates(map[string]interface{}{
+			"quota":        gorm.Expr("quota + ?", quota),
+			"count":        gorm.Expr("count + ?", 1),
+			"updated_time": nowUnix,
+		}).Error; e != nil {
+		return 0, e
+	}
+	var record TemporaryChannelModelSpend
+	if e := tx.Select("quota").Where("model_name = ?", modelName).First(&record).Error; e != nil {
+		return 0, e
+	}
+	return record.Quota, nil
 }
 
 // TryClaimTemporaryChannelSpendAlert atomically claims the right to fire one alert for

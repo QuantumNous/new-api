@@ -334,6 +334,8 @@ asset.channel_conflict: "Os ativos na mesma solicitação devem usar o mesmo can
 asset.channel_unavailable: "O canal do ativo está indisponível no momento"
 asset.group_initializing: "O grupo de ativos está inicializando, tente novamente mais tarde"
 asset.upstream_error: "Falha na solicitação ao provedor de ativos"
+asset.expired: "O upload do ativo expirou"
+asset.type_mismatch: "O tipo do ativo não corresponde à mídia enviada"
 asset.storage_error: "Erro no armazenamento de ativos, tente novamente mais tarde"
 real_person.invalid_request: "Solicitação de pessoa real inválida"
 real_person.not_found: "Pessoa real não encontrada"

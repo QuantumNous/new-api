@@ -332,6 +332,10 @@ resource "google_cloud_run_v2_service" "staging" {
         name  = "SESSION_COOKIE_SECURE"
         value = "true"
       }
+      env {
+        name  = "ASSET_STORAGE_BUCKET"
+        value = google_storage_bucket.flatkey_assets_staging[0].name
+      }
 
       env {
         name = "SQL_DSN"

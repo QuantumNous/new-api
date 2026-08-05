@@ -13,6 +13,8 @@ func TestBytePlusAssetErrorCodes(t *testing.T) {
 		"asset_group_initializing":  ErrorCodeAssetGroupInitializing,
 		"asset_upstream_error":      ErrorCodeAssetUpstreamError,
 		"asset_storage_error":       ErrorCodeAssetStorageError,
+		"asset_expired":             ErrorCodeAssetExpired,
+		"asset_type_mismatch":       ErrorCodeAssetTypeMismatch,
 	}
 	for want, got := range tests {
 		if string(got) != want {

@@ -1,15 +1,22 @@
 package blockrunseedance
 
 import (
+	"context"
+	"encoding/base64"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	blockrunSDK "github.com/BlockRunAI/blockrun-llm-go"
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -107,6 +114,130 @@ func TestNormalizeAcceptedStatus(t *testing.T) {
 	}
 	// nil-safe: must not panic.
 	normalizeAcceptedStatus(nil)
+}
+
+func TestSignedRequestHonorsContextCancellation(t *testing.T) {
+	service.InitHttpClient()
+	requestStarted := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+		select {
+		case <-r.Context().Done():
+		case <-releaseHandler:
+		}
+	}))
+	defer server.Close()
+	defer close(releaseHandler)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		_, err := (&TaskAdaptor{}).signedRequest(ctx, http.MethodPost, server.URL, []byte(`{}`), "test-signature", "")
+		result <- err
+	}()
+
+	select {
+	case <-requestStarted:
+	case <-time.After(time.Second):
+		t.Fatal("signed request did not reach the test server")
+	}
+	cancel()
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("signedRequest error = %v, want context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("signedRequest did not stop after context cancellation")
+	}
+}
+
+func TestSignedPollHonorsContextCancellation(t *testing.T) {
+	type contextTaskFetcher interface {
+		FetchTaskWithContext(context.Context, string, string, map[string]any, string) (*http.Response, error)
+	}
+	fetcher, ok := any(&TaskAdaptor{}).(contextTaskFetcher)
+	if !ok {
+		t.Fatal("BlockRun Seedance adaptor does not support context-aware task polling")
+	}
+
+	service.InitHttpClient()
+	signedRequestStarted := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		if requestCount == 1 {
+			w.Header().Set("Payment-Required", blockRunSeedancePaymentRequiredHeader(t, r.URL.String()))
+			w.WriteHeader(http.StatusPaymentRequired)
+			return
+		}
+		close(signedRequestStarted)
+		select {
+		case <-r.Context().Done():
+		case <-releaseHandler:
+		}
+	}))
+	defer server.Close()
+	defer close(releaseHandler)
+	t.Cleanup(service.ResetProxyClientCache)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		_, err := fetcher.FetchTaskWithContext(ctx, "", "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", map[string]any{
+			"task_id": server.URL,
+		}, "")
+		result <- err
+	}()
+
+	select {
+	case <-signedRequestStarted:
+	case <-time.After(time.Second):
+		t.Fatal("signed poll request did not reach the test server")
+	}
+	cancel()
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("FetchTaskWithContext error = %v, want context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("signed poll request did not stop after context cancellation")
+	}
+}
+
+func blockRunSeedancePaymentRequiredHeader(t *testing.T, resourceURL string) string {
+	t.Helper()
+	requirement := blockrunSDK.PaymentRequirement{
+		X402Version: 2,
+		Accepts: []blockrunSDK.PaymentOption{
+			{
+				Scheme:            "exact",
+				Network:           "eip155:8453",
+				Amount:            "3000",
+				Asset:             "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+				PayTo:             "0x000000000000000000000000000000000000dEaD",
+				MaxTimeoutSeconds: 300,
+				Extra:             map[string]any{"name": "USD Coin", "version": "2"},
+			},
+		},
+		Resource: blockrunSDK.ResourceInfo{
+			URL:         resourceURL,
+			Description: "BlockRun Seedance poll context test",
+			MimeType:    "application/json",
+		},
+	}
+	data, err := common.Marshal(requirement)
+	if err != nil {
+		t.Fatalf("marshal payment requirement: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(data)
 }
 
 // TestAbsoluteURL covers absolute, root-relative, relative, and scheme-relative

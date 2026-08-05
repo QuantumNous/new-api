@@ -91,6 +91,36 @@ end
 return {1, 0}
 `)
 
+var subscriptionWindowAdjustOnceScript = redis.NewScript(`
+if redis.call('EXISTS', KEYS[1]) ~= 0 then
+  return 0
+end
+for i = 2, #KEYS do
+  local v = redis.call('GET', KEYS[i])
+  if v and tonumber(v) == nil then
+    return redis.error_reply('subscription window counter is not an integer: ' .. KEYS[i])
+  end
+end
+local stepTTL = tonumber(ARGV[1])
+local arg = 2
+for i = 2, #KEYS do
+  local delta = tonumber(ARGV[arg])
+  local expireMode = ARGV[arg + 1]
+  local expireValue = tonumber(ARGV[arg + 2])
+  arg = arg + 3
+  if delta ~= 0 then
+    redis.call('INCRBY', KEYS[i], delta)
+  end
+  if expireMode == 'ttl' then
+    redis.call('EXPIRE', KEYS[i], expireValue)
+  elseif expireMode == 'at' then
+    redis.call('EXPIREAT', KEYS[i], expireValue)
+  end
+end
+redis.call('SET', KEYS[1], '1', 'EX', stepTTL)
+return 1
+`)
+
 // subscriptionWindowGuard tracks a successful window reservation so that
 // settle deltas and refunds can be written back to the same counters.
 // bucketHeld/weekHeld record exactly which Redis keys this request debited
@@ -361,6 +391,104 @@ func AdjustSubscriptionWindowFromSnapshot(snap *model.TaskSubscriptionWindow, de
 	}
 	if err := guard.apply(delta); err != nil {
 		return false, err
+	}
+	return true, nil
+}
+
+func AdjustSubscriptionWindowFromSnapshotOnce(snap *model.TaskSubscriptionWindow, delta int64, taskID string) (bool, error) {
+	if snap == nil || delta == 0 || taskID == "" {
+		return false, nil
+	}
+	if snap.BucketHeld == nil {
+		snap.BucketHeld = map[string]int64{}
+	}
+	if snap.WeekHeld == nil {
+		snap.WeekHeld = map[string]int64{}
+	}
+	if !common.RedisEnabled || common.RDB == nil {
+		return false, nil
+	}
+
+	type redisAdjustment struct {
+		held       map[string]int64
+		key        string
+		delta      int64
+		expireMode string
+		expireAt   int64
+	}
+	var adjustments []redisAdjustment
+	now := common.GetTimestamp()
+	if delta > 0 {
+		if snap.Limit5h > 0 {
+			currentBucket := now / subscriptionWindowBucketSeconds * subscriptionWindowBucketSeconds
+			adjustments = append(adjustments, redisAdjustment{
+				held:       snap.BucketHeld,
+				key:        subscriptionWindowBucketKey(snap.SubId, currentBucket),
+				delta:      delta,
+				expireMode: "ttl",
+				expireAt:   subscriptionWindowBucketTTL,
+			})
+		}
+		if snap.LimitWeek > 0 {
+			idx := subscriptionWindowWeekIndex(snap.SubStart, now)
+			base := snap.SubStart
+			if base <= 0 {
+				base = 0
+			}
+			adjustments = append(adjustments, redisAdjustment{
+				held:       snap.WeekHeld,
+				key:        subscriptionWindowWeekKey(snap.SubId, idx),
+				delta:      delta,
+				expireMode: "at",
+				expireAt:   base + (idx+1)*subscriptionWindowWeekSeconds + 3600,
+			})
+		}
+	} else {
+		for _, held := range []map[string]int64{snap.BucketHeld, snap.WeekHeld} {
+			refund := -delta
+			for key, amt := range held {
+				if refund <= 0 {
+					break
+				}
+				take := amt
+				if take > refund {
+					take = refund
+				}
+				adjustments = append(adjustments, redisAdjustment{
+					held:       held,
+					key:        key,
+					delta:      -take,
+					expireMode: "",
+					expireAt:   0,
+				})
+				refund -= take
+			}
+		}
+	}
+	if len(adjustments) == 0 {
+		return false, nil
+	}
+
+	keys := []string{acceptedAccountingRedisStepKey(taskID, model.TaskAcceptedAccountingStepSubscriptionWindow)}
+	args := []interface{}{int64(30 * 24 * 3600)}
+	for _, adj := range adjustments {
+		keys = append(keys, adj.key)
+		args = append(args, adj.delta, adj.expireMode, adj.expireAt)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	res, err := subscriptionWindowAdjustOnceScript.Run(ctx, common.RDB, keys, args...).Int()
+	if err != nil {
+		return false, err
+	}
+	if res != 1 {
+		return false, nil
+	}
+	for _, adj := range adjustments {
+		adj.held[adj.key] += adj.delta
+		if adj.held[adj.key] <= 0 {
+			delete(adj.held, adj.key)
+		}
 	}
 	return true, nil
 }

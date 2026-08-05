@@ -16,6 +16,7 @@ package blockrunseedance
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math/big"
@@ -158,7 +159,7 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 	if err != nil {
 		return nil, err
 	}
-	signed, err := a.signedRequest(http.MethodPost, fullURL, bodyBytes, sig, info.ChannelSetting.Proxy)
+	signed, err := a.signedRequest(c.Request.Context(), http.MethodPost, fullURL, bodyBytes, sig, info.ChannelSetting.Proxy)
 	if err != nil {
 		return nil, err
 	}
@@ -175,12 +176,12 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 }
 
 // signedRequest issues an x402-signed request (PAYMENT-SIGNATURE + X-PAYMENT).
-func (a *TaskAdaptor) signedRequest(method, fullURL string, body []byte, signature, proxy string) (*http.Response, error) {
+func (a *TaskAdaptor) signedRequest(ctx context.Context, method, fullURL string, body []byte, signature, proxy string) (*http.Response, error) {
 	var r io.Reader
 	if body != nil {
 		r = bytes.NewReader(body)
 	}
-	req, err := http.NewRequest(method, fullURL, r)
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, r)
 	if err != nil {
 		return nil, err
 	}
@@ -286,6 +287,13 @@ type statusResponse struct {
 // is x402-aware: a 402 is signed with the wallet key and retried, mirroring the
 // gateway's design (settlement happens once, at completion).
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	return a.FetchTaskWithContext(context.Background(), baseUrl, key, body, proxy)
+}
+
+func (a *TaskAdaptor) FetchTaskWithContext(ctx context.Context, baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	pollURL, ok := body["task_id"].(string)
 	if !ok || pollURL == "" {
 		return nil, fmt.Errorf("invalid task_id (poll url)")
@@ -294,7 +302,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
-	req, err := http.NewRequest(http.MethodGet, pollURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pollURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +321,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	if err != nil {
 		return nil, err
 	}
-	signed, err := a.signedRequest(http.MethodGet, pollURL, nil, sig, proxy)
+	signed, err := a.signedRequest(ctx, http.MethodGet, pollURL, nil, sig, proxy)
 	if err != nil {
 		return nil, err
 	}

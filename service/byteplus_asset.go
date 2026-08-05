@@ -36,6 +36,94 @@ type bytePlusAssetAPI interface {
 	DeleteAsset(ctx context.Context, creds BytePlusCredentials, upstreamAssetID string) (string, error)
 }
 
+type bytePlusAssetBindingMaterializer struct{}
+
+func (bytePlusAssetBindingMaterializer) CreateAsset(ctx context.Context, input AssetMaterializeInput) (AssetMaterializeResult, error) {
+	if input.Channel == nil {
+		return AssetMaterializeResult{}, errors.New("asset channel unavailable")
+	}
+	creds, err := ParseBytePlusCredentials(input.Channel.Key)
+	if err != nil {
+		return AssetMaterializeResult{}, err
+	}
+	if err := creds.ValidateAssets(); err != nil {
+		return AssetMaterializeResult{}, err
+	}
+	client, err := bytePlusAssetClientFactory(input.Channel)
+	if err != nil {
+		return AssetMaterializeResult{}, err
+	}
+	group, apiErr := ensureBytePlusAssetGroup(ctx, input.UserID, input.Channel, creds, client)
+	if apiErr != nil {
+		return AssetMaterializeResult{}, apiErr
+	}
+	sourceURL := strings.TrimSpace(input.SourceURL)
+	if sourceURL == "" && input.SignSource != nil {
+		sourceURL, err = input.SignSource(ctx, input.Asset)
+		if err != nil {
+			return AssetMaterializeResult{}, err
+		}
+	}
+	upstreamID, _, err := client.CreateAsset(ctx, creds, BytePlusCreateAssetRequest{
+		GroupID:   group.UpstreamGroupId,
+		URL:       sourceURL,
+		AssetType: input.Asset.AssetType,
+		Name:      opaqueBytePlusAssetName(),
+	})
+	if err != nil {
+		return AssetMaterializeResult{}, err
+	}
+	// The upstream create already succeeded and is billable. A transient status
+	// lookup failure must not discard upstreamID, or the upstream asset is
+	// orphaned and a retry pays for a second one. Report it as Processing and
+	// let binding refresh polling settle the real status.
+	status, err := client.GetAsset(ctx, creds, upstreamID)
+	if err != nil {
+		return AssetMaterializeResult{
+			UpstreamGroupID: group.UpstreamGroupId,
+			UpstreamAssetID: upstreamID,
+			Status:          model.AssetStatusProcessing,
+		}, nil
+	}
+	if status.UpstreamAssetID != "" && status.UpstreamAssetID != upstreamID {
+		return AssetMaterializeResult{}, errors.New("upstream asset id mismatch")
+	}
+	upstreamStatus := strings.TrimSpace(status.Status)
+	if upstreamStatus == "" {
+		upstreamStatus = model.AssetStatusProcessing
+	}
+	return AssetMaterializeResult{
+		UpstreamGroupID: group.UpstreamGroupId,
+		UpstreamAssetID: upstreamID,
+		Status:          upstreamStatus,
+	}, nil
+}
+
+func (bytePlusAssetBindingMaterializer) GetAsset(ctx context.Context, input AssetMaterializeInput, upstreamAssetID string) (AssetMaterializeResult, error) {
+	if input.Channel == nil {
+		return AssetMaterializeResult{}, errors.New("asset channel unavailable")
+	}
+	creds, err := ParseBytePlusCredentials(input.Channel.Key)
+	if err != nil {
+		return AssetMaterializeResult{}, err
+	}
+	if err := creds.ValidateAssets(); err != nil {
+		return AssetMaterializeResult{}, err
+	}
+	client, err := bytePlusAssetClientFactory(input.Channel)
+	if err != nil {
+		return AssetMaterializeResult{}, err
+	}
+	status, err := client.GetAsset(ctx, creds, upstreamAssetID)
+	if err != nil {
+		return AssetMaterializeResult{}, err
+	}
+	return AssetMaterializeResult{
+		UpstreamAssetID: status.UpstreamAssetID,
+		Status:          status.Status,
+	}, nil
+}
+
 var (
 	bytePlusAssetNow      = common.GetTimestamp
 	bytePlusAssetPublicID = func() (string, error) {

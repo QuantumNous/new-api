@@ -16,11 +16,12 @@ import (
 )
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	Retry        *int
-	resetNextTry bool
+	Ctx           *gin.Context
+	TokenGroup    string
+	ModelName     string
+	Retry         *int
+	ChannelRanker ChannelReadinessRanker
+	resetNextTry  bool
 }
 
 var ErrChannelConcurrencyLimit = errors.New("channel concurrency limit exceeded")
@@ -123,7 +124,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
 			selectedRetry := priorityRetry
-			channel, selectedRetry, err = getRandomSatisfiedChannelWithConcurrency(param.Ctx, autoGroup, param.ModelName, priorityRetry)
+			channel, selectedRetry, err = getRandomSatisfiedChannelWithConcurrency(param.Ctx, autoGroup, param.ModelName, priorityRetry, param.ChannelRanker)
 			if err != nil {
 				if errors.Is(err, ErrChannelConcurrencyLimit) {
 					concurrencyLimited = true
@@ -179,7 +180,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 	} else {
 		selectedRetry := param.GetRetry()
-		channel, selectedRetry, err = getRandomSatisfiedChannelWithConcurrency(param.Ctx, param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, selectedRetry, err = getRandomSatisfiedChannelWithConcurrency(param.Ctx, param.TokenGroup, param.ModelName, param.GetRetry(), param.ChannelRanker)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
@@ -275,7 +276,10 @@ func channelSupportsOpenAIResponses(channelType int) bool {
 	}
 }
 
-func getRandomSatisfiedChannelWithConcurrency(c *gin.Context, group string, modelName string, retry int) (*model.Channel, int, error) {
+func getRandomSatisfiedChannelWithConcurrency(c *gin.Context, group string, modelName string, retry int, ranker ChannelReadinessRanker) (*model.Channel, int, error) {
+	if ranker != nil {
+		return getRankedSatisfiedChannelWithConcurrency(c, group, modelName, retry, ranker)
+	}
 	sawCandidates := false
 	var waitCandidate *model.Channel
 	waitCandidateRetry := retry
@@ -322,6 +326,99 @@ func getRandomSatisfiedChannelWithConcurrency(c *gin.Context, group string, mode
 			}
 		}
 	}
+}
+
+func getRankedSatisfiedChannelWithConcurrency(c *gin.Context, group string, modelName string, retry int, ranker ChannelReadinessRanker) (*model.Channel, int, error) {
+	type rankedPriorityCandidates struct {
+		readiness AssetReadinessClass
+		retry     int
+		priority  int64
+		channels  []*model.Channel
+	}
+	bucketsByKey := map[string]*rankedPriorityCandidates{}
+	readinessSeen := map[AssetReadinessClass]struct{}{}
+	filter := buildEndpointChannelFilter(c, modelName)
+	for priorityRetry := retry; ; priorityRetry++ {
+		candidates, err := model.GetSatisfiedChannelCandidatesWithFilter(group, modelName, priorityRetry, filter)
+		if err != nil {
+			return nil, priorityRetry, err
+		}
+		if len(candidates) == 0 {
+			break
+		}
+		for _, candidate := range candidates {
+			readiness, ok := ranker.ChannelReadiness(candidate)
+			if !ok {
+				continue
+			}
+			readinessSeen[readiness] = struct{}{}
+			key := fmt.Sprintf("%d/%d", readiness, candidate.GetPriority())
+			bucket := bucketsByKey[key]
+			if bucket == nil {
+				bucket = &rankedPriorityCandidates{
+					readiness: readiness,
+					retry:     priorityRetry,
+					priority:  candidate.GetPriority(),
+				}
+				bucketsByKey[key] = bucket
+			}
+			bucket.channels = append(bucket.channels, candidate)
+		}
+	}
+	if len(bucketsByKey) == 0 {
+		return nil, retry, nil
+	}
+	buckets := make([]rankedPriorityCandidates, 0, len(bucketsByKey))
+	for _, bucket := range bucketsByKey {
+		buckets = append(buckets, *bucket)
+	}
+	sort.SliceStable(buckets, func(i, j int) bool {
+		if buckets[i].readiness != buckets[j].readiness {
+			return buckets[i].readiness < buckets[j].readiness
+		}
+		return buckets[i].priority > buckets[j].priority
+	})
+	bestReadiness := buckets[0].readiness
+	var waitCandidate *model.Channel
+	waitCandidateRetry := buckets[0].retry
+	for _, bucket := range buckets {
+		if bucket.readiness != bestReadiness {
+			break
+		}
+		orderedCandidates, err := orderChannelCandidatesByConcurrencyLoad(c, bucket.channels)
+		if err != nil {
+			return nil, bucket.retry, err
+		}
+		for _, channel := range orderedCandidates {
+			ok, err := AcquireChannelConcurrencyForContext(c, channel)
+			if err != nil {
+				return nil, bucket.retry, fmt.Errorf("acquire channel concurrency for channel #%d failed: %w", channel.Id, err)
+			}
+			if ok {
+				return channel, bucket.retry, nil
+			}
+			if waitCandidate == nil {
+				waitCandidate = channel
+				waitCandidateRetry = bucket.retry
+			}
+		}
+	}
+	if waitCandidate != nil {
+		ok, waitErr := AcquireChannelConcurrencyWithWaitForContext(c, waitCandidate)
+		if waitErr != nil {
+			if errors.Is(waitErr, ErrChannelConcurrencyLimit) {
+				return nil, waitCandidateRetry, ErrChannelConcurrencyLimit
+			}
+			return nil, waitCandidateRetry, fmt.Errorf("wait for channel concurrency for channel #%d failed: %w", waitCandidate.Id, waitErr)
+		}
+		if ok {
+			return waitCandidate, waitCandidateRetry, nil
+		}
+	}
+	if _, ok := readinessSeen[bestReadiness]; ok {
+		return nil, waitCandidateRetry, ErrChannelConcurrencyLimit
+	}
+	return nil, retry, nil
 }
 
 type channelCandidateLoad struct {

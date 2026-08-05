@@ -16,6 +16,8 @@ func TestBytePlusAssetLocaleCoverage(t *testing.T) {
 		MsgAssetChannelUnavailable,
 		MsgAssetGroupInitializing,
 		MsgAssetUpstreamError,
+		MsgAssetExpired,
+		MsgAssetTypeMismatch,
 		MsgAssetStorageError,
 		MsgRealPersonInvalidRequest,
 		MsgRealPersonNotFound,

@@ -26,109 +26,46 @@ type bytePlusAssetReference struct {
 	ExpectedAssetType string
 }
 
+type bytePlusResolvableAsset struct {
+	PublicID   string
+	AssetType  string
+	Status     string
+	Candidates []bytePlusAssetBindingCandidate
+}
+
+type bytePlusAssetBindingCandidate struct {
+	ChannelID       int
+	UpstreamAssetID string
+	Status          string
+}
+
 func (r BytePlusAssetReferenceResolution) HasReferences() bool {
 	return len(r.RewriteMap) > 0
 }
 
+func (r BytePlusAssetReferenceResolution) HasPinnedReference() bool {
+	return r.PinnedChannelID > 0
+}
+
 func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.SeedanceVideoRequest) (BytePlusAssetReferenceResolution, *types.NewAPIError) {
-	references, apiErr := extractBytePlusAssetPublicIDs(req)
+	legacyResolution, legacyErr := ResolveLegacyBytePlusAssetBindingReferences(userID, req)
+	if legacyErr != nil {
+		return legacyResolution, legacyErr
+	}
+	set, apiErr := ResolveAssetReferences(c, userID, req)
 	if apiErr != nil {
 		return BytePlusAssetReferenceResolution{}, apiErr
 	}
-	if len(references) == 0 {
+	if !set.HasReferences() {
 		return BytePlusAssetReferenceResolution{}, nil
 	}
-	publicIDs := make([]string, 0, len(references))
-	for _, reference := range references {
-		publicIDs = append(publicIDs, reference.PublicID)
+	pinnedChannelID, rewriteMap, ok := assetReferenceBestBoundChannel(set)
+	if !ok {
+		if legacyResolution.PinnedChannelID > 0 && assetReferenceSetIsLegacyBytePlusOnly(set) {
+			return BytePlusAssetReferenceResolution{PinnedChannelID: legacyResolution.PinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
+		}
+		return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset channel unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
-
-	assets, err := model.GetBytePlusAssetsByPublicIDsForUser(userID, publicIDs)
-	if err != nil {
-		return BytePlusAssetReferenceResolution{}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
-	}
-	byID := make(map[string]model.BytePlusAsset, len(assets))
-	for _, asset := range assets {
-		byID[asset.PublicId] = asset
-	}
-
-	rewriteMap := make(map[string]string, len(publicIDs))
-	pinnedChannelID := 0
-	for _, reference := range references {
-		if _, ok := byID[reference.PublicID]; !ok {
-			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
-		}
-	}
-	for _, reference := range references {
-		asset := byID[reference.PublicID]
-		if asset.Status == model.BytePlusAssetStatusDeleted {
-			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
-		}
-	}
-	profileIDs := make(map[int64]struct{})
-	for _, reference := range references {
-		asset := byID[reference.PublicID]
-		if asset.RealPersonProfileId != nil {
-			profileIDs[*asset.RealPersonProfileId] = struct{}{}
-		}
-	}
-	if len(profileIDs) > 1 {
-		return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset real person profiles do not match"), types.ErrorCodeAssetProfileConflict, http.StatusConflict)
-	}
-	for profileID := range profileIDs {
-		profile, err := model.GetBytePlusRealPersonProfileByIDForUser(userID, profileID)
-		if err != nil {
-			if model.IsBytePlusRealPersonNotFound(err) {
-				return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
-			}
-			return BytePlusAssetReferenceResolution{}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
-		}
-		if profile.Status != model.BytePlusRealPersonProfileStatusActive {
-			return BytePlusAssetReferenceResolution{}, assetError(errors.New("real person profile is not active"), types.ErrorCodeRealPersonNotActive, http.StatusConflict)
-		}
-		for _, reference := range references {
-			asset := byID[reference.PublicID]
-			if asset.RealPersonProfileId != nil && *asset.RealPersonProfileId == profileID && asset.ChannelId != profile.ChannelId {
-				return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset channel does not match real person profile"), types.ErrorCodeAssetChannelConflict, http.StatusConflict)
-			}
-		}
-	}
-	for _, reference := range references {
-		asset := byID[reference.PublicID]
-		if asset.ChannelId > 0 {
-			if pinnedChannelID == 0 {
-				pinnedChannelID = asset.ChannelId
-			} else if pinnedChannelID != asset.ChannelId {
-				return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset channels do not match"), types.ErrorCodeAssetChannelConflict, http.StatusConflict)
-			}
-		}
-	}
-	for _, reference := range references {
-		asset := byID[reference.PublicID]
-		if asset.AssetType != reference.ExpectedAssetType {
-			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset type does not match media type"), types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
-		}
-		switch asset.Status {
-		case model.BytePlusAssetStatusActive:
-		case model.BytePlusAssetStatusCreating, model.BytePlusAssetStatusProcessing, model.BytePlusAssetStatusDeleting:
-			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
-		case model.BytePlusAssetStatusFailed:
-			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset failed"), types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
-		case model.BytePlusAssetStatusDeleted:
-			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset not found"), types.ErrorCodeAssetNotFound, http.StatusNotFound)
-		default:
-			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
-		}
-		if asset.ChannelId <= 0 {
-			return BytePlusAssetReferenceResolution{}, assetError(errors.New("asset channel unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
-		}
-		upstreamAssetID := strings.TrimSpace(asset.UpstreamAssetId)
-		if upstreamAssetID == "" {
-			return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
-		}
-		rewriteMap["asset://"+reference.PublicID] = "asset://" + upstreamAssetID
-	}
-
 	resolution := BytePlusAssetReferenceResolution{
 		PinnedChannelID: pinnedChannelID,
 		RewriteMap:      rewriteMap,
@@ -138,6 +75,67 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 		common.SetContextKey(c, constant.ContextKeyBytePlusAssetPinnedChannelID, pinnedChannelID)
 	}
 	return resolution, nil
+}
+
+func assetReferenceSetIsLegacyBytePlusOnly(set AssetReferenceSet) bool {
+	if !set.HasReferences() {
+		return false
+	}
+	for _, reference := range set.references {
+		asset, ok := set.assets[reference.PublicID]
+		if !ok || !asset.LegacyBytePlus {
+			return false
+		}
+	}
+	return true
+}
+
+func rawPositiveBytePlusAssetChannels(candidates []bytePlusAssetBindingCandidate) map[int]struct{} {
+	channels := make(map[int]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.ChannelID > 0 {
+			channels[candidate.ChannelID] = struct{}{}
+		}
+	}
+	return channels
+}
+
+func validateBytePlusAssetLifecycle(status string) *types.NewAPIError {
+	switch status {
+	case model.BytePlusAssetStatusActive:
+		return nil
+	case model.BytePlusAssetStatusFailed:
+		return assetError(errors.New("asset failed"), types.ErrorCodeAssetFailed, http.StatusUnprocessableEntity)
+	case model.BytePlusAssetStatusCreating, model.BytePlusAssetStatusProcessing:
+		return assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
+	default:
+		return assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
+	}
+}
+
+func lowestChannelID(channels map[int]struct{}) int {
+	lowest := 0
+	for channelID := range channels {
+		if lowest == 0 || channelID < lowest {
+			lowest = channelID
+		}
+	}
+	return lowest
+}
+
+func bytePlusAssetCandidateForPinnedChannel(candidates []bytePlusAssetBindingCandidate, pinnedChannelID int) bytePlusAssetBindingCandidate {
+	if pinnedChannelID > 0 {
+		for _, candidate := range candidates {
+			if candidate.ChannelID == pinnedChannelID {
+				return candidate
+			}
+		}
+		return bytePlusAssetBindingCandidate{}
+	}
+	if len(candidates) == 0 {
+		return bytePlusAssetBindingCandidate{}
+	}
+	return candidates[0]
 }
 
 func IsStrictBytePlusAssetURI(raw string) bool {

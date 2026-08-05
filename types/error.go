@@ -80,6 +80,8 @@ const (
 	ErrorCodeAssetGroupInitializing  ErrorCode = "asset_group_initializing"
 	ErrorCodeAssetUpstreamError      ErrorCode = "asset_upstream_error"
 	ErrorCodeAssetStorageError       ErrorCode = "asset_storage_error"
+	ErrorCodeAssetExpired            ErrorCode = "asset_expired"
+	ErrorCodeAssetTypeMismatch       ErrorCode = "asset_type_mismatch"
 
 	ErrorCodeInvalidRealPersonRequest     ErrorCode = "invalid_real_person_request"
 	ErrorCodeRealPersonNotFound           ErrorCode = "real_person_not_found"

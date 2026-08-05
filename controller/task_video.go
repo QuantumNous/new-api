@@ -79,7 +79,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
-	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
+	resp, err := service.FetchTaskWithContext(ctx, adaptor, baseURL, key, map[string]any{
 		"task_id": taskId,
 		"action":  task.Action,
 	}, proxy)

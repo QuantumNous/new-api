@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -99,40 +100,48 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
-		assetResolution, assetErr := resolveBytePlusAssetResolution(c, shouldSelectChannel)
-		if assetErr != nil {
-			if abortBytePlusAssetSpecificChannelConflict(c, channelId, ok, assetResolution.PinnedChannelID) {
+		assetResolution, assetErr := resolveAssetReferenceSet(c, shouldSelectChannel)
+		legacyAssetResolution, legacyAssetErr := resolveLegacyBytePlusAssetResolution(c, shouldSelectChannel)
+		if legacyAssetErr != nil {
+			if abortBytePlusAssetSpecificChannelConflict(c, channelId, ok, legacyAssetResolution.PinnedChannelID) {
 				return
 			}
+			abortWithOpenAiMessage(c, legacyAssetErr.StatusCode, bytePlusAssetPublicMessage(legacyAssetErr.GetErrorCode()), legacyAssetErr.GetErrorCode())
+			return
+		}
+		var legacyPinnedChannel *model.Channel
+		legacyPinnedSelectGroup := ""
+		if legacyAssetResolution.HasPinnedReference() {
+			if abortBytePlusAssetSpecificChannelConflict(c, channelId, ok, legacyAssetResolution.PinnedChannelID) {
+				return
+			}
+			if !ok {
+				var pinnedErr *types.NewAPIError
+				legacyPinnedChannel, legacyPinnedSelectGroup, pinnedErr = selectBytePlusPinnedAssetChannel(c, modelRequest, legacyAssetResolution)
+				if pinnedErr != nil {
+					abortWithOpenAiMessage(c, pinnedErr.StatusCode, bytePlusAssetPublicMessage(pinnedErr.GetErrorCode()), pinnedErr.GetErrorCode())
+					return
+				}
+			}
+		}
+		if assetErr != nil {
 			abortWithOpenAiMessage(c, assetErr.StatusCode, bytePlusAssetPublicMessage(assetErr.GetErrorCode()), assetErr.GetErrorCode())
 			return
 		}
 		hasAssetRefs = assetResolution.HasReferences()
-		var pinnedChannel *model.Channel
-		pinnedSelectGroup := ""
 		if hasAssetRefs {
-			var pinnedErr *types.NewAPIError
-			pinnedChannel, pinnedSelectGroup, pinnedErr = selectBytePlusPinnedAssetChannel(c, modelRequest, assetResolution)
-			if pinnedErr != nil {
-				abortWithOpenAiMessage(c, pinnedErr.StatusCode, bytePlusAssetPublicMessage(pinnedErr.GetErrorCode()), pinnedErr.GetErrorCode())
-				return
-			}
+			common.SetContextKey(c, constant.ContextKeyAssetReferenceSet, assetResolution)
 		}
-		if pinnedChannel != nil {
-			if ok {
-				id, err := strconv.Atoi(channelId.(string))
-				if err != nil {
-					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
-					return
-				}
-				if id != pinnedChannel.Id {
-					abortWithOpenAiMessage(c, http.StatusConflict, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelConflict), types.ErrorCodeAssetChannelConflict)
+		if legacyPinnedChannel != nil {
+			if hasAssetRefs {
+				if _, eligible := assetResolution.ReadinessForChannel(legacyPinnedChannel); !eligible {
+					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelUnavailable), types.ErrorCodeAssetChannelUnavailable)
 					return
 				}
 			}
-			channel = pinnedChannel
-			if pinnedSelectGroup != "" {
-				common.SetContextKey(c, constant.ContextKeyTokenGroup, pinnedSelectGroup)
+			channel = legacyPinnedChannel
+			if legacyPinnedSelectGroup != "" {
+				common.SetContextKey(c, constant.ContextKeyTokenGroup, legacyPinnedSelectGroup)
 			}
 		} else if ok {
 			id, err := strconv.Atoi(channelId.(string))
@@ -148,6 +157,12 @@ func Distribute() func(c *gin.Context) {
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
 				return
+			}
+			if hasAssetRefs {
+				if _, eligible := assetResolution.ReadinessForChannel(channel); !eligible {
+					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelUnavailable), types.ErrorCodeAssetChannelUnavailable)
+					return
+				}
 			}
 		} else {
 			// Select a channel for the user
@@ -171,81 +186,84 @@ func Distribute() func(c *gin.Context) {
 					common.SetContextKey(c, constant.ContextKeyTokenGroup, usingGroup)
 				}
 
-				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
-					affinityUsable := false
-					affinityConcurrencyLimited := false
-					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
-						if usingGroup == "auto" {
-							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
-							for _, g := range autoGroups {
-								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									if service.ChannelSupportsRequestEndpoint(c, preferred, modelRequest.Model) {
-										ok, acquireErr := service.AcquireChannelConcurrencyWithWaitForContext(c, preferred)
-										if acquireErr != nil {
-											if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+				if !hasAssetRefs {
+					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+						affinityUsable := false
+						affinityConcurrencyLimited := false
+						preferred, err := model.CacheGetChannel(preferredChannelID)
+						if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+							if usingGroup == "auto" {
+								userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+								autoGroups := service.GetUserAutoGroup(userGroup)
+								for _, g := range autoGroups {
+									if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+										if service.ChannelSupportsRequestEndpoint(c, preferred, modelRequest.Model) {
+											ok, acquireErr := service.AcquireChannelConcurrencyWithWaitForContext(c, preferred)
+											if acquireErr != nil {
+												if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+													affinityConcurrencyLimited = true
+													break
+												}
+												abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
+												return
+											}
+											if !ok {
 												affinityConcurrencyLimited = true
 												break
 											}
-											abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
-											return
-										}
-										if !ok {
-											affinityConcurrencyLimited = true
+											selectGroup = g
+											common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+											channel = preferred
+											affinityUsable = true
+											service.MarkChannelAffinityUsed(c, g, preferred.Id)
 											break
 										}
-										selectGroup = g
-										common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-										channel = preferred
-										affinityUsable = true
-										service.MarkChannelAffinityUsed(c, g, preferred.Id)
-										break
 									}
 								}
-							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) &&
-							service.ChannelSupportsRequestEndpoint(c, preferred, modelRequest.Model) {
-							ok, acquireErr := service.AcquireChannelConcurrencyWithWaitForContext(c, preferred)
-							if acquireErr != nil {
-								if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+							} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) &&
+								service.ChannelSupportsRequestEndpoint(c, preferred, modelRequest.Model) {
+								ok, acquireErr := service.AcquireChannelConcurrencyWithWaitForContext(c, preferred)
+								if acquireErr != nil {
+									if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
+										affinityConcurrencyLimited = true
+									} else {
+										abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
+										return
+									}
+								}
+								if !ok || affinityConcurrencyLimited {
 									affinityConcurrencyLimited = true
 								} else {
-									abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
-									return
+									channel = preferred
+									selectGroup = usingGroup
+									affinityUsable = true
+									service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 								}
 							}
-							if !ok || affinityConcurrencyLimited {
-								affinityConcurrencyLimited = true
-							} else {
-								channel = preferred
-								selectGroup = usingGroup
-								affinityUsable = true
-								service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+						}
+						if !affinityUsable {
+							// 亲和命中的渠道已被禁用时，按 fork 策略 fail-fast：不静默改路到其他渠道，
+							// 直接报错让用户联系管理员（与 controller/relay.go 重试逻辑使用的同一开关保持一致）。
+							if err == nil && preferred != nil && preferred.Status != common.ChannelStatusEnabled &&
+								service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
+								return
 							}
-						}
-					}
-					if !affinityUsable {
-						// 亲和命中的渠道已被禁用时，按 fork 策略 fail-fast：不静默改路到其他渠道，
-						// 直接报错让用户联系管理员（与 controller/relay.go 重试逻辑使用的同一开关保持一致）。
-						if err == nil && preferred != nil && preferred.Status != common.ChannelStatusEnabled &&
-							service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
-							return
-						}
-						// 否则沿用上游行为：根据配置决定是否清除亲和粘性缓存，随后重新选路。
-						if !affinityConcurrencyLimited && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
-							service.ClearCurrentChannelAffinityCache(c)
+							// 否则沿用上游行为：根据配置决定是否清除亲和粘性缓存，随后重新选路。
+							if !affinityConcurrencyLimited && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
+								service.ClearCurrentChannelAffinityCache(c)
+							}
 						}
 					}
 				}
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
+						Ctx:           c,
+						ModelName:     modelRequest.Model,
+						TokenGroup:    usingGroup,
+						Retry:         common.GetPointer(0),
+						ChannelRanker: assetResolution.ChannelRanker(),
 					})
 					if err != nil {
 						statusCode := http.StatusServiceUnavailable
@@ -294,6 +312,11 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, newAPIError.StatusCode, newAPIError.Error(), newAPIError.GetErrorCode())
 				return
 			}
+			if newAPIError := RefreshAssetRewriteMapForSelectedChannel(c, channel); newAPIError != nil {
+				_ = service.ReleaseChannelConcurrencyForContext(c)
+				abortWithOpenAiMessage(c, newAPIError.StatusCode, newAPIError.Error(), newAPIError.GetErrorCode())
+				return
+			}
 			defer service.ReleaseChannelConcurrencyForContext(c)
 		}
 		c.Next()
@@ -324,9 +347,7 @@ func abortBytePlusAssetSpecificChannelConflict(c *gin.Context, channelId any, ha
 	return false
 }
 
-// resolveBytePlusAssetResolution parses reusable video submit bodies only far
-// enough to authorize strict BytePlus asset references before channel routing.
-func resolveBytePlusAssetResolution(c *gin.Context, shouldSelectChannel bool) (service.BytePlusAssetReferenceResolution, *types.NewAPIError) {
+func resolveLegacyBytePlusAssetResolution(c *gin.Context, shouldSelectChannel bool) (service.BytePlusAssetReferenceResolution, *types.NewAPIError) {
 	if !shouldSelectChannel || c == nil || c.Request == nil {
 		return service.BytePlusAssetReferenceResolution{}, nil
 	}
@@ -334,12 +355,29 @@ func resolveBytePlusAssetResolution(c *gin.Context, shouldSelectChannel bool) (s
 	if relayMode != relayconstant.RelayModeVideoSubmit {
 		return service.BytePlusAssetReferenceResolution{}, nil
 	}
-
 	var seedanceReq dto.SeedanceVideoRequest
 	if err := common.UnmarshalBodyReusable(c, &seedanceReq); err != nil {
 		return service.BytePlusAssetReferenceResolution{}, bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 	}
-	return service.ResolveBytePlusAssetReferences(c, common.GetContextKeyInt(c, constant.ContextKeyUserId), &seedanceReq)
+	return service.ResolveLegacyBytePlusAssetBindingReferences(common.GetContextKeyInt(c, constant.ContextKeyUserId), &seedanceReq)
+}
+
+// resolveAssetReferenceSet parses reusable video submit bodies only far enough
+// to authorize strict reusable asset references before channel routing.
+func resolveAssetReferenceSet(c *gin.Context, shouldSelectChannel bool) (service.AssetReferenceSet, *types.NewAPIError) {
+	if !shouldSelectChannel || c == nil || c.Request == nil {
+		return service.AssetReferenceSet{}, nil
+	}
+	relayMode, _ := c.Get("relay_mode")
+	if relayMode != relayconstant.RelayModeVideoSubmit {
+		return service.AssetReferenceSet{}, nil
+	}
+
+	var seedanceReq dto.SeedanceVideoRequest
+	if err := common.UnmarshalBodyReusable(c, &seedanceReq); err != nil {
+		return service.AssetReferenceSet{}, bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	return service.ResolveAssetReferences(c, common.GetContextKeyInt(c, constant.ContextKeyUserId), &seedanceReq)
 }
 
 func hasBytePlusAssetReferences(c *gin.Context, shouldSelectChannel bool) (bool, *types.NewAPIError) {
@@ -385,6 +423,50 @@ func bytePlusAssetURLHasReference(raw string) (bool, *types.NewAPIError) {
 		return false, bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
 	}
 	return false, nil
+}
+
+func RefreshAssetRewriteMapForSelectedChannel(c *gin.Context, channel *model.Channel) *types.NewAPIError {
+	if c == nil || channel == nil {
+		return nil
+	}
+	references, ok := common.GetContextKeyType[service.AssetReferenceSet](c, constant.ContextKeyAssetReferenceSet)
+	if !ok || !references.HasReferences() {
+		return nil
+	}
+	if !common.GetContextKeyBool(c, constant.ContextKeyAssetMaterializeEnabled) {
+		rewriteMap := references.RewriteMapForChannel(channel.Id)
+		if len(rewriteMap) == 0 {
+			clearAssetRewriteMap(c)
+			return nil
+		}
+		common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, rewriteMap)
+		common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, rewriteMap)
+		return nil
+	}
+	ctx := context.Background()
+	if c.Request != nil {
+		ctx = c.Request.Context()
+	}
+	rewriteMap, err := service.MaterializeAssetBindingsForChannel(ctx, common.GetContextKeyInt(c, constant.ContextKeyUserId), references, channel)
+	if err != nil {
+		clearAssetRewriteMap(c)
+		return service.AssetBindingAPIError(err)
+	}
+	if len(rewriteMap) == 0 {
+		clearAssetRewriteMap(c)
+		return nil
+	}
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, rewriteMap)
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, rewriteMap)
+	return nil
+}
+
+func clearAssetRewriteMap(c *gin.Context) {
+	if c == nil || c.Keys == nil {
+		return
+	}
+	delete(c.Keys, string(constant.ContextKeyAssetRewriteMap))
+	delete(c.Keys, string(constant.ContextKeyBytePlusAssetRewriteMap))
 }
 
 // BytePlus asset references are resolved before normal channel selection so

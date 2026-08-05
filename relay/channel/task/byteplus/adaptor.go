@@ -90,9 +90,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyBytePlusAssetRewriteMap)
-	if err := extendBytePlusAssetLeasesBeforeSubmit(c, raw, rewriteMap); err != nil {
-		return nil, err
+	rewriteMap, hasGeneralized := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+	if !hasGeneralized {
+		rewriteMap, _ = common.GetContextKeyType[map[string]string](c, constant.ContextKeyBytePlusAssetRewriteMap)
+		if err := extendBytePlusAssetLeasesBeforeSubmit(c, raw, rewriteMap); err != nil {
+			return nil, err
+		}
 	}
 	rewritten, err := rewriteBytePlusAssetReferences(raw, rewriteMap)
 	if err != nil {
@@ -186,29 +189,31 @@ func rewriteBytePlusAssetReferences(raw []byte, rewriteMap map[string]string) ([
 	if !bytes.Contains(bytes.ToLower(raw), []byte("asset:")) {
 		return raw, nil
 	}
-	var payload map[string]any
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	if err := decoder.Decode(&payload); err != nil {
+	var payload map[string]json.RawMessage
+	if err := common.Unmarshal(raw, &payload); err != nil {
 		return nil, err
 	}
-	content, ok := payload["content"].([]any)
+	contentRaw, ok := payload["content"]
 	if !ok {
 		return raw, nil
 	}
+	var content []map[string]json.RawMessage
+	if err := common.Unmarshal(contentRaw, &content); err != nil {
+		return raw, nil
+	}
 	rewritten := false
-	for _, itemAny := range content {
-		item, ok := itemAny.(map[string]any)
-		if !ok {
-			continue
-		}
+	for itemIdx, item := range content {
 		for _, field := range []string{"image_url", "video_url", "audio_url"} {
-			media, ok := item[field].(map[string]any)
+			mediaRaw, ok := item[field]
 			if !ok {
 				continue
 			}
-			urlValue, ok := media["url"].(string)
-			if !ok || !isBytePlusAssetSchemeURL(urlValue) {
+			var media map[string]json.RawMessage
+			if err := common.Unmarshal(mediaRaw, &media); err != nil {
+				continue
+			}
+			var urlValue string
+			if err := common.Unmarshal(media["url"], &urlValue); err != nil || !isBytePlusAssetSchemeURL(urlValue) {
 				continue
 			}
 			if !service.IsStrictBytePlusAssetURI(urlValue) {
@@ -218,13 +223,27 @@ func rewriteBytePlusAssetReferences(raw []byte, rewriteMap map[string]string) ([
 			if !ok || strings.TrimSpace(upstreamURL) == "" {
 				return nil, fmt.Errorf("invalid byteplus asset reference")
 			}
-			media["url"] = upstreamURL
+			urlRaw, err := common.Marshal(upstreamURL)
+			if err != nil {
+				return nil, err
+			}
+			media["url"] = urlRaw
+			updatedMedia, err := common.Marshal(media)
+			if err != nil {
+				return nil, err
+			}
+			content[itemIdx][field] = updatedMedia
 			rewritten = true
 		}
 	}
 	if !rewritten {
 		return raw, nil
 	}
+	contentBytes, err := common.Marshal(content)
+	if err != nil {
+		return nil, err
+	}
+	payload["content"] = contentBytes
 	return common.Marshal(payload)
 }
 

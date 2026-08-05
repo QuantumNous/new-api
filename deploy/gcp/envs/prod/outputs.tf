@@ -31,6 +31,16 @@ output "runtime_sa_email" {
   value = module.service_accounts.runtime_email
 }
 
+output "flatkey_asset_bucket" {
+  description = "Private production GCS bucket for Flatkey source assets."
+  value       = google_storage_bucket.flatkey_assets.name
+}
+
+output "flatkey_asset_staging_bucket" {
+  description = "Private staging GCS bucket for Flatkey source assets. Empty unless enable_staging=true."
+  value       = var.enable_staging ? google_storage_bucket.flatkey_assets_staging[0].name : ""
+}
+
 output "lb_ip" {
   description = "Static IPv4 to A-record in Cloudflare for every domain in lb_domains. Null if LB disabled."
   value       = var.enable_load_balancer ? module.cloud_lb[0].ip_address : null

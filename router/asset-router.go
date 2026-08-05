@@ -13,8 +13,15 @@ func SetBytePlusAssetRouter(router *gin.Engine) {
 	assetRouter.Use(middleware.TokenAuth())
 	assetRouter.Use(middleware.ModelRequestRateLimit())
 	{
-		assetRouter.POST("/assets", controller.CreateBytePlusAsset)
-		assetRouter.GET("/assets/:asset_id", controller.GetBytePlusAsset)
+		assetWriteRouter := assetRouter.Group("/")
+		assetWriteRouter.Use(middleware.UploadRateLimit())
+		{
+			assetWriteRouter.POST("/assets", controller.CreateAsset)
+			assetWriteRouter.POST("/assets/upload", controller.UploadAsset)
+			assetWriteRouter.POST("/assets/uploads", controller.CreateAssetUploadSession)
+			assetWriteRouter.POST("/assets/uploads/:upload_id/complete", controller.CompleteAssetUpload)
+		}
+		assetRouter.GET("/assets/:asset_id", controller.GetAsset)
 		assetRouter.DELETE("/assets/:asset_id", controller.DeleteBytePlusAsset)
 		assetRouter.POST("/real-persons", controller.CreateBytePlusRealPerson)
 		assetRouter.POST("/real-persons/:person_id/verification-sessions", controller.ReverifyBytePlusRealPerson)

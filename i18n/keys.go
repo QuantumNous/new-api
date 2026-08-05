@@ -390,6 +390,8 @@ const (
 	MsgAssetFileTooLarge            = "asset.file_too_large"
 	MsgAssetMediaUnsupported        = "asset.media_unsupported"
 	MsgAssetUploadFailed            = "asset.upload_failed"
+	MsgAssetExpired                 = "asset.expired"
+	MsgAssetTypeMismatch            = "asset.type_mismatch"
 )
 
 // Email content messages (subject + HTML body, rendered with template data)

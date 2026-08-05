@@ -245,6 +245,38 @@ router_domains  = ["router.flatkey.ai"]
 
 Cloudflare “origin IP partially exposed” warning 在当前混合模式下是预期现象，不是必须修复项。
 
+### Flatkey asset bucket rollout
+
+The Flatkey asset buckets are infrastructure only. Do not run `terraform apply`
+as part of a normal app deployment, and do not use Terraform to roll app images
+or live env backward.
+
+First rollout order:
+
+1. Review Terraform locally from `deploy/gcp/envs/prod`; do not use CI infra
+   plan as the only source of truth.
+2. After an approved infrastructure window, an operator with Owner ADC applies
+   the bucket/IAM changes. This task does not perform that apply.
+3. Deploy `newapi-console` and `newapi-router` through `gcp-deploy.yml`; the
+   workflow injects `ASSET_STORAGE_BUCKET=vocai-gemini-prod-flatkey-assets` into
+   each new production revision.
+4. For staging, enable/apply staging infrastructure only when desired, then use
+   `gcp-deploy-staging.yml`; it injects
+   `ASSET_STORAGE_BUCKET=vocai-gemini-prod-flatkey-assets-staging`.
+
+Rollback:
+
+- Bad application behavior: roll back the affected Cloud Run service revision.
+- Bad env value: deploy a corrected revision with the workflow or use
+  `gcloud run services update --update-env-vars=ASSET_STORAGE_BUCKET=...`, then
+  move traffic to the new revision.
+- Bad bucket/IAM provisioning: fix Terraform and apply in the infrastructure
+  lane. Do not make the bucket public and do not grant project-wide Storage
+  Admin or broader bucket admin roles to repair runtime access.
+
+Signed URLs are short-lived runtime artifacts. They must not be logged, stored in
+task payloads, copied into GitHub summaries, or written to Terraform state.
+
 ## 密钥与凭据管理
 
 ### Secret 更新原则

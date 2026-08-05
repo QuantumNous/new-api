@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -24,6 +25,63 @@ func setupWindowTestRedis(t *testing.T) *miniredis.Miniredis {
 		common.RedisEnabled = prevRedisEnabled
 	})
 	return mr
+}
+
+func TestAdjustSubscriptionWindowFromSnapshotOnceIsAtomicAndIdempotent(t *testing.T) {
+	setupWindowTestRedis(t)
+	now := common.GetTimestamp()
+	currentBucket := now / subscriptionWindowBucketSeconds * subscriptionWindowBucketSeconds
+	bucketKey := subscriptionWindowBucketKey(88, currentBucket)
+	weekKey := subscriptionWindowWeekKey(88, subscriptionWindowWeekIndex(now-3600, now))
+	snap := &model.TaskSubscriptionWindow{
+		SubId:     88,
+		SubStart:  now - 3600,
+		Limit5h:   1000,
+		LimitWeek: 1000,
+	}
+
+	changed, err := AdjustSubscriptionWindowFromSnapshotOnce(snap, 50, "task_window_once")
+	if err != nil || !changed {
+		t.Fatalf("first once adjust failed changed=%v err=%v", changed, err)
+	}
+	if got, _ := common.RDB.Get(context.Background(), bucketKey).Int64(); got != 50 {
+		t.Fatalf("bucket after first adjust = %d, want 50", got)
+	}
+	if got, _ := common.RDB.Get(context.Background(), weekKey).Int64(); got != 50 {
+		t.Fatalf("week after first adjust = %d, want 50", got)
+	}
+	changed, err = AdjustSubscriptionWindowFromSnapshotOnce(snap, 50, "task_window_once")
+	if err != nil || changed {
+		t.Fatalf("duplicate once adjust changed=%v err=%v, want no-op", changed, err)
+	}
+	if got, _ := common.RDB.Get(context.Background(), bucketKey).Int64(); got != 50 {
+		t.Fatalf("bucket after duplicate adjust = %d, want 50", got)
+	}
+
+	badBucket := subscriptionWindowBucketKey(89, currentBucket)
+	requireErrSnap := &model.TaskSubscriptionWindow{
+		SubId:     89,
+		SubStart:  now - 3600,
+		Limit5h:   1000,
+		LimitWeek: 0,
+	}
+	if err := common.RDB.Set(context.Background(), badBucket, "not-an-int", 0).Err(); err != nil {
+		t.Fatalf("seed bad bucket: %v", err)
+	}
+	changed, err = AdjustSubscriptionWindowFromSnapshotOnce(requireErrSnap, 10, "task_window_retry")
+	if err == nil || changed {
+		t.Fatalf("bad redis value should fail without claim, changed=%v err=%v", changed, err)
+	}
+	if exists, _ := common.RDB.Exists(context.Background(), acceptedAccountingRedisStepKey("task_window_retry", model.TaskAcceptedAccountingStepSubscriptionWindow)).Result(); exists != 0 {
+		t.Fatal("failed once adjust must not leave idempotency key")
+	}
+	if err := common.RDB.Del(context.Background(), badBucket).Err(); err != nil {
+		t.Fatalf("clear bad bucket: %v", err)
+	}
+	changed, err = AdjustSubscriptionWindowFromSnapshotOnce(requireErrSnap, 10, "task_window_retry")
+	if err != nil || !changed {
+		t.Fatalf("retry after clearing bad bucket failed changed=%v err=%v", changed, err)
+	}
 }
 
 func TestSubscriptionWindowWeekIndex(t *testing.T) {

@@ -2,6 +2,7 @@ package relay
 
 import (
 	"strconv"
+	"sync"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -60,6 +61,31 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/zhipu_4v"
 	"github.com/gin-gonic/gin"
 )
+
+var taskAdaptorForTest = struct {
+	sync.RWMutex
+	adaptors map[constant.TaskPlatform]channel.TaskAdaptor
+}{adaptors: map[constant.TaskPlatform]channel.TaskAdaptor{}}
+
+func registerTaskAdaptorForTest(platform constant.TaskPlatform, adaptor channel.TaskAdaptor) func() {
+	taskAdaptorForTest.Lock()
+	old, hadOld := taskAdaptorForTest.adaptors[platform]
+	if adaptor == nil {
+		delete(taskAdaptorForTest.adaptors, platform)
+	} else {
+		taskAdaptorForTest.adaptors[platform] = adaptor
+	}
+	taskAdaptorForTest.Unlock()
+	return func() {
+		taskAdaptorForTest.Lock()
+		defer taskAdaptorForTest.Unlock()
+		if hadOld {
+			taskAdaptorForTest.adaptors[platform] = old
+		} else {
+			delete(taskAdaptorForTest.adaptors, platform)
+		}
+	}
+}
 
 func GetAdaptor(apiType int) channel.Adaptor {
 	switch apiType {
@@ -148,6 +174,12 @@ func GetTaskPlatform(c *gin.Context) constant.TaskPlatform {
 }
 
 func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
+	taskAdaptorForTest.RLock()
+	if adaptor := taskAdaptorForTest.adaptors[platform]; adaptor != nil {
+		taskAdaptorForTest.RUnlock()
+		return adaptor
+	}
+	taskAdaptorForTest.RUnlock()
 	switch platform {
 	//case constant.APITypeAIProxyLibrary:
 	//	return &aiproxy.Adaptor{}

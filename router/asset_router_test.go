@@ -29,6 +29,9 @@ func TestSetBytePlusAssetRouterRegistersPublicAssetRoutes(t *testing.T) {
 
 	for _, want := range []string{
 		http.MethodPost + " /v1/assets",
+		http.MethodPost + " /v1/assets/upload",
+		http.MethodPost + " /v1/assets/uploads",
+		http.MethodPost + " /v1/assets/uploads/:upload_id/complete",
 		http.MethodGet + " /v1/assets/:asset_id",
 		http.MethodDelete + " /v1/assets/:asset_id",
 		http.MethodPost + " /v1/real-persons",
@@ -55,6 +58,9 @@ func TestBytePlusAssetRoutesReachTokenAuthWithoutDistribution(t *testing.T) {
 		path   string
 	}{
 		{method: http.MethodPost, path: "/v1/assets"},
+		{method: http.MethodPost, path: "/v1/assets/upload"},
+		{method: http.MethodPost, path: "/v1/assets/uploads"},
+		{method: http.MethodPost, path: "/v1/assets/uploads/upl_public/complete"},
 		{method: http.MethodGet, path: "/v1/assets/ast_1234567890abcdefABCDEF1234567890"},
 		{method: http.MethodDelete, path: "/v1/assets/ast_1234567890abcdefABCDEF1234567890"},
 		{method: http.MethodPost, path: "/v1/real-persons"},
@@ -187,12 +193,23 @@ func TestBytePlusAssetRouterUsesRateLimitAndTokenAuthWithoutDistribute(t *testin
 
 	text := string(source)
 	require.Contains(t, text, `middleware.RouteTag("asset")`)
+	require.Contains(t, text, "middleware.GlobalAPIRateLimit()")
+	require.Contains(t, text, "middleware.TokenAuth()")
+	require.Contains(t, text, "middleware.ModelRequestRateLimit()")
+	require.Contains(t, text, "middleware.UploadRateLimit()")
+	require.NotContains(t, text, "middleware.Distribute()")
+	require.NotContains(t, text, ".GET(\"/assets\"")
+	require.Contains(t, text, "assetWriteRouter.POST(\"/assets\", controller.CreateAsset)")
+	require.Contains(t, text, "assetWriteRouter.POST(\"/assets/upload\", controller.UploadAsset)")
+	require.Contains(t, text, "assetWriteRouter.POST(\"/assets/uploads\", controller.CreateAssetUploadSession)")
+	require.Contains(t, text, "assetWriteRouter.POST(\"/assets/uploads/:upload_id/complete\", controller.CompleteAssetUpload)")
+	require.Contains(t, text, "assetRouter.GET(\"/assets/:asset_id\", controller.GetAsset)")
+	require.Contains(t, text, "assetRouter.DELETE(\"/assets/:asset_id\", controller.DeleteBytePlusAsset)")
+	require.NotContains(t, text, "controller.CreateBytePlusAsset)")
 	require.Less(t, strings.Index(text, `middleware.RouteTag("asset")`), strings.Index(text, "middleware.GlobalAPIRateLimit()"))
 	require.Less(t, strings.Index(text, "middleware.GlobalAPIRateLimit()"), strings.Index(text, "middleware.TokenAuth()"))
 	require.Less(t, strings.Index(text, "middleware.TokenAuth()"), strings.Index(text, "middleware.ModelRequestRateLimit()"))
 	require.Less(t, strings.Index(text, "middleware.RealPersonVerificationCallbackMetrics()"), strings.Index(text, "middleware.RealPersonVerificationCallbackRateLimit()"))
-	require.NotContains(t, text, "middleware.Distribute()")
-	require.NotContains(t, text, ".GET(\"/assets\"")
 }
 
 func TestSetRouterIncludesBytePlusAssetRoutes(t *testing.T) {
@@ -207,10 +224,27 @@ func TestSetRouterIncludesBytePlusAssetRoutes(t *testing.T) {
 	}
 
 	require.True(t, routes[http.MethodPost+" /v1/assets"])
+	require.True(t, routes[http.MethodPost+" /v1/assets/upload"])
+	require.True(t, routes[http.MethodPost+" /v1/assets/uploads"])
+	require.True(t, routes[http.MethodPost+" /v1/assets/uploads/:upload_id/complete"])
 	require.True(t, routes[http.MethodGet+" /v1/assets/:asset_id"])
+	require.True(t, routes[http.MethodDelete+" /v1/assets/:asset_id"])
 	require.True(t, routes[http.MethodPost+" /v1/real-persons"])
 	require.True(t, routes[http.MethodGet+" /v1/real-person-verifications/callback/:callback_token"])
 	require.True(t, routes[http.MethodPost+" /v1/real-person-verifications/callback/:callback_token"])
+}
+
+func TestAssetPostRoutesApplyUploadRateLimitButGetDoesNot(t *testing.T) {
+	source, err := os.ReadFile("asset-router.go")
+	require.NoError(t, err)
+
+	text := string(source)
+	uploadUseIndex := strings.Index(text, "assetWriteRouter.Use(middleware.UploadRateLimit())")
+	require.NotEqual(t, -1, uploadUseIndex, "POST asset write group must use UploadRateLimit")
+	getIndex := strings.Index(text, "assetRouter.GET(\"/assets/:asset_id\"")
+	require.NotEqual(t, -1, getIndex, "GET asset route must be registered")
+	require.Less(t, uploadUseIndex, strings.Index(text, "assetWriteRouter.POST(\"/assets\""))
+	require.NotContains(t, text[getIndex-80:getIndex], "UploadRateLimit")
 }
 
 func TestSetRouterAppliesRelayGlobalMiddlewareToBytePlusAssetRoutes(t *testing.T) {

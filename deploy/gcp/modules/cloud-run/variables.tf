@@ -151,6 +151,12 @@ variable "usage_recon_token_secret_id" {
   default     = ""
 }
 
+variable "asset_storage_bucket" {
+  type        = string
+  description = "Private GCS bucket used for Flatkey source asset storage. Empty string disables the env injection."
+  default     = ""
+}
+
 variable "frontend_base_url" {
   type        = string
   description = "Primary frontend URL used for OAuth callbacks and emails"

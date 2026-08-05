@@ -316,6 +316,31 @@ gcloud logging read \
 | Prefix | `envs/prod` |
 | Working directory | `deploy/gcp/envs/prod/` |
 
+## Flatkey asset storage
+
+Terraform manages two private GCS buckets for the Flatkey source asset store:
+
+| Environment | Bucket | Runtime access |
+|---|---|---|
+| Production | `vocai-gemini-prod-flatkey-assets` | `newapi-runtime@vocai-gemini-prod.iam.gserviceaccount.com` |
+| Staging | `vocai-gemini-prod-flatkey-assets-staging` | `newapi-staging-runtime@vocai-gemini-prod.iam.gserviceaccount.com` when `enable_staging=true` |
+
+Both buckets use uniform bucket-level access and `public_access_prevention = "enforced"`.
+They are not website buckets and must not receive `allUsers`,
+`allAuthenticatedUsers`, or project-wide Storage Admin grants. Runtime access is
+bucket-scoped `roles/storage.objectUser` plus self
+`iam.serviceAccountTokenCreator` for short-lived signed URL creation.
+
+Versioning and seven-day GCS soft delete protect against accidental deletes.
+Lifecycle rules delete only `ARCHIVED` object versions after 30 days. They do not
+delete current objects by creation age. The database cleanup worker is the
+authority for the public 30-day last-used source retention contract.
+
+`ASSET_STORAGE_BUCKET` is seeded in Terraform for first service creation, but
+live Cloud Run env is lifecycle-ignored and owned by deploy workflows:
+`.github/workflows/gcp-deploy.yml` for production console/router and
+`.github/workflows/gcp-deploy-staging.yml` for staging.
+
 ## 月度成本估算
 
 | 项 | 月费用 |

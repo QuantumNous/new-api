@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -13,10 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"cloud.google.com/go/compute/metadata"
-	"cloud.google.com/go/storage"
 	"github.com/QuantumNous/new-api/common"
-	"google.golang.org/api/iamcredentials/v1"
 )
 
 const (
@@ -124,62 +120,22 @@ func UploadTempMediaImage(ctx context.Context, request TempMediaUploadRequest) (
 }
 
 func putTempMediaObjectToGCS(ctx context.Context, cfg TempMediaConfig, objectKey string, body io.Reader, contentType string) error {
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return err
-	}
-	defer client.Close()
-	writer := client.Bucket(cfg.Bucket).Object(objectKey).NewWriter(ctx)
-	writer.ContentType = contentType
-	writer.CacheControl = fmt.Sprintf("private, max-age=%d", int64(cfg.SignedURLTTL.Seconds()))
-	if _, err := io.Copy(writer, body); err != nil {
-		_ = writer.Close()
-		return err
-	}
-	return writer.Close()
+	return assetObjectStore.Put(ctx, cfg.Bucket, objectKey, body, AssetObjectPutOptions{
+		ContentType: contentType,
+		// Temp media stays readable for the whole signed URL lifetime.
+		CacheControl: fmt.Sprintf("private, max-age=%d", int64(cfg.SignedURLTTL.Seconds())),
+	})
 }
 
 func deleteTempMediaObjectFromGCS(ctx context.Context, cfg TempMediaConfig, objectKey string) error {
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return err
-	}
-	defer client.Close()
-	if err := client.Bucket(cfg.Bucket).Object(objectKey).Delete(ctx); err != nil && !errors.Is(err, storage.ErrObjectNotExist) {
+	if err := assetObjectStore.Delete(ctx, cfg.Bucket, objectKey, 0); err != nil && !isAssetObjectNotFound(err) {
 		return err
 	}
 	return nil
 }
 
 func signTempMediaObjectWithIAM(ctx context.Context, cfg TempMediaConfig, objectKey string, method string) (string, error) {
-	serviceAccountEmail := cfg.ServiceAccountEmail
-	if serviceAccountEmail == "" {
-		var err error
-		serviceAccountEmail, err = tempMediaServiceAccountEmail(ctx)
-		if err != nil {
-			return "", fmt.Errorf("%w: %v", ErrTempMediaServiceAccount, err)
-		}
-	}
-	signer, err := iamcredentials.NewService(ctx)
-	if err != nil {
-		return "", err
-	}
-	return storage.SignedURL(cfg.Bucket, objectKey, &storage.SignedURLOptions{
-		GoogleAccessID: serviceAccountEmail,
-		Method:         method,
-		Expires:        tempMediaNow().Add(cfg.SignedURLTTL),
-		Scheme:         storage.SigningSchemeV4,
-		SignBytes: func(payload []byte) ([]byte, error) {
-			response, err := signer.Projects.ServiceAccounts.SignBlob(
-				"projects/-/serviceAccounts/"+serviceAccountEmail,
-				&iamcredentials.SignBlobRequest{Payload: base64.StdEncoding.EncodeToString(payload)},
-			).Context(ctx).Do()
-			if err != nil {
-				return nil, err
-			}
-			return base64.StdEncoding.DecodeString(response.SignedBlob)
-		},
-	})
+	return assetObjectStore.SignURL(ctx, cfg.Bucket, objectKey, AssetSignedURLRequest{Method: method, TTL: cfg.SignedURLTTL, ServiceAccountEmail: cfg.ServiceAccountEmail})
 }
 
 func normalizeTempMediaImageType(contentType string) (string, string) {
@@ -219,7 +175,7 @@ func defaultTempMediaBucketForEnv() string {
 }
 
 func defaultTempMediaServiceAccountEmail(ctx context.Context) (string, error) {
-	return metadata.EmailWithContext(ctx, "default")
+	return defaultAssetServiceAccountEmail(ctx)
 }
 
 func getEnvInt(key string, fallback int) int {

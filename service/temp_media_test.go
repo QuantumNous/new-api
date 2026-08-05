@@ -72,6 +72,64 @@ func TestUploadTempMediaImageStoresAndSignsObject(t *testing.T) {
 	require.Equal(t, "image/png", result.ContentType)
 }
 
+func TestSignTempMediaObjectPassesConfiguredServiceAccountToSharedStore(t *testing.T) {
+	store := &fakeAssetObjectStore{}
+	originalStore := assetObjectStore
+	t.Cleanup(func() {
+		assetObjectStore = originalStore
+	})
+	assetObjectStore = store
+
+	t.Setenv("TEMP_MEDIA_SERVICE_ACCOUNT_EMAIL", " temp-media-signer@example.iam.gserviceaccount.com ")
+	cfg := CurrentTempMediaConfig()
+
+	_, err := signTempMediaObjectWithIAM(context.Background(), cfg, "temp-media/1/file.png", "GET")
+
+	require.NoError(t, err)
+	require.Len(t, store.signed, 1)
+	require.Equal(t, "temp-media-signer@example.iam.gserviceaccount.com", store.signed[0].ServiceAccountEmail)
+}
+
+func TestSignTempMediaObjectDoesNotInheritAssetServiceAccountEmail(t *testing.T) {
+	store := &fakeAssetObjectStore{}
+	originalStore := assetObjectStore
+	originalMetadata := assetServiceAccountEmail
+	t.Cleanup(func() {
+		assetObjectStore = originalStore
+		assetServiceAccountEmail = originalMetadata
+	})
+	assetObjectStore = store
+	assetServiceAccountEmail = func(context.Context) (string, error) {
+		return "metadata-signer@example.iam.gserviceaccount.com", nil
+	}
+	t.Setenv("ASSET_SERVICE_ACCOUNT_EMAIL", "asset-signer@example.iam.gserviceaccount.com")
+	t.Setenv("TEMP_MEDIA_SERVICE_ACCOUNT_EMAIL", "")
+	cfg := CurrentTempMediaConfig()
+
+	_, err := signTempMediaObjectWithIAM(context.Background(), cfg, "temp-media/1/file.png", "GET")
+
+	require.NoError(t, err)
+	require.Len(t, store.signed, 1)
+	require.Empty(t, store.signed[0].ServiceAccountEmail)
+}
+
+func TestPutTempMediaObjectToGCSKeepsSignedURLAlignedCacheControl(t *testing.T) {
+	store := &fakeAssetObjectStore{objects: map[string][]byte{}, attrs: map[string]AssetObjectAttrs{}}
+	oldStore := assetObjectStore
+	assetObjectStore = store
+	t.Cleanup(func() { assetObjectStore = oldStore })
+
+	cfg := TempMediaConfig{Bucket: "temp-media-bucket", SignedURLTTL: 12 * time.Hour}
+	err := putTempMediaObjectToGCS(context.Background(), cfg, "temp/object.png", strings.NewReader("payload"), "image/png")
+
+	// Temp media objects stay valid for the whole signed URL lifetime, so they
+	// must not be stored with the asset store's no-cache default.
+	require.NoError(t, err)
+	require.Len(t, store.puts, 1)
+	require.Equal(t, "image/png", store.puts[0].contentType)
+	require.Equal(t, "private, max-age=43200", store.puts[0].cacheControl)
+}
+
 func TestUploadTempMediaImageRejectsOversizedImage(t *testing.T) {
 	t.Setenv("TEMP_MEDIA_MAX_IMAGE_BYTES", "3")
 

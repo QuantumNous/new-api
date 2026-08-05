@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
@@ -21,6 +22,25 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+type controllerAssetMaterializer struct {
+	createErr error
+}
+
+func (m controllerAssetMaterializer) CreateAsset(ctx context.Context, input service.AssetMaterializeInput) (service.AssetMaterializeResult, error) {
+	if m.createErr != nil {
+		return service.AssetMaterializeResult{}, m.createErr
+	}
+	return service.AssetMaterializeResult{
+		UpstreamGroupID: "group",
+		UpstreamAssetID: "upstream-" + input.Asset.PublicId,
+		Status:          model.AssetStatusActive,
+	}, nil
+}
+
+func (m controllerAssetMaterializer) GetAsset(ctx context.Context, input service.AssetMaterializeInput, upstreamAssetID string) (service.AssetMaterializeResult, error) {
+	return service.AssetMaterializeResult{UpstreamAssetID: upstreamAssetID, Status: model.AssetStatusActive}, nil
+}
 
 func TestGetChannelReacquiresContextChannelConcurrency(t *testing.T) {
 	prevDB := model.DB
@@ -228,6 +248,173 @@ func TestGetChannelSkipsCoolingDownChannel(t *testing.T) {
 	require.Equal(t, fallbackChannel.Id, selected.Id)
 }
 
+func TestGetChannelRetryUsesAssetRankerAndRefreshesRewriteMap(t *testing.T) {
+	restoreRuntime := useControllerMemoryChannelConcurrencyForTest(t)
+	defer restoreRuntime()
+	restoreDB := useControllerAssetChannelSelectionDBForTest(t)
+	defer restoreDB()
+
+	lowPriority := int64(1)
+	highPriority := int64(100)
+	weight := uint(1)
+	boundChannel := &model.Channel{
+		Id:       909906,
+		Type:     constant.ChannelTypeBytePlus,
+		Key:      `{"api_key":"sk-bound","access_key_id":"ak","secret_access_key":"sec","project_name":"project"}`,
+		Status:   common.ChannelStatusEnabled,
+		Name:     "asset-bound",
+		Group:    "default",
+		Models:   "seedance-2.0",
+		Priority: &lowPriority,
+		Weight:   &weight,
+	}
+	ineligibleChannel := &model.Channel{
+		Id:       909907,
+		Type:     constant.ChannelTypeBytePlus,
+		Key:      `{"api_key":"sk-ineligible","access_key_id":"ak","secret_access_key":"sec","project_name":"project"}`,
+		Status:   common.ChannelStatusEnabled,
+		Name:     "asset-ineligible",
+		Group:    "default",
+		Models:   "seedance-2.0",
+		Priority: &highPriority,
+		Weight:   &weight,
+	}
+	require.NoError(t, model.DB.Create(boundChannel).Error)
+	require.NoError(t, boundChannel.AddAbilities(nil))
+	require.NoError(t, model.DB.Create(ineligibleChannel).Error)
+	require.NoError(t, ineligibleChannel.AddAbilities(nil))
+	asset := model.Asset{
+		PublicId:     "ast_1234567890abcdefABCDEF1234567890",
+		UserId:       7,
+		AssetType:    "Image",
+		Status:       model.AssetStatusActive,
+		SourceStatus: model.AssetSourceStatusUnavailable,
+		CreatedAt:    100,
+		UpdatedAt:    100,
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       boundChannel.Id,
+		UpstreamAssetId: "upstream-bound",
+		Status:          model.AssetStatusActive,
+		CreatedAt:       100,
+		UpdatedAt:       100,
+	}).Error)
+	model.InitChannelCache()
+
+	refs, apiErr := service.ResolveAssetReferences(nil, 7, &dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{
+		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}},
+	}})
+	require.Nil(t, apiErr)
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(c, constant.ContextKeyAssetReferenceSet, refs)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{"asset://" + asset.PublicId: "asset://stale"})
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, map[string]string{"asset://" + asset.PublicId: "asset://stale"})
+	retry := 0
+	selected, channelErr := getChannel(c, &relaycommon.RelayInfo{
+		TokenGroup:      "default",
+		OriginModelName: "seedance-2.0",
+		ChannelMeta:     &relaycommon.ChannelMeta{},
+		PriceData:       types.PriceData{},
+	}, &service.RetryParam{
+		Ctx:        c,
+		TokenGroup: "default",
+		ModelName:  "seedance-2.0",
+		Retry:      &retry,
+	})
+	defer func() {
+		require.NoError(t, service.ReleaseChannelConcurrencyForContext(c))
+	}()
+
+	require.Nil(t, channelErr)
+	require.NotNil(t, selected)
+	require.Equal(t, boundChannel.Id, selected.Id)
+	rewriteMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+	require.True(t, ok)
+	require.Equal(t, "asset://upstream-bound", rewriteMap["asset://"+asset.PublicId])
+	require.NotContains(t, rewriteMap, "asset://stale")
+	legacyMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyBytePlusAssetRewriteMap)
+	require.True(t, ok)
+	require.Equal(t, rewriteMap, legacyMap)
+}
+
+func TestGetChannelRetryMaterializationFailureClearsStaleMapAndReturnsError(t *testing.T) {
+	restoreRuntime := useControllerMemoryChannelConcurrencyForTest(t)
+	defer restoreRuntime()
+	restoreDB := useControllerAssetChannelSelectionDBForTest(t)
+	defer restoreDB()
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeBytePlus, controllerAssetMaterializer{createErr: errors.New("BytePlus secret signed=https://signed.example/?X-Goog-Signature=abc")})
+	defer restoreMaterializer()
+
+	priority := int64(100)
+	weight := uint(1)
+	channel := &model.Channel{
+		Id:       909908,
+		Type:     constant.ChannelTypeBytePlus,
+		Key:      `{"api_key":"sk-recoverable","access_key_id":"ak","secret_access_key":"sec","project_name":"project"}`,
+		Status:   common.ChannelStatusEnabled,
+		Name:     "asset-recoverable",
+		Group:    "default",
+		Models:   "seedance-2.0",
+		Priority: &priority,
+		Weight:   &weight,
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	require.NoError(t, channel.AddAbilities(nil))
+	asset := model.Asset{
+		PublicId:        "ast_1234567890abcdefABCDEF1234567890",
+		UserId:          7,
+		AssetType:       "Image",
+		Status:          model.AssetStatusActive,
+		SourceStatus:    model.AssetSourceStatusAvailable,
+		StorageBackend:  "gcs",
+		StorageBucket:   "bucket",
+		ObjectKey:       "assets/ast_1234567890abcdefABCDEF1234567890",
+		SourceExpiresAt: time.Now().Add(time.Hour).Unix(),
+		CreatedAt:       100,
+		UpdatedAt:       100,
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	model.InitChannelCache()
+
+	refs, apiErr := service.ResolveAssetReferences(nil, 7, &dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{
+		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "asset://" + asset.PublicId}},
+	}})
+	require.Nil(t, apiErr)
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(c, constant.ContextKeyAssetReferenceSet, refs)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{"asset://" + asset.PublicId: "asset://stale"})
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, map[string]string{"asset://" + asset.PublicId: "asset://stale"})
+	retry := 0
+	selected, channelErr := getChannel(c, &relaycommon.RelayInfo{
+		TokenGroup:      "default",
+		OriginModelName: "seedance-2.0",
+		ChannelMeta:     &relaycommon.ChannelMeta{},
+		PriceData:       types.PriceData{},
+	}, &service.RetryParam{
+		Ctx:        c,
+		TokenGroup: "default",
+		ModelName:  "seedance-2.0",
+		Retry:      &retry,
+	})
+	require.Nil(t, selected)
+	require.NotNil(t, channelErr)
+	require.Equal(t, http.StatusServiceUnavailable, channelErr.StatusCode)
+	require.Contains(t, channelErr.Error(), "asset channel unavailable")
+	require.NotContains(t, channelErr.Error(), "BytePlus")
+	require.NotContains(t, channelErr.Error(), "signed.example")
+	_, ok := common.GetContextKey(c, constant.ContextKeyAssetRewriteMap)
+	require.False(t, ok)
+	_, ok = common.GetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap)
+	require.False(t, ok)
+	require.NoError(t, service.ReleaseChannelConcurrencyForContext(c), "materialization failure must release the selected channel lease")
+}
+
 func useControllerMemoryChannelConcurrencyForTest(t *testing.T) func() {
 	t.Helper()
 	prevRDB := common.RDB
@@ -237,6 +424,32 @@ func useControllerMemoryChannelConcurrencyForTest(t *testing.T) func() {
 	return func() {
 		common.RDB = prevRDB
 		common.RedisEnabled = prevRedisEnabled
+	}
+}
+
+func useControllerAssetChannelSelectionDBForTest(t *testing.T) func() {
+	t.Helper()
+	prevDB := model.DB
+	prevMemoryCacheEnabled := common.MemoryCacheEnabled
+	prevUsingSQLite := common.UsingSQLite
+	prevUsingMySQL := common.UsingMySQL
+	prevUsingPostgreSQL := common.UsingPostgreSQL
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.Asset{}, &model.AssetBinding{}))
+	model.DB = db
+	common.MemoryCacheEnabled = true
+	common.UsingSQLite = true
+	common.UsingMySQL = false
+	common.UsingPostgreSQL = false
+
+	return func() {
+		model.DB = prevDB
+		common.MemoryCacheEnabled = prevMemoryCacheEnabled
+		common.UsingSQLite = prevUsingSQLite
+		common.UsingMySQL = prevUsingMySQL
+		common.UsingPostgreSQL = prevUsingPostgreSQL
 	}
 }
 

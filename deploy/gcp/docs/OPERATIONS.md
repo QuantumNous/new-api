@@ -68,6 +68,24 @@ gcloud run services update newapi \
 terraform apply -refresh-only
 ```
 
+`ASSET_STORAGE_BUCKET` follows this same ownership rule. Terraform seeds it for
+first creation, but production revisions get
+`vocai-gemini-prod-flatkey-assets` from `.github/workflows/gcp-deploy.yml` and
+staging revisions get `vocai-gemini-prod-flatkey-assets-staging` from
+`.github/workflows/gcp-deploy-staging.yml`.
+
+The asset buckets are private source stores, not public distribution buckets:
+uniform bucket-level access is on, public access prevention is enforced, and
+runtime service accounts receive only bucket-scoped object permissions plus
+self signing permission for short-lived signed URLs. Never add public IAM,
+project-wide Storage Admin, or signed URLs to logs, GitHub summaries, task
+payloads, Terraform variables, or Terraform state.
+
+GCS lifecycle is intentionally not the 30-day last-used retention mechanism. The
+database cleanup worker owns that contract. Bucket lifecycle may clean archived
+object versions, and soft delete/versioning protects against accidental deletes,
+but active source objects must not be deleted by object creation age.
+
 ---
 
 ## Usage reconciliation token (`BLOCKRUN_USAGE_SUMMARY_TOKEN`) — already set up, keep it on

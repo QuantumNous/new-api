@@ -152,6 +152,10 @@ func bytePlusAssetI18nKey(code types.ErrorCode) string {
 		return i18n.MsgAssetGroupInitializing
 	case types.ErrorCodeAssetUpstreamError:
 		return i18n.MsgAssetUpstreamError
+	case types.ErrorCodeAssetExpired:
+		return i18n.MsgAssetExpired
+	case types.ErrorCodeAssetTypeMismatch:
+		return i18n.MsgAssetTypeMismatch
 	case types.ErrorCodeAssetStorageError:
 		return i18n.MsgAssetStorageError
 	case types.ErrorCodeInvalidRealPersonRequest:

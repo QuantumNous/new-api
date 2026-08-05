@@ -365,6 +365,11 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		}
 		return channel, nil
 	}
+	if retryParam.ChannelRanker == nil {
+		if assetReferences, ok := common.GetContextKeyType[service.AssetReferenceSet](c, constant.ContextKeyAssetReferenceSet); ok {
+			retryParam.ChannelRanker = assetReferences.ChannelRanker()
+		}
+	}
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
@@ -381,6 +386,10 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
 	if newAPIError != nil {
+		releaseChannelConcurrencyForRequest(c)
+		return nil, newAPIError
+	}
+	if newAPIError := middleware.RefreshAssetRewriteMapForSelectedChannel(c, channel); newAPIError != nil {
 		releaseChannelConcurrencyForRequest(c)
 		return nil, newAPIError
 	}
@@ -736,7 +745,22 @@ func RelayTask(c *gin.Context) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
-		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
+		if hasQueuedAssetReferences(c) {
+			preflight, preflightErr := relay.PrepareTaskSubmit(c, relayInfo)
+			if preflightErr == nil {
+				var queued *dto.OpenAIVideo
+				queued, taskErr = queueAssetTaskForPreparation(c, relayInfo, preflight)
+				if taskErr == nil {
+					releaseChannelConcurrencyForRequest(c)
+					c.JSON(http.StatusOK, queued)
+					return
+				}
+			} else {
+				taskErr = preflightErr
+			}
+		} else {
+			result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
+		}
 		releaseChannelConcurrencyForRequest(c)
 		if taskErr == nil {
 			break
@@ -762,10 +786,7 @@ func RelayTask(c *gin.Context) {
 
 	// ── 成功：结算 + 日志 + 插入任务 ──
 	if taskErr == nil {
-		if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
-			common.SysError("settle task billing error: " + settleErr.Error())
-		}
-		service.LogTaskConsumption(c, relayInfo)
+		finalizeTaskSubmissionBilling(c, relayInfo, nil, result.Quota)
 
 		task := model.InitTask(result.Platform, relayInfo)
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
@@ -803,6 +824,18 @@ func RelayTask(c *gin.Context) {
 	if taskErr != nil {
 		respondTaskError(c, taskErr)
 	}
+}
+
+func finalizeTaskSubmissionBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo, taskSnapshot *model.Task, actualQuota int) {
+	relayInfo.PriceData.Quota = actualQuota
+	if taskSnapshot != nil && taskSnapshot.PrivateData.BillingSource == service.BillingSourceSubscription && relayInfo.Billing == nil {
+		if settleErr := service.SettlePreparedTaskQuota(c, taskSnapshot, actualQuota); settleErr != nil {
+			common.SysError("settle prepared task billing error: " + settleErr.Error())
+		}
+	} else if settleErr := service.SettleBilling(c, relayInfo, actualQuota); settleErr != nil {
+		common.SysError("settle task billing error: " + settleErr.Error())
+	}
+	service.LogTaskConsumption(c, relayInfo)
 }
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）

@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,6 +45,8 @@ func TestMain(m *testing.M) {
 
 	if err := db.AutoMigrate(
 		&model.Task{},
+		&model.TaskAcceptedAccountingLedger{},
+		&model.TaskAcceptedAccountingLogLedger{},
 		&model.User{},
 		&model.Token{},
 		&model.Log{},
@@ -57,6 +61,77 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestAcceptedTaskSubscriptionFundingConcurrentDeltasDoNotLoseUpdate(t *testing.T) {
+	oldDB := model.DB
+	oldLogDB := model.LOG_DB
+	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.TaskAcceptedAccountingLedger{}, &model.UserSubscription{}))
+	model.DB = db
+	model.LOG_DB = db
+	defer func() {
+		model.DB = oldDB
+		model.LOG_DB = oldLogDB
+		_ = sqlDB.Close()
+	}()
+
+	require.NoError(t, model.DB.Create(&model.UserSubscription{
+		Id:          7001,
+		UserId:      7,
+		AmountTotal: 100000,
+		AmountUsed:  200,
+		Status:      "active",
+		StartTime:   1,
+		EndTime:     time.Now().Add(time.Hour).Unix(),
+	}).Error)
+	tasks := []*model.Task{
+		acceptedSubscriptionFundingTask("task_sub_concurrent_a", 7001, 100, 200),
+		acceptedSubscriptionFundingTask("task_sub_concurrent_b", 7001, 100, 200),
+	}
+	require.NoError(t, model.DB.Create(tasks).Error)
+
+	var wg sync.WaitGroup
+	errs := make(chan error, len(tasks))
+	for _, task := range tasks {
+		task := task
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- SettleAcceptedTaskFundingOnce(context.Background(), task, task.AcceptedAccountingActualQuota)
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	var sub model.UserSubscription
+	require.NoError(t, model.DB.Select("amount_used").Where("id = ?", 7001).First(&sub).Error)
+	require.EqualValues(t, 400, sub.AmountUsed)
+}
+
+func acceptedSubscriptionFundingTask(taskID string, subID int, reserved int, actual int) *model.Task {
+	return &model.Task{
+		TaskID:                          taskID,
+		UserId:                          7,
+		Group:                           "default",
+		Quota:                           reserved,
+		Status:                          model.TaskStatusSubmitted,
+		AcceptedAccountingStatus:        model.TaskAcceptedAccountingProcessing,
+		AcceptedAccountingReservedQuota: reserved,
+		AcceptedAccountingActualQuota:   actual,
+		PrivateData: model.TaskPrivateData{
+			BillingSource:  BillingSourceSubscription,
+			SubscriptionId: subID,
+			BillingContext: &model.TaskBillingContext{SubscriptionWeight: 1},
+		},
+		Properties: model.Properties{OriginModelName: "seedance-2.0"},
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Seed helpers
 // ---------------------------------------------------------------------------
@@ -65,6 +140,8 @@ func truncate(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
 		model.DB.Exec("DELETE FROM tasks")
+		model.DB.Exec("DELETE FROM task_accepted_accounting_ledgers")
+		model.DB.Exec("DELETE FROM task_accepted_accounting_log_ledgers")
 		model.DB.Exec("DELETE FROM users")
 		model.DB.Exec("DELETE FROM tokens")
 		model.DB.Exec("DELETE FROM logs")
@@ -355,6 +432,44 @@ func TestRefundTaskQuota_NoToken(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestPreparationFailureRefundsOnce(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 40, 40, 40
+	const initQuota, preConsumed = 10000, 1500
+	const leaseExpiresAt int64 = 4102444800
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-preparation-refund", 2500)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.TaskID = "task_preparation_refund_once"
+	task.Status = model.TaskStatusQueued
+	task.PreparationStatus = model.TaskPreparationStatusPreparing
+	task.PreparationLeaseOwner = "worker-a"
+	task.PreparationLeaseExpiresAt = leaseExpiresAt
+	require.NoError(t, model.DB.Create(task).Error)
+
+	won, err := model.MarkQueuedTaskFailed(task.TaskID, "worker-a", leaseExpiresAt, "materialize failed", time.Now().Unix())
+	require.NoError(t, err)
+	require.True(t, won)
+	if won {
+		RefundTaskQuota(ctx, task, "materialize failed")
+	}
+
+	lateWon, err := model.MarkQueuedTaskFailed(task.TaskID, "worker-b", leaseExpiresAt, "late failure", time.Now().Unix())
+	require.NoError(t, err)
+	require.False(t, lateWon)
+	if lateWon {
+		RefundTaskQuota(ctx, task, "late failure")
+	}
+
+	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
+	assert.Equal(t, int64(1), countLogs(t))
 }
 
 // ===========================================================================

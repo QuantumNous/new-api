@@ -67,6 +67,8 @@ var DB *gorm.DB
 
 var LOG_DB *gorm.DB
 
+var taskIDMigrationPageSize = 500
+
 func createRootAccountIfNeed() error {
 	var user User
 	//if user.Status != common.UserStatusEnabled {
@@ -251,6 +253,9 @@ func migrateDB() error {
 	if err := migrateRecallRecipientIdentity(); err != nil {
 		return err
 	}
+	if err := backfillTaskIDsBeforeUniqueIndex(); err != nil {
+		return err
+	}
 	// Migrate price_amount column from float/double to decimal for existing tables
 	migrateSubscriptionPlanPriceAmount()
 	// Migrate model_limits column from varchar to text for existing tables
@@ -295,6 +300,11 @@ func migrateDB() error {
 		&QuotaData{},
 		&QuotaDataToken{},
 		&Task{},
+		&TaskAcceptedAccountingLedger{},
+		&TaskAcceptedAccountingLogLedger{},
+		&Asset{},
+		&AssetBinding{},
+		&AssetUpload{},
 		&Model{},
 		&Vendor{},
 		&PrefillGroup{},
@@ -344,6 +354,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := MigrateLegacyBytePlusAssets(); err != nil {
+		return err
+	}
 	if err := migrateRecallTranslationTaskSnapshotsToLongText(); err != nil {
 		return err
 	}
@@ -364,6 +377,9 @@ func migrateDB() error {
 
 func migrateDBFast() error {
 	if err := migrateRecallRecipientIdentity(); err != nil {
+		return err
+	}
+	if err := backfillTaskIDsBeforeUniqueIndex(); err != nil {
 		return err
 	}
 
@@ -405,6 +421,11 @@ func migrateDBFast() error {
 		{&QuotaData{}, "QuotaData"},
 		{&QuotaDataToken{}, "QuotaDataToken"},
 		{&Task{}, "Task"},
+		{&TaskAcceptedAccountingLedger{}, "TaskAcceptedAccountingLedger"},
+		{&TaskAcceptedAccountingLogLedger{}, "TaskAcceptedAccountingLogLedger"},
+		{&Asset{}, "Asset"},
+		{&AssetBinding{}, "AssetBinding"},
+		{&AssetUpload{}, "AssetUpload"},
 		{&Model{}, "Model"},
 		{&Vendor{}, "Vendor"},
 		{&PrefillGroup{}, "PrefillGroup"},
@@ -449,6 +470,9 @@ func migrateDBFast() error {
 			return fmt.Errorf("failed to migrate %s: %v", m.name, err)
 		}
 	}
+	if err := MigrateLegacyBytePlusAssets(); err != nil {
+		return err
+	}
 	if err := migrateRecallTranslationTaskSnapshotsToLongText(); err != nil {
 		return err
 	}
@@ -469,6 +493,147 @@ func migrateDBFast() error {
 	}
 	common.SysLog("database migrated")
 	return nil
+}
+
+func backfillTaskIDsBeforeUniqueIndex() error {
+	if DB == nil || !DB.Migrator().HasTable(&Task{}) || !DB.Migrator().HasColumn(&Task{}, "task_id") {
+		return nil
+	}
+
+	hasPrivateData := DB.Migrator().HasColumn(&Task{}, "private_data")
+	selectColumns := []string{"id", "task_id"}
+	if hasPrivateData {
+		selectColumns = append(selectColumns, "private_data")
+	}
+
+	type taskIDMigrationRow struct {
+		ID          int64
+		TaskID      string
+		PrivateData TaskPrivateData `gorm:"column:private_data"`
+	}
+
+	for lastID := int64(0); ; {
+		var rows []taskIDMigrationRow
+		if err := DB.Table("tasks").
+			Select(selectColumns).
+			Where("task_id = ? AND id > ?", "", lastID).
+			Order("id ASC").
+			Limit(taskIDMigrationPageSize).
+			Find(&rows).Error; err != nil {
+			return fmt.Errorf("failed to load empty task_id page for backfill: %w", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		for _, row := range rows {
+			newTaskID, err := generateUniqueTaskIDForMigration()
+			if err != nil {
+				return err
+			}
+			if err := DB.Table("tasks").Where("id = ? AND task_id = ?", row.ID, "").Update("task_id", newTaskID).Error; err != nil {
+				return fmt.Errorf("failed to backfill empty task_id for task %d: %w", row.ID, err)
+			}
+			lastID = row.ID
+		}
+	}
+
+	type taskIDDuplicateGroup struct {
+		TaskID   string `gorm:"column:task_id"`
+		MinID    int64  `gorm:"column:min_id"`
+		RowCount int64  `gorm:"column:row_count"`
+	}
+
+	for lastTaskID := ""; ; {
+		var groups []taskIDDuplicateGroup
+		if err := DB.Table("tasks").
+			Select("task_id, MIN(id) AS min_id, COUNT(*) AS row_count").
+			Where("task_id <> ? AND task_id > ?", "", lastTaskID).
+			Group("task_id").
+			Having("COUNT(*) > 1").
+			Order("task_id ASC").
+			Limit(taskIDMigrationPageSize).
+			Scan(&groups).Error; err != nil {
+			return fmt.Errorf("failed to load duplicate task_id groups for backfill: %w", err)
+		}
+		if len(groups) == 0 {
+			break
+		}
+		for _, group := range groups {
+			if err := backfillDuplicateTaskIDGroup(group.TaskID, group.MinID, hasPrivateData, selectColumns); err != nil {
+				return err
+			}
+			lastTaskID = group.TaskID
+		}
+	}
+	return nil
+}
+
+func backfillDuplicateTaskIDGroup(taskID string, keepID int64, hasPrivateData bool, selectColumns []string) error {
+	type taskIDMigrationRow struct {
+		ID          int64
+		TaskID      string
+		PrivateData TaskPrivateData `gorm:"column:private_data"`
+	}
+
+	for lastID := keepID; ; {
+		var rows []taskIDMigrationRow
+		if err := DB.Table("tasks").
+			Select(selectColumns).
+			Where("task_id = ? AND id > ?", taskID, lastID).
+			Order("id ASC").
+			Limit(taskIDMigrationPageSize).
+			Find(&rows).Error; err != nil {
+			return fmt.Errorf("failed to load duplicate task_id rows for %q: %w", taskID, err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		for _, row := range rows {
+			newTaskID, err := generateUniqueTaskIDForMigration()
+			if err != nil {
+				return err
+			}
+
+			updates := map[string]any{"task_id": newTaskID}
+			if hasPrivateData && row.PrivateData.UpstreamTaskID == "" {
+				row.PrivateData.UpstreamTaskID = taskID
+				updates["private_data"] = row.PrivateData
+			}
+
+			if err := DB.Table("tasks").Where("id = ? AND task_id = ?", row.ID, taskID).Updates(updates).Error; err != nil {
+				return fmt.Errorf("failed to backfill duplicate task_id for task %d: %w", row.ID, err)
+			}
+			lastID = row.ID
+		}
+	}
+	return nil
+}
+
+func generateUniqueTaskIDForMigration() (string, error) {
+	for {
+		taskID := GenerateTaskID()
+		exists, err := taskIDExistsForMigration(taskID)
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return taskID, nil
+		}
+	}
+}
+
+func taskIDExistsForMigration(taskID string) (bool, error) {
+	var row struct {
+		ID int64
+	}
+	err := DB.Table("tasks").Select("id").Where("task_id = ?", taskID).Limit(1).Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to check generated task_id collision: %w", err)
+	}
+	return true, nil
 }
 
 func migrateStartupInvitationValue() error {
@@ -690,7 +855,7 @@ func hasActiveRecallMigrationLeases(nowUnix int64) (bool, error) {
 
 func migrateLOGDB() error {
 	var err error
-	if err = LOG_DB.AutoMigrate(&Log{}, &LogRequestSample{}); err != nil {
+	if err = LOG_DB.AutoMigrate(&Log{}, &LogRequestSample{}, &TaskAcceptedAccountingLogLedger{}); err != nil {
 		return err
 	}
 	return nil

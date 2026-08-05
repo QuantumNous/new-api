@@ -284,6 +284,17 @@ func GetTokenById(id int) (*Token, error) {
 	return &token, err
 }
 
+func InvalidateTokenCacheById(id int) error {
+	if id <= 0 || !common.RedisEnabled {
+		return nil
+	}
+	var token Token
+	if err := DB.Select(commonKeyCol).Where("id = ?", id).First(&token).Error; err != nil {
+		return err
+	}
+	return cacheDeleteToken(token.Key)
+}
+
 func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 	fillFence := ""
 	defer func() {

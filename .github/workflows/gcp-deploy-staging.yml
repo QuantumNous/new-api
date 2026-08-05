@@ -27,6 +27,7 @@ env:
   REGION: ${{ vars.GCP_REGION }}
   AR_REPO_URL: ${{ vars.GCP_AR_REPO_URL }}
   RUN_SERVICE: newapi-staging
+  ASSET_STORAGE_BUCKET: vocai-gemini-prod-flatkey-assets-staging
   # Staging console 内部“回官网”链接必须指向 staging website，不能串生产 flatkey.ai。
   STAGING_OFFICIAL_WEBSITE_ORIGIN: ${{ vars.STAGING_OFFICIAL_WEBSITE_ORIGIN || 'https://staging-website.flatkey.ai' }}
   STAGING_APP_CONSOLE_ORIGIN: ${{ vars.STAGING_APP_CONSOLE_ORIGIN || 'https://staging-console.flatkey.ai' }}
@@ -165,6 +166,7 @@ jobs:
             "FLATKEY_DATA_TOOL_MARKUP_BPS=${STAGING_FLATKEY_DATA_TOOL_MARKUP_BPS}"
             "FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD=${STAGING_FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD}"
             "FLATKEY_DATA_TOOL_MIN_PLAN_RANK=${STAGING_FLATKEY_DATA_TOOL_MIN_PLAN_RANK}"
+            "ASSET_STORAGE_BUCKET=${ASSET_STORAGE_BUCKET}"
             "TEMP_MEDIA_BUCKET=${STAGING_TEMP_MEDIA_BUCKET}"
             "BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL=${STAGING_BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL}"
           )

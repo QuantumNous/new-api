@@ -347,6 +347,49 @@ func TestBuildRequestBodyRewritesResolvedAssetURIsOnly(t *testing.T) {
 	}
 }
 
+func TestBytePlusAssetBuildRequestBodyUsesGeneralizedRewriteMapBeforeLegacyMap(t *testing.T) {
+	a := &TaskAdaptor{}
+	info := newTestRelayInfo("https://ark.example", "test-key")
+	c := newTestContext(`{"model":"seedance-2.0","content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]}`)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://generalized-channel-asset",
+	})
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://legacy-wrong-channel-asset",
+	})
+
+	body, err := a.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !strings.Contains(string(raw), `"url":"asset://generalized-channel-asset"`) {
+		t.Fatalf("generalized rewrite map was not used: %s", raw)
+	}
+	if strings.Contains(string(raw), "legacy-wrong-channel-asset") {
+		t.Fatalf("legacy map was mixed into generalized rewrite: %s", raw)
+	}
+}
+
+func TestBytePlusAssetBuildRequestBodyRejectsWhenGeneralizedMapMissingReferencedAssetEvenIfLegacyHasIt(t *testing.T) {
+	a := &TaskAdaptor{}
+	info := newTestRelayInfo("https://ark.example", "test-key")
+	c := newTestContext(`{"model":"seedance-2.0","content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]}`)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{})
+	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://legacy-wrong-channel-asset",
+	})
+
+	_, err := a.BuildRequestBody(c, info)
+	if err == nil || !strings.Contains(err.Error(), "invalid byteplus asset reference") {
+		t.Fatalf("BuildRequestBody error = %v, want invalid asset reference", err)
+	}
+	assertNoAssetRewriteLeak(t, err)
+}
+
 func TestBytePlusAssetRealPersonBuildRequestBodyRewritesTwoMediaReferencesAndPreservesTextMentions(t *testing.T) {
 	a := &TaskAdaptor{}
 	info := newTestRelayInfo("https://ark.example", "test-key")
@@ -385,7 +428,6 @@ func TestBytePlusAssetRealPersonBuildRequestBodyRewritesTwoMediaReferencesAndPre
 		t.Fatalf("ordinary https video URL changed or missing: %s", raw)
 	}
 }
-
 func TestRewriteBytePlusAssetReferencesPreservesLargeIntegerSeed(t *testing.T) {
 	raw := []byte(`{"model":"seedance-2.0","seed":9007199254740993,"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]}`)
 
