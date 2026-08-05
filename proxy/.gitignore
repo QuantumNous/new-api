@@ -1,0 +1,11 @@
+# Build output
+/proxy
+*.exe
+
+# Local runtime state
+spool/
+*.db
+
+# Local, uncommitted config: keep real credentials here, never in the tracked
+# templates (config.yaml / config.docker.yaml).
+config.local.yaml

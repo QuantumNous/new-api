@@ -1,0 +1,76 @@
+# Sidecar-only deployment: a SEPARATE Compose project holding just the audit proxy.
+#
+#   client → prompt-audit (container, host :3001) → new-api on the host :3000
+#
+# This file is a TEMPLATE. For a real deployment, copy it and config.docker.yaml
+# into an orchestration directory the environment owns (outside this repo), fill in
+# the real values there, and keep this repo to code plus templates. Point
+# `build.context` at this directory so `git pull` still updates the source:
+#
+#   build:
+#     context: /srv/new-api/proxy
+#
+# Running this file as-is only works once the mounted config has real values: with
+# placeholder credentials the database is unreachable, and fail_open then keeps the
+# proxy up while every record goes to the spool instead of the database.
+#
+# This is a project of its own, on purpose. It is deliberately NOT named
+# docker-compose.override.yml: Compose auto-loads that filename for every
+# `docker compose` command, so a plain `docker compose up -d` meant only to restart
+# new-api would also start this proxy, and a failed sidecar build would abort
+# new-api's own upgrade. Requiring an explicit -f keeps the two lifecycles apart —
+# `up`, `restart`, `down` and `pull` on new-api behave exactly as before, and
+# rolling this back never touches the existing chain.
+#
+# Run it from this directory so relative paths resolve the same way on every
+# Compose version:
+#
+#   cd proxy
+#   docker compose -f docker-compose.sidecar.yml up -d --build
+#   docker compose -f docker-compose.sidecar.yml logs -f prompt-audit
+#
+# ⚠️  Restrict port 3001 to the clients that should be audited (firewall or
+#     security group). Anything that can reach it gets routed through this proxy.
+
+services:
+  prompt-audit:
+    build: .
+    container_name: prompt-audit
+    restart: unless-stopped
+    # Must match `listen:` in the mounted config. Keeping both numbers identical
+    # avoids the mismatch where the container listens on one port while the mapping
+    # forwards another.
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./config.docker.yaml:/etc/proxy/config.yaml:ro
+      - proxy_spool:/var/lib/proxy/spool
+    environment:
+      - TZ=Asia/Shanghai
+      # No PROXY_* variables on purpose: they silently take priority over the
+      # mounted config file. Any that are set are reported at startup under
+      # "OVERRIDDEN by env".
+    extra_hosts:
+      # Lets the container reach new-api on the host. Required on Linux Docker;
+      # harmless on Docker Desktop, where the name already resolves.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3001/proxy/healthz | grep -o '\"status\": *\"ok\"' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+    # If new-api is NOT published on the host and is only reachable inside its own
+    # Compose network, drop extra_hosts above, set the config's upstream to
+    # http://new-api:3000, and attach this container to that network instead
+    # (`docker network ls` shows its real name):
+    #
+    # networks:
+    #   - newapi_default
+
+# networks:
+#   newapi_default:
+#     external: true
+
+volumes:
+  proxy_spool:
