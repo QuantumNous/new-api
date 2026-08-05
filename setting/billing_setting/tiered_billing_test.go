@@ -8,20 +8,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// restoreBillingSetting 同时还原写入目标与已发布的快照。
 func restoreBillingSetting(t *testing.T) {
 	t.Helper()
-	origMode := billingSetting.BillingMode.ReadAll()
-	origExpr := billingSetting.BillingExpr.ReadAll()
+	orig := billingSetting
+	origSnapshot := billingSnapshot.Load()
 	t.Cleanup(func() {
-		billingSetting.BillingMode.Clear()
-		billingSetting.BillingMode.AddAll(origMode)
-		billingSetting.BillingExpr.Clear()
-		billingSetting.BillingExpr.AddAll(origExpr)
+		billingSetting = orig
+		billingSnapshot.Store(origSnapshot)
 	})
 }
 
-// 字段类型从裸 map 改为 *types.RWMap 后，写入数据库的序列化形式必须保持不变，
-// 否则升级后旧数据行会读不出来。
+// 写入数据库的序列化形式必须保持不变，否则升级后旧数据行会读不出来。
 func TestBillingSettingSerializationIsUnchanged(t *testing.T) {
 	restoreBillingSetting(t)
 
@@ -72,8 +70,8 @@ func TestBillingAccessorsReflectUpdates(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// 字面量 "null" 会让 updateConfigFromMap 的指针分支把字段整个置为 nil。计费访问器在每个
-// 中继请求上都会被调用，绝不能因此 panic，行为必须与字段为裸 map 时一致：退回 ratio。
+// 字面量 "null" 会把映射置为 nil。计费访问器在每个中继请求上都会被调用，绝不能因此 panic，
+// 必须退回 ratio。
 func TestBillingSettingSurvivesNullValue(t *testing.T) {
 	restoreBillingSetting(t)
 
@@ -105,6 +103,25 @@ func TestBillingSettingSurvivesNullValue(t *testing.T) {
 		"billing_mode": `{"gpt-4o":"tiered_expr"}`,
 	}))
 	assert.Equal(t, BillingModeTieredExpr, GetBillingMode("gpt-4o"))
+}
+
+// 读者拿到的必须是与写入目标解耦的快照。RWMap 之类只保护映射内容的方案在这里不够：
+// 热更新遇到 "null" 时会替换字段本身，读者与该替换之间同样需要同步。
+func TestBillingSnapshotIsDecoupledFromWriteTarget(t *testing.T) {
+	restoreBillingSetting(t)
+
+	require.NoError(t, config.UpdateConfigFromMap(&billingSetting, map[string]string{
+		"billing_mode": `{"gpt-4o":"tiered_expr"}`,
+	}))
+	held := GetBillingModeCopy()
+	require.Equal(t, BillingModeTieredExpr, held["gpt-4o"])
+
+	require.NoError(t, config.UpdateConfigFromMap(&billingSetting, map[string]string{
+		"billing_mode": `{"gpt-4o":"ratio"}`,
+	}))
+
+	assert.Equal(t, BillingModeTieredExpr, held["gpt-4o"], "已取得的副本不应被后续热更新改写")
+	assert.Equal(t, BillingModeRatio, GetBillingMode("gpt-4o"), "新快照应反映最新配置")
 }
 
 // Copy 系列必须返回独立副本，调用方修改它不能影响全局配置。
