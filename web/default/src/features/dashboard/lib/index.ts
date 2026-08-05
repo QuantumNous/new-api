@@ -14,6 +14,15 @@ export {
   openExternalSpeedTest,
   getDefaultPingStatus,
 } from './api-info'
+export {
+  DASHBOARD_MAX_RANGE_DAYS,
+  DASHBOARD_MAX_SEGMENT_DAYS,
+  DASHBOARD_MAX_RANGE_SECONDS,
+  DashboardRangeError,
+  assertDashboardRange,
+  describeDashboardRangeError,
+  validateDashboardRange,
+} from './range'
 export { processChartData, processUserChartData } from './charts'
 export { safeDivide, calculateDashboardStats } from './stats'
 export { getPreviewText } from './text'

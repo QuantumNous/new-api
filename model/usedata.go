@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -101,38 +102,79 @@ func increaseQuotaData(userId int, username string, modelName string, count int,
 	}
 }
 
-func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
-	var quotaDatas []*QuotaData
-	// 从quota_data表中查询数据
-	err = DB.Table("quota_data").Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime).Find(&quotaDatas).Error
-	return quotaDatas, err
-}
+// maxQuotaDataRows is an overload circuit breaker for the dashboard quota
+// series. quota_data is pre-aggregated per hour, so a 90 day window can hold at
+// most 90*24 buckets multiplied by the number of distinct series. The cap is
+// sized far above any realistic tenant and exists only so a runaway query
+// returns a stable error instead of streaming an unbounded response.
+const maxQuotaDataRows = 200000
 
-func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
-	var quotaDatas []*QuotaData
-	// 从quota_data表中查询数据
-	err = DB.Table("quota_data").Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).Find(&quotaDatas).Error
-	return quotaDatas, err
-}
+var ErrQuotaDataTooManyRows = fmt.Errorf("匹配的看板数据超过 %d 条，请缩小时间范围或筛选条件", maxQuotaDataRows)
 
-func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
-	var quotaDatas []*QuotaData
-	err = DB.Table("quota_data").
-		Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
-		Where("created_at >= ? and created_at <= ?", startTime, endTime).
-		Group("username, created_at").
-		Find(&quotaDatas).Error
-	return quotaDatas, err
-}
-
-func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
-	if username != "" {
-		return GetQuotaDataByUsername(username, startTime, endTime)
+// runSegmentedQuotaDataQuery executes build() once per bounded segment and
+// concatenates the results. Segments are disjoint on created_at and created_at
+// is part of every grouping used here, so a group key can never appear in two
+// segments and concatenation is exact.
+func runSegmentedQuotaDataQuery(
+	ctx context.Context,
+	startTime int64,
+	endTime int64,
+	build func(tx *gorm.DB) *gorm.DB,
+) ([]*QuotaData, error) {
+	db := DB
+	if ctx != nil {
+		db = db.WithContext(ctx)
 	}
-	var quotaDatas []*QuotaData
+	segments := common.SplitDashboardRange(startTime, endTime)
+	quotaDatas := make([]*QuotaData, 0)
+	for _, segment := range segments {
+		var segmentRows []*QuotaData
+		tx := build(db.Table("quota_data")).
+			Where("created_at >= ? and created_at <= ?", segment.Start, segment.End).
+			Limit(maxQuotaDataRows + 1)
+		if err := tx.Find(&segmentRows).Error; err != nil {
+			return nil, err
+		}
+		if len(segmentRows) > maxQuotaDataRows {
+			return nil, ErrQuotaDataTooManyRows
+		}
+		quotaDatas = append(quotaDatas, segmentRows...)
+		if len(quotaDatas) > maxQuotaDataRows {
+			return nil, ErrQuotaDataTooManyRows
+		}
+	}
+	return quotaDatas, nil
+}
+
+func GetQuotaDataByUsername(ctx context.Context, username string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	// 从quota_data表中查询数据
+	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, func(tx *gorm.DB) *gorm.DB {
+		return tx.Where("username = ?", username)
+	})
+}
+
+func GetQuotaDataByUserId(ctx context.Context, userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	// 从quota_data表中查询数据
+	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, func(tx *gorm.DB) *gorm.DB {
+		return tx.Where("user_id = ?", userId)
+	})
+}
+
+func GetQuotaDataGroupByUser(ctx context.Context, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, func(tx *gorm.DB) *gorm.DB {
+		return tx.Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
+			Group("username, created_at")
+	})
+}
+
+func GetAllQuotaDates(ctx context.Context, startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
+	if username != "" {
+		return GetQuotaDataByUsername(ctx, username, startTime, endTime)
+	}
 	// 从quota_data表中查询数据
 	// only select model_name, sum(count) as count, sum(quota) as quota, model_name, created_at from quota_data group by model_name, created_at;
-	//err = DB.Table("quota_data").Where("created_at >= ? and created_at <= ?", startTime, endTime).Find(&quotaDatas).Error
-	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
-	return quotaDatas, err
+	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, func(tx *gorm.DB) *gorm.DB {
+		return tx.Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").
+			Group("model_name, created_at")
+	})
 }

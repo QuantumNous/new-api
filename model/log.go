@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -479,7 +480,45 @@ type LogUsageAnalysisRow struct {
 	Quota            int64  `json:"quota"`
 }
 
+// maxLogUsageAnalysisRows bounds the projection a single analysis response may
+// contain. It is enforced per segment and again on the merged result, so a
+// segmented cross-month query can never return more rows than a single-segment
+// query was allowed to.
+const maxLogUsageAnalysisRows = 5000
+
+// maxLogUsageAnalysisPeriodBuckets is a defence-in-depth bucket cap. The range
+// bound already limits an hourly query to 90*24+1 buckets; a larger value means
+// the period expression or the range validation is wrong, and the query is
+// refused rather than allowed to fan out.
+const maxLogUsageAnalysisPeriodBuckets = int(common.DashboardMaxRangeSeconds/3600) + 2
+
 var ErrLogUsageAnalysisTooManyRows = errors.New("匹配的分析分组超过 5000 条，请缩小筛选范围或降低时间粒度")
+
+var ErrLogUsageAnalysisTooManyBuckets = fmt.Errorf("匹配的分析时间桶超过 %d 个，请缩小时间范围或降低时间粒度", maxLogUsageAnalysisPeriodBuckets)
+
+// logUsageAnalysisKey is the merge key for a segmented query. It contains every
+// grouped dimension so two segments that both contribute to one CST period
+// bucket (a day bucket can straddle a segment boundary) are summed instead of
+// being emitted twice.
+type logUsageAnalysisKey struct {
+	Period    int64
+	Username  string
+	TokenName string
+	ModelName string
+	GroupName string
+	Channel   int
+}
+
+func logUsageAnalysisRowKey(row LogUsageAnalysisRow) logUsageAnalysisKey {
+	return logUsageAnalysisKey{
+		Period:    row.Period,
+		Username:  row.Username,
+		TokenName: row.TokenName,
+		ModelName: row.ModelName,
+		GroupName: row.GroupName,
+		Channel:   row.Channel,
+	}
+}
 
 // logUsageAnalysisPeriodExpression returns an integer-valued epoch bucket for
 // the selected SQL dialect.  The result is deliberately kept as a BIGINT (or
@@ -571,52 +610,153 @@ func GetLogUsageAnalysis(filter LogUsageAnalysisFilter) (summary []LogUsageAnaly
 	if filter.Context != nil {
 		db = db.WithContext(filter.Context)
 	}
-	tx := db.Table("logs").Select(strings.Join(selectParts, ", ")).
-		Where("type = ?", LogTypeConsume)
-	if filter.UserId != 0 {
-		tx = tx.Where("user_id = ?", filter.UserId)
-	}
-	if filter.Username != "" {
-		tx = tx.Where("username = ?", filter.Username)
-	}
-	if filter.TokenName != "" {
-		tx = tx.Where("token_name = ?", filter.TokenName)
-	}
-	if filter.ModelName != "" {
-		modelNamePattern, sanitizeErr := sanitizeLikePattern(filter.ModelName)
-		if sanitizeErr != nil {
-			return nil, sanitizeErr
+
+	// A range longer than the per-statement bound is split into consecutive,
+	// non-overlapping segments. Each segment is a normal bounded aggregate; the
+	// segments are then merged here so the caller still sees one server-side
+	// aggregation over CST buckets. Splitting keeps the worst case of a single
+	// SQL statement equal to the historical single-segment query.
+	segments := common.SplitDashboardRange(filter.StartTimestamp, filter.EndTimestamp)
+
+	querySegment := func(segment common.DashboardRangeSegment) ([]LogUsageAnalysisRow, error) {
+		tx := db.Table("logs").Select(strings.Join(selectParts, ", ")).
+			Where("type = ?", LogTypeConsume)
+		if filter.UserId != 0 {
+			tx = tx.Where("user_id = ?", filter.UserId)
 		}
-		tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
-	}
-	if filter.StartTimestamp != 0 {
-		tx = tx.Where("created_at >= ?", filter.StartTimestamp)
-	}
-	if filter.EndTimestamp != 0 {
-		tx = tx.Where("created_at <= ?", filter.EndTimestamp)
-	}
-	if filter.Channel != 0 {
-		tx = tx.Where("channel_id = ?", filter.Channel)
-	}
-	if filter.Group != "" {
-		tx = tx.Where(logGroupCol+" = ?", filter.Group)
-	}
-	if filter.RequestId != "" {
-		tx = tx.Where("request_id = ?", filter.RequestId)
+		if filter.Username != "" {
+			tx = tx.Where("username = ?", filter.Username)
+		}
+		if filter.TokenName != "" {
+			tx = tx.Where("token_name = ?", filter.TokenName)
+		}
+		if filter.ModelName != "" {
+			modelNamePattern, sanitizeErr := sanitizeLikePattern(filter.ModelName)
+			if sanitizeErr != nil {
+				return nil, sanitizeErr
+			}
+			tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+		}
+		if segment.Start != 0 {
+			tx = tx.Where("created_at >= ?", segment.Start)
+		}
+		if segment.End != 0 {
+			tx = tx.Where("created_at <= ?", segment.End)
+		}
+		if filter.Channel != 0 {
+			tx = tx.Where("channel_id = ?", filter.Channel)
+		}
+		if filter.Group != "" {
+			tx = tx.Where(logGroupCol+" = ?", filter.Group)
+		}
+		if filter.RequestId != "" {
+			tx = tx.Where("request_id = ?", filter.RequestId)
+		}
+
+		var rows []LogUsageAnalysisRow
+		query := tx.Group(strings.Join(groupParts, ", ")).
+			Order("period_bucket asc, quota desc").
+			Limit(maxLogUsageAnalysisRows + 1)
+		if scanErr := query.Scan(&rows).Error; scanErr != nil {
+			common.SysError("failed to query log usage analysis: " + scanErr.Error())
+			if errors.Is(scanErr, context.DeadlineExceeded) || errors.Is(scanErr, context.Canceled) {
+				return nil, scanErr
+			}
+			return nil, errors.New("查询多维消费分析失败")
+		}
+		// Guard per segment as well as on the merged result. A segment that hit
+		// the LIMIT would otherwise be silently truncated and under-report totals.
+		if len(rows) > maxLogUsageAnalysisRows {
+			return nil, ErrLogUsageAnalysisTooManyRows
+		}
+		return rows, nil
 	}
 
-	query := tx.Group(strings.Join(groupParts, ", ")).Order("period_bucket asc, quota desc").Limit(5001)
-	if err = query.Scan(&summary).Error; err != nil {
-		common.SysError("failed to query log usage analysis: " + err.Error())
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			return nil, err
+	if len(segments) == 1 {
+		rows, queryErr := querySegment(segments[0])
+		if queryErr != nil {
+			return nil, queryErr
 		}
-		return nil, errors.New("查询多维消费分析失败")
+		if bucketErr := checkLogUsageAnalysisBuckets(rows); bucketErr != nil {
+			return nil, bucketErr
+		}
+		return rows, nil
 	}
-	if len(summary) > 5000 {
-		return nil, ErrLogUsageAnalysisTooManyRows
+
+	merged := make(map[logUsageAnalysisKey]*LogUsageAnalysisRow, maxLogUsageAnalysisRows)
+	order := make([]logUsageAnalysisKey, 0, maxLogUsageAnalysisRows)
+	for _, segment := range segments {
+		rows, queryErr := querySegment(segment)
+		if queryErr != nil {
+			return nil, queryErr
+		}
+		for i := range rows {
+			key := logUsageAnalysisRowKey(rows[i])
+			existing, ok := merged[key]
+			if !ok {
+				row := rows[i]
+				merged[key] = &row
+				order = append(order, key)
+				if len(order) > maxLogUsageAnalysisRows {
+					return nil, ErrLogUsageAnalysisTooManyRows
+				}
+				continue
+			}
+			existing.RequestCount += rows[i].RequestCount
+			existing.PromptTokens += rows[i].PromptTokens
+			existing.CompletionTokens += rows[i].CompletionTokens
+			existing.Quota += rows[i].Quota
+		}
+	}
+
+	summary = make([]LogUsageAnalysisRow, 0, len(order))
+	for _, key := range order {
+		summary = append(summary, *merged[key])
+	}
+	// Reproduce the single-segment ordering contract (period ascending, then
+	// quota descending) with a deterministic tiebreak so a merged response is
+	// stable across runs and databases.
+	sort.SliceStable(summary, func(i, j int) bool {
+		left, right := summary[i], summary[j]
+		if left.Period != right.Period {
+			return left.Period < right.Period
+		}
+		if left.Quota != right.Quota {
+			return left.Quota > right.Quota
+		}
+		if left.ModelName != right.ModelName {
+			return left.ModelName < right.ModelName
+		}
+		if left.Username != right.Username {
+			return left.Username < right.Username
+		}
+		if left.TokenName != right.TokenName {
+			return left.TokenName < right.TokenName
+		}
+		if left.GroupName != right.GroupName {
+			return left.GroupName < right.GroupName
+		}
+		return left.Channel < right.Channel
+	})
+	if bucketErr := checkLogUsageAnalysisBuckets(summary); bucketErr != nil {
+		return nil, bucketErr
 	}
 	return summary, nil
+}
+
+func checkLogUsageAnalysisBuckets(rows []LogUsageAnalysisRow) error {
+	if len(rows) <= maxLogUsageAnalysisPeriodBuckets {
+		// Distinct buckets can never exceed the row count; skip the allocation.
+		return nil
+	}
+	buckets := make(map[int64]struct{}, maxLogUsageAnalysisPeriodBuckets+1)
+	for _, row := range rows {
+		buckets[row.Period] = struct{}{}
+		if len(buckets) > maxLogUsageAnalysisPeriodBuckets {
+			return ErrLogUsageAnalysisTooManyBuckets
+		}
+	}
+	return nil
 }
 
 // GetLogUsageSummary returns successful consumption grouped by model. It

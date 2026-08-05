@@ -14,8 +14,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// maxLogUsageExportRangeSeconds bounds the single-shot reconciliation CSV
+// export. That endpoint streams one unsegmented aggregate and keeps its
+// historical 31 day bound.
 const maxLogUsageExportRangeSeconds int64 = 31 * 24 * 60 * 60
-const logUsageAnalysisTimeout = 5 * time.Second
+
+// logUsageAnalysisSegmentTimeout is the per-segment query budget. The dashboard
+// analysis endpoint may span up to common.DashboardMaxRangeDays, which the model
+// layer splits into at most common.MaxDashboardRangeSegments bounded segments;
+// the overall budget therefore scales with the segment count but stays capped.
+const logUsageAnalysisSegmentTimeout = 5 * time.Second
+const maxLogUsageAnalysisTimeout = logUsageAnalysisSegmentTimeout * time.Duration(common.MaxDashboardRangeSegments)
 
 var allowedLogAnalysisDimensions = map[string]bool{
 	"period":     true,
@@ -39,7 +48,25 @@ type logUsageAnalysisResponse struct {
 	CostBasisNote string                      `json:"cost_basis_note"`
 }
 
-func getLogUsageSummaryFilter(c *gin.Context, userId int, allowAdminFilters bool) (model.LogUsageSummaryFilter, error) {
+// logUsageRangeBound describes how a handler bounds its requested time range.
+// The reconciliation export keeps its single-statement 31 day bound; the
+// dashboard analysis uses the shared, segmented dashboard bound.
+type logUsageRangeBound struct {
+	maxSeconds  int64
+	tooLargeErr error
+}
+
+var logUsageExportRangeBound = logUsageRangeBound{
+	maxSeconds:  maxLogUsageExportRangeSeconds,
+	tooLargeErr: errors.New("单次导出时间范围不能超过 31 天"),
+}
+
+var logUsageAnalysisRangeBound = logUsageRangeBound{
+	maxSeconds:  common.DashboardMaxRangeSeconds,
+	tooLargeErr: common.ErrDashboardRangeTooLarge,
+}
+
+func getLogUsageSummaryFilter(c *gin.Context, userId int, allowAdminFilters bool, bound logUsageRangeBound) (model.LogUsageSummaryFilter, error) {
 	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	if err != nil || startTimestamp <= 0 {
 		return model.LogUsageSummaryFilter{}, errors.New("请选择有效的导出开始时间")
@@ -51,8 +78,8 @@ func getLogUsageSummaryFilter(c *gin.Context, userId int, allowAdminFilters bool
 	if endTimestamp < startTimestamp {
 		return model.LogUsageSummaryFilter{}, errors.New("导出结束时间不能早于开始时间")
 	}
-	if endTimestamp-startTimestamp > maxLogUsageExportRangeSeconds {
-		return model.LogUsageSummaryFilter{}, errors.New("单次导出时间范围不能超过 31 天")
+	if endTimestamp-startTimestamp > bound.maxSeconds {
+		return model.LogUsageSummaryFilter{}, bound.tooLargeErr
 	}
 
 	filter := model.LogUsageSummaryFilter{
@@ -78,7 +105,7 @@ func getLogUsageSummaryFilter(c *gin.Context, userId int, allowAdminFilters bool
 }
 
 func GetLogUsageSummary(c *gin.Context) {
-	filter, err := getLogUsageSummaryFilter(c, 0, true)
+	filter, err := getLogUsageSummaryFilter(c, 0, true, logUsageExportRangeBound)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -92,7 +119,7 @@ func GetLogUsageSummary(c *gin.Context) {
 }
 
 func GetLogSelfUsageSummary(c *gin.Context) {
-	filter, err := getLogUsageSummaryFilter(c, c.GetInt("id"), false)
+	filter, err := getLogUsageSummaryFilter(c, c.GetInt("id"), false, logUsageExportRangeBound)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -114,7 +141,7 @@ func getLogUsageAnalysisFilter(c *gin.Context, userId int, allowAdminFilters boo
 			return model.LogUsageAnalysisFilter{}, errors.New("用户分析不允许查询渠道参数")
 		}
 	}
-	base, err := getLogUsageSummaryFilter(c, userId, allowAdminFilters)
+	base, err := getLogUsageSummaryFilter(c, userId, allowAdminFilters, logUsageAnalysisRangeBound)
 	if err != nil {
 		return model.LogUsageAnalysisFilter{}, err
 	}
@@ -150,6 +177,21 @@ func getLogUsageAnalysisFilter(c *gin.Context, userId int, allowAdminFilters boo
 	}, nil
 }
 
+// logUsageAnalysisTimeout scales the request budget with the number of bounded
+// segments the model layer will run, so a 90 day query is not judged against a
+// 31 day query's budget while the overall bound stays fixed and predictable.
+func logUsageAnalysisTimeout(filter model.LogUsageAnalysisFilter) time.Duration {
+	segments := len(common.SplitDashboardRange(filter.StartTimestamp, filter.EndTimestamp))
+	if segments < 1 {
+		segments = 1
+	}
+	timeout := logUsageAnalysisSegmentTimeout * time.Duration(segments)
+	if timeout > maxLogUsageAnalysisTimeout {
+		timeout = maxLogUsageAnalysisTimeout
+	}
+	return timeout
+}
+
 func writeLogUsageAnalysis(c *gin.Context, userId int, allowAdminFilters bool) {
 	filter, err := getLogUsageAnalysisFilter(c, userId, allowAdminFilters)
 	if err != nil {
@@ -162,13 +204,13 @@ func writeLogUsageAnalysis(c *gin.Context, userId int, allowAdminFilters bool) {
 		})
 		return
 	}
-	queryContext, cancel := context.WithTimeout(c.Request.Context(), logUsageAnalysisTimeout)
+	queryContext, cancel := context.WithTimeout(c.Request.Context(), logUsageAnalysisTimeout(filter))
 	defer cancel()
 	filter.Context = queryContext
 	rows, err := model.GetLogUsageAnalysis(filter)
 	if err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, model.ErrLogUsageAnalysisTooManyRows) {
+		if errors.Is(err, model.ErrLogUsageAnalysisTooManyRows) || errors.Is(err, model.ErrLogUsageAnalysisTooManyBuckets) {
 			status = http.StatusBadRequest
 		} else if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			status = http.StatusGatewayTimeout
@@ -183,6 +225,12 @@ func writeLogUsageAnalysis(c *gin.Context, userId int, allowAdminFilters bool) {
 			// projection instead of showing a generic HTTP error.
 			body["code"] = "analysis_too_many_rows"
 			body["hint"] = "可自动降级为仅按时间分组；也可以缩小筛选范围或降低时间粒度。"
+		}
+		if errors.Is(err, model.ErrLogUsageAnalysisTooManyBuckets) {
+			// A bucket overflow is not fixable by dropping dimensions, so it must
+			// not be reported with the auto-downgrade code.
+			body["code"] = "analysis_too_many_buckets"
+			body["hint"] = "请缩小时间范围或降低时间粒度。"
 		}
 		c.AbortWithStatusJSON(status, body)
 		return

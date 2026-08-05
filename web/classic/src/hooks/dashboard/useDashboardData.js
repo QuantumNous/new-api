@@ -30,6 +30,7 @@ import { TIME_OPTIONS } from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 import { parseDashboardDateRange } from './time';
+import { describeDashboardRangeError, validateDashboardRange } from './range';
 
 export const useDashboardData = (userState, userDispatch, statusState) => {
   const { t } = useTranslation();
@@ -173,6 +174,18 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       const { start: localStartTimestamp, end: localEndTimestamp } =
         parseDashboardDateRange(start_timestamp, end_timestamp);
 
+      // Same bound the server enforces; reject before issuing a request that
+      // could only be refused, and clear the previously displayed series.
+      const rangeError = validateDashboardRange(
+        localStartTimestamp,
+        localEndTimestamp,
+      );
+      if (rangeError) {
+        setQuotaData([]);
+        showError(describeDashboardRangeError(rangeError, t));
+        return [];
+      }
+
       if (isAdminUser) {
         url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
       } else {
@@ -194,13 +207,16 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         data.sort((a, b) => a.created_at - b.created_at);
         return data;
       } else {
+        // A rejected query must not leave the previous range's numbers on
+        // screen; the panels would otherwise mix two different filters.
+        setQuotaData([]);
         showError(message);
         return [];
       }
     } finally {
       setLoading(false);
     }
-  }, [inputs, dataExportDefaultTime, isAdminUser, now]);
+  }, [inputs, dataExportDefaultTime, isAdminUser, now, t]);
 
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);

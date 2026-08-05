@@ -1,6 +1,12 @@
 import { api } from '@/lib/api'
 import { computeTimeRange } from '@/lib/time'
+import type { AnalysisRequestResult } from './analysisState'
 import { getDefaultDays } from './lib/filters'
+import {
+  assertDashboardRange,
+  describeDashboardRangeError,
+  validateDashboardRange,
+} from './lib/range'
 import type {
   DashboardFilters,
   LogUsageAnalysisResponse,
@@ -31,6 +37,7 @@ export async function getUserQuotaDates(
   },
   isAdmin = false
 ) {
+  assertDashboardRange(params.start_timestamp, params.end_timestamp)
   const endpoint = isAdmin ? '/api/data' : '/api/data/self'
   const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
     endpoint,
@@ -47,6 +54,7 @@ export async function getUserQuotaDataByUsers(params: {
   start_timestamp: number
   end_timestamp: number
 }) {
+  assertDashboardRange(params.start_timestamp, params.end_timestamp)
   const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
     '/api/data/users',
     { params }
@@ -91,12 +99,25 @@ export async function getLogUsageAnalysis(
   isAdmin: boolean,
   dimensionsOverride?: readonly string[],
   signal?: AbortSignal
-): Promise<{ success: boolean; data?: LogUsageAnalysisResponse }> {
+): Promise<AnalysisRequestResult> {
   const params = buildLogUsageAnalysisParams(
     filters,
     isAdmin,
     dimensionsOverride
   )
+  // Enforce the shared bound client side. Returning the failure shape (rather
+  // than throwing) keeps the caller's fallback/abort handling on one path.
+  const rangeError = validateDashboardRange(
+    params.start_timestamp,
+    params.end_timestamp
+  )
+  if (rangeError) {
+    return {
+      success: false,
+      code: rangeError,
+      message: describeDashboardRangeError(rangeError),
+    }
+  }
   const endpoint = isAdmin ? '/api/log/analysis' : '/api/log/self/analysis'
   const analysisConfig = {
     params,

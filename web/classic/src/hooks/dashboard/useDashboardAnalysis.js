@@ -29,6 +29,7 @@ import {
   runDashboardAnalysisRequest,
 } from './analysisState';
 import { parseDashboardDateRange } from './time';
+import { describeDashboardRangeError, validateDashboardRange } from './range';
 
 export const ADMIN_ANALYSIS_DIMENSIONS = ['period', 'model_name'];
 export const USER_ANALYSIS_DIMENSIONS = ['period', 'model_name'];
@@ -53,7 +54,10 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
         inputs.start_timestamp,
         inputs.end_timestamp,
       );
-      if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+      // Enforce the shared bound client side so an unusable selection reports
+      // the precise reason instead of a generic request failure.
+      const rangeError = validateDashboardRange(start, end);
+      if (rangeError) return { rangeError };
       const params = new URLSearchParams({
         start_timestamp: String(start),
         end_timestamp: String(end),
@@ -68,18 +72,19 @@ export const useDashboardAnalysis = (inputs, isAdminUser, t) => {
         if (inputs.username) params.set('username', inputs.username);
         if (inputs.channel) params.set('channel', inputs.channel);
       }
-      return params;
+      return { params };
     },
     [inputs, isAdminUser],
   );
 
   const requestAnalysis = useCallback(
     async (dimensions, signal) => {
-      const query = buildQuery(dimensions);
-      if (!query) {
+      const { params: query, rangeError } = buildQuery(dimensions);
+      if (rangeError) {
         return {
           success: false,
-          message: t('请选择有效的分析时间范围'),
+          code: rangeError,
+          message: describeDashboardRangeError(rangeError, t),
         };
       }
       const path = isAdminUser ? '/api/log/analysis' : '/api/log/self/analysis';
