@@ -10,11 +10,12 @@ export const MARKETING_PATHS = [
   '/pricing',
   '/models',
   '/solutions',
+  '/quick-start',
   '/contact-sales',
 ]
 
 // 仅营销站独有的路径（控制台无对应页），需要跨域重定向到 www
-const MARKETING_ONLY_PATHS = ['/solutions', '/contact-sales']
+const MARKETING_ONLY_PATHS = ['/solutions', '/quick-start', '/contact-sales']
 
 export function isMarketingMode(): boolean {
   if (typeof window === 'undefined') return false

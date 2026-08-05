@@ -1,4 +1,4 @@
-import type { Locale, SiteContent } from '../types'
+import type { CodeExample, Locale, SiteContent } from '../types'
 
 const en: SiteContent = {
   nav: [
@@ -6,6 +6,7 @@ const en: SiteContent = {
     { label: 'Pricing', href: '/pricing' },
     { label: 'Models', href: '/models' },
     { label: 'Solutions', href: '/solutions' },
+    { label: 'Quick Start', href: '/quick-start' },
     { label: 'Contact Sales', href: '/contact-sales' },
   ],
   hero: {
@@ -132,6 +133,41 @@ const en: SiteContent = {
     subtitle: 'Create an account or talk to sales — get started in minutes.',
     cta: 'Get Started',
   },
+  quickStart: {
+    title: 'Quick Start',
+    subtitle:
+      'Make your first API call in minutes — one base URL, one key, every model.',
+    baseUrlLabel: 'API Base URL',
+    baseUrl: 'https://api.91flow.com/v1',
+    baseUrlNote:
+      'Point your OpenAI-compatible SDK at this base URL. Replace it with your regional gateway if one was provided.',
+    authTitle: 'Authenticate with your API key',
+    authDesc:
+      'Pass your secret key in the Authorization header of every request. Keep it server-side — never expose it in client code.',
+    stepsTitle: 'Four steps to your first response',
+    steps: [
+      {
+        title: 'Create an account',
+        desc: 'Sign up at OriginFlow and open the API Keys page in your console.',
+      },
+      {
+        title: 'Generate an API key',
+        desc: 'Create a key, copy it once, and store it in a secure environment variable.',
+      },
+      {
+        title: 'Set the base URL',
+        desc: 'Configure your SDK base URL to https://api.91flow.com/v1 — no other changes needed.',
+      },
+      {
+        title: 'Call any model',
+        desc: 'Request any supported model by name; we normalize the vendor response for you.',
+      },
+    ],
+    examplesTitle: 'Code examples',
+    examplesNote:
+      'The API follows the OpenAI schema. Swap the model name to route across providers.',
+    note: 'Model availability and rate limits follow your plan and the upstream provider. See the Models and Pricing pages for details.',
+  },
 }
 
 const zh: SiteContent = {
@@ -140,6 +176,7 @@ const zh: SiteContent = {
     { label: '定价', href: '/pricing' },
     { label: '模型', href: '/models' },
     { label: '方案', href: '/solutions' },
+    { label: '快速开始', href: '/quick-start' },
     { label: '联系销售', href: '/contact-sales' },
   ],
   hero: {
@@ -265,6 +302,86 @@ const zh: SiteContent = {
     subtitle: '注册账号或联系销售，几分钟即可开始。',
     cta: '立即开始',
   },
+  quickStart: {
+    title: '快速开始',
+    subtitle: '几分钟内发出第一次 API 调用——一个 Base URL、一把密钥、接入全部模型。',
+    baseUrlLabel: 'API Base URL',
+    baseUrl: 'https://api.91flow.com/v1',
+    baseUrlNote:
+      '将兼容 OpenAI 的 SDK 指向该 Base URL。若分配了区域网关地址，请替换为对应地址。',
+    authTitle: '使用 API 密钥鉴权',
+    authDesc:
+      '在每次请求的 Authorization 头中携带你的密钥。请仅在服务端使用，切勿暴露在前端代码中。',
+    stepsTitle: '四步获得首次响应',
+    steps: [
+      {
+        title: '注册账号',
+        desc: '在 OriginFlow 注册并进入控制台中的 API Keys 页面。',
+      },
+      {
+        title: '生成 API 密钥',
+        desc: '创建一个密钥并立即复制保存，建议放入安全的环境变量中。',
+      },
+      {
+        title: '设置 Base URL',
+        desc: '将 SDK 的 base URL 配置为 https://api.91flow.com/v1，无需其他改动。',
+      },
+      {
+        title: '调用任意模型',
+        desc: '按模型名发起请求，差异由 OriginFlow 自动抹平。',
+      },
+    ],
+    examplesTitle: '代码示例',
+    examplesNote: '接口遵循 OpenAI 规范，替换模型名即可在不同供应商间路由。',
+    note: '模型的可用性与速率限制取决于你的套餐与上游供应商，详见「模型」与「定价」页面。',
+  },
 }
+
+// 代码示例与语言无关，中英文共用一份（Base URL / 鉴权方式保持一致）
+export const quickStartExamples: CodeExample[] = [
+  {
+    label: 'cURL',
+    lang: 'bash',
+    code: `curl https://api.91flow.com/v1/chat/completions \\
+  -H "Authorization: Bearer $ORIGINFLOW_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'`,
+  },
+  {
+    label: 'Python (OpenAI SDK)',
+    lang: 'python',
+    code: `from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.91flow.com/v1",
+    api_key="YOUR_ORIGINFLOW_API_KEY",
+)
+
+resp = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(resp.choices[0].message.content)`,
+  },
+  {
+    label: 'Node.js (OpenAI SDK)',
+    lang: 'javascript',
+    code: `import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://api.91flow.com/v1",
+  apiKey: "YOUR_ORIGINFLOW_API_KEY",
+});
+
+const resp = await client.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+console.log(resp.choices[0].message.content);`,
+  },
+]
 
 export const siteContent: Record<Locale, SiteContent> = { en, zh }

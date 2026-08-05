@@ -14,6 +14,7 @@ import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as ContactSalesRouteImport } from './routes/contact-sales'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as QuickStartRouteImport } from './routes/quick-start'
 import { Route as SolutionsRouteImport } from './routes/solutions'
 import { Route as UserAgreementRouteImport } from './routes/user-agreement'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
@@ -100,6 +101,11 @@ const ContactSalesRoute = ContactSalesRouteImport.update({
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuickStartRoute = QuickStartRouteImport.update({
+  id: '/quick-start',
+  path: '/quick-start',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SolutionsRoute = SolutionsRouteImport.update({
@@ -463,6 +469,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contact-sales': typeof ContactSalesRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/quick-start': typeof QuickStartRoute
   '/solutions': typeof SolutionsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
@@ -532,6 +539,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contact-sales': typeof ContactSalesRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/quick-start': typeof QuickStartRoute
   '/solutions': typeof SolutionsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
@@ -603,6 +611,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/contact-sales': typeof ContactSalesRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/quick-start': typeof QuickStartRoute
   '/solutions': typeof SolutionsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
@@ -674,6 +683,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contact-sales'
     | '/privacy-policy'
+    | '/quick-start'
     | '/solutions'
     | '/user-agreement'
     | '/system-settings'
@@ -743,6 +753,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contact-sales'
     | '/privacy-policy'
+    | '/quick-start'
     | '/solutions'
     | '/user-agreement'
     | '/forgot-password'
@@ -813,6 +824,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/contact-sales'
     | '/privacy-policy'
+    | '/quick-start'
     | '/solutions'
     | '/user-agreement'
     | '/_authenticated/system-settings'
@@ -885,6 +897,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   ContactSalesRoute: typeof ContactSalesRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  QuickStartRoute: typeof QuickStartRoute
   SolutionsRoute: typeof SolutionsRoute
   UserAgreementRoute: typeof UserAgreementRoute
   errors401Route: typeof errors401Route
@@ -937,6 +950,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quick-start': {
+      id: '/quick-start'
+      path: '/quick-start'
+      fullPath: '/quick-start'
+      preLoaderRoute: typeof QuickStartRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/solutions': {
@@ -1543,6 +1563,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   ContactSalesRoute: ContactSalesRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  QuickStartRoute: QuickStartRoute,
   SolutionsRoute: SolutionsRoute,
   UserAgreementRoute: UserAgreementRoute,
   errors401Route: errors401Route,

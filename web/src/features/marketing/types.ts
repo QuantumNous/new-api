@@ -37,6 +37,17 @@ export interface FaqItem {
   a: string
 }
 
+export interface QuickStartStep {
+  title: string
+  desc: string
+}
+
+export interface CodeExample {
+  label: string
+  lang: string
+  code: string
+}
+
 export interface SiteContent {
   nav: NavLink[]
   hero: {
@@ -103,5 +114,19 @@ export interface SiteContent {
     title: string
     subtitle: string
     cta: string
+  }
+  quickStart: {
+    title: string
+    subtitle: string
+    baseUrlLabel: string
+    baseUrl: string
+    baseUrlNote: string
+    authTitle: string
+    authDesc: string
+    stepsTitle: string
+    steps: QuickStartStep[]
+    examplesTitle: string
+    examplesNote: string
+    note: string
   }
 }
