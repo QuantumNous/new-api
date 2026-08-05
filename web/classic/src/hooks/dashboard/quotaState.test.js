@@ -420,6 +420,17 @@ describe('raw dashboard inputs never reach the network when unparseable', () => 
     ['Invalid Date', new Date(Number.NaN), REPORTED_END],
     ['Invalid Date end', SECONDS, new Date('not-a-date')],
     ['unparseable string', 'not-a-timestamp', REPORTED_END],
+
+    // Bare numeric strings must never be guessed into a date by Date.parse.
+    ["string '0'", '0', REPORTED_END],
+    ["string '-1'", '-1', REPORTED_END],
+    ["string '1.5'", '1.5', REPORTED_END],
+    ["string 'NaN'", 'NaN', REPORTED_END],
+    ["string 'Infinity'", 'Infinity', REPORTED_END],
+    ["string '1e3'", '1e3', REPORTED_END],
+    ['unsafe integer string', '9007199254740993', REPORTED_END],
+    ["string '0' as end", SECONDS, '0'],
+    ["string '-1' as end", SECONDS, '-1'],
   ];
 
   for (const [name, rawStart, rawEnd] of unparseableInputs) {
@@ -467,6 +478,20 @@ describe('raw dashboard inputs never reach the network when unparseable', () => 
       'wall-clock CST strings',
       '2026-07-01 00:00:42',
       '2026-08-05 11:07:45',
+      SECONDS,
+      REPORTED_END,
+    ],
+    [
+      'positive whole-second strings',
+      String(SECONDS),
+      String(REPORTED_END),
+      SECONDS,
+      REPORTED_END,
+    ],
+    [
+      'positive whole-millisecond strings',
+      String(SECONDS * 1000),
+      String(REPORTED_END * 1000),
       SECONDS,
       REPORTED_END,
     ],

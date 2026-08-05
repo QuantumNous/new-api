@@ -126,3 +126,104 @@ describe('Date bounds keep their sub-second behaviour', () => {
     );
   });
 });
+
+// Date.parse guesses a calendar year from a bare number: '0' becomes
+// 2000-01-01, '-1' becomes 2001-01-01 and '1.5' becomes 2001-01-05 CST. A
+// numeric string must therefore never reach Date.parse; it goes through the
+// same rule as a number value.
+describe('bare numeric strings never reach Date.parse', () => {
+  const SECONDS = 1782835242;
+
+  const rejectedStrings = [
+    ['zero', '0'],
+    ['negative one', '-1'],
+    ['negative', '-1782835242'],
+    ['fraction', '1.5'],
+    ['fractional second', '1782835242.5'],
+    ['leading dot fraction', '.5'],
+    ['trailing dot', '1782835242.'],
+    ['plus zero', '+0'],
+    ['exponent form', '1e3'],
+    ['unsafe integer', '9007199254740993'],
+    ['NaN literal', 'NaN'],
+    ['Infinity literal', 'Infinity'],
+    ['negative Infinity literal', '-Infinity'],
+    ['padded zero', '  0  '],
+  ];
+
+  for (const [name, text] of rejectedStrings) {
+    test(`${name} (${JSON.stringify(text)}) is not parseable`, () => {
+      expect(Number.isNaN(parseDashboardTimestamp(text))).toBe(true);
+    });
+  }
+
+  test("'0' is no longer read as the year 2000", () => {
+    // The regression: Date.parse('0') is 2000-01-01T00:00:00+08:00.
+    expect(parseDashboardTimestamp('0')).not.toBe(946656000);
+    expect(Number.isNaN(parseDashboardTimestamp('0'))).toBe(true);
+  });
+
+  test("'-1' is no longer read as the year 2001", () => {
+    expect(Number.isNaN(parseDashboardTimestamp('-1'))).toBe(true);
+  });
+
+  test("'1.5' is no longer read as a January 2001 date", () => {
+    expect(Number.isNaN(parseDashboardTimestamp('1.5'))).toBe(true);
+  });
+
+  test('a positive whole-second string parses as that second', () => {
+    // Previously Date.parse('1782835242') was NaN, so a legitimate numeric
+    // bound was rejected; it now follows the numeric rule.
+    expect(parseDashboardTimestamp(String(SECONDS))).toBe(SECONDS);
+    expect(parseDashboardTimestamp('1')).toBe(1);
+    expect(parseDashboardTimestamp('  ' + String(SECONDS) + '  ')).toBe(
+      SECONDS,
+    );
+  });
+
+  test('a positive whole-millisecond string truncates to seconds', () => {
+    expect(parseDashboardTimestamp(String(SECONDS * 1000))).toBe(SECONDS);
+    expect(parseDashboardTimestamp(String(SECONDS * 1000 + 999))).toBe(SECONDS);
+  });
+
+  test('the seconds/milliseconds boundary matches the number rule', () => {
+    // 1e11 exactly is still seconds; one more is milliseconds.
+    expect(parseDashboardTimestamp('100000000000')).toBe(100000000000);
+    expect(parseDashboardTimestamp(100000000000)).toBe(100000000000);
+    expect(parseDashboardTimestamp('100000000001')).toBe(100000000);
+    expect(parseDashboardTimestamp(100000000001)).toBe(100000000);
+  });
+
+  test('signed, fractional and exponent forms are refused, not coerced', () => {
+    // Each of these is numerically exact, but no timestamp field emits them,
+    // so they are rejected rather than quietly accepted.
+    expect(Number.isNaN(parseDashboardTimestamp('1e3'))).toBe(true);
+    expect(Number.isNaN(parseDashboardTimestamp('1782835242.'))).toBe(true);
+    expect(Number.isNaN(parseDashboardTimestamp('+1782835242'))).toBe(true);
+    expect(Number.isNaN(parseDashboardTimestamp('0001782835242'))).toBe(false);
+  });
+
+  test('the safe upper bound is respected for strings too', () => {
+    expect(
+      Number.isNaN(
+        parseDashboardTimestamp(String(Number.MAX_SAFE_INTEGER + 2)),
+      ),
+    ).toBe(true);
+    // MAX_SAFE_INTEGER itself is above the millisecond threshold, so it
+    // truncates to seconds rather than being rejected by the parser; the range
+    // validator owns the upper bound from there.
+    expect(parseDashboardTimestamp(String(Number.MAX_SAFE_INTEGER))).toBe(
+      Math.floor(Number.MAX_SAFE_INTEGER / 1000),
+    );
+  });
+
+  test('date-shaped and ISO strings are unaffected', () => {
+    expect(parseDashboardTimestamp('2024-01-01 00:00:00')).toBe(1704038400);
+    expect(parseDashboardTimestamp('2026-07-01 00:00:42')).toBe(SECONDS);
+    // An explicit offset still carries its own timezone through Date.parse.
+    expect(parseDashboardTimestamp('2024-01-01T00:00:00+08:00')).toBe(
+      1704038400,
+    );
+    expect(parseDashboardTimestamp('2024-01-01T00:00:00Z')).toBe(1704067200);
+  });
+});

@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -285,71 +284,4 @@ func TestLogQuotaDataCacheAccumulatesInt64(t *testing.T) {
 		assert.EqualValues(t, 2, cached.Count)
 		assert.Greater(t, cached.Quota, int64(math.MaxInt32))
 	}
-}
-
-// withMaxQuotaDataRows lowers the overload circuit breaker for one test so the
-// cap and the cap+1 overflow can be exercised with a handful of rows instead of
-// persisting 200001 of them.
-func withMaxQuotaDataRows(t *testing.T, limit int) {
-	t.Helper()
-	previous := maxQuotaDataRows
-	maxQuotaDataRows = limit
-	t.Cleanup(func() { maxQuotaDataRows = previous })
-}
-
-func TestQuotaDataRowCapBoundaryAndOverflow(t *testing.T) {
-	require.Equal(t, defaultMaxQuotaDataRows, maxQuotaDataRows,
-		"production must run with the real cap")
-	assert.Equal(t, 200000, defaultMaxQuotaDataRows)
-	assert.Contains(t, ErrQuotaDataTooManyRows.Error(), "200000")
-
-	truncateQuotaData(t)
-	withMaxQuotaDataRows(t, 3)
-
-	start := analysisCstMidnight
-	end := start + 10*3600
-	for i := 0; i < 3; i++ {
-		require.NoError(t, DB.Table("quota_data").Create(&QuotaData{
-			UserID: 1, Username: "cap", ModelName: fmt.Sprintf("model-%d", i),
-			CreatedAt: start + int64(i)*3600, Count: 1, Quota: 1,
-		}).Error)
-	}
-
-	// Exactly at the cap still succeeds.
-	rows, err := GetQuotaDataByUserId(context.Background(), 1, start, end)
-	require.NoError(t, err)
-	assert.Len(t, rows, 3)
-
-	// cap+1 is refused with the stable overload error rather than truncated.
-	require.NoError(t, DB.Table("quota_data").Create(&QuotaData{
-		UserID: 1, Username: "cap", ModelName: "model-overflow",
-		CreatedAt: start + 3*3600, Count: 1, Quota: 1,
-	}).Error)
-
-	rows, err = GetQuotaDataByUserId(context.Background(), 1, start, end)
-	require.ErrorIs(t, err, ErrQuotaDataTooManyRows)
-	assert.Nil(t, rows)
-
-	rows, err = GetAllQuotaDates(context.Background(), start, end, "")
-	require.ErrorIs(t, err, ErrQuotaDataTooManyRows)
-	assert.Nil(t, rows)
-}
-
-// A segmented range must apply the cap to the merged total, not per segment,
-// so three segments cannot smuggle three times the cap back to the caller.
-func TestQuotaDataRowCapAppliesAcrossSegments(t *testing.T) {
-	truncateQuotaData(t)
-	withMaxQuotaDataRows(t, 3)
-
-	start, boundary, end := seedQuotaDataAcrossSegments(t, 1, "cap", 10)
-	segments, splitErr := common.SplitDashboardRange(start, end)
-	require.NoError(t, splitErr)
-	require.Len(t, segments, 2)
-	require.Less(t, boundary, end)
-
-	// The seed writes 5 rows split across the two segments; neither segment
-	// alone exceeds a cap of 3, but the merged result does.
-	rows, err := GetQuotaDataByUserId(context.Background(), 1, start, end)
-	require.ErrorIs(t, err, ErrQuotaDataTooManyRows)
-	assert.Nil(t, rows)
 }

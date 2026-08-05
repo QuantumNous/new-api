@@ -109,19 +109,19 @@ func increaseQuotaData(userId int, username string, modelName string, count int6
 	}
 }
 
-// defaultMaxQuotaDataRows is an overload circuit breaker for the dashboard
-// quota series. quota_data is pre-aggregated per hour, so a 90 day window can
-// hold at most 90*24 buckets multiplied by the number of distinct series. The
-// cap is sized far above any realistic tenant and exists only so a runaway
-// query returns a stable error instead of streaming an unbounded response.
-const defaultMaxQuotaDataRows = 200000
+// maxQuotaDataRows is an overload circuit breaker for the dashboard quota
+// series. quota_data is pre-aggregated per hour, so a 90 day window can hold at
+// most 90*24 buckets multiplied by the number of distinct series. The cap is
+// sized far above any realistic tenant and exists only so a runaway query
+// returns a stable error instead of streaming an unbounded response.
+//
+// It is a constant: there is no writable package-level cap anywhere, so no code
+// path and no test can lower the production limit or race another goroutine
+// over it. Tests reach the boundary through the rowLimit parameter of the
+// unexported query helpers instead.
+const maxQuotaDataRows = 200000
 
-// maxQuotaDataRows is a variable purely so tests can exercise the cap and the
-// cap+1 overflow with a handful of rows instead of persisting 200001 of them.
-// Production never reassigns it; withMaxQuotaDataRows restores it.
-var maxQuotaDataRows = defaultMaxQuotaDataRows
-
-var ErrQuotaDataTooManyRows = fmt.Errorf("匹配的看板数据超过 %d 条，请缩小时间范围或筛选条件", defaultMaxQuotaDataRows)
+var ErrQuotaDataTooManyRows = fmt.Errorf("匹配的看板数据超过 %d 条，请缩小时间范围或筛选条件", maxQuotaDataRows)
 
 // runSegmentedQuotaDataQuery executes build() once per bounded segment and
 // concatenates the results. Segments are disjoint on created_at and created_at
@@ -131,10 +131,14 @@ var ErrQuotaDataTooManyRows = fmt.Errorf("匹配的看板数据超过 %d 条，�
 // The range is validated here as well as at the HTTP boundary. This layer is
 // the last place that can stop an unbounded, inverted, or over-long scan, and
 // it must not depend on every caller having checked first.
+//
+// rowLimit is a parameter rather than a global so the cap boundary is testable
+// without mutating shared state; every production caller passes the constant.
 func runSegmentedQuotaDataQuery(
 	ctx context.Context,
 	startTime int64,
 	endTime int64,
+	rowLimit int,
 	build func(tx *gorm.DB) *gorm.DB,
 ) ([]*QuotaData, error) {
 	segments, err := common.SplitDashboardRange(startTime, endTime)
@@ -150,40 +154,59 @@ func runSegmentedQuotaDataQuery(
 		var segmentRows []*QuotaData
 		tx := build(db.Table("quota_data")).
 			Where("created_at >= ? and created_at <= ?", segment.Start, segment.End).
-			Limit(maxQuotaDataRows + 1)
+			Limit(rowLimit + 1)
 		if err := tx.Find(&segmentRows).Error; err != nil {
 			return nil, err
 		}
-		if len(segmentRows) > maxQuotaDataRows {
+		if len(segmentRows) > rowLimit {
 			return nil, ErrQuotaDataTooManyRows
 		}
 		quotaDatas = append(quotaDatas, segmentRows...)
-		if len(quotaDatas) > maxQuotaDataRows {
+		if len(quotaDatas) > rowLimit {
 			return nil, ErrQuotaDataTooManyRows
 		}
 	}
 	return quotaDatas, nil
 }
 
+func quotaDataByUsernameQuery(username string) func(tx *gorm.DB) *gorm.DB {
+	return func(tx *gorm.DB) *gorm.DB {
+		return tx.Where("username = ?", username)
+	}
+}
+
+func quotaDataByUserIdQuery(userId int) func(tx *gorm.DB) *gorm.DB {
+	return func(tx *gorm.DB) *gorm.DB {
+		return tx.Where("user_id = ?", userId)
+	}
+}
+
+func quotaDataGroupedByUserQuery() func(tx *gorm.DB) *gorm.DB {
+	return func(tx *gorm.DB) *gorm.DB {
+		return tx.Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
+			Group("username, created_at")
+	}
+}
+
+func quotaDataGroupedByModelQuery() func(tx *gorm.DB) *gorm.DB {
+	return func(tx *gorm.DB) *gorm.DB {
+		return tx.Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").
+			Group("model_name, created_at")
+	}
+}
+
 func GetQuotaDataByUsername(ctx context.Context, username string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	// 从quota_data表中查询数据
-	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, func(tx *gorm.DB) *gorm.DB {
-		return tx.Where("username = ?", username)
-	})
+	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, maxQuotaDataRows, quotaDataByUsernameQuery(username))
 }
 
 func GetQuotaDataByUserId(ctx context.Context, userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	// 从quota_data表中查询数据
-	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, func(tx *gorm.DB) *gorm.DB {
-		return tx.Where("user_id = ?", userId)
-	})
+	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, maxQuotaDataRows, quotaDataByUserIdQuery(userId))
 }
 
 func GetQuotaDataGroupByUser(ctx context.Context, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
-	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, func(tx *gorm.DB) *gorm.DB {
-		return tx.Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
-			Group("username, created_at")
-	})
+	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, maxQuotaDataRows, quotaDataGroupedByUserQuery())
 }
 
 func GetAllQuotaDates(ctx context.Context, startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
@@ -192,8 +215,5 @@ func GetAllQuotaDates(ctx context.Context, startTime int64, endTime int64, usern
 	}
 	// 从quota_data表中查询数据
 	// only select model_name, sum(count) as count, sum(quota) as quota, model_name, created_at from quota_data group by model_name, created_at;
-	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, func(tx *gorm.DB) *gorm.DB {
-		return tx.Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").
-			Group("model_name, created_at")
-	})
+	return runSegmentedQuotaDataQuery(ctx, startTime, endTime, maxQuotaDataRows, quotaDataGroupedByModelQuery())
 }

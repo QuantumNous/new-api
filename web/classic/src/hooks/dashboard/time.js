@@ -25,6 +25,36 @@ const CST_OFFSET_SECONDS = 8 * 60 * 60;
 // seconds is year 5138, and 1e11 milliseconds is 1973, so no realistic bound is
 // ambiguous.
 const NUMERIC_MILLISECOND_THRESHOLD = 1e11;
+// A string that is nothing but a number literal — optional sign, digits, an
+// optional fraction and an optional exponent. Such a string carries no date
+// punctuation, so it must never be handed to Date.parse, which would guess a
+// calendar year from it.
+const BARE_NUMERIC_RE = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+// Of those, only a plain unsigned run of digits is accepted as a timestamp.
+// A sign, a fraction, a trailing dot or exponent notation is not a form any
+// timestamp field produces, so it is rejected rather than coerced into a
+// number that merely happens to be exact.
+const BARE_DIGITS_RE = /^\d+$/;
+
+/**
+ * The single rule for a numeric bound, shared by number values and by bare
+ * numeric strings.
+ *
+ * A bound must already be exact: a positive safe integer. Rounding a fraction
+ * here would manufacture a valid-looking whole second out of an invalid input
+ * and slip it past the strict range validator, so a fraction, NaN, Infinity,
+ * an unsafe integer or a non-positive value is rejected rather than repaired.
+ *
+ * Values above NUMERIC_MILLISECOND_THRESHOLD are whole milliseconds and are
+ * truncated to seconds; that is Date.getTime()'s documented unit, not a repair.
+ */
+const parseNumericTimestamp = (value) => {
+  if (!Number.isSafeInteger(value) || value <= 0) return Number.NaN;
+  if (value > NUMERIC_MILLISECOND_THRESHOLD) {
+    return Math.floor(value / 1000);
+  }
+  return value;
+};
 const LOCAL_DATE_TIME_RE =
   /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?$/;
 const CST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-CA', {
@@ -82,21 +112,20 @@ export const parseDashboardTimestamp = (value) => {
   }
 
   if (typeof value === 'number') {
-    // A numeric bound must already be an exact whole second (or an exact whole
-    // millisecond).  Rounding a fractional number here would manufacture a
-    // valid-looking second out of an invalid input and slip it past the strict
-    // range validator, so a fraction is rejected rather than floored.
-    if (!Number.isSafeInteger(value) || value <= 0) return Number.NaN;
-    if (value > NUMERIC_MILLISECOND_THRESHOLD) {
-      // Millisecond values are accepted for compatibility with Date.getTime().
-      // Truncating to whole seconds is the documented meaning of that unit, not
-      // a repair of a malformed value.
-      return Math.floor(value / 1000);
-    }
-    return value;
+    return parseNumericTimestamp(value);
   }
 
   const text = String(value ?? '').trim();
+
+  // A bare numeric string must go through the same numeric rule, never through
+  // Date.parse.  Date.parse guesses a year from a bare number: '0' becomes
+  // 2000-01-01, '-1' becomes 2001-01-01 and '1.5' becomes 2001-01-05, all of
+  // which are valid-looking instants produced from an invalid bound.
+  if (BARE_NUMERIC_RE.test(text)) {
+    if (!BARE_DIGITS_RE.test(text)) return Number.NaN;
+    return parseNumericTimestamp(Number(text));
+  }
+
   const match = LOCAL_DATE_TIME_RE.exec(text);
   if (match) {
     const [, year, month, day, hour, minute, second, millisecond] = match;
