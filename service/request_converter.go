@@ -1,18 +1,24 @@
 package service
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/service/relayconvert"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 )
 
 func init() {
 	relayconvert.SetMediaResolver(relayconvert.MediaResolver{
-		GetBase64Data:        GetBase64Data,
+		// relayconvert is gin-free; recover the gin context when the caller
+		// passed one so file caching/cleanup keeps working.
+		GetBase64Data: func(ctx context.Context, source types.FileSource, reason ...string) (string, string, error) {
+			ginCtx, _ := ctx.(*gin.Context)
+			return GetBase64Data(ginCtx, source, reason...)
+		},
 		DecodeBase64FileData: DecodeBase64FileData,
 	})
 }
