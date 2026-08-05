@@ -177,6 +177,11 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
 
+	// Password encryption (RSA) — defense-in-depth for the login flow.
+	// The private key is generated lazily on first startup if absent.
+	common.OptionMap[common.OptionKeyPasswordEncryptionPrivateKey] = ""
+	common.OptionMap[common.OptionKeyPasswordEncryptionRequired] = strconv.FormatBool(common.IsPasswordEncryptionRequired())
+
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
 	for k, v := range modelConfigs {
@@ -185,6 +190,38 @@ func InitOptionMap() {
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
+	ensurePasswordEncryptionKey()
+}
+
+// ensurePasswordEncryptionKey generates and persists an RSA keypair on first
+// startup, or loads the existing one into the in-memory decrypter. Called
+// once at startup after the option map is populated from the DB.
+func ensurePasswordEncryptionKey() {
+	common.OptionMapRWMutex.RLock()
+	privPEM := common.OptionMap[common.OptionKeyPasswordEncryptionPrivateKey]
+	common.OptionMapRWMutex.RUnlock()
+
+	if privPEM != "" {
+		if _, err := common.LoadPasswordEncryptionKey(privPEM); err != nil {
+			common.SysError("failed to load password encryption key: " + err.Error())
+		}
+		return
+	}
+
+	newPriv, newPub, err := common.GeneratePasswordEncryptionKeyPair()
+	if err != nil {
+		common.SysError("failed to generate password encryption key: " + err.Error())
+		return
+	}
+	if err := UpdateOption(common.OptionKeyPasswordEncryptionPrivateKey, newPriv); err != nil {
+		common.SysError("failed to persist password encryption key: " + err.Error())
+		return
+	}
+	if _, err := common.LoadPasswordEncryptionKey(newPriv); err != nil {
+		common.SysError("failed to load freshly generated password encryption key: " + err.Error())
+		return
+	}
+	common.SysLog("generated and persisted RSA keypair for password encryption; public key:\n" + newPub)
 }
 
 func loadOptionsFromDatabase() {
@@ -302,7 +339,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" {
+	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" || key == common.OptionKeyPasswordEncryptionRequired {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
@@ -389,9 +426,18 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		case common.OptionKeyPasswordEncryptionRequired:
+			common.SetPasswordEncryptionRequired(boolValue)
 		}
 	}
 	switch key {
+	case common.OptionKeyPasswordEncryptionPrivateKey:
+		// Reload the in-memory decrypter whenever the persisted key changes.
+		// Errors here are logged but not returned: a broken key just means
+		// plaintext fallback stays in effect until an admin fixes the value.
+		if _, err := common.LoadPasswordEncryptionKey(value); err != nil {
+			common.SysError("failed to reload password encryption key: " + err.Error())
+		}
 	case "EmailDomainWhitelist":
 		common.EmailDomainWhitelist = strings.Split(value, ",")
 	case "SMTPServer":
