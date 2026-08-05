@@ -1267,6 +1267,41 @@ func buildAdvancedCustomModelPreviewChannel(req fetchModelsRequest) (*model.Chan
 	return channel, nil
 }
 
+func buildFetchModelsChannel(req fetchModelsRequest) (*model.Channel, error) {
+	if req.ChannelID > 0 && req.Type != constant.ChannelTypeAdvancedCustom {
+		channel, err := model.GetChannelById(req.ChannelID, true)
+		if err != nil {
+			return nil, err
+		}
+		if channel.Type != req.Type {
+			return nil, fmt.Errorf("channel %d type does not match request", req.ChannelID)
+		}
+		return channel, nil
+	}
+
+	if req.Type == constant.ChannelTypeAdvancedCustom {
+		return buildAdvancedCustomModelPreviewChannel(req)
+	}
+
+	baseURL := ""
+	if req.BaseURL != nil {
+		baseURL = strings.TrimSpace(*req.BaseURL)
+	}
+	if baseURL == "" {
+		baseURL = constant.ChannelBaseURLs[req.Type]
+	}
+
+	key := strings.TrimSpace(req.Key)
+	if req.Type != constant.ChannelTypeCodex {
+		key = strings.Split(key, "\n")[0]
+	}
+	return &model.Channel{
+		Type:    req.Type,
+		Key:     key,
+		BaseURL: &baseURL,
+	}, nil
+}
+
 func FetchModels(c *gin.Context) {
 	var req fetchModelsRequest
 
@@ -1278,35 +1313,13 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	var channel *model.Channel
-	if req.Type == constant.ChannelTypeAdvancedCustom || req.ChannelID > 0 {
-		var err error
-		channel, err = buildAdvancedCustomModelPreviewChannel(req)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
-			return
-		}
-	} else {
-		baseURL := ""
-		if req.BaseURL != nil {
-			baseURL = strings.TrimSpace(*req.BaseURL)
-		}
-		if baseURL == "" {
-			baseURL = constant.ChannelBaseURLs[req.Type]
-		}
-
-		key := strings.TrimSpace(req.Key)
-		if req.Type != constant.ChannelTypeCodex {
-			key = strings.Split(key, "\n")[0]
-		}
-		channel = &model.Channel{
-			Type:    req.Type,
-			Key:     key,
-			BaseURL: &baseURL,
-		}
+	channel, err := buildFetchModelsChannel(req)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
 	}
 
 	models, err := fetchChannelUpstreamModelIDs(channel)
