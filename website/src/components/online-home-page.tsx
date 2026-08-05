@@ -273,7 +273,7 @@ export function OnlineHomePage(props: { locale: Locale }) {
             <h1 className="display">{renderHeroTitle(props.locale, copy.home.heroTitle)}</h1>
             <p className="sub">{copy.home.sub}</p>
             <div className="heroCtas">
-              <Link className="btn big heroPrimary" href={localizePath("/login", props.locale)}>{copy.home.ctaKey}</Link>
+              <Link className="btn big heroPrimary" href={consoleUrl("/sign-in")}>{copy.home.ctaKey}</Link>
               <Link className="btn big heroSecondary" href={localizePath("/models", props.locale)}>{copy.home.ctaModels}</Link>
             </div>
           </div>
@@ -520,7 +520,7 @@ export function OnlineHomePage(props: { locale: Locale }) {
         <div className="ctaBanner">
           <PixelGrid accent="#67E8F9" cell={26} colors={["#7C3AED", "#A78BFA", "#6D28D9"]} cols={9} n={26} rows={7} seed={163} style={{ left: -30, opacity: 0.9, top: -20 }} />
           <PixelGrid accent="#67E8F9" cell={26} colors={["#A78BFA", "#C4B5FD", "#7C3AED"]} cols={9} n={26} rows={7} seed={167} style={{ bottom: -20, opacity: 0.9, right: -30 }} />
-          <div className="ctaIn"><h2>{renderLineBreakText(t("cta.h", "More AI, less cost —<br>on every official model"))}</h2><p>{t("cta.sub", "Whether you ship an agent today or route billions of tokens a month — one key, a signed SLA, and prices that drop as you grow.")}</p><div className="ctaBtns"><Link className="btn white big" href={localizePath("/login", props.locale)}>{t("cta.b1", "Get started")}</Link><Link className="btn black big" href={localizePath("/contact", props.locale)}>{t("cta.b2", "Contact Sales")}</Link></div></div>
+          <div className="ctaIn"><h2>{renderLineBreakText(t("cta.h", "More AI, less cost —<br>on every official model"))}</h2><p>{t("cta.sub", "Whether you ship an agent today or route billions of tokens a month — one key, a signed SLA, and prices that drop as you grow.")}</p><div className="ctaBtns"><Link className="btn white big" href={consoleUrl("/sign-in")}>{t("cta.b1", "Get started")}</Link><Link className="btn black big" href={localizePath("/contact", props.locale)}>{t("cta.b2", "Contact Sales")}</Link></div></div>
         </div>
       </section>
     </OnlineStaticShell>
