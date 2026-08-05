@@ -55,3 +55,19 @@ Object.defineProperty(window, 'matchMedia', {
 window.requestAnimationFrame = (callback: FrameRequestCallback) =>
   window.setTimeout(() => callback(performance.now()), 0)
 window.cancelAnimationFrame = (handle: number) => window.clearTimeout(handle)
+
+class ResizeObserverMock {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+Object.defineProperty(globalThis, 'ResizeObserver', {
+  configurable: true,
+  value: ResizeObserverMock,
+})
+
+Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+  configurable: true,
+  value: () => undefined,
+})
