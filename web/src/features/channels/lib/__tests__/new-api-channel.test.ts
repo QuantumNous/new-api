@@ -94,4 +94,8 @@ describe('New API channel', () => {
 
     assert.equal(result.success, true)
   })
+
+  test('enables upstream model discovery for Kuocai', () => {
+    assert.equal(MODEL_FETCHABLE_TYPES.has(61), true)
+  })
 })
