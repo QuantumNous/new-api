@@ -202,6 +202,8 @@ export default {
       cellLabel: '{date}，{metric} {value}',
       topDays: '本段最活跃',
       weekdayRhythm: '星期节律',
+      weekdayPeak: '最高 {weekday} {value}',
+      weekdayValue: '{weekday}平均 {value}',
       activeDays: '活跃 {count} 天',
       peak: '峰值',
       less: '少',

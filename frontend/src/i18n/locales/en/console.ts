@@ -202,6 +202,8 @@ export default {
       cellLabel: '{date}, {metric} {value}',
       topDays: 'Most active',
       weekdayRhythm: 'Weekday rhythm',
+      weekdayPeak: 'Highest {weekday} {value}',
+      weekdayValue: '{weekday} average {value}',
       activeDays: '{count} active days',
       peak: 'Peak',
       less: 'Less',

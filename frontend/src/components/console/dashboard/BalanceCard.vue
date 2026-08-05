@@ -71,7 +71,7 @@ const runwayDays = computed(() => {
 </script>
 
 <template>
-  <ConsoleCard variant="sketch" stretch>
+  <ConsoleCard variant="sketch" stretch data-balance-card>
     <!-- Top row: label + health indicator -->
     <div class="flex items-center justify-between gap-3">
       <p class="text-sm text-[var(--text-tertiary)]">
@@ -140,7 +140,7 @@ const runwayDays = computed(() => {
     </p>
 
     <!-- Usage bar: hand-drawn brush-stroke style -->
-    <div v-if="usedQuota > 0 && !compact" class="mt-4">
+    <div v-if="usedQuota > 0 && !compact" class="mt-4" data-balance-usage-meter>
       <div
         class="mb-1.5 flex items-baseline justify-between gap-3 text-xs text-[var(--text-tertiary)]"
       >
@@ -168,10 +168,12 @@ const runwayDays = computed(() => {
     <!-- Today vs. average spend grid -->
     <div
       v-if="!compact && (todayQuota !== undefined || dailyBurn !== undefined)"
-      class="mt-4 grid grid-cols-2 gap-3"
+      class="grid grow content-center grid-cols-2 gap-3 py-2.5"
+      data-balance-spend-summary
     >
       <div
         class="px-3 py-2.5"
+        data-balance-spend-tile
         style="
           background: var(--surface-muted);
           border-radius: var(--sketch-border-radius-sm);
@@ -188,6 +190,7 @@ const runwayDays = computed(() => {
       </div>
       <div
         class="px-3 py-2.5"
+        data-balance-spend-tile
         style="
           background: var(--surface-muted);
           border-radius: var(--sketch-border-radius-sm);
@@ -205,7 +208,7 @@ const runwayDays = computed(() => {
     </div>
 
     <!-- Action buttons -->
-    <div class="mt-auto grid grid-cols-2 gap-3 pt-5">
+    <div class="grid grid-cols-2 gap-3 pt-3" data-balance-actions>
       <ConsoleButton @click="router.push({ name: 'wallet' })">
         <svg
           width="15"
