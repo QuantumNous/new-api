@@ -1812,6 +1812,7 @@
     "Failed to load Passkey status": "加载 Passkey 状态失败",
     "Failed to load playground groups": "加载 Playground 分组失败",
     "Failed to load playground models": "加载 Playground 模型失败",
+    "No video generation model is available": "当前没有可用的视频生成模型",
     "Failed to load profile": "加载个人资料失败",
     "Failed to load redemption codes": "加载兑换码失败",
     "Failed to load setup data": "无法加载设置数据",

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-// Shared responsive brand standard used by website-static and the console:
+// Shared responsive brand standard used by the website and console:
 // mark + lowercase "flatkey" in Public Sans Bold, with no ".ai" suffix.
 const FLATKEY_MARK = "/flatkey-mark.svg";
 

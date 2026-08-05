@@ -1,6 +1,8 @@
 import { LOCALES, type Locale, withIdFallback } from "@/lib/locales";
 
 export const CLI_LANDING_PATH = "/cli";
+export const CLI_IMAGE_PATH = "/cli/image";
+export const CLI_VIDEO_PATH = "/cli/video";
 export const HIGGSFIELD_ALTERNATIVE_PATH = "/higgsfield-alternative";
 
 type CodeSample = {

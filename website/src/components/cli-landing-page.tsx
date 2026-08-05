@@ -1,10 +1,12 @@
-import { ArrowRight, BadgeDollarSign, Check, FileVideo2, GitBranch, KeyRound, Layers3, MonitorPlay, Terminal, WandSparkles } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, Check, FileVideo2, GitBranch, ImageIcon, KeyRound, Layers3, MonitorPlay, Play, Terminal, WandSparkles } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { SiteShell } from "@/components/site-shell";
 import {
+  CLI_IMAGE_PATH,
   CLI_LANDING_PATH,
+  CLI_VIDEO_PATH,
   HIGGSFIELD_ALTERNATIVE_PATH,
   cliLandingCopy,
   higgsfieldAlternativeCopy,
@@ -26,45 +28,45 @@ const CLI_GITHUB_URL = "https://github.com/flatkey-ai/flatkey-cli";
 const workflowIcons = [FileVideo2, WandSparkles, MonitorPlay, Terminal] as const;
 const painIcons = [BadgeDollarSign, GitBranch, Layers3, Check] as const;
 const mediaAssets: Array<{
+  href: string;
+  icon: typeof ImageIcon;
+  kind: "image" | "video";
   type: "image" | "video";
   media: string;
   poster?: string;
   showPlay: boolean;
 }> = [
   {
-    type: "video",
-    media: "/assets/cli/ugc-ad-clips.mp4",
-    poster: "/assets/cli/ugc-ad-clips.png",
-    showPlay: true,
-  },
-  {
+    href: CLI_IMAGE_PATH,
+    icon: ImageIcon,
+    kind: "image",
     type: "image",
     media: "/assets/cli/campaign-hero.png",
     showPlay: false,
   },
   {
+    href: CLI_VIDEO_PATH,
+    icon: Play,
+    kind: "video",
     type: "video",
-    media: "/assets/cli/product-reveal.mp4",
+    media: "/assets/cli/product-reveal.png",
     poster: "/assets/cli/product-reveal.png",
     showPlay: true,
   },
-  {
-    type: "image",
-    media: "/assets/cli/thumbnail-test-set.png",
-    showPlay: false,
-  },
-  {
-    type: "video",
-    media: "/assets/cli/localized-variants.mp4",
-    poster: "/assets/cli/localized-variants.png",
-    showPlay: true,
-  },
-  {
-    type: "image",
-    media: "/assets/cli/storyboard-motion.png",
-    showPlay: true,
-  },
 ];
+
+const mediaCategoryLabels: Record<Locale, Record<"image" | "video", string>> = {
+  en: { image: "Image", video: "Video" },
+  zh: { image: "图像", video: "视频" },
+  es: { image: "Imagen", video: "Video" },
+  fr: { image: "Image", video: "Video" },
+  pt: { image: "Imagem", video: "Video" },
+  ru: { image: "Image", video: "Video" },
+  ja: { image: "画像", video: "動画" },
+  vi: { image: "Hình ảnh", video: "Video" },
+  de: { image: "Bild", video: "Video" },
+  id: { image: "Image", video: "Video" },
+};
 
 export function CliLandingPage(props: CliLandingPageProps) {
   const copy = cliLandingCopy[props.locale];
@@ -89,7 +91,7 @@ export function CliLandingPage(props: CliLandingPageProps) {
           stats={copy.stats}
           code={copy.codeSamples[0]}
         />
-        <MediaExamples copy={copy.sections.media} />
+        <MediaExamples copy={copy.sections.media} locale={props.locale} />
 
         <section className="relative z-10 border-y border-violet-500/10 bg-white/45 px-6 py-18 backdrop-blur-sm">
           <div className="mx-auto max-w-6xl">
@@ -252,7 +254,12 @@ export function HiggsfieldAlternativePage(props: HiggsfieldAlternativePageProps)
   );
 }
 
-function MediaExamples(props: { copy: (typeof cliLandingCopy)[Locale]["sections"]["media"] }) {
+function MediaExamples(props: { copy: (typeof cliLandingCopy)[Locale]["sections"]["media"]; locale: Locale }) {
+  const examples = [
+    props.copy.items.find((item) => item.kind.toLowerCase().includes("image") || item.kind.includes("图片") || item.kind.includes("画像") || item.kind.includes("圖")),
+    props.copy.items.find((item) => item.kind.toLowerCase().includes("video") || item.kind.includes("视频") || item.kind.includes("視頻") || item.kind.includes("動画") || item.kind.includes("Vídeo")),
+  ].filter(Boolean) as typeof props.copy.items;
+
   return (
     <section className="relative z-10 border-y border-violet-500/10 bg-white/35 px-6 py-18 backdrop-blur-sm">
       <div className="mx-auto max-w-6xl">
@@ -265,30 +272,29 @@ function MediaExamples(props: { copy: (typeof cliLandingCopy)[Locale]["sections"
             {props.copy.body}
           </p>
         </div>
-        <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 grid gap-3 md:grid-cols-2">
           {mediaAssets.map((asset, index) => {
-            const example = props.copy.items[index];
+            const example = examples[index] ?? props.copy.items[index];
+            const Icon = asset.icon;
+            const label = mediaCategoryLabels[props.locale][asset.kind];
             return (
-            <article key={example.title} className="overflow-hidden rounded-lg border border-violet-500/16 bg-white/70 shadow-[0_24px_70px_-56px_rgba(91,33,182,0.68)] backdrop-blur-sm">
+            <Link key={example.title} href={localizePath(asset.href, props.locale)} className="group overflow-hidden rounded-lg border border-violet-500/16 bg-white/70 shadow-[0_24px_70px_-56px_rgba(91,33,182,0.68)] backdrop-blur-sm transition-transform hover:-translate-y-0.5">
               <div className="relative aspect-[4/3] overflow-hidden bg-[#111412]">
-                {asset.type === "video" ? (
-                  <video className="h-full w-full object-cover" autoPlay muted loop playsInline preload="metadata" poster={asset.poster}>
-                    <source src={asset.media} type="video/mp4" />
-                  </video>
-                ) : (
-                  <Image
-                    src={asset.media}
-                    alt={example.title}
-                    fill
-                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-                    className="object-cover"
-                  />
-                )}
+                <Image
+                  src={asset.type === "video" && asset.poster ? asset.poster : asset.media}
+                  alt={example.title}
+                  fill
+                  sizes="(min-width: 768px) 50vw, 100vw"
+                  className="object-cover"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/28 via-transparent to-transparent" />
-                <div className="absolute top-4 left-4 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white">{example.kind}</div>
+                <div className="absolute top-4 left-4 inline-flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white">
+                  <Icon className="size-3.5" />
+                  {label}
+                </div>
                 {asset.showPlay ? (
-                  <div className="absolute right-4 bottom-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/75 text-white">
-                    <span className="ml-0.5 h-0 w-0 border-y-[7px] border-y-transparent border-l-[11px] border-l-white" />
+                  <div className="absolute right-4 bottom-4 flex h-10 w-10 items-center justify-center rounded-full border border-white/55 bg-white/90 text-violet-700 shadow-[0_16px_32px_-20px_rgba(11,11,15,0.55)]">
+                    <Play className="ml-0.5 size-5 fill-current" />
                   </div>
                 ) : null}
                 <div className="absolute right-4 left-4 bottom-4 hidden md:block">
@@ -297,11 +303,14 @@ function MediaExamples(props: { copy: (typeof cliLandingCopy)[Locale]["sections"
                 </div>
               </div>
               <div className="p-5">
-                <h3 className="font-semibold tracking-tight">{example.title}</h3>
+                <h3 className="flex items-center justify-between gap-3 font-semibold tracking-tight">
+                  <span>{label}</span>
+                  <ArrowRight className="size-4 shrink-0 text-violet-700 transition-transform group-hover:translate-x-0.5" />
+                </h3>
                 <p className="text-muted-foreground mt-2 text-sm leading-6">{example.body}</p>
                 <p className="mt-4 rounded-md bg-[#161020] p-3 text-[11px] leading-5 font-semibold tracking-[0.08em] text-violet-100 uppercase">{example.outcome}</p>
               </div>
-            </article>
+            </Link>
             );
           })}
         </div>

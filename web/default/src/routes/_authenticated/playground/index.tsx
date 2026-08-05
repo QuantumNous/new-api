@@ -23,14 +23,25 @@ import { Playground } from '@/features/playground'
 
 export function validatePlaygroundSearch(
   search: Record<string, unknown>
-): { first?: 1 } {
+): { first?: 1; prompt?: string; generate?: 'image' | 'video'; model?: string } {
   // `?first=1` marks the post-registration first-run onboarding experience.
   // Keep the serialized URL stable as `first=1`; boolean values serialize as
   // `first=true`, while string values serialize with quotes.
   const first = search.first
   const isFirstRun =
     first === '1' || first === 1 || first === true || first === 'true'
-  return isFirstRun ? { first: 1 } : {}
+  const prompt = typeof search.prompt === 'string' ? search.prompt.trim() : ''
+  const generate =
+    search.generate === 'image' || search.generate === 'video'
+      ? search.generate
+      : undefined
+  const model = typeof search.model === 'string' ? search.model.trim() : ''
+  return {
+    ...(isFirstRun ? { first: 1 } : {}),
+    ...(prompt ? { prompt } : {}),
+    ...(generate ? { generate } : {}),
+    ...(model ? { model } : {}),
+  }
 }
 
 export const Route = createFileRoute('/_authenticated/playground/')({
@@ -44,10 +55,15 @@ export const Route = createFileRoute('/_authenticated/playground/')({
 })
 
 function PlaygroundPage() {
-  const { first } = Route.useSearch()
+  const { first, generate, model, prompt } = Route.useSearch()
   return (
     <Main className='p-0'>
-      <Playground firstRun={first === 1} />
+      <Playground
+        firstRun={first === 1}
+        initialGenerate={generate}
+        initialModel={model}
+        initialPrompt={prompt}
+      />
     </Main>
   )
 }

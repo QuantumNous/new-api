@@ -50,7 +50,7 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 /* Brand wordmark font: Public Sans Bold (700), self-hosted latin subset.
- * Matches the official website (website-static) lockup — the single brand
+ * Matches the official website lockup, the single brand
  * standard is Mark + "flatkey" in Public Sans 700. Used only by FlatkeyBrandLogo. */
 @font-face {
   font-family: 'Public Sans';

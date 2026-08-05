@@ -1812,6 +1812,7 @@
     "Failed to load Passkey status": "Falha ao carregar o status da senha",
     "Failed to load playground groups": "Falha ao carregar grupos de playground",
     "Failed to load playground models": "Falha ao carregar modelos de playground",
+    "No video generation model is available": "Nenhum modelo de geração de vídeo está disponível",
     "Failed to load profile": "Falha ao carregar perfil",
     "Failed to load redemption codes": "Falha ao carregar códigos de resgate",
     "Failed to load setup data": "Falha ao carregar dados de configuração",

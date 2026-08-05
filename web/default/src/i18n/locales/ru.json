@@ -1812,6 +1812,7 @@
     "Failed to load Passkey status": "Не удалось загрузить статус Passkey",
     "Failed to load playground groups": "Не удалось загрузить группы playground",
     "Failed to load playground models": "Не удалось загрузить модели playground",
+    "No video generation model is available": "Нет доступной модели генерации видео",
     "Failed to load profile": "Не удалось загрузить профиль",
     "Failed to load redemption codes": "Не удалось загрузить коды активации",
     "Failed to load setup data": "Не удалось загрузить данные настройки",

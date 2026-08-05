@@ -1812,6 +1812,7 @@
     "Failed to load Passkey status": "Failed to load Passkey status",
     "Failed to load playground groups": "Failed to load playground groups",
     "Failed to load playground models": "Failed to load playground models",
+    "No video generation model is available": "No hay ningún modelo de generación de video disponible",
     "Failed to load profile": "Failed to load profile",
     "Failed to load redemption codes": "Failed to load redemption codes",
     "Failed to load setup data": "Failed to load setup data",

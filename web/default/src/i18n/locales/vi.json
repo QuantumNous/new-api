@@ -1812,6 +1812,7 @@
     "Failed to load Passkey status": "Không thể tải trạng thái Passkey",
     "Failed to load playground groups": "Không thể tải nhóm playground",
     "Failed to load playground models": "Không thể tải mô hình playground",
+    "No video generation model is available": "Không có mô hình tạo video khả dụng",
     "Failed to load profile": "Không thể tải hồ sơ",
     "Failed to load redemption codes": "Không thể tải mã đổi thưởng",
     "Failed to load setup data": "Không thể tải dữ liệu thiết lập",

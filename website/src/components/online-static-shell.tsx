@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { OnlineLanguageSelect } from "@/components/online-language-select";
-import { type Locale, withIdFallback } from "@/lib/locales";
+import { type Locale, localizePath, withIdFallback } from "@/lib/locales";
 import { getOnlineStaticCopy } from "@/lib/online-static-copy";
 import { consoleUrl } from "@/lib/origins";
 
@@ -66,24 +66,25 @@ function NavGroup(props: { current?: ShellProps["active"]; items: NavLink[]; lab
 export function OnlineNav(props: { active?: ShellProps["active"]; contactAction?: boolean; locale: Locale; pathname?: string }) {
   const copy = getOnlineStaticCopy(props.locale);
   const groupLabels = navGroupLabels[props.locale];
+  const internalHref = (href: string) => localizePath(href, props.locale);
   const products: NavLink[] = [
-    { active: "models", href: "/models", label: copy.nav.models },
+    { active: "models", href: internalHref("/models"), label: copy.nav.models },
     { external: true, href: consoleUrl("/api-marketplace"), label: copy.nav.tools },
-    { active: "playground", href: "/playground", label: copy.nav.playground },
-    { active: "compute", href: "/compute", label: copy.nav.compute },
+    { active: "playground", href: internalHref("/playground"), label: copy.nav.playground },
+    { active: "compute", href: internalHref("/compute"), label: copy.nav.compute },
   ];
   const developers: NavLink[] = [
     { external: true, href: "https://docs.flatkey.ai/", label: copy.nav.docs, target: "_blank" },
   ];
   const resources: NavLink[] = [
-    { href: "/models#leaderboard", label: copy.nav.rankings },
-    { active: "usecases", href: "/usecases", label: copy.nav.useCases },
-    { active: "status", href: "/status", label: copy.nav.status },
+    { href: internalHref("/models#leaderboard"), label: copy.nav.rankings },
+    { active: "usecases", href: internalHref("/usecases"), label: copy.nav.useCases },
+    { active: "status", href: internalHref("/status"), label: copy.nav.status },
   ];
 
   return (
     <nav className="nav pricing-nav">
-      <Link className="logo" href="/">
+      <Link className="logo" href={internalHref("/")}>
         <img src={asset("flatkey-mark.svg?v=4")} alt="flatkey" />
         flatkey
       </Link>
@@ -92,23 +93,23 @@ export function OnlineNav(props: { active?: ShellProps["active"]; contactAction?
         <NavGroup current={props.active} label={groupLabels.developers} items={developers} />
         <NavGroup current={props.active} label={groupLabels.resources} items={resources} />
       </div>
-      <Link href="/cli" className={`nav-top-link${props.active === "cli" ? " on" : ""}`} data-i18n="nav.cli">
+      <Link href={internalHref("/cli")} className={`nav-top-link${props.active === "cli" ? " on" : ""}`} data-i18n="nav.cli">
         <span className="nav-group-dot" aria-hidden="true" />
         <span>{copy.nav.cli}</span>
       </Link>
-      <Link href="/pricing" className={`nav-top-link${props.active === "pricing" ? " on" : ""}`} data-i18n="nav.pricing">
+      <Link href={internalHref("/pricing")} className={`nav-top-link${props.active === "pricing" ? " on" : ""}`} data-i18n="nav.pricing">
         <span className="nav-group-dot" aria-hidden="true" />
         <span>{copy.nav.pricing}</span>
       </Link>
       <div className="sp" />
       <OnlineLanguageSelect locale={props.locale} pathname={props.pathname ?? "/"} />
-      <Link href="/login" data-i18n="nav.signin">{copy.nav.signin}</Link>
+      <Link href={internalHref("/login")} data-i18n="nav.signin">{copy.nav.signin}</Link>
       {props.contactAction !== false && (
-        <Link className="btn white" href="/contact" data-i18n="nav.contact">
+        <Link className="btn white" href={internalHref("/contact")} data-i18n="nav.contact">
           {copy.nav.contact}
         </Link>
       )}
-      <Link className="btn black" href="/login" data-i18n="nav.start">
+      <Link className="btn black" href={internalHref("/login")} data-i18n="nav.start">
         {copy.nav.start}
       </Link>
     </nav>

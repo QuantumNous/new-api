@@ -62,8 +62,14 @@ const PLG_GROUP = 'plg'
 
 export function Playground({
   firstRun: firstRunFromUrl = false,
+  initialGenerate,
+  initialModel,
+  initialPrompt,
 }: {
   firstRun?: boolean
+  initialGenerate?: 'image' | 'video'
+  initialModel?: string
+  initialPrompt?: string
 }) {
   const navigate = useNavigate()
   const canUseGroups = useCanUseGroups()
@@ -146,6 +152,7 @@ export function Playground({
   const clearedFirstRunMessagesRef = useRef(false)
   const getKeyCardShownRef = useRef(false)
   const topupPromptShownRef = useRef(false)
+  const initialPromptSubmittedRef = useRef(false)
   const [userPickedModel, setUserPickedModel] = useState(false)
   const isPtFirstCallExperiment = useMemo(
     () => isPtFirstCallTopupExperiment(getStoredAdsAttribution()),
@@ -398,47 +405,97 @@ export function Playground({
     return true
   }, [firstRun, isFirstRunModelApplied])
 
-  const handleSendMessage = (text: string, model?: string) => {
-    if (!prepareFirstRunSend()) return
-    const userMessage = createUserMessage(text)
-    // The effective model for THIS send: an example chip / override wins,
-    // otherwise the currently selected model.
-    const targetModel = model || config.model
+  const handleSendMessage = useCallback(
+    (text: string, model?: string) => {
+      if (!prepareFirstRunSend()) return
+      const userMessage = createUserMessage(text)
+      // The effective model for THIS send: an example chip / override wins,
+      // otherwise the currently selected model.
+      const targetModel = model || config.model
 
-    // An example prompt (or the picker) can force a specific model. Persist the
-    // selection so the picker reflects it, and mark it as an explicit user choice
-    // so the first-run cheap default never overrides it.
-    if (model) {
-      setUserPickedModel(true)
-      updateConfig('model', model)
-    }
+      // An example prompt (or the picker) can force a specific model. Persist the
+      // selection so the picker reflects it, and mark it as an explicit user choice
+      // so the first-run cheap default never overrides it.
+      if (model) {
+        setUserPickedModel(true)
+        updateConfig('model', model)
+      }
 
-    // Video-generation models (veo) do NOT run through chat completions: insert a
-    // video assistant bubble and drive the async /v1/videos submit→poll→content
-    // flow, which renders an inline <video> when done.
-    if (isVideoGenModelName(targetModel)) {
-      const videoMessage = createLoadingVideoMessage()
-      const newMessages = [...messages, userMessage, videoMessage]
+      // Video-generation models (veo) do NOT run through chat completions: insert a
+      // video assistant bubble and drive the async /v1/videos submit→poll→content
+      // flow, which renders an inline <video> when done.
+      if (isVideoGenModelName(targetModel)) {
+        const videoMessage = createLoadingVideoMessage()
+        const newMessages = [...messages, userMessage, videoMessage]
+        updateMessages(newMessages)
+        generateVideo(text, targetModel, videoMessage.key)
+        return
+      }
+
+      const assistantMessage = createLoadingAssistantMessage()
+      const newMessages = [...messages, userMessage, assistantMessage]
       updateMessages(newMessages)
-      generateVideo(text, targetModel, videoMessage.key)
+
+      // Crucially, pass a forced model as a direct send override: `updateConfig` is
+      // async and wouldn't be reflected in `config` for this same-tick send, so the
+      // override guarantees THIS message is requested against the forced model.
+      if (model) {
+        sendChat(newMessages, { model })
+        return
+      }
+
+      // Send chat request
+      sendChat(newMessages, getFirstRunChatOverride())
+    },
+    [
+      config.model,
+      generateVideo,
+      getFirstRunChatOverride,
+      messages,
+      prepareFirstRunSend,
+      sendChat,
+      updateConfig,
+      updateMessages,
+    ]
+  )
+
+  useEffect(() => {
+    if (initialPromptSubmittedRef.current) return
+    const trimmedPrompt = initialPrompt?.trim()
+    if (!trimmedPrompt) return
+    if (!modelsData?.length) return
+    if (isGenerating) return
+
+    initialPromptSubmittedRef.current = true
+
+    if (initialGenerate === 'video') {
+      const requestedVideoModel = modelsData.find(
+        (model) => model.value === initialModel && isVideoGenModelName(model.value)
+      )
+      const videoModel = requestedVideoModel ?? modelsData.find((model) =>
+        isVideoGenModelName(model.value)
+      )
+      if (!videoModel) {
+        toast.error(i18next.t('No video generation model is available'))
+        return
+      }
+      handleSendMessage(trimmedPrompt, videoModel.value)
+      navigate({ to: '/playground', replace: true })
       return
     }
 
-    const assistantMessage = createLoadingAssistantMessage()
-    const newMessages = [...messages, userMessage, assistantMessage]
-    updateMessages(newMessages)
-
-    // Crucially, pass a forced model as a direct send override: `updateConfig` is
-    // async and wouldn't be reflected in `config` for this same-tick send, so the
-    // override guarantees THIS message is requested against the forced model.
-    if (model) {
-      sendChat(newMessages, { model })
-      return
-    }
-
-    // Send chat request
-    sendChat(newMessages, getFirstRunChatOverride())
-  }
+    const requestedModel = modelsData.find((model) => model.value === initialModel)
+    handleSendMessage(trimmedPrompt, requestedModel?.value)
+    navigate({ to: '/playground', replace: true })
+  }, [
+    handleSendMessage,
+    initialGenerate,
+    initialModel,
+    initialPrompt,
+    isGenerating,
+    modelsData,
+    navigate,
+  ])
 
   const handleCopyMessage = (message: MessageType) => {
     // Copy is handled in MessageActions component
@@ -568,6 +625,7 @@ export function Playground({
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
           disabled={isGenerating}
+          initialText={initialPrompt}
           submitDisabled={!isFirstRunModelReady}
           showGroupSelector={canUseGroups}
           groups={groups}
