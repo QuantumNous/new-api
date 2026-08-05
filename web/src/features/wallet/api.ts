@@ -39,6 +39,8 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  BTCPayPaymentRequest,
+  BTCPayPaymentResponse,
 } from './types'
 
 // ============================================================================
@@ -176,6 +178,30 @@ export async function requestWaffoPancakePayment(
   request: WaffoPancakePaymentRequest
 ): Promise<WaffoPancakePaymentResponse> {
   const res = await api.post('/api/user/waffo-pancake/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Calculate payment amount for BTCPay payment
+ */
+export async function calculateBTCPayAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/btcpay/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request BTCPay payment
+ */
+export async function requestBTCPayPayment(
+  request: BTCPayPaymentRequest
+): Promise<BTCPayPaymentResponse> {
+  const res = await api.post('/api/user/btcpay/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

@@ -73,6 +73,27 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	// BTCPay Server
+	enableBTCPay := isBTCPayTopUpEnabled()
+	if enableBTCPay {
+		hasBTCPay := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodBTCPay {
+				hasBTCPay = true
+				break
+			}
+		}
+
+		if !hasBTCPay {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "Bitcoin",
+				"type":      model.PaymentMethodBTCPay,
+				"color":     "#F7931A",
+				"min_topup": strconv.Itoa(setting.BTCPayMinTopUp),
+			})
+		}
+	}
+
 	// 如果启用了 Waffo 支付，添加到支付方法列表
 	enableWaffo := isWaffoTopUpEnabled()
 	if enableWaffo {
@@ -100,6 +121,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
+		"enable_btcpay_topup":              enableBTCPay,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
@@ -115,6 +137,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"min_topup":               operation_setting.MinTopUp,
 		"stripe_min_topup":        setting.StripeMinTopUp,
 		"waffo_min_topup":         setting.WaffoMinTopUp,
+		"btcpay_min_topup":        setting.BTCPayMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,

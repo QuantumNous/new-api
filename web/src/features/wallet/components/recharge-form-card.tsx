@@ -80,6 +80,7 @@ interface RechargeFormCardProps {
   waffoPayMethods?: WaffoPayMethod[]
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
+  enableBTCPayTopup?: boolean
   enableWaffoPancakeTopup?: boolean
 }
 
@@ -110,6 +111,7 @@ export function RechargeFormCard({
   waffoPayMethods,
   waffoMinTopup,
   onWaffoMethodSelect,
+  enableBTCPayTopup,
   enableWaffoPancakeTopup,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
@@ -134,7 +136,8 @@ export function RechargeFormCard({
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
     enableWaffoTopup ||
-    enableWaffoPancakeTopup
+    enableWaffoPancakeTopup ||
+    enableBTCPayTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0

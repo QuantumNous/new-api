@@ -92,6 +92,23 @@ func isWaffoPancakeWebhookEnabled() bool {
 	return isWaffoPancakeTopUpEnabled()
 }
 
+func isBTCPayTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return strings.TrimSpace(setting.BTCPayServerURL) != "" &&
+		strings.TrimSpace(setting.BTCPayAPIKey) != "" &&
+		strings.TrimSpace(setting.BTCPayStoreID) != ""
+}
+
+func isBTCPayWebhookConfigured() bool {
+	return strings.TrimSpace(setting.BTCPayWebhookSecret) != ""
+}
+
+func isBTCPayWebhookEnabled() bool {
+	return isBTCPayTopUpEnabled() && isBTCPayWebhookConfigured()
+}
+
 func isEpayTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false

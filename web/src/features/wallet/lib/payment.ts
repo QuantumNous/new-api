@@ -93,10 +93,15 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.WAFFO_PANCAKE
 }
 
+export function isBTCPayPayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.BTCPAY
+}
+
 export interface PaymentProcessors {
   regular: (topupAmount: number, paymentType: string) => Promise<boolean>
   waffo: (topupAmount: number, payMethodIndex: number) => Promise<boolean>
   waffoPancake: (topupAmount: number) => Promise<boolean>
+  btcpay: (topupAmount: number) => Promise<boolean>
 }
 
 export async function dispatchSelectedPayment(
@@ -114,6 +119,10 @@ export async function dispatchSelectedPayment(
 
   if (isWaffoPancakePayment(paymentMethod.type)) {
     return processors.waffoPancake(topupAmount)
+  }
+
+  if (isBTCPayPayment(paymentMethod.type)) {
+    return processors.btcpay(topupAmount)
   }
 
   return processors.regular(topupAmount, paymentMethod.type)
@@ -138,6 +147,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
 
   if (topupInfo.enable_waffo_topup) {
     return PAYMENT_TYPES.WAFFO
+  }
+
+  if (topupInfo.enable_btcpay_topup) {
+    return PAYMENT_TYPES.BTCPAY
   }
 
   if (topupInfo.enable_waffo_pancake_topup) {
@@ -165,6 +178,10 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
 
   if (topupInfo.enable_waffo_topup) {
     return topupInfo.waffo_min_topup || DEFAULT_MIN_TOPUP
+  }
+
+  if (topupInfo.enable_btcpay_topup) {
+    return topupInfo.btcpay_min_topup || DEFAULT_MIN_TOPUP
   }
 
   if (topupInfo.enable_waffo_pancake_topup) {

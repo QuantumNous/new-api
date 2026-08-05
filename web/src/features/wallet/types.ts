@@ -45,6 +45,8 @@ export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
 >
+export type BTCPayPaymentResponse = ApiResponse<{ checkout_url: string }>
+
 export type WaffoPancakePaymentResponse = ApiResponse<
   | {
       checkout_url?: string
@@ -146,6 +148,10 @@ export interface TopupInfo {
   waffo_pay_methods?: WaffoPayMethod[]
   /** Minimum topup amount for Waffo */
   waffo_min_topup?: number
+  /** Whether BTCPay topup is enabled */
+  enable_btcpay_topup?: boolean
+  /** Minimum topup amount for BTCPay */
+  btcpay_min_topup?: number
   /** Whether Waffo Pancake topup is enabled */
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
@@ -199,6 +205,13 @@ export interface WaffoPaymentRequest {
 /**
  * Waffo Pancake payment request parameters
  */
+export interface BTCPayPaymentRequest {
+  /** Topup amount */
+  amount: number
+  /** Payment method identifier */
+  payment_method: 'btcpay'
+}
+
 export interface WaffoPancakePaymentRequest {
   /** Topup amount */
   amount: number

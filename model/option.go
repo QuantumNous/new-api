@@ -116,6 +116,13 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["BTCPayServerURL"] = setting.BTCPayServerURL
+	common.OptionMap["BTCPayAPIKey"] = setting.BTCPayAPIKey
+	common.OptionMap["BTCPayStoreID"] = setting.BTCPayStoreID
+	common.OptionMap["BTCPayWebhookSecret"] = setting.BTCPayWebhookSecret
+	common.OptionMap["BTCPayUnitPrice"] = strconv.FormatFloat(setting.BTCPayUnitPrice, 'f', -1, 64)
+	common.OptionMap["BTCPayMinTopUp"] = strconv.Itoa(setting.BTCPayMinTopUp)
+	common.OptionMap["BTCPayCurrency"] = setting.BTCPayCurrency
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -495,6 +502,20 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "BTCPayServerURL":
+		setting.BTCPayServerURL = value
+	case "BTCPayAPIKey":
+		setting.BTCPayAPIKey = value
+	case "BTCPayStoreID":
+		setting.BTCPayStoreID = value
+	case "BTCPayWebhookSecret":
+		setting.BTCPayWebhookSecret = value
+	case "BTCPayUnitPrice":
+		setting.BTCPayUnitPrice, _ = strconv.ParseFloat(value, 64)
+	case "BTCPayMinTopUp":
+		setting.BTCPayMinTopUp, _ = strconv.Atoi(value)
+	case "BTCPayCurrency":
+		setting.BTCPayCurrency = value
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

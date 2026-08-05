@@ -41,6 +41,7 @@ import {
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  useBTCPayPayment,
 } from './hooks'
 import {
   getDefaultPaymentType,
@@ -108,6 +109,8 @@ export function Wallet(props: WalletProps) {
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
+  const { processing: btcpayProcessing, processBTCPayPayment } =
+    useBTCPayPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -202,6 +205,7 @@ export function Wallet(props: WalletProps) {
         regular: processPayment,
         waffo: processWaffoPayment,
         waffoPancake: processWaffoPancakePayment,
+        btcpay: processBTCPayPayment,
       }
     )
 
@@ -325,6 +329,7 @@ export function Wallet(props: WalletProps) {
                   waffoPayMethods={topupInfo?.waffo_pay_methods}
                   waffoMinTopup={topupInfo?.waffo_min_topup}
                   onWaffoMethodSelect={handleWaffoMethodSelect}
+                  enableBTCPayTopup={topupInfo?.enable_btcpay_topup}
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
@@ -360,7 +365,9 @@ export function Wallet(props: WalletProps) {
         paymentAmount={paymentAmount}
         paymentMethod={selectedPaymentMethod}
         calculating={calculating}
-        processing={processing || waffoProcessing || pancakeProcessing}
+        processing={
+          processing || waffoProcessing || pancakeProcessing || btcpayProcessing
+        }
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
       />
