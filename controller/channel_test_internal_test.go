@@ -95,6 +95,77 @@ func TestNewAPIChannelRegistration(t *testing.T) {
 	assert.Empty(t, constant.ChannelBaseURLs[constant.ChannelTypeNewAPI])
 }
 
+func TestVolcEnginePlanChannelRegistration(t *testing.T) {
+	tests := []struct {
+		channelType int
+		name        string
+		baseURL     string
+	}{
+		{
+			channelType: constant.ChannelTypeVolcEngineAgentPlan,
+			name:        "VolcEngine Agent Plan",
+			baseURL:     "https://ark.cn-beijing.volces.com/api/plan",
+		},
+		{
+			channelType: constant.ChannelTypeVolcEngineCodingPlan,
+			name:        "VolcEngine Coding Plan",
+			baseURL:     "https://ark.cn-beijing.volces.com/api/coding",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			apiType, ok := common.ChannelType2APIType(test.channelType)
+			require.True(t, ok)
+			assert.Equal(t, constant.APITypeVolcEngine, apiType)
+			assert.Equal(t, test.name, constant.GetChannelTypeName(test.channelType))
+			require.Greater(t, len(constant.ChannelBaseURLs), test.channelType)
+			assert.Equal(t, test.baseURL, constant.ChannelBaseURLs[test.channelType])
+			assert.Equal(t, []constant.EndpointType{
+				constant.EndpointTypeOpenAIResponse,
+				constant.EndpointTypeAnthropic,
+				constant.EndpointTypeOpenAI,
+			}, common.GetEndpointTypesByChannelType(test.channelType, "ark-code-latest"))
+		})
+	}
+
+	assert.Equal(t, 61, constant.ChannelTypeVolcEngineAgentPlan)
+	assert.Equal(t, 62, constant.ChannelTypeVolcEngineCodingPlan)
+}
+
+func TestVolcEnginePlanChannelTestDefaultsToResponses(t *testing.T) {
+	tests := []int{
+		constant.ChannelTypeVolcEngineAgentPlan,
+		constant.ChannelTypeVolcEngineCodingPlan,
+	}
+
+	for _, channelType := range tests {
+		channel := &model.Channel{Type: channelType}
+		assert.Equal(
+			t,
+			string(constant.EndpointTypeOpenAIResponse),
+			normalizeChannelTestEndpoint(channel, "ark-code-latest", ""),
+		)
+		assert.Equal(
+			t,
+			string(constant.EndpointTypeAnthropic),
+			normalizeChannelTestEndpoint(channel, "ark-code-latest", string(constant.EndpointTypeAnthropic)),
+		)
+	}
+}
+
+func TestVolcEnginePlanModelDiscoveryIsDisabled(t *testing.T) {
+	tests := []int{
+		constant.ChannelTypeVolcEngineAgentPlan,
+		constant.ChannelTypeVolcEngineCodingPlan,
+	}
+
+	for _, channelType := range tests {
+		_, err := fetchChannelUpstreamModelIDs(&model.Channel{Type: channelType})
+		require.ErrorContains(t, err, "do not support upstream model discovery")
+	}
+}
+
 func TestResponsesCompactAPITypeSupport(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -164,6 +164,28 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'volcengine',
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/plan',
+    supportedModels: ['ark-code-latest'],
+    hints: {
+      key: 'Dedicated Agent Plan API key',
+      models: 'ark-code-latest or a model supported by your Agent Plan',
+    },
+  },
+  62: {
+    id: 62,
+    name: CHANNEL_TYPES[62],
+    icon: 'volcengine',
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/coding',
+    supportedModels: ['ark-code-latest'],
+    hints: {
+      key: 'Volcano Engine Ark API key',
+      models: 'ark-code-latest or a model supported by your Coding Plan',
+    },
+  },
 }
 
 /**
