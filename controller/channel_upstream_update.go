@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -267,6 +268,9 @@ func parseOpenAIModelIDs(body []byte) ([]string, error) {
 		Data *[]OpenAIModel `json:"data"`
 	}
 	if err := common.Unmarshal(body, &result); err != nil {
+		if formatted := formatFetchModelsBodyError(body, err); formatted != err {
+			return nil, formatted
+		}
 		return nil, fmt.Errorf("invalid OpenAI Models response: %w", err)
 	}
 	if result.Data == nil {
@@ -302,6 +306,23 @@ func sanitizeFetchModelsError(err error, key string) error {
 		message = strings.ReplaceAll(message, url.PathEscape(key), "[REDACTED]")
 	}
 	return errors.New(message)
+}
+
+// formatFetchModelsBodyError turns opaque JSON parse failures into actionable
+// diagnostics when the upstream returned HTML or an empty body.
+func formatFetchModelsBodyError(body []byte, err error) error {
+	if err == nil {
+		return nil
+	}
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return fmt.Errorf("invalid models response: empty body: %w", err)
+	}
+	lower := bytes.ToLower(trimmed)
+	if trimmed[0] == '<' || bytes.HasPrefix(lower, []byte("<!doctype")) || bytes.HasPrefix(lower, []byte("<html")) {
+		return errors.New("upstream returned HTML instead of JSON model list; check Base URL, API key, proxy, and header override")
+	}
+	return err
 }
 
 func getFetchModelsResponseBody(method string, requestURL string, channel *model.Channel, headers http.Header) ([]byte, error) {
@@ -414,7 +435,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 
 	var result OpenAIModelsResponse
 	if err := common.Unmarshal(body, &result); err != nil {
-		return nil, err
+		return nil, sanitizeFetchModelsError(formatFetchModelsBodyError(body, err), key)
 	}
 	ids := lo.Map(result.Data, func(item OpenAIModel, _ int) string {
 		if channel.Type == constant.ChannelTypeGemini {

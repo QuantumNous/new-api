@@ -187,6 +187,95 @@ func TestFetchOrdinaryOpenAIModelsKeepsExistingEmptyDataBehavior(t *testing.T) {
 	require.Empty(t, models)
 }
 
+func TestBuildFetchModelsChannelOrdinaryCreateAppliesOverrides(t *testing.T) {
+	baseURL := "https://example.invalid"
+	headerOverride := `{"X-Preview":"from-form"}`
+	proxy := "socks5://127.0.0.1:1080"
+	channel, err := buildFetchModelsChannel(fetchModelsRequest{
+		Type:           constant.ChannelTypeOpenAI,
+		Key:            "\n create-preview-key \nsecond-key\n",
+		BaseURL:        &baseURL,
+		HeaderOverride: &headerOverride,
+		Proxy:          &proxy,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "create-preview-key", channel.Key)
+	require.Equal(t, baseURL, channel.GetBaseURL())
+	require.NotNil(t, channel.HeaderOverride)
+	require.Equal(t, headerOverride, *channel.HeaderOverride)
+	require.Equal(t, proxy, channel.GetSetting().Proxy)
+}
+
+func TestFetchModelsOrdinaryCreatePreviewUsesHeaderOverride(t *testing.T) {
+	received := make(chan http.Header, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r.Header.Clone()
+		if r.Header.Get("X-Preview") != "from-form" {
+			w.Header().Set("Content-Type", "text/html")
+			_, _ = w.Write([]byte(`<!doctype html><html><body>missing override</body></html>`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"create-preview-model"}]}`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	headerOverride := `{"X-Preview":"from-form"}`
+	body, err := common.Marshal(map[string]any{
+		"type":            constant.ChannelTypeOpenAI,
+		"key":             "create-preview-key",
+		"base_url":        baseURL,
+		"header_override": headerOverride,
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	FetchModels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"success":true,"message":"","data":["create-preview-model"]}`, recorder.Body.String())
+	headers := <-received
+	require.Equal(t, "Bearer create-preview-key", headers.Get("Authorization"))
+	require.Equal(t, "from-form", headers.Get("X-Preview"))
+}
+
+func TestFetchModelsOrdinaryCreatePreviewReportsHTMLBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(`<!doctype html><html><body>login</body></html>`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	body, err := common.Marshal(map[string]any{
+		"type":     constant.ChannelTypeOpenAI,
+		"key":      "html-body-key",
+		"base_url": baseURL,
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	FetchModels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.False(t, response.Success)
+	require.Contains(t, response.Message, "upstream returned HTML instead of JSON model list")
+	require.NotContains(t, response.Message, "invalid character")
+	require.NotContains(t, response.Message, "html-body-key")
+}
+
 func TestFetchModelsSavedOrdinaryChannelUsesSavedCredentials(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	receivedAuthorization := make(chan string, 1)

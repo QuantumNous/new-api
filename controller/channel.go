@@ -1211,13 +1211,9 @@ func buildAdvancedCustomModelPreviewChannel(req fetchModelsRequest) (*model.Chan
 		}
 		channel = savedChannel
 	} else {
-		key := strings.TrimSpace(req.Key)
-		if key != "" {
-			key = strings.Split(key, "\n")[0]
-		}
 		channel = &model.Channel{
 			Type: req.Type,
-			Key:  key,
+			Key:  firstFetchModelsKey(req.Key, false),
 		}
 	}
 
@@ -1245,12 +1241,28 @@ func buildAdvancedCustomModelPreviewChannel(req fetchModelsRequest) (*model.Chan
 	}
 	channel.SetOtherSettings(settings)
 
+	if err := applyFetchModelsRequestOverrides(channel, req); err != nil {
+		return nil, err
+	}
+
+	if err := validateChannel(channel, false); err != nil {
+		return nil, err
+	}
+	return channel, nil
+}
+
+// applyFetchModelsRequestOverrides applies form-preview header/proxy overrides.
+// Saved ordinary channels intentionally ignore request overrides and keep DB values.
+func applyFetchModelsRequestOverrides(channel *model.Channel, req fetchModelsRequest) error {
+	if channel == nil {
+		return fmt.Errorf("channel is required")
+	}
 	if req.HeaderOverride != nil {
 		rawHeaderOverride := strings.TrimSpace(*req.HeaderOverride)
 		if rawHeaderOverride != "" {
 			var headerOverride map[string]any
 			if err := common.UnmarshalJsonStr(rawHeaderOverride, &headerOverride); err != nil {
-				return nil, fmt.Errorf("header_override must be a JSON object: %w", err)
+				return fmt.Errorf("header_override must be a JSON object: %w", err)
 			}
 		}
 		channel.HeaderOverride = &rawHeaderOverride
@@ -1260,11 +1272,20 @@ func buildAdvancedCustomModelPreviewChannel(req fetchModelsRequest) (*model.Chan
 		channelSettings.Proxy = strings.TrimSpace(*req.Proxy)
 		channel.SetSetting(channelSettings)
 	}
+	return nil
+}
 
-	if err := validateChannel(channel, false); err != nil {
-		return nil, err
+func firstFetchModelsKey(raw string, keepMultiline bool) string {
+	key := strings.TrimSpace(raw)
+	if keepMultiline || key == "" {
+		return key
 	}
-	return channel, nil
+	for _, line := range strings.Split(key, "\n") {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func buildFetchModelsChannel(req fetchModelsRequest) (*model.Channel, error) {
@@ -1291,15 +1312,15 @@ func buildFetchModelsChannel(req fetchModelsRequest) (*model.Channel, error) {
 		baseURL = constant.ChannelBaseURLs[req.Type]
 	}
 
-	key := strings.TrimSpace(req.Key)
-	if req.Type != constant.ChannelTypeCodex {
-		key = strings.Split(key, "\n")[0]
-	}
-	return &model.Channel{
+	channel := &model.Channel{
 		Type:    req.Type,
-		Key:     key,
+		Key:     firstFetchModelsKey(req.Key, req.Type == constant.ChannelTypeCodex),
 		BaseURL: &baseURL,
-	}, nil
+	}
+	if err := applyFetchModelsRequestOverrides(channel, req); err != nil {
+		return nil, err
+	}
+	return channel, nil
 }
 
 func FetchModels(c *gin.Context) {
