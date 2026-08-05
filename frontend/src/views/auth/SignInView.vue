@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Eye, EyeOff } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -22,15 +23,41 @@ const toast = useToast()
 
 const username = ref('')
 const password = ref('')
+const twoFactorCode = ref('')
+const twoFactorFlowToken = ref('')
+const twoFactorExpiresAt = ref(0)
 const showPassword = ref(false)
 const loading = ref(false)
+
+function resetTwoFactor() {
+  twoFactorFlowToken.value = ''
+  twoFactorCode.value = ''
+  twoFactorExpiresAt.value = 0
+}
 
 async function submit() {
   if (loading.value) return
   loading.value = true
   try {
-    await auth.login(username.value, password.value)
-    toast.success(t('toast.loginSuccess'))
+    if (twoFactorFlowToken.value) {
+      if (Date.now() >= twoFactorExpiresAt.value * 1000) {
+        resetTwoFactor()
+        toast.error(t('auth.twoFactorExpired'))
+        return
+      }
+      await auth.verifyTwoFactor(
+        twoFactorFlowToken.value,
+        twoFactorCode.value.trim()
+      )
+    } else {
+      const challenge = await auth.login(username.value, password.value)
+      if (challenge) {
+        twoFactorFlowToken.value = challenge.flow_token
+        twoFactorExpiresAt.value = challenge.expires_at
+        return
+      }
+    }
+    toast.success(t('auth.loginSuccess'))
     const redirect = sanitizeRedirect(route.query.redirect)
     await router.push(redirect || { name: 'dashboard' })
   } catch (error) {
@@ -55,60 +82,49 @@ async function submit() {
     </div>
 
     <form class="mt-8 space-y-4" @submit.prevent="submit">
-      <FormField :label="t('auth.username')">
+      <template v-if="!twoFactorFlowToken">
+        <FormField :label="t('auth.username')">
+          <TextInput
+            v-model="username"
+            :placeholder="t('auth.usernameOrEmailPlaceholder')"
+            autocomplete="username"
+          />
+        </FormField>
+
+        <FormField :label="t('auth.password')">
+          <div class="relative">
+            <TextInput
+              v-model="password"
+              :type="showPassword ? 'text' : 'password'"
+              :placeholder="t('auth.passwordPlaceholder')"
+              autocomplete="current-password"
+              class="[&_input]:pr-12"
+            />
+            <button
+              type="button"
+              class="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-ring"
+              :aria-label="
+                showPassword ? t('auth.hidePassword') : t('auth.showPassword')
+              "
+              @click="showPassword = !showPassword"
+            >
+              <EyeOff v-if="showPassword" :size="18" />
+              <Eye v-else :size="18" />
+            </button>
+          </div>
+        </FormField>
+      </template>
+
+      <FormField v-else :label="t('auth.twoFactorCode')">
         <TextInput
-          v-model="username"
-          :placeholder="t('auth.usernameOrEmailPlaceholder')"
-          autocomplete="username"
+          v-model="twoFactorCode"
+          autocomplete="one-time-code"
+          maxlength="32"
+          :placeholder="t('auth.twoFactorPlaceholder')"
         />
       </FormField>
 
-      <FormField :label="t('auth.password')">
-        <div class="relative">
-          <TextInput
-            v-model="password"
-            :type="showPassword ? 'text' : 'password'"
-            :placeholder="t('auth.passwordPlaceholder')"
-            autocomplete="current-password"
-          />
-          <button
-            type="button"
-            class="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]"
-            :aria-label="
-              showPassword ? t('auth.hidePassword') : t('auth.showPassword')
-            "
-            @click="showPassword = !showPassword"
-          >
-            <svg
-              v-if="showPassword"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                d="M3 3l18 18M10.5 10.7a3 3 0 0 0 4.2 4.2M7.4 7.6C4.8 9.3 3 12 3 12s3.5 6 9 6c1.6 0 3-.4 4.3-1M12 6c5.5 0 9 6 9 6s-.6 1.1-1.8 2.3"
-              />
-            </svg>
-            <svg
-              v-else
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </button>
-        </div>
-      </FormField>
-
-      <div class="flex justify-end">
+      <div v-if="!twoFactorFlowToken" class="flex justify-end">
         <RouterLink
           :to="{ name: 'reset' }"
           class="text-xs font-medium text-[var(--accent-text)] hover:underline"
@@ -118,12 +134,20 @@ async function submit() {
       </div>
 
       <ConsoleButton type="submit" size="lg" block :loading="loading">
-        {{ t('auth.signIn') }}
+        {{ twoFactorFlowToken ? t('auth.verifyTwoFactor') : t('auth.signIn') }}
       </ConsoleButton>
+      <button
+        v-if="twoFactorFlowToken"
+        type="button"
+        class="w-full text-center text-xs font-medium text-[var(--accent-text)] hover:underline focus-ring"
+        @click="resetTwoFactor"
+      >
+        {{ t('auth.backToPassword') }}
+      </button>
     </form>
 
     <p
-      v-if="app.registerEnabled"
+      v-if="app.registerEnabled && !twoFactorFlowToken"
       class="mt-6 text-center text-sm text-[var(--text-tertiary)]"
     >
       {{ t('auth.noAccount') }}

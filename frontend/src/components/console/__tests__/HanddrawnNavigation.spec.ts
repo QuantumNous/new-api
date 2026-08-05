@@ -1,20 +1,32 @@
 import { defineComponent } from 'vue'
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import ConsoleNavStrip from '@/components/console/ConsoleNavStrip.vue'
 import LabNavStrip from '@/components/lab/LabNavStrip.vue'
+import { getAccessibleConsoleNavGroups } from '@/constants/navigation/consoleNav'
 import i18n, { loadMessageDomain } from '@/i18n'
 
 const EmptyRoute = defineComponent({ template: '<div />' })
 
 async function routerAt(path: string) {
+  const consoleRoutes = getAccessibleConsoleNavGroups({
+    isAdmin: true,
+    hasPermission: () => true,
+  })
+    .flatMap((group) => group.items)
+    .filter((item) => item.route)
+    .map((item) => ({
+      path: `/console/${String(item.route)}`,
+      name: item.route,
+      component: EmptyRoute,
+    }))
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: '/console/dashboard', name: 'dashboard', component: EmptyRoute },
-      { path: '/console/models', name: 'models', component: EmptyRoute },
+      ...consoleRoutes,
       { path: '/lab/chat', name: 'lab-chat', component: EmptyRoute },
       { path: '/lab/studio', name: 'lab-studio', component: EmptyRoute },
       { path: '/lab/assets', name: 'lab-assets', component: EmptyRoute },
@@ -32,7 +44,7 @@ describe('hand-drawn mobile navigation', () => {
     await loadMessageDomain('console')
     const router = await routerAt('/console/models')
     const wrapper = mount(ConsoleNavStrip, {
-      global: { plugins: [router, i18n] },
+      global: { plugins: [router, i18n, createPinia()] },
     })
 
     expect(wrapper.attributes('data-handdrawn')).toBe('navigation-strip')

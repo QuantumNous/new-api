@@ -5,11 +5,8 @@ import { useRoute } from 'vue-router'
 
 import LanguageSelector from '@/components/common/LanguageSelector.vue'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
-import {
-  consoleEntryRoute,
-  consoleRouteNames,
-} from '@/constants/navigation/consoleNav'
-import { labEntryRoute, labRouteNames } from '@/constants/navigation/labNav'
+import { consoleEntryRoute } from '@/constants/navigation/consoleNav'
+import { labEntryRoute } from '@/constants/navigation/labNav'
 import { useAppStore } from '@/stores'
 
 import CommandPaletteModal from './CommandPaletteModal.vue'
@@ -36,8 +33,7 @@ const mobileItems = [
 ]
 
 const activeName = computed(() => {
-  if (consoleRouteNames.has(route.name as string)) return 'console'
-  if (labRouteNames.has(route.name as string)) return 'alchemy'
+  if (route.meta.topNav) return route.meta.topNav
   return route.name as string
 })
 
@@ -93,7 +89,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
         <!-- search: underline-style hand-drawn feel -->
         <button
           type="button"
-          class="pencil-control search-trigger flex items-center gap-2 rounded-xl bg-[var(--surface-muted)] py-2 pl-3.5 pr-3 text-sm text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)] focus-ring"
+          class="pencil-control search-trigger flex h-11 min-w-11 items-center justify-center gap-2 rounded-xl bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-secondary)] focus-ring md:w-auto md:justify-start md:pl-3.5"
           data-handdrawn="control"
           :aria-label="t('nav.search')"
           @click="searchOpen = true"
@@ -138,7 +134,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
         v-for="item in mobileItems"
         :key="item.name"
         :to="{ name: item.route }"
-        class="mobile-pill shrink-0 px-3.5 py-1.5 text-xs font-medium transition-all"
+        class="mobile-pill flex min-h-11 shrink-0 items-center px-3.5 text-xs font-medium transition-all"
         :class="activeName === item.name ? 'active' : ''"
         :style="
           activeName === item.name

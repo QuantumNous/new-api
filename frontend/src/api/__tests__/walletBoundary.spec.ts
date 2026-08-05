@@ -8,8 +8,9 @@ import { resetMockState, setMockDelay } from '@/api/mock/state'
 beforeEach(async () => {
   resetMockState()
   setMockDelay(0)
-  const { user } = await authApi.login('demo', 'password123')
-  writeDemoUser(user)
+  const login = await authApi.login('demo', 'password123')
+  if ('require_2fa' in login) throw new Error('Unexpected 2FA challenge')
+  writeDemoUser(login.user)
 })
 
 afterEach(clearDemoUser)

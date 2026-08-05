@@ -36,7 +36,7 @@ import type {
   InvoiceItem,
 } from '@/types/console'
 
-export const QUOTA_PER_DOLLAR = 500_000
+const QUOTA_PER_DOLLAR = 500_000
 
 const marketRaw: Omit<MarketModel, 'id'>[] = [
   /* ---- OpenAI ---- */
@@ -363,10 +363,6 @@ export const marketModels: MarketModel[] = marketRaw.map((m, i) => ({
   ...m,
   id: i + 1,
 }))
-
-export const marketChannels: string[] = [
-  ...new Set(marketModels.flatMap((m) => m.channels)),
-]
 
 export const marketVendors: string[] = [
   ...new Set(marketModels.map((m) => m.vendor)),

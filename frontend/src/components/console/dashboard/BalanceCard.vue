@@ -179,7 +179,7 @@ const runwayDays = computed(() => {
           border-radius: var(--sketch-border-radius-sm);
         "
       >
-        <p class="text-[11px] text-[var(--text-tertiary)]">
+        <p class="text-[11px] text-[var(--text-secondary)]">
           {{ t('dashboard.todaySpend') }}
         </p>
         <p
@@ -196,7 +196,7 @@ const runwayDays = computed(() => {
           border-radius: var(--sketch-border-radius-sm);
         "
       >
-        <p class="text-[11px] text-[var(--text-tertiary)]">
+        <p class="text-[11px] text-[var(--text-secondary)]">
           {{ t('dashboard.balanceHint.avgBurn') }}
         </p>
         <p

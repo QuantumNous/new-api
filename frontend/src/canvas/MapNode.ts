@@ -3,7 +3,7 @@
 import { MODEL_COLORS } from './sceneParts'
 import { getCanvasTheme, type CanvasTheme } from './theme'
 
-export function hexToRgba(hex: string, a: number): string {
+function hexToRgba(hex: string, a: number): string {
   const v = hex.replace('#', '')
   const r = parseInt(v.slice(0, 2), 16)
   const g = parseInt(v.slice(2, 4), 16)

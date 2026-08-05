@@ -52,10 +52,14 @@ const activityBanner = useThemedAsset(activityDayBanner, activityNightBanner)
 .activity-hero__scrim {
   background: linear-gradient(
     105deg,
-    rgba(16, 12, 8, 0.82) 0%,
-    rgba(16, 12, 8, 0.52) 50%,
-    rgba(16, 12, 8, 0.15) 100%
+    var(--media-copy-scrim-strong) 0%,
+    var(--media-copy-scrim-medium) 50%,
+    var(--media-copy-scrim-soft) 100%
   );
+}
+
+.activity-hero__pill {
+  background: var(--media-copy-chip);
 }
 
 :global(html.dark .activity-hero) {
@@ -64,18 +68,8 @@ const activityBanner = useThemedAsset(activityDayBanner, activityNightBanner)
   box-shadow: var(--card-shadow) !important;
 }
 
-:global(html.light .activity-hero__scrim) {
-  background: linear-gradient(
-    105deg,
-    rgba(252, 249, 241, 0.96) 0%,
-    rgba(252, 249, 241, 0.76) 50%,
-    rgba(252, 249, 241, 0.12) 100%
-  );
-}
-
 :global(html.light .activity-hero__pill) {
   border: 1px solid var(--pencil-line-soft);
-  background: rgba(255, 253, 248, 0.78);
   color: var(--accent-text);
   box-shadow: 1px 1px 0 var(--pencil-line-faint);
 }

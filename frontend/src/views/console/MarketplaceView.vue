@@ -211,6 +211,7 @@ onMounted(load)
       <i18n-t
         keypath="market.disclaimer"
         tag="p"
+        scope="global"
         class="text-xs leading-relaxed text-[var(--accent-text)]"
       >
         <template #platform>

@@ -5,8 +5,8 @@ import { noise2D } from './noise'
 import { getCanvasTheme, withAlpha, type CanvasTheme } from './theme'
 
 // 显示纬度带（跳过大部分极地空白，充分利用竖向空间）
-export const LAT_TOP = 75
-export const LAT_BOT = -60
+const LAT_TOP = 75
+const LAT_BOT = -60
 
 // 移动端竖屏地图：高度占屏比 / 聚焦纬度(北纬模型带) / 舞台锚点高度(对齐枢纽 0.21h)
 const MOBILE_MAP_HEIGHT_RATIO = 0.5

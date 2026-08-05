@@ -11,16 +11,23 @@ export interface ApiResponse<T> {
  */
 export class ApiError extends Error {
   readonly status?: number
+  readonly code?: string
   /** true when the server answered 200 with success:false */
   readonly business: boolean
 
   constructor(
     message: string,
-    options?: { status?: number; business?: boolean; cause?: unknown }
+    options?: {
+      status?: number
+      code?: string
+      business?: boolean
+      cause?: unknown
+    }
   ) {
     super(message)
     this.name = 'ApiError'
     this.status = options?.status
+    this.code = options?.code
     this.business = options?.business ?? false
     if (options?.cause !== undefined) this.cause = options.cause
   }

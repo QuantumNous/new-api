@@ -3,11 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
-import {
-  consoleEntryRoute,
-  consoleRouteNames,
-} from '@/constants/navigation/consoleNav'
-import { labEntryRoute, labRouteNames } from '@/constants/navigation/labNav'
+import { consoleEntryRoute } from '@/constants/navigation/consoleNav'
+import { labEntryRoute } from '@/constants/navigation/labNav'
 
 interface NavChild {
   name: string
@@ -56,8 +53,7 @@ const openGroup = ref<string | null>(null)
 const root = ref<HTMLElement | null>(null)
 
 const activeGroup = computed(() => {
-  if (consoleRouteNames.has(route.name as string)) return 'console'
-  if (labRouteNames.has(route.name as string)) return 'alchemy'
+  if (route.meta.topNav) return route.meta.topNav
   for (const group of navGroups) {
     if (group.route && route.name === group.route) return group.name
     if (group.children?.some((c) => c.route && route.name === c.route))

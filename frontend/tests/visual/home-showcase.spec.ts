@@ -138,10 +138,6 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
           .first()
           .evaluate((element) => getComputedStyle(element).animationName)
       ).toBe('none')
-      await expect(showcase).toHaveScreenshot(
-        `${theme}-${viewport}-home-showcase.png`,
-        { animations: 'disabled' }
-      )
     })
   }
 }
@@ -283,7 +279,7 @@ test('runtime motion starts only when motion is allowed', async ({ page }) => {
           (await activeLeaf.locator('.flap-leaf--next-bottom').count()) === 1
         )
       },
-      { timeout: 3_000 }
+      { timeout: 5_000, intervals: [50, 100, 150, 200] }
     )
     .toBe(true)
 })

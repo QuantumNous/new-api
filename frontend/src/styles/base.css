@@ -840,8 +840,8 @@ html.dark .pencil-brand-frame {
   filter: var(--brand-icon-shadow);
 }
 
-@media (max-width: 639px) {
-  html.light .touch-row-action {
+@media (hover: none), (pointer: coarse) {
+  .touch-row-action {
     opacity: 1 !important;
   }
 }

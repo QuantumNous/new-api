@@ -525,7 +525,7 @@ html:not(.dark) .runtime-clock-group small {
   margin-top: 1rem;
   color: var(--text-primary);
   font-family: var(--home-font-display);
-  font-size: clamp(3.1rem, 6vw, 5rem);
+  font-size: 5rem;
   font-weight: 400;
   line-height: 1;
   letter-spacing: 0;
@@ -692,7 +692,7 @@ html.dark .runtime-flap {
     inset 0 1px 0 rgba(255, 255, 255, 0.035),
     var(--elevation-1);
   font-family: var(--home-font-stamp);
-  font-size: clamp(2rem, 3.4vw, 2.7rem);
+  font-size: 2.7rem;
   font-weight: 500;
 }
 
@@ -758,7 +758,7 @@ html.dark .runtime-trend span {
   box-shadow: var(--showcase-flap-shadow);
   color: var(--text-primary);
   font-family: var(--home-font-stamp);
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: 3rem;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
@@ -1024,7 +1024,7 @@ html.dark .runtime-trend span {
   }
 
   .runtime-request-total {
-    font-size: clamp(2.7rem, 11vw, 3.25rem);
+    font-size: 3.25rem;
   }
 
   .runtime-ledger-panel--requests {
@@ -1269,7 +1269,7 @@ html.hero-scrollbar-hidden::-webkit-scrollbar-thumb:hover {
   height: calc(100vh - var(--signal-top) - var(--signal-bottom));
   min-height: 420px;
   color: var(--text-secondary);
-  font-size: clamp(12px, 0.77vw, 13px);
+  font-size: 13px;
   line-height: 1.42;
   letter-spacing: 0.01em;
   text-shadow: 0 1px 12px var(--console-glow);
@@ -1600,7 +1600,7 @@ html.hero-scrollbar-hidden::-webkit-scrollbar-thumb:hover {
   align-items: baseline;
   gap: 2px 8px;
   color: var(--text-primary);
-  font-size: clamp(13px, 0.9vw, 15px);
+  font-size: 15px;
   line-height: 1.5;
 }
 .landing-shell .signal-console__prompt,
@@ -1685,7 +1685,7 @@ html.hero-scrollbar-hidden::-webkit-scrollbar-thumb:hover {
 .landing-shell .signal-console__capability-title {
   display: block;
   color: var(--text-secondary);
-  font-size: clamp(13px, 0.82vw, 14px);
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
   transition: color 600ms ease;

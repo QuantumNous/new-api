@@ -60,7 +60,7 @@ onBeforeUnmount(() => {
   <div ref="root" class="relative">
     <button
       type="button"
-      class="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-shadow hover:ring-2 hover:ring-[var(--border-strong)] focus-ring"
+      class="flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold transition-shadow hover:ring-2 hover:ring-[var(--border-strong)] focus-ring"
       style="background: var(--accent-soft); color: var(--accent-text)"
       :aria-label="t('nav.profile')"
       aria-haspopup="menu"
@@ -77,7 +77,7 @@ onBeforeUnmount(() => {
     >
       <button
         type="button"
-        class="group flex w-full items-center justify-between rounded-none px-4 py-2.5 text-left text-sm font-normal transition-colors hover:bg-[var(--accent-soft)]"
+        class="group flex min-h-11 w-full items-center justify-between rounded-none px-4 py-2.5 text-left text-sm font-normal transition-colors hover:bg-[var(--accent-soft)]"
         data-user-menu-item
         @click="goto('wallet')"
       >
@@ -94,7 +94,7 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        class="block w-full rounded-none px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        class="block min-h-11 w-full rounded-none px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
         data-user-menu-item
         @click="goto('profile')"
       >
@@ -102,7 +102,7 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        class="block w-full rounded-none px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        class="block min-h-11 w-full rounded-none px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
         data-user-menu-item
         @click="goto('invite')"
       >
@@ -110,7 +110,7 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        class="flex w-full items-center justify-between rounded-none px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+        class="flex min-h-11 w-full items-center justify-between rounded-none px-4 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
         data-user-menu-item
         @click="gotoRedeem"
       >
@@ -119,7 +119,7 @@ onBeforeUnmount(() => {
       <div class="mx-3 my-1 h-px bg-[var(--border-subtle)]" />
       <button
         type="button"
-        class="block w-full rounded-none px-4 py-2.5 text-left text-sm font-normal transition-colors hover:bg-[var(--status-danger-soft)]"
+        class="block min-h-11 w-full rounded-none px-4 py-2.5 text-left text-sm font-normal transition-colors hover:bg-[var(--status-danger-soft)]"
         style="color: var(--status-danger-text)"
         data-user-menu-item
         @click="logout"

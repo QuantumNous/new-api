@@ -200,7 +200,6 @@ const segments = computed(() => {
       :percent="entry.score"
       :color="scoreColor"
       :size="40"
-      role="img"
       :aria-label="`${t('dashboard.autoRoute.score')} ${entry.score}`"
     >
       <span

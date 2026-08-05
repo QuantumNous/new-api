@@ -7,7 +7,7 @@ function isString(value: unknown): value is string {
   return typeof value === 'string'
 }
 
-export function isDemoUser(value: unknown): value is UserInfo {
+function isDemoUser(value: unknown): value is UserInfo {
   if (!value || typeof value !== 'object') return false
   const user = value as Record<string, unknown>
   return (
@@ -18,13 +18,10 @@ export function isDemoUser(value: unknown): value is UserInfo {
     isString(user.email) &&
     user.role === 1 &&
     Number.isFinite(user.quota) &&
-    Number.isFinite(user.used_quota) &&
+    Number.isFinite(user.used_quota)
     // `group` is intentionally not validated: the concept is retired, and a
     // record persisted before that still carries the field. Unknown extra keys
     // must not invalidate a session, or every existing demo user is logged out.
-    (user.admin_permissions === undefined ||
-      (Array.isArray(user.admin_permissions) &&
-        user.admin_permissions.length === 0))
   )
 }
 

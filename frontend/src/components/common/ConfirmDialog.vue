@@ -29,9 +29,13 @@ const { t } = useI18n()
     :open="open"
     :aria-label="title"
     size="sm"
+    :close-disabled="loading"
     @close="emit('cancel')"
   >
-    <div class="flex flex-col items-center text-center">
+    <div
+      class="flex flex-col items-center text-center"
+      :aria-busy="loading || undefined"
+    >
       <span
         class="flex h-16 w-16 items-center justify-center rounded-full"
         style="
@@ -61,7 +65,12 @@ const { t } = useI18n()
     </div>
     <template #footer>
       <div class="grid grid-cols-2 gap-3">
-        <ConsoleButton variant="secondary" size="lg" @click="emit('cancel')">
+        <ConsoleButton
+          variant="secondary"
+          size="lg"
+          :disabled="loading"
+          @click="emit('cancel')"
+        >
           {{ cancelText || t('common.cancel') }}
         </ConsoleButton>
         <ConsoleButton size="lg" :loading="loading" @click="emit('confirm')">

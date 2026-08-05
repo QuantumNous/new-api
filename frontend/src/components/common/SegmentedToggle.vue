@@ -69,8 +69,14 @@ function onKeydown(event: KeyboardEvent, index: number) {
       :title="opt.ariaLabel"
       class="inline-flex items-center justify-center gap-1.5 font-semibold transition-colors focus-ring"
       :class="[
-        size === 'sm' ? 'h-8 px-2.5 text-xs' : 'h-9 px-3.5 text-sm',
-        opt.label ? '' : size === 'sm' ? 'w-8 px-0' : 'w-9 px-0',
+        size === 'sm'
+          ? 'h-11 px-2.5 text-xs sm:h-8'
+          : 'h-11 px-3.5 text-sm sm:h-9',
+        opt.label
+          ? ''
+          : size === 'sm'
+            ? 'w-11 px-0 sm:w-8'
+            : 'w-11 px-0 sm:w-9',
         model === opt.value
           ? 'seg-active text-[var(--text-primary)]'
           : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--state-hover-layer)] rounded-lg',

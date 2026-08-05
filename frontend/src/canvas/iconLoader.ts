@@ -16,9 +16,3 @@ export function loadIcon(src: string): Promise<HTMLImageElement> {
     img.src = src
   })
 }
-
-export function loadIcons(
-  list: { icon: string }[]
-): Promise<HTMLImageElement[]> {
-  return Promise.all(list.map((m) => loadIcon(m.icon).catch(() => new Image())))
-}

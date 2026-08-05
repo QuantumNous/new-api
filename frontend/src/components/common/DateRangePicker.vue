@@ -411,7 +411,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
             <div class="mb-2 flex items-center justify-between px-1">
               <button
                 type="button"
-                class="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
+                class="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring sm:h-7 sm:w-7"
                 :aria-label="t('logs.prevMonth')"
                 @click="shiftAnchor(-1)"
               >
@@ -436,7 +436,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
               </div>
               <button
                 type="button"
-                class="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
+                class="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring sm:h-7 sm:w-7"
                 :aria-label="t('logs.nextMonth')"
                 @click="shiftAnchor(1)"
               >
@@ -477,7 +477,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
                     :data-date-key="c.key"
                     :data-in-month="c.inMonth ? 'true' : 'false'"
                     :tabindex="focusKey === c.key && c.inMonth ? 0 : -1"
-                    class="relative flex h-9 items-center justify-center text-[13px] transition-colors focus-ring"
+                    class="relative flex h-11 items-center justify-center text-[13px] transition-colors focus-ring sm:h-9"
                     :class="[
                       !c.inMonth
                         ? 'text-[var(--text-tertiary)] opacity-45'
@@ -494,7 +494,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
                     @mouseenter="hoverKey = start && !end ? c.key : hoverKey"
                   >
                     <span
-                      class="relative z-10 flex h-7 w-7 items-center justify-center rounded-full"
+                      class="relative z-10 flex h-9 w-9 items-center justify-center rounded-full sm:h-7 sm:w-7"
                       :class="[
                         isStart(c.key) || isEnd(c.key)
                           ? 'bg-[var(--accent)] text-[var(--accent-contrast)]'

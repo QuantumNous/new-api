@@ -62,7 +62,7 @@ export const mockRuntime: MockRuntime = {
   concurrencyBonus: 0,
 }
 
-export function createMockState(): MockState {
+function createMockState(): MockState {
   const defaultLatencyMs = import.meta.env.MODE === 'test' ? 0 : 120
   const state: MockState = {
     latencyMs: defaultLatencyMs,
@@ -101,7 +101,7 @@ export function createMockState(): MockState {
   return state
 }
 
-export const mockState = createMockState()
+const mockState = createMockState()
 
 export function getMockDelay(): number {
   return mockState.latencyMs

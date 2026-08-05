@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { consoleNavGroups } from '@/constants/navigation/consoleNav'
+import {
+  consoleNavGroups,
+  getAccessibleConsoleNavGroups,
+  getConsoleRouteAccessMeta,
+} from '@/constants/navigation/consoleNav'
 
 describe('console navigation', () => {
   it('exposes the complete administration scaffold', () => {
     const adminGroup = consoleNavGroups.find((group) => group.key === 'admin')
+
+    expect(adminGroup?.access).toBe('admin')
 
     expect(adminGroup?.items.map((item) => item.name)).toEqual([
       'channel-management',
@@ -46,6 +52,31 @@ describe('console navigation', () => {
       if (item.route) expect(item.disabled).toBeUndefined()
       else expect(item.disabled).toBe(true)
     })
+  })
+
+  it('hides every administrator entry from ordinary users', () => {
+    const ordinaryGroups = getAccessibleConsoleNavGroups({ isAdmin: false })
+    const adminGroups = getAccessibleConsoleNavGroups({
+      isAdmin: true,
+      hasPermission: () => true,
+    })
+    const restrictedAdminGroups = getAccessibleConsoleNavGroups({
+      isAdmin: true,
+      hasPermission: () => false,
+    })
+
+    expect(ordinaryGroups.some((group) => group.key === 'admin')).toBe(false)
+    expect(adminGroups.some((group) => group.key === 'admin')).toBe(true)
+    expect(
+      restrictedAdminGroups
+        .flatMap((group) => group.items)
+        .some((item) => item.route === 'channels')
+    ).toBe(false)
+    expect(getConsoleRouteAccessMeta('channels')).toEqual({
+      requiresAdmin: true,
+      requiresPermission: { resource: 'channel', action: 'read' },
+    })
+    expect(getConsoleRouteAccessMeta('models')).toEqual({})
   })
 
   it('exposes the subscription storefront in the account group', () => {

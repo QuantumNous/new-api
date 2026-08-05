@@ -41,6 +41,24 @@ export async function configureStablePage(
       authByRoute,
       timeStepMs,
     }) => {
+      const nativeGetContext = HTMLCanvasElement.prototype.getContext
+      Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+        configurable: true,
+        value(
+          this: HTMLCanvasElement,
+          contextId: string,
+          options?: CanvasRenderingContext2DSettings
+        ) {
+          if (contextId === '2d') {
+            return Reflect.apply(nativeGetContext, this, [
+              contextId,
+              { ...options, willReadFrequently: true },
+            ])
+          }
+          return Reflect.apply(nativeGetContext, this, [contextId, options])
+        },
+      })
+
       const NativeDate = Date
       let clockTick = 0
       const nextNow = () => fixedNow + clockTick++ * timeStepMs

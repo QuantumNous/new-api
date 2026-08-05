@@ -2,17 +2,6 @@
 // 按经纬度(度)查表判定海陆。用于点阵地图的陆地/海洋着色。
 import { LAND_ROWS, MASK_W, MASK_H } from './landMask'
 
-/** 经纬度(度) → 是否陆地。lon∈[-180,180)，lat∈[-90,90]。 */
-export function isLandDeg(lonDeg: number, latDeg: number): boolean {
-  let col = Math.floor(((lonDeg + 180) / 360) * MASK_W)
-  col = ((col % MASK_W) + MASK_W) % MASK_W // 经度环绕
-  const row = Math.min(
-    MASK_H - 1,
-    Math.max(0, Math.floor(((90 - latDeg) / 180) * MASK_H))
-  )
-  return LAND_ROWS[row].charCodeAt(col) === 35 // '#'
-}
-
 // 单格采样：经度环绕、纬度夹紧，'#'=1 陆地 / '.'=0 海洋
 function cell(col: number, row: number): number {
   const c = ((col % MASK_W) + MASK_W) % MASK_W

@@ -7,14 +7,14 @@ import { resetMockState, setMockDelay } from '@/api/mock/state'
 import { adminRedemptionCodes, adminUsers } from '@/api/mock/data'
 import { farmPlots, ranchAnimals } from '@/api/mock/farm'
 import type { PageResult } from '@/api/types'
-import type { UserInfo } from '@/types/auth'
 import type { InviteInfo, MarketListing, TokenSummary } from '@/types/console'
 
 beforeEach(async () => {
   resetMockState()
   setMockDelay(0)
-  const { user } = await authApi.login('demo', 'password123')
-  writeDemoUser(user)
+  const login = await authApi.login('demo', 'password123')
+  if ('require_2fa' in login) throw new Error('Unexpected 2FA challenge')
+  writeDemoUser(login.user)
 })
 
 afterEach(() => {
@@ -34,7 +34,7 @@ describe('mock API input boundaries', () => {
 
   it('updates only editable profile fields', async () => {
     const before = readDemoUser()!
-    const result = await api.put<{ user: UserInfo }>('/api/user/self', {
+    const result = await api.put<undefined>('/api/user/self', {
       display_name: 'Ren',
       id: 999,
       username: 'hijacked',
@@ -42,7 +42,8 @@ describe('mock API input boundaries', () => {
       group: 'root',
     })
 
-    expect(result.user).toEqual({ ...before, display_name: 'Ren' })
+    expect(result).toBeUndefined()
+    expect(readDemoUser()).toEqual({ ...before, display_name: 'Ren' })
   })
 
   it('rejects a non-finite invite transfer without corrupting state', async () => {

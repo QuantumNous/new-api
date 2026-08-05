@@ -42,6 +42,9 @@ const colors = SERIES_TOKENS
     <div
       v-else-if="models.length"
       class="subtle-scroll max-h-[22rem] overflow-y-auto overflow-x-auto pr-2 sm:max-h-64"
+      role="region"
+      tabindex="0"
+      :aria-label="t('dashboard.stats.modelBreakdown')"
       data-stats-model-scroll
     >
       <table class="w-full min-w-[600px] border-collapse text-sm xl:min-w-0">

@@ -121,7 +121,7 @@ function rowAction(_item: AssetItem) {
         </div>
         <button
           type="button"
-          class="pencil-control flex h-10 items-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] focus-ring"
+          class="pencil-control flex h-11 items-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] focus-ring"
           data-handdrawn="control"
           @click="upload"
         >
@@ -184,7 +184,7 @@ function rowAction(_item: AssetItem) {
             <span class="hidden w-24 text-right md:block">{{
               t('lab.assets.colOpened')
             }}</span>
-            <span class="w-8" />
+            <span class="w-11" />
           </div>
 
           <div v-if="loading">
@@ -240,7 +240,7 @@ function rowAction(_item: AssetItem) {
               >
               <button
                 type="button"
-                class="touch-row-action flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] opacity-0 transition-all hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-ring group-hover:opacity-100"
+                class="touch-row-action flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] opacity-0 transition-all hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus:opacity-100 focus-visible:opacity-100 focus-ring group-hover:opacity-100 group-focus-within:opacity-100"
                 :aria-label="t('lab.assets.more')"
                 @click="rowAction(item)"
               >

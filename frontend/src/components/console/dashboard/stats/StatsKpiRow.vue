@@ -164,7 +164,6 @@ const cells = computed<Cell[]>(() => [
               :color="successColor"
               :size="30"
               :indeterminate="!kpi || loading"
-              :aria-label="cell.label"
             />
           </div>
           <div v-else class="mt-2">

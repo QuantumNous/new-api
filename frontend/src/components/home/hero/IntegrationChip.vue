@@ -1,11 +1,13 @@
 <template>
   <component
-    :is="docsLink ? 'a' : 'span'"
-    :aria-label="tool.name"
-    :href="docsLink || undefined"
-    :target="docsLink ? '_blank' : undefined"
-    :rel="docsLink ? 'noopener noreferrer' : undefined"
-    :tabindex="clone || !docsLink ? -1 : 0"
+    :is="docsLink && !clone ? 'a' : 'span'"
+    :aria-label="clone ? undefined : tool.name"
+    :aria-hidden="clone ? 'true' : undefined"
+    :role="!docsLink && !clone ? 'img' : undefined"
+    :href="docsLink && !clone ? docsLink : undefined"
+    :target="docsLink && !clone ? '_blank' : undefined"
+    :rel="docsLink && !clone ? 'noopener noreferrer' : undefined"
+    :tabindex="docsLink && !clone ? 0 : undefined"
     class="block shrink-0 overflow-visible"
   >
     <div

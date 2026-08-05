@@ -17,57 +17,6 @@ export const MODEL_COLORS: Record<string, string> = {
   mistral: '#F7D046',
 }
 
-// 沿直线行进的请求/响应光包（人群源 ↔ 网关枢纽的短程脉冲）
-export class StraightPacket {
-  progress = 0
-  constructor(
-    public from: { x: number; y: number },
-    public to: { x: number; y: number },
-    public color: string,
-    public speed: number,
-    public onArrive: () => void,
-    public dead = false
-  ) {}
-
-  update() {
-    this.progress += this.speed
-    if (this.progress >= 1) {
-      this.progress = 1
-      this.dead = true
-      this.onArrive()
-    }
-  }
-
-  pos() {
-    const e =
-      this.progress < 0.5
-        ? 2 * this.progress * this.progress
-        : 1 - Math.pow(-2 * this.progress + 2, 2) / 2
-    return {
-      x: this.from.x + (this.to.x - this.from.x) * e,
-      y: this.from.y + (this.to.y - this.from.y) * e,
-    }
-  }
-
-  draw(
-    ctx: CanvasRenderingContext2D,
-    theme: CanvasTheme = getCanvasTheme('dark')
-  ) {
-    const { x, y } = this.pos()
-    const g = ctx.createRadialGradient(x, y, 0, x, y, 9)
-    g.addColorStop(0, this.color)
-    g.addColorStop(1, 'transparent')
-    ctx.fillStyle = g
-    ctx.beginPath()
-    ctx.arc(x, y, 9, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = theme.packetCore
-    ctx.beginPath()
-    ctx.arc(x, y, 2, 0, Math.PI * 2)
-    ctx.fill()
-  }
-}
-
 // 沿拱门弧线返回的响应光包（网关 → 用户）：与去程通道共用 arcUp 同一条弧，实现「沿原路返回」。
 // 终点用实时 getter，跟随随地图漂移的用户；弧线牢牢粘住两端。
 export class ArcPacket {

@@ -13,7 +13,7 @@ export function resolveApiMode(
   )
 }
 
-export const apiMode = resolveApiMode(import.meta.env.VITE_API_MODE)
+const apiMode = resolveApiMode(import.meta.env.VITE_API_MODE)
 export const isMockApi = apiMode === 'mock'
 
 /** Public pages may be overridden independently for deterministic HTTP fixtures. */

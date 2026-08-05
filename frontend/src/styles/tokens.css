@@ -46,6 +46,11 @@
   --media-scrim-strong: rgba(0, 0, 0, 0.62);
   --media-scrim-medium: rgba(0, 0, 0, 0.32);
   --media-scrim-soft: rgba(0, 0, 0, 0.05);
+  /* Illustrated console banners use dark copy by day and light copy by night. */
+  --media-copy-scrim-strong: rgba(251, 248, 239, 0.96);
+  --media-copy-scrim-medium: rgba(251, 248, 239, 0.74);
+  --media-copy-scrim-soft: rgba(251, 248, 239, 0.12);
+  --media-copy-chip: rgba(255, 253, 248, 0.78);
   --chart-grid-line: rgba(56, 55, 43, 0.08);
   --button-shadow:
     2px 3px 0 rgba(56, 55, 43, 0.18), 0 4px 14px var(--shadow-color);
@@ -58,6 +63,8 @@
   --text-secondary: #5c5946;
   --text-tertiary: #6c6955;
   --text-tertiary-base: #6c6955;
+  --heatmap-soft-foreground: var(--text-primary);
+  --heatmap-strong-foreground: #26251c;
   --text-inverse: #f6f3eb;
   --border-default: rgba(56, 55, 43, 0.14);
   --border-subtle: rgba(56, 55, 43, 0.08);
@@ -111,7 +118,7 @@
   --status-info-soft: rgba(116, 118, 90, 0.12);
   --footer-text-primary: #f4f2e8;
   --footer-text-secondary: #d1d3bf;
-  --footer-text-tertiary: #9b9c86;
+  --footer-text-tertiary: #adb09c;
   --footer-accent: #d8984c;
   --footer-border: rgba(209, 211, 191, 0.18);
 
@@ -330,15 +337,17 @@ html.dark {
     0 1px 2px rgba(0, 4, 16, 0.5), 0 18px 48px rgba(0, 4, 16, 0.55);
   --surface-footer: #181b24;
   --text-primary: #dee3f0;
-  --text-secondary: #98a4c0;
-  --text-tertiary: #96a2bf;
-  --text-tertiary-base: #96a2bf;
+  --text-secondary: #c4ccdc;
+  --text-tertiary: #b8c1d3;
+  --text-tertiary-base: #b8c1d3;
+  --heatmap-soft-foreground: #f4f6fb;
+  --heatmap-strong-foreground: #080b10;
   --text-inverse: #262a34;
   --border-default: rgba(152, 164, 192, 0.13);
   --border-subtle: rgba(152, 164, 192, 0.07);
   --border-strong: rgba(226, 188, 85, 0.42);
   --accent: #e2bc55;
-  --accent-text: #e2bc55;
+  --accent-text: #efd27e;
   --accent-rgb: 226 188 85;
   --accent-hover: #efd27e;
   --accent-active: #c9a243;
@@ -372,20 +381,20 @@ html.dark {
   --card-shadow-hover:
     0 2px 6px rgba(0, 4, 16, 0.5), 0 20px 52px rgba(0, 4, 16, 0.6);
   --status-success: #7ec49a;
-  --status-success-text: #7ec49a;
+  --status-success-text: #92d2aa;
   --status-success-soft: rgba(126, 196, 154, 0.14);
   --status-warning: #c9a95c;
-  --status-warning-text: #d8bb70;
+  --status-warning-text: #e2c77e;
   --status-warning-soft: rgba(201, 169, 92, 0.14);
   --status-danger: #e89898;
-  --status-danger-text: #f0a8a8;
+  --status-danger-text: #f4b2b2;
   --status-danger-soft: rgba(232, 152, 152, 0.15);
   --status-info: #7aacdc;
   --status-info-text: #8dc4f0;
   --status-info-soft: rgba(122, 172, 220, 0.14);
   --footer-text-primary: #dee3f0;
   --footer-text-secondary: #98a4c0;
-  --footer-text-tertiary: #636e8a;
+  --footer-text-tertiary: #7f8ba7;
   --footer-accent: #e2bc55;
   --footer-border: rgba(152, 164, 192, 0.12);
 
@@ -545,6 +554,10 @@ html.dark {
   --media-scrim-strong: rgba(8, 10, 20, 0.72);
   --media-scrim-medium: rgba(8, 10, 20, 0.42);
   --media-scrim-soft: rgba(8, 10, 20, 0.08);
+  --media-copy-scrim-strong: var(--media-scrim-strong);
+  --media-copy-scrim-medium: var(--media-scrim-medium);
+  --media-copy-scrim-soft: var(--media-scrim-soft);
+  --media-copy-chip: rgba(222, 227, 240, 0.16);
   --chart-grid-line: rgba(152, 164, 192, 0.08);
   --ink-surface-muted: rgba(222, 227, 240, 0.08);
   /* MD state layer：hover 8% / press 12% 星辉金 */

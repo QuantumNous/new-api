@@ -9,7 +9,7 @@
     <!-- ===== 开屏 Hero ===== -->
     <section
       id="hero-immersive-stage"
-      class="relative flex min-h-[100svh] items-center overflow-hidden rounded-none pt-[calc(env(safe-area-inset-top)+5.5rem)] pb-[calc(env(safe-area-inset-bottom)+4.75rem)] [@media(max-height:843px)_and_(max-width:1023px)]:pb-[calc(env(safe-area-inset-bottom)+3.5rem)] lg:min-h-screen lg:pt-20 lg:pb-0"
+      class="relative flex min-h-[calc(100svh-3rem)] items-center overflow-hidden rounded-none pt-[calc(env(safe-area-inset-top)+5.5rem)] pb-[calc(env(safe-area-inset-bottom)+4.75rem)] [@media(max-height:843px)_and_(max-width:1023px)]:pb-[calc(env(safe-area-inset-bottom)+3.5rem)] lg:min-h-[calc(100vh-3rem)] lg:pt-20 lg:pb-0"
     >
       <!-- 全屏背景：点阵世界地图 + 网关路由动画 -->
       <HeroWorldMap

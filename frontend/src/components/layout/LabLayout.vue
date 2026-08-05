@@ -15,7 +15,7 @@ const soundEnabled = useStorage<boolean>('ren2hub_lab_sound', true)
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden" data-handdrawn-scope="lab">
+  <div class="flex h-screen h-dvh overflow-hidden" data-handdrawn-scope="lab">
     <LabSidebar />
 
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -23,15 +23,16 @@ const soundEnabled = useStorage<boolean>('ren2hub_lab_sound', true)
       <ConsoleTopbar />
       <LabNavStrip />
 
-      <!-- page content (relative for floating toolbar) -->
+      <!-- page tools and route content -->
       <div
-        class="night-page-texture draft-grid relative min-w-0 flex-1 overflow-hidden"
+        class="night-page-texture draft-grid flex min-w-0 flex-1 flex-col overflow-hidden"
       >
-        <!-- floating toolbar: private mode + sound -->
-        <div class="absolute right-4 top-3 z-30 flex items-center gap-1.5">
+        <div
+          class="flex h-14 shrink-0 items-center justify-end gap-1.5 border-b border-[var(--border-subtle)] px-4"
+        >
           <button
             type="button"
-            class="pencil-control flex h-9 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors focus-ring"
+            class="pencil-control flex h-11 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors focus-ring"
             data-handdrawn="control"
             :style="
               privateMode
@@ -63,7 +64,7 @@ const soundEnabled = useStorage<boolean>('ren2hub_lab_sound', true)
 
           <button
             type="button"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors focus-ring"
+            class="inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors focus-ring"
             :class="
               soundEnabled
                 ? 'text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]'
@@ -102,11 +103,13 @@ const soundEnabled = useStorage<boolean>('ren2hub_lab_sound', true)
             </svg>
           </button>
         </div>
-        <RouterView v-slot="{ Component }">
-          <Transition name="lab-page" mode="out-in">
-            <component :is="Component" />
-          </Transition>
-        </RouterView>
+        <div class="min-h-0 flex-1 overflow-hidden">
+          <RouterView v-slot="{ Component }">
+            <Transition name="lab-page" mode="out-in">
+              <component :is="Component" />
+            </Transition>
+          </RouterView>
+        </div>
       </div>
     </div>
   </div>

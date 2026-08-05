@@ -14,6 +14,7 @@ import {
   it,
   vi,
 } from 'vitest'
+import { createPinia, setActivePinia, type Pinia } from 'pinia'
 
 import { api } from '@/api/console'
 import { writeDemoUser } from '@/api/demoStorage'
@@ -30,6 +31,7 @@ import type { AdminChannel } from '@/types/console'
 import ChannelsView from '@/views/console/ChannelsView.vue'
 
 const mountedWrappers: VueWrapper[] = []
+let pinia: Pinia
 
 beforeAll(async () => {
   await loadMessageDomain('console')
@@ -37,6 +39,8 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
+  pinia = createPinia()
+  setActivePinia(pinia)
   resetMockState()
   setMockDelay(0)
   writeDemoUser(mockUser)
@@ -63,7 +67,7 @@ async function waitForRequests(delay = 0): Promise<void> {
 async function mountChannels(): Promise<VueWrapper> {
   const wrapper = mount(ChannelsView, {
     attachTo: document.body,
-    global: { plugins: [i18n] },
+    global: { plugins: [pinia, i18n] },
   })
   mountedWrappers.push(wrapper)
   await waitForRequests()
@@ -813,7 +817,7 @@ describe('ChannelsView', () => {
     const getSpy = vi.spyOn(api, 'get')
     const wrapper = mount(ChannelsView, {
       attachTo: document.body,
-      global: { plugins: [i18n] },
+      global: { plugins: [pinia, i18n] },
     })
     mountedWrappers.push(wrapper)
     await waitForRequests(45)
@@ -844,7 +848,7 @@ describe('ChannelsView', () => {
     )
     const wrapper = mount(ChannelsView, {
       attachTo: document.body,
-      global: { plugins: [i18n] },
+      global: { plugins: [pinia, i18n] },
     })
     mountedWrappers.push(wrapper)
     await waitForRequests()

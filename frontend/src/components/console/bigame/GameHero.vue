@@ -85,9 +85,9 @@ const bigameBanner = useThemedAsset(bigameDayBanner, bigameNightBanner)
 .game-hero__scrim {
   background: linear-gradient(
     100deg,
-    rgba(24, 18, 40, 0.9) 0%,
-    rgba(24, 18, 40, 0.66) 48%,
-    rgba(24, 18, 40, 0.28) 100%
+    var(--media-copy-scrim-strong) 0%,
+    var(--media-copy-scrim-medium) 48%,
+    var(--media-copy-scrim-soft) 100%
   );
 }
 
@@ -96,15 +96,6 @@ const bigameBanner = useThemedAsset(bigameDayBanner, bigameNightBanner)
   border-radius: 1rem !important;
   background-color: transparent;
   box-shadow: var(--card-shadow) !important;
-}
-
-:global(html.light .game-hero__scrim) {
-  background: linear-gradient(
-    100deg,
-    rgba(251, 248, 239, 0.96) 0%,
-    rgba(251, 248, 239, 0.72) 48%,
-    rgba(251, 248, 239, 0.12) 100%
-  );
 }
 
 :global(html.light .game-hero__title) {

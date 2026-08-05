@@ -28,6 +28,11 @@ for (const viewport of viewports) {
 
     const runtimeErrors: string[] = []
     page.on('pageerror', (error) => runtimeErrors.push(error.message))
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') {
+        runtimeErrors.push(`${message.type()}: ${message.text()}`)
+      }
+    })
     page.on('requestfailed', (request) => {
       const failure = request.failure()?.errorText || 'request failed'
       if (

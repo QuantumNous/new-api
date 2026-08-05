@@ -169,7 +169,6 @@ const successColor = computed(() => rateColor(successRate.value))
           :color="successColor"
           :size="34"
           :indeterminate="successRate === null"
-          :aria-label="t('dashboard.systemStatus.successRate')"
         />
       </div>
     </template>

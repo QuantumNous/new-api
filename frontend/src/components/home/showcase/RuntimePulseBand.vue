@@ -196,7 +196,11 @@ watch(displayRequests, (v) => {
           <em>{{ t('showcase.runtime.uptimeTag') }}</em>
         </header>
 
-        <div class="runtime-clock" :aria-label="t('showcase.runtime.running')">
+        <div
+          class="runtime-clock"
+          role="timer"
+          :aria-label="t('showcase.runtime.running')"
+        >
           <div
             v-for="group in clockGroups"
             :key="group.key"

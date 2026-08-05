@@ -83,10 +83,14 @@ const imageOk = ref(true)
 .activity-entry__scrim {
   background: linear-gradient(
     90deg,
-    rgba(0, 0, 0, 0.62) 0%,
-    rgba(0, 0, 0, 0.32) 55%,
-    rgba(0, 0, 0, 0.05) 100%
+    var(--media-copy-scrim-strong) 0%,
+    var(--media-copy-scrim-medium) 55%,
+    var(--media-copy-scrim-soft) 100%
   );
+}
+
+.activity-entry__tag {
+  background: var(--media-copy-chip);
 }
 
 :global(html.dark .activity-entry) {
@@ -101,18 +105,8 @@ const imageOk = ref(true)
   box-shadow: var(--card-shadow-hover) !important;
 }
 
-:global(html.light .activity-entry__scrim) {
-  background: linear-gradient(
-    90deg,
-    rgba(251, 248, 239, 0.96) 0%,
-    rgba(251, 248, 239, 0.76) 55%,
-    rgba(251, 248, 239, 0.08) 100%
-  );
-}
-
 :global(html.light .activity-entry__tag) {
   border: 1px solid var(--pencil-line-soft);
-  background: rgba(255, 253, 248, 0.78);
   color: var(--accent-text);
   box-shadow: 1px 1px 0 var(--pencil-line-faint);
 }

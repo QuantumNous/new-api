@@ -16,14 +16,14 @@ export interface ModuleAccess {
 
 const DEFAULT_SYSTEM_NAME = 'RenRen AI'
 
-export function parseBoolean(value: unknown, fallback: boolean): boolean {
+function parseBoolean(value: unknown, fallback: boolean): boolean {
   if (typeof value === 'boolean') return value
   if (value === 1 || value === '1' || value === 'true') return true
   if (value === 0 || value === '0' || value === 'false') return false
   return fallback
 }
 
-export function parseModuleAccess(value: unknown): ModuleAccess {
+function parseModuleAccess(value: unknown): ModuleAccess {
   if (!value || typeof value !== 'object') {
     return { enabled: parseBoolean(value, true), requireAuth: false }
   }

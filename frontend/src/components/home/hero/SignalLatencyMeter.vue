@@ -3,6 +3,7 @@
     class="signal-latency-meter"
     :class="`is-${resolvedTier}`"
     :style="latencyStyle"
+    role="img"
     :aria-label="ariaLabel"
   >
     <span

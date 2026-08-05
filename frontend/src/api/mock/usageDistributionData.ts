@@ -68,7 +68,7 @@ tokenTrend.forEach((point, index) => {
 
 export const usageDistributionHistory = generated
 
-export function usagePointDate(point: UsageDistributionPoint): Date {
+function usagePointDate(point: UsageDistributionPoint): Date {
   const [year, month, day] = point.date.split('-').map(Number)
   return new Date(year!, month! - 1, day)
 }

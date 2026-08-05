@@ -45,11 +45,5 @@ export const labNavItems: LabNavItem[] = [
   },
 ]
 
-/** Route names that belong to the lab section (topbar "炼金室" pill stays lit). */
-export const labRouteNames: Set<string> = new Set([
-  ...labNavItems.map((i) => i.route),
-  'lab-chat-session',
-])
-
 /** Landing route when the topbar "炼金室" group or mobile strip is clicked. */
 export const labEntryRoute = 'lab-chat'

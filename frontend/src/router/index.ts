@@ -5,6 +5,7 @@ import {
 } from 'vue-router'
 
 import HomeView from '@/views/HomeView.vue'
+import { getConsoleRouteAccessMeta } from '@/constants/navigation/consoleNav'
 import { loadMessageDomain } from '@/i18n'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
@@ -72,18 +73,20 @@ const router = createRouter({
     {
       path: '/console',
       component: () => import('@/components/layout/ConsoleLayout.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, topNav: 'console' },
       children: [
         { path: '', redirect: { name: 'dashboard' } },
         {
           path: 'dashboard',
           name: 'dashboard',
           component: () => import('@/views/console/DashboardView.vue'),
+          meta: { topNav: 'dashboard' },
         },
         {
           path: 'activity',
           name: 'activity',
           component: () => import('@/views/console/ActivityView.vue'),
+          meta: { topNav: 'activities' },
         },
         {
           path: 'models',
@@ -115,32 +118,48 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
-            requiresAdmin: true,
+            ...getConsoleRouteAccessMeta('channels'),
           },
         },
         {
           path: 'users',
           name: 'users',
           component: () => import('@/views/console/UsersView.vue'),
-          meta: { wide: true, noPageScroll: true, requiresAdmin: true },
+          meta: {
+            wide: true,
+            noPageScroll: true,
+            ...getConsoleRouteAccessMeta('users'),
+          },
         },
         {
           path: 'redemption',
           name: 'redemption',
           component: () => import('@/views/console/RedemptionView.vue'),
-          meta: { wide: true, noPageScroll: true, requiresAdmin: true },
+          meta: {
+            wide: true,
+            noPageScroll: true,
+            ...getConsoleRouteAccessMeta('redemption'),
+          },
         },
         {
           path: 'plan-management',
           name: 'plan-management',
           component: () => import('@/views/console/PlanManagementView.vue'),
-          meta: { wide: true, noPageScroll: true, requiresAdmin: true },
+          meta: {
+            wide: true,
+            noPageScroll: true,
+            ...getConsoleRouteAccessMeta('plan-management'),
+          },
         },
         {
           path: 'orders',
           name: 'orders',
           component: () => import('@/views/console/OrdersView.vue'),
-          meta: { wide: true, noPageScroll: true, requiresAdmin: true },
+          meta: {
+            wide: true,
+            noPageScroll: true,
+            ...getConsoleRouteAccessMeta('orders'),
+          },
         },
         {
           path: 'tickets',
@@ -188,18 +207,20 @@ const router = createRouter({
           path: 'farm',
           name: 'farm',
           component: () => import('@/views/console/FarmView.vue'),
+          meta: { topNav: 'activities' },
         },
         {
           path: 'bigame',
           name: 'bigame',
           component: () => import('@/views/console/BigameView.vue'),
+          meta: { topNav: 'activities' },
         },
       ],
     },
     {
       path: '/lab',
       component: () => import('@/components/layout/LabLayout.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, topNav: 'alchemy' },
       children: [
         { path: '', redirect: { name: 'lab-chat' } },
         {
@@ -280,6 +301,15 @@ router.beforeEach(async (to) => {
   if (to.meta.guestOnly && auth.isAuthenticated) return CONSOLE_ENTRY
   if (to.meta.requiresRoot && !auth.isRoot) return CONSOLE_ENTRY
   if (to.meta.requiresAdmin && !auth.isAdmin) return CONSOLE_ENTRY
+  if (
+    to.meta.requiresPermission &&
+    !auth.hasPermission(
+      to.meta.requiresPermission.resource,
+      to.meta.requiresPermission.action
+    )
+  ) {
+    return CONSOLE_ENTRY
+  }
   return true
 })
 

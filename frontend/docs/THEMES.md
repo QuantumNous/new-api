@@ -73,6 +73,5 @@
 视觉回归仅在本地手动运行，不接入 GitHub Actions：
 
 - `bun run test:visual`
-- `bun run test:visual:update`
 
-更新命令必须保留 `--update-snapshots=all`。测试环境固定为 `Asia/Shanghai`、Mock 登录身份与公共 API、本地字体和 `reduced-motion`；固定时间由视觉测试 fixture 负责。
+该命令只审计当前实时页面，不读取、生成或比较历史截图。测试环境固定为 `Asia/Shanghai`、Mock 登录身份与公共 API、本地字体和 `reduced-motion`；固定时间由浏览器测试 fixture 负责。审计覆盖运行错误、DOM 状态、响应式布局、横向溢出、交互遮挡、主题与字体契约。

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
@@ -7,6 +7,7 @@ import { labNavItems } from '@/constants/navigation/labNav'
 
 const { t } = useI18n()
 const route = useRoute()
+const activeItem = ref<HTMLElement | null>(null)
 
 const activeName = computed(() => {
   const current =
@@ -15,6 +16,23 @@ const activeName = computed(() => {
       : ((route.meta.nav || route.name) as string | undefined)
   return labNavItems.find((item) => item.route === current)?.name ?? null
 })
+
+function setActiveItem(element: unknown): void {
+  const candidate =
+    element instanceof HTMLElement
+      ? element
+      : (element as { $el?: unknown } | null)?.$el
+  activeItem.value = candidate instanceof HTMLElement ? candidate : null
+}
+
+watch(
+  activeName,
+  async () => {
+    await nextTick()
+    activeItem.value?.scrollIntoView?.({ block: 'nearest', inline: 'center' })
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -26,8 +44,9 @@ const activeName = computed(() => {
     <RouterLink
       v-for="item in labNavItems"
       :key="item.name"
+      :ref="item.name === activeName ? setActiveItem : undefined"
       :to="{ name: item.route }"
-      class="flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors focus-ring"
+      class="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors focus-ring"
       :style="
         item.name === activeName
           ? 'background:var(--accent);color:var(--accent-contrast)'

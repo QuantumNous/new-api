@@ -40,7 +40,11 @@ describe('demo identity storage', () => {
   it('rejects a locally forged privileged demo identity', () => {
     localStorage.setItem(
       DEMO_USER_STORAGE_KEY,
-      JSON.stringify({ ...user, role: 100, admin_permissions: ['*'] })
+      JSON.stringify({
+        ...user,
+        role: 100,
+        permissions: { admin_permissions: { channel: { read: true } } },
+      })
     )
 
     expect(readDemoUser()).toBeNull()

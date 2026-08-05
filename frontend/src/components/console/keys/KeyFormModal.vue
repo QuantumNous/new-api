@@ -208,7 +208,7 @@ async function save() {
               {{ card.title }}
             </span>
             <span
-              class="mt-0.5 block text-xs leading-relaxed text-[var(--text-tertiary)]"
+              class="mt-0.5 block text-xs leading-relaxed text-[var(--text-secondary)]"
               >{{ card.desc }}</span
             >
           </button>

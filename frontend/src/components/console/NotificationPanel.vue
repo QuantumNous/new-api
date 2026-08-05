@@ -110,7 +110,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
     <button
       ref="trigger"
       type="button"
-      class="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
+      class="relative inline-flex h-11 w-11 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
       :aria-label="t('nav.notifications')"
       aria-haspopup="dialog"
       :aria-expanded="open"
@@ -149,7 +149,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
         </h3>
         <button
           type="button"
-          class="text-xs text-[var(--text-tertiary)] transition-colors hover:text-[var(--accent-text)]"
+          class="min-h-11 text-xs text-[var(--text-tertiary)] transition-colors hover:text-[var(--accent-text)]"
           @click="markAllRead"
         >
           ✓ {{ t('nav.markAllRead') }}
@@ -207,7 +207,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
       <div class="border-t border-[var(--border-subtle)] p-3">
         <button
           type="button"
-          class="h-10 w-full rounded-xl border border-[var(--border-subtle)] text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
+          class="h-11 w-full rounded-xl border border-[var(--border-subtle)] text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
           @click="close({ restoreFocus: true })"
         >
           {{ t('nav.viewAllNotifications') }}

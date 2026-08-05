@@ -38,6 +38,7 @@ import ChannelInlineNumber from '@/components/console/channels/ChannelInlineNumb
 import ChannelMobileList from '@/components/console/channels/ChannelMobileList.vue'
 import VendorLogo from '@/components/console/models/VendorLogo.vue'
 import { useAdminChannels } from '@/composables/useAdminChannels'
+import { useAuthStore } from '@/stores/auth'
 import {
   ADMIN_CHANNEL_DEFAULT_VISIBLE_FIELDS,
   ADMIN_CHANNEL_OPTIONAL_FIELDS,
@@ -86,6 +87,13 @@ type DeleteTarget =
   | { kind: 'bulk'; channels: AdminChannel[] }
 
 const { t, locale } = useI18n()
+const auth = useAuthStore()
+const canOperate = computed(() => auth.hasPermission('channel', 'operate'))
+const canWrite = computed(() => auth.hasPermission('channel', 'write'))
+const canSensitiveWrite = computed(() =>
+  auth.hasPermission('channel', 'sensitive_write')
+)
+const canSelect = computed(() => canOperate.value || canSensitiveWrite.value)
 const {
   rows,
   total,
@@ -462,13 +470,13 @@ function supplierBatchLabel(
 }
 
 function openCreate() {
-  if (!canMutate.value) return
+  if (!canMutate.value || !canSensitiveWrite.value) return
   editing.value = null
   formOpen.value = true
 }
 
 function openEdit(channel: AdminChannel) {
-  if (!canMutate.value) return
+  if (!canMutate.value || !canWrite.value) return
   editing.value = channel
   formOpen.value = true
 }
@@ -480,18 +488,26 @@ function closeForm() {
 function saveForm(
   input: AdminChannelCreateInput | AdminChannelUpdateInput
 ): Promise<boolean> {
+  if (editing.value ? !canWrite.value : !canSensitiveWrite.value) {
+    return Promise.resolve(false)
+  }
   return editing.value
     ? updateChannelDetails(editing.value, input as AdminChannelUpdateInput)
     : createChannel(input as AdminChannelCreateInput)
 }
 
 function requestDelete(channel: AdminChannel) {
-  if (!canMutate.value) return
+  if (!canMutate.value || !canSensitiveWrite.value) return
   deleting.value = { kind: 'channel', channel }
 }
 
 function requestBulkDelete() {
-  if (!canMutate.value || selectedChannels.value.length === 0) return
+  if (
+    !canMutate.value ||
+    !canSensitiveWrite.value ||
+    selectedChannels.value.length === 0
+  )
+    return
   deleting.value = {
     kind: 'bulk',
     channels: selectedChannels.value.map((channel) => ({ ...channel })),
@@ -499,7 +515,7 @@ function requestBulkDelete() {
 }
 
 function requestClearSupplier(group: SupplierGroup) {
-  if (!canMutate.value) return
+  if (!canMutate.value || !canSensitiveWrite.value) return
   deleting.value = {
     kind: 'supplier',
     supplier: group.supplier,
@@ -509,7 +525,7 @@ function requestClearSupplier(group: SupplierGroup) {
 
 async function confirmDelete() {
   const target = deleting.value
-  if (!target) return
+  if (!target || !canSensitiveWrite.value) return
   const deleted =
     target.kind === 'channel'
       ? await deleteChannel(target.channel)
@@ -554,7 +570,7 @@ const deleteDialogMessage = computed(() => {
 async function runBulkStatus(
   action: 'enable' | 'disable' | 'reset'
 ): Promise<void> {
-  if (!canMutate.value) return
+  if (!canMutate.value || !canOperate.value) return
   if (await updateChannelsStatus(action, selectedChannels.value)) {
     clearSelection()
   }
@@ -588,7 +604,11 @@ async function runBulkStatus(
           <RefreshCw v-if="!refreshing" :size="15" />
           {{ t('channels.refreshList') }}
         </ConsoleButton>
-        <ConsoleButton :disabled="!canMutate" @click="openCreate">
+        <ConsoleButton
+          v-if="canSensitiveWrite"
+          :disabled="!canMutate"
+          @click="openCreate"
+        >
           <Plus :size="16" />
           {{ t('channels.createChannel') }}
         </ConsoleButton>
@@ -648,7 +668,7 @@ async function runBulkStatus(
             />
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-2 md:hidden">
+        <div v-if="canOperate" class="grid grid-cols-2 gap-2 md:hidden">
           <ConsoleButton
             variant="secondary"
             size="sm"
@@ -708,6 +728,7 @@ async function runBulkStatus(
           {{ t('channels.selectedCount', { count: selectedIds.length }) }}
         </span>
         <IconButton
+          v-if="canOperate"
           :label="t('channels.bulkEnable')"
           :disabled="
             !canMutate ||
@@ -724,6 +745,7 @@ async function runBulkStatus(
           <Power v-else :size="16" />
         </IconButton>
         <IconButton
+          v-if="canOperate"
           :label="t('channels.bulkDisable')"
           :disabled="
             !canMutate ||
@@ -740,6 +762,7 @@ async function runBulkStatus(
           <PowerOff v-else :size="16" />
         </IconButton>
         <IconButton
+          v-if="canOperate"
           :label="t('channels.bulkReset')"
           :disabled="!canMutate || resettableSelectedCount === 0"
           :class="isBulkActionBusy('reset') ? 'text-[var(--accent)]' : ''"
@@ -753,6 +776,7 @@ async function runBulkStatus(
           <RotateCcw v-else :size="16" />
         </IconButton>
         <IconButton
+          v-if="canSensitiveWrite"
           :label="t('channels.bulkDelete')"
           tone="danger"
           :disabled="!canMutate"
@@ -791,7 +815,7 @@ async function runBulkStatus(
           :columns="columns"
           :rows="tableRows"
           row-key="key"
-          selectable
+          :selectable="canSelect"
           checkbox-shape="round"
           :selected="selectedIds"
           :selection-keys="pageChannelIds"
@@ -867,6 +891,7 @@ async function runBulkStatus(
                   {{ batchProgressText() }}
                 </span>
                 <IconButton
+                  v-if="canOperate"
                   :label="
                     supplierBatchLabel(
                       'balance',
@@ -896,6 +921,7 @@ async function runBulkStatus(
                   <RefreshCw v-else :size="14" />
                 </IconButton>
                 <IconButton
+                  v-if="canOperate"
                   :label="
                     supplierBatchLabel(
                       'test',
@@ -925,6 +951,7 @@ async function runBulkStatus(
                   <Activity v-else :size="14" />
                 </IconButton>
                 <IconButton
+                  v-if="canSensitiveWrite"
                   :label="
                     t('channels.clearSupplier', {
                       supplier: (row as SupplierTableRow).supplier,
@@ -957,6 +984,7 @@ async function runBulkStatus(
                   {{ batchProgressText() }}
                 </span>
                 <IconButton
+                  v-if="canOperate"
                   :label="batchButtonLabel('balance')"
                   :disabled="!canRunBatch"
                   class="h-6 w-6 rounded-md"
@@ -983,6 +1011,7 @@ async function runBulkStatus(
                   {{ batchProgressText() }}
                 </span>
                 <IconButton
+                  v-if="canOperate"
                   :label="batchButtonLabel('test')"
                   :disabled="!canRunBatch"
                   class="h-6 w-6 rounded-md"
@@ -1058,6 +1087,7 @@ async function runBulkStatus(
           </template>
           <template #cell-priority="{ row }">
             <ChannelInlineNumber
+              v-if="canWrite"
               :value="channelFromRow(row as AdminChannelTableRow).priority"
               :label="
                 t('channels.priorityFor', {
@@ -1074,9 +1104,13 @@ async function runBulkStatus(
                   )
               "
             />
+            <span v-else class="tabular-nums">
+              {{ channelFromRow(row as AdminChannelTableRow).priority }}
+            </span>
           </template>
           <template #cell-weight="{ row }">
             <ChannelInlineNumber
+              v-if="canWrite"
               :value="channelFromRow(row as AdminChannelTableRow).weight"
               :label="
                 t('channels.weightFor', {
@@ -1093,6 +1127,9 @@ async function runBulkStatus(
                   )
               "
             />
+            <span v-else class="tabular-nums">
+              {{ channelFromRow(row as AdminChannelTableRow).weight }}
+            </span>
           </template>
           <template #cell-capacity="{ row }">
             <CapacityMeter
@@ -1143,7 +1180,7 @@ async function runBulkStatus(
                 </p>
               </div>
               <IconButton
-                v-if="isFieldVisible('rowUpstreamAction')"
+                v-if="canOperate && isFieldVisible('rowUpstreamAction')"
                 :label="t('channels.refreshBalance')"
                 :disabled="
                   isRowBusy(channelFromRow(row as AdminChannelTableRow).id)
@@ -1194,7 +1231,7 @@ async function runBulkStatus(
                 }}
               </StatusChip>
               <IconButton
-                v-if="isFieldVisible('rowResponseAction')"
+                v-if="canOperate && isFieldVisible('rowResponseAction')"
                 :label="t('channels.testChannel')"
                 :disabled="
                   isRowBusy(channelFromRow(row as AdminChannelTableRow).id)
@@ -1221,6 +1258,7 @@ async function runBulkStatus(
           <template #cell-actions="{ row }">
             <div class="flex items-center justify-end gap-0.5">
               <IconButton
+                v-if="canWrite"
                 :label="t('channels.editChannel')"
                 :disabled="
                   isRowBusy(channelFromRow(row as AdminChannelTableRow).id)
@@ -1230,6 +1268,7 @@ async function runBulkStatus(
                 <Pencil :size="15" />
               </IconButton>
               <IconButton
+                v-if="canOperate"
                 :label="
                   channelFromRow(row as AdminChannelTableRow).status === 1
                     ? t('channels.disableChannel')
@@ -1266,6 +1305,7 @@ async function runBulkStatus(
                 <Power v-else :size="15" />
               </IconButton>
               <IconButton
+                v-if="canSensitiveWrite"
                 :label="t('channels.deleteChannel')"
                 tone="danger"
                 :disabled="
@@ -1331,7 +1371,7 @@ async function runBulkStatus(
             :visible-fields="visibleFields"
             :selected-ids="selectedIds"
             :all-selected="allPageSelected"
-            :selection-disabled="!canMutate"
+            :selection-disabled="!canMutate || !canSelect"
             :toggle-all-selected="toggleAllSelected"
             :toggle-selected="toggleSelected"
             :is-supplier-collapsed="isSupplierCollapsed"
@@ -1339,6 +1379,9 @@ async function runBulkStatus(
             :batch-progress="batchProgress"
             :can-run-batch="canRunBatch"
             :can-mutate="canMutate"
+            :can-operate="canOperate"
+            :can-write="canWrite"
+            :can-sensitive-write="canSensitiveWrite"
             :run-supplier-batch="runSupplierBatch"
             :clear-supplier="requestClearSupplier"
             :is-busy="isBusy"

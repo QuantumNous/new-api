@@ -3,7 +3,6 @@ import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
-import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
 import PasswordStrengthMeter from '@/components/auth/PasswordStrengthMeter.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -73,10 +72,7 @@ function openPassword(): void {
 async function changePassword(): Promise<void> {
   savingPassword.value = true
   try {
-    await api.put('/api/user/self/password', {
-      old_password: oldPassword.value,
-      new_password: newPassword.value,
-    })
+    await auth.changePassword(oldPassword.value, newPassword.value)
     toast.success(t('settings.passwordChanged'))
     passwordOpen.value = false
   } catch (error) {

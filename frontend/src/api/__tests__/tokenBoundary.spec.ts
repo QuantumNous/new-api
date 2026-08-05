@@ -16,8 +16,9 @@ afterEach(() => resetMockState())
 
 describe('token secret boundary', () => {
   it('keeps secrets out of list responses and reveals them explicitly', async () => {
-    const { user } = await authApi.login('demo', 'password123')
-    writeDemoUser(user)
+    const login = await authApi.login('demo', 'password123')
+    if ('require_2fa' in login) throw new Error('Unexpected 2FA challenge')
+    writeDemoUser(login.user)
 
     const page = await api.get<PageResult<TokenSummary>>('/api/token/', {
       page: 1,

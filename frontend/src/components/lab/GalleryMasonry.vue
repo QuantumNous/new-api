@@ -54,7 +54,8 @@ const safeTiles = computed(() =>
     <figure
       v-for="tile in safeTiles"
       :key="tile.id"
-      class="pencil-surface group relative mb-4 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
+      tabindex="0"
+      class="pencil-surface group relative mb-4 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)] focus-ring"
       data-handdrawn="surface-clipped"
     >
       <img
@@ -73,7 +74,7 @@ const safeTiles = computed(() =>
 
       <!-- hover overlay -->
       <figcaption
-        class="pointer-events-none absolute inset-x-0 bottom-0 translate-y-2 bg-gradient-to-t from-[var(--drawer-backdrop)] to-transparent p-3 pt-8 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100"
+        class="gallery-caption pointer-events-none absolute inset-x-0 bottom-0 translate-y-2 bg-gradient-to-t from-[var(--drawer-backdrop)] to-transparent p-3 pt-8 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
       >
         <p class="truncate text-sm font-semibold text-[var(--on-colored)]">
           {{ tile.caption }}
@@ -114,5 +115,11 @@ const safeTiles = computed(() =>
 }
 .gallery-cols > * {
   break-inside: avoid;
+}
+@media (hover: none), (pointer: coarse) {
+  .gallery-caption {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 </style>

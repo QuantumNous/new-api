@@ -1,5 +1,6 @@
 import { ApiError } from './types'
 import type { ApiTransport, RequestOptions } from './transport'
+import { AuthSessionInvalidatedError } from './authSession'
 
 export interface ApiClient {
   get<T>(
@@ -24,23 +25,37 @@ export interface ApiClient {
   ): Promise<T>
 }
 
-let unauthorizedHandler: (() => void) | null = null
-
-export function setUnauthorizedHandler(handler: (() => void) | null): void {
-  unauthorizedHandler = handler
+export interface ApiClientOptions {
+  onUnauthorized?: () => void
+  getRequestScope?: () => number
 }
 
-export function createApiClient(transport: ApiTransport): ApiClient {
+export function createApiClient(
+  transport: ApiTransport,
+  clientOptions: ApiClientOptions = {}
+): ApiClient {
   const inflightGet = new Map<string, Promise<unknown>>()
+
+  function isRequestScopeCurrent(requestScope: number | undefined): boolean {
+    return (
+      requestScope === undefined ||
+      clientOptions.getRequestScope?.() === requestScope
+    )
+  }
+
+  function isCurrentSessionInvalidation(error: unknown): boolean {
+    return error instanceof AuthSessionInvalidatedError
+  }
 
   async function request<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     url: string,
     options: RequestOptions = {}
   ): Promise<T> {
+    const requestScope = clientOptions.getRequestScope?.()
     const dedupKey =
       method === 'GET' && !options.signal
-        ? `${url}::${JSON.stringify(options.params ?? {})}`
+        ? `${requestScope ?? 'global'}::${url}::${JSON.stringify(options.params ?? {})}`
         : null
     if (dedupKey && inflightGet.has(dedupKey)) {
       return inflightGet.get(dedupKey) as Promise<T>
@@ -49,6 +64,12 @@ export function createApiClient(transport: ApiTransport): ApiClient {
     const execution = transport
       .request<T>(method, url, options)
       .then((envelope) => {
+        if (!isRequestScopeCurrent(requestScope)) {
+          throw new ApiError(
+            'Authentication session changed while the request was pending',
+            { status: 409, code: 'AUTH_SESSION_CHANGED' }
+          )
+        }
         if (!envelope.success) {
           throw new ApiError(envelope.message || 'Request failed', {
             status: 200,
@@ -58,8 +79,17 @@ export function createApiClient(transport: ApiTransport): ApiClient {
         return envelope.data
       })
       .catch((error: unknown) => {
+        if (
+          !isRequestScopeCurrent(requestScope) &&
+          !isCurrentSessionInvalidation(error)
+        ) {
+          throw new ApiError(
+            'Authentication session changed while the request was pending',
+            { status: 409, code: 'AUTH_SESSION_CHANGED', cause: error }
+          )
+        }
         if (error instanceof ApiError && error.status === 401) {
-          unauthorizedHandler?.()
+          clientOptions.onUnauthorized?.()
         }
         throw error
       })

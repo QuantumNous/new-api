@@ -9,12 +9,19 @@ export interface ConsoleNavItem {
   route?: string
   icon: string
   disabled?: boolean
+  permission?: { resource: string; action: string }
 }
 
 export interface ConsoleNavGroup {
   key: string
   labelKey: string
+  access?: 'admin'
   items: ConsoleNavItem[]
+}
+
+export interface ConsoleNavAccessContext {
+  isAdmin: boolean
+  hasPermission?: (resource: string, action: string) => boolean
 }
 
 export const consoleNavGroups: ConsoleNavGroup[] = [
@@ -93,11 +100,13 @@ export const consoleNavGroups: ConsoleNavGroup[] = [
   {
     key: 'admin',
     labelKey: 'nav.groupAdmin',
+    access: 'admin',
     items: [
       {
         name: 'channel-management',
         labelKey: 'nav.channelManagement',
         route: 'channels',
+        permission: { resource: 'channel', action: 'read' },
         icon: 'M4 6h16M4 12h16M4 18h16M7 3v6M17 9v6M10 15v6',
       },
       {
@@ -138,12 +147,45 @@ export const consoleNavTools: ConsoleNavItem[] = [
   },
 ]
 
-/** Route names that belong to the console section (sidebar handles nav here). */
-export const consoleRouteNames: Set<string> = new Set(
-  [...consoleNavGroups.flatMap((g) => g.items), ...consoleNavTools].flatMap(
-    (i) => (i.route ? [i.route] : [])
+function canAccessConsoleNavGroup(
+  group: ConsoleNavGroup,
+  context: ConsoleNavAccessContext
+): boolean {
+  return group.access !== 'admin' || context.isAdmin
+}
+
+export function getAccessibleConsoleNavGroups(
+  context: ConsoleNavAccessContext
+): ConsoleNavGroup[] {
+  return consoleNavGroups.flatMap((group) => {
+    if (!canAccessConsoleNavGroup(group, context)) return []
+    const items = group.items.filter(
+      (item) =>
+        !item.permission ||
+        context.hasPermission?.(
+          item.permission.resource,
+          item.permission.action
+        ) === true
+    )
+    return items.length > 0 ? [{ ...group, items }] : []
+  })
+}
+
+/** Route metadata and visible navigation derive from the same access rule. */
+export function getConsoleRouteAccessMeta(routeName: string): {
+  requiresAdmin?: true
+  requiresPermission?: { resource: string; action: string }
+} {
+  const group = consoleNavGroups.find((candidate) =>
+    candidate.items.some((item) => item.route === routeName)
   )
-)
+  if (group?.access !== 'admin') return {}
+  const item = group.items.find((candidate) => candidate.route === routeName)
+  return {
+    requiresAdmin: true,
+    ...(item?.permission ? { requiresPermission: item.permission } : {}),
+  }
+}
 
 /** Landing route when the topbar "控制台" button is clicked. */
 export const consoleEntryRoute = 'keys'

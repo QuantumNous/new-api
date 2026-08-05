@@ -1,5 +1,5 @@
 import { createApiClient } from './createClient'
-import { httpTransport } from './httpTransport'
+import { publicHttpTransport } from './httpTransport'
 import { publicApiMode } from './mode'
 import { mockTransport } from './mock/transport'
 import { ApiError } from './types'
@@ -17,7 +17,7 @@ export interface PublicStatus {
 }
 
 export interface PricingModel {
-  id: number
+  model_name: string
 }
 
 export interface UptimeMonitor {
@@ -30,7 +30,7 @@ export interface UptimeGroup {
 }
 
 const publicClient = createApiClient(
-  publicApiMode === 'mock' ? mockTransport : httpTransport
+  publicApiMode === 'mock' ? mockTransport : publicHttpTransport
 )
 
 function invalidResponse(endpoint: string): never {
@@ -76,12 +76,17 @@ export function parsePublicStatus(value: unknown): PublicStatus {
 export function parsePricingModels(value: unknown): PricingModel[] {
   if (!Array.isArray(value)) invalidResponse('/api/pricing')
   if (
-    value.some((item) => !isRecord(item) || !Number.isFinite(Number(item.id)))
+    value.some(
+      (item) =>
+        !isRecord(item) ||
+        typeof item.model_name !== 'string' ||
+        item.model_name.length === 0
+    )
   ) {
     invalidResponse('/api/pricing')
   }
   return value.map((item) => ({
-    id: Number((item as Record<string, unknown>).id),
+    model_name: String((item as Record<string, unknown>).model_name),
   }))
 }
 

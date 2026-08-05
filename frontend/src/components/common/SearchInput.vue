@@ -52,7 +52,7 @@ const inputAttrs = computed(() => {
       type="search"
       :placeholder="placeholder"
       v-bind="inputAttrs"
-      class="h-10 w-full border-0 border-b-[1.5px] bg-transparent pl-10 pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-[border-color,background-color] focus:outline-none focus:border-[var(--accent)] hover:bg-[var(--state-hover-layer)]"
+      class="h-11 w-full border-0 border-b-[1.5px] bg-transparent pl-10 pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-[border-color,background-color] focus:outline-none focus:border-[var(--accent)] hover:bg-[var(--state-hover-layer)] sm:h-10"
       style="border-color: var(--border-default)"
     />
   </div>

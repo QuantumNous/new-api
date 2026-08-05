@@ -33,8 +33,15 @@ const props = withDefaults(
     subtitle?: string
     ariaLabel?: string
     size?: 'sm' | 'md' | 'lg'
+    closeDisabled?: boolean
   }>(),
-  { title: '', subtitle: '', ariaLabel: '', size: 'md' }
+  {
+    title: '',
+    subtitle: '',
+    ariaLabel: '',
+    size: 'md',
+    closeDisabled: false,
+  }
 )
 
 const emit = defineEmits<{
@@ -64,7 +71,7 @@ function onKeydown(e: KeyboardEvent) {
   if (!props.open || !isTopmostDialog()) return
   if (e.key === 'Escape') {
     e.preventDefault()
-    emit('close')
+    requestClose()
     return
   }
   if (e.key === 'Tab') {
@@ -86,6 +93,10 @@ function onKeydown(e: KeyboardEvent) {
       first.focus()
     }
   }
+}
+
+function requestClose(): void {
+  if (!props.closeDisabled) emit('close')
 }
 
 function isTopmostDialog(): boolean {
@@ -155,7 +166,7 @@ onBeforeUnmount(() => {
         <div
           class="absolute inset-0 backdrop-blur-[2px]"
           :style="{ background: 'var(--drawer-backdrop)' }"
-          @click="emit('close')"
+          @click="requestClose"
         />
         <div
           ref="panel"

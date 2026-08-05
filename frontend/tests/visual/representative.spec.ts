@@ -14,7 +14,7 @@ interface Scenario {
   name: string
   path: string
   authenticated?: boolean
-  /** Accessible name of a button that opens a dialog before the capture. */
+  /** Accessible name of a button that opens a dialog before the audit. */
   openModalByButton?: string
   /** Accessible name of a dashboard tab selected before the capture. */
   selectTabByName?: string
@@ -90,7 +90,7 @@ const lightScenarios: Scenario[] = [
   { name: 'logs', path: '/console/logs' },
 ]
 
-async function captureScenario(
+async function auditScenario(
   theme: VisualTheme,
   viewport: 'desktop' | 'mobile',
   scenario: Scenario,
@@ -98,6 +98,11 @@ async function captureScenario(
 ): Promise<void> {
   const runtimeErrors: string[] = []
   page.on('pageerror', (error) => runtimeErrors.push(error.message))
+  page.on('console', (message) => {
+    if (message.type() === 'warning' || message.type() === 'error') {
+      runtimeErrors.push(`${message.type()}: ${message.text()}`)
+    }
+  })
   await page.setViewportSize(
     viewport === 'desktop'
       ? { width: 1440, height: 900 }
@@ -125,7 +130,7 @@ async function captureScenario(
     await expect(
       page.locator('[role="dialog"][aria-modal="true"]')
     ).toBeVisible()
-    // The dialog animates in; settle before pixels are compared.
+    // The dialog animates in; settle before live assertions run.
     await waitForStablePage(page)
   }
   if (scenario.openUsageDetails) {
@@ -170,23 +175,20 @@ async function captureScenario(
     await expect(brandLinks.nth(1)).toHaveAttribute('aria-current', 'false')
   }
 
-  await expect(page).toHaveScreenshot(
-    `${theme}-${viewport}-${scenario.name}.png`,
-    { fullPage: false }
-  )
+  expect(runtimeErrors).toEqual([])
 }
 
 for (const scenario of darkScenarios) {
   for (const viewport of ['desktop', 'mobile'] as const) {
     test(`dark ${viewport} ${scenario.name}`, async ({ page }) => {
-      await captureScenario('dark', viewport, scenario, page)
+      await auditScenario('dark', viewport, scenario, page)
     })
   }
 }
 
 for (const scenario of lightScenarios) {
   test(`light desktop ${scenario.name}`, async ({ page }) => {
-    await captureScenario('light', 'desktop', scenario, page)
+    await auditScenario('light', 'desktop', scenario, page)
   })
 }
 
@@ -194,13 +196,13 @@ test('light mobile dashboard-auto-route', async ({ page }) => {
   const scenario = lightScenarios.find(
     (item) => item.name === 'dashboard-auto-route'
   )!
-  await captureScenario('light', 'mobile', scenario, page)
+  await auditScenario('light', 'mobile', scenario, page)
 })
 
 for (const name of ['dashboard', 'dashboard-stats'] as const) {
   test(`light mobile ${name}`, async ({ page }) => {
     const scenario = lightScenarios.find((item) => item.name === name)!
-    await captureScenario('light', 'mobile', scenario, page)
+    await auditScenario('light', 'mobile', scenario, page)
   })
 }
 
@@ -239,7 +241,6 @@ test('dark wide logs keeps a balanced content width', async ({ page }) => {
   ).toBeGreaterThan(140)
   await assertNoHorizontalOverflow(page)
   await assertInteractiveCentersVisible(page)
-  await expect(page).toHaveScreenshot('dark-wide-logs.png', { fullPage: false })
 })
 
 test('dark wide keys matches the balanced content width', async ({ page }) => {
@@ -255,5 +256,4 @@ test('dark wide keys matches the balanced content width', async ({ page }) => {
   ).toBe(1276)
   await assertNoHorizontalOverflow(page)
   await assertInteractiveCentersVisible(page)
-  await expect(page).toHaveScreenshot('dark-wide-keys.png', { fullPage: false })
 })

@@ -6,28 +6,34 @@ import { useRouter } from 'vue-router'
 import ConsoleModal from '@/components/common/ConsoleModal.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import {
-  consoleNavGroups,
   consoleNavTools,
+  getAccessibleConsoleNavGroups,
 } from '@/constants/navigation/consoleNav'
-
-// Derived from the sidebar's single source of truth so the palette can never
-// drift from the real navigation (routes, labels and icons stay in sync).
-const entries = [
-  ...consoleNavGroups.flatMap((g) => g.items),
-  ...consoleNavTools,
-]
-  .filter((item) => item.route && !item.disabled)
-  .map((item) => ({
-    route: item.route as string,
-    labelKey: item.labelKey,
-    icon: item.icon,
-  }))
+import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
 const router = useRouter()
+const auth = useAuthStore()
+
+// Routes, labels, icons and access rules stay aligned with the sidebar.
+const entries = computed(() =>
+  [
+    ...getAccessibleConsoleNavGroups({
+      isAdmin: auth.isAdmin,
+      hasPermission: auth.hasPermission,
+    }).flatMap((group) => group.items),
+    ...consoleNavTools,
+  ]
+    .filter((item) => item.route && !item.disabled)
+    .map((item) => ({
+      route: item.route as string,
+      labelKey: item.labelKey,
+      icon: item.icon,
+    }))
+)
 
 const query = ref('')
 const activeIndex = ref(0)
@@ -37,8 +43,10 @@ const listboxId = useId()
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
-  if (!q) return entries
-  return entries.filter((e) => t(e.labelKey).toLowerCase().includes(q))
+  if (!q) return entries.value
+  return entries.value.filter((entry) =>
+    t(entry.labelKey).toLowerCase().includes(q)
+  )
 })
 
 const activeOptionId = computed(() =>

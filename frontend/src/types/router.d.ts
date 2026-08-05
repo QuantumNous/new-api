@@ -7,8 +7,10 @@ declare module 'vue-router' {
     requiresAuth?: boolean
     requiresAdmin?: boolean
     requiresRoot?: boolean
+    requiresPermission?: { resource: string; action: string }
     noPageScroll?: boolean
     wide?: boolean
     nav?: string
+    topNav?: 'activities' | 'dashboard' | 'console' | 'alchemy'
   }
 }

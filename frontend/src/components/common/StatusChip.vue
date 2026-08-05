@@ -23,7 +23,7 @@ const style = computed(() => {
     case 'accent':
       return 'background:var(--accent-soft);color:var(--accent-text);border-left:var(--chip-bar-width) solid var(--accent)'
     default:
-      return 'background:var(--surface-muted);color:var(--text-tertiary);border-left:var(--chip-bar-width) solid var(--border-default)'
+      return 'background:var(--surface-muted);color:var(--text-secondary);border-left:var(--chip-bar-width) solid var(--border-default)'
   }
 })
 </script>

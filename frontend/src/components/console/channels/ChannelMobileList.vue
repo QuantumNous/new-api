@@ -53,6 +53,9 @@ defineProps<{
   batchProgress: ChannelBatchProgress | null
   canRunBatch: boolean
   canMutate: boolean
+  canOperate: boolean
+  canWrite: boolean
+  canSensitiveWrite: boolean
   runSupplierBatch: (
     action: ChannelBatchAction,
     supplier: string,
@@ -79,6 +82,7 @@ const { t, locale } = useI18n()
 <template>
   <div>
     <label
+      v-if="canOperate || canSensitiveWrite"
       class="flex items-center gap-2 border-b border-[var(--border-subtle)] px-4 py-2 text-xs text-[var(--text-secondary)]"
     >
       <input
@@ -140,8 +144,12 @@ const { t, locale } = useI18n()
               </span>
             </span>
           </button>
-          <div class="flex shrink-0 items-center gap-0.5">
+          <div
+            v-if="canOperate || canSensitiveWrite"
+            class="flex shrink-0 items-center gap-0.5"
+          >
             <IconButton
+              v-if="canOperate"
               :label="t('channels.syncSupplier', { supplier: group.supplier })"
               :disabled="!canRunBatch"
               class="h-7 w-7"
@@ -161,6 +169,7 @@ const { t, locale } = useI18n()
               <RefreshCw v-else :size="14" />
             </IconButton>
             <IconButton
+              v-if="canOperate"
               :label="t('channels.testSupplier', { supplier: group.supplier })"
               :disabled="!canRunBatch"
               class="h-7 w-7"
@@ -178,6 +187,7 @@ const { t, locale } = useI18n()
               <Activity v-else :size="14" />
             </IconButton>
             <IconButton
+              v-if="canSensitiveWrite"
               :label="t('channels.clearSupplier', { supplier: group.supplier })"
               tone="danger"
               :disabled="!canMutate"
@@ -205,6 +215,7 @@ const { t, locale } = useI18n()
             <header class="flex min-w-0 items-start justify-between gap-3">
               <div class="flex min-w-0 items-start gap-2.5">
                 <input
+                  v-if="canOperate || canSensitiveWrite"
                   type="checkbox"
                   class="checkbox-round mt-2 shrink-0"
                   :checked="selectedIds.includes(channel.id)"
@@ -267,6 +278,7 @@ const { t, locale } = useI18n()
                 </dt>
                 <dd class="mt-1.5">
                   <ChannelInlineNumber
+                    v-if="canWrite"
                     :value="channel.priority"
                     :label="t('channels.priorityFor', { name: channel.name })"
                     :busy="isRowBusy(channel.id)"
@@ -274,6 +286,9 @@ const { t, locale } = useI18n()
                       (value) => updateNumber(channel, 'priority', value)
                     "
                   />
+                  <span v-else class="tabular-nums text-[var(--text-primary)]">
+                    {{ channel.priority }}
+                  </span>
                 </dd>
               </div>
               <div v-if="visibleFields.includes('weight')" class="min-w-0">
@@ -282,11 +297,15 @@ const { t, locale } = useI18n()
                 </dt>
                 <dd class="mt-1.5">
                   <ChannelInlineNumber
+                    v-if="canWrite"
                     :value="channel.weight"
                     :label="t('channels.weightFor', { name: channel.name })"
                     :busy="isRowBusy(channel.id)"
                     :commit="(value) => updateNumber(channel, 'weight', value)"
                   />
+                  <span v-else class="tabular-nums text-[var(--text-primary)]">
+                    {{ channel.weight }}
+                  </span>
                 </dd>
               </div>
               <div
@@ -342,7 +361,9 @@ const { t, locale } = useI18n()
                     </p>
                   </div>
                   <IconButton
-                    v-if="visibleFields.includes('rowUpstreamAction')"
+                    v-if="
+                      canOperate && visibleFields.includes('rowUpstreamAction')
+                    "
                     :label="t('channels.refreshBalance')"
                     :disabled="isRowBusy(channel.id)"
                     class="h-7 w-7 shrink-0"
@@ -380,7 +401,9 @@ const { t, locale } = useI18n()
                     }}
                   </StatusChip>
                   <IconButton
-                    v-if="visibleFields.includes('rowResponseAction')"
+                    v-if="
+                      canOperate && visibleFields.includes('rowResponseAction')
+                    "
                     :label="t('channels.testChannel')"
                     :disabled="isRowBusy(channel.id)"
                     class="h-7 w-7 shrink-0"
@@ -398,9 +421,11 @@ const { t, locale } = useI18n()
             </dl>
 
             <footer
+              v-if="canOperate || canWrite || canSensitiveWrite"
               class="mt-4 flex items-center justify-end gap-1 border-t border-[var(--border-subtle)] pt-3"
             >
               <IconButton
+                v-if="canWrite"
                 :label="t('channels.editChannel')"
                 :disabled="isRowBusy(channel.id)"
                 @click="editChannel(channel)"
@@ -408,6 +433,7 @@ const { t, locale } = useI18n()
                 <Pencil :size="16" />
               </IconButton>
               <IconButton
+                v-if="canOperate"
                 :label="
                   channel.status === 1
                     ? t('channels.disableChannel')
@@ -426,6 +452,7 @@ const { t, locale } = useI18n()
                 <Power v-else :size="16" />
               </IconButton>
               <IconButton
+                v-if="canSensitiveWrite"
                 :label="t('channels.deleteChannel')"
                 tone="danger"
                 :disabled="isRowBusy(channel.id)"

@@ -30,7 +30,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden" data-handdrawn-scope="console">
+  <div
+    class="flex h-screen h-dvh overflow-hidden"
+    data-handdrawn-scope="console"
+  >
     <ConsoleSidebar />
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
       <ConsoleTopbar data-console-scroll-boundary />

@@ -172,7 +172,12 @@ function highlight(rowIndex: number, on: boolean) {
         Every model is listed, so the body scrolls instead of the card growing
         without bound. The header stays put so the columns remain readable.
       -->
-      <div class="subtle-scroll max-h-64 overflow-y-auto overflow-x-auto pr-2">
+      <div
+        class="subtle-scroll max-h-64 overflow-y-auto overflow-x-auto pr-2"
+        role="region"
+        tabindex="0"
+        :aria-label="t('dashboard.modelDist.title')"
+      >
         <table class="w-full min-w-[420px] border-collapse text-sm">
           <!--
             Sticky lives on the cells, not on thead: with border-collapse the

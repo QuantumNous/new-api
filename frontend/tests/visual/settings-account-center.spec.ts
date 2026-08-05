@@ -16,9 +16,7 @@ const scenarios = [
 
 for (const theme of ['light', 'dark'] as VisualTheme[]) {
   for (const viewport of scenarios) {
-    test(`${theme} ${viewport.name} account settings`, async ({
-      page,
-    }, testInfo) => {
+    test(`${theme} ${viewport.name} account settings`, async ({ page }) => {
       await page.setViewportSize(viewport)
       await configureStablePage(page, { theme, authenticated: true })
 
@@ -53,29 +51,12 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
         expect(panels[1]!.y).toBeGreaterThan(panels[0]!.y + 600)
       }
 
-      const settingsPath = testInfo.outputPath(
-        `${theme}-${viewport.name}-settings.png`
-      )
-      await page.screenshot({ fullPage: true, path: settingsPath })
-      await testInfo.attach(`${theme}-${viewport.name}-settings`, {
-        path: settingsPath,
-        contentType: 'image/png',
-      })
-
       const scrollZone = page.locator('.scroll-zone')
       await scrollZone.evaluate((element) =>
         element.scrollTo({ top: element.scrollHeight, behavior: 'instant' })
       )
       await page.waitForTimeout(100)
       await assertInteractiveCentersVisible(page)
-      const settingsBottomPath = testInfo.outputPath(
-        `${theme}-${viewport.name}-settings-bottom.png`
-      )
-      await page.screenshot({ path: settingsBottomPath })
-      await testInfo.attach(`${theme}-${viewport.name}-settings-bottom`, {
-        path: settingsBottomPath,
-        contentType: 'image/png',
-      })
 
       await page.goto('/console/profile', { waitUntil: 'domcontentloaded' })
       await waitForStablePage(page)
@@ -88,6 +69,17 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
           .getByText('会员中心', { exact: true })
       ).toBeVisible()
       await expect(page.locator('[data-title-side="right"]')).toHaveCount(1)
+      const userMenuTrigger = page.getByRole('button', {
+        name: '个人中心',
+        exact: true,
+      })
+      await expect(userMenuTrigger).toHaveAttribute('aria-expanded', 'false')
+      await userMenuTrigger.click()
+      await expect(userMenuTrigger).toHaveAttribute('aria-expanded', 'true')
+      await expect(page.locator('[data-user-menu-item]')).toHaveCount(5)
+      await page.keyboard.press('Escape')
+      await expect(userMenuTrigger).toHaveAttribute('aria-expanded', 'false')
+      await expect(page.locator('[data-user-menu-item]')).toHaveCount(0)
       await expect(
         page.getByRole('button', { name: '个人中心', exact: true })
       ).toBeVisible()
@@ -109,14 +101,6 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
       ).toHaveCount(0)
       await assertNoHorizontalOverflow(page)
       await assertInteractiveCentersVisible(page)
-      const profilePath = testInfo.outputPath(
-        `${theme}-${viewport.name}-profile.png`
-      )
-      await page.screenshot({ fullPage: true, path: profilePath })
-      await testInfo.attach(`${theme}-${viewport.name}-profile`, {
-        path: profilePath,
-        contentType: 'image/png',
-      })
 
       await page
         .getByRole('heading', { name: '登录与账户', exact: true })
@@ -124,14 +108,6 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
       await page.waitForTimeout(100)
       await assertNoHorizontalOverflow(page)
       await assertInteractiveCentersVisible(page)
-      const profileSettingsPath = testInfo.outputPath(
-        `${theme}-${viewport.name}-profile-settings.png`
-      )
-      await page.screenshot({ path: profileSettingsPath })
-      await testInfo.attach(`${theme}-${viewport.name}-profile-settings`, {
-        path: profileSettingsPath,
-        contentType: 'image/png',
-      })
     })
   }
 }

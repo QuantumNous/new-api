@@ -5,6 +5,7 @@ import { writeDemoUser } from '@/api/demoStorage'
 import { adminChannels, mockUser } from '@/api/mock/data'
 import { resetMockState, setMockDelay } from '@/api/mock/state'
 import type { AdminChannel, AdminChannelPage } from '@/types/console'
+import type { ChannelRoutingMetrics } from '@/utils/routeScore'
 
 beforeEach(() => {
   resetMockState()
@@ -166,6 +167,24 @@ describe('administrator channel mock API', () => {
     const tested = await api.get<AdminChannel>(`/api/channel/test/${target.id}`)
     expect(tested.response_time).toBeGreaterThan(0)
     expect(tested.test_time).toBeGreaterThan(0)
+  })
+
+  it('derives routing rows from the current channel state after mutations and reset', async () => {
+    const target = adminChannels[0]!
+    const originalPriority = target.priority
+
+    await api.put('/api/channel/', { id: target.id, priority: 97 })
+    const mutated = await api.get<ChannelRoutingMetrics[]>('/api/data/route')
+    expect(mutated.find((channel) => channel.id === target.id)?.priority).toBe(
+      97
+    )
+
+    resetMockState()
+    writeDemoUser(mockUser)
+    const restored = await api.get<ChannelRoutingMetrics[]>('/api/data/route')
+    expect(restored.find((channel) => channel.id === target.id)?.priority).toBe(
+      originalPriority
+    )
   })
 
   it('batch updates status and reports only changed channels', async () => {

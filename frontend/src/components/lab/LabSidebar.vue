@@ -79,7 +79,7 @@ function newChat() {
 
 <template>
   <aside
-    class="sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-[var(--border-subtle)] bg-[var(--surface-solid)] transition-[width] duration-[250ms] lg:flex"
+    class="sticky top-0 hidden h-full shrink-0 flex-col overflow-hidden border-r border-[var(--border-subtle)] bg-[var(--surface-solid)] transition-[width] duration-[250ms] lg:flex"
     :style="{ width: collapsed ? '64px' : '264px' }"
     data-handdrawn="navigation"
   >

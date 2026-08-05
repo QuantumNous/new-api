@@ -9,8 +9,6 @@ import { formatQuota } from '@/utils/format'
 const props = defineProps<{
   activity: Extract<Activity, { kind: 'checkin' }>
   claiming: boolean
-  /** compact mode: hides the 7-day cycle bars, used in ProfileView */
-  compact?: boolean
 }>()
 
 const emit = defineEmits<{ checkin: [id: number] }>()
@@ -201,11 +199,7 @@ const weekLabel = computed(() => {
             v-for="entry in activity.checkin.week_entries"
             :key="entry.date"
             class="flex items-center gap-3 rounded-lg px-2 py-1 text-xs transition-colors"
-            :class="{
-              'bg-[var(--accent-soft)]': entry.today,
-              'opacity-40':
-                !entry.claimed && !entry.today && entry.reward === 0,
-            }"
+            :class="{ 'bg-[var(--accent-soft)]': entry.today }"
           >
             <span
               class="w-7 font-mono font-medium"

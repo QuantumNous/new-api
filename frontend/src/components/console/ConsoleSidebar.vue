@@ -4,15 +4,24 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute } from 'vue-router'
 
 import {
-  consoleNavGroups,
   consoleNavTools,
+  getAccessibleConsoleNavGroups,
 } from '@/constants/navigation/consoleNav'
 import { useSidebarCollapsed } from '@/composables/useSidebarCollapsed'
 import { useAppStore } from '@/stores'
+import { useAuthStore } from '@/stores/auth'
 
 const { t } = useI18n()
 const route = useRoute()
 const app = useAppStore()
+const auth = useAuthStore()
+
+const visibleNavGroups = computed(() =>
+  getAccessibleConsoleNavGroups({
+    isAdmin: auth.isAdmin,
+    hasPermission: auth.hasPermission,
+  })
+)
 
 const collapsed = useSidebarCollapsed()
 
@@ -35,7 +44,7 @@ watch(
 const activeName = computed(() => {
   const matches = (routeName: string) =>
     routeName === route.name || routeName === route.meta.nav
-  for (const group of consoleNavGroups) {
+  for (const group of visibleNavGroups.value) {
     for (const item of group.items) {
       if (item.route && matches(item.route)) return item.name
     }
@@ -55,7 +64,7 @@ defineExpose({ collapsed })
 
 <template>
   <aside
-    class="sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper transition-[width] duration-[250ms] lg:flex"
+    class="sticky top-0 hidden h-full shrink-0 flex-col overflow-hidden border-r border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper transition-[width] duration-[250ms] lg:flex"
     :style="{ width: collapsed ? '64px' : '220px' }"
     data-handdrawn="navigation"
   >
@@ -88,7 +97,7 @@ defineExpose({ collapsed })
     >
       <!-- nav groups -->
       <div
-        v-for="group in consoleNavGroups"
+        v-for="group in visibleNavGroups"
         :key="group.key"
         :class="['px-3', { 'mb-5': !collapsed }]"
       >

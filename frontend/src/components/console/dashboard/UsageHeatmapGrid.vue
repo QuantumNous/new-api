@@ -134,12 +134,18 @@ function cellStyle(cell: UsageHeatmapCell): CSSProperties {
     return {
       background: 'var(--surface-muted)',
       borderColor: 'var(--border-subtle)',
+      color: 'var(--heatmap-soft-foreground)',
     }
   }
   const amount = [0, 20, 34, 50, 68, 88][cell.level]
+  const useStrongForeground =
+    props.metric === 'requests' ? cell.level >= 5 : cell.level >= 3
   return {
     background: `color-mix(in srgb, ${props.metricColor} ${amount}%, var(--surface-solid))`,
     borderColor: `color-mix(in srgb, ${props.metricColor} ${Math.min(96, amount + 8)}%, var(--border-subtle))`,
+    color: useStrongForeground
+      ? 'var(--heatmap-strong-foreground)'
+      : 'var(--heatmap-soft-foreground)',
   }
 }
 
@@ -277,7 +283,7 @@ onMounted(() => void alignLatest())
         <div
           class="usage-month-grid"
           :style="{ '--usage-calendar-rows': calendarRows } as CSSProperties"
-          role="grid"
+          role="group"
           :aria-label="
             t('dashboard.distribution.gridLabel', {
               period: periodLabel,
@@ -298,7 +304,6 @@ onMounted(() => void alignLatest())
             "
             :data-usage-date="cell.date"
             :data-usage-level="cell.level"
-            role="gridcell"
             @focus="onCellFocus($event, cell)"
             @blur="hideTooltip(cell.date)"
             @mouseenter="showTooltip($event, cell)"
@@ -377,7 +382,6 @@ onMounted(() => void alignLatest())
               "
               :data-usage-date="cell.date"
               :data-usage-level="cell.level"
-              role="gridcell"
               @focus="onCellFocus($event, cell)"
               @blur="hideTooltip(cell.date)"
               @mouseenter="showTooltip($event, cell)"
@@ -446,7 +450,6 @@ onMounted(() => void alignLatest())
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 9px;
   line-height: 1;
-  color: var(--text-primary);
   transition:
     transform 120ms ease,
     border-color 120ms ease,

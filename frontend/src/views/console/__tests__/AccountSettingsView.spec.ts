@@ -25,7 +25,7 @@ async function mountView() {
     username: 'demo-user',
     display_name: 'Demo User',
     email: 'demo@example.com',
-    role: 10,
+    role: 1,
     quota: 500_000,
     used_quota: 100_000,
   })

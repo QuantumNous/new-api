@@ -65,7 +65,7 @@ const summaryLabel = computed(() => {
       "
       :style="{ background: stateColor[check.state] }"
       :title="checkLabel(check)"
-      :aria-label="checkLabel(check)"
+      aria-hidden="true"
       data-route-health-cell
     />
   </div>

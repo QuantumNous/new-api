@@ -16,7 +16,7 @@
          typedLine 的 clientWidth 随当前词变化 → 逐词缩放基准跟着内容漂移。
          w-full 后测量基准 = HeroContent 容器宽（与内容无关），缩放只随视口变化。 -->
     <h1
-      class="hero-title mt-3 w-full text-[clamp(1.85rem,9vw,2.5rem)] font-extrabold leading-[1.08] tracking-tight text-[var(--text-primary)] [@media(max-height:700px)_and_(max-width:1023px)]:text-[clamp(1.55rem,7vw,1.9rem)] sm:mt-4 sm:text-5xl sm:leading-[1.15] lg:text-[3.4rem]"
+      class="hero-title mt-3 w-full text-[2.5rem] font-extrabold leading-[1.08] tracking-normal text-[var(--text-primary)] [@media(max-height:700px)_and_(max-width:1023px)]:text-[1.9rem] sm:mt-4 sm:text-5xl sm:leading-[1.15] lg:text-[3.4rem]"
     >
       <span
         class="animate-rise-in whitespace-nowrap"

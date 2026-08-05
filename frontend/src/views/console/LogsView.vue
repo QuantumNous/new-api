@@ -449,7 +449,12 @@ onBeforeUnmount(() => {
 
     <!-- stat strip -->
     <ConsoleCard class="mb-5" :padded="false">
-      <div class="flex divide-x divide-[var(--border-subtle)] overflow-x-auto">
+      <div
+        class="flex divide-x divide-[var(--border-subtle)] overflow-x-auto"
+        role="region"
+        tabindex="0"
+        :aria-label="t('logs.breadcrumb.1')"
+      >
         <div
           v-for="card in [
             {

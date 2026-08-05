@@ -74,6 +74,27 @@ describe('ConsoleModal', () => {
     trigger.remove()
   })
 
+  it('blocks Escape and backdrop dismissal while closing is disabled', async () => {
+    const wrapper = mount(ConsoleModal, {
+      attachTo: document.body,
+      props: { open: true, title: 'Saving', closeDisabled: true },
+    })
+    await nextTick()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    document.body
+      .querySelector<HTMLElement>('[role="dialog"] > .absolute.inset-0')
+      ?.click()
+    await nextTick()
+    expect(wrapper.emitted('close')).toBeUndefined()
+
+    await wrapper.setProps({ closeDisabled: false })
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await nextTick()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('keeps the body locked when stacked modals close out of order', async () => {
     document.body.style.overflow = ''
     const first = mount(ConsoleModal, {

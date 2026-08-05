@@ -1,7 +1,12 @@
 import { ApiError, type ApiResponse } from '../types'
 import type { HttpMethod, RequestOptions } from '../transport'
 import { readDemoUser, writeDemoUser } from '../demoStorage'
-import type { UserInfo } from '@/types/auth'
+import type {
+  AuthBundle,
+  AuthTokenRotation,
+  LoginSession,
+  UserInfo,
+} from '@/types/auth'
 import { BRAND_LOGO_PATH } from '@/constants/branding'
 import { MODELS, marketSources } from '@/constants/console'
 import {
@@ -253,6 +258,40 @@ function ok<T>(data: T, message = ''): ApiResponse<T> {
 
 function fail<T = never>(message: string): ApiResponse<T> {
   return { success: false, message, data: undefined as never }
+}
+
+function mockLoginSession(): LoginSession {
+  const now = Math.floor(Date.now() / 1000)
+  return {
+    sid: 'demo-session',
+    current: true,
+    login_method: 'password',
+    ip: '127.0.0.1',
+    user_agent: 'Ren2Hub mock transport',
+    created_at: now,
+    last_active_at: now,
+    expires_at: now + 86_400,
+  }
+}
+
+function mockAuthBundle(user: UserInfo): AuthBundle {
+  return {
+    access_token: 'demo-access-token',
+    token_type: 'Bearer',
+    access_expires_at: Math.floor(Date.now() / 1000) + 900,
+    session: mockLoginSession(),
+    user,
+  }
+}
+
+function mockAuthRotation(): AuthTokenRotation {
+  const bundle = mockAuthBundle(mockUser)
+  return {
+    access_token: bundle.access_token,
+    token_type: bundle.token_type,
+    access_expires_at: bundle.access_expires_at,
+    session: bundle.session,
+  }
 }
 
 function requireAuth(ctx: Ctx) {
@@ -957,7 +996,7 @@ export async function dispatchMock<T>(
     ) as ApiResponse<T>
   }
   if (path === '/api/pricing' && method === 'GET') {
-    return ok(MODELS.map((_, index) => ({ id: index + 1 }))) as ApiResponse<T>
+    return ok(MODELS.map((model_name) => ({ model_name }))) as ApiResponse<T>
   }
   if (path === '/api/uptime/status' && method === 'GET') {
     return ok([
@@ -979,7 +1018,16 @@ export async function dispatchMock<T>(
       return fail('用户名或密码错误') as ApiResponse<T>
     }
     const user = { ...mockUser, username, display_name: mockUser.display_name }
-    return ok({ user, message: '登录成功' }) as ApiResponse<T>
+    return ok(mockAuthBundle(user)) as ApiResponse<T>
+  }
+  if (path === '/api/user/login/2fa' && method === 'POST') {
+    if (
+      !String(body.flow_token ?? '').trim() ||
+      !String(body.code ?? '').trim()
+    ) {
+      return fail('两步验证信息不完整') as ApiResponse<T>
+    }
+    return ok(mockAuthBundle(mockUser)) as ApiResponse<T>
   }
   if (path === '/api/user/register' && method === 'POST') {
     const username = String(body.username ?? '').trim()
@@ -990,13 +1038,13 @@ export async function dispatchMock<T>(
     }
     return ok({ message: '注册成功，请查收验证邮件' }) as ApiResponse<T>
   }
-  if (path === '/api/user/reset' && method === 'POST') {
-    const email = String(body.email ?? '').trim()
+  if (path === '/api/reset_password' && method === 'GET') {
+    const email = String(params.email ?? '').trim()
     if (!/^\S+@\S+\.\S+$/.test(email))
       return fail('邮箱格式不正确') as ApiResponse<T>
     return ok({ message: '重置链接已发送至邮箱' }) as ApiResponse<T>
   }
-  if (path === '/api/user/logout' && method === 'POST') {
+  if (path === '/api/user/auth/logout' && method === 'POST') {
     requireAuth(ctx)
     return ok({ message: '已退出登录' }) as ApiResponse<T>
   }
@@ -1031,20 +1079,22 @@ export async function dispatchMock<T>(
       }
       next.email = email
     }
+    if (body.password !== undefined) {
+      if (
+        !String(body.original_password ?? '').trim() ||
+        String(body.password).length < 8
+      ) {
+        return fail('密码信息不完整') as ApiResponse<T>
+      }
+      return ok(mockAuthRotation()) as ApiResponse<T>
+    }
     writeDemoUser(next)
-    return ok({ user: next, message: '资料已更新' }) as ApiResponse<T>
+    return ok(undefined) as ApiResponse<T>
   }
   if (path === '/api/user/self' && method === 'DELETE') {
     // The client clears the demo session after a successful response.
     return ok({ message: '账户已删除' }) as ApiResponse<T>
   }
-  if (path === '/api/user/self/password' && method === 'PUT') {
-    if (String(body.new_password ?? '').length < 8) {
-      return fail('新密码至少 8 位') as ApiResponse<T>
-    }
-    return ok({ message: '密码已更新' }) as ApiResponse<T>
-  }
-
   /* ---------------- dashboard & logs ---------------- */
   if (path === '/api/data/self' && method === 'GET') {
     const stored = readDemoUser()!
@@ -1072,8 +1122,8 @@ export async function dispatchMock<T>(
     return ok(usageDistributionHistory) as ApiResponse<T>
   }
   if (path === '/api/data/route' && method === 'GET') {
-    const { routingChannels } = await import('./routing')
-    return ok(routingChannels) as ApiResponse<T>
+    const { buildRoutingChannels } = await import('./routing')
+    return ok(buildRoutingChannels(adminChannels)) as ApiResponse<T>
   }
   if (path === '/api/data/stats' && method === 'GET') {
     const { statsData, buildStatsRange } = await import('./statsData')

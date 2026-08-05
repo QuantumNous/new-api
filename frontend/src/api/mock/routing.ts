@@ -3,6 +3,7 @@
  * Derived from the same adminChannels seed so vendor names are consistent.
  */
 import { adminChannels } from './data'
+import type { AdminChannel } from '@/types/console'
 import {
   ROUTE_HEALTH_BUCKETS,
   ROUTE_HEALTH_BUCKET_SECONDS,
@@ -65,8 +66,10 @@ function deriveHealthChecks(
   }))
 }
 
-export const routingChannels: ChannelRoutingMetrics[] = adminChannels.map(
-  (ch) => {
+export function buildRoutingChannels(
+  channels: AdminChannel[] = adminChannels
+): ChannelRoutingMetrics[] {
+  return channels.map((ch) => {
     const status = ch.status as 1 | 2 | 3
     const health = deriveHealth(ch.response_time, status)
 
@@ -84,5 +87,5 @@ export const routingChannels: ChannelRoutingMetrics[] = adminChannels.map(
       status,
       healthChecks: deriveHealthChecks(ch.id, ch.response_time, status, health),
     }
-  }
-)
+  })
+}

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+defineOptions({ inheritAttrs: false })
+
 /**
  * Progress ring geometry, shared by the rate-limit gauge and the API
  * success-rate readout. Purely presentational: thresholds and any hover detail
@@ -14,8 +16,10 @@ const props = withDefaults(
     size?: number
     /** Dashed full ring instead of an arc — for "no ceiling" style states. */
     indeterminate?: boolean
+    /** Accessible name for a standalone ring; omit when decorative. */
+    ariaLabel?: string
   }>(),
-  { size: 44, indeterminate: false }
+  { size: 44, indeterminate: false, ariaLabel: undefined }
 )
 
 const stroke = computed(() => (props.size >= 40 ? 4 : 3))
@@ -30,7 +34,11 @@ const dashOffset = computed(
 </script>
 
 <template>
-  <span class="relative inline-flex shrink-0">
+  <span
+    class="relative inline-flex shrink-0"
+    :role="ariaLabel ? 'img' : undefined"
+    :aria-label="ariaLabel"
+  >
     <svg
       :width="size"
       :height="size"

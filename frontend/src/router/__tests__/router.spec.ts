@@ -56,6 +56,7 @@ describe('application router', () => {
       wide: true,
       noPageScroll: true,
       requiresAdmin: true,
+      requiresPermission: { resource: 'channel', action: 'read' },
     })
   })
 
@@ -67,6 +68,22 @@ describe('application router', () => {
       wide: true,
       noPageScroll: true,
     })
+  })
+
+  it('keeps nested and auxiliary pages in the correct top navigation group', async () => {
+    writeDemoUser(demoUser)
+
+    await router.push('/console/tickets/1')
+    expect(router.currentRoute.value.meta.topNav).toBe('console')
+
+    await router.push('/console/profile')
+    expect(router.currentRoute.value.meta.topNav).toBe('console')
+
+    await router.push('/console/farm')
+    expect(router.currentRoute.value.meta.topNav).toBe('activities')
+
+    await router.push('/lab/chat/1')
+    expect(router.currentRoute.value.meta.topNav).toBe('alchemy')
   })
 
   it('opens the administrator order ledger as a wide admin route', async () => {

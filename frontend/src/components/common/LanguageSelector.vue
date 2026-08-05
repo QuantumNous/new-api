@@ -6,7 +6,7 @@
       class="text-sm text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
       :class="
         variant === 'console'
-          ? 'flex items-center gap-1.5 rounded-full px-3.5 py-2 font-medium hover:bg-[var(--surface-muted)]'
+          ? 'flex h-11 w-11 items-center justify-center gap-1.5 rounded-full font-medium hover:bg-[var(--surface-muted)] sm:w-auto sm:px-3.5'
           : 'flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--surface-muted)] hover:border-[var(--border-strong)] md:h-auto md:w-auto md:gap-1.5 md:px-3 md:py-1.5'
       "
       :aria-expanded="open"
@@ -94,8 +94,8 @@
             :class="
               variant === 'console'
                 ? loc.code === current
-                  ? 'justify-between px-4 py-2 font-semibold text-[var(--accent-text)]'
-                  : 'justify-between px-4 py-2 text-[var(--text-primary)] hover:bg-[var(--surface-muted)]'
+                  ? 'min-h-11 justify-between px-4 py-2 font-semibold text-[var(--accent-text)]'
+                  : 'min-h-11 justify-between px-4 py-2 text-[var(--text-primary)] hover:bg-[var(--surface-muted)]'
                 : loc.code === current
                   ? 'min-h-11 gap-2 rounded-lg px-3 py-2 bg-[var(--accent-soft)] text-[var(--text-primary)]'
                   : 'min-h-11 gap-2 rounded-lg px-3 py-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]'
