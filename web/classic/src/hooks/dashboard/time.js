@@ -35,6 +35,14 @@ const BARE_NUMERIC_RE = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
 // timestamp field produces, so it is rejected rather than coerced into a
 // number that merely happens to be exact.
 const BARE_DIGITS_RE = /^\d+$/;
+// The non-finite numeric literals.  BARE_NUMERIC_RE cannot match them because
+// they contain no digits, so they need their own check to stay out of
+// Date.parse.  The match is case-insensitive and covers an optional sign:
+// JavaScript itself only accepts the exact-case `NaN`, `Infinity`, `+Infinity`
+// and `-Infinity` as literals, but no casing of these words is ever a date, so
+// every casing is refused here instead of being left to Date.parse's
+// engine-defined behaviour for unrecognised input.
+const NON_FINITE_LITERAL_RE = /^[+-]?(?:nan|infinity)$/i;
 
 /**
  * The single rule for a numeric bound, shared by number values and by bare
@@ -124,6 +132,12 @@ export const parseDashboardTimestamp = (value) => {
   if (BARE_NUMERIC_RE.test(text)) {
     if (!BARE_DIGITS_RE.test(text)) return Number.NaN;
     return parseNumericTimestamp(Number(text));
+  }
+
+  // A non-finite numeric literal is a number that is not a bound, so it is
+  // rejected here rather than handed to Date.parse.
+  if (NON_FINITE_LITERAL_RE.test(text)) {
+    return Number.NaN;
   }
 
   const match = LOCAL_DATE_TIME_RE.exec(text);

@@ -227,3 +227,107 @@ describe('bare numeric strings never reach Date.parse', () => {
     expect(parseDashboardTimestamp('2024-01-01T00:00:00Z')).toBe(1704067200);
   });
 });
+
+// A direct spy on Date.parse. The contract is not merely "the result is
+// invalid" — Date.parse's handling of unrecognised input is engine-defined, so
+// a non-finite literal must never be handed to it in the first place.
+describe('Date.parse is never consulted for numeric literals', () => {
+  const withDateParseSpy = (run) => {
+    const original = Date.parse;
+    const seen = [];
+    Date.parse = (text) => {
+      seen.push(text);
+      return original.call(Date, text);
+    };
+    try {
+      return run(seen);
+    } finally {
+      Date.parse = original;
+    }
+  };
+
+  // Case rule: the match is case-insensitive and allows an optional sign.
+  // JavaScript only accepts the exact-case NaN / Infinity / +Infinity /
+  // -Infinity as literals, but no casing of these words is ever a date, so
+  // every casing is refused rather than delegated to Date.parse.
+  const nonFiniteLiterals = [
+    'NaN',
+    'nan',
+    'NAN',
+    'NaN',
+    'Infinity',
+    'infinity',
+    'INFINITY',
+    'InFiNiTy',
+    '+Infinity',
+    '+infinity',
+    '-Infinity',
+    '-infinity',
+    '-INFINITY',
+    '+NaN',
+    '-NaN',
+    // Surrounding whitespace is trimmed before the check.
+    '  NaN  ',
+    ' Infinity',
+    '-Infinity ',
+  ];
+
+  for (const text of nonFiniteLiterals) {
+    test(`${JSON.stringify(text)} never reaches Date.parse`, () => {
+      withDateParseSpy((seen) => {
+        const result = parseDashboardTimestamp(text);
+        expect(seen).toEqual([]);
+        expect(Number.isNaN(result)).toBe(true);
+      });
+    });
+  }
+
+  const bareNumbers = ['0', '-1', '1.5', '+0', '1e3', '9007199254740993', '.5'];
+  for (const text of bareNumbers) {
+    test(`${JSON.stringify(text)} never reaches Date.parse`, () => {
+      withDateParseSpy((seen) => {
+        const result = parseDashboardTimestamp(text);
+        expect(seen).toEqual([]);
+        expect(Number.isNaN(result)).toBe(true);
+      });
+    });
+  }
+
+  test('a valid numeric string is parsed without Date.parse', () => {
+    withDateParseSpy((seen) => {
+      expect(parseDashboardTimestamp('1782835242')).toBe(1782835242);
+      expect(seen).toEqual([]);
+    });
+  });
+
+  test('a CST wall-clock string is parsed without Date.parse', () => {
+    withDateParseSpy((seen) => {
+      expect(parseDashboardTimestamp('2024-01-01 00:00:00')).toBe(1704038400);
+      expect(seen).toEqual([]);
+    });
+  });
+
+  // The spy must be able to observe a call, or the assertions above would be
+  // vacuous. Explicit-offset and ISO instants still go through Date.parse.
+  test('ISO and explicit-offset strings still use Date.parse', () => {
+    withDateParseSpy((seen) => {
+      expect(parseDashboardTimestamp('2024-01-01T00:00:00Z')).toBe(1704067200);
+      expect(seen).toEqual(['2024-01-01T00:00:00Z']);
+    });
+    withDateParseSpy((seen) => {
+      expect(parseDashboardTimestamp('2024-01-01T00:00:00+08:00')).toBe(
+        1704038400,
+      );
+      expect(seen).toEqual(['2024-01-01T00:00:00+08:00']);
+    });
+  });
+
+  test('a genuinely unparseable string still reaches Date.parse and fails', () => {
+    withDateParseSpy((seen) => {
+      expect(Number.isNaN(parseDashboardTimestamp('not-a-timestamp'))).toBe(
+        true,
+      );
+      expect(seen).toEqual(['not-a-timestamp']);
+    });
+  });
+});
