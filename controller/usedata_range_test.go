@@ -118,7 +118,11 @@ func TestQuotaDataHandlersRangeBoundaryMatrix(t *testing.T) {
 		{name: "end negative", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=-1", usedataReportedStart), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
 		{name: "start overflows int64", query: fmt.Sprintf("start_timestamp=9223372036854775808&end_timestamp=%d", usedataReportedEnd), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
 		{name: "end overflows int64", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=99999999999999999999", usedataReportedStart), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
-		{name: "end at max int64 is too large", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", usedataReportedStart, int64(math.MaxInt64)), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_too_large"},
+		// Bounds the fixed +28800 CST bucket shift cannot represent.
+		{name: "end at max int64 overflows the CST shift", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", usedataReportedStart, int64(math.MaxInt64)), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "end one past the CST shift limit", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", int64(common.DashboardMaxTimestamp), int64(common.DashboardMaxTimestamp)+1), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "start one past the CST shift limit", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", int64(common.DashboardMaxTimestamp)+1, int64(common.DashboardMaxTimestamp)+2), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "exactly at the CST shift limit is served", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", int64(common.DashboardMaxTimestamp)-usedataDay, int64(common.DashboardMaxTimestamp)), wantStatus: http.StatusOK},
 	}
 
 	for _, test := range tests {
@@ -228,4 +232,97 @@ func TestQuotaDataRangeBoundMatchesSharedDashboardPolicy(t *testing.T) {
 		common.ValidateDashboardRange(usedataReportedStart, usedataReportedStart+common.DashboardMaxRangeSeconds+1),
 		common.ErrDashboardRangeTooLarge,
 	)
+}
+
+// selfScopedUserId is defence in depth behind the route middleware: a
+// self-scoped filter with UserId 0 omits the user_id predicate entirely, so a
+// handler reached without an authenticated id would answer with every user's
+// data. These tests drive the handlers directly with a missing/zero/negative
+// id to prove they refuse rather than widen.
+func TestSelfScopedHandlersRefuseMissingOrZeroUserId(t *testing.T) {
+	const validRange = "start_timestamp=1782835242&end_timestamp=1785899265"
+
+	handlers := []struct {
+		name    string
+		path    string
+		handler func(ctx *gin.Context)
+	}{
+		{name: "quota_self", path: "/api/data/self", handler: GetUserQuotaDates},
+		{name: "log_self_analysis", path: "/api/log/self/analysis", handler: GetLogSelfUsageAnalysis},
+		{name: "log_self_summary", path: "/api/log/self/export/summary", handler: GetLogSelfUsageSummary},
+	}
+	identities := []struct {
+		name   string
+		userId int
+		set    bool
+	}{
+		{name: "id_absent", set: false},
+		{name: "id_zero", userId: 0, set: true},
+		{name: "id_negative", userId: -1, set: true},
+	}
+
+	for _, target := range handlers {
+		for _, identity := range identities {
+			t.Run(target.name+"_"+identity.name, func(t *testing.T) {
+				setupQuotaDataTestDB(t)
+				// Another user's rows exist; a widened query would return them.
+				require.NoError(t, model.DB.Create(&model.QuotaData{
+					UserID: 42, Username: "victim", ModelName: "gpt-image-2",
+					CreatedAt: usedataReportedStart, Count: 5, Quota: 5000, TokenUsed: 50,
+				}).Error)
+
+				recorder := httptest.NewRecorder()
+				ctx, _ := gin.CreateTestContext(recorder)
+				ctx.Request = httptest.NewRequest(http.MethodGet, target.path+"?"+validRange, nil)
+				if identity.set {
+					ctx.Set("id", identity.userId)
+				}
+
+				target.handler(ctx)
+
+				assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+				response := decodeQuotaDataResponse(t, recorder)
+				assert.False(t, response.Success)
+				assert.Equal(t, "unauthorized", response.Code)
+				assert.Empty(t, response.Data, "a self handler without an identity must return no rows")
+				assert.NotContains(t, recorder.Body.String(), "victim")
+			})
+		}
+	}
+}
+
+// The admin endpoints are deliberately not self-scoped and must keep working
+// exactly as before; the new guard must not leak into their path.
+func TestAdminQuotaHandlersAreUnaffectedByTheSelfScopeGuard(t *testing.T) {
+	const validRange = "start_timestamp=1782835242&end_timestamp=1785899265"
+	handlers := []struct {
+		name    string
+		path    string
+		handler func(ctx *gin.Context)
+	}{
+		{name: "admin_all", path: "/api/data/", handler: GetAllQuotaDates},
+		{name: "admin_users", path: "/api/data/users", handler: GetQuotaDatesByUser},
+	}
+	for _, target := range handlers {
+		// No "id" is set at all: AdminAuth owns that route's authorization, and
+		// the handler must still serve rather than 401.
+		t.Run(target.name, func(t *testing.T) {
+			setupQuotaDataTestDB(t)
+			require.NoError(t, model.DB.Create(&model.QuotaData{
+				UserID: 42, Username: "tenant", ModelName: "gpt-image-2",
+				CreatedAt: usedataReportedStart, Count: 5, Quota: 5000, TokenUsed: 50,
+			}).Error)
+
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodGet, target.path+"?"+validRange, nil)
+
+			target.handler(ctx)
+
+			assert.Equal(t, http.StatusOK, recorder.Code)
+			response := decodeQuotaDataResponse(t, recorder)
+			assert.True(t, response.Success, response.Message)
+			assert.Len(t, response.Data, 1)
+		})
+	}
 }

@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { describe, expect, test } from 'bun:test';
 import { createDashboardRequestGuard, runQuotaDataRequest } from './quotaState';
+import {
+  DASHBOARD_MAX_TIMESTAMP,
+  describeDashboardRangeError,
+  validateDashboardRange,
+} from './range';
 
 const createState = (initialRows = []) => {
   const state = {
@@ -262,5 +267,110 @@ describe('quota data request', () => {
     expect(state.rows).toEqual([]);
     expect(state.error).toBe('');
     expect(state.toasts).toEqual([]);
+  });
+});
+
+describe('invalid ranges never reach the network', () => {
+  const START = 1782835242;
+  const DAY = 24 * 60 * 60;
+
+  const invalidRanges = [
+    ['0/0', 0, 0],
+    ['0/1', 0, 1],
+    ['1/0', 1, 0],
+    ['negative start', -1, START],
+    ['negative end', START, -1],
+    ['fractional start', START + 0.5, START + DAY],
+    ['fractional end', START, START + 0.5],
+    ['NaN start', Number.NaN, START],
+    ['NaN end', START, Number.NaN],
+    ['Infinity end', START, Number.POSITIVE_INFINITY],
+    ['MAX_SAFE_INTEGER plus one', START, Number.MAX_SAFE_INTEGER + 1],
+    ['past the safe upper bound', START, DASHBOARD_MAX_TIMESTAMP + 1],
+    ['inverted', START, START - 1],
+    ['ninety days plus one second', START, START + 90 * DAY + 1],
+  ];
+
+  // Mirrors the order the hook uses: validate first, only then issue the
+  // request. A rejected range must cost zero network calls.
+  const loadWithGuard = async (guard, start, end, requestQuota, setters) => {
+    const attempt = guard.begin();
+    try {
+      const rangeError = validateDashboardRange(start, end);
+      if (rangeError) {
+        setters.setQuotaData([]);
+        setters.setQuotaError(describeDashboardRangeError(rangeError));
+        return { status: 'range_error', code: rangeError };
+      }
+      return await runQuotaDataRequest({
+        requestQuota,
+        attempt,
+        defaultFailureMessage: 'failed',
+        ...setters,
+      });
+    } finally {
+      attempt.finish();
+    }
+  };
+
+  for (const [name, start, end] of invalidRanges) {
+    test(`${name} is rejected before any request`, async () => {
+      const guard = createDashboardRequestGuard();
+      const { state, ...setters } = createState([{ quota: 1 }]);
+      let calls = 0;
+      const requestQuota = async () => {
+        calls += 1;
+        return { success: true, data: [] };
+      };
+
+      const outcome = await loadWithGuard(
+        guard,
+        start,
+        end,
+        requestQuota,
+        setters,
+      );
+
+      expect(calls).toBe(0);
+      expect(outcome.status).toBe('range_error');
+      expect(state.rows).toEqual([]);
+      expect(state.error).not.toBe('');
+      // Every exit path releases the guard; no controller is retained.
+      expect(guard.inspect().controller).toBe(null);
+    });
+  }
+
+  test('the reported 35 day range does reach the network', async () => {
+    const guard = createDashboardRequestGuard();
+    const { state, ...setters } = createState();
+    let calls = 0;
+
+    const outcome = await loadWithGuard(
+      guard,
+      START,
+      1785899265,
+      async () => {
+        calls += 1;
+        return { success: true, data: [{ quota: 9 }] };
+      },
+      setters,
+    );
+
+    expect(calls).toBe(1);
+    expect(outcome.status).toBe('success');
+    expect(state.rows).toEqual([{ quota: 9 }]);
+    expect(guard.inspect().controller).toBe(null);
+  });
+
+  test('an early return still releases the guard controller', () => {
+    const guard = createDashboardRequestGuard();
+    const attempt = guard.begin();
+    expect(guard.inspect().controller).not.toBe(null);
+
+    // The range-error path returns without issuing a request.
+    attempt.finish();
+
+    expect(guard.inspect().controller).toBe(null);
+    expect(attempt.signal.aborted).toBe(true);
   });
 });

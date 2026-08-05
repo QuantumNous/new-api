@@ -46,8 +46,14 @@ export const createDashboardRequestGuard = () => {
       signal: controller.signal,
       isCurrent: () =>
         state.generation === generation && !controller.signal.aborted,
+      // finish() must be called on EVERY exit path, including an early return
+      // that never issued a request. It releases this attempt's controller so
+      // the guard never retains one that nobody is waiting on; a superseded
+      // attempt leaves the newer controller alone.
       finish: () => {
-        if (state.generation === generation) state.controller = null;
+        if (state.generation !== generation) return;
+        state.controller = null;
+        controller.abort();
       },
     };
   };

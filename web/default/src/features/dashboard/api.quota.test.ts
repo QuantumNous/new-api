@@ -2,11 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import { api } from '@/lib/api'
 import {
   QuotaSeriesError,
+  getLogUsageAnalysis,
   getUserQuotaDataByUsers,
   getUserQuotaDates,
   unwrapQuotaSeries,
 } from './api'
 import { describeQuotaFailure, isAbortError, quotaFailureCode } from './lib'
+import { DASHBOARD_MAX_TIMESTAMP, DashboardRangeError } from './lib/range'
 
 // 2026-07-01 00:00:42 through 2026-08-05 11:07:45 Asia/Shanghai.
 const REPORTED_START = 1782835242
@@ -294,5 +296,176 @@ describe('quota panel state transitions', () => {
 
     expect(state.rows).toEqual([{ quota: 7 }])
     expect(state.error).toBe('')
+  })
+})
+
+// Every direct API helper must refuse an unusable bound BEFORE issuing a
+// request. The assertion is the captured request count, not just the thrown
+// error: a rejected range must cost zero network calls.
+describe('invalid ranges never reach the network', () => {
+  const DAY = 24 * 60 * 60
+
+  const invalidRanges: Array<[string, number, number]> = [
+    ['0/0', 0, 0],
+    ['0/1', 0, 1],
+    ['1/0', 1, 0],
+    ['negative start', -1, REPORTED_END],
+    ['negative end', REPORTED_START, -1],
+    ['fractional start', REPORTED_START + 0.5, REPORTED_END],
+    ['fractional end', REPORTED_START, REPORTED_START + 0.5],
+    ['NaN start', Number.NaN, REPORTED_END],
+    ['NaN end', REPORTED_START, Number.NaN],
+    ['Infinity end', REPORTED_START, Number.POSITIVE_INFINITY],
+    ['-Infinity start', Number.NEGATIVE_INFINITY, REPORTED_END],
+    ['MAX_SAFE_INTEGER plus one', REPORTED_START, Number.MAX_SAFE_INTEGER + 1],
+    ['past the safe upper bound', REPORTED_START, DASHBOARD_MAX_TIMESTAMP + 1],
+    ['inverted', REPORTED_START, REPORTED_START - 1],
+    [
+      'ninety days plus one second',
+      REPORTED_START,
+      REPORTED_START + 90 * DAY + 1,
+    ],
+  ]
+
+  for (const [name, start, end] of invalidRanges) {
+    test(`getUserQuotaDates refuses ${name} without a request`, async () => {
+      await withCapturedGet(
+        () => okResponse,
+        async (captured) => {
+          let thrown: unknown
+          try {
+            await getUserQuotaDates(
+              { start_timestamp: start, end_timestamp: end },
+              false
+            )
+          } catch (error) {
+            thrown = error
+          }
+          expect(captured).toHaveLength(0)
+          expect(thrown).toBeInstanceOf(DashboardRangeError)
+        }
+      )
+    })
+
+    test(`getUserQuotaDataByUsers refuses ${name} without a request`, async () => {
+      await withCapturedGet(
+        () => okResponse,
+        async (captured) => {
+          let thrown: unknown
+          try {
+            await getUserQuotaDataByUsers({
+              start_timestamp: start,
+              end_timestamp: end,
+            })
+          } catch (error) {
+            thrown = error
+          }
+          expect(captured).toHaveLength(0)
+          expect(thrown).toBeInstanceOf(DashboardRangeError)
+        }
+      )
+    })
+  }
+
+  // getLogUsageAnalysis takes Date objects, and computeTimeRange floors them to
+  // whole seconds. A sub-second Date is therefore a legitimate instant, not a
+  // malformed bound, so the fractional cases are excluded here and covered by
+  // the flooring test below. Everything else must still cost zero requests.
+  const invalidAnalysisRanges = invalidRanges.filter(
+    ([name]) => !name.startsWith('fractional')
+  )
+
+  for (const [name, start, end] of invalidAnalysisRanges) {
+    test(`getLogUsageAnalysis refuses ${name} without a request`, async () => {
+      await withCapturedGet(
+        () => okResponse,
+        async (captured) => {
+          const result = await getLogUsageAnalysis(
+            {
+              start_timestamp: new Date(start * 1000),
+              end_timestamp: new Date(end * 1000),
+              time_granularity: 'hour',
+            },
+            false
+          )
+          expect(captured).toHaveLength(0)
+          expect(result.success).toBe(false)
+          // Must not reuse the row-overflow code, which would trigger the
+          // automatic dimension downgrade instead of a range message.
+          expect(result.code).not.toBe('analysis_too_many_rows')
+        }
+      )
+    })
+  }
+
+  test('a sub-second Date is floored to a whole second, not rejected', async () => {
+    await withCapturedGet(
+      () => okResponse,
+      async (captured) => {
+        const result = await getLogUsageAnalysis(
+          {
+            start_timestamp: new Date(REPORTED_START * 1000 + 500),
+            end_timestamp: new Date(REPORTED_END * 1000 + 750),
+            time_granularity: 'hour',
+          },
+          false
+        )
+        expect(result.success).toBe(true)
+        expect(captured).toHaveLength(1)
+        expect(captured[0].params.start_timestamp).toBe(REPORTED_START)
+        expect(captured[0].params.end_timestamp).toBe(REPORTED_END)
+        expect(Number.isSafeInteger(captured[0].params.start_timestamp)).toBe(
+          true
+        )
+      }
+    )
+  })
+
+  test('an invalid Date is refused without a request', async () => {
+    await withCapturedGet(
+      () => okResponse,
+      async (captured) => {
+        const result = await getLogUsageAnalysis(
+          {
+            start_timestamp: new Date(Number.NaN),
+            end_timestamp: new Date(Number.NaN),
+            time_granularity: 'hour',
+          },
+          false
+        )
+        expect(captured).toHaveLength(0)
+        expect(result.success).toBe(false)
+      }
+    )
+  })
+
+  test('the reported 35 day range still costs exactly one request', async () => {
+    await withCapturedGet(
+      () => okResponse,
+      async (captured) => {
+        await getUserQuotaDates(
+          { start_timestamp: REPORTED_START, end_timestamp: REPORTED_END },
+          false
+        )
+        expect(captured).toHaveLength(1)
+      }
+    )
+  })
+
+  test('the exact safe upper bound is accepted and sent', async () => {
+    await withCapturedGet(
+      () => okResponse,
+      async (captured) => {
+        await getUserQuotaDates(
+          {
+            start_timestamp: DASHBOARD_MAX_TIMESTAMP - DAY,
+            end_timestamp: DASHBOARD_MAX_TIMESTAMP,
+          },
+          false
+        )
+        expect(captured).toHaveLength(1)
+        expect(captured[0].params.end_timestamp).toBe(DASHBOARD_MAX_TIMESTAMP)
+      }
+    )
   })
 })

@@ -29,19 +29,47 @@ export const DASHBOARD_MAX_SEGMENT_DAYS = 31;
 export const DASHBOARD_MAX_RANGE_SECONDS =
   DASHBOARD_MAX_RANGE_DAYS * 24 * 60 * 60;
 
+// The fixed Asia/Shanghai offset the server adds before bucketing. CST has no
+// daylight saving transition, so this is a constant on both sides.
+export const DASHBOARD_BUCKET_OFFSET_SECONDS = 8 * 60 * 60;
+
+/**
+ * Largest accepted bound.
+ *
+ * Two independent limits meet here and the smaller one wins:
+ *  - the value must survive the server's `timestamp + 28800` bucket shift;
+ *  - it must stay a JS safe integer, or the value the client sends is not the
+ *    value the user picked (above 2^53-1, arithmetic and JSON round-trips
+ *    silently lose precision).
+ *
+ * Number.MAX_SAFE_INTEGER - DASHBOARD_BUCKET_OFFSET_SECONDS satisfies both and
+ * is far below the server's int64 limit, so a bound this client accepts is
+ * always one the server can represent.
+ */
+export const DASHBOARD_MAX_TIMESTAMP =
+  Number.MAX_SAFE_INTEGER - DASHBOARD_BUCKET_OFFSET_SECONDS;
+
 export const DASHBOARD_RANGE_INVALID = 'dashboard_range_invalid';
 export const DASHBOARD_RANGE_INVERTED = 'dashboard_range_inverted';
 export const DASHBOARD_RANGE_TOO_LARGE = 'dashboard_range_too_large';
+
+/**
+ * True when a value is a usable epoch-second bound.
+ *
+ * Number.isSafeInteger already rejects NaN, ±Infinity, and non-integers such as
+ * 1.5, so a fractional or non-finite timestamp can never reach the server.
+ */
+export const isDashboardTimestamp = (value) =>
+  Number.isSafeInteger(value) && value > 0 && value <= DASHBOARD_MAX_TIMESTAMP;
 
 /**
  * Returns an error code for an unusable range, or an empty string when the
  * range can be served. Accepts the already-parsed CST epoch seconds.
  */
 export const validateDashboardRange = (start, end) => {
-  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+  if (!isDashboardTimestamp(start) || !isDashboardTimestamp(end)) {
     return DASHBOARD_RANGE_INVALID;
   }
-  if (start < 0 || end < 0) return DASHBOARD_RANGE_INVALID;
   if (end < start) return DASHBOARD_RANGE_INVERTED;
   if (end - start > DASHBOARD_MAX_RANGE_SECONDS) {
     return DASHBOARD_RANGE_TOO_LARGE;

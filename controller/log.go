@@ -75,6 +75,11 @@ func getLogUsageSummaryFilter(c *gin.Context, userId int, allowAdminFilters bool
 	if err != nil || endTimestamp <= 0 {
 		return model.LogUsageSummaryFilter{}, errors.New("请选择有效的导出结束时间")
 	}
+	// Refuse bounds the fixed +28800 CST bucket shift cannot represent, before
+	// any arithmetic is done on them.
+	if startTimestamp > common.DashboardMaxTimestamp || endTimestamp > common.DashboardMaxTimestamp {
+		return model.LogUsageSummaryFilter{}, common.ErrDashboardRangeInvalid
+	}
 	if endTimestamp < startTimestamp {
 		return model.LogUsageSummaryFilter{}, errors.New("导出结束时间不能早于开始时间")
 	}
@@ -118,8 +123,35 @@ func GetLogUsageSummary(c *gin.Context) {
 	common.ApiSuccess(c, summary)
 }
 
+// selfScopedUserId resolves the authenticated user for a /self endpoint.
+//
+// A self-scoped filter with UserId 0 does not scope anything: the model omits
+// the user_id predicate entirely, so the caller would receive every user's
+// consumption. If authentication has not populated the id, the request must
+// fail closed rather than widen to the whole tenant.
+func selfScopedUserId(c *gin.Context) (int, bool) {
+	userId := c.GetInt("id")
+	if userId <= 0 {
+		abortWithUnauthorized(c)
+		return 0, false
+	}
+	return userId, true
+}
+
+func abortWithUnauthorized(c *gin.Context) {
+	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+		"success": false,
+		"message": "无效的用户身份，请重新登录",
+		"code":    "unauthorized",
+	})
+}
+
 func GetLogSelfUsageSummary(c *gin.Context) {
-	filter, err := getLogUsageSummaryFilter(c, c.GetInt("id"), false, logUsageExportRangeBound)
+	userId, ok := selfScopedUserId(c)
+	if !ok {
+		return
+	}
+	filter, err := getLogUsageSummaryFilter(c, userId, false, logUsageExportRangeBound)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -253,7 +285,11 @@ func GetLogUsageAnalysis(c *gin.Context) {
 }
 
 func GetLogSelfUsageAnalysis(c *gin.Context) {
-	writeLogUsageAnalysis(c, c.GetInt("id"), false)
+	userId, ok := selfScopedUserId(c)
+	if !ok {
+		return
+	}
+	writeLogUsageAnalysis(c, userId, false)
 }
 
 func GetAllLogs(c *gin.Context) {

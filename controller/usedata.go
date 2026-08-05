@@ -128,8 +128,12 @@ func GetQuotaDatesByUser(c *gin.Context) {
 
 func GetUserQuotaDates(c *gin.Context) {
 	// The user id comes from the authenticated session, never from the query, so
-	// a normal user can only ever read their own series.
-	userId := c.GetInt("id")
+	// a normal user can only ever read their own series. A missing id must fail
+	// closed instead of querying user_id = 0.
+	userId, ok := selfScopedUserId(c)
+	if !ok {
+		return
+	}
 	startTimestamp, endTimestamp, err := parseQuotaDataRange(c)
 	if err != nil {
 		writeQuotaDataError(c, err)

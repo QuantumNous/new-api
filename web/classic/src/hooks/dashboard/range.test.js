@@ -19,13 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { describe, expect, test } from 'bun:test';
 import {
+  DASHBOARD_BUCKET_OFFSET_SECONDS,
   DASHBOARD_MAX_RANGE_DAYS,
   DASHBOARD_MAX_RANGE_SECONDS,
   DASHBOARD_MAX_SEGMENT_DAYS,
+  DASHBOARD_MAX_TIMESTAMP,
   DASHBOARD_RANGE_INVALID,
   DASHBOARD_RANGE_INVERTED,
   DASHBOARD_RANGE_TOO_LARGE,
   describeDashboardRangeError,
+  isDashboardTimestamp,
   validateDashboardRange,
 } from './range';
 import { parseDashboardDateRange } from './time';
@@ -69,9 +72,70 @@ describe('classic dashboard range policy', () => {
       DASHBOARD_RANGE_TOO_LARGE,
     ],
     ['inverted', start, start - 1, DASHBOARD_RANGE_INVERTED],
-    ['empty', 0, 0, ''],
     ['future end', start, start + 7 * DAY, ''],
-    ['unparsable', Number.NaN, start, DASHBOARD_RANGE_INVALID],
+
+    // Both bounds are mandatory positive integers; zero is never "no filter".
+    ['0/0', 0, 0, DASHBOARD_RANGE_INVALID],
+    ['0/1', 0, 1, DASHBOARD_RANGE_INVALID],
+    ['1/0', 1, 0, DASHBOARD_RANGE_INVALID],
+    ['1/1', 1, 1, ''],
+    ['negative start', -1, start, DASHBOARD_RANGE_INVALID],
+    ['negative end', start, -1, DASHBOARD_RANGE_INVALID],
+    ['both negative', -2, -1, DASHBOARD_RANGE_INVALID],
+
+    // Non-integers and non-finite values must never reach the server.
+    ['fractional start', start + 0.5, start + DAY, DASHBOARD_RANGE_INVALID],
+    ['fractional end', start, start + 0.5, DASHBOARD_RANGE_INVALID],
+    ['NaN start', Number.NaN, start, DASHBOARD_RANGE_INVALID],
+    ['NaN end', start, Number.NaN, DASHBOARD_RANGE_INVALID],
+    [
+      'Infinity start',
+      Number.POSITIVE_INFINITY,
+      start,
+      DASHBOARD_RANGE_INVALID,
+    ],
+    ['Infinity end', start, Number.POSITIVE_INFINITY, DASHBOARD_RANGE_INVALID],
+    [
+      '-Infinity start',
+      Number.NEGATIVE_INFINITY,
+      start,
+      DASHBOARD_RANGE_INVALID,
+    ],
+
+    // Beyond the JS safe-integer range the value the client sends is no longer
+    // the value the user picked.
+    [
+      'MAX_SAFE_INTEGER plus one as end',
+      start,
+      Number.MAX_SAFE_INTEGER + 1,
+      DASHBOARD_RANGE_INVALID,
+    ],
+    [
+      'MAX_SAFE_INTEGER as end',
+      start,
+      Number.MAX_SAFE_INTEGER,
+      DASHBOARD_RANGE_INVALID,
+    ],
+
+    // The CST +28800 shift limit, exactly and one past it.
+    [
+      'exactly the safe upper bound',
+      DASHBOARD_MAX_TIMESTAMP - DAY,
+      DASHBOARD_MAX_TIMESTAMP,
+      '',
+    ],
+    [
+      'one past the safe upper bound',
+      DASHBOARD_MAX_TIMESTAMP,
+      DASHBOARD_MAX_TIMESTAMP + 1,
+      DASHBOARD_RANGE_INVALID,
+    ],
+    [
+      'start past the safe upper bound',
+      DASHBOARD_MAX_TIMESTAMP + 1,
+      DASHBOARD_MAX_TIMESTAMP + 2,
+      DASHBOARD_RANGE_INVALID,
+    ],
   ];
 
   for (const [name, rangeStart, rangeEnd, expected] of cases) {
@@ -79,6 +143,20 @@ describe('classic dashboard range policy', () => {
       expect(validateDashboardRange(rangeStart, rangeEnd)).toBe(expected);
     });
   }
+
+  test('the safe upper bound survives the CST bucket shift', () => {
+    expect(DASHBOARD_BUCKET_OFFSET_SECONDS).toBe(28800);
+    expect(DASHBOARD_MAX_TIMESTAMP).toBe(
+      Number.MAX_SAFE_INTEGER - DASHBOARD_BUCKET_OFFSET_SECONDS,
+    );
+    expect(
+      Number.isSafeInteger(
+        DASHBOARD_MAX_TIMESTAMP + DASHBOARD_BUCKET_OFFSET_SECONDS,
+      ),
+    ).toBe(true);
+    expect(isDashboardTimestamp(DASHBOARD_MAX_TIMESTAMP)).toBe(true);
+    expect(isDashboardTimestamp(DASHBOARD_MAX_TIMESTAMP + 1)).toBe(false);
+  });
 
   test('describes rejections through the translator', () => {
     const t = (value) => `T:${value}`;

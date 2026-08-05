@@ -109,14 +109,19 @@ func increaseQuotaData(userId int, username string, modelName string, count int6
 	}
 }
 
-// maxQuotaDataRows is an overload circuit breaker for the dashboard quota
-// series. quota_data is pre-aggregated per hour, so a 90 day window can hold at
-// most 90*24 buckets multiplied by the number of distinct series. The cap is
-// sized far above any realistic tenant and exists only so a runaway query
-// returns a stable error instead of streaming an unbounded response.
-const maxQuotaDataRows = 200000
+// defaultMaxQuotaDataRows is an overload circuit breaker for the dashboard
+// quota series. quota_data is pre-aggregated per hour, so a 90 day window can
+// hold at most 90*24 buckets multiplied by the number of distinct series. The
+// cap is sized far above any realistic tenant and exists only so a runaway
+// query returns a stable error instead of streaming an unbounded response.
+const defaultMaxQuotaDataRows = 200000
 
-var ErrQuotaDataTooManyRows = fmt.Errorf("匹配的看板数据超过 %d 条，请缩小时间范围或筛选条件", maxQuotaDataRows)
+// maxQuotaDataRows is a variable purely so tests can exercise the cap and the
+// cap+1 overflow with a handful of rows instead of persisting 200001 of them.
+// Production never reassigns it; withMaxQuotaDataRows restores it.
+var maxQuotaDataRows = defaultMaxQuotaDataRows
+
+var ErrQuotaDataTooManyRows = fmt.Errorf("匹配的看板数据超过 %d 条，请缩小时间范围或筛选条件", defaultMaxQuotaDataRows)
 
 // runSegmentedQuotaDataQuery executes build() once per bounded segment and
 // concatenates the results. Segments are disjoint on created_at and created_at

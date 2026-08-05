@@ -44,6 +44,10 @@ func TestValidateDashboardRangeBoundaryMatrix(t *testing.T) {
 		{name: "one sided start only", start: testRangeRef, end: 0, wantErr: ErrDashboardRangeInvalid},
 		{name: "one sided end only", start: 0, end: testReportedEnd, wantErr: ErrDashboardRangeInvalid},
 		{name: "future end", start: testRangeRef, end: testRangeRef + 7*testDay},
+		{name: "start at the CST shift limit", start: DashboardMaxTimestamp - DashboardMaxRangeSeconds, end: DashboardMaxTimestamp},
+		{name: "end one past the CST shift limit", start: DashboardMaxTimestamp - 1, end: DashboardMaxTimestamp + 1, wantErr: ErrDashboardRangeInvalid},
+		{name: "start one past the CST shift limit", start: DashboardMaxTimestamp + 1, end: DashboardMaxTimestamp + 2, wantErr: ErrDashboardRangeInvalid},
+		{name: "max int64 end overflows the CST shift", start: testRangeRef, end: math.MaxInt64, wantErr: ErrDashboardRangeInvalid},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -125,16 +129,47 @@ func TestSplitDashboardRangeRejectsUnboundedAndOneSidedRanges(t *testing.T) {
 	}
 }
 
-func TestSplitDashboardRangeDoesNotOverflow(t *testing.T) {
-	start := int64(math.MaxInt64) - DashboardMaxRangeSeconds
-	segments, err := SplitDashboardRange(start, math.MaxInt64)
+// The CST bucket arithmetic adds a fixed +28800 before dividing. A bound close
+// enough to MaxInt64 for that shift to wrap must be refused, not silently
+// bucketed into a negative period.
+func TestDashboardRangeRefusesBoundsThatOverflowTheCSTShift(t *testing.T) {
+	assert.Equal(t, int64(math.MaxInt64)-DashboardBucketOffsetSeconds, int64(DashboardMaxTimestamp))
+
+	shifted, ok := ShiftToDashboardBucketSpace(DashboardMaxTimestamp)
+	require.True(t, ok, "the largest accepted bound must still be shiftable")
+	assert.Equal(t, int64(math.MaxInt64), shifted)
+	assert.Greater(t, shifted, int64(0), "the shift must not wrap negative")
+
+	_, ok = ShiftToDashboardBucketSpace(DashboardMaxTimestamp + 1)
+	assert.False(t, ok, "one second past the limit must be reported as unrepresentable")
+	_, ok = ShiftToDashboardBucketSpace(math.MaxInt64)
+	assert.False(t, ok)
+
+	_, ok = DashboardBucketStart(DashboardMaxTimestamp+1, 3600)
+	assert.False(t, ok, "the bucket mirror must refuse an unshiftable timestamp")
+	_, ok = DashboardBucketStart(testRangeRef, 0)
+	assert.False(t, ok, "a non-positive step is not a bucket")
+
+	for _, end := range []int64{DashboardMaxTimestamp + 1, math.MaxInt64} {
+		segments, err := SplitDashboardRange(end-DashboardMaxRangeSeconds, end)
+		assert.ErrorIs(t, err, ErrDashboardRangeInvalid)
+		assert.Nil(t, segments)
+	}
+}
+
+func TestSplitDashboardRangeStaysWithinTheShiftLimit(t *testing.T) {
+	start := int64(DashboardMaxTimestamp) - DashboardMaxRangeSeconds
+	segments, err := SplitDashboardRange(start, DashboardMaxTimestamp)
 	require.NoError(t, err)
 	require.NotEmpty(t, segments)
 	assert.LessOrEqual(t, len(segments), MaxDashboardRangeSegments)
 	for _, segment := range segments {
 		assert.LessOrEqual(t, segment.Start, segment.End)
+		shifted, ok := ShiftToDashboardBucketSpace(segment.End)
+		require.True(t, ok, "every emitted segment bound must be shiftable")
+		assert.Greater(t, shifted, int64(0))
 	}
-	assert.Equal(t, int64(math.MaxInt64), segments[len(segments)-1].End)
+	assert.Equal(t, int64(DashboardMaxTimestamp), segments[len(segments)-1].End)
 }
 
 // Asia/Shanghai is a fixed UTC+8 offset with no daylight saving transition, so
@@ -166,15 +201,21 @@ func TestDashboardBucketStartAlignsToAsiaShanghaiBoundaries(t *testing.T) {
 	const cstMidnight int64 = 1782835200
 	const hour int64 = 3600
 
-	assert.Equal(t, cstMidnight, DashboardBucketStart(cstMidnight, testDay))
-	assert.Equal(t, cstMidnight, DashboardBucketStart(cstMidnight+testDay-1, testDay))
-	assert.Equal(t, cstMidnight-testDay, DashboardBucketStart(cstMidnight-1, testDay))
+	bucket := func(timestamp, step int64) int64 {
+		value, ok := DashboardBucketStart(timestamp, step)
+		require.True(t, ok)
+		return value
+	}
 
-	assert.Equal(t, cstMidnight, DashboardBucketStart(cstMidnight, hour))
-	assert.Equal(t, cstMidnight, DashboardBucketStart(cstMidnight+hour-1, hour))
-	assert.Equal(t, cstMidnight+hour, DashboardBucketStart(cstMidnight+hour, hour))
+	assert.Equal(t, cstMidnight, bucket(cstMidnight, testDay))
+	assert.Equal(t, cstMidnight, bucket(cstMidnight+testDay-1, testDay))
+	assert.Equal(t, cstMidnight-testDay, bucket(cstMidnight-1, testDay))
+
+	assert.Equal(t, cstMidnight, bucket(cstMidnight, hour))
+	assert.Equal(t, cstMidnight, bucket(cstMidnight+hour-1, hour))
+	assert.Equal(t, cstMidnight+hour, bucket(cstMidnight+hour, hour))
 
 	// The reported selection starts 42 seconds into the first CST hour of July.
-	assert.Equal(t, cstMidnight, DashboardBucketStart(testRangeRef, hour))
-	assert.Equal(t, cstMidnight, DashboardBucketStart(testRangeRef, testDay))
+	assert.Equal(t, cstMidnight, bucket(testRangeRef, hour))
+	assert.Equal(t, cstMidnight, bucket(testRangeRef, testDay))
 }

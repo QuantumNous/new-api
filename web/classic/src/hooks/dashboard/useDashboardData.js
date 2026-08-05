@@ -288,6 +288,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       if (attempt.isCurrent()) {
         showError(describeDashboardRangeError(rangeError, t));
       }
+      // The guard was already opened, so this early return must release it.
+      // Leaving the controller in place would keep an un-abortable attempt
+      // registered and let the next begin() abort a signal nobody is using.
+      attempt.finish();
       return [];
     }
 

@@ -3,6 +3,7 @@ package common
 import (
 	"errors"
 	"fmt"
+	"math"
 )
 
 // Dashboard time-range contract.
@@ -49,6 +50,16 @@ const (
 // produce. Callers use it to size a query timeout budget that stays bounded.
 const MaxDashboardRangeSegments = int(DashboardMaxRangeSeconds/DashboardMaxSegmentSeconds) + 1
 
+// DashboardMaxTimestamp is the largest accepted bound.
+//
+// Both the Go bucket mirror and the SQL period expression shift a timestamp by
+// DashboardBucketOffsetSeconds before dividing. Above this value that shift
+// overflows int64 and the bucket silently wraps to a negative period, so the
+// bound is refused up front rather than producing corrupt grouping. Every
+// realistic timestamp is many orders of magnitude below it; this is a hard
+// arithmetic guard, not a product limit.
+const DashboardMaxTimestamp = math.MaxInt64 - DashboardBucketOffsetSeconds
+
 var (
 	ErrDashboardRangeInvalid  = errors.New("请选择有效的查询时间范围")
 	ErrDashboardRangeInverted = errors.New("结束时间不能早于开始时间")
@@ -71,13 +82,21 @@ type DashboardRangeSegment struct {
 // never "no filter". Callers that parse HTTP input must reject an unparsable or
 // out-of-int64-range value before calling this, and must not silently coerce a
 // parse failure to 0.
+//
+// Bounds above DashboardMaxTimestamp are refused so the fixed +28800 CST shift
+// applied by the bucket arithmetic can never overflow int64.
 func ValidateDashboardRange(start, end int64) error {
 	if start <= 0 || end <= 0 {
+		return ErrDashboardRangeInvalid
+	}
+	if start > DashboardMaxTimestamp || end > DashboardMaxTimestamp {
 		return ErrDashboardRangeInvalid
 	}
 	if end < start {
 		return ErrDashboardRangeInverted
 	}
+	// end and start are both positive and bounded, so this subtraction cannot
+	// overflow.
 	if end-start > DashboardMaxRangeSeconds {
 		return ErrDashboardRangeTooLarge
 	}
@@ -111,18 +130,41 @@ func SplitDashboardRange(start, end int64) ([]DashboardRangeSegment, error) {
 	return segments, nil
 }
 
+// ShiftToDashboardBucketSpace applies the fixed Asia/Shanghai offset used by
+// the bucket arithmetic, reporting whether the shift is representable.
+//
+// The offset is added before the division in both the Go mirror and the SQL
+// period expression. Doing it through one checked helper means the overflow
+// condition is stated once and can be asserted directly, instead of being an
+// implicit assumption spread across the query builders.
+func ShiftToDashboardBucketSpace(timestamp int64) (int64, bool) {
+	if timestamp > DashboardMaxTimestamp {
+		return 0, false
+	}
+	if timestamp < math.MinInt64+DashboardBucketOffsetSeconds {
+		return 0, false
+	}
+	return timestamp + DashboardBucketOffsetSeconds, true
+}
+
 // DashboardBucketStart truncates an epoch second to the start of its
 // Asia/Shanghai bucket for the given step (3600 for hour, 86400 for day).
 //
 // It is the Go mirror of the SQL period expression, and exists so tests can
 // assert the two agree without loading a timezone database. Both use truncating
 // integer division on a positively shifted value; a validated dashboard range
-// always has timestamp > 0, so the shifted value is positive and truncation and
-// flooring coincide.
-func DashboardBucketStart(timestamp, stepSeconds int64) int64 {
+// always has 0 < timestamp <= DashboardMaxTimestamp, so the shifted value is
+// positive, representable, and truncation and flooring coincide.
+//
+// The second result is false when the timestamp is outside the representable
+// bucket space; callers must not use the first result in that case.
+func DashboardBucketStart(timestamp, stepSeconds int64) (int64, bool) {
 	if stepSeconds <= 0 {
-		return timestamp
+		return 0, false
 	}
-	shifted := timestamp + DashboardBucketOffsetSeconds
-	return (shifted/stepSeconds)*stepSeconds - DashboardBucketOffsetSeconds
+	shifted, ok := ShiftToDashboardBucketSpace(timestamp)
+	if !ok {
+		return 0, false
+	}
+	return (shifted/stepSeconds)*stepSeconds - DashboardBucketOffsetSeconds, true
 }
