@@ -36,27 +36,56 @@ func init() {
 	config.GlobalConfig.Register("billing_setting", &billingSetting)
 }
 
+// emptyBillingMap 是所有 nil 字段共用的只读兜底，永远不会被写入。
+var emptyBillingMap = types.NewRWMap[string, string]()
+
+// usableBillingMap 兜住 nil 字段。
+//
+// 配置项的值若为字面量 "null"，updateConfigFromMap 的指针分支会把字段整个置为 nil
+// （setting/config/config.go 的 reflect.Ptr 分支），而 RWMap 的方法会解引用接收者。
+// 计费热路径每个请求都要读这两个映射，不能因为一个异常的配置值就 panic。
+//
+// 这里只读不写：若在读取路径上就地重建映射，读接口就又变成了共享状态的写者。
+// 字段本身的复原交给 AfterConfigUpdate。
+func usableBillingMap(m *types.RWMap[string, string]) *types.RWMap[string, string] {
+	if m == nil {
+		return emptyBillingMap
+	}
+	return m
+}
+
+// AfterConfigUpdate 实现 config.PostUpdater，把被 "null" 清空的字段复原成空映射，
+// 避免 nil 经 configToMap 再次序列化成 "null" 而长期固化。
+func (s *BillingSetting) AfterConfigUpdate() {
+	if s.BillingMode == nil {
+		s.BillingMode = types.NewRWMap[string, string]()
+	}
+	if s.BillingExpr == nil {
+		s.BillingExpr = types.NewRWMap[string, string]()
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Read accessors (hot path, must be fast)
 // ---------------------------------------------------------------------------
 
 func GetBillingMode(model string) string {
-	if mode, ok := billingSetting.BillingMode.Get(model); ok {
+	if mode, ok := usableBillingMap(billingSetting.BillingMode).Get(model); ok {
 		return mode
 	}
 	return BillingModeRatio
 }
 
 func GetBillingExpr(model string) (string, bool) {
-	return billingSetting.BillingExpr.Get(model)
+	return usableBillingMap(billingSetting.BillingExpr).Get(model)
 }
 
 func GetBillingModeCopy() map[string]string {
-	return billingSetting.BillingMode.ReadAll()
+	return usableBillingMap(billingSetting.BillingMode).ReadAll()
 }
 
 func GetBillingExprCopy() map[string]string {
-	return billingSetting.BillingExpr.ReadAll()
+	return usableBillingMap(billingSetting.BillingExpr).ReadAll()
 }
 
 func GetPricingSyncData(base map[string]any) map[string]any {
