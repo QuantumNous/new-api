@@ -24,11 +24,12 @@ import {
   CHANNEL_TYPE_OPTIONS,
   MODEL_FETCHABLE_TYPES,
 } from '../../constants'
+import type { ChannelFormValues } from '../channel-form'
 import { CHANNEL_FORM_DEFAULT_VALUES, channelFormSchema } from '../channel-form'
 import { getChannelTypeConfig } from '../channel-type-config'
 import { getChannelTypeIcon, getKeyPromptForType } from '../channel-utils'
 
-function gondolaForm(baseUrl: string) {
+function gondolaForm(baseUrl: string): ChannelFormValues {
   return {
     ...CHANNEL_FORM_DEFAULT_VALUES,
     name: 'Gondola upstream',
@@ -40,28 +41,41 @@ function gondolaForm(baseUrl: string) {
 }
 
 describe('Gondola channel', () => {
-  test('registers selection, ordering, model discovery, and icon metadata', () => {
-    const option = CHANNEL_TYPE_OPTIONS.find(
-      (item) => item.value === CHANNEL_TYPE_GONDOLA
+  test('is selectable in the channel type dropdown', () => {
+    assert.deepEqual(
+      CHANNEL_TYPE_OPTIONS.find(
+        (item) => item.value === CHANNEL_TYPE_GONDOLA
+      ),
+      { value: CHANNEL_TYPE_GONDOLA, label: 'Gondola' }
     )
+  })
 
-    assert.deepEqual(option, {
-      value: CHANNEL_TYPE_GONDOLA,
-      label: 'Gondola',
-    })
+  test('is ordered directly after OpenRouter', () => {
     assert.equal(
       CHANNEL_TYPE_OPTIONS.findIndex(
         (item) => item.value === CHANNEL_TYPE_GONDOLA
       ),
       CHANNEL_TYPE_OPTIONS.findIndex((item) => item.value === 20) + 1
     )
+  })
+
+  test('supports upstream model discovery', () => {
     assert.equal(MODEL_FETCHABLE_TYPES.has(CHANNEL_TYPE_GONDOLA), true)
+  })
+
+  test('resolves the Gondola icon', () => {
     assert.equal(getChannelTypeIcon(CHANNEL_TYPE_GONDOLA), 'Gondola')
+    assert.equal(getChannelTypeConfig(CHANNEL_TYPE_GONDOLA).icon, 'Gondola')
+  })
+
+  test('prompts for the gnd_ key format', () => {
     assert.equal(
       getKeyPromptForType(CHANNEL_TYPE_GONDOLA),
       'Format: Gondola API key, starts with gnd_'
     )
-    assert.equal(getChannelTypeConfig(CHANNEL_TYPE_GONDOLA).icon, 'Gondola')
+  })
+
+  test('defaults the Base URL to the Gondola gateway', () => {
     assert.equal(
       getChannelTypeConfig(CHANNEL_TYPE_GONDOLA).defaultBaseUrl,
       'https://api.gondola-ai.com'
