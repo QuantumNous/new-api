@@ -1,11 +1,16 @@
 package kuocai
 
 import (
+	"bytes"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	commonapi "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,6 +71,33 @@ func TestConvertRequestSupportsNumericModelIDForExistingChannels(t *testing.T) {
 func TestConvertRequestRejectsUnknownUpstreamModelName(t *testing.T) {
 	_, err := convertRequest(relaycommon.TaskSubmitReq{Prompt: "test"}, "unknown_model")
 	require.ErrorContains(t, err, "unsupported Kuocai model")
+}
+
+func TestKuocaiRejectsOpenAIVideoReferenceFileUpload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "seedance"))
+	require.NoError(t, writer.WriteField("prompt", "Animate this image"))
+	file, err := writer.CreateFormFile("input_reference", "reference.png")
+	require.NoError(t, err)
+	_, err = file.Write([]byte("not-a-real-image"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/videos", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = req
+
+	adaptor := &TaskAdaptor{}
+	taskErr := adaptor.ValidateRequestAndSetAction(ctx, &relaycommon.RelayInfo{
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+	})
+	require.NotNil(t, taskErr)
+	require.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+	require.Equal(t, "unsupported_reference_file", taskErr.Code)
+	require.Contains(t, taskErr.Message, "public HTTPS URL")
 }
 
 func TestParseTaskResultSupportsKuocaiClientResponseShape(t *testing.T) {

@@ -84,7 +84,27 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError {
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionTextGenerate)
+	if taskErr := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionTextGenerate); taskErr != nil {
+		return taskErr
+	}
+
+	// Kuocai accepts reference media only as public HTTPS URLs. The OpenAI
+	// Videos API can send a local input_reference file, but forwarding that file
+	// would silently omit it because Kuocai has no file-upload endpoint.
+	if form := c.Request.MultipartForm; form != nil {
+		for field, files := range form.File {
+			if len(files) == 0 {
+				continue
+			}
+			return service.TaskErrorWrapperLocal(
+				fmt.Errorf("Kuocai does not accept multipart file field %q; provide the reference as a public HTTPS URL instead", field),
+				"unsupported_reference_file",
+				http.StatusBadRequest,
+			)
+		}
+	}
+
+	return nil
 }
 
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
