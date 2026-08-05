@@ -1,0 +1,87 @@
+# proxy — configuration for running ONLY the proxy inside Docker
+#
+# Topology this file assumes:
+#   new-api  → a NATIVE process on the host (e.g. an IDE debug binary) on :3000
+#   MySQL    → a remote host, reachable from the container over the LAN
+#
+# Differences from config.local.yaml (host-run) are marked with "CONTAINER:".
+
+listen: ":3001"
+
+# CONTAINER: inside a container "localhost" is the container itself, so the host
+# process is unreachable that way. host.docker.internal resolves to the host on
+# Docker Desktop; on Linux add the extra_hosts entry shown in
+# docker-compose.local.yml. If new-api ever becomes a compose service, use its
+# service name instead, e.g. http://new-api:3000
+upstream: "http://host.docker.internal:3000"
+
+node_name: "prompt-audit-docker"
+
+fail_open: true
+
+database:
+  driver: mysql
+  # A LAN address works unchanged from inside the container (outbound NAT).
+  # Point this at the database new-api writes its logs to, so
+  # prompt_audit_logs.request_id can be joined against logs.request_id.
+  # ⚠️ IMPORTANT: use a least-privilege account, not root. See schema/ for the grants.
+  dsn: "<user>:<password>@tcp(<mysql-host>:3306)/new-api"
+
+  # false — the proxy runs no DDL: create the table first with
+  #         schema/prompt_audit_logs.mysql.sql and let the account hold only
+  #         INSERT on it. This is the right setting for a shared production
+  #         database, and startup fails fast if the table is missing.
+  # true  — the proxy creates and updates the table itself (needs DDL rights).
+  auto_migrate: false
+
+capture:
+  paths:
+    - /v1/chat/completions
+    - /v1/completions
+    - /v1/messages
+    - /v1/responses
+    - /v1/responses/compact
+    - /v1/embeddings
+    - /v1/rerank
+    - /v1/moderations
+    - /v1/images/generations
+    - /v1/images/edits
+    - /v1/alpha/search
+    - /v1beta/models/*
+    - /pg/chat/completions
+
+  max_body_bytes: 1048576 # 1 MiB
+
+  store_prompt_text: true
+  store_raw_body: false # full request JSON: better for forensics, far larger
+
+  # How much of the request to keep. Agent clients (Codex and friends) resend
+  # their whole system prompt and conversation history every turn — measured on a
+  # real request, the developer prompt was 93% of the text and the input actually
+  # typed that turn was 6 bytes out of 43714.
+  #   last_user — only the final user message (one row = one real input)
+  #   user_only — every user message, no developer/system/assistant text
+  #   all       — everything, for forensic use
+  prompt_scope: last_user
+  # Byte limits (not character limits) — MySQL TEXT holds 65535 bytes, and an
+  # oversized value fails its insert. Values above 60000 are clamped with a log.
+  max_prompt_bytes: 60000
+  max_raw_body_bytes: 60000
+
+  redact_patterns:
+    - "sk-[A-Za-z0-9]{16,}"
+
+store:
+  buffer_size: 4096
+  batch_size: 100
+  flush_interval_ms: 1000
+  # CONTAINER: a Windows path like D:\data is meaningless in a Linux container.
+  # This directory is created by the image and backed by a named volume so the
+  # spool survives container restarts.
+  spool_dir: /var/lib/proxy/spool
+  spool_replay_seconds: 60
+
+identity:
+  enabled: true
+  cache_ttl_seconds: 300
+  cache_size: 4096

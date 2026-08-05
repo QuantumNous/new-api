@@ -1,0 +1,81 @@
+# proxy — prompt audit proxy configuration
+#
+# Mounted read-only into the container at /etc/proxy/config.yaml.
+# Any of these can be supplied through the environment instead, which is the
+# preferred way to pass secrets:
+#   PROXY_LISTEN  PROXY_UPSTREAM  PROXY_NODE_NAME
+#   PROXY_DB_DRIVER  PROXY_DB_DSN
+
+listen: ":3001"
+upstream: "http://new-api:3000"
+node_name: "prompt-audit-1"
+
+# true  — availability first: relay traffic is never delayed or rejected because
+#         of auditing; unwritable records go to the spool directory.
+# false — compliance first ("no audit, no service"): refuse to start without a
+#         working audit database, and answer 503 when the buffer is saturated.
+fail_open: true
+
+database:
+  driver: mysql # mysql | postgres | sqlite
+  # ⚠️ Change this to match your deployment. Reuse new-api's database to be able
+  # to join prompt_audit_logs.request_id against logs.request_id.
+  dsn: "<user>:<password>@tcp(<mysql-host>:3306)/new-api"
+
+capture:
+  # Endpoints to audit; a trailing "*" is a prefix match. Multipart audio
+  # endpoints are deliberately absent — their bodies are binary, not prompts.
+  paths:
+    - /v1/chat/completions
+    - /v1/completions
+    - /v1/messages
+    - /v1/responses
+    - /v1/responses/compact
+    - /v1/embeddings
+    - /v1/rerank
+    - /v1/moderations
+    - /v1/images/generations
+    - /v1/images/edits
+    - /v1/alpha/search
+    - /v1beta/models/*
+    - /pg/chat/completions
+
+  # Bytes inspected per request. Larger bodies still stream through untouched;
+  # only the captured prefix is inspected and the row is marked truncated.
+  max_body_bytes: 1048576 # 1 MiB
+
+  store_prompt_text: true # extracted, human-readable prompt text
+  store_raw_body: false # full request JSON: better for forensics, far larger
+
+  # How much of the request to keep. Agent clients (Codex and friends) resend
+  # their whole system prompt and conversation history every turn — measured on a
+  # real request, the developer prompt was 93% of the text and the input actually
+  # typed that turn was 6 bytes out of 43714.
+  #   last_user — only the final user message (one row = one real input)
+  #   user_only — every user message, no developer/system/assistant text
+  #   all       — everything, for forensic use
+  prompt_scope: last_user
+  # Byte limits (not character limits) — MySQL TEXT holds 65535 bytes, and an
+  # oversized value fails its insert. Values above 60000 are clamped with a log.
+  max_prompt_bytes: 60000
+  max_raw_body_bytes: 60000
+
+  # Regular expressions masked with [REDACTED] before anything is persisted.
+  redact_patterns:
+    - "sk-[A-Za-z0-9]{16,}"
+    # - "\\b\\d{15,19}\\b"                    # card-like digit runs
+    # - "\\b[\\w.+-]+@[\\w-]+\\.[\\w.]+\\b"   # e-mail addresses
+
+store:
+  buffer_size: 4096
+  batch_size: 100
+  flush_interval_ms: 1000
+  spool_dir: /var/lib/proxy/spool
+  spool_replay_seconds: 60
+
+identity:
+  # Resolves user and token identity by reading new-api's tokens and users tables
+  # (read-only). Disable to keep the audit database fully decoupled from new-api.
+  enabled: true
+  cache_ttl_seconds: 300
+  cache_size: 4096

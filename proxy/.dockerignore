@@ -1,0 +1,7 @@
+# Runtime configuration is mounted into the container, never baked into the image.
+# Keeping it out of the build context also keeps database credentials out of the
+# builder layer and its cache.
+*.yaml
+*.yml
+*.md
+.dockerignore
