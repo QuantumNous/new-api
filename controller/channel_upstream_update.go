@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -445,8 +444,8 @@ func fetchKuocaiUpstreamModelIDs(channel *model.Channel, baseURL string) ([]stri
 		Code int `json:"code"`
 		Data struct {
 			Models []struct {
-				Kind    string `json:"kind"`
-				ModelID int    `json:"model_id"`
+				Key  string `json:"key"`
+				Kind string `json:"kind"`
 			} `json:"models"`
 		} `json:"data"`
 	}
@@ -457,18 +456,18 @@ func fetchKuocaiUpstreamModelIDs(channel *model.Channel, baseURL string) ([]stri
 		return nil, fmt.Errorf("Kuocai health response code: %d", result.Code)
 	}
 
-	modelIDs := make([]string, 0, len(result.Data.Models))
+	modelNames := make([]string, 0, len(result.Data.Models))
 	for _, upstreamModel := range result.Data.Models {
-		if !strings.EqualFold(upstreamModel.Kind, "video") || upstreamModel.ModelID <= 0 {
+		if !strings.EqualFold(upstreamModel.Kind, "video") || strings.TrimSpace(upstreamModel.Key) == "" {
 			continue
 		}
-		modelIDs = append(modelIDs, strconv.Itoa(upstreamModel.ModelID))
+		modelNames = append(modelNames, upstreamModel.Key)
 	}
-	modelIDs = normalizeModelNames(modelIDs)
-	if len(modelIDs) == 0 {
-		return nil, fmt.Errorf("Kuocai health response contains no video model IDs")
+	modelNames = normalizeModelNames(modelNames)
+	if len(modelNames) == 0 {
+		return nil, fmt.Errorf("Kuocai health response contains no video model names")
 	}
-	return modelIDs, nil
+	return modelNames, nil
 }
 
 func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string) ([]string, error) {

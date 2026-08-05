@@ -31,6 +31,14 @@ const (
 	defaultDurationSeconds = 4
 )
 
+var upstreamModelIDs = map[string]int{
+	"seedance":       52,
+	"seedance_fast":  51,
+	"seedance_line2": 53,
+	"happy_horse":    39,
+	"minimax_h3":     54,
+}
+
 type videoRequest struct {
 	ModelID         int      `json:"model_id,omitempty"`
 	Prompt          string   `json:"prompt"`
@@ -161,7 +169,7 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	return []string{"52", "51", "53", "39", "54"}
+	return []string{"seedance", "seedance_fast", "seedance_line2", "happy_horse", "minimax_h3"}
 }
 
 func (a *TaskAdaptor) GetChannelName() string { return channelName }
@@ -215,12 +223,16 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 
 func convertRequest(req relaycommon.TaskSubmitReq, upstreamModel string) (*videoRequest, error) {
 	modelID := defaultModelID
-	if upstreamModel != "" {
-		parsed, err := strconv.Atoi(upstreamModel)
-		if err != nil {
-			return nil, fmt.Errorf("Kuocai model mapping must be a numeric model_id, got %q", upstreamModel)
+	if modelName := strings.TrimSpace(upstreamModel); modelName != "" {
+		if mappedModelID, ok := upstreamModelIDs[strings.ToLower(modelName)]; ok {
+			modelID = mappedModelID
+		} else {
+			parsed, err := strconv.Atoi(modelName)
+			if err != nil {
+				return nil, fmt.Errorf("unsupported Kuocai model %q", upstreamModel)
+			}
+			modelID = parsed
 		}
-		modelID = parsed
 	}
 	seconds := req.Duration
 	if seconds == 0 && req.Seconds != "" {
@@ -241,7 +253,7 @@ func convertRequest(req relaycommon.TaskSubmitReq, upstreamModel string) (*video
 	if err := req.UnmarshalMetadata(body); err != nil {
 		return nil, errors.Wrap(err, "unmarshal Kuocai metadata")
 	}
-	// Model selection is controlled by the configured channel model mapping.
+	// Kuocai exposes model keys in /health while generation requests use model_id.
 	body.ModelID = modelID
 	return body, nil
 }

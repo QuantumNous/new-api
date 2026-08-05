@@ -417,9 +417,9 @@ func TestFetchKuocaiModelsUsesHealthAndExcludesImages(t *testing.T) {
   "code": 200,
   "data": {
     "models": [
-      {"kind":"video","model_id":52},
-      {"kind":"video","model_id":51},
-      {"kind":"image","model_id":45}
+      {"key":"seedance","kind":"video","model_id":52},
+      {"key":"seedance_fast","kind":"video","model_id":51},
+      {"key":"fengling_image2","kind":"image","model_id":45}
     ]
   }
 }`))
@@ -433,7 +433,7 @@ func TestFetchKuocaiModelsUsesHealthAndExcludesImages(t *testing.T) {
 	models, err := fetchChannelUpstreamModelIDs(channel)
 
 	require.NoError(t, err)
-	require.Equal(t, []string{"52", "51"}, models)
+	require.Equal(t, []string{"seedance", "seedance_fast"}, models)
 }
 
 func TestNormalizeModelNames(t *testing.T) {

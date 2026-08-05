@@ -15,13 +15,13 @@ func TestKuocaiChannelUsesOpenAIAPIType(t *testing.T) {
 	require.Equal(t, constant.APITypeOpenAI, apiType)
 }
 
-func TestConvertRequestUsesConfiguredNumericModelID(t *testing.T) {
+func TestConvertRequestUsesUpstreamModelName(t *testing.T) {
 	body, err := convertRequest(relaycommon.TaskSubmitReq{
 		Prompt:   "A sunset over the sea",
 		Size:     "16:9",
 		Duration: 8,
 		Metadata: map[string]interface{}{"resolution": "720P", "count": 2},
-	}, "51")
+	}, "seedance_fast")
 	require.NoError(t, err)
 	require.Equal(t, 51, body.ModelID)
 	require.Equal(t, 8, body.Seconds)
@@ -33,14 +33,20 @@ func TestConvertRequestUsesOpenAIVideoSeconds(t *testing.T) {
 	body, err := convertRequest(relaycommon.TaskSubmitReq{
 		Prompt:  "A sunset over the sea",
 		Seconds: "10",
-	}, "52")
+	}, "seedance")
 	require.NoError(t, err)
 	require.Equal(t, 10, body.Seconds)
 }
 
-func TestConvertRequestRejectsNonNumericModelMapping(t *testing.T) {
-	_, err := convertRequest(relaycommon.TaskSubmitReq{Prompt: "test"}, "seedance")
-	require.ErrorContains(t, err, "numeric model_id")
+func TestConvertRequestSupportsNumericModelIDForExistingChannels(t *testing.T) {
+	body, err := convertRequest(relaycommon.TaskSubmitReq{Prompt: "test"}, "51")
+	require.NoError(t, err)
+	require.Equal(t, 51, body.ModelID)
+}
+
+func TestConvertRequestRejectsUnknownUpstreamModelName(t *testing.T) {
+	_, err := convertRequest(relaycommon.TaskSubmitReq{Prompt: "test"}, "unknown_model")
+	require.ErrorContains(t, err, "unsupported Kuocai model")
 }
 
 func TestParseTaskResultSupportsKuocaiClientResponseShape(t *testing.T) {
