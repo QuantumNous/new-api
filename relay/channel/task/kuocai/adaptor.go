@@ -57,30 +57,13 @@ type submitEnvelope struct {
 }
 
 type taskEnvelope struct {
-	Data struct {
-		TaskID     string   `json:"task_id"`
-		Status     string   `json:"status"`
-		State      string   `json:"state"`
-		Progress   any      `json:"progress"`
-		VideoURL   string   `json:"video_url"`
-		URL        string   `json:"url"`
-		ResultURL  string   `json:"result_url"`
-		ResultURLs []string `json:"result_urls"`
-		VideoURLs  []string `json:"video_urls"`
-		Message    string   `json:"message"`
-		Error      string   `json:"error"`
-	} `json:"data"`
-	TaskID     string   `json:"task_id"`
-	Status     string   `json:"status"`
-	State      string   `json:"state"`
-	Progress   any      `json:"progress"`
-	VideoURL   string   `json:"video_url"`
-	URL        string   `json:"url"`
-	ResultURL  string   `json:"result_url"`
-	ResultURLs []string `json:"result_urls"`
-	VideoURLs  []string `json:"video_urls"`
-	Message    string   `json:"message"`
-	Error      string   `json:"error"`
+	Data       map[string]any `json:"data"`
+	Status     string         `json:"status"`
+	StatusName string         `json:"status_name"`
+	State      string         `json:"state"`
+	Progress   any            `json:"progress"`
+	Message    string         `json:"message"`
+	Error      string         `json:"error"`
 }
 
 type TaskAdaptor struct {
@@ -190,22 +173,33 @@ func (a *TaskAdaptor) ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error
 	}
 
 	data := response.Data
-	status := strings.ToLower(firstNonEmpty(data.Status, data.State, response.Status, response.State))
-	result := &relaycommon.TaskInfo{Progress: progressString(firstNonNil(data.Progress, response.Progress))}
-	result.Url = firstNonEmpty(data.VideoURL, data.URL, data.ResultURL, response.VideoURL, response.URL, response.ResultURL)
-	if result.Url == "" {
-		result.Url = firstURL(data.ResultURLs, data.VideoURLs, response.ResultURLs, response.VideoURLs)
-	}
-	reason := firstNonEmpty(data.Message, data.Error, response.Message, response.Error)
+	status := strings.ToLower(firstNonEmpty(
+		stringValue(data["status"]),
+		stringValue(data["status_name"]),
+		stringValue(data["state"]),
+		response.Status,
+		response.StatusName,
+		response.State,
+	))
+	result := &relaycommon.TaskInfo{Progress: progressString(firstNonNil(data["progress"], response.Progress))}
+	result.Url = findHTTPURL(data)
+	reason := firstNonEmpty(
+		stringValue(data["message"]),
+		stringValue(data["error"]),
+		stringValue(data["error_message"]),
+		stringValue(data["fail_reason"]),
+		response.Message,
+		response.Error,
+	)
 
 	switch status {
-	case "queued", "queueing", "pending", "submitted", "created":
+	case "queued", "queueing", "pending", "submitted", "created", "排队中", "等待中", "已提交":
 		result.Status = model.TaskStatusQueued
-	case "processing", "running", "in_progress", "in-progress":
+	case "processing", "running", "in_progress", "in-progress", "处理中", "生成中":
 		result.Status = model.TaskStatusInProgress
-	case "success", "succeeded", "completed", "complete":
+	case "success", "succeeded", "completed", "complete", "成功", "已完成":
 		result.Status = model.TaskStatusSuccess
-	case "failed", "failure", "error", "cancelled", "canceled":
+	case "failed", "failure", "error", "cancelled", "canceled", "失败", "已失败", "已取消":
 		result.Status = model.TaskStatusFailure
 		result.Reason = taskcommon.DefaultString(reason, "Kuocai task failed")
 	default:
@@ -252,15 +246,6 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func firstURL(values ...[]string) string {
-	for _, values := range values {
-		if len(values) > 0 && values[0] != "" {
-			return values[0]
-		}
-	}
-	return ""
-}
-
 func firstNonNil(values ...any) any {
 	for _, value := range values {
 		if value != nil {
@@ -268,6 +253,48 @@ func firstNonNil(values ...any) any {
 		}
 	}
 	return nil
+}
+
+func stringValue(value any) string {
+	text, _ := value.(string)
+	return text
+}
+
+// Kuocai's own test client accepts several result field names and nested
+// objects. Preserve that behavior here so new upstream result variants do not
+// silently lose the completed video URL.
+func findHTTPURL(value any) string {
+	switch value := value.(type) {
+	case string:
+		text := strings.TrimSpace(value)
+		if strings.HasPrefix(text, "http://") || strings.HasPrefix(text, "https://") {
+			return text
+		}
+		if strings.HasPrefix(text, "{") || strings.HasPrefix(text, "[") {
+			var parsed any
+			if common.Unmarshal([]byte(text), &parsed) == nil {
+				return findHTTPURL(parsed)
+			}
+		}
+	case []any:
+		for _, item := range value {
+			if url := findHTTPURL(item); url != "" {
+				return url
+			}
+		}
+	case map[string]any:
+		for _, key := range []string{"video_url", "video", "result", "url", "output", "cover", "image"} {
+			if url := findHTTPURL(value[key]); url != "" {
+				return url
+			}
+		}
+		for _, item := range value {
+			if url := findHTTPURL(item); url != "" {
+				return url
+			}
+		}
+	}
+	return ""
 }
 
 func progressString(value any) string {

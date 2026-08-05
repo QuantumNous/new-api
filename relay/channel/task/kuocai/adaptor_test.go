@@ -34,9 +34,9 @@ func TestConvertRequestRejectsNonNumericModelMapping(t *testing.T) {
 	require.ErrorContains(t, err, "numeric model_id")
 }
 
-func TestParseTaskResultSupportsNestedResponse(t *testing.T) {
+func TestParseTaskResultSupportsKuocaiClientResponseShape(t *testing.T) {
 	adaptor := &TaskAdaptor{}
-	result, err := adaptor.ParseTaskResult([]byte(`{"data":{"status":"completed","result_urls":["https://cdn.example/video.mp4"],"progress":100}}`))
+	result, err := adaptor.ParseTaskResult([]byte(`{"data":{"status_name":"已完成","result":{"video_url":"https://cdn.example/video.mp4"},"progress":100}}`))
 	require.NoError(t, err)
 	require.Equal(t, "SUCCESS", result.Status)
 	require.Equal(t, "https://cdn.example/video.mp4", result.Url)
