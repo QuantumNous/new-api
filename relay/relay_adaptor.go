@@ -40,6 +40,7 @@ import (
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
+	hailuov2 "github.com/QuantumNous/new-api/relay/channel/task/hailuo_v2"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	taskjimengproxy "github.com/QuantumNous/new-api/relay/channel/task/jimengproxy"
 	taskjimengzhizinan "github.com/QuantumNous/new-api/relay/channel/task/jimengzhizinan"
@@ -210,6 +211,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskGemini.TaskAdaptor{}
 		case constant.ChannelTypeMiniMax:
 			return &hailuo.TaskAdaptor{}
+		case constant.ChannelTypeMiniMaxH3:
+			return &hailuov2.TaskAdaptor{}
 		case constant.ChannelTypeKuaiziLizhen:
 			return &taskkuaizi.TaskAdaptor{}
 		case constant.ChannelTypeBlockRunVideo:

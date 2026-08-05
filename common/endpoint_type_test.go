@@ -28,6 +28,7 @@ func TestGetEndpointTypesByChannelType_VideoChannels(t *testing.T) {
 		{"BlockRunSeedance", constant.ChannelTypeBlockRunSeedance},
 		{"TechMobiVideo", constant.ChannelTypeTechMobiVideo},
 		{"BytePlus", constant.ChannelTypeBytePlus},
+		{"MiniMaxH3", constant.ChannelTypeMiniMaxH3},
 	}
 
 	for _, tc := range cases {

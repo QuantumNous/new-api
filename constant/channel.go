@@ -69,6 +69,7 @@ const (
 	ChannelTypeBytePlus         = 107 // BytePlus Ark Seedance async video API
 	ChannelTypeXaiGrokVideo     = 108 // xAI Grok Imagine async video API (submit → poll); whitelabel
 	ChannelTypeSonilo           = 109 // Sonilo async video-to-music API; whitelabel
+	ChannelTypeMiniMaxH3        = 110 // MiniMax H3 async video API
 	ChannelTypeDummy                  // this one is only for count, do not add any channel after this
 
 )
@@ -149,6 +150,7 @@ var ChannelBaseURLs = []string{
 	"https://ark.ap-southeast.bytepluses.com", // 107 BytePlus
 	"https://api.x.ai",                        // 108 XaiGrokVideo
 	"https://api.sonilo.com",                  // 109 Sonilo
+	"https://api.minimax.io",                  // 110 MiniMaxH3
 }
 
 var ChannelTypeNames = map[int]string{
@@ -217,6 +219,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeBytePlus:         "BytePlus",
 	ChannelTypeXaiGrokVideo:     "XaiGrokVideo",
 	ChannelTypeSonilo:           "Sonilo",
+	ChannelTypeMiniMaxH3:        "MiniMaxH3",
 }
 
 func GetChannelTypeName(channelType int) string {
