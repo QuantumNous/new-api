@@ -82,3 +82,10 @@ type TaskAdaptor interface {
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }
+
+// NativeVideoConverter returns a provider-native video task response. It is
+// used by providers such as xAI whose /v1/videos contract differs from the
+// OpenAI-compatible /openai/v1/videos contract.
+type NativeVideoConverter interface {
+	ConvertToNativeVideo(originTask *model.Task) ([]byte, error)
+}

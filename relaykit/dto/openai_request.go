@@ -253,10 +253,55 @@ func (r *GeneralOpenAIRequest) GetSystemRoleName() string {
 const CustomType = "custom"
 
 type ToolCallRequest struct {
-	ID       string          `json:"id,omitempty"`
-	Type     string          `json:"type"`
-	Function FunctionRequest `json:"function,omitempty"`
-	Custom   json.RawMessage `json:"custom,omitempty"`
+	ID       string                     `json:"id,omitempty"`
+	Type     string                     `json:"type"`
+	Function FunctionRequest            `json:"function,omitempty"`
+	Custom   json.RawMessage            `json:"custom,omitempty"`
+	Extra    map[string]json.RawMessage `json:"-"`
+}
+
+func (t *ToolCallRequest) UnmarshalJSON(data []byte) error {
+	type alias ToolCallRequest
+	var decoded alias
+	if err := kitutil.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*t = ToolCallRequest(decoded)
+
+	var fields map[string]json.RawMessage
+	if err := kitutil.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	delete(fields, "id")
+	delete(fields, "type")
+	delete(fields, "function")
+	delete(fields, "custom")
+	if len(fields) > 0 {
+		t.Extra = fields
+	}
+	return nil
+}
+
+func (t ToolCallRequest) MarshalJSON() ([]byte, error) {
+	type alias ToolCallRequest
+	data, err := kitutil.Marshal(alias(t))
+	if err != nil {
+		return nil, err
+	}
+
+	var fields map[string]json.RawMessage
+	if err := kitutil.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+	if t.Type != "function" {
+		delete(fields, "function")
+	}
+	for key, value := range t.Extra {
+		if _, exists := fields[key]; !exists {
+			fields[key] = value
+		}
+	}
+	return kitutil.Marshal(fields)
 }
 
 type FunctionRequest struct {
@@ -303,6 +348,7 @@ func (r *GeneralOpenAIRequest) ParseInput() []string {
 type Message struct {
 	Role             string          `json:"role"`
 	Content          any             `json:"content"`
+	Images           json.RawMessage `json:"images,omitempty"`
 	Name             *string         `json:"name,omitempty"`
 	Prefix           *bool           `json:"prefix,omitempty"`
 	ReasoningContent *string         `json:"reasoning_content,omitempty"`

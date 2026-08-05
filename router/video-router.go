@@ -15,6 +15,12 @@ func SetVideoRouter(router *gin.Engine) {
 	{
 		videoProxyRouter.GET("/videos/:task_id/content", controller.VideoProxy)
 	}
+	openAIVideoProxyRouter := router.Group("/openai/v1")
+	openAIVideoProxyRouter.Use(middleware.RouteTag("relay"))
+	openAIVideoProxyRouter.Use(middleware.TokenOrUserAuth())
+	{
+		openAIVideoProxyRouter.GET("/videos/:task_id/content", controller.VideoProxy)
+	}
 
 	videoV1Router := router.Group("/v1")
 	videoV1Router.Use(middleware.RouteTag("relay"))
@@ -24,11 +30,24 @@ func SetVideoRouter(router *gin.Engine) {
 		videoV1Router.GET("/video/generations/:task_id", controller.RelayTaskFetch)
 		videoV1Router.POST("/videos/:video_id/remix", controller.RelayTask)
 	}
-	// openai compatible API video routes
-	// docs: https://platform.openai.com/docs/api-reference/videos/create
+	// Native video routes. xAI channels preserve the CLIProxyAPI /v1/videos
+	// request and response contract; other channels retain their existing format.
 	{
 		videoV1Router.POST("/videos", controller.RelayTask)
+		videoV1Router.POST("/videos/generations", controller.RelayTask)
+		videoV1Router.POST("/videos/edits", controller.RelayTask)
+		videoV1Router.POST("/videos/extensions", controller.RelayTask)
 		videoV1Router.GET("/videos/:task_id", controller.RelayTaskFetch)
+	}
+
+	// CLIProxyAPI OpenAI-compatible video routes. xAI channels translate these
+	// to the upstream /openai/v1/videos contract while keeping /v1/videos native.
+	openAIVideoRouter := router.Group("/openai/v1")
+	openAIVideoRouter.Use(middleware.RouteTag("relay"))
+	openAIVideoRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		openAIVideoRouter.POST("/videos", controller.RelayTask)
+		openAIVideoRouter.GET("/videos/:task_id", controller.RelayTaskFetch)
 	}
 
 	klingV1Router := router.Group("/kling/v1")

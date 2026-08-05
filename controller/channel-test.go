@@ -194,6 +194,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			relayFormat = types.RelayFormatOpenAIResponses
 		case constant.EndpointTypeOpenAIResponseCompact:
 			relayFormat = types.RelayFormatOpenAIResponsesCompaction
+		case constant.EndpointTypeOpenAIAlphaSearch:
+			relayFormat = types.RelayFormatOpenAIAlphaSearch
 		case constant.EndpointTypeAnthropic:
 			relayFormat = types.RelayFormatClaude
 		case constant.EndpointTypeGemini:
@@ -230,6 +232,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") {
 			relayFormat = types.RelayFormatOpenAIResponsesCompaction
+		}
+		if c.Request.URL.Path == "/v1/alpha/search" {
+			relayFormat = types.RelayFormatOpenAIAlphaSearch
 		}
 	}
 
@@ -732,6 +737,15 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			return &dto.OpenAIResponsesCompactionRequest{
 				Model: model,
 				Input: testResponsesInput,
+			}
+		case constant.EndpointTypeOpenAIAlphaSearch:
+			rawBody, _ := common.Marshal(map[string]any{
+				"model": model,
+				"query": "OpenAI",
+			})
+			return &dto.AlphaSearchRequest{
+				Model:   model,
+				RawBody: rawBody,
 			}
 		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest

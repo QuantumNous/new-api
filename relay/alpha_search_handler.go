@@ -21,12 +21,7 @@ import (
 func AlphaSearchHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
-	switch info.ChannelType {
-	case constant.ChannelTypeSub2API,
-		constant.ChannelTypeNewAPI,
-		constant.ChannelTypeCodex,
-		constant.ChannelTypeAdvancedCustom:
-	default:
+	if !supportsAlphaSearchChannel(info.ChannelType) {
 		// Allow retry onto another channel that may support this endpoint.
 		return types.NewError(
 			errors.New("channel does not support /v1/alpha/search"),
@@ -118,6 +113,19 @@ func AlphaSearchHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError
 	usage := &dto.Usage{}
 	service.PostTextConsumeQuota(c, info, usage, nil)
 	return nil
+}
+
+func supportsAlphaSearchChannel(channelType int) bool {
+	switch channelType {
+	case constant.ChannelTypeOpenAI,
+		constant.ChannelTypeSub2API,
+		constant.ChannelTypeNewAPI,
+		constant.ChannelTypeCodex,
+		constant.ChannelTypeAdvancedCustom:
+		return true
+	default:
+		return false
+	}
 }
 
 // buildAlphaSearchRequestBody returns RawBody unchanged unless the model was

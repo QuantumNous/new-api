@@ -87,6 +87,7 @@ type ChatCompletionsStreamResponseChoice struct {
 
 type ChatCompletionsStreamResponseChoiceDelta struct {
 	Content          *string            `json:"content,omitempty"`
+	Images           json.RawMessage    `json:"images,omitempty"`
 	ReasoningContent *string            `json:"reasoning_content,omitempty"`
 	Reasoning        *string            `json:"reasoning,omitempty"`
 	Role             string             `json:"role,omitempty"`

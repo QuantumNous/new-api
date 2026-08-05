@@ -385,7 +385,8 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
-	isOpenAIVideoAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/videos/")
+	isOpenAIVideoAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/videos/") ||
+		strings.HasPrefix(c.Request.RequestURI, "/openai/v1/videos/")
 
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
 	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI); len(realtimeResp) > 0 {
@@ -393,12 +394,25 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
-	// OpenAI Video API 格式: 走各 adaptor 的 ConvertToOpenAIVideo
+	// Video API responses use the provider-native converter for xAI's /v1
+	// contract and the OpenAI-compatible converter for /openai/v1.
 	if isOpenAIVideoAPI {
 		adaptor := GetTaskAdaptor(originTask.Platform)
 		if adaptor == nil {
 			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
 			return
+		}
+		isNativeXAIPath := strings.HasPrefix(c.Request.RequestURI, "/v1/videos/")
+		if isNativeXAIPath {
+			if converter, ok := adaptor.(channel.NativeVideoConverter); ok {
+				nativeData, err := converter.ConvertToNativeVideo(originTask)
+				if err != nil {
+					taskResp = service.TaskErrorWrapper(err, "convert_to_native_video_failed", http.StatusInternalServerError)
+					return
+				}
+				respBody = nativeData
+				return
+			}
 		}
 		if converter, ok := adaptor.(channel.OpenAIVideoConverter); ok {
 			openAIVideoData, err := converter.ConvertToOpenAIVideo(originTask)
