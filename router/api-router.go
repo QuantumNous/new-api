@@ -47,6 +47,11 @@ func SetApiRouter(router *gin.Engine) {
 			blogRoute.GET("/detail/:slug", controller.GetBlogPost)
 			blogRoute.GET("/categories", controller.GetBlogCategories)
 		}
+		promptLibraryRoute := apiRouter.Group("/prompt-library")
+		promptLibraryRoute.Use(middleware.PromptLibraryImportAuth())
+		{
+			promptLibraryRoute.POST("/import", anonymousRequestBodyLimit, controller.ImportPromptLibrary)
+		}
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
