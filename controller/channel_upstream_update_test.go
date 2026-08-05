@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -184,6 +185,76 @@ func TestFetchOrdinaryOpenAIModelsKeepsExistingEmptyDataBehavior(t *testing.T) {
 	models, err := fetchChannelUpstreamModelIDs(channel)
 	require.NoError(t, err)
 	require.Empty(t, models)
+}
+
+func TestFetchModelsSavedOrdinaryChannelUsesSavedCredentials(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	receivedAuthorization := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuthorization <- r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"saved-channel-model"}]}`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	savedChannel := &model.Channel{
+		Name:    "saved ordinary channel",
+		Type:    constant.ChannelTypeOpenAI,
+		Key:     "saved-key",
+		BaseURL: &baseURL,
+		Models:  "old-model",
+	}
+	require.NoError(t, db.Create(savedChannel).Error)
+
+	body, err := common.Marshal(map[string]any{
+		"channel_id": savedChannel.Id,
+		"type":       constant.ChannelTypeOpenAI,
+		"key":        "request-key-must-be-ignored",
+		"base_url":   "http://127.0.0.1:1",
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	FetchModels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"success":true,"message":"","data":["saved-channel-model"]}`, recorder.Body.String())
+	require.Equal(t, "Bearer saved-key", <-receivedAuthorization)
+	require.NotContains(t, recorder.Body.String(), "saved-key")
+	require.NotContains(t, recorder.Body.String(), "request-key-must-be-ignored")
+}
+
+func TestFetchModelsSavedOrdinaryChannelRejectsTypeMismatch(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	baseURL := "http://127.0.0.1:1"
+	savedChannel := &model.Channel{
+		Name:    "saved ordinary channel",
+		Type:    constant.ChannelTypeOpenAI,
+		Key:     "saved-key",
+		BaseURL: &baseURL,
+		Models:  "old-model",
+	}
+	require.NoError(t, db.Create(savedChannel).Error)
+
+	body, err := common.Marshal(map[string]any{
+		"channel_id": savedChannel.Id,
+		"type":       constant.ChannelTypeAnthropic,
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	FetchModels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, fmt.Sprintf(`{"success":false,"message":"channel %d type does not match request"}`, savedChannel.Id), recorder.Body.String())
+	require.NotContains(t, recorder.Body.String(), "saved-key")
 }
 
 func TestFetchModelsAdvancedCustomCreatePreview(t *testing.T) {

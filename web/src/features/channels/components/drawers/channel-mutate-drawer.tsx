@@ -1446,15 +1446,13 @@ export function ChannelMutateDrawer({
       throw new Error(t("You don't have necessary permission"))
     }
     const type = form.getValues('type')
-    const editingAdvancedCustom =
-      isEditing && type === CHANNEL_TYPE_ADVANCED_CUSTOM
-    if (editingAdvancedCustom && channelId === null) {
+    if (isEditing && channelId === null) {
       throw new Error(t('No channel selected'))
     }
     const response = await fetchModels({
       type,
       key: isEditing ? undefined : form.getValues('key'),
-      channel_id: editingAdvancedCustom ? channelId || undefined : undefined,
+      channel_id: isEditing ? channelId || undefined : undefined,
       base_url: form.getValues('base_url') || '',
       advanced_custom: form.getValues('advanced_custom'),
       header_override: form.getValues('header_override'),
