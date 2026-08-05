@@ -32,13 +32,30 @@ const (
 type Adaptor struct {
 }
 
+func resolveBaseURL(info *relaycommon.RelayInfo) string {
+	if info.ChannelBaseUrl != "" {
+		return info.ChannelBaseUrl
+	}
+	if info.ChannelType >= 0 && info.ChannelType < len(channelconstant.ChannelBaseURLs) {
+		if baseURL := channelconstant.ChannelBaseURLs[info.ChannelType]; baseURL != "" {
+			return baseURL
+		}
+	}
+	return channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
+}
+
+func resolveSpecialPlan(info *relaycommon.RelayInfo) (channelconstant.ChannelSpecialBase, bool) {
+	plan, ok := channelconstant.ChannelSpecialBases[resolveBaseURL(info)]
+	return plan, ok
+}
+
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
 	return nil, errors.New("not implemented")
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+	if _, ok := resolveSpecialPlan(info); ok {
 		adaptor := claude.Adaptor{}
 		return adaptor.ConvertClaudeRequest(c, info, req)
 	}
@@ -237,11 +254,8 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	baseUrl := info.ChannelBaseUrl
-	if baseUrl == "" {
-		baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
-	}
-	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseUrl]
+	baseUrl := resolveBaseURL(info)
+	specialPlan, hasSpecialPlan := resolveSpecialPlan(info)
 
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
@@ -272,6 +286,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		case constant.RelayModeRerank:
 			return fmt.Sprintf("%s/api/v3/rerank", baseUrl), nil
 		case constant.RelayModeResponses:
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				return fmt.Sprintf("%s/responses", specialPlan.OpenAIBaseURL), nil
+			}
 			return fmt.Sprintf("%s/api/v3/responses", baseUrl), nil
 		case constant.RelayModeAudioSpeech:
 			if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
@@ -331,10 +348,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	if info.RelayMode == constant.RelayModeAudioSpeech {
-		baseUrl := info.ChannelBaseUrl
-		if baseUrl == "" {
-			baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
-		}
+		baseUrl := resolveBaseURL(info)
 
 		if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
 			if info.IsStream {
@@ -347,7 +361,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayFormat == types.RelayFormatClaude {
-		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+		if _, ok := resolveSpecialPlan(info); ok {
 			adaptor := claude.Adaptor{}
 			return adaptor.DoResponse(c, resp, info)
 		}

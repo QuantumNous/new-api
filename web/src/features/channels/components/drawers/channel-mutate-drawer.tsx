@@ -1278,6 +1278,13 @@ export function ChannelMutateDrawer({
       }
     }
 
+    if (currentType === 61 || currentType === 62) {
+      form.setValue('base_url', '')
+      if (!form.getValues('models').trim()) {
+        form.setValue('models', 'ark-code-latest')
+      }
+    }
+
     // Type 18 (Xunfei) - set default other (version)
     if (currentType === 18) {
       const currentOther = form.getValues('other')
@@ -2743,6 +2750,34 @@ export function ChannelMutateDrawer({
                               />
                             )}
 
+                            {(currentType === 61 || currentType === 62) && (
+                              <Alert>
+                                <AlertDescription className='space-y-2'>
+                                  <p>
+                                    {currentType === 61
+                                      ? t(
+                                          'Use the dedicated Agent Plan API key. Other Ark API keys cannot access Agent Plan.'
+                                        )
+                                      : t(
+                                          'Use your Volcano Engine Ark API key for Coding Plan.'
+                                        )}
+                                  </p>
+                                  <p className='font-mono text-xs break-all'>
+                                    Anthropic:{' '}
+                                    {currentType === 61
+                                      ? 'https://ark.cn-beijing.volces.com/api/plan'
+                                      : 'https://ark.cn-beijing.volces.com/api/coding'}
+                                  </p>
+                                  <p className='font-mono text-xs break-all'>
+                                    OpenAI:{' '}
+                                    {currentType === 61
+                                      ? 'https://ark.cn-beijing.volces.com/api/plan/v3'
+                                      : 'https://ark.cn-beijing.volces.com/api/coding/v3'}
+                                  </p>
+                                </AlertDescription>
+                              </Alert>
+                            )}
+
                             {/* Coze (type 49) */}
                             {currentType === 49 && (
                               <FormField
@@ -2767,7 +2802,9 @@ export function ChannelMutateDrawer({
                             )}
 
                             {/* General base_url for other types */}
-                            {![3, 8, 22, 36, 45].includes(currentType) && (
+                            {![3, 8, 22, 36, 45, 61, 62].includes(
+                              currentType
+                            ) && (
                               <FormField
                                 control={form.control}
                                 name='base_url'
@@ -4233,9 +4270,7 @@ export function ChannelMutateDrawer({
                                         <SelectValue />
                                       </SelectTrigger>
                                     </FormControl>
-                                    <SelectContent
-                                      alignItemWithTrigger={false}
-                                    >
+                                    <SelectContent alignItemWithTrigger={false}>
                                       <SelectGroup>
                                         <SelectItem value='auto'>
                                           {t('Auto')}

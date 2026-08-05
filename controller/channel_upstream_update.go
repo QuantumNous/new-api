@@ -333,6 +333,11 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 }
 
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
+	if channel.Type == constant.ChannelTypeVolcEngineAgentPlan ||
+		channel.Type == constant.ChannelTypeVolcEngineCodingPlan {
+		return nil, fmt.Errorf("VolcEngine Plan channels do not support upstream model discovery; configure models manually")
+	}
+
 	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
