@@ -842,6 +842,34 @@
         showAudioWatermark: false,
         showMingizSend: false,
       },
+      "fr-seedance-2.0": {
+        label: "fr-seedance-2.0（OpenAI Videos）",
+        family: "openai",
+        hint: "OpenAI Videos 协议 · POST /v1/videos · 支持 multipart 直传 input_reference（本地图），也可 JSON；完成后用本站 /content 或 metadata.url。",
+        createPath: "/v1/videos",
+        queryPath: (id) => `/v1/videos/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 8, 10, 12, 15],
+        defaultDuration: 8,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: true,
+      },
+      "sdvip720": {
+        label: "sdvip720（OpenAI Videos）",
+        family: "openai",
+        hint: "OpenAI Videos 协议 · POST /v1/videos · 720p VIP 通道 · 可 multipart 直传本地参考图，或 JSON + 图床 URL。",
+        createPath: "/v1/videos",
+        queryPath: (id) => `/v1/videos/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 8, 10, 12, 15],
+        defaultDuration: 8,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: true,
+      },
       "sd2-431": {
         label: "sd2-431（th12345ai 满血）",
         family: "th12345ai",
@@ -1037,6 +1065,8 @@
         return n.includes("fast") ? "sd2-fast" : "mingiz-sd2";
       }
       if (n.includes("lec-seedance")) return "lec-seedance-videos-stable";
+      if (n.includes("fr-seedance") || n === "fr-seedance-2.0") return "fr-seedance-2.0";
+      if (n.includes("sdvip") || n === "sdvip720") return "sdvip720";
       if (n.includes("seedance")) return "seedance2.0";
       return "seedance2.0";
     }
@@ -1054,7 +1084,8 @@
       const eps = item.supported_endpoint_types || [];
       if (eps.includes("openai-video")) return true;
       const blob = `${name} ${item.tags || ""} ${item.description || ""}`;
-      return /seedance|mingiz|wstar|vyro|minimax|sd2-431|sd2-fast-431|videos_stable|(^|[^a-z0-9])sd2([^a-z0-9]|$)/i.test(blob);
+      // sd = Seedance 缩写（词边界，避免误伤含 sd 的英文单词中间片段）
+      return /seedance|(^|[^a-z0-9])sd|mingiz|wstar|vyro|minimax|videos_stable/i.test(blob);
     }
     function authHeaders(extra = {}) {
       return { Authorization: `Bearer ${token()}`, ...extra };
@@ -2667,6 +2698,22 @@
         plazaModels = [];
         plazaLoaded = true;
         setStatus(`加载模型广场失败：${err.message}`, "bad");
+      }
+      // 调试页固定展示的模型（即使广场为空或尚未上架）
+      {
+        const seen = new Set(plazaModels.map((m) => m.id));
+        for (const id of ["fr-seedance-2.0", "sdvip720"]) {
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const p = MODEL_PROFILES[id];
+          plazaModels.push({
+            id,
+            label: (p && p.label) || id,
+            description: (p && p.hint) || "",
+            profileKey: resolveProfileKey(id),
+          });
+        }
+        plazaModels.sort((a, b) => a.id.localeCompare(b.id, "zh-CN"));
       }
       renderModelSelect();
     }
