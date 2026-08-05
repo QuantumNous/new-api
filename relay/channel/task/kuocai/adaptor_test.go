@@ -38,6 +38,25 @@ func TestConvertRequestUsesOpenAIVideoSeconds(t *testing.T) {
 	require.Equal(t, 10, body.Seconds)
 }
 
+func TestConvertRequestUsesKuocaiDocumentCountAndReferences(t *testing.T) {
+	var request relaycommon.TaskSubmitReq
+	err := commonapi.Unmarshal([]byte(`{
+		"model":"seedance",
+		"prompt":"A sunset over the sea",
+		"seconds":8,
+		"count":2,
+		"resolution":"720P",
+		"reference_images":["https://cdn.example/one.jpg","https://cdn.example/two.jpg"]
+	}`), &request)
+	require.NoError(t, err)
+
+	body, err := convertRequest(request, "seedance")
+	require.NoError(t, err)
+	require.Equal(t, 2, body.Count)
+	require.Equal(t, "720P", body.Resolution)
+	require.Equal(t, []string{"https://cdn.example/one.jpg", "https://cdn.example/two.jpg"}, body.ReferenceImages)
+}
+
 func TestConvertRequestSupportsNumericModelIDForExistingChannels(t *testing.T) {
 	body, err := convertRequest(relaycommon.TaskSubmitReq{Prompt: "test"}, "51")
 	require.NoError(t, err)

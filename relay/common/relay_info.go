@@ -844,6 +844,8 @@ type TaskSubmitReq struct {
 	Size           string                 `json:"size,omitempty"`
 	Duration       int                    `json:"duration,omitempty"`
 	Seconds        string                 `json:"seconds,omitempty"`
+	Count          int                    `json:"count,omitempty"`
+	N              int                    `json:"n,omitempty"`
 	InputReference string                 `json:"input_reference,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 }
@@ -857,10 +859,15 @@ func (t *TaskSubmitReq) HasImage() bool {
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
+	*t = TaskSubmitReq{}
+
 	type Alias TaskSubmitReq
 	aux := &struct {
 		Metadata json.RawMessage `json:"metadata,omitempty"`
 		Duration json.RawMessage `json:"duration,omitempty"`
+		Seconds  json.RawMessage `json:"seconds,omitempty"`
+		Count    json.RawMessage `json:"count,omitempty"`
+		N        json.RawMessage `json:"n,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -884,20 +891,73 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	if len(aux.Seconds) > 0 {
+		var seconds string
+		if err := common.Unmarshal(aux.Seconds, &seconds); err == nil {
+			t.Seconds = seconds
+		} else {
+			var secondsInt int
+			if err := common.Unmarshal(aux.Seconds, &secondsInt); err == nil {
+				t.Seconds = strconv.Itoa(secondsInt)
+			}
+		}
+	}
+
+	parseOptionalInt := func(raw json.RawMessage) int {
+		var value int
+		if err := common.Unmarshal(raw, &value); err == nil {
+			return value
+		}
+		var text string
+		if err := common.Unmarshal(raw, &text); err == nil {
+			value, _ = strconv.Atoi(text)
+		}
+		return value
+	}
+	if len(aux.Count) > 0 {
+		t.Count = parseOptionalInt(aux.Count)
+	}
+	if len(aux.N) > 0 {
+		t.N = parseOptionalInt(aux.N)
+	}
+
+	metadata := make(map[string]interface{})
 	if len(aux.Metadata) > 0 {
 		var metadataStr string
 		if err := common.Unmarshal(aux.Metadata, &metadataStr); err == nil && metadataStr != "" {
 			var metadataObj map[string]interface{}
 			if err := common.Unmarshal([]byte(metadataStr), &metadataObj); err == nil {
-				t.Metadata = metadataObj
-				return nil
+				for key, value := range metadataObj {
+					metadata[key] = value
+				}
 			}
 		}
 
 		var metadataObj map[string]interface{}
 		if err := common.Unmarshal(aux.Metadata, &metadataObj); err == nil {
-			t.Metadata = metadataObj
+			for key, value := range metadataObj {
+				metadata[key] = value
+			}
 		}
+	}
+
+	// Preserve vendor-specific top-level task fields so task adaptors can
+	// translate them without requiring callers to wrap each one in metadata.
+	var rawFields map[string]json.RawMessage
+	if err := common.Unmarshal(data, &rawFields); err != nil {
+		return err
+	}
+	for key, rawValue := range rawFields {
+		if isKnownTaskField(key) {
+			continue
+		}
+		var value interface{}
+		if err := common.Unmarshal(rawValue, &value); err == nil {
+			metadata[key] = value
+		}
+	}
+	if len(metadata) > 0 {
+		t.Metadata = metadata
 	}
 
 	return nil

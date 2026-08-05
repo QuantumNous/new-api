@@ -47,6 +47,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if normalized != "" {
 		return normalized
 	}
+	if channel != nil && channel.Type == constant.ChannelTypeKuocai {
+		return string(constant.EndpointTypeOpenAIVideo)
+	}
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
@@ -76,6 +79,9 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if channel != nil && channel.Type == constant.ChannelTypeKuocai {
+		return testKuocaiChannel(ctx, channel)
 	}
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
@@ -516,6 +522,65 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		localErr:    nil,
 		newAPIError: nil,
 	}
+}
+
+// testKuocaiChannel validates the upstream credentials without submitting a
+// paid video-generation job. Kuocai's documented /api/v1/usage endpoint
+// requires the same bearer key as generation requests.
+func testKuocaiChannel(ctx context.Context, channel *model.Channel) testResult {
+	baseURL := strings.TrimRight(channel.GetBaseURL(), "/")
+	if baseURL == "" {
+		return testResult{localErr: errors.New("Kuocai channel base URL is empty")}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/v1/usage", nil)
+	if err != nil {
+		return testResult{localErr: err}
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+channel.Key)
+
+	client, err := service.GetHttpClientWithProxy(channel.GetSetting().Proxy)
+	if err != nil {
+		return testResult{localErr: err}
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return testResult{localErr: err}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		if err != nil {
+			return testResult{localErr: err}
+		}
+		message := strings.TrimSpace(gjson.GetBytes(body, "message").String())
+		if message == "" {
+			message = strings.TrimSpace(gjson.GetBytes(body, "error.message").String())
+		}
+		if message == "" {
+			message = http.StatusText(resp.StatusCode)
+		}
+		return testResult{localErr: fmt.Errorf("Kuocai credential check failed: status %d: %s", resp.StatusCode, message)}
+	}
+
+	var result struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := common.DecodeJson(resp.Body, &result); err != nil {
+		return testResult{localErr: fmt.Errorf("invalid Kuocai usage response: %w", err)}
+	}
+	if result.Code != 0 && result.Code != http.StatusOK {
+		message := strings.TrimSpace(result.Message)
+		if message == "" {
+			message = "unexpected response code"
+		}
+		return testResult{localErr: fmt.Errorf("Kuocai credential check failed: code %d: %s", result.Code, message)}
+	}
+
+	return testResult{}
 }
 
 func attachTestBillingRequestInput(info *relaycommon.RelayInfo, request dto.Request) error {

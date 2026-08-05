@@ -423,6 +423,73 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+function buildVideoSample(lang: Lang, ctx: SampleContext): string {
+  const url = `${ctx.baseUrl}${ctx.endpointPath}`
+  const prompt = 'A cinematic sunset over the ocean, slow camera push-in.'
+
+  if (lang === 'curl') {
+    return [
+      `curl ${url} \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `  -F "model=${ctx.modelName}" \\`,
+      `  -F "prompt=${prompt}" \\`,
+      `  -F "seconds=4" \\`,
+      `  -F "size=16:9"`,
+    ].join('\n')
+  }
+  if (lang === 'python') {
+    return [
+      'from openai import OpenAI',
+      '',
+      `client = OpenAI(base_url="${ctx.baseUrl}/v1", api_key="<YOUR_API_KEY>")`,
+      '',
+      'video = client.videos.create(',
+      `    model="${ctx.modelName}",`,
+      `    prompt="${prompt}",`,
+      '    seconds="4",',
+      '    size="16:9",',
+      ')',
+      '',
+      'print(video.id)',
+    ].join('\n')
+  }
+  if (lang === 'typescript') {
+    return [
+      `import OpenAI from 'openai'`,
+      '',
+      `const client = new OpenAI({`,
+      `  baseURL: '${ctx.baseUrl}/v1',`,
+      `  apiKey: process.env.${ctx.apiKeyEnv},`,
+      `})`,
+      '',
+      'const video = await client.videos.create({',
+      `  model: '${ctx.modelName}',`,
+      `  prompt: '${prompt}',`,
+      `  seconds: '4',`,
+      `  size: '16:9',`,
+      '})',
+      '',
+      'console.log(video.id)',
+    ].join('\n')
+  }
+  return [
+    'const form = new FormData()',
+    `form.set('model', '${ctx.modelName}')`,
+    `form.set('prompt', '${prompt}')`,
+    `form.set('seconds', '4')`,
+    `form.set('size', '16:9')`,
+    '',
+    `const response = await fetch('${url}', {`,
+    `  method: 'POST',`,
+    `  headers: { Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\` },`,
+    '  body: form,',
+    '})',
+    '',
+    'const video = await response.json()',
+    'console.log(video.id)',
+  ].join('\n')
+}
+
 function buildSample(
   lang: Lang,
   endpointType: string,
@@ -433,6 +500,7 @@ function buildSample(
   if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
     return buildEmbeddingSample(lang, ctx)
   if (endpointType === 'image-generation') return buildImageSample(lang, ctx)
+  if (endpointType === 'openai-video') return buildVideoSample(lang, ctx)
   return buildChatSample(lang, ctx)
 }
 

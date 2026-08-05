@@ -253,6 +253,24 @@ func convertRequest(req relaycommon.TaskSubmitReq, upstreamModel string) (*video
 	if err := req.UnmarshalMetadata(body); err != nil {
 		return nil, errors.Wrap(err, "unmarshal Kuocai metadata")
 	}
+	if req.Count > 0 {
+		body.Count = req.Count
+	} else if req.N > 0 {
+		body.Count = req.N
+	}
+	if body.Count <= 0 {
+		body.Count = 1
+	}
+	if body.ReferenceImage == "" && len(body.ReferenceImages) == 0 {
+		switch {
+		case req.InputReference != "":
+			body.ReferenceImage = req.InputReference
+		case req.Image != "":
+			body.ReferenceImage = req.Image
+		case len(req.Images) > 0:
+			body.ReferenceImages = req.Images
+		}
+	}
 	// Kuocai exposes model keys in /health while generation requests use model_id.
 	body.ModelID = modelID
 	return body, nil
