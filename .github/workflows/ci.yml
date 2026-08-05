@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend build and test
+    name: Backend vet, build, and test
     if: github.event.action != 'closed' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -23,6 +23,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ${{ github.event.pull_request.base.repo.full_name }}
+          ref: ${{ github.event.action == 'closed' && github.event.pull_request.base.ref || github.ref }}
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -36,6 +39,13 @@ jobs:
         run: |
           mkdir -p web/dist
           touch web/dist/index.html
+
+      - name: Vet root module
+        run: go vet ./...
+
+      - name: Vet relaykit independently
+        working-directory: relaykit
+        run: go vet ./...
 
       - name: Build root module
         run: go build ./...
@@ -59,6 +69,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ${{ github.event.pull_request.base.repo.full_name }}
+          ref: ${{ github.event.action == 'closed' && github.event.pull_request.base.ref || github.ref }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
