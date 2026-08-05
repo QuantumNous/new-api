@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MiniMax H3 视频生成 API · 使用文档</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #6ea8fe;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --code-bg: #0c0e13;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); line-height: 1.7; font-size: 15px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; }
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #141822, #0f1115);
+    padding: 48px 0 36px;
+  }
+  header.hero .wrap { padding-bottom: 0; }
+  .tag {
+    display: inline-block; font-family: var(--mono); font-size: 12px;
+    color: var(--accent); border: 1px solid #2d3d5e; background: #14213a;
+    padding: 3px 10px; border-radius: 999px; margin-bottom: 14px;
+  }
+  h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0; max-width: 76ch; }
+  h2 {
+    font-size: 21px; margin: 48px 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 16px; margin: 28px 0 10px; color: #cdd4e0; }
+  h4 { font-size: 14px; margin: 18px 0 8px; color: #b6bdca; }
+  p { margin: 10px 0; }
+  code {
+    font-family: var(--mono); font-size: 0.88em;
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 5px; color: #d9e0ec;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+    font-family: var(--mono); font-size: 13px; line-height: 1.6; margin: 14px 0;
+  }
+  pre code { background: none; border: none; padding: 0; color: #cfe3ff; }
+  .method {
+    font-family: var(--mono); font-weight: 700; font-size: 12px;
+    padding: 2px 8px; border-radius: 5px; margin-right: 8px; vertical-align: middle;
+  }
+  .post { background: #14321f; color: var(--green); border: 1px solid #1f5234; }
+  .get  { background: #102a3f; color: var(--accent); border: 1px solid #1d4368; }
+  .path { font-family: var(--mono); font-size: 14px; color: #e6e9ef; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--panel-2); color: #cdd4e0; font-weight: 600; }
+  td code { white-space: nowrap; }
+  .req { color: var(--red); font-weight: 700; }
+  .opt { color: var(--muted); }
+  .callout {
+    border: 1px solid var(--border); border-left-width: 3px;
+    border-radius: 8px; padding: 12px 16px; margin: 16px 0; background: var(--panel);
+  }
+  .callout.info { border-left-color: var(--accent); }
+  .callout.warn { border-left-color: var(--amber); }
+  .callout.ok   { border-left-color: var(--green); }
+  .callout p:first-child { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+  .pill { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+  .s-queued { color: var(--muted); }
+  .s-prog   { color: var(--accent); }
+  .s-done   { color: var(--green); }
+  .s-fail   { color: var(--red); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; margin: 24px 0; }
+  .toc ul { margin: 6px 0; padding-left: 20px; columns: 2; }
+  .toc li { margin: 3px 0; }
+  .muted { color: var(--muted); }
+  footer { border-top: 1px solid var(--border); margin-top: 64px; padding-top: 20px; color: var(--muted); font-size: 13px; }
+  @media (max-width: 640px) {
+    .toc ul { columns: 1; }
+    .wrap { padding-left: 16px; padding-right: 16px; }
+    table { display: block; max-width: 100%; overflow-x: auto; }
+    th, td { padding: 8px; }
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="tag">国际站 · 异步视频生成 API</span>
+    <h1>MiniMax H3 视频生成 API</h1>
+    <p class="sub">通过统一的 <code>/v1/videos</code> 接口调用 <code>MiniMax-H3</code>，支持文生视频、首尾帧图生视频和图片 / 视频 / 音频参考生成。接口采用「创建任务 → 轮询状态 → 下载视频」的异步流程，对外仅暴露公共任务 ID。</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="toc">
+    <strong>目录</strong>
+    <ul>
+      <li><a href="#overview">1. 概览</a></li>
+      <li><a href="#auth">2. 认证</a></li>
+      <li><a href="#endpoints">3. 接口一览</a></li>
+      <li><a href="#create">4. 创建视频任务</a></li>
+      <li><a href="#poll">5. 查询任务状态</a></li>
+      <li><a href="#download">6. 获取视频</a></li>
+      <li><a href="#status">7. 状态值</a></li>
+      <li><a href="#billing">8. 用量与计费</a></li>
+      <li><a href="#errors">9. 错误与限制</a></li>
+      <li><a href="#example">10. 完整示例</a></li>
+    </ul>
+  </div>
+
+  <h2 id="overview">1. 概览</h2>
+  <table>
+    <tr><th>项</th><th>值</th></tr>
+    <tr><td>模型</td><td><code>MiniMax-H3</code></td></tr>
+    <tr><td>调用模式</td><td>异步：创建任务 → 轮询 → 下载视频</td></tr>
+    <tr><td>能力</td><td>文生视频、单帧 / 首尾帧图生视频、多图片参考、参考视频、参考音频</td></tr>
+    <tr><td>输出分辨率</td><td><code>768P</code>、<code>2K</code></td></tr>
+    <tr><td>输出时长</td><td>4–15 秒</td></tr>
+    <tr><td>结果交付</td><td>完成后从 <code>metadata.url</code> 获取临时 MP4 地址</td></tr>
+    <tr><td>区域</td><td>MiniMax 国际站；价格按美元计算</td></tr>
+  </table>
+  <p class="muted">下文中的 <code>{BASE}</code> 指 NewAPI 服务地址，例如 <code>https://your-api-host</code>。</p>
+
+  <h2 id="auth">2. 认证</h2>
+  <p>客户端使用 NewAPI 访问令牌鉴权。MiniMax 上游 Key 保存在渠道配置中，不会返回给客户端。</p>
+  <pre><code>Authorization: Bearer sk-xxxxxxxxxxxxxxxx</code></pre>
+
+  <h2 id="endpoints">3. 接口一览</h2>
+  <table>
+    <tr><th>方法 &amp; 路径</th><th>说明</th><th>鉴权</th></tr>
+    <tr><td><span class="method post">POST</span><span class="path">/v1/videos</span></td><td>创建视频生成任务</td><td>Bearer</td></tr>
+    <tr><td><span class="method get">GET</span><span class="path">/v1/videos/{task_id}</span></td><td>查询任务状态、用量和结果</td><td>Bearer</td></tr>
+  </table>
+  <div class="callout info">
+    <p>本文推荐使用 <code>/v1/videos</code>。创建响应中的 <code>id</code> / <code>task_id</code> 是 NewAPI 生成的公共任务 ID；MiniMax 上游任务 ID 不会对外暴露。</p>
+  </div>
+
+  <h2 id="create">4. 创建视频任务</h2>
+  <p><span class="method post">POST</span><span class="path">{BASE}/v1/videos</span></p>
+
+  <h3>请求参数（JSON Body）</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
+    <tr><td><code>model</code></td><td>string</td><td class="req">必填</td><td>固定为 <code>MiniMax-H3</code>，或使用已映射到该模型的客户端别名</td></tr>
+    <tr><td><code>content</code></td><td>array</td><td class="req">必填</td><td>多模态输入数组；必须至少包含一条非空文本</td></tr>
+    <tr><td><code>resolution</code></td><td>string</td><td class="req">必填</td><td><code>768P</code> 或 <code>2K</code>，区分大小写</td></tr>
+    <tr><td><code>duration</code></td><td>int</td><td class="req">必填</td><td>输出时长，范围 4–15 秒</td></tr>
+    <tr><td><code>ratio</code></td><td>string</td><td class="opt">条件必填</td><td><code>21:9</code> / <code>16:9</code> / <code>4:3</code> / <code>1:1</code> / <code>3:4</code> / <code>9:16</code> / <code>adaptive</code>。纯文本请求必须显式填写非 <code>adaptive</code> 比例；带媒体时省略则自动使用 <code>adaptive</code></td></tr>
+    <tr><td><code>aigc_watermark</code></td><td>bool</td><td class="opt">可选</td><td>是否添加 AIGC 水印；显式传入 <code>false</code> 会原样发送</td></tr>
+    <tr><td><code>callback_url</code></td><td>string</td><td class="opt">不支持</td><td>当前版本会返回 <code>unsupported_callback_url</code>，请使用轮询查询状态</td></tr>
+  </table>
+
+  <h4>content 元素</h4>
+  <table>
+    <tr><th>type</th><th>附带字段</th><th>role</th><th>说明</th></tr>
+    <tr><td><code>text</code></td><td><code>text</code></td><td>不可填写</td><td>非空提示词；全部文本累计最多 7000 个 Unicode 字符</td></tr>
+    <tr><td><code>image_url</code></td><td><code>image_url.url</code></td><td>省略 / <code>first_frame</code> / <code>last_frame</code> / <code>reference_image</code></td><td>省略 role 等同于 <code>first_frame</code>；首帧和尾帧各最多 1 张；参考图片最多 9 张</td></tr>
+    <tr><td><code>video_url</code></td><td><code>video_url.url</code></td><td><code>reference_video</code></td><td>参考视频，最多 3 段</td></tr>
+    <tr><td><code>audio_url</code></td><td><code>audio_url.url</code></td><td><code>reference_audio</code></td><td>参考音频，最多 3 段；必须同时提供参考图片或参考视频</td></tr>
+  </table>
+  <div class="callout warn">
+    <p><strong>输入组合限制：</strong>首帧 / 尾帧模式不能与 <code>reference_image</code>、<code>reference_video</code> 或 <code>reference_audio</code> 混用。每个 <code>content</code> 元素必须且只能携带与其 <code>type</code> 匹配的一种载荷。</p>
+  </div>
+
+  <h3>请求示例（文生视频）</h3>
+  <pre><code>curl --fail-with-body "{BASE}/v1/videos" \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "MiniMax-H3",
+    "content": [
+      { "type": "text", "text": "纸船穿过雨后的水洼，电影感微距镜头" }
+    ],
+    "resolution": "768P",
+    "duration": 6,
+    "ratio": "16:9",
+    "aigc_watermark": false
+  }'</code></pre>
+
+  <h3>请求示例（首尾帧图生视频）</h3>
+  <pre><code>curl --fail-with-body "{BASE}/v1/videos" \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "MiniMax-H3",
+    "content": [
+      { "type": "text", "text": "镜头缓慢拉远，晨雾穿过山谷" },
+      {
+        "type": "image_url",
+        "image_url": { "url": "https://example.com/first.jpg" },
+        "role": "first_frame"
+      },
+      {
+        "type": "image_url",
+        "image_url": { "url": "https://example.com/last.jpg" },
+        "role": "last_frame"
+      }
+    ],
+    "resolution": "2K",
+    "duration": 8,
+    "ratio": "adaptive"
+  }'</code></pre>
+
+  <h3>请求示例（图片 / 视频 / 音频参考）</h3>
+  <pre><code>curl --fail-with-body "{BASE}/v1/videos" \
+  -H "Authorization: Bearer sk-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "MiniMax-H3",
+    "content": [
+      { "type": "text", "text": "保持人物与运动风格，让角色穿过雪中的街道" },
+      {
+        "type": "image_url",
+        "image_url": { "url": "https://example.com/character.jpg" },
+        "role": "reference_image"
+      },
+      {
+        "type": "video_url",
+        "video_url": { "url": "https://example.com/motion.mp4" },
+        "role": "reference_video"
+      },
+      {
+        "type": "audio_url",
+        "audio_url": { "url": "https://example.com/ambience.mp3" },
+        "role": "reference_audio"
+      }
+    ],
+    "resolution": "768P",
+    "duration": 10,
+    "ratio": "adaptive"
+  }'</code></pre>
+
+  <h3>创建响应</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "task_id": "task_3f9a...e2",
+  "object": "video",
+  "model": "MiniMax-H3",
+  "status": "queued",
+  "progress": 0,
+  "created_at": 1785859200
+}</code></pre>
+  <div class="callout info">
+    <p>保存 <code>id</code> 或 <code>task_id</code>，后续查询均使用这个 <code>task_</code> 开头的公共任务 ID。</p>
+  </div>
+
+  <h2 id="poll">5. 查询任务状态</h2>
+  <p><span class="method get">GET</span><span class="path">{BASE}/v1/videos/{task_id}</span></p>
+  <pre><code>curl --fail-with-body "{BASE}/v1/videos/task_3f9a...e2" \
+  -H "Authorization: Bearer sk-xxxx"</code></pre>
+
+  <h3>排队 / 进行中</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "task_id": "task_3f9a...e2",
+  "object": "video",
+  "model": "MiniMax-H3",
+  "status": "in_progress",
+  "progress": 50,
+  "created_at": 1785859200
+}</code></pre>
+
+  <h3>完成</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "task_id": "task_3f9a...e2",
+  "object": "video",
+  "model": "MiniMax-H3",
+  "status": "completed",
+  "progress": 100,
+  "usage": {
+    "completion_tokens": 4,
+    "total_tokens": 10
+  },
+  "metadata": {
+    "url": "https://temporary-download.example.com/output.mp4"
+  },
+  "created_at": 1785859200,
+  "completed_at": 1785859318
+}</code></pre>
+  <div class="callout ok">
+    <p>完成后从 <code>metadata.url</code> 下载视频。对 H3 而言，共享视频 DTO 中的 <code>usage.completion_tokens</code> 表示<strong>输出秒数</strong>，<code>usage.total_tokens</code> 表示<strong>总计费秒数</strong>（参考视频输入秒数 + 输出秒数），不是语言模型 token 数。</p>
+  </div>
+  <div class="callout warn">
+    <p><strong>注意时效：</strong><code>metadata.url</code> 是 MiniMax 返回的临时 CDN 地址。任务结果冻结后，重复查询不会刷新该地址；请在地址失效前尽快下载并保存到自己的存储。</p>
+  </div>
+
+  <h3>失败</h3>
+  <pre><code>{
+  "id": "task_3f9a...e2",
+  "task_id": "task_3f9a...e2",
+  "object": "video",
+  "model": "MiniMax-H3",
+  "status": "failed",
+  "progress": 100,
+  "error": {
+    "message": "...",
+    "code": "..."
+  }
+}</code></pre>
+  <div class="callout info"><p>明确失败或取消的任务会走退款流程，退回已预扣额度。</p></div>
+
+  <h2 id="download">6. 获取视频</h2>
+  <p>任务状态为 <code>completed</code> 后，直接 GET <code>metadata.url</code>：</p>
+  <pre><code>URL=$(curl -sS "{BASE}/v1/videos/task_3f9a...e2" \
+        -H "Authorization: Bearer sk-xxxx" | jq -r '.metadata.url')
+
+curl --fail --location "$URL" --output output.mp4</code></pre>
+  <div class="callout warn"><p>仅在任务完成后才会返回 <code>metadata.url</code>。请勿将临时地址当作长期存储地址。</p></div>
+
+  <h2 id="status">7. 状态值</h2>
+  <table>
+    <tr><th>status</th><th>含义</th></tr>
+    <tr><td><span class="pill s-queued">queued</span></td><td>任务已创建，等待执行</td></tr>
+    <tr><td><span class="pill s-prog">in_progress</span></td><td>正在生成，<code>progress</code> 为 0–100</td></tr>
+    <tr><td><span class="pill s-done">completed</span></td><td>生成完成，结果位于 <code>metadata.url</code></td></tr>
+    <tr><td><span class="pill s-fail">failed</span></td><td>生成失败，详情位于 <code>error</code></td></tr>
+  </table>
+
+  <h2 id="billing">8. 用量与计费</h2>
+  <p>国际站参考价格：</p>
+  <table>
+    <tr><th>计费项</th><th>价格</th></tr>
+    <tr><td>768P 输出</td><td><code>$0.08 / 秒</code></td></tr>
+    <tr><td>2K 输出</td><td><code>$0.13 / 秒</code></td></tr>
+    <tr><td>参考视频输入</td><td>按输入视频时长和所选输出分辨率计费</td></tr>
+    <tr><td>输入图片 1–5 张</td><td>免费</td></tr>
+    <tr><td>第 6 张及以后</td><td><code>$0.04 / 张</code></td></tr>
+    <tr><td>参考音频</td><td>免费</td></tr>
+  </table>
+  <pre><code>基础金额 = total_seconds × 分辨率秒价
+         + max(input_image_count - 5, 0) × $0.04</code></pre>
+  <p>示例：</p>
+  <table>
+    <tr><th>请求</th><th>参考金额</th></tr>
+    <tr><td>768P、4 秒输出</td><td><code>4 × $0.08 = $0.32</code></td></tr>
+    <tr><td>2K、4 秒输出</td><td><code>4 × $0.13 = $0.52</code></td></tr>
+    <tr><td>768P、6 秒参考视频 + 4 秒输出</td><td><code>10 × $0.08 = $0.80</code></td></tr>
+    <tr><td>768P、4 秒输出 + 6 张图片</td><td><code>4 × $0.08 + $0.04 = $0.36</code></td></tr>
+  </table>
+  <div class="callout info">
+    <p>含参考视频的请求在提交时会按最多 15 秒输入时长预扣；任务成功后根据上游返回的实际 <code>total_seconds</code> 和图片数量结算，多预扣部分退回。最终用户扣费还会受到站点分组倍率、订阅规则等配置影响。</p>
+  </div>
+
+  <h2 id="errors">9. 错误与限制</h2>
+  <p>请求 / 提交阶段错误体：</p>
+  <pre><code>{
+  "code": "invalid_ratio",
+  "message": "text-only generation requires a non-adaptive ratio",
+  "data": null
+}</code></pre>
+  <table>
+    <tr><th>错误码 / 场景</th><th>说明</th></tr>
+    <tr><td><code>unsupported_model</code></td><td>渠道映射后的上游模型不是 <code>MiniMax-H3</code></td></tr>
+    <tr><td><code>invalid_model</code></td><td>请求未提供模型</td></tr>
+    <tr><td><code>invalid_duration</code></td><td><code>duration</code> 不在 4–15 秒范围内</td></tr>
+    <tr><td><code>invalid_resolution</code></td><td><code>resolution</code> 不是 <code>768P</code> 或 <code>2K</code></td></tr>
+    <tr><td><code>invalid_ratio</code></td><td>比例值不支持，或纯文本请求省略比例 / 使用 <code>adaptive</code></td></tr>
+    <tr><td><code>invalid_content</code></td><td>文本为空、role 错误、素材数量超限或输入组合冲突</td></tr>
+    <tr><td><code>unsupported_callback_url</code></td><td>当前版本不支持回调，请使用轮询</td></tr>
+    <tr><td>额度不足</td><td>预扣失败，任务不会提交到上游</td></tr>
+  </table>
+  <div class="callout warn">
+    <p>当前不支持任务列表、删除、取消、再生成、remix 和 <code>MiniMax-H3-Context-IR</code>。媒体格式、尺寸和远程 URL 可访问性最终仍以上游校验为准。</p>
+  </div>
+
+  <h2 id="example">10. 完整示例（创建 → 轮询 → 下载）</h2>
+  <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+BASE="https://your-api-host"
+TOKEN="sk-xxxxxxxxxxxxxxxx"
+
+# 1) 创建任务
+RESP=$(curl --fail-with-body -sS "$BASE/v1/videos" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "MiniMax-H3",
+    "content": [
+      { "type": "text", "text": "宇航员在月球漫步，电影感，镜头缓慢推近" }
+    ],
+    "resolution": "768P",
+    "duration": 4,
+    "ratio": "16:9"
+  }')
+
+TASK_ID=$(echo "$RESP" | jq -r '.id')
+test -n "$TASK_ID" &amp;&amp; test "$TASK_ID" != "null"
+echo "task: $TASK_ID"
+
+# 2) 轮询直到完成或失败
+while true; do
+  Q=$(curl --fail-with-body -sS "$BASE/v1/videos/$TASK_ID" \
+        -H "Authorization: Bearer $TOKEN")
+  STATUS=$(echo "$Q" | jq -r '.status')
+  echo "status: $STATUS"
+
+  if [ "$STATUS" = "completed" ]; then
+    break
+  fi
+  if [ "$STATUS" = "failed" ]; then
+    echo "failed: $(echo "$Q" | jq -r '.error.message')" >&amp;2
+    exit 1
+  fi
+  sleep 5
+done
+
+# 3) 下载视频
+URL=$(echo "$Q" | jq -r '.metadata.url')
+OUTPUT_SECONDS=$(echo "$Q" | jq -r '.usage.completion_tokens // empty')
+TOTAL_SECONDS=$(echo "$Q" | jq -r '.usage.total_tokens // empty')
+echo "output seconds: $OUTPUT_SECONDS; total billable seconds: $TOTAL_SECONDS"
+
+curl --fail --location "$URL" --output output.mp4
+echo "saved -> output.mp4"</code></pre>
+
+  <footer>
+    MiniMax H3 视频生成 API · 国际站接口使用文档。
+  </footer>
+</div>
+</body>
+</html>
