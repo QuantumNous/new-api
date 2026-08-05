@@ -59,6 +59,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'MidjourneyPlus',
   'Midjourney-Proxy',
   'MiniMax',
+  'MiniMax H3',
   'Mistral',
   'MokaAI',
   'Moonshot',

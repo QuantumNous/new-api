@@ -319,6 +319,9 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
+	// MiniMax H3 international 768P base rate ($0.08/s).
+	// The task adaptor applies the 1.625 multiplier for 2K output.
+	"MiniMax-H3": 0.08,
 	// xAI Grok Imagine video (per-call default; calibrate later).
 	// Per-second USD rate (billed × requested seconds via EstimateBilling).
 	// Upstream cost is $0.05/s (480p) – $0.07/s (720p); these cover 720p with margin.

@@ -77,6 +77,7 @@ export function getChannelTypeIcon(type: number): string {
     25: 'Moonshot', // Moonshot
     31: 'Yi', // LingYiWanWu
     35: 'Minimax', // MiniMax
+    110: 'Minimax', // MiniMax H3
     45: 'Volcengine', // VolcEngine
 
     // Other AI providers

@@ -6,6 +6,8 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel/task/byteplus"
+	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
+	hailuov2 "github.com/QuantumNous/new-api/relay/channel/task/hailuo_v2"
 	"github.com/QuantumNous/new-api/relay/channel/task/sonilo"
 )
 
@@ -53,5 +55,51 @@ func TestGetTaskAdaptor_TechMobiVideo(t *testing.T) {
 	}
 	if adaptor.GetChannelName() != "techmobi-video" {
 		t.Fatalf("channel name = %q, want techmobi-video", adaptor.GetChannelName())
+	}
+}
+
+func TestGetTaskAdaptor_MiniMaxVersions(t *testing.T) {
+	tests := []struct {
+		name        string
+		channelType int
+		assertType  func(t *testing.T, adaptor any)
+	}{
+		{
+			name:        "MiniMaxV1",
+			channelType: constant.ChannelTypeMiniMax,
+			assertType: func(t *testing.T, adaptor any) {
+				if _, ok := adaptor.(*hailuo.TaskAdaptor); !ok {
+					t.Fatalf("adaptor type = %T, want *hailuo.TaskAdaptor", adaptor)
+				}
+			},
+		},
+		{
+			name:        "MiniMaxH3V2",
+			channelType: constant.ChannelTypeMiniMaxH3,
+			assertType: func(t *testing.T, adaptor any) {
+				if _, ok := adaptor.(*hailuov2.TaskAdaptor); !ok {
+					t.Fatalf("adaptor type = %T, want *hailuo_v2.TaskAdaptor", adaptor)
+				}
+			},
+		},
+		{
+			name:        "UnrelatedBytePlus",
+			channelType: constant.ChannelTypeBytePlus,
+			assertType: func(t *testing.T, adaptor any) {
+				if _, ok := adaptor.(*byteplus.TaskAdaptor); !ok {
+					t.Fatalf("adaptor type = %T, want *byteplus.TaskAdaptor", adaptor)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(tt.channelType)))
+			if adaptor == nil {
+				t.Fatal("expected task adaptor")
+			}
+			tt.assertType(t, adaptor)
+		})
 	}
 }
