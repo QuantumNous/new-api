@@ -5,15 +5,26 @@ import (
 	"fmt"
 )
 
-// Dashboard time-range policy.
+// Dashboard time-range contract.
 //
-// The dashboard has to answer cross-month questions (for example 2026-07-01
-// 00:00:42 through 2026-08-05 11:07:45, which is ~35 days) while never letting
-// one request scan an unbounded slice of the consumption log. Two independent
-// bounds are therefore enforced together:
+// A dashboard range is a CLOSED, FULLY BOUNDED interval [Start, End] of Unix
+// epoch seconds. There is deliberately no open-ended form: every dashboard
+// query filters with `created_at >= start AND created_at <= end`, so a missing
+// or zero bound would silently become the epoch (an unbounded scan) or an empty
+// window. Both bounds are therefore required and must be strictly positive.
+//
+// Bucketing semantics: all dashboard aggregation buckets (hour and day) are
+// aligned to Asia/Shanghai, i.e. a fixed UTC+8 offset with no daylight saving
+// transition. China has observed no DST since 1991, so a constant offset is
+// exact for every timestamp this product can receive and no location database
+// is needed. The bounds themselves are timezone-neutral epoch seconds; only the
+// bucket boundaries use the offset.
+//
+// Two independent size bounds are enforced together:
 //
 //   - DashboardMaxRangeDays caps the total span a client may request. It is the
-//     product bound and is enforced at the HTTP boundary in both frontends.
+//     product bound and is enforced at the HTTP boundary, again in the model
+//     layer, and mirrored by both frontends.
 //   - DashboardMaxSegmentDays caps how much of that span a single SQL statement
 //     may touch. A longer span is split into consecutive, non-overlapping
 //     segments that are queried separately and merged server side.
@@ -28,6 +39,10 @@ const (
 
 	DashboardMaxRangeSeconds   = DashboardMaxRangeDays * 24 * 60 * 60
 	DashboardMaxSegmentSeconds = DashboardMaxSegmentDays * 24 * 60 * 60
+
+	// DashboardBucketOffsetSeconds is the fixed Asia/Shanghai offset used to
+	// align hour and day buckets. It is a constant on purpose: CST has no DST.
+	DashboardBucketOffsetSeconds int64 = 8 * 60 * 60
 )
 
 // MaxDashboardRangeSegments is the highest number of segments a valid range can
@@ -50,11 +65,14 @@ type DashboardRangeSegment struct {
 	End   int64
 }
 
-// ValidateDashboardRange rejects a range that a bounded query cannot serve.
-// A zero start and zero end is accepted so the legacy "no explicit range"
-// callers keep their existing behaviour.
+// ValidateDashboardRange rejects any range a bounded query cannot serve.
+//
+// Both bounds are mandatory: a zero, negative, or missing bound is invalid,
+// never "no filter". Callers that parse HTTP input must reject an unparsable or
+// out-of-int64-range value before calling this, and must not silently coerce a
+// parse failure to 0.
 func ValidateDashboardRange(start, end int64) error {
-	if start < 0 || end < 0 {
+	if start <= 0 || end <= 0 {
 		return ErrDashboardRangeInvalid
 	}
 	if end < start {
@@ -66,16 +84,17 @@ func ValidateDashboardRange(start, end int64) error {
 	return nil
 }
 
-// SplitDashboardRange returns the consecutive segments covering [start, end].
-// The union of the segments is exactly the input range and the segments never
-// overlap, so a per-segment aggregate can be summed without double counting.
+// SplitDashboardRange validates the range and returns the consecutive segments
+// covering [start, end]. The union of the segments is exactly the input range
+// and the segments never overlap, so a per-segment aggregate can be summed
+// without double counting.
 //
-// An open-ended range (either bound zero) is returned unchanged as a single
-// segment: those callers intentionally omit the corresponding SQL predicate and
-// must not have one synthesised here.
-func SplitDashboardRange(start, end int64) []DashboardRangeSegment {
-	if start == 0 || end == 0 || end < start {
-		return []DashboardRangeSegment{{Start: start, End: end}}
+// It returns the validation error rather than a best-effort segmentation, so a
+// model-layer caller cannot accidentally issue an unbounded or inverted query
+// by skipping the HTTP-level check.
+func SplitDashboardRange(start, end int64) ([]DashboardRangeSegment, error) {
+	if err := ValidateDashboardRange(start, end); err != nil {
+		return nil, err
 	}
 	segments := make([]DashboardRangeSegment, 0, MaxDashboardRangeSegments)
 	for cursor := start; ; {
@@ -89,5 +108,21 @@ func SplitDashboardRange(start, end int64) []DashboardRangeSegment {
 		segments = append(segments, DashboardRangeSegment{Start: cursor, End: segmentEnd})
 		cursor = segmentEnd + 1
 	}
-	return segments
+	return segments, nil
+}
+
+// DashboardBucketStart truncates an epoch second to the start of its
+// Asia/Shanghai bucket for the given step (3600 for hour, 86400 for day).
+//
+// It is the Go mirror of the SQL period expression, and exists so tests can
+// assert the two agree without loading a timezone database. Both use truncating
+// integer division on a positively shifted value; a validated dashboard range
+// always has timestamp > 0, so the shifted value is positive and truncation and
+// flooring coincide.
+func DashboardBucketStart(timestamp, stepSeconds int64) int64 {
+	if stepSeconds <= 0 {
+		return timestamp
+	}
+	shifted := timestamp + DashboardBucketOffsetSeconds
+	return (shifted/stepSeconds)*stepSeconds - DashboardBucketOffsetSeconds
 }

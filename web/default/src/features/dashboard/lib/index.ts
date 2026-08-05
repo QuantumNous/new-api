@@ -23,6 +23,11 @@ export {
   describeDashboardRangeError,
   validateDashboardRange,
 } from './range'
+export {
+  describeQuotaFailure,
+  isAbortError,
+  quotaFailureCode,
+} from './quota-failure'
 export { processChartData, processUserChartData } from './charts'
 export { safeDivide, calculateDashboardStats } from './stats'
 export { getPreviewText } from './text'

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { expect, test } from 'bun:test'
 import { api } from '@/lib/api'
 import { getLogUsageAnalysis, getUserQuotaDates } from './api'

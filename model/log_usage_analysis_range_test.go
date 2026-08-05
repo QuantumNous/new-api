@@ -31,8 +31,10 @@ func TestGetLogUsageAnalysisMergesCSTBucketAcrossSegmentBoundary(t *testing.T) {
 	initCol()
 
 	start, boundary, end := analysisStraddlingRange()
-	require.Len(t, common.SplitDashboardRange(start, end), 2, "the 35 day range must be segmented")
-	require.Equal(t, boundary, common.SplitDashboardRange(start, end)[0].End)
+	segments, splitErr := common.SplitDashboardRange(start, end)
+	require.NoError(t, splitErr)
+	require.Len(t, segments, 2, "the 35 day range must be segmented")
+	require.Equal(t, boundary, segments[0].End)
 
 	logs := []Log{
 		// Both rows fall inside the same CST day bucket but on opposite sides of

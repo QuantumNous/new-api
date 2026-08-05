@@ -249,7 +249,9 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {
-			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
+			// Widen at the boundary: quota_data accumulates these values across
+			// every request in an hourly bucket, so the counters are int64.
+			LogQuotaData(userId, username, params.ModelName, int64(params.Quota), common.GetTimestamp(), int64(params.PromptTokens)+int64(params.CompletionTokens))
 		})
 	}
 }
@@ -614,9 +616,16 @@ func GetLogUsageAnalysis(filter LogUsageAnalysisFilter) (summary []LogUsageAnaly
 	// A range longer than the per-statement bound is split into consecutive,
 	// non-overlapping segments. Each segment is a normal bounded aggregate; the
 	// segments are then merged here so the caller still sees one server-side
-	// aggregation over CST buckets. Splitting keeps the worst case of a single
-	// SQL statement equal to the historical single-segment query.
-	segments := common.SplitDashboardRange(filter.StartTimestamp, filter.EndTimestamp)
+	// aggregation over Asia/Shanghai buckets. Splitting keeps the worst case of
+	// a single SQL statement equal to the historical single-segment query.
+	//
+	// Splitting also validates: this layer is the last place that can stop an
+	// unbounded, inverted, or over-long scan, so it does not assume the HTTP
+	// boundary already checked.
+	segments, err := common.SplitDashboardRange(filter.StartTimestamp, filter.EndTimestamp)
+	if err != nil {
+		return nil, err
+	}
 
 	querySegment := func(segment common.DashboardRangeSegment) ([]LogUsageAnalysisRow, error) {
 		tx := db.Table("logs").Select(strings.Join(selectParts, ", ")).
@@ -637,12 +646,11 @@ func GetLogUsageAnalysis(filter LogUsageAnalysisFilter) (summary []LogUsageAnaly
 			}
 			tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
 		}
-		if segment.Start != 0 {
-			tx = tx.Where("created_at >= ?", segment.Start)
-		}
-		if segment.End != 0 {
-			tx = tx.Where("created_at <= ?", segment.End)
-		}
+		// Both bounds are mandatory and validated, so the window is always
+		// closed on both sides; there is no "omit the predicate" path that
+		// could turn into a full-table scan.
+		tx = tx.Where("created_at >= ?", segment.Start).
+			Where("created_at <= ?", segment.End)
 		if filter.Channel != 0 {
 			tx = tx.Where("channel_id = ?", filter.Channel)
 		}

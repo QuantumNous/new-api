@@ -11,15 +11,22 @@ import (
 )
 
 // QuotaData 柱状图数据
+//
+// TokenUsed, Count and Quota are explicitly int64. They are money and counter
+// columns that are summed across up to 90 days of hourly buckets in the
+// dashboard aggregates and accumulated in the in-process write cache, so the
+// width must not depend on the build platform's int size. GORM already sizes
+// these columns as 64-bit integers, so the declared type is schema-neutral;
+// TestQuotaDataSchemaIsUnchangedByInt64Columns pins that.
 type QuotaData struct {
 	Id        int    `json:"id"`
 	UserID    int    `json:"user_id" gorm:"index"`
 	Username  string `json:"username" gorm:"index:idx_qdt_model_user_name,priority:2;size:64;default:''"`
 	ModelName string `json:"model_name" gorm:"index:idx_qdt_model_user_name,priority:1;size:64;default:''"`
 	CreatedAt int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
-	TokenUsed int    `json:"token_used" gorm:"default:0"`
-	Count     int    `json:"count" gorm:"default:0"`
-	Quota     int    `json:"quota" gorm:"default:0"`
+	TokenUsed int64  `json:"token_used" gorm:"default:0"`
+	Count     int64  `json:"count" gorm:"default:0"`
+	Quota     int64  `json:"quota" gorm:"default:0"`
 }
 
 func UpdateQuotaData() {
@@ -35,7 +42,7 @@ func UpdateQuotaData() {
 var CacheQuotaData = make(map[string]*QuotaData)
 var CacheQuotaDataLock = sync.Mutex{}
 
-func logQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+func logQuotaDataCache(userId int, username string, modelName string, quota int64, createdAt int64, tokenUsed int64) {
 	key := fmt.Sprintf("%d-%s-%s-%d", userId, username, modelName, createdAt)
 	quotaData, ok := CacheQuotaData[key]
 	if ok {
@@ -56,7 +63,7 @@ func logQuotaDataCache(userId int, username string, modelName string, quota int,
 	CacheQuotaData[key] = quotaData
 }
 
-func LogQuotaData(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+func LogQuotaData(userId int, username string, modelName string, quota int64, createdAt int64, tokenUsed int64) {
 	// 只精确到小时
 	createdAt = createdAt - (createdAt % 3600)
 
@@ -90,7 +97,7 @@ func SaveQuotaDataCache() {
 	common.SysLog(fmt.Sprintf("保存数据看板数据成功，共保存%d条数据", size))
 }
 
-func increaseQuotaData(userId int, username string, modelName string, count int, quota int, createdAt int64, tokenUsed int) {
+func increaseQuotaData(userId int, username string, modelName string, count int64, quota int64, createdAt int64, tokenUsed int64) {
 	err := DB.Table("quota_data").Where("user_id = ? and username = ? and model_name = ? and created_at = ?",
 		userId, username, modelName, createdAt).Updates(map[string]interface{}{
 		"count":      gorm.Expr("count + ?", count),
@@ -115,17 +122,24 @@ var ErrQuotaDataTooManyRows = fmt.Errorf("匹配的看板数据超过 %d 条，�
 // concatenates the results. Segments are disjoint on created_at and created_at
 // is part of every grouping used here, so a group key can never appear in two
 // segments and concatenation is exact.
+//
+// The range is validated here as well as at the HTTP boundary. This layer is
+// the last place that can stop an unbounded, inverted, or over-long scan, and
+// it must not depend on every caller having checked first.
 func runSegmentedQuotaDataQuery(
 	ctx context.Context,
 	startTime int64,
 	endTime int64,
 	build func(tx *gorm.DB) *gorm.DB,
 ) ([]*QuotaData, error) {
+	segments, err := common.SplitDashboardRange(startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
 	db := DB
 	if ctx != nil {
 		db = db.WithContext(ctx)
 	}
-	segments := common.SplitDashboardRange(startTime, endTime)
 	quotaDatas := make([]*QuotaData, 0)
 	for _, segment := range segments {
 		var segmentRows []*QuotaData

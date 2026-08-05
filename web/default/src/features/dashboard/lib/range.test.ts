@@ -1,6 +1,6 @@
-// @ts-nocheck
 import { describe, expect, test } from 'bun:test'
 import {
+  type DashboardRangeErrorCode,
   DASHBOARD_MAX_RANGE_DAYS,
   DASHBOARD_MAX_RANGE_SECONDS,
   DASHBOARD_MAX_SEGMENT_DAYS,
@@ -33,35 +33,41 @@ describe('dashboard range policy', () => {
     expect(span).toBeLessThan(DASHBOARD_MAX_RANGE_SECONDS)
   })
 
-  const cases: Array<[string, number, number, string | null]> = [
+  const cases: Array<[string, number, number, DashboardRangeErrorCode | null]> =
     [
-      'cross month within 31 days',
-      REPORTED_START,
-      REPORTED_START + 20 * DAY,
-      null,
-    ],
-    ['exactly 31 days', REPORTED_START, REPORTED_START + 31 * DAY, null],
-    [
-      '31 days plus one second',
-      REPORTED_START,
-      REPORTED_START + 31 * DAY + 1,
-      null,
-    ],
-    ['reported 35 day range', REPORTED_START, REPORTED_END, null],
-    ['exactly 90 days', REPORTED_START, REPORTED_START + 90 * DAY, null],
-    [
-      '90 days plus one second',
-      REPORTED_START,
-      REPORTED_START + 90 * DAY + 1,
-      DASHBOARD_RANGE_TOO_LARGE,
-    ],
-    ['inverted', REPORTED_START, REPORTED_START - 1, DASHBOARD_RANGE_INVERTED],
-    ['empty', 0, 0, null],
-    ['zero width', REPORTED_START, REPORTED_START, null],
-    ['future end', REPORTED_START, REPORTED_START + 7 * DAY, null],
-    ['not a number', Number.NaN, REPORTED_END, DASHBOARD_RANGE_INVALID],
-    ['negative', -1, REPORTED_END, DASHBOARD_RANGE_INVALID],
-  ]
+      [
+        'cross month within 31 days',
+        REPORTED_START,
+        REPORTED_START + 20 * DAY,
+        null,
+      ],
+      ['exactly 31 days', REPORTED_START, REPORTED_START + 31 * DAY, null],
+      [
+        '31 days plus one second',
+        REPORTED_START,
+        REPORTED_START + 31 * DAY + 1,
+        null,
+      ],
+      ['reported 35 day range', REPORTED_START, REPORTED_END, null],
+      ['exactly 90 days', REPORTED_START, REPORTED_START + 90 * DAY, null],
+      [
+        '90 days plus one second',
+        REPORTED_START,
+        REPORTED_START + 90 * DAY + 1,
+        DASHBOARD_RANGE_TOO_LARGE,
+      ],
+      [
+        'inverted',
+        REPORTED_START,
+        REPORTED_START - 1,
+        DASHBOARD_RANGE_INVERTED,
+      ],
+      ['empty', 0, 0, null],
+      ['zero width', REPORTED_START, REPORTED_START, null],
+      ['future end', REPORTED_START, REPORTED_START + 7 * DAY, null],
+      ['not a number', Number.NaN, REPORTED_END, DASHBOARD_RANGE_INVALID],
+      ['negative', -1, REPORTED_END, DASHBOARD_RANGE_INVALID],
+    ]
 
   for (const [name, start, end, expected] of cases) {
     test(`validates ${name}`, () => {

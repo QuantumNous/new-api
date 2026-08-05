@@ -3,12 +3,14 @@ import { useAuthStore } from '@/stores/auth-store'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getUserQuotaDates } from '@/features/dashboard/api'
+import { getUserQuotaDates, unwrapQuotaSeries } from '@/features/dashboard/api'
 import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import {
   buildQueryParams,
   calculateDashboardStats,
+  describeQuotaFailure,
   getDefaultDays,
+  isAbortError,
 } from '@/features/dashboard/lib'
 import type {
   QuotaDataItem,
@@ -30,7 +32,7 @@ export function LogStatCards(props: LogStatCardsProps) {
     totalTokens: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState('')
 
   const [timeRangeMinutes, setTimeRangeMinutes] = useState(0)
 
@@ -41,7 +43,7 @@ export function LogStatCards(props: LogStatCardsProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
 
-    setError(false)
+    setError('')
     onDataUpdate?.([], true)
 
     const timeRange = computeTimeRange(
@@ -52,17 +54,25 @@ export function LogStatCards(props: LogStatCardsProps) {
     const timeDiff = (timeRange.end_timestamp - timeRange.start_timestamp) / 60
     setTimeRangeMinutes(timeDiff)
 
-    getUserQuotaDates(buildQueryParams(timeRange, filters), isAdmin)
+    getUserQuotaDates(
+      buildQueryParams(timeRange, filters),
+      isAdmin,
+      // Cancel at the transport when the filter changes or the panel unmounts.
+      abortController.signal
+    )
       .then((res) => {
         if (abortController.signal.aborted) return
-        const data = res?.data || []
+        // A refused query must not be rendered as an empty/zero range.
+        const data = unwrapQuotaSeries(res)
         setStats(calculateDashboardStats(data))
+        setError('')
         onDataUpdate?.(data, false)
       })
-      .catch(() => {
+      .catch((loadError: unknown) => {
         if (abortController.signal.aborted) return
+        if (isAbortError(loadError)) return
         setStats(null)
-        setError(true)
+        setError(describeQuotaFailure(loadError))
         onDataUpdate?.([], false)
       })
       .finally(() => {
@@ -116,11 +126,14 @@ export function LogStatCards(props: LogStatCardsProps) {
                 </div>
               ) : error ? (
                 <>
-                  <div className='text-muted-foreground mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums sm:mt-2 sm:text-2xl'>
+                  <div className='text-destructive mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums sm:mt-2 sm:text-2xl'>
                     --
                   </div>
-                  <div className='text-muted-foreground/40 mt-1 hidden text-xs md:block'>
-                    {it.desc}
+                  <div
+                    className='text-destructive/80 mt-1 line-clamp-2 text-xs'
+                    title={error}
+                  >
+                    {error}
                   </div>
                 </>
               ) : (

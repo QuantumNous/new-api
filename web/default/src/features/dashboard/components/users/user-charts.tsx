@@ -7,12 +7,16 @@ import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
+import {
+  getUserQuotaDataByUsers,
+  unwrapQuotaSeries,
+} from '@/features/dashboard/api'
 import {
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
 } from '@/features/dashboard/constants'
 import {
+  describeQuotaFailure,
   getDefaultDays,
   getSavedGranularity,
   saveGranularity,
@@ -104,22 +108,32 @@ export function UserCharts() {
     updateTheme()
   }, [resolvedTheme])
 
-  const { data: userData, isLoading } = useQuery({
+  const {
+    data: userData,
+    isLoading,
+    isError,
+    error: userDataError,
+  } = useQuery({
+    // TanStack Query supplies the AbortSignal for this query; forwarding it
+    // means a superseded or unmounted range is cancelled at the transport.
+    // unwrapQuotaSeries throws on a refused query so the panel shows an error
+    // instead of an empty chart that reads as "no consumption".
     queryKey: ['dashboard', 'user-quota', timeRange],
-    queryFn: () => getUserQuotaDataByUsers(timeRange),
-    select: (res) => (res.success ? res.data : []),
+    queryFn: ({ signal }) =>
+      getUserQuotaDataByUsers(timeRange, signal).then(unwrapQuotaSeries),
     staleTime: 60_000,
+    retry: false,
   })
 
   const chartData = useMemo(
     () =>
       processUserChartData(
-        isLoading ? [] : (userData ?? []),
+        isLoading || isError ? [] : (userData ?? []),
         timeGranularity,
         t,
         topUserLimit
       ),
-    [userData, isLoading, timeGranularity, t, topUserLimit]
+    [userData, isLoading, isError, timeGranularity, t, topUserLimit]
   )
 
   return (
@@ -203,6 +217,12 @@ export function UserCharts() {
               <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
                 {isLoading ? (
                   <Skeleton className='h-full w-full' />
+                ) : isError ? (
+                  // A refused query is reported, never drawn as an empty chart
+                  // that would read as "no consumption in this range".
+                  <div className='text-destructive flex h-full w-full items-center justify-center px-4 text-center text-sm'>
+                    {describeQuotaFailure(userDataError)}
+                  </div>
                 ) : (
                   themeReady &&
                   spec && (

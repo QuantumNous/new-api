@@ -286,10 +286,17 @@ func TestGetLogUsageAnalysis5000GroupBoundaryAndHelpfulOverflow(t *testing.T) {
 	}
 	require.NoError(t, LOG_DB.CreateInBatches(&logs, 250).Error)
 
+	// A dashboard range is always closed on both sides; there is no
+	// "unbounded" form, so the row-cap boundary is exercised inside an
+	// explicit one-day window.
 	filter := LogUsageAnalysisFilter{
-		LogUsageSummaryFilter: LogUsageSummaryFilter{UserId: 1},
-		Granularity:           "day",
-		Dimensions:            []string{"period", "model_name"},
+		LogUsageSummaryFilter: LogUsageSummaryFilter{
+			UserId:         1,
+			StartTimestamp: 1704038400,
+			EndTimestamp:   1704038400 + 24*60*60,
+		},
+		Granularity: "day",
+		Dimensions:  []string{"period", "model_name"},
 	}
 	rows, err := GetLogUsageAnalysis(filter)
 	require.NoError(t, err)

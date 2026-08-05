@@ -181,8 +181,12 @@ func getLogUsageAnalysisFilter(c *gin.Context, userId int, allowAdminFilters boo
 // segments the model layer will run, so a 90 day query is not judged against a
 // 31 day query's budget while the overall bound stays fixed and predictable.
 func logUsageAnalysisTimeout(filter model.LogUsageAnalysisFilter) time.Duration {
-	segments := len(common.SplitDashboardRange(filter.StartTimestamp, filter.EndTimestamp))
-	if segments < 1 {
+	// The filter has already been validated; an error here can only mean the
+	// query is going to be rejected anyway, so fall back to the single-segment
+	// budget rather than granting a larger one.
+	segmentList, err := common.SplitDashboardRange(filter.StartTimestamp, filter.EndTimestamp)
+	segments := len(segmentList)
+	if err != nil || segments < 1 {
 		segments = 1
 	}
 	timeout := logUsageAnalysisSegmentTimeout * time.Duration(segments)

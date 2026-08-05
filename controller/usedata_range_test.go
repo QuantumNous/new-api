@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -34,6 +35,10 @@ type quotaDataResponse struct {
 	Message string            `json:"message"`
 	Code    string            `json:"code"`
 	Data    []model.QuotaData `json:"data"`
+}
+
+func rangeQuery(start, end int64) string {
+	return fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", start, end)
 }
 
 func decodeQuotaDataResponse(t *testing.T, recorder *httptest.ResponseRecorder) quotaDataResponse {
@@ -68,45 +73,63 @@ func TestGetUserQuotaDatesServesTheReportedCrossMonthRange(t *testing.T) {
 	require.True(t, response.Success, response.Message)
 	require.Len(t, response.Data, 3)
 
-	var quota, count int
+	var quota, count int64
 	for _, row := range response.Data {
 		assert.Equal(t, 7, row.UserID)
 		quota += row.Quota
 		count += row.Count
 	}
-	assert.Equal(t, 600, quota)
-	assert.Equal(t, 6, count)
+	assert.EqualValues(t, 600, quota)
+	assert.EqualValues(t, 6, count)
 }
 
 func TestQuotaDataHandlersRangeBoundaryMatrix(t *testing.T) {
 	tests := []struct {
-		name     string
-		start    int64
-		end      int64
-		wantCode string
+		name       string
+		query      string
+		wantStatus int
+		wantCode   string
 	}{
-		{name: "cross month within 31 days", start: usedataReportedStart, end: usedataReportedStart + 20*usedataDay},
-		{name: "exactly 31 days", start: usedataReportedStart, end: usedataReportedStart + 31*usedataDay},
-		{name: "31 days plus one second", start: usedataReportedStart, end: usedataReportedStart + 31*usedataDay + 1},
-		{name: "reported 35 day range", start: usedataReportedStart, end: usedataReportedEnd},
-		{name: "exactly 90 days", start: usedataReportedStart, end: usedataReportedStart + 90*usedataDay},
-		{name: "90 days plus one second", start: usedataReportedStart, end: usedataReportedStart + 90*usedataDay + 1, wantCode: "dashboard_range_too_large"},
-		{name: "inverted", start: usedataReportedStart, end: usedataReportedStart - 1, wantCode: "dashboard_range_invalid"},
-		{name: "empty", start: 0, end: 0},
+		{name: "cross month within 31 days", query: rangeQuery(usedataReportedStart, usedataReportedStart+20*usedataDay), wantStatus: http.StatusOK},
+		{name: "exactly 31 days", query: rangeQuery(usedataReportedStart, usedataReportedStart+31*usedataDay), wantStatus: http.StatusOK},
+		{name: "31 days plus one second", query: rangeQuery(usedataReportedStart, usedataReportedStart+31*usedataDay+1), wantStatus: http.StatusOK},
+		{name: "reported 35 day range", query: rangeQuery(usedataReportedStart, usedataReportedEnd), wantStatus: http.StatusOK},
+		{name: "exactly 90 days", query: rangeQuery(usedataReportedStart, usedataReportedStart+90*usedataDay), wantStatus: http.StatusOK},
+		{name: "90 days plus one second", query: rangeQuery(usedataReportedStart, usedataReportedStart+90*usedataDay+1), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_too_large"},
+		{name: "inverted", query: rangeQuery(usedataReportedStart, usedataReportedStart-1), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+
+		// A missing, empty, malformed, or out-of-int64-range bound must never be
+		// coerced to 0. Coercion previously turned every one of these into the
+		// degenerate window [0, 0] (or a one-sided scan) that silently answered
+		// "no data" instead of reporting a bad request.
+		{name: "both bounds missing", query: "", wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "start missing", query: fmt.Sprintf("end_timestamp=%d", usedataReportedEnd), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "end missing", query: fmt.Sprintf("start_timestamp=%d", usedataReportedStart), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "start empty string", query: fmt.Sprintf("start_timestamp=&end_timestamp=%d", usedataReportedEnd), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "end empty string", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=", usedataReportedStart), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "start whitespace only", query: fmt.Sprintf("start_timestamp=%%20&end_timestamp=%d", usedataReportedEnd), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "start not a number", query: fmt.Sprintf("start_timestamp=abc&end_timestamp=%d", usedataReportedEnd), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "end not a number", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=not-a-number", usedataReportedStart), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "start float", query: fmt.Sprintf("start_timestamp=1782835242.5&end_timestamp=%d", usedataReportedEnd), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "start zero", query: fmt.Sprintf("start_timestamp=0&end_timestamp=%d", usedataReportedEnd), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "end zero", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=0", usedataReportedStart), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "both zero", query: "start_timestamp=0&end_timestamp=0", wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "start negative", query: fmt.Sprintf("start_timestamp=-1&end_timestamp=%d", usedataReportedEnd), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "end negative", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=-1", usedataReportedStart), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "start overflows int64", query: fmt.Sprintf("start_timestamp=9223372036854775808&end_timestamp=%d", usedataReportedEnd), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "end overflows int64", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=99999999999999999999", usedataReportedStart), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_invalid"},
+		{name: "end at max int64 is too large", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", usedataReportedStart, int64(math.MaxInt64)), wantStatus: http.StatusBadRequest, wantCode: "dashboard_range_too_large"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			setupQuotaDataTestDB(t)
-			ctx, recorder := newAuthenticatedContext(t, http.MethodGet, fmt.Sprintf(
-				"/api/data/self?start_timestamp=%d&end_timestamp=%d", test.start, test.end,
-			), nil, 7)
+			ctx, recorder := newAuthenticatedContext(t, http.MethodGet,
+				"/api/data/self?"+test.query, nil, 7)
 
 			GetUserQuotaDates(ctx)
 
-			// These legacy endpoints keep the 200 + success:false envelope, so the
-			// stable code is what clients must branch on.
-			assert.Equal(t, http.StatusOK, recorder.Code)
+			assert.Equal(t, test.wantStatus, recorder.Code)
 			response := decodeQuotaDataResponse(t, recorder)
 			if test.wantCode == "" {
 				assert.True(t, response.Success, response.Message)
@@ -116,17 +139,66 @@ func TestQuotaDataHandlersRangeBoundaryMatrix(t *testing.T) {
 			assert.False(t, response.Success)
 			assert.Equal(t, test.wantCode, response.Code)
 			assert.NotEmpty(t, response.Message)
+			assert.Empty(t, response.Data, "a rejected query must not return rows")
 		})
 	}
 }
 
-func TestQuotaDataAdminHandlersShareTheSameRangeBound(t *testing.T) {
-	handlers := map[string]func(ctx *gin.Context){
-		"/api/data/":      GetAllQuotaDates,
-		"/api/data/users": GetQuotaDatesByUser,
+// Every quota-series handler must reject the same malformed input identically;
+// a normal user and an administrator must not see different contracts.
+func TestQuotaDataAllHandlersRejectMalformedTimestampsIdentically(t *testing.T) {
+	// Sub-test names stay free of URL punctuation: the shared SQLite test helper
+	// builds its DSN from t.Name(), and a "?" there would turn the in-memory DSN
+	// into a real file on disk.
+	queries := []struct {
+		name  string
+		query string
+	}{
+		{name: "both_missing", query: ""},
+		{name: "start_empty", query: fmt.Sprintf("start_timestamp=&end_timestamp=%d", usedataReportedEnd)},
+		{name: "start_not_a_number", query: fmt.Sprintf("start_timestamp=oops&end_timestamp=%d", usedataReportedEnd)},
+		{name: "end_zero", query: fmt.Sprintf("start_timestamp=%d&end_timestamp=0", usedataReportedStart)},
+		{name: "both_overflow_int64", query: "start_timestamp=9223372036854775808&end_timestamp=9223372036854775809"},
 	}
-	for path, handler := range handlers {
-		t.Run(path, func(t *testing.T) {
+	handlers := []struct {
+		name    string
+		path    string
+		handler func(ctx *gin.Context)
+	}{
+		{name: "self", path: "/api/data/self", handler: GetUserQuotaDates},
+		{name: "admin_all", path: "/api/data/", handler: GetAllQuotaDates},
+		{name: "admin_users", path: "/api/data/users", handler: GetQuotaDatesByUser},
+	}
+	for _, target := range handlers {
+		for _, query := range queries {
+			t.Run(target.name+"_"+query.name, func(t *testing.T) {
+				setupQuotaDataTestDB(t)
+				ctx, recorder := newAuthenticatedContext(
+					t, http.MethodGet, target.path+"?"+query.query, nil, 7)
+				target.handler(ctx)
+
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				response := decodeQuotaDataResponse(t, recorder)
+				assert.False(t, response.Success)
+				assert.Equal(t, "dashboard_range_invalid", response.Code)
+				assert.Empty(t, response.Data)
+			})
+		}
+	}
+}
+
+func TestQuotaDataAdminHandlersShareTheSameRangeBound(t *testing.T) {
+	handlers := []struct {
+		name    string
+		path    string
+		handler func(ctx *gin.Context)
+	}{
+		{name: "admin_all", path: "/api/data/", handler: GetAllQuotaDates},
+		{name: "admin_users", path: "/api/data/users", handler: GetQuotaDatesByUser},
+	}
+	for _, target := range handlers {
+		path, handler := target.path, target.handler
+		t.Run(target.name, func(t *testing.T) {
 			setupQuotaDataTestDB(t)
 			ctx, recorder := newAuthenticatedContext(t, http.MethodGet, fmt.Sprintf(
 				"%s?start_timestamp=%d&end_timestamp=%d", path, usedataReportedStart, usedataReportedStart+90*usedataDay+1,
@@ -134,7 +206,7 @@ func TestQuotaDataAdminHandlersShareTheSameRangeBound(t *testing.T) {
 
 			handler(ctx)
 
-			assert.Equal(t, http.StatusOK, recorder.Code)
+			assert.Equal(t, http.StatusBadRequest, recorder.Code)
 			response := decodeQuotaDataResponse(t, recorder)
 			assert.False(t, response.Success)
 			assert.Equal(t, "dashboard_range_too_large", response.Code)

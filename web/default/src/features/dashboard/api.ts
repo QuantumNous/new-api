@@ -26,6 +26,29 @@ export const ANALYSIS_FALLBACK_DIMENSIONS = ['period'] as const
 // Quota & Usage Data
 // ----------------------------------------------------------------------------
 
+export interface QuotaSeriesResponse {
+  success: boolean
+  data: QuotaDataItem[]
+  message?: string
+  code?: string
+}
+
+// The quota series requests own their cancellation: the caller's AbortSignal is
+// handed to the HTTP client so a superseded range is cancelled at the transport
+// rather than merely ignored on arrival, and the global interceptor is bypassed
+// so the panel can render its own error state.
+function quotaRequestConfig(
+  params: Record<string, unknown>,
+  signal?: AbortSignal
+) {
+  return {
+    params,
+    signal,
+    disableDuplicate: true,
+    skipErrorHandler: true,
+  } as unknown as Parameters<typeof api.get>[1]
+}
+
 // Get user quota data within a time range
 // Admin users get all users' data by default (matching classic frontend behavior)
 export async function getUserQuotaDates(
@@ -35,13 +58,14 @@ export async function getUserQuotaDates(
     default_time?: string
     username?: string
   },
-  isAdmin = false
-) {
+  isAdmin = false,
+  signal?: AbortSignal
+): Promise<QuotaSeriesResponse> {
   assertDashboardRange(params.start_timestamp, params.end_timestamp)
   const endpoint = isAdmin ? '/api/data' : '/api/data/self'
-  const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
+  const res = await api.get<QuotaSeriesResponse>(
     endpoint,
-    { params }
+    quotaRequestConfig(params, signal)
   )
   return res.data
 }
@@ -50,16 +74,46 @@ export async function getUserQuotaDates(
 // System Monitoring
 // ----------------------------------------------------------------------------
 
-export async function getUserQuotaDataByUsers(params: {
-  start_timestamp: number
-  end_timestamp: number
-}) {
+export async function getUserQuotaDataByUsers(
+  params: {
+    start_timestamp: number
+    end_timestamp: number
+  },
+  signal?: AbortSignal
+): Promise<QuotaSeriesResponse> {
   assertDashboardRange(params.start_timestamp, params.end_timestamp)
-  const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
+  const res = await api.get<QuotaSeriesResponse>(
     '/api/data/users',
-    { params }
+    quotaRequestConfig(params, signal)
   )
   return res.data
+}
+
+/**
+ * Normalises a quota series response into rows, throwing on a business failure.
+ *
+ * A `success: false` payload is a refused query, not an empty range. Returning
+ * `[]` for it would render as a legitimate "0 consumption" dashboard, hiding
+ * the fact that the numbers on screen answer no question at all.
+ */
+export function unwrapQuotaSeries(response: QuotaSeriesResponse | undefined) {
+  if (!response || !response.success) {
+    throw new QuotaSeriesError(
+      response?.message || 'Failed to load dashboard data',
+      response?.code
+    )
+  }
+  return response.data ?? []
+}
+
+export class QuotaSeriesError extends Error {
+  readonly code?: string
+
+  constructor(message: string, code?: string) {
+    super(message)
+    this.name = 'QuotaSeriesError'
+    this.code = code
+  }
 }
 
 // Get uptime monitoring status for all services

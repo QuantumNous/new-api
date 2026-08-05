@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -18,35 +19,62 @@ import (
 // database from holding the HTTP handler open indefinitely.
 const quotaDataQueryTimeout = 20 * time.Second
 
-// parseQuotaDataRange enforces the shared dashboard range policy: an inverted
-// range is rejected, and a span longer than the product bound is rejected
-// instead of being silently truncated or allowed to scan without a limit.
+// parseQuotaDataTimestamp reads one mandatory bound.
+//
+// It never coerces a parse failure to zero. A missing, empty, non-numeric, or
+// out-of-int64-range value is an invalid request, not "no filter": coercing it
+// to 0 would silently produce a degenerate or unbounded window depending on the
+// other bound. Zero and negative values are rejected for the same reason.
+func parseQuotaDataTimestamp(c *gin.Context, name string) (int64, error) {
+	raw := strings.TrimSpace(c.Query(name))
+	if raw == "" {
+		return 0, common.ErrDashboardRangeInvalid
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0, common.ErrDashboardRangeInvalid
+	}
+	return value, nil
+}
+
+// parseQuotaDataRange enforces the shared dashboard range policy: both bounds
+// are mandatory and must parse, an inverted range is rejected, and a span
+// longer than the product bound is rejected instead of being silently
+// truncated or allowed to scan without a limit.
 func parseQuotaDataRange(c *gin.Context) (int64, int64, error) {
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	startTimestamp, err := parseQuotaDataTimestamp(c, "start_timestamp")
+	if err != nil {
+		return 0, 0, err
+	}
+	endTimestamp, err := parseQuotaDataTimestamp(c, "end_timestamp")
+	if err != nil {
+		return 0, 0, err
+	}
 	if err := common.ValidateDashboardRange(startTimestamp, endTimestamp); err != nil {
 		return 0, 0, err
 	}
 	return startTimestamp, endTimestamp, nil
 }
 
-// writeQuotaDataError keeps the legacy 200 + success:false envelope these
-// handlers have always used, while adding a stable machine-readable code so
-// both frontends can distinguish a range rejection, an overload and a timeout
-// without string matching.
+// writeQuotaDataError reports a real HTTP status plus a stable machine-readable
+// code. The dashboard series endpoints are a client-facing API boundary: a
+// rejected range must be visible as 4xx so a caller cannot mistake it for an
+// empty result set, and so a frontend can distinguish "no data in range" from
+// "this query was refused".
 func writeQuotaDataError(c *gin.Context, err error) {
 	code := "quota_data_query_failed"
+	status := http.StatusInternalServerError
 	switch {
 	case errors.Is(err, common.ErrDashboardRangeTooLarge):
-		code = "dashboard_range_too_large"
+		code, status = "dashboard_range_too_large", http.StatusBadRequest
 	case errors.Is(err, common.ErrDashboardRangeInverted), errors.Is(err, common.ErrDashboardRangeInvalid):
-		code = "dashboard_range_invalid"
+		code, status = "dashboard_range_invalid", http.StatusBadRequest
 	case errors.Is(err, model.ErrQuotaDataTooManyRows):
-		code = "dashboard_rows_overflow"
+		code, status = "dashboard_rows_overflow", http.StatusBadRequest
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
-		code = "dashboard_query_timeout"
+		code, status = "dashboard_query_timeout", http.StatusGatewayTimeout
 	}
-	c.JSON(http.StatusOK, gin.H{
+	c.AbortWithStatusJSON(status, gin.H{
 		"success": false,
 		"message": err.Error(),
 		"code":    code,

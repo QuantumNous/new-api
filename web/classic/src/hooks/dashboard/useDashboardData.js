@@ -31,6 +31,8 @@ import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 import { parseDashboardDateRange } from './time';
 import { describeDashboardRangeError, validateDashboardRange } from './range';
+import { getAnalysisFailureMessage, isRequestCanceled } from './analysisState';
+import { createDashboardRequestGuard, runQuotaDataRequest } from './quotaState';
 
 export const useDashboardData = (userState, userDispatch, statusState) => {
   const { t } = useTranslation();
@@ -58,8 +60,23 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [dataExportDefaultTime, setDataExportDefaultTime] =
     useState(getDefaultTime());
 
+  // ========== 请求取消/陈旧结果保护 ==========
+  // Every quota-series load owns a generation number and an AbortController.
+  // A new load aborts the in-flight one, and only the newest generation is
+  // allowed to write state, so a slow response for an old range can never
+  // overwrite the numbers for the range the user is currently looking at.
+  const quotaGuard = useRef(null);
+  if (quotaGuard.current === null) {
+    quotaGuard.current = createDashboardRequestGuard();
+  }
+  const userQuotaGuard = useRef(null);
+  if (userQuotaGuard.current === null) {
+    userQuotaGuard.current = createDashboardRequestGuard();
+  }
+
   // ========== 数据状态 ==========
   const [quotaData, setQuotaData] = useState([]);
+  const [quotaError, setQuotaError] = useState('');
   const [consumeQuota, setConsumeQuota] = useState(0);
   const [consumeTokens, setConsumeTokens] = useState(0);
   const [times, setTimes] = useState(0);
@@ -167,9 +184,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   // ========== API 调用函数 ==========
   const loadQuotaData = useCallback(async () => {
+    const attempt = quotaGuard.current.begin();
+
     setLoading(true);
+    setQuotaError('');
     try {
-      let url = '';
       const { start_timestamp, end_timestamp, username } = inputs;
       const { start: localStartTimestamp, end: localEndTimestamp } =
         parseDashboardDateRange(start_timestamp, end_timestamp);
@@ -181,40 +200,56 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         localEndTimestamp,
       );
       if (rangeError) {
+        if (!attempt.isCurrent()) return [];
+        const message = describeDashboardRangeError(rangeError, t);
         setQuotaData([]);
-        showError(describeDashboardRangeError(rangeError, t));
-        return [];
-      }
-
-      if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      }
-
-      const res = await API.get(url);
-      const { success, message, data } = res.data;
-      if (success) {
-        setQuotaData(data);
-        if (data.length === 0) {
-          data.push({
-            count: 0,
-            model_name: '无数据',
-            quota: 0,
-            created_at: now.getTime() / 1000,
-          });
-        }
-        data.sort((a, b) => a.created_at - b.created_at);
-        return data;
-      } else {
-        // A rejected query must not leave the previous range's numbers on
-        // screen; the panels would otherwise mix two different filters.
-        setQuotaData([]);
+        setQuotaError(message);
         showError(message);
         return [];
       }
+
+      const url = isAdminUser
+        ? `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`
+        : `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+
+      const outcome = await runQuotaDataRequest({
+        // The signal is handed to the HTTP client so a superseded range is
+        // cancelled at the transport, not merely ignored on arrival.
+        requestQuota: async (signal) => {
+          const res = await API.get(url, {
+            signal,
+            // This hook owns cancellation and error presentation; the global
+            // interceptor must not toast a rejection we are about to replace.
+            skipErrorHandler: true,
+            disableDuplicate: true,
+          });
+          return res.data;
+        },
+        attempt,
+        defaultFailureMessage: t('加载数据看板失败'),
+        setQuotaData,
+        setQuotaError,
+        showError,
+      });
+
+      if (outcome.status !== 'success') return [];
+
+      const rows = outcome.rows;
+      if (rows.length === 0) {
+        rows.push({
+          count: 0,
+          model_name: '无数据',
+          quota: 0,
+          created_at: now.getTime() / 1000,
+        });
+      }
+      rows.sort((a, b) => a.created_at - b.created_at);
+      return rows;
     } finally {
-      setLoading(false);
+      if (attempt.isCurrent()) {
+        setLoading(false);
+        attempt.finish();
+      }
     }
   }, [inputs, dataExportDefaultTime, isAdminUser, now, t]);
 
@@ -240,24 +275,44 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   const loadUserQuotaData = useCallback(async () => {
     if (!isAdminUser) return [];
-    try {
-      const { start_timestamp, end_timestamp } = inputs;
-      const { start: localStartTimestamp, end: localEndTimestamp } =
-        parseDashboardDateRange(start_timestamp, end_timestamp);
-      const url = `/api/data/users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
-      const res = await API.get(url);
-      const { success, message, data } = res.data;
-      if (success) {
-        return data || [];
-      } else {
-        showError(message);
-        return [];
+    const attempt = userQuotaGuard.current.begin();
+
+    const { start_timestamp, end_timestamp } = inputs;
+    const { start: localStartTimestamp, end: localEndTimestamp } =
+      parseDashboardDateRange(start_timestamp, end_timestamp);
+    const rangeError = validateDashboardRange(
+      localStartTimestamp,
+      localEndTimestamp,
+    );
+    if (rangeError) {
+      if (attempt.isCurrent()) {
+        showError(describeDashboardRangeError(rangeError, t));
       }
-    } catch (err) {
-      console.error(err);
       return [];
     }
-  }, [inputs, isAdminUser]);
+
+    const url = `/api/data/users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+    try {
+      const res = await API.get(url, {
+        signal: attempt.signal,
+        skipErrorHandler: true,
+        disableDuplicate: true,
+      });
+      if (!attempt.isCurrent()) return [];
+      const { success, message, data } = res.data;
+      if (success) return data || [];
+      showError(message || t('加载数据看板失败'));
+      return [];
+    } catch (err) {
+      if (isRequestCanceled(err, attempt.signal) || !attempt.isCurrent()) {
+        return [];
+      }
+      showError(getAnalysisFailureMessage(err, t('加载数据看板失败')));
+      return [];
+    } finally {
+      attempt.finish();
+    }
+  }, [inputs, isAdminUser, t]);
 
   const getUserData = useCallback(async () => {
     let res = await API.get(`/api/user/self`);
@@ -301,6 +356,16 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [getUserData]);
 
+  // On unmount every in-flight quota request is invalidated and aborted, so a
+  // response that arrives after teardown cannot touch state.
+  useEffect(
+    () => () => {
+      quotaGuard.current?.cancel();
+      userQuotaGuard.current?.cancel();
+    },
+    [],
+  );
+
   return {
     // 基础状态
     loading: showLoading,
@@ -313,6 +378,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
     // 数据状态
     quotaData,
+    quotaError,
     consumeQuota,
     setConsumeQuota,
     consumeTokens,
