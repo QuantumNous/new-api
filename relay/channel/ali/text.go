@@ -1,7 +1,7 @@
 package ali
 
 import (
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/samber/lo"
 )
 
@@ -9,7 +9,15 @@ import (
 
 const EnableSearchModelSuffix = "-internet"
 
-func requestOpenAI2Ali(request dto.GeneralOpenAIRequest) *dto.GeneralOpenAIRequest {
+func requestOpenAI2Ali(request dto.GeneralOpenAIRequest, upstreamModelName string) *dto.GeneralOpenAIRequest {
+	modelName := upstreamModelName
+	if modelName == "" {
+		modelName = request.Model
+	}
+	if !dto.IsQwenThinkingBudgetModel(modelName) {
+		request.ThinkingBudget = nil
+	}
+
 	topP := lo.FromPtrOr(request.TopP, 0)
 	if topP >= 1 {
 		request.TopP = lo.ToPtr(0.999)

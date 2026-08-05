@@ -10,12 +10,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/service/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/model_setting"
-	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -282,6 +282,144 @@ func TestAdaptorMatchesGeminiIncomingPathTemplate(t *testing.T) {
 			assert.Equal(t, tt.wantRequestPath, parsedURL.Path)
 		})
 	}
+}
+
+func TestAdaptorBuildModelListRequestUsesConfiguredRouteAuth(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/models",
+				UpstreamPath: "/provider/models",
+				Converter:    relayconvert.ConverterNone,
+				Auth: &dto.AdvancedCustomRouteAuth{
+					Type:  dto.AdvancedCustomAuthTypeHeader,
+					Name:  "x-api-key",
+					Value: "token {api_key}",
+				},
+			},
+		},
+	})
+	info.RequestURLPath = "/v1/models"
+
+	requestURL, header, err := adaptor.BuildModelListRequest(info)
+	require.NoError(t, err)
+
+	parsedURL, err := url.Parse(requestURL)
+	require.NoError(t, err)
+	assert.Equal(t, "fallback.example", parsedURL.Host)
+	assert.Equal(t, "/provider/models", parsedURL.Path)
+	assert.Equal(t, "token sk-test", header.Get("x-api-key"))
+	assert.Empty(t, header.Get("Authorization"))
+}
+
+func TestAdaptorBuildModelListRequestUsesConfiguredQueryAuth(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/models",
+				UpstreamPath: "https://upstream.example/v1/models?existing=1",
+				Converter:    relayconvert.ConverterNone,
+				Auth: &dto.AdvancedCustomRouteAuth{
+					Type:  dto.AdvancedCustomAuthTypeQuery,
+					Name:  "key",
+					Value: "{api_key}",
+				},
+			},
+		},
+	})
+	info.RequestURLPath = "/v1/models"
+
+	requestURL, header, err := adaptor.BuildModelListRequest(info)
+	require.NoError(t, err)
+
+	parsedURL, err := url.Parse(requestURL)
+	require.NoError(t, err)
+	assert.Equal(t, "upstream.example", parsedURL.Host)
+	assert.Equal(t, "/v1/models", parsedURL.Path)
+	assert.Equal(t, "1", parsedURL.Query().Get("existing"))
+	assert.Equal(t, "sk-test", parsedURL.Query().Get("key"))
+	assert.Empty(t, header.Get("Authorization"))
+}
+
+func TestAdaptorBuildModelListRequestDefaultAndNoAuth(t *testing.T) {
+	tests := []struct {
+		name              string
+		auth              *dto.AdvancedCustomRouteAuth
+		wantAuthorization string
+	}{
+		{
+			name:              "default bearer",
+			wantAuthorization: "Bearer sk-test",
+		},
+		{
+			name: "no authentication",
+			auth: &dto.AdvancedCustomRouteAuth{
+				Type: dto.AdvancedCustomAuthTypeNone,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+				Routes: []dto.AdvancedCustomRoute{
+					{
+						IncomingPath: dto.AdvancedCustomModelListPath,
+						UpstreamPath: "/provider/models",
+						Auth:         tt.auth,
+					},
+				},
+			})
+			info.RequestURLPath = "/unrelated/path"
+
+			requestURL, header, err := (&Adaptor{}).BuildModelListRequest(info)
+			require.NoError(t, err)
+			assert.Equal(t, "https://fallback.example/provider/models", requestURL)
+			assert.Equal(t, tt.wantAuthorization, header.Get("Authorization"))
+		})
+	}
+}
+
+func TestAdaptorBuildModelListRequestDoesNotReuseRelayRoute(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/chat/completions",
+				UpstreamPath: "/chat",
+			},
+			{
+				IncomingPath: dto.AdvancedCustomModelListPath,
+				UpstreamPath: "/provider/models",
+			},
+		},
+	})
+
+	chatURL, err := adaptor.GetRequestURL(info)
+	require.NoError(t, err)
+	assert.Equal(t, "https://fallback.example/chat", chatURL)
+
+	modelURL, header, err := adaptor.BuildModelListRequest(info)
+	require.NoError(t, err)
+	assert.Equal(t, "https://fallback.example/provider/models", modelURL)
+	assert.Equal(t, "Bearer sk-test", header.Get("Authorization"))
+}
+
+func TestAdaptorBuildModelListRequestRequiresConfiguredRoute(t *testing.T) {
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/chat/completions",
+				UpstreamPath: "/v1/chat/completions",
+			},
+		},
+	})
+
+	_, _, err := (&Adaptor{}).BuildModelListRequest(info)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not configure a /v1/models route")
 }
 
 func TestAdaptorConvertsResponsesRequestToOpenAIChatUpstream(t *testing.T) {
