@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
 )
 
@@ -17,14 +18,18 @@ const (
 
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr
+//
+// 两个字段用 types.RWMap 而非裸 map：配置热更新每个同步周期都会重写它们，而计费热路径同时
+// 在读。RWMap 让 updateConfigFromMap 的指针分支把写入路由到 RWMap.UnmarshalJSON（持写锁），
+// 读取则走 Get（持读锁），二者共享同一把锁。裸 map 在此处会被 Go 运行时判定为并发读写并终止进程。
 type BillingSetting struct {
-	BillingMode map[string]string `json:"billing_mode"`
-	BillingExpr map[string]string `json:"billing_expr"`
+	BillingMode *types.RWMap[string, string] `json:"billing_mode"`
+	BillingExpr *types.RWMap[string, string] `json:"billing_expr"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode: make(map[string]string),
-	BillingExpr: make(map[string]string),
+	BillingMode: types.NewRWMap[string, string](),
+	BillingExpr: types.NewRWMap[string, string](),
 }
 
 func init() {
@@ -36,23 +41,22 @@ func init() {
 // ---------------------------------------------------------------------------
 
 func GetBillingMode(model string) string {
-	if mode, ok := billingSetting.BillingMode[model]; ok {
+	if mode, ok := billingSetting.BillingMode.Get(model); ok {
 		return mode
 	}
 	return BillingModeRatio
 }
 
 func GetBillingExpr(model string) (string, bool) {
-	expr, ok := billingSetting.BillingExpr[model]
-	return expr, ok
+	return billingSetting.BillingExpr.Get(model)
 }
 
 func GetBillingModeCopy() map[string]string {
-	return lo.Assign(billingSetting.BillingMode)
+	return billingSetting.BillingMode.ReadAll()
 }
 
 func GetBillingExprCopy() map[string]string {
-	return lo.Assign(billingSetting.BillingExpr)
+	return billingSetting.BillingExpr.ReadAll()
 }
 
 func GetPricingSyncData(base map[string]any) map[string]any {

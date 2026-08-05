@@ -1,6 +1,11 @@
 package system_setting
 
-import "github.com/QuantumNous/new-api/setting/config"
+import (
+	"slices"
+	"sync/atomic"
+
+	"github.com/QuantumNous/new-api/setting/config"
+)
 
 type FetchSetting struct {
 	EnableSSRFProtection   bool     `json:"enable_ssrf_protection"` // 是否启用SSRF防护
@@ -13,6 +18,10 @@ type FetchSetting struct {
 	ApplyIPFilterForDomain bool     `json:"apply_ip_filter_for_domain"` // 对域名启用IP过滤（实验性）
 }
 
+// defaultFetchSetting 是注册给 ConfigManager 的写入目标。配置热更新会用反射原地改写它，
+// 其中切片字段是被 encoding/json 复用底层数组、原地重填的，因此它随时可能处于中间状态。
+//
+// 读路径一律不得读取该变量，必须走 GetFetchSetting() 返回的快照，见 fetchSnapshot。
 var defaultFetchSetting = FetchSetting{
 	EnableSSRFProtection:   true, // 默认开启SSRF防护
 	AllowPrivateIp:         false,
@@ -24,11 +33,29 @@ var defaultFetchSetting = FetchSetting{
 	ApplyIPFilterForDomain: true,
 }
 
+// fetchSnapshot 持有一份对读者不可变的副本。SSRF 名单是安全控制，读者在遍历它的同时若被
+// 原地改写，可能放行本应拒绝的目标，因此这里以整体替换的方式发布，读者始终看到自洽的一份。
+var fetchSnapshot atomic.Pointer[FetchSetting]
+
 func init() {
-	// 注册到全局配置管理器
 	config.GlobalConfig.Register("fetch_setting", &defaultFetchSetting)
+	publishFetchSnapshot()
 }
 
+// AfterConfigUpdate 实现 config.PostUpdater，在热更新写完字段后重新发布快照。
+func (s *FetchSetting) AfterConfigUpdate() {
+	publishFetchSnapshot()
+}
+
+func publishFetchSnapshot() {
+	snapshot := defaultFetchSetting
+	snapshot.DomainList = slices.Clone(defaultFetchSetting.DomainList)
+	snapshot.IpList = slices.Clone(defaultFetchSetting.IpList)
+	snapshot.AllowedPorts = slices.Clone(defaultFetchSetting.AllowedPorts)
+	fetchSnapshot.Store(&snapshot)
+}
+
+// GetFetchSetting 返回当前配置的只读快照。返回值不得被调用方修改。
 func GetFetchSetting() *FetchSetting {
-	return &defaultFetchSetting
+	return fetchSnapshot.Load()
 }
