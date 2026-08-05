@@ -21,6 +21,10 @@ For commercial licensing, please contact support@quantumnous.com
 // values as Asia/Shanghai explicitly instead of relying on Date.parse's
 // browser-local interpretation (which differs on non-CST machines).
 const CST_OFFSET_SECONDS = 8 * 60 * 60;
+// Numbers above this are read as milliseconds, below it as seconds. 1e11
+// seconds is year 5138, and 1e11 milliseconds is 1973, so no realistic bound is
+// ambiguous.
+const NUMERIC_MILLISECOND_THRESHOLD = 1e11;
 const LOCAL_DATE_TIME_RE =
   /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?$/;
 const CST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-CA', {
@@ -78,10 +82,18 @@ export const parseDashboardTimestamp = (value) => {
   }
 
   if (typeof value === 'number') {
-    if (!Number.isFinite(value)) return Number.NaN;
-    // Numeric dashboard values are Unix seconds in the existing state shape;
-    // accept millisecond values as a defensive compatibility measure.
-    return Math.floor(Math.abs(value) > 1e11 ? value / 1000 : value);
+    // A numeric bound must already be an exact whole second (or an exact whole
+    // millisecond).  Rounding a fractional number here would manufacture a
+    // valid-looking second out of an invalid input and slip it past the strict
+    // range validator, so a fraction is rejected rather than floored.
+    if (!Number.isSafeInteger(value) || value <= 0) return Number.NaN;
+    if (value > NUMERIC_MILLISECOND_THRESHOLD) {
+      // Millisecond values are accepted for compatibility with Date.getTime().
+      // Truncating to whole seconds is the documented meaning of that unit, not
+      // a repair of a malformed value.
+      return Math.floor(value / 1000);
+    }
+    return value;
   }
 
   const text = String(value ?? '').trim();

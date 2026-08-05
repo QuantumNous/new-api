@@ -146,6 +146,22 @@ func abortWithUnauthorized(c *gin.Context) {
 	})
 }
 
+// selfScopedUsername resolves the authenticated username for a /self endpoint
+// that scopes by name rather than by id.
+//
+// model.SumUsedQuota only adds its `username = ?` predicate when the name is
+// non-empty, so an empty or whitespace-only name silently turns a personal
+// statistic into a tenant-wide total. The name is trimmed and required, and the
+// request is refused before any query runs.
+func selfScopedUsername(c *gin.Context) (string, bool) {
+	username := strings.TrimSpace(c.GetString("username"))
+	if username == "" {
+		abortWithUnauthorized(c)
+		return "", false
+	}
+	return username, true
+}
+
 func GetLogSelfUsageSummary(c *gin.Context) {
 	userId, ok := selfScopedUserId(c)
 	if !ok {
@@ -315,8 +331,15 @@ func GetAllLogs(c *gin.Context) {
 }
 
 func GetUserLogs(c *gin.Context) {
+	// model.GetUserLogs always applies `user_id = ?`, so a zero id returns rows
+	// for user 0 rather than leaking another tenant's. The guard is still
+	// applied so every /self handler refuses an unauthenticated identity the
+	// same way instead of issuing a pointless query.
+	userId, ok := selfScopedUserId(c)
+	if !ok {
+		return
+	}
 	pageInfo := common.GetPageQuery(c)
-	userId := c.GetInt("id")
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -403,7 +426,10 @@ func GetLogsStat(c *gin.Context) {
 }
 
 func GetLogsSelfStat(c *gin.Context) {
-	username := c.GetString("username")
+	username, ok := selfScopedUsername(c)
+	if !ok {
+		return
+	}
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)

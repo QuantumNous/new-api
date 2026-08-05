@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { parseDashboardDateRange, parseDashboardTimestamp } from './time';
 
 test('Classic dashboard wall-clock strings always use Asia/Shanghai', () => {
@@ -41,4 +41,88 @@ test('explicit-offset values remain instants and ranges are numeric seconds', ()
     '2024-01-01T01:00:00+08:00',
   );
   expect(range).toEqual({ start: 1704038400, end: 1704042000 });
+});
+
+// A fractional number used to be floored here, which manufactured a valid
+// looking whole second out of an invalid bound and slipped it past the strict
+// range validator. These tests pin the parser itself, not the validator.
+describe('numeric dashboard bounds are exact or rejected', () => {
+  const SECONDS = 1782835242; // 2026-07-01 00:00:42 Asia/Shanghai
+
+  test('a whole second is returned unchanged', () => {
+    expect(parseDashboardTimestamp(SECONDS)).toBe(SECONDS);
+    expect(parseDashboardTimestamp(1)).toBe(1);
+  });
+
+  const rejectedNumbers = [
+    ['fractional second', SECONDS + 0.5],
+    ['fraction below one second', 0.5],
+    ['tiny fraction', 0.000001],
+    ['negative fraction', -0.5],
+    ['fractional millisecond', 1782835242500.5],
+    ['zero', 0],
+    ['negative second', -1],
+    ['negative millisecond', -1782835242000],
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+    ['-Infinity', Number.NEGATIVE_INFINITY],
+    ['unsafe integer', Number.MAX_SAFE_INTEGER + 2],
+    ['MAX_VALUE', Number.MAX_VALUE],
+  ];
+
+  for (const [name, value] of rejectedNumbers) {
+    test(`${name} is not parseable`, () => {
+      expect(Number.isNaN(parseDashboardTimestamp(value))).toBe(true);
+    });
+  }
+
+  test('a fraction is never rounded into a neighbouring whole second', () => {
+    // The specific regression: 1782835242.5 must not become 1782835242.
+    expect(parseDashboardTimestamp(SECONDS + 0.5)).not.toBe(SECONDS);
+    expect(parseDashboardTimestamp(SECONDS + 0.5)).not.toBe(SECONDS + 1);
+    expect(Number.isNaN(parseDashboardTimestamp(SECONDS + 0.5))).toBe(true);
+  });
+
+  test('whole milliseconds are truncated to seconds, matching Date.getTime()', () => {
+    // Above 1e11 a number is read as milliseconds; truncating is that unit's
+    // documented meaning, not a repair of a malformed value.
+    expect(parseDashboardTimestamp(SECONDS * 1000)).toBe(SECONDS);
+    expect(parseDashboardTimestamp(SECONDS * 1000 + 999)).toBe(SECONDS);
+    expect(parseDashboardTimestamp(new Date(SECONDS * 1000).getTime())).toBe(
+      SECONDS,
+    );
+  });
+
+  test('parseDashboardDateRange surfaces an invalid bound on either side', () => {
+    expect(
+      Number.isNaN(parseDashboardDateRange(SECONDS + 0.5, SECONDS + 1).start),
+    ).toBe(true);
+    expect(
+      Number.isNaN(parseDashboardDateRange(SECONDS, SECONDS + 0.5).end),
+    ).toBe(true);
+
+    const valid = parseDashboardDateRange(SECONDS, SECONDS + 60);
+    expect(valid.start).toBe(SECONDS);
+    expect(valid.end).toBe(SECONDS + 60);
+  });
+});
+
+describe('Date bounds keep their sub-second behaviour', () => {
+  const SECONDS = 1782835242;
+
+  test('a sub-second Date is truncated to its whole CST second', () => {
+    expect(parseDashboardTimestamp(new Date(SECONDS * 1000 + 500))).toBe(
+      SECONDS,
+    );
+    expect(parseDashboardTimestamp(new Date(SECONDS * 1000))).toBe(SECONDS);
+  });
+
+  test('an Invalid Date is not parseable', () => {
+    expect(Number.isNaN(parseDashboardTimestamp(new Date(Number.NaN)))).toBe(
+      true,
+    );
+    expect(Number.isNaN(parseDashboardTimestamp(new Date('not-a-date')))).toBe(
+      true,
+    );
+  });
 });

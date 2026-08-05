@@ -87,6 +87,10 @@ func TestSelfScopedRoutesRejectUnauthenticatedCallers(t *testing.T) {
 		"/api/log/self/analysis",
 		"/api/log/self/export/summary",
 		"/api/data/self",
+		// model.SumUsedQuota omits its username predicate when the name is
+		// empty, so this route must never be reachable without an identity.
+		"/api/log/self/stat",
+		"/api/log/self",
 	}
 
 	for _, path := range selfPaths {
@@ -138,4 +142,45 @@ func TestSelfScopedHandlersFailClosedOnMissingUserId(t *testing.T) {
 		nextRealAnalysisIP(), cookie, "", user.Id)
 	assert.NotEqual(t, http.StatusUnauthorized, recorder.Code,
 		"an authenticated self caller must not be rejected by the id guard")
+}
+
+// A caller authenticated by a real access token reaches /api/log/self/stat with
+// a populated username, so the guard must not disturb the legitimate path.
+func TestSelfStatRouteServesAnAuthenticatedTokenCaller(t *testing.T) {
+	block := 32000 + int(atomic.AddUint64(&realAnalysisRouteCounter, 1))*10
+	name := fmt.Sprintf("selfstat-%d", block)
+	user := &model.User{
+		Id:       block + 1,
+		Username: name,
+		AffCode:  name,
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}
+	token := fmt.Sprintf("selfstat-token-%d", block)
+	user.SetAccessToken(token)
+	setupRealAnalysisRouterDB(t, user)
+	require.NoError(t, model.LOG_DB.AutoMigrate(&model.Log{}))
+	require.NoError(t, model.LOG_DB.Create(&[]model.Log{
+		{UserId: user.Id, Username: name, CreatedAt: 1782835242, Type: model.LogTypeConsume, ModelName: "gpt-image-2", Quota: 100},
+		{UserId: user.Id + 500, Username: name + "-other", CreatedAt: 1782835242, Type: model.LogTypeConsume, ModelName: "gpt-image-2", Quota: 90000},
+	}).Error)
+
+	engine := newRealAnalysisRouter(t, map[int]int{user.Id: common.RoleCommonUser})
+
+	recorder := selfScopeRequest(t, engine, "/api/log/self/stat",
+		"type=2&start_timestamp=1782835242&end_timestamp=1785899265",
+		nextRealAnalysisIP(), nil, "Bearer "+token, user.Id)
+
+	var body struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Quota int `json:"quota"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body), recorder.Body.String())
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	require.True(t, body.Success, recorder.Body.String())
+	// Only this user's row, never the tenant-wide sum.
+	assert.Equal(t, 100, body.Data.Quota)
+	assert.NotEqual(t, 90100, body.Data.Quota)
 }

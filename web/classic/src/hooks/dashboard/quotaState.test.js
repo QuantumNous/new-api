@@ -24,6 +24,7 @@ import {
   describeDashboardRangeError,
   validateDashboardRange,
 } from './range';
+import { parseDashboardDateRange } from './time';
 
 const createState = (initialRows = []) => {
   const state = {
@@ -373,4 +374,127 @@ describe('invalid ranges never reach the network', () => {
     expect(guard.inspect().controller).toBe(null);
     expect(attempt.signal.aborted).toBe(true);
   });
+});
+
+// The hook's real input path is parseDashboardDateRange -> validateDashboardRange
+// -> request. Testing the validator alone would miss a parser that silently
+// repairs a bad bound into a good one, which is exactly the regression these
+// cases pin. The assertion is the transport spy's call count.
+describe('raw dashboard inputs never reach the network when unparseable', () => {
+  const SECONDS = 1782835242; // 2026-07-01 00:00:42 Asia/Shanghai
+  const REPORTED_END = 1785899265; // 2026-08-05 11:07:45 Asia/Shanghai
+
+  // Mirrors loadQuotaData: parse the raw inputs, validate, only then request.
+  const loadRaw = async (guard, rawStart, rawEnd, requestQuota, setters) => {
+    const attempt = guard.begin();
+    try {
+      const { start, end } = parseDashboardDateRange(rawStart, rawEnd);
+      const rangeError = validateDashboardRange(start, end);
+      if (rangeError) {
+        setters.setQuotaData([]);
+        setters.setQuotaError(describeDashboardRangeError(rangeError));
+        return { status: 'range_error', code: rangeError, start, end };
+      }
+      const outcome = await runQuotaDataRequest({
+        requestQuota,
+        attempt,
+        defaultFailureMessage: 'failed',
+        ...setters,
+      });
+      return { ...outcome, start, end };
+    } finally {
+      attempt.finish();
+    }
+  };
+
+  const unparseableInputs = [
+    ['fractional second start', SECONDS + 0.5, REPORTED_END],
+    ['fractional second end', SECONDS, REPORTED_END + 0.5],
+    ['sub-second fraction', 0.5, REPORTED_END],
+    ['zero seconds', 0, REPORTED_END],
+    ['negative seconds', -1, REPORTED_END],
+    ['NaN', Number.NaN, REPORTED_END],
+    ['Infinity', Number.POSITIVE_INFINITY, REPORTED_END],
+    ['unsafe integer', Number.MAX_SAFE_INTEGER + 2, REPORTED_END],
+    ['fractional milliseconds', 1782835242500.5, REPORTED_END],
+    ['Invalid Date', new Date(Number.NaN), REPORTED_END],
+    ['Invalid Date end', SECONDS, new Date('not-a-date')],
+    ['unparseable string', 'not-a-timestamp', REPORTED_END],
+  ];
+
+  for (const [name, rawStart, rawEnd] of unparseableInputs) {
+    test(`${name} costs zero network calls`, async () => {
+      const guard = createDashboardRequestGuard();
+      const { state, ...setters } = createState([{ quota: 1 }]);
+      let calls = 0;
+
+      const outcome = await loadRaw(
+        guard,
+        rawStart,
+        rawEnd,
+        async () => {
+          calls += 1;
+          return { success: true, data: [] };
+        },
+        setters,
+      );
+
+      expect(calls).toBe(0);
+      expect(outcome.status).toBe('range_error');
+      expect(state.rows).toEqual([]);
+      expect(state.error).not.toBe('');
+      expect(guard.inspect().controller).toBe(null);
+    });
+  }
+
+  const acceptedInputs = [
+    ['whole seconds', SECONDS, REPORTED_END, SECONDS, REPORTED_END],
+    [
+      'whole milliseconds',
+      SECONDS * 1000,
+      REPORTED_END * 1000,
+      SECONDS,
+      REPORTED_END,
+    ],
+    [
+      'sub-second Date objects',
+      new Date(SECONDS * 1000 + 500),
+      new Date(REPORTED_END * 1000 + 750),
+      SECONDS,
+      REPORTED_END,
+    ],
+    [
+      'wall-clock CST strings',
+      '2026-07-01 00:00:42',
+      '2026-08-05 11:07:45',
+      SECONDS,
+      REPORTED_END,
+    ],
+  ];
+
+  for (const [name, rawStart, rawEnd, wantStart, wantEnd] of acceptedInputs) {
+    test(`${name} reach the network exactly once`, async () => {
+      const guard = createDashboardRequestGuard();
+      const { state, ...setters } = createState();
+      let calls = 0;
+
+      const outcome = await loadRaw(
+        guard,
+        rawStart,
+        rawEnd,
+        async () => {
+          calls += 1;
+          return { success: true, data: [{ quota: 3 }] };
+        },
+        setters,
+      );
+
+      expect(calls).toBe(1);
+      expect(outcome.status).toBe('success');
+      expect(outcome.start).toBe(wantStart);
+      expect(outcome.end).toBe(wantEnd);
+      expect(state.rows).toEqual([{ quota: 3 }]);
+      expect(guard.inspect().controller).toBe(null);
+    });
+  }
 });

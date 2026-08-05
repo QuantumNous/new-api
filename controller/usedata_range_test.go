@@ -326,3 +326,7 @@ func TestAdminQuotaHandlersAreUnaffectedByTheSelfScopeGuard(t *testing.T) {
 		})
 	}
 }
+
+func decodeInto(recorder *httptest.ResponseRecorder, target any) error {
+	return json.Unmarshal(recorder.Body.Bytes(), target)
+}
