@@ -29,6 +29,15 @@ func TestConvertRequestUsesConfiguredNumericModelID(t *testing.T) {
 	require.Equal(t, "720P", body.Resolution)
 }
 
+func TestConvertRequestUsesOpenAIVideoSeconds(t *testing.T) {
+	body, err := convertRequest(relaycommon.TaskSubmitReq{
+		Prompt:  "A sunset over the sea",
+		Seconds: "10",
+	}, "52")
+	require.NoError(t, err)
+	require.Equal(t, 10, body.Seconds)
+}
+
 func TestConvertRequestRejectsNonNumericModelMapping(t *testing.T) {
 	_, err := convertRequest(relaycommon.TaskSubmitReq{Prompt: "test"}, "seedance")
 	require.ErrorContains(t, err, "numeric model_id")

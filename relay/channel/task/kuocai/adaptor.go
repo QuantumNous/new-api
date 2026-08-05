@@ -222,11 +222,20 @@ func convertRequest(req relaycommon.TaskSubmitReq, upstreamModel string) (*video
 		}
 		modelID = parsed
 	}
+	seconds := req.Duration
+	if seconds == 0 && req.Seconds != "" {
+		parsed, err := strconv.Atoi(req.Seconds)
+		if err != nil {
+			return nil, fmt.Errorf("invalid seconds value %q", req.Seconds)
+		}
+		seconds = parsed
+	}
+
 	body := &videoRequest{
 		ModelID: modelID,
 		Prompt:  req.Prompt,
 		Size:    req.Size,
-		Seconds: taskcommon.DefaultInt(req.Duration, defaultDurationSeconds),
+		Seconds: taskcommon.DefaultInt(seconds, defaultDurationSeconds),
 		Count:   1,
 	}
 	if err := req.UnmarshalMetadata(body); err != nil {
