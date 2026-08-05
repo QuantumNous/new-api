@@ -3,12 +3,12 @@ package gemini
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"github.com/warjiang/new-api/common"
+	relaycommon "github.com/warjiang/new-api/relay/common"
+	"github.com/warjiang/new-api/relaykit/dto"
 )
 
 func TestConvertOpenAIResponsesRequestToGeminiInstructionsAndInput(t *testing.T) {

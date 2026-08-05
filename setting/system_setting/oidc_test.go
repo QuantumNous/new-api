@@ -3,9 +3,9 @@ package system_setting
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/setting/config"
 )
 
 func TestOIDCSettings_GetEffectiveDisplayName(t *testing.T) {

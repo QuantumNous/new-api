@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/warjiang/new-api/relaykit/dto"
 )
 
 type ChatToResponsesStreamEvent struct {

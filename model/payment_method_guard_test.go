@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/common"
 )
 
 func insertUserForPaymentGuardTest(t *testing.T, id int, quota int) {

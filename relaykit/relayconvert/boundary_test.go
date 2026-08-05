@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-const modulePrefix = "github.com/QuantumNous/new-api/"
+const modulePrefix = "github.com/warjiang/new-api/"
 
 // Packages (relative to the relaykit module root) covered by the boundary.
 var kitDirs = []string{

@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/relay/channel"
-	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/service"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/constant"
+	"github.com/warjiang/new-api/dto"
+	"github.com/warjiang/new-api/relay/channel"
+	taskcommon "github.com/warjiang/new-api/relay/channel/task/taskcommon"
+	relaycommon "github.com/warjiang/new-api/relay/common"
+	"github.com/warjiang/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )

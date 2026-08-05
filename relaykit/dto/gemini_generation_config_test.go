@@ -3,9 +3,9 @@ package dto
 import (
 	"testing"
 
-	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	kitutil "github.com/warjiang/new-api/relaykit/relayconvert/kitutil"
 )
 
 func TestGeminiChatGenerationConfigPreservesExplicitZeroValuesCamelCase(t *testing.T) {

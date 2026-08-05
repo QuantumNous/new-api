@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/model"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/model"
+	relaycommon "github.com/warjiang/new-api/relay/common"
+	"github.com/warjiang/new-api/types"
 	"gorm.io/gorm"
 )
 

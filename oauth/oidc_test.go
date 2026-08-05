@@ -3,8 +3,8 @@ package oauth
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/stretchr/testify/assert"
+	"github.com/warjiang/new-api/setting/system_setting"
 )
 
 func TestOIDCProvider_GetName(t *testing.T) {

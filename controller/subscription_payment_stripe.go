@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
 	"github.com/thanhpk/randstr"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/logger"
+	"github.com/warjiang/new-api/model"
+	"github.com/warjiang/new-api/setting"
 )
 
 type SubscriptionStripePayRequest struct {

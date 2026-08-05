@@ -3,9 +3,9 @@ package billing_setting
 import (
 	"fmt"
 
-	"github.com/QuantumNous/new-api/pkg/billingexpr"
-	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/samber/lo"
+	"github.com/warjiang/new-api/pkg/billingexpr"
+	"github.com/warjiang/new-api/setting/config"
 )
 
 const (

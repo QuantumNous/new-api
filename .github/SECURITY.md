@@ -29,7 +29,7 @@ We take security vulnerability reports very seriously. If you discover a securit
 
 **Do NOT** report security vulnerabilities in public GitHub Issues.
 
-To report a security issue, please use the GitHub Security Advisories tab to "[Open a draft security advisory](https://github.com/QuantumNous/new-api/security/advisories/new)". This is the preferred method as it provides a built-in private communication channel.
+To report a security issue, please use the GitHub Security Advisories tab to "[Open a draft security advisory](https://github.com/warjiang/new-api/security/advisories/new)". This is the preferred method as it provides a built-in private communication channel.
 
 Alternatively, you can report via email:
 

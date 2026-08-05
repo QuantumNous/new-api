@@ -8,14 +8,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/constant"
+	relaycommon "github.com/warjiang/new-api/relay/common"
+	"github.com/warjiang/new-api/relaykit/dto"
+	"github.com/warjiang/new-api/setting/operation_setting"
 )
 
 func TestOaiResponsesHandlerCountsOutputCallsNotDeclarations(t *testing.T) {

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	relaycommon "github.com/warjiang/new-api/relay/common"
+	"github.com/warjiang/new-api/setting/operation_setting"
 )
 
 func buildChannelAffinityTemplateContextForTest(meta channelAffinityMeta) *gin.Context {

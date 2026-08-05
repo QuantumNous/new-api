@@ -14,14 +14,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/i18n"
-	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/i18n"
+	"github.com/warjiang/new-api/logger"
+	"github.com/warjiang/new-api/model"
+	"github.com/warjiang/new-api/setting/system_setting"
 )
 
 // AuthStyle defines how to send client credentials

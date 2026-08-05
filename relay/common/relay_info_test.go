@@ -3,10 +3,10 @@ package common
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
-	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/relaykit/relayconvert/convmeta"
+	"github.com/warjiang/new-api/relaykit/types"
 )
 
 func TestRelayInfoGetFinalRequestRelayFormatPrefersExplicitFinal(t *testing.T) {

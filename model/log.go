@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/logger"
+	"github.com/warjiang/new-api/types"
 
 	"github.com/gin-gonic/gin"
 

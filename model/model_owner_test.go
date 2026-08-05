@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/constant"
 )
 
 func clearPreferredOwnerTables(t *testing.T) {

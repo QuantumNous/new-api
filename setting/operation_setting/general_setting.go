@@ -1,6 +1,6 @@
 package operation_setting
 
-import "github.com/QuantumNous/new-api/setting/config"
+import "github.com/warjiang/new-api/setting/config"
 
 // 额度展示类型
 const (

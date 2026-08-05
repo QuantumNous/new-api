@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/constant"
 )
 
 func TestValidateRedirectURL(t *testing.T) {

@@ -3,10 +3,10 @@ package oaichat
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/relaykit/dto"
+	"github.com/warjiang/new-api/relaykit/relayconvert/convmeta"
 )
 
 func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {

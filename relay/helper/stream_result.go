@@ -1,7 +1,7 @@
 package helper
 
 import (
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relaycommon "github.com/warjiang/new-api/relay/common"
 )
 
 // StreamResult is passed to each dataHandler invocation, providing methods

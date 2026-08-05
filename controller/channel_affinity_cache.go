@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/warjiang/new-api/service"
 )
 
 func GetChannelAffinityCacheStats(c *gin.Context) {

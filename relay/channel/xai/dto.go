@@ -1,6 +1,6 @@
 package xai
 
-import "github.com/QuantumNous/new-api/relaykit/dto"
+import "github.com/warjiang/new-api/relaykit/dto"
 
 // ChatCompletionResponse represents the response from XAI chat completion API
 type ChatCompletionResponse struct {

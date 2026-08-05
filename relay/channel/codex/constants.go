@@ -3,7 +3,7 @@ package codex
 import (
 	"slices"
 
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/warjiang/new-api/setting/ratio_setting"
 )
 
 var baseModelList = []string{

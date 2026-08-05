@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/setting/config"
 )
 
 // ---------------------------------------------------------------------------

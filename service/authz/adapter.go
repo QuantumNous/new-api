@@ -3,9 +3,9 @@ package authz
 import (
 	"strings"
 
-	"github.com/QuantumNous/new-api/model"
 	casbinmodel "github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
+	"github.com/warjiang/new-api/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

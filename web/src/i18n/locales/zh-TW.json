@@ -2255,7 +2255,7 @@
     "https://example.com/topup": "https://example.com/topup",
     "https://example.com/webhook": "https://example.com/webhook",
     "https://gateway.example.com": "https://gateway.example.com",
-    "https://github.com/QuantumNous/new-api": "https://github.com/QuantumNous/new-api",
+    "https://github.com/warjiang/new-api": "https://github.com/warjiang/new-api",
     "https://gotify.example.com": "https://gotify.example.com",
     "https://pay.example.com": "https://pay.example.com",
     "https://provider.com/.well-known/openid-configuration": "https://provider.com/.well-known/openid-configuration",

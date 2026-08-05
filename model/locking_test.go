@@ -3,9 +3,9 @@ package model
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/common"
 	"gorm.io/gorm"
 	"gorm.io/gorm/utils/tests"
 )

@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"strings"
 
-	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
-	"github.com/QuantumNous/new-api/relaykit/types"
+	kitutil "github.com/warjiang/new-api/relaykit/relayconvert/kitutil"
+	"github.com/warjiang/new-api/relaykit/types"
 )
 
 // MaxImageN caps the image generation count. Without this bound a huge or

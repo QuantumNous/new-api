@@ -3,9 +3,9 @@ package convmeta
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/relaykit/types"
 )
 
 func TestValuesTypedNilMetaIsSafe(t *testing.T) {

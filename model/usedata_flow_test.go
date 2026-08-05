@@ -3,8 +3,8 @@ package model
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/common"
 )
 
 func seedFlowQuotaData(t *testing.T, quotaData QuotaData) {

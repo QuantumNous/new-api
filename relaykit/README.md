@@ -1,6 +1,6 @@
 # RelayKit
 
-RelayKit 是从 [new-api](https://github.com/QuantumNous/new-api) 中拆分出的独立 Go 模块，提供常用大模型文本协议的 DTO、请求转换、响应转换和流式事件转换。
+RelayKit 是从 [new-api](https://github.com/warjiang/new-api) 中拆分出的独立 Go 模块，提供常用大模型文本协议的 DTO、请求转换、响应转换和流式事件转换。
 
 它只负责协议层的数据建模与语义转换，不包含 HTTP 服务、上游请求发送、渠道调度、鉴权、计费或数据库逻辑。因此可以脱离 new-api 主模块，嵌入其他 Go 网关或代理服务。
 
@@ -37,7 +37,7 @@ RelayKit 是从 [new-api](https://github.com/QuantumNous/new-api) 中拆分出�
 RelayKit 要求 Go 1.25.1 或更高版本。
 
 ```bash
-go get github.com/QuantumNous/new-api/relaykit@latest
+go get github.com/warjiang/new-api/relaykit@latest
 ```
 
 主要包：
@@ -61,10 +61,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/relaykit/relayconvert"
-	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
-	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/warjiang/new-api/relaykit/dto"
+	"github.com/warjiang/new-api/relaykit/relayconvert"
+	"github.com/warjiang/new-api/relaykit/relayconvert/convmeta"
+	"github.com/warjiang/new-api/relaykit/types"
 )
 
 func main() {

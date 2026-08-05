@@ -4,10 +4,10 @@ import (
 	"math"
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/pkg/billingexpr"
 )
 
 // TestComputeTieredQuota_ClampOnOverflow guards the billing-safety invariant

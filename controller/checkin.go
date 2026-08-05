@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/logger"
+	"github.com/warjiang/new-api/model"
+	"github.com/warjiang/new-api/setting/operation_setting"
 )
 
 // GetCheckinStatus 获取用户签到状态和历史记录

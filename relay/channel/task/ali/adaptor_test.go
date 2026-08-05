@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/QuantumNous/new-api/common"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/common"
+	relaycommon "github.com/warjiang/new-api/relay/common"
 )
 
 func testRelayInfo() *relaycommon.RelayInfo {

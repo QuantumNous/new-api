@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
+	"github.com/warjiang/new-api/common"
 )
 
 // SessionCookieOriginGuard protects cookie-authenticated refresh/logout

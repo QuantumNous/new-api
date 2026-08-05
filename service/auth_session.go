@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/model"
 )
 
 const RefreshCookieName = "new_api_refresh"

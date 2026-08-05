@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/google/uuid"
+	"github.com/warjiang/new-api/common"
 )
 
 func FetchCodexWhamUsage(

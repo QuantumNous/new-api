@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
-	"github.com/QuantumNous/new-api/common"
 	"github.com/glebarez/sqlite"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/common"
 	"gorm.io/gorm"
 )
 

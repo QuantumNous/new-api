@@ -6,7 +6,7 @@ This file is the old version of the payment settings file. If you need to add ne
 package operation_setting
 
 import (
-	"github.com/QuantumNous/new-api/common"
+	"github.com/warjiang/new-api/common"
 )
 
 var PayAddress = ""

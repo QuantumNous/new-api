@@ -16,14 +16,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
+	"github.com/warjiang/new-api/common"
+	"github.com/warjiang/new-api/logger"
 
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/setting/billing_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
+	"github.com/warjiang/new-api/model"
+	"github.com/warjiang/new-api/relaykit/dto"
+	"github.com/warjiang/new-api/setting/billing_setting"
+	"github.com/warjiang/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 )

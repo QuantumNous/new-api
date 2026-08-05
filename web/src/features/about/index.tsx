@@ -49,17 +49,17 @@ function EmptyAboutState() {
           <p>
             {t('New API Project Repository:')}{' '}
             <a
-              href='https://github.com/QuantumNous/new-api'
+              href='https://github.com/warjiang/new-api'
               target='_blank'
               rel='noopener noreferrer'
               className='text-primary hover:underline'
             >
-              {t('https://github.com/QuantumNous/new-api')}
+              {t('https://github.com/warjiang/new-api')}
             </a>
           </p>
           <p className='text-muted-foreground'>
             <a
-              href='https://github.com/QuantumNous/new-api'
+              href='https://github.com/warjiang/new-api'
               target='_blank'
               rel='noopener noreferrer'
               className='text-primary hover:underline'
@@ -97,7 +97,7 @@ function EmptyAboutState() {
           <p className='text-muted-foreground'>
             {t('This project must be used in compliance with the')}{' '}
             <a
-              href='https://github.com/QuantumNous/new-api/blob/main/LICENSE'
+              href='https://github.com/warjiang/new-api/blob/on-premises/LICENSE'
               target='_blank'
               rel='noopener noreferrer'
               className='text-primary hover:underline'

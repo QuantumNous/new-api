@@ -17,10 +17,10 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
-	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/relaykit/dto"
+	"github.com/warjiang/new-api/relaykit/relayconvert/convmeta"
+	"github.com/warjiang/new-api/relaykit/types"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden files")

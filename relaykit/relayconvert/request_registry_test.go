@@ -3,13 +3,13 @@ package relayconvert
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
-	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
-	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
-	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warjiang/new-api/relaykit/dto"
+	"github.com/warjiang/new-api/relaykit/relayconvert/convmeta"
+	sharedgemini "github.com/warjiang/new-api/relaykit/relayconvert/internal/shared/gemini"
+	kitutil "github.com/warjiang/new-api/relaykit/relayconvert/kitutil"
+	"github.com/warjiang/new-api/relaykit/types"
 )
 
 func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
