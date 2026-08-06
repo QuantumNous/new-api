@@ -69,8 +69,8 @@ type RecallTranslationTask struct {
 	LeaseOwner              string `json:"-" gorm:"type:varchar(96)"`
 	LeaseExpiresAt          int64  `json:"-" gorm:"index"`
 	LeaseEpoch              int64  `json:"-"`
-	SourceSnapshot          string `json:"-" gorm:"type:text"`
-	ResultSnapshot          string `json:"-" gorm:"type:text"`
+	SourceSnapshot          string `json:"-"`
+	ResultSnapshot          string `json:"-"`
 	ErrorCode               string `json:"error_code" gorm:"type:varchar(64)"`
 	ErrorMessage            string `json:"-" gorm:"type:varchar(512)"`
 	CreatedAt               int64  `json:"created_at" gorm:"autoCreateTime"`

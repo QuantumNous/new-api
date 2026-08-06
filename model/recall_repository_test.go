@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,7 +56,7 @@ func TestRecallOperationsSchemaUsesPortableSnapshotTypes(t *testing.T) {
 		wantTranslationSnapshot string
 	}{
 		{name: "sqlite", dialect: sqlite.Open(":memory:"), wantExclusionSnapshot: "blob", wantExclusionProblems: "text", wantTranslationSnapshot: "text"},
-		{name: "mysql", dialect: mysql.New(mysql.Config{}), wantExclusionSnapshot: "longblob", wantExclusionProblems: "text", wantTranslationSnapshot: "text"},
+		{name: "mysql", dialect: mysql.New(mysql.Config{}), wantExclusionSnapshot: "longblob", wantExclusionProblems: "text", wantTranslationSnapshot: "longtext"},
 		{name: "postgres", dialect: postgres.New(postgres.Config{}), wantExclusionSnapshot: "bytea", wantExclusionProblems: "text", wantTranslationSnapshot: "text"},
 	}
 
@@ -83,13 +84,13 @@ func TestRecallOperationsSchemaUsesPortableSnapshotTypes(t *testing.T) {
 	}
 }
 
-func TestRecallTranslationSnapshotsDeclareTextColumnType(t *testing.T) {
+func TestRecallTranslationSnapshotsUseDialectNativeLargeText(t *testing.T) {
 	translationSchema, err := schema.Parse(&RecallTranslationTask{}, &sync.Map{}, schema.NamingStrategy{})
 	require.NoError(t, err)
 	for _, fieldName := range []string{"SourceSnapshot", "ResultSnapshot"} {
 		field := translationSchema.LookUpField(fieldName)
 		require.NotNil(t, field)
-		require.Equal(t, "text", field.TagSettings["TYPE"])
+		require.NotContains(t, field.TagSettings, "TYPE")
 	}
 }
 
@@ -154,6 +155,81 @@ func TestRecallTranslationSnapshotMySQLWideningSQLUsesLongText(t *testing.T) {
 		require.NotContains(t, sql, "json_set")
 		require.NotContains(t, sql, "json_extract")
 		require.NotContains(t, sql, "jsonb")
+	}
+}
+
+func TestMigrateDBMySQLRerunPreservesLongTextRecallTranslationSnapshots(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("TEST_MYSQL_DSN"))
+	if dsn == "" {
+		t.Skip("set TEST_MYSQL_DSN to run the MySQL Recall translation startup migration regression test")
+	}
+
+	db, err := gorm.Open(mysql.Open(ensureMySQLDSNDefaults(dsn)), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+
+	originalDB := DB
+	originalLogDB := LOG_DB
+	originalRedisEnabled := common.RedisEnabled
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingMySQL := common.UsingMySQL
+	originalUsingPostgreSQL := common.UsingPostgreSQL
+	t.Cleanup(func() {
+		DB = originalDB
+		LOG_DB = originalLogDB
+		common.RedisEnabled = originalRedisEnabled
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingMySQL = originalUsingMySQL
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+		require.NoError(t, sqlDB.Close())
+	})
+
+	var tableCount int64
+	require.NoError(t, db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()`).Scan(&tableCount).Error)
+	if tableCount != 0 {
+		t.Fatalf("refusing to run Recall translation startup migration regression against non-empty MySQL database with %d tables", tableCount)
+	}
+
+	DB = db
+	LOG_DB = db
+	common.RedisEnabled = false
+	common.UsingSQLite = false
+	common.UsingMySQL = true
+	common.UsingPostgreSQL = false
+
+	require.NoError(t, migrateDB())
+	requireRecallTranslationSnapshotMySQLColumnTypes(t, db)
+
+	oversizedSnapshot := strings.Repeat("x", 70*1024)
+	task := RecallTranslationTask{
+		CampaignId:     1,
+		SourceHash:     strings.Repeat("a", 64),
+		IdempotencyKey: strings.Repeat("b", 64),
+		Status:         RecallTranslationTaskQueued,
+		SourceSnapshot: oversizedSnapshot,
+	}
+	require.NoError(t, db.Create(&task).Error)
+
+	require.NoError(t, migrateDB())
+	requireRecallTranslationSnapshotMySQLColumnTypes(t, db)
+
+	var storedSnapshot string
+	require.NoError(t, db.Model(&RecallTranslationTask{}).
+		Select("source_snapshot").
+		Where("id = ?", task.Id).
+		Scan(&storedSnapshot).Error)
+	require.Equal(t, oversizedSnapshot, storedSnapshot)
+}
+
+func requireRecallTranslationSnapshotMySQLColumnTypes(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	for _, columnName := range recallTranslationTaskSnapshotColumns {
+		var columnType string
+		require.NoError(t, db.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns
+			WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+			"recall_translation_tasks", columnName).Scan(&columnType).Error)
+		require.Equal(t, "longtext", strings.ToLower(columnType))
 	}
 }
 
