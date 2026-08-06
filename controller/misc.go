@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -49,6 +50,7 @@ func GetStatus(c *gin.Context) {
 
 	passkeySetting := system_setting.GetPasskeySettings()
 	legalSetting := system_setting.GetLegalSettings()
+	frontendCapabilities := getFrontendCapabilities(passkeySetting.Enabled)
 
 	data := gin.H{
 		"version":                     common.Version,
@@ -123,6 +125,10 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+		// Additive capability metadata for the Vue client. Existing React fields
+		// remain unchanged and continue to drive the legacy application.
+		"next_frontend_enabled": frontendCapabilities["next_frontend"] != "disabled",
+		"frontend_capabilities": frontendCapabilities,
 	}
 
 	// 根据启用状态注入可选内容
@@ -170,6 +176,55 @@ func GetStatus(c *gin.Context) {
 		"data":    data,
 	})
 	return
+}
+
+func getFrontendCapabilities(passkeyEnabled bool) map[string]string {
+	capabilities := map[string]string{
+		"next_frontend":         "live",
+		"login":                 "live",
+		"refresh":               "live",
+		"logout":                "live",
+		"profile":               "live",
+		"legacy_token":          "live",
+		"user_models":           "live",
+		"logs":                  "live",
+		"dashboard_basic":       "live",
+		"wallet":                "live",
+		"redemption":            "live",
+		"subscription_balance":  "live",
+		"passkey":               "prototype",
+		"two_factor":            "prototype",
+		"oauth_bindings":        "prototype",
+		"notifications":         "prototype",
+		"token_private_routing": "prototype",
+		"marketplace":           "prototype",
+		"admin":                 "prototype",
+		"orders":                "prototype",
+		"tickets":               "prototype",
+		"invoices":              "prototype",
+		"invites":               "prototype",
+		"activity":              "prototype",
+		"lab":                   "prototype",
+		"farm":                  "prototype",
+		"bigame":                "prototype",
+	}
+
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("NEXT_FRONTEND_ENABLED")), "false") {
+		capabilities["next_frontend"] = "disabled"
+	}
+	if !common.PasswordLoginEnabled {
+		capabilities["login"] = "disabled"
+	}
+	if common.RegisterEnabled {
+		capabilities["registration"] = "live"
+	} else {
+		capabilities["registration"] = "disabled"
+	}
+	if !passkeyEnabled {
+		capabilities["passkey"] = "disabled"
+	}
+
+	return capabilities
 }
 
 func GetNotice(c *gin.Context) {

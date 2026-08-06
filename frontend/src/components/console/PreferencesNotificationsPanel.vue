@@ -14,6 +14,7 @@ import {
 import { reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { isMockApi } from '@/api/client'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
@@ -35,18 +36,37 @@ defineProps<{ isAdmin: boolean }>()
 
 const { t, locale } = useI18n()
 const toast = useToast()
-const prototype = useSettingsPrototypeStore()
+const prototype = isMockApi ? useSettingsPrototypeStore() : null
 const { preference: themeMode } = useTheme()
 const { hidden: balanceHidden } = useBalanceVisibility()
 
+const readonlyNotification: PrototypeNotificationSettings = {
+  notifyType: 'email',
+  quotaWarningThreshold: 500_000,
+  notificationEmail: '',
+  webhookUrl: '',
+  webhookSecret: '',
+  barkUrl: '',
+  gotifyUrl: '',
+  gotifyToken: '',
+  gotifyPriority: 5,
+  walletReminder: false,
+  subscriptionReminder: false,
+  upstreamModelUpdateNotify: false,
+  acceptUnsetModelPrice: false,
+  recordIpLog: false,
+}
+
 const draft = reactive<PrototypeNotificationSettings>({
-  ...prototype.notification,
+  ...(prototype?.notification ?? readonlyNotification),
 })
 const errors = reactive<Record<string, string>>({})
 
 watch(
-  () => prototype.notification,
-  (value) => Object.assign(draft, value),
+  () => prototype?.notification,
+  (value) => {
+    if (value) Object.assign(draft, value)
+  },
   { immediate: true }
 )
 
@@ -132,8 +152,12 @@ function validate(): boolean {
 }
 
 function saveNotification(): void {
+  if (!isMockApi) {
+    toast.error(t('settings.prototypeSecurityNotice'))
+    return
+  }
   if (!validate()) return
-  prototype.saveNotification({ ...draft })
+  prototype?.saveNotification({ ...draft })
   toast.success(t('settings.prototypeNotificationSaved'))
 }
 
@@ -197,6 +221,7 @@ function changeTheme(value: string): void {
               type="button"
               role="radio"
               :aria-checked="draft.notifyType === method.value"
+              :disabled="!isMockApi"
               class="notification-method focus-ring"
               :class="{
                 'notification-method-active': draft.notifyType === method.value,
@@ -218,6 +243,7 @@ function changeTheme(value: string): void {
               v-model.number="draft.quotaWarningThreshold"
               type="number"
               min="1"
+              :disabled="!isMockApi"
               class="settings-input mt-2"
               :aria-invalid="Boolean(errors.quotaWarningThreshold)"
             />
@@ -241,6 +267,7 @@ function changeTheme(value: string): void {
             <input
               v-model.trim="draft.notificationEmail"
               type="email"
+              :disabled="!isMockApi"
               class="settings-input mt-2"
               :placeholder="t('settings.notificationEmailPlaceholder')"
               :aria-invalid="Boolean(errors.notificationEmail)"
@@ -260,6 +287,7 @@ function changeTheme(value: string): void {
               <input
                 v-model.trim="draft.webhookUrl"
                 type="url"
+                :disabled="!isMockApi"
                 class="settings-input mt-2"
                 placeholder="https://example.com/webhook"
                 :aria-invalid="Boolean(errors.webhookUrl)"
@@ -275,6 +303,7 @@ function changeTheme(value: string): void {
               <input
                 v-model="draft.webhookSecret"
                 type="password"
+                :disabled="!isMockApi"
                 class="settings-input mt-2"
                 autocomplete="off"
               />
@@ -288,6 +317,7 @@ function changeTheme(value: string): void {
             <input
               v-model.trim="draft.barkUrl"
               type="url"
+              :disabled="!isMockApi"
               class="settings-input mt-2"
               placeholder="https://api.day.app/key/{{title}}/{{content}}"
               :aria-invalid="Boolean(errors.barkUrl)"
@@ -305,6 +335,7 @@ function changeTheme(value: string): void {
               <input
                 v-model.trim="draft.gotifyUrl"
                 type="url"
+                :disabled="!isMockApi"
                 class="settings-input mt-2"
                 placeholder="https://gotify.example.com"
                 :aria-invalid="Boolean(errors.gotifyUrl)"
@@ -320,6 +351,7 @@ function changeTheme(value: string): void {
               <input
                 v-model="draft.gotifyToken"
                 type="password"
+                :disabled="!isMockApi"
                 class="settings-input mt-2"
                 autocomplete="off"
                 :aria-invalid="Boolean(errors.gotifyToken)"
@@ -337,6 +369,7 @@ function changeTheme(value: string): void {
                 type="number"
                 min="0"
                 max="10"
+                :disabled="!isMockApi"
                 class="settings-input mt-2"
                 :aria-invalid="Boolean(errors.gotifyPriority)"
               />
@@ -362,6 +395,7 @@ function changeTheme(value: string): void {
             <ConsoleToggle
               v-model="draft.walletReminder"
               :label="t('settings.walletQuotaReminder')"
+              :disabled="!isMockApi"
             />
           </div>
           <div class="settings-toggle-row">
@@ -376,12 +410,13 @@ function changeTheme(value: string): void {
             <ConsoleToggle
               v-model="draft.subscriptionReminder"
               :label="t('settings.subscriptionQuotaReminder')"
+              :disabled="!isMockApi"
             />
           </div>
         </div>
 
         <div class="flex justify-end">
-          <ConsoleButton @click="saveNotification">{{
+          <ConsoleButton :disabled="!isMockApi" @click="saveNotification">{{
             t('settings.saveNotificationSettings')
           }}</ConsoleButton>
         </div>
@@ -478,6 +513,7 @@ function changeTheme(value: string): void {
           <ConsoleToggle
             v-model="draft.upstreamModelUpdateNotify"
             :label="t('settings.upstreamModelUpdates')"
+            :disabled="!isMockApi"
           />
         </div>
         <div class="settings-toggle-row">
@@ -492,6 +528,7 @@ function changeTheme(value: string): void {
           <ConsoleToggle
             v-model="draft.acceptUnsetModelPrice"
             :label="t('settings.acceptUnpricedModels')"
+            :disabled="!isMockApi"
           />
         </div>
         <div class="settings-toggle-row">
@@ -506,6 +543,7 @@ function changeTheme(value: string): void {
           <ConsoleToggle
             v-model="draft.recordIpLog"
             :label="t('settings.recordIpAddress')"
+            :disabled="!isMockApi"
           />
         </div>
       </div>

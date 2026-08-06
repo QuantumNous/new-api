@@ -1,37 +1,28 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { api } from '@/api/console'
-import { ApiError } from '@/api/types'
 import { useEChart } from '@/charts/useEChart'
 import { areaGradient, lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
-import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import type { FlowPoint } from '@/composables/useDashboard'
-import { useToast } from '@/composables/useToast'
 import { formatQuota } from '@/utils/format'
 
 const { t } = useI18n()
-const toast = useToast()
+const props = defineProps<{ flow: FlowPoint[] }>()
 
 const el = ref<HTMLElement | null>(null)
-const flow = ref<FlowPoint[]>([])
-const showTopup = ref(true)
-const year = ref('2026')
+const flow = computed(() => props.flow)
+const year = computed(() => props.flow.at(-1)?.date.slice(0, 4) ?? '')
 
 const categories = computed(() => flow.value.map((f) => f.date))
-const series = computed(() =>
-  showTopup.value
-    ? flow.value.map((f) => f.topup)
-    : flow.value.map((f) => f.consume)
-)
+const series = computed(() => flow.value.map((f) => f.consume))
 
 useEChart(
   el,
   (p) => {
     const mood = lineMood(p)
-    const lineColor = showTopup.value ? p.accent : p.signalStrong
+    const lineColor = p.signalStrong
     return {
       grid: { left: 56, right: 16, top: 18, bottom: 28 },
       tooltip: {
@@ -90,30 +81,18 @@ useEChart(
       ],
     }
   },
-  [flow, showTopup]
+  [flow]
 )
-
-onMounted(async () => {
-  try {
-    flow.value = await api.get<FlowPoint[]>('/api/data/flow/self')
-  } catch (error) {
-    toast.error(error instanceof ApiError ? error.message : t('common.failed'))
-  }
-})
 </script>
 
 <template>
   <ConsoleCard :title="t('wallet.flowTitle')">
     <template #action>
       <div class="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
-        <label class="flex items-center gap-1.5">
-          <ConsoleToggle v-model="showTopup" :label="t('wallet.flowTopup')" />
-          {{ t('wallet.flowTopup') }}
-        </label>
         <span
           class="rounded-lg bg-[var(--surface-muted)] px-2 py-1 text-[var(--text-tertiary)]"
         >
-          {{ t('wallet.yearSuffix', { year }) }} ▾
+          {{ t('wallet.yearSuffix', { year }) }}
         </span>
       </div>
     </template>

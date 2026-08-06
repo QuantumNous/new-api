@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
+import { isMockApi } from '@/api/client'
+import { parseTokenPage, parseUserModels } from '@/api/liveContracts'
 import { ApiError, type PageResult } from '@/api/types'
 import type { TokenSummary } from '@/types/console'
 import KeyChannelsModal from '@/components/console/keys/KeyChannelsModal.vue'
@@ -100,9 +102,9 @@ async function load() {
   loading.value = true
   const result = await listRequest.run((signal) =>
     api.get<PageResult<TokenSummary>>(
-      '/api/token/',
+      keyword.value.trim() ? '/api/token/search' : '/api/token/',
       {
-        page: page.value,
+        p: page.value,
         page_size: pageSize.value,
         keyword: keyword.value,
       },
@@ -119,8 +121,11 @@ async function load() {
     )
     return
   }
-  rows.value = result.value.items
-  total.value = result.value.total
+  const pageResult = isMockApi
+    ? result.value
+    : parseTokenPage(result.value as unknown)
+  rows.value = pageResult.items
+  total.value = pageResult.total
   selected.value = []
 }
 
@@ -144,7 +149,10 @@ async function toggleStatus(row: TokenSummary) {
   if (togglingIds.value.has(row.id)) return // ignore double-clicks in flight
   togglingIds.value = new Set(togglingIds.value).add(row.id)
   try {
-    await api.put(`/api/token/${row.id}`, { status: row.status === 1 ? 2 : 1 })
+    await api.put(
+      isMockApi ? `/api/token/${row.id}` : '/api/token/?status_only=true',
+      { id: row.id, status: row.status === 1 ? 2 : 1 }
+    )
     toast.success(t('keys.updated'))
     load()
   } catch (error) {
@@ -171,6 +179,7 @@ function captureClick(event: MouseEvent) {
 }
 
 function onRowClick() {
+  if (!isMockApi) return
   window.clearTimeout(clickTimer)
   clickTimer = window.setTimeout(() => {
     window.clearTimeout(clickHintTimer)
@@ -182,6 +191,7 @@ function onRowClick() {
 }
 
 function onRowDblclick(row: TokenSummary) {
+  if (!isMockApi) return
   window.clearTimeout(clickTimer)
   clickHint.value = null
   // Toggle: double-click the same row again collapses the panel.
@@ -220,8 +230,12 @@ async function confirmDelete() {
 onMounted(async () => {
   void load()
   try {
-    const meta = await api.get<{ models: string[] }>('/api/models/available')
-    models.value = meta.models
+    const meta = await api.get<unknown>(
+      isMockApi ? '/api/models/available' : '/api/user/models'
+    )
+    models.value = isMockApi
+      ? ((meta as { models?: string[] }).models ?? [])
+      : parseUserModels(meta)
   } catch (error) {
     toast.error(error instanceof ApiError ? error.message : String(error))
   }
@@ -398,6 +412,7 @@ onBeforeUnmount(() => {
             @dblclick.stop
           >
             <IconButton
+              v-if="isMockApi"
               :label="t('keys.manageChannels')"
               @click="channelsToken = row as TokenSummary"
             >
@@ -538,6 +553,7 @@ onBeforeUnmount(() => {
           :toggle-status="toggleStatus"
           :view-key="copyKey"
           :manage-channels="(row) => (channelsToken = row)"
+          :show-channels="isMockApi"
           :edit-key="openEdit"
           :delete-key="(row) => (deleting = row)"
         />
@@ -563,7 +579,7 @@ onBeforeUnmount(() => {
         leave-to-class="opacity-0"
       >
         <div
-          v-if="expandedToken"
+          v-if="isMockApi && expandedToken"
           class="fixed top-0 bottom-0 right-0 z-40 bg-black/40 backdrop-blur-[1px]"
           :style="{ left: sidebarLeft }"
           aria-hidden="true"
@@ -581,7 +597,7 @@ onBeforeUnmount(() => {
         leave-to-class="translate-y-full"
       >
         <div
-          v-if="expandedToken"
+          v-if="isMockApi && expandedToken"
           class="fixed bottom-0 right-0 z-50"
           :style="{ left: sidebarLeft }"
         >
@@ -605,6 +621,7 @@ onBeforeUnmount(() => {
 
     <!-- channel management modal (action-column button) -->
     <KeyChannelsModal
+      v-if="isMockApi"
       :open="channelsToken !== null"
       :token="channelsToken"
       @close="channelsToken = null"

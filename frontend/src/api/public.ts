@@ -14,7 +14,12 @@ export interface PublicStatus {
   privacy_policy_enabled?: boolean
   uptime_kuma_enabled?: boolean
   HeaderNavModules?: unknown
+  frontend_capabilities?: FrontendCapabilities
+  next_frontend_enabled?: boolean
 }
+
+export type FeatureStatus = 'live' | 'prototype' | 'disabled'
+export type FrontendCapabilities = Record<string, FeatureStatus>
 
 export interface PricingModel {
   model_name: string
@@ -53,6 +58,7 @@ export function parsePublicStatus(value: unknown): PublicStatus {
     'user_agreement_enabled',
     'privacy_policy_enabled',
     'uptime_kuma_enabled',
+    'next_frontend_enabled',
   ] as const
 
   for (const key of stringKeys) {
@@ -69,6 +75,21 @@ export function parsePublicStatus(value: unknown): PublicStatus {
   }
   if (value.HeaderNavModules !== undefined) {
     result.HeaderNavModules = value.HeaderNavModules
+  }
+  if (value.frontend_capabilities !== undefined) {
+    if (!isRecord(value.frontend_capabilities)) invalidResponse('/api/status')
+    const capabilities: FrontendCapabilities = {}
+    for (const [key, status] of Object.entries(value.frontend_capabilities)) {
+      if (
+        status !== 'live' &&
+        status !== 'prototype' &&
+        status !== 'disabled'
+      ) {
+        invalidResponse('/api/status')
+      }
+      capabilities[key] = status
+    }
+    result.frontend_capabilities = capabilities
   }
   return result
 }

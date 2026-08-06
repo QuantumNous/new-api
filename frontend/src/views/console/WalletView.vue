@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
 import { api } from '@/api/console'
+import { isMockApi } from '@/api/client'
+import { parseUsageRows } from '@/api/liveContracts'
 import { ApiError } from '@/api/types'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import PageHero from '@/components/console/PageHero.vue'
@@ -15,18 +17,15 @@ import type { DashboardStats, FlowPoint } from '@/composables/useDashboard'
 import { useBalanceVisibility } from '@/composables/useDashboard'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
-import { formatMoney, formatQuota, QUOTA_PER_DOLLAR } from '@/utils/format'
+import { useAuthStore } from '@/stores/auth'
+import { formatQuota, QUOTA_PER_DOLLAR } from '@/utils/format'
 
-interface WalletStats extends DashboardStats {
-  month_topup?: number
-  month_topup_count?: number
-  total_topup?: number
-  total_topup_since?: string
-}
+type WalletStats = DashboardStats
 
 const { t } = useI18n()
 const route = useRoute()
 const toast = useToast()
+const auth = useAuthStore()
 const { hidden, toggle } = useBalanceVisibility()
 
 const stats = ref<WalletStats | null>(null)
@@ -60,13 +59,6 @@ const statCards = computed(() => {
     : 0
   return [
     {
-      label: t('wallet.statMonthTopup'),
-      value: formatMoney(current.month_topup ?? 0, 0),
-      sub: t('wallet.statMonthTopupSub', {
-        count: current.month_topup_count ?? 0,
-      }),
-    },
-    {
       label: t('wallet.statMonthConsume'),
       value: formatQuota(current.used_quota),
       sub: t('wallet.statMonthConsumeSub'),
@@ -76,27 +68,19 @@ const statCards = computed(() => {
       value: formatQuota(average),
       sub: t('wallet.statDailyAvgSub', { days: dayCount.value }),
     },
-    {
-      label: t('wallet.statTotalTopup'),
-      value: formatMoney(current.total_topup ?? 0, 0),
-      sub: t('wallet.statTotalTopupSub', {
-        since: current.total_topup_since ?? '2026-01',
-      }),
-    },
   ]
 })
 
 async function loadStats(): Promise<void> {
   loading.value = true
+  const endTimestamp = Math.floor(Date.now() / 1000)
+  const startTimestamp = endTimestamp - 29 * 86_400
   const result = await statsRequest.run((signal) =>
-    Promise.all([
-      api.get<WalletStats & { model_share: unknown }>(
-        '/api/data/self',
-        undefined,
-        { signal }
-      ),
-      api.get<FlowPoint[]>('/api/data/flow/self', undefined, { signal }),
-    ])
+    api.get<unknown>(
+      '/api/data/self',
+      { start_timestamp: startTimestamp, end_timestamp: endTimestamp },
+      { signal }
+    )
   )
   if (result.stale) return
   loading.value = false
@@ -108,10 +92,32 @@ async function loadStats(): Promise<void> {
     )
     return
   }
-  const [data, flowData] = result.value
-  const { model_share: _modelShare, ...walletStats } = data
-  stats.value = walletStats
-  flow.value = flowData
+  if (isMockApi) {
+    const data = result.value as WalletStats & { model_share?: unknown }
+    const { model_share: _modelShare, ...walletStats } = data
+    stats.value = walletStats
+    flow.value = []
+    return
+  }
+  const rows = parseUsageRows(result.value)
+  const byDay = new Map<string, FlowPoint>()
+  for (const row of rows) {
+    const date = new Date(row.created_at * 1000).toISOString().slice(0, 10)
+    const point = byDay.get(date) ?? { date, consume: 0, requests: 0, topup: 0 }
+    point.consume += row.quota
+    point.requests += row.count
+    byDay.set(date, point)
+  }
+  flow.value = [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date))
+  stats.value = {
+    quota: auth.user?.quota ?? 0,
+    used_quota: rows.reduce((sum, row) => sum + row.quota, 0),
+    today_quota: 0,
+    today_requests: 0,
+    total_requests: rows.reduce((sum, row) => sum + row.count, 0),
+    month_quota_delta: 0,
+    month_requests_delta: 0,
+  }
 }
 
 function handlePaymentDone(): void {
@@ -206,7 +212,7 @@ onMounted(() => void loadStats())
     </div>
 
     <div class="space-y-6">
-      <FlowChart />
+      <FlowChart :flow="flow" />
       <TopupRecords v-model:refresh-key="refreshKey" />
     </div>
   </div>

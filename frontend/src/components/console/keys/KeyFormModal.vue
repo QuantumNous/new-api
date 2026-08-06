@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, reactive, ref, useId, watch } from 'vue'
+import { getActivePinia } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
+import { isMockApi } from '@/api/client'
 import { ApiError } from '@/api/types'
 import type { TokenSummary, TokenType } from '@/types/console'
 import AmountInput from '@/components/common/AmountInput.vue'
@@ -13,6 +15,7 @@ import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import FormField from '@/components/common/FormField.vue'
 import TextInput from '@/components/common/TextInput.vue'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import { QUOTA_PER_DOLLAR } from '@/utils/format'
 
 const props = defineProps<{
@@ -29,6 +32,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
+const auth = getActivePinia() ? useAuthStore() : null
 
 const form = reactive({
   type: 'auto' as TokenType,
@@ -148,8 +152,27 @@ async function save() {
           ? Math.floor(new Date(form.expireDate).getTime() / 1000)
           : -1,
     }
+    if (!isMockApi) {
+      payload.unlimited_quota = payload.unlimited
+      payload.model_limits_enabled = form.model_limits.length > 0
+      payload.model_limits = form.model_limits.join(',')
+      payload.allow_ips = form.ipText.trim()
+      payload.group =
+        form.type === 'auto'
+          ? 'auto'
+          : (props.editing?.group ?? auth?.user?.group ?? 'default')
+      delete payload.unlimited
+      delete payload.ip_limits
+      delete payload.rate_limit
+      delete payload.max_ratio
+      delete payload.type
+    }
     if (props.editing) {
-      await api.put(`/api/token/${props.editing.id}`, payload)
+      if (!isMockApi) payload.id = props.editing.id
+      await api.put(
+        isMockApi ? `/api/token/${props.editing.id}` : '/api/token/',
+        payload
+      )
       toast.success(t('keys.updated'))
     } else {
       payload.type = form.type
@@ -274,7 +297,11 @@ async function save() {
         </div>
       </div>
 
-      <FormField :label="t('keys.maxRatio')" :hint="t('keys.maxRatioHint')">
+      <FormField
+        v-if="isMockApi"
+        :label="t('keys.maxRatio')"
+        :hint="t('keys.maxRatioHint')"
+      >
         <AmountInput
           v-model="form.maxRatio"
           name="token-max-ratio"
@@ -372,7 +399,7 @@ async function save() {
             />
           </FormField>
 
-          <div class="space-y-2">
+          <div v-if="isMockApi" class="space-y-2">
             <div
               class="flex items-center justify-between gap-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3 py-2.5"
             >

@@ -15,19 +15,23 @@ import StatusChip from '@/components/common/StatusChip.vue'
 import type { TokenSummary } from '@/types/console'
 import { formatDate, formatQuota } from '@/utils/format'
 
-defineProps<{
-  tokens: TokenSummary[]
-  selectedIds: Array<string | number>
-  allSelected: boolean
-  toggleAllSelected: () => void
-  toggleSelected: (token: TokenSummary) => void
-  isToggling: (token: TokenSummary) => boolean
-  toggleStatus: (token: TokenSummary) => void | Promise<void>
-  viewKey: (token: TokenSummary) => void
-  manageChannels: (token: TokenSummary) => void
-  editKey: (token: TokenSummary) => void
-  deleteKey: (token: TokenSummary) => void
-}>()
+withDefaults(
+  defineProps<{
+    tokens: TokenSummary[]
+    selectedIds: Array<string | number>
+    allSelected: boolean
+    toggleAllSelected: () => void
+    toggleSelected: (token: TokenSummary) => void
+    isToggling: (token: TokenSummary) => boolean
+    toggleStatus: (token: TokenSummary) => void | Promise<void>
+    viewKey: (token: TokenSummary) => void
+    manageChannels: (token: TokenSummary) => void
+    showChannels?: boolean
+    editKey: (token: TokenSummary) => void
+    deleteKey: (token: TokenSummary) => void
+  }>(),
+  { showChannels: true }
+)
 
 const { t } = useI18n()
 </script>
@@ -141,6 +145,7 @@ const { t } = useI18n()
             <Eye :size="16" />
           </IconButton>
           <IconButton
+            v-if="showChannels"
             :label="t('keys.manageChannels')"
             @click="manageChannels(token)"
           >

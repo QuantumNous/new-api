@@ -28,6 +28,12 @@ const soundEnabled = useStorage<boolean>('ren2hub_lab_sound', true)
         class="night-page-texture draft-grid flex min-w-0 flex-1 flex-col overflow-hidden"
       >
         <div
+          class="border-b border-[var(--status-warning)] bg-[var(--status-warning-soft)] px-4 py-2 text-center text-xs font-semibold text-[var(--status-warning-text)] sm:px-6"
+          role="status"
+        >
+          {{ t('nav.prototypeMode') }} · {{ t('nav.prototypeModeHint') }}
+        </div>
+        <div
           class="flex h-14 shrink-0 items-center justify-end gap-1.5 border-b border-[var(--border-subtle)] px-4"
         >
           <button

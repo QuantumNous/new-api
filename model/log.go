@@ -114,21 +114,71 @@ func assignDisplayLogIds(logs []*Log, startIdx int) {
 }
 
 func formatUserLogs(logs []*Log, startIdx int) {
+	safeOtherKeys := map[string]struct{}{
+		"model_ratio": {}, "group_ratio": {}, "completion_ratio": {},
+		"cache_tokens": {}, "cache_ratio": {}, "model_price": {},
+		"user_group_ratio": {}, "frt": {}, "reasoning_effort": {},
+		"fast_mode": {}, "service_tier": {}, "speed": {},
+		"billing_source": {}, "billing_preference": {},
+	}
 	for i := range logs {
-		logs[i].ChannelName = ""
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
-		if otherMap != nil {
-			// Remove admin-only debug fields.
-			delete(otherMap, "admin_info")
-			// Remove operation-audit details (operator/route info), admin-only.
-			delete(otherMap, "audit_info")
-			// delete(otherMap, "reject_reason")
-			// delete(otherMap, "stream_status")
+		for key := range otherMap {
+			if _, ok := safeOtherKeys[key]; !ok {
+				delete(otherMap, key)
+			}
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 	}
 	assignDisplayLogIds(logs, startIdx)
+}
+
+func attachChannelNames(logs []*Log) error {
+	channelIds := types.NewSet[int]()
+	for _, log := range logs {
+		if log.ChannelId != 0 {
+			channelIds.Add(log.ChannelId)
+		}
+	}
+	if channelIds.Len() == 0 {
+		return nil
+	}
+
+	channelMap := make(map[int]string, channelIds.Len())
+	if common.MemoryCacheEnabled {
+		for _, channelId := range channelIds.Items() {
+			if channel, err := CacheGetChannel(channelId); err == nil {
+				channelMap[channelId] = channel.Name
+			}
+		}
+	} else {
+		var channels []struct {
+			Id   int    `gorm:"column:id"`
+			Name string `gorm:"column:name"`
+		}
+		if err := DB.Table("channels").Select("id, name").Where("id IN ?", channelIds.Items()).Find(&channels).Error; err != nil {
+			return err
+		}
+		for _, channel := range channels {
+			channelMap[channel.Id] = channel.Name
+		}
+	}
+
+	for _, log := range logs {
+		log.ChannelName = channelMap[log.ChannelId]
+	}
+	return nil
+}
+
+func findChannelIdsByKeyword(keyword string) ([]int, error) {
+	pattern, err := sanitizeLikePattern("%" + keyword + "%")
+	if err != nil {
+		return nil, err
+	}
+	var ids []int
+	err = DB.Table("channels").Where("name LIKE ? ESCAPE '!'", pattern).Pluck("id", &ids).Error
+	return ids, err
 }
 
 func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
@@ -561,7 +611,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, keyword string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
@@ -574,6 +624,33 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	}
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name = ?", tokenName)
+	}
+	if keyword != "" {
+		condition, pattern, filterErr := buildLogLikeCondition(
+			"logs.model_name",
+			"%"+keyword+"%",
+		)
+		if filterErr != nil {
+			return nil, 0, filterErr
+		}
+		tokenCondition, tokenPattern, filterErr := buildLogLikeCondition(
+			"logs.token_name",
+			"%"+keyword+"%",
+		)
+		if filterErr != nil {
+			return nil, 0, filterErr
+		}
+		channelIds, filterErr := findChannelIdsByKeyword(keyword)
+		if filterErr != nil {
+			return nil, 0, filterErr
+		}
+		keywordCondition := "(" + condition + " OR " + tokenCondition
+		args := []interface{}{pattern, tokenPattern}
+		if len(channelIds) > 0 {
+			keywordCondition += " OR logs.channel_id IN ?"
+			args = append(args, channelIds)
+		}
+		tx = tx.Where(keywordCondition+")", args...)
 	}
 	if requestId != "" {
 		tx = tx.Where("logs.request_id = ?", requestId)
@@ -605,6 +682,9 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		return nil, 0, errors.New("查询日志失败")
 	}
 
+	if err = attachChannelNames(logs); err != nil {
+		return nil, 0, err
+	}
 	formatUserLogs(logs, startIdx)
 	return logs, total, err
 }

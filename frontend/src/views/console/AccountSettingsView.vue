@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import { isMockApi } from '@/api/client'
 import { ApiError } from '@/api/types'
 import PasswordStrengthMeter from '@/components/auth/PasswordStrengthMeter.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -25,7 +26,7 @@ const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToast()
-const prototype = useSettingsPrototypeStore()
+const prototype = isMockApi ? useSettingsPrototypeStore() : null
 
 const profileOpen = ref(false)
 const displayName = ref(auth.user?.display_name ?? '')
@@ -40,7 +41,9 @@ const deleting = ref(false)
 
 watch(
   () => auth.user,
-  (user) => prototype.initialize(user),
+  (user) => {
+    prototype?.initialize(user)
+  },
   { immediate: true }
 )
 

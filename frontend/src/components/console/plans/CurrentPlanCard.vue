@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
-import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { durationUnitLabelKey, planAccentColor } from '@/constants/adminPlans'
 import type { SubscriptionEntitlement } from '@/types/console'
@@ -15,8 +14,6 @@ const props = defineProps<{
   subscription: SubscriptionEntitlement | null
   savingAutoRenew: boolean
 }>()
-
-const emit = defineEmits<{ 'update:autoRenew': [value: boolean] }>()
 
 const { t } = useI18n()
 
@@ -67,11 +64,6 @@ const periodLabel = computed(() => {
   return t(durationUnitLabelKey(current.period.unit), current.period.value, {
     named: { n: current.period.value },
   })
-})
-
-const autoRenew = computed({
-  get: () => props.subscription?.auto_renew ?? false,
-  set: (value: boolean) => emit('update:autoRenew', value),
 })
 </script>
 
@@ -136,24 +128,6 @@ const autoRenew = computed({
           <Radio :size="14" :style="{ color: accent }" aria-hidden="true" />
           {{ t('plans.exclusiveChannel') }} ·
           {{ subscription.exclusive_channel.name }}
-        </div>
-
-        <div
-          class="mt-4 flex items-center justify-between gap-3 rounded-xl bg-[var(--surface-muted)] px-3.5 py-2.5"
-        >
-          <div class="min-w-0">
-            <p class="text-xs font-medium text-[var(--text-secondary)]">
-              {{ t('plans.autoRenew') }}
-            </p>
-            <p class="mt-0.5 text-[11px] text-[var(--text-tertiary)]">
-              {{ t('plans.autoRenewHint') }}
-            </p>
-          </div>
-          <ConsoleToggle
-            v-model="autoRenew"
-            :label="t('plans.autoRenew')"
-            :disabled="savingAutoRenew"
-          />
         </div>
       </div>
 

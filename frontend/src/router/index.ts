@@ -25,8 +25,9 @@ export function sanitizeRedirect(value: unknown): string | null {
   try {
     const url = new URL(value, window.location.origin)
     if (url.origin !== window.location.origin) return null
-    if (!/^\/(console|lab)(\/|$)/.test(url.pathname)) return null
-    return `${url.pathname}${url.search}${url.hash}`
+    const pathname = url.pathname.replace(/^\/next(?=\/|$)/, '') || '/'
+    if (!/^(\/(console|lab))(\/|$)/.test(pathname)) return null
+    return `${pathname}${url.search}${url.hash}`
   } catch {
     return null
   }
@@ -86,7 +87,7 @@ const router = createRouter({
           path: 'activity',
           name: 'activity',
           component: () => import('@/views/console/ActivityView.vue'),
-          meta: { topNav: 'activities' },
+          meta: { topNav: 'activities', prototype: true },
         },
         {
           path: 'models',
@@ -97,7 +98,7 @@ const router = createRouter({
           path: 'market',
           name: 'market',
           component: () => import('@/views/console/MarketplaceView.vue'),
-          meta: { noPageScroll: true },
+          meta: { noPageScroll: true, prototype: true },
         },
         {
           path: 'keys',
@@ -118,6 +119,7 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
+            prototype: true,
             ...getConsoleRouteAccessMeta('channels'),
           },
         },
@@ -128,6 +130,7 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
+            prototype: true,
             ...getConsoleRouteAccessMeta('users'),
           },
         },
@@ -138,6 +141,7 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
+            prototype: true,
             ...getConsoleRouteAccessMeta('redemption'),
           },
         },
@@ -148,6 +152,7 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
+            prototype: true,
             ...getConsoleRouteAccessMeta('plan-management'),
           },
         },
@@ -158,6 +163,7 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
+            prototype: true,
             ...getConsoleRouteAccessMeta('orders'),
           },
         },
@@ -165,13 +171,13 @@ const router = createRouter({
           path: 'tickets',
           name: 'tickets',
           component: () => import('@/views/console/TicketsView.vue'),
-          meta: { noPageScroll: true },
+          meta: { noPageScroll: true, prototype: true },
         },
         {
           path: 'tickets/:id',
           name: 'ticket-detail',
           component: () => import('@/views/console/TicketDetailView.vue'),
-          meta: { nav: 'tickets' },
+          meta: { nav: 'tickets', prototype: true },
         },
         {
           path: 'wallet',
@@ -187,40 +193,44 @@ const router = createRouter({
           path: 'invite',
           name: 'invite',
           component: () => import('@/views/console/InviteView.vue'),
+          meta: { prototype: true },
         },
         {
           path: 'invoice',
           name: 'invoice',
           component: () => import('@/views/console/InvoiceView.vue'),
+          meta: { prototype: true },
         },
         {
           path: 'settings',
           name: 'settings',
           component: () => import('@/views/console/AccountSettingsView.vue'),
+          meta: { prototype: true },
         },
         {
           path: 'profile',
           name: 'profile',
           component: () => import('@/views/console/AccountCenterView.vue'),
+          meta: { prototype: true },
         },
         {
           path: 'farm',
           name: 'farm',
           component: () => import('@/views/console/FarmView.vue'),
-          meta: { topNav: 'activities' },
+          meta: { topNav: 'activities', prototype: true },
         },
         {
           path: 'bigame',
           name: 'bigame',
           component: () => import('@/views/console/BigameView.vue'),
-          meta: { topNav: 'activities' },
+          meta: { topNav: 'activities', prototype: true },
         },
       ],
     },
     {
       path: '/lab',
       component: () => import('@/components/layout/LabLayout.vue'),
-      meta: { requiresAuth: true, topNav: 'alchemy' },
+      meta: { requiresAuth: true, topNav: 'alchemy', prototype: true },
       children: [
         { path: '', redirect: { name: 'lab-chat' } },
         {

@@ -3,6 +3,8 @@ import { useLocalStorage } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
+import { isMockApi } from '@/api/client'
+import { parseUserModels } from '@/api/liveContracts'
 import { ApiError } from '@/api/types'
 import type { MarketModel } from '@/types/console'
 import { vendorMeta } from '@/constants/console'
@@ -69,7 +71,31 @@ export function useModelMarket() {
   async function load() {
     loading.value = true
     try {
-      catalog.value = await api.get<ModelMarketCatalog>('/api/models/market')
+      if (isMockApi) {
+        catalog.value = await api.get<ModelMarketCatalog>('/api/models/market')
+      } else {
+        const names = parseUserModels(
+          await api.get<unknown>('/api/user/models')
+        )
+        catalog.value = {
+          models: names.map((name, index) => ({
+            id: index + 1,
+            name,
+            vendor: '平台',
+            type: 'chat',
+            billing: 'token',
+            price: {},
+            context: 0,
+            tagline: '',
+            latency: 0,
+            tps: 0,
+            health: 0,
+            channels: [],
+          })),
+          channels: [],
+          vendors: ['平台'],
+        }
+      }
     } catch (error) {
       toast.error(
         error instanceof ApiError ? error.message : t('common.failed')

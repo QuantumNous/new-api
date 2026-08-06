@@ -6,6 +6,7 @@ export interface UserInfo {
   role: number
   quota: number
   used_quota: number
+  group?: string
   github_id?: string
   discord_id?: string
   oidc_id?: string

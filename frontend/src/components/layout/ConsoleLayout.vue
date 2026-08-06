@@ -12,6 +12,7 @@ const maxWidth = computed(() =>
   route.meta.wide ? 'max-w-[1400px]' : 'max-w-[1200px]'
 )
 const noPageScroll = computed(() => Boolean(route.meta.noPageScroll))
+const isPrototype = computed(() => Boolean(route.meta.prototype))
 
 const isScrolling = ref(false)
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
@@ -44,6 +45,13 @@ onBeforeUnmount(() => {
         @scroll.passive="onScroll"
       >
         <ConsoleNavStrip />
+        <div
+          v-if="isPrototype"
+          class="border-b border-[var(--status-warning)] bg-[var(--status-warning-soft)] px-4 py-2 text-center text-xs font-semibold text-[var(--status-warning-text)] sm:px-6 lg:px-8"
+          role="status"
+        >
+          {{ $t('nav.prototypeMode') }} · {{ $t('nav.prototypeModeHint') }}
+        </div>
         <main class="min-w-0 px-4 py-8 sm:px-6 lg:px-8">
           <div
             class="mx-auto transition-[max-width] duration-300"

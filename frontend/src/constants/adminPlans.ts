@@ -20,12 +20,10 @@ export const ADMIN_PLAN_STATUSES: readonly AdminPlanStatus[] = [
 
 export const PLAN_KINDS: readonly PlanKind[] = ['traffic', 'subscription']
 
-export const DURATION_UNITS: readonly DurationUnit[] = [
-  'hour',
-  'day',
-  'week',
-  'month',
-]
+export const DURATION_UNITS: readonly Exclude<
+  DurationUnit,
+  'year' | 'custom'
+>[] = ['hour', 'day', 'week', 'month']
 
 export const SUBSCRIPTION_METERS: readonly SubscriptionMeter[] = [
   'refill',
@@ -72,6 +70,8 @@ const UNIT_SECONDS: Record<DurationUnit, number> = {
   day: DAY_SECONDS,
   week: 7 * DAY_SECONDS,
   month: 30 * DAY_SECONDS,
+  year: 365 * DAY_SECONDS,
+  custom: 1,
 }
 
 export function durationToSeconds(duration: Duration): number {
@@ -101,6 +101,11 @@ export function durationUnitNameKey(unit: DurationUnit): string {
  * year. Pure so period rollover stays table-testable.
  */
 export function nextPeriodBoundary(from: number, period: Duration): number {
+  if (period.unit === 'year') {
+    const date = new Date(from * 1_000)
+    date.setFullYear(date.getFullYear() + period.value)
+    return Math.floor(date.getTime() / 1_000)
+  }
   if (period.unit === 'month') {
     const date = new Date(from * 1_000)
     const day = date.getDate()

@@ -2,9 +2,16 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-const props = withDefaults(defineProps<{ modelValue?: string }>(), {
-  modelValue: 'epay',
-})
+const props = withDefaults(
+  defineProps<{
+    modelValue?: string
+    methods?: Array<{ value: string; label: string }>
+  }>(),
+  {
+    modelValue: 'epay',
+    methods: undefined,
+  }
+)
 
 const emit = defineEmits<{
   'update:modelValue': [method: string]
@@ -12,11 +19,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const methods = computed(() => [
+const defaultMethods = computed(() => [
   { value: 'epay', label: t('wallet.payEpay') },
   { value: 'stripe', label: t('wallet.payStripe') },
   { value: 'creem', label: t('wallet.payCreem') },
 ])
+const methods = computed(() => props.methods ?? defaultMethods.value)
 </script>
 
 <template>

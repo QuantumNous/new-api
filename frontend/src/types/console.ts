@@ -15,6 +15,8 @@ export interface TokenChannel {
 export interface TokenItem {
   id: number
   name: string
+  /** Real backend routing group; preserved verbatim on edit. */
+  group?: string
   key: string
   type: TokenType
   status: 1 | 2 // 1 enabled · 2 disabled
@@ -280,6 +282,8 @@ export interface TopupRecord {
   amount: number // USD purchased
   money: number // quota credited
   method: 'epay' | 'stripe' | 'creem' | 'redeem'
+  provider?: string
+  payment_method?: string
   status: 'success' | 'pending' | 'failed'
   created: number
 }
@@ -296,7 +300,7 @@ export interface TopupRecord {
  */
 export type PlanKind = 'traffic' | 'subscription'
 
-export type DurationUnit = 'hour' | 'day' | 'week' | 'month'
+export type DurationUnit = 'hour' | 'day' | 'week' | 'month' | 'year' | 'custom'
 
 /** A quantity of time. Rendered through formatDuration() for i18n plurals. */
 export interface Duration {
@@ -337,6 +341,8 @@ interface PlanBase {
   exclusive_channel_id: number | null
   /** Billing multiplier; replaces the retired per-group ratio. undefined = 1.0 */
   ratio?: number
+  /** Whether the real backend permits wallet-balance purchase. */
+  balance_pay_enabled?: boolean
 }
 
 export interface TrafficPlan extends PlanBase {

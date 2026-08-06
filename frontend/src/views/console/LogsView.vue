@@ -12,6 +12,8 @@ import { onClickOutside } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
+import { isMockApi } from '@/api/client'
+import { parseLogPage } from '@/api/liveContracts'
 import { ApiError, type PageResult } from '@/api/types'
 import type { LogItem, LogType } from '@/types/console'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
@@ -251,17 +253,41 @@ const typeLabelKey: Record<LogType, string> = {
 // ---------- data fetching ----------
 
 function currentParams() {
+  const typeMap: Record<string, number> = {
+    topup: 1,
+    consume: 2,
+    manage: 3,
+    system: 4,
+    error: 5,
+    refund: 6,
+  }
+  const requestedStart = startDate.value
+    ? Math.floor(new Date(startDate.value).getTime() / 1000)
+    : 0
+  const endTimestamp = endDate.value
+    ? Math.floor(new Date(endDate.value).getTime() / 1000) + 86_399
+    : 0
+  const startTimestamp =
+    requestedStart && endTimestamp
+      ? Math.max(requestedStart, endTimestamp - 30 * 86_400)
+      : requestedStart
+  if (isMockApi) {
+    return {
+      page: page.value,
+      page_size: pageSize.value,
+      keyword: keyword.value,
+      type: type.value,
+      start: startTimestamp,
+      end: endTimestamp,
+    }
+  }
   return {
-    page: page.value,
+    p: page.value,
     page_size: pageSize.value,
     keyword: keyword.value,
-    type: type.value,
-    start: startDate.value
-      ? Math.floor(new Date(startDate.value).getTime() / 1000)
-      : 0,
-    end: endDate.value
-      ? Math.floor(new Date(endDate.value).getTime() / 1000) + 86_399
-      : 0,
+    type: type.value ? (typeMap[type.value] ?? 0) : 0,
+    start_timestamp: startTimestamp,
+    end_timestamp: endTimestamp,
   }
 }
 
@@ -283,8 +309,11 @@ async function load() {
     )
     return
   }
-  rows.value = result.value.items
-  total.value = result.value.total
+  const pageResult = isMockApi
+    ? result.value
+    : parseLogPage(result.value as unknown)
+  rows.value = pageResult.items
+  total.value = pageResult.total
 }
 
 let searchTimer = 0
@@ -319,24 +348,35 @@ async function fetchAllLogs(
   signal: AbortSignal
 ): Promise<{ items: LogItem[]; truncated: boolean }> {
   // page/page_size come from the export loop, not from the table's paging.
-  const { page: _page, page_size: _pageSize, ...filters } = currentParams()
+  const {
+    p: _p,
+    page: _page,
+    page_size: _pageSize,
+    ...filters
+  } = currentParams()
 
-  const first = await api.get<PageResult<LogItem>>(
+  const firstRaw = await api.get<PageResult<LogItem>>(
     '/api/log/self',
-    { ...filters, page: 1, page_size: EXPORT_PAGE_SIZE },
+    isMockApi
+      ? { ...filters, page: 1, page_size: EXPORT_PAGE_SIZE }
+      : { ...filters, p: 1, page_size: EXPORT_PAGE_SIZE },
     { signal }
   )
 
+  const first = isMockApi ? firstRaw : parseLogPage(firstRaw as unknown)
   const items = [...first.items]
   const reachable = Math.min(first.total, EXPORT_MAX_ROWS)
   const pages = Math.ceil(reachable / EXPORT_PAGE_SIZE)
 
   for (let p = 2; p <= pages; p++) {
-    const next = await api.get<PageResult<LogItem>>(
+    const nextRaw = await api.get<PageResult<LogItem>>(
       '/api/log/self',
-      { ...filters, page: p, page_size: EXPORT_PAGE_SIZE },
+      isMockApi
+        ? { ...filters, page: p, page_size: EXPORT_PAGE_SIZE }
+        : { ...filters, p, page_size: EXPORT_PAGE_SIZE },
       { signal }
     )
+    const next = isMockApi ? nextRaw : parseLogPage(nextRaw as unknown)
     items.push(...next.items)
   }
 

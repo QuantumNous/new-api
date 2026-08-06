@@ -24,11 +24,9 @@ const {
   trafficPacks,
   loading,
   purchasingId,
-  savingAutoRenew,
   initialError,
   load,
   purchase,
-  setAutoRenew,
 } = useSubscription()
 
 const confirming = ref<Plan | null>(null)
@@ -117,8 +115,7 @@ onMounted(() => void load())
       <div v-else class="mb-6 space-y-6">
         <CurrentPlanCard
           :subscription="subscription"
-          :saving-auto-renew="savingAutoRenew"
-          @update:auto-renew="setAutoRenew"
+          :saving-auto-renew="false"
         />
         <TrafficPackList :packs="trafficPacks" />
       </div>
@@ -157,7 +154,9 @@ onMounted(() => void load())
               :plan="plan"
               :channel-name="channelNames.get(plan.id) ?? ''"
               :loading="purchasingId === plan.id"
-              :disabled="purchasingId !== null"
+              :disabled="
+                purchasingId !== null || plan.balance_pay_enabled === false
+              "
               @buy="confirming = plan"
             />
           </div>
@@ -179,7 +178,9 @@ onMounted(() => void load())
               :active="plan.id === currentPlanId"
               :channel-name="channelNames.get(plan.id) ?? ''"
               :loading="purchasingId === plan.id"
-              :disabled="purchasingId !== null"
+              :disabled="
+                purchasingId !== null || plan.balance_pay_enabled === false
+              "
               @buy="confirming = plan"
             />
           </div>

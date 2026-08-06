@@ -4,6 +4,7 @@ import { useClipboard } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 
 import type { MarketModel } from '@/types/console'
+import { isMockApi } from '@/api/client'
 import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
@@ -100,7 +101,7 @@ onMounted(load)
           name="model-search"
           class="w-full sm:w-64"
         />
-        <div class="flex flex-1 flex-wrap items-center gap-3">
+        <div v-if="isMockApi" class="flex flex-1 flex-wrap items-center gap-3">
           <FilterSelect
             v-model="channel"
             :options="channelSelectOptions"
@@ -186,7 +187,9 @@ onMounted(load)
     <!-- result meta -->
     <p class="mb-4 mt-5 text-sm text-[var(--text-tertiary)]">
       {{ t('models.resultCount', { count: resultCount }) }}
-      <span class="ml-2 text-xs">· {{ t('models.snapshotNote') }}</span>
+      <span v-if="isMockApi" class="ml-2 text-xs"
+        >· {{ t('models.snapshotNote') }}</span
+      >
     </p>
 
     <!-- loading skeleton -->
@@ -207,6 +210,29 @@ onMounted(load)
       />
     </ConsoleCard>
 
+    <ConsoleCard v-else-if="!isMockApi" :padded="false">
+      <ul class="divide-y divide-[var(--border-subtle)]">
+        <li
+          v-for="model in groups.flatMap((group) => group.models)"
+          :key="model.name"
+          class="flex min-h-14 items-center justify-between gap-3 px-4 py-3"
+        >
+          <span
+            class="min-w-0 truncate font-mono text-sm text-[var(--text-primary)]"
+          >
+            {{ model.name }}
+          </span>
+          <ConsoleButton
+            variant="ghost"
+            size="sm"
+            @click="copyName(model.name)"
+          >
+            {{ t('common.copy') }}
+          </ConsoleButton>
+        </li>
+      </ul>
+    </ConsoleCard>
+
     <!-- vendor groups -->
     <template v-else>
       <VendorSection
@@ -220,6 +246,7 @@ onMounted(load)
 
     <!-- detail modal -->
     <ConsoleModal
+      v-if="isMockApi"
       :open="detailModel != null"
       :title="detailModel?.name ?? ''"
       size="lg"

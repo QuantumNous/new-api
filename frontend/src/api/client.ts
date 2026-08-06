@@ -3,6 +3,8 @@ import { getAuthSessionGeneration } from './authSession'
 import { httpTransport } from './httpTransport'
 import { isMockApi } from './mode'
 import { mockTransport } from './mock/transport'
+import { isPrototypeEndpoint, prototypeRequest } from './prototypeTransport'
+import type { ApiTransport } from './transport'
 
 /**
  * Transport selection for the console/auth client. This refactor phase ships
@@ -11,11 +13,18 @@ import { mockTransport } from './mock/transport'
  */
 let unauthorizedHandler: (() => void) | null = null
 
+const liveTransport: ApiTransport = {
+  request(method, url, options) {
+    if (isPrototypeEndpoint(url)) return prototypeRequest(method, url, options)
+    return httpTransport.request(method, url, options)
+  },
+}
+
 export function setApiUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler
 }
 
-export const api = createApiClient(isMockApi ? mockTransport : httpTransport, {
+export const api = createApiClient(isMockApi ? mockTransport : liveTransport, {
   onUnauthorized: () => unauthorizedHandler?.(),
   getRequestScope: isMockApi ? undefined : getAuthSessionGeneration,
 })

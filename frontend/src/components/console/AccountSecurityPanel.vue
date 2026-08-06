@@ -19,6 +19,7 @@ import {
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { isMockApi } from '@/api/client'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
@@ -46,7 +47,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
-const prototype = useSettingsPrototypeStore()
+const prototype = isMockApi ? useSettingsPrototypeStore() : null
 
 const passkeyRegisterOpen = ref(false)
 const passkeyRemoveOpen = ref(false)
@@ -76,8 +77,49 @@ const bindingMeta = {
   telegram: { icon: Send, labelKey: 'settings.bindingTelegram' },
 } as const
 
+const readonlyBindings = computed<PrototypeBinding[]>(() => [
+  {
+    id: 'email',
+    bound: Boolean(props.user?.email),
+    account: props.user?.email?.trim() ?? '',
+  },
+  {
+    id: 'github',
+    bound: Boolean(props.user?.github_id),
+    account: props.user?.github_id?.trim() ?? '',
+  },
+  {
+    id: 'linuxdo',
+    bound: Boolean(props.user?.linux_do_id),
+    account: props.user?.linux_do_id?.trim() ?? '',
+  },
+  {
+    id: 'discord',
+    bound: Boolean(props.user?.discord_id),
+    account: props.user?.discord_id?.trim() ?? '',
+  },
+  {
+    id: 'wechat',
+    bound: Boolean(props.user?.wechat_id),
+    account: props.user?.wechat_id?.trim() ?? '',
+  },
+  {
+    id: 'telegram',
+    bound: Boolean(props.user?.telegram_id),
+    account: props.user?.telegram_id?.trim() ?? '',
+  },
+])
+
+const bindings = computed(() => prototype?.bindings ?? readonlyBindings.value)
+const passkeyEnabled = computed(() => prototype?.passkeyEnabled ?? false)
+const passkeyLastUsedAt = computed(() => prototype?.passkeyLastUsedAt ?? null)
+const twoFAEnabled = computed(() => prototype?.twoFAEnabled ?? false)
+const backupCodesRemaining = computed(
+  () => prototype?.backupCodesRemaining ?? 0
+)
+
 const bindingItems = computed(() =>
-  prototype.bindings.map((binding) => ({
+  bindings.value.map((binding) => ({
     ...binding,
     icon: bindingMeta[binding.id].icon,
     label: t(bindingMeta[binding.id].labelKey),
@@ -93,47 +135,59 @@ const currentUnbindLabel = computed(() =>
 )
 
 const emailBinding = computed(() =>
-  prototype.bindings.find((item) => item.id === 'email')!
+  bindings.value.find((item) => item.id === 'email')!
 )
 
+function allowPrototypeAction(): boolean {
+  if (isMockApi) return true
+  toast.error(t('settings.prototypeSecurityNotice'))
+  return false
+}
+
 function registerPasskey(): void {
-  prototype.registerPasskey()
+  if (!allowPrototypeAction()) return
+  prototype?.registerPasskey()
   passkeyRegisterOpen.value = false
   toast.success(t('settings.prototypePasskeyEnabled'))
 }
 
 function removePasskey(): void {
-  prototype.removePasskey()
+  if (!allowPrototypeAction()) return
+  prototype?.removePasskey()
   passkeyRemoveOpen.value = false
   toast.success(t('settings.prototypePasskeyRemoved'))
 }
 
 function openTwoFASetup(): void {
+  if (!allowPrototypeAction()) return
   twoFACode.value = ''
   twoFASetupOpen.value = true
 }
 
 function confirmTwoFASetup(): void {
+  if (!allowPrototypeAction()) return
   if (!/^\d{6}$/.test(twoFACode.value)) return
-  visibleBackupCodes.value = prototype.enableTwoFA()
+  visibleBackupCodes.value = prototype?.enableTwoFA() ?? []
   twoFASetupOpen.value = false
   backupCodesOpen.value = true
   toast.success(t('settings.prototypeTwoFAEnabled'))
 }
 
 function openTwoFAAction(action: 'regenerate' | 'disable'): void {
+  if (!allowPrototypeAction()) return
   twoFACode.value = ''
   twoFAAction.value = action
 }
 
 function confirmTwoFAAction(): void {
+  if (!allowPrototypeAction()) return
   if (!/^\d{6}$/.test(twoFACode.value) || !twoFAAction.value) return
   if (twoFAAction.value === 'regenerate') {
-    visibleBackupCodes.value = prototype.regenerateBackupCodes()
+    visibleBackupCodes.value = prototype?.regenerateBackupCodes() ?? []
     backupCodesOpen.value = true
     toast.success(t('settings.prototypeBackupCodesRegenerated'))
   } else {
-    prototype.disableTwoFA()
+    prototype?.disableTwoFA()
     toast.success(t('settings.prototypeTwoFADisabled'))
   }
   twoFAAction.value = null
@@ -149,6 +203,7 @@ async function copyBackupCodes(): Promise<void> {
 }
 
 function openBinding(binding: PrototypeBinding): void {
+  if (!allowPrototypeAction()) return
   if (binding.bound) {
     unbindTarget.value = binding.id
     return
@@ -159,6 +214,7 @@ function openBinding(binding: PrototypeBinding): void {
 }
 
 function confirmBinding(): void {
+  if (!allowPrototypeAction()) return
   if (!bindTarget.value) return
   if (bindTarget.value === 'email') {
     if (
@@ -168,18 +224,19 @@ function confirmBinding(): void {
       toast.error(t('settings.prototypeEmailBindingInvalid'))
       return
     }
-    prototype.bindAccount('email', bindingEmail.value)
+    prototype?.bindAccount('email', bindingEmail.value)
   } else {
     const username = props.user?.username || 'demo'
-    prototype.bindAccount(bindTarget.value, `${bindTarget.value}-${username}`)
+    prototype?.bindAccount(bindTarget.value, `${bindTarget.value}-${username}`)
   }
   toast.success(t('settings.prototypeBindingSaved'))
   bindTarget.value = null
 }
 
 function confirmUnbind(): void {
+  if (!allowPrototypeAction()) return
   if (!unbindTarget.value) return
-  prototype.unbindAccount(unbindTarget.value)
+  prototype?.unbindAccount(unbindTarget.value)
   toast.success(t('settings.prototypeBindingRemoved'))
   unbindTarget.value = null
 }
@@ -299,11 +356,9 @@ function confirmUnbind(): void {
                 <p class="font-semibold text-[var(--text-primary)]">
                   {{ t('settings.passkeyAuth') }}
                 </p>
-                <StatusChip
-                  :tone="prototype.passkeyEnabled ? 'success' : 'neutral'"
-                >
+                <StatusChip :tone="passkeyEnabled ? 'success' : 'neutral'">
                   {{
-                    prototype.passkeyEnabled
+                    passkeyEnabled
                       ? t('settings.enabled')
                       : t('settings.disabled')
                   }}
@@ -311,23 +366,24 @@ function confirmUnbind(): void {
               </div>
               <p class="mt-1 text-sm text-[var(--text-tertiary)]">
                 {{ t('settings.lastUsed') }}：{{
-                  prototype.passkeyLastUsedAt || t('settings.neverUsed')
+                  passkeyLastUsedAt || t('settings.neverUsed')
                 }}
               </p>
             </div>
           </div>
           <ConsoleButton
-            :variant="prototype.passkeyEnabled ? 'secondary' : 'primary'"
+            :variant="passkeyEnabled ? 'secondary' : 'primary'"
             size="sm"
             class="w-full sm:w-auto"
+            :disabled="!isMockApi"
             @click="
-              prototype.passkeyEnabled
+              passkeyEnabled
                 ? (passkeyRemoveOpen = true)
                 : (passkeyRegisterOpen = true)
             "
           >
             {{
-              prototype.passkeyEnabled
+              passkeyEnabled
                 ? t('settings.removePasskey')
                 : t('settings.enablePasskey')
             }}
@@ -353,11 +409,9 @@ function confirmUnbind(): void {
                 <p class="font-semibold text-[var(--text-primary)]">
                   {{ t('settings.twoFA') }}
                 </p>
-                <StatusChip
-                  :tone="prototype.twoFAEnabled ? 'success' : 'neutral'"
-                >
+                <StatusChip :tone="twoFAEnabled ? 'success' : 'neutral'">
                   {{
-                    prototype.twoFAEnabled
+                    twoFAEnabled
                       ? t('settings.enabled')
                       : t('settings.disabled')
                   }}
@@ -365,19 +419,20 @@ function confirmUnbind(): void {
               </div>
               <p class="mt-1 text-sm text-[var(--text-tertiary)]">
                 {{
-                  prototype.twoFAEnabled
+                  twoFAEnabled
                     ? t('settings.backupCodesRemaining', {
-                        count: prototype.backupCodesRemaining,
+                        count: backupCodesRemaining,
                       })
                     : t('settings.twoFADesc')
                 }}
               </p>
             </div>
           </div>
-          <div v-if="prototype.twoFAEnabled" class="grid gap-2 sm:grid-cols-2">
+          <div v-if="twoFAEnabled" class="grid gap-2 sm:grid-cols-2">
             <ConsoleButton
               variant="secondary"
               size="sm"
+              :disabled="!isMockApi"
               @click="openTwoFAAction('regenerate')"
             >
               <RefreshCw :size="15" aria-hidden="true" />
@@ -386,6 +441,7 @@ function confirmUnbind(): void {
             <ConsoleButton
               variant="danger"
               size="sm"
+              :disabled="!isMockApi"
               @click="openTwoFAAction('disable')"
             >
               <AlertTriangle :size="15" aria-hidden="true" />
@@ -396,6 +452,7 @@ function confirmUnbind(): void {
             v-else
             size="sm"
             class="w-full sm:w-fit"
+            :disabled="!isMockApi"
             @click="openTwoFASetup"
           >
             {{ t('settings.enableTwoFA') }}
@@ -412,8 +469,8 @@ function confirmUnbind(): void {
       >
         <span class="text-xs text-[var(--text-tertiary)]">{{
           t('settings.boundCount', {
-            count: prototype.bindings.filter((item) => item.bound).length,
-            total: prototype.bindings.length,
+            count: bindings.filter((item) => item.bound).length,
+            total: bindings.length,
           })
         }}</span>
       </SettingsSectionHeading>
@@ -442,6 +499,7 @@ function confirmUnbind(): void {
           <ConsoleButton
             :variant="binding.bound ? 'ghost' : 'secondary'"
             size="sm"
+            :disabled="!isMockApi"
             @click="openBinding(binding)"
           >
             {{ binding.bound ? t('settings.unbind') : t('settings.bind') }}

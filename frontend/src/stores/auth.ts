@@ -9,6 +9,10 @@ import {
   getAuthBundle,
   setAuthBundle,
 } from '@/api/authSession'
+import {
+  publishAuthSessionEvent,
+  subscribeAuthSessionEvents,
+} from '@/api/authSessionSync'
 import { ApiError } from '@/api/types'
 import type {
   TwoFactorChallenge,
@@ -54,6 +58,13 @@ export const useAuthStore = defineStore('auth', () => {
     return adminPermissions.value[resource]?.[action] === true
   }
 
+  function publishCurrentSession(
+    kind: 'authenticated' | 'signed_out',
+    sid = getAuthBundle()?.session.sid
+  ): void {
+    if (!isMockApi && sid) publishAuthSessionEvent(kind, sid)
+  }
+
   async function login(
     username: string,
     password: string
@@ -64,6 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!isMockApi) setAuthBundle(data)
     persist(data.user)
     checked.value = true
+    publishCurrentSession('authenticated', data.session.sid)
     return null
   }
 
@@ -76,20 +88,23 @@ export const useAuthStore = defineStore('auth', () => {
     if (!isMockApi) setAuthBundle(bundle)
     persist(bundle.user)
     checked.value = true
+    publishCurrentSession('authenticated', bundle.session.sid)
   }
 
   async function logout(): Promise<void> {
     const api = await getAuthApi()
+    const sid = getAuthBundle()?.session.sid
     try {
       await api.logout()
     } finally {
       clearAuthBundle()
       persist(null)
       checked.value = true
+      publishCurrentSession('signed_out', sid)
     }
   }
 
-  async function fetchSelf(): Promise<boolean> {
+  async function fetchSelf(publish = true): Promise<boolean> {
     const api = await getAuthApi()
     try {
       if (!isMockApi && !getAuthBundle()) {
@@ -97,6 +112,7 @@ export const useAuthStore = defineStore('auth', () => {
         setAuthBundle(bundle)
         persist(bundle.user)
         checked.value = true
+        if (publish) publishCurrentSession('authenticated', bundle.session.sid)
         return true
       }
       const fresh = await api.self()
@@ -126,7 +142,10 @@ export const useAuthStore = defineStore('auth', () => {
   ): Promise<void> {
     const api = await getAuthApi()
     const rotation = await api.changePassword(originalPassword, password)
-    if (!isMockApi) applyAuthRotation(rotation)
+    if (!isMockApi) {
+      applyAuthRotation(rotation)
+      publishCurrentSession('authenticated', rotation.session.sid)
+    }
   }
 
   async function deleteAccount(): Promise<void> {
@@ -142,6 +161,30 @@ export const useAuthStore = defineStore('auth', () => {
     persist(null)
     checked.value = true
   })
+
+  if (!isMockApi) {
+    subscribeAuthSessionEvents((event) => {
+      if (event.kind === 'signed_out') {
+        if (event.sid !== getAuthBundle()?.session.sid) return
+        clearAuthBundle()
+        persist(null)
+        checked.value = true
+        return
+      }
+      const currentSid = getAuthBundle()?.session.sid
+      clearAuthBundle()
+      if (event.sid !== currentSid) {
+        persist(null)
+        checked.value = false
+      }
+      // Access tokens never cross tabs. The shared HttpOnly refresh cookie is
+      // the only source used to establish the peer's current session.
+      void fetchSelf(false).catch(() => {
+        persist(null)
+        checked.value = true
+      })
+    })
+  }
 
   return {
     user,

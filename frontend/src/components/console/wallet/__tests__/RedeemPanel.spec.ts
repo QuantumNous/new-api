@@ -3,7 +3,6 @@ import { createPinia } from 'pinia'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/api/console'
-import { ApiError } from '@/api/types'
 import RedeemPanel from '@/components/console/wallet/RedeemPanel.vue'
 import { useToast } from '@/composables/useToast'
 import i18n, { loadMessageDomain, setLocale } from '@/i18n'
@@ -19,16 +18,16 @@ afterEach(() => {
 })
 
 describe('RedeemPanel', () => {
-  it('renders a retryable error instead of an empty state after load failure', async () => {
-    vi.spyOn(api, 'get').mockRejectedValue(new ApiError('load failed'))
+  it('renders the real redemption form without a fake history request', async () => {
+    const get = vi.spyOn(api, 'get')
     const wrapper = mount(RedeemPanel, {
       global: { plugins: [createPinia(), i18n] },
     })
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Failed')
-    expect(wrapper.text()).toContain('Retry')
+    expect(get).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Redeem code')
     expect(wrapper.text()).not.toContain('No redeem records yet')
     expect(wrapper.find('input').attributes('placeholder')).toBe(
       'Enter redeem code'

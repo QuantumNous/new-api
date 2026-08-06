@@ -45,6 +45,15 @@ var buildFS embed.FS
 //go:embed web/dist/index.html
 var indexPage []byte
 
+// frontend/embed-dist is the independently built Vue application served below
+// /next/. Docker replaces the checked-in placeholder with the Vite output.
+//
+//go:embed frontend/embed-dist
+var nextBuildFS embed.FS
+
+//go:embed frontend/embed-dist/index.html
+var nextIndexPage []byte
+
 func main() {
 	startTime := time.Now()
 	kitutil.SetLogging(common.SysLog, func(message string) {
@@ -196,8 +205,10 @@ func main() {
 
 	// 设置路由
 	router.SetRouter(server, router.WebAssets{
-		BuildFS:   buildFS,
-		IndexPage: indexPage,
+		BuildFS:       buildFS,
+		IndexPage:     indexPage,
+		NextBuildFS:   nextBuildFS,
+		NextIndexPage: nextIndexPage,
 	})
 	var port = os.Getenv("PORT")
 	if port == "" {

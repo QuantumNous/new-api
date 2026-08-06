@@ -53,6 +53,8 @@ export default {
     overview: 'Overview',
     demoMode: 'MOCK',
     demoModeHint: 'Local prototype data; no real backend is connected',
+    prototypeMode: 'READ-ONLY PROTOTYPE',
+    prototypeModeHint: 'Backend writes are disabled until this module is live.',
   },
 
   contact: {
@@ -1146,6 +1148,9 @@ export default {
   },
 
   wallet: {
+    paymentMethodsLoadFailed:
+      'Payment methods could not be loaded. Try again later.',
+    paymentMethodsUnavailable: 'No payment methods are currently available.',
     title: 'Wallet',
     titleAccent: 'Top-up',
     breadcrumb: ['Console', 'Wallet'],
@@ -1312,10 +1317,14 @@ export default {
     unitDay: '{n} day | {n} days',
     unitWeek: '{n} week | {n} weeks',
     unitMonth: '{n} month | {n} months',
+    unitYear: '{n} year | {n} years',
+    unitCustom: '{n} second | {n} seconds',
     unitNameHour: 'Hours',
     unitNameDay: 'Days',
     unitNameWeek: 'Weeks',
     unitNameMonth: 'Months',
+    unitNameYear: 'Years',
+    unitNameCustom: 'Seconds',
     durationUnit: 'Unit',
     forever: 'Forever',
     perPeriodQuota: '{value} / {period}',

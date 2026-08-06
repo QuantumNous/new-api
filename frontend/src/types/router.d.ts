@@ -10,6 +10,7 @@ declare module 'vue-router' {
     requiresPermission?: { resource: string; action: string }
     noPageScroll?: boolean
     wide?: boolean
+    prototype?: boolean
     nav?: string
     topNav?: 'activities' | 'dashboard' | 'console' | 'alchemy'
   }

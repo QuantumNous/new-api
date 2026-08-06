@@ -52,6 +52,8 @@ export default {
     buyQuota: '购买额度',
     overview: '总览',
     demoMode: 'MOCK',
+    prototypeMode: '只读原型',
+    prototypeModeHint: '模块接入真实后端前，写入操作已禁用。',
     demoModeHint: '本地原型数据，尚未连接真实后台',
   },
 
@@ -1136,6 +1138,8 @@ export default {
   },
 
   wallet: {
+    paymentMethodsLoadFailed: '支付方式加载失败，请稍后重试。',
+    paymentMethodsUnavailable: '当前暂无可用支付方式。',
     title: '钱包',
     titleAccent: '充值',
     breadcrumb: ['控制台', '钱包'],
@@ -1297,10 +1301,14 @@ export default {
     unitDay: '{n} 天',
     unitWeek: '{n} 周',
     unitMonth: '{n} 个月',
+    unitYear: '{n} 年',
+    unitCustom: '{n} 秒',
     unitNameHour: '小时',
     unitNameDay: '天',
     unitNameWeek: '周',
     unitNameMonth: '个月',
+    unitNameYear: '年',
+    unitNameCustom: '秒',
     durationUnit: '时间单位',
     forever: '永久',
     perPeriodQuota: '{value} / {period}',

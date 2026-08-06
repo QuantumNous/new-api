@@ -30,6 +30,22 @@ export interface ApiClientOptions {
   getRequestScope?: () => number
 }
 
+const LEGACY_PAYMENT_ENDPOINTS = new Set([
+  '/api/user/amount',
+  '/api/user/pay',
+  '/api/user/stripe/amount',
+  '/api/user/stripe/pay',
+  '/api/user/creem/pay',
+  '/api/user/waffo/amount',
+  '/api/user/waffo/pay',
+  '/api/user/waffo-pancake/amount',
+  '/api/user/waffo-pancake/pay',
+  '/api/subscription/epay/pay',
+  '/api/subscription/stripe/pay',
+  '/api/subscription/creem/pay',
+  '/api/subscription/waffo-pancake/pay',
+])
+
 export function createApiClient(
   transport: ApiTransport,
   clientOptions: ApiClientOptions = {}
@@ -69,6 +85,32 @@ export function createApiClient(
             'Authentication session changed while the request was pending',
             { status: 409, code: 'AUTH_SESSION_CHANGED' }
           )
+        }
+        // A few legacy payment endpoints predate the common envelope and
+        // answer {message: "success"|"error", data: ...}. Keep that wire
+        // contract readable without weakening normal {success, data} checks.
+        const legacy = envelope as unknown as {
+          success?: boolean
+          message?: string
+          data?: unknown
+        }
+        if (legacy.success === undefined && LEGACY_PAYMENT_ENDPOINTS.has(url)) {
+          if (legacy.message === 'success') {
+            if ('url' in legacy) return legacy as unknown as T
+            return legacy.data as T
+          }
+          throw new ApiError(
+            typeof legacy.data === 'string'
+              ? legacy.data
+              : legacy.message || 'Request failed',
+            { status: 200, business: true }
+          )
+        }
+        if (legacy.success === undefined) {
+          throw new ApiError('Invalid API response envelope', {
+            status: 502,
+            code: 'INVALID_RESPONSE',
+          })
         }
         if (!envelope.success) {
           throw new ApiError(envelope.message || 'Request failed', {

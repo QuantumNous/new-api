@@ -33,3 +33,19 @@ func TestFormatUserLogsStripsQuotaSaturation(t *testing.T) {
 	// Non-admin billing fields remain visible.
 	require.Contains(t, parsed, "model_price")
 }
+
+func TestFormatUserLogsKeepsOnlySafeMetadata(t *testing.T) {
+	other := common.MapToJsonStr(map[string]interface{}{
+		"reasoning_effort": "high",
+		"request_path":     "/v1/chat/completions",
+	})
+	logs := []*Log{{Other: other, ChannelName: "Visible channel"}}
+
+	formatUserLogs(logs, 0)
+
+	parsed, err := common.StrToMap(logs[0].Other)
+	require.NoError(t, err)
+	require.Equal(t, "high", parsed["reasoning_effort"])
+	require.NotContains(t, parsed, "request_path")
+	require.Equal(t, "Visible channel", logs[0].ChannelName)
+}

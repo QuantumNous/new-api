@@ -3,6 +3,8 @@ import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
+import { isMockApi } from '@/api/client'
+import { parseTopupPage } from '@/api/liveContracts'
 import { ApiError, type PageResult } from '@/api/types'
 import type { TopupRecord } from '@/types/console'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
@@ -10,7 +12,7 @@ import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
-import { formatMoney, formatTime } from '@/utils/format'
+import { formatQuota, formatTime } from '@/utils/format'
 
 const refreshKey = defineModel<number>('refreshKey', { default: 0 })
 
@@ -40,9 +42,9 @@ async function load() {
   loading.value = true
   const result = await listRequest.run((signal) =>
     api.get<PageResult<TopupRecord>>(
-      '/api/user/topup/records',
+      '/api/user/topup/self',
       {
-        page: page.value,
+        p: page.value,
         page_size: pageSize.value,
       },
       { signal }
@@ -58,8 +60,11 @@ async function load() {
     )
     return
   }
-  rows.value = result.value.items
-  total.value = result.value.total
+  const pageResult = isMockApi
+    ? result.value
+    : parseTopupPage(result.value as unknown)
+  rows.value = pageResult.items
+  total.value = pageResult.total
 }
 
 function reloadFromFirstPage() {
@@ -86,18 +91,17 @@ onMounted(load)
             {{ row.trade_no }}
           </p>
           <p class="mt-0.5 text-xs text-[var(--text-tertiary)]">
-            {{
-              row.method === 'redeem'
-                ? t('wallet.methodRedeem')
-                : methodLabel[row.method]
-            }}
+            {{ row.provider ?? methodLabel[row.method] }}
             ·
             {{ formatTime(row.created) }}
           </p>
         </div>
         <div class="shrink-0 text-right">
           <p class="text-sm font-bold text-[var(--text-primary)]">
-            +{{ formatMoney(row.amount, 0) }}
+            +{{ row.amount.toFixed(2) }}
+          </p>
+          <p class="text-[11px] text-[var(--text-tertiary)]">
+            {{ formatQuota(row.money) }}
           </p>
           <StatusChip :tone="statusTone[row.status]" class="mt-1">
             {{ t(`common.${row.status}`) }}
