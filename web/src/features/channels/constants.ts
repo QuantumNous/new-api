@@ -391,7 +391,7 @@ export const FIELD_DESCRIPTIONS = {
 
 export const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 47, 48, 57, 58,
-  59, 60, 61, 62,
+  45, 59, 60, 61, 62,
 ])
 
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
@@ -405,8 +405,8 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   57: 'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)',
   59: 'Enter API key for this channel',
   60: 'Enter API key for this channel',
-  61: 'Enter your dedicated Agent Plan API key',
-  62: 'Enter your Volcano Engine Ark API key',
+  61: 'Format: PlanAPIKey|AccessKey|SecretKey',
+  62: 'Format: PlanAPIKey|AccessKey|SecretKey',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {

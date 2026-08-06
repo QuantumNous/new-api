@@ -302,6 +302,19 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
+	apiKey := info.ApiKey
+	if info.ChannelType == channelconstant.ChannelTypeVolcEngineAgentPlan ||
+		info.ChannelType == channelconstant.ChannelTypeVolcEngineCodingPlan {
+		credential, err := ParsePlanCredential(apiKey)
+		if err != nil {
+			return err
+		}
+		apiKey = credential.APIKey
+		// Header Override placeholders are resolved after this method returns.
+		// Keep management credentials out of those placeholders and upstream logs.
+		info.ApiKey = apiKey
+	}
+
 	channel.SetupApiRequestHeader(info, c, req)
 
 	if info.RelayMode == constant.RelayModeAudioSpeech {
@@ -315,7 +328,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		req.Set("Content-Type", gin.MIMEJSON)
 	}
 
-	req.Set("Authorization", "Bearer "+info.ApiKey)
+	req.Set("Authorization", "Bearer "+apiKey)
 	return nil
 }
 

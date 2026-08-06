@@ -2754,13 +2754,9 @@ export function ChannelMutateDrawer({
                               <Alert>
                                 <AlertDescription className='space-y-2'>
                                   <p>
-                                    {currentType === 61
-                                      ? t(
-                                          'Use the dedicated Agent Plan API key. Other Ark API keys cannot access Agent Plan.'
-                                        )
-                                      : t(
-                                          'Use your Volcano Engine Ark API key for Coding Plan.'
-                                        )}
+                                    {t(
+                                      'Use PlanAPIKey|AccessKey|SecretKey to enable inference and model discovery. A legacy Plan API key still supports inference only.'
+                                    )}
                                   </p>
                                   <p className='font-mono text-xs break-all'>
                                     Anthropic:{' '}
