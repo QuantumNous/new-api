@@ -166,6 +166,7 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  mergeDiscoveredModelMapping,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -1458,7 +1459,10 @@ export function ChannelMutateDrawer({
     setFetchModelsDialogOpen(true)
   }, [isEditing, canEditSensitive, form, t])
 
-  const formPreviewFetcher = useCallback(async (): Promise<string[]> => {
+  const formPreviewFetcher = useCallback(async (): Promise<{
+    models: string[]
+    modelMapping?: Record<string, string>
+  }> => {
     if (!canEditSensitive) {
       throw new Error(t("You don't have necessary permission"))
     }
@@ -1478,7 +1482,10 @@ export function ChannelMutateDrawer({
       proxy: form.getValues('proxy'),
     })
     if (response.success && response.data) {
-      return response.data
+      return {
+        models: response.data,
+        modelMapping: response.model_mapping,
+      }
     }
     throw new Error(response.message || t('No models fetched from upstream'))
   }, [canEditSensitive, channelId, form, isEditing, t])
@@ -4854,8 +4861,25 @@ export function ChannelMutateDrawer({
       <FetchModelsDialog
         open={fetchModelsDialogOpen}
         onOpenChange={setFetchModelsDialogOpen}
-        onModelsSelected={(models) => {
+        onModelsSelected={(models, discoveredModelMapping) => {
+          const previousModels = parseModelsString(
+            form.getValues('models') || ''
+          )
           form.setValue('models', formatModelsArray(models))
+          if (
+            discoveredModelMapping &&
+            Object.keys(discoveredModelMapping).length > 0
+          ) {
+            form.setValue(
+              'model_mapping',
+              mergeDiscoveredModelMapping(
+                form.getValues('model_mapping'),
+                discoveredModelMapping,
+                models,
+                previousModels
+              )
+            )
+          }
         }}
         redirectModels={redirectModelList}
         redirectSourceModels={redirectModelKeyList}

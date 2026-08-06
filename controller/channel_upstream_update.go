@@ -99,6 +99,11 @@ type upstreamModelUpdateChannelSummary struct {
 	RemoveCount int
 }
 
+type upstreamModelDiscovery struct {
+	Models       []string
+	ModelMapping map[string]string
+}
+
 func normalizeModelNames(models []string) []string {
 	return lo.Uniq(lo.FilterMap(models, func(model string, _ int) (string, bool) {
 		trimmed := strings.TrimSpace(model)
@@ -178,6 +183,70 @@ func normalizeChannelModelMapping(channel *model.Channel) map[string]string {
 	return normalized
 }
 
+func applyDiscoveredModelMapping(
+	channel *model.Channel,
+	discoveredMapping map[string]string,
+	includedModels []string,
+	removedModels []string,
+) (bool, error) {
+	if channel == nil {
+		return false, nil
+	}
+
+	existingMapping := normalizeChannelModelMapping(channel)
+	nextMapping := make(map[string]string, len(existingMapping)+len(discoveredMapping))
+	for source, target := range existingMapping {
+		nextMapping[source] = target
+	}
+
+	includedSet := make(map[string]struct{}, len(includedModels))
+	for _, modelName := range normalizeModelNames(includedModels) {
+		includedSet[modelName] = struct{}{}
+	}
+	for source, target := range discoveredMapping {
+		source = strings.TrimSpace(source)
+		target = strings.TrimSpace(target)
+		if source == "" || target == "" {
+			continue
+		}
+		if _, ok := includedSet[source]; ok {
+			nextMapping[source] = target
+		}
+	}
+
+	for _, source := range normalizeModelNames(removedModels) {
+		if target, ok := nextMapping[source]; ok && strings.HasPrefix(target, "ep-") {
+			delete(nextMapping, source)
+		}
+	}
+
+	if len(nextMapping) == 0 {
+		nextMapping = map[string]string{}
+	}
+	if mapsEqual(existingMapping, nextMapping) {
+		return false, nil
+	}
+
+	encodedMapping, err := common.Marshal(nextMapping)
+	if err != nil {
+		return false, fmt.Errorf("encode channel model mapping: %w", err)
+	}
+	channel.ModelMapping = common.GetPointer(string(encodedMapping))
+	return true, nil
+}
+
+func mapsEqual(left map[string]string, right map[string]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, value := range left {
+		if right[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
 func collectPendingUpstreamModelChangesFromModels(
 	localModels []string,
 	upstreamModels []string,
@@ -200,6 +269,12 @@ func collectPendingUpstreamModelChangesFromModels(
 	redirectSourceSet := make(map[string]struct{}, len(modelMapping))
 	redirectTargetSet := make(map[string]struct{}, len(modelMapping))
 	for source, target := range modelMapping {
+		// VolcEngine endpoint mappings bind a real discovered model name to
+		// its inference endpoint. They are not virtual aliases and must still
+		// participate in upstream removal detection.
+		if strings.HasPrefix(target, "ep-") {
+			continue
+		}
 		redirectSourceSet[source] = struct{}{}
 		redirectTargetSet[target] = struct{}{}
 	}
@@ -239,18 +314,18 @@ func collectPendingUpstreamModelChangesFromModels(
 	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemove)
 }
 
-func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string, err error) {
-	upstreamModels, err := fetchChannelUpstreamModelIDs(channel)
+func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string, discovery upstreamModelDiscovery, err error) {
+	discovery, err = fetchChannelUpstreamModelDiscovery(channel)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, upstreamModelDiscovery{}, err
 	}
 	pendingAddModels, pendingRemoveModels = collectPendingUpstreamModelChangesFromModels(
 		channel.GetModels(),
-		upstreamModels,
+		discovery.Models,
 		settings.UpstreamModelUpdateIgnoredModels,
 		normalizeChannelModelMapping(channel),
 	)
-	return pendingAddModels, pendingRemoveModels, nil
+	return pendingAddModels, pendingRemoveModels, discovery, nil
 }
 
 func getUpstreamModelUpdateMinCheckIntervalSeconds() int64 {
@@ -389,97 +464,215 @@ func buildVolcEngineManagementURL(baseURL string, action string) (*url.URL, erro
 	}, nil
 }
 
-func fetchVolcEngineFoundationModelIDs(channel *model.Channel, baseURL string, key string) ([]string, error) {
-	credential, err := volcengine.ParseAPIKeyCredential(key)
-	if err != nil {
-		return nil, sanitizeFetchModelsError(err, key)
+type volcEngineEndpointItem struct {
+	ID             string `json:"Id"`
+	EndpointID     string `json:"EndpointId"`
+	Name           string `json:"Name"`
+	ModelName      string `json:"ModelName"`
+	Status         string `json:"Status"`
+	EndpointStatus string `json:"EndpointStatus"`
+	Model          *struct {
+		Name      string `json:"Name"`
+		ModelName string `json:"ModelName"`
+	} `json:"Model"`
+	Endpoint *struct {
+		ID             string `json:"Id"`
+		EndpointID     string `json:"EndpointId"`
+		Status         string `json:"Status"`
+		EndpointStatus string `json:"EndpointStatus"`
+	} `json:"Endpoint"`
+}
+
+func (item volcEngineEndpointItem) endpointID() string {
+	for _, candidate := range []string{item.EndpointID, item.ID} {
+		if value := strings.TrimSpace(candidate); value != "" {
+			return value
+		}
 	}
-	if !credential.HasManagementCredential() {
-		return nil, errors.New("VolcEngine foundation model discovery requires APIKey|AccessKey|SecretKey")
+	if item.Endpoint != nil {
+		for _, candidate := range []string{item.Endpoint.EndpointID, item.Endpoint.ID} {
+			if value := strings.TrimSpace(candidate); value != "" {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
+func (item volcEngineEndpointItem) modelName() string {
+	for _, candidate := range []string{item.ModelName, item.Name} {
+		if value := strings.TrimSpace(candidate); value != "" {
+			return value
+		}
+	}
+	if item.Model != nil {
+		for _, candidate := range []string{item.Model.ModelName, item.Model.Name} {
+			if value := strings.TrimSpace(candidate); value != "" {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
+func (item volcEngineEndpointItem) endpointStatus() string {
+	for _, candidate := range []string{item.EndpointStatus, item.Status} {
+		if value := strings.TrimSpace(candidate); value != "" {
+			return value
+		}
+	}
+	if item.Endpoint != nil {
+		for _, candidate := range []string{item.Endpoint.EndpointStatus, item.Endpoint.Status} {
+			if value := strings.TrimSpace(candidate); value != "" {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
+func fetchVolcEngineEndpointSource(
+	channel *model.Channel,
+	baseURL string,
+	key string,
+	credential volcengine.PlanCredential,
+	action string,
+) (upstreamModelDiscovery, error) {
+	requestURL, err := buildVolcEngineManagementURL(baseURL, action)
+	if err != nil {
+		return upstreamModelDiscovery{}, err
 	}
 
-	requestURL, err := buildVolcEngineManagementURL(baseURL, "ListFoundationModels")
-	if err != nil {
-		return nil, err
-	}
-	type foundationModelItem struct {
-		Name           string `json:"Name"`
-		PrimaryVersion string `json:"PrimaryVersion"`
-	}
 	const pageSize = 100
 	const maxPages = 100
-	modelIDs := make([]string, 0, pageSize)
+	modelNames := make([]string, 0, pageSize)
+	modelMapping := make(map[string]string, pageSize)
 	fetchedItems := 0
 	for pageNumber := 1; pageNumber <= maxPages; pageNumber++ {
-		requestBody, err := common.Marshal(struct {
-			PageNumber int    `json:"PageNumber"`
-			PageSize   int    `json:"PageSize"`
-			SortBy     string `json:"SortBy"`
-			SortOrder  string `json:"SortOrder"`
-		}{
-			PageNumber: pageNumber,
-			PageSize:   pageSize,
-			SortBy:     "CreateTime",
-			SortOrder:  "Desc",
-		})
+		requestPayload := map[string]any{
+			"PageNumber": pageNumber,
+			"PageSize":   pageSize,
+		}
+		if action == "ListEndpoints" {
+			requestPayload["SortBy"] = "CreateTime"
+			requestPayload["SortOrder"] = "Desc"
+		}
+		requestBody, err := common.Marshal(requestPayload)
 		if err != nil {
-			return nil, fmt.Errorf("encode VolcEngine foundation model request: %w", err)
+			return upstreamModelDiscovery{}, fmt.Errorf("encode VolcEngine %s request: %w", action, err)
 		}
 		headers := make(http.Header)
 		headers.Set("Content-Type", "application/json; charset=UTF-8")
 		if err := applyFetchModelsHeaderOverrides(channel, credential.APIKey, headers); err != nil {
-			return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+			return upstreamModelDiscovery{}, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
 		}
 		request, err := newFetchModelsRequest(http.MethodPost, requestURL.String(), bytes.NewReader(requestBody), headers)
 		if err != nil {
-			return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+			return upstreamModelDiscovery{}, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
 		}
 		if err := volcengine.SignRequest(request, credential.AccessKey, credential.SecretKey, "cn-beijing", "ark"); err != nil {
-			return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+			return upstreamModelDiscovery{}, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
 		}
 		body, err := getFetchModelsResponseBody(request, channel)
 		if err != nil {
-			return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+			return upstreamModelDiscovery{}, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
 		}
 		var response struct {
 			Result *struct {
-				Items      *[]foundationModelItem `json:"Items"`
-				TotalCount *int                   `json:"TotalCount"`
+				Items          *[]volcEngineEndpointItem `json:"Items"`
+				ModelEndpoints *[]volcEngineEndpointItem `json:"ModelEndpoints"`
+				Endpoints      *[]volcEngineEndpointItem `json:"Endpoints"`
+				Datas          *[]volcEngineEndpointItem `json:"Datas"`
+				TotalCount     *int                      `json:"TotalCount"`
 			} `json:"Result"`
 		}
 		if err := common.Unmarshal(body, &response); err != nil {
-			return nil, fmt.Errorf("invalid VolcEngine foundation model response: %w", err)
+			return upstreamModelDiscovery{}, fmt.Errorf("invalid VolcEngine %s response: %w", action, err)
 		}
-		if response.Result == nil || response.Result.Items == nil || response.Result.TotalCount == nil || *response.Result.TotalCount < 0 {
-			return nil, errors.New("invalid VolcEngine foundation model response: Result.Items and Result.TotalCount are required")
+		if response.Result == nil || response.Result.TotalCount == nil || *response.Result.TotalCount < 0 {
+			return upstreamModelDiscovery{}, fmt.Errorf("invalid VolcEngine %s response: Result and Result.TotalCount are required", action)
 		}
-		if *response.Result.TotalCount == 0 {
-			return nil, errors.New("VolcEngine foundation model response contains no models")
+		var items *[]volcEngineEndpointItem
+		for _, candidate := range []*[]volcEngineEndpointItem{
+			response.Result.Items,
+			response.Result.ModelEndpoints,
+			response.Result.Endpoints,
+			response.Result.Datas,
+		} {
+			if candidate != nil {
+				items = candidate
+				break
+			}
 		}
-		if len(*response.Result.Items) == 0 && fetchedItems < *response.Result.TotalCount {
-			return nil, errors.New("invalid VolcEngine foundation model response: pagination ended before TotalCount")
+		if items == nil {
+			return upstreamModelDiscovery{}, fmt.Errorf("invalid VolcEngine %s response: endpoint items are required", action)
 		}
-		for _, item := range *response.Result.Items {
-			name := strings.TrimSpace(item.Name)
-			version := strings.TrimSpace(item.PrimaryVersion)
-			if name == "" {
+		if len(*items) == 0 && fetchedItems < *response.Result.TotalCount {
+			return upstreamModelDiscovery{}, fmt.Errorf("invalid VolcEngine %s response: pagination ended before TotalCount", action)
+		}
+		for _, item := range *items {
+			name := item.modelName()
+			id := item.endpointID()
+			if name == "" || id == "" || strings.EqualFold(item.endpointStatus(), "Stopped") {
 				continue
 			}
-			if version != "" && version != "latest-version" {
-				name += "-" + version
+			if _, exists := modelMapping[name]; exists {
+				continue
 			}
-			modelIDs = append(modelIDs, name)
+			modelNames = append(modelNames, name)
+			modelMapping[name] = id
 		}
-		fetchedItems += len(*response.Result.Items)
+		fetchedItems += len(*items)
 		if fetchedItems >= *response.Result.TotalCount {
-			modelIDs = normalizeModelNames(modelIDs)
-			if len(modelIDs) == 0 {
-				return nil, errors.New("VolcEngine foundation model response contains no valid model IDs")
-			}
-			return modelIDs, nil
+			return upstreamModelDiscovery{
+				Models:       normalizeModelNames(modelNames),
+				ModelMapping: modelMapping,
+			}, nil
 		}
 	}
-	return nil, errors.New("VolcEngine foundation model response exceeds pagination limit")
+	return upstreamModelDiscovery{}, fmt.Errorf("VolcEngine %s response exceeds pagination limit", action)
+}
+
+func fetchVolcEngineEndpoints(channel *model.Channel, baseURL string, key string) (upstreamModelDiscovery, error) {
+	credential, err := volcengine.ParseAPIKeyCredential(key)
+	if err != nil {
+		return upstreamModelDiscovery{}, sanitizeFetchModelsError(err, key)
+	}
+	if !credential.HasManagementCredential() {
+		return upstreamModelDiscovery{}, errors.New("VolcEngine endpoint discovery requires APIKey|AccessKey|SecretKey")
+	}
+
+	custom, err := fetchVolcEngineEndpointSource(channel, baseURL, key, credential, "ListEndpoints")
+	if err != nil {
+		return upstreamModelDiscovery{}, err
+	}
+	inner, err := fetchVolcEngineEndpointSource(channel, baseURL, key, credential, "InnerDescribeModelEndpoints")
+	if err != nil {
+		return upstreamModelDiscovery{}, err
+	}
+
+	modelNames := normalizeModelNames(custom.Models)
+	modelMapping := make(map[string]string, len(custom.ModelMapping)+len(inner.ModelMapping))
+	for name, id := range custom.ModelMapping {
+		modelMapping[name] = id
+	}
+	seen := make(map[string]struct{}, len(modelNames))
+	for _, name := range modelNames {
+		seen[name] = struct{}{}
+	}
+	for _, name := range normalizeModelNames(inner.Models) {
+		if _, exists := seen[name]; !exists {
+			modelNames = append(modelNames, name)
+			seen[name] = struct{}{}
+		}
+		// Built-in endpoints take precedence when a custom endpoint exposes
+		// the same model name.
+		modelMapping[name] = inner.ModelMapping[name]
+	}
+	if len(modelNames) == 0 {
+		return upstreamModelDiscovery{}, errors.New("VolcEngine endpoint responses contain no non-stopped endpoints with valid names and IDs")
+	}
+	return upstreamModelDiscovery{Models: modelNames, ModelMapping: modelMapping}, nil
 }
 
 func fetchVolcEnginePlanModelIDs(channel *model.Channel, baseURL string, key string) ([]string, error) {
@@ -571,7 +764,8 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 			return nil, sanitizeFetchModelsError(err, key)
 		}
 		if credential.HasManagementCredential() {
-			return fetchVolcEngineFoundationModelIDs(channel, baseURL, key)
+			discovery, err := fetchVolcEngineEndpoints(channel, baseURL, key)
+			return discovery.Models, err
 		}
 		key = credential.APIKey
 	}
@@ -632,6 +826,33 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	return normalizeModelNames(ids), nil
 }
 
+func fetchChannelUpstreamModelDiscovery(channel *model.Channel) (upstreamModelDiscovery, error) {
+	if channel != nil && channel.Type == constant.ChannelTypeVolcEngine {
+		key, _, apiErr := channel.GetNextEnabledKey()
+		if apiErr != nil {
+			return upstreamModelDiscovery{}, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+		}
+		key = strings.TrimSpace(key)
+		credential, err := volcengine.ParseAPIKeyCredential(key)
+		if err != nil {
+			return upstreamModelDiscovery{}, sanitizeFetchModelsError(err, key)
+		}
+		if credential.HasManagementCredential() {
+			baseURL := constant.ChannelBaseURLs[channel.Type]
+			if channel.GetBaseURL() != "" {
+				baseURL = channel.GetBaseURL()
+			}
+			return fetchVolcEngineEndpoints(channel, baseURL, key)
+		}
+	}
+
+	models, err := fetchChannelUpstreamModelIDs(channel)
+	if err != nil {
+		return upstreamModelDiscovery{}, err
+	}
+	return upstreamModelDiscovery{Models: models}, nil
+}
+
 func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string) ([]string, error) {
 	key, _, apiErr := channel.GetNextEnabledKey()
 	if apiErr != nil {
@@ -671,13 +892,14 @@ func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string)
 	return parseOpenAIModelIDs(body)
 }
 
-func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {
+func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModelConfig bool) error {
 	channel.SetOtherSettings(settings)
 	updates := map[string]interface{}{
 		"settings": channel.OtherSettings,
 	}
-	if updateModels {
+	if updateModelConfig {
 		updates["models"] = channel.Models
+		updates["model_mapping"] = channel.ModelMapping
 	}
 	return model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Updates(updates).Error
 }
@@ -697,7 +919,7 @@ func checkAndPersistChannelUpstreamModelUpdates(
 		}
 	}
 
-	pendingAddModels, pendingRemoveModels, fetchErr := collectPendingUpstreamModelChanges(channel, *settings)
+	pendingAddModels, pendingRemoveModels, discovery, fetchErr := collectPendingUpstreamModelChanges(channel, *settings)
 	settings.UpstreamModelUpdateLastCheckTime = now
 	if fetchErr != nil {
 		if err = updateChannelUpstreamModelSettings(channel, *settings, false); err != nil {
@@ -719,6 +941,11 @@ func checkAndPersistChannelUpstreamModelUpdates(
 		settings.UpstreamModelUpdateLastDetectedModels = pendingAddModels
 	}
 	settings.UpstreamModelUpdateLastRemovedModels = pendingRemoveModels
+	mappingChanged, mappingErr := applyDiscoveredModelMapping(channel, discovery.ModelMapping, channel.GetModels(), nil)
+	if mappingErr != nil {
+		return false, autoAdded, mappingErr
+	}
+	modelsChanged = modelsChanged || mappingChanged
 
 	if err = updateChannelUpstreamModelSettings(channel, *settings, modelsChanged); err != nil {
 		return false, autoAdded, err
@@ -1164,6 +1391,20 @@ func applyChannelUpstreamModelUpdates(
 	settings.UpstreamModelUpdateLastDetectedModels = remainingModels
 	settings.UpstreamModelUpdateLastRemovedModels = remainingRemoveModels
 	settings.UpstreamModelUpdateLastCheckTime = common.GetTimestamp()
+
+	var discoveredMapping map[string]string
+	if channel.Type == constant.ChannelTypeVolcEngine && len(addModels) > 0 {
+		discovery, discoveryErr := fetchChannelUpstreamModelDiscovery(channel)
+		if discoveryErr != nil {
+			return nil, nil, nil, nil, false, discoveryErr
+		}
+		discoveredMapping = discovery.ModelMapping
+	}
+	mappingChanged, mappingErr := applyDiscoveredModelMapping(channel, discoveredMapping, nextModels, removeModels)
+	if mappingErr != nil {
+		return nil, nil, nil, nil, false, mappingErr
+	}
+	modelsChanged = modelsChanged || mappingChanged
 
 	if err := updateChannelUpstreamModelSettings(channel, settings, modelsChanged); err != nil {
 		return nil, nil, nil, nil, false, err
