@@ -47,7 +47,7 @@ describe('VolcEngine Plan channels', () => {
       )
       assert.equal(getChannelTypeIcon(channel.type), 'Volcengine')
       assert.equal(getKeyPromptForType(channel.type), channel.keyPrompt)
-      assert.equal(MODEL_FETCHABLE_TYPES.has(channel.type), false)
+      assert.equal(MODEL_FETCHABLE_TYPES.has(channel.type), true)
 
       const config = getChannelTypeConfig(channel.type)
       assert.equal(config.defaultBaseUrl, channel.baseUrl)

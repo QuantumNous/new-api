@@ -70,6 +70,105 @@ func TestParseOpenAIModelIDsStrictResponseContract(t *testing.T) {
 	}
 }
 
+func TestFetchVolcEnginePlanModels(t *testing.T) {
+	tests := []struct {
+		name        string
+		channelType int
+	}{
+		{name: "agent plan", channelType: constant.ChannelTypeVolcEngineAgentPlan},
+		{name: "coding plan", channelType: constant.ChannelTypeVolcEngineCodingPlan},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			received := make(chan *http.Request, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				received <- r.Clone(r.Context())
+				w.Header().Set("Content-Type", "application/json")
+				_, err := w.Write([]byte(`{"data":[{"id":" ark-code-latest "},{"id":""},{"id":"ark-code-latest"},{"id":"doubao-seed-test"}]}`))
+				assert.NoError(t, err)
+			}))
+			t.Cleanup(server.Close)
+
+			baseURL := server.URL + "/"
+			channel := &model.Channel{
+				Type:    test.channelType,
+				Key:     "plan-key",
+				BaseURL: &baseURL,
+			}
+
+			models, err := fetchChannelUpstreamModelIDs(channel)
+
+			require.NoError(t, err)
+			assert.Equal(t, []string{"ark-code-latest", "doubao-seed-test"}, models)
+			request := <-received
+			assert.Equal(t, "/v3/models", request.URL.Path)
+			assert.Equal(t, "Bearer plan-key", request.Header.Get("Authorization"))
+		})
+	}
+}
+
+func TestFetchVolcEnginePlanModelsRejectsInvalidResponses(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    int
+		body      string
+		wantError string
+	}{
+		{name: "non-OK status", status: http.StatusBadGateway, body: `{}`, wantError: "status code: 502"},
+		{name: "malformed JSON", status: http.StatusOK, body: `{"data":`, wantError: "invalid OpenAI Models response"},
+		{name: "empty data", status: http.StatusOK, body: `{"data":[]}`, wantError: "no valid model IDs"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(test.status)
+				_, err := w.Write([]byte(test.body))
+				assert.NoError(t, err)
+			}))
+			t.Cleanup(server.Close)
+
+			baseURL := server.URL
+			models, err := fetchChannelUpstreamModelIDs(&model.Channel{
+				Type:    constant.ChannelTypeVolcEngineAgentPlan,
+				Key:     "plan-key",
+				BaseURL: &baseURL,
+			})
+
+			require.ErrorContains(t, err, test.wantError)
+			assert.Nil(t, models)
+		})
+	}
+}
+
+func TestFetchModelsVolcEnginePlanCreatePreview(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v3/models", r.URL.Path)
+		assert.Equal(t, "Bearer preview-plan-key", r.Header.Get("Authorization"))
+		_, err := w.Write([]byte(`{"data":[{"id":"ark-code-latest"},{"id":"doubao-seed-test"}]}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	body, err := common.Marshal(fetchModelsRequest{
+		BaseURL: common.GetPointer(server.URL),
+		Type:    constant.ChannelTypeVolcEngineCodingPlan,
+		Key:     "preview-plan-key",
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	FetchModels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"success":true,"message":"","data":["ark-code-latest","doubao-seed-test"]}`, recorder.Body.String())
+}
+
 func TestFetchAdvancedCustomModelsAppliesHeaderOverrideAfterRouteAuth(t *testing.T) {
 	type receivedRequest struct {
 		Headers http.Header
@@ -320,14 +419,19 @@ func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *te
 	require.Empty(t, headers.Get("X-Saved"))
 }
 
-func TestFailedAdvancedCustomDetectionDoesNotStageFullRemoval(t *testing.T) {
+func TestFailedVolcEnginePlanDetectionDoesNotStageFullRemoval(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"data":[]}`))
 	}))
 	defer server.Close()
 
-	channel := newAdvancedCustomModelListChannel(server.URL, "secret-key", "/v1/models", nil)
+	baseURL := server.URL
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeVolcEngineAgentPlan,
+		Key:     "secret-key",
+		BaseURL: &baseURL,
+	}
 	channel.Name = "empty discovery response"
 	channel.Models = "gpt-4.1,o3"
 	settings := channel.GetOtherSettings()
@@ -349,6 +453,43 @@ func TestFailedAdvancedCustomDetectionDoesNotStageFullRemoval(t *testing.T) {
 	require.Empty(t, persistedSettings.UpstreamModelUpdateLastDetectedModels)
 	require.Empty(t, persistedSettings.UpstreamModelUpdateLastRemovedModels)
 	require.Equal(t, "gpt-4.1,o3", reloaded.Models)
+}
+
+func TestVolcEnginePlanDetectionAutoAddsAndStagesRemovals(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{"data":[{"id":"ark-code-latest"},{"id":"new-plan-model"}]}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	baseURL := server.URL
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeVolcEngineCodingPlan,
+		Name:    "plan model sync",
+		Key:     "secret-key",
+		BaseURL: &baseURL,
+		Models:  "ark-code-latest,retired-plan-model",
+	}
+	settings := channel.GetOtherSettings()
+	settings.UpstreamModelUpdateCheckEnabled = true
+	settings.UpstreamModelUpdateAutoSyncEnabled = true
+	channel.SetOtherSettings(settings)
+	require.NoError(t, db.Create(channel).Error)
+
+	modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, true)
+
+	require.NoError(t, err)
+	assert.True(t, modelsChanged)
+	assert.Equal(t, 1, autoAdded)
+	assert.Empty(t, settings.UpstreamModelUpdateLastDetectedModels)
+	assert.Equal(t, []string{"retired-plan-model"}, settings.UpstreamModelUpdateLastRemovedModels)
+
+	reloaded, err := model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, "ark-code-latest,retired-plan-model,new-plan-model", reloaded.Models)
+	persistedSettings := reloaded.GetOtherSettings()
+	assert.Equal(t, []string{"retired-plan-model"}, persistedSettings.UpstreamModelUpdateLastRemovedModels)
 }
 
 func TestFetchModelsUsesSharedChannelFetchBehavior(t *testing.T) {

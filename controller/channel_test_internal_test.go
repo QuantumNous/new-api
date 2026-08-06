@@ -154,18 +154,6 @@ func TestVolcEnginePlanChannelTestDefaultsToResponses(t *testing.T) {
 	}
 }
 
-func TestVolcEnginePlanModelDiscoveryIsDisabled(t *testing.T) {
-	tests := []int{
-		constant.ChannelTypeVolcEngineAgentPlan,
-		constant.ChannelTypeVolcEngineCodingPlan,
-	}
-
-	for _, channelType := range tests {
-		_, err := fetchChannelUpstreamModelIDs(&model.Channel{Type: channelType})
-		require.ErrorContains(t, err, "do not support upstream model discovery")
-	}
-}
-
 func TestResponsesCompactAPITypeSupport(t *testing.T) {
 	tests := []struct {
 		name    string
