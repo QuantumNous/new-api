@@ -65,8 +65,8 @@ func TestLifecycleTriggerPoliciesAndDelays(t *testing.T) {
 }
 
 func TestLifecycleOccurrenceHashAndRecipientIdentityAreDeterministic(t *testing.T) {
-	left := recallLifecycleOccurrenceHash("v1|quota_low|scope:user:12|cycle:2026-08|user:12")
-	right := recallLifecycleOccurrenceHash("v1|quota_low|scope:user:12|cycle:2026-08|user:12")
+	left := recallLifecycleOccurrenceHash("v1|quota_low|user:12|cycle:2026-08|user:12")
+	right := recallLifecycleOccurrenceHash("v1|quota_low|user:12|cycle:2026-08|user:12")
 	require.Equal(t, left, right)
 	require.Len(t, left, 64)
 
@@ -98,35 +98,35 @@ func TestLifecycleCanonicalOccurrenceBuildersUseExactVersionedFormats(t *testing
 		},
 		{
 			name:      "quota low",
-			canonical: "v1|quota_low|scope:user:42|cycle:2026-08|user:42",
+			canonical: "v1|quota_low|user:42|cycle:2026-08|user:42",
 			build: func() (RecallLifecycleOccurrence, error) {
 				return NewRecallLifecycleQuotaOccurrence(RecallLifecycleTriggerQuotaLow, QuotaLifecycleScopeUser, "42", "2026-08", 42)
 			},
 		},
 		{
 			name:      "quota exhausted unpaid",
-			canonical: "v1|quota_exhausted_unpaid|scope:token:tok_123|cycle:2026-08|user:42",
+			canonical: "v1|quota_exhausted_unpaid|token:tok_123|cycle:2026-08|user:42",
 			build: func() (RecallLifecycleOccurrence, error) {
 				return NewRecallLifecycleQuotaOccurrence(RecallLifecycleTriggerQuotaExhaustedUnpaid, QuotaLifecycleScopeToken, "tok_123", "2026-08", 42)
 			},
 		},
 		{
 			name:      "payment failed trade",
-			canonical: "v1|payment_failed|purchase:subscription|trade:sub_trade_1|user:42",
+			canonical: "v1|payment_failed|subscription|trade:sub_trade_1",
 			build: func() (RecallLifecycleOccurrence, error) {
 				return NewRecallLifecyclePurchaseOccurrence(RecallLifecycleTriggerPaymentFailed, "subscription", "sub_trade_1", "", 0, 42)
 			},
 		},
 		{
 			name:      "payment pending source fallback",
-			canonical: "v1|payment_pending|purchase:topup|source:top_ups:987|user:42",
+			canonical: "v1|payment_pending|topup|source:top_ups:987",
 			build: func() (RecallLifecycleOccurrence, error) {
 				return NewRecallLifecyclePurchaseOccurrence(RecallLifecycleTriggerPaymentPending, "topup", "", "top_ups", 987, 42)
 			},
 		},
 		{
 			name:      "payment succeeded trade",
-			canonical: "v1|payment_succeeded|purchase:topup|trade:topup_trade_1|user:42",
+			canonical: "v1|payment_succeeded|topup|trade:topup_trade_1",
 			build: func() (RecallLifecycleOccurrence, error) {
 				return NewRecallLifecyclePurchaseOccurrence(RecallLifecycleTriggerPaymentSucceeded, "topup", "topup_trade_1", "top_ups", 987, 42)
 			},
@@ -212,8 +212,49 @@ func TestLifecycleSchemaAndSevenSlotSeeding(t *testing.T) {
 	triggers := make([]string, 0, len(slots))
 	for _, slot := range slots {
 		triggers = append(triggers, slot.Trigger)
+		require.Zero(t, slot.CampaignId)
 	}
 	require.ElementsMatch(t, RecallLifecycleTriggers(), triggers)
+}
+
+func TestLifecycleEnsureContinuousTriggerSlotTxInsertsRepairsAndRollsBack(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+
+	tx := DB.Begin()
+	require.NoError(t, tx.Error)
+	require.NoError(t, EnsureRecallContinuousTriggerSlotTx(tx, RecallLifecycleTriggerQuotaLow))
+	require.NoError(t, EnsureRecallContinuousTriggerSlotTx(tx, RecallLifecycleTriggerQuotaLow))
+
+	var inside []RecallContinuousTriggerSlot
+	require.NoError(t, tx.Find(&inside).Error)
+	require.Len(t, inside, 1)
+	require.Equal(t, RecallLifecycleTriggerQuotaLow, inside[0].Trigger)
+	require.Equal(t, RecallDeliveryPolicyService, inside[0].DeliveryPolicy)
+	require.Zero(t, inside[0].CampaignId)
+	require.NoError(t, tx.Rollback().Error)
+
+	var count int64
+	require.NoError(t, DB.Model(&RecallContinuousTriggerSlot{}).Count(&count).Error)
+	require.Zero(t, count)
+
+	require.NoError(t, DB.Create(&RecallContinuousTriggerSlot{
+		Trigger:        RecallLifecycleTriggerPaymentPending,
+		DeliveryPolicy: RecallDeliveryPolicyService,
+		DelaySeconds:   0,
+		ScanPeriod:     0,
+		CampaignId:     123,
+	}).Error)
+	tx = DB.Begin()
+	require.NoError(t, tx.Error)
+	require.NoError(t, EnsureRecallContinuousTriggerSlotTx(tx, RecallLifecycleTriggerPaymentPending))
+	require.NoError(t, tx.Commit().Error)
+
+	var repaired RecallContinuousTriggerSlot
+	require.NoError(t, DB.First(&repaired, "trigger = ?", RecallLifecycleTriggerPaymentPending).Error)
+	require.Equal(t, RecallDeliveryPolicyEngagement, repaired.DeliveryPolicy)
+	require.EqualValues(t, int64(24*time.Hour/time.Second), repaired.DelaySeconds)
+	require.EqualValues(t, recallContinuousTriggerSlotDefaultScanPeriod, repaired.ScanPeriod)
+	require.EqualValues(t, 123, repaired.CampaignId)
 }
 
 func TestLifecycleDueIndexAndTriggerSlotPrimaryKeyShape(t *testing.T) {
@@ -232,6 +273,7 @@ func TestLifecycleDueIndexAndTriggerSlotPrimaryKeyShape(t *testing.T) {
 	require.Len(t, parsedSlot.PrimaryFields, 1)
 	require.Equal(t, "Trigger", parsedSlot.PrimaryFields[0].Name)
 	require.Nil(t, parsedSlot.LookUpField("Id"))
+	require.NotNil(t, parsedSlot.LookUpField("CampaignId"))
 }
 
 func TestLifecycleDeliveryPolicyDefaultsAndBackfill(t *testing.T) {

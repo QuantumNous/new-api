@@ -62,6 +62,7 @@ type RecallLifecycleEvent struct {
 
 type RecallContinuousTriggerSlot struct {
 	Trigger        string `json:"trigger" gorm:"type:varchar(64);primaryKey"`
+	CampaignId     int64  `json:"campaign_id" gorm:"index;not null;default:0"`
 	DeliveryPolicy string `json:"delivery_policy" gorm:"type:varchar(16);not null"`
 	DelaySeconds   int64  `json:"delay_seconds" gorm:"not null;default:0"`
 	ScanPeriod     int64  `json:"scan_period" gorm:"not null;default:60"`
@@ -137,10 +138,11 @@ func NewRecallLifecycleQuotaOccurrence(trigger string, scopeType string, scopeID
 	if scopeType == "" || scopeID == "" || cycle == "" || userID <= 0 {
 		return RecallLifecycleOccurrence{}, fmt.Errorf("quota lifecycle occurrence requires scope type/id, cycle, and positive user id")
 	}
-	return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|scope:%s:%s|cycle:%s|user:%d", trigger, scopeType, scopeID, cycle, userID)), nil
+	return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|%s:%s|cycle:%s|user:%d", trigger, scopeType, scopeID, cycle, userID)), nil
 }
 
 func NewRecallLifecyclePurchaseOccurrence(trigger string, purchaseKind string, tradeNo string, sourceTable string, sourceID int64, userID int) (RecallLifecycleOccurrence, error) {
+	_ = userID
 	trigger = strings.TrimSpace(trigger)
 	switch trigger {
 	case RecallLifecycleTriggerPaymentFailed, RecallLifecycleTriggerPaymentPending, RecallLifecycleTriggerPaymentSucceeded:
@@ -150,16 +152,16 @@ func NewRecallLifecyclePurchaseOccurrence(trigger string, purchaseKind string, t
 	purchaseKind = strings.TrimSpace(purchaseKind)
 	tradeNo = strings.TrimSpace(tradeNo)
 	sourceTable = strings.TrimSpace(sourceTable)
-	if purchaseKind == "" || userID <= 0 {
-		return RecallLifecycleOccurrence{}, fmt.Errorf("purchase lifecycle occurrence requires purchase kind and positive user id")
+	if purchaseKind == "" {
+		return RecallLifecycleOccurrence{}, fmt.Errorf("purchase lifecycle occurrence requires purchase kind")
 	}
 	if tradeNo != "" {
-		return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|purchase:%s|trade:%s|user:%d", trigger, purchaseKind, tradeNo, userID)), nil
+		return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|%s|trade:%s", trigger, purchaseKind, tradeNo)), nil
 	}
 	if sourceTable == "" || sourceID <= 0 {
 		return RecallLifecycleOccurrence{}, fmt.Errorf("purchase lifecycle occurrence requires trade number or stable source reference")
 	}
-	return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|purchase:%s|source:%s:%d|user:%d", trigger, purchaseKind, sourceTable, sourceID, userID)), nil
+	return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|%s|source:%s:%d", trigger, purchaseKind, sourceTable, sourceID)), nil
 }
 
 func newRecallLifecycleOccurrence(canonical string) RecallLifecycleOccurrence {
@@ -225,32 +227,43 @@ func TryInsertRecallLifecycleEventWithContext(ctx context.Context, event *Recall
 
 func SeedRecallContinuousTriggerSlotsWithContext(ctx context.Context) error {
 	for _, trigger := range RecallLifecycleTriggers() {
-		slot := RecallContinuousTriggerSlot{
-			Trigger:        trigger,
-			DeliveryPolicy: RecallLifecycleTriggerDeliveryPolicy(trigger),
-			DelaySeconds:   int64(RecallLifecycleTriggerDelay(trigger).Seconds()),
-			ScanPeriod:     recallContinuousTriggerSlotDefaultScanPeriod,
-		}
-		tx := DB.WithContext(ctx)
-		if tx.Dialector.Name() == "mysql" {
-			if err := tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(&slot).Error; err != nil {
-				return err
-			}
-		} else if err := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "trigger"}},
-			DoNothing: true,
-		}).Create(&slot).Error; err != nil {
-			return err
-		}
-		if err := DB.WithContext(ctx).Model(&RecallContinuousTriggerSlot{}).
-			Where("trigger = ?", trigger).
-			Updates(map[string]any{
-				"delivery_policy": RecallLifecycleTriggerDeliveryPolicy(trigger),
-				"delay_seconds":   int64(RecallLifecycleTriggerDelay(trigger).Seconds()),
-				"scan_period":     gorm.Expr("CASE WHEN scan_period = 0 THEN ? ELSE scan_period END", recallContinuousTriggerSlotDefaultScanPeriod),
-			}).Error; err != nil {
+		if err := EnsureRecallContinuousTriggerSlotTx(DB.WithContext(ctx), trigger); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func EnsureRecallContinuousTriggerSlotTx(tx *gorm.DB, trigger string) error {
+	if tx == nil {
+		return fmt.Errorf("recall continuous trigger slot repair requires a transaction")
+	}
+	trigger = strings.TrimSpace(trigger)
+	if trigger == "" {
+		return fmt.Errorf("recall continuous trigger slot repair requires a trigger")
+	}
+	slot := RecallContinuousTriggerSlot{
+		Trigger:        trigger,
+		CampaignId:     0,
+		DeliveryPolicy: RecallLifecycleTriggerDeliveryPolicy(trigger),
+		DelaySeconds:   int64(RecallLifecycleTriggerDelay(trigger).Seconds()),
+		ScanPeriod:     recallContinuousTriggerSlotDefaultScanPeriod,
+	}
+	if tx.Dialector.Name() == "mysql" {
+		if err := tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(&slot).Error; err != nil {
+			return err
+		}
+	} else if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "trigger"}},
+		DoNothing: true,
+	}).Create(&slot).Error; err != nil {
+		return err
+	}
+	return tx.Model(&RecallContinuousTriggerSlot{}).
+		Where("trigger = ?", trigger).
+		Updates(map[string]any{
+			"delivery_policy": RecallLifecycleTriggerDeliveryPolicy(trigger),
+			"delay_seconds":   int64(RecallLifecycleTriggerDelay(trigger).Seconds()),
+			"scan_period":     gorm.Expr("CASE WHEN scan_period = 0 THEN ? ELSE scan_period END", recallContinuousTriggerSlotDefaultScanPeriod),
+		}).Error
 }
