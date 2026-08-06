@@ -29,6 +29,7 @@ import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
+import { getGAMeasurementIdentifiers } from '@/lib/analytics/gtag'
 import { formatQuota } from '@/lib/format'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -235,6 +236,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
         plan_id: plan.id,
         request_id: getStablePurchaseRequestId(requestScope),
         ...(validatedRecallClaim ? { recall_claim: validatedRecallClaim } : {}),
+        ...getGAMeasurementIdentifiers(),
       })
       if (res.message === 'success' && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
@@ -261,7 +263,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePayCreem = async () => {
     setPaying(true)
     try {
-      const res = await paySubscriptionCreem({ plan_id: plan.id })
+      const res = await paySubscriptionCreem({
+        plan_id: plan.id,
+        ...getGAMeasurementIdentifiers(),
+      })
       if (res.message === 'success' && res.data?.checkout_url) {
         window.open(res.data.checkout_url, '_blank')
         toast.success(t('Payment page opened'))
@@ -285,7 +290,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePayWaffoPancake = async () => {
     setPaying(true)
     try {
-      const res = await paySubscriptionWaffoPancake({ plan_id: plan.id })
+      const res = await paySubscriptionWaffoPancake({
+        plan_id: plan.id,
+        ...getGAMeasurementIdentifiers(),
+      })
       if (res.message === 'success' && res.data?.checkout_url) {
         toast.success(t('Redirecting to payment page...'))
         window.location.href = res.data.checkout_url
@@ -319,6 +327,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
         plan_id: plan.id,
         payment_method: selectedEpayMethodValue,
         request_id: getStablePurchaseRequestId(requestScope),
+        ...getGAMeasurementIdentifiers(),
       })
       if (res.message === 'success' && res.url) {
         const form = document.createElement('form')

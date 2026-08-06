@@ -38,6 +38,8 @@ type PurchaseSubscriptionCommand struct {
 	VerifiedQuote *SubscriptionPurchaseQuote
 	UIMode        string
 	RecallClaim   string
+	GAClientID    string
+	GASessionID   string
 }
 
 type PurchaseSubscriptionResult struct {
@@ -235,6 +237,8 @@ func PurchaseSubscription(cmd PurchaseSubscriptionCommand) (*PurchaseSubscriptio
 			RequestID:     cmd.RequestID,
 			UIMode:        cmd.UIMode,
 			RecallClaim:   cmd.RecallClaim,
+			GAClientID:    cmd.GAClientID,
+			GASessionID:   cmd.GASessionID,
 			VerifiedQuote: cmd.VerifiedQuote,
 		})
 		if err != nil {
@@ -459,6 +463,8 @@ func ReplaySubscriptionPurchase(cmd PurchaseSubscriptionCommand) (*PurchaseSubsc
 			RequestID:     cmd.RequestID,
 			UIMode:        cmd.UIMode,
 			RecallClaim:   cmd.RecallClaim,
+			GAClientID:    cmd.GAClientID,
+			GASessionID:   cmd.GASessionID,
 			VerifiedQuote: cmd.VerifiedQuote,
 		})
 		if err != nil {
@@ -840,6 +846,8 @@ func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract
 		TradeNo:                   subscriptionPurchaseTradeNo(user.Id, intent.Id),
 		PaymentMethod:             subscriptionPurchaseOrderPaymentMethod(cmd),
 		PaymentProvider:           paymentProviderForPurchaseChoice(cmd.PaymentChoice),
+		GAClientID:                NormalizeGAIdentifier(cmd.GAClientID),
+		GASessionID:               NormalizeGAIdentifier(cmd.GASessionID),
 		Status:                    common.TopUpStatusPending,
 		CreateTime:                now,
 		PurchaseMonths:            cmd.Months,

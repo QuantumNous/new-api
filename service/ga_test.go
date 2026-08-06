@@ -7,8 +7,10 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/stretchr/testify/require"
 )
 
 type gaRoundTripFunc func(*http.Request) (*http.Response, error)
@@ -121,7 +123,7 @@ func TestSendGAEventWithConfigAddsRequestTimeoutContext(t *testing.T) {
 		Endpoint:      "https://www.google-analytics.com/mp/collect",
 		HTTPClient:    client,
 	}, GAEvent{
-		Name:      "payment_success",
+		Name:      "test_event",
 		ClientID:  "123.456",
 		SessionID: "789",
 	})
@@ -147,7 +149,7 @@ func TestSendGAEventSkipsWhenSecretMissing(t *testing.T) {
 		Endpoint:      server.URL + "/mp/collect",
 		HTTPClient:    server.Client(),
 	}, GAEvent{
-		Name:      "payment_success",
+		Name:      "test_event",
 		ClientID:  "123.456",
 		SessionID: "789",
 	})
@@ -157,6 +159,17 @@ func TestSendGAEventSkipsWhenSecretMissing(t *testing.T) {
 	if called {
 		t.Fatal("expected no request when api secret is missing")
 	}
+}
+
+func TestSendGAEventWithConfigDoesNotExposeAPISecretInTransportError(t *testing.T) {
+	err := SendGAEventWithConfig(GAConfig{
+		MeasurementID: "G-TEST123",
+		APISecret:     "SUPER_SECRET_VALUE",
+		Endpoint:      "http://127.0.0.1:1/mp/collect",
+		HTTPClient:    &http.Client{Timeout: time.Second},
+	}, GAEvent{Name: "test_event", ClientID: "123.456", SessionID: "789"})
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "SUPER_SECRET_VALUE")
 }
 
 func TestResolveGAIdentifiersUsesExplicitValuesFirst(t *testing.T) {

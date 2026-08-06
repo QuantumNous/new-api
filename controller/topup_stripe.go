@@ -1078,7 +1078,6 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		}
 	}
 	if recharged {
-		sendPaymentSuccessGA(ctx, topUp)
 		// For save-card (onboarding promo) top-ups this performs the actual card binding:
 		// it verifies via the Stripe API that the customer really has a saved card before
 		// setting card_bound (local-method payments finish without saving one), and records

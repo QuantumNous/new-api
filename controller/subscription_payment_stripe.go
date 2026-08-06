@@ -27,6 +27,8 @@ type SubscriptionStripePayRequest struct {
 	PlanId      int    `json:"plan_id"`
 	RecallClaim string `json:"recall_claim,omitempty"`
 	RequestId   string `json:"request_id"`
+	GAClientID  string `json:"ga_client_id,omitempty"`
+	GASessionID string `json:"ga_session_id,omitempty"`
 }
 
 func SubscriptionRequestStripePay(c *gin.Context) {
@@ -45,6 +47,8 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "request_id is required")
 		return
 	}
+	gaClientID, gaSessionID := service.ResolveGAIdentifiers(c.Request, req.GAClientID, req.GASessionID)
+	req.GAClientID, req.GASessionID = gaClientID, gaSessionID
 	replayCmd := service.PurchaseSubscriptionCommand{
 		UserID:        userId,
 		PlanID:        req.PlanId,
@@ -52,6 +56,8 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		Months:        1,
 		RequestID:     requestID,
 		RecallClaim:   strings.TrimSpace(req.RecallClaim),
+		GAClientID:    gaClientID,
+		GASessionID:   gaSessionID,
 	}
 	if replay, found, err := service.ReplaySubscriptionPurchase(replayCmd); err != nil {
 		common.ApiError(c, err)
@@ -204,6 +210,8 @@ func requestStripeRecurringSubscriptionViaPurchasePath(userID int, plan *model.S
 		Months:        1,
 		RequestID:     requestID,
 		RecallClaim:   req.RecallClaim,
+		GAClientID:    service.NormalizeGAIdentifier(req.GAClientID),
+		GASessionID:   service.NormalizeGAIdentifier(req.GASessionID),
 	}
 	if replay, found, err := service.ReplaySubscriptionPurchase(cmd); err != nil {
 		return nil, err

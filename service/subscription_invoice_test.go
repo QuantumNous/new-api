@@ -244,6 +244,31 @@ func TestCreateStripeSubscriptionCheckoutDiscountSelectionVariants(t *testing.T)
 	require.Empty(t, sessionForms[1].Get("allow_promotion_codes"))
 }
 
+func TestPaymentAnalyticsEventForPaidRenewalUsesCurrentPlanID(t *testing.T) {
+	setupSubscriptionInvoiceServiceTestDB(t)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{Id: 11, Title: "Initial plan"}).Error)
+	initialOrder := &model.SubscriptionOrder{
+		UserId: 7, PlanId: 11, Money: 12.34, TradeNo: "renewal-initial-order",
+		PaymentProvider: model.PaymentProviderStripe, PaymentMethod: model.PaymentMethodStripe,
+		GAClientID: "123.456", GASessionID: "789",
+	}
+	require.NoError(t, model.DB.Create(initialOrder).Error)
+	binding := &model.SubscriptionProviderBinding{UserId: 7, InitialOrderId: initialOrder.Id}
+	currentPlan := &model.SubscriptionPlan{Id: 22, Title: "Current plan"}
+
+	var event *model.PaymentAnalyticsEvent
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		event, err = paymentAnalyticsEventForPaidRenewalTx(tx, binding, currentPlan, paidInvoiceFacts{
+			InvoiceID: "in_current_plan", AmountPaid: 1234, Currency: "USD", PeriodStart: 1_800_000_000,
+		})
+		return err
+	}))
+	require.NotNil(t, event)
+	require.Equal(t, "subscription_plan_22", event.ItemID)
+	require.Equal(t, "Current plan", event.ItemName)
+}
+
 func setupSubscriptionInvoiceServiceTestDB(t *testing.T) {
 	t.Helper()
 

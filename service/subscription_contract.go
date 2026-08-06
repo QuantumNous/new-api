@@ -36,6 +36,8 @@ type ChangePlanCommand struct {
 	RequestID     string
 	UIMode        string
 	RecallClaim   string
+	GAClientID    string
+	GASessionID   string
 	VerifiedQuote *SubscriptionPurchaseQuote
 }
 
@@ -458,7 +460,7 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 						contract.PaymentMode != model.SubscriptionPaymentModeExternalOnePeriod) {
 					return errors.New("current subscription is not Stripe recurring")
 				}
-				input, err := prepareStripeSubscriptionCheckoutPaymentTx(tx, &user, contract, intent, plan, cmd.VerifiedQuote, cmd.RecallClaim)
+				input, err := prepareStripeSubscriptionCheckoutPaymentTx(tx, &user, contract, intent, plan, cmd.VerifiedQuote, cmd.RecallClaim, cmd.GAClientID, cmd.GASessionID)
 				if err != nil {
 					return err
 				}
@@ -477,7 +479,7 @@ func ChangeSubscriptionPlan(cmd ChangePlanCommand) (*ChangePlanResult, error) {
 			if strings.TrimSpace(plan.StripePriceId) == "" {
 				return errors.New("subscription plan Stripe price id is required")
 			}
-			input, err := prepareStripeSubscriptionCheckoutPaymentTx(tx, &user, contract, intent, plan, cmd.VerifiedQuote, cmd.RecallClaim)
+			input, err := prepareStripeSubscriptionCheckoutPaymentTx(tx, &user, contract, intent, plan, cmd.VerifiedQuote, cmd.RecallClaim, cmd.GAClientID, cmd.GASessionID)
 			if err != nil {
 				return err
 			}
@@ -737,6 +739,8 @@ func (cmd *ChangePlanCommand) normalize() {
 	cmd.PaymentMode = strings.TrimSpace(cmd.PaymentMode)
 	cmd.RequestID = strings.TrimSpace(cmd.RequestID)
 	cmd.UIMode = strings.ToLower(strings.TrimSpace(cmd.UIMode))
+	cmd.GAClientID = NormalizeGAIdentifier(cmd.GAClientID)
+	cmd.GASessionID = NormalizeGAIdentifier(cmd.GASessionID)
 	cmd.RecallClaim = strings.TrimSpace(cmd.RecallClaim)
 }
 
@@ -1366,7 +1370,7 @@ func stripeSubscriptionCheckoutIdempotencyKey(contractID int64, changeVersion in
 	return fmt.Sprintf("newapi:stripe-subscription-checkout:contract:%d:version:%d:intent:%d", contractID, changeVersion, intentID)
 }
 
-func prepareStripeSubscriptionCheckoutPaymentTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, verifiedQuote *SubscriptionPurchaseQuote, recallClaim string) (*StripeSubscriptionCheckoutInput, error) {
+func prepareStripeSubscriptionCheckoutPaymentTx(tx *gorm.DB, user *model.User, contract *model.UserSubscriptionContract, intent *model.SubscriptionChangeIntent, plan *model.SubscriptionPlan, verifiedQuote *SubscriptionPurchaseQuote, recallClaim string, gaClientID string, gaSessionID string) (*StripeSubscriptionCheckoutInput, error) {
 	if tx == nil || user == nil || contract == nil || intent == nil || plan == nil {
 		return nil, errors.New("Stripe checkout facts are incomplete")
 	}
@@ -1416,6 +1420,8 @@ func prepareStripeSubscriptionCheckoutPaymentTx(tx *gorm.DB, user *model.User, c
 		TradeNo:                   tradeNo,
 		PaymentMethod:             model.PaymentMethodStripe,
 		PaymentProvider:           model.PaymentProviderStripe,
+		GAClientID:                NormalizeGAIdentifier(gaClientID),
+		GASessionID:               NormalizeGAIdentifier(gaSessionID),
 		Status:                    common.TopUpStatusPending,
 		CreateTime:                now,
 		PurchaseMonths:            1,

@@ -21,6 +21,8 @@ type SubscriptionEpayPayRequest struct {
 	PaymentMethod string `json:"payment_method"`
 	RequestId     string `json:"request_id"`
 	RecallClaim   string `json:"recall_claim,omitempty"`
+	GAClientID    string `json:"ga_client_id,omitempty"`
+	GASessionID   string `json:"ga_session_id,omitempty"`
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
@@ -53,6 +55,8 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		Months:        1,
 		RequestID:     requestID,
 		RecallClaim:   strings.TrimSpace(req.RecallClaim),
+		GAClientID:    service.NormalizeGAIdentifier(req.GAClientID),
+		GASessionID:   service.NormalizeGAIdentifier(req.GASessionID),
 	}
 	var result *service.PurchaseSubscriptionResult
 	if replay, found, err := service.ReplaySubscriptionPurchase(cmd); err != nil {

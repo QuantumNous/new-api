@@ -35,6 +35,8 @@ type SubscriptionSelfPurchaseRequest struct {
 	QuoteID       string `json:"quote_id"`
 	UIMode        string `json:"ui_mode"`
 	RecallClaim   string `json:"recall_claim"`
+	GAClientID    string `json:"ga_client_id,omitempty"`
+	GASessionID   string `json:"ga_session_id,omitempty"`
 }
 
 type SubscriptionSelfPurchaseQuoteResponse struct {
@@ -208,6 +210,7 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	gaClientID, gaSessionID := service.ResolveGAIdentifiers(c.Request, req.GAClientID, req.GASessionID)
 	cmd := service.PurchaseSubscriptionCommand{
 		UserID:        userID,
 		PlanID:        req.PlanID,
@@ -217,6 +220,8 @@ func PurchaseSubscriptionSelf(c *gin.Context) {
 		RequestID:     req.RequestID,
 		UIMode:        req.UIMode,
 		RecallClaim:   req.RecallClaim,
+		GAClientID:    gaClientID,
+		GASessionID:   gaSessionID,
 	}
 	var claims service.SubscriptionPurchaseQuoteTokenClaims
 	hasClaims := false

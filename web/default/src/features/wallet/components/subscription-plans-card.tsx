@@ -21,6 +21,7 @@ import { Check, Crown, RefreshCw, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
+import { getGAMeasurementIdentifiers } from '@/lib/analytics/gtag'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -672,6 +673,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
           orderId: selectedQuote?.order_id,
           recallClaim: recallClaim.claim,
         }),
+        ...getGAMeasurementIdentifiers(),
       })
       if (!res.success || !res.data) {
         toast.error(res.message || t('Payment request failed'))

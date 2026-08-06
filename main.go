@@ -149,6 +149,7 @@ func main() {
 	// Deliver paid-click signup, first-use, purchase, and refund events through
 	// the durable product outbox into the shared Ads Agent attribution service.
 	service.StartAdsAttributionDeliveryTask()
+	service.StartPaymentAnalyticsDeliveryTask()
 
 	// Stripe user win-back campaign scheduler (master node, default-off)
 	service.StartRecallCampaignTasks()

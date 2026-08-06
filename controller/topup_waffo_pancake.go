@@ -516,16 +516,12 @@ func WaffoPancakeWebhook(c *gin.Context) {
 	LockOrder(tradeNo)
 	defer UnlockOrder(tradeNo)
 
-	recharged, err := model.RechargeWaffoPancake(tradeNo)
+	_, err = model.RechargeWaffoPancake(tradeNo)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 充值处理失败 trade_no=%s event_id=%s order_id=%s client_ip=%s error=%q", tradeNo, event.ID, event.Data.OrderID, c.ClientIP(), err.Error()))
 		c.String(http.StatusInternalServerError, "retry")
 		return
 	}
-	if recharged {
-		sendPaymentSuccessGA(c.Request.Context(), model.GetTopUpByTradeNo(tradeNo))
-	}
-
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 充值成功 trade_no=%s event_id=%s order_id=%s client_ip=%s", tradeNo, event.ID, event.Data.OrderID, c.ClientIP()))
 	c.String(http.StatusOK, "OK")
 }

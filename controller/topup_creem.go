@@ -361,7 +361,6 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 	}
 
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Creem 充值成功 trade_no=%s creem_order_id=%s quota=%d money=%.2f client_ip=%s", referenceId, event.Object.Order.Id, topUp.Amount, topUp.Money, c.ClientIP()))
-	sendPaymentSuccessGA(c.Request.Context(), model.GetTopUpByTradeNo(referenceId))
 	c.Status(http.StatusOK)
 }
 

@@ -352,16 +352,12 @@ func PaddleWebhook(c *gin.Context) {
 		return
 	}
 
-	recharged, err := model.RechargePaddle(customData.TradeNo, customData.UserID, transactionID, c.ClientIP())
+	_, err = model.RechargePaddle(customData.TradeNo, customData.UserID, transactionID, c.ClientIP())
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Paddle 充值处理失败 trade_no=%s transaction_id=%s client_ip=%s error=%q", customData.TradeNo, transactionID, c.ClientIP(), err.Error()))
 		c.String(http.StatusInternalServerError, "retry")
 		return
 	}
-	if recharged {
-		sendPaymentSuccessGA(c.Request.Context(), model.GetTopUpByTradeNo(customData.TradeNo))
-	}
-
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Paddle 充值成功 trade_no=%s transaction_id=%s client_ip=%s", customData.TradeNo, transactionID, c.ClientIP()))
 	c.String(http.StatusOK, "OK")
 }

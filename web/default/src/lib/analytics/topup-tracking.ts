@@ -30,7 +30,6 @@ For commercial licensing, please contact support@quantumnous.com
  *    a returning user loading their billing history does NOT retroactively fire
  *    conversions for historical top-ups.
  */
-import { trackTopupConversion } from './gtag'
 import { trackPixelsTopup } from './pixels'
 
 const STORAGE_KEY = 'ads:tracked_topups'
@@ -93,7 +92,6 @@ export function trackTopupOnce(t: TrackableTopup): void {
   saveTracked(tracked)
 
   const value = typeof t.money === 'number' && t.money > 0 ? t.money : undefined
-  trackTopupConversion(value)
   trackPixelsTopup(value)
 }
 

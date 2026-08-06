@@ -29,15 +29,33 @@ type GAConfig struct {
 }
 
 type GAEvent struct {
-	Name      string
-	ClientID  string
-	SessionID string
-	Params    map[string]any
+	Name            string
+	ClientID        string
+	SessionID       string
+	TimestampMicros int64
+	Params          map[string]any
+}
+
+// GAHTTPStatusError keeps the response classification without retaining the
+// request URL, which includes the Measurement Protocol API secret.
+type GAHTTPStatusError struct {
+	StatusCode int
+}
+
+func (err *GAHTTPStatusError) Error() string {
+	return fmt.Sprintf("GA Measurement Protocol returned HTTP %d", err.StatusCode)
+}
+
+func IsGAPermanentDeliveryError(err error) bool {
+	var statusErr *GAHTTPStatusError
+	return errors.As(err, &statusErr) &&
+		(statusErr.StatusCode == http.StatusBadRequest || statusErr.StatusCode == http.StatusUnprocessableEntity)
 }
 
 type gaMeasurementPayload struct {
-	ClientID string               `json:"client_id"`
-	Events   []gaMeasurementEvent `json:"events"`
+	ClientID        string               `json:"client_id"`
+	Events          []gaMeasurementEvent `json:"events"`
+	TimestampMicros int64                `json:"timestamp_micros,omitempty"`
 }
 
 type gaMeasurementEvent struct {
@@ -171,7 +189,7 @@ func SendGAEventWithConfig(cfg GAConfig, event GAEvent) error {
 
 	collectURL, err := url.Parse(cfg.Endpoint)
 	if err != nil {
-		return fmt.Errorf("parse GA endpoint: %w", err)
+		return errors.New("parse GA endpoint failed")
 	}
 	query := collectURL.Query()
 	query.Set("measurement_id", cfg.MeasurementID)
@@ -191,7 +209,8 @@ func SendGAEventWithConfig(cfg GAConfig, event GAEvent) error {
 	}
 
 	payload := gaMeasurementPayload{
-		ClientID: event.ClientID,
+		ClientID:        event.ClientID,
+		TimestampMicros: event.TimestampMicros,
 		Events: []gaMeasurementEvent{{
 			Name:   event.Name,
 			Params: params,
@@ -207,18 +226,18 @@ func SendGAEventWithConfig(cfg GAConfig, event GAEvent) error {
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, collectURL.String(), bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("build GA request: %w", err)
+		return errors.New("build GA request failed")
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("send GA request: %w", err)
+		return errors.New("send GA request failed")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return errors.New("GA Measurement Protocol returned " + resp.Status)
+		return &GAHTTPStatusError{StatusCode: resp.StatusCode}
 	}
 	return nil
 }

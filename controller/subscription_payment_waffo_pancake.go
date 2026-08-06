@@ -17,7 +17,9 @@ import (
 )
 
 type SubscriptionWaffoPancakePayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId      int    `json:"plan_id"`
+	GAClientID  string `json:"ga_client_id,omitempty"`
+	GASessionID string `json:"ga_session_id,omitempty"`
 }
 
 func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
@@ -89,6 +91,8 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodWaffoPancake,
 		PaymentProvider: model.PaymentProviderWaffoPancake,
+		GAClientID:      service.NormalizeGAIdentifier(req.GAClientID),
+		GASessionID:     service.NormalizeGAIdentifier(req.GASessionID),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}

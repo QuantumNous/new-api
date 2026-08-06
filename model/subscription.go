@@ -573,6 +573,8 @@ type SubscriptionOrder struct {
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	GAClientID      string `json:"ga_client_id,omitempty" gorm:"type:varchar(128);default:''"`
+	GASessionID     string `json:"ga_session_id,omitempty" gorm:"type:varchar(128);default:''"`
 	Status          string `json:"status"`
 	CreateTime      int64  `json:"create_time"`
 	CompleteTime    int64  `json:"complete_time"`
@@ -1055,6 +1057,8 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	var logPaymentMethod string
 	var upgradeGroup string
 	var rewardTradeNo string
+	var analyticsOrder *SubscriptionOrder
+	var analyticsPlanTitle string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
@@ -1065,6 +1069,8 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		}
 		rewardTradeNo = order.TradeNo
 		if order.Status == common.TopUpStatusSuccess {
+			analyticsOrder = &order
+			analyticsPlanTitle = "Subscription"
 			return nil
 		}
 		if order.Status != common.TopUpStatusPending {
@@ -1100,6 +1106,8 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		logPlanTitle = plan.Title
 		logMoney = order.Money
 		logPaymentMethod = order.PaymentMethod
+		analyticsOrder = &order
+		analyticsPlanTitle = plan.Title
 		return nil
 	})
 	if err != nil {
@@ -1113,6 +1121,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
 	}
+	EnqueuePaymentAnalyticsForSubscriptionBestEffort(analyticsOrder, analyticsPlanTitle)
 	return nil
 }
 

@@ -4,7 +4,8 @@ import "errors"
 
 // Common errors
 var (
-	ErrDatabase = errors.New("database error")
+	ErrDatabase                        = errors.New("database error")
+	ErrPaymentAnalyticsOutboxLeaseLost = errors.New("payment analytics outbox lease lost")
 )
 
 // User auth errors

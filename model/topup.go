@@ -323,6 +323,9 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 		return false, errors.New("充值失败，请稍后重试")
 	}
 
+	if topUp.Status == common.TopUpStatusSuccess {
+		EnqueuePaymentAnalyticsForTopUpBestEffort(topUp)
+	}
 	if credited {
 		if err := cacheIncrUserQuota(topUp.UserId, int64(quotaToAdd)); err != nil {
 			common.SysLog("failed to increase user quota cache after stripe topup: " + err.Error())
@@ -655,6 +658,9 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("充值失败，请稍后重试")
 	}
 
+	if topUp.Status == common.TopUpStatusSuccess {
+		EnqueuePaymentAnalyticsForTopUpBestEffort(topUp)
+	}
 	if credited {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
 		runInviteRewardPostCommitHooks(rewardResult)
@@ -733,6 +739,9 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 		return false, errors.New("充值失败，请稍后重试")
 	}
 
+	if topUp.Status == common.TopUpStatusSuccess {
+		EnqueuePaymentAnalyticsForTopUpBestEffort(topUp)
+	}
 	if credited {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
 		runInviteRewardPostCommitHooks(rewardResult)
@@ -809,6 +818,9 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 		return false, errors.New("充值失败，请稍后重试")
 	}
 
+	if topUp.Status == common.TopUpStatusSuccess {
+		EnqueuePaymentAnalyticsForTopUpBestEffort(topUp)
+	}
 	if credited {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 		runInviteRewardPostCommitHooks(rewardResult)
@@ -936,6 +948,9 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 		return false, errors.New("充值失败，请稍后重试")
 	}
 
+	if topUp.Status == common.TopUpStatusSuccess {
+		EnqueuePaymentAnalyticsForTopUpBestEffort(topUp)
+	}
 	if credited {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Paddle充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPaddle)
 		runInviteRewardPostCommitHooks(rewardResult)

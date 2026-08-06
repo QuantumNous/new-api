@@ -56,9 +56,10 @@ type StripeCheckoutPresentation struct {
 }
 
 type PaidInvoiceReconcileResult struct {
-	Binding     *model.SubscriptionProviderBinding
-	Entitlement *model.UserSubscription
-	Applied     bool
+	Binding               *model.SubscriptionProviderBinding
+	Entitlement           *model.UserSubscription
+	Applied               bool
+	PaymentAnalyticsEvent *model.PaymentAnalyticsEvent
 }
 
 type paidInvoicePermanentError struct {
@@ -528,6 +529,7 @@ func reconcilePaidInvoice(ctx context.Context, invoiceID string, reservation *mo
 			return err
 		}
 		result.Binding = binding
+		result.PaymentAnalyticsEvent = model.PaymentAnalyticsEventForSubscription(order, plan.Title)
 		if grant != nil {
 			result.Entitlement = grant.Entitlement
 			result.Applied = grant.Applied
@@ -540,6 +542,7 @@ func reconcilePaidInvoice(ctx context.Context, invoiceID string, reservation *mo
 	if strings.TrimSpace(facts.TradeNo) != "" {
 		deliverInviteSubscriptionRewardAfterOrderCompleted(ctx, facts.TradeNo)
 	}
+	model.EnqueuePaymentAnalyticsBestEffort(result.PaymentAnalyticsEvent)
 	return result, nil
 }
 
@@ -1357,6 +1360,11 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 		if applied != nil {
 			result.Binding = binding
 			result.Entitlement = applied
+			event, eventErr := paymentAnalyticsEventForPaidRenewalTx(tx, binding, plan, facts)
+			if eventErr != nil {
+				return eventErr
+			}
+			result.PaymentAnalyticsEvent = event
 			return nil
 		}
 	}
@@ -1478,7 +1486,27 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 		result.Entitlement = grant.Entitlement
 		result.Applied = grant.Applied
 	}
+	event, err := paymentAnalyticsEventForPaidRenewalTx(tx, binding, plan, facts)
+	if err != nil {
+		return err
+	}
+	result.PaymentAnalyticsEvent = event
 	return nil
+}
+
+func paymentAnalyticsEventForPaidRenewalTx(tx *gorm.DB, binding *model.SubscriptionProviderBinding, plan *model.SubscriptionPlan, facts paidInvoiceFacts) (*model.PaymentAnalyticsEvent, error) {
+	if tx == nil || binding == nil || plan == nil || binding.InitialOrderId <= 0 {
+		return nil, nil
+	}
+	var initialOrder model.SubscriptionOrder
+	if err := tx.Where("id = ? AND user_id = ?", binding.InitialOrderId, binding.UserId).First(&initialOrder).Error; err != nil {
+		return nil, err
+	}
+	eventOrder := initialOrder
+	eventOrder.PlanId = plan.Id
+	return model.PaymentAnalyticsEventForSubscriptionRenewal(
+		&eventOrder, plan.Title, facts.InvoiceID, stripeMinorUnitValue(facts.AmountPaid, facts.Currency), facts.Currency, facts.PeriodStart,
+	), nil
 }
 
 func findAppliedPaidRenewalInvoiceEntitlementTx(tx *gorm.DB, binding *model.SubscriptionProviderBinding, invoiceID string) (*model.UserSubscription, error) {
@@ -1976,6 +2004,7 @@ func completeOneTimeSubscriptionPurchase(ctx context.Context, tradeNo string, pr
 		if err := model.SyncSubscriptionOrderTopUpHistory(tradeNo); err != nil {
 			return nil, err
 		}
+		model.EnqueuePaymentAnalyticsForSubscriptionBestEffort(result.Order, "Subscription")
 	}
 	return result, nil
 }
@@ -2179,12 +2208,20 @@ func stripeMinorUnitAmountForSubscription(amount float64, currency string) (int6
 	if amount <= 0 {
 		return 0, nil
 	}
-	scale := int32(2)
+	return decimal.NewFromFloat(amount).Shift(stripeCurrencyMinorUnitScale(currency)).Round(0).IntPart(), nil
+}
+
+func stripeMinorUnitValue(amount int64, currency string) float64 {
+	return decimal.NewFromInt(amount).Shift(-stripeCurrencyMinorUnitScale(currency)).InexactFloat64()
+}
+
+func stripeCurrencyMinorUnitScale(currency string) int32 {
 	switch strings.ToUpper(strings.TrimSpace(currency)) {
 	case "BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF":
-		scale = 0
+		return 0
+	default:
+		return 2
 	}
-	return decimal.NewFromFloat(amount).Shift(scale).Round(0).IntPart(), nil
 }
 
 func StripeMinorUnitAmountForSubscription(amount float64, currency string) (int64, error) {

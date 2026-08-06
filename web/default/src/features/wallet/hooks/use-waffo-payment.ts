@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { getGAMeasurementIdentifiers } from '@/lib/analytics/gtag'
 import { requestWaffoPayment, isApiSuccess } from '../api'
 
 function getPaymentUrl(data: unknown): string | null {
@@ -55,6 +56,7 @@ export function useWaffoPayment() {
         const response = await requestWaffoPayment({
           amount: Math.floor(topupAmount),
           pay_method_index: payMethodIndex,
+          ...getGAMeasurementIdentifiers(),
         })
 
         if (isApiSuccess(response)) {

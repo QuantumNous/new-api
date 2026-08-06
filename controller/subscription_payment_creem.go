@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -17,7 +18,9 @@ import (
 )
 
 type SubscriptionCreemPayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId      int    `json:"plan_id"`
+	GAClientID  string `json:"ga_client_id,omitempty"`
+	GASessionID string `json:"ga_session_id,omitempty"`
 }
 
 func SubscriptionRequestCreemPay(c *gin.Context) {
@@ -96,6 +99,8 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodCreem,
 		PaymentProvider: model.PaymentProviderCreem,
+		GAClientID:      service.NormalizeGAIdentifier(req.GAClientID),
+		GASessionID:     service.NormalizeGAIdentifier(req.GASessionID),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}

@@ -237,8 +237,8 @@ export function trackPixelsSignup(): void {
 
 /**
  * Fire the "top-up" (purchase) conversion on every configured network. Mirrors
- * gtag's trackTopupConversion. Pass the value in USD so networks can optimize
- * on revenue. Best-effort: never throws.
+ * Pass the value in USD so networks can optimize on revenue. Best-effort:
+ * never throws.
  */
 export function trackPixelsTopup(valueUSD?: number): void {
   if (isRecallClaimAnalyticsBlocked()) return

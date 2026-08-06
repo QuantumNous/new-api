@@ -879,6 +879,8 @@ func CompleteSubscriptionOrderWithProviderBinding(tradeNo string, providerPayloa
 	var logPaymentMethod string
 	var upgradeGroup string
 	var rewardTradeNo string
+	var analyticsOrder *SubscriptionOrder
+	var analyticsPlanTitle string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
@@ -925,6 +927,8 @@ func CompleteSubscriptionOrderWithProviderBinding(tradeNo string, providerPayloa
 		logPlanTitle = plan.Title
 		logMoney = order.Money
 		logPaymentMethod = order.PaymentMethod
+		analyticsOrder = &order
+		analyticsPlanTitle = plan.Title
 		return nil
 	})
 	if err != nil {
@@ -938,5 +942,6 @@ func CompleteSubscriptionOrderWithProviderBinding(tradeNo string, providerPayloa
 		msg := fmt.Sprintf("Subscription purchase succeeded, plan: %s, amount: %.2f, payment method: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
 	}
+	EnqueuePaymentAnalyticsForSubscriptionBestEffort(analyticsOrder, analyticsPlanTitle)
 	return result, nil
 }

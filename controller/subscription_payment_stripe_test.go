@@ -234,6 +234,8 @@ func TestSubscriptionStripeReplayIgnoresDisabledPlanAndProviderConfig(t *testing
 	firstCtx.Set("id", 9721)
 	firstCtx.Request = httptest.NewRequest(http.MethodPost, "/api/user/subscription/stripe/pay", strings.NewReader(body))
 	firstCtx.Request.Header.Set("Content-Type", "application/json")
+	firstCtx.Request.AddCookie(&http.Cookie{Name: "_ga", Value: "GA1.1.111.222"})
+	firstCtx.Request.AddCookie(&http.Cookie{Name: "_ga_30RCEP2CVH", Value: "GS2.1.s333$o1$g1$t444"})
 	SubscriptionRequestStripePay(firstCtx)
 	require.Equal(t, http.StatusOK, firstRecorder.Code)
 	require.Len(t, backend.params, 1)
@@ -258,6 +260,10 @@ func TestSubscriptionStripeReplayIgnoresDisabledPlanAndProviderConfig(t *testing
 	var orderCount int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("user_id = ?", 9721).Count(&orderCount).Error)
 	require.Equal(t, int64(1), orderCount)
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.Where("user_id = ?", 9721).First(&order).Error)
+	require.Equal(t, "111.222", order.GAClientID)
+	require.Equal(t, "333", order.GASessionID)
 }
 
 func setupSubscriptionRecallClaimDB(t *testing.T) {
