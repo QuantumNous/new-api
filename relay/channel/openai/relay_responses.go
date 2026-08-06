@@ -34,8 +34,26 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
-	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
+	// Ensure output_tokens_details is populated for Responses API compatibility.
+	// Some upstreams (e.g. Moonshot/Kimi) report reasoning_tokens at the top
+	// level of usage rather than inside output_tokens_details.
+	if responsesResponse.Usage != nil {
+		if responsesResponse.Usage.OutputTokensDetails == nil && responsesResponse.Usage.ReasoningTokens != 0 {
+			responsesResponse.Usage.OutputTokensDetails = &dto.OutputTokenDetails{
+				ReasoningTokens: responsesResponse.Usage.ReasoningTokens,
+			}
+		}
+	}
+
+	// Re-serialize to ensure created_at is always a clean integer (not float)
+	// and usage includes output_tokens_details with reasoning_tokens.
+	reSerializedBody, err := common.Marshal(responsesResponse)
+	if err != nil {
+		// Fallback to raw body if re-serialization fails
+		service.IOCopyBytesGracefully(c, resp, responseBody)
+	} else {
+		service.IOCopyBytesGracefully(c, resp, reSerializedBody)
+	}
 
 	// compute usage
 	usage := dto.Usage{}
@@ -94,7 +112,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
-		sendResponsesStreamData(c, streamResponse, data)
+		// Re-serialize to ensure created_at is always a clean integer (not float)
+		// and usage includes output_tokens_details with reasoning_tokens.
+		reSerialized, err := common.Marshal(streamResponse)
+		if err != nil {
+			// Fallback to raw data if re-serialization fails
+			sendResponsesStreamData(c, streamResponse, data)
+		} else {
+			sendResponsesStreamData(c, streamResponse, string(reSerialized))
+		}
 		switch streamResponse.Type {
 		case "response.completed", "response.done":
 			if streamResponse.Response != nil {
@@ -111,6 +137,21 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					if streamResponse.Response.Usage.InputTokensDetails != nil {
 						usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
 						usage.PromptTokensDetails.CacheWriteTokens = streamResponse.Response.Usage.InputTokensDetails.CacheWriteTokens
+					}
+					// Ensure reasoning_tokens is captured from top-level or output_tokens_details
+					rt := streamResponse.Response.Usage.ReasoningTokens
+					if rt == 0 && streamResponse.Response.Usage.OutputTokensDetails != nil {
+						rt = streamResponse.Response.Usage.OutputTokensDetails.ReasoningTokens
+					}
+					if rt != 0 {
+						usage.ReasoningTokens = rt
+						usage.CompletionTokenDetails.ReasoningTokens = rt
+						// Ensure the event sent to client has output_tokens_details
+						if streamResponse.Response.Usage.OutputTokensDetails == nil {
+							streamResponse.Response.Usage.OutputTokensDetails = &dto.OutputTokenDetails{
+								ReasoningTokens: rt,
+							}
+						}
 					}
 				}
 				if !imageCommitted {
@@ -173,6 +214,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	}
 
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+
+	helper.Done(c)
 
 	return usage, nil
 }
