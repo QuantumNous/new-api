@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -277,6 +278,9 @@ func migrateDB() error {
 		&RecallEmailQuotaWindow{},
 		&RecallEmailPacingState{},
 		&RecallEvent{},
+		&RecallLifecycleEvent{},
+		&RecallContinuousTriggerSlot{},
+		&QuotaLifecycleState{},
 		&RegistrationDomainState{},
 		&RegistrationDomainBlock{},
 		&RegistrationDomainBlockUser{},
@@ -366,6 +370,9 @@ func migrateDB() error {
 	if err := migrateRecallCampaignTypes(); err != nil {
 		return err
 	}
+	if err := SeedRecallContinuousTriggerSlotsWithContext(context.Background()); err != nil {
+		return err
+	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -403,6 +410,9 @@ func migrateDBFast() error {
 		{&RecallEmailQuotaWindow{}, "RecallEmailQuotaWindow"},
 		{&RecallEmailPacingState{}, "RecallEmailPacingState"},
 		{&RecallEvent{}, "RecallEvent"},
+		{&RecallLifecycleEvent{}, "RecallLifecycleEvent"},
+		{&RecallContinuousTriggerSlot{}, "RecallContinuousTriggerSlot"},
+		{&QuotaLifecycleState{}, "QuotaLifecycleState"},
 		{&RegistrationDomainState{}, "RegistrationDomainState"},
 		{&RegistrationDomainBlock{}, "RegistrationDomainBlock"},
 		{&RegistrationDomainBlockUser{}, "RegistrationDomainBlockUser"},
@@ -483,6 +493,9 @@ func migrateDBFast() error {
 		return err
 	}
 	if err := migrateRecallCampaignTypes(); err != nil {
+		return err
+	}
+	if err := SeedRecallContinuousTriggerSlotsWithContext(context.Background()); err != nil {
 		return err
 	}
 	if common.UsingSQLite {

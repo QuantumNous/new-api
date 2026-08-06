@@ -23,32 +23,36 @@ const (
 )
 
 type RecallCampaign struct {
-	Id                    int64  `json:"id" gorm:"primaryKey"`
-	CampaignType          string `json:"campaign_type" gorm:"type:varchar(32);not null;default:promotion"`
-	Name                  string `json:"name" gorm:"type:varchar(128);not null"`
-	Status                string `json:"status" gorm:"type:varchar(24);not null;index"`
-	AudienceTemplate      string `json:"audience_template" gorm:"type:varchar(32);not null"`
-	AudienceConfig        string `json:"audience_config" gorm:"type:text;not null"`
-	ExecutionMode         string `json:"execution_mode" gorm:"type:varchar(24);not null"`
-	ScheduledAt           int64  `json:"scheduled_at" gorm:"index"`
-	RecurrenceConfig      string `json:"recurrence_config" gorm:"type:text"`
-	NextRunAt             int64  `json:"next_run_at" gorm:"index"`
-	CouponSource          string `json:"coupon_source" gorm:"type:varchar(16);not null"`
-	StripeCouponId        string `json:"stripe_coupon_id" gorm:"type:varchar(128);index"`
-	DiscountConfig        string `json:"discount_config" gorm:"type:text;not null"`
-	ProductScope          string `json:"product_scope" gorm:"type:text;not null"`
-	PromotionExpiryMode   string `json:"promotion_expiry_mode" gorm:"type:varchar(16)"`
-	PromotionExpiresAt    int64  `json:"promotion_expires_at"`
-	PromotionValidSeconds int64  `json:"promotion_valid_seconds"`
-	EmailSequenceConfig   string `json:"email_sequence_config" gorm:"not null"`
-	EnrollmentLimit       int    `json:"enrollment_limit"`
-	WorkerConcurrency     int    `json:"worker_concurrency"`
-	ConfigRevision        int64  `json:"config_revision" gorm:"not null;default:1"`
-	CreatedBy             int    `json:"created_by" gorm:"index"`
-	CreatedAt             int64  `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt             int64  `json:"updated_at" gorm:"autoUpdateTime"`
-	ActivatedAt           int64  `json:"activated_at"`
-	CompletedAt           int64  `json:"completed_at"`
+	Id                     int64  `json:"id" gorm:"primaryKey"`
+	CampaignType           string `json:"campaign_type" gorm:"type:varchar(32);not null;default:promotion"`
+	DeliveryPolicy         string `json:"delivery_policy" gorm:"type:varchar(16);not null;default:engagement;index"`
+	LifecycleTrigger       string `json:"lifecycle_trigger" gorm:"type:varchar(64);index"`
+	LifecycleTriggerConfig string `json:"lifecycle_trigger_config" gorm:"type:text"`
+	ProcessingStartAt      int64  `json:"processing_start_at" gorm:"index"`
+	Name                   string `json:"name" gorm:"type:varchar(128);not null"`
+	Status                 string `json:"status" gorm:"type:varchar(24);not null;index"`
+	AudienceTemplate       string `json:"audience_template" gorm:"type:varchar(32);not null"`
+	AudienceConfig         string `json:"audience_config" gorm:"type:text;not null"`
+	ExecutionMode          string `json:"execution_mode" gorm:"type:varchar(24);not null"`
+	ScheduledAt            int64  `json:"scheduled_at" gorm:"index"`
+	RecurrenceConfig       string `json:"recurrence_config" gorm:"type:text"`
+	NextRunAt              int64  `json:"next_run_at" gorm:"index"`
+	CouponSource           string `json:"coupon_source" gorm:"type:varchar(16);not null"`
+	StripeCouponId         string `json:"stripe_coupon_id" gorm:"type:varchar(128);index"`
+	DiscountConfig         string `json:"discount_config" gorm:"type:text;not null"`
+	ProductScope           string `json:"product_scope" gorm:"type:text;not null"`
+	PromotionExpiryMode    string `json:"promotion_expiry_mode" gorm:"type:varchar(16)"`
+	PromotionExpiresAt     int64  `json:"promotion_expires_at"`
+	PromotionValidSeconds  int64  `json:"promotion_valid_seconds"`
+	EmailSequenceConfig    string `json:"email_sequence_config" gorm:"not null"`
+	EnrollmentLimit        int    `json:"enrollment_limit"`
+	WorkerConcurrency      int    `json:"worker_concurrency"`
+	ConfigRevision         int64  `json:"config_revision" gorm:"not null;default:1"`
+	CreatedBy              int    `json:"created_by" gorm:"index"`
+	CreatedAt              int64  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt              int64  `json:"updated_at" gorm:"autoUpdateTime"`
+	ActivatedAt            int64  `json:"activated_at"`
+	CompletedAt            int64  `json:"completed_at"`
 }
 
 func CreateRecallCampaign(campaign *RecallCampaign) error {
@@ -63,6 +67,9 @@ func CreateRecallCampaignWithContext(ctx context.Context, campaign *RecallCampai
 func normalizeRecallCampaignTypeDefault(campaign *RecallCampaign) {
 	if campaign != nil && strings.TrimSpace(campaign.CampaignType) == "" {
 		campaign.CampaignType = RecallCampaignTypePromotion
+	}
+	if campaign != nil && strings.TrimSpace(campaign.DeliveryPolicy) == "" {
+		campaign.DeliveryPolicy = RecallDeliveryPolicyEngagement
 	}
 }
 
@@ -121,14 +128,18 @@ func UpdateRecallCampaignDraftWithContext(ctx context.Context, campaign *RecallC
 	result := DB.WithContext(ctx).Model(&RecallCampaign{}).
 		Where("id = ? AND status = ? AND config_revision = ?", campaign.Id, RecallCampaignDraft, campaign.ConfigRevision).
 		Updates(map[string]any{
-			"campaign_type":     campaign.CampaignType,
-			"name":              campaign.Name,
-			"audience_template": campaign.AudienceTemplate,
-			"audience_config":   campaign.AudienceConfig,
-			"execution_mode":    campaign.ExecutionMode,
-			"scheduled_at":      campaign.ScheduledAt,
-			"recurrence_config": campaign.RecurrenceConfig,
-			"coupon_source":     campaign.CouponSource,
+			"campaign_type":            campaign.CampaignType,
+			"delivery_policy":          campaign.DeliveryPolicy,
+			"lifecycle_trigger":        campaign.LifecycleTrigger,
+			"lifecycle_trigger_config": campaign.LifecycleTriggerConfig,
+			"processing_start_at":      campaign.ProcessingStartAt,
+			"name":                     campaign.Name,
+			"audience_template":        campaign.AudienceTemplate,
+			"audience_config":          campaign.AudienceConfig,
+			"execution_mode":           campaign.ExecutionMode,
+			"scheduled_at":             campaign.ScheduledAt,
+			"recurrence_config":        campaign.RecurrenceConfig,
+			"coupon_source":            campaign.CouponSource,
 			// StripeCouponId persists draft existing_coupon_id; the draft status predicate blocks post-activation edits.
 			"stripe_coupon_id":        campaign.StripeCouponId,
 			"discount_config":         campaign.DiscountConfig,
@@ -210,20 +221,24 @@ func TransitionRecallCampaignAndAdminEventWithContext(ctx context.Context, id in
 
 func recallCampaignTransitionUpdates(to string, fields map[string]any) (map[string]any, error) {
 	allowedFields := map[string]struct{}{
-		"scheduled_at":            {},
-		"recurrence_config":       {},
-		"next_run_at":             {},
-		"stripe_coupon_id":        {},
-		"discount_config":         {},
-		"product_scope":           {},
-		"promotion_expiry_mode":   {},
-		"promotion_expires_at":    {},
-		"promotion_valid_seconds": {},
-		"email_sequence_config":   {},
-		"enrollment_limit":        {},
-		"worker_concurrency":      {},
-		"activated_at":            {},
-		"completed_at":            {},
+		"scheduled_at":             {},
+		"recurrence_config":        {},
+		"next_run_at":              {},
+		"stripe_coupon_id":         {},
+		"discount_config":          {},
+		"product_scope":            {},
+		"promotion_expiry_mode":    {},
+		"promotion_expires_at":     {},
+		"promotion_valid_seconds":  {},
+		"email_sequence_config":    {},
+		"delivery_policy":          {},
+		"lifecycle_trigger":        {},
+		"lifecycle_trigger_config": {},
+		"processing_start_at":      {},
+		"enrollment_limit":         {},
+		"worker_concurrency":       {},
+		"activated_at":             {},
+		"completed_at":             {},
 	}
 	updates := make(map[string]any, len(fields)+1)
 	for key, value := range fields {

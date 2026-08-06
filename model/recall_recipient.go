@@ -44,6 +44,7 @@ type RecallRecipient struct {
 	Id                                int64   `json:"id" gorm:"primaryKey"`
 	CampaignId                        int64   `json:"campaign_id" gorm:"uniqueIndex:idx_recall_campaign_identity,priority:1;index"`
 	RecipientIdentity                 string  `json:"-" gorm:"type:varchar(80);not null;default:'';uniqueIndex:idx_recall_campaign_identity,priority:2"`
+	LifecycleEventId                  *int64  `json:"lifecycle_event_id" gorm:"uniqueIndex:idx_recall_lifecycle_event"`
 	UserId                            int     `json:"user_id" gorm:"default:0;index"`
 	EligibilitySnapshot               string  `json:"eligibility_snapshot" gorm:"type:text;not null"`
 	EmailSnapshot                     string  `json:"email_snapshot" gorm:"type:varchar(254);not null"`
