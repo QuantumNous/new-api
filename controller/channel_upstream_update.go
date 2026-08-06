@@ -333,11 +333,6 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 }
 
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
-	if channel.Type == constant.ChannelTypeVolcEngineAgentPlan ||
-		channel.Type == constant.ChannelTypeVolcEngineCodingPlan {
-		return nil, fmt.Errorf("VolcEngine Plan channels do not support upstream model discovery; configure models manually")
-	}
-
 	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
@@ -391,6 +386,12 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		} else {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
+	case constant.ChannelTypeVolcEngineAgentPlan, constant.ChannelTypeVolcEngineCodingPlan:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/models", strings.TrimRight(plan.OpenAIBaseURL, "/"))
+		} else {
+			url = fmt.Sprintf("%s/v3/models", strings.TrimRight(baseURL, "/"))
+		}
 	case constant.ChannelTypeMoonshot:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
 			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
@@ -415,6 +416,10 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
 	if err != nil {
 		return nil, sanitizeFetchModelsError(err, key)
+	}
+	if channel.Type == constant.ChannelTypeVolcEngineAgentPlan ||
+		channel.Type == constant.ChannelTypeVolcEngineCodingPlan {
+		return parseOpenAIModelIDs(body)
 	}
 
 	var result OpenAIModelsResponse
