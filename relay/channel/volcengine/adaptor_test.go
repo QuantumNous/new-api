@@ -102,23 +102,41 @@ func TestGetRequestURLForVolcEnginePlans(t *testing.T) {
 }
 
 func TestSetupRequestHeaderForVolcEnginePlan(t *testing.T) {
-	t.Parallel()
-
-	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	c.Request.Header.Set("Content-Type", "application/json")
-	header := make(http.Header)
-	info := &relaycommon.RelayInfo{
-		RelayMode: relayconstant.RelayModeResponses,
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType: channelconstant.ChannelTypeVolcEngineAgentPlan,
-			ApiKey:      "agent-plan-key",
-		},
+	tests := []struct {
+		name      string
+		key       string
+		wantError string
+	}{
+		{name: "legacy inference key", key: "agent-plan-key"},
+		{name: "composite model discovery credential", key: "agent-plan-key|access-key|secret-key"},
+		{name: "invalid composite credential", key: "agent-plan-key|access-key", wantError: "expected PlanAPIKey"},
 	}
 
-	require.NoError(t, (&Adaptor{}).SetupRequestHeader(c, &header, info))
-	assert.Equal(t, "Bearer agent-plan-key", header.Get("Authorization"))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			c.Request.Header.Set("Content-Type", "application/json")
+			header := make(http.Header)
+			info := &relaycommon.RelayInfo{
+				RelayMode: relayconstant.RelayModeResponses,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelType: channelconstant.ChannelTypeVolcEngineAgentPlan,
+					ApiKey:      test.key,
+				},
+			}
+
+			err := (&Adaptor{}).SetupRequestHeader(c, &header, info)
+			if test.wantError != "" {
+				require.ErrorContains(t, err, test.wantError)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "Bearer agent-plan-key", header.Get("Authorization"))
+			assert.Equal(t, "agent-plan-key", info.ApiKey)
+		})
+	}
 }
 
 func TestConvertClaudeRequestPreservesVolcEnginePlanPayload(t *testing.T) {

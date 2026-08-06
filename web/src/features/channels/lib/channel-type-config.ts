@@ -171,7 +171,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/plan',
     supportedModels: ['ark-code-latest'],
     hints: {
-      key: 'Dedicated Agent Plan API key',
+      key: 'Format: PlanAPIKey|AccessKey|SecretKey',
       models: 'ark-code-latest or a model supported by your Agent Plan',
     },
   },
@@ -182,7 +182,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/coding',
     supportedModels: ['ark-code-latest'],
     hints: {
-      key: 'Volcano Engine Ark API key',
+      key: 'Format: PlanAPIKey|AccessKey|SecretKey',
       models: 'ark-code-latest or a model supported by your Coding Plan',
     },
   },

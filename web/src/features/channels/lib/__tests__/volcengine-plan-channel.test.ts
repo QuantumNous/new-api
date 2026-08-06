@@ -28,13 +28,13 @@ const planChannels = [
     type: 61,
     label: 'VolcEngine Agent Plan',
     baseUrl: 'https://ark.cn-beijing.volces.com/api/plan',
-    keyPrompt: 'Enter your dedicated Agent Plan API key',
+    keyPrompt: 'Format: PlanAPIKey|AccessKey|SecretKey',
   },
   {
     type: 62,
     label: 'VolcEngine Coding Plan',
     baseUrl: 'https://ark.cn-beijing.volces.com/api/coding',
-    keyPrompt: 'Enter your Volcano Engine Ark API key',
+    keyPrompt: 'Format: PlanAPIKey|AccessKey|SecretKey',
   },
 ]
 
@@ -62,5 +62,11 @@ describe('VolcEngine Plan channels', () => {
 
     assert.equal(CHANNEL_TYPE_OPTIONS[volcEngineIndex + 1]?.value, 61)
     assert.equal(CHANNEL_TYPE_OPTIONS[volcEngineIndex + 2]?.value, 62)
+  })
+
+  test('enables upstream model discovery for ordinary and Plan channels', () => {
+    assert.equal(MODEL_FETCHABLE_TYPES.has(45), true)
+    assert.equal(MODEL_FETCHABLE_TYPES.has(61), true)
+    assert.equal(MODEL_FETCHABLE_TYPES.has(62), true)
   })
 })

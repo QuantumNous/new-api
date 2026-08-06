@@ -3,9 +3,11 @@ package controller
 import (
 	"bytes"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -74,36 +76,67 @@ func TestFetchVolcEnginePlanModels(t *testing.T) {
 	tests := []struct {
 		name        string
 		channelType int
+		action      string
 	}{
-		{name: "agent plan", channelType: constant.ChannelTypeVolcEngineAgentPlan},
-		{name: "coding plan", channelType: constant.ChannelTypeVolcEngineCodingPlan},
+		{name: "agent plan", channelType: constant.ChannelTypeVolcEngineAgentPlan, action: "ListArkAgentPlanModel"},
+		{name: "coding plan", channelType: constant.ChannelTypeVolcEngineCodingPlan, action: "ListArkCodingPlanModel"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			received := make(chan *http.Request, 1)
+			type receivedRequest struct {
+				Method string
+				Path   string
+				Query  url.Values
+				Header http.Header
+				Body   string
+			}
+			received := make(chan receivedRequest, 1)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				received <- r.Clone(r.Context())
+				body, err := io.ReadAll(r.Body)
+				assert.NoError(t, err)
+				received <- receivedRequest{
+					Method: r.Method,
+					Path:   r.URL.Path,
+					Query:  r.URL.Query(),
+					Header: r.Header.Clone(),
+					Body:   string(body),
+				}
 				w.Header().Set("Content-Type", "application/json")
-				_, err := w.Write([]byte(`{"data":[{"id":" ark-code-latest "},{"id":""},{"id":"ark-code-latest"},{"id":"doubao-seed-test"}]}`))
+				_, err = w.Write([]byte(`{"Result":{"Datas":[{"ModelID":" ark-code-latest "},{"ModelID":""},{"ModelID":"ark-code-latest"},{"ModelID":"doubao-seed-test"}]}}`))
 				assert.NoError(t, err)
 			}))
 			t.Cleanup(server.Close)
 
-			baseURL := server.URL + "/"
+			baseURL := server.URL + "/api/plan"
 			channel := &model.Channel{
 				Type:    test.channelType,
-				Key:     "plan-key",
+				Key:     "plan-key|access-key|secret-key",
 				BaseURL: &baseURL,
 			}
+			headerOverride := `{"X-Plan-Key":"{api_key}","Authorization":"Bearer overridden","X-Date":"overridden"}`
+			channel.HeaderOverride = &headerOverride
 
 			models, err := fetchChannelUpstreamModelIDs(channel)
 
 			require.NoError(t, err)
 			assert.Equal(t, []string{"ark-code-latest", "doubao-seed-test"}, models)
 			request := <-received
-			assert.Equal(t, "/v3/models", request.URL.Path)
-			assert.Equal(t, "Bearer plan-key", request.Header.Get("Authorization"))
+			assert.Equal(t, http.MethodPost, request.Method)
+			assert.Equal(t, "/", request.Path)
+			assert.Equal(t, test.action, request.Query.Get("Action"))
+			assert.Equal(t, "2024-01-01", request.Query.Get("Version"))
+			assert.Equal(t, "{}", request.Body)
+			assert.Equal(t, "application/json; charset=UTF-8", request.Header.Get("Content-Type"))
+			assert.Equal(t, "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a", request.Header.Get("X-Content-Sha256"))
+			assert.NotEmpty(t, request.Header.Get("X-Date"))
+			assert.NotEqual(t, "overridden", request.Header.Get("X-Date"))
+			assert.Equal(t, "plan-key", request.Header.Get("X-Plan-Key"))
+			assert.Contains(t, request.Header.Get("Authorization"), "HMAC-SHA256 Credential=access-key/")
+			assert.Contains(t, request.Header.Get("Authorization"), "/cn-beijing/ark_stg/request")
+			assert.Contains(t, request.Header.Get("Authorization"), "SignedHeaders=host;x-content-sha256;x-date")
+			assert.NotContains(t, request.Header.Get("Authorization"), "plan-key")
+			assert.NotContains(t, request.Header.Get("Authorization"), "secret-key")
 		})
 	}
 }
@@ -116,8 +149,9 @@ func TestFetchVolcEnginePlanModelsRejectsInvalidResponses(t *testing.T) {
 		wantError string
 	}{
 		{name: "non-OK status", status: http.StatusBadGateway, body: `{}`, wantError: "status code: 502"},
-		{name: "malformed JSON", status: http.StatusOK, body: `{"data":`, wantError: "invalid OpenAI Models response"},
-		{name: "empty data", status: http.StatusOK, body: `{"data":[]}`, wantError: "no valid model IDs"},
+		{name: "malformed JSON", status: http.StatusOK, body: `{"Result":`, wantError: "invalid VolcEngine Plan model response"},
+		{name: "missing data", status: http.StatusOK, body: `{"Result":{}}`, wantError: "Result.Datas is required"},
+		{name: "empty data", status: http.StatusOK, body: `{"Result":{"Datas":[]}}`, wantError: "no valid model IDs"},
 	}
 
 	for _, test := range tests {
@@ -132,7 +166,7 @@ func TestFetchVolcEnginePlanModelsRejectsInvalidResponses(t *testing.T) {
 			baseURL := server.URL
 			models, err := fetchChannelUpstreamModelIDs(&model.Channel{
 				Type:    constant.ChannelTypeVolcEngineAgentPlan,
-				Key:     "plan-key",
+				Key:     "plan-key|access-key|secret-key",
 				BaseURL: &baseURL,
 			})
 
@@ -142,11 +176,45 @@ func TestFetchVolcEnginePlanModelsRejectsInvalidResponses(t *testing.T) {
 	}
 }
 
+func TestFetchVolcEnginePlanModelsRequiresManagementCredential(t *testing.T) {
+	baseURL := "https://ark.cn-beijing.volces.com/api/plan"
+	models, err := fetchChannelUpstreamModelIDs(&model.Channel{
+		Type:    constant.ChannelTypeVolcEngineAgentPlan,
+		Key:     "legacy-plan-key",
+		BaseURL: &baseURL,
+	})
+
+	require.ErrorContains(t, err, "PlanAPIKey|AccessKey|SecretKey")
+	assert.Nil(t, models)
+}
+
+func TestFetchOrdinaryVolcEngineModels(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/api/v3/models", r.URL.Path)
+		assert.Equal(t, "Bearer ark-api-key", r.Header.Get("Authorization"))
+		_, err := w.Write([]byte(`{"data":[{"id":" doubao-seed-1-6 "},{"id":""},{"id":"doubao-seed-1-6"},{"id":"doubao-seed-2-0"}]}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	baseURL := server.URL + "/"
+	models, err := fetchChannelUpstreamModelIDs(&model.Channel{
+		Type:    constant.ChannelTypeVolcEngine,
+		Key:     "ark-api-key",
+		BaseURL: &baseURL,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"doubao-seed-1-6", "doubao-seed-2-0"}, models)
+}
+
 func TestFetchModelsVolcEnginePlanCreatePreview(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v3/models", r.URL.Path)
-		assert.Equal(t, "Bearer preview-plan-key", r.Header.Get("Authorization"))
-		_, err := w.Write([]byte(`{"data":[{"id":"ark-code-latest"},{"id":"doubao-seed-test"}]}`))
+		assert.Equal(t, "/", r.URL.Path)
+		assert.Equal(t, "ListArkCodingPlanModel", r.URL.Query().Get("Action"))
+		assert.True(t, strings.HasPrefix(r.Header.Get("Authorization"), "HMAC-SHA256 Credential=preview-access-key/"))
+		_, err := w.Write([]byte(`{"Result":{"Datas":[{"ModelID":"ark-code-latest"},{"ModelID":"doubao-seed-test"}]}}`))
 		assert.NoError(t, err)
 	}))
 	t.Cleanup(server.Close)
@@ -154,7 +222,7 @@ func TestFetchModelsVolcEnginePlanCreatePreview(t *testing.T) {
 	body, err := common.Marshal(fetchModelsRequest{
 		BaseURL: common.GetPointer(server.URL),
 		Type:    constant.ChannelTypeVolcEngineCodingPlan,
-		Key:     "preview-plan-key",
+		Key:     "preview-plan-key|preview-access-key|preview-secret-key",
 	})
 	require.NoError(t, err)
 
@@ -422,14 +490,14 @@ func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *te
 func TestFailedVolcEnginePlanDetectionDoesNotStageFullRemoval(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"data":[]}`))
+		_, _ = w.Write([]byte(`{"Result":{"Datas":[]}}`))
 	}))
 	defer server.Close()
 
 	baseURL := server.URL
 	channel := &model.Channel{
 		Type:    constant.ChannelTypeVolcEngineAgentPlan,
-		Key:     "secret-key",
+		Key:     "plan-key|access-key|secret-key",
 		BaseURL: &baseURL,
 	}
 	channel.Name = "empty discovery response"
@@ -458,7 +526,7 @@ func TestFailedVolcEnginePlanDetectionDoesNotStageFullRemoval(t *testing.T) {
 func TestVolcEnginePlanDetectionAutoAddsAndStagesRemovals(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, err := w.Write([]byte(`{"data":[{"id":"ark-code-latest"},{"id":"new-plan-model"}]}`))
+		_, err := w.Write([]byte(`{"Result":{"Datas":[{"ModelID":"ark-code-latest"},{"ModelID":"new-plan-model"}]}}`))
 		assert.NoError(t, err)
 	}))
 	t.Cleanup(server.Close)
@@ -467,7 +535,7 @@ func TestVolcEnginePlanDetectionAutoAddsAndStagesRemovals(t *testing.T) {
 	channel := &model.Channel{
 		Type:    constant.ChannelTypeVolcEngineCodingPlan,
 		Name:    "plan model sync",
-		Key:     "secret-key",
+		Key:     "plan-key|access-key|secret-key",
 		BaseURL: &baseURL,
 		Models:  "ark-code-latest,retired-plan-model",
 	}

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"github.com/warjiang/new-api/relay/channel/advancedcustom"
 	"github.com/warjiang/new-api/relay/channel/gemini"
 	"github.com/warjiang/new-api/relay/channel/ollama"
+	"github.com/warjiang/new-api/relay/channel/volcengine"
 	relaycommon "github.com/warjiang/new-api/relay/common"
 	relayconstant "github.com/warjiang/new-api/relay/constant"
 	"github.com/warjiang/new-api/relaykit/dto"
@@ -281,7 +283,7 @@ func parseOpenAIModelIDs(body []byte) ([]string, error) {
 	return ids, nil
 }
 
-func sanitizeFetchModelsError(err error, key string) error {
+func sanitizeFetchModelsError(err error, secrets ...string) error {
 	if err == nil {
 		return nil
 	}
@@ -295,17 +297,20 @@ func sanitizeFetchModelsError(err error, key string) error {
 	}
 
 	message := err.Error()
-	key = strings.TrimSpace(key)
-	if key != "" {
-		message = strings.ReplaceAll(message, key, "[REDACTED]")
-		message = strings.ReplaceAll(message, url.QueryEscape(key), "[REDACTED]")
-		message = strings.ReplaceAll(message, url.PathEscape(key), "[REDACTED]")
+	for _, secret := range secrets {
+		secret = strings.TrimSpace(secret)
+		if secret == "" {
+			continue
+		}
+		message = strings.ReplaceAll(message, secret, "[REDACTED]")
+		message = strings.ReplaceAll(message, url.QueryEscape(secret), "[REDACTED]")
+		message = strings.ReplaceAll(message, url.PathEscape(secret), "[REDACTED]")
 	}
 	return errors.New(message)
 }
 
-func getFetchModelsResponseBody(method string, requestURL string, channel *model.Channel, headers http.Header) ([]byte, error) {
-	request, err := http.NewRequest(method, requestURL, nil)
+func newFetchModelsRequest(method string, requestURL string, body io.Reader, headers http.Header) (*http.Request, error) {
+	request, err := http.NewRequest(method, requestURL, body)
 	if err != nil {
 		return nil, err
 	}
@@ -317,6 +322,10 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 			request.Host = headers.Get(name)
 		}
 	}
+	return request, nil
+}
+
+func getFetchModelsResponseBody(request *http.Request, channel *model.Channel) ([]byte, error) {
 	client, err := service.NewProxyHttpClient(channel.GetSetting().Proxy)
 	if err != nil {
 		return nil, err
@@ -330,6 +339,77 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 		return nil, fmt.Errorf("status code: %d", response.StatusCode)
 	}
 	return io.ReadAll(response.Body)
+}
+
+func parseVolcEnginePlanModelIDs(body []byte) ([]string, error) {
+	type modelItem struct {
+		ModelID string `json:"ModelID"`
+	}
+	var result struct {
+		Result *struct {
+			Datas *[]modelItem `json:"Datas"`
+		} `json:"Result"`
+	}
+	if err := common.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("invalid VolcEngine Plan model response: %w", err)
+	}
+	if result.Result == nil || result.Result.Datas == nil {
+		return nil, errors.New("invalid VolcEngine Plan model response: Result.Datas is required")
+	}
+	ids := make([]string, 0, len(*result.Result.Datas))
+	for _, item := range *result.Result.Datas {
+		ids = append(ids, item.ModelID)
+	}
+	ids = normalizeModelNames(ids)
+	if len(ids) == 0 {
+		return nil, errors.New("VolcEngine Plan model response contains no valid model IDs")
+	}
+	return ids, nil
+}
+
+func fetchVolcEnginePlanModelIDs(channel *model.Channel, baseURL string, key string) ([]string, error) {
+	credential, err := volcengine.ParsePlanCredential(key)
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key)
+	}
+	if !credential.HasManagementCredential() {
+		return nil, errors.New("VolcEngine Plan model discovery requires PlanAPIKey|AccessKey|SecretKey")
+	}
+
+	action := "ListArkAgentPlanModel"
+	if channel.Type == constant.ChannelTypeVolcEngineCodingPlan {
+		action = "ListArkCodingPlanModel"
+	}
+	parsedBaseURL, err := url.Parse(baseURL)
+	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" {
+		return nil, fmt.Errorf("invalid VolcEngine Plan base URL: %s", baseURL)
+	}
+	requestURL := &url.URL{
+		Scheme: parsedBaseURL.Scheme,
+		Host:   parsedBaseURL.Host,
+		Path:   "/",
+		RawQuery: url.Values{
+			"Action":  []string{action},
+			"Version": []string{"2024-01-01"},
+		}.Encode(),
+	}
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/json; charset=UTF-8")
+	if err := applyFetchModelsHeaderOverrides(channel, credential.APIKey, headers); err != nil {
+		return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+	}
+	request, err := newFetchModelsRequest(http.MethodPost, requestURL.String(), bytes.NewReader([]byte("{}")), headers)
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+	}
+	if err := volcengine.SignRequest(request, credential.AccessKey, credential.SecretKey, "cn-beijing", "ark_stg"); err != nil {
+		return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+	}
+	body, err := getFetchModelsResponseBody(request, channel)
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+	}
+	return parseVolcEnginePlanModelIDs(body)
 }
 
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
@@ -370,6 +450,16 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return service.FetchCodexChannelModels(channel)
 	}
 
+	key, _, apiErr := channel.GetNextEnabledKey()
+	if apiErr != nil {
+		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+	}
+	key = strings.TrimSpace(key)
+	if channel.Type == constant.ChannelTypeVolcEngineAgentPlan ||
+		channel.Type == constant.ChannelTypeVolcEngineCodingPlan {
+		return fetchVolcEnginePlanModelIDs(channel, baseURL, key)
+	}
+
 	var url string
 	switch channel.Type {
 	case constant.ChannelTypeAli:
@@ -382,15 +472,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		}
 	case constant.ChannelTypeVolcEngine:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/v1/models", plan.OpenAIBaseURL)
-		} else {
-			url = fmt.Sprintf("%s/v1/models", baseURL)
-		}
-	case constant.ChannelTypeVolcEngineAgentPlan, constant.ChannelTypeVolcEngineCodingPlan:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
 			url = fmt.Sprintf("%s/models", strings.TrimRight(plan.OpenAIBaseURL, "/"))
 		} else {
-			url = fmt.Sprintf("%s/v3/models", strings.TrimRight(baseURL, "/"))
+			url = fmt.Sprintf("%s/api/v3/models", strings.TrimRight(baseURL, "/"))
 		}
 	case constant.ChannelTypeMoonshot:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
@@ -402,23 +486,20 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
 
-	key, _, apiErr := channel.GetNextEnabledKey()
-	if apiErr != nil {
-		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
-	}
-	key = strings.TrimSpace(key)
-
 	headers, err := buildFetchModelsHeaders(channel, key)
 	if err != nil {
 		return nil, sanitizeFetchModelsError(err, key)
 	}
 
-	body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
+	request, err := newFetchModelsRequest(http.MethodGet, url, nil, headers)
 	if err != nil {
 		return nil, sanitizeFetchModelsError(err, key)
 	}
-	if channel.Type == constant.ChannelTypeVolcEngineAgentPlan ||
-		channel.Type == constant.ChannelTypeVolcEngineCodingPlan {
+	body, err := getFetchModelsResponseBody(request, channel)
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key)
+	}
+	if channel.Type == constant.ChannelTypeVolcEngine {
 		return parseOpenAIModelIDs(body)
 	}
 
@@ -463,7 +544,11 @@ func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string)
 		return nil, sanitizeFetchModelsError(err, key)
 	}
 
-	body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
+	request, err := newFetchModelsRequest(http.MethodGet, url, nil, headers)
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key)
+	}
+	body, err := getFetchModelsResponseBody(request, channel)
 	if err != nil {
 		return nil, sanitizeFetchModelsError(err, key)
 	}
