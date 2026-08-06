@@ -11,7 +11,7 @@ import {
   filterPricingModels,
   getTopEndpoints,
   getTopVendors,
-  sortPricingModelsBySeries,
+  sortPricingModelsNewestFirst,
   type PricingModel,
   type PricingSearch,
   type PricingVendor,
@@ -40,7 +40,7 @@ export function PricingExplorer(props: PricingExplorerProps) {
 
   const filteredModels = useMemo(
     () =>
-      sortPricingModelsBySeries(
+      sortPricingModelsNewestFirst(
         filterPricingModels(props.models, {
           q: query,
           vendor,
