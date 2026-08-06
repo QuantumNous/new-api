@@ -39,3 +39,8 @@ test('Sonilo channel is selectable with video-to-music defaults', () => {
   expect(MODEL_FETCHABLE_TYPES.has(109)).toBe(false)
   expect(getDefaultBaseUrl(109)).toBe('https://api.sonilo.com')
 })
+
+test('MiniMax H3 channel has a visible channel type label', () => {
+  expect(CHANNEL_TYPES[110]).toBe('MiniMax H3')
+  expect(CHANNEL_TYPE_OPTIONS.some((option) => option.value === 110)).toBe(true)
+})
