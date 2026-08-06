@@ -82,23 +82,10 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
 				return
 			}
-			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
-			if modelLimitEnable {
-				s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
-				if !ok {
-					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenNoModelAccess))
-					return
-				}
-				var tokenModelLimit map[string]bool
-				tokenModelLimit, ok = s.(map[string]bool)
-				if !ok {
-					tokenModelLimit = map[string]bool{}
-				}
-				if !service.TokenAllowsModel(tokenModelLimit, modelRequest.Model) {
-					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
-					return
-				}
-			}
+		}
+		enforceModelLimits := !shouldSelectChannel || !ok || hasAssetRefs
+		if modelRequest.Model != "" && !enforceTokenModelAccess(c, modelRequest.Model, enforceModelLimits) {
+			return
 		}
 		assetResolution, assetErr := resolveAssetReferenceSet(c, shouldSelectChannel)
 		legacyAssetResolution, legacyAssetErr := resolveLegacyBytePlusAssetResolution(c, shouldSelectChannel)
@@ -324,6 +311,35 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func enforceTokenModelAccess(c *gin.Context, requestedModel string, enforceModelLimits bool) bool {
+	if common.GetContextKeyBool(c, constant.ContextKeyTokenModelBlacklistEnabled) {
+		if blacklistValue, exists := common.GetContextKey(c, constant.ContextKeyTokenModelBlacklist); exists {
+			if blacklist, valid := blacklistValue.(map[string]bool); valid && service.TokenBlocksModel(blacklist, requestedModel) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": requestedModel}))
+				return false
+			}
+		}
+	}
+	if !enforceModelLimits || !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
+		return true
+	}
+
+	limitsValue, exists := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
+	if !exists {
+		abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenNoModelAccess))
+		return false
+	}
+	tokenModelLimit, valid := limitsValue.(map[string]bool)
+	if !valid {
+		tokenModelLimit = map[string]bool{}
+	}
+	if !service.TokenAllowsModel(tokenModelLimit, requestedModel) {
+		abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": requestedModel}))
+		return false
+	}
+	return true
 }
 
 func abortBytePlusAssetSpecificChannelConflict(c *gin.Context, channelId any, hasSpecificChannel bool, pinnedChannelID int) bool {
@@ -826,7 +842,8 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 // modelRequest.Model 为空而误报 "This token has no access to model"。
 // 从已存储的任务记录中回填 OriginModelName 即可让校验走在正确的模型上。
 func getTaskOriginModelName(c *gin.Context) string {
-	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
+	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) &&
+		!common.GetContextKeyBool(c, constant.ContextKeyTokenModelBlacklistEnabled) {
 		return ""
 	}
 

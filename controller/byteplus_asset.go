@@ -96,6 +96,13 @@ func bytePlusAssetSpecificChannelID(c *gin.Context) (int, bool) {
 }
 
 func bytePlusAssetTokenAllowsModel(c *gin.Context) bool {
+	if common.GetContextKeyBool(c, constant.ContextKeyTokenModelBlacklistEnabled) {
+		if value, ok := common.GetContextKey(c, constant.ContextKeyTokenModelBlacklist); ok {
+			if blacklist, valid := value.(map[string]bool); valid && service.TokenBlocksModel(blacklist, bytePlusAssetModel) {
+				return false
+			}
+		}
+	}
 	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
 		return true
 	}

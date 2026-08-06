@@ -43,6 +43,8 @@ function buildApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
     cross_group_retry: false,
     model_limits_enabled: false,
     model_limits: '',
+    model_blacklist_enabled: false,
+    model_blacklist: '',
     allow_ips: '',
     ...overrides,
   }
@@ -194,5 +196,31 @@ describe('API key form model allowlist round-trip', () => {
 
     expect(payload.model_limits_enabled).toBe(true)
     expect(payload.model_limits).toBe('')
+  })
+})
+
+describe('API key form model blacklist round-trip', () => {
+  test('preserves an enabled blacklist', () => {
+    const payload = roundTripApiKey(
+      buildApiKey({
+        model_blacklist_enabled: true,
+        model_blacklist: 'gpt-5.5,claude-sonnet-4-6',
+      })
+    )
+
+    expect(payload.model_blacklist_enabled).toBe(true)
+    expect(payload.model_blacklist).toBe('gpt-5.5,claude-sonnet-4-6')
+  })
+
+  test('preserves a disabled blacklist with retained entries', () => {
+    const payload = roundTripApiKey(
+      buildApiKey({
+        model_blacklist_enabled: false,
+        model_blacklist: 'gpt-5.5',
+      })
+    )
+
+    expect(payload.model_blacklist_enabled).toBe(false)
+    expect(payload.model_blacklist).toBe('gpt-5.5')
   })
 })

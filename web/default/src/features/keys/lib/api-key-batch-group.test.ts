@@ -20,6 +20,7 @@ import { describe, expect, test } from 'bun:test'
 import type { UserModelAccess } from '@/features/available-models'
 import {
   buildBatchEditApiKeysPayload,
+  canSubmitBatchModelAccessEdits,
   canBatchEditApiKeyGroup,
   coordinateBatchEditApiKeys,
   getBatchGroupOptions,
@@ -118,6 +119,16 @@ describe('batch API key edits', () => {
       model_limits_enabled: false,
       model_limits: '',
     })
+    expect(
+      buildBatchEditApiKeysPayload([3, 9], {
+        model_blacklist_enabled: true,
+        model_blacklist: 'gpt-4o,gpt-4.1',
+      })
+    ).toEqual({
+      ids: [3, 9],
+      model_blacklist_enabled: true,
+      model_blacklist: 'gpt-4o,gpt-4.1',
+    })
   })
 
   test('rejects invalid IDs, empty edits, and invalid finite quotas', () => {
@@ -144,6 +155,12 @@ describe('batch API key edits', () => {
     expect(() =>
       buildBatchEditApiKeysPayload([1], { model_limits: 'gpt-4o' })
     ).toThrow()
+    expect(() =>
+      buildBatchEditApiKeysPayload([1], { model_blacklist_enabled: true })
+    ).toThrow()
+    expect(() =>
+      buildBatchEditApiKeysPayload([1], { model_blacklist: 'gpt-4o' })
+    ).toThrow()
   })
 
   test('allows group editing only for usable selectable groups', () => {
@@ -164,6 +181,14 @@ describe('batch API key edits', () => {
     expect(isBatchEditApiKeysAvailable(true)).toBe(true)
     expect(isBatchEditApiKeysAvailable(false)).toBe(false)
     expect(canBatchEditApiKeyGroup(false, buildModelAccess())).toBe(false)
+  })
+
+  test('requires loaded model access only when model rules are selected', () => {
+    expect(canSubmitBatchModelAccessEdits(false, false, false)).toBe(true)
+    expect(canSubmitBatchModelAccessEdits(true, true, false)).toBe(true)
+    expect(canSubmitBatchModelAccessEdits(true, false, true)).toBe(true)
+    expect(canSubmitBatchModelAccessEdits(false, true, false)).toBe(false)
+    expect(canSubmitBatchModelAccessEdits(false, false, true)).toBe(false)
   })
 
   test('requires whole-number quota input in token display mode', () => {

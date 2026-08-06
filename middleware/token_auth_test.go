@@ -82,3 +82,21 @@ func TestResolvedTokenGroupOverwritesUserGroupContext(t *testing.T) {
 
 	require.Equal(t, plgGroup, common.GetContextKeyString(c, constant.ContextKeyUserGroup))
 }
+
+func TestSetupContextForTokenWritesModelBlacklist(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	token := &model.Token{
+		UserId:                12,
+		Id:                    34,
+		Key:                   "test-key",
+		ModelBlacklistEnabled: true,
+		ModelBlacklist:        "gpt-4o,gpt-4.1",
+	}
+
+	require.NoError(t, SetupContextForToken(c, token))
+	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyTokenModelBlacklistEnabled))
+	blacklist, ok := common.GetContextKey(c, constant.ContextKeyTokenModelBlacklist)
+	require.True(t, ok)
+	require.Equal(t, map[string]bool{"gpt-4o": true, "gpt-4.1": true}, blacklist)
+}
