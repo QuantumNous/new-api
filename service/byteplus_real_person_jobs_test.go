@@ -847,16 +847,19 @@ func newBytePlusRealPersonJobsFixtureWithoutRows(t *testing.T) *bytePlusRealPers
 	oldFactory := bytePlusAssetClientFactory
 	oldCipher := bytePlusRealPersonCipherFactory
 	oldStoreFactory := bytePlusTempObjectStoreFactory
+	oldTOSStoreFactory := bytePlusTOSObjectStoreFactory
 	bytePlusAssetNow = func() int64 { return 2000 }
 	bytePlusAssetClientFactory = func(*model.Channel) (bytePlusAssetAPI, error) { return fake, nil }
 	bytePlusRealPersonCipherFactory = func() (BytePlusSensitiveCipher, error) { return plainBytePlusRealPersonCipher{}, nil }
 	bytePlusTempObjectStoreFactory = func(BytePlusCredentials) (BytePlusTempObjectStore, error) { return fake, nil }
+	bytePlusTOSObjectStoreFactory = func(BytePlusCredentials) (BytePlusTempObjectStore, error) { return fake, nil }
 	t.Setenv("BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL", "https://api.flatkey.example")
 	t.Cleanup(func() {
 		bytePlusAssetNow = oldNow
 		bytePlusAssetClientFactory = oldFactory
 		bytePlusRealPersonCipherFactory = oldCipher
 		bytePlusTempObjectStoreFactory = oldStoreFactory
+		bytePlusTOSObjectStoreFactory = oldTOSStoreFactory
 	})
 	insertBytePlusRealPersonChannel(t, 101, "default", common.ChannelStatusEnabled, structuredRealPersonKey())
 	return &bytePlusRealPersonJobsFixture{fake: fake}

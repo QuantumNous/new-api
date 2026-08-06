@@ -144,9 +144,11 @@ func (s *recordingRealPersonAssetStore) TempObjectStorageProvider() string {
 
 func newRealPersonAssetFixture(t *testing.T) *realPersonAssetFixture {
 	t.Helper()
+	t.Setenv("BYTEPLUS_TEMP_STORAGE_BACKEND", "gcs")
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
 	newBytePlusRealPersonServiceTestDB(t)
 	fake := &fakeRealPersonAssetClient{}
-	store := &recordingRealPersonAssetStore{}
+	store := &recordingRealPersonAssetStore{bucket: "gcs-real-person-bucket", provider: bytePlusTempObjectProviderGCS}
 	oldNow := bytePlusAssetNow
 	oldUploadNow := bytePlusAssetUploadNow
 	oldID := bytePlusAssetPublicID
@@ -281,7 +283,7 @@ func TestCreateRealPersonAssetFromMultipartURLOnlyCredentialFailsBeforeUploadWhe
 	require.Equal(t, 0, f.fake.createAssetCalls)
 }
 
-func TestCreateRealPersonAssetFromMultipartFallsBackToGCSWhenTOSIncomplete(t *testing.T) {
+func TestCreateRealPersonAssetFromMultipartUsesGCSWhenTOSIncomplete(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	f.store.bucket = "gcs-real-person-bucket"
 	f.store.provider = bytePlusTempObjectProviderGCS
@@ -300,21 +302,19 @@ func TestCreateRealPersonAssetFromMultipartFallsBackToGCSWhenTOSIncomplete(t *te
 	require.Equal(t, []string{temp.ObjectKey}, f.store.presignKeys)
 }
 
-func TestCreateRealPersonAssetFromMultipartRejectsMalformedTOSConfigEvenWhenGCSConfigured(t *testing.T) {
+func TestCreateRealPersonAssetFromMultipartIgnoresMalformedTOSConfigWhenGCSSelected(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
-	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", `{"api_key":"sentinel-structured-api-key","access_key_id":"sentinel-access-key-id","secret_access_key":"sentinel-secret-key","project_name":"test-project","real_person_assets":{"enabled":true,"tos_bucket":"real-person-bucket","tos_region":"us-east-1","tos_internal_endpoint":"https://tos-ap-southeast-1.ibytepluses.com"}}`).Error)
-	req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", &failingReadCloser{t: t})
-	req.Header.Set("Content-Type", "multipart/form-data; boundary=unread")
 
-	_, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), f.profile.UserId, f.profile.PublicId, "malformed-tos", req)
+	resp, apiErr := f.createMultipart("malformed-tos", pngHeader(), "Image", "front")
 
-	assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
-	require.Equal(t, 0, f.fake.createAssetCalls)
-	require.Empty(t, f.store.puts)
+	require.Nil(t, apiErr)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, resp.Status)
+	require.Equal(t, 1, f.fake.createAssetCalls)
+	require.Len(t, f.store.puts, 1)
 }
 
-func TestCreateRealPersonAssetFromMultipartRejectsPartialTOSConfigBeforeBodyRead(t *testing.T) {
+func TestCreateRealPersonAssetFromMultipartIgnoresPartialTOSConfigWhenGCSSelected(t *testing.T) {
 	cases := []struct {
 		name string
 		key  string
@@ -335,19 +335,14 @@ func TestCreateRealPersonAssetFromMultipartRejectsPartialTOSConfigBeforeBodyRead
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newRealPersonAssetFixture(t)
-			t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
 			require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", f.profile.ChannelId).Update("key", tc.key).Error)
-			req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", &failingReadCloser{t: t})
-			req.Header.Set("Content-Type", "multipart/form-data; boundary=unread")
 
-			_, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), f.profile.UserId, f.profile.PublicId, "partial-tos-"+tc.name, req)
+			resp, apiErr := f.createMultipart("partial-tos-"+tc.name, pngHeader(), "Image", "front")
 
-			assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
-			require.Equal(t, 0, f.fake.createAssetCalls)
-			require.Empty(t, f.store.puts)
-			var records int64
-			require.NoError(t, model.DB.Model(&model.APIIdempotencyRecord{}).Count(&records).Error)
-			require.Zero(t, records)
+			require.Nil(t, apiErr)
+			require.Equal(t, model.BytePlusAssetStatusProcessing, resp.Status)
+			require.Equal(t, 1, f.fake.createAssetCalls)
+			require.Len(t, f.store.puts, 1)
 		})
 	}
 }
@@ -430,25 +425,60 @@ func TestCreateRealPersonAssetFromMultipartDisabledRealPersonAssetsFailsBeforeBo
 	require.Zero(t, temps)
 }
 
-func TestCreateRealPersonAssetFromMultipartPrefersTOSWhenBothBackendsConfigured(t *testing.T) {
+func TestCreateRealPersonAssetFromMultipartUsesGCSWhenBothBackendsConfigured(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
-	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
 	oldTOSFactory := bytePlusTOSObjectStoreFactory
 	oldPut := putTempMediaObject
+	oldSign := signTempMediaObject
 	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
 	bytePlusTOSObjectStoreFactory = func(BytePlusCredentials) (BytePlusTempObjectStore, error) {
-		return f.store, nil
+		t.Fatal("tos factory should not run while gcs is selected")
+		return nil, nil
 	}
-	putTempMediaObject = func(context.Context, TempMediaConfig, string, io.Reader, string) error {
-		t.Fatal("gcs put should not run when tos storage is complete")
+	var uploadedKey string
+	putTempMediaObject = func(_ context.Context, cfg TempMediaConfig, key string, body io.Reader, contentType string) error {
+		require.Equal(t, "gcs-real-person-bucket", cfg.Bucket)
+		require.Equal(t, "image/png", contentType)
+		_, err := io.Copy(io.Discard, body)
+		require.NoError(t, err)
+		uploadedKey = key
 		return nil
+	}
+	signTempMediaObject = func(_ context.Context, cfg TempMediaConfig, key, method string) (string, error) {
+		require.Equal(t, "gcs-real-person-bucket", cfg.Bucket)
+		require.Equal(t, uploadedKey, key)
+		require.Equal(t, http.MethodGet, method)
+		return "https://signed.example/" + key, nil
 	}
 	t.Cleanup(func() {
 		bytePlusTOSObjectStoreFactory = oldTOSFactory
 		putTempMediaObject = oldPut
+		signTempMediaObject = oldSign
 	})
 
-	resp, apiErr := f.createMultipart("tos-preferred-upload", pngHeader(), "Image", "front")
+	resp, apiErr := f.createMultipart("gcs-default-upload", pngHeader(), "Image", "front")
+
+	require.Nil(t, apiErr)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, resp.Status)
+	require.NotEmpty(t, uploadedKey)
+	var temp model.BytePlusAssetTempObject
+	require.NoError(t, model.DB.First(&temp, "object_key = ?", uploadedKey).Error)
+	require.Equal(t, "gcs:gcs-real-person-bucket", temp.Bucket)
+}
+
+func TestCreateRealPersonAssetFromMultipartUsesTOSWhenExplicitlySelected(t *testing.T) {
+	f := newRealPersonAssetFixture(t)
+	t.Setenv("BYTEPLUS_TEMP_STORAGE_BACKEND", "tos")
+	f.store.bucket = "real-person-bucket"
+	f.store.provider = bytePlusTempObjectProviderTOS
+	oldTOSFactory := bytePlusTOSObjectStoreFactory
+	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
+	bytePlusTOSObjectStoreFactory = func(BytePlusCredentials) (BytePlusTempObjectStore, error) {
+		return f.store, nil
+	}
+	t.Cleanup(func() { bytePlusTOSObjectStoreFactory = oldTOSFactory })
+
+	resp, apiErr := f.createMultipart("tos-explicit-upload", pngHeader(), "Image", "front")
 
 	require.Nil(t, apiErr)
 	require.Equal(t, model.BytePlusAssetStatusProcessing, resp.Status)
@@ -456,7 +486,6 @@ func TestCreateRealPersonAssetFromMultipartPrefersTOSWhenBothBackendsConfigured(
 	var temp model.BytePlusAssetTempObject
 	require.NoError(t, model.DB.First(&temp, "object_key = ?", f.store.puts[0].key).Error)
 	require.Equal(t, "tos:real-person-bucket", temp.Bucket)
-	require.NotEqual(t, "gcs-real-person-bucket", temp.Bucket)
 }
 
 func TestBytePlusGCSTempObjectStoreRequiresExplicitTempMediaBucket(t *testing.T) {
@@ -769,7 +798,7 @@ func TestStaleMultipartProcessingUsesOriginalTempObjectAndCleansNewUpload(t *tes
 	}
 	require.NoError(t, model.DB.Create(&asset).Error)
 	originalTemp := model.BytePlusAssetTempObject{
-		AssetId: &asset.Id, UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, Bucket: "real-person-bucket", ObjectKey: "original-key",
+		AssetId: &asset.Id, UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, Bucket: "gcs:gcs-real-person-bucket", ObjectKey: "original-key",
 		ContentSHA256: fmt.Sprintf("%x", sum), SizeBytes: int64(len(pngHeader())), MimeType: "image/png",
 		CleanupStatus: model.BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 2200, CreatedTime: 1000, UpdatedTime: 1000,
 	}
@@ -811,7 +840,7 @@ func TestStaleMultipartResumeExtendsOriginalTempObjectExpiryBeforeUpstream(t *te
 	}
 	require.NoError(t, model.DB.Create(&asset).Error)
 	originalTemp := model.BytePlusAssetTempObject{
-		AssetId: &asset.Id, UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, Bucket: "real-person-bucket", ObjectKey: "original-expiring-key",
+		AssetId: &asset.Id, UserId: f.profile.UserId, ChannelId: f.profile.ChannelId, Bucket: "gcs:gcs-real-person-bucket", ObjectKey: "original-expiring-key",
 		ContentSHA256: fmt.Sprintf("%x", sum), SizeBytes: int64(len(pngHeader())), MimeType: "image/png",
 		CleanupStatus: model.BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 2200, NextCleanupAt: 2200, CreatedTime: 1000, UpdatedTime: 1000,
 	}
@@ -989,7 +1018,7 @@ func TestStaleMultipartResumeKeepsPersistedGCSProviderWhenTOSBucketNameMatches(t
 	require.Equal(t, 1, f.fake.createAssetCalls)
 }
 
-func TestStaleMultipartResumeRejectsInvalidTOSBucketEvenWhenCurrentGCSBucketNameMatches(t *testing.T) {
+func TestStaleMultipartResumeRejectsLegacyTOSObjectWhenTOSConfigInvalidEvenIfCurrentGCSBucketMatches(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	t.Setenv("TEMP_MEDIA_BUCKET", "shared-bucket")
 	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
@@ -1037,7 +1066,7 @@ func TestStaleMultipartResumeRejectsInvalidTOSBucketEvenWhenCurrentGCSBucketName
 
 	_, apiErr := f.createMultipart("resume-tos-gcs-name-collision", pngHeader(), "Image", "front")
 
-	assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	assertAssetError(t, apiErr, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	require.NotContains(t, signedKeys, "old-tos-object")
 	require.Equal(t, 0, f.fake.createAssetCalls)
 }

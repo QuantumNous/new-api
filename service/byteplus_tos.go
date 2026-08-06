@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -37,13 +38,30 @@ func newPreferredBytePlusTempObjectStore(creds BytePlusCredentials) (BytePlusTem
 	if err := creds.ValidateRealPersonAssets(); err != nil {
 		return nil, err
 	}
-	if creds.ValidateRealPersonAssetStorage() == nil {
+	backend, err := bytePlusTempStorageBackend()
+	if err != nil {
+		return nil, err
+	}
+	switch backend {
+	case bytePlusTempObjectProviderGCS:
+		return newBytePlusGCSTempObjectStore()
+	case bytePlusTempObjectProviderTOS:
 		return bytePlusTOSObjectStoreFactory(creds)
+	default:
+		return nil, errors.New("byteplus temp storage backend is invalid")
 	}
-	if !bytePlusRealPersonTOSFallbackAllowed(creds) {
-		return nil, errors.New("byteplus real-person tos storage configuration is invalid")
+}
+
+func bytePlusTempStorageBackend() (string, error) {
+	backend := strings.ToLower(strings.TrimSpace(os.Getenv("BYTEPLUS_TEMP_STORAGE_BACKEND")))
+	switch backend {
+	case "", bytePlusTempObjectProviderGCS:
+		return bytePlusTempObjectProviderGCS, nil
+	case bytePlusTempObjectProviderTOS:
+		return bytePlusTempObjectProviderTOS, nil
+	default:
+		return "", errors.New("byteplus temp storage backend is invalid")
 	}
-	return newBytePlusGCSTempObjectStore()
 }
 
 func newBytePlusTOSStore(creds BytePlusCredentials) (BytePlusTempObjectStore, error) {

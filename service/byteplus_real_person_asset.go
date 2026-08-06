@@ -393,17 +393,21 @@ func cleanupRealPersonAssetUpload(ctx context.Context, source realPersonAssetSou
 }
 
 func bytePlusRealPersonMultipartStorageAvailable(creds BytePlusCredentials) bool {
-	if creds.ValidateRealPersonAssetStorage() == nil {
-		return true
+	if creds.ValidateRealPersonAssets() != nil {
+		return false
 	}
-	return creds.ValidateRealPersonAssets() == nil && bytePlusRealPersonTOSFallbackAllowed(creds) && bytePlusGCSTempObjectStoreConfigured()
-}
-
-func bytePlusRealPersonTOSFallbackAllowed(creds BytePlusCredentials) bool {
-	bucket := strings.TrimSpace(creds.RealPersonAssets.TOSBucket)
-	region := strings.TrimSpace(creds.RealPersonAssets.TOSRegion)
-	endpoint := strings.TrimSpace(creds.RealPersonAssets.TOSInternalEndpoint)
-	return bucket == "" && region == "" && endpoint == ""
+	backend, err := bytePlusTempStorageBackend()
+	if err != nil {
+		return false
+	}
+	switch backend {
+	case bytePlusTempObjectProviderGCS:
+		return bytePlusGCSTempObjectStoreConfigured()
+	case bytePlusTempObjectProviderTOS:
+		return creds.ValidateRealPersonAssetStorage() == nil
+	default:
+		return false
+	}
 }
 
 func bytePlusTempObjectStoreForPersistedBucket(creds BytePlusCredentials, current BytePlusTempObjectStore, persistedBucket string) (BytePlusTempObjectStore, error) {
@@ -422,7 +426,7 @@ func bytePlusTempObjectStoreForPersistedBucket(creds BytePlusCredentials, curren
 			if creds.ValidateRealPersonAssetStorage() != nil {
 				return nil, errors.New("persisted tos temp object storage is unavailable")
 			}
-			return bytePlusTempObjectStoreFactory(creds)
+			return bytePlusTOSObjectStoreFactory(creds)
 		}
 		if provider == "" {
 			return nil, errors.New("legacy temp object bucket is unknown")

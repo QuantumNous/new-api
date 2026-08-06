@@ -67,10 +67,81 @@ func TestBytePlusTOSPresignAndDeleteUseCallerTTLAndV2Delete(t *testing.T) {
 	require.Equal(t, "key", api.deleteInput.Key)
 }
 
-func TestBytePlusTOSStoreFactoryDefaultsToSDKStore(t *testing.T) {
+func TestBytePlusTempObjectStoreFactoryDefaultsToGCSEvenWhenTOSIsConfigured(t *testing.T) {
+	t.Setenv("BYTEPLUS_TEMP_STORAGE_BACKEND", "")
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+
 	store, err := bytePlusTempObjectStoreFactory(testBytePlusRealPersonCreds("https://tos-ap-southeast-1.ibytepluses.com"))
 	require.NoError(t, err)
-	require.NotNil(t, store)
+	require.Equal(t, bytePlusTempObjectProviderGCS, store.(bytePlusTempObjectStorageProvider).TempObjectStorageProvider())
+	require.Equal(t, "gcs-real-person-bucket", store.(bytePlusTempObjectBucketProvider).TempObjectBucket())
+}
+
+func TestBytePlusTempObjectStoreFactoryIgnoresPartialTOSWhenGCSIsSelected(t *testing.T) {
+	t.Setenv("BYTEPLUS_TEMP_STORAGE_BACKEND", "gcs")
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+	creds := mustParseBytePlusCredentials(t, `{"api_key":"video-api-test","access_key_id":"provider-access-test","secret_access_key":"provider-secret-test","project_name":"test-project","real_person_assets":{"enabled":true,"tos_bucket":"partial-bucket"}}`)
+
+	store, err := bytePlusTempObjectStoreFactory(creds)
+
+	require.NoError(t, err)
+	require.Equal(t, bytePlusTempObjectProviderGCS, store.(bytePlusTempObjectStorageProvider).TempObjectStorageProvider())
+}
+
+func TestBytePlusTempObjectStoreFactoryRequiresCompleteTOSWhenExplicitlySelected(t *testing.T) {
+	t.Setenv("BYTEPLUS_TEMP_STORAGE_BACKEND", "tos")
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+	creds := mustParseBytePlusCredentials(t, urlOnlyRealPersonKey())
+
+	_, err := bytePlusTempObjectStoreFactory(creds)
+
+	require.EqualError(t, err, "byteplus real-person tos_bucket is required")
+}
+
+func TestBytePlusTempObjectStoreFactoryUsesTOSWhenExplicitlySelected(t *testing.T) {
+	t.Setenv("BYTEPLUS_TEMP_STORAGE_BACKEND", "tos")
+	oldFactory := bytePlusTOSObjectStoreFactory
+	t.Cleanup(func() { bytePlusTOSObjectStoreFactory = oldFactory })
+	want := &bytePlusTOSStore{bucket: "real-person-bucket", client: &fakeBytePlusTOSAPI{}}
+	bytePlusTOSObjectStoreFactory = func(BytePlusCredentials) (BytePlusTempObjectStore, error) {
+		return want, nil
+	}
+
+	store, err := bytePlusTempObjectStoreFactory(testBytePlusRealPersonCreds("https://tos-ap-southeast-1.ibytepluses.com"))
+
+	require.NoError(t, err)
+	require.Same(t, want, store)
+}
+
+func TestBytePlusTempObjectStoreFactoryRejectsUnknownBackend(t *testing.T) {
+	t.Setenv("BYTEPLUS_TEMP_STORAGE_BACKEND", "automatic")
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+
+	_, err := bytePlusTempObjectStoreFactory(mustParseBytePlusCredentials(t, urlOnlyRealPersonKey()))
+
+	require.EqualError(t, err, "byteplus temp storage backend is invalid")
+}
+
+func TestPersistedTOSObjectUsesTOSFactoryWhileNewUploadsDefaultToGCS(t *testing.T) {
+	t.Setenv("BYTEPLUS_TEMP_STORAGE_BACKEND", "gcs")
+	t.Setenv("TEMP_MEDIA_BUCKET", "gcs-real-person-bucket")
+	oldFactory := bytePlusTOSObjectStoreFactory
+	t.Cleanup(func() { bytePlusTOSObjectStoreFactory = oldFactory })
+	want := &bytePlusTOSStore{bucket: "real-person-bucket", client: &fakeBytePlusTOSAPI{}}
+	bytePlusTOSObjectStoreFactory = func(BytePlusCredentials) (BytePlusTempObjectStore, error) {
+		return want, nil
+	}
+	current, err := newBytePlusGCSTempObjectStore()
+	require.NoError(t, err)
+
+	store, err := bytePlusTempObjectStoreForPersistedBucket(
+		testBytePlusRealPersonCreds("https://tos-ap-southeast-1.ibytepluses.com"),
+		current,
+		"tos:real-person-bucket",
+	)
+
+	require.NoError(t, err)
+	require.Same(t, want, store)
 }
 
 func TestBytePlusTOSNewStoreRejectsURLOnlyCredentialsBeforeSDKClient(t *testing.T) {
