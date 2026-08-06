@@ -370,6 +370,9 @@ func migrateDB() error {
 	if err := migrateRecallCampaignTypes(); err != nil {
 		return err
 	}
+	if err := migrateRecallCampaignLifecycleDefaults(); err != nil {
+		return err
+	}
 	if err := SeedRecallContinuousTriggerSlotsWithContext(context.Background()); err != nil {
 		return err
 	}
@@ -493,6 +496,9 @@ func migrateDBFast() error {
 		return err
 	}
 	if err := migrateRecallCampaignTypes(); err != nil {
+		return err
+	}
+	if err := migrateRecallCampaignLifecycleDefaults(); err != nil {
 		return err
 	}
 	if err := SeedRecallContinuousTriggerSlotsWithContext(context.Background()); err != nil {
@@ -803,6 +809,20 @@ func migrateRecallCampaignTypes() error {
 	return DB.Model(&RecallCampaign{}).
 		Where("campaign_type IS NULL OR TRIM(campaign_type) = ''").
 		Update("campaign_type", RecallCampaignTypePromotion).Error
+}
+
+func migrateRecallCampaignLifecycleDefaults() error {
+	if DB == nil || !DB.Migrator().HasTable(&RecallCampaign{}) {
+		return nil
+	}
+	if !DB.Migrator().HasColumn(&RecallCampaign{}, "delivery_policy") {
+		if err := DB.Migrator().AddColumn(&RecallCampaign{}, "DeliveryPolicy"); err != nil {
+			return fmt.Errorf("failed to add recall campaign delivery policy column: %w", err)
+		}
+	}
+	return DB.Model(&RecallCampaign{}).
+		Where("delivery_policy IS NULL OR TRIM(delivery_policy) = ''").
+		Update("delivery_policy", RecallDeliveryPolicyEngagement).Error
 }
 
 func recallRecipientIdentitySchemaSwapPending() bool {

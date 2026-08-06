@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -33,9 +32,12 @@ const (
 )
 
 type RecallLifecycleEvent struct {
-	Id                    int64  `json:"id" gorm:"primaryKey"`
+	Id                    int64  `json:"id" gorm:"primaryKey;index:idx_recall_lifecycle_due,priority:5"`
 	EventType             string `json:"event_type" gorm:"type:varchar(64);not null;uniqueIndex:idx_recall_lifecycle_occurrence,priority:1;index:idx_recall_lifecycle_due,priority:1"`
 	OccurrenceKeyHash     string `json:"occurrence_key_hash" gorm:"type:char(64);not null;uniqueIndex:idx_recall_lifecycle_occurrence,priority:2"`
+	ScopeType             string `json:"scope_type" gorm:"type:varchar(32);index"`
+	ScopeId               string `json:"scope_id" gorm:"type:varchar(128);index"`
+	BusinessKey           string `json:"business_key" gorm:"type:varchar(160);index"`
 	RecipientIdentity     string `json:"recipient_identity" gorm:"type:varchar(80);index"`
 	UserId                int    `json:"user_id" gorm:"index"`
 	CampaignId            int64  `json:"campaign_id" gorm:"index"`
@@ -43,19 +45,23 @@ type RecallLifecycleEvent struct {
 	EventData             string `json:"event_data" gorm:"type:text;not null"`
 	Disposition           string `json:"disposition" gorm:"type:varchar(24);not null;default:pending;index;index:idx_recall_lifecycle_due,priority:2"`
 	DispositionReasonCode string `json:"disposition_reason_code" gorm:"type:varchar(64)"`
-	LeaseOwner            string `json:"-" gorm:"type:varchar(96);index;index:idx_recall_lifecycle_due,priority:3"`
-	LeaseExpiresAt        int64  `json:"-" gorm:"index;index:idx_recall_lifecycle_due,priority:4"`
+	OccurredAt            int64  `json:"occurred_at" gorm:"index;index:idx_recall_lifecycle_due,priority:4"`
+	AvailableAt           int64  `json:"available_at" gorm:"index;index:idx_recall_lifecycle_due,priority:3"`
+	SchemaVersion         int    `json:"schema_version" gorm:"not null;default:1"`
+	LeaseOwner            string `json:"-" gorm:"type:varchar(96);index"`
+	LeaseExpiresAt        int64  `json:"-" gorm:"index"`
 	AttemptCount          int    `json:"attempt_count" gorm:"not null;default:0"`
-	NextAttemptAt         int64  `json:"next_attempt_at" gorm:"index;index:idx_recall_lifecycle_due,priority:5"`
+	NextAttemptAt         int64  `json:"next_attempt_at" gorm:"index"`
 	ProcessingStartedAt   int64  `json:"processing_started_at"`
 	ProcessedAt           int64  `json:"processed_at" gorm:"index"`
+	LastErrorCode         string `json:"last_error_code" gorm:"type:varchar(64)"`
+	ResolvedAt            int64  `json:"resolved_at" gorm:"index"`
 	CreatedAt             int64  `json:"created_at" gorm:"autoCreateTime;index"`
 	UpdatedAt             int64  `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 type RecallContinuousTriggerSlot struct {
-	Id             int64  `json:"id" gorm:"primaryKey"`
-	Trigger        string `json:"trigger" gorm:"type:varchar(64);not null;uniqueIndex:idx_recall_continuous_trigger_slot"`
+	Trigger        string `json:"trigger" gorm:"type:varchar(64);primaryKey"`
 	DeliveryPolicy string `json:"delivery_policy" gorm:"type:varchar(16);not null"`
 	DelaySeconds   int64  `json:"delay_seconds" gorm:"not null;default:0"`
 	ScanPeriod     int64  `json:"scan_period" gorm:"not null;default:60"`
@@ -65,6 +71,11 @@ type RecallContinuousTriggerSlot struct {
 	NextScanAt     int64  `json:"next_scan_at" gorm:"index"`
 	CreatedAt      int64  `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt      int64  `json:"updated_at" gorm:"autoUpdateTime"`
+}
+
+type RecallLifecycleOccurrence struct {
+	Canonical string
+	Hash      string
 }
 
 func RecallLifecycleTriggers() []string {
@@ -99,13 +110,63 @@ func RecallLifecycleTriggerDelay(trigger string) time.Duration {
 	}
 }
 
-func RecallLifecycleOccurrenceHash(value any) (string, error) {
-	encoded, err := common.Marshal(value)
-	if err != nil {
-		return "", err
+func recallLifecycleOccurrenceHash(canonical string) string {
+	sum := sha256.Sum256([]byte(canonical))
+	return fmt.Sprintf("%x", sum)
+}
+
+func NewRecallLifecycleUserOccurrence(trigger string, userID int) (RecallLifecycleOccurrence, error) {
+	trigger = strings.TrimSpace(trigger)
+	if trigger != RecallLifecycleTriggerUserRegistered && trigger != RecallLifecycleTriggerRegistrationUnused {
+		return RecallLifecycleOccurrence{}, fmt.Errorf("unsupported user lifecycle trigger %q", trigger)
 	}
-	sum := sha256.Sum256(encoded)
-	return fmt.Sprintf("%x", sum), nil
+	if userID <= 0 {
+		return RecallLifecycleOccurrence{}, fmt.Errorf("user lifecycle occurrence requires a positive user id")
+	}
+	return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|user:%d", trigger, userID)), nil
+}
+
+func NewRecallLifecycleQuotaOccurrence(trigger string, scopeType string, scopeID string, cycle string, userID int) (RecallLifecycleOccurrence, error) {
+	trigger = strings.TrimSpace(trigger)
+	if trigger != RecallLifecycleTriggerQuotaLow && trigger != RecallLifecycleTriggerQuotaExhaustedUnpaid {
+		return RecallLifecycleOccurrence{}, fmt.Errorf("unsupported quota lifecycle trigger %q", trigger)
+	}
+	scopeType = strings.TrimSpace(scopeType)
+	scopeID = strings.TrimSpace(scopeID)
+	cycle = strings.TrimSpace(cycle)
+	if scopeType == "" || scopeID == "" || cycle == "" || userID <= 0 {
+		return RecallLifecycleOccurrence{}, fmt.Errorf("quota lifecycle occurrence requires scope type/id, cycle, and positive user id")
+	}
+	return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|scope:%s:%s|cycle:%s|user:%d", trigger, scopeType, scopeID, cycle, userID)), nil
+}
+
+func NewRecallLifecyclePurchaseOccurrence(trigger string, purchaseKind string, tradeNo string, sourceTable string, sourceID int64, userID int) (RecallLifecycleOccurrence, error) {
+	trigger = strings.TrimSpace(trigger)
+	switch trigger {
+	case RecallLifecycleTriggerPaymentFailed, RecallLifecycleTriggerPaymentPending, RecallLifecycleTriggerPaymentSucceeded:
+	default:
+		return RecallLifecycleOccurrence{}, fmt.Errorf("unsupported purchase lifecycle trigger %q", trigger)
+	}
+	purchaseKind = strings.TrimSpace(purchaseKind)
+	tradeNo = strings.TrimSpace(tradeNo)
+	sourceTable = strings.TrimSpace(sourceTable)
+	if purchaseKind == "" || userID <= 0 {
+		return RecallLifecycleOccurrence{}, fmt.Errorf("purchase lifecycle occurrence requires purchase kind and positive user id")
+	}
+	if tradeNo != "" {
+		return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|purchase:%s|trade:%s|user:%d", trigger, purchaseKind, tradeNo, userID)), nil
+	}
+	if sourceTable == "" || sourceID <= 0 {
+		return RecallLifecycleOccurrence{}, fmt.Errorf("purchase lifecycle occurrence requires trade number or stable source reference")
+	}
+	return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|purchase:%s|source:%s:%d|user:%d", trigger, purchaseKind, sourceTable, sourceID, userID)), nil
+}
+
+func newRecallLifecycleOccurrence(canonical string) RecallLifecycleOccurrence {
+	return RecallLifecycleOccurrence{
+		Canonical: canonical,
+		Hash:      recallLifecycleOccurrenceHash(canonical),
+	}
 }
 
 func RecallLifecycleRecipientIdentity(eventType string, occurrenceHash string) string {
@@ -135,6 +196,9 @@ func (event *RecallLifecycleEvent) BeforeCreate(tx *gorm.DB) error {
 	}
 	if strings.TrimSpace(event.Disposition) == "" {
 		event.Disposition = RecallLifecycleEventPending
+	}
+	if event.SchemaVersion == 0 {
+		event.SchemaVersion = 1
 	}
 	return nil
 }
