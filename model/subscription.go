@@ -1037,6 +1037,22 @@ func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
 	}
+	mutation := LifecycleQuotaMutation{
+		UserID:     userId,
+		ScopeType:  QuotaLifecycleScopeSubscription,
+		ScopeID:    int64(sub.Id),
+		Cause:      "subscription_adjustment",
+		SourceRef:  source,
+		OccurredAt: nowUnix,
+	}
+	if source != "admin" {
+		mutation.Cause = "subscription_purchase"
+		mutation.NextCycleKey = fmt.Sprintf("subscription:%d:%d", sub.Id, sub.StartTime)
+		mutation.NextCycleSource = source
+	}
+	if _, err := ApplyLifecycleQuotaMutation(tx, mutation); err != nil {
+		return nil, err
+	}
 	return sub, nil
 }
 
@@ -1364,17 +1380,21 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			return err
 		}
 
-		var user User
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", userId).First(&user).Error; err != nil {
-			return err
-		}
-		if requiredQuota > 0 && user.Quota < requiredQuota {
-			return errors.New("余额不足")
-		}
 		if requiredQuota > 0 {
-			if err := tx.Model(&User{}).Where("id = ?", userId).
-				Update("quota", gorm.Expr("quota - ?", requiredQuota)).Error; err != nil {
+			result, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+				UserID:         userId,
+				ScopeType:      QuotaLifecycleScopeWallet,
+				ScopeID:        int64(userId),
+				Delta:          -int64(requiredQuota),
+				RequireAtLeast: int64(requiredQuota),
+				Cause:          "subscription_balance_debit",
+				SourceRef:      "PurchaseSubscriptionWithBalance",
+			})
+			if err != nil {
 				return err
+			}
+			if !result.Applied {
+				return errors.New("余额不足")
 			}
 		}
 
@@ -1921,11 +1941,30 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 		}
 		return nil
 	}
+	if sub.AmountUsed > 0 {
+		if _, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+			UserID:          sub.UserId,
+			ScopeType:       QuotaLifecycleScopeSubscription,
+			ScopeID:         int64(sub.Id),
+			Delta:           sub.AmountUsed,
+			Cause:           "subscription_renewal",
+			SourceRef:       "ResetDueSubscriptions",
+			NextCycleKey:    fmt.Sprintf("subscription:%d:%d", sub.Id, base.Unix()),
+			NextCycleSource: "reset",
+			OccurredAt:      now,
+		}); err != nil {
+			return err
+		}
+	}
 	sub.AmountUsed = 0
 	sub.MediaCreditsUsed = 0
 	sub.LastResetTime = base.Unix()
 	sub.NextResetTime = next
-	return tx.Save(sub).Error
+	return tx.Model(&UserSubscription{}).Where("id = ?", sub.Id).Updates(map[string]interface{}{
+		"media_credits_used": 0,
+		"last_reset_time":    sub.LastResetTime,
+		"next_reset_time":    sub.NextResetTime,
+	}).Error
 }
 
 // PreConsumeUserSubscription pre-consumes quota from the user's current contract entitlement,
@@ -2000,15 +2039,26 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				}
 				return err
 			}
-			sub.AmountUsed += amount
-			if err := tx.Save(&sub).Error; err != nil {
+			applied, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+				UserID:         userId,
+				ScopeType:      QuotaLifecycleScopeSubscription,
+				ScopeID:        int64(sub.Id),
+				Delta:          -amount,
+				RequireAtLeast: amount,
+				Cause:          "subscription_pre_consume",
+				SourceRef:      requestId,
+			})
+			if err != nil {
 				return err
+			}
+			if !applied.Applied {
+				return insufficientSubscriptionQuotaError(amount)
 			}
 			returnValue.UserSubscriptionId = sub.Id
 			returnValue.PreConsumed = amount
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore
-			returnValue.AmountUsedAfter = sub.AmountUsed
+			returnValue.AmountUsedAfter = sub.AmountTotal - applied.CurrentBalance
 			return nil
 		}
 		return insufficientSubscriptionQuotaError(amount)
@@ -2053,7 +2103,7 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			record.Status = "refunded"
 			return tx.Save(&record).Error
 		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
+		if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -record.PreConsumed, "subscription_refund", "RefundSubscriptionPreConsume"); err != nil {
 			return err
 		}
 		record.Status = "refunded"
@@ -2159,20 +2209,24 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var sub UserSubscription
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").
-			Where("id = ?", userSubscriptionId).
-			First(&sub).Error; err != nil {
-			return err
-		}
-		newUsed := sub.AmountUsed + delta
-		if newUsed < 0 {
-			newUsed = 0
-		}
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
-		}
-		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		return postConsumeUserSubscriptionDeltaTx(tx, userSubscriptionId, delta, "subscription_adjustment", "PostConsumeUserSubscriptionDelta")
 	})
+}
+
+func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64, cause string, sourceRef string) error {
+	var sub UserSubscription
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Where("id = ?", userSubscriptionId).
+		First(&sub).Error; err != nil {
+		return err
+	}
+	_, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+		UserID:    sub.UserId,
+		ScopeType: QuotaLifecycleScopeSubscription,
+		ScopeID:   int64(userSubscriptionId),
+		Delta:     -delta,
+		Cause:     cause,
+		SourceRef: sourceRef,
+	})
+	return err
 }

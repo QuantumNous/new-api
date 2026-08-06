@@ -3,7 +3,6 @@ package model
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -114,7 +113,7 @@ func (user *User) SetAccessToken(token string) {
 func (user *User) GetSetting() dto.UserSetting {
 	setting := dto.UserSetting{}
 	if user.Setting != "" {
-		err := json.Unmarshal([]byte(user.Setting), &setting)
+		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
 			common.SysLog("failed to unmarshal setting: " + err.Error())
 		}
@@ -123,7 +122,7 @@ func (user *User) GetSetting() dto.UserSetting {
 }
 
 func (user *User) SetSetting(setting dto.UserSetting) {
-	settingBytes, err := json.Marshal(setting)
+	settingBytes, err := common.Marshal(setting)
 	if err != nil {
 		common.SysLog("failed to marshal setting: " + err.Error())
 		return
@@ -184,7 +183,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	// 普通用户不包含admin区域
 
 	// 转换为JSON字符串
-	configBytes, err := json.Marshal(defaultConfig)
+	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog("生成默认边栏配置失败: " + err.Error())
 		return ""
@@ -769,15 +768,15 @@ func (user *User) Update(updatePassword bool) error {
 
 func preserveRecallMarketingOptOut(currentSetting string, pendingSetting string) (string, error) {
 	current := dto.UserSetting{}
-	if currentSetting == "" || json.Unmarshal([]byte(currentSetting), &current) != nil || !current.RecallMarketingOptOut {
+	if currentSetting == "" || common.Unmarshal([]byte(currentSetting), &current) != nil || !current.RecallMarketingOptOut {
 		return pendingSetting, nil
 	}
 	pending := dto.UserSetting{}
-	if err := json.Unmarshal([]byte(pendingSetting), &pending); err != nil {
+	if err := common.Unmarshal([]byte(pendingSetting), &pending); err != nil {
 		return "", err
 	}
 	pending.RecallMarketingOptOut = true
-	settingJSON, err := json.Marshal(pending)
+	settingJSON, err := common.Marshal(pending)
 	if err != nil {
 		return "", err
 	}
@@ -1182,8 +1181,15 @@ func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error)
 }
 
 func IncreaseUserQuota(id int, quota int, db bool) (err error) {
+	_ = db
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
+	}
+	if quota == 0 {
+		return nil
+	}
+	if err := mutateUserWalletQuota(id, int64(quota), 0, "admin_grant", "IncreaseUserQuota"); err != nil {
+		return err
 	}
 	gopool.Go(func() {
 		err := cacheIncrUserQuota(id, int64(quota))
@@ -1191,24 +1197,23 @@ func IncreaseUserQuota(id int, quota int, db bool) (err error) {
 			common.SysLog("failed to increase user quota: " + err.Error())
 		}
 	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, quota)
-		return nil
-	}
-	return increaseUserQuota(id, quota)
+	return nil
 }
 
 func increaseUserQuota(id int, quota int) (err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota + ?", quota)).Error
-	if err != nil {
-		return err
-	}
-	return err
+	return mutateUserWalletQuota(id, int64(quota), 0, "admin_grant", "increaseUserQuota")
 }
 
 func DecreaseUserQuota(id int, quota int, db bool) (err error) {
+	_ = db
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
+	}
+	if quota == 0 {
+		return nil
+	}
+	if err := mutateUserWalletQuota(id, -int64(quota), 0, "wallet_debit", "DecreaseUserQuota"); err != nil {
+		return err
 	}
 	gopool.Go(func() {
 		err := cacheDecrUserQuota(id, int64(quota))
@@ -1216,19 +1221,11 @@ func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 			common.SysLog("failed to decrease user quota: " + err.Error())
 		}
 	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
-		return nil
-	}
-	return decreaseUserQuota(id, quota)
+	return nil
 }
 
 func decreaseUserQuota(id int, quota int) (err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", quota)).Error
-	if err != nil {
-		return err
-	}
-	return err
+	return mutateUserWalletQuota(id, -int64(quota), 0, "wallet_debit", "decreaseUserQuota")
 }
 
 // PreConsumeUserQuota atomically debits quota from a user IFF they have at
@@ -1248,13 +1245,24 @@ func PreConsumeUserQuota(id int, quota int) (ok bool, err error) {
 	if quota == 0 {
 		return true, nil
 	}
-	result := DB.Model(&User{}).
-		Where("id = ? AND quota >= ?", id, quota).
-		Update("quota", gorm.Expr("quota - ?", quota))
-	if result.Error != nil {
-		return false, result.Error
+	var result LifecycleQuotaMutationResult
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		result, applyErr = ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+			UserID:         id,
+			ScopeType:      QuotaLifecycleScopeWallet,
+			ScopeID:        int64(id),
+			Delta:          -int64(quota),
+			RequireAtLeast: int64(quota),
+			Cause:          "wallet_pre_consume",
+			SourceRef:      "PreConsumeUserQuota",
+		})
+		return applyErr
+	})
+	if err != nil {
+		return false, err
 	}
-	if result.RowsAffected == 0 {
+	if !result.Applied {
 		return false, nil
 	}
 	gopool.Go(func() {
@@ -1272,7 +1280,33 @@ func RefundUserQuota(id int, quota int) error {
 	if quota <= 0 {
 		return nil
 	}
-	return IncreaseUserQuota(id, quota, true)
+	if err := mutateUserWalletQuota(id, int64(quota), 0, "refund", "RefundUserQuota"); err != nil {
+		return err
+	}
+	gopool.Go(func() {
+		if err := cacheIncrUserQuota(id, int64(quota)); err != nil {
+			common.SysLog("failed to sync user quota cache after refund: " + err.Error())
+		}
+	})
+	return nil
+}
+
+func mutateUserWalletQuota(id int, delta int64, requireAtLeast int64, cause string, sourceRef string) error {
+	if id <= 0 {
+		return errors.New("invalid user id")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		_, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+			UserID:         id,
+			ScopeType:      QuotaLifecycleScopeWallet,
+			ScopeID:        int64(id),
+			Delta:          delta,
+			RequireAtLeast: requireAtLeast,
+			Cause:          cause,
+			SourceRef:      sourceRef,
+		})
+		return err
+	})
 }
 
 func DeltaUpdateUserQuota(id int, delta int) (err error) {
