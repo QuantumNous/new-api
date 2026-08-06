@@ -12,7 +12,10 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 )
 
@@ -52,16 +55,54 @@ func TestLifecycleTriggerPoliciesAndDelays(t *testing.T) {
 		RecallLifecycleTriggerPaymentSucceeded,
 	}, RecallLifecycleTriggers())
 
-	require.Equal(t, RecallDeliveryPolicyService, RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerUserRegistered))
-	require.Equal(t, RecallDeliveryPolicyEngagement, RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerRegistrationUnused))
-	require.Equal(t, RecallDeliveryPolicyService, RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerQuotaLow))
-	require.Equal(t, RecallDeliveryPolicyService, RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerQuotaExhaustedUnpaid))
-	require.Equal(t, RecallDeliveryPolicyService, RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerPaymentFailed))
-	require.Equal(t, RecallDeliveryPolicyEngagement, RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerPaymentPending))
-	require.Equal(t, RecallDeliveryPolicyService, RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerPaymentSucceeded))
+	policy, err := RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerUserRegistered)
+	require.NoError(t, err)
+	require.Equal(t, RecallDeliveryPolicyService, policy)
+	policy, err = RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerRegistrationUnused)
+	require.NoError(t, err)
+	require.Equal(t, RecallDeliveryPolicyEngagement, policy)
+	policy, err = RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerQuotaLow)
+	require.NoError(t, err)
+	require.Equal(t, RecallDeliveryPolicyService, policy)
+	policy, err = RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerQuotaExhaustedUnpaid)
+	require.NoError(t, err)
+	require.Equal(t, RecallDeliveryPolicyService, policy)
+	policy, err = RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerPaymentFailed)
+	require.NoError(t, err)
+	require.Equal(t, RecallDeliveryPolicyService, policy)
+	policy, err = RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerPaymentPending)
+	require.NoError(t, err)
+	require.Equal(t, RecallDeliveryPolicyEngagement, policy)
+	policy, err = RecallLifecycleTriggerDeliveryPolicy(RecallLifecycleTriggerPaymentSucceeded)
+	require.NoError(t, err)
+	require.Equal(t, RecallDeliveryPolicyService, policy)
 
-	require.Equal(t, 7*24*time.Hour, RecallLifecycleTriggerDelay(RecallLifecycleTriggerRegistrationUnused))
-	require.Equal(t, 24*time.Hour, RecallLifecycleTriggerDelay(RecallLifecycleTriggerPaymentPending))
+	delay, err := RecallLifecycleTriggerDelay(RecallLifecycleTriggerRegistrationUnused)
+	require.NoError(t, err)
+	require.Equal(t, 7*24*time.Hour, delay)
+	delay, err = RecallLifecycleTriggerDelay(RecallLifecycleTriggerPaymentPending)
+	require.NoError(t, err)
+	require.Equal(t, 24*time.Hour, delay)
+	delay, err = RecallLifecycleTriggerDelay(RecallLifecycleTriggerQuotaLow)
+	require.NoError(t, err)
+	require.Zero(t, delay)
+}
+
+func TestLifecycleTriggerPolicyDelayAndSlotRejectUnknownTriggers(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+
+	require.Error(t, ValidateRecallLifecycleTrigger("unknown_trigger"))
+	policy, err := RecallLifecycleTriggerDeliveryPolicy("unknown_trigger")
+	require.Error(t, err)
+	require.Empty(t, policy)
+	delay, err := RecallLifecycleTriggerDelay("unknown_trigger")
+	require.Error(t, err)
+	require.Zero(t, delay)
+
+	require.Error(t, EnsureRecallContinuousTriggerSlotTx(DB, "unknown_trigger"))
+	var count int64
+	require.NoError(t, DB.Model(&RecallContinuousTriggerSlot{}).Count(&count).Error)
+	require.Zero(t, count)
 }
 
 func TestLifecycleOccurrenceHashAndRecipientIdentityAreDeterministic(t *testing.T) {
@@ -147,6 +188,81 @@ func TestLifecycleCanonicalOccurrenceBuildersUseExactVersionedFormats(t *testing
 	require.Contains(t, err.Error(), "trade number or stable source reference")
 }
 
+func TestLifecycleOccurrenceBuildersRejectUnsupportedTriggerFamilies(t *testing.T) {
+	_, err := NewRecallLifecycleUserOccurrence(RecallLifecycleTriggerPaymentPending, 42)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported user lifecycle trigger")
+
+	_, err = NewRecallLifecycleQuotaOccurrence(RecallLifecycleTriggerUserRegistered, QuotaLifecycleScopeUser, "42", "2026-08", 42)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported quota lifecycle trigger")
+
+	_, err = NewRecallLifecyclePurchaseOccurrence(RecallLifecycleTriggerQuotaLow, "topup", "trade_1", "", 0, 42)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported purchase lifecycle trigger")
+}
+
+func TestLifecycleEventBusinessKeyAllowsBoundedAuditReference(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+
+	longScopeID := strings.Repeat("s", 80)
+	longCycle := strings.Repeat("c", 64)
+	occurrence, err := NewRecallLifecycleQuotaOccurrence(RecallLifecycleTriggerQuotaLow, QuotaLifecycleScopeUser, longScopeID, longCycle, 77)
+	require.NoError(t, err)
+	require.Greater(t, len(occurrence.Canonical), recallLifecycleBusinessKeyMaxLen)
+
+	event := RecallLifecycleEvent{
+		EventType:         RecallLifecycleTriggerQuotaLow,
+		OccurrenceKeyHash: occurrence.Hash,
+		ScopeType:         QuotaLifecycleScopeUser,
+		ScopeId:           longScopeID,
+		BusinessKey:       strings.Repeat("k", recallLifecycleBusinessKeyMaxLen),
+		UserId:            77,
+		EventData:         `{}`,
+		OccurredAt:        1,
+		AvailableAt:       1,
+	}
+	inserted, err := TryInsertRecallLifecycleEventWithContext(context.Background(), &event)
+	require.NoError(t, err)
+	require.True(t, inserted)
+}
+
+func TestLifecycleEventBusinessKeyRejectsOverBoundQuotaAndPurchaseReferences(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+
+	quotaOccurrence, err := NewRecallLifecycleQuotaOccurrence(RecallLifecycleTriggerQuotaLow, QuotaLifecycleScopeUser, "77", "2026-08", 77)
+	require.NoError(t, err)
+	quotaEvent := RecallLifecycleEvent{
+		EventType:         RecallLifecycleTriggerQuotaLow,
+		OccurrenceKeyHash: quotaOccurrence.Hash,
+		BusinessKey:       strings.Repeat("q", recallLifecycleBusinessKeyMaxLen+1),
+		UserId:            77,
+		EventData:         `{}`,
+	}
+	inserted, err := TryInsertRecallLifecycleEventWithContext(context.Background(), &quotaEvent)
+	require.Error(t, err)
+	require.False(t, inserted)
+	require.Contains(t, err.Error(), "business key")
+
+	purchaseOccurrence, err := NewRecallLifecyclePurchaseOccurrence(RecallLifecycleTriggerPaymentPending, "topup", "trade_oversize", "", 0, 88)
+	require.NoError(t, err)
+	purchaseEvent := RecallLifecycleEvent{
+		EventType:         RecallLifecycleTriggerPaymentPending,
+		OccurrenceKeyHash: purchaseOccurrence.Hash,
+		BusinessKey:       strings.Repeat("p", recallLifecycleBusinessKeyMaxLen+1),
+		UserId:            88,
+		EventData:         `{}`,
+	}
+	inserted, err = TryInsertRecallLifecycleEventWithContext(context.Background(), &purchaseEvent)
+	require.Error(t, err)
+	require.False(t, inserted)
+	require.Contains(t, err.Error(), "business key")
+
+	var count int64
+	require.NoError(t, DB.Model(&RecallLifecycleEvent{}).Count(&count).Error)
+	require.Zero(t, count)
+}
+
 func TestLifecycleEventDuplicateOccurrenceInsertIsNoop(t *testing.T) {
 	setupRecallLifecycleTestDB(t)
 
@@ -183,6 +299,36 @@ func TestLifecycleEventDuplicateOccurrenceInsertIsNoop(t *testing.T) {
 	require.NoError(t, DB.Find(&events).Error)
 	require.Len(t, events, 1)
 	require.Equal(t, event.EventData, events[0].EventData)
+}
+
+func TestLifecycleEventDuplicateNoopDoesNotSwallowMalformedRows(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+
+	occurrence, err := NewRecallLifecycleQuotaOccurrence(RecallLifecycleTriggerQuotaLow, QuotaLifecycleScopeUser, "77", "2026-08", 77)
+	require.NoError(t, err)
+	event := RecallLifecycleEvent{
+		EventType:         RecallLifecycleTriggerQuotaLow,
+		OccurrenceKeyHash: occurrence.Hash,
+		BusinessKey:       "quota:77:2026-08",
+		UserId:            77,
+		EventData:         `{}`,
+	}
+	inserted, err := TryInsertRecallLifecycleEventWithContext(context.Background(), &event)
+	require.NoError(t, err)
+	require.True(t, inserted)
+
+	malformed := event
+	malformed.Id = 0
+	malformed.OccurrenceKeyHash = strings.Repeat("h", 64)
+	malformed.BusinessKey = strings.Repeat("x", recallLifecycleBusinessKeyMaxLen+1)
+	inserted, err = TryInsertRecallLifecycleEventWithContext(context.Background(), &malformed)
+	require.Error(t, err)
+	require.False(t, inserted)
+	require.Contains(t, err.Error(), "business key")
+
+	var count int64
+	require.NoError(t, DB.Model(&RecallLifecycleEvent{}).Count(&count).Error)
+	require.EqualValues(t, 1, count)
 }
 
 func TestLifecycleSchemaAndSevenSlotSeeding(t *testing.T) {
@@ -255,6 +401,59 @@ func TestLifecycleEnsureContinuousTriggerSlotTxInsertsRepairsAndRollsBack(t *tes
 	require.EqualValues(t, int64(24*time.Hour/time.Second), repaired.DelaySeconds)
 	require.EqualValues(t, recallContinuousTriggerSlotDefaultScanPeriod, repaired.ScanPeriod)
 	require.EqualValues(t, 123, repaired.CampaignId)
+}
+
+func TestLifecycleContinuousTriggerSlotDuplicateNoopDoesNotSwallowUnknownTrigger(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+
+	require.NoError(t, EnsureRecallContinuousTriggerSlotTx(DB, RecallLifecycleTriggerPaymentPending))
+	require.NoError(t, EnsureRecallContinuousTriggerSlotTx(DB, RecallLifecycleTriggerPaymentPending))
+	require.Error(t, EnsureRecallContinuousTriggerSlotTx(DB, "payment_pending_unreviewed"))
+
+	var slots []RecallContinuousTriggerSlot
+	require.NoError(t, DB.Find(&slots).Error)
+	require.Len(t, slots, 1)
+	require.Equal(t, RecallLifecycleTriggerPaymentPending, slots[0].Trigger)
+}
+
+func TestLifecycleInsertConflictSQLIsTargetedByDialect(t *testing.T) {
+	dialects := recallLifecycleDryRunDialects(t)
+	for name, db := range dialects {
+		t.Run(name+"/event", func(t *testing.T) {
+			occurrence, err := NewRecallLifecycleQuotaOccurrence(RecallLifecycleTriggerQuotaLow, QuotaLifecycleScopeUser, "77", "2026-08", 77)
+			require.NoError(t, err)
+			event := RecallLifecycleEvent{
+				EventType:         RecallLifecycleTriggerQuotaLow,
+				OccurrenceKeyHash: occurrence.Hash,
+				BusinessKey:       "quota:77:2026-08",
+				UserId:            77,
+				EventData:         `{}`,
+			}
+			sql := strings.ToLower(db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+				return insertRecallLifecycleEvent(tx, &event)
+			}))
+			require.NotContains(t, sql, "insert ignore")
+			if name == "mysql" {
+				require.Contains(t, sql, "on duplicate key update")
+			} else {
+				require.Contains(t, sql, "on conflict")
+			}
+		})
+
+		t.Run(name+"/slot", func(t *testing.T) {
+			slot, err := newRecallContinuousTriggerSlot(RecallLifecycleTriggerPaymentPending)
+			require.NoError(t, err)
+			sql := strings.ToLower(db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+				return insertRecallContinuousTriggerSlot(tx, slot)
+			}))
+			require.NotContains(t, sql, "insert ignore")
+			if name == "mysql" {
+				require.Contains(t, sql, "on duplicate key update")
+			} else {
+				require.Contains(t, sql, "on conflict")
+			}
+		})
+	}
 }
 
 func TestLifecycleDueIndexAndTriggerSlotPrimaryKeyShape(t *testing.T) {
@@ -426,4 +625,31 @@ func requireLifecycleIndexAbsent(t *testing.T, parsed *schema.Schema, fieldName 
 		indexes += ";" + field.TagSettings["UNIQUEINDEX"]
 	}
 	require.NotContains(t, indexes, indexName)
+}
+
+func recallLifecycleDryRunDialects(t *testing.T) map[string]*gorm.DB {
+	t.Helper()
+	silentLogger := logger.Default.LogMode(logger.Silent)
+	sqliteDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: silentLogger})
+	require.NoError(t, err)
+	sqlDB, err := sqliteDB.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	mysqlDB, err := gorm.Open(mysql.New(mysql.Config{
+		Conn:                      sqlDB,
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{DryRun: true, DisableAutomaticPing: true, Logger: silentLogger})
+	require.NoError(t, err)
+
+	postgresDB, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{
+		DryRun: true, DisableAutomaticPing: true, Logger: silentLogger,
+	})
+	require.NoError(t, err)
+
+	return map[string]*gorm.DB{
+		"sqlite":     sqliteDB.Session(&gorm.Session{DryRun: true}),
+		"mysql":      mysqlDB,
+		"postgresql": postgresDB,
+	}
 }
