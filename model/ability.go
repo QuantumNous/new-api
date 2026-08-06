@@ -196,10 +196,38 @@ func filterAbilitiesByRequestPathAndModel(abilities []Ability, requestPath strin
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")
+
+	normalizedGroups := make([]string, 0, len(groups_))
+	seenGroups := make(map[string]string)
+
+	for _, group := range groups_ {
+        	group = strings.TrimSpace(group)
+	        if group == "" {
+	                continue
+	        }
+
+        	key := strings.ToLower(group)
+
+	        if old, ok := seenGroups[key]; ok {
+ 		  	common.SysLog(
+                		fmt.Sprintf(
+                        		"duplicate channel group ignored: %q conflicts with %q (case-insensitive MySQL collation)",
+                        		group,
+                        		old,
+                		),
+        		)
+	        	continue
+		}
+
+        	seenGroups[key] = group
+	        normalizedGroups = append(normalizedGroups, group)
+	}
+
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
+
 	for _, model := range models_ {
-		for _, group := range groups_ {
+		for _, group := range normalizedGroups {
 			key := group + "|" + model
 			if _, exists := abilitySet[key]; exists {
 				continue
@@ -268,10 +296,38 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 	// Then add new abilities
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")
+
+	normalizedGroups := make([]string, 0, len(groups_))
+	seenGroups := make(map[string]string)
+
+	for _, group := range groups_ {
+        	group = strings.TrimSpace(group)
+        	if group == "" {
+                	continue
+        	}
+
+        	key := strings.ToLower(group)
+
+	        if old, ok := seenGroups[key]; ok {
+        	        common.SysLog(
+                	        fmt.Sprintf(
+                        	        "duplicate channel group ignored: %q conflicts with %q (case-insensitive MySQL collation)",
+                                	group,
+	                                old,
+        	                ),
+                	)
+	                continue
+	        }
+
+	        seenGroups[key] = group
+	        normalizedGroups = append(normalizedGroups, group)
+	}
+
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
+	
 	for _, model := range models_ {
-		for _, group := range groups_ {
+		for _, group := range normalizedGroups {
 			key := group + "|" + model
 			if _, exists := abilitySet[key]; exists {
 				continue
