@@ -13,11 +13,22 @@ func setupFreePlanTest(t *testing.T) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/freeplan.db"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&User{}, &SubscriptionPlan{}, &UserSubscription{}, &FreePlanGrant{}, &Log{}))
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(
+		&User{},
+		&SubscriptionPlan{},
+		&UserSubscription{},
+		&FreePlanGrant{},
+		&Log{},
+		&RecallLifecycleEvent{},
+		&QuotaLifecycleState{},
+	))
 	originalDB, originalLogDB := DB, LOG_DB
 	DB = db
 	LOG_DB = db
 	t.Cleanup(func() {
+		_ = sqlDB.Close()
 		DB = originalDB
 		LOG_DB = originalLogDB
 	})
