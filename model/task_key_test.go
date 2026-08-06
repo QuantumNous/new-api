@@ -1,0 +1,63 @@
+package model
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/QuantumNous/new-api/constant"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/stretchr/testify/require"
+)
+
+func TestInitTaskPersistsTechMobiSelectedKeyForPolling(t *testing.T) {
+	task := InitTask(constant.TaskPlatform("106"), &relaycommon.RelayInfo{
+		UserId: 7,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeTechMobiVideo,
+			ApiKey:      "techmobi-selected-key",
+		},
+	})
+
+	require.Equal(t, "techmobi-selected-key", task.PrivateData.Key)
+}
+
+func TestTechMobiSubmittingFencePreservesSelectedKeyAfterExpiry(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID:                    "task_techmobi_expired_submit_fence_key",
+		Status:                    TaskStatusQueued,
+		PreparationStatus:         TaskPreparationStatusPreparing,
+		PreparationLeaseOwner:     "node-a",
+		PreparationLeaseExpiresAt: 220,
+		PreparationAttemptCount:   2,
+		Quota:                     100,
+		Data:                      json.RawMessage(`{}`),
+		PrivateData:               TaskPrivateData{TokenId: 11},
+	}
+	insertTask(t, task)
+
+	fenced, err := MarkQueuedTaskSubmittingWithPollingKey(
+		task.TaskID,
+		"node-a",
+		2,
+		120,
+		106,
+		constant.TaskPlatform("106"),
+		246,
+		"techmobi-key-b",
+	)
+	require.NoError(t, err)
+	require.True(t, fenced)
+
+	quarantined, err := MarkExpiredAssetTaskSubmissionUnknown(task.TaskID, "node-a", 220, 2, 221, nil, 500)
+	require.NoError(t, err)
+	require.True(t, quarantined)
+
+	var stored Task
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, TaskStatusUnknown, stored.Status)
+	require.Equal(t, TaskPreparationStatusUnknownOutcome, stored.PreparationStatus)
+	require.Equal(t, "techmobi-key-b", stored.PrivateData.Key)
+	require.Equal(t, 11, stored.PrivateData.TokenId)
+}

@@ -16,7 +16,9 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -134,7 +136,7 @@ func Distribute() func(c *gin.Context) {
 		}
 		if legacyPinnedChannel != nil {
 			if hasAssetRefs {
-				if _, eligible := assetResolution.ReadinessForChannel(legacyPinnedChannel); !eligible {
+				if _, eligible := assetResolution.ReadinessForChannel(legacyPinnedChannel, modelRequest.Model); !eligible {
 					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelUnavailable), types.ErrorCodeAssetChannelUnavailable)
 					return
 				}
@@ -159,7 +161,7 @@ func Distribute() func(c *gin.Context) {
 				return
 			}
 			if hasAssetRefs {
-				if _, eligible := assetResolution.ReadinessForChannel(channel); !eligible {
+				if _, eligible := assetResolution.ReadinessForChannel(channel, modelRequest.Model); !eligible {
 					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelUnavailable), types.ErrorCodeAssetChannelUnavailable)
 					return
 				}
@@ -263,7 +265,7 @@ func Distribute() func(c *gin.Context) {
 						ModelName:     modelRequest.Model,
 						TokenGroup:    usingGroup,
 						Retry:         common.GetPointer(0),
-						ChannelRanker: assetResolution.ChannelRanker(),
+						ChannelRanker: assetResolution.ChannelRanker(modelRequest.Model),
 					})
 					if err != nil {
 						statusCode := http.StatusServiceUnavailable
@@ -433,8 +435,13 @@ func RefreshAssetRewriteMapForSelectedChannel(c *gin.Context, channel *model.Cha
 	if !ok || !references.HasReferences() {
 		return nil
 	}
+	originModel := strings.TrimSpace(c.GetString("original_model"))
 	if !common.GetContextKeyBool(c, constant.ContextKeyAssetMaterializeEnabled) {
-		rewriteMap := references.RewriteMapForChannel(channel.Id)
+		rewriteMap := references.RewriteMapForSelectedChannel(
+			channel,
+			originModel,
+			common.GetContextKeyString(c, constant.ContextKeyChannelKey),
+		)
 		if len(rewriteMap) == 0 {
 			clearAssetRewriteMap(c)
 			return nil
@@ -447,7 +454,39 @@ func RefreshAssetRewriteMapForSelectedChannel(c *gin.Context, channel *model.Cha
 	if c.Request != nil {
 		ctx = c.Request.Context()
 	}
-	rewriteMap, err := service.MaterializeAssetBindingsForChannel(ctx, common.GetContextKeyInt(c, constant.ContextKeyUserId), references, channel)
+	modelInfo := &relaycommon.RelayInfo{
+		OriginModelName: originModel,
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: originModel},
+	}
+	if err := relayhelper.ModelMappedHelper(c, modelInfo, nil); err != nil {
+		clearAssetRewriteMap(c)
+		return bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	materializeOptions, keyIndex, err := service.ResolveAssetMaterializeOptions(
+		references,
+		channel,
+		service.AssetMaterializeOptions{
+			Model:  strings.TrimSpace(modelInfo.UpstreamModelName),
+			APIKey: common.GetContextKeyString(c, constant.ContextKeyChannelKey),
+		},
+	)
+	if err != nil {
+		clearAssetRewriteMap(c)
+		return service.AssetBindingAPIError(err)
+	}
+	if keyIndex >= 0 && materializeOptions.APIKey != common.GetContextKeyString(c, constant.ContextKeyChannelKey) {
+		common.SetContextKey(c, constant.ContextKeyChannelKey, materializeOptions.APIKey)
+		if channel.ChannelInfo.IsMultiKey {
+			common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, keyIndex)
+		}
+	}
+	rewriteMap, err := service.MaterializeAssetBindingsForChannel(
+		ctx,
+		common.GetContextKeyInt(c, constant.ContextKeyUserId),
+		references,
+		channel,
+		materializeOptions,
+	)
 	if err != nil {
 		clearAssetRewriteMap(c)
 		return service.AssetBindingAPIError(err)

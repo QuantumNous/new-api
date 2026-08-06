@@ -411,13 +411,15 @@ func runLeasedAssetTask(ctx context.Context, taskID string, owner string, lease 
 		c.Request.Body = io.NopCloser(bodyStorage)
 		preflight, taskErr := relay.PrepareTaskAttempt(c, info)
 		submitAttempted := false
+		pollingKey := ""
 		var result *relay.TaskSubmitResult
 		if taskErr == nil {
 			if err := ctx.Err(); err != nil {
 				releaseChannelConcurrencyForRequest(c)
 				return err
 			}
-			fenced, fenceErr := model.MarkQueuedTaskSubmitting(task.TaskID, owner, lease.attemptCount, assetTaskWorkerNowUnix(), channel.Id, preflight.Platform, preflight.Quota)
+			pollingKey = taskPollingKey(channel, info)
+			fenced, fenceErr := model.MarkQueuedTaskSubmittingWithPollingKey(task.TaskID, owner, lease.attemptCount, assetTaskWorkerNowUnix(), channel.Id, preflight.Platform, preflight.Quota, pollingKey)
 			if fenceErr != nil {
 				releaseChannelConcurrencyForRequest(c)
 				return fmt.Errorf("mark task submission fence: %w", fenceErr)
@@ -434,14 +436,14 @@ func runLeasedAssetTask(ctx context.Context, taskID string, owner string, lease 
 			return acceptLeasedAssetTask(c, info, task, owner, lease, channel, result)
 		}
 		if result != nil && result.OutcomeMayBeUnknown {
-			return quarantineLeasedAssetTaskSubmissionUnknown(task, lease, channel, result, taskErr.Error)
+			return quarantineLeasedAssetTaskSubmissionUnknown(task, lease, channel, result, pollingKey, taskErr.Error)
 		}
 		if err := ctx.Err(); err != nil {
 			if submitAttempted {
 				return quarantineLeasedAssetTaskSubmissionUnknown(task, lease, channel, &relay.TaskSubmitResult{
 					Platform: preflight.Platform,
 					Quota:    preflight.Quota,
-				}, err)
+				}, pollingKey, err)
 			}
 			return err
 		}
@@ -531,12 +533,13 @@ func acceptAssetTaskGeneration(c *gin.Context, info *relaycommon.RelayInfo, task
 	now := assetTaskWorkerNowUnix()
 	publicIDs := extractStrictAssetPublicIDsFromPayload(task.NormalizedRequestPayload)
 	retentionUntil := now + int64(service.CurrentAssetStorageConfig().SourceRetention.Seconds())
-	won, err := model.MarkQueuedTaskAccepted(task.TaskID, owner, leaseExpiresAt, now, now, channel.Id, result.Platform, result.Quota, result.UpstreamTaskID, result.TaskData, publicIDs, now, retentionUntil)
+	pollingKey := taskPollingKey(channel, info)
+	won, err := model.MarkQueuedTaskAcceptedWithPollingKey(task.TaskID, owner, leaseExpiresAt, now, now, channel.Id, result.Platform, result.Quota, result.UpstreamTaskID, result.TaskData, pollingKey, publicIDs, now, retentionUntil)
 	if err != nil {
-		return quarantineAssetTaskSubmissionUnknown(task, attemptCount, channel, result, publicIDs, now, retentionUntil, fmt.Errorf("mark task accepted: %w", err))
+		return quarantineAssetTaskSubmissionUnknown(task, attemptCount, channel, result, pollingKey, publicIDs, now, retentionUntil, fmt.Errorf("mark task accepted: %w", err))
 	}
 	if !won {
-		return quarantineAssetTaskSubmissionUnknown(task, attemptCount, channel, result, publicIDs, now, retentionUntil, fmt.Errorf("task preparation lease lost"))
+		return quarantineAssetTaskSubmissionUnknown(task, attemptCount, channel, result, pollingKey, publicIDs, now, retentionUntil, fmt.Errorf("task preparation lease lost"))
 	}
 	if info != nil {
 		info.ChannelId = channel.Id
@@ -558,13 +561,13 @@ func acceptAssetTaskGeneration(c *gin.Context, info *relaycommon.RelayInfo, task
 	return runAcceptedTaskAccounting(c, task.TaskID, owner, accountingLeaseExpiresAt)
 }
 
-func quarantineAssetTaskSubmissionUnknown(task *model.Task, attemptCount int, channel *model.Channel, result *relay.TaskSubmitResult, publicIDs []string, now int64, retentionUntil int64, cause error) error {
+func quarantineAssetTaskSubmissionUnknown(task *model.Task, attemptCount int, channel *model.Channel, result *relay.TaskSubmitResult, pollingKey string, publicIDs []string, now int64, retentionUntil int64, cause error) error {
 	message := "asset task submission unknown outcome without an upstream task id"
 	if result.UpstreamTaskID != "" {
 		message = fmt.Sprintf("asset task acceptance unknown outcome for upstream task %q", result.UpstreamTaskID)
 	}
 	unknownErr := fmt.Errorf("%s: %w", message, cause)
-	quarantined, err := model.MarkQueuedTaskSubmissionUnknown(task.TaskID, attemptCount, now, now, channel.Id, result.Platform, result.Quota, result.UpstreamTaskID, result.TaskData, publicIDs, now, retentionUntil)
+	quarantined, err := model.MarkQueuedTaskSubmissionUnknownWithPollingKey(task.TaskID, attemptCount, now, now, channel.Id, result.Platform, result.Quota, result.UpstreamTaskID, result.TaskData, pollingKey, publicIDs, now, retentionUntil)
 	if err != nil {
 		return fmt.Errorf("%w; manual reconciliation quarantine failed: %v", unknownErr, err)
 	}
@@ -574,7 +577,7 @@ func quarantineAssetTaskSubmissionUnknown(task *model.Task, attemptCount int, ch
 	return fmt.Errorf("%w; task quarantined for manual reconciliation", unknownErr)
 }
 
-func quarantineLeasedAssetTaskSubmissionUnknown(task *model.Task, lease *taskPreparationLease, channel *model.Channel, result *relay.TaskSubmitResult, cause error) error {
+func quarantineLeasedAssetTaskSubmissionUnknown(task *model.Task, lease *taskPreparationLease, channel *model.Channel, result *relay.TaskSubmitResult, pollingKey string, cause error) error {
 	_, renewalErr := lease.freeze()
 	if renewalErr != nil {
 		cause = fmt.Errorf("%w; lease renewal failed: %v", cause, renewalErr)
@@ -582,7 +585,14 @@ func quarantineLeasedAssetTaskSubmissionUnknown(task *model.Task, lease *taskPre
 	now := assetTaskWorkerNowUnix()
 	publicIDs := extractStrictAssetPublicIDsFromPayload(task.NormalizedRequestPayload)
 	retentionUntil := now + int64(service.CurrentAssetStorageConfig().SourceRetention.Seconds())
-	return quarantineAssetTaskSubmissionUnknown(task, lease.attemptCount, channel, result, publicIDs, now, retentionUntil, cause)
+	return quarantineAssetTaskSubmissionUnknown(task, lease.attemptCount, channel, result, pollingKey, publicIDs, now, retentionUntil, cause)
+}
+
+func taskPollingKey(channel *model.Channel, info *relaycommon.RelayInfo) string {
+	if channel == nil || channel.Type != constant.ChannelTypeTechMobiVideo || info == nil || info.ChannelMeta == nil {
+		return ""
+	}
+	return strings.TrimSpace(info.ChannelMeta.ApiKey)
 }
 
 func acceptLeasedAssetTask(c *gin.Context, info *relaycommon.RelayInfo, task *model.Task, owner string, lease *taskPreparationLease, channel *model.Channel, result *relay.TaskSubmitResult) error {

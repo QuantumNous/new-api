@@ -155,6 +155,28 @@ func TestAssetReferenceSetMixesRecoverableGeneralizedSourceWithLegacyBinding(t *
 	require.Nil(t, refs.RewriteMapForChannel(132))
 }
 
+func TestAssetReferenceRewriteMapPreservesOpaqueUpstreamURI(t *testing.T) {
+	refs := AssetReferenceSet{
+		references: []assetReference{{PublicID: "ast_opaque", ExpectedAssetType: "Image"}},
+		assets: map[string]assetReferenceAsset{
+			"ast_opaque": {
+				PublicID:  "ast_opaque",
+				AssetType: "Image",
+				Status:    model.AssetStatusActive,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       106,
+					Status:          model.AssetStatusActive,
+					UpstreamAssetID: "asset://asset-opaque-123",
+				}},
+			},
+		},
+	}
+
+	require.Equal(t, map[string]string{
+		"asset://ast_opaque": "asset://asset-opaque-123",
+	}, refs.RewriteMapForChannel(106))
+}
+
 func TestAssetReferenceSetRejectsMixedSourceUnavailableBindingsOnDifferentChannels(t *testing.T) {
 	newAssetReferenceDB(t)
 	insertAssetReferenceAsset(t, assetReferenceSeed{UserID: 7, PublicID: "ast_1234567890abcdefABCDEF1234567890", AssetType: "Image", SourceStatus: model.AssetSourceStatusUnavailable, BindingChannelID: 131, UpstreamID: "generalized-upstream", BindingStatus: model.AssetStatusActive})
