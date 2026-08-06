@@ -1,8 +1,9 @@
 package model
 
 const (
-	QuotaLifecycleScopeUser  = "user"
-	QuotaLifecycleScopeToken = "token"
+	QuotaLifecycleScopeUser   = "user"
+	QuotaLifecycleScopeToken  = "token"
+	QuotaLifecycleScopeWallet = "wallet"
 )
 
 type QuotaLifecycleState struct {
