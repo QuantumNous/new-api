@@ -278,19 +278,28 @@ func ReconcileRecallMessageStateEventBaseline(ctx context.Context, limit int) (i
 	reconciled := 0
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		pending := 0
-		rows := make([]recallMessageWithCampaign, 0, limit)
+		candidateIDs := make([]int64, 0, limit)
 		if err := tx.Model(&RecallMessage{}).
-			Select("recall_messages.*, recall_recipients.campaign_id").
+			Select("recall_messages.id").
 			Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
-			Where("recall_messages.state_version = 0 OR NOT EXISTS (?)", recallMessageStateEventExistsSubquery(tx)).
+			Where("recall_messages.state_version IS NULL OR recall_messages.state_version = 0 OR NOT EXISTS (?)", recallMessageStateEventExistsSubquery(tx)).
 			Order("recall_messages.id ASC").
 			Limit(limit).
-			Clauses(clause.Locking{Strength: "UPDATE"}).
-			Find(&rows).Error; err != nil {
+			Find(&candidateIDs).Error; err != nil {
 			return err
 		}
-		if len(rows) == 0 {
+		if len(candidateIDs) == 0 {
 			return nil
+		}
+		rows := make([]recallMessageWithCampaign, 0, len(candidateIDs))
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Model(&RecallMessage{}).
+			Select("recall_messages.*, recall_recipients.campaign_id").
+			Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
+			Where("recall_messages.id IN ?", candidateIDs).
+			Order("recall_messages.id ASC").
+			Find(&rows).Error; err != nil {
+			return err
 		}
 		occurredAt, err := getDBTimestamp(tx)
 		if err != nil {
@@ -300,7 +309,7 @@ func ReconcileRecallMessageStateEventBaseline(ctx context.Context, limit int) (i
 			version := row.StateVersion
 			if row.StateVersion == 0 {
 				result := tx.Model(&RecallMessage{}).
-					Where("id = ? AND state_version = 0", row.Id).
+					Where("id = ? AND (state_version IS NULL OR state_version = 0)", row.Id).
 					Update("state_version", 1)
 				if result.Error != nil {
 					return result.Error
@@ -346,7 +355,7 @@ func CountUnbaselinedRecallMessagesForCampaign(ctx context.Context, campaignID i
 	err := db.Model(&RecallMessage{}).
 		Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
 		Where("recall_recipients.campaign_id = ?", campaignID).
-		Where("recall_messages.state_version = 0 OR NOT EXISTS (?)", recallMessageStateEventExistsSubquery(db)).
+		Where("recall_messages.state_version IS NULL OR recall_messages.state_version = 0 OR NOT EXISTS (?)", recallMessageStateEventExistsSubquery(db)).
 		Count(&count).Error
 	return count, err
 }
@@ -457,7 +466,7 @@ func recallMessageTransitionQuery(query *gorm.DB, message RecallMessage, transit
 
 func insertInlineRecallMessageBaseline(tx *gorm.DB, row recallMessageWithCampaign, transition RecallMessageTransition, occurredAt int64) (bool, error) {
 	query := recallMessageTransitionQuery(tx.Model(&RecallMessage{}), row.RecallMessage, transition).
-		Where("state_version = 0")
+		Where("state_version IS NULL OR state_version = 0")
 	query = applyRecallMessageDueFence(query, transition.dueFence)
 	result := query.Update("state_version", int64(1))
 	if result.Error != nil {
