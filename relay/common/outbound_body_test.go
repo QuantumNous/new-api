@@ -14,12 +14,11 @@ func TestNewOutboundJSONBody_GetBodyReplaysFullBody(t *testing.T) {
 
 	payload := []byte(`{"model":"test-model","messages":[{"role":"user","content":"hello"}]}`)
 
-	body, size, getBody, closer, err := NewOutboundJSONBody(payload)
+	body, closer, err := NewOutboundJSONBody(payload)
 	require.NoError(t, err)
 	defer closer.Close()
 
-	assert.EqualValues(t, len(payload), size)
-	require.NotNil(t, getBody)
+	assert.EqualValues(t, len(payload), body.Size())
 
 	// Consume the primary body, as the HTTP transport does on the first attempt.
 	first, err := io.ReadAll(body)
@@ -29,7 +28,7 @@ func TestNewOutboundJSONBody_GetBodyReplaysFullBody(t *testing.T) {
 	// GetBody must hand out the complete body again — and repeatedly, since the
 	// transport may need more than one retry.
 	for i := 0; i < 2; i++ {
-		rc, err := getBody()
+		rc, err := body.NewReader()
 		require.NoError(t, err)
 		replay, err := io.ReadAll(rc)
 		require.NoError(t, err)
@@ -43,7 +42,7 @@ func TestNewOutboundJSONBody_GetBodyAfterPartialRead(t *testing.T) {
 
 	payload := []byte(`{"model":"test-model","input":"0123456789"}`)
 
-	body, _, getBody, closer, err := NewOutboundJSONBody(payload)
+	body, closer, err := NewOutboundJSONBody(payload)
 	require.NoError(t, err)
 	defer closer.Close()
 
@@ -52,7 +51,7 @@ func TestNewOutboundJSONBody_GetBodyAfterPartialRead(t *testing.T) {
 	_, err = io.ReadFull(body, partial)
 	require.NoError(t, err)
 
-	rc, err := getBody()
+	rc, err := body.NewReader()
 	require.NoError(t, err)
 	replay, err := io.ReadAll(rc)
 	require.NoError(t, err)
@@ -61,7 +60,7 @@ func TestNewOutboundJSONBody_GetBodyAfterPartialRead(t *testing.T) {
 	// Closing the replayed body must not close the underlying storage: the
 	// handler owns the storage lifetime via the returned closer.
 	require.NoError(t, rc.Close())
-	rc2, err := getBody()
+	rc2, err := body.NewReader()
 	require.NoError(t, err)
 	replay2, err := io.ReadAll(rc2)
 	require.NoError(t, err)
@@ -73,7 +72,7 @@ func TestNewOutboundJSONBody_GetBodyAfterPartialRead(t *testing.T) {
 // independent cursors, per the http.Request.GetBody contract of returning a
 // new copy of the body: interleaved reads across two replay readers and the
 // primary body each observe exactly their own byte stream.
-func assertIndependentReplayReaders(t *testing.T, payload []byte, body io.Reader, getBody func() (io.ReadCloser, error)) {
+func assertIndependentReplayReaders(t *testing.T, payload []byte, body common.ReplayableBody) {
 	t.Helper()
 
 	half := len(payload) / 2
@@ -87,9 +86,9 @@ func assertIndependentReplayReaders(t *testing.T, payload []byte, body io.Reader
 
 	// Interleave two replay readers: A reads half, B reads everything, then A
 	// reads the rest.
-	a, err := getBody()
+	a, err := body.NewReader()
 	require.NoError(t, err)
-	b, err := getBody()
+	b, err := body.NewReader()
 	require.NoError(t, err)
 
 	aHead := make([]byte, half)
@@ -118,16 +117,16 @@ func TestNewOutboundJSONBody_GetBodyReadersAreIndependent(t *testing.T) {
 
 	payload := []byte(`{"model":"test-model","input":"abcdefghijklmnopqrstuvwxyz"}`)
 
-	body, _, getBody, closer, err := NewOutboundJSONBody(payload)
+	body, closer, err := NewOutboundJSONBody(payload)
 	require.NoError(t, err)
 	defer closer.Close()
 
-	assertIndependentReplayReaders(t, payload, body, getBody)
+	assertIndependentReplayReaders(t, payload, body)
 
 	// Once the handler releases the storage, GetBody must fail loudly instead
 	// of replaying stale data.
 	require.NoError(t, closer.Close())
-	_, err = getBody()
+	_, err = body.NewReader()
 	require.ErrorIs(t, err, common.ErrStorageClosed)
 }
 
@@ -147,7 +146,7 @@ func TestNewOutboundJSONBody_GetBodyReadersAreIndependent_DiskStorage(t *testing
 
 	payload := []byte(`{"model":"test-model","input":"abcdefghijklmnopqrstuvwxyz"}`)
 
-	body, _, getBody, closer, err := NewOutboundJSONBody(payload)
+	body, closer, err := NewOutboundJSONBody(payload)
 	require.NoError(t, err)
 	defer closer.Close()
 
@@ -155,9 +154,9 @@ func TestNewOutboundJSONBody_GetBodyReadersAreIndependent_DiskStorage(t *testing
 	require.True(t, ok)
 	assert.True(t, storage.IsDisk(), "the payload must have taken the diskStorage path")
 
-	assertIndependentReplayReaders(t, payload, body, getBody)
+	assertIndependentReplayReaders(t, payload, body)
 
 	require.NoError(t, closer.Close())
-	_, err = getBody()
+	_, err = body.NewReader()
 	require.ErrorIs(t, err, common.ErrStorageClosed)
 }

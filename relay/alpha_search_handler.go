@@ -62,13 +62,11 @@ func AlphaSearchHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError
 	}
 
 	logger.LogDebug(c, "requestBody: %s", jsonData)
-	body, size, getBody, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+	body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 	defer closer.Close()
-	info.UpstreamRequestBodySize = size
-	info.UpstreamRequestGetBody = getBody
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {

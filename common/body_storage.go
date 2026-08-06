@@ -29,6 +29,14 @@ type BodyStorage interface {
 	NewReader() (io.ReadCloser, error)
 }
 
+// ReplayableBody is an outbound request body that can report its byte size and
+// create independent readers for transport-level retries.
+type ReplayableBody interface {
+	io.Reader
+	Size() int64
+	NewReader() (io.ReadCloser, error)
+}
+
 // ErrStorageClosed 存储已关闭错误
 var ErrStorageClosed = fmt.Errorf("body storage is closed")
 
@@ -339,10 +347,27 @@ func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes
 	return storage, nil
 }
 
-// ReaderOnly wraps an io.Reader to hide io.Closer, preventing http.NewRequest
-// from type-asserting io.ReadCloser and closing the underlying BodyStorage.
-func ReaderOnly(r io.Reader) io.Reader {
-	return struct{ io.Reader }{r}
+type replayableBodyReader struct {
+	storage BodyStorage
+}
+
+func (r replayableBodyReader) Read(p []byte) (int, error) {
+	return r.storage.Read(p)
+}
+
+func (r replayableBodyReader) Size() int64 {
+	return r.storage.Size()
+}
+
+func (r replayableBodyReader) NewReader() (io.ReadCloser, error) {
+	return r.storage.NewReader()
+}
+
+// NewReplayableBodyReader exposes the replay capabilities of storage without
+// exposing io.Closer. This keeps ownership of the storage lifecycle with the
+// caller instead of allowing net/http to close it as the request body.
+func NewReplayableBodyReader(storage BodyStorage) ReplayableBody {
+	return replayableBodyReader{storage: storage}
 }
 
 // CleanupOldCacheFiles 清理旧的缓存文件（用于启动时清理残留）
