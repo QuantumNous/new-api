@@ -145,6 +145,9 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+        defaultCompanyLogRoutingEnabled={Boolean(
+          settings.CompanyLogRoutingEnabled
+        )}
       />
     ),
   },

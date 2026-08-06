@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -19,6 +20,10 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
 )
+
+// companyLogRoutingEnabled gates only new log writes. Historical company-log
+// queries stay available when the option is disabled.
+var companyLogRoutingEnabled atomic.Bool
 
 func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm.DB, error) {
 	if value == "" {
@@ -299,7 +304,9 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 }
 
 func requestLogDB(userId int, tokenId int, channelType int) *gorm.DB {
-	if userId == 1 && tokenId > 0 && channelType == constant.ChannelTypeCodex {
+	// Route each entry by the channel that actually handled that attempt. A
+	// fallback request may therefore leave entries in different log tables.
+	if companyLogRoutingEnabled.Load() && userId == 1 && tokenId > 0 && channelType == constant.ChannelTypeCodex {
 		return LOG_DB.Table((CompanyLogSchema{}).TableName())
 	}
 	return LOG_DB

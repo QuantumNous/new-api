@@ -137,21 +137,34 @@ func TestProcessChannelErrorMarksCooldownOnTooManyRequests(t *testing.T) {
 func TestProcessChannelErrorLogsActualChannelSnapshot(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/channel-error-log.db"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Log{}, &model.CompanyLogSchema{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Log{}, &model.CompanyLogSchema{}, &model.Option{}))
 
 	previousDB := model.DB
 	previousLogDB := model.LOG_DB
 	previousRedisEnabled := common.RedisEnabled
 	previousErrorLogEnabled := constant.ErrorLogEnabled
+	common.OptionMapRWMutex.Lock()
+	previousOptionMap := common.OptionMap
+	previousCompanyLogRoutingEnabled := "false"
+	if value, ok := previousOptionMap[model.OptionKeyCompanyLogRoutingEnabled]; ok {
+		previousCompanyLogRoutingEnabled = value
+	}
+	common.OptionMap = map[string]string{}
+	common.OptionMapRWMutex.Unlock()
 	model.DB = db
 	model.LOG_DB = db
 	common.RedisEnabled = false
 	constant.ErrorLogEnabled = true
+	require.NoError(t, model.UpdateOption(model.OptionKeyCompanyLogRoutingEnabled, "true"))
 	t.Cleanup(func() {
+		require.NoError(t, model.UpdateOption(model.OptionKeyCompanyLogRoutingEnabled, previousCompanyLogRoutingEnabled))
 		model.DB = previousDB
 		model.LOG_DB = previousLogDB
 		common.RedisEnabled = previousRedisEnabled
 		constant.ErrorLogEnabled = previousErrorLogEnabled
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previousOptionMap
+		common.OptionMapRWMutex.Unlock()
 	})
 
 	gin.SetMode(gin.TestMode)

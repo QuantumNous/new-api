@@ -22,15 +22,25 @@ func setupRequestLogRoutingTest(t *testing.T) *gin.Context {
 	originalLogDB := LOG_DB
 	originalDataExportEnabled := common.DataExportEnabled
 	originalLogConsumeEnabled := common.LogConsumeEnabled
+	originalCompanyLogRoutingEnabled := companyLogRoutingEnabled.Load()
+	common.OptionMapRWMutex.Lock()
+	originalOptionMap := common.OptionMap
+	common.OptionMap = map[string]string{}
+	common.OptionMapRWMutex.Unlock()
 	DB = db
 	LOG_DB = db
 	common.DataExportEnabled = false
 	common.LogConsumeEnabled = true
+	companyLogRoutingEnabled.Store(false)
 	t.Cleanup(func() {
 		DB = originalDB
 		LOG_DB = originalLogDB
 		common.DataExportEnabled = originalDataExportEnabled
 		common.LogConsumeEnabled = originalLogConsumeEnabled
+		companyLogRoutingEnabled.Store(originalCompanyLogRoutingEnabled)
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = originalOptionMap
+		common.OptionMapRWMutex.Unlock()
 	})
 
 	gin.SetMode(gin.TestMode)
@@ -58,6 +68,7 @@ func requireRequestLogTableCounts(t *testing.T, regular int64, company int64) {
 
 func TestRecordConsumeLogRoutesOnlyCompanyCodexTokenTraffic(t *testing.T) {
 	c := setupRequestLogRoutingTest(t)
+	companyLogRoutingEnabled.Store(true)
 	tests := []struct {
 		name        string
 		userID      int
@@ -93,6 +104,7 @@ func TestRecordConsumeLogRoutesOnlyCompanyCodexTokenTraffic(t *testing.T) {
 
 func TestRecordErrorLogRoutesOnlyCompanyCodexTokenTraffic(t *testing.T) {
 	c := setupRequestLogRoutingTest(t)
+	companyLogRoutingEnabled.Store(true)
 	tests := []struct {
 		name        string
 		userID      int
@@ -120,6 +132,7 @@ func TestRecordErrorLogRoutesOnlyCompanyCodexTokenTraffic(t *testing.T) {
 
 func TestRequestLogRoutingAllowsSameRequestIDAcrossTables(t *testing.T) {
 	c := setupRequestLogRoutingTest(t)
+	companyLogRoutingEnabled.Store(true)
 	c.Set(common.RequestIdKey, "req_shared_across_log_tables")
 	adsActivationSeen.Store(1, struct{}{})
 	t.Cleanup(func() { adsActivationSeen.Delete(1) })
@@ -140,4 +153,40 @@ func TestRequestLogRoutingAllowsSameRequestIDAcrossTables(t *testing.T) {
 	require.NoError(t, LOG_DB.Table(companyLog.TableName()).First(&companyLog).Error)
 	require.Equal(t, "req_shared_across_log_tables", regularLog.RequestId)
 	require.Equal(t, regularLog.RequestId, companyLog.RequestId)
+}
+
+func TestCompanyLogRoutingDisabledKeepsMatchingTrafficInDefaultTable(t *testing.T) {
+	c := setupRequestLogRoutingTest(t)
+	adsActivationSeen.Store(1, struct{}{})
+	t.Cleanup(func() { adsActivationSeen.Delete(1) })
+
+	RecordConsumeLog(c, 1, RecordConsumeLogParams{
+		ChannelId:   11,
+		ChannelType: constant.ChannelTypeCodex,
+		ModelName:   "gpt-5-codex",
+		TokenId:     7,
+		Other:       map[string]interface{}{},
+	})
+
+	requireRequestLogTableCounts(t, 1, 0)
+}
+
+func TestCompanyLogRoutingOptionPersistsAndReloads(t *testing.T) {
+	setupRequestLogRoutingTest(t)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	require.False(t, companyLogRoutingEnabled.Load())
+
+	require.NoError(t, UpdateOption(OptionKeyCompanyLogRoutingEnabled, "true"))
+	require.True(t, companyLogRoutingEnabled.Load())
+
+	var option Option
+	require.NoError(t, DB.First(&option, "key = ?", OptionKeyCompanyLogRoutingEnabled).Error)
+	require.Equal(t, "true", option.Value)
+
+	companyLogRoutingEnabled.Store(false)
+	LoadOptionsFromDatabase()
+	require.True(t, companyLogRoutingEnabled.Load())
+
+	require.NoError(t, UpdateOption(OptionKeyCompanyLogRoutingEnabled, "false"))
+	require.False(t, companyLogRoutingEnabled.Load())
 }
