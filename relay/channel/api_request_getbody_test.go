@@ -9,12 +9,15 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
@@ -33,24 +36,23 @@ func TestApplyUpstreamGetBody_SetsReplayableGetBody(t *testing.T) {
 	// ContentLength nor GetBody.
 	req, err := http.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", body)
 	require.NoError(t, err)
-	require.Nil(t, req.GetBody)
-	require.EqualValues(t, 0, req.ContentLength)
+	assert.Nil(t, req.GetBody)
+	assert.Zero(t, req.ContentLength)
 
 	info := &relaycommon.RelayInfo{
 		UpstreamRequestBodySize: size,
 		UpstreamRequestGetBody:  getBody,
 	}
-	applyUpstreamContentLength(req, info)
-	applyUpstreamGetBody(req, info)
+	ApplyUpstreamBodyMetadata(req, info)
 
-	require.EqualValues(t, len(payload), req.ContentLength)
+	assert.EqualValues(t, len(payload), req.ContentLength)
 	require.NotNil(t, req.GetBody)
 
 	// Drain the primary body as the transport does on the first attempt, then
 	// make sure GetBody can replay the complete payload repeatedly.
 	sent, err := io.ReadAll(req.Body)
 	require.NoError(t, err)
-	require.Equal(t, payload, sent)
+	assert.Equal(t, payload, sent)
 
 	for i := 0; i < 2; i++ {
 		rc, err := req.GetBody()
@@ -58,29 +60,46 @@ func TestApplyUpstreamGetBody_SetsReplayableGetBody(t *testing.T) {
 		replay, err := io.ReadAll(rc)
 		require.NoError(t, err)
 		require.NoError(t, rc.Close())
-		require.Equal(t, payload, replay, "replay %d must equal the original payload", i+1)
+		assert.Equal(t, payload, replay, "replay %d must equal the original payload", i+1)
 	}
 }
 
 func TestApplyUpstreamGetBody_KeepsExistingGetBody(t *testing.T) {
-	t.Parallel()
-
-	req, err := http.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", bytes.NewReader([]byte("original")))
-	require.NoError(t, err)
-	require.NotNil(t, req.GetBody, "*bytes.Reader bodies get a GetBody from net/http")
-
-	info := &relaycommon.RelayInfo{
-		UpstreamRequestGetBody: func() (io.ReadCloser, error) {
-			return io.NopCloser(bytes.NewReader([]byte("override"))), nil
-		},
+	tests := []struct {
+		name string
+		body func() io.Reader
+	}{
+		{name: "bytes reader", body: func() io.Reader { return bytes.NewReader([]byte("original")) }},
+		{name: "bytes buffer", body: func() io.Reader { return bytes.NewBufferString("original") }},
+		{name: "strings reader", body: func() io.Reader { return strings.NewReader("original") }},
 	}
-	applyUpstreamGetBody(req, info)
 
-	rc, err := req.GetBody()
-	require.NoError(t, err)
-	got, err := io.ReadAll(rc)
-	require.NoError(t, err)
-	require.Equal(t, "original", string(got), "an already correct GetBody must not be overwritten")
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := http.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", test.body())
+			require.NoError(t, err)
+			require.NotNil(t, req.GetBody, "net/http must derive GetBody for the concrete reader")
+
+			info := &relaycommon.RelayInfo{
+				UpstreamRequestBodySize: 99,
+				UpstreamRequestGetBody: func() (io.ReadCloser, error) {
+					return io.NopCloser(bytes.NewReader([]byte("override"))), nil
+				},
+			}
+			ApplyUpstreamBodyMetadata(req, info)
+
+			rc, err := req.GetBody()
+			require.NoError(t, err)
+			got, err := io.ReadAll(rc)
+			require.NoError(t, err)
+			require.NoError(t, rc.Close())
+			assert.Equal(t, "original", string(got), "an already correct GetBody must not be overwritten")
+			assert.EqualValues(t, len("original"), req.ContentLength, "native content length must not be overwritten")
+		})
+	}
 }
 
 func TestApplyUpstreamGetBody_NoopWithoutReplaySource(t *testing.T) {
@@ -94,10 +113,73 @@ func TestApplyUpstreamGetBody_NoopWithoutReplaySource(t *testing.T) {
 	require.NoError(t, err)
 
 	applyUpstreamGetBody(req, nil)
-	require.Nil(t, req.GetBody)
+	assert.Nil(t, req.GetBody)
 
 	applyUpstreamGetBody(req, &relaycommon.RelayInfo{})
-	require.Nil(t, req.GetBody)
+	assert.Nil(t, req.GetBody)
+}
+
+func TestApplyUpstreamBodyMetadata_EmptyStorageRemainsReplayable(t *testing.T) {
+	t.Parallel()
+
+	storage, err := common.CreateBodyStorage(nil)
+	require.NoError(t, err)
+	defer storage.Close()
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", common.ReaderOnly(storage))
+	require.NoError(t, err)
+	ApplyUpstreamBodyMetadata(req, &relaycommon.RelayInfo{
+		UpstreamRequestBodySize: storage.Size(),
+		UpstreamRequestGetBody:  storage.NewReader,
+	})
+
+	assert.Zero(t, req.ContentLength)
+	require.NotNil(t, req.GetBody)
+	rc, err := req.GetBody()
+	require.NoError(t, err)
+	replay, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.NoError(t, rc.Close())
+	assert.Empty(t, replay)
+}
+
+func TestUpstreamBodyMetadataIsReboundAcrossChannelAttempts(t *testing.T) {
+	firstPayload := []byte(`{"attempt":"first-with-longer-body"}`)
+	_, firstSize, firstGetBody, firstCloser, err := relaycommon.NewOutboundJSONBody(firstPayload)
+	require.NoError(t, err)
+
+	info := &relaycommon.RelayInfo{
+		UpstreamRequestBodySize: firstSize,
+		UpstreamRequestGetBody:  firstGetBody,
+	}
+	require.NoError(t, firstCloser.Close())
+	_, err = firstGetBody()
+	require.ErrorIs(t, err, common.ErrStorageClosed)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info.InitChannelMeta(c)
+	assert.Zero(t, info.UpstreamRequestBodySize)
+	assert.Nil(t, info.UpstreamRequestGetBody)
+
+	secondPayload := []byte(`{"attempt":"second"}`)
+	secondStorage, err := common.CreateBodyStorage(secondPayload)
+	require.NoError(t, err)
+	defer secondStorage.Close()
+	info.UpstreamRequestBodySize = secondStorage.Size()
+	info.UpstreamRequestGetBody = secondStorage.NewReader
+
+	req, err := http.NewRequest(http.MethodPost, "https://example.com/v1/chat/completions", common.ReaderOnly(secondStorage))
+	require.NoError(t, err)
+	ApplyUpstreamBodyMetadata(req, info)
+
+	assert.EqualValues(t, len(secondPayload), req.ContentLength)
+	require.NotNil(t, req.GetBody)
+	rc, err := req.GetBody()
+	require.NoError(t, err)
+	replay, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.NoError(t, rc.Close())
+	assert.Equal(t, secondPayload, replay)
 }
 
 // stubTaskAdaptor implements just enough of TaskAdaptor for DoTaskApiRequest.
@@ -126,9 +208,14 @@ func TestDoTaskApiRequest_KeepsReplayableGetBody(t *testing.T) {
 
 	payload := []byte(`{"model":"test-model","prompt":"hello"}`)
 
-	var received []byte
+	type receivedBody struct {
+		body []byte
+		err  error
+	}
+	receivedCh := make(chan receivedBody, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		received, _ = io.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
+		receivedCh <- receivedBody{body: body, err: err}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -146,8 +233,10 @@ func TestDoTaskApiRequest_KeepsReplayableGetBody(t *testing.T) {
 	resp, err := DoTaskApiRequest(adaptor, ctx, info, bytes.NewReader(payload))
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Equal(t, payload, received)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	received := <-receivedCh
+	require.NoError(t, received.err)
+	assert.Equal(t, payload, received.body)
 
 	req := adaptor.capturedReq
 	require.NotNil(t, req)
@@ -160,14 +249,102 @@ func TestDoTaskApiRequest_KeepsReplayableGetBody(t *testing.T) {
 		replay, err := io.ReadAll(rc)
 		require.NoError(t, err)
 		require.NoError(t, rc.Close())
-		require.Equal(t, payload, replay, "replay %d must equal the original payload", i+1)
+		assert.Equal(t, payload, replay, "replay %d must equal the original payload", i+1)
 	}
 }
 
 type h2ServerResult struct {
-	err         error
-	streamCount int
-	bodies      map[uint32][]byte
+	err           error
+	streamCount   int
+	attemptBodies [][]byte
+}
+
+func acceptH2TestConnection(ln net.Listener) (net.Conn, *http2.Framer, error) {
+	conn, err := ln.Accept()
+	if err != nil {
+		return nil, nil, err
+	}
+	_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
+
+	preface := make([]byte, len(http2.ClientPreface))
+	if _, err := io.ReadFull(conn, preface); err != nil {
+		conn.Close()
+		return nil, nil, fmt.Errorf("read client preface: %w", err)
+	}
+	if !bytes.Equal(preface, []byte(http2.ClientPreface)) {
+		conn.Close()
+		return nil, nil, fmt.Errorf("unexpected client preface")
+	}
+
+	framer := http2.NewFramer(conn, conn)
+	framer.ReadMetaHeaders = hpack.NewDecoder(4096, nil)
+	if err := framer.WriteSettings(); err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+	return conn, framer, nil
+}
+
+func readH2TestRequest(framer *http2.Framer) (uint32, []byte, error) {
+	var streamID uint32
+	var body []byte
+	for {
+		frame, err := framer.ReadFrame()
+		if err != nil {
+			return 0, nil, fmt.Errorf("read frame: %w", err)
+		}
+		switch f := frame.(type) {
+		case *http2.SettingsFrame:
+			if !f.IsAck() {
+				if err := framer.WriteSettingsAck(); err != nil {
+					return 0, nil, err
+				}
+			}
+		case *http2.MetaHeadersFrame:
+			streamID = f.Header().StreamID
+			if f.StreamEnded() {
+				return streamID, body, nil
+			}
+		case *http2.DataFrame:
+			if streamID == 0 {
+				streamID = f.Header().StreamID
+			}
+			if f.Header().StreamID != streamID {
+				continue
+			}
+			body = append(body, f.Data()...)
+			if f.StreamEnded() {
+				return streamID, body, nil
+			}
+		}
+	}
+}
+
+func writeH2TestResponse(framer *http2.Framer, streamID uint32) error {
+	var hpackBuf bytes.Buffer
+	henc := hpack.NewEncoder(&hpackBuf)
+	if err := henc.WriteField(hpack.HeaderField{Name: ":status", Value: "200"}); err != nil {
+		return err
+	}
+	if err := framer.WriteHeaders(http2.HeadersFrameParam{
+		StreamID:      streamID,
+		BlockFragment: hpackBuf.Bytes(),
+		EndHeaders:    true,
+	}); err != nil {
+		return err
+	}
+	return framer.WriteData(streamID, true, []byte(`{}`))
+}
+
+func awaitH2ServerResult(t *testing.T, resultCh <-chan h2ServerResult) h2ServerResult {
+	t.Helper()
+	select {
+	case result := <-resultCh:
+		return result
+	case <-time.After(20 * time.Second):
+		t.Fatal("timed out waiting for HTTP/2 test server")
+		return h2ServerResult{}
+	}
 }
 
 // runResetOnFirstStreamServer speaks just enough raw HTTP/2 to emulate an
@@ -179,87 +356,83 @@ type h2ServerResult struct {
 func runResetOnFirstStreamServer(ln net.Listener, expectRetry bool) <-chan h2ServerResult {
 	resCh := make(chan h2ServerResult, 1)
 	go func() {
-		res := h2ServerResult{bodies: map[uint32][]byte{}}
+		res := h2ServerResult{}
 		defer func() { resCh <- res }()
 
-		conn, err := ln.Accept()
+		conn, framer, err := acceptH2TestConnection(ln)
 		if err != nil {
 			res.err = err
 			return
 		}
 		defer conn.Close()
-		_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
 
-		preface := make([]byte, len(http2.ClientPreface))
-		if _, err := io.ReadFull(conn, preface); err != nil {
-			res.err = fmt.Errorf("read client preface: %w", err)
-			return
-		}
-
-		framer := http2.NewFramer(conn, conn)
-		framer.ReadMetaHeaders = hpack.NewDecoder(4096, nil)
-		if err := framer.WriteSettings(); err != nil {
-			res.err = err
-			return
-		}
-
-		var hpackBuf bytes.Buffer
-		henc := hpack.NewEncoder(&hpackBuf)
-
-		for {
-			frame, err := framer.ReadFrame()
+	attempts:
+		for attempt := 0; ; attempt++ {
+			streamID, body, err := readH2TestRequest(framer)
 			if err != nil {
-				res.err = fmt.Errorf("read frame: %w", err)
+				res.err = err
 				return
 			}
-			switch f := frame.(type) {
-			case *http2.SettingsFrame:
-				if !f.IsAck() {
-					if err := framer.WriteSettingsAck(); err != nil {
-						res.err = err
-						return
-					}
-				}
-			case *http2.MetaHeadersFrame:
-				res.streamCount++
-			case *http2.DataFrame:
-				sid := f.Header().StreamID
-				res.bodies[sid] = append(res.bodies[sid], f.Data()...)
-				if !f.StreamEnded() {
-					continue
-				}
-				if sid == 1 {
-					// The full request body has been written; reset the stream
-					// the way an overloaded or restarting upstream does.
-					if err := framer.WriteRSTStream(sid, http2.ErrCodeRefusedStream); err != nil {
-						res.err = err
-						return
-					}
-					if !expectRetry {
-						return
-					}
-					continue
-				}
-				// Retried attempt: respond 200 and finish.
-				hpackBuf.Reset()
-				if err := henc.WriteField(hpack.HeaderField{Name: ":status", Value: "200"}); err != nil {
+			res.streamCount++
+			res.attemptBodies = append(res.attemptBodies, body)
+
+			if attempt == 0 {
+				if err := framer.WriteRSTStream(streamID, http2.ErrCodeRefusedStream); err != nil {
 					res.err = err
 					return
 				}
-				if err := framer.WriteHeaders(http2.HeadersFrameParam{
-					StreamID:      sid,
-					BlockFragment: hpackBuf.Bytes(),
-					EndHeaders:    true,
-				}); err != nil {
-					res.err = err
-					return
+				if !expectRetry {
+					break attempts
 				}
-				if err := framer.WriteData(sid, true, []byte(`{}`)); err != nil {
-					res.err = err
-					return
-				}
+				continue
+			}
+
+			if err := writeH2TestResponse(framer, streamID); err != nil {
+				res.err = err
+			}
+			return
+		}
+	}()
+	return resCh
+}
+
+func runGoAwayAfterFirstRequestServer(ln net.Listener) <-chan h2ServerResult {
+	resCh := make(chan h2ServerResult, 1)
+	go func() {
+		res := h2ServerResult{}
+		defer func() { resCh <- res }()
+
+		for attempt := 0; attempt < 2; attempt++ {
+			conn, framer, err := acceptH2TestConnection(ln)
+			if err != nil {
+				res.err = err
 				return
 			}
+			streamID, body, err := readH2TestRequest(framer)
+			if err != nil {
+				conn.Close()
+				res.err = err
+				return
+			}
+			res.streamCount++
+			res.attemptBodies = append(res.attemptBodies, body)
+
+			if attempt == 0 {
+				err = framer.WriteGoAway(0, http2.ErrCodeNo, nil)
+				conn.Close()
+				if err != nil {
+					res.err = err
+					return
+				}
+				continue
+			}
+
+			err = writeH2TestResponse(framer, streamID)
+			conn.Close()
+			if err != nil {
+				res.err = err
+			}
+			return
 		}
 	}()
 	return resCh
@@ -268,11 +441,22 @@ func runResetOnFirstStreamServer(ln net.Listener, expectRetry bool) <-chan h2Ser
 func newH2PriorKnowledgeClient(ln net.Listener) (*http.Client, *http2.Transport) {
 	transport := &http2.Transport{
 		AllowHTTP: true,
-		DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-			return net.Dial("tcp", ln.Addr().String())
+		DialTLSContext: func(ctx context.Context, network, _ string, _ *tls.Config) (net.Conn, error) {
+			var dialer net.Dialer
+			return dialer.DialContext(ctx, network, ln.Addr().String())
 		},
 	}
 	return &http.Client{Transport: transport, Timeout: 15 * time.Second}, transport
+}
+
+func newPassThroughBody(t *testing.T, payload []byte) (io.Reader, *relaycommon.RelayInfo, common.BodyStorage) {
+	t.Helper()
+	storage, err := common.CreateBodyStorage(payload)
+	require.NoError(t, err)
+	return common.ReaderOnly(storage), &relaycommon.RelayInfo{
+		UpstreamRequestBodySize: storage.Size(),
+		UpstreamRequestGetBody:  storage.NewReader,
+	}, storage
 }
 
 // TestUpstreamGetBody_HTTP2RetryAfterUpstreamStreamReset exercises the actual
@@ -303,20 +487,83 @@ func TestUpstreamGetBody_HTTP2RetryAfterUpstreamStreamReset(t *testing.T) {
 		UpstreamRequestBodySize: size,
 		UpstreamRequestGetBody:  getBody,
 	}
-	applyUpstreamContentLength(req, info)
-	applyUpstreamGetBody(req, info)
+	ApplyUpstreamBodyMetadata(req, info)
 	require.NotNil(t, req.GetBody)
 
 	resp, err := client.Do(req)
 	require.NoError(t, err, "the transport must transparently retry after RST_STREAM")
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	srv := <-resCh
+	srv := awaitH2ServerResult(t, resCh)
 	require.NoError(t, srv.err)
-	require.Equal(t, 2, srv.streamCount, "the request must have been attempted twice")
-	require.Equal(t, payload, srv.bodies[1], "first attempt must carry the full body")
-	require.Equal(t, payload, srv.bodies[3], "the retried request must carry the complete body")
+	assert.Equal(t, 2, srv.streamCount, "the request must have been attempted twice")
+	require.Len(t, srv.attemptBodies, 2)
+	assert.Equal(t, payload, srv.attemptBodies[0], "first attempt must carry the full body")
+	assert.Equal(t, payload, srv.attemptBodies[1], "the retried request must carry the complete body")
+}
+
+func TestUpstreamGetBody_HTTP2RetryAfterUpstreamStreamReset_PassThrough(t *testing.T) {
+	payload := []byte(`{"model":"test-model","messages":[{"role":"user","content":"pass through"}]}`)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+	resCh := runResetOnFirstStreamServer(ln, true)
+
+	client, transport := newH2PriorKnowledgeClient(ln)
+	defer transport.CloseIdleConnections()
+
+	body, info, storage := newPassThroughBody(t, payload)
+	defer storage.Close()
+	req, err := http.NewRequest(http.MethodPost, "http://upstream.test/v1/chat/completions", body)
+	require.NoError(t, err)
+	ApplyUpstreamBodyMetadata(req, info)
+	require.NotNil(t, req.GetBody)
+	assert.EqualValues(t, len(payload), req.ContentLength)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err, "the transport must transparently retry a pass-through body after RST_STREAM")
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	srv := awaitH2ServerResult(t, resCh)
+	require.NoError(t, srv.err)
+	assert.Equal(t, 2, srv.streamCount)
+	require.Len(t, srv.attemptBodies, 2)
+	assert.Equal(t, payload, srv.attemptBodies[0])
+	assert.Equal(t, payload, srv.attemptBodies[1])
+}
+
+func TestUpstreamGetBody_HTTP2RetryAfterGracefulGoAway_PassThrough(t *testing.T) {
+	payload := []byte(`{"model":"test-model","messages":[{"role":"user","content":"go away"}]}`)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+	resCh := runGoAwayAfterFirstRequestServer(ln)
+
+	client, transport := newH2PriorKnowledgeClient(ln)
+	defer transport.CloseIdleConnections()
+
+	body, info, storage := newPassThroughBody(t, payload)
+	defer storage.Close()
+	req, err := http.NewRequest(http.MethodPost, "http://upstream.test/v1/chat/completions", body)
+	require.NoError(t, err)
+	ApplyUpstreamBodyMetadata(req, info)
+	require.NotNil(t, req.GetBody)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err, "the transport must retry on a new connection after graceful GOAWAY")
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	srv := awaitH2ServerResult(t, resCh)
+	require.NoError(t, srv.err)
+	assert.Equal(t, 2, srv.streamCount)
+	require.Len(t, srv.attemptBodies, 2)
+	assert.Equal(t, payload, srv.attemptBodies[0])
+	assert.Equal(t, payload, srv.attemptBodies[1])
 }
 
 // TestUpstreamGetBody_HTTP2CannotRetryWithoutGetBody documents the pre-fix
@@ -340,16 +587,17 @@ func TestUpstreamGetBody_HTTP2CannotRetryWithoutGetBody(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, "http://upstream.test/v1/chat/completions", body)
 	require.NoError(t, err)
 	applyUpstreamContentLength(req, &relaycommon.RelayInfo{UpstreamRequestBodySize: size})
-	require.Nil(t, req.GetBody)
+	assert.Nil(t, req.GetBody)
 
 	resp, err := client.Do(req) //nolint:bodyclose // Do fails, no body to close
 	require.Error(t, err)
-	require.Nil(t, resp)
+	assert.Nil(t, resp)
 	require.ErrorContains(t, err, "cannot retry err")
 	require.ErrorContains(t, err, "Request.Body was written")
 
-	srv := <-resCh
+	srv := awaitH2ServerResult(t, resCh)
 	require.NoError(t, srv.err)
-	require.Equal(t, 1, srv.streamCount)
-	require.Equal(t, payload, srv.bodies[1])
+	assert.Equal(t, 1, srv.streamCount)
+	require.Len(t, srv.attemptBodies, 1)
+	assert.Equal(t, payload, srv.attemptBodies[0])
 }
