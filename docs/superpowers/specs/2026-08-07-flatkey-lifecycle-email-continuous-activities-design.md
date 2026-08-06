@@ -4,7 +4,7 @@
 
 - Product design approved section by section in conversation on 2026-08-07.
 - This document is the implementation contract for lifecycle email automation in Activity Configuration.
-- The written specification still requires user review before implementation planning begins.
+- The written specification was reviewed and approved by the user before implementation planning began.
 - The implementation must start from a fresh feature branch based on the latest `origin/main`; this documentation branch is not the implementation base.
 - Repository baseline inspected at `593f5abf1615f6a5ddff53b5a1fe7751e11a6ecc`.
 
