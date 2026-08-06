@@ -209,11 +209,18 @@ func (event *RecallLifecycleEvent) BeforeCreate(tx *gorm.DB) error {
 	if event == nil {
 		return fmt.Errorf("recall lifecycle event is required")
 	}
-	event.EventType = strings.TrimSpace(event.EventType)
-	event.OccurrenceKeyHash = strings.TrimSpace(event.OccurrenceKeyHash)
 	event.BusinessKey = strings.TrimSpace(event.BusinessKey)
-	if event.EventType == "" || event.OccurrenceKeyHash == "" {
+	if strings.TrimSpace(event.EventType) == "" || strings.TrimSpace(event.OccurrenceKeyHash) == "" {
 		return fmt.Errorf("recall lifecycle event requires event type and occurrence key hash")
+	}
+	if event.EventType != strings.TrimSpace(event.EventType) {
+		return fmt.Errorf("recall lifecycle event type must be canonical")
+	}
+	if err := ValidateRecallLifecycleTrigger(event.EventType); err != nil {
+		return err
+	}
+	if err := validateRecallLifecycleOccurrenceHash(event.OccurrenceKeyHash); err != nil {
+		return err
 	}
 	if len(event.BusinessKey) > recallLifecycleBusinessKeyMaxLen {
 		return fmt.Errorf("recall lifecycle event business key exceeds %d characters", recallLifecycleBusinessKeyMaxLen)
@@ -229,6 +236,18 @@ func (event *RecallLifecycleEvent) BeforeCreate(tx *gorm.DB) error {
 	}
 	if event.SchemaVersion == 0 {
 		event.SchemaVersion = 1
+	}
+	return nil
+}
+
+func validateRecallLifecycleOccurrenceHash(hash string) error {
+	if len(hash) != 64 {
+		return fmt.Errorf("recall lifecycle event occurrence key hash must be exactly 64 lowercase hexadecimal characters")
+	}
+	for _, char := range hash {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return fmt.Errorf("recall lifecycle event occurrence key hash must be exactly 64 lowercase hexadecimal characters")
+		}
 	}
 	return nil
 }

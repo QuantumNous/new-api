@@ -263,6 +263,77 @@ func TestLifecycleEventBusinessKeyRejectsOverBoundQuotaAndPurchaseReferences(t *
 	require.Zero(t, count)
 }
 
+func TestLifecycleEventRejectsUnsupportedEventTypeAndMalformedOccurrenceHash(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+
+	occurrence, err := NewRecallLifecycleQuotaOccurrence(RecallLifecycleTriggerQuotaLow, QuotaLifecycleScopeUser, "77", "2026-08", 77)
+	require.NoError(t, err)
+	validEvent := RecallLifecycleEvent{
+		EventType:         RecallLifecycleTriggerQuotaLow,
+		OccurrenceKeyHash: occurrence.Hash,
+		BusinessKey:       "quota:77:2026-08",
+		UserId:            77,
+		EventData:         `{}`,
+	}
+	inserted, err := TryInsertRecallLifecycleEventWithContext(context.Background(), &validEvent)
+	require.NoError(t, err)
+	require.True(t, inserted)
+
+	tests := []struct {
+		name      string
+		eventType string
+		hash      string
+		want      string
+	}{
+		{
+			name:      "unsupported event type",
+			eventType: "unknown_trigger",
+			hash:      occurrence.Hash,
+			want:      "unsupported recall lifecycle trigger",
+		},
+		{
+			name:      "wrong hash length",
+			eventType: RecallLifecycleTriggerQuotaLow,
+			hash:      occurrence.Hash + "0",
+			want:      "occurrence key hash",
+		},
+		{
+			name:      "uppercase hash",
+			eventType: RecallLifecycleTriggerQuotaLow,
+			hash:      strings.ToUpper(occurrence.Hash),
+			want:      "occurrence key hash",
+		},
+		{
+			name:      "non hex hash",
+			eventType: RecallLifecycleTriggerQuotaLow,
+			hash:      strings.Repeat("g", 64),
+			want:      "occurrence key hash",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			malformed := validEvent
+			malformed.Id = 0
+			malformed.EventType = test.eventType
+			malformed.OccurrenceKeyHash = test.hash
+			inserted, err := TryInsertRecallLifecycleEventWithContext(context.Background(), &malformed)
+			require.Error(t, err)
+			require.False(t, inserted)
+			require.Contains(t, err.Error(), test.want)
+		})
+	}
+
+	duplicate := validEvent
+	duplicate.Id = 0
+	inserted, err = TryInsertRecallLifecycleEventWithContext(context.Background(), &duplicate)
+	require.NoError(t, err)
+	require.False(t, inserted)
+
+	var count int64
+	require.NoError(t, DB.Model(&RecallLifecycleEvent{}).Count(&count).Error)
+	require.EqualValues(t, 1, count)
+}
+
 func TestLifecycleEventDuplicateOccurrenceInsertIsNoop(t *testing.T) {
 	setupRecallLifecycleTestDB(t)
 
@@ -319,7 +390,7 @@ func TestLifecycleEventDuplicateNoopDoesNotSwallowMalformedRows(t *testing.T) {
 
 	malformed := event
 	malformed.Id = 0
-	malformed.OccurrenceKeyHash = strings.Repeat("h", 64)
+	malformed.OccurrenceKeyHash = recallLifecycleOccurrenceHash("v1|quota_low|user:88|cycle:2026-08|user:88")
 	malformed.BusinessKey = strings.Repeat("x", recallLifecycleBusinessKeyMaxLen+1)
 	inserted, err = TryInsertRecallLifecycleEventWithContext(context.Background(), &malformed)
 	require.Error(t, err)
