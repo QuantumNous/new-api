@@ -65,9 +65,13 @@ func (d DatabaseConfig) autoMigrate() bool {
 type CaptureConfig struct {
 	// Paths lists the request paths to audit. A trailing "*" matches any suffix.
 	Paths []string `yaml:"paths"`
-	// MaxBodyBytes bounds how many request-body bytes are buffered for
-	// extraction. Larger bodies still stream through untouched; only the first
-	// MaxBodyBytes are inspected and the record is marked truncated.
+	// MaxBodyBytes is a ceiling on how many request-body bytes are inspected. It
+	// is a safety valve for absurd payloads, not a memory budget: the body is
+	// inspected as it streams upstream, so a large request costs one message of
+	// memory rather than its full size. A body that outgrows the ceiling is still
+	// forwarded untouched, but inspection stops there and the record is marked
+	// truncated — which means an incomplete prompt, so the ceiling is set well
+	// above any real request.
 	MaxBodyBytes    int64 `yaml:"max_body_bytes"`
 	StorePromptText bool  `yaml:"store_prompt_text"`
 	StoreRawBody    bool  `yaml:"store_raw_body"`
@@ -202,7 +206,11 @@ func (c *Config) applyDefaults() {
 		c.Capture.Paths = defaultCapturePaths
 	}
 	if c.Capture.MaxBodyBytes <= 0 {
-		c.Capture.MaxBodyBytes = 1 << 20 // 1 MiB
+		// Deliberately far above a real request. An agent client resends its whole
+		// conversation every turn, so multi-megabyte bodies are routine, and a
+		// ceiling low enough to be reached costs the prompt of exactly the requests
+		// worth auditing most.
+		c.Capture.MaxBodyBytes = 64 << 20 // 64 MiB
 	}
 	if c.Capture.PromptScope == "" {
 		c.Capture.PromptScope = PromptScopeLastUser

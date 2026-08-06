@@ -50,7 +50,10 @@ capture:
     - /v1beta/models/*
     - /pg/chat/completions
 
-  max_body_bytes: 1048576 # 1 MiB
+  # Inspection ceiling, not a memory budget: the body is inspected as it streams
+  # upstream. Keep it far above any real request — a body that outgrows it is
+  # marked truncated with an incomplete prompt.
+  max_body_bytes: 67108864 # 64 MiB
 
   store_prompt_text: true
   store_raw_body: false # full request JSON: better for forensics, far larger

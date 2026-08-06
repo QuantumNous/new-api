@@ -204,9 +204,17 @@ duplicate is recoverable and a missing row is not.
   WebSocket relaying completely untouched.
 - Multipart endpoints (`/v1/audio/transcriptions`, `/v1/audio/translations`) are
   not audited by default — their bodies are binary, not prompts.
-- Bodies larger than `max_body_bytes` still stream through in full, but only the
-  captured prefix is inspected and the row is marked `truncated`; prompt
-  extraction will usually fail on a truncated JSON document.
+- Request bodies of any size are audited in full: the body is inspected as it
+  streams upstream, one message at a time, so peak memory is one message rather
+  than the whole request. `max_body_bytes` is only a ceiling for absurd payloads —
+  a body that outgrows it is still forwarded untouched, but inspection stops there
+  and the row is marked `truncated`.
+- Very long conversations are kept under a retention budget while streaming, and
+  text the configured `prompt_scope` will not keep is discarded as it arrives. If
+  the budget is still exceeded, the oldest text is evicted and the row is marked
+  `truncated`; what survives is the end of the conversation — where the input the
+  user just submitted is. A prompt over `max_prompt_bytes` is likewise cut from the
+  front, so the newest input is never the part that is lost.
 - Compressed request bodies (`Content-Encoding: gzip` / `deflate`) are decoded
   **for auditing only** — a copy is decompressed for extraction while the bytes
   forwarded upstream stay byte-identical. Other encodings (e.g. `br`) are recorded
