@@ -1,17 +1,20 @@
 package oaichat
 
 import (
+	"context"
 	"testing"
 
-	"github.com/QuantumNous/new-api/dto"
-	"github.com/gin-gonic/gin"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOpenAIChatRequestToClaudeMessagesOmitsAbsentToolRequired(t *testing.T) {
+	maxTokens := uint(1024)
 	request := dto.GeneralOpenAIRequest{
-		Model: "claude-3-5-sonnet-20241022",
+		Model:     "claude-3-5-sonnet-20241022",
+		MaxTokens: &maxTokens,
 		Messages: []dto.Message{
 			{Role: "user", Content: "hello"},
 		},
@@ -48,7 +51,7 @@ func TestOpenAIChatRequestToClaudeMessagesOmitsAbsentToolRequired(t *testing.T) 
 		},
 	}
 
-	claudeRequest, err := OpenAIChatRequestToClaudeMessages(&gin.Context{}, request)
+	claudeRequest, err := OpenAIChatRequestToClaudeMessages(context.Background(), &convmeta.Values{}, request)
 	require.NoError(t, err)
 
 	toolList, ok := claudeRequest.Tools.([]any)
