@@ -412,6 +412,42 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return nil, sanitizeFetchModelsError(err, key)
 	}
 
+	// Baichuan returns model names under data[].model instead of the OpenAI-standard data[].id
+	if channel.Type == constant.ChannelTypeBaichuan {
+		var baichuanResult struct {
+			Data []struct {
+				Model string `json:"model"`
+			} `json:"data"`
+		}
+		if err := common.Unmarshal(body, &baichuanResult); err != nil {
+			return nil, err
+		}
+		ids := lo.Map(baichuanResult.Data, func(item struct {
+			Model string `json:"model"`
+		}, _ int) string {
+			return item.Model
+		})
+		return normalizeModelNames(ids), nil
+	}
+
+	// Cohere returns {models: [{name, endpoints, ...}]} instead of {data: [{id}]}. Import all names.
+	if channel.Type == constant.ChannelTypeCohere {
+		var cohereResult struct {
+			Models []struct {
+				Name string `json:"name"`
+			} `json:"models"`
+		}
+		if err := common.Unmarshal(body, &cohereResult); err != nil {
+			return nil, err
+		}
+		ids := lo.Map(cohereResult.Models, func(item struct {
+			Name string `json:"name"`
+		}, _ int) string {
+			return item.Name
+		})
+		return normalizeModelNames(ids), nil
+	}
+
 	var result OpenAIModelsResponse
 	if err := common.Unmarshal(body, &result); err != nil {
 		return nil, err
