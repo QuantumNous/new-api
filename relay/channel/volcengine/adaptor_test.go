@@ -139,6 +139,26 @@ func TestSetupRequestHeaderForVolcEnginePlan(t *testing.T) {
 	}
 }
 
+func TestSetupRequestHeaderForOrdinaryVolcEngineCompositeCredential(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	header := make(http.Header)
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: channelconstant.ChannelTypeVolcEngine,
+			ApiKey:      "ark-api-key|access-key|secret-key",
+		},
+	}
+
+	err := (&Adaptor{}).SetupRequestHeader(c, &header, info)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer ark-api-key", header.Get("Authorization"))
+	assert.Equal(t, "ark-api-key", info.ApiKey)
+}
+
 func TestConvertClaudeRequestPreservesVolcEnginePlanPayload(t *testing.T) {
 	t.Parallel()
 

@@ -141,7 +141,7 @@ func TestFetchVolcEnginePlanModels(t *testing.T) {
 	}
 }
 
-func TestBuildVolcEnginePlanManagementURL(t *testing.T) {
+func TestBuildVolcEngineManagementURL(t *testing.T) {
 	tests := []struct {
 		name     string
 		baseURL  string
@@ -169,7 +169,7 @@ func TestBuildVolcEnginePlanManagementURL(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			requestURL, err := buildVolcEnginePlanManagementURL(test.baseURL, test.action)
+			requestURL, err := buildVolcEngineManagementURL(test.baseURL, test.action)
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, requestURL.String())
 		})
@@ -223,7 +223,44 @@ func TestFetchVolcEnginePlanModelsRequiresManagementCredential(t *testing.T) {
 	assert.Nil(t, models)
 }
 
-func TestFetchOrdinaryVolcEngineModels(t *testing.T) {
+func TestFetchOrdinaryVolcEngineFoundationModels(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "/", r.URL.Path)
+		assert.Equal(t, "ListFoundationModels", r.URL.Query().Get("Action"))
+		assert.Equal(t, "2024-01-01", r.URL.Query().Get("Version"))
+		assert.Contains(t, r.Header.Get("Authorization"), "HMAC-SHA256 Credential=access-key/")
+		assert.Contains(t, r.Header.Get("Authorization"), "/cn-beijing/ark/request")
+		var requestBody struct {
+			PageNumber int `json:"PageNumber"`
+			PageSize   int `json:"PageSize"`
+		}
+		require.NoError(t, common.DecodeJson(r.Body, &requestBody))
+		assert.Equal(t, requestCount, requestBody.PageNumber)
+		assert.Equal(t, 100, requestBody.PageSize)
+		if requestCount == 1 {
+			_, _ = w.Write([]byte(`{"Result":{"Items":[{"Name":" doubao-seed-2-0-pro ","PrimaryVersion":"260215"},{"Name":"doubao-seed-evolving","PrimaryVersion":"latest-version"}],"TotalCount":3}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"Result":{"Items":[{"Name":"doubao-seed-2-0-pro","PrimaryVersion":"260215"}],"TotalCount":3}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	baseURL := server.URL + "/api"
+	models, err := fetchChannelUpstreamModelIDs(&model.Channel{
+		Type:    constant.ChannelTypeVolcEngine,
+		Key:     "ark-api-key|access-key|secret-key",
+		BaseURL: &baseURL,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, requestCount)
+	assert.Equal(t, []string{"doubao-seed-2-0-pro-260215", "doubao-seed-evolving"}, models)
+}
+
+func TestFetchOrdinaryVolcEngineModelsWithLegacyAPIKey(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
 		assert.Equal(t, "/api/v3/models", r.URL.Path)
@@ -242,6 +279,63 @@ func TestFetchOrdinaryVolcEngineModels(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"doubao-seed-1-6", "doubao-seed-2-0"}, models)
+}
+
+func TestFetchOrdinaryVolcEngineFoundationModelsRejectsInvalidResponses(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    int
+		body      string
+		wantError string
+	}{
+		{name: "non-OK status", status: http.StatusUnauthorized, body: `{}`, wantError: "status code: 401"},
+		{name: "malformed JSON", status: http.StatusOK, body: `{"Result":`, wantError: "invalid VolcEngine foundation model response"},
+		{name: "missing result", status: http.StatusOK, body: `{}`, wantError: "Result.Items and Result.TotalCount are required"},
+		{name: "empty result", status: http.StatusOK, body: `{"Result":{"Items":[],"TotalCount":0}}`, wantError: "contains no models"},
+		{name: "incomplete pagination", status: http.StatusOK, body: `{"Result":{"Items":[],"TotalCount":1}}`, wantError: "pagination ended before TotalCount"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(test.status)
+				_, _ = w.Write([]byte(test.body))
+			}))
+			t.Cleanup(server.Close)
+			baseURL := server.URL
+			models, err := fetchChannelUpstreamModelIDs(&model.Channel{
+				Type:    constant.ChannelTypeVolcEngine,
+				Key:     "ark-api-key|access-key|secret-key",
+				BaseURL: &baseURL,
+			})
+			require.ErrorContains(t, err, test.wantError)
+			assert.Nil(t, models)
+		})
+	}
+}
+
+func TestFetchModelsVolcEngineFoundationCreatePreview(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "ListFoundationModels", r.URL.Query().Get("Action"))
+		assert.Contains(t, r.Header.Get("Authorization"), "HMAC-SHA256 Credential=preview-access-key/")
+		_, _ = w.Write([]byte(`{"Result":{"Items":[{"Name":"doubao-seed-2-0-pro","PrimaryVersion":"260215"}],"TotalCount":1}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	body, err := common.Marshal(fetchModelsRequest{
+		BaseURL: common.GetPointer(server.URL),
+		Type:    constant.ChannelTypeVolcEngine,
+		Key:     "preview-api-key|preview-access-key|preview-secret-key",
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	FetchModels(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"success":true,"message":"","data":["doubao-seed-2-0-pro-260215"]}`, recorder.Body.String())
 }
 
 func TestFetchModelsVolcEnginePlanCreatePreview(t *testing.T) {

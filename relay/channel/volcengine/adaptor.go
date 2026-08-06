@@ -313,6 +313,13 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		// Header Override placeholders are resolved after this method returns.
 		// Keep management credentials out of those placeholders and upstream logs.
 		info.ApiKey = apiKey
+	} else if info.ChannelType == channelconstant.ChannelTypeVolcEngine && strings.Count(apiKey, "|") == 2 {
+		credential, err := ParseAPIKeyCredential(apiKey)
+		if err != nil {
+			return err
+		}
+		apiKey = credential.APIKey
+		info.ApiKey = apiKey
 	}
 
 	channel.SetupApiRequestHeader(info, c, req)
