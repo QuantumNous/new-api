@@ -200,7 +200,7 @@ var untestableProbeChannelTypes = map[int]bool{
 var untestableProbeModelSubstrings = []string{
 	"tts", "whisper", "audio", "speech", "voice", "transcrib",
 	"realtime", "moderation", "video", "sora", "veo", "seedance",
-	"runway", "sound", "music",
+	"runway", "sound", "music", "happyhorse", "minimax-h3",
 }
 
 var imageProbeModelSubstrings = []string{
