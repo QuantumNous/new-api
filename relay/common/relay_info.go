@@ -204,6 +204,12 @@ type RelayInfo struct {
 }
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
+	// RelayInfo is reused across channel attempts. Body metadata belongs to the
+	// current attempt and may reference storage that its handler has closed, so
+	// discard it before the next channel binds its outbound body.
+	info.UpstreamRequestBodySize = 0
+	info.UpstreamRequestGetBody = nil
+
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 	headerOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelHeaderOverride)
