@@ -352,7 +352,7 @@ func AvailableModels(c *gin.Context) {
 func availableModelType(modelID string, endpointTypes []constant.EndpointType) string {
 	for _, endpointType := range endpointTypes {
 		switch endpointType {
-		case constant.EndpointTypeOpenAIVideo, constant.EndpointType("video"):
+		case constant.EndpointTypeOpenAIVideo, constant.EndpointTypeVideo:
 			return "video"
 		case constant.EndpointTypeVideoToMusic:
 			return "audio"
