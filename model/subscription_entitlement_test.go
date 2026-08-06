@@ -2,6 +2,9 @@ package model
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -1312,6 +1315,78 @@ func TestResetDueSubscriptionsSkipsGraceCurrentEntitlement(t *testing.T) {
 	require.NoError(t, DB.First(&after, "id = ?", current.Id).Error)
 	require.EqualValues(t, 90, after.AmountUsed)
 	require.EqualValues(t, now-90, after.NextResetTime)
+}
+
+func TestResetDueSubscriptionsRotatesLifecycleCycleForZeroUsedReset(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9143, "plg")
+	plan := createEntitlementTestPlan(t, 9243, 100, "")
+	require.NoError(t, DB.Model(&SubscriptionPlan{}).Where("id = ?", plan.Id).Updates(map[string]interface{}{
+		"quota_reset_period":         SubscriptionResetCustom,
+		"quota_reset_custom_seconds": int64(10),
+	}).Error)
+	now := GetDBTimestamp()
+	sub := UserSubscription{
+		UserId:        9143,
+		PlanId:        9243,
+		AmountTotal:   100,
+		AmountUsed:    0,
+		StartTime:     now - 100,
+		EndTime:       now + 100,
+		AccessEndTime: now + 100,
+		LastResetTime: now - 100,
+		NextResetTime: now - 90,
+		Status:        "active",
+	}
+	require.NoError(t, DB.Create(&sub).Error)
+	require.NoError(t, ensureLifecycleQuotaTables(DB))
+	oldCycle := "subscription:old-cycle"
+	require.NoError(t, DB.Create(&QuotaLifecycleState{
+		UserId:       9143,
+		ScopeType:    QuotaLifecycleScopeSubscription,
+		ScopeId:      strconv.Itoa(sub.Id),
+		Cycle:        oldCycle,
+		Balance:      100,
+		Threshold:    100,
+		Source:       "seed",
+		SourceData:   `{"cycle_key":"subscription:old-cycle"}`,
+		StateVersion: 1,
+	}).Error)
+	amountUsedUpdates := 0
+	callbackName := "test:record_zero_used_reset_amount_used_update"
+	require.NoError(t, DB.Callback().Update().After("gorm:update").Register(callbackName, func(db *gorm.DB) {
+		sql := strings.ToLower(db.Statement.SQL.String())
+		if strings.Contains(sql, "user_subscriptions") && strings.Contains(sql, "amount_used") {
+			amountUsedUpdates++
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Update().Remove(callbackName))
+	})
+
+	reset, err := ResetDueSubscriptions(10)
+	require.NoError(t, err)
+	require.Equal(t, 1, reset)
+
+	var after UserSubscription
+	require.NoError(t, DB.First(&after, "id = ?", sub.Id).Error)
+	require.Zero(t, after.AmountUsed)
+	require.Greater(t, after.LastResetTime, sub.LastResetTime)
+	require.Greater(t, after.NextResetTime, now)
+	wantCycle := fmt.Sprintf("subscription:%d:%d", sub.Id, after.LastResetTime)
+	state := lifecycleStateForTest(t, 9143, QuotaLifecycleScopeSubscription, strconv.Itoa(sub.Id))
+	require.Equal(t, wantCycle, state.Cycle)
+	require.Equal(t, "reset", state.Source)
+	require.Equal(t, int64(2), state.StateVersion)
+	require.Equal(t, int64(100), state.Balance)
+	require.Zero(t, amountUsedUpdates)
+
+	reset, err = ResetDueSubscriptions(10)
+	require.NoError(t, err)
+	require.Zero(t, reset)
+	state = lifecycleStateForTest(t, 9143, QuotaLifecycleScopeSubscription, strconv.Itoa(sub.Id))
+	require.Equal(t, wantCycle, state.Cycle)
+	require.Equal(t, int64(2), state.StateVersion)
 }
 
 func TestRotateCurrentEntitlementGroupCaptureAndSwitch(t *testing.T) {

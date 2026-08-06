@@ -1941,20 +1941,18 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 		}
 		return nil
 	}
-	if sub.AmountUsed > 0 {
-		if _, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
-			UserID:          sub.UserId,
-			ScopeType:       QuotaLifecycleScopeSubscription,
-			ScopeID:         int64(sub.Id),
-			Delta:           sub.AmountUsed,
-			Cause:           "subscription_renewal",
-			SourceRef:       "ResetDueSubscriptions",
-			NextCycleKey:    fmt.Sprintf("subscription:%d:%d", sub.Id, base.Unix()),
-			NextCycleSource: "reset",
-			OccurredAt:      now,
-		}); err != nil {
-			return err
-		}
+	if _, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+		UserID:          sub.UserId,
+		ScopeType:       QuotaLifecycleScopeSubscription,
+		ScopeID:         int64(sub.Id),
+		Delta:           sub.AmountUsed,
+		Cause:           "subscription_renewal",
+		SourceRef:       "ResetDueSubscriptions",
+		NextCycleKey:    fmt.Sprintf("subscription:%d:%d", sub.Id, base.Unix()),
+		NextCycleSource: "reset",
+		OccurredAt:      now,
+	}); err != nil {
+		return err
 	}
 	sub.AmountUsed = 0
 	sub.MediaCreditsUsed = 0
