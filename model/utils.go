@@ -42,6 +42,9 @@ func InitBatchUpdater() {
 }
 
 func addNewRecord(type_ int, id int, value int) {
+	if type_ == BatchUpdateTypeUserQuota {
+		return
+	}
 	batchUpdateLocks[type_].Lock()
 	defer batchUpdateLocks[type_].Unlock()
 	if _, ok := batchUpdateStores[type_][id]; !ok {
@@ -101,14 +104,10 @@ func batchUpdate() {
 		}
 	}
 
-	userQuotaStore := stores[BatchUpdateTypeUserQuota]
 	usedQuotaStore := stores[BatchUpdateTypeUsedQuota]
 	requestCountStore := stores[BatchUpdateTypeRequestCount]
 
-	userIDs := make(map[int]struct{}, len(userQuotaStore)+len(usedQuotaStore)+len(requestCountStore))
-	for key := range userQuotaStore {
-		userIDs[key] = struct{}{}
-	}
+	userIDs := make(map[int]struct{}, len(usedQuotaStore)+len(requestCountStore))
 	for key := range usedQuotaStore {
 		userIDs[key] = struct{}{}
 	}
@@ -116,7 +115,7 @@ func batchUpdate() {
 		userIDs[key] = struct{}{}
 	}
 	for key := range userIDs {
-		updateUserQuotaUsedQuotaAndRequestCount(key, userQuotaStore[key], usedQuotaStore[key], requestCountStore[key])
+		updateUserUsedQuotaAndRequestCountBatch(key, usedQuotaStore[key], requestCountStore[key])
 	}
 	common.SysLog("batch update finished")
 }

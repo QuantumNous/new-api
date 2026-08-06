@@ -113,7 +113,8 @@ func ApplyLifecycleQuotaMutation(tx *gorm.DB, mutation LifecycleQuotaMutation) (
 	result.CycleKey = cycle
 
 	current := previous + mutation.Delta
-	if err := updateLifecycleQuotaAuthoritativeBalance(tx, mutation.UserID, scopeType, mutation.ScopeID, previous, current); err != nil {
+	current, err = updateLifecycleQuotaAuthoritativeBalance(tx, mutation.UserID, scopeType, mutation.ScopeID, previous, current)
+	if err != nil {
 		return LifecycleQuotaMutationResult{}, err
 	}
 	result.CurrentBalance = current
@@ -201,43 +202,47 @@ func lockLifecycleQuotaAuthoritativeBalance(tx *gorm.DB, userID int, scopeType s
 	}
 }
 
-func updateLifecycleQuotaAuthoritativeBalance(tx *gorm.DB, userID int, scopeType string, scopeID int64, previous int64, current int64) error {
+func updateLifecycleQuotaAuthoritativeBalance(tx *gorm.DB, userID int, scopeType string, scopeID int64, previous int64, current int64) (int64, error) {
 	switch scopeType {
 	case QuotaLifecycleScopeWallet:
 		res := tx.Model(&User{}).
 			Where("id = ? AND quota = ?", userID, previous).
 			Update("quota", current)
 		if res.Error != nil {
-			return res.Error
+			return previous, res.Error
 		}
 		if res.RowsAffected != 1 {
-			return errors.New("quota lifecycle wallet balance changed concurrently")
+			return previous, errors.New("quota lifecycle wallet balance changed concurrently")
 		}
-		return nil
+		return current, nil
 	case QuotaLifecycleScopeSubscription:
 		var sub UserSubscription
 		if err := tx.Where("id = ? AND user_id = ?", scopeID, userID).First(&sub).Error; err != nil {
-			return err
+			return previous, err
 		}
 		newUsed := sub.AmountTotal - current
 		if newUsed < 0 {
 			newUsed = 0
 		}
 		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+			return previous, fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+		}
+		actualCurrent := sub.AmountTotal - newUsed
+		if newUsed == sub.AmountUsed {
+			return actualCurrent, nil
 		}
 		res := tx.Model(&UserSubscription{}).
 			Where("id = ? AND user_id = ? AND amount_used = ?", scopeID, userID, sub.AmountUsed).
 			Update("amount_used", newUsed)
 		if res.Error != nil {
-			return res.Error
+			return previous, res.Error
 		}
 		if res.RowsAffected != 1 {
-			return errors.New("quota lifecycle subscription balance changed concurrently")
+			return previous, errors.New("quota lifecycle subscription balance changed concurrently")
 		}
-		return nil
+		return actualCurrent, nil
 	default:
-		return fmt.Errorf("unsupported quota lifecycle scope %q", scopeType)
+		return previous, fmt.Errorf("unsupported quota lifecycle scope %q", scopeType)
 	}
 }
 

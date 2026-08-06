@@ -21,3 +21,23 @@ func TestBatchUpdate_RecoversFromInternalPanic(t *testing.T) {
 		batchUpdate()
 	}, "batchUpdate must recover internal panic, never propagate")
 }
+
+func TestBatchUpdate_LegacyUserQuotaRecordCannotMutateWalletQuota(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+	for i := 0; i < BatchUpdateTypeCount; i++ {
+		clearBatchUpdateStoreForTest(t, i)
+	}
+
+	user := createLifecycleQuotaTestUser(t, "batch-legacy-wallet", 100, 0)
+	addNewRecord(BatchUpdateTypeUserQuota, user.Id, 75)
+	addNewRecord(BatchUpdateTypeUsedQuota, user.Id, 7)
+	addNewRecord(BatchUpdateTypeRequestCount, user.Id, 1)
+
+	batchUpdate()
+
+	var updated User
+	require.NoError(t, DB.Where("id = ?", user.Id).First(&updated).Error)
+	require.Equal(t, 100, updated.Quota)
+	require.Equal(t, 7, updated.UsedQuota)
+	require.Equal(t, 1, updated.RequestCount)
+}

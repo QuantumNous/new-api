@@ -273,6 +273,72 @@ func TestApplyLifecycleQuotaMutationSubscriptionScopeAndRollback(t *testing.T) {
 	requireLifecycleEvents(t, user.Id, QuotaLifecycleScopeSubscription, strconv.Itoa(sub.Id), subCycle, []string{RecallLifecycleTriggerQuotaLow})
 }
 
+func TestApplyLifecycleQuotaMutationSubscriptionZeroDeltaRotationSkipsAmountUsedUpdate(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+
+	user := createLifecycleQuotaTestUser(t, "subscription-zero-delta", 500, 100)
+	sub := createLifecycleQuotaTestSubscription(t, user.Id, 100, 0)
+	amountUsedUpdates := 0
+	callbackName := "test:record_subscription_amount_used_update"
+	require.NoError(t, DB.Callback().Update().After("gorm:update").Register(callbackName, func(db *gorm.DB) {
+		sql := strings.ToLower(db.Statement.SQL.String())
+		if strings.Contains(sql, "user_subscriptions") && strings.Contains(sql, "amount_used") {
+			amountUsedUpdates++
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Update().Remove(callbackName))
+	})
+
+	result, err := applyLifecycleQuotaMutationForTest(LifecycleQuotaMutation{
+		UserID:          user.Id,
+		ScopeType:       QuotaLifecycleScopeSubscription,
+		ScopeID:         int64(sub.Id),
+		Delta:           0,
+		Cause:           "subscription_purchase",
+		SourceRef:       "subscription-zero-delta",
+		NextCycleKey:    "sub-cycle-1",
+		NextCycleSource: "subscription:test",
+		OccurredAt:      1700000430,
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.Equal(t, int64(100), result.PreviousBalance)
+	require.Equal(t, int64(100), result.CurrentBalance)
+	require.Equal(t, "sub-cycle-1", result.CycleKey)
+	require.Zero(t, amountUsedUpdates)
+	requireLifecycleState(t, user.Id, QuotaLifecycleScopeSubscription, strconv.Itoa(sub.Id), "sub-cycle-1", 100, 100)
+}
+
+func TestApplyLifecycleQuotaMutationSubscriptionOverRefundUsesClampedBalance(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+
+	user := createLifecycleQuotaTestUser(t, "subscription-over-refund", 500, 100)
+	sub := createLifecycleQuotaTestSubscription(t, user.Id, 100, 20)
+
+	result, err := applyLifecycleQuotaMutationForTest(LifecycleQuotaMutation{
+		UserID:     user.Id,
+		ScopeType:  QuotaLifecycleScopeSubscription,
+		ScopeID:    int64(sub.Id),
+		Delta:      100,
+		Cause:      "refund",
+		SourceRef:  "subscription-over-refund",
+		OccurredAt: 1700000440,
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.Equal(t, int64(80), result.PreviousBalance)
+	require.Equal(t, int64(100), result.CurrentBalance)
+	require.Equal(t, int64(100), subscriptionRemainingForTest(t, sub.Id))
+	state := lifecycleStateForTest(t, user.Id, QuotaLifecycleScopeSubscription, strconv.Itoa(sub.Id))
+	require.Equal(t, int64(100), state.Balance)
+	var sourceData map[string]any
+	require.NoError(t, common.Unmarshal([]byte(state.SourceData), &sourceData))
+	require.Equal(t, float64(100), sourceData["current_balance"])
+}
+
 func TestLifecycleQuotaWalletAdaptersCommitSynchronouslyWhenBatchEnabled(t *testing.T) {
 	setupLifecycleQuotaMutationTestDB(t, 1)
 	common.BatchUpdateEnabled = true
@@ -437,6 +503,13 @@ func walletQuotaForTest(t *testing.T, userID int) int {
 	var quota int
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", userID).Select("quota").Scan(&quota).Error)
 	return quota
+}
+
+func subscriptionRemainingForTest(t *testing.T, subscriptionID int) int64 {
+	t.Helper()
+	var sub UserSubscription
+	require.NoError(t, DB.Where("id = ?", subscriptionID).First(&sub).Error)
+	return sub.AmountTotal - sub.AmountUsed
 }
 
 func clearBatchUpdateStoreForTest(t *testing.T, storeType int) {
