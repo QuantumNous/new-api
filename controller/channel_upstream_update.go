@@ -367,10 +367,10 @@ func parseVolcEnginePlanModelIDs(body []byte) ([]string, error) {
 	return ids, nil
 }
 
-func buildVolcEnginePlanManagementURL(baseURL string, action string) (*url.URL, error) {
+func buildVolcEngineManagementURL(baseURL string, action string) (*url.URL, error) {
 	parsedBaseURL, err := url.Parse(baseURL)
 	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" {
-		return nil, fmt.Errorf("invalid VolcEngine Plan base URL: %s", baseURL)
+		return nil, fmt.Errorf("invalid VolcEngine base URL: %s", baseURL)
 	}
 	managementScheme := parsedBaseURL.Scheme
 	managementHost := parsedBaseURL.Host
@@ -389,6 +389,99 @@ func buildVolcEnginePlanManagementURL(baseURL string, action string) (*url.URL, 
 	}, nil
 }
 
+func fetchVolcEngineFoundationModelIDs(channel *model.Channel, baseURL string, key string) ([]string, error) {
+	credential, err := volcengine.ParseAPIKeyCredential(key)
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key)
+	}
+	if !credential.HasManagementCredential() {
+		return nil, errors.New("VolcEngine foundation model discovery requires APIKey|AccessKey|SecretKey")
+	}
+
+	requestURL, err := buildVolcEngineManagementURL(baseURL, "ListFoundationModels")
+	if err != nil {
+		return nil, err
+	}
+	type foundationModelItem struct {
+		Name           string `json:"Name"`
+		PrimaryVersion string `json:"PrimaryVersion"`
+	}
+	const pageSize = 100
+	const maxPages = 100
+	modelIDs := make([]string, 0, pageSize)
+	fetchedItems := 0
+	for pageNumber := 1; pageNumber <= maxPages; pageNumber++ {
+		requestBody, err := common.Marshal(struct {
+			PageNumber int    `json:"PageNumber"`
+			PageSize   int    `json:"PageSize"`
+			SortBy     string `json:"SortBy"`
+			SortOrder  string `json:"SortOrder"`
+		}{
+			PageNumber: pageNumber,
+			PageSize:   pageSize,
+			SortBy:     "CreateTime",
+			SortOrder:  "Desc",
+		})
+		if err != nil {
+			return nil, fmt.Errorf("encode VolcEngine foundation model request: %w", err)
+		}
+		headers := make(http.Header)
+		headers.Set("Content-Type", "application/json; charset=UTF-8")
+		if err := applyFetchModelsHeaderOverrides(channel, credential.APIKey, headers); err != nil {
+			return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+		}
+		request, err := newFetchModelsRequest(http.MethodPost, requestURL.String(), bytes.NewReader(requestBody), headers)
+		if err != nil {
+			return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+		}
+		if err := volcengine.SignRequest(request, credential.AccessKey, credential.SecretKey, "cn-beijing", "ark"); err != nil {
+			return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+		}
+		body, err := getFetchModelsResponseBody(request, channel)
+		if err != nil {
+			return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
+		}
+		var response struct {
+			Result *struct {
+				Items      *[]foundationModelItem `json:"Items"`
+				TotalCount *int                   `json:"TotalCount"`
+			} `json:"Result"`
+		}
+		if err := common.Unmarshal(body, &response); err != nil {
+			return nil, fmt.Errorf("invalid VolcEngine foundation model response: %w", err)
+		}
+		if response.Result == nil || response.Result.Items == nil || response.Result.TotalCount == nil || *response.Result.TotalCount < 0 {
+			return nil, errors.New("invalid VolcEngine foundation model response: Result.Items and Result.TotalCount are required")
+		}
+		if *response.Result.TotalCount == 0 {
+			return nil, errors.New("VolcEngine foundation model response contains no models")
+		}
+		if len(*response.Result.Items) == 0 && fetchedItems < *response.Result.TotalCount {
+			return nil, errors.New("invalid VolcEngine foundation model response: pagination ended before TotalCount")
+		}
+		for _, item := range *response.Result.Items {
+			name := strings.TrimSpace(item.Name)
+			version := strings.TrimSpace(item.PrimaryVersion)
+			if name == "" {
+				continue
+			}
+			if version != "" && version != "latest-version" {
+				name += "-" + version
+			}
+			modelIDs = append(modelIDs, name)
+		}
+		fetchedItems += len(*response.Result.Items)
+		if fetchedItems >= *response.Result.TotalCount {
+			modelIDs = normalizeModelNames(modelIDs)
+			if len(modelIDs) == 0 {
+				return nil, errors.New("VolcEngine foundation model response contains no valid model IDs")
+			}
+			return modelIDs, nil
+		}
+	}
+	return nil, errors.New("VolcEngine foundation model response exceeds pagination limit")
+}
+
 func fetchVolcEnginePlanModelIDs(channel *model.Channel, baseURL string, key string) ([]string, error) {
 	credential, err := volcengine.ParsePlanCredential(key)
 	if err != nil {
@@ -402,7 +495,7 @@ func fetchVolcEnginePlanModelIDs(channel *model.Channel, baseURL string, key str
 	if channel.Type == constant.ChannelTypeVolcEngineCodingPlan {
 		action = "ListArkCodingPlanModel"
 	}
-	requestURL, err := buildVolcEnginePlanManagementURL(baseURL, action)
+	requestURL, err := buildVolcEngineManagementURL(baseURL, action)
 	if err != nil {
 		return nil, err
 	}
@@ -471,6 +564,16 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeVolcEngineAgentPlan ||
 		channel.Type == constant.ChannelTypeVolcEngineCodingPlan {
 		return fetchVolcEnginePlanModelIDs(channel, baseURL, key)
+	}
+	if channel.Type == constant.ChannelTypeVolcEngine {
+		credential, err := volcengine.ParseAPIKeyCredential(key)
+		if err != nil {
+			return nil, sanitizeFetchModelsError(err, key)
+		}
+		if credential.HasManagementCredential() {
+			return fetchVolcEngineFoundationModelIDs(channel, baseURL, key)
+		}
+		key = credential.APIKey
 	}
 
 	var url string

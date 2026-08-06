@@ -48,6 +48,16 @@ func TestParsePlanCredential(t *testing.T) {
 	}
 }
 
+func TestParseAPIKeyCredential(t *testing.T) {
+	credential, err := ParseAPIKeyCredential(" ark-api-key | access-key | secret-key ")
+	require.NoError(t, err)
+	assert.Equal(t, PlanCredential{APIKey: "ark-api-key", AccessKey: "access-key", SecretKey: "secret-key"}, credential)
+	assert.True(t, credential.HasManagementCredential())
+
+	_, err = ParseAPIKeyCredential("ark-api-key|access-key")
+	require.ErrorContains(t, err, "APIKey|AccessKey|SecretKey")
+}
+
 func TestSignRequestUsesVolcEngineCanonicalContract(t *testing.T) {
 	request, err := http.NewRequest(
 		http.MethodPost,

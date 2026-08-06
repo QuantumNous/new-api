@@ -24,14 +24,26 @@ func (credential PlanCredential) HasManagementCredential() bool {
 }
 
 func ParsePlanCredential(rawCredential string) (PlanCredential, error) {
+	return parseCredential(rawCredential, "PlanAPIKey", "Plan API key")
+}
+
+func ParseAPIKeyCredential(rawCredential string) (PlanCredential, error) {
+	return parseCredential(rawCredential, "APIKey", "API key")
+}
+
+func parseCredential(rawCredential string, formatAPIKeyName string, requiredAPIKeyName string) (PlanCredential, error) {
 	parts := strings.Split(rawCredential, "|")
 	if len(parts) != 1 && len(parts) != 3 {
-		return PlanCredential{}, errors.New("invalid VolcEngine Plan credential format: expected PlanAPIKey or PlanAPIKey|AccessKey|SecretKey")
+		return PlanCredential{}, fmt.Errorf(
+			"invalid VolcEngine credential format: expected %s or %s|AccessKey|SecretKey",
+			formatAPIKeyName,
+			formatAPIKeyName,
+		)
 	}
 
 	credential := PlanCredential{APIKey: strings.TrimSpace(parts[0])}
 	if credential.APIKey == "" {
-		return PlanCredential{}, errors.New("VolcEngine Plan API key is required")
+		return PlanCredential{}, fmt.Errorf("VolcEngine %s is required", requiredAPIKeyName)
 	}
 	if len(parts) == 1 {
 		return credential, nil

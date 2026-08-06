@@ -2750,6 +2750,16 @@ export function ChannelMutateDrawer({
                               />
                             )}
 
+                            {currentType === 45 && (
+                              <Alert>
+                                <AlertDescription>
+                                  {t(
+                                    'Use APIKey|AccessKey|SecretKey to fetch all foundation models with AK/SK. A legacy API key still uses the runtime model endpoint.'
+                                  )}
+                                </AlertDescription>
+                              </Alert>
+                            )}
+
                             {(currentType === 61 || currentType === 62) && (
                               <Alert>
                                 <AlertDescription className='space-y-2'>

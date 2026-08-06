@@ -69,4 +69,11 @@ describe('VolcEngine Plan channels', () => {
     assert.equal(MODEL_FETCHABLE_TYPES.has(61), true)
     assert.equal(MODEL_FETCHABLE_TYPES.has(62), true)
   })
+
+  test('documents ordinary VolcEngine composite credentials', () => {
+    assert.equal(getKeyPromptForType(45), 'Format: APIKey|AccessKey|SecretKey')
+    const config = getChannelTypeConfig(45)
+    assert.equal(config.defaultBaseUrl, 'https://ark.cn-beijing.volces.com')
+    assert.equal(config.hints?.key, 'Format: APIKey|AccessKey|SecretKey')
+  })
 })
