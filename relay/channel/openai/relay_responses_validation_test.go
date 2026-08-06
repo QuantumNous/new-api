@@ -137,6 +137,52 @@ func TestOaiResponsesStreamHandlerStopsBeforeInvalidReasoningItem(t *testing.T) 
 	assert.NotContains(t, w.Body.String(), `"item_bad"`)
 }
 
+func TestOaiResponsesStreamHandlerStopsBeforeInvalidTerminalReasoningItem(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldTimeout
+	})
+
+	body := strings.Join([]string{
+		`data: {"type":"response.created","response":{"id":"resp_1","status":"in_progress","output":[]}}`,
+		"",
+		`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","output":[{"type":"reasoning","id":"item_bad"}]}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "responses-reasoning-validation-terminal-test")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-test",
+		DisablePing:     true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gpt-test",
+		},
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+
+	require.Nil(t, usage)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusBadGateway, apiErr.StatusCode)
+	assert.Equal(t, types.ErrorCodeBadResponseBody, apiErr.GetErrorCode())
+	assert.Contains(t, apiErr.Error(), `"item_bad"`)
+	assert.Contains(t, w.Body.String(), `"response.created"`)
+	assert.NotContains(t, w.Body.String(), `"response.completed"`)
+	assert.NotContains(t, w.Body.String(), `"item_bad"`)
+}
+
 func TestOaiResponsesStreamHandlerAllowsValidReasoningItemID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	oldTimeout := constant.StreamingTimeout
