@@ -120,6 +120,19 @@ export interface LogOtherData {
     local_count_tokens?: boolean
     usage_billing_path?: UsageBillingPath | string
     channel_affinity?: ChannelAffinityInfo
+    request_metadata?: {
+      method?: string
+      base_url?: string
+      upstream_url?: string
+      channel_type?: number
+      api_type?: number
+      api_version?: string
+      relay_mode?: number
+      request_format?: string
+      upstream_format?: string
+      upstream_model?: string
+      stream?: boolean
+    }
     // Top-up audit fields (type=1, admin only)
     payment_method?: string
     callback_payment_method?: string

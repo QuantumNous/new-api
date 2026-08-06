@@ -38,6 +38,10 @@ const (
 	ContextKeyChannelIsMultiKey        ContextKey = "channel_is_multi_key"
 	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
 	ContextKeyChannelKey               ContextKey = "channel_key"
+	// The sanitized target selected for the current relay attempt. These values
+	// are persisted only in admin-only log metadata.
+	ContextKeyUpstreamRequestURL    ContextKey = "upstream_request_url"
+	ContextKeyUpstreamRequestMethod ContextKey = "upstream_request_method"
 
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"

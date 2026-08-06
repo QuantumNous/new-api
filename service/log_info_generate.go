@@ -69,6 +69,75 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 	}
 }
 
+// AppendRequestMetadata records the final upstream routing decision in the
+// admin-only portion of a usage log. URLs are sanitized before persistence so
+// API keys, signatures, tokens, and embedded passwords are never stored.
+func AppendRequestMetadata(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if other == nil {
+		return
+	}
+
+	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	if !ok || adminInfo == nil {
+		adminInfo = make(map[string]interface{})
+		other["admin_info"] = adminInfo
+	}
+	metadata := make(map[string]interface{})
+
+	if ctx != nil {
+		method := common.GetContextKeyString(ctx, constant.ContextKeyUpstreamRequestMethod)
+		if method == "" && ctx.Request != nil {
+			method = ctx.Request.Method
+		}
+		if method != "" {
+			metadata["method"] = method
+		}
+		if upstreamURL := common.GetContextKeyString(ctx, constant.ContextKeyUpstreamRequestURL); upstreamURL != "" {
+			metadata["upstream_url"] = relaycommon.SanitizeURLForLog(upstreamURL)
+		}
+	}
+
+	baseURL := ""
+	if relayInfo != nil && relayInfo.ChannelMeta != nil {
+		baseURL = relayInfo.ChannelBaseUrl
+		metadata["channel_type"] = relayInfo.ChannelType
+		metadata["api_type"] = relayInfo.ApiType
+		if relayInfo.ApiVersion != "" {
+			metadata["api_version"] = relayInfo.ApiVersion
+		}
+		metadata["relay_mode"] = relayInfo.RelayMode
+		metadata["request_format"] = string(relayInfo.RelayFormat)
+		metadata["upstream_format"] = string(relayInfo.GetFinalRequestRelayFormat())
+		if relayInfo.UpstreamModelName != "" {
+			metadata["upstream_model"] = relayInfo.UpstreamModelName
+		}
+		metadata["stream"] = relayInfo.IsStream
+	} else if ctx != nil {
+		baseURL = common.GetContextKeyString(ctx, constant.ContextKeyChannelBaseUrl)
+		channelType := common.GetContextKeyInt(ctx, constant.ContextKeyChannelType)
+		if channelType != 0 {
+			metadata["channel_type"] = channelType
+			if apiType, ok := common.ChannelType2APIType(channelType); ok {
+				metadata["api_type"] = apiType
+			}
+		}
+		if apiVersion := ctx.GetString("api_version"); apiVersion != "" {
+			metadata["api_version"] = apiVersion
+		}
+		if upstreamModel := common.GetContextKeyString(ctx, constant.ContextKeyOriginalModel); upstreamModel != "" {
+			metadata["upstream_model"] = upstreamModel
+		}
+		metadata["stream"] = common.GetContextKeyBool(ctx, constant.ContextKeyIsStream)
+	}
+	if baseURL != "" {
+		metadata["base_url"] = relaycommon.SanitizeURLForLog(baseURL)
+	}
+
+	if len(metadata) > 0 {
+		adminInfo["request_metadata"] = metadata
+	}
+}
+
 func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,
 	cacheTokens int, cacheRatio float64, modelPrice float64, userGroupRatio float64) map[string]interface{} {
 	other := make(map[string]interface{})
@@ -109,6 +178,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
 
 	other["admin_info"] = adminInfo
+	AppendRequestMetadata(ctx, relayInfo, other)
 	appendRequestPath(ctx, relayInfo, other)
 	appendRequestConversionChain(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)

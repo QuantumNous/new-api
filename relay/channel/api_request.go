@@ -12,6 +12,7 @@ import (
 	"time"
 
 	common2 "github.com/warjiang/new-api/common"
+	rootconstant "github.com/warjiang/new-api/constant"
 	"github.com/warjiang/new-api/logger"
 	"github.com/warjiang/new-api/relay/common"
 	"github.com/warjiang/new-api/relay/constant"
@@ -40,6 +41,14 @@ func applyUpstreamContentLength(req *http.Request, info *common.RelayInfo) {
 	if info.UpstreamRequestBodySize > 0 && req.ContentLength <= 0 {
 		req.ContentLength = info.UpstreamRequestBodySize
 	}
+}
+
+func recordUpstreamRequest(c *gin.Context, method, rawURL string) {
+	if c == nil {
+		return
+	}
+	c.Set(string(rootconstant.ContextKeyUpstreamRequestMethod), method)
+	c.Set(string(rootconstant.ContextKeyUpstreamRequestURL), common.SanitizeURLForLog(rawURL))
 }
 
 func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Header) {
@@ -371,6 +380,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
+	recordUpstreamRequest(c, c.Request.Method, fullRequestURL)
 	targetHeader := http.Header{}
 	err = a.SetupRequestHeader(c, &targetHeader, info)
 	if err != nil {
@@ -475,6 +485,9 @@ func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	return doRequest(c, req, info)
 }
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+	if req != nil && req.URL != nil {
+		recordUpstreamRequest(c, req.Method, req.URL.String())
+	}
 	client, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
