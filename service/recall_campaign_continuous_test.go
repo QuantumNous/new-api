@@ -53,6 +53,30 @@ func TestRecallCampaignContinuousRequiresLifecycleCollectionMarker(t *testing.T)
 	require.Zero(t, count)
 }
 
+func TestRecallCampaignContinuousPreviewAndActivationRequireLifecycleCollectionMarker(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	campaign, err := service.SaveDraft(context.Background(), 7, validRecallContinuousDraft())
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Where("key = ?", model.OptionKeyRecallLifecycleEventCollectionStartedAt).Delete(&model.Option{}).Error)
+
+	_, _, err = service.Preview(context.Background(), campaign.Id, 10)
+	require.ErrorContains(t, err, "lifecycle event collection marker")
+	assertRecallLifecycleCollectionMarkerAbsent(t)
+
+	err = service.Activate(context.Background(), 7, campaign.Id)
+	require.ErrorContains(t, err, "lifecycle event collection marker")
+	assertRecallLifecycleCollectionMarkerAbsent(t)
+	var ownedSlots int64
+	require.NoError(t, model.DB.Model(&model.RecallContinuousTriggerSlot{}).
+		Where("trigger = ? AND campaign_id <> 0", model.RecallLifecycleTriggerQuotaLow).
+		Count(&ownedSlots).Error)
+	require.Zero(t, ownedSlots)
+}
+
 func TestRecallCampaignContinuousActivationClaimsSlotAndUsesDBTimeForFromNow(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -65,6 +89,7 @@ func TestRecallCampaignContinuousActivationClaimsSlotAndUsesDBTimeForFromNow(t *
 	service.now = func() time.Time { return time.Unix(beforeDB+86400, 0) }
 	campaign, err := service.SaveDraft(context.Background(), 7, validRecallContinuousDraft())
 	require.NoError(t, err)
+	require.Zero(t, campaign.PromotionValidSeconds)
 
 	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
 
@@ -76,6 +101,7 @@ func TestRecallCampaignContinuousActivationClaimsSlotAndUsesDBTimeForFromNow(t *
 	require.Equal(t, "continuous", stored.ExecutionMode)
 	require.Equal(t, model.RecallLifecycleTriggerQuotaLow, stored.LifecycleTrigger)
 	require.Equal(t, model.RecallDeliveryPolicyService, stored.DeliveryPolicy)
+	require.Zero(t, stored.PromotionValidSeconds)
 	require.GreaterOrEqual(t, stored.ProcessingStartAt, beforeDB)
 	require.LessOrEqual(t, stored.ProcessingStartAt, afterDB)
 	require.NotEqual(t, service.now().Unix(), stored.ProcessingStartAt)
@@ -168,6 +194,20 @@ func TestRecallCampaignContinuousSlotRaceAdmitsOneCampaign(t *testing.T) {
 	}
 	require.Equal(t, 1, runningCount)
 	require.Equal(t, 1, draftCount)
+}
+
+func TestRecallCampaignContinuousRejectsNonZeroPromotionValidSeconds(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	draft := validRecallContinuousDraft()
+	draft.PromotionValidSeconds = 60
+
+	_, err = service.SaveDraft(context.Background(), 7, draft)
+
+	require.ErrorContains(t, err, "promotion config validity")
 }
 
 func TestRecallCampaignContinuousSlotClaimDoesNotSurviveLostTransition(t *testing.T) {
@@ -287,9 +327,31 @@ func TestRecallCampaignContinuousActivationImmutableFields(t *testing.T) {
 	require.NoError(t, err)
 	current, err := recallCampaignDraftFromModel(stored)
 	require.NoError(t, err)
-	current.LifecycleTrigger = model.RecallLifecycleTriggerPaymentPending
 
-	_, err = service.UpdateDraft(context.Background(), 7, campaign.Id, current)
+	for _, test := range []struct {
+		name   string
+		mutate func(*RecallCampaignDraft)
+	}{
+		{name: "delivery policy", mutate: func(d *RecallCampaignDraft) { d.DeliveryPolicy = model.RecallDeliveryPolicyEngagement }},
+		{name: "lifecycle trigger", mutate: func(d *RecallCampaignDraft) { d.LifecycleTrigger = model.RecallLifecycleTriggerPaymentPending }},
+		{name: "processing start", mutate: func(d *RecallCampaignDraft) { d.ProcessingStartAt++ }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			changed := current
+			test.mutate(&changed)
 
-	require.ErrorContains(t, err, "immutable")
+			_, err = service.UpdateDraft(context.Background(), 7, campaign.Id, changed)
+
+			require.ErrorContains(t, err, "immutable")
+		})
+	}
+}
+
+func assertRecallLifecycleCollectionMarkerAbsent(t *testing.T) {
+	t.Helper()
+	var count int64
+	require.NoError(t, model.DB.Model(&model.Option{}).
+		Where("key = ?", model.OptionKeyRecallLifecycleEventCollectionStartedAt).
+		Count(&count).Error)
+	require.Zero(t, count)
 }

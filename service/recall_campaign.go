@@ -1929,8 +1929,8 @@ func validateAndNormalizeRecallContinuousDraft(draft RecallCampaignDraft) (Recal
 	if draft.PromotionExpiresAt != 0 {
 		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign promotion config expiry time must be empty")
 	}
-	if draft.PromotionValidSeconds <= 0 {
-		draft.PromotionValidSeconds = 30 * 24 * 60 * 60
+	if draft.PromotionValidSeconds != 0 {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign promotion config validity must be empty")
 	}
 	if draft.EnrollmentLimit < 1 || draft.EnrollmentLimit > 100000 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall enrollment limit must be between 1 and 100000")
