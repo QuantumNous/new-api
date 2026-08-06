@@ -367,6 +367,28 @@ func parseVolcEnginePlanModelIDs(body []byte) ([]string, error) {
 	return ids, nil
 }
 
+func buildVolcEnginePlanManagementURL(baseURL string, action string) (*url.URL, error) {
+	parsedBaseURL, err := url.Parse(baseURL)
+	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" {
+		return nil, fmt.Errorf("invalid VolcEngine Plan base URL: %s", baseURL)
+	}
+	managementScheme := parsedBaseURL.Scheme
+	managementHost := parsedBaseURL.Host
+	if parsedBaseURL.Hostname() == "ark.cn-beijing.volces.com" {
+		managementScheme = "https"
+		managementHost = "ark.cn-beijing.volcengineapi.com"
+	}
+	return &url.URL{
+		Scheme: managementScheme,
+		Host:   managementHost,
+		Path:   "/",
+		RawQuery: url.Values{
+			"Action":  []string{action},
+			"Version": []string{"2024-01-01"},
+		}.Encode(),
+	}, nil
+}
+
 func fetchVolcEnginePlanModelIDs(channel *model.Channel, baseURL string, key string) ([]string, error) {
 	credential, err := volcengine.ParsePlanCredential(key)
 	if err != nil {
@@ -380,18 +402,9 @@ func fetchVolcEnginePlanModelIDs(channel *model.Channel, baseURL string, key str
 	if channel.Type == constant.ChannelTypeVolcEngineCodingPlan {
 		action = "ListArkCodingPlanModel"
 	}
-	parsedBaseURL, err := url.Parse(baseURL)
-	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" {
-		return nil, fmt.Errorf("invalid VolcEngine Plan base URL: %s", baseURL)
-	}
-	requestURL := &url.URL{
-		Scheme: parsedBaseURL.Scheme,
-		Host:   parsedBaseURL.Host,
-		Path:   "/",
-		RawQuery: url.Values{
-			"Action":  []string{action},
-			"Version": []string{"2024-01-01"},
-		}.Encode(),
+	requestURL, err := buildVolcEnginePlanManagementURL(baseURL, action)
+	if err != nil {
+		return nil, err
 	}
 	headers := make(http.Header)
 	headers.Set("Content-Type", "application/json; charset=UTF-8")
@@ -402,7 +415,7 @@ func fetchVolcEnginePlanModelIDs(channel *model.Channel, baseURL string, key str
 	if err != nil {
 		return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
 	}
-	if err := volcengine.SignRequest(request, credential.AccessKey, credential.SecretKey, "cn-beijing", "ark_stg"); err != nil {
+	if err := volcengine.SignRequest(request, credential.AccessKey, credential.SecretKey, "cn-beijing", "ark"); err != nil {
 		return nil, sanitizeFetchModelsError(err, key, credential.AccessKey, credential.SecretKey)
 	}
 	body, err := getFetchModelsResponseBody(request, channel)
