@@ -17,6 +17,13 @@ const (
 	QuotaLifecycleScopeSubscription = "subscription"
 )
 
+const (
+	lifecycleQuotaMaxInt64 = int64(^uint64(0) >> 1)
+	lifecycleQuotaMinInt64 = -lifecycleQuotaMaxInt64 - 1
+)
+
+var ErrLifecycleQuotaBalanceOverflow = errors.New("quota lifecycle balance arithmetic overflow")
+
 type QuotaLifecycleState struct {
 	Id           int64  `json:"id" gorm:"primaryKey"`
 	UserId       int    `json:"user_id" gorm:"not null;uniqueIndex:idx_quota_lifecycle_scope,priority:1;index"`
@@ -53,12 +60,16 @@ type LifecycleQuotaMutationResult struct {
 	CycleKey        string
 }
 
+type lifecycleAuthoritativeBalance struct {
+	Balance           int64
+	SubscriptionTotal int64
+	SubscriptionUsed  int64
+	Unlimited         bool
+}
+
 func ApplyLifecycleQuotaMutation(tx *gorm.DB, mutation LifecycleQuotaMutation) (LifecycleQuotaMutationResult, error) {
 	if tx == nil {
 		return LifecycleQuotaMutationResult{}, errors.New("quota lifecycle mutation requires transaction")
-	}
-	if err := ensureLifecycleQuotaTables(tx); err != nil {
-		return LifecycleQuotaMutationResult{}, err
 	}
 	if mutation.UserID <= 0 {
 		return LifecycleQuotaMutationResult{}, errors.New("quota lifecycle mutation requires user id")
@@ -79,16 +90,17 @@ func ApplyLifecycleQuotaMutation(tx *gorm.DB, mutation LifecycleQuotaMutation) (
 		return LifecycleQuotaMutationResult{}, fmt.Errorf("quota lifecycle cause %q cannot rotate cycle", cause)
 	}
 
-	previous, err := lockLifecycleQuotaAuthoritativeBalance(tx, mutation.UserID, scopeType, mutation.ScopeID)
+	authoritative, err := lockLifecycleQuotaAuthoritativeBalance(tx, mutation.UserID, scopeType, mutation.ScopeID)
 	if err != nil {
 		return LifecycleQuotaMutationResult{}, err
 	}
+	previous := authoritative.Balance
 	result := LifecycleQuotaMutationResult{
 		Applied:         true,
 		PreviousBalance: previous,
 		CurrentBalance:  previous,
 	}
-	if mutation.RequireAtLeast > 0 && previous < mutation.RequireAtLeast {
+	if mutation.RequireAtLeast > 0 && !authoritative.Unlimited && previous < mutation.RequireAtLeast {
 		result.Applied = false
 		return result, nil
 	}
@@ -112,8 +124,11 @@ func ApplyLifecycleQuotaMutation(tx *gorm.DB, mutation LifecycleQuotaMutation) (
 	}
 	result.CycleKey = cycle
 
-	current := previous + mutation.Delta
-	current, err = updateLifecycleQuotaAuthoritativeBalance(tx, mutation.UserID, scopeType, mutation.ScopeID, previous, current)
+	current, err := checkedLifecycleQuotaAdd(previous, mutation.Delta)
+	if err != nil {
+		return LifecycleQuotaMutationResult{}, err
+	}
+	current, err = updateLifecycleQuotaAuthoritativeBalance(tx, mutation.UserID, scopeType, mutation.ScopeID, authoritative, current, mutation.Delta)
 	if err != nil {
 		return LifecycleQuotaMutationResult{}, err
 	}
@@ -149,13 +164,6 @@ func ApplyLifecycleQuotaMutation(tx *gorm.DB, mutation LifecycleQuotaMutation) (
 	return result, nil
 }
 
-func ensureLifecycleQuotaTables(tx *gorm.DB) error {
-	if tx.Migrator().HasTable(&QuotaLifecycleState{}) && tx.Migrator().HasTable(&RecallLifecycleEvent{}) {
-		return nil
-	}
-	return tx.AutoMigrate(&RecallLifecycleEvent{}, &QuotaLifecycleState{})
-}
-
 func validateLifecycleQuotaScope(userID int, scopeType string, scopeID int64) error {
 	switch scopeType {
 	case QuotaLifecycleScopeWallet:
@@ -181,28 +189,45 @@ func lifecycleQuotaCauseAllowsCycleRotation(cause string) bool {
 	}
 }
 
-func lockLifecycleQuotaAuthoritativeBalance(tx *gorm.DB, userID int, scopeType string, scopeID int64) (int64, error) {
+func lockLifecycleQuotaAuthoritativeBalance(tx *gorm.DB, userID int, scopeType string, scopeID int64) (lifecycleAuthoritativeBalance, error) {
 	switch scopeType {
 	case QuotaLifecycleScopeWallet:
 		var user User
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", userID).First(&user).Error; err != nil {
-			return 0, err
+		if err := lockQuery(tx).Where("id = ?", userID).First(&user).Error; err != nil {
+			return lifecycleAuthoritativeBalance{}, err
 		}
-		return int64(user.Quota), nil
+		return lifecycleAuthoritativeBalance{Balance: int64(user.Quota)}, nil
 	case QuotaLifecycleScopeSubscription:
 		var sub UserSubscription
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		if err := lockQuery(tx).
 			Where("id = ? AND user_id = ?", scopeID, userID).
 			First(&sub).Error; err != nil {
-			return 0, err
+			return lifecycleAuthoritativeBalance{}, err
 		}
-		return sub.AmountTotal - sub.AmountUsed, nil
+		if sub.AmountTotal == 0 {
+			return lifecycleAuthoritativeBalance{
+				Balance:           0,
+				SubscriptionTotal: sub.AmountTotal,
+				SubscriptionUsed:  sub.AmountUsed,
+				Unlimited:         true,
+			}, nil
+		}
+		balance, err := checkedLifecycleQuotaSub(sub.AmountTotal, sub.AmountUsed)
+		if err != nil {
+			return lifecycleAuthoritativeBalance{}, err
+		}
+		return lifecycleAuthoritativeBalance{
+			Balance:           balance,
+			SubscriptionTotal: sub.AmountTotal,
+			SubscriptionUsed:  sub.AmountUsed,
+		}, nil
 	default:
-		return 0, fmt.Errorf("unsupported quota lifecycle scope %q", scopeType)
+		return lifecycleAuthoritativeBalance{}, fmt.Errorf("unsupported quota lifecycle scope %q", scopeType)
 	}
 }
 
-func updateLifecycleQuotaAuthoritativeBalance(tx *gorm.DB, userID int, scopeType string, scopeID int64, previous int64, current int64) (int64, error) {
+func updateLifecycleQuotaAuthoritativeBalance(tx *gorm.DB, userID int, scopeType string, scopeID int64, authoritative lifecycleAuthoritativeBalance, current int64, delta int64) (int64, error) {
+	previous := authoritative.Balance
 	switch scopeType {
 	case QuotaLifecycleScopeWallet:
 		res := tx.Model(&User{}).
@@ -220,14 +245,35 @@ func updateLifecycleQuotaAuthoritativeBalance(tx *gorm.DB, userID int, scopeType
 		if err := tx.Where("id = ? AND user_id = ?", scopeID, userID).First(&sub).Error; err != nil {
 			return previous, err
 		}
-		newUsed := sub.AmountTotal - current
-		if newUsed < 0 {
-			newUsed = 0
+		expectedUsed := authoritative.SubscriptionUsed
+		if authoritative.SubscriptionTotal != sub.AmountTotal || expectedUsed != sub.AmountUsed {
+			return previous, errors.New("quota lifecycle subscription balance changed concurrently")
 		}
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return previous, fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+		newUsed := int64(0)
+		actualCurrent := int64(0)
+		if authoritative.Unlimited {
+			var err error
+			newUsed, err = checkedLifecycleQuotaSub(sub.AmountUsed, delta)
+			if err != nil {
+				return previous, err
+			}
+			if newUsed < 0 {
+				newUsed = 0
+			}
+		} else {
+			var err error
+			newUsed, err = checkedLifecycleQuotaSub(sub.AmountTotal, current)
+			if err != nil {
+				return previous, err
+			}
+			if newUsed < 0 {
+				newUsed = 0
+			}
+			if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+				return previous, fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+			}
+			actualCurrent = sub.AmountTotal - newUsed
 		}
-		actualCurrent := sub.AmountTotal - newUsed
 		if newUsed == sub.AmountUsed {
 			return actualCurrent, nil
 		}
@@ -246,6 +292,26 @@ func updateLifecycleQuotaAuthoritativeBalance(tx *gorm.DB, userID int, scopeType
 	}
 }
 
+func checkedLifecycleQuotaAdd(left int64, right int64) (int64, error) {
+	if (right > 0 && left > lifecycleQuotaMaxInt64-right) ||
+		(right < 0 && left < lifecycleQuotaMinInt64-right) {
+		return 0, ErrLifecycleQuotaBalanceOverflow
+	}
+	return left + right, nil
+}
+
+func checkedLifecycleQuotaSub(left int64, right int64) (int64, error) {
+	if (right > 0 && left < lifecycleQuotaMinInt64+right) ||
+		(right < 0 && left > lifecycleQuotaMaxInt64+right) {
+		return 0, ErrLifecycleQuotaBalanceOverflow
+	}
+	return left - right, nil
+}
+
+func checkedLifecycleQuotaNeg(value int64) (int64, error) {
+	return checkedLifecycleQuotaSub(0, value)
+}
+
 func effectiveLifecycleQuotaThreshold(tx *gorm.DB, userID int, explicit int64) (int64, error) {
 	if explicit > 0 {
 		return explicit, nil
@@ -262,7 +328,7 @@ func effectiveLifecycleQuotaThreshold(tx *gorm.DB, userID int, explicit int64) (
 
 func lockOrCreateLifecycleQuotaState(tx *gorm.DB, userID int, scopeType string, scopeID string, balance int64, threshold int64) (QuotaLifecycleState, error) {
 	var state QuotaLifecycleState
-	err := tx.Set("gorm:query_option", "FOR UPDATE").
+	err := lockQuery(tx).
 		Where("user_id = ? AND scope_type = ? AND scope_id = ?", userID, scopeType, scopeID).
 		First(&state).Error
 	if err == nil {
@@ -296,7 +362,7 @@ func lockOrCreateLifecycleQuotaState(tx *gorm.DB, userID int, scopeType string, 
 	if err := insertQuotaLifecycleStateIfAbsent(tx, &state).Error; err != nil {
 		return QuotaLifecycleState{}, err
 	}
-	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+	if err := lockQuery(tx).
 		Where("user_id = ? AND scope_type = ? AND scope_id = ?", userID, scopeType, scopeID).
 		First(&state).Error; err != nil {
 		return QuotaLifecycleState{}, err

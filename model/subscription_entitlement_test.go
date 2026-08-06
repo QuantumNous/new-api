@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -15,6 +17,7 @@ func setupSubscriptionEntitlementTestDB(t *testing.T) {
 	t.Helper()
 	setupSubscriptionRecurringTestDB(t)
 	migrateSubscriptionContractTestDB(t)
+	require.NoError(t, DB.AutoMigrate(&RecallLifecycleEvent{}, &QuotaLifecycleState{}))
 }
 
 func createEntitlementTestPlan(t *testing.T, id int, total int64, upgradeGroup string) SubscriptionPlan {
@@ -1240,6 +1243,139 @@ func TestSubscriptionPreConsumeIdempotencyStaysBoundAcrossRotation(t *testing.T)
 	require.Zero(t, current.AmountUsed)
 }
 
+func TestPostConsumeUserSubscriptionDeltaConcurrentAddsBothDeltas(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 4)
+	user := createLifecycleQuotaTestUser(t, "concurrent-subscription-delta", 0, 0)
+	sub := createLifecycleQuotaTestSubscription(t, user.Id, 1000, 0)
+	require.NoError(t, DB.Create(&QuotaLifecycleState{
+		UserId:       user.Id,
+		ScopeType:    QuotaLifecycleScopeSubscription,
+		ScopeId:      strconv.Itoa(sub.Id),
+		Cycle:        fmt.Sprintf("baseline:subscription:%d", sub.Id),
+		Balance:      1000,
+		Threshold:    1000,
+		Source:       fmt.Sprintf("baseline:subscription:%d", sub.Id),
+		SourceData:   `{"balance":1000}`,
+		StateVersion: 1,
+	}).Error)
+
+	start := make(chan struct{})
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	for i, delta := range []int64{30, 70} {
+		wg.Add(1)
+		go func(i int, delta int64) {
+			defer wg.Done()
+			<-start
+			errs[i] = PostConsumeUserSubscriptionDelta(sub.Id, delta)
+		}(i, delta)
+	}
+	close(start)
+	wg.Wait()
+	for _, err := range errs {
+		require.NoError(t, err)
+	}
+
+	var after UserSubscription
+	require.NoError(t, DB.First(&after, "id = ?", sub.Id).Error)
+	require.EqualValues(t, 100, after.AmountUsed)
+	state := lifecycleStateForTest(t, user.Id, QuotaLifecycleScopeSubscription, strconv.Itoa(sub.Id))
+	require.EqualValues(t, 900, state.Balance)
+}
+
+func TestPreConsumeUserSubscriptionAllowsUnlimitedLegacySubscription(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9133, "plg")
+	createEntitlementTestPlan(t, 9234, 0, "")
+	now := GetDBTimestamp()
+	sub := UserSubscription{
+		UserId:        9133,
+		PlanId:        9234,
+		AmountTotal:   0,
+		AmountUsed:    0,
+		StartTime:     now - 10,
+		EndTime:       now + 100,
+		AccessEndTime: now + 100,
+		Status:        "active",
+	}
+	require.NoError(t, DB.Create(&sub).Error)
+
+	first, err := PreConsumeUserSubscription("legacy-unlimited", 9133, "gpt-test", 0, 25)
+	require.NoError(t, err)
+	require.Equal(t, sub.Id, first.UserSubscriptionId)
+	require.EqualValues(t, 25, first.PreConsumed)
+	require.EqualValues(t, 0, first.AmountUsedBefore)
+	require.EqualValues(t, 25, first.AmountUsedAfter)
+
+	replay, err := PreConsumeUserSubscription("legacy-unlimited", 9133, "gpt-test", 0, 25)
+	require.NoError(t, err)
+	require.EqualValues(t, 25, replay.AmountUsedAfter)
+	require.EqualValues(t, 25, subscriptionAmountUsedForTest(t, sub.Id))
+	requireNoLifecycleEventsForScope(t, 9133, QuotaLifecycleScopeSubscription, strconv.Itoa(sub.Id))
+	requireLifecycleState(t, 9133, QuotaLifecycleScopeSubscription, strconv.Itoa(sub.Id), fmt.Sprintf("baseline:subscription:%d", sub.Id), 0, int64(common.QuotaRemindThreshold))
+
+	require.NoError(t, RefundSubscriptionPreConsume("legacy-unlimited"))
+	require.EqualValues(t, 0, subscriptionAmountUsedForTest(t, sub.Id))
+	requireNoLifecycleEventsForScope(t, 9133, QuotaLifecycleScopeSubscription, strconv.Itoa(sub.Id))
+	requireLifecycleState(t, 9133, QuotaLifecycleScopeSubscription, strconv.Itoa(sub.Id), fmt.Sprintf("baseline:subscription:%d", sub.Id), 0, int64(common.QuotaRemindThreshold))
+}
+
+func TestPreConsumeUserSubscriptionAllowsUnlimitedContractEntitlement(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9134, "plg")
+	createEntitlementTestPlan(t, 9235, 0, "")
+	now := GetDBTimestamp()
+	current := UserSubscription{
+		UserId:        9134,
+		PlanId:        9235,
+		ContractId:    9334,
+		CurrentSlot:   currentSlotPtr(),
+		AmountTotal:   0,
+		AmountUsed:    0,
+		StartTime:     now - 10,
+		EndTime:       now + 100,
+		AccessEndTime: now + 100,
+		Status:        "active",
+	}
+	require.NoError(t, DB.Create(&current).Error)
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:                   9334,
+		UserId:               9134,
+		Status:               SubscriptionContractStatusActive,
+		CurrentEntitlementId: current.Id,
+		CurrentPlanId:        9235,
+	}).Error)
+
+	first, err := PreConsumeUserSubscription("contract-unlimited", 9134, "gpt-test", 0, 40)
+	require.NoError(t, err)
+	require.Equal(t, current.Id, first.UserSubscriptionId)
+	require.EqualValues(t, 0, first.AmountUsedBefore)
+	require.EqualValues(t, 40, first.AmountUsedAfter)
+
+	replay, err := PreConsumeUserSubscription("contract-unlimited", 9134, "gpt-test", 0, 40)
+	require.NoError(t, err)
+	require.EqualValues(t, 40, replay.AmountUsedAfter)
+	require.EqualValues(t, 40, subscriptionAmountUsedForTest(t, current.Id))
+	requireNoLifecycleEventsForScope(t, 9134, QuotaLifecycleScopeSubscription, strconv.Itoa(current.Id))
+	requireLifecycleState(t, 9134, QuotaLifecycleScopeSubscription, strconv.Itoa(current.Id), fmt.Sprintf("baseline:subscription:%d", current.Id), 0, int64(common.QuotaRemindThreshold))
+
+	require.NoError(t, RefundSubscriptionPreConsume("contract-unlimited"))
+	require.EqualValues(t, 0, subscriptionAmountUsedForTest(t, current.Id))
+	requireNoLifecycleEventsForScope(t, 9134, QuotaLifecycleScopeSubscription, strconv.Itoa(current.Id))
+	requireLifecycleState(t, 9134, QuotaLifecycleScopeSubscription, strconv.Itoa(current.Id), fmt.Sprintf("baseline:subscription:%d", current.Id), 0, int64(common.QuotaRemindThreshold))
+}
+
+func TestPostConsumeUserSubscriptionDeltaRejectsMinInt64Negation(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+	user := createLifecycleQuotaTestUser(t, "subscription-min-delta", 0, 0)
+	sub := createLifecycleQuotaTestSubscription(t, user.Id, 0, 0)
+
+	err := PostConsumeUserSubscriptionDelta(sub.Id, testMinInt64)
+
+	require.ErrorIs(t, err, ErrLifecycleQuotaBalanceOverflow)
+	require.EqualValues(t, 0, subscriptionAmountUsedForTest(t, sub.Id))
+}
+
 func TestHasActiveUserSubscriptionFollowsContractRules(t *testing.T) {
 	setupSubscriptionEntitlementTestDB(t)
 	createEntitlementTestUser(t, 9141, "plg")
@@ -1339,7 +1475,6 @@ func TestResetDueSubscriptionsRotatesLifecycleCycleForZeroUsedReset(t *testing.T
 		Status:        "active",
 	}
 	require.NoError(t, DB.Create(&sub).Error)
-	require.NoError(t, ensureLifecycleQuotaTables(DB))
 	oldCycle := "subscription:old-cycle"
 	require.NoError(t, DB.Create(&QuotaLifecycleState{
 		UserId:       9143,
@@ -1424,6 +1559,22 @@ func TestRotateCurrentEntitlementGroupCaptureAndSwitch(t *testing.T) {
 	require.Equal(t, "enterprise", user.Group)
 	require.NoError(t, DB.First(&contract, "id = ?", int64(9351)).Error)
 	require.Equal(t, "plg", contract.BaseUserGroup)
+}
+
+func subscriptionAmountUsedForTest(t *testing.T, subscriptionID int) int64 {
+	t.Helper()
+	var amountUsed int64
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("id = ?", subscriptionID).Select("amount_used").Scan(&amountUsed).Error)
+	return amountUsed
+}
+
+func requireNoLifecycleEventsForScope(t *testing.T, userID int, scopeType string, scopeID string) {
+	t.Helper()
+	var count int64
+	require.NoError(t, DB.Model(&RecallLifecycleEvent{}).
+		Where("user_id = ? AND scope_type = ? AND scope_id = ?", userID, scopeType, scopeID).
+		Count(&count).Error)
+	require.Zero(t, count)
 }
 
 func TestRotateCurrentEntitlementHistoricalGrantReplayDoesNotBecomeCurrent(t *testing.T) {

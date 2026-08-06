@@ -2056,7 +2056,15 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.PreConsumed = amount
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore
-			returnValue.AmountUsedAfter = sub.AmountTotal - applied.CurrentBalance
+			if sub.AmountTotal == 0 {
+				usedAfter, err := checkedLifecycleQuotaAdd(usedBefore, amount)
+				if err != nil {
+					return err
+				}
+				returnValue.AmountUsedAfter = usedAfter
+			} else {
+				returnValue.AmountUsedAfter = sub.AmountTotal - applied.CurrentBalance
+			}
 			return nil
 		}
 		return insufficientSubscriptionQuotaError(amount)
@@ -2090,8 +2098,7 @@ func RefundSubscriptionPreConsume(requestId string) error {
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var record SubscriptionPreConsumeRecord
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").
-			Where("request_id = ?", requestId).First(&record).Error; err != nil {
+		if err := lockQuery(tx).Where("request_id = ?", requestId).First(&record).Error; err != nil {
 			return err
 		}
 		if record.Status == "refunded" {
@@ -2134,7 +2141,7 @@ func ResetDueSubscriptions(limit int) (int, error) {
 		}
 		err = DB.Transaction(func(tx *gorm.DB) error {
 			var locked UserSubscription
-			if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			if err := lockQuery(tx).
 				Where("id = ? AND next_reset_time > 0 AND next_reset_time <= ?", subCopy.Id, now).
 				First(&locked).Error; err != nil {
 				return nil
@@ -2213,16 +2220,20 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 
 func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64, cause string, sourceRef string) error {
 	var sub UserSubscription
-	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+	if err := lockQuery(tx).
 		Where("id = ?", userSubscriptionId).
 		First(&sub).Error; err != nil {
 		return err
 	}
-	_, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+	mutationDelta, err := checkedLifecycleQuotaNeg(delta)
+	if err != nil {
+		return err
+	}
+	_, err = ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
 		UserID:    sub.UserId,
 		ScopeType: QuotaLifecycleScopeSubscription,
 		ScopeID:   int64(userSubscriptionId),
-		Delta:     -delta,
+		Delta:     mutationDelta,
 		Cause:     cause,
 		SourceRef: sourceRef,
 	})

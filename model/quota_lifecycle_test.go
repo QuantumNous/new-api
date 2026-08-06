@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,6 +12,11 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+)
+
+const (
+	testMaxInt64 = int64(^uint64(0) >> 1)
+	testMinInt64 = -testMaxInt64 - 1
 )
 
 func TestLifecycleQuotaStateSchemaAndUniqueScope(t *testing.T) {
@@ -37,6 +43,44 @@ func TestLifecycleQuotaStateSchemaAndUniqueScope(t *testing.T) {
 	duplicate.Id = 0
 	err := DB.Create(&duplicate).Error
 	require.Error(t, err)
+}
+
+func TestLifecycleQuotaLockQueriesUseForUpdateForSQLDialects(t *testing.T) {
+	originalSQLite := common.UsingSQLite
+	t.Cleanup(func() { common.UsingSQLite = originalSQLite })
+	source, err := os.ReadFile("quota_lifecycle.go")
+	require.NoError(t, err)
+	require.NotContains(t, string(source), "gorm:query_option")
+
+	for name, db := range recallLifecycleDryRunDialects(t) {
+		if name == "sqlite" {
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			common.UsingSQLite = false
+
+			queries := []string{
+				db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+					var user User
+					return lockQuery(tx).Where("id = ?", 42).First(&user)
+				}),
+				db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+					var sub UserSubscription
+					return lockQuery(tx).Where("id = ? AND user_id = ?", 99, 42).First(&sub)
+				}),
+				db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+					var state QuotaLifecycleState
+					return lockQuery(tx).
+						Where("user_id = ? AND scope_type = ? AND scope_id = ?", 42, QuotaLifecycleScopeSubscription, "99").
+						First(&state)
+				}),
+			}
+			for _, query := range queries {
+				require.NotEmpty(t, query)
+				require.Contains(t, strings.ToUpper(query), "FOR UPDATE")
+			}
+		})
+	}
 }
 
 func TestApplyLifecycleQuotaMutationWalletCrossings(t *testing.T) {
@@ -339,6 +383,77 @@ func TestApplyLifecycleQuotaMutationSubscriptionOverRefundUsesClampedBalance(t *
 	require.Equal(t, float64(100), sourceData["current_balance"])
 }
 
+func TestApplyLifecycleQuotaMutationRejectsWalletBalanceOverflow(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+
+	user := createLifecycleQuotaTestUser(t, "wallet-overflow", int(testMaxInt64), 100)
+	_, err := applyLifecycleQuotaMutationForTest(LifecycleQuotaMutation{
+		UserID:    user.Id,
+		ScopeType: QuotaLifecycleScopeWallet,
+		ScopeID:   int64(user.Id),
+		Delta:     1,
+		Cause:     "admin_grant",
+		SourceRef: "wallet-overflow",
+	})
+
+	require.ErrorIs(t, err, ErrLifecycleQuotaBalanceOverflow)
+	require.Equal(t, int(testMaxInt64), walletQuotaForTest(t, user.Id))
+}
+
+func TestApplyLifecycleQuotaMutationRejectsFiniteSubscriptionBalanceUnderflow(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+
+	user := createLifecycleQuotaTestUser(t, "subscription-underflow", 0, 100)
+	sub := createLifecycleQuotaTestSubscription(t, user.Id, 100, 0)
+	_, err := applyLifecycleQuotaMutationForTest(LifecycleQuotaMutation{
+		UserID:    user.Id,
+		ScopeType: QuotaLifecycleScopeSubscription,
+		ScopeID:   int64(sub.Id),
+		Delta:     testMinInt64,
+		Cause:     "subscription_adjustment",
+		SourceRef: "subscription-underflow",
+	})
+
+	require.ErrorIs(t, err, ErrLifecycleQuotaBalanceOverflow)
+	require.Equal(t, int64(0), subscriptionAmountUsedForTest(t, sub.Id))
+}
+
+func TestApplyLifecycleQuotaMutationRejectsUnlimitedSubscriptionUsedOverflow(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+
+	user := createLifecycleQuotaTestUser(t, "subscription-unlimited-overflow", 0, 100)
+	sub := createLifecycleQuotaTestSubscription(t, user.Id, 0, testMaxInt64)
+	_, err := applyLifecycleQuotaMutationForTest(LifecycleQuotaMutation{
+		UserID:    user.Id,
+		ScopeType: QuotaLifecycleScopeSubscription,
+		ScopeID:   int64(sub.Id),
+		Delta:     -1,
+		Cause:     "subscription_adjustment",
+		SourceRef: "subscription-unlimited-overflow",
+	})
+
+	require.ErrorIs(t, err, ErrLifecycleQuotaBalanceOverflow)
+	require.Equal(t, testMaxInt64, subscriptionAmountUsedForTest(t, sub.Id))
+}
+
+func TestApplyLifecycleQuotaMutationDoesNotAutoMigrateLifecycleTables(t *testing.T) {
+	setupLifecycleQuotaMissingSchemaTestDB(t)
+
+	user := createLifecycleQuotaTestUser(t, "missing-schema", 100, 100)
+	_, err := applyLifecycleQuotaMutationForTest(LifecycleQuotaMutation{
+		UserID:    user.Id,
+		ScopeType: QuotaLifecycleScopeWallet,
+		ScopeID:   int64(user.Id),
+		Delta:     -10,
+		Cause:     "wallet_debit",
+		SourceRef: "missing-schema",
+	})
+
+	require.Error(t, err)
+	require.False(t, DB.Migrator().HasTable(&QuotaLifecycleState{}))
+	require.False(t, DB.Migrator().HasTable(&RecallLifecycleEvent{}))
+}
+
 func TestLifecycleQuotaWalletAdaptersCommitSynchronouslyWhenBatchEnabled(t *testing.T) {
 	setupLifecycleQuotaMutationTestDB(t, 1)
 	common.BatchUpdateEnabled = true
@@ -409,6 +524,42 @@ func setupLifecycleQuotaMutationTestDB(t *testing.T, maxOpenConns int) {
 		&SubscriptionPreConsumeRecord{},
 		&RecallLifecycleEvent{},
 		&QuotaLifecycleState{},
+	))
+
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+		DB = originalDB
+		LOG_DB = originalLogDB
+		common.RedisEnabled = originalRedis
+		common.BatchUpdateEnabled = originalBatch
+		common.QuotaRemindThreshold = originalThreshold
+	})
+}
+
+func setupLifecycleQuotaMissingSchemaTestDB(t *testing.T) {
+	t.Helper()
+
+	originalDB := DB
+	originalLogDB := LOG_DB
+	originalRedis := common.RedisEnabled
+	originalBatch := common.BatchUpdateEnabled
+	originalThreshold := common.QuotaRemindThreshold
+
+	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/quota-lifecycle-missing-schema.db"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	DB = db
+	LOG_DB = db
+	common.RedisEnabled = false
+	common.BatchUpdateEnabled = false
+	common.QuotaRemindThreshold = 100
+
+	require.NoError(t, db.AutoMigrate(
+		&User{},
+		&SubscriptionPlan{},
+		&UserSubscription{},
 	))
 
 	t.Cleanup(func() {
