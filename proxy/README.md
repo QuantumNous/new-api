@@ -75,6 +75,19 @@ new-api's. It is built from source on the target host — no image registry need
 ```bash
 git pull
 cd proxy
+./deploy.sh
+```
+
+`deploy.sh` wraps the Compose commands below and adds the checks that are easy to
+skip by hand: it refuses a config whose `max_body_bytes` is low enough to record
+incomplete prompts, waits for the container to report healthy, and then prints the
+effective configuration the process logged at startup — a stale mounted file or an
+unnoticed `PROXY_*` override otherwise looks exactly like a broken audit pipeline.
+`--config` and `--compose-file` point it at an orchestration directory outside this
+repo; `--goproxy` passes a Go module mirror through to the build; `--no-build`
+restarts without rebuilding. The equivalent by hand:
+
+```bash
 docker compose -f docker-compose.sidecar.yml up -d --build
 ```
 
