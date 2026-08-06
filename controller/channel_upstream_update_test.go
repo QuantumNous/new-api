@@ -133,10 +133,45 @@ func TestFetchVolcEnginePlanModels(t *testing.T) {
 			assert.NotEqual(t, "overridden", request.Header.Get("X-Date"))
 			assert.Equal(t, "plan-key", request.Header.Get("X-Plan-Key"))
 			assert.Contains(t, request.Header.Get("Authorization"), "HMAC-SHA256 Credential=access-key/")
-			assert.Contains(t, request.Header.Get("Authorization"), "/cn-beijing/ark_stg/request")
+			assert.Contains(t, request.Header.Get("Authorization"), "/cn-beijing/ark/request")
 			assert.Contains(t, request.Header.Get("Authorization"), "SignedHeaders=host;x-content-sha256;x-date")
 			assert.NotContains(t, request.Header.Get("Authorization"), "plan-key")
 			assert.NotContains(t, request.Header.Get("Authorization"), "secret-key")
+		})
+	}
+}
+
+func TestBuildVolcEnginePlanManagementURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		baseURL  string
+		action   string
+		expected string
+	}{
+		{
+			name:     "agent plan production endpoint",
+			baseURL:  "https://ark.cn-beijing.volces.com/api/plan",
+			action:   "ListArkAgentPlanModel",
+			expected: "https://ark.cn-beijing.volcengineapi.com/?Action=ListArkAgentPlanModel&Version=2024-01-01",
+		},
+		{
+			name:     "coding plan production endpoint",
+			baseURL:  "https://ark.cn-beijing.volces.com/api/coding",
+			action:   "ListArkCodingPlanModel",
+			expected: "https://ark.cn-beijing.volcengineapi.com/?Action=ListArkCodingPlanModel&Version=2024-01-01",
+		},
+		{
+			name:     "custom endpoint remains available",
+			baseURL:  "http://127.0.0.1:8080/api/plan",
+			action:   "ListArkAgentPlanModel",
+			expected: "http://127.0.0.1:8080/?Action=ListArkAgentPlanModel&Version=2024-01-01",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			requestURL, err := buildVolcEnginePlanManagementURL(test.baseURL, test.action)
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, requestURL.String())
 		})
 	}
 }
