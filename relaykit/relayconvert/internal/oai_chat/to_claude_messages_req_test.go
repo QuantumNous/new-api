@@ -48,6 +48,16 @@ func TestOpenAIChatRequestToClaudeMessagesOmitsAbsentToolRequired(t *testing.T) 
 					},
 				},
 			},
+			{
+				Type: "function",
+				Function: dto.FunctionRequest{
+					Name: "ping",
+					Parameters: map[string]any{
+						// 仅声明 type：无 properties、无 required 的工具。
+						"type": "object",
+					},
+				},
+			},
 		},
 	}
 
@@ -58,7 +68,7 @@ func TestOpenAIChatRequestToClaudeMessagesOmitsAbsentToolRequired(t *testing.T) 
 	require.True(t, ok)
 	tools, webSearchTools := dto.ProcessTools(toolList)
 	require.Empty(t, webSearchTools)
-	require.Len(t, tools, 2)
+	require.Len(t, tools, 3)
 
 	// 未声明 required 的工具不应序列化出该键（旧代码会写出 "required": null）。
 	assert.NotContains(t, tools[0].InputSchema, "required")
@@ -66,4 +76,10 @@ func TestOpenAIChatRequestToClaudeMessagesOmitsAbsentToolRequired(t *testing.T) 
 
 	// 声明了 required 的工具应原样保留。
 	assert.Equal(t, []any{"server", "uri"}, tools[1].InputSchema["required"])
+
+	// 未声明 properties/required 的工具两个键都不应序列化出来
+	// （旧代码会写出 "properties": null 和 "required": null）。
+	assert.NotContains(t, tools[2].InputSchema, "required")
+	assert.NotContains(t, tools[2].InputSchema, "properties")
+	assert.Equal(t, "object", tools[2].InputSchema["type"])
 }
