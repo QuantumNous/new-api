@@ -12,6 +12,7 @@ import (
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
+	rootconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -46,6 +47,14 @@ func ApplyUpstreamBodyMetadata(req *http.Request, body io.Reader) {
 	if req.GetBody == nil {
 		req.GetBody = replayable.NewReader
 	}
+}
+
+func recordUpstreamRequest(c *gin.Context, method, rawURL string) {
+	if c == nil {
+		return
+	}
+	c.Set(string(rootconstant.ContextKeyUpstreamRequestMethod), method)
+	c.Set(string(rootconstant.ContextKeyUpstreamRequestURL), common.SanitizeURLForLog(rawURL))
 }
 
 func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Header) {
@@ -377,6 +386,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
+	recordUpstreamRequest(c, c.Request.Method, fullRequestURL)
 	targetHeader := http.Header{}
 	err = a.SetupRequestHeader(c, &targetHeader, info)
 	if err != nil {
@@ -488,6 +498,9 @@ func keepUpstreamRedirectResponse(_ *http.Request, _ []*http.Request) error {
 }
 
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
+	if req != nil && req.URL != nil {
+		recordUpstreamRequest(c, req.Method, req.URL.String())
+	}
 	client, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)

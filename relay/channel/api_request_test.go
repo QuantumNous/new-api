@@ -5,10 +5,25 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	rootcommon "github.com/QuantumNous/new-api/common"
+	rootconstant "github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRecordUpstreamRequestStoresSanitizedMetadata(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	recordUpstreamRequest(ctx, http.MethodPost, "https://upstream.test/v1/responses?key=secret&region=cn")
+
+	require.Equal(t, http.MethodPost, rootcommon.GetContextKeyString(ctx, rootconstant.ContextKeyUpstreamRequestMethod))
+	storedURL := rootcommon.GetContextKeyString(ctx, rootconstant.ContextKeyUpstreamRequestURL)
+	require.NotContains(t, storedURL, "secret")
+	require.Contains(t, storedURL, "region=cn")
+}
 
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	t.Parallel()

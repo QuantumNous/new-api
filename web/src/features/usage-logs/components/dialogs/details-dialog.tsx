@@ -499,6 +499,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const showAdminIp =
     !!props.log.ip && (showTiming || (props.isAdmin && isTopup))
   const adminInfo = other?.admin_info
+  const requestMetadata = props.isAdmin
+    ? adminInfo?.request_metadata
+    : undefined
   const topupAuditFields =
     isTopup && props.isAdmin && adminInfo
       ? ([
@@ -739,6 +742,91 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           )}
         </div>
+
+        {/* Final upstream routing metadata (admin only) */}
+        {requestMetadata && (
+          <DetailSection
+            icon={<Route className='size-3.5' aria-hidden='true' />}
+            iconTone='info'
+            label={t('Metadata')}
+          >
+            {requestMetadata.method && (
+              <DetailRow
+                label={t('Request')}
+                value={requestMetadata.method}
+                mono
+              />
+            )}
+            {requestMetadata.base_url && (
+              <DetailRow
+                label={t('Base URL')}
+                value={requestMetadata.base_url}
+                mono
+              />
+            )}
+            {requestMetadata.upstream_url && (
+              <DetailRow
+                label={t('Upstream URL')}
+                value={requestMetadata.upstream_url}
+                mono
+              />
+            )}
+            {requestMetadata.channel_type != null && (
+              <DetailRow
+                label={t('Type')}
+                value={String(requestMetadata.channel_type)}
+                mono
+              />
+            )}
+            {requestMetadata.api_type != null && (
+              <DetailRow
+                label='API'
+                value={String(requestMetadata.api_type)}
+                mono
+              />
+            )}
+            {requestMetadata.api_version && (
+              <DetailRow
+                label={t('Version')}
+                value={requestMetadata.api_version}
+                mono
+              />
+            )}
+            {requestMetadata.relay_mode != null && (
+              <DetailRow
+                label={t('Mode')}
+                value={String(requestMetadata.relay_mode)}
+                mono
+              />
+            )}
+            {(requestMetadata.request_format ||
+              requestMetadata.upstream_format) && (
+              <DetailRow
+                label={t('Format')}
+                value={[
+                  requestMetadata.request_format,
+                  requestMetadata.upstream_format,
+                ]
+                  .filter(Boolean)
+                  .join(' → ')}
+                mono
+              />
+            )}
+            {requestMetadata.upstream_model && (
+              <DetailRow
+                label={t('Model')}
+                value={requestMetadata.upstream_model}
+                mono
+              />
+            )}
+            {requestMetadata.stream != null && (
+              <DetailRow
+                label={t('Stream')}
+                value={t(requestMetadata.stream ? 'Yes' : 'No')}
+              />
+            )}
+          </DetailSection>
+        )}
 
         {/* Request conversion (admin only, not for refund) */}
         {showConversion && (

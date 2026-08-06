@@ -1,13 +1,31 @@
 package common
 
 import (
+	"net/http/httptest"
 	"testing"
 
+	rootcommon "github.com/QuantumNous/new-api/common"
+	rootconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRelayInfoInitChannelMetaClearsPreviousUpstreamTarget(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set(string(rootconstant.ContextKeyUpstreamRequestURL), "https://old-upstream.test/v1/responses")
+	ctx.Set(string(rootconstant.ContextKeyUpstreamRequestMethod), "POST")
+	ctx.Set(string(rootconstant.ContextKeyChannelType), rootconstant.ChannelTypeOpenAI)
+
+	info := &RelayInfo{}
+	info.InitChannelMeta(ctx)
+
+	assert.Empty(t, rootcommon.GetContextKeyString(ctx, rootconstant.ContextKeyUpstreamRequestURL))
+	assert.Empty(t, rootcommon.GetContextKeyString(ctx, rootconstant.ContextKeyUpstreamRequestMethod))
+}
 
 func TestRelayInfoGetFinalRequestRelayFormatPrefersExplicitFinal(t *testing.T) {
 	info := &RelayInfo{

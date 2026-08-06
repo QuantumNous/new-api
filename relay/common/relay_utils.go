@@ -47,12 +47,17 @@ func SanitizeURLForLog(rawURL string) string {
 		return rawURL
 	}
 
+	changed := false
+	if parsedURL.User != nil {
+		parsedURL.User = url.User("***masked***")
+		changed = true
+	}
+
 	query := parsedURL.Query()
-	if len(query) == 0 {
+	if len(query) == 0 && !changed {
 		return rawURL
 	}
 
-	changed := false
 	for key := range query {
 		if isSensitiveURLQueryKey(key) {
 			query.Set(key, "***masked***")
@@ -63,7 +68,9 @@ func SanitizeURLForLog(rawURL string) string {
 		return rawURL
 	}
 
-	parsedURL.RawQuery = query.Encode()
+	if len(query) > 0 {
+		parsedURL.RawQuery = query.Encode()
+	}
 	return parsedURL.String()
 }
 
