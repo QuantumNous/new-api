@@ -40,9 +40,14 @@ capture:
     - /v1beta/models/*
     - /pg/chat/completions
 
-  # Bytes inspected per request. Larger bodies still stream through untouched;
-  # only the captured prefix is inspected and the row is marked truncated.
-  max_body_bytes: 1048576 # 1 MiB
+  # Ceiling on the bytes inspected per request — a safety valve for absurd
+  # payloads, not a memory budget: the body is inspected as it streams upstream,
+  # so a large request costs one message of memory, not its full size. A body that
+  # outgrows the ceiling is still forwarded untouched, but inspection stops there
+  # and the row is marked truncated with an incomplete prompt. Agent clients
+  # resend their whole conversation every turn, so keep this far above any real
+  # request.
+  max_body_bytes: 67108864 # 64 MiB
 
   store_prompt_text: true # extracted, human-readable prompt text
   store_raw_body: false # full request JSON: better for forensics, far larger

@@ -2,11 +2,9 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -42,10 +40,9 @@ type Proxy struct {
 // and a record written afterwards would simply never happen. Recording at header
 // time is what makes long-lived streams auditable at all.
 type auditState struct {
-	inbound   *http.Request
-	body      []byte
-	truncated bool
-	start     time.Time
+	inbound *http.Request
+	capture *bodyCapture
+	start   time.Time
 	// recorded makes the header-time path and the error fallback mutually
 	// exclusive, so a request is audited exactly once.
 	recorded atomic.Bool
@@ -115,7 +112,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state := &auditState{inbound: r, start: time.Now()}
-	state.body, state.truncated = p.captureBody(r)
+	state.capture = startBodyCapture(r, p.cfg.Capture)
 	r = r.WithContext(context.WithValue(r.Context(), auditStateKey{}, state))
 
 	recorder := &responseRecorder{ResponseWriter: w, status: http.StatusOK}
@@ -125,34 +122,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// unreachable upstream goes through ErrorHandler, so ModifyResponse never
 	// runs. recordOnce ignores this call when the record already exists.
 	p.recordOnce(state, recorder.status, recorder.Header(), time.Since(state.start))
-}
-
-// captureBody buffers at most capture.max_body_bytes of the request body for
-// inspection and rewires r.Body so the upstream still receives every byte,
-// including whatever lies beyond the cap. Content-Length is left untouched.
-func (p *Proxy) captureBody(r *http.Request) ([]byte, bool) {
-	if r.Body == nil {
-		return nil, false
-	}
-	limit := p.cfg.Capture.MaxBodyBytes
-	original := r.Body
-
-	// Reading limit+1 bytes is what distinguishes "exactly at the cap" from
-	// "there is more to come".
-	buffered, err := io.ReadAll(io.LimitReader(original, limit+1))
-	if err != nil {
-		// The body is already partly consumed and cannot be reconstructed; hand
-		// the upstream what was read so the failure surfaces there, not here.
-		r.Body = io.NopCloser(bytes.NewReader(buffered))
-		return buffered, true
-	}
-
-	truncated := int64(len(buffered)) > limit
-	r.Body = &replayBody{reader: io.MultiReader(bytes.NewReader(buffered), original), closer: original}
-	if truncated {
-		return buffered[:limit], true
-	}
-	return buffered, false
 }
 
 // recordOnce builds and enqueues the audit record for a request, at most once.
@@ -165,14 +134,12 @@ func (p *Proxy) recordOnce(state *auditState, status int, header http.Header, el
 	if state == nil || !state.recorded.CompareAndSwap(false, true) {
 		return
 	}
-	r, body, truncated := state.inbound, state.body, state.truncated
+	r := state.inbound
 
-	// Decode a copy for auditing; the bytes already forwarded upstream are the
-	// client's originals and were never modified.
-	decoded := decodeRequestBody(r.Header.Get("Content-Encoding"), body)
-	facts := extractRequestFacts(decoded, p.cfg.Capture.MaxPromptBytes, p.cfg.Capture.PromptScope)
+	// The body was inspected as it streamed upstream; this collects the result.
+	facts, incomplete := state.capture.result()
 
-	bodyBytes := int64(len(body))
+	bodyBytes := state.capture.bytesRead.Load()
 	if r.ContentLength > 0 {
 		bodyBytes = r.ContentLength
 	}
@@ -195,7 +162,7 @@ func (p *Proxy) recordOnce(state *auditState, status int, header http.Header, el
 		Model:      model,
 		IsStream:   isStream,
 		ClientIp:   clientIP(r),
-		Truncated:  truncated,
+		Truncated:  incomplete,
 		BodyBytes:  bodyBytes,
 		StatusCode: status,
 		LatencyMs:  elapsed.Milliseconds(),
@@ -205,7 +172,7 @@ func (p *Proxy) recordOnce(state *auditState, status int, header http.Header, el
 		record.PromptText = p.redactor.Apply(facts.PromptText)
 	}
 	if p.cfg.Capture.StoreRawBody {
-		record.RawBody = p.redactor.Apply(truncateUTF8(string(decoded), p.cfg.Capture.MaxRawBodyBytes))
+		record.RawBody = p.redactor.Apply(facts.RawBody)
 	}
 	if p.cfg.Identity.Enabled {
 		identity := p.identity.Resolve(extractAPIKey(r))
@@ -217,9 +184,9 @@ func (p *Proxy) recordOnce(state *auditState, status int, header http.Header, el
 	}
 	accepted := p.store.Enqueue(record)
 	if p.cfg.Debug {
-		log.Printf("proxy[debug]: recorded %s status=%d stream=%t prompt=%dB raw=%dB latency=%dms enqueued=%t",
-			record.Path, record.StatusCode, record.IsStream, len(record.PromptText), len(record.RawBody),
-			record.LatencyMs, accepted)
+		log.Printf("proxy[debug]: recorded %s status=%d stream=%t body=%dB prompt=%dB raw=%dB parsed=%t truncated=%t latency=%dms enqueued=%t",
+			record.Path, record.StatusCode, record.IsStream, record.BodyBytes, len(record.PromptText),
+			len(record.RawBody), facts.Parsed, record.Truncated, record.LatencyMs, accepted)
 	}
 }
 
@@ -233,21 +200,6 @@ func (p *Proxy) serveHealth(w http.ResponseWriter) {
 	}); err != nil {
 		log.Printf("proxy: write health response: %v", err)
 	}
-}
-
-// replayBody serves the buffered prefix followed by the untouched remainder, so
-// the upstream request stays byte-identical to what the client sent.
-type replayBody struct {
-	reader io.Reader
-	closer io.Closer
-}
-
-func (b *replayBody) Read(p []byte) (int, error) {
-	return b.reader.Read(p)
-}
-
-func (b *replayBody) Close() error {
-	return b.closer.Close()
 }
 
 // responseRecorder captures the status code while leaving streaming behaviour

@@ -40,8 +40,10 @@ type PromptAuditLog struct {
 
 	PromptText string `gorm:"type:text" json:"prompt_text"`
 	RawBody    string `gorm:"type:text" json:"raw_body"`
-	// Truncated marks records whose body exceeded capture.max_body_bytes, so the
-	// captured content is a prefix and prompt extraction may have failed.
+	// Truncated marks a record whose audited content is incomplete: the body
+	// outgrew capture.max_body_bytes, ended before its JSON closed, or carried more
+	// text in scope than the retention budget keeps. A truncated row still holds
+	// whatever prompt text was recovered.
 	Truncated bool  `json:"truncated"`
 	BodyBytes int64 `json:"body_bytes"`
 

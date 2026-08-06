@@ -45,8 +45,10 @@ CREATE TABLE IF NOT EXISTS `prompt_audit_logs` (
   -- prompt can never fail its insert.
   `prompt_text` text COLLATE utf8mb4_general_ci,
   `raw_body` text COLLATE utf8mb4_general_ci,
-  -- Set when the request body exceeded capture.max_body_bytes, so the captured
-  -- content is a prefix and prompt extraction may have failed.
+  -- Set when the audited content is incomplete: the body outgrew
+  -- capture.max_body_bytes, ended before its JSON closed, or carried more text
+  -- than the retention budget keeps. Such a row still holds the prompt text that
+  -- was recovered.
   `truncated` tinyint(1) DEFAULT NULL,
   `body_bytes` bigint DEFAULT NULL,
   `status_code` bigint DEFAULT NULL,

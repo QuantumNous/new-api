@@ -15,6 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// extractJSON runs the extractor over a complete, uncompressed body — the shape
+// almost every relay request arrives in.
+func extractJSON(t *testing.T, body string, maxPromptBytes int, scope string) requestFacts {
+	t.Helper()
+	return extractRequestFacts(strings.NewReader(body), "",
+		extractOptions{scope: scope, maxPromptBytes: maxPromptBytes})
+}
+
 // TestExtractRequestFacts pins the extraction contract for every relay format
 // new-api accepts, including the guarantee that multimodal media payloads never
 // reach the audit record.
@@ -85,7 +93,7 @@ func TestExtractRequestFacts(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			facts := extractRequestFacts([]byte(tc.body), 4096, PromptScopeAll)
+			facts := extractJSON(t, tc.body, 4096, PromptScopeAll)
 			require.True(t, facts.Parsed)
 			assert.Equal(t, tc.wantModel, facts.Model)
 			assert.Equal(t, tc.wantStream, facts.IsStream)
@@ -100,7 +108,7 @@ func TestExtractRequestFacts(t *testing.T) {
 func TestPromptScopeTrimsAgentScaffolding(t *testing.T) {
 	// Shaped like a real Codex /v1/responses turn: a large developer prompt, the
 	// full prior conversation, and one new user message.
-	body := []byte(`{
+	body := `{
 		"model": "gpt-5.6-luna",
 		"instructions": "You are Codex, an agent based on GPT-5. Long scaffolding follows.",
 		"input": [
@@ -109,7 +117,7 @@ func TestPromptScopeTrimsAgentScaffolding(t *testing.T) {
 			{"role": "assistant", "content": "first answer"},
 			{"role": "user", "content": [{"type": "input_text", "text": "hello"}]}
 		]
-	}`)
+	}`
 
 	tests := []struct {
 		scope string
@@ -124,14 +132,14 @@ func TestPromptScopeTrimsAgentScaffolding(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.scope, func(t *testing.T) {
-			facts := extractRequestFacts(body, 60000, tc.scope)
+			facts := extractJSON(t, body, 60000, tc.scope)
 			require.True(t, facts.Parsed)
 			assert.Equal(t, tc.want, facts.PromptText)
 		})
 	}
 
 	// An unknown scope must never silently discard data.
-	facts := extractRequestFacts(body, 60000, "")
+	facts := extractJSON(t, body, 60000, "")
 	assert.Contains(t, facts.PromptText, "developer:", "an unset scope must behave like all, not like a filter")
 }
 
@@ -140,7 +148,7 @@ func TestPromptScopeTrimsAgentScaffolding(t *testing.T) {
 // in <image>…</image> marker parts. Taking the last *part* recorded only
 // "</image>"; the unit has to be the last user *message*.
 func TestPromptScopeKeepsWholeUserMessage(t *testing.T) {
-	body := []byte(`{
+	body := `{
 		"model": "gpt-5.6-luna",
 		"input": [
 			{"role": "user", "content": "an earlier turn"},
@@ -151,9 +159,9 @@ func TestPromptScopeKeepsWholeUserMessage(t *testing.T) {
 				{"type": "input_text", "text": "</image>"}
 			]}
 		]
-	}`)
+	}`
 
-	facts := extractRequestFacts(body, 60000, PromptScopeLastUser)
+	facts := extractJSON(t, body, 60000, PromptScopeLastUser)
 	require.True(t, facts.Parsed)
 	assert.Contains(t, facts.PromptText, "what is in this picture",
 		"every text part of the last user message must be kept, not only the final part")
@@ -168,7 +176,7 @@ func TestPromptScopeKeepsWholeUserMessage(t *testing.T) {
 func TestPromptScopeExcludesAnthropicToolResults(t *testing.T) {
 	// A Claude Code style agent loop: the user asked once, everything after that
 	// is the agent feeding results back through user-role messages.
-	body := []byte(`{
+	body := `{
 		"model": "claude-sonnet-4",
 		"system": [{"type": "text", "text": "You are Claude Code."}],
 		"messages": [
@@ -179,19 +187,19 @@ func TestPromptScopeExcludesAnthropicToolResults(t *testing.T) {
 				 "content": [{"type": "text", "text": "package main\nfunc main() { panic(1) }"}]}
 			]}
 		]
-	}`)
+	}`
 
-	lastUser := extractRequestFacts(body, 60000, PromptScopeLastUser)
+	lastUser := extractJSON(t, body, 60000, PromptScopeLastUser)
 	require.True(t, lastUser.Parsed)
 	assert.Equal(t, "find the bug in main.go", lastUser.PromptText,
 		"a tool result carried in a user message must not be mistaken for the user's input")
 
-	userOnly := extractRequestFacts(body, 60000, PromptScopeUserOnly)
+	userOnly := extractJSON(t, body, 60000, PromptScopeUserOnly)
 	assert.Equal(t, "find the bug in main.go", userOnly.PromptText)
 	assert.NotContains(t, userOnly.PromptText, "panic")
 
 	// Forensic scope still keeps the tool traffic, attributed to the tool.
-	all := extractRequestFacts(body, 60000, PromptScopeAll)
+	all := extractJSON(t, body, 60000, PromptScopeAll)
 	assert.Contains(t, all.PromptText, "tool: package main")
 	assert.Contains(t, all.PromptText, "system: You are Claude Code.")
 }
@@ -199,16 +207,16 @@ func TestPromptScopeExcludesAnthropicToolResults(t *testing.T) {
 // TestPromptScopeExcludesResponsesToolOutput checks the OpenAI Responses agent
 // shape, where tool output arrives as a roleless function_call_output item.
 func TestPromptScopeExcludesResponsesToolOutput(t *testing.T) {
-	body := []byte(`{
+	body := `{
 		"model": "gpt-5",
 		"input": [
 			{"role": "user", "content": "list the files"},
 			{"type": "function_call", "name": "ls", "arguments": "{}"},
 			{"type": "function_call_output", "call_id": "c1", "content": "main.go go.mod"}
 		]
-	}`)
+	}`
 
-	lastUser := extractRequestFacts(body, 60000, PromptScopeLastUser)
+	lastUser := extractJSON(t, body, 60000, PromptScopeLastUser)
 	assert.Equal(t, "list the files", lastUser.PromptText)
 	assert.NotContains(t, lastUser.PromptText, "go.mod")
 }
@@ -216,23 +224,101 @@ func TestPromptScopeExcludesResponsesToolOutput(t *testing.T) {
 // TestPromptScopeKeepsRolelessUserInput guards the seed roles: formats where the
 // user's input carries no role at all must still survive the restrictive scopes.
 func TestPromptScopeKeepsRolelessUserInput(t *testing.T) {
-	image := extractRequestFacts([]byte(`{"model":"dall-e-3","prompt":"a red bicycle"}`), 4096, PromptScopeLastUser)
+	image := extractJSON(t, `{"model":"dall-e-3","prompt":"a red bicycle"}`, 4096, PromptScopeLastUser)
 	assert.Equal(t, "a red bicycle", image.PromptText)
 
-	embedding := extractRequestFacts([]byte(`{"model":"e5","input":["alpha","beta"]}`), 4096, PromptScopeUserOnly)
+	embedding := extractJSON(t, `{"model":"e5","input":["alpha","beta"]}`, 4096, PromptScopeUserOnly)
 	assert.Equal(t, "alpha\nbeta", embedding.PromptText)
 
 	// A request with no user-authored text yields nothing under last_user rather
 	// than falling back to the system prompt.
-	systemOnly := extractRequestFacts([]byte(`{"model":"m","instructions":"be terse"}`), 4096, PromptScopeLastUser)
+	systemOnly := extractJSON(t, `{"model":"m","instructions":"be terse"}`, 4096, PromptScopeLastUser)
 	assert.Empty(t, systemOnly.PromptText)
 }
 
 func TestExtractRequestFactsOnNonJSONBody(t *testing.T) {
-	facts := extractRequestFacts([]byte("--boundary\r\nContent-Disposition: form-data"), 1024, PromptScopeAll)
+	facts := extractJSON(t, "--boundary\r\nContent-Disposition: form-data", 1024, PromptScopeAll)
 	assert.False(t, facts.Parsed)
+	assert.False(t, facts.Partial, "a body that never was JSON is not a partial record")
 	assert.Empty(t, facts.PromptText)
 	assert.Empty(t, facts.Model)
+}
+
+// TestExtractRequestFactsFromOversizedBody is the regression this streaming
+// extractor exists for. Prefix buffering recorded rows with truncated=1 and an
+// empty prompt_text for every agent request, because an agent client resends its
+// whole conversation each turn — bodies well over a megabyte are ordinary, and a
+// prefix of a JSON document does not parse.
+func TestExtractRequestFactsFromOversizedBody(t *testing.T) {
+	// ~2 MB of prior conversation, with the input the user just typed at the end
+	// where a real client puts it.
+	var body strings.Builder
+	body.WriteString(`{"model":"claude-sonnet-4","stream":true,"messages":[`)
+	for i := 0; i < 200; i++ {
+		body.WriteString(`{"role":"assistant","content":[{"type":"tool_use","name":"read","input":{"data":"`)
+		body.WriteString(strings.Repeat("x", 10000))
+		body.WriteString(`"}}]},`)
+	}
+	body.WriteString(`{"role":"user","content":"why does the audit row have no prompt"}]}`)
+	require.Greater(t, body.Len(), 1<<20, "past the 1 MiB prefix cap this replaced")
+
+	facts := extractJSON(t, body.String(), 60000, PromptScopeLastUser)
+	require.True(t, facts.Parsed, "the whole document must be parsed, however large")
+	assert.Equal(t, "claude-sonnet-4", facts.Model)
+	assert.True(t, facts.IsStream)
+	assert.Equal(t, "why does the audit row have no prompt", facts.PromptText)
+	assert.NotContains(t, facts.PromptText, "xxxx", "tool payloads must not reach the record")
+}
+
+// TestExtractRequestFactsEvictsOldestText bounds what a single request may retain:
+// history beyond the budget is dropped from the oldest end, so the latest turn —
+// the only part that is new — always survives.
+func TestExtractRequestFactsEvictsOldestText(t *testing.T) {
+	var body strings.Builder
+	body.WriteString(`{"model":"m","messages":[`)
+	for i := 0; i < 40; i++ {
+		body.WriteString(`{"role":"user","content":"`)
+		body.WriteString(strings.Repeat("a", 20000))
+		body.WriteString(`"},`)
+	}
+	body.WriteString(`{"role":"user","content":"the newest question"}]}`)
+
+	facts := extractJSON(t, body.String(), 4096, PromptScopeUserOnly)
+	require.True(t, facts.Parsed)
+	assert.True(t, facts.PromptEvicted, "dropping history must be visible in the record")
+	assert.True(t, strings.HasSuffix(facts.PromptText, "the newest question"),
+		"the newest input must survive both the retention budget and the byte cap")
+	assert.LessOrEqual(t, len(facts.PromptText), 4096)
+}
+
+// TestExtractRequestFactsFromAbortedBody covers a client that disconnects
+// mid-upload: everything read before the cut is still a true record of what was
+// submitted, and the record says so.
+func TestExtractRequestFactsFromAbortedBody(t *testing.T) {
+	complete := `{"model":"gpt-4o","messages":[{"role":"user","content":"first"},{"role":"user","content":"second"}]}`
+	facts := extractJSON(t, complete[:len(complete)-30], 4096, PromptScopeUserOnly)
+
+	assert.False(t, facts.Parsed)
+	assert.True(t, facts.Partial, "a body that broke mid-document must be marked, not discarded")
+	assert.Equal(t, "gpt-4o", facts.Model)
+	assert.Equal(t, "first", facts.PromptText)
+}
+
+// TestExtractRequestFactsKeepsRawBody covers capture.store_raw_body: the prefix is
+// taken from the decoded stream and capped, so a huge body costs nothing.
+func TestExtractRequestFactsKeepsRawBody(t *testing.T) {
+	body := `{"model":"gpt-4o","messages":[{"role":"user","content":"` + strings.Repeat("z", 4096) + `"}]}`
+
+	facts := extractRequestFacts(strings.NewReader(body), "",
+		extractOptions{scope: PromptScopeAll, maxPromptBytes: 1024, maxRawBodyBytes: 512})
+	assert.LessOrEqual(t, len(facts.RawBody), 512)
+	assert.True(t, strings.HasPrefix(facts.RawBody, `{"model":"gpt-4o"`))
+	assert.True(t, strings.HasSuffix(facts.RawBody, truncationMarker))
+
+	// Off by default: nothing is retained unless the limit is set.
+	facts = extractRequestFacts(strings.NewReader(body), "",
+		extractOptions{scope: PromptScopeAll, maxPromptBytes: 1024})
+	assert.Empty(t, facts.RawBody)
 }
 
 // TestTruncateUTF8RespectsByteBudget pins the limit that actually matters: the
@@ -259,6 +345,28 @@ func TestTruncateUTF8RespectsByteBudget(t *testing.T) {
 	assert.Empty(t, truncateUTF8("你好世界", 4), "a budget too small for the marker yields nothing")
 }
 
+// TestTruncateUTF8TailKeepsTheEnd pins the direction prompt text is cut in: the
+// input the user just submitted sits at the end of a conversation, so a prompt
+// over the byte cap must lose its beginning, never its end.
+func TestTruncateUTF8TailKeepsTheEnd(t *testing.T) {
+	assert.Equal(t, "hello", truncateUTF8Tail("hello", 64))
+	assert.Equal(t, "你好", truncateUTF8Tail("你好", 6), "exactly at the budget is kept intact")
+
+	// The marker is 14 bytes, so a 20-byte budget leaves the last two characters.
+	out := truncateUTF8Tail("你好世界你好世界", 20)
+	assert.Equal(t, truncationMarker+"世界", out)
+	assert.LessOrEqual(t, len(out), 20)
+	assert.True(t, utf8.ValidString(out), "must not split a multi-byte character")
+
+	long := strings.Repeat("审计", 40000) + "the newest question"
+	out = truncateUTF8Tail(long, 60000)
+	assert.LessOrEqual(t, len(out), 60000)
+	assert.True(t, utf8.ValidString(out))
+	assert.True(t, strings.HasSuffix(out, "the newest question"))
+
+	assert.Empty(t, truncateUTF8Tail("你好世界", 4), "a budget too small for the marker yields nothing")
+}
+
 // TestExtractRequestFactsDecodesCompressedBodies covers clients that compress
 // request bodies — new-api decompresses them itself, so the audit proxy must too
 // or every compressed request would record an empty prompt.
@@ -272,18 +380,29 @@ func TestExtractRequestFactsDecodesCompressedBodies(t *testing.T) {
 	require.NoError(t, writer.Close())
 	gzipped := buf.Bytes()
 
+	extract := func(body []byte, encoding string) requestFacts {
+		return extractRequestFacts(bytes.NewReader(body), encoding,
+			extractOptions{scope: PromptScopeAll, maxPromptBytes: 4096})
+	}
+
 	t.Run("gzip is decoded", func(t *testing.T) {
-		facts := extractRequestFacts(decodeRequestBody("gzip", gzipped), 4096, PromptScopeAll)
+		facts := extract(gzipped, "gzip")
 		require.True(t, facts.Parsed)
 		assert.Equal(t, "gpt-4o", facts.Model)
 		assert.Equal(t, "user: compressed hello", facts.PromptText)
 	})
 
-	t.Run("undecodable body is passed through unchanged", func(t *testing.T) {
-		assert.Equal(t, gzipped, decodeRequestBody("br", gzipped), "unsupported encoding is left alone")
-		assert.Equal(t, []byte(payload), decodeRequestBody("", []byte(payload)))
-		// A gzip header that does not decompress must not lose the original bytes.
-		assert.Equal(t, gzipped[:10], decodeRequestBody("gzip", gzipped[:10]))
+	t.Run("a mislabelled body is still extracted", func(t *testing.T) {
+		// Content-Encoding: gzip on a plain JSON body is a real client bug; the magic
+		// number decides, so the prompt survives it.
+		facts := extract([]byte(payload), "gzip")
+		require.True(t, facts.Parsed)
+		assert.Equal(t, "user: compressed hello", facts.PromptText)
+	})
+
+	t.Run("an undecodable encoding yields no prompt", func(t *testing.T) {
+		assert.False(t, extract(gzipped, "br").Parsed, "unsupported encoding is inspected as-is")
+		assert.False(t, extract(gzipped[:10], "gzip").Parsed, "a gzip stream that ends in its header")
 	})
 }
 
@@ -359,37 +478,46 @@ func TestExtractAPIKey(t *testing.T) {
 	}
 }
 
-// TestCaptureBodyForwardsEveryByte is the proxy's core safety invariant: whatever
+// TestBodyCaptureForwardsEveryByte is the proxy's core safety invariant: whatever
 // the client sent must reach the upstream unchanged, including the part beyond
-// the inspection cap.
-func TestCaptureBodyForwardsEveryByte(t *testing.T) {
+// the inspection ceiling.
+func TestBodyCaptureForwardsEveryByte(t *testing.T) {
 	payload := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"0123456789abcdef"}]}`)
+	capture := CaptureConfig{PromptScope: PromptScopeAll, MaxPromptBytes: 4096, StorePromptText: true}
 
-	t.Run("body under the cap", func(t *testing.T) {
-		proxy := &Proxy{cfg: &Config{Capture: CaptureConfig{MaxBodyBytes: int64(len(payload))}}}
+	t.Run("body within the ceiling", func(t *testing.T) {
+		capture.MaxBodyBytes = int64(len(payload))
 		request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(payload))
-
-		captured, truncated := proxy.captureBody(request)
-		assert.False(t, truncated)
-		assert.Equal(t, payload, captured)
+		audit := startBodyCapture(request, capture)
 
 		forwarded, err := io.ReadAll(request.Body)
 		require.NoError(t, err)
 		assert.Equal(t, payload, forwarded)
+
+		facts, incomplete := audit.result()
+		assert.False(t, incomplete)
+		assert.Equal(t, "user: 0123456789abcdef", facts.PromptText)
+		assert.Equal(t, int64(len(payload)), audit.bytesRead.Load())
 	})
 
-	t.Run("body over the cap", func(t *testing.T) {
-		const limit = 16
-		proxy := &Proxy{cfg: &Config{Capture: CaptureConfig{MaxBodyBytes: limit}}}
+	t.Run("body over the ceiling", func(t *testing.T) {
+		capture.MaxBodyBytes = 16
 		request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(payload))
-
-		captured, truncated := proxy.captureBody(request)
-		assert.True(t, truncated)
-		assert.Equal(t, payload[:limit], captured)
+		audit := startBodyCapture(request, capture)
 
 		forwarded, err := io.ReadAll(request.Body)
 		require.NoError(t, err)
 		assert.Equal(t, payload, forwarded, "upstream must still receive the complete body")
+
+		_, incomplete := audit.result()
+		assert.True(t, incomplete, "inspection stopped early, so the record is incomplete")
+	})
+
+	t.Run("body absent", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		request.Body = nil
+		_, incomplete := startBodyCapture(request, capture).result()
+		assert.False(t, incomplete)
 	})
 }
 
@@ -460,6 +588,66 @@ func TestRecordsBeforeStreamFinishes(t *testing.T) {
 	assert.Equal(t, "user: hi", record.PromptText)
 
 	close(releaseStream)
+}
+
+// TestRecordsOversizedRequestEndToEnd is the reported bug driven through the whole
+// proxy: a multi-megabyte agent request used to land as a row with truncated=1 and
+// an empty prompt_text, because only a 1 MiB prefix was captured and a prefix of a
+// JSON document does not parse. The prompt must now be recorded in full, the row
+// must not be marked truncated, and the upstream must still receive every byte.
+func TestRecordsOversizedRequestEndToEnd(t *testing.T) {
+	var body strings.Builder
+	body.WriteString(`{"model":"claude-sonnet-4","messages":[`)
+	for i := 0; i < 200; i++ {
+		body.WriteString(`{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":"`)
+		body.WriteString(strings.Repeat("x", 10000))
+		body.WriteString(`"}]},`)
+	}
+	body.WriteString(`{"role":"user","content":"audit this please"}]}`)
+	payload := body.String()
+
+	received := make(chan int64, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		relayed, _ := io.Copy(io.Discard, r.Body)
+		received <- relayed
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	store, err := NewStore(nil, StoreConfig{
+		BufferSize: 8, BatchSize: 10, FlushIntervalMs: 1000,
+		SpoolDir: t.TempDir(), SpoolReplaySecond: 60,
+	})
+	require.NoError(t, err)
+
+	proxy, err := NewProxy(&Config{
+		Upstream: upstream.URL,
+		Capture: CaptureConfig{
+			Paths:           []string{"/v1/messages"},
+			MaxBodyBytes:    64 << 20,
+			PromptScope:     PromptScopeLastUser,
+			StorePromptText: true,
+			MaxPromptBytes:  60000,
+		},
+	}, store, nil, nil)
+	require.NoError(t, err)
+
+	front := httptest.NewServer(proxy)
+	defer front.Close()
+
+	resp, err := http.Post(front.URL+"/v1/messages", "application/json", strings.NewReader(payload))
+	require.NoError(t, err)
+	_, _ = io.Copy(io.Discard, resp.Body)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, int64(len(payload)), <-received, "upstream must receive the complete body")
+
+	require.Len(t, store.records, 1)
+	record := <-store.records
+	assert.Equal(t, "audit this please", record.PromptText)
+	assert.Equal(t, "claude-sonnet-4", record.Model)
+	assert.False(t, record.Truncated, "a body larger than the old cap is no longer a partial capture")
+	assert.Equal(t, int64(len(payload)), record.BodyBytes)
 }
 
 func TestModelFromPath(t *testing.T) {
