@@ -277,6 +277,50 @@ func TestRecallCampaignContinuousPauseRetainsCancelReleasesAndResumeRepairsOwner
 	require.Zero(t, slot.CampaignId)
 }
 
+func TestRecallCampaignContinuousRejectsCompleteWithoutReleasingSlot(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		pauseFirst bool
+		wantStatus string
+	}{
+		{name: "running", wantStatus: model.RecallCampaignRunning},
+		{name: "paused", pauseFirst: true, wantStatus: model.RecallCampaignPaused},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			setupRecallCampaignTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+			require.NoError(t, err)
+			service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+			campaign, err := service.SaveDraft(context.Background(), 7, validRecallContinuousDraft())
+			require.NoError(t, err)
+			require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+			if test.pauseFirst {
+				require.NoError(t, service.Pause(context.Background(), 7, campaign.Id))
+			}
+
+			err = service.Complete(context.Background(), 7, campaign.Id)
+
+			require.ErrorContains(t, err, "continuous recall campaign")
+			stored, err := model.GetRecallCampaignByID(campaign.Id)
+			require.NoError(t, err)
+			require.Equal(t, test.wantStatus, stored.Status)
+			var completedEvents int64
+			require.NoError(t, model.DB.Model(&model.RecallEvent{}).
+				Where("campaign_id = ? AND event_type = ?", campaign.Id, "campaign_completed").
+				Count(&completedEvents).Error)
+			require.Zero(t, completedEvents)
+			var slot model.RecallContinuousTriggerSlot
+			require.NoError(t, model.DB.First(&slot, "trigger = ?", model.RecallLifecycleTriggerQuotaLow).Error)
+			require.Equal(t, campaign.Id, slot.CampaignId)
+
+			require.NoError(t, service.Cancel(context.Background(), 7, campaign.Id))
+			require.NoError(t, model.DB.First(&slot, "trigger = ?", model.RecallLifecycleTriggerQuotaLow).Error)
+			require.Zero(t, slot.CampaignId)
+		})
+	}
+}
+
 func TestRecallCampaignContinuousRejectsWrongPolicyAudiencePromotionAndBoundaries(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

@@ -903,6 +903,65 @@ func TestRecallCampaignScheduleProductChoicesNormalizeForPersistence(t *testing.
 	}
 }
 
+func TestRecallCampaignLegacyExecutionModesClearLifecycleFields(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	start := now.Add(2 * time.Hour).Unix()
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
+	service.now = func() time.Time { return now }
+
+	tests := []struct {
+		name     string
+		mode     string
+		schedule RecallScheduleConfig
+	}{
+		{name: "manual", mode: "manual", schedule: RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}},
+		{name: "scheduled_once", mode: "scheduled_once", schedule: RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai"}},
+		{name: "recurring", mode: "recurring", schedule: RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9, Minute: 15}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			draft.Name = "Legacy lifecycle canonical " + test.name
+			draft.ExecutionMode = test.mode
+			draft.Schedule = test.schedule
+			draft.DeliveryPolicy = model.RecallDeliveryPolicyService
+			draft.LifecycleTrigger = model.RecallLifecycleTriggerQuotaLow
+			draft.LifecycleTriggerConfig = `{"stale":true}`
+			draft.ProcessingStartAt = now.Unix()
+
+			campaign, err := service.SaveDraft(context.Background(), 7, draft)
+
+			require.NoError(t, err)
+			require.Equal(t, model.RecallDeliveryPolicyEngagement, campaign.DeliveryPolicy)
+			require.Empty(t, campaign.LifecycleTrigger)
+			require.Empty(t, campaign.LifecycleTriggerConfig)
+			require.Zero(t, campaign.ProcessingStartAt)
+			roundTrip, err := recallCampaignDraftFromModel(campaign)
+			require.NoError(t, err)
+			require.Equal(t, model.RecallDeliveryPolicyEngagement, roundTrip.DeliveryPolicy)
+			require.Empty(t, roundTrip.LifecycleTrigger)
+			require.Empty(t, roundTrip.LifecycleTriggerConfig)
+			require.Zero(t, roundTrip.ProcessingStartAt)
+			if test.mode == "manual" {
+				require.Zero(t, campaign.ScheduledAt)
+				require.Empty(t, campaign.RecurrenceConfig)
+				require.Equal(t, RecallScheduleConfig{}, roundTrip.Schedule)
+				return
+			}
+			require.Equal(t, start, campaign.ScheduledAt)
+			require.Equal(t, start, roundTrip.Schedule.ScheduledAt)
+			require.Equal(t, "Asia/Shanghai", roundTrip.Schedule.Timezone)
+			if test.mode == "recurring" {
+				require.Equal(t, "daily", roundTrip.Schedule.Frequency)
+				require.Equal(t, 9, roundTrip.Schedule.Hour)
+				require.Equal(t, 15, roundTrip.Schedule.Minute)
+			}
+		})
+	}
+}
+
 func TestRecallCampaignScheduleRejectsNonManualWithoutIANATimezone(t *testing.T) {
 	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
 	for _, mode := range []string{"Once", "Daily", "Weekly"} {

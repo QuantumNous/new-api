@@ -1353,6 +1353,9 @@ func (s *RecallCampaignService) Complete(ctx context.Context, actorID int, id in
 	if err != nil {
 		return err
 	}
+	if campaign.ExecutionMode == "continuous" {
+		return fmt.Errorf("continuous recall campaign %d cannot be completed manually", id)
+	}
 	if campaign.Status == model.RecallCampaignCompleted {
 		return nil
 	}
@@ -1791,9 +1794,10 @@ func validateAndNormalizeRecallCampaignDraftInternal(draft RecallCampaignDraft, 
 	if strings.EqualFold(strings.TrimSpace(draft.ExecutionMode), "continuous") {
 		return validateAndNormalizeRecallContinuousDraft(draft)
 	}
-	if draft.DeliveryPolicy == "" {
-		draft.DeliveryPolicy = model.RecallDeliveryPolicyEngagement
-	}
+	draft.DeliveryPolicy = model.RecallDeliveryPolicyEngagement
+	draft.LifecycleTrigger = ""
+	draft.LifecycleTriggerConfig = ""
+	draft.ProcessingStartAt = 0
 	draft.AudienceTemplate = strings.ToLower(strings.TrimSpace(draft.AudienceTemplate))
 	draft.Audience.GroupMode = strings.ToLower(strings.TrimSpace(draft.Audience.GroupMode))
 	if err := ValidateRecallAudience(draft.AudienceTemplate, draft.Audience); err != nil {
