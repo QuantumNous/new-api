@@ -10,6 +10,7 @@ const props = defineProps<{
   spinning: boolean
   balance: number
   lastPrize?: SpinPrize | null
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{ spin: [] }>()
@@ -188,7 +189,7 @@ onBeforeUnmount(() => {
       <ConsoleButton
         block
         :loading="spinning"
-        :disabled="!canSpin"
+        :disabled="readonly || !canSpin"
         @click="onSpin"
       >
         {{

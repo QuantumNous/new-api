@@ -15,6 +15,7 @@ import TicketReplyBox from '@/components/console/tickets/TicketReplyBox.vue'
 import TicketThreadMessage from '@/components/console/tickets/TicketThreadMessage.vue'
 import TicketImageLightbox from '@/components/console/tickets/TicketImageLightbox.vue'
 import { useLatestRequest } from '@/composables/useLatestRequest'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useToast } from '@/composables/useToast'
 import { ticketStatusTone } from '@/constants/console'
 import { formatTime } from '@/utils/format'
@@ -25,6 +26,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const { readOnly } = useFeatureAccess('tickets', 'prototype')
 
 const ticket = ref<TicketMeta | null>(null)
 const messages = ref<TicketMessage[]>([])
@@ -82,7 +84,7 @@ async function load(id = ticketId.value) {
 }
 
 async function sendReply(payload: { content: string; images: string[] }) {
-  if (!ticket.value || submitting.value) return
+  if (readOnly.value || !ticket.value || submitting.value) return
   const id = ticket.value.id
   const sequence = ++mutationSequence
   submitting.value = true
@@ -107,7 +109,7 @@ async function sendReply(payload: { content: string; images: string[] }) {
 }
 
 async function changeStatus(next: 'open' | 'closed') {
-  if (!ticket.value || submitting.value) return
+  if (readOnly.value || !ticket.value || submitting.value) return
   const id = ticket.value.id
   const sequence = ++mutationSequence
   submitting.value = true
@@ -250,6 +252,7 @@ watch(ticketId, (id) => void load(id), { immediate: true })
             variant="secondary"
             size="sm"
             :loading="submitting"
+            :disabled="readOnly"
             @click="confirmClose = true"
           >
             {{ t('tickets.closeTicket') }}
@@ -259,6 +262,7 @@ watch(ticketId, (id) => void load(id), { immediate: true })
             variant="secondary"
             size="sm"
             :loading="submitting"
+            :disabled="readOnly"
             @click="changeStatus('open')"
           >
             {{ t('tickets.reopenTicket') }}
@@ -280,7 +284,11 @@ watch(ticketId, (id) => void load(id), { immediate: true })
 
       <!-- reply / closed banner -->
       <ConsoleCard v-if="ticket.status !== 'closed'">
-        <TicketReplyBox :submitting="submitting" @submit="sendReply" />
+        <TicketReplyBox
+          :submitting="submitting"
+          :readonly="readOnly"
+          @submit="sendReply"
+        />
       </ConsoleCard>
       <ConsoleCard v-else>
         <div class="flex flex-col items-start gap-1">

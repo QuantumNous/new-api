@@ -3,12 +3,14 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import SearchInput from '@/components/common/SearchInput.vue'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useLabNotes } from '@/composables/useLab'
 import { useToast } from '@/composables/useToast'
 import { relativeTime } from '@/utils/format'
 
 const { t } = useI18n()
 const toast = useToast()
+const { readOnly } = useFeatureAccess('lab', 'prototype')
 const { loading, items, load } = useLabNotes()
 
 const keyword = ref('')
@@ -53,6 +55,7 @@ const createCards = computed(() => [
 onMounted(() => void load())
 
 function create() {
+  if (readOnly.value) return
   toast.info(t('lab.prototypeToast'))
 }
 </script>
@@ -76,6 +79,7 @@ function create() {
             type="button"
             class="pencil-control flex h-10 items-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] focus-ring"
             data-handdrawn="control"
+            :disabled="readOnly"
             @click="create"
           >
             <svg
@@ -101,6 +105,7 @@ function create() {
           type="button"
           class="pencil-surface group flex items-center gap-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 text-left shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)] focus-ring"
           data-handdrawn="surface"
+          :disabled="readOnly"
           @click="create"
         >
           <span
@@ -140,7 +145,8 @@ function create() {
           class="pencil-surface group flex cursor-pointer flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
           data-handdrawn="surface"
           role="button"
-          tabindex="0"
+          :tabindex="readOnly ? -1 : 0"
+          :aria-disabled="readOnly"
           @click="create"
           @keydown.enter="create"
           @keydown.space.prevent="create"

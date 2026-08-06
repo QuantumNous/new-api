@@ -22,10 +22,12 @@ import MerchantSection from '@/components/console/market/MerchantSection.vue'
 import MyChannelsPanel from '@/components/console/market/MyChannelsPanel.vue'
 import { useMarketplace } from '@/composables/useMarketplace'
 import { useMyChannels } from '@/composables/useMyChannels'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
 const toast = useToast()
+const { readOnly } = useFeatureAccess('marketplace', 'prototype')
 
 const {
   loading,
@@ -128,7 +130,7 @@ const scaleOptions = computed(() => [
 ])
 
 async function addListing(listing: MarketListing) {
-  if (addingId.value != null) return
+  if (readOnly.value || addingId.value != null) return
   addingId.value = listing.id
   try {
     await api.post(`/api/market/listing/${listing.id}/add`)
@@ -141,7 +143,7 @@ async function addListing(listing: MarketListing) {
 }
 
 async function addAllChannels(merchant: Merchant) {
-  if (addingAllId.value != null) return
+  if (readOnly.value || addingAllId.value != null) return
   addingAllId.value = merchant.id
   try {
     const data = await api.post<{ added: number }>(
@@ -156,6 +158,7 @@ async function addAllChannels(merchant: Merchant) {
 }
 
 async function toggleMyChannel(id: number) {
+  if (readOnly.value) return
   try {
     const message = await mine.toggle(id)
     if (message) toast.success(message)
@@ -165,6 +168,7 @@ async function toggleMyChannel(id: number) {
 }
 
 async function removeMyChannel(id: number) {
+  if (readOnly.value) return
   try {
     await mine.remove(id)
     toast.success(t('market.mine.removed'))
@@ -179,11 +183,13 @@ watch(side, (s) => {
 })
 
 function openCreate() {
+  if (readOnly.value) return
   editing.value = null
   formOpen.value = true
 }
 
 function openEdit(listing: MarketListing) {
+  if (readOnly.value) return
   editing.value = listing
   formOpen.value = true
 }
@@ -356,6 +362,7 @@ onMounted(load)
           :format-price="formatPrice"
           :adding-id="addingId"
           :adding-all-id="addingAllId"
+          :readonly="readOnly"
           @detail="detailListing = $event"
           @add="addListing"
           @comments="commentsMerchant = $event"
@@ -369,6 +376,7 @@ onMounted(load)
       <MarketSellPanel
         ref="sellPanel"
         :format-price="formatPrice"
+        :readonly="readOnly"
         @create="openCreate"
         @edit="openEdit"
       />
@@ -380,6 +388,7 @@ onMounted(load)
         :channels="mine.channels.value"
         :loading="mine.loading.value"
         :pending="mine.pending.value"
+        :readonly="readOnly"
         @toggle="toggleMyChannel"
         @remove="removeMyChannel"
         @go-buy="side = 'buy'"
@@ -394,6 +403,7 @@ onMounted(load)
       "
       :format-price="formatPrice"
       :adding="detailListing != null && addingId === detailListing.id"
+      :readonly="readOnly"
       @close="detailListing = null"
       @add="addListing"
       @comments="commentsMerchant = $event"
@@ -413,6 +423,7 @@ onMounted(load)
       :models="availableModels"
       :channels="availableChannels"
       :tag-pool="marketTagPool"
+      :readonly="readOnly"
       @close="formOpen = false"
       @saved="onSaved"
     />

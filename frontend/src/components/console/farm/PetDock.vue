@@ -8,6 +8,7 @@ import type { FarmPet } from '@/types/farm'
 const props = defineProps<{
   pet: FarmPet
   acting: boolean
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{ feedPet: [] }>()
@@ -101,7 +102,7 @@ const energyStyle = computed(() => {
       <ConsoleButton
         size="sm"
         :loading="acting"
-        :disabled="pet.fed_today"
+        :disabled="readonly || pet.fed_today"
         @click="emit('feedPet')"
       >
         {{ pet.fed_today ? t('farm.pet.fed') : t('farm.pet.feed') }}

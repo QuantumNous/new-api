@@ -18,7 +18,7 @@ describe('read-only prototype transport', () => {
   })
 
   it('rejects every write before a network transport can be reached', async () => {
-    for (const method of ['POST', 'PUT', 'DELETE'] as const) {
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'] as const) {
       await expect(
         prototypeRequest(method, '/api/market/listings', {
           data: { title: 'must not be sent' },

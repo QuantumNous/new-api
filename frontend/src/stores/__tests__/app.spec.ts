@@ -158,4 +158,24 @@ describe('public application state', () => {
 
     expect(store.uptimeLabel).toBe('100.00%')
   })
+
+  it('resolves live, prototype, disabled, and missing capabilities', async () => {
+    publicApi.status.mockResolvedValueOnce({
+      frontend_capabilities: {
+        wallet: 'live',
+        marketplace: 'prototype',
+        passkey: 'disabled',
+      },
+    })
+    const store = useAppStore()
+
+    await store.initialize()
+
+    expect(store.featureStatus('wallet', 'prototype')).toBe('live')
+    expect(store.featureStatus('marketplace', 'live')).toBe('prototype')
+    expect(store.featureStatus('passkey', 'live')).toBe('disabled')
+    expect(store.featureStatus('unknown', 'prototype')).toBe('prototype')
+    expect(store.isFeatureEnabled('passkey')).toBe(false)
+    expect(store.isFeatureEnabled('unknown')).toBe(true)
+  })
 })

@@ -12,6 +12,7 @@ import {
 import {
   publishAuthSessionEvent,
   subscribeAuthSessionEvents,
+  type AuthSessionSyncEvent,
 } from '@/api/authSessionSync'
 import { ApiError } from '@/api/types'
 import type {
@@ -23,6 +24,36 @@ import type {
 async function getAuthApi() {
   const { authApi } = await import('@/api/auth')
   return authApi
+}
+
+export interface AuthSessionSyncEffects {
+  currentSid: () => string | undefined
+  clearBundle: () => void
+  setPending: () => void
+  setAnonymous: () => void
+  refreshFromCookie: () => Promise<boolean>
+}
+
+export async function applyAuthSessionSyncEvent(
+  event: AuthSessionSyncEvent,
+  effects: AuthSessionSyncEffects
+): Promise<void> {
+  const currentSid = effects.currentSid()
+  if (event.kind === 'signed_out') {
+    if (event.sid !== currentSid) return
+    effects.clearBundle()
+    effects.setAnonymous()
+    return
+  }
+
+  effects.clearBundle()
+  if (event.sid !== currentSid) effects.setPending()
+
+  try {
+    if (!(await effects.refreshFromCookie())) effects.setAnonymous()
+  } catch {
+    effects.setAnonymous()
+  }
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -164,24 +195,20 @@ export const useAuthStore = defineStore('auth', () => {
 
   if (!isMockApi) {
     subscribeAuthSessionEvents((event) => {
-      if (event.kind === 'signed_out') {
-        if (event.sid !== getAuthBundle()?.session.sid) return
-        clearAuthBundle()
-        persist(null)
-        checked.value = true
-        return
-      }
-      const currentSid = getAuthBundle()?.session.sid
-      clearAuthBundle()
-      if (event.sid !== currentSid) {
-        persist(null)
-        checked.value = false
-      }
       // Access tokens never cross tabs. The shared HttpOnly refresh cookie is
       // the only source used to establish the peer's current session.
-      void fetchSelf(false).catch(() => {
-        persist(null)
-        checked.value = true
+      void applyAuthSessionSyncEvent(event, {
+        currentSid: () => getAuthBundle()?.session.sid,
+        clearBundle: clearAuthBundle,
+        setPending: () => {
+          persist(null)
+          checked.value = false
+        },
+        setAnonymous: () => {
+          persist(null)
+          checked.value = true
+        },
+        refreshFromCookie: () => fetchSelf(false),
       })
     })
   }

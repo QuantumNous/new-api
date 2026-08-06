@@ -19,6 +19,7 @@ const props = defineProps<{
   merchant?: Merchant
   formatPrice: (usd: number) => string
   adding?: boolean
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -219,6 +220,7 @@ const priceUnit = computed(() =>
         size="lg"
         block
         :loading="adding"
+        :disabled="props.readonly"
         @click="emit('add', listing)"
       >
         {{ t('market.add') }} · {{ formatPrice(listing.priceUSD) }}

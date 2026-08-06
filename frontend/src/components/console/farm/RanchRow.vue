@@ -7,6 +7,7 @@ import type { RanchAnimal } from '@/types/farm'
 defineProps<{
   animals: RanchAnimal[]
   acting: boolean
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -84,6 +85,7 @@ function moodColor(mood: number): string {
             variant="secondary"
             size="sm"
             :loading="acting"
+            :disabled="readonly"
             @click="emit('feedAnimal', animal.id)"
           >
             {{ t('farm.ranch.feed') }}
@@ -92,6 +94,7 @@ function moodColor(mood: number): string {
             v-if="animal.yield_ready"
             size="sm"
             :loading="acting"
+            :disabled="readonly"
             @click="emit('collectAnimal', animal.id)"
           >
             {{ t('farm.ranch.collect') }}

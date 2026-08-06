@@ -102,4 +102,16 @@ describe('console navigation', () => {
 
     expect(new Set(routes).size).toBe(routes.length)
   })
+
+  it('disables entries explicitly disabled by backend capabilities', () => {
+    const groups = getAccessibleConsoleNavGroups({
+      isAdmin: false,
+      featureStatus: (feature) =>
+        feature === 'marketplace' ? 'disabled' : 'live',
+    })
+    const items = groups.flatMap((group) => group.items)
+
+    expect(items.find((item) => item.route === 'market')?.disabled).toBe(true)
+    expect(items.find((item) => item.route === 'models')?.disabled).toBeFalsy()
+  })
 })

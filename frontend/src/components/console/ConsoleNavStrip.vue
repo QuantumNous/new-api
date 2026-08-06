@@ -4,17 +4,20 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute } from 'vue-router'
 
 import { getAccessibleConsoleNavGroups } from '@/constants/navigation/consoleNav'
+import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 
 const { t } = useI18n()
 const route = useRoute()
 const auth = useAuthStore()
+const app = useAppStore()
 const activeItem = ref<HTMLElement | null>(null)
 
 const allItems = computed(() =>
   getAccessibleConsoleNavGroups({
     isAdmin: auth.isAdmin,
     hasPermission: auth.hasPermission,
+    featureStatus: (feature) => app.featureStatus(feature),
   }).flatMap((group) => group.items)
 )
 

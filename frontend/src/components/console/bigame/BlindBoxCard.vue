@@ -10,6 +10,7 @@ const props = defineProps<{
   opening: boolean
   balance: number
   lastPrize?: BlindBoxPrize | null
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{ openBox: [] }>()
@@ -121,7 +122,7 @@ onBeforeUnmount(() => {
       <ConsoleButton
         block
         :loading="opening"
-        :disabled="balance < 10 || opening"
+        :disabled="readonly || balance < 10 || opening"
         @click="onOpen"
       >
         {{ opening ? t('bigame.blindBox.opening') : t('bigame.blindBox.open') }}

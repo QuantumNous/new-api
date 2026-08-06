@@ -8,6 +8,7 @@ import type { FarmPlot } from '@/types/farm'
 defineProps<{
   plots: FarmPlot[]
   acting: boolean
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{ harvest: [id: number] }>()
@@ -83,6 +84,7 @@ const stageColor = computed(() => (stage: FarmPlot['stage']) => {
           v-if="plot.stage === 'ready'"
           size="sm"
           :loading="acting"
+          :disabled="readonly"
           class="w-full !text-xs"
           @click="emit('harvest', plot.id)"
         >

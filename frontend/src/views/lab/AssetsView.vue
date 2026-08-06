@@ -6,6 +6,7 @@ import ConsoleTabs, { type TabItem } from '@/components/common/ConsoleTabs.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import SegmentedToggle from '@/components/common/SegmentedToggle.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useLabAssets } from '@/composables/useLab'
 import { useToast } from '@/composables/useToast'
 import { formatBytes, relativeTime } from '@/utils/format'
@@ -14,6 +15,7 @@ import type { AssetItem, AssetKind } from '@/types/lab'
 
 const { t } = useI18n()
 const toast = useToast()
+const { readOnly } = useFeatureAccess('lab', 'prototype')
 const { loading, items, storage, load } = useLabAssets()
 
 const safeCover = (value: string | undefined) => safeImageUrl(value)
@@ -79,9 +81,11 @@ onMounted(reload)
 watch(tab, reload)
 
 function upload() {
+  if (readOnly.value) return
   toast.info(t('lab.prototypeToast'))
 }
 function rowAction(_item: AssetItem) {
+  if (readOnly.value) return
   toast.info(t('lab.prototypeToast'))
 }
 </script>
@@ -123,6 +127,7 @@ function rowAction(_item: AssetItem) {
           type="button"
           class="pencil-control flex h-11 items-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] focus-ring"
           data-handdrawn="control"
+          :disabled="readOnly"
           @click="upload"
         >
           <svg
@@ -242,6 +247,7 @@ function rowAction(_item: AssetItem) {
                 type="button"
                 class="touch-row-action flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] opacity-0 transition-all hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus:opacity-100 focus-visible:opacity-100 focus-ring group-hover:opacity-100 group-focus-within:opacity-100"
                 :aria-label="t('lab.assets.more')"
+                :disabled="readOnly"
                 @click="rowAction(item)"
               >
                 <svg

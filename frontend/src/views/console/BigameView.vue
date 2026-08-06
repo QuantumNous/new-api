@@ -9,8 +9,10 @@ import SpinWheelCard from '@/components/console/bigame/SpinWheelCard.vue'
 import BlindBoxCard from '@/components/console/bigame/BlindBoxCard.vue'
 import PrizeInventory from '@/components/console/bigame/PrizeInventory.vue'
 import { useBigame } from '@/composables/useBigame'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 
 const { t } = useI18n()
+const { readOnly } = useFeatureAccess('bigame', 'prototype')
 const {
   loading,
   spinning,
@@ -30,6 +32,7 @@ const {
 const claimingId = ref<string | null>(null)
 
 async function onClaim(id: string) {
+  if (readOnly.value) return
   claimingId.value = id
   try {
     await claimMilestone(id)
@@ -68,6 +71,7 @@ onMounted(load)
       <MilestoneTrack
         :milestones="milestones"
         :claiming="claimingId"
+        :readonly="readOnly"
         @claim="onClaim"
       />
 
@@ -84,12 +88,14 @@ onMounted(load)
             :spinning="spinning"
             :balance="wallet?.balance ?? 0"
             :last-prize="lastSpinPrize"
+            :readonly="readOnly"
             @spin="spin"
           />
           <BlindBoxCard
             :opening="opening"
             :balance="wallet?.balance ?? 0"
             :last-prize="lastBoxPrize"
+            :readonly="readOnly"
             @open-box="openBox"
           />
         </div>

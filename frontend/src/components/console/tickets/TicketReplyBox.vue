@@ -6,7 +6,7 @@ import ConsoleButton from '@/components/common/ConsoleButton.vue'
 
 import TicketImageUploader from './TicketImageUploader.vue'
 
-const props = defineProps<{ submitting?: boolean }>()
+const props = defineProps<{ submitting?: boolean; readonly?: boolean }>()
 const emit = defineEmits<{
   submit: [payload: { content: string; images: string[] }]
 }>()
@@ -18,7 +18,7 @@ const uploader = ref<InstanceType<typeof TicketImageUploader> | null>(null)
 
 function send() {
   const text = content.value.trim()
-  if (!text || props.submitting) return
+  if (!text || props.submitting || props.readonly) return
   emit('submit', { content: text, images: uploader.value?.getUrls() ?? [] })
   content.value = ''
   uploader.value?.reset()
@@ -34,6 +34,7 @@ function send() {
       name="ticket-reply"
       :aria-label="t('tickets.detail.replyPlaceholder')"
       :placeholder="t('tickets.detail.replyPlaceholder')"
+      :disabled="readonly"
       class="sketch-md w-full border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-colors focus:border-[var(--accent)] focus-ring"
       @keydown.enter.exact.prevent="send"
     />
@@ -44,6 +45,7 @@ function send() {
       <button
         type="button"
         class="sketch-sm inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
+        :disabled="readonly"
         @click="showUploader = !showUploader"
       >
         <svg
@@ -63,7 +65,7 @@ function send() {
       </button>
       <ConsoleButton
         :loading="submitting"
-        :disabled="!content.trim()"
+        :disabled="readonly || !content.trim()"
         @click="send"
       >
         {{ t('tickets.detail.send') }}

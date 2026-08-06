@@ -18,6 +18,11 @@ export interface ApiClient {
     data?: unknown,
     options?: Pick<RequestOptions, 'signal'>
   ): Promise<T>
+  patch<T>(
+    url: string,
+    data?: unknown,
+    options?: Pick<RequestOptions, 'signal'>
+  ): Promise<T>
   delete<T>(
     url: string,
     params?: Record<string, unknown>,
@@ -64,7 +69,7 @@ export function createApiClient(
   }
 
   async function request<T>(
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     url: string,
     options: RequestOptions = {}
   ): Promise<T> {
@@ -150,6 +155,7 @@ export function createApiClient(
     get: (url, params, options) => request('GET', url, { ...options, params }),
     post: (url, data, options) => request('POST', url, { ...options, data }),
     put: (url, data, options) => request('PUT', url, { ...options, data }),
+    patch: (url, data, options) => request('PATCH', url, { ...options, data }),
     delete: (url, params, options) =>
       request('DELETE', url, { ...options, params }),
   }

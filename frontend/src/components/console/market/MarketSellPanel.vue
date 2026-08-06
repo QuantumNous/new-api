@@ -16,8 +16,9 @@ import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { formatDate, formatQuota } from '@/utils/format'
 
-defineProps<{
+const props = defineProps<{
   formatPrice: (usd: number) => string
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -80,7 +81,7 @@ async function load() {
 }
 
 async function toggleListed(row: MarketListing) {
-  if (togglingIds.value.has(row.id)) return
+  if (props.readonly || togglingIds.value.has(row.id)) return
   togglingIds.value = new Set(togglingIds.value).add(row.id)
   try {
     const next: ListingStatus = row.status === 'active' ? 'delisted' : 'active'
@@ -97,7 +98,7 @@ async function toggleListed(row: MarketListing) {
 }
 
 async function confirmDelist() {
-  if (!delisting.value) return
+  if (props.readonly || !delisting.value) return
   delistLoading.value = true
   try {
     await api.delete(`/api/market/listing/${delisting.value.id}`)
@@ -112,6 +113,7 @@ async function confirmDelist() {
 }
 
 async function settle() {
+  if (props.readonly) return
   settling.value = true
   try {
     await api.post('/api/market/settle')
@@ -177,13 +179,13 @@ onMounted(load)
         <div class="ml-auto flex items-center gap-2.5">
           <ConsoleButton
             variant="secondary"
-            :disabled="!canSettle"
+            :disabled="props.readonly || !canSettle"
             :loading="settling"
             @click="settle"
           >
             {{ t('market.sell.settle') }}
           </ConsoleButton>
-          <ConsoleButton @click="emit('create')">
+          <ConsoleButton :disabled="props.readonly" @click="emit('create')">
             <svg
               width="15"
               height="15"
@@ -255,6 +257,7 @@ onMounted(load)
           <div class="flex items-center justify-end gap-1">
             <IconButton
               :label="t('market.sell.edit')"
+              :disabled="props.readonly"
               @click="emit('edit', row as MarketListing)"
             >
               <svg
@@ -275,6 +278,7 @@ onMounted(load)
                   : t('market.sell.relist')
               "
               :disabled="
+                props.readonly ||
                 togglingIds.has((row as MarketListing).id) ||
                 (row as MarketListing).status === 'reviewing'
               "
@@ -294,6 +298,7 @@ onMounted(load)
             <IconButton
               :label="t('market.sell.delist')"
               tone="danger"
+              :disabled="props.readonly"
               @click="delisting = row as MarketListing"
             >
               <svg

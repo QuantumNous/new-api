@@ -17,6 +17,7 @@ const props = defineProps<{
   formatPrice: (usd: number) => string
   addingId: number | null
   addingAllId: number | null
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -96,7 +97,7 @@ const latestComment = computed(() => merchant.value.comments[0] ?? null)
       <button
         type="button"
         class="shrink-0 rounded-lg border border-[var(--border-default)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent-text)] disabled:cursor-not-allowed disabled:opacity-60"
-        :disabled="addingAllId === merchant.id"
+        :disabled="readonly || addingAllId === merchant.id"
         @click="emit('addAll', merchant)"
       >
         {{ t('market.addAllChannels') }}
@@ -122,6 +123,7 @@ const latestComment = computed(() => merchant.value.comments[0] ?? null)
         :layout="view"
         :format-price="formatPrice"
         :adding="addingId === l.id"
+        :readonly="readonly"
         @detail="emit('detail', $event)"
         @add="emit('add', $event)"
       />

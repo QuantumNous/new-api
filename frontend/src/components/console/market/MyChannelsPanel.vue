@@ -15,6 +15,7 @@ const props = defineProps<{
   channels: MyChannel[]
   loading: boolean
   pending: Set<number>
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -47,7 +48,7 @@ const rows = computed(
 const asChannel = (row: Record<string, unknown>) => row as unknown as MyChannel
 
 function confirmRemove() {
-  if (!removing.value) return
+  if (props.readonly || !removing.value) return
   emit('remove', removing.value.id)
   removing.value = null
 }
@@ -109,13 +110,14 @@ function confirmRemove() {
       <div class="flex items-center justify-end gap-2">
         <ConsoleToggle
           :model-value="asChannel(row).status === 'active'"
-          :disabled="pending.has(asChannel(row).id)"
+          :disabled="props.readonly || pending.has(asChannel(row).id)"
           :label="t('market.mine.status')"
           @update:model-value="emit('toggle', asChannel(row).id)"
         />
         <IconButton
           :label="t('market.mine.remove')"
           tone="danger"
+          :disabled="props.readonly"
           @click="removing = asChannel(row)"
         >
           <svg

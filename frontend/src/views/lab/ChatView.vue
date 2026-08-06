@@ -6,6 +6,7 @@ import { useRoute } from 'vue-router'
 import BrandMark from '@/components/console/BrandMark.vue'
 import VendorLogo from '@/components/console/models/VendorLogo.vue'
 import ChatComposer from '@/components/lab/ChatComposer.vue'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useLabChat, useLabConversation } from '@/composables/useLab'
 import { useAuthStore } from '@/stores/auth'
 import type { ChatMessage } from '@/types/lab'
@@ -13,6 +14,7 @@ import type { ChatMessage } from '@/types/lab'
 const { t } = useI18n()
 const route = useRoute()
 const auth = useAuthStore()
+const { readOnly } = useFeatureAccess('lab', 'prototype')
 
 // One view serves both the landing (no :id) and an open conversation.
 const sessionId = computed(() =>
@@ -72,6 +74,7 @@ onMounted(sync)
 watch(sessionId, sync)
 
 function send() {
+  if (readOnly.value) return
   const content = draft.value.trim()
   if (!content) return
   const base = Date.now()
@@ -159,6 +162,7 @@ onBeforeUnmount(() => {
           <ChatComposer
             v-model="draft"
             :models="models"
+            :readonly="readOnly"
             direction="up"
             @send="send"
           />
@@ -180,7 +184,12 @@ onBeforeUnmount(() => {
           </h1>
         </div>
 
-        <ChatComposer v-model="draft" :models="models" @send="send" />
+        <ChatComposer
+          v-model="draft"
+          :models="models"
+          :readonly="readOnly"
+          @send="send"
+        />
 
         <!-- model quick-picks -->
         <div

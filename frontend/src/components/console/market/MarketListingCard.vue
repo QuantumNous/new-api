@@ -17,8 +17,9 @@ const props = withDefaults(
     /** formats the USD base price into the active currency */
     formatPrice: (usd: number) => string
     adding?: boolean
+    readonly?: boolean
   }>(),
-  { merchant: undefined, layout: 'grid', adding: false }
+  { merchant: undefined, layout: 'grid', adding: false, readonly: false }
 )
 
 const emit = defineEmits<{
@@ -133,7 +134,7 @@ onClickOutside(modelsDropdownRef, () => {
           </button>
           <button
             type="button"
-            :disabled="adding"
+            :disabled="readonly || adding"
             class="inline-flex h-8 items-center justify-center rounded-lg bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50 focus-ring"
             @click="emit('add', listing)"
           >
@@ -257,7 +258,7 @@ onClickOutside(modelsDropdownRef, () => {
       </button>
       <button
         type="button"
-        :disabled="adding"
+        :disabled="readonly || adding"
         class="inline-flex h-8 items-center justify-center rounded-lg bg-[var(--accent)] px-2.5 text-xs font-semibold text-[var(--accent-contrast)] transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50 focus-ring"
         @click="emit('add', listing)"
       >

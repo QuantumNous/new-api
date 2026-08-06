@@ -12,6 +12,7 @@ const props = defineProps<{
   pendingReward: number
   rewardTotal: number
   invited: number
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{ transfer: [] }>()
@@ -26,7 +27,7 @@ const currentBalance = computed(() => {
 })
 
 const afterBalance = computed(() => currentBalance.value + props.transferable)
-const canTransfer = computed(() => props.transferable > 0)
+const canTransfer = computed(() => !props.readonly && props.transferable > 0)
 </script>
 
 <template>

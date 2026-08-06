@@ -16,6 +16,7 @@ import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
 import TicketFormModal from '@/components/console/tickets/TicketFormModal.vue'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { ticketStatusTone } from '@/constants/console'
@@ -27,6 +28,7 @@ type TicketRow = Omit<TicketItem, 'messages'>
 const { t, locale } = useI18n()
 const router = useRouter()
 const toast = useToast()
+const { readOnly } = useFeatureAccess('tickets', 'prototype')
 
 const rows = ref<TicketRow[]>([])
 const total = ref(0)
@@ -128,7 +130,7 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
           class="w-full sm:w-40"
         />
         <div class="sm:ml-auto">
-          <ConsoleButton @click="formOpen = true">
+          <ConsoleButton :disabled="readOnly" @click="formOpen = true">
             <svg
               width="15"
               height="15"
@@ -219,6 +221,7 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
 
     <TicketFormModal
       :open="formOpen"
+      :readonly="readOnly"
       @close="formOpen = false"
       @saved="reload"
     />

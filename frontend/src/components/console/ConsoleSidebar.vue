@@ -20,6 +20,7 @@ const visibleNavGroups = computed(() =>
   getAccessibleConsoleNavGroups({
     isAdmin: auth.isAdmin,
     hasPermission: auth.hasPermission,
+    featureStatus: (feature) => app.featureStatus(feature),
   })
 )
 

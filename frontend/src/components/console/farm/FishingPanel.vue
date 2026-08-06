@@ -9,6 +9,7 @@ import { formatQuota } from '@/utils/format'
 defineProps<{
   fishing: FishingState
   acting: boolean
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{ fish: [] }>()
@@ -60,7 +61,7 @@ const rarityTone = (r: string): RarityTone =>
       <ConsoleButton
         size="sm"
         :loading="acting"
-        :disabled="fishing.daily_left === 0"
+        :disabled="readonly || fishing.daily_left === 0"
         @click="emit('fish')"
       >
         🎣 {{ t('farm.fishing.cast') }}

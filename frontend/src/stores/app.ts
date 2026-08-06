@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 
-import { publicApi, type PublicStatus } from '@/api/public'
+import { publicApi, type FeatureStatus, type PublicStatus } from '@/api/public'
 import { BRAND_LOGO_PATH } from '@/constants/branding'
 import { useAuthStore } from '@/stores/auth'
 import { safeExternalUrl, safeImageUrl } from '@/utils/safeUrl'
@@ -112,6 +112,21 @@ export const useAppStore = defineStore('app', () => {
     uptimePercent.value === null ? '--' : `${uptimePercent.value.toFixed(2)}%`
   )
   const versionLabel = computed(() => version.value || '--')
+
+  function featureStatus(
+    feature: string | undefined,
+    fallback: FeatureStatus = 'live'
+  ): FeatureStatus {
+    if (!feature) return fallback
+    return status.value.frontend_capabilities?.[feature] ?? fallback
+  }
+
+  function isFeatureEnabled(
+    feature: string | undefined,
+    fallback: FeatureStatus = 'live'
+  ): boolean {
+    return featureStatus(feature, fallback) !== 'disabled'
+  }
 
   function applyBranding(): void {
     document.title = `${systemName.value} | One Key, All Models`
@@ -249,6 +264,8 @@ export const useAppStore = defineStore('app', () => {
     modelCountLabel,
     uptimeLabel,
     versionLabel,
+    featureStatus,
+    isFeatureEnabled,
     initialize,
     retry,
   }

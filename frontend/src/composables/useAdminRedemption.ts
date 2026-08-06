@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
 import { useLatestRequest } from '@/composables/useLatestRequest'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import type {
@@ -22,6 +23,7 @@ export function useAdminRedemption() {
   const { t } = useI18n()
   const toast = useToast()
   const auth = useAuthStore()
+  const { readOnly } = useFeatureAccess('admin', 'prototype')
 
   const rows = ref<AdminRedemptionCode[]>([])
   const total = ref(0)
@@ -50,6 +52,7 @@ export function useAdminRedemption() {
   const isBulkBusy = computed(() => bulkAction.value !== null)
   const canMutate = computed(
     () =>
+      !readOnly.value &&
       !loading.value &&
       !refreshing.value &&
       !isCrudBusy.value &&
@@ -61,7 +64,7 @@ export function useAdminRedemption() {
    * Admins own all redemption codes; no per-row authority check needed.
    * Root-only codes would need a separate guard, but the current schema has none.
    */
-  const canManage = computed(() => auth.isAdmin)
+  const canManage = computed(() => !readOnly.value && auth.isAdmin)
 
   function isBusy(id: number, action: RedemptionRowAction): boolean {
     return busy.value.get(id) === action

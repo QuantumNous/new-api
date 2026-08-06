@@ -11,6 +11,7 @@ declare module 'vue-router' {
     noPageScroll?: boolean
     wide?: boolean
     prototype?: boolean
+    feature?: string
     nav?: string
     topNav?: 'activities' | 'dashboard' | 'console' | 'alchemy'
   }

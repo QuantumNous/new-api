@@ -14,6 +14,7 @@ const props = withDefaults(
     models: LabModelPick[]
     /** open the model dropdown upward (composer pinned to the bottom) */
     direction?: 'down' | 'up'
+    readonly?: boolean
   }>(),
   { direction: 'down' }
 )
@@ -28,7 +29,7 @@ const modelOptions = computed<SelectOption[]>(() =>
   props.models.map((m) => ({ value: m.id, label: m.name }))
 )
 
-const canSend = computed(() => text.value.trim().length > 0)
+const canSend = computed(() => !props.readonly && text.value.trim().length > 0)
 
 function onEnter(e: KeyboardEvent) {
   // Ctrl/Cmd+Enter sends; plain Enter inserts a newline (design 图1 hint).
@@ -48,6 +49,7 @@ function onEnter(e: KeyboardEvent) {
       v-model="text"
       rows="3"
       :placeholder="t('lab.chat.composerPlaceholder')"
+      :disabled="readonly"
       class="block w-full resize-none border-0 bg-transparent px-4 pt-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none"
       @keydown.enter="onEnter"
     />
@@ -58,6 +60,7 @@ function onEnter(e: KeyboardEvent) {
           type="button"
           class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
           :aria-label="t('lab.chat.attach')"
+          :disabled="readonly"
         >
           <svg
             width="18"
@@ -80,6 +83,7 @@ function onEnter(e: KeyboardEvent) {
               : 'color:var(--text-tertiary)'
           "
           :aria-pressed="deepThink"
+          :disabled="readonly"
           @click="deepThink = !deepThink"
         >
           <svg

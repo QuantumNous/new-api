@@ -7,6 +7,7 @@ import type { MilestoneItem } from '@/types/bigame'
 defineProps<{
   milestones: MilestoneItem[]
   claiming?: string | null // id of milestone being claimed
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{ claim: [id: string] }>()
@@ -78,6 +79,7 @@ function canClaim(item: MilestoneItem): boolean {
           v-if="canClaim(item)"
           size="sm"
           :loading="claiming === item.id"
+          :disabled="readonly"
           class="shrink-0"
           @click="emit('claim', item.id)"
         >

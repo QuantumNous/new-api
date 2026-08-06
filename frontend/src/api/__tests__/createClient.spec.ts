@@ -6,6 +6,23 @@ import type { ApiTransport } from '@/api/transport'
 import { ApiError } from '@/api/types'
 
 describe('API client request scope', () => {
+  it('forwards PATCH bodies through the transport', async () => {
+    const request = vi.fn().mockResolvedValue({
+      success: true,
+      data: { updated: true },
+    })
+    const client = createApiClient({ request } as ApiTransport)
+
+    await expect(
+      client.patch('/api/subscription/admin/plans/1', { enabled: false })
+    ).resolves.toEqual({ updated: true })
+    expect(request).toHaveBeenCalledWith(
+      'PATCH',
+      '/api/subscription/admin/plans/1',
+      { data: { enabled: false } }
+    )
+  })
+
   it('accepts legacy envelopes for every supported payment provider', async () => {
     const endpoints = [
       '/api/user/stripe/pay',
@@ -92,5 +109,46 @@ describe('API client request scope', () => {
       code: 'AUTH_SESSION_INVALIDATED',
     })
     expect(onUnauthorized).toHaveBeenCalledOnce()
+  })
+
+  it('keeps business, unauthorized, network, and malformed responses distinct', async () => {
+    const onUnauthorized = vi.fn()
+    const businessClient = createApiClient({
+      request: vi.fn().mockResolvedValue({
+        success: false,
+        message: 'quota exhausted',
+      }),
+    } as ApiTransport)
+    await expect(businessClient.get('/api/token/')).rejects.toMatchObject({
+      business: true,
+      message: 'quota exhausted',
+    })
+
+    const unauthorizedClient = createApiClient(
+      {
+        request: vi
+          .fn()
+          .mockRejectedValue(new ApiError('Unauthorized', { status: 401 })),
+      } as ApiTransport,
+      { onUnauthorized }
+    )
+    await expect(
+      unauthorizedClient.get('/api/user/self')
+    ).rejects.toMatchObject({ status: 401 })
+    expect(onUnauthorized).toHaveBeenCalledOnce()
+
+    const networkError = new Error('network unavailable')
+    const networkClient = createApiClient({
+      request: vi.fn().mockRejectedValue(networkError),
+    } as ApiTransport)
+    await expect(networkClient.get('/api/user/self')).rejects.toBe(networkError)
+
+    const malformedClient = createApiClient({
+      request: vi.fn().mockResolvedValue({ message: 'success', data: {} }),
+    } as ApiTransport)
+    await expect(malformedClient.get('/api/user/self')).rejects.toMatchObject({
+      status: 502,
+      code: 'INVALID_RESPONSE',
+    })
   })
 })

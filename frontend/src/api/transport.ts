@@ -1,6 +1,6 @@
 import type { ApiResponse } from './types'
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 export interface RequestOptions {
   params?: Record<string, unknown>

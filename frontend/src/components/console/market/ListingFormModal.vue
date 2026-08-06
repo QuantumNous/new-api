@@ -21,6 +21,7 @@ const props = defineProps<{
   models: string[]
   channels: string[]
   tagPool: string[]
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -78,6 +79,7 @@ const canSubmit = computed(
 )
 
 async function save() {
+  if (props.readonly || !canSubmit.value || saving.value) return
   saving.value = true
   try {
     const payload = {
@@ -182,7 +184,7 @@ async function save() {
         size="lg"
         block
         :loading="saving"
-        :disabled="!canSubmit"
+        :disabled="props.readonly || !canSubmit"
         @click="save"
       >
         {{

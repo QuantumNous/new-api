@@ -12,9 +12,11 @@ import LeaderTable from '@/components/console/farm/LeaderTable.vue'
 import RewardTierCard from '@/components/console/farm/RewardTierCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { useFarm } from '@/composables/useFarm'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import type { LeaderPeriod } from '@/types/farm'
 
 const { t } = useI18n()
+const { readOnly } = useFeatureAccess('farm', 'prototype')
 const {
   loading,
   acting,
@@ -103,10 +105,16 @@ onMounted(load)
         <div v-show="tab === 'farm'" class="space-y-5">
           <FarmHero v-if="farmState && mine" :state="farmState" :mine="mine" />
           <div class="grid gap-5 lg:grid-cols-2">
-            <PlotGrid :plots="plots" :acting="acting" @harvest="harvest" />
+            <PlotGrid
+              :plots="plots"
+              :acting="acting"
+              :readonly="readOnly"
+              @harvest="harvest"
+            />
             <RanchRow
               :animals="animals"
               :acting="acting"
+              :readonly="readOnly"
               @feed-animal="feedAnimal"
               @collect-animal="collectAnimal"
             />
@@ -114,12 +122,14 @@ onMounted(load)
               v-if="fishing"
               :fishing="fishing"
               :acting="acting"
+              :readonly="readOnly"
               @fish="goFishing"
             />
             <PetDock
               v-if="pet"
               :pet="pet"
               :acting="acting"
+              :readonly="readOnly"
               @feed-pet="feedPet"
             />
           </div>

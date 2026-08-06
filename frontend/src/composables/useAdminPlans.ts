@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
 import { useLatestRequest } from '@/composables/useLatestRequest'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import type {
@@ -24,6 +25,7 @@ export function useAdminPlans() {
   const { t } = useI18n()
   const toast = useToast()
   const auth = useAuthStore()
+  const { readOnly } = useFeatureAccess('admin', 'prototype')
 
   const rows = ref<AdminPlan[]>([])
   const total = ref(0)
@@ -53,6 +55,7 @@ export function useAdminPlans() {
   const isBulkBusy = computed(() => bulkAction.value !== null)
   const canMutate = computed(
     () =>
+      !readOnly.value &&
       !loading.value &&
       !refreshing.value &&
       !isCrudBusy.value &&
@@ -61,7 +64,7 @@ export function useAdminPlans() {
   )
 
   /** The catalogue is admin-owned; there is no per-plan authority split. */
-  const canManage = computed(() => auth.isAdmin)
+  const canManage = computed(() => !readOnly.value && auth.isAdmin)
 
   function isBusy(id: number, action: PlanRowAction): boolean {
     return busy.value.get(id) === action

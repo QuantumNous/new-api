@@ -25,6 +25,7 @@ const {
   transferOpen,
   transferDollars,
   transferring,
+  readOnly,
   load,
   copyCode,
   copyLink,
@@ -109,7 +110,7 @@ onMounted(load)
           </div>
           <ConsoleButton
             size="sm"
-            :disabled="!info?.transferable"
+            :disabled="readOnly || !info?.transferable"
             @click="transferOpen = true"
           >
             {{ t('invite.transfer') }}
@@ -267,6 +268,7 @@ onMounted(load)
         :pending-reward="info.pending_reward"
         :reward-total="info.reward_total"
         :invited="info.invited"
+        :readonly="readOnly"
         @transfer="transferOpen = true"
       />
       <div
@@ -359,6 +361,7 @@ onMounted(load)
           block
           :loading="transferring"
           :disabled="
+            readOnly ||
             !transferDollars ||
             (info?.transferable ?? 0) < transferDollars * QUOTA_PER_DOLLAR
           "

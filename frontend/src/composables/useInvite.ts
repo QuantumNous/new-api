@@ -5,6 +5,7 @@ import { api } from '@/api/console'
 import type { InviteInfo } from '@/types/console'
 import { ApiError } from '@/api/types'
 import { useToast } from '@/composables/useToast'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useAuthStore } from '@/stores/auth'
 import { QUOTA_PER_DOLLAR } from '@/utils/format'
 import { safeExternalUrl } from '@/utils/safeUrl'
@@ -18,6 +19,7 @@ export function useInvite() {
   const { t } = useI18n()
   const toast = useToast()
   const auth = useAuthStore()
+  const { readOnly } = useFeatureAccess('invites', 'prototype')
 
   const info = ref<InviteInfo | null>(null)
   const loading = ref(true)
@@ -105,7 +107,7 @@ export function useInvite() {
   }
 
   async function transfer() {
-    if (!transferDollars.value) return
+    if (readOnly.value || !transferDollars.value) return
     const quota = Math.round(transferDollars.value * QUOTA_PER_DOLLAR)
     transferring.value = true
     try {
@@ -132,6 +134,7 @@ export function useInvite() {
     transferOpen,
     transferDollars,
     transferring,
+    readOnly,
     load,
     copyCode,
     copyLink,

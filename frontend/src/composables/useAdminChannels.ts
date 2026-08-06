@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
 import { useLatestRequest } from '@/composables/useLatestRequest'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useToast } from '@/composables/useToast'
 import type {
   AdminChannel,
@@ -35,6 +36,7 @@ const CHANNEL_BATCH_SIZE = 5
 export function useAdminChannels() {
   const { t } = useI18n()
   const toast = useToast()
+  const { readOnly } = useFeatureAccess('admin', 'prototype')
 
   const rows = ref<AdminChannel[]>([])
   const total = ref(0)
@@ -61,6 +63,7 @@ export function useAdminChannels() {
   const isBulkBusy = computed(() => bulkAction.value !== null)
   const canMutate = computed(
     () =>
+      !readOnly.value &&
       !loading.value &&
       !refreshing.value &&
       !isBatchBusy.value &&

@@ -5,14 +5,22 @@ import { RouterView, useRoute } from 'vue-router'
 import ConsoleSidebar from '@/components/console/ConsoleSidebar.vue'
 import ConsoleNavStrip from '@/components/console/ConsoleNavStrip.vue'
 import ConsoleTopbar from '@/components/console/ConsoleTopbar.vue'
+import { useAppStore } from '@/stores'
 import '@/styles/console.css'
 
 const route = useRoute()
+const app = useAppStore()
 const maxWidth = computed(() =>
   route.meta.wide ? 'max-w-[1400px]' : 'max-w-[1200px]'
 )
 const noPageScroll = computed(() => Boolean(route.meta.noPageScroll))
-const isPrototype = computed(() => Boolean(route.meta.prototype))
+const featureStatus = computed(() =>
+  app.featureStatus(
+    route.meta.feature,
+    route.meta.prototype ? 'prototype' : 'live'
+  )
+)
+const isPrototype = computed(() => featureStatus.value === 'prototype')
 
 const isScrolling = ref(false)
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
@@ -34,6 +42,7 @@ onBeforeUnmount(() => {
   <div
     class="flex h-screen h-dvh overflow-hidden"
     data-handdrawn-scope="console"
+    :data-feature-status="featureStatus"
   >
     <ConsoleSidebar />
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden">

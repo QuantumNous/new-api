@@ -74,7 +74,7 @@ function duration(
     : { value: Math.max(1, value), unit: normalized }
 }
 
-function toPlan(raw: BackendPlan): SubscriptionPlan {
+export function toPlan(raw: BackendPlan): SubscriptionPlan {
   const term = duration(
     raw.duration_unit,
     raw.duration_value,
@@ -106,7 +106,7 @@ function toPlan(raw: BackendPlan): SubscriptionPlan {
   }
 }
 
-function toEntitlement(
+export function toEntitlement(
   raw: BackendSubscription | undefined,
   plan: SubscriptionPlan | undefined
 ): SubscriptionEntitlement | null {
@@ -132,7 +132,7 @@ function toEntitlement(
   }
 }
 
-function parseBackendPlan(value: unknown): BackendPlan {
+export function parseBackendPlan(value: unknown): BackendPlan {
   const endpoint = '/api/subscription/plans'
   if (!isRecord(value)) invalidResponse(endpoint)
   const allowBalancePay = value.allow_balance_pay
@@ -162,7 +162,7 @@ function parseBackendPlan(value: unknown): BackendPlan {
   }
 }
 
-function parseBackendSubscription(value: unknown): BackendSubscription {
+export function parseBackendSubscription(value: unknown): BackendSubscription {
   const endpoint = '/api/subscription/self'
   if (!isRecord(value)) invalidResponse(endpoint)
   return {

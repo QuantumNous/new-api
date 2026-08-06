@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useToast } from '@/composables/useToast'
 import {
   ADMIN_ORDER_DEFAULT_RANGE,
@@ -35,6 +36,7 @@ export const ORDER_EXPORT_MAX_ROWS = 10_000
 export function useAdminOrders() {
   const { t } = useI18n()
   const toast = useToast()
+  const { readOnly } = useFeatureAccess('orders', 'prototype')
 
   const rows = ref<AdminOrder[]>([])
   const total = ref(0)
@@ -94,7 +96,7 @@ export function useAdminOrders() {
 
   /** UI affordance only; the mock and the real server re-check independently. */
   function canRefund(order: AdminOrder): boolean {
-    return canRefundAdminOrder(order) && !isRefundBusy.value
+    return !readOnly.value && canRefundAdminOrder(order) && !isRefundBusy.value
   }
 
   async function load(options: { background?: boolean } = {}) {

@@ -53,7 +53,7 @@ const router = createRouter({
       path: '/auth/sign-up',
       name: 'sign-up',
       component: () => import('@/views/auth/SignUpView.vue'),
-      meta: { public: true, guestOnly: true },
+      meta: { public: true, guestOnly: true, feature: 'registration' },
     },
     {
       path: '/auth/reset',
@@ -81,36 +81,49 @@ const router = createRouter({
           path: 'dashboard',
           name: 'dashboard',
           component: () => import('@/views/console/DashboardView.vue'),
-          meta: { topNav: 'dashboard' },
+          meta: { topNav: 'dashboard', feature: 'dashboard_basic' },
         },
         {
           path: 'activity',
           name: 'activity',
           component: () => import('@/views/console/ActivityView.vue'),
-          meta: { topNav: 'activities', prototype: true },
+          meta: {
+            topNav: 'activities',
+            prototype: true,
+            feature: 'activity',
+          },
         },
         {
           path: 'models',
           name: 'models',
           component: () => import('@/views/console/ModelsView.vue'),
+          meta: { feature: 'user_models' },
         },
         {
           path: 'market',
           name: 'market',
           component: () => import('@/views/console/MarketplaceView.vue'),
-          meta: { noPageScroll: true, prototype: true },
+          meta: {
+            noPageScroll: true,
+            prototype: true,
+            feature: 'marketplace',
+          },
         },
         {
           path: 'keys',
           name: 'keys',
           component: () => import('@/views/console/KeysView.vue'),
-          meta: { wide: true, noPageScroll: true },
+          meta: {
+            wide: true,
+            noPageScroll: true,
+            feature: 'legacy_token',
+          },
         },
         {
           path: 'logs',
           name: 'logs',
           component: () => import('@/views/console/LogsView.vue'),
-          meta: { wide: true, noPageScroll: true },
+          meta: { wide: true, noPageScroll: true, feature: 'logs' },
         },
         {
           path: 'channels',
@@ -120,6 +133,7 @@ const router = createRouter({
             wide: true,
             noPageScroll: true,
             prototype: true,
+            feature: 'admin',
             ...getConsoleRouteAccessMeta('channels'),
           },
         },
@@ -131,6 +145,7 @@ const router = createRouter({
             wide: true,
             noPageScroll: true,
             prototype: true,
+            feature: 'admin',
             ...getConsoleRouteAccessMeta('users'),
           },
         },
@@ -142,6 +157,7 @@ const router = createRouter({
             wide: true,
             noPageScroll: true,
             prototype: true,
+            feature: 'admin',
             ...getConsoleRouteAccessMeta('redemption'),
           },
         },
@@ -153,6 +169,7 @@ const router = createRouter({
             wide: true,
             noPageScroll: true,
             prototype: true,
+            feature: 'admin',
             ...getConsoleRouteAccessMeta('plan-management'),
           },
         },
@@ -164,6 +181,7 @@ const router = createRouter({
             wide: true,
             noPageScroll: true,
             prototype: true,
+            feature: 'orders',
             ...getConsoleRouteAccessMeta('orders'),
           },
         },
@@ -171,66 +189,85 @@ const router = createRouter({
           path: 'tickets',
           name: 'tickets',
           component: () => import('@/views/console/TicketsView.vue'),
-          meta: { noPageScroll: true, prototype: true },
+          meta: {
+            noPageScroll: true,
+            prototype: true,
+            feature: 'tickets',
+          },
         },
         {
           path: 'tickets/:id',
           name: 'ticket-detail',
           component: () => import('@/views/console/TicketDetailView.vue'),
-          meta: { nav: 'tickets', prototype: true },
+          meta: { nav: 'tickets', prototype: true, feature: 'tickets' },
         },
         {
           path: 'wallet',
           name: 'wallet',
           component: () => import('@/views/console/WalletView.vue'),
+          meta: { feature: 'wallet' },
         },
         {
           path: 'subscription',
           name: 'subscription',
           component: () => import('@/views/console/SubscriptionView.vue'),
+          meta: { feature: 'subscription_balance' },
         },
         {
           path: 'invite',
           name: 'invite',
           component: () => import('@/views/console/InviteView.vue'),
-          meta: { prototype: true },
+          meta: { prototype: true, feature: 'invites' },
         },
         {
           path: 'invoice',
           name: 'invoice',
           component: () => import('@/views/console/InvoiceView.vue'),
-          meta: { prototype: true },
+          meta: { prototype: true, feature: 'invoices' },
         },
         {
           path: 'settings',
           name: 'settings',
           component: () => import('@/views/console/AccountSettingsView.vue'),
-          meta: { prototype: true },
+          meta: { prototype: true, feature: 'profile' },
         },
         {
           path: 'profile',
           name: 'profile',
           component: () => import('@/views/console/AccountCenterView.vue'),
-          meta: { prototype: true },
+          meta: { prototype: true, feature: 'profile' },
         },
         {
           path: 'farm',
           name: 'farm',
           component: () => import('@/views/console/FarmView.vue'),
-          meta: { topNav: 'activities', prototype: true },
+          meta: {
+            topNav: 'activities',
+            prototype: true,
+            feature: 'farm',
+          },
         },
         {
           path: 'bigame',
           name: 'bigame',
           component: () => import('@/views/console/BigameView.vue'),
-          meta: { topNav: 'activities', prototype: true },
+          meta: {
+            topNav: 'activities',
+            prototype: true,
+            feature: 'bigame',
+          },
         },
       ],
     },
     {
       path: '/lab',
       component: () => import('@/components/layout/LabLayout.vue'),
-      meta: { requiresAuth: true, topNav: 'alchemy', prototype: true },
+      meta: {
+        requiresAuth: true,
+        topNav: 'alchemy',
+        prototype: true,
+        feature: 'lab',
+      },
       children: [
         { path: '', redirect: { name: 'lab-chat' } },
         {
@@ -287,10 +324,20 @@ router.beforeEach(async (to) => {
     await Promise.all([loadMessageDomain('console'), loadMessageDomain('lab')])
   }
 
-  if (to.name === 'sign-up') {
+  if (to.meta.feature || to.name === 'sign-up') {
     const app = useAppStore()
     await app.initialize()
-    if (app.statusReachable && !app.registerEnabled) {
+    if (
+      app.statusReachable &&
+      to.meta.feature &&
+      !app.isFeatureEnabled(
+        to.meta.feature,
+        to.meta.prototype ? 'prototype' : 'live'
+      )
+    ) {
+      return to.name === 'dashboard' ? { name: 'home' } : CONSOLE_ENTRY
+    }
+    if (to.name === 'sign-up' && app.statusReachable && !app.registerEnabled) {
       return { name: 'sign-in' }
     }
   }

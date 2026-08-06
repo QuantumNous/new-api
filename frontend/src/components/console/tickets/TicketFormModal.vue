@@ -13,7 +13,7 @@ import { useToast } from '@/composables/useToast'
 
 import TicketImageUploader from './TicketImageUploader.vue'
 
-const props = defineProps<{ open: boolean }>()
+const props = defineProps<{ open: boolean; readonly?: boolean }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 
 const { t } = useI18n()
@@ -81,7 +81,7 @@ function validate(): boolean {
 }
 
 async function save() {
-  if (!validate() || saving.value) return
+  if (props.readonly || !validate() || saving.value) return
   saving.value = true
   try {
     await api.post('/api/ticket/', {
@@ -211,7 +211,7 @@ async function save() {
         size="lg"
         block
         :loading="saving"
-        :disabled="!form.title.trim() || !form.content.trim()"
+        :disabled="props.readonly || !form.title.trim() || !form.content.trim()"
         @click="save"
       >
         {{ t('common.confirm') }}

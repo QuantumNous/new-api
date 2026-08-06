@@ -6,12 +6,14 @@ import ConsoleTabs, { type TabItem } from '@/components/common/ConsoleTabs.vue'
 import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useLabPlugins } from '@/composables/useLab'
 import { useToast } from '@/composables/useToast'
 import type { MarketPlugin, PluginCategory } from '@/types/lab'
 
 const { t } = useI18n()
 const toast = useToast()
+const { readOnly } = useFeatureAccess('lab', 'prototype')
 const { loading, plugins, mcp, skills, market, load } = useLabPlugins()
 
 const tab = ref('plugins')
@@ -80,6 +82,7 @@ const marketCategories = computed(() => {
 
 onMounted(() => void load())
 function stub() {
+  if (readOnly.value) return
   toast.info(t('lab.prototypeToast'))
 }
 </script>
@@ -167,6 +170,7 @@ function stub() {
                 class="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--surface-muted)] focus-ring"
                 :title="t('lab.plugins.manage')"
                 :aria-label="t('lab.plugins.manage')"
+                :disabled="readOnly"
                 @click="stub"
               >
                 <svg
@@ -194,6 +198,7 @@ function stub() {
                 :style="{ background: p.color }"
                 :title="p.name"
                 :aria-label="p.name"
+                :disabled="readOnly"
                 @click="stub"
               >
                 <svg
@@ -224,6 +229,7 @@ function stub() {
                   class="pencil-brand-frame flex h-10 w-10 shrink-0 items-center justify-center rounded-xl focus-ring"
                   :style="{ background: p.color }"
                   :aria-label="p.name"
+                  :disabled="readOnly"
                   @click="stub"
                 >
                   <svg
@@ -247,7 +253,11 @@ function stub() {
                     {{ p.desc }}
                   </p>
                 </div>
-                <ConsoleToggle v-model="p.enabled" :label="p.name" />
+                <ConsoleToggle
+                  v-model="p.enabled"
+                  :label="p.name"
+                  :disabled="readOnly"
+                />
               </li>
             </ul>
             <EmptyState
@@ -267,6 +277,7 @@ function stub() {
               type="button"
               class="pencil-control flex h-9 items-center gap-2 rounded-xl bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-contrast)] hover:bg-[var(--accent-hover)] focus-ring"
               data-handdrawn="control"
+              :disabled="readOnly"
               @click="stub"
             >
               <svg
@@ -357,7 +368,11 @@ function stub() {
                   {{ m.desc }}
                 </p>
               </div>
-              <ConsoleToggle v-model="m.enabled" :label="m.name" />
+              <ConsoleToggle
+                v-model="m.enabled"
+                :label="m.name"
+                :disabled="readOnly"
+              />
             </li>
           </ul>
           <EmptyState
@@ -368,6 +383,7 @@ function stub() {
             <button
               type="button"
               class="mt-4 flex h-9 items-center gap-2 rounded-xl border border-[var(--border-default)] px-4 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-muted)] focus-ring"
+              :disabled="readOnly"
               @click="stub"
             >
               {{ t('lab.plugins.mcpAdd') }}
@@ -384,6 +400,7 @@ function stub() {
               type="button"
               class="pencil-control flex h-9 items-center gap-2 rounded-xl bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--accent-contrast)] hover:bg-[var(--accent-hover)] focus-ring"
               data-handdrawn="control"
+              :disabled="readOnly"
               @click="stub"
             >
               <svg
@@ -413,7 +430,8 @@ function stub() {
               class="pencil-surface flex cursor-pointer flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4 shadow-[var(--card-shadow)] transition-shadow hover:shadow-[var(--card-shadow-hover)]"
               data-handdrawn="surface"
               role="button"
-              tabindex="0"
+              :tabindex="readOnly ? -1 : 0"
+              :aria-disabled="readOnly"
               @click="stub"
               @keydown.enter="stub"
               @keydown.space.prevent="stub"
@@ -494,6 +512,7 @@ function stub() {
               type="button"
               class="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--surface-muted)] focus-ring"
               :aria-label="t('lab.plugins.filter')"
+              :disabled="readOnly"
               @click="stub"
             >
               <svg
@@ -538,6 +557,7 @@ function stub() {
                     type="button"
                     class="absolute inset-0 cursor-pointer rounded-2xl focus-ring"
                     :aria-label="p.name"
+                    :disabled="readOnly"
                     @click="stub"
                   />
                   <span
@@ -569,6 +589,7 @@ function stub() {
                     type="button"
                     class="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--surface-muted)] focus-ring"
                     :aria-label="t('lab.plugins.moreActions', { name: p.name })"
+                    :disabled="readOnly"
                     @click="stub"
                   >
                     <svg

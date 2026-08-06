@@ -9,6 +9,7 @@ import SegmentedToggle from '@/components/common/SegmentedToggle.vue'
 import GalleryMasonry, {
   type GalleryTile,
 } from '@/components/lab/GalleryMasonry.vue'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useLabStudio } from '@/composables/useLab'
 import { useToast } from '@/composables/useToast'
 import { formatDuration } from '@/utils/format'
@@ -16,6 +17,7 @@ import type { StudioKind } from '@/types/lab'
 
 const { t } = useI18n()
 const toast = useToast()
+const { readOnly } = useFeatureAccess('lab', 'prototype')
 const { loading, works, tools, load } = useLabStudio()
 
 const prompt = ref('')
@@ -70,10 +72,12 @@ onMounted(reload)
 watch(kind, reload)
 
 function generate() {
+  if (readOnly.value) return
   if (!prompt.value.trim()) return
   toast.info(t('lab.prototypeToast'))
 }
 function runTool() {
+  if (readOnly.value) return
   toast.info(t('lab.prototypeToast'))
 }
 </script>
@@ -160,7 +164,7 @@ function runTool() {
             type="button"
             class="pencil-control ml-auto flex h-9 items-center gap-1.5 rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--accent-contrast)] transition-all hover:bg-[var(--accent-hover)] disabled:opacity-40 focus-ring"
             data-handdrawn="control"
-            :disabled="!prompt.trim()"
+            :disabled="readOnly || !prompt.trim()"
             @click="generate"
           >
             <svg
@@ -188,6 +192,7 @@ function runTool() {
           type="button"
           class="pencil-control flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3.5 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] focus-ring"
           data-handdrawn="control"
+          :disabled="readOnly"
           @click="runTool"
         >
           <svg

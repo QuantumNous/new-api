@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
 import { useLatestRequest } from '@/composables/useLatestRequest'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useToast } from '@/composables/useToast'
 import { adminOperatorLevel, canManageAdminUser } from '@/constants/adminUsers'
 import { useAuthStore } from '@/stores/auth'
@@ -24,6 +25,7 @@ export function useAdminUsers() {
   const { t } = useI18n()
   const toast = useToast()
   const auth = useAuthStore()
+  const { readOnly } = useFeatureAccess('admin', 'prototype')
 
   const rows = ref<AdminUser[]>([])
   const total = ref(0)
@@ -49,6 +51,7 @@ export function useAdminUsers() {
   const isBulkBusy = computed(() => bulkAction.value !== null)
   const canMutate = computed(
     () =>
+      !readOnly.value &&
       !loading.value &&
       !refreshing.value &&
       !isCrudBusy.value &&
@@ -68,7 +71,7 @@ export function useAdminUsers() {
 
   /** UI affordance only. The server refuses the same cases independently. */
   function canManage(user: AdminUser): boolean {
-    return canManageAdminUser(user, operator.value)
+    return !readOnly.value && canManageAdminUser(user, operator.value)
   }
 
   function isSelf(user: AdminUser): boolean {
