@@ -203,6 +203,7 @@ export interface FetchModelsResponse {
   success: boolean
   message?: string
   data?: string[]
+  model_mapping?: Record<string, string>
 }
 
 export interface CopyChannelResponse {

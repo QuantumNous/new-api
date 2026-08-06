@@ -223,41 +223,63 @@ func TestFetchVolcEnginePlanModelsRequiresManagementCredential(t *testing.T) {
 	assert.Nil(t, models)
 }
 
-func TestFetchOrdinaryVolcEngineFoundationModels(t *testing.T) {
-	requestCount := 0
+func TestFetchOrdinaryVolcEngineEndpoints(t *testing.T) {
+	customRequestCount := 0
+	innerRequestCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/", r.URL.Path)
-		assert.Equal(t, "ListFoundationModels", r.URL.Query().Get("Action"))
 		assert.Equal(t, "2024-01-01", r.URL.Query().Get("Version"))
 		assert.Contains(t, r.Header.Get("Authorization"), "HMAC-SHA256 Credential=access-key/")
 		assert.Contains(t, r.Header.Get("Authorization"), "/cn-beijing/ark/request")
 		var requestBody struct {
-			PageNumber int `json:"PageNumber"`
-			PageSize   int `json:"PageSize"`
+			PageNumber int    `json:"PageNumber"`
+			PageSize   int    `json:"PageSize"`
+			SortBy     string `json:"SortBy"`
+			SortOrder  string `json:"SortOrder"`
 		}
 		require.NoError(t, common.DecodeJson(r.Body, &requestBody))
-		assert.Equal(t, requestCount, requestBody.PageNumber)
 		assert.Equal(t, 100, requestBody.PageSize)
-		if requestCount == 1 {
-			_, _ = w.Write([]byte(`{"Result":{"Items":[{"Name":" doubao-seed-2-0-pro ","PrimaryVersion":"260215"},{"Name":"doubao-seed-evolving","PrimaryVersion":"latest-version"}],"TotalCount":3}}`))
+		switch r.URL.Query().Get("Action") {
+		case "ListEndpoints":
+			customRequestCount++
+			assert.Equal(t, customRequestCount, requestBody.PageNumber)
+			assert.Equal(t, "CreateTime", requestBody.SortBy)
+			assert.Equal(t, "Desc", requestBody.SortOrder)
+			if customRequestCount == 1 {
+				_, _ = w.Write([]byte(`{"Result":{"Items":[{"Id":" ep-new ","Name":" Doubao-Seed-2.1-pro ","Status":"Running"},{"Id":"ep-stopped","Name":"Stopped","Status":"Stopped"},{"Id":"ep-code","Name":"ark-code-latest","Status":"Updating"}],"TotalCount":6}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"Result":{"Items":[{"Id":"ep-old","Name":"Doubao-Seed-2.1-pro","Status":"Running"},{"Id":"","Name":"missing-id","Status":"Running"},{"Id":"ep-missing-name","Name":"","Status":"Running"}],"TotalCount":6}}`))
+		case "InnerDescribeModelEndpoints":
+			innerRequestCount++
+			assert.Equal(t, 1, requestBody.PageNumber)
+			assert.Empty(t, requestBody.SortBy)
+			assert.Empty(t, requestBody.SortOrder)
+			_, _ = w.Write([]byte(`{"Result":{"ModelEndpoints":[{"EndpointId":"ep-inner","ModelName":"Doubao-Seed-2.1-pro","Status":"Running"},{"Endpoint":{"Id":"ep-inner-only","Status":"Creating"},"Model":{"Name":"inner-model"}},{"EndpointId":"ep-inner-stopped","ModelName":"inner-stopped","Status":"Stopped"}],"TotalCount":3}}`))
+		default:
+			t.Fatalf("unexpected action: %s", r.URL.Query().Get("Action"))
 			return
 		}
-		_, _ = w.Write([]byte(`{"Result":{"Items":[{"Name":"doubao-seed-2-0-pro","PrimaryVersion":"260215"}],"TotalCount":3}}`))
 	}))
 	t.Cleanup(server.Close)
 
 	baseURL := server.URL + "/api"
-	models, err := fetchChannelUpstreamModelIDs(&model.Channel{
+	discovery, err := fetchChannelUpstreamModelDiscovery(&model.Channel{
 		Type:    constant.ChannelTypeVolcEngine,
 		Key:     "ark-api-key|access-key|secret-key",
 		BaseURL: &baseURL,
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, 2, requestCount)
-	assert.Equal(t, []string{"doubao-seed-2-0-pro-260215", "doubao-seed-evolving"}, models)
+	assert.Equal(t, 2, customRequestCount)
+	assert.Equal(t, 1, innerRequestCount)
+	assert.Equal(t, []string{"Doubao-Seed-2.1-pro", "ark-code-latest", "inner-model"}, discovery.Models)
+	assert.Equal(t, map[string]string{
+		"Doubao-Seed-2.1-pro": "ep-inner",
+		"ark-code-latest":     "ep-code",
+		"inner-model":         "ep-inner-only",
+	}, discovery.ModelMapping)
 }
 
 func TestFetchOrdinaryVolcEngineModelsWithLegacyAPIKey(t *testing.T) {
@@ -281,7 +303,7 @@ func TestFetchOrdinaryVolcEngineModelsWithLegacyAPIKey(t *testing.T) {
 	assert.Equal(t, []string{"doubao-seed-1-6", "doubao-seed-2-0"}, models)
 }
 
-func TestFetchOrdinaryVolcEngineFoundationModelsRejectsInvalidResponses(t *testing.T) {
+func TestFetchOrdinaryVolcEngineEndpointsRejectsInvalidResponses(t *testing.T) {
 	tests := []struct {
 		name      string
 		status    int
@@ -289,10 +311,11 @@ func TestFetchOrdinaryVolcEngineFoundationModelsRejectsInvalidResponses(t *testi
 		wantError string
 	}{
 		{name: "non-OK status", status: http.StatusUnauthorized, body: `{}`, wantError: "status code: 401"},
-		{name: "malformed JSON", status: http.StatusOK, body: `{"Result":`, wantError: "invalid VolcEngine foundation model response"},
-		{name: "missing result", status: http.StatusOK, body: `{}`, wantError: "Result.Items and Result.TotalCount are required"},
-		{name: "empty result", status: http.StatusOK, body: `{"Result":{"Items":[],"TotalCount":0}}`, wantError: "contains no models"},
+		{name: "malformed JSON", status: http.StatusOK, body: `{"Result":`, wantError: "invalid VolcEngine ListEndpoints response"},
+		{name: "missing result", status: http.StatusOK, body: `{}`, wantError: "Result and Result.TotalCount are required"},
+		{name: "empty result", status: http.StatusOK, body: `{"Result":{"Items":[],"TotalCount":0}}`, wantError: "no non-stopped endpoints"},
 		{name: "incomplete pagination", status: http.StatusOK, body: `{"Result":{"Items":[],"TotalCount":1}}`, wantError: "pagination ended before TotalCount"},
+		{name: "only stopped endpoints", status: http.StatusOK, body: `{"Result":{"Items":[{"Id":"ep-stopped","Name":"stopped","Status":"Stopped"}],"TotalCount":1}}`, wantError: "no non-stopped endpoints"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -313,11 +336,15 @@ func TestFetchOrdinaryVolcEngineFoundationModelsRejectsInvalidResponses(t *testi
 	}
 }
 
-func TestFetchModelsVolcEngineFoundationCreatePreview(t *testing.T) {
+func TestFetchModelsVolcEngineEndpointCreatePreview(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "ListFoundationModels", r.URL.Query().Get("Action"))
 		assert.Contains(t, r.Header.Get("Authorization"), "HMAC-SHA256 Credential=preview-access-key/")
-		_, _ = w.Write([]byte(`{"Result":{"Items":[{"Name":"doubao-seed-2-0-pro","PrimaryVersion":"260215"}],"TotalCount":1}}`))
+		if r.URL.Query().Get("Action") == "InnerDescribeModelEndpoints" {
+			_, _ = w.Write([]byte(`{"Result":{"Items":[{"EndpointId":"ep-inner","ModelName":"Doubao-Seed-2.1-pro","Status":"Running"},{"EndpointId":"ep-inner-only","ModelName":"inner-model","Status":"Pending"}],"TotalCount":2}}`))
+			return
+		}
+		assert.Equal(t, "ListEndpoints", r.URL.Query().Get("Action"))
+		_, _ = w.Write([]byte(`{"Result":{"Items":[{"Id":"ep-custom","Name":"Doubao-Seed-2.1-pro","Status":"Running"}],"TotalCount":1}}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -335,7 +362,7 @@ func TestFetchModelsVolcEngineFoundationCreatePreview(t *testing.T) {
 	FetchModels(ctx)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	require.JSONEq(t, `{"success":true,"message":"","data":["doubao-seed-2-0-pro-260215"]}`, recorder.Body.String())
+	require.JSONEq(t, `{"success":true,"message":"","data":["Doubao-Seed-2.1-pro","inner-model"],"model_mapping":{"Doubao-Seed-2.1-pro":"ep-inner","inner-model":"ep-inner-only"}}`, recorder.Body.String())
 }
 
 func TestFetchModelsVolcEnginePlanCreatePreview(t *testing.T) {
@@ -689,6 +716,72 @@ func TestVolcEnginePlanDetectionAutoAddsAndStagesRemovals(t *testing.T) {
 	assert.Equal(t, []string{"retired-plan-model"}, persistedSettings.UpstreamModelUpdateLastRemovedModels)
 }
 
+func TestVolcEngineEndpointDetectionPersistsMappingsAndApplyCleansRemovedMapping(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("Action") == "InnerDescribeModelEndpoints" {
+			_, err := w.Write([]byte(`{"Result":{"Items":[],"TotalCount":0}}`))
+			assert.NoError(t, err)
+			return
+		}
+		assert.Equal(t, "ListEndpoints", r.URL.Query().Get("Action"))
+		_, err := w.Write([]byte(`{"Result":{"Items":[{"Id":"ep-current","Name":"current-model","Status":"Running"},{"Id":"ep-new","Name":"new-model","Status":"Running"}],"TotalCount":2}}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	baseURL := server.URL
+	modelMapping := `{"custom-alias":"custom-target","retired-model":"ep-retired"}`
+	channel := &model.Channel{
+		Type:         constant.ChannelTypeVolcEngine,
+		Name:         "endpoint model sync",
+		Key:          "ark-api-key|access-key|secret-key",
+		BaseURL:      &baseURL,
+		Models:       "current-model,retired-model",
+		ModelMapping: &modelMapping,
+	}
+	settings := channel.GetOtherSettings()
+	settings.UpstreamModelUpdateCheckEnabled = true
+	settings.UpstreamModelUpdateAutoSyncEnabled = true
+	channel.SetOtherSettings(settings)
+	require.NoError(t, db.Create(channel).Error)
+
+	modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, true)
+	require.NoError(t, err)
+	assert.True(t, modelsChanged)
+	assert.Equal(t, 1, autoAdded)
+	assert.Equal(t, []string{"retired-model"}, settings.UpstreamModelUpdateLastRemovedModels)
+
+	reloaded, err := model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, "current-model,retired-model,new-model", reloaded.Models)
+	require.JSONEq(t, `{
+		"custom-alias":"custom-target",
+		"retired-model":"ep-retired",
+		"current-model":"ep-current",
+		"new-model":"ep-new"
+	}`, reloaded.GetModelMapping())
+
+	_, removedModels, _, _, configChanged, err := applyChannelUpstreamModelUpdates(
+		reloaded,
+		nil,
+		nil,
+		[]string{"retired-model"},
+	)
+	require.NoError(t, err)
+	assert.True(t, configChanged)
+	assert.Equal(t, []string{"retired-model"}, removedModels)
+
+	reloaded, err = model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, "current-model,new-model", reloaded.Models)
+	require.JSONEq(t, `{
+		"custom-alias":"custom-target",
+		"current-model":"ep-current",
+		"new-model":"ep-new"
+	}`, reloaded.GetModelMapping())
+}
+
 func TestFetchModelsUsesSharedChannelFetchBehavior(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/models" {
@@ -833,6 +926,28 @@ func TestNormalizeChannelModelMapping(t *testing.T) {
 	require.Equal(t, map[string]string{
 		"alias-model": "upstream-model",
 	}, result)
+}
+
+func TestApplyDiscoveredModelMappingMergesAndCleansEndpointMappings(t *testing.T) {
+	modelMapping := `{"custom-alias":"custom-target","retired":"ep-retired"}`
+	channel := &model.Channel{ModelMapping: &modelMapping}
+
+	changed, err := applyDiscoveredModelMapping(
+		channel,
+		map[string]string{
+			"Doubao-Seed-2.1-pro":  "ep-pro",
+			"Doubao-Seed-2.1-lite": "ep-lite",
+		},
+		[]string{"Doubao-Seed-2.1-pro"},
+		[]string{"retired"},
+	)
+
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.JSONEq(t, `{
+		"custom-alias":"custom-target",
+		"Doubao-Seed-2.1-pro":"ep-pro"
+	}`, channel.GetModelMapping())
 }
 
 func TestCollectPendingUpstreamModelChangesFromModels_WithModelMapping(t *testing.T) {

@@ -240,7 +240,7 @@ func FetchUpstreamModels(c *gin.Context) {
 		return
 	}
 
-	ids, err := fetchChannelUpstreamModelIDs(channel)
+	discovery, err := fetchChannelUpstreamModelDiscovery(channel)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -249,11 +249,15 @@ func FetchUpstreamModels(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"success": true,
 		"message": "",
-		"data":    ids,
-	})
+		"data":    discovery.Models,
+	}
+	if len(discovery.ModelMapping) > 0 {
+		response["model_mapping"] = discovery.ModelMapping
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func FixChannelsAbilities(c *gin.Context) {
@@ -1313,7 +1317,7 @@ func FetchModels(c *gin.Context) {
 		}
 	}
 
-	models, err := fetchChannelUpstreamModelIDs(channel)
+	discovery, err := fetchChannelUpstreamModelDiscovery(channel)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -1321,11 +1325,15 @@ func FetchModels(c *gin.Context) {
 		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"success": true,
 		"message": "",
-		"data":    models,
-	})
+		"data":    discovery.Models,
+	}
+	if len(discovery.ModelMapping) > 0 {
+		response["model_mapping"] = discovery.ModelMapping
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func BatchSetChannelTag(c *gin.Context) {
