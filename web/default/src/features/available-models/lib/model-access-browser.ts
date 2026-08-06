@@ -45,6 +45,7 @@ export type ModelVendorFilterState = {
 }
 
 export function getModelEndpointLabel(endpoint: string, t: TFunction): string {
+  if (endpoint === 'openai-video') return t('Video')
   if (endpoint.startsWith('openai')) return t('OpenAI Compatible')
   if (endpoint === 'anthropic') return t('Anthropic Compatible')
   if (endpoint === 'gemini') return t('Gemini Compatible')

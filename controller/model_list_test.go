@@ -603,6 +603,7 @@ func TestAvailableModelsClassifiesVideoEndpointModels(t *testing.T) {
 
 func TestAvailableModelTypeInference(t *testing.T) {
 	require.Equal(t, "video", availableModelType("plain-name", []constant.EndpointType{constant.EndpointTypeOpenAIVideo}))
+	require.Equal(t, "video", availableModelType("MiniMax-H3", []constant.EndpointType{constant.EndpointType("video")}))
 	require.Equal(t, "image", availableModelType("gpt-image-2", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("gemini-2.5-flash-tts", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("eleven_multilingual_v2", []constant.EndpointType{constant.EndpointTypeOpenAI}))

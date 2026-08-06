@@ -175,6 +175,24 @@ describe('ModelAccessList', () => {
     expect(html).toContain('Gemini Compatible')
   })
 
+  test('renders the OpenAI video endpoint as video', () => {
+    const html = renderList(
+      [
+        {
+          id: 'happyhorse-1.0-video-edit',
+          allowlist_match_key: 'happyhorse-1.0-video-edit',
+          vendor: { id: 1, name: 'Qwen' },
+          supported_endpoint_types: ['openai-video'],
+          availability_status: 'available',
+        },
+      ],
+      false
+    )
+
+    expect(html).toContain('Video')
+    expect(html).not.toContain('OpenAI Compatible')
+  })
+
   test('renders officially unsupported models as prominently not callable', () => {
     const html = renderList(
       [
