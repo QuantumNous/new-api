@@ -55,6 +55,8 @@ export interface CommonLogFilters extends CommonFilters {
   upstreamRequestId?: string
   // Admin only: when true, exclude the current admin's own logs (show only regular users)
   nonAdmin?: boolean
+  // Root only: when true, query company logs instead of regular logs
+  company?: boolean
 }
 
 /**
@@ -277,6 +279,7 @@ export interface GetLogsParams {
   request_id?: string
   upstream_request_id?: string
   non_admin?: boolean
+  company?: boolean
 }
 
 export interface GetLogsResponse {
@@ -303,6 +306,7 @@ export interface GetLogStatsParams {
   request_id?: string
   upstream_request_id?: string
   non_admin?: boolean
+  company?: boolean
 }
 
 export interface GetLogStatsResponse {
@@ -347,6 +351,7 @@ export interface GetTaskLogsParams {
 export interface FetchLogsConfig {
   logCategory: LogCategory
   isAdmin: boolean
+  isRoot: boolean
   page: number
   pageSize: number
   searchParams: Record<string, unknown>

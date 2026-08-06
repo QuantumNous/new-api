@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useAuthStore } from '@/stores/auth-store'
 import { UsageLogs } from '@/features/usage-logs'
 import {
   isUsageLogsSectionId,
@@ -49,6 +50,7 @@ const usageLogsSearchSchema = z.object({
   requestId: z.string().optional().catch(''),
   upstreamRequestId: z.string().optional().catch(''),
   nonAdmin: z.boolean().optional().catch(false),
+  company: z.boolean().optional().catch(false),
   startTime: z.number().optional(),
   endTime: z.number().optional(),
 })
@@ -61,15 +63,30 @@ export const Route = createFileRoute('/_authenticated/usage-logs/$section')({
         params: { section: USAGE_LOGS_DEFAULT_SECTION },
       })
     }
+    const isCommonSection = params.section === 'common'
+    const isRoot = useAuthStore.getState().auth.user?.id === 1
+
     // type 仅 common 使用，非 common 时清掉 URL 里的 type
     const hasTypeSearch = Array.isArray(search?.type)
       ? search.type.length > 0
       : search?.type != null && search.type !== ''
-    if (params.section !== 'common' && hasTypeSearch) {
+    const clearType = !isCommonSection && hasTypeSearch
+    const clearCompany =
+      Boolean(search?.company) && (!isCommonSection || !isRoot)
+    const clearNonAdmin = Boolean(
+      isCommonSection && isRoot && search?.company && search?.nonAdmin
+    )
+
+    if (clearType || clearCompany || clearNonAdmin) {
       throw redirect({
         to: '/usage-logs/$section',
         params: { section: params.section },
-        search: { ...search, type: undefined },
+        search: {
+          ...search,
+          type: clearType ? undefined : search?.type,
+          company: clearCompany ? undefined : search?.company,
+          nonAdmin: clearNonAdmin ? undefined : search?.nonAdmin,
+        },
         replace: true,
       })
     }

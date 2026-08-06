@@ -549,6 +549,7 @@ func testChannelWithOptions(channel *model.Channel, testUserID int, testModel st
 		}
 		model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
 			ChannelId:        channel.Id,
+			ChannelType:      channel.Type,
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			ModelName:        info.OriginModelName,

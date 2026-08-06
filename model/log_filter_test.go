@@ -27,7 +27,7 @@ func TestGetAllLogsFiltersExplicitUserID(t *testing.T) {
 		Quota:     100,
 	})
 
-	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "", 216, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "", 216, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestGetAllLogsFiltersExplicitUserID(t *testing.T) {
 		t.Fatalf("logs = %+v, want only user_id 216", logs)
 	}
 
-	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", `"google_liu1124789567"`, 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", `"google_liu1124789567"`, 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs with quoted google username: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestGetAllLogsFiltersExplicitUserID(t *testing.T) {
 		t.Fatalf("quoted google username logs = %+v, want google_liu1124789567", logs)
 	}
 
-	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", " google_liu1124789567 ", 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", " google_liu1124789567 ", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs with padded google username: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestGetAllLogsFiltersExplicitUserID(t *testing.T) {
 		CompletionTokens: 1,
 	})
 
-	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "google_liu1124789567", 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "google_liu1124789567", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs with current username: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestSumUsedQuotaFiltersExplicitUserID(t *testing.T) {
 		CompletionTokens: 50,
 	})
 
-	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "", 216, "", 0, "", 0, 0)
+	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "", 216, "", 0, "", 0, 0, false)
 	if err != nil {
 		t.Fatalf("SumUsedQuota: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestSumUsedQuotaFiltersExplicitUserID(t *testing.T) {
 		t.Fatalf("tpm = %d, want 15", stat.Tpm)
 	}
 
-	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", `"google_liu1124789567"`, 0, "", 0, "", 0, 0)
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", `"google_liu1124789567"`, 0, "", 0, "", 0, 0, false)
 	if err != nil {
 		t.Fatalf("SumUsedQuota with quoted google username: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestSumUsedQuotaFiltersExplicitUserID(t *testing.T) {
 		t.Fatalf("quoted google username tpm = %d, want 15", stat.Tpm)
 	}
 
-	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", " google_liu1124789567 ", 0, "", 0, "", 0, 0)
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", " google_liu1124789567 ", 0, "", 0, "", 0, 0, false)
 	if err != nil {
 		t.Fatalf("SumUsedQuota with padded google username: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestSumUsedQuotaFiltersExplicitUserID(t *testing.T) {
 		CompletionTokens: 1,
 	})
 
-	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "google_liu1124789567", 0, "", 0, "", 0, 0)
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "google_liu1124789567", 0, "", 0, "", 0, 0, false)
 	if err != nil {
 		t.Fatalf("SumUsedQuota with current username: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestNumericLogFilterSeparatesUsernameAndUserID(t *testing.T) {
 		ModelName: "gpt-4o", Quota: 20, PromptTokens: 4, CompletionTokens: 1,
 	})
 
-	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "700", 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "700", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs numeric username: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestNumericLogFilterSeparatesUsernameAndUserID(t *testing.T) {
 		t.Fatalf("username logs = %+v / total %d, want only numeric username user 701", logs, total)
 	}
 
-	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "", 700, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "", 700, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs explicit user ID: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestNumericLogFilterSeparatesUsernameAndUserID(t *testing.T) {
 		t.Fatalf("user ID logs = %+v / total %d, want only user_id 700", logs, total)
 	}
 
-	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "700", 0, "", 0, "", 0, 0)
+	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "700", 0, "", 0, "", 0, 0, false)
 	if err != nil {
 		t.Fatalf("SumUsedQuota numeric username: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestNumericLogFilterSeparatesUsernameAndUserID(t *testing.T) {
 		t.Fatalf("username stat = %+v, want quota=20 rpm=1 tpm=5", stat)
 	}
 
-	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "", 700, "", 0, "", 0, 0)
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "", 700, "", 0, "", 0, 0, false)
 	if err != nil {
 		t.Fatalf("SumUsedQuota explicit user ID: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestSumUsedQuotaSelfStatIsExactByUserID(t *testing.T) {
 	})
 
 	// self stat：selfUserId=401，username 传空 —— 只能统计到 401 自己的 quota=10。
-	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "", 0, "", 0, "", 0, 401)
+	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "", 0, "", 0, "", 0, 401, false)
 	if err != nil {
 		t.Fatalf("SumUsedQuota self stat: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestSumUsedQuotaSelfStatIsExactByUserID(t *testing.T) {
 	// 对照：管理员搜索完整用户名 "alice"（selfUserId=0）现在默认精确匹配，
 	// 只命中 alice 自己（quota=10），不再把 alice2/malice 带进来。要模糊需显式
 	// 输入 %alice% —— 见 TestGetAllLogsExplicitWildcard。
-	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "alice", 0, "", 0, "", 0, 0)
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "alice", 0, "", 0, "", 0, 0, false)
 	if err != nil {
 		t.Fatalf("SumUsedQuota admin exact: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestSumUsedQuotaSelfStatIsExactByUserID(t *testing.T) {
 	}
 
 	// 显式模糊 %alice% 仍可命中三者：10+100+1000 = 1110。
-	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "%alice%", 0, "", 0, "", 0, 0)
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "%alice%", 0, "", 0, "", 0, 0, false)
 	if err != nil {
 		t.Fatalf("SumUsedQuota admin explicit fuzzy: %v", err)
 	}
@@ -320,7 +320,7 @@ func TestGetAllLogsExactUsernameMatch(t *testing.T) {
 
 	// Exact full username "google_alice" matches BOTH of user 301's logs
 	// (current snapshot + renamed-historical via user_id), and nothing of 302.
-	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "google_alice", 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "google_alice", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs exact google_alice: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestGetAllLogsExactUsernameMatch(t *testing.T) {
 
 	// Partial keyword "google" must NOT match anymore — default is exact, no
 	// auto substring fuzzy. This is the core #222 regression guard.
-	_, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "google", 0, "", 0, 20, 0, "", "", "", 0)
+	_, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "google", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs partial google: %v", err)
 	}
@@ -344,7 +344,7 @@ func TestGetAllLogsExactUsernameMatch(t *testing.T) {
 	}
 
 	// Exact "github_bob" matches only user 302.
-	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "github_bob", 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "github_bob", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs exact github_bob: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestGetAllLogsExactUsernameMatch(t *testing.T) {
 	}
 
 	// A username matching nobody returns nothing.
-	_, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "no_such_user", 0, "", 0, 20, 0, "", "", "", 0)
+	_, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "no_such_user", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs exact miss: %v", err)
 	}
@@ -376,7 +376,7 @@ func TestGetAllLogsExactUsernameMatch(t *testing.T) {
 		ModelName: "gpt-4o",
 		Quota:     1,
 	})
-	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "x", 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "x", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs single-char exact username: %v", err)
 	}
@@ -405,7 +405,7 @@ func TestExactUsernameResolvedToUserIDExcludesOtherUsersStaleSnapshot(t *testing
 		PromptTokens: 30, CompletionTokens: 20,
 	})
 
-	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "bd@coolyacloud.com", 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "bd@coolyacloud.com", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs exact resolved username: %v", err)
 	}
@@ -413,7 +413,7 @@ func TestExactUsernameResolvedToUserIDExcludesOtherUsersStaleSnapshot(t *testing
 		t.Fatalf("logs = %+v / total %d, want only user_id 601", logs, total)
 	}
 
-	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "bd@coolyacloud.com", 0, "", 0, "", 0, 0)
+	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "bd@coolyacloud.com", 0, "", 0, "", 0, 0, false)
 	if err != nil {
 		t.Fatalf("SumUsedQuota exact resolved username: %v", err)
 	}
@@ -440,7 +440,7 @@ func TestGetAllLogsExplicitWildcard(t *testing.T) {
 
 	// Explicit "google%" is a prefix fuzzy: matches "google_alice" (starts with
 	// google) but NOT "mygoogle" (no leading wildcard was added by the system).
-	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "google%", 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "google%", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs explicit google%%: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestGetAllLogsExplicitWildcard(t *testing.T) {
 	}
 
 	// Explicit leading wildcard "%google" matches the suffix — "mygoogle" only.
-	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "%google", 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "%google", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs explicit %%google: %v", err)
 	}
@@ -487,7 +487,7 @@ func TestGetAllLogsExplicitWildcardOverLimitDegradation(t *testing.T) {
 		CreatedAt: 5001, ModelName: "gpt-4o", Quota: 1,
 	})
 	// Explicit trailing wildcard triggers the fuzzy path (default text no longer does).
-	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "over_limit_kw%", 0, "", 0, 20, 0, "", "", "", 0)
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "over_limit_kw%", 0, "", 0, 20, 0, "", "", "", 0, false)
 	if err != nil {
 		t.Fatalf("GetAllLogs over-limit explicit wildcard: %v", err)
 	}

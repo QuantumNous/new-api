@@ -30,7 +30,7 @@ func TestGetUserLogsCapsTotalAtSearchLimit(t *testing.T) {
 	}
 	require.NoError(t, LOG_DB.CreateInBatches(&logs, 500).Error)
 
-	got, total, err := GetUserLogs(42, LogTypeUnknown, 0, 0, "", "", 0, 2, "", "", "")
+	got, total, err := GetUserLogs(42, LogTypeUnknown, 0, 0, "", "", 0, 2, "", "", "", false)
 	require.NoError(t, err)
 	require.Equal(t, int64(logSearchCountLimit), total)
 	require.Len(t, got, 2)
@@ -54,7 +54,7 @@ func TestGetUserLogsReturnsCompleteRowsAfterLimitedCount(t *testing.T) {
 	}
 	require.NoError(t, LOG_DB.Create(&log).Error)
 
-	got, total, err := GetUserLogs(42, LogTypeUnknown, 0, 0, "", "", 0, 100, "", "", "")
+	got, total, err := GetUserLogs(42, LogTypeUnknown, 0, 0, "", "", 0, 100, "", "", "", false)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), total)
 	require.Len(t, got, 1)

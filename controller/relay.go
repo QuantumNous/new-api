@@ -455,7 +455,8 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		modelName := c.GetString("original_model")
 		tokenId := c.GetInt("token_id")
 		userGroup := c.GetString("group")
-		channelId := c.GetInt("channel_id")
+		channelId := channelError.ChannelId
+		channelType := channelError.ChannelType
 		other := make(map[string]interface{})
 		if c.Request != nil && c.Request.URL != nil {
 			other["request_path"] = c.Request.URL.Path
@@ -464,8 +465,8 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		other["error_code"] = err.GetErrorCode()
 		other["status_code"] = err.StatusCode
 		other["channel_id"] = channelId
-		other["channel_name"] = c.GetString("channel_name")
-		other["channel_type"] = c.GetInt("channel_type")
+		other["channel_name"] = channelError.ChannelName
+		other["channel_type"] = channelType
 		adminInfo := make(map[string]interface{})
 		adminInfo["use_channel"] = c.GetStringSlice("use_channel")
 		isMultiKey := common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey)
@@ -480,7 +481,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			startTime = time.Now()
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		model.RecordErrorLog(c, userId, channelId, channelType, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
 }

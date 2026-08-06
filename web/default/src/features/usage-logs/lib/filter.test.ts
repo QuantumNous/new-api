@@ -16,24 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-/**
- * Hook for checking admin privileges
- */
-import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
+import { describe, expect, it } from 'vitest'
+import { buildSearchParams } from './filter'
 
-/**
- * Check if current user has admin privileges
- */
-export function useIsAdmin(): boolean {
-  const { user } = useAuthStore((state) => state.auth)
-  return (user?.role ?? 0) >= ROLE.ADMIN
-}
+describe('usage log source search params', () => {
+  it('keeps company and non-admin sources mutually exclusive', () => {
+    const params = buildSearchParams(
+      { company: true, nonAdmin: true },
+      'common'
+    )
 
-/**
- * Check if current user is the fixed root account
- */
-export function useIsRoot(): boolean {
-  const { user } = useAuthStore((state) => state.auth)
-  return user?.id === 1
-}
+    expect(params.company).toBe(true)
+    expect(params).not.toHaveProperty('nonAdmin')
+  })
+})

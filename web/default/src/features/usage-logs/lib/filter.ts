@@ -58,7 +58,11 @@ export function buildSearchParams(
         ...(commonFilters.upstreamRequestId && {
           upstreamRequestId: commonFilters.upstreamRequestId,
         }),
-        ...(commonFilters.nonAdmin && { nonAdmin: true }),
+        ...(commonFilters.nonAdmin &&
+          !commonFilters.company && {
+            nonAdmin: true,
+          }),
+        ...(commonFilters.company && { company: true }),
       }
     }
     case 'drawing': {

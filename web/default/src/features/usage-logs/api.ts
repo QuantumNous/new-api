@@ -73,14 +73,20 @@ export const getAllLogs = (params: GetLogsParams = {}) =>
   fetchLogs('/api/log', params, true)
 
 export const getUserLogs = (
-  params: Omit<GetLogsParams, 'username' | 'user_id' | 'channel'> = {}
+  params: Omit<
+    GetLogsParams,
+    'username' | 'user_id' | 'channel' | 'non_admin' | 'company'
+  > = {}
 ) => fetchLogs('/api/log', params, false)
 
 export const getLogStats = (params: GetLogStatsParams = {}) =>
   fetchLogStats('/api/log', params, true)
 
 export const getUserLogStats = (
-  params: Omit<GetLogStatsParams, 'username' | 'user_id' | 'channel'> = {}
+  params: Omit<
+    GetLogStatsParams,
+    'username' | 'user_id' | 'channel' | 'non_admin' | 'company'
+  > = {}
 ) => fetchLogStats('/api/log', params, false)
 
 export async function getUserInfo(

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -297,7 +298,14 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	}
 }
 
-func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
+func requestLogDB(userId int, tokenId int, channelType int) *gorm.DB {
+	if userId == 1 && tokenId > 0 && channelType == constant.ChannelTypeCodex {
+		return LOG_DB.Table((CompanyLogSchema{}).TableName())
+	}
+	return LOG_DB
+}
+
+func RecordErrorLog(c *gin.Context, userId int, channelId int, channelType int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
 	username := c.GetString("username")
@@ -337,7 +345,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
-	err := LOG_DB.Create(log).Error
+	err := requestLogDB(userId, tokenId, channelType).Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
@@ -345,6 +353,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 
 type RecordConsumeLogParams struct {
 	ChannelId        int                    `json:"channel_id"`
+	ChannelType      int                    `json:"channel_type"`
 	PromptTokens     int                    `json:"prompt_tokens"`
 	CompletionTokens int                    `json:"completion_tokens"`
 	ModelName        string                 `json:"model_name"`
@@ -411,7 +420,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
-	err := LOG_DB.Create(log).Error
+	err := requestLogDB(userId, params.TokenId, params.ChannelType).Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	} else {
@@ -482,12 +491,17 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, searchUserId int, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, excludeUserId int) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB
-	} else {
-		tx = LOG_DB.Where("logs.type = ?", logType)
+func logQueryDB(company bool) *gorm.DB {
+	if company {
+		return LOG_DB.Table((CompanyLogSchema{}).TableName() + " AS logs")
+	}
+	return LOG_DB.Table("logs")
+}
+
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, searchUserId int, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, excludeUserId int, company bool) (logs []*Log, total int64, err error) {
+	tx := logQueryDB(company)
+	if logType != LogTypeUnknown {
+		tx = tx.Where("logs.type = ?", logType)
 	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
@@ -524,7 +538,11 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
-	err = tx.Model(&Log{}).Count(&total).Error
+	if company {
+		total, err = countLogsUpTo(LOG_DB, tx, logSearchCountLimit)
+	} else {
+		err = tx.Count(&total).Error
+	}
 	if err != nil {
 		return nil, 0, err
 	}
@@ -579,7 +597,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 const logSearchCountLimit = 10000
 
 func limitedLogCountQuery(db *gorm.DB, filteredQuery *gorm.DB, limit int) *gorm.DB {
-	limitedLogs := filteredQuery.Session(&gorm.Session{}).Model(&Log{}).Select("logs.id").Limit(limit)
+	limitedLogs := filteredQuery.Session(&gorm.Session{}).Select("logs.id").Limit(limit)
 	return db.Session(&gorm.Session{NewDB: true}).Table("(?) AS limited_logs", limitedLogs)
 }
 
@@ -589,12 +607,12 @@ func countLogsUpTo(db *gorm.DB, filteredQuery *gorm.DB, limit int) (int64, error
 	return total, err
 }
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, company bool) (logs []*Log, total int64, err error) {
+	tx := logQueryDB(company)
 	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
+		tx = tx.Where("logs.user_id = ?", userId)
 	} else {
-		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
+		tx = tx.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
@@ -682,11 +700,11 @@ func GetCodexChannelUsageStats(
 // selfUserId 用于「查自己」场景的身份约束：非 0 时强制 user_id = selfUserId 精确
 // 过滤，并忽略管理员搜索条件。管理员可通过 searchUserId 精确按 ID 查询；未提供
 // searchUserId 时，username 按用户名语义处理（仅显式包含 % 时才模糊匹配）。
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, searchUserId int, tokenName string, channel int, group string, excludeUserId int, selfUserId int) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, searchUserId int, tokenName string, channel int, group string, excludeUserId int, selfUserId int, company bool) (stat Stat, err error) {
+	tx := logQueryDB(company).Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
-	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
+	rpmTpmQuery := logQueryDB(company).Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 
 	if selfUserId != 0 {
 		// 身份约束：只统计本人日志，精确按 user_id，不掺入 username 模糊匹配。

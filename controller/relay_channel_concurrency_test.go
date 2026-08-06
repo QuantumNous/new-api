@@ -134,6 +134,54 @@ func TestProcessChannelErrorMarksCooldownOnTooManyRequests(t *testing.T) {
 	require.True(t, loads[channelID].CoolingDown)
 }
 
+func TestProcessChannelErrorLogsActualChannelSnapshot(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/channel-error-log.db"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Log{}, &model.CompanyLogSchema{}))
+
+	previousDB := model.DB
+	previousLogDB := model.LOG_DB
+	previousRedisEnabled := common.RedisEnabled
+	previousErrorLogEnabled := constant.ErrorLogEnabled
+	model.DB = db
+	model.LOG_DB = db
+	common.RedisEnabled = false
+	constant.ErrorLogEnabled = true
+	t.Cleanup(func() {
+		model.DB = previousDB
+		model.LOG_DB = previousLogDB
+		common.RedisEnabled = previousRedisEnabled
+		constant.ErrorLogEnabled = previousErrorLogEnabled
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set("id", 1)
+	c.Set("token_id", 7)
+	c.Set("token_name", "company-token")
+	c.Set("original_model", "gpt-5-codex")
+	c.Set("group", "default")
+	c.Set("channel_id", 999)
+	c.Set("channel_name", "stale-channel")
+	c.Set("channel_type", constant.ChannelTypeOpenAI)
+
+	actualChannel := types.NewChannelError(321, constant.ChannelTypeCodex, "actual-channel", false, "", false)
+	processChannelError(c, *actualChannel, types.NewOpenAIError(errors.New("upstream rejected request"), types.ErrorCodeBadResponseStatusCode, http.StatusBadRequest))
+
+	var regularCount int64
+	require.NoError(t, db.Model(&model.Log{}).Count(&regularCount).Error)
+	require.Zero(t, regularCount)
+	var companyLog model.CompanyLogSchema
+	require.NoError(t, db.Table(companyLog.TableName()).First(&companyLog).Error)
+	require.Equal(t, actualChannel.ChannelId, companyLog.ChannelId)
+	other, err := common.StrToMap(companyLog.Other)
+	require.NoError(t, err)
+	require.EqualValues(t, actualChannel.ChannelId, other["channel_id"])
+	require.Equal(t, actualChannel.ChannelName, other["channel_name"])
+	require.EqualValues(t, actualChannel.ChannelType, other["channel_type"])
+}
+
 func TestProcessChannelErrorMarksRedisCooldownWithCanceledRequestContext(t *testing.T) {
 	mr := miniredis.RunT(t)
 	prevRDB := common.RDB
