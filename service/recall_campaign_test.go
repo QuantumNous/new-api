@@ -200,6 +200,7 @@ func setupRecallCampaignTestDB(t *testing.T) *gorm.DB {
 	})
 	require.NoError(t, db.AutoMigrate(
 		&model.User{},
+		&model.Option{},
 		&model.TopUp{},
 		&model.SubscriptionOrder{},
 		&model.SubscriptionPlan{},
@@ -212,6 +213,7 @@ func setupRecallCampaignTestDB(t *testing.T) *gorm.DB {
 		&model.RecallEmailPacingState{},
 		&model.RecallEvent{},
 		&model.RecallCampaignExclusion{},
+		&model.RecallContinuousTriggerSlot{},
 		&model.Log{},
 	))
 	return db

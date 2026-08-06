@@ -170,6 +170,14 @@ func TransitionRecallCampaignRevisionWithContext(ctx context.Context, id int64, 
 	return transitionRecallCampaignWithContext(ctx, id, from, to, &expectedConfigRevision, fields)
 }
 
+func TransitionRecallCampaignTx(tx *gorm.DB, id int64, from []string, to string, fields map[string]any) (bool, error) {
+	return transitionRecallCampaign(tx, id, from, to, nil, fields)
+}
+
+func TransitionRecallCampaignRevisionTx(tx *gorm.DB, id int64, from []string, to string, expectedConfigRevision int64, fields map[string]any) (bool, error) {
+	return transitionRecallCampaign(tx, id, from, to, &expectedConfigRevision, fields)
+}
+
 func transitionRecallCampaignWithContext(ctx context.Context, id int64, from []string, to string, expectedConfigRevision *int64, fields map[string]any) (bool, error) {
 	return transitionRecallCampaign(DB.WithContext(ctx), id, from, to, expectedConfigRevision, fields)
 }
@@ -406,7 +414,7 @@ func cancelRecallCampaignWithContext(ctx context.Context, id int64, from []strin
 	cancelled := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing RecallCampaign
-		if err := tx.Select("status").First(&existing, id).Error; err != nil {
+		if err := tx.Select("status", "execution_mode", "lifecycle_trigger").First(&existing, id).Error; err != nil {
 			return err
 		}
 		if existing.Status == RecallCampaignCancelled {
@@ -433,6 +441,11 @@ func cancelRecallCampaignWithContext(ctx context.Context, id int64, from []strin
 		}
 		if err := markRecallPromotionRevocationsPending(tx, id, now, false); err != nil {
 			return err
+		}
+		if existing.ExecutionMode == "continuous" {
+			if err := ReleaseRecallContinuousTriggerSlotTx(tx, existing.LifecycleTrigger, id); err != nil {
+				return err
+			}
 		}
 		if event != nil {
 			return insertRequiredRecallAdminEvent(tx, event)

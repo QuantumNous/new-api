@@ -40,24 +40,28 @@ type RecallResolvedOffer struct {
 }
 
 type RecallCampaignDraft struct {
-	CampaignType          string               `json:"campaign_type"`
-	Name                  string               `json:"name"`
-	AudienceTemplate      string               `json:"audience_template"`
-	Audience              RecallAudienceConfig `json:"audience_config"`
-	ExecutionMode         string               `json:"execution_mode"`
-	Schedule              RecallScheduleConfig `json:"schedule"`
-	CouponSource          string               `json:"coupon_source"`
-	ExistingCouponID      string               `json:"existing_coupon_id"`
-	Discount              RecallDiscountConfig `json:"discount_config"`
-	Products              RecallProductScope   `json:"product_scope"`
-	PromotionExpiryMode   string               `json:"promotion_expiry_mode"`
-	PromotionExpiresAt    int64                `json:"promotion_expires_at"`
-	PromotionValidSeconds int64                `json:"promotion_valid_seconds"`
-	EnrollmentLimit       int                  `json:"enrollment_limit"`
-	WorkerConcurrency     int                  `json:"worker_concurrency"`
-	Emails                []RecallEmailStage   `json:"email_sequence"`
-	DeferLocalization     bool                 `json:"defer_localization,omitempty"`
-	legacyCouponRedeemBy  int64
+	CampaignType           string               `json:"campaign_type"`
+	Name                   string               `json:"name"`
+	DeliveryPolicy         string               `json:"delivery_policy"`
+	LifecycleTrigger       string               `json:"lifecycle_trigger"`
+	LifecycleTriggerConfig string               `json:"lifecycle_trigger_config"`
+	ProcessingStartAt      int64                `json:"processing_start_at"`
+	AudienceTemplate       string               `json:"audience_template"`
+	Audience               RecallAudienceConfig `json:"audience_config"`
+	ExecutionMode          string               `json:"execution_mode"`
+	Schedule               RecallScheduleConfig `json:"schedule"`
+	CouponSource           string               `json:"coupon_source"`
+	ExistingCouponID       string               `json:"existing_coupon_id"`
+	Discount               RecallDiscountConfig `json:"discount_config"`
+	Products               RecallProductScope   `json:"product_scope"`
+	PromotionExpiryMode    string               `json:"promotion_expiry_mode"`
+	PromotionExpiresAt     int64                `json:"promotion_expires_at"`
+	PromotionValidSeconds  int64                `json:"promotion_valid_seconds"`
+	EnrollmentLimit        int                  `json:"enrollment_limit"`
+	WorkerConcurrency      int                  `json:"worker_concurrency"`
+	Emails                 []RecallEmailStage   `json:"email_sequence"`
+	DeferLocalization      bool                 `json:"defer_localization,omitempty"`
+	legacyCouponRedeemBy   int64
 }
 
 type RecallAudienceConfig struct {

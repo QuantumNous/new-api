@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,21 +16,22 @@ const (
 	RecallDeliveryPolicyService    = "service"
 	RecallDeliveryPolicyEngagement = "engagement"
 
-	RecallLifecycleTriggerUserRegistered         = "user_registered"
-	RecallLifecycleTriggerRegistrationUnused     = "registration_unused"
-	RecallLifecycleTriggerQuotaLow               = "quota_low"
-	RecallLifecycleTriggerQuotaExhaustedUnpaid   = "quota_exhausted_unpaid"
-	RecallLifecycleTriggerPaymentFailed          = "payment_failed"
-	RecallLifecycleTriggerPaymentPending         = "payment_pending"
-	RecallLifecycleTriggerPaymentSucceeded       = "payment_succeeded"
-	RecallLifecycleEventPending                  = "pending"
-	RecallLifecycleEventProcessed                = "processed"
-	RecallLifecycleEventSuppressed               = "suppressed"
-	RecallLifecycleEventFailed                   = "failed"
-	recallLifecycleRegistrationUnusedDelay       = 7 * 24 * time.Hour
-	recallLifecyclePaymentPendingDelay           = 24 * time.Hour
-	recallContinuousTriggerSlotDefaultScanPeriod = 60
-	recallLifecycleBusinessKeyMaxLen             = 160
+	RecallLifecycleTriggerUserRegistered             = "user_registered"
+	RecallLifecycleTriggerRegistrationUnused         = "registration_unused"
+	RecallLifecycleTriggerQuotaLow                   = "quota_low"
+	RecallLifecycleTriggerQuotaExhaustedUnpaid       = "quota_exhausted_unpaid"
+	RecallLifecycleTriggerPaymentFailed              = "payment_failed"
+	RecallLifecycleTriggerPaymentPending             = "payment_pending"
+	RecallLifecycleTriggerPaymentSucceeded           = "payment_succeeded"
+	RecallLifecycleEventPending                      = "pending"
+	RecallLifecycleEventProcessed                    = "processed"
+	RecallLifecycleEventSuppressed                   = "suppressed"
+	RecallLifecycleEventFailed                       = "failed"
+	recallLifecycleRegistrationUnusedDelay           = 7 * 24 * time.Hour
+	recallLifecyclePaymentPendingDelay               = 24 * time.Hour
+	recallContinuousTriggerSlotDefaultScanPeriod     = 60
+	recallLifecycleBusinessKeyMaxLen                 = 160
+	OptionKeyRecallLifecycleEventCollectionStartedAt = "recall_campaign_setting.lifecycle_event_collection_started_at"
 )
 
 type RecallLifecycleEvent struct {
@@ -325,6 +327,69 @@ func SeedRecallContinuousTriggerSlotsWithContext(ctx context.Context) error {
 	return nil
 }
 
+func GetRecallLifecycleEventCollectionStartedAtWithContext(ctx context.Context) (int64, error) {
+	if ctx == nil {
+		return 0, fmt.Errorf("context is nil")
+	}
+	var option Option
+	if err := DB.WithContext(ctx).First(&option, "key = ?", OptionKeyRecallLifecycleEventCollectionStartedAt).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, fmt.Errorf("recall lifecycle event collection marker is missing")
+		}
+		return 0, err
+	}
+	startedAt, err := strconv.ParseInt(strings.TrimSpace(option.Value), 10, 64)
+	if err != nil || startedAt <= 0 {
+		return 0, fmt.Errorf("recall lifecycle event collection marker is malformed")
+	}
+	return startedAt, nil
+}
+
+func InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(ctx context.Context) (int64, error) {
+	if ctx == nil {
+		return 0, fmt.Errorf("context is nil")
+	}
+	var startedAt int64
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		dbNow, err := getDBTimestamp(tx)
+		if err != nil {
+			return err
+		}
+		option := &Option{
+			Key:   OptionKeyRecallLifecycleEventCollectionStartedAt,
+			Value: strconv.FormatInt(dbNow, 10),
+		}
+		if err := insertRecallLifecycleCollectionMarker(tx, option).Error; err != nil {
+			return err
+		}
+		var stored Option
+		if err := tx.First(&stored, "key = ?", OptionKeyRecallLifecycleEventCollectionStartedAt).Error; err != nil {
+			return err
+		}
+		parsed, parseErr := strconv.ParseInt(strings.TrimSpace(stored.Value), 10, 64)
+		if parseErr != nil || parsed <= 0 {
+			return fmt.Errorf("recall lifecycle event collection marker is malformed")
+		}
+		startedAt = parsed
+		return nil
+	})
+	return startedAt, err
+}
+
+func insertRecallLifecycleCollectionMarker(tx *gorm.DB, option *Option) *gorm.DB {
+	if tx.Dialector.Name() == "mysql" {
+		return tx.Clauses(clause.OnConflict{
+			DoUpdates: clause.Assignments(map[string]any{
+				"key": gorm.Expr("`key`"),
+			}),
+		}).Create(option)
+	}
+	return tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "key"}},
+		DoNothing: true,
+	}).Create(option)
+}
+
 func EnsureRecallContinuousTriggerSlotTx(tx *gorm.DB, trigger string) error {
 	if tx == nil {
 		return fmt.Errorf("recall continuous trigger slot repair requires a transaction")
@@ -343,4 +408,58 @@ func EnsureRecallContinuousTriggerSlotTx(tx *gorm.DB, trigger string) error {
 			"delay_seconds":   slot.DelaySeconds,
 			"scan_period":     gorm.Expr("CASE WHEN scan_period = 0 THEN ? ELSE scan_period END", recallContinuousTriggerSlotDefaultScanPeriod),
 		}).Error
+}
+
+func ClaimRecallContinuousTriggerSlotTx(tx *gorm.DB, trigger string, campaignID int64) (bool, error) {
+	claimed, _, err := ClaimRecallContinuousTriggerSlotOwnershipTx(tx, trigger, campaignID)
+	return claimed, err
+}
+
+func ClaimRecallContinuousTriggerSlotOwnershipTx(tx *gorm.DB, trigger string, campaignID int64) (bool, bool, error) {
+	if tx == nil {
+		return false, false, fmt.Errorf("recall continuous trigger slot claim requires a transaction")
+	}
+	if campaignID <= 0 {
+		return false, false, fmt.Errorf("recall continuous trigger slot claim requires a campaign")
+	}
+	if err := EnsureRecallContinuousTriggerSlotTx(tx, trigger); err != nil {
+		return false, false, err
+	}
+	var slot RecallContinuousTriggerSlot
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&slot, "trigger = ?", strings.TrimSpace(trigger)).Error; err != nil {
+		return false, false, err
+	}
+	if slot.CampaignId == campaignID {
+		return true, false, nil
+	}
+	if slot.CampaignId != 0 {
+		return false, false, nil
+	}
+	result := tx.Model(&RecallContinuousTriggerSlot{}).
+		Where("trigger = ? AND campaign_id = 0", slot.Trigger).
+		Update("campaign_id", campaignID)
+	if result.Error != nil {
+		return false, false, result.Error
+	}
+	if result.RowsAffected == 1 {
+		return true, true, nil
+	}
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&slot, "trigger = ?", strings.TrimSpace(trigger)).Error; err != nil {
+		return false, false, err
+	}
+	return slot.CampaignId == campaignID, false, nil
+}
+
+func ReleaseRecallContinuousTriggerSlotTx(tx *gorm.DB, trigger string, campaignID int64) error {
+	if tx == nil {
+		return fmt.Errorf("recall continuous trigger slot release requires a transaction")
+	}
+	if campaignID <= 0 {
+		return fmt.Errorf("recall continuous trigger slot release requires a campaign")
+	}
+	return tx.Model(&RecallContinuousTriggerSlot{}).
+		Where("trigger = ? AND campaign_id = ?", strings.TrimSpace(trigger), campaignID).
+		Update("campaign_id", int64(0)).Error
 }

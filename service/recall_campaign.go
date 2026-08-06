@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"gorm.io/gorm"
 )
 
 var ErrRecallDisabled = errors.New("recall campaigns are disabled")
@@ -537,6 +538,9 @@ func (s *RecallCampaignService) SaveDraft(ctx context.Context, actorID int, draf
 	if err != nil {
 		return nil, err
 	}
+	if err := validateRecallContinuousLifecycleCollectionBoundary(ctx, normalized); err != nil {
+		return nil, err
+	}
 	normalized.Emails, err = s.prepareRecallEmailStages(ctx, normalized.CampaignType, normalized.Emails, nil, normalized.DeferLocalization)
 	if err != nil {
 		return nil, err
@@ -573,6 +577,9 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 		}
 		normalized, err := validateAndNormalizeRecallCampaignDraftForPersistence(canonical, s.now())
 		if err != nil {
+			return nil, err
+		}
+		if err := validateRecallContinuousLifecycleCollectionBoundary(ctx, normalized); err != nil {
 			return nil, err
 		}
 		normalized.Emails, err = s.prepareRecallEmailStages(ctx, normalized.CampaignType, normalized.Emails, current.Emails, normalized.DeferLocalization)
@@ -983,6 +990,12 @@ func (s *RecallCampaignService) Preview(ctx context.Context, id int64, sampleSiz
 	if err != nil {
 		return RecallAudiencePreview{}, nil, err
 	}
+	if draft.ExecutionMode == "continuous" {
+		if _, err := model.GetRecallLifecycleEventCollectionStartedAtWithContext(ctx); err != nil {
+			return RecallAudiencePreview{}, nil, fmt.Errorf("recall lifecycle event collection marker: %w", err)
+		}
+		return RecallAudiencePreview{Sample: []RecallAudienceCandidate{}, Exclusions: map[string]int64{}}, nil, nil
+	}
 	audiencePreview, err := s.audience.Preview(ctx, draft, sampleSize, s.now())
 	if err != nil {
 		return RecallAudiencePreview{}, nil, err
@@ -1055,6 +1068,9 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 	if err != nil {
 		return err
 	}
+	if err := validateRecallContinuousLifecycleCollectionBoundary(ctx, draft); err != nil {
+		return err
+	}
 	if err := validateRecallEmailActivationLocalization(draft.Emails); err != nil {
 		return err
 	}
@@ -1103,6 +1119,23 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 		return err
 	}
 	switch draft.ExecutionMode {
+	case "continuous":
+		dbNow, err := model.GetDBTimestampWithContext(ctx)
+		if err != nil {
+			return err
+		}
+		if draft.ProcessingStartAt == 0 {
+			draft.ProcessingStartAt = dbNow
+			fields["processing_start_at"] = dbNow
+		}
+		won, err := s.activateContinuousCampaign(ctx, campaign, draft, fields)
+		if err != nil {
+			return err
+		}
+		if !won {
+			return s.acceptRecallCampaignTargetState(ctx, id, model.RecallCampaignRunning)
+		}
+		return nil
 	case "manual":
 		committed, err := s.commitCampaignRun(
 			ctx,
@@ -1189,6 +1222,16 @@ func (s *RecallCampaignService) Resume(ctx context.Context, actorID int, id int6
 	if _, err := recallActivitySMTPPreflight(); err != nil {
 		return err
 	}
+	if campaign.ExecutionMode == "continuous" {
+		won, err := s.resumeContinuousCampaign(ctx, campaign)
+		if err != nil {
+			return err
+		}
+		if !won {
+			return s.acceptRecallCampaignTargetState(ctx, id, model.RecallCampaignRunning)
+		}
+		return nil
+	}
 	won, err := model.TransitionRecallCampaignWithContext(ctx, id, []string{model.RecallCampaignPaused}, model.RecallCampaignRunning, nil)
 	if err != nil {
 		return err
@@ -1247,6 +1290,56 @@ func (s *RecallCampaignService) Cancel(ctx context.Context, actorID int, id int6
 		return s.acceptRecallCampaignTargetState(ctx, id, model.RecallCampaignCancelled)
 	}
 	return nil
+}
+
+func (s *RecallCampaignService) activateContinuousCampaign(ctx context.Context, campaign *model.RecallCampaign, draft RecallCampaignDraft, fields map[string]any) (bool, error) {
+	transitioned := false
+	err := model.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		claimed, acquired, err := model.ClaimRecallContinuousTriggerSlotOwnershipTx(tx, draft.LifecycleTrigger, campaign.Id)
+		if err != nil {
+			return err
+		}
+		if !claimed {
+			return fmt.Errorf("recall continuous trigger %q is already owned", draft.LifecycleTrigger)
+		}
+		won, err := model.TransitionRecallCampaignRevisionTx(tx, campaign.Id, []string{model.RecallCampaignDraft}, model.RecallCampaignRunning, campaign.ConfigRevision, fields)
+		if err != nil {
+			return err
+		}
+		if !won && acquired {
+			if err := model.ReleaseRecallContinuousTriggerSlotTx(tx, draft.LifecycleTrigger, campaign.Id); err != nil {
+				return err
+			}
+		}
+		transitioned = won
+		return nil
+	})
+	return transitioned, err
+}
+
+func (s *RecallCampaignService) resumeContinuousCampaign(ctx context.Context, campaign *model.RecallCampaign) (bool, error) {
+	transitioned := false
+	err := model.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		claimed, acquired, err := model.ClaimRecallContinuousTriggerSlotOwnershipTx(tx, campaign.LifecycleTrigger, campaign.Id)
+		if err != nil {
+			return err
+		}
+		if !claimed {
+			return fmt.Errorf("recall continuous trigger %q is already owned", campaign.LifecycleTrigger)
+		}
+		won, err := model.TransitionRecallCampaignTx(tx, campaign.Id, []string{model.RecallCampaignPaused}, model.RecallCampaignRunning, nil)
+		if err != nil {
+			return err
+		}
+		if !won && acquired {
+			if err := model.ReleaseRecallContinuousTriggerSlotTx(tx, campaign.LifecycleTrigger, campaign.Id); err != nil {
+				return err
+			}
+		}
+		transitioned = won
+		return nil
+	})
+	return transitioned, err
 }
 
 func (s *RecallCampaignService) Complete(ctx context.Context, actorID int, id int64) error {
@@ -1622,13 +1715,17 @@ func recallCampaignActivationFields(draft RecallCampaignDraft, couponID string, 
 		return nil, err
 	}
 	return map[string]any{
-		"stripe_coupon_id":        couponID,
-		"discount_config":         string(discountJSON),
-		"product_scope":           string(productJSON),
-		"promotion_expiry_mode":   draft.PromotionExpiryMode,
-		"promotion_expires_at":    draft.PromotionExpiresAt,
-		"promotion_valid_seconds": draft.PromotionValidSeconds,
-		"activated_at":            activatedAt,
+		"stripe_coupon_id":         couponID,
+		"discount_config":          string(discountJSON),
+		"product_scope":            string(productJSON),
+		"promotion_expiry_mode":    draft.PromotionExpiryMode,
+		"promotion_expires_at":     draft.PromotionExpiresAt,
+		"promotion_valid_seconds":  draft.PromotionValidSeconds,
+		"delivery_policy":          draft.DeliveryPolicy,
+		"lifecycle_trigger":        draft.LifecycleTrigger,
+		"lifecycle_trigger_config": draft.LifecycleTriggerConfig,
+		"processing_start_at":      draft.ProcessingStartAt,
+		"activated_at":             activatedAt,
 	}, nil
 }
 
@@ -1687,7 +1784,16 @@ func validateAndNormalizeRecallCampaignDraftInternal(draft RecallCampaignDraft, 
 	if draft.Name == "" || len(draft.Name) > 128 {
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign name must contain 1 to 128 characters")
 	}
+	draft.DeliveryPolicy = strings.ToLower(strings.TrimSpace(draft.DeliveryPolicy))
+	draft.LifecycleTrigger = strings.TrimSpace(draft.LifecycleTrigger)
+	draft.LifecycleTriggerConfig = strings.TrimSpace(draft.LifecycleTriggerConfig)
 	applyRecallEmailSubjectFallbacks(draft.Emails, draft.Name)
+	if strings.EqualFold(strings.TrimSpace(draft.ExecutionMode), "continuous") {
+		return validateAndNormalizeRecallContinuousDraft(draft)
+	}
+	if draft.DeliveryPolicy == "" {
+		draft.DeliveryPolicy = model.RecallDeliveryPolicyEngagement
+	}
 	draft.AudienceTemplate = strings.ToLower(strings.TrimSpace(draft.AudienceTemplate))
 	draft.Audience.GroupMode = strings.ToLower(strings.TrimSpace(draft.Audience.GroupMode))
 	if err := ValidateRecallAudience(draft.AudienceTemplate, draft.Audience); err != nil {
@@ -1733,6 +1839,8 @@ func canonicalizeRecallExecutionModeAndSchedule(draft *RecallCampaignDraft, now 
 	switch draft.ExecutionMode {
 	case "manual":
 		draft.Schedule = RecallScheduleConfig{}
+	case "continuous":
+		draft.Schedule = RecallScheduleConfig{}
 	case "once", "scheduled_once":
 		draft.ExecutionMode = "scheduled_once"
 		if validate {
@@ -1770,6 +1878,123 @@ func canonicalizeRecallExecutionModeAndSchedule(draft *RecallCampaignDraft, now 
 		if validate {
 			return fmt.Errorf("unsupported recall execution mode %q", draft.ExecutionMode)
 		}
+	}
+	return nil
+}
+
+func validateAndNormalizeRecallContinuousDraft(draft RecallCampaignDraft) (RecallCampaignDraft, error) {
+	if draft.CampaignType != model.RecallCampaignTypeContentOnly {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign type must be content_only")
+	}
+	if err := model.ValidateRecallLifecycleTrigger(draft.LifecycleTrigger); err != nil {
+		return RecallCampaignDraft{}, err
+	}
+	policy, err := model.RecallLifecycleTriggerDeliveryPolicy(draft.LifecycleTrigger)
+	if err != nil {
+		return RecallCampaignDraft{}, err
+	}
+	if draft.DeliveryPolicy == "" {
+		draft.DeliveryPolicy = policy
+	}
+	if draft.DeliveryPolicy != policy {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign delivery policy must be %s for trigger %s", policy, draft.LifecycleTrigger)
+	}
+	if draft.LifecycleTriggerConfig == "" {
+		draft.LifecycleTriggerConfig = `{}`
+	}
+	if strings.TrimSpace(draft.LifecycleTriggerConfig) != "{}" {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign trigger config must be empty")
+	}
+	if draft.AudienceTemplate != "" || !reflect.DeepEqual(draft.Audience, RecallAudienceConfig{}) {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign audience must be empty")
+	}
+	if !reflect.DeepEqual(draft.Schedule, RecallScheduleConfig{}) {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign schedule must be empty")
+	}
+	if draft.CouponSource != "" {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign promotion config coupon source must be empty")
+	}
+	if draft.ExistingCouponID != "" {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign promotion config existing coupon must be empty")
+	}
+	if !isEmptyRecallDiscountConfig(draft.Discount) {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign promotion config discount must be empty")
+	}
+	if !isEmptyRecallProductScope(draft.Products) {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign promotion config product scope must be empty")
+	}
+	if draft.PromotionExpiryMode != "" && draft.PromotionExpiryMode != RecallPromotionExpiryRelative {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign promotion config expiry mode must be empty")
+	}
+	if draft.PromotionExpiresAt != 0 {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign promotion config expiry time must be empty")
+	}
+	if draft.PromotionValidSeconds <= 0 {
+		draft.PromotionValidSeconds = 30 * 24 * 60 * 60
+	}
+	if draft.EnrollmentLimit < 1 || draft.EnrollmentLimit > 100000 {
+		return RecallCampaignDraft{}, fmt.Errorf("recall enrollment limit must be between 1 and 100000")
+	}
+	if draft.WorkerConcurrency < 1 || draft.WorkerConcurrency > 20 {
+		return RecallCampaignDraft{}, fmt.Errorf("recall worker concurrency must be between 1 and 20")
+	}
+	emails, err := normalizeRecallEmailStages(draft.CampaignType, draft.Emails)
+	if err != nil {
+		return RecallCampaignDraft{}, err
+	}
+	if len(emails) != 1 {
+		return RecallCampaignDraft{}, fmt.Errorf("continuous recall campaign requires exactly one email stage")
+	}
+	draft.Emails = emails
+	draft.ExecutionMode = "continuous"
+	draft.AudienceTemplate = ""
+	draft.Audience = RecallAudienceConfig{}
+	draft.Schedule = RecallScheduleConfig{}
+	draft.CouponSource = ""
+	draft.ExistingCouponID = ""
+	draft.Discount = RecallDiscountConfig{}
+	draft.Products = RecallProductScope{}
+	draft.PromotionExpiryMode = ""
+	draft.PromotionExpiresAt = 0
+	return draft, nil
+}
+
+func isEmptyRecallDiscountConfig(discount RecallDiscountConfig) bool {
+	return discount.Type == "" &&
+		discount.PercentOff == 0 &&
+		discount.AmountOff == 0 &&
+		discount.Currency == "" &&
+		len(discount.CurrencyOptions) == 0 &&
+		discount.MinimumSpend == nil &&
+		discount.MinimumAmount == 0 &&
+		discount.MinimumAmountCurrency == ""
+}
+
+func isEmptyRecallProductScope(products RecallProductScope) bool {
+	return len(products.TopUpPriceIDs) == 0 &&
+		len(products.SubscriptionPriceIDs) == 0 &&
+		len(products.SubscriptionPlanIDs) == 0 &&
+		len(products.TopUpDisplaySnapshots) == 0 &&
+		len(products.SubscriptionDisplaySnapshots) == 0
+}
+
+func validateRecallContinuousLifecycleCollectionBoundary(ctx context.Context, draft RecallCampaignDraft) error {
+	if draft.ExecutionMode != "continuous" {
+		return nil
+	}
+	marker, err := model.GetRecallLifecycleEventCollectionStartedAtWithContext(ctx)
+	if err != nil {
+		return fmt.Errorf("recall lifecycle event collection marker: %w", err)
+	}
+	if draft.ProcessingStartAt == 0 {
+		return nil
+	}
+	dbNow, err := model.GetDBTimestampWithContext(ctx)
+	if err != nil {
+		return err
+	}
+	if draft.ProcessingStartAt < marker || draft.ProcessingStartAt > dbNow {
+		return fmt.Errorf("continuous recall campaign processing start must be between lifecycle event collection marker and activation time")
 	}
 	return nil
 }
@@ -2484,25 +2709,29 @@ func recallCampaignModelFromDraft(draft RecallCampaignDraft, actorID int) (*mode
 		recurrenceJSON = string(encoded)
 	}
 	return &model.RecallCampaign{
-		CampaignType:          draft.CampaignType,
-		Name:                  draft.Name,
-		Status:                model.RecallCampaignDraft,
-		AudienceTemplate:      draft.AudienceTemplate,
-		AudienceConfig:        string(audienceJSON),
-		ExecutionMode:         draft.ExecutionMode,
-		ScheduledAt:           draft.Schedule.ScheduledAt,
-		RecurrenceConfig:      recurrenceJSON,
-		CouponSource:          draft.CouponSource,
-		StripeCouponId:        recallCampaignDraftStripeCouponID(draft),
-		DiscountConfig:        string(discountJSON),
-		ProductScope:          string(productJSON),
-		PromotionExpiryMode:   draft.PromotionExpiryMode,
-		PromotionExpiresAt:    draft.PromotionExpiresAt,
-		PromotionValidSeconds: draft.PromotionValidSeconds,
-		EmailSequenceConfig:   string(emailJSON),
-		EnrollmentLimit:       draft.EnrollmentLimit,
-		WorkerConcurrency:     draft.WorkerConcurrency,
-		CreatedBy:             actorID,
+		CampaignType:           draft.CampaignType,
+		DeliveryPolicy:         draft.DeliveryPolicy,
+		LifecycleTrigger:       draft.LifecycleTrigger,
+		LifecycleTriggerConfig: draft.LifecycleTriggerConfig,
+		ProcessingStartAt:      draft.ProcessingStartAt,
+		Name:                   draft.Name,
+		Status:                 model.RecallCampaignDraft,
+		AudienceTemplate:       draft.AudienceTemplate,
+		AudienceConfig:         string(audienceJSON),
+		ExecutionMode:          draft.ExecutionMode,
+		ScheduledAt:            draft.Schedule.ScheduledAt,
+		RecurrenceConfig:       recurrenceJSON,
+		CouponSource:           draft.CouponSource,
+		StripeCouponId:         recallCampaignDraftStripeCouponID(draft),
+		DiscountConfig:         string(discountJSON),
+		ProductScope:           string(productJSON),
+		PromotionExpiryMode:    draft.PromotionExpiryMode,
+		PromotionExpiresAt:     draft.PromotionExpiresAt,
+		PromotionValidSeconds:  draft.PromotionValidSeconds,
+		EmailSequenceConfig:    string(emailJSON),
+		EnrollmentLimit:        draft.EnrollmentLimit,
+		WorkerConcurrency:      draft.WorkerConcurrency,
+		CreatedBy:              actorID,
 	}, nil
 }
 
@@ -2518,16 +2747,20 @@ func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaig
 		return RecallCampaignDraft{}, fmt.Errorf("recall campaign is nil")
 	}
 	draft := RecallCampaignDraft{
-		CampaignType:          "",
-		Name:                  campaign.Name,
-		AudienceTemplate:      campaign.AudienceTemplate,
-		ExecutionMode:         campaign.ExecutionMode,
-		CouponSource:          campaign.CouponSource,
-		PromotionExpiryMode:   normalizedRecallPromotionExpiryMode(campaign.PromotionExpiryMode),
-		PromotionExpiresAt:    campaign.PromotionExpiresAt,
-		PromotionValidSeconds: campaign.PromotionValidSeconds,
-		EnrollmentLimit:       campaign.EnrollmentLimit,
-		WorkerConcurrency:     campaign.WorkerConcurrency,
+		CampaignType:           "",
+		Name:                   campaign.Name,
+		DeliveryPolicy:         campaign.DeliveryPolicy,
+		LifecycleTrigger:       campaign.LifecycleTrigger,
+		LifecycleTriggerConfig: campaign.LifecycleTriggerConfig,
+		ProcessingStartAt:      campaign.ProcessingStartAt,
+		AudienceTemplate:       campaign.AudienceTemplate,
+		ExecutionMode:          campaign.ExecutionMode,
+		CouponSource:           campaign.CouponSource,
+		PromotionExpiryMode:    normalizedRecallPromotionExpiryMode(campaign.PromotionExpiryMode),
+		PromotionExpiresAt:     campaign.PromotionExpiresAt,
+		PromotionValidSeconds:  campaign.PromotionValidSeconds,
+		EnrollmentLimit:        campaign.EnrollmentLimit,
+		WorkerConcurrency:      campaign.WorkerConcurrency,
 	}
 	if campaign.CouponSource == "existing" {
 		draft.ExistingCouponID = campaign.StripeCouponId
@@ -2579,21 +2812,25 @@ func recallCampaignDraftFromModel(campaign *model.RecallCampaign) (RecallCampaig
 }
 
 type recallImmutableCampaignDraft struct {
-	CampaignType          string
-	AudienceTemplate      string
-	Audience              RecallAudienceConfig
-	ExecutionMode         string
-	Schedule              RecallScheduleConfig
-	CouponSource          string
-	ExistingCouponID      string
-	Discount              RecallDiscountConfig
-	Products              RecallProductScope
-	PromotionExpiryMode   string
-	PromotionExpiresAt    int64
-	PromotionValidSeconds int64
-	EnrollmentLimit       int
-	WorkerConcurrency     int
-	EmailStages           []recallImmutableEmailStage
+	CampaignType           string
+	DeliveryPolicy         string
+	LifecycleTrigger       string
+	LifecycleTriggerConfig string
+	ProcessingStartAt      int64
+	AudienceTemplate       string
+	Audience               RecallAudienceConfig
+	ExecutionMode          string
+	Schedule               RecallScheduleConfig
+	CouponSource           string
+	ExistingCouponID       string
+	Discount               RecallDiscountConfig
+	Products               RecallProductScope
+	PromotionExpiryMode    string
+	PromotionExpiresAt     int64
+	PromotionValidSeconds  int64
+	EnrollmentLimit        int
+	WorkerConcurrency      int
+	EmailStages            []recallImmutableEmailStage
 }
 
 type recallImmutableEmailStage struct {
@@ -2607,6 +2844,12 @@ func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCamp
 	} else {
 		draft.CampaignType = strings.ToLower(strings.TrimSpace(draft.CampaignType))
 	}
+	draft.DeliveryPolicy = strings.ToLower(strings.TrimSpace(draft.DeliveryPolicy))
+	if draft.DeliveryPolicy == "" {
+		draft.DeliveryPolicy = model.RecallDeliveryPolicyEngagement
+	}
+	draft.LifecycleTrigger = strings.TrimSpace(draft.LifecycleTrigger)
+	draft.LifecycleTriggerConfig = strings.TrimSpace(draft.LifecycleTriggerConfig)
 	draft.AudienceTemplate = strings.ToLower(strings.TrimSpace(draft.AudienceTemplate))
 	draft.Audience = normalizeRecallAudienceConfig(draft.Audience)
 	_ = canonicalizeRecallExecutionModeAndSchedule(&draft, time.Time{}, false)
@@ -2633,21 +2876,25 @@ func recallCampaignImmutableDraft(draft RecallCampaignDraft) recallImmutableCamp
 		emailStages[i] = recallImmutableEmailStage{StageNo: stage.StageNo, DelaySeconds: stage.DelaySeconds}
 	}
 	return recallImmutableCampaignDraft{
-		CampaignType:          draft.CampaignType,
-		AudienceTemplate:      draft.AudienceTemplate,
-		Audience:              draft.Audience,
-		ExecutionMode:         draft.ExecutionMode,
-		Schedule:              draft.Schedule,
-		CouponSource:          draft.CouponSource,
-		ExistingCouponID:      draft.ExistingCouponID,
-		Discount:              draft.Discount,
-		Products:              draft.Products,
-		PromotionExpiryMode:   draft.PromotionExpiryMode,
-		PromotionExpiresAt:    draft.PromotionExpiresAt,
-		PromotionValidSeconds: draft.PromotionValidSeconds,
-		EnrollmentLimit:       draft.EnrollmentLimit,
-		WorkerConcurrency:     draft.WorkerConcurrency,
-		EmailStages:           emailStages,
+		CampaignType:           draft.CampaignType,
+		DeliveryPolicy:         draft.DeliveryPolicy,
+		LifecycleTrigger:       draft.LifecycleTrigger,
+		LifecycleTriggerConfig: draft.LifecycleTriggerConfig,
+		ProcessingStartAt:      draft.ProcessingStartAt,
+		AudienceTemplate:       draft.AudienceTemplate,
+		Audience:               draft.Audience,
+		ExecutionMode:          draft.ExecutionMode,
+		Schedule:               draft.Schedule,
+		CouponSource:           draft.CouponSource,
+		ExistingCouponID:       draft.ExistingCouponID,
+		Discount:               draft.Discount,
+		Products:               draft.Products,
+		PromotionExpiryMode:    draft.PromotionExpiryMode,
+		PromotionExpiresAt:     draft.PromotionExpiresAt,
+		PromotionValidSeconds:  draft.PromotionValidSeconds,
+		EnrollmentLimit:        draft.EnrollmentLimit,
+		WorkerConcurrency:      draft.WorkerConcurrency,
+		EmailStages:            emailStages,
 	}
 }
 

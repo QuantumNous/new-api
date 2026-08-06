@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -35,6 +36,7 @@ func setupRecallLifecycleTestDB(t *testing.T) *gorm.DB {
 	})
 
 	require.NoError(t, DB.AutoMigrate(
+		&Option{},
 		&RecallCampaign{},
 		&RecallRecipient{},
 		&RecallLifecycleEvent{},
@@ -485,6 +487,115 @@ func TestLifecycleContinuousTriggerSlotDuplicateNoopDoesNotSwallowUnknownTrigger
 	require.NoError(t, DB.Find(&slots).Error)
 	require.Len(t, slots, 1)
 	require.Equal(t, RecallLifecycleTriggerPaymentPending, slots[0].Trigger)
+}
+
+func TestLifecycleCollectionMarkerInsertIsWriteOnceAndStrongRead(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+
+	common.OptionMapRWMutex.Lock()
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
+	common.OptionMap[OptionKeyRecallLifecycleEventCollectionStartedAt] = "111"
+	common.OptionMapRWMutex.Unlock()
+
+	_, err := GetRecallLifecycleEventCollectionStartedAtWithContext(context.Background())
+	require.ErrorContains(t, err, "missing")
+
+	const attempts = 8
+	var wg sync.WaitGroup
+	results := make(chan int64, attempts)
+	errs := make(chan error, attempts)
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ts, insertErr := InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+			if insertErr != nil {
+				errs <- insertErr
+				return
+			}
+			results <- ts
+		}()
+	}
+	wg.Wait()
+	close(results)
+	close(errs)
+	require.Empty(t, errs)
+
+	var first int64
+	for ts := range results {
+		require.Positive(t, ts)
+		if first == 0 {
+			first = ts
+		}
+		require.Equal(t, first, ts)
+	}
+	stored, err := GetRecallLifecycleEventCollectionStartedAtWithContext(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, first, stored)
+
+	var option Option
+	require.NoError(t, DB.First(&option, "key = ?", OptionKeyRecallLifecycleEventCollectionStartedAt).Error)
+	require.Equal(t, strconv.FormatInt(first, 10), option.Value)
+}
+
+func TestLifecycleCollectionMarkerReadRejectsMalformed(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+	require.NoError(t, DB.Create(&Option{Key: OptionKeyRecallLifecycleEventCollectionStartedAt, Value: "not-a-decimal"}).Error)
+
+	_, err := GetRecallLifecycleEventCollectionStartedAtWithContext(context.Background())
+
+	require.ErrorContains(t, err, "malformed")
+}
+
+func TestLifecycleContinuousTriggerSlotOwnershipClaimReleaseAndRepair(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+
+	var firstWon, secondWon bool
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		firstWon, err = ClaimRecallContinuousTriggerSlotTx(tx, RecallLifecycleTriggerQuotaLow, 101)
+		return err
+	}))
+	require.True(t, firstWon)
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		secondWon, err = ClaimRecallContinuousTriggerSlotTx(tx, RecallLifecycleTriggerQuotaLow, 202)
+		return err
+	}))
+	require.False(t, secondWon)
+
+	var slot RecallContinuousTriggerSlot
+	require.NoError(t, DB.First(&slot, "trigger = ?", RecallLifecycleTriggerQuotaLow).Error)
+	require.EqualValues(t, 101, slot.CampaignId)
+
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		won, err := ClaimRecallContinuousTriggerSlotTx(tx, RecallLifecycleTriggerQuotaLow, 101)
+		require.True(t, won)
+		return err
+	}))
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return ReleaseRecallContinuousTriggerSlotTx(tx, RecallLifecycleTriggerQuotaLow, 202)
+	}))
+	require.NoError(t, DB.First(&slot, "trigger = ?", RecallLifecycleTriggerQuotaLow).Error)
+	require.EqualValues(t, 101, slot.CampaignId)
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return ReleaseRecallContinuousTriggerSlotTx(tx, RecallLifecycleTriggerQuotaLow, 101)
+	}))
+	require.NoError(t, DB.First(&slot, "trigger = ?", RecallLifecycleTriggerQuotaLow).Error)
+	require.Zero(t, slot.CampaignId)
+
+	require.NoError(t, DB.Where("trigger = ?", RecallLifecycleTriggerPaymentPending).Delete(&RecallContinuousTriggerSlot{}).Error)
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		won, err := ClaimRecallContinuousTriggerSlotTx(tx, RecallLifecycleTriggerPaymentPending, 303)
+		require.True(t, won)
+		return err
+	}))
+	slot = RecallContinuousTriggerSlot{}
+	require.NoError(t, DB.First(&slot, "trigger = ?", RecallLifecycleTriggerPaymentPending).Error)
+	require.EqualValues(t, 303, slot.CampaignId)
+	require.Equal(t, RecallDeliveryPolicyEngagement, slot.DeliveryPolicy)
 }
 
 func TestLifecycleInsertConflictSQLIsTargetedByDialect(t *testing.T) {
