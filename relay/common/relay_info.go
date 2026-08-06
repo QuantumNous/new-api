@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -156,6 +157,16 @@ type RelayInfo struct {
 	// *bytes.Reader/Buffer/strings.Reader). 0 means "let net/http decide".
 	UpstreamRequestBodySize int64
 
+	// UpstreamRequestGetBody returns a fresh reader over the full marshaled
+	// upstream request body. It is set alongside UpstreamRequestBodySize when
+	// the body is wrapped in a BodyStorage (see relay/common/outbound_body.go),
+	// so that DoApiRequest can populate http.Request.GetBody manually (net/http
+	// only auto-populates it for *bytes.Reader/Buffer/strings.Reader). Without
+	// GetBody the HTTP/2 transport cannot transparently retry a request whose
+	// stream was reset by the upstream after the body was already written.
+	// nil means "no safe replay available".
+	UpstreamRequestGetBody func() (io.ReadCloser, error)
+
 	PriceData hosttypes.PriceData
 
 	// QuotaClamp is set (non-nil) when a quota conversion saturated at the
@@ -193,6 +204,12 @@ type RelayInfo struct {
 }
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
+	// RelayInfo is reused across channel attempts. Body metadata belongs to the
+	// current attempt and may reference storage that its handler has closed, so
+	// discard it before the next channel binds its outbound body.
+	info.UpstreamRequestBodySize = 0
+	info.UpstreamRequestGetBody = nil
+
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 	headerOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelHeaderOverride)

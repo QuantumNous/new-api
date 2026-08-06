@@ -20,6 +20,13 @@ type BodyStorage interface {
 	Size() int64
 	// IsDisk 是否是磁盘存储
 	IsDisk() bool
+	// NewReader returns an independent reader positioned at the start of the
+	// stored payload. Each call returns a reader with its own cursor, so
+	// callers (e.g. http.Request.GetBody) can replay the body concurrently
+	// with, or after, other readers without sharing seek state. Closing the
+	// returned reader releases only that reader, never the storage itself;
+	// after the storage has been closed, NewReader returns ErrStorageClosed.
+	NewReader() (io.ReadCloser, error)
 }
 
 // ErrStorageClosed 存储已关闭错误
@@ -78,6 +85,18 @@ func (m *memoryStorage) Bytes() ([]byte, error) {
 		return nil, ErrStorageClosed
 	}
 	return m.data, nil
+}
+
+func (m *memoryStorage) NewReader() (io.ReadCloser, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if atomic.LoadInt32(&m.closed) == 1 {
+		return nil, ErrStorageClosed
+	}
+	// A fresh bytes.Reader over the shared immutable backing array: an
+	// independent cursor at zero copy cost. NopCloser keeps Close a no-op, so
+	// the storage lifecycle stays owned by whoever holds the storage itself.
+	return io.NopCloser(bytes.NewReader(m.data)), nil
 }
 
 func (m *memoryStorage) Size() int64 {
@@ -227,6 +246,24 @@ func (d *diskStorage) Bytes() ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+func (d *diskStorage) NewReader() (io.ReadCloser, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if atomic.LoadInt32(&d.closed) == 1 {
+		return nil, ErrStorageClosed
+	}
+	// A separate file descriptor over the same cache file: an independent
+	// cursor at zero copy cost. Closing the returned reader closes only that
+	// descriptor; the storage keeps owning the primary descriptor and the
+	// file's lifetime. Readers opened before Close stay usable even after the
+	// file is unlinked, as the descriptor keeps the inode alive.
+	file, err := os.Open(d.filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open body cache file for replay: %w", err)
+	}
+	return file, nil
 }
 
 func (d *diskStorage) Size() int64 {
