@@ -27,6 +27,48 @@ func TestDBTimestampQueryUsesStatementTimeForPostgreSQL(t *testing.T) {
 	require.NotContains(t, query, "NOW()")
 }
 
+func TestDBTimestampMillisQueryForDialectUsesMillisecondPrecision(t *testing.T) {
+	tests := []struct {
+		name      string
+		dialect   string
+		wantQuery string
+	}{
+		{
+			name:      "postgres",
+			dialect:   "postgres",
+			wantQuery: "SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint",
+		},
+		{
+			name:      "sqlite",
+			dialect:   "sqlite",
+			wantQuery: "SELECT CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)",
+		},
+		{
+			name:      "mysql",
+			dialect:   "mysql",
+			wantQuery: "SELECT FLOOR(UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) * 1000)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			query, err := dbTimestampMillisQueryForDialect(tt.dialect)
+
+			require.NoError(t, err)
+			require.Equal(t, tt.wantQuery, query)
+		})
+	}
+}
+
+func TestDBTimestampMillisQueryForDBUsesActualDialect(t *testing.T) {
+	db := setupRecallEmailQuotaTestDB(t)
+
+	query, err := dbTimestampMillisQueryForDB(db)
+
+	require.NoError(t, err)
+	require.Equal(t, "SELECT CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)", query)
+}
+
 func TestGetDBTimestampTxStrictReturnsQueryError(t *testing.T) {
 	setupSubscriptionEntitlementTestDB(t)
 	withDBTimestampQueryFailure(t)

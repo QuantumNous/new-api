@@ -1173,6 +1173,21 @@ func TestUpdateRecallEmailQuotaLimitPersistsActivityScopedSetting(t *testing.T) 
 	require.Equal(t, "250", option.Value)
 }
 
+func TestUpdateRecallEmailQuotaLimitNotifiesRecallScheduler(t *testing.T) {
+	setupRecallControllerHarness(t)
+	notifications := 0
+	originalNotify := notifyRecallSchedulerConfigChanged
+	notifyRecallSchedulerConfigChanged = func() { notifications++ }
+	t.Cleanup(func() { notifyRecallSchedulerConfigChanged = originalNotify })
+	body := recallControllerJSON(t, map[string]any{"limit": 180})
+
+	recorder := invokeRecallHandler(t, UpdateRecallEmailQuotaLimit, http.MethodPut, "/", body, 7, nil)
+
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"])
+	require.Equal(t, 1, notifications)
+}
+
 func TestRecallCampaignPreviewReturnsAudienceAndStripeWithoutCreateOrSend(t *testing.T) {
 	harness := setupRecallControllerHarness(t)
 	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignDraft)

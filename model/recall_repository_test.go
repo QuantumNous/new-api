@@ -275,6 +275,7 @@ func setupRecallRepositoryTestDB(t *testing.T) (*gorm.DB, *gorm.DB) {
 		&RecallTranslationTask{},
 		&RecallEvent{},
 		&RecallEmailQuotaWindow{},
+		&RecallEmailPacingState{},
 	))
 	return mainDB, logDB
 }
@@ -307,6 +308,7 @@ func setupRecallRepositoryFileDB(t *testing.T) *gorm.DB {
 		&RecallTranslationTask{},
 		&RecallEvent{},
 		&RecallEmailQuotaWindow{},
+		&RecallEmailPacingState{},
 	))
 	return db
 }

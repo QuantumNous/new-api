@@ -9,11 +9,21 @@ import (
 )
 
 const recallEmailQuotaWindowSeconds int64 = 3600
+const (
+	recallEmailPacingScope      = "activity_email"
+	recallEmailPacingHourMillis = int64(3_600_000)
+)
 
 type RecallEmailQuotaWindow struct {
 	WindowStartedAt int64 `json:"window_started_at" gorm:"primaryKey;autoIncrement:false"`
 	Attempts        int   `json:"attempts" gorm:"not null;default:0"`
 	UpdatedAt       int64 `json:"updated_at" gorm:"autoUpdateTime"`
+}
+
+type RecallEmailPacingState struct {
+	Scope               string `json:"scope" gorm:"primaryKey;size:64"`
+	LastStartedAtMillis int64  `json:"last_started_at_millis" gorm:"not null;default:0"`
+	UpdatedAt           int64  `json:"updated_at" gorm:"autoUpdateTime:milli"`
 }
 
 type RecallEmailQuotaStatus struct {
@@ -25,17 +35,29 @@ type RecallEmailQuotaStatus struct {
 	Exhausted       bool  `json:"exhausted"`
 }
 
+type RecallEmailPacingStatus struct {
+	Scope               string `json:"scope"`
+	CheckedAtMillis     int64  `json:"checked_at_millis"`
+	LastStartedAtMillis int64  `json:"last_started_at_millis"`
+	NextAllowedAtMillis int64  `json:"next_allowed_at_millis"`
+	IntervalMillis      int64  `json:"interval_millis"`
+	Allowed             bool   `json:"allowed"`
+}
+
 type RecallEmailSMTPAttempt struct {
 	Quota      RecallEmailQuotaStatus
+	Pacing     RecallEmailPacingStatus
 	Reserved   bool
 	LeaseOwned bool
 	Suppressed bool
 }
 
 var (
-	recallEmailQuotaNow     = getDBTimestamp
-	errRecallEmailQuotaWait = errors.New("recall email quota exhausted")
-	errRecallEmailCASLost   = errors.New("recall email CAS lost")
+	recallEmailQuotaNow        = getDBTimestamp
+	recallEmailPacingNowMillis = getDBTimestampMillis
+	errRecallEmailPacingWait   = errors.New("recall email pacing wait")
+	errRecallEmailQuotaWait    = errors.New("recall email quota exhausted")
+	errRecallEmailCASLost      = errors.New("recall email CAS lost")
 )
 
 func ReserveRecallEmailQuotaWithContext(ctx context.Context, limit int) (RecallEmailQuotaStatus, bool, error) {
@@ -87,7 +109,20 @@ func BeginRecallEmailSMTPAttemptWithContext(
 			return nil
 		}
 
-		status, reserved, err := reserveRecallEmailQuota(tx, limit)
+		nowMillis, err := recallEmailPacingNowMillis(tx)
+		if err != nil {
+			return err
+		}
+		pacing, admitted, err := reserveRecallEmailPacing(tx, limit, nowMillis)
+		if err != nil {
+			return err
+		}
+		attempt.Pacing = pacing
+		if !admitted {
+			return errRecallEmailPacingWait
+		}
+
+		status, reserved, err := reserveRecallEmailQuotaAt(tx, limit, nowMillis/1000)
 		if err != nil {
 			return err
 		}
@@ -117,6 +152,9 @@ func BeginRecallEmailSMTPAttemptWithContext(
 		}
 		return nil
 	})
+	if errors.Is(err, errRecallEmailPacingWait) {
+		return attempt, nil
+	}
 	if errors.Is(err, errRecallEmailQuotaWait) {
 		return attempt, nil
 	}
@@ -138,6 +176,10 @@ func reserveRecallEmailQuota(db *gorm.DB, limit int) (RecallEmailQuotaStatus, bo
 	if err != nil {
 		return RecallEmailQuotaStatus{}, false, err
 	}
+	return reserveRecallEmailQuotaAt(db, limit, now)
+}
+
+func reserveRecallEmailQuotaAt(db *gorm.DB, limit int, now int64) (RecallEmailQuotaStatus, bool, error) {
 	windowStartedAt := recallEmailQuotaWindowStart(now)
 	window := RecallEmailQuotaWindow{WindowStartedAt: windowStartedAt}
 	if err := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&window).Error; err != nil {
@@ -156,6 +198,67 @@ func reserveRecallEmailQuota(db *gorm.DB, limit int) (RecallEmailQuotaStatus, bo
 		return RecallEmailQuotaStatus{}, false, err
 	}
 	return status, result.RowsAffected == 1, nil
+}
+
+func GetRecallEmailPacingStatusWithContext(ctx context.Context, limit int) (RecallEmailPacingStatus, error) {
+	if ctx == nil {
+		return RecallEmailPacingStatus{}, errors.New("context is nil")
+	}
+	db := DB.WithContext(ctx)
+	nowMillis, err := recallEmailPacingNowMillis(db)
+	if err != nil {
+		return RecallEmailPacingStatus{}, err
+	}
+	return getRecallEmailPacingStatus(db, limit, nowMillis)
+}
+
+func reserveRecallEmailPacing(db *gorm.DB, limit int, nowMillis int64) (RecallEmailPacingStatus, bool, error) {
+	intervalMillis := recallEmailPacingIntervalMillis(limit)
+	state := RecallEmailPacingState{Scope: recallEmailPacingScope}
+	if err := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&state).Error; err != nil {
+		return RecallEmailPacingStatus{}, false, err
+	}
+
+	result := db.Model(&RecallEmailPacingState{}).
+		Where("scope = ? AND (last_started_at_millis = 0 OR last_started_at_millis <= ?)", recallEmailPacingScope, nowMillis-intervalMillis).
+		Update("last_started_at_millis", nowMillis)
+	if result.Error != nil {
+		return RecallEmailPacingStatus{}, false, result.Error
+	}
+
+	status, err := getRecallEmailPacingStatus(db, limit, nowMillis)
+	if err != nil {
+		return RecallEmailPacingStatus{}, false, err
+	}
+	admitted := result.RowsAffected == 1
+	if admitted {
+		status.Allowed = true
+	}
+	return status, admitted, nil
+}
+
+func getRecallEmailPacingStatus(db *gorm.DB, limit int, checkedAtMillis int64) (RecallEmailPacingStatus, error) {
+	intervalMillis := recallEmailPacingIntervalMillis(limit)
+	var state RecallEmailPacingState
+	result := db.Where("scope = ?", recallEmailPacingScope).Limit(1).Find(&state)
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return RecallEmailPacingStatus{}, result.Error
+	}
+
+	nextAllowedAtMillis := int64(0)
+	allowed := true
+	if state.LastStartedAtMillis > 0 {
+		nextAllowedAtMillis = state.LastStartedAtMillis + intervalMillis
+		allowed = checkedAtMillis >= nextAllowedAtMillis
+	}
+	return RecallEmailPacingStatus{
+		Scope:               recallEmailPacingScope,
+		CheckedAtMillis:     checkedAtMillis,
+		LastStartedAtMillis: state.LastStartedAtMillis,
+		NextAllowedAtMillis: nextAllowedAtMillis,
+		IntervalMillis:      intervalMillis,
+		Allowed:             allowed,
+	}, nil
 }
 
 func GetRecallEmailQuotaStatusWithContext(ctx context.Context, limit int) (RecallEmailQuotaStatus, error) {
@@ -191,4 +294,11 @@ func getRecallEmailQuotaStatus(db *gorm.DB, windowStartedAt int64, limit int) (R
 
 func recallEmailQuotaWindowStart(timestamp int64) int64 {
 	return timestamp / recallEmailQuotaWindowSeconds * recallEmailQuotaWindowSeconds
+}
+
+func recallEmailPacingIntervalMillis(limit int) int64 {
+	if limit <= 0 {
+		return recallEmailPacingHourMillis
+	}
+	return (recallEmailPacingHourMillis + int64(limit) - 1) / int64(limit)
 }
