@@ -566,6 +566,67 @@ func TestTaskPreparationLeaseTakeover(t *testing.T) {
 	require.JSONEq(t, `{"model":"seedance"}`, string(stored.NormalizedRequestPayload))
 }
 
+func TestGetQueuedAssetPreparationTasksHonorsRetrySchedule(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID:                    "task_prepare_retry_schedule",
+		Status:                    TaskStatusQueued,
+		PreparationStatus:         TaskPreparationStatusPreparingAssets,
+		PreparationLeaseExpiresAt: 121,
+		NormalizedRequestPayload:  json.RawMessage(`{"model":"seedance"}`),
+		Data:                      json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	tasks, err := GetQueuedAssetPreparationTasks(120, 10)
+	require.NoError(t, err)
+	require.Empty(t, tasks, "a task scheduled for a later asset check must not be claimed early")
+
+	tasks, err = GetQueuedAssetPreparationTasks(121, 10)
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	require.Equal(t, task.TaskID, tasks[0].TaskID)
+}
+
+func TestRequeueQueuedTaskForAssetPreparationUsesLeaseFence(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID:                    "task_prepare_requeue",
+		Status:                    TaskStatusQueued,
+		PreparationStatus:         TaskPreparationStatusPreparing,
+		PreparationLeaseOwner:     "node-a",
+		PreparationLeaseExpiresAt: 160,
+		NormalizedRequestPayload:  json.RawMessage(`{"model":"seedance"}`),
+		Data:                      json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	updated, err := RequeueQueuedTaskForAssetPreparation(task.TaskID, "node-b", 160, 120, 121)
+	require.NoError(t, err)
+	require.False(t, updated, "a non-owner must not reschedule asset preparation")
+
+	updated, err = RequeueQueuedTaskForAssetPreparation(task.TaskID, "node-a", 160, 120, 121)
+	require.NoError(t, err)
+	require.True(t, updated)
+
+	var stored Task
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, TaskStatusQueued, stored.Status)
+	require.Equal(t, TaskPreparationStatusPreparingAssets, stored.PreparationStatus)
+	require.Empty(t, stored.PreparationLeaseOwner)
+	require.EqualValues(t, 121, stored.PreparationLeaseExpiresAt)
+
+	claimed, err := ClaimTaskPreparationLease(task.TaskID, "node-b", stored.PreparationAttemptCount, 120, 180)
+	require.NoError(t, err)
+	require.False(t, claimed, "the task must not be claimed before its next asset check")
+
+	claimed, err = ClaimTaskPreparationLease(task.TaskID, "node-b", stored.PreparationAttemptCount, 121, 180)
+	require.NoError(t, err)
+	require.True(t, claimed, "the task becomes claimable when the next asset check is due")
+}
+
 func TestTaskQueuedTransitionCAS(t *testing.T) {
 	truncateTables(t)
 

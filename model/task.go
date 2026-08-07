@@ -432,8 +432,8 @@ func GetQueuedAssetPreparationTasks(now int64, limit int) ([]*Task, error) {
 		limit = 10
 	}
 	var tasks []*Task
-	err := DB.Where("status = ? AND ((preparation_status = ?) OR (preparation_status = ? AND preparation_lease_expires_at <= ?))",
-		TaskStatusQueued, TaskPreparationStatusPreparingAssets, TaskPreparationStatusPreparing, now).
+	err := DB.Where("status = ? AND preparation_status IN ? AND preparation_lease_expires_at <= ?",
+		TaskStatusQueued, []string{TaskPreparationStatusPreparingAssets, TaskPreparationStatusPreparing}, now).
 		Order("id ASC").
 		Limit(limit).
 		Find(&tasks).Error
@@ -605,6 +605,22 @@ func ClaimTaskPreparationLease(taskID string, owner string, expectedAttemptCount
 			"preparation_lease_owner":      owner,
 			"preparation_lease_expires_at": leaseExpiresAt,
 			"preparation_attempt_count":    gorm.Expr("preparation_attempt_count + ?", 1),
+			"updated_at":                   now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func RequeueQueuedTaskForAssetPreparation(taskID string, owner string, expectedLeaseExpiresAt int64, now int64, retryAt int64) (bool, error) {
+	result := DB.Model(&Task{}).
+		Where("task_id = ? AND status = ? AND preparation_status = ?", taskID, TaskStatusQueued, TaskPreparationStatusPreparing).
+		Where("preparation_lease_owner = ? AND preparation_lease_expires_at = ? AND preparation_lease_expires_at > ?", owner, expectedLeaseExpiresAt, now).
+		Updates(map[string]any{
+			"preparation_status":           TaskPreparationStatusPreparingAssets,
+			"preparation_lease_owner":      "",
+			"preparation_lease_expires_at": retryAt,
 			"updated_at":                   now,
 		})
 	if result.Error != nil {
