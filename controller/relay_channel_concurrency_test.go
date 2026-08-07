@@ -134,6 +134,67 @@ func TestProcessChannelErrorMarksCooldownOnTooManyRequests(t *testing.T) {
 	require.True(t, loads[channelID].CoolingDown)
 }
 
+func TestProcessChannelErrorLogsActualChannelSnapshot(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/channel-error-log.db"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Log{}, &model.CompanyLogSchema{}, &model.Option{}))
+
+	previousDB := model.DB
+	previousLogDB := model.LOG_DB
+	previousRedisEnabled := common.RedisEnabled
+	previousErrorLogEnabled := constant.ErrorLogEnabled
+	common.OptionMapRWMutex.Lock()
+	previousOptionMap := common.OptionMap
+	previousCompanyLogRoutingEnabled := "false"
+	if value, ok := previousOptionMap[model.OptionKeyCompanyLogRoutingEnabled]; ok {
+		previousCompanyLogRoutingEnabled = value
+	}
+	common.OptionMap = map[string]string{}
+	common.OptionMapRWMutex.Unlock()
+	model.DB = db
+	model.LOG_DB = db
+	common.RedisEnabled = false
+	constant.ErrorLogEnabled = true
+	require.NoError(t, model.UpdateOption(model.OptionKeyCompanyLogRoutingEnabled, "true"))
+	t.Cleanup(func() {
+		require.NoError(t, model.UpdateOption(model.OptionKeyCompanyLogRoutingEnabled, previousCompanyLogRoutingEnabled))
+		model.DB = previousDB
+		model.LOG_DB = previousLogDB
+		common.RedisEnabled = previousRedisEnabled
+		constant.ErrorLogEnabled = previousErrorLogEnabled
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previousOptionMap
+		common.OptionMapRWMutex.Unlock()
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set("id", 1)
+	c.Set("token_id", 7)
+	c.Set("token_name", "company-token")
+	c.Set("original_model", "gpt-5-codex")
+	c.Set("group", "default")
+	c.Set("channel_id", 999)
+	c.Set("channel_name", "stale-channel")
+	c.Set("channel_type", constant.ChannelTypeOpenAI)
+
+	actualChannel := types.NewChannelError(321, constant.ChannelTypeCodex, "actual-channel", false, "", false)
+	processChannelError(c, *actualChannel, types.NewOpenAIError(errors.New("upstream rejected request"), types.ErrorCodeBadResponseStatusCode, http.StatusBadRequest))
+
+	var regularCount int64
+	require.NoError(t, db.Model(&model.Log{}).Count(&regularCount).Error)
+	require.Zero(t, regularCount)
+	var companyLog model.CompanyLogSchema
+	require.NoError(t, db.Table(companyLog.TableName()).First(&companyLog).Error)
+	require.Equal(t, actualChannel.ChannelId, companyLog.ChannelId)
+	other, err := common.StrToMap(companyLog.Other)
+	require.NoError(t, err)
+	require.EqualValues(t, actualChannel.ChannelId, other["channel_id"])
+	require.Equal(t, actualChannel.ChannelName, other["channel_name"])
+	require.EqualValues(t, actualChannel.ChannelType, other["channel_type"])
+}
+
 func TestProcessChannelErrorMarksRedisCooldownWithCanceledRequestContext(t *testing.T) {
 	mr := miniredis.RunT(t)
 	prevRDB := common.RDB
