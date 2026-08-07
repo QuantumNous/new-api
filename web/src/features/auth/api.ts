@@ -17,10 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import axios from 'axios'
+import { t } from 'i18next'
 
 import { api, refreshAuthentication, type RefreshOutcome } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { encryptPassword, isPasswordEncryptionRequired } from './lib/encrypt'
 import { getAffiliateCode } from './lib/storage'
 import type { TelegramAuthorization } from './lib/telegram-login'
 import type {
@@ -40,15 +42,36 @@ import type {
 // Login & Logout
 // ----------------------------------------------------------------------------
 
-// User login with username and password
+// User login with username and password.
+//
+// The browser encrypts the plaintext password with the RSA public key
+// exposed via /api/status and sends the base64 ciphertext as
+// `password_cipher`. Plaintext fallback stays in effect when the backend
+// has not enabled PasswordEncryptionRequired, so this same call also
+// serves any cold-start case where the public key has not loaded yet.
 export async function login(payload: LoginPayload) {
   const turnstile = payload.turnstile ?? ''
+  let cipher: string | null = null
+  try {
+    cipher = await encryptPassword(payload.password)
+  } catch {
+    cipher = null
+  }
+  const required = await isPasswordEncryptionRequired().catch(() => false)
+  if (!cipher && required) {
+    throw new Error(t('Login failed'))
+  }
+  const body: Record<string, string> = {
+    username: payload.username,
+  }
+  if (cipher) {
+    body.password_cipher = cipher
+  } else {
+    body.password = payload.password
+  }
   const res = await api.post<LoginResponse>(
     `/api/user/login?turnstile=${turnstile}`,
-    {
-      username: payload.username,
-      password: payload.password,
-    },
+    body,
     { skipAuthRefresh: true }
   )
   return res.data

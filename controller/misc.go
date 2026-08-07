@@ -123,6 +123,8 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+		"password_encryption_public_key": common.PasswordEncryptionPublicKeyPEM(),
+		"password_encryption_required":   common.IsPasswordEncryptionRequired(),
 	}
 
 	// 根据启用状态注入可选内容
