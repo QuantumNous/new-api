@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -292,7 +294,7 @@ func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *te
 		{Id: 3, Status: common.ChannelStatusManuallyDisabled},
 	}
 
-	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery)
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery, false)
 
 	require.Len(t, selected, 1)
 	require.Equal(t, 2, selected[0].Id)
@@ -305,11 +307,106 @@ func TestSelectChannelsForAutomaticTestScheduledSkipsManualDisabled(t *testing.T
 		{Id: 3, Status: common.ChannelStatusManuallyDisabled},
 	}
 
-	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll)
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll, false)
 
 	require.Len(t, selected, 2)
 	require.Equal(t, 1, selected[0].Id)
 	require.Equal(t, 2, selected[1].Id)
+}
+
+func TestAutomaticChannelTestEndpointUsesImageGenerationForDedicatedImageAutoChannel(t *testing.T) {
+	channel := &model.Channel{Group: "imageauto", Models: "image-auto"}
+
+	require.Equal(t, "image-generation", automaticChannelTestEndpoint(channel))
+	require.Equal(t, "image-auto", automaticChannelTestModel(channel))
+	require.Empty(t, automaticChannelTestEndpoint(&model.Channel{Group: "default", Models: "image-auto"}))
+	require.Empty(t, automaticChannelTestModel(&model.Channel{Group: "default", Models: "image-auto"}))
+	require.Empty(t, automaticChannelTestEndpoint(&model.Channel{Group: "imageauto", Models: "image-auto,gpt-image-1"}))
+}
+
+func TestBuildTestRequestUsesLowCostImageProbeParameters(t *testing.T) {
+	request, ok := buildTestRequest("image-auto", string(constant.EndpointTypeImageGeneration), nil, false).(*dto.ImageRequest)
+	require.True(t, ok)
+	require.Equal(t, "low", request.Quality)
+	require.Equal(t, "health check", request.Prompt)
+	require.Equal(t, uint(1), *request.N)
+}
+
+func TestSelectChannelsForAutomaticTestSkipsHealthyImageProbeOnScheduledRuns(t *testing.T) {
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled, Group: "default", Models: "gpt-4o-mini"},
+		{Id: 2, Status: common.ChannelStatusEnabled, Group: "imageauto", Models: "image-auto"},
+		{Id: 3, Status: common.ChannelStatusAutoDisabled, Group: "imageauto", Models: "image-auto"},
+	}
+
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll, false)
+
+	require.Len(t, selected, 2)
+	require.Equal(t, 1, selected[0].Id)
+	require.Equal(t, 3, selected[1].Id)
+}
+
+func TestSelectChannelsForAutomaticTestIncludesHealthyImageProbeForManualRuns(t *testing.T) {
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled, Group: "imageauto", Models: "image-auto"},
+	}
+
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll, true)
+
+	require.Len(t, selected, 1)
+	require.Equal(t, 1, selected[0].Id)
+}
+
+func TestValidateImageTestResponseBodyRequiresImageData(t *testing.T) {
+	require.Error(t, validateImageTestResponseBody([]byte(`{"created":1,"data":[]}`), false))
+	require.Error(t, validateImageTestResponseBody([]byte(`{"created":1,"data":[{}]}`), false))
+	require.NoError(t, validateImageTestResponseBody([]byte(`{"created":1,"data":[{"b64_json":"image"}],"usage":{}}`), false))
+	require.NoError(t, validateImageTestResponseBody([]byte(`{"created":1,"data":[{"url":"https://example.invalid/image"}],"usage":{"input_tokens":1}}`), false))
+}
+
+func TestValidateImageTestResponseBodyRequiresCompletedStreamImage(t *testing.T) {
+	require.Error(t, validateImageTestResponseBody([]byte("data: {\"type\":\"image_generation.completed\"}\n\ndata: [DONE]\n"), true))
+	require.NoError(t, validateImageTestResponseBody([]byte("data: {\"type\":\"image_generation.completed\",\"b64_json\":\"image\"}\n\ndata: [DONE]\n"), true))
+}
+
+func TestShouldProbeImageAutoChannelUsesDisableAgeBackoff(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	channel := &model.Channel{
+		Status:    common.ChannelStatusAutoDisabled,
+		Group:     "imageauto",
+		Models:    "image-auto",
+		TestTime:  now.Add(-10 * time.Minute).Unix(),
+		OtherInfo: `{"status_time":1799992800}`,
+	}
+
+	require.False(t, shouldProbeImageAutoChannelAt(channel, false, now))
+	channel.TestTime = now.Add(-31 * time.Minute).Unix()
+	require.True(t, shouldProbeImageAutoChannelAt(channel, false, now))
+	require.True(t, shouldProbeImageAutoChannelAt(channel, true, now))
+}
+
+func TestShouldProbeImageAutoChannelUsesShortInitialBackoff(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	channel := &model.Channel{
+		Status:    common.ChannelStatusAutoDisabled,
+		Group:     "imageauto",
+		Models:    "image-auto",
+		TestTime:  now.Add(-6 * time.Minute).Unix(),
+		OtherInfo: `{"status_time":1799999400}`,
+	}
+
+	require.True(t, shouldProbeImageAutoChannelAt(channel, false, now))
+}
+
+func TestChannelTestResponseLogSummaryRedactsImagePayload(t *testing.T) {
+	body := []byte(`{"data":[{"url":"https://secret.invalid/image","b64_json":"secret-image"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`)
+
+	summary := channelTestResponseLogSummary(relayconstant.RelayModeImagesGenerations, false, body)
+
+	require.Contains(t, summary, "image_count=1")
+	require.Contains(t, summary, "input_tokens=3")
+	require.NotContains(t, summary, "secret.invalid")
+	require.NotContains(t, summary, "secret-image")
 }
 
 func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {

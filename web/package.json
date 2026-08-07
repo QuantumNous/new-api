@@ -15,6 +15,7 @@
     "format": "node scripts/format-with-protected-headers.mjs --write",
     "copyright:check": "node scripts/add-copyright.mjs --check",
     "copyright": "node scripts/add-copyright.mjs",
+    "test:chimera-sidebar": "node scripts/check-chimera-sidebar.mjs",
     "i18n:sync": "node scripts/sync-i18n.mjs",
     "knip": "knip"
   },
@@ -44,7 +45,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "dayjs": "^1.11.21",
-    "dompurify": "3.4.11",
+    "dompurify": "3.4.12",
     "i18next": "^26.3.4",
     "i18next-browser-languagedetector": "^8.2.1",
     "input-otp": "^1.4.2",
@@ -98,15 +99,17 @@
     "shadcn": "^4.12.0"
   },
   "overrides": {
-    "brace-expansion": "2.1.1",
-    "dompurify": "3.4.11",
+    "brace-expansion": "1.1.16",
+    "dompurify": "3.4.12",
     "fast-uri": "3.1.2",
-    "hono": "4.12.22",
+    "form-data": "4.0.6",
+    "hono": "4.12.32",
     "ip-address": "10.2.0",
     "js-cookie": "3.0.7",
+    "linkify-it": "5.0.2",
     "mermaid": "11.15.0",
     "minimist": "1.2.8",
-    "postcss": "8.5.15",
+    "postcss": "8.5.23",
     "qs": "6.15.2",
     "uuid": "14.0.0"
   }

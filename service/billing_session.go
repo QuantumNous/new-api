@@ -1,10 +1,13 @@
 package service
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -25,6 +28,7 @@ import (
 type BillingSession struct {
 	relayInfo        *relaycommon.RelayInfo
 	funding          FundingSource
+	durableRequestId string
 	preConsumedQuota int  // 实际预扣额度（信任用户可能为 0）
 	tokenConsumed    int  // 令牌额度实际扣减量
 	extraReserved    int  // 发送前补充预扣的额度（订阅退款时需要单独回滚）
@@ -32,7 +36,62 @@ type BillingSession struct {
 	fundingSettled   bool // funding.Settle 已成功，资金来源已提交
 	settled          bool // Settle 全部完成（资金 + 令牌）
 	refunded         bool // Refund 已调用
+	leaseCancel      context.CancelFunc
+	leaseDone        <-chan struct{}
 	mu               sync.Mutex
+}
+
+var imageAutoBillingLeaseHeartbeatInterval = func() time.Duration {
+	interval := time.Duration(model.ImageAutoBillingLeaseSeconds()) * time.Second / 3
+	if interval < 5*time.Second {
+		return 5 * time.Second
+	}
+	if interval > 60*time.Second {
+		return 60 * time.Second
+	}
+	return interval
+}
+
+func (s *BillingSession) startLeaseHeartbeat(parent context.Context) {
+	if s == nil || s.durableRequestId == "" {
+		return
+	}
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	done := make(chan struct{})
+	s.leaseCancel = cancel
+	s.leaseDone = done
+	requestID := s.durableRequestId
+	gopool.Go(func() {
+		defer close(done)
+		ticker := time.NewTicker(imageAutoBillingLeaseHeartbeatInterval())
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := model.RenewImageAutoBillingLease(requestID); err != nil {
+					common.SysLog("failed to renew image-auto billing lease: " + err.Error())
+				}
+			}
+		}
+	})
+}
+
+func (s *BillingSession) stopLeaseHeartbeatLocked() {
+	if s.leaseCancel != nil {
+		s.leaseCancel()
+		s.leaseCancel = nil
+	}
+}
+
+func (s *BillingSession) stopLeaseHeartbeat() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stopLeaseHeartbeatLocked()
 }
 
 // Settle 根据实际消耗额度进行结算。
@@ -42,6 +101,24 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.settled {
+		return nil
+	}
+	if s.durableRequestId != "" {
+		defer s.stopLeaseHeartbeatLocked()
+		if err := model.SettleImageAutoBilling(s.durableRequestId, actualQuota); err != nil {
+			// SettleImageAutoBilling normally persists the pending target before
+			// applying it. Retry that idempotent handoff once when the first DB
+			// write itself failed so the reconciler can finish it durably.
+			if pendingErr := model.MarkImageAutoBillingSettlementPending(s.durableRequestId, actualQuota); pendingErr != nil {
+				return errors.Join(err, fmt.Errorf("persist image-auto settlement handoff: %w", pendingErr))
+			}
+			return err
+		}
+		if s.funding.Source() == BillingSourceSubscription {
+			s.relayInfo.SubscriptionPostDelta += int64(actualQuota - s.preConsumedQuota)
+		}
+		s.fundingSettled = true
+		s.settled = true
 		return nil
 	}
 	delta := actualQuota - s.preConsumedQuota
@@ -78,9 +155,61 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	return tokenErr
 }
 
+// MarkSettlementPending persists an actual-quota target without applying it.
+// The reconciler completes the adjustment after this call commits.
+func (s *BillingSession) MarkSettlementPending(actualQuota int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.durableRequestId == "" {
+		return errors.New("billing session is not durable")
+	}
+	if s.settled || s.refunded {
+		return model.ErrImageAutoBillingTerminalConflict
+	}
+	defer s.stopLeaseHeartbeatLocked()
+	err := model.MarkImageAutoBillingSettlementPending(s.durableRequestId, actualQuota)
+	return err
+}
+
+func (s *BillingSession) MarkSettlementUnknown(cause error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.durableRequestId == "" {
+		return errors.New("billing session is not durable")
+	}
+	if s.settled || s.refunded {
+		return model.ErrImageAutoBillingTerminalConflict
+	}
+	defer s.stopLeaseHeartbeatLocked()
+	err := model.MarkImageAutoBillingSettlementReview(s.durableRequestId, cause)
+	return err
+}
+
 // Refund 退还所有预扣费，幂等安全，异步执行。
 func (s *BillingSession) Refund(c *gin.Context) {
 	s.mu.Lock()
+	if s.durableRequestId != "" {
+		if s.settled || s.refunded || !s.needsRefundLocked() {
+			s.mu.Unlock()
+			return
+		}
+		s.stopLeaseHeartbeatLocked()
+		err := model.RefundImageAutoBilling(s.durableRequestId)
+		if err == nil {
+			s.refunded = true
+		}
+		s.mu.Unlock()
+		if err != nil {
+			common.SysLog("error refunding durable image-auto billing: " + err.Error())
+			return
+		}
+		logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 返还预扣费（token_quota=%s, funding=%s）",
+			s.relayInfo.UserId,
+			logger.FormatQuota(s.tokenConsumed),
+			s.funding.Source(),
+		))
+		return
+	}
 	if s.settled || s.refunded || !s.needsRefundLocked() {
 		s.mu.Unlock()
 		return
@@ -346,6 +475,13 @@ func (s *BillingSession) syncRelayInfo() {
 func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preConsumedQuota int) (*BillingSession, *types.NewAPIError) {
 	if relayInfo == nil {
 		return nil, types.NewError(fmt.Errorf("relayInfo is nil"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+	if relayInfo.ImageRouting != nil {
+		leaseContext := context.Background()
+		if c != nil && c.Request != nil {
+			leaseContext = c.Request.Context()
+		}
+		return newImageAutoBillingSession(leaseContext, relayInfo, preConsumedQuota)
 	}
 
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)

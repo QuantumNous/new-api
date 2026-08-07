@@ -45,7 +45,71 @@ var buildFS embed.FS
 //go:embed web/dist/index.html
 var indexPage []byte
 
+type startupMode string
+
+const (
+	startupModeServer      startupMode = "server"
+	startupModeMigrateOnly startupMode = "migrate-only"
+)
+
+func parseStartupMode(raw string) (startupMode, error) {
+	switch strings.TrimSpace(raw) {
+	case "", string(startupModeServer):
+		return startupModeServer, nil
+	case string(startupModeMigrateOnly):
+		return startupModeMigrateOnly, nil
+	default:
+		return "", fmt.Errorf("unsupported NEW_API_STARTUP_MODE %q", raw)
+	}
+}
+
+func runStartupMode(mode startupMode, migrateOnly, serve func() error) error {
+	switch mode {
+	case startupModeMigrateOnly:
+		return migrateOnly()
+	case startupModeServer:
+		return serve()
+	default:
+		return fmt.Errorf("unsupported startup mode %q", mode)
+	}
+}
+
 func main() {
+	mode, err := parseStartupMode(os.Getenv("NEW_API_STARTUP_MODE"))
+	if err == nil {
+		err = runStartupMode(mode, runMigrationsOnly, runServer)
+	}
+	if err != nil {
+		common.FatalLog(err)
+	}
+}
+
+// runMigrationsOnly deliberately initializes only environment, logging and the
+// main/log databases. It must not initialize Redis, repair caches, start HTTP,
+// report an instance, or launch any background task.
+func runMigrationsOnly() error {
+	_ = godotenv.Load(".env")
+	common.InitEnv()
+	logger.SetupLogger()
+	if !common.IsMasterNode {
+		return errors.New("migrate-only mode requires a master node")
+	}
+	if err := model.InitDB(); err != nil {
+		return fmt.Errorf("initialize main database for migration: %w", err)
+	}
+	if err := model.InitLogDB(); err != nil {
+		return fmt.Errorf("initialize log database for migration: %w", err)
+	}
+	defer func() {
+		if err := model.CloseDB(); err != nil {
+			common.SysError("failed to close migration database: " + err.Error())
+		}
+	}()
+	common.SysLog("MIGRATION_ONLY_COMPLETED=1")
+	return nil
+}
+
+func runServer() error {
 	startTime := time.Now()
 	kitutil.SetLogging(common.SysLog, func(message string) {
 		logger.LogError(nil, message)
@@ -55,7 +119,7 @@ func main() {
 	err := InitResources()
 	if err != nil {
 		common.FatalLog("failed to initialize resources: " + err.Error())
-		return
+		return err
 	}
 
 	common.SysLog("New API " + common.Version + " started")
@@ -156,6 +220,7 @@ func main() {
 		common.SysLog("batch update enabled with interval " + strconv.Itoa(common.BatchUpdateInterval) + "s")
 		model.InitBatchUpdater()
 	}
+	service.StartImageAutoBillingReconciler()
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
@@ -174,7 +239,7 @@ func main() {
 	server := gin.New()
 	if err := middleware.ConfigureTrustedProxies(server); err != nil {
 		common.FatalLog("failed to configure trusted proxies: " + err.Error())
-		return
+		return err
 	}
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
@@ -225,7 +290,7 @@ func main() {
 	common.SysLog(fmt.Sprintf("received signal: %v, shutting down...", sig))
 
 	// SSE streams may run for minutes; give them time to finish before forced exit
-	shutdownTimeout := time.Duration(common.GetEnvOrDefault("SHUTDOWN_TIMEOUT_SECONDS", 120)) * time.Second
+	shutdownTimeout := time.Duration(common.GetEnvOrDefault("SHUTDOWN_TIMEOUT_SECONDS", 420)) * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
@@ -236,6 +301,7 @@ func main() {
 		model.SaveQuotaDataCache()
 	}
 	common.SysLog("server exited")
+	return nil
 }
 
 func InjectUmamiAnalytics() {
@@ -337,6 +403,9 @@ func InitResources() error {
 	err = common.InitRedisClient()
 	if err != nil {
 		return err
+	}
+	if err = service.RepairImageAutoBillingQuotaCaches(); err != nil {
+		return fmt.Errorf("failed to repair image-auto billing quota caches: %w", err)
 	}
 
 	perfmetrics.Init()

@@ -3,6 +3,7 @@ package helper
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
@@ -85,26 +86,52 @@ func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) {
 }
 
 func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) error {
-	if requestContextDone(c) {
-		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
-	}
+	_, err := ResponseChunkDataWithWriteCount(c, resp, data)
+	return err
+}
 
-	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
-	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s", data)})
-	return FlushWriter(c)
+func ResponseChunkDataWithWriteCount(c *gin.Context, resp dto.ResponsesStreamResponse, data string) (int, error) {
+	if c == nil || c.Writer == nil {
+		return 0, errors.New("context or writer is nil")
+	}
+	if requestContextDone(c) {
+		return 0, fmt.Errorf("request context done: %w", c.Request.Context().Err())
+	}
+	SetEventStreamHeaders(c)
+	frame := []byte(fmt.Sprintf("event: %s\ndata: %s\n\n", resp.Type, data))
+	written, err := c.Writer.Write(frame)
+	if err != nil {
+		return written, err
+	}
+	if written != len(frame) {
+		return written, io.ErrShortWrite
+	}
+	return written, FlushWriter(c)
 }
 
 func StringData(c *gin.Context, str string) error {
+	_, err := StringDataWithWriteCount(c, str)
+	return err
+}
+
+func StringDataWithWriteCount(c *gin.Context, str string) (int, error) {
 	if c == nil || c.Writer == nil {
-		return errors.New("context or writer is nil")
+		return 0, errors.New("context or writer is nil")
 	}
 
 	if requestContextDone(c) {
-		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
+		return 0, fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
-
-	c.Render(-1, common.CustomEvent{Data: "data: " + str})
-	return FlushWriter(c)
+	SetEventStreamHeaders(c)
+	frame := []byte("data: " + str + "\n\n")
+	written, err := c.Writer.Write(frame)
+	if err != nil {
+		return written, err
+	}
+	if written != len(frame) {
+		return written, io.ErrShortWrite
+	}
+	return written, FlushWriter(c)
 }
 
 func PingData(c *gin.Context) error {

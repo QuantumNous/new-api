@@ -124,6 +124,9 @@ type RelayInfo struct {
 	// Billing 是计费会话，封装了预扣费/结算/退款的统一生命周期。
 	// 初始免费组可为 nil；若 auto 重试切换到付费组，会在发送前创建。
 	Billing BillingSettler
+	// ImageRouting is non-nil only for the public image-auto model. It holds a
+	// request-start routing/price snapshot and the one final settlement state.
+	ImageRouting *ImageRoutingState
 	// BillingSource indicates whether this request is billed from wallet quota or subscription.
 	// "" or "wallet" => wallet; "subscription" => subscription
 	BillingSource string
@@ -426,6 +429,9 @@ func GenRelayInfoGemini(c *gin.Context, request dto.Request) *RelayInfo {
 func GenRelayInfoImage(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatOpenAIImage
+	if strings.HasPrefix(info.RequestURLPath, "/v1/studio/images/") {
+		info.RequestURLPath = strings.Replace(info.RequestURLPath, "/v1/studio/images/", "/v1/images/", 1)
+	}
 	return info
 }
 

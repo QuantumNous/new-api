@@ -25,6 +25,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/samber/lo"
@@ -92,6 +93,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
+			if !canWriteRelayError(c) {
+				logger.LogError(c, "relay error occurred after response output; suppressing a second response")
+				return
+			}
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
@@ -125,6 +130,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	if _, err := prepareImageAutoRequest(c, relayInfo); err != nil {
+		statusCode := http.StatusBadRequest
+		errorCode := types.ErrorCodeInvalidRequest
+		if errors.Is(err, setting.ErrImageRoutingUnavailable) {
+			statusCode = http.StatusServiceUnavailable
+			errorCode = types.ErrorCodeGetChannelFailed
+		}
+		newAPIError = types.NewErrorWithStatusCode(err, errorCode, statusCode, types.ErrOptionWithSkipRetry())
+		return
+	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
@@ -153,10 +168,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	relayInfo.SetEstimatePromptTokens(tokens)
 
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
-		return
+	var priceData hosttypes.PriceData
+	if relayInfo.ImageRouting != nil {
+		if err = snapshotImageAutoRoutePricing(c, relayInfo, tokens, meta); err != nil {
+			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+			return
+		}
+		priceData = relayInfo.PriceData
+	} else {
+		priceData, err = helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+		if err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+			return
+		}
 	}
 
 	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
@@ -174,10 +198,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		// Only return quota if downstream failed and quota was actually pre-consumed
 		if newAPIError != nil {
 			newAPIError = service.NormalizeViolationFeeError(newAPIError)
-			if relayInfo.Billing != nil {
-				relayInfo.Billing.Refund(c)
+			if err := handleRelayBillingFailure(c, relayInfo, newAPIError); err != nil {
+				common.SysLog("failed to mark ambiguous image-auto request for settlement review: " + err.Error())
 			}
-			service.ChargeViolationFeeIfNeeded(c, relayInfo, newAPIError)
+			if canWriteRelayError(c) {
+				service.ChargeViolationFeeIfNeeded(c, relayInfo, newAPIError)
+			}
 		}
 	}()
 
@@ -191,12 +217,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	retryLimit := common.RetryTimes
+	if imageAutoLimit := imageAutoRetryLimit(relayInfo); imageAutoLimit >= 0 {
+		retryLimit = imageAutoLimit
+	}
+	for ; retryParam.GetRetry() <= retryLimit; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
+		c.Set(common.UpstreamRequestIdKey, "")
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
+			relayInfo.LastError = newAPIError
+			if relayInfo.ImageRouting != nil && shouldRetryImageAutoPreDispatchFailure(c, relayInfo, newAPIError, retryParam.GetRetry()) {
+				continue
+			}
 			break
 		}
 		addUsedChannel(c, channel.Id)
@@ -205,6 +240,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
+		if relayInfo.ImageRouting != nil {
+			if newAPIError = activateImageAutoRoutePricing(c, relayInfo); newAPIError != nil {
+				relayInfo.LastError = newAPIError
+				if shouldRetryImageAutoPreDispatchFailure(c, relayInfo, newAPIError, retryParam.GetRetry()) {
+					continue
+				}
+				break
+			}
+		}
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
@@ -215,7 +259,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			}
 			break
 		}
+		if _, bodyErr = bodyStorage.Seek(0, io.SeekStart); bodyErr != nil {
+			newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			break
+		}
 		c.Request.Body = io.NopCloser(bodyStorage)
+		addUsedChannel(c, channel.Id)
 
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
@@ -236,11 +285,25 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		channelError := types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan())
+		if recordImageAutoCooldown(imageAutoCooldowns, relayInfo, newAPIError) {
+			// A 524 on an image-auto route is a temporary route-local condition.
+			// Keep the persistent channel status untouched while recording the
+			// normal error log and excluding it from later requests briefly.
+			channelError.AutoBan = false
+		}
+		processChannelError(c, *channelError, newAPIError)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		if relayInfo.ImageRouting != nil {
+			if !isImageAutoRetryable(c, relayInfo, newAPIError, retryParam.GetRetry()) {
+				break
+			}
+		} else if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+	}
+	if newAPIError != nil {
+		writeImageAutoTerminalStreamError(c, relayInfo)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -253,6 +316,50 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func canWriteRelayError(c *gin.Context) bool {
+	return c != nil && c.Writer != nil && !c.Writer.Written()
+}
+
+// isImageAutoRefundSafe returns true when the gateway can prove the request
+// did not reach an upstream, independently of the downstream delivery state.
+func isImageAutoRefundSafe(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	switch err.GetErrorCode() {
+	case types.ErrorCodeGetChannelFailed,
+		types.ErrorCodeModelPriceError,
+		types.ErrorCodeReadRequestBodyFailed,
+		types.ErrorCodeConvertRequestFailed,
+		types.ErrorCodeBadRequestBody,
+		types.ErrorCodeInvalidApiType,
+		types.ErrorCodeJsonMarshalFailed:
+		return true
+	case types.ErrorCodeDoRequestFailed:
+		return types.IsRequestNotSentError(err)
+	default:
+		return false
+	}
+}
+
+func handleRelayBillingFailure(c *gin.Context, relayInfo *relaycommon.RelayInfo, err *types.NewAPIError) error {
+	if relayInfo == nil || relayInfo.Billing == nil || err == nil {
+		return nil
+	}
+	if !relayInfo.Billing.NeedsRefund() {
+		return nil
+	}
+	// image-auto settles complete image events inside ImageHelper. Any request
+	// that still reaches this failure path delivered no complete image, so keep
+	// the user's balance whole even if the platform must absorb an ambiguous
+	// upstream generation. Partial JSON/SSE bytes are not a billable result.
+	if relayInfo.ImageRouting != nil || isImageAutoRefundSafe(err) || canWriteRelayError(c) {
+		relayInfo.Billing.Refund(c)
+		return nil
+	}
+	return service.MarkBillingSettlementUnknown(relayInfo, err)
 }
 
 var upgrader = websocket.Upgrader{
@@ -298,6 +405,9 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
+	if info.ImageRouting != nil {
+		return getImageAutoChannel(c, info, retryParam.GetRetry())
+	}
 	if info.ChannelMeta == nil {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1

@@ -41,24 +41,36 @@ func (l *InMemoryRateLimiter) clearExpiredItems() {
 	}
 }
 
-// Request parameter duration's unit is seconds
-func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration int64) bool {
+// RequestWithRetryAfter parameter duration's unit is seconds. The returned
+// retry-after value is the remaining time until the oldest request leaves the
+// fixed window; it is always at least one second when the request is denied.
+func (l *InMemoryRateLimiter) RequestWithRetryAfter(key string, maxRequestNum int, duration int64) (bool, int64) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
+	if maxRequestNum <= 0 {
+		return false, 1
+	}
+	if duration < 1 {
+		duration = 1
+	}
 	// [old <-- new]
 	queue, ok := l.store[key]
 	now := time.Now().Unix()
 	if ok {
 		if len(*queue) < maxRequestNum {
 			*queue = append(*queue, now)
-			return true
+			return true, 0
 		} else {
 			if now-(*queue)[0] >= duration {
 				*queue = (*queue)[1:]
 				*queue = append(*queue, now)
-				return true
+				return true, 0
 			} else {
-				return false
+				retryAfter := duration - (now - (*queue)[0])
+				if retryAfter < 1 {
+					retryAfter = 1
+				}
+				return false, retryAfter
 			}
 		}
 	} else {
@@ -66,5 +78,12 @@ func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration in
 		l.store[key] = &s
 		*(l.store[key]) = append(*(l.store[key]), now)
 	}
-	return true
+	return true, 0
+}
+
+// Request preserves the original allow/deny API for callers that do not need
+// the remaining window.
+func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration int64) bool {
+	allowed, _ := l.RequestWithRetryAfter(key, maxRequestNum, duration)
+	return allowed
 }

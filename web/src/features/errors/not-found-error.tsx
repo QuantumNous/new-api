@@ -16,14 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useNavigate, useRouter } from '@tanstack/react-router'
+import { useRouter } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { navigateThroughServer } from '@/lib/server-navigation'
 
 export function NotFoundError() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const { history } = useRouter()
   return (
     <div className='h-svh'>
@@ -38,7 +38,7 @@ export function NotFoundError() {
           <Button variant='outline' onClick={() => history.go(-1)}>
             {t('Go Back')}
           </Button>
-          <Button onClick={() => navigate({ to: '/' })}>
+          <Button onClick={() => navigateThroughServer('/', 'assign')}>
             {t('Back to Home')}
           </Button>
         </div>

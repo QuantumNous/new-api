@@ -27,6 +27,7 @@ const origin = 'https://dashboard.example.com'
 
 describe('authentication redirect validation', () => {
   test('preserves safe internal paths, search parameters, and fragments', () => {
+    assert.equal(sanitizeAuthRedirect('/studio/', origin), '/studio/')
     assert.equal(
       sanitizeAuthRedirect('/console?tab=usage#recent', origin),
       '/console?tab=usage#recent'

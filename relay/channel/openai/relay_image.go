@@ -22,11 +22,103 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+const imageAutoStreamErrorMessage = relaycommon.ImageRoutingPublicErrorMessage
+
+const maxBufferedImageResponseBytes = 128 << 20
+
+func readBufferedImageResponse(resp *http.Response) ([]byte, error) {
+	if resp == nil || resp.Body == nil {
+		return nil, fmt.Errorf("invalid image response")
+	}
+	if resp.ContentLength > maxBufferedImageResponseBytes {
+		return nil, fmt.Errorf("image response exceeds %d bytes", maxBufferedImageResponseBytes)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBufferedImageResponseBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > maxBufferedImageResponseBytes {
+		return nil, fmt.Errorf("image response exceeds %d bytes", maxBufferedImageResponseBytes)
+	}
+	return body, nil
+}
+
 func updateOpenAIImageCount(info *relaycommon.RelayInfo, count int64) {
-	if info == nil || !info.PriceData.UsePrice || count <= 0 || count > int64(dto.MaxImageN) {
+	if info == nil || count < 0 || count > int64(dto.MaxImageN) {
+		return
+	}
+	if info.ImageRouting != nil {
+		info.ImageRouting.RecordReturnedImages(uint(count))
+	}
+	if !info.PriceData.UsePrice || count == 0 {
 		return
 	}
 	info.PriceData.AddOtherRatio("n", float64(count))
+}
+
+func isImageAutoRelay(info *relaycommon.RelayInfo) bool {
+	return info != nil && info.ImageRouting != nil
+}
+
+func hasValidOpenAIImageOutput(image gjson.Result) bool {
+	for _, field := range []string{"url", "b64_json"} {
+		value := image.Get(field)
+		if value.Type == gjson.String && strings.TrimSpace(value.String()) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func countValidOpenAIImageOutputs(responseBody []byte) int64 {
+	data := gjson.GetBytes(responseBody, "data")
+	if !data.IsArray() {
+		return 0
+	}
+	var count int64
+	data.ForEach(func(_, image gjson.Result) bool {
+		if hasValidOpenAIImageOutput(image) {
+			count++
+		}
+		return true
+	})
+	return count
+}
+
+func newImageAutoEmptyOutputError() *types.NewAPIError {
+	return types.NewOpenAIError(
+		fmt.Errorf("image-auto upstream returned no valid image output"),
+		types.ErrorCodeEmptyResponse,
+		http.StatusBadGateway,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
+
+func newImageAutoStreamError() *types.NewAPIError {
+	return types.NewOpenAIError(
+		fmt.Errorf("%s", imageAutoStreamErrorMessage),
+		types.ErrorCodeBadResponse,
+		http.StatusBadGateway,
+	)
+}
+
+func newImageAutoDownstreamWriteError(err error) *types.NewAPIError {
+	return types.NewOpenAIError(
+		fmt.Errorf("write image response: %w", err),
+		types.ErrorCodeWriteResponseBodyFailed,
+		http.StatusBadGateway,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
+
+func resetUnwrittenImageStreamResponse(c *gin.Context) {
+	if c == nil || c.Writer == nil || c.Writer.Written() {
+		return
+	}
+	for _, name := range []string{"Content-Type", "Cache-Control", "Connection", "Transfer-Encoding", "X-Accel-Buffering"} {
+		c.Writer.Header().Del(name)
+	}
+	delete(c.Keys, "event_stream_headers_set")
 }
 
 // OpenaiImageHandler handles non-streaming OpenAI image responses
@@ -34,7 +126,7 @@ func updateOpenAIImageCount(info *relaycommon.RelayInfo, count int64) {
 func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
-	responseBody, err := io.ReadAll(resp.Body)
+	responseBody, err := readBufferedImageResponse(resp)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
@@ -49,10 +141,26 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
-	updateOpenAIImageCount(info, gjson.GetBytes(responseBody, "data.#").Int())
-
+	imageCount := gjson.GetBytes(responseBody, "data.#").Int()
+	if isImageAutoRelay(info) {
+		imageCount = countValidOpenAIImageOutputs(responseBody)
+		if imageCount == 0 {
+			return nil, newImageAutoEmptyOutputError()
+		}
+	}
 	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
+	written, writeErr := service.IOCopyBytes(c, resp, responseBody)
+	if isImageAutoRelay(info) {
+		info.ImageRouting.RecordDownstreamPayload(written)
+	}
+	if writeErr != nil {
+		logger.LogError(c, fmt.Sprintf(
+			"image response delivery failed: bytes_written=%d expected_bytes=%d error=%v",
+			written, len(responseBody), writeErr,
+		))
+		return nil, newImageAutoDownstreamWriteError(writeErr)
+	}
+	updateOpenAIImageCount(info, imageCount)
 
 	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
@@ -112,48 +220,112 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	usage := &dto.Usage{}
 	var lastStreamData []byte
 	var completedImages int64
+	var imageAutoStreamErr *types.NewAPIError
+	var downstreamWriteErr error
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		raw := common.StringToByteSlice(data)
-		lastStreamData = raw
 		if isOpenAIImageStreamErrorEvent(raw) {
+			if isImageAutoRelay(info) {
+				imageAutoStreamErr = newImageAutoStreamError()
+				if info.ImageRouting.DownstreamPayloadStarted() {
+					payload := struct {
+						Type  string `json:"type"`
+						Error struct {
+							Message string `json:"message"`
+						} `json:"error"`
+					}{Type: "error"}
+					payload.Error.Message = imageAutoStreamErrorMessage
+					jsonData, err := common.Marshal(payload)
+					if err != nil {
+						sr.Stop(fmt.Errorf("marshal image stream error: %w", err))
+						return
+					}
+					written, err := helper.ResponseChunkDataWithWriteCount(c, dto.ResponsesStreamResponse{Type: "error"}, string(jsonData))
+					info.ImageRouting.RecordDownstreamPayload(written)
+					if err != nil {
+						downstreamWriteErr = err
+						sr.Stop(fmt.Errorf("write image stream error: %w", err))
+						return
+					}
+				}
+				sr.Stop(fmt.Errorf("%s", imageAutoStreamErrorMessage))
+				return
+			}
 			// Record the error as a soft error; the scanner drives the final
 			// EndReason. HasErrors() flags the failure for logging/handling.
 			sr.Error(fmt.Errorf("%s", extractOpenAIImageStreamErrorMessage(raw)))
 		}
+		lastStreamData = raw
 		var chunk struct {
 			Type  string    `json:"type"`
 			Usage dto.Usage `json:"usage"`
 		}
+		completedEvent := false
 		if err := common.Unmarshal(raw, &chunk); err == nil {
 			normalizeOpenAIUsage(&chunk.Usage)
 			if service.ValidUsage(&chunk.Usage) {
 				usage = &chunk.Usage
 			}
-			if chunk.Type == "image_generation.completed" || chunk.Type == "image_edit.completed" {
-				completedImages++
-			}
+			completedEvent = (chunk.Type == "image_generation.completed" || chunk.Type == "image_edit.completed") &&
+				(!isImageAutoRelay(info) || hasValidOpenAIImageOutput(gjson.ParseBytes(raw)))
 		}
-		if err := writeOpenaiImageStreamChunk(c, raw); err != nil {
+		written, err := writeOpenaiImageStreamChunk(c, raw)
+		if isImageAutoRelay(info) {
+			info.ImageRouting.RecordDownstreamPayload(written)
+		}
+		if err != nil {
+			downstreamWriteErr = err
 			sr.Stop(err)
+			return
+		}
+		if completedEvent {
+			completedImages++
+			if isImageAutoRelay(info) {
+				info.ImageRouting.RecordReturnedImages(uint(completedImages))
+			}
 		}
 	})
 
-	// StreamScannerHandler consumes the upstream [DONE]; re-emit it so the
-	// client still receives a terminal data: [DONE].
-	if info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone {
-		helper.Done(c)
-	}
-
 	applyUsagePostProcessing(info, usage, lastStreamData)
-	// Only trust completedImages when upstream finished the stream (done/eof).
-	// On client-side aborts (client_gone, or handler_stop from a failed client
-	// write) the counter undercounts what upstream actually generated and
-	// charged, so keep the requested n — otherwise a client could pay for one
-	// image by disconnecting right after the first completed event. The abort
-	// guard only blocks lowering the charge: if completed events already
-	// exceed the recorded n, bill the higher actual count regardless.
-	if info.StreamStatus != nil {
+	if isImageAutoRelay(info) {
+		if downstreamWriteErr != nil {
+			return usage, newImageAutoDownstreamWriteError(downstreamWriteErr)
+		}
+		if imageAutoStreamErr != nil {
+			if completedImages == 0 {
+				resetUnwrittenImageStreamResponse(c)
+				return nil, imageAutoStreamErr
+			}
+			return usage, imageAutoStreamErr
+		}
+		upstreamFinished := info.StreamStatus != nil && !info.StreamStatus.HasErrors() &&
+			(info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone ||
+				(info.StreamStatus.EndReason == relaycommon.StreamEndReasonEOF && completedImages > 0))
+		if !upstreamFinished {
+			summary := "unknown"
+			if info.StreamStatus != nil {
+				summary = info.StreamStatus.Summary()
+			}
+			resetUnwrittenImageStreamResponse(c)
+			return usage, types.NewOpenAIError(
+				fmt.Errorf("image stream ended before a complete result: %s", summary),
+				types.ErrorCodeBadResponse,
+				http.StatusBadGateway,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+		if completedImages == 0 {
+			resetUnwrittenImageStreamResponse(c)
+			return nil, newImageAutoEmptyOutputError()
+		}
+		updateOpenAIImageCount(info, completedImages)
+		if _, err := helper.StringDataWithWriteCount(c, "[DONE]"); err != nil {
+			return usage, newImageAutoDownstreamWriteError(err)
+		}
+	} else if info.StreamStatus != nil {
+		// Preserve legacy billing outside image-auto: on an aborted stream the
+		// observed counter may undercount images already generated upstream.
 		upstreamFinished := info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone ||
 			info.StreamStatus.EndReason == relaycommon.StreamEndReasonEOF
 		requestedN := 1.0
@@ -163,6 +335,9 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		if upstreamFinished || float64(completedImages) > requestedN {
 			updateOpenAIImageCount(info, completedImages)
 		}
+		if info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone {
+			helper.Done(c)
+		}
 	}
 	return usage, nil
 }
@@ -170,15 +345,15 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 // writeOpenaiImageStreamChunk rebuilds the SSE frame for an image stream chunk:
 // it emits an "event:" line derived from the JSON "type" field (when present)
 // followed by the verbatim "data:" payload, mirroring helper.ResponseChunkData.
-func writeOpenaiImageStreamChunk(c *gin.Context, data []byte) error {
+func writeOpenaiImageStreamChunk(c *gin.Context, data []byte) (int, error) {
 	var payload struct {
 		Type string `json:"type"`
 	}
 	_ = common.Unmarshal(data, &payload)
 	if eventName := strings.TrimSpace(payload.Type); eventName != "" {
-		return helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: eventName}, string(data))
+		return helper.ResponseChunkDataWithWriteCount(c, dto.ResponsesStreamResponse{Type: eventName}, string(data))
 	}
-	return helper.StringData(c, string(data))
+	return helper.StringDataWithWriteCount(c, string(data))
 }
 
 // isOpenAIImageStreamErrorEvent detects upstream error chunks by JSON content
@@ -234,7 +409,7 @@ func extractOpenAIImageStreamErrorMessage(data []byte) string {
 func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
-	responseBody, err := io.ReadAll(resp.Body)
+	responseBody, err := readBufferedImageResponse(resp)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
@@ -252,9 +427,14 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 
-	imageCount := gjson.GetBytes(responseBody, "data.#").Int()
-	updateOpenAIImageCount(info, imageCount)
-
+	dataCount := gjson.GetBytes(responseBody, "data.#").Int()
+	imageCount := dataCount
+	if isImageAutoRelay(info) {
+		imageCount = countValidOpenAIImageOutputs(responseBody)
+		if imageCount == 0 {
+			return nil, newImageAutoEmptyOutputError()
+		}
+	}
 	helper.SetEventStreamHeaders(c)
 	c.Status(http.StatusOK)
 
@@ -275,8 +455,12 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		}
 	}
 
-	for i := int64(0); i < imageCount; i++ {
+	var emittedImages int64
+	for i := int64(0); i < dataCount; i++ {
 		image := gjson.GetBytes(responseBody, "data."+strconv.FormatInt(i, 10))
+		if isImageAutoRelay(info) && !hasValidOpenAIImageOutput(image) {
+			continue
+		}
 		payload := []byte(`{"type":"image_generation.completed"}`)
 		payload, err = sjson.SetBytes(payload, "created_at", created)
 		if err != nil {
@@ -305,21 +489,30 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
 		}
-		if writeErr := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "image_generation.completed"}, string(payload)); writeErr != nil {
+		written, writeErr := helper.ResponseChunkDataWithWriteCount(c, dto.ResponsesStreamResponse{Type: "image_generation.completed"}, string(payload))
+		if isImageAutoRelay(info) {
+			info.ImageRouting.RecordDownstreamPayload(written)
+		}
+		if writeErr != nil {
 			if info != nil && info.StreamStatus != nil {
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, writeErr)
 			}
-			return &usageResp.Usage, nil
+			return &usageResp.Usage, newImageAutoDownstreamWriteError(writeErr)
+		}
+		emittedImages++
+		if isImageAutoRelay(info) {
+			info.ImageRouting.RecordReturnedImages(uint(emittedImages))
 		}
 	}
 	if err := writeOpenaiImageStreamDone(c); err != nil {
 		if info != nil && info.StreamStatus != nil {
 			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, err)
 		}
-		return &usageResp.Usage, nil
+		return &usageResp.Usage, newImageAutoDownstreamWriteError(err)
 	}
+	updateOpenAIImageCount(info, emittedImages)
 	if info != nil {
-		info.ReceivedResponseCount += int(imageCount)
+		info.ReceivedResponseCount += int(emittedImages)
 		if info.StreamStatus == nil {
 			info.StreamStatus = relaycommon.NewStreamStatus()
 		}

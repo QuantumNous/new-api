@@ -69,14 +69,15 @@ const (
 	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"
 
 	// response error
-	ErrorCodeReadResponseBodyFailed ErrorCode = "read_response_body_failed"
-	ErrorCodeBadResponseStatusCode  ErrorCode = "bad_response_status_code"
-	ErrorCodeBadResponse            ErrorCode = "bad_response"
-	ErrorCodeBadResponseBody        ErrorCode = "bad_response_body"
-	ErrorCodeEmptyResponse          ErrorCode = "empty_response"
-	ErrorCodeAwsInvokeError         ErrorCode = "aws_invoke_error"
-	ErrorCodeModelNotFound          ErrorCode = "model_not_found"
-	ErrorCodePromptBlocked          ErrorCode = "prompt_blocked"
+	ErrorCodeReadResponseBodyFailed  ErrorCode = "read_response_body_failed"
+	ErrorCodeWriteResponseBodyFailed ErrorCode = "write_response_body_failed"
+	ErrorCodeBadResponseStatusCode   ErrorCode = "bad_response_status_code"
+	ErrorCodeBadResponse             ErrorCode = "bad_response"
+	ErrorCodeBadResponseBody         ErrorCode = "bad_response_body"
+	ErrorCodeEmptyResponse           ErrorCode = "empty_response"
+	ErrorCodeAwsInvokeError          ErrorCode = "aws_invoke_error"
+	ErrorCodeModelNotFound           ErrorCode = "model_not_found"
+	ErrorCodePromptBlocked           ErrorCode = "prompt_blocked"
 
 	// sql error
 	ErrorCodeQueryDataError  ErrorCode = "query_data_error"
@@ -91,11 +92,17 @@ type NewAPIError struct {
 	Err            error
 	RelayError     any
 	skipRetry      bool
-	recordErrorLog *bool
-	errorType      ErrorType
-	errorCode      ErrorCode
-	StatusCode     int
-	Metadata       json.RawMessage
+	requestNotSent bool
+	// imageRoutingUpstreamStatusCode preserves the provider's HTTP status for
+	// image retry/cooldown decisions. Channel mappings may later rewrite the
+	// client-visible StatusCode.
+	imageRoutingUpstreamStatusCode int
+	imageRoutingUpstreamRejected   bool
+	recordErrorLog                 *bool
+	errorType                      ErrorType
+	errorCode                      ErrorCode
+	StatusCode                     int
+	Metadata                       json.RawMessage
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
@@ -378,9 +385,79 @@ func IsSkipRetryError(err *NewAPIError) bool {
 	return err.skipRetry
 }
 
+// IsRequestNotSentError reports transport failures for which the HTTP client
+// observed no completed request write. Callers may use this narrow signal to
+// retry non-idempotent work on another route without replaying a sent request.
+func IsRequestNotSentError(err *NewAPIError) bool {
+	return err != nil && err.requestNotSent
+}
+
+// ClassifyImageRoutingUpstreamResponse records only response statuses that
+// prove the image request was rejected before generation. Timeout and server
+// failures remain ambiguous because the provider may still enqueue or bill
+// the request after the downstream connection fails.
+func ClassifyImageRoutingUpstreamResponse(err *NewAPIError) *NewAPIError {
+	if err == nil {
+		return nil
+	}
+	err.imageRoutingUpstreamStatusCode = err.StatusCode
+	switch err.StatusCode {
+	case 400, 401, 402, 403, 404, 405, 406, 413, 415, 422, 429:
+		err.imageRoutingUpstreamRejected = true
+	}
+	return err
+}
+
+func IsImageRoutingUpstreamRejected(err *NewAPIError) bool {
+	return err != nil && err.imageRoutingUpstreamRejected
+}
+
+func ImageRoutingUpstreamStatusCode(err *NewAPIError) int {
+	if err == nil {
+		return 0
+	}
+	return err.imageRoutingUpstreamStatusCode
+}
+
+// IsImageRoutingErrorRetryable permits replay only when dispatch is known not
+// to have happened or when the upstream definitively rejected the request.
+func IsImageRoutingErrorRetryable(err *NewAPIError, responseStarted bool, hasUnusedRoute bool) bool {
+	if err == nil || responseStarted || !hasUnusedRoute {
+		return false
+	}
+	if IsImageRoutingUpstreamRejected(err) {
+		return true
+	}
+	switch err.GetErrorCode() {
+	case ErrorCodeDoRequestFailed:
+		return IsRequestNotSentError(err)
+	case ErrorCodeChannelModelMappedError,
+		ErrorCodeConvertRequestFailed,
+		ErrorCodeInvalidApiType:
+		return true
+	case ErrorCodeReadResponseBodyFailed,
+		ErrorCodeBadResponseBody, ErrorCodeEmptyResponse:
+		return false
+	}
+	return false
+}
+
 func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.skipRetry = true
+	}
+}
+
+func ErrOptionWithRequestNotSent() NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.requestNotSent = true
+	}
+}
+
+func ErrOptionWithImageRoutingUpstreamResponse(statusCode int, rejected bool) NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.imageRoutingUpstreamStatusCode = statusCode
+		e.imageRoutingUpstreamRejected = rejected
 	}
 }
 

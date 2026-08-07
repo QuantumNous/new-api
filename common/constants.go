@@ -208,6 +208,12 @@ var (
 	CriticalRateLimitNum            = 20
 	CriticalRateLimitDuration int64 = 20 * 60
 
+	// Auth refresh has its own IP bucket so a client refreshing a valid browser
+	// session cannot exhaust the stricter login/password-reset allowance.
+	AuthRefreshRateLimitEnable   bool
+	AuthRefreshRateLimitNum            = 60
+	AuthRefreshRateLimitDuration int64 = 20 * 60
+
 	UploadRateLimitNum            = 10
 	UploadRateLimitDuration int64 = 60
 

@@ -52,6 +52,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   },
   personal: {
     enabled: true,
+    studio: true,
     topup: true,
     personal: true,
   },
@@ -63,6 +64,10 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     user: true,
     setting: true,
     subscription: true,
+    agent: true,
+    activity: true,
+    geo: true,
+    imageRouting: true,
   },
 }
 
@@ -106,6 +111,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/usage-logs/drawing': { section: 'console', module: 'midjourney' },
   '/usage-logs/task': { section: 'console', module: 'task' },
   '/wallet': { section: 'personal', module: 'topup' },
+  '/studio/': { section: 'personal', module: 'studio' },
   '/profile': { section: 'personal', module: 'personal' },
   '/channels': { section: 'admin', module: 'channel' },
   '/models': { section: 'admin', module: 'models' },
@@ -116,6 +122,10 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/subscriptions': { section: 'admin', module: 'subscription' },
   '/system-settings': { section: 'admin', module: 'setting' },
   '/system-settings/site': { section: 'admin', module: 'setting' },
+  '/agent/admin': { section: 'admin', module: 'agent' },
+  '/agent/active': { section: 'admin', module: 'activity' },
+  '/geo-admin/': { section: 'admin', module: 'geo' },
+  '/geo-admin/image-routing': { section: 'admin', module: 'imageRouting' },
 }
 
 /**

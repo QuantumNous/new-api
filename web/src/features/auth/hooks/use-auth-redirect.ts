@@ -24,6 +24,7 @@ import {
   sanitizeAuthRedirect,
 } from '@/features/auth/lib/auth-redirect'
 import { applyAuthBundle } from '@/lib/api'
+import { navigateThroughServer } from '@/lib/server-navigation'
 import type { AuthBundle } from '@/stores/auth-store'
 
 /**
@@ -49,7 +50,7 @@ export function useAuthRedirect() {
 
     const targetPath =
       sanitizeAuthRedirect(redirectTo, window.location.origin) ?? '/dashboard'
-    navigate({ href: targetPath, replace: true })
+    navigateThroughServer(targetPath, 'replace')
   }
 
   /**

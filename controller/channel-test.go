@@ -490,6 +490,15 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			newAPIError: types.NewOpenAIError(bodyErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
 		}
 	}
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations {
+		if bodyErr := validateImageTestResponseBody(respBody, isStream); bodyErr != nil {
+			return testResult{
+				context:     c,
+				localErr:    bodyErr,
+				newAPIError: types.NewOpenAIError(bodyErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
+			}
+		}
+	}
 	info.SetEstimatePromptTokens(usage.PromptTokens)
 
 	quota, tieredResult := settleTestQuota(info, priceData, usage)
@@ -510,7 +519,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		Group:            info.UsingGroup,
 		Other:            other,
 	})
-	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	common.SysLog(fmt.Sprintf("testing channel #%d, response: %s", channel.Id, channelTestResponseLogSummary(info.RelayMode, isStream, respBody)))
 	return testResult{
 		context:     c,
 		localErr:    nil,
@@ -659,8 +668,121 @@ func validateTestResponseBody(respBody []byte, isStream bool) error {
 	return nil
 }
 
+func validateImageTestResponseBody(respBody []byte, isStream bool) error {
+	if !isStream {
+		data := gjson.GetBytes(respBody, "data")
+		if !data.IsArray() || len(data.Array()) == 0 {
+			return errors.New("image test response contains no images")
+		}
+		for _, image := range data.Array() {
+			if strings.TrimSpace(image.Get("url").String()) != "" || strings.TrimSpace(image.Get("b64_json").String()) != "" {
+				usage := gjson.GetBytes(respBody, "usage")
+				if usage.Exists() && !usage.IsObject() {
+					return errors.New("image test response contains invalid usage")
+				}
+				return nil
+			}
+		}
+		return errors.New("image test response contains no usable image data")
+	}
+
+	for _, line := range bytes.Split(bytes.TrimSpace(respBody), []byte{'\n'}) {
+		line = bytes.TrimSpace(line)
+		if !bytes.HasPrefix(line, []byte("data:")) {
+			continue
+		}
+		payload := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
+		if len(payload) == 0 || bytes.Equal(payload, []byte("[DONE]")) {
+			continue
+		}
+		if strings.TrimSpace(gjson.GetBytes(payload, "url").String()) != "" || strings.TrimSpace(gjson.GetBytes(payload, "b64_json").String()) != "" {
+			return nil
+		}
+	}
+	return errors.New("image test stream contains no completed image data")
+}
+
+func channelTestResponseLogSummary(relayMode int, isStream bool, respBody []byte) string {
+	if relayMode != relayconstant.RelayModeImagesGenerations && relayMode != relayconstant.RelayModeImagesEdits {
+		return string(respBody)
+	}
+	if isStream {
+		imageEvents := 0
+		usagePresent := false
+		for _, line := range bytes.Split(bytes.TrimSpace(respBody), []byte{'\n'}) {
+			line = bytes.TrimSpace(line)
+			if !bytes.HasPrefix(line, []byte("data:")) {
+				continue
+			}
+			payload := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
+			if len(payload) == 0 || bytes.Equal(payload, []byte("[DONE]")) {
+				continue
+			}
+			if strings.TrimSpace(gjson.GetBytes(payload, "url").String()) != "" || strings.TrimSpace(gjson.GetBytes(payload, "b64_json").String()) != "" {
+				imageEvents++
+			}
+			usagePresent = usagePresent || gjson.GetBytes(payload, "usage").Exists()
+		}
+		return fmt.Sprintf("image_stream_events=%d usage_present=%t", imageEvents, usagePresent)
+	}
+	usage := gjson.GetBytes(respBody, "usage")
+	usageSummary := "usage_present=false"
+	if usage.Exists() {
+		usageSummary = fmt.Sprintf("usage_present=true input_tokens=%d output_tokens=%d total_tokens=%d",
+			gjson.GetBytes(respBody, "usage.input_tokens").Int(),
+			gjson.GetBytes(respBody, "usage.output_tokens").Int(),
+			gjson.GetBytes(respBody, "usage.total_tokens").Int())
+	}
+	return fmt.Sprintf("image_count=%d %s", gjson.GetBytes(respBody, "data.#").Int(), usageSummary)
+}
+
+func shouldProbeImageAutoChannelAt(channel *model.Channel, manual bool, now time.Time) bool {
+	if channel == nil || automaticChannelTestEndpoint(channel) == "" {
+		return true
+	}
+	if manual {
+		return true
+	}
+	if channel.Status != common.ChannelStatusAutoDisabled {
+		return false
+	}
+	if channel.TestTime <= 0 {
+		return true
+	}
+	interval := 15 * time.Minute
+	other := channel.GetOtherInfo()
+	if raw, ok := other["status_time"].(float64); ok && raw > 0 {
+		disabledFor := now.Sub(time.Unix(int64(raw), 0))
+		switch {
+		case disabledFor < 15*time.Minute:
+			interval = 5 * time.Minute
+		case disabledFor < time.Hour:
+			interval = 15 * time.Minute
+		case disabledFor < 6*time.Hour:
+			interval = 30 * time.Minute
+		default:
+			interval = time.Hour
+		}
+	}
+	return now.Sub(time.Unix(channel.TestTime, 0)) >= interval
+}
+
 func shouldUseStreamForAutomaticChannelTest(channel *model.Channel) bool {
 	return channel != nil && channel.Type == constant.ChannelTypeCodex
+}
+
+func automaticChannelTestEndpoint(channel *model.Channel) string {
+	if channelIsDedicatedImageAutoRoute(channel, "imageauto", imageAutoPublicModel) {
+		return string(constant.EndpointTypeImageGeneration)
+	}
+	return ""
+}
+
+func automaticChannelTestModel(channel *model.Channel) string {
+	if automaticChannelTestEndpoint(channel) != "" {
+		return imageAutoPublicModel
+	}
+	return ""
 }
 
 func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
@@ -707,10 +829,10 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		case constant.EndpointTypeImageGeneration:
 			// 返回 ImageRequest
 			return &dto.ImageRequest{
-				Model:  model,
-				Prompt: "a cute cat",
-				N:      lo.ToPtr(uint(1)),
-				Size:   "1024x1024",
+				Model:   model,
+				Prompt:  "health check",
+				N:       lo.ToPtr(uint(1)),
+				Quality: "low",
 			}
 		case constant.EndpointTypeJinaRerank:
 			// 返回 RerankRequest
@@ -924,7 +1046,7 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 		}
 		isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 		tik := time.Now()
-		result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+		result := testChannel(ctx, channel, testUserID, automaticChannelTestModel(channel), automaticChannelTestEndpoint(channel), shouldUseStreamForAutomaticChannelTest(channel))
 		tok := time.Now()
 		milliseconds := tok.Sub(tik).Milliseconds()
 		if ctx != nil && ctx.Err() != nil {
@@ -1006,7 +1128,7 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	if strings.TrimSpace(mode) == "" {
 		mode = operation_setting.GetMonitorSetting().ChannelTestMode
 	}
-	selected := selectChannelsForAutomaticTest(channels, mode)
+	selected := selectChannelsForAutomaticTest(channels, mode, notify)
 	allowDisable := mode != operation_setting.ChannelTestModePassiveRecovery
 	summary := performChannelTests(ctx, selected, testUserID, allowDisable, report)
 	if notify && (ctx == nil || ctx.Err() == nil) {
@@ -1015,13 +1137,20 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	return summary, nil
 }
 
-func selectChannelsForAutomaticTest(channels []*model.Channel, mode string) []*model.Channel {
+func selectChannelsForAutomaticTest(channels []*model.Channel, mode string, manual bool) []*model.Channel {
 	selected := make([]*model.Channel, 0, len(channels))
+	now := time.Now()
 	for _, channel := range channels {
 		if channel.Status == common.ChannelStatusManuallyDisabled {
 			continue
 		}
 		if mode == operation_setting.ChannelTestModePassiveRecovery && channel.Status != common.ChannelStatusAutoDisabled {
+			continue
+		}
+		// A successful image test creates a billable image. Periodic tests only
+		// probe dedicated routes after a breaker opens, with bounded backoff;
+		// an explicit manual test still includes healthy image routes.
+		if automaticChannelTestEndpoint(channel) != "" && !shouldProbeImageAutoChannelAt(channel, manual, now) {
 			continue
 		}
 		selected = append(selected, channel)

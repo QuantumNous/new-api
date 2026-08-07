@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +19,66 @@ import (
 type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
 	Value string `json:"value"`
+}
+
+var ErrOptionRevisionConflict = errors.New("option revision conflict")
+
+func optionRevision(value string) (int64, error) {
+	var payload struct {
+		Revision int64 `json:"revision"`
+	}
+	if err := common.Unmarshal([]byte(value), &payload); err != nil || payload.Revision < 0 {
+		return 0, ErrOptionRevisionConflict
+	}
+	return payload.Revision, nil
+}
+
+// UpdateRevisionedOptionCAS atomically publishes the next revision. The value
+// predicate protects the write even on databases where SELECT FOR UPDATE is
+// unavailable, while PostgreSQL's transaction serialization handles writers
+// that observed the same prior revision concurrently.
+func UpdateRevisionedOptionCAS(key, value string, expectedRevision int64) error {
+	if key == "" || expectedRevision < 0 {
+		return ErrOptionRevisionConflict
+	}
+	desiredRevision, err := optionRevision(value)
+	if err != nil || desiredRevision != expectedRevision+1 {
+		return ErrOptionRevisionConflict
+	}
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var current Option
+		result := tx.Where("key = ?", key).Limit(1).Find(&current)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			if expectedRevision != 0 {
+				return ErrOptionRevisionConflict
+			}
+			if err := tx.Create(&Option{Key: key, Value: value}).Error; err != nil {
+				return ErrOptionRevisionConflict
+			}
+			return nil
+		}
+		currentRevision, err := optionRevision(current.Value)
+		if err != nil || currentRevision != expectedRevision {
+			return ErrOptionRevisionConflict
+		}
+		updated := tx.Model(&Option{}).
+			Where("key = ? AND value = ?", key, current.Value).
+			Update("value", value)
+		if updated.Error != nil {
+			return updated.Error
+		}
+		if updated.RowsAffected != 1 {
+			return ErrOptionRevisionConflict
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return updateOptionMap(key, value)
 }
 
 func AllOption() ([]*Option, error) {
@@ -136,6 +197,7 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
+	common.OptionMap["TrustQuota"] = strconv.Itoa(common.TrustQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
 	common.OptionMap["ModelRequestRateLimitDurationMinutes"] = strconv.Itoa(setting.ModelRequestRateLimitDurationMinutes)
 	common.OptionMap["ModelRequestRateLimitSuccessCount"] = strconv.Itoa(setting.ModelRequestRateLimitSuccessCount)
@@ -537,6 +599,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":
 		common.PreConsumedQuota, _ = strconv.Atoi(value)
+	case "TrustQuota":
+		common.TrustQuota, _ = strconv.Atoi(value)
 	case "ModelRequestRateLimitCount":
 		setting.ModelRequestRateLimitCount, _ = strconv.Atoi(value)
 	case "ModelRequestRateLimitDurationMinutes":

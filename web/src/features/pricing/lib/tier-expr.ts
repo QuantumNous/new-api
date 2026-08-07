@@ -268,6 +268,322 @@ export type EvalResult = {
   error: string | null
 }
 
+type EvalValue = boolean | number | string
+
+type ExprToken = {
+  type: 'eof' | 'identifier' | 'number' | 'operator' | 'string'
+  value: string
+}
+
+const MAX_LOCAL_EXPR_LENGTH = 8_192
+const MAX_LOCAL_EXPR_TOKENS = 2_048
+
+function tokenizeLocalExpr(source: string): ExprToken[] {
+  if (source.length > MAX_LOCAL_EXPR_LENGTH) {
+    throw new Error('Expression is too long')
+  }
+
+  const tokens: ExprToken[] = []
+  let offset = 0
+  const push = (token: ExprToken) => {
+    tokens.push(token)
+    if (tokens.length > MAX_LOCAL_EXPR_TOKENS) {
+      throw new Error('Expression has too many tokens')
+    }
+  }
+
+  while (offset < source.length) {
+    const rest = source.slice(offset)
+    const whitespace = rest.match(/^\s+/)
+    if (whitespace) {
+      offset += whitespace[0].length
+      continue
+    }
+
+    const number = rest.match(/^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/)
+    if (number) {
+      push({ type: 'number', value: number[0] })
+      offset += number[0].length
+      continue
+    }
+
+    const identifier = rest.match(/^[A-Za-z_][A-Za-z0-9_]*/)
+    if (identifier) {
+      push({ type: 'identifier', value: identifier[0] })
+      offset += identifier[0].length
+      continue
+    }
+
+    if (source[offset] === '"') {
+      const start = offset
+      offset += 1
+      let escaped = false
+      while (offset < source.length) {
+        const character = source[offset]
+        offset += 1
+        if (escaped) {
+          escaped = false
+        } else if (character === '\\') {
+          escaped = true
+        } else if (character === '"') {
+          break
+        }
+      }
+      const raw = source.slice(start, offset)
+      if (!raw.endsWith('"')) throw new Error('Unterminated string')
+      let value: unknown
+      try {
+        value = JSON.parse(raw)
+      } catch {
+        throw new Error('Invalid string')
+      }
+      if (typeof value !== 'string') throw new Error('Invalid string')
+      push({ type: 'string', value })
+      continue
+    }
+
+    const compound = ['&&', '||', '<=', '>=', '==', '!='].find((operator) =>
+      rest.startsWith(operator)
+    )
+    if (compound) {
+      push({ type: 'operator', value: compound })
+      offset += compound.length
+      continue
+    }
+
+    const operator = source[offset]
+    if ('+-*/%<>()?:,!'.includes(operator)) {
+      push({ type: 'operator', value: operator })
+      offset += 1
+      continue
+    }
+
+    throw new Error(`Unsupported expression syntax at position ${offset + 1}`)
+  }
+
+  push({ type: 'eof', value: '' })
+  return tokens
+}
+
+class LocalExprEvaluator {
+  private position = 0
+  matchedTier = ''
+
+  constructor(
+    private readonly tokens: ExprToken[],
+    private readonly variables: Record<string, number>
+  ) {}
+
+  evaluate(): number {
+    const value = this.parseConditional(true)
+    this.expect('eof')
+    const cost = this.asNumber(value)
+    if (!Number.isFinite(cost)) throw new Error('Expression is not finite')
+    return cost
+  }
+
+  private current(): ExprToken {
+    return this.tokens[this.position]
+  }
+
+  private match(value: string): boolean {
+    if (this.current().value !== value) return false
+    this.position += 1
+    return true
+  }
+
+  private expect(type: ExprToken['type'], value?: string): ExprToken {
+    const token = this.current()
+    if (token.type !== type || (value !== undefined && token.value !== value)) {
+      throw new Error('Invalid expression syntax')
+    }
+    this.position += 1
+    return token
+  }
+
+  private parseConditional(run: boolean): EvalValue {
+    const condition = this.parseOr(run)
+    if (!this.match('?')) return condition
+
+    const conditionMatched = run && this.asBoolean(condition)
+    const consequent = this.parseConditional(conditionMatched)
+    this.expect('operator', ':')
+    const alternate = this.parseConditional(run && !conditionMatched)
+    if (!run) return 0
+    return conditionMatched ? consequent : alternate
+  }
+
+  private parseOr(run: boolean): EvalValue {
+    let value = this.parseAnd(run)
+    while (this.match('||')) {
+      const matched = run && this.asBoolean(value)
+      const right = this.parseAnd(run && !matched)
+      value = run ? matched || this.asBoolean(right) : 0
+    }
+    return value
+  }
+
+  private parseAnd(run: boolean): EvalValue {
+    let value = this.parseEquality(run)
+    while (this.match('&&')) {
+      const matched = run && this.asBoolean(value)
+      const right = this.parseEquality(run && matched)
+      value = run ? matched && this.asBoolean(right) : 0
+    }
+    return value
+  }
+
+  private parseEquality(run: boolean): EvalValue {
+    let value = this.parseComparison(run)
+    while (['==', '!='].includes(this.current().value)) {
+      const operator = this.current().value
+      this.position += 1
+      const right = this.parseComparison(run)
+      if (run) value = operator === '==' ? value === right : value !== right
+    }
+    return value
+  }
+
+  private parseComparison(run: boolean): EvalValue {
+    let value = this.parseAdditive(run)
+    while (['<', '<=', '>', '>='].includes(this.current().value)) {
+      const operator = this.current().value
+      this.position += 1
+      const right = this.parseAdditive(run)
+      if (!run) continue
+      const leftNumber = this.asNumber(value)
+      const rightNumber = this.asNumber(right)
+      if (operator === '<') value = leftNumber < rightNumber
+      if (operator === '<=') value = leftNumber <= rightNumber
+      if (operator === '>') value = leftNumber > rightNumber
+      if (operator === '>=') value = leftNumber >= rightNumber
+    }
+    return value
+  }
+
+  private parseAdditive(run: boolean): EvalValue {
+    let value = this.parseMultiplicative(run)
+    while (['+', '-'].includes(this.current().value)) {
+      const operator = this.current().value
+      this.position += 1
+      const right = this.parseMultiplicative(run)
+      if (!run) continue
+      value =
+        operator === '+'
+          ? this.asNumber(value) + this.asNumber(right)
+          : this.asNumber(value) - this.asNumber(right)
+    }
+    return value
+  }
+
+  private parseMultiplicative(run: boolean): EvalValue {
+    let value = this.parseUnary(run)
+    while (['*', '/', '%'].includes(this.current().value)) {
+      const operator = this.current().value
+      this.position += 1
+      const right = this.parseUnary(run)
+      if (!run) continue
+      const leftNumber = this.asNumber(value)
+      const rightNumber = this.asNumber(right)
+      if (operator === '*') value = leftNumber * rightNumber
+      if (operator === '/') value = leftNumber / rightNumber
+      if (operator === '%') value = leftNumber % rightNumber
+    }
+    return value
+  }
+
+  private parseUnary(run: boolean): EvalValue {
+    if (this.match('!')) {
+      const value = this.parseUnary(run)
+      return run ? !this.asBoolean(value) : 0
+    }
+    if (this.match('+')) {
+      const value = this.parseUnary(run)
+      return run ? this.asNumber(value) : 0
+    }
+    if (this.match('-')) {
+      const value = this.parseUnary(run)
+      return run ? -this.asNumber(value) : 0
+    }
+    return this.parsePrimary(run)
+  }
+
+  private parsePrimary(run: boolean): EvalValue {
+    const token = this.current()
+    if (token.type === 'number') {
+      this.position += 1
+      const value = Number(token.value)
+      if (!Number.isFinite(value)) throw new Error('Invalid number')
+      return run ? value : 0
+    }
+    if (token.type === 'string') {
+      this.position += 1
+      return run ? token.value : ''
+    }
+    if (this.match('(')) {
+      const value = this.parseConditional(run)
+      this.expect('operator', ')')
+      return value
+    }
+    if (token.type !== 'identifier') throw new Error('Invalid expression syntax')
+
+    this.position += 1
+    const name = token.value
+    if (this.match('(')) {
+      const args: EvalValue[] = []
+      if (!this.match(')')) {
+        do {
+          args.push(this.parseConditional(run))
+        } while (this.match(','))
+        this.expect('operator', ')')
+      }
+      return this.callFunction(name, args, run)
+    }
+
+    if (name === 'true') return run ? true : 0
+    if (name === 'false') return run ? false : 0
+    if (!(name in this.variables)) throw new Error('Unknown expression variable')
+    return run ? this.variables[name] : 0
+  }
+
+  private callFunction(name: string, args: EvalValue[], run: boolean): EvalValue {
+    const arity = (expected: number) => {
+      if (args.length !== expected) throw new Error('Invalid function arguments')
+    }
+    if (name === 'tier') {
+      arity(2)
+      if (!run) return 0
+      if (typeof args[0] !== 'string') throw new Error('Invalid tier label')
+      this.matchedTier = args[0]
+      return this.asNumber(args[1])
+    }
+
+    if (!['max', 'min', 'abs', 'ceil', 'floor'].includes(name)) {
+      throw new Error('Unknown expression function')
+    }
+    if (name === 'max' || name === 'min') arity(2)
+    else arity(1)
+    if (!run) return 0
+    const numbers = args.map((value) => this.asNumber(value))
+    if (name === 'max') return Math.max(...numbers)
+    if (name === 'min') return Math.min(...numbers)
+    if (name === 'abs') return Math.abs(numbers[0])
+    if (name === 'ceil') return Math.ceil(numbers[0])
+    return Math.floor(numbers[0])
+  }
+
+  private asBoolean(value: EvalValue): boolean {
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'number' && Number.isFinite(value)) return value !== 0
+    throw new Error('Expected a boolean or number')
+  }
+
+  private asNumber(value: EvalValue): number {
+    if (typeof value !== 'number') throw new Error('Expected a number')
+    return value
+  }
+}
+
 export function evalExprLocally(
   exprStr: string,
   promptTokens: number,
@@ -278,36 +594,24 @@ export function evalExprLocally(
     if (!exprStr || !exprStr.trim()) {
       return { cost: 0, matchedTier: '', error: null }
     }
-    let matchedTier = ''
-    const tierFn = (name: string, value: number) => {
-      matchedTier = name
-      return value
-    }
     const cacheReadTokens = extraTokenValues.cacheReadTokens || 0
     const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0
     const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0
     const len =
       promptTokens + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens
-    const env: Record<string, unknown> = {
+    const variables: Record<string, number> = {
       p: promptTokens,
       c: completionTokens,
       len,
-      tier: tierFn,
-      max: Math.max,
-      min: Math.min,
-      abs: Math.abs,
-      ceil: Math.ceil,
-      floor: Math.floor,
     }
     for (const field of ESTIMATOR_VARS) {
-      env[field.var] = extraTokenValues[field.stateKey] || 0
+      variables[field.var] = extraTokenValues[field.stateKey] || 0
     }
-    const fn = new Function(
-      ...Object.keys(env),
-      `"use strict"; return (${exprStr});`
-    )
-    const cost = Number(fn(...Object.values(env))) || 0
-    return { cost, matchedTier, error: null }
+    const versionMatch = exprStr.match(/^v\d+:([\s\S]*)$/)
+    const body = versionMatch ? versionMatch[1] : exprStr
+    const evaluator = new LocalExprEvaluator(tokenizeLocalExpr(body), variables)
+    const cost = evaluator.evaluate()
+    return { cost, matchedTier: evaluator.matchedTier, error: null }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     return { cost: 0, matchedTier: '', error: message }

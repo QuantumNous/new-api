@@ -657,6 +657,25 @@ func TestTryTieredSettle_ErrorFallbackToEstimatedQuotaAfterGroup(t *testing.T) {
 	}
 }
 
+func TestTryTieredSettle_ErrorFallbackNeverReturnsNegativeQuota(t *testing.T) {
+	const invalidExpr = `invalid expr!!!`
+	info := &relaycommon.RelayInfo{
+		FinalPreConsumedQuota: -10,
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:              "tiered_expr",
+			ExprString:               invalidExpr,
+			ExprHash:                 billingexpr.ExprHashString(invalidExpr),
+			EstimatedQuotaAfterGroup: -999,
+		},
+	}
+
+	ok, quota, result := TryTieredSettle(info, billingexpr.TokenParams{P: 100})
+
+	require.True(t, ok)
+	require.Zero(t, quota, "a failed calculation fallback must never credit the user")
+	require.Nil(t, result)
+}
+
 // ---------------------------------------------------------------------------
 // BuildTieredTokenParams: token normalization and ratio parity tests
 // ---------------------------------------------------------------------------

@@ -16,9 +16,40 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/sjson"
 )
+
+func prepareImageUsageForSettlement(info *relaycommon.RelayInfo, usage *dto.Usage) error {
+	return service.FinalizeImageRoutingSettlement(info, usage)
+}
+
+func sanitizeImageAutoError(info *relaycommon.RelayInfo, apiErr *types.NewAPIError) *types.NewAPIError {
+	if info == nil || info.ImageRouting == nil || apiErr == nil {
+		return apiErr
+	}
+	options := make([]types.NewAPIErrorOptions, 0, 2)
+	if types.IsSkipRetryError(apiErr) {
+		options = append(options, types.ErrOptionWithSkipRetry())
+	}
+	if types.IsRequestNotSentError(apiErr) {
+		options = append(options, types.ErrOptionWithRequestNotSent())
+	}
+	if upstreamStatus := types.ImageRoutingUpstreamStatusCode(apiErr); upstreamStatus != 0 {
+		options = append(options, types.ErrOptionWithImageRoutingUpstreamResponse(
+			upstreamStatus,
+			types.IsImageRoutingUpstreamRejected(apiErr),
+		))
+	}
+	return types.NewOpenAIError(
+		fmt.Errorf("%s", relaycommon.ImageRoutingPublicErrorMessage),
+		apiErr.GetErrorCode(),
+		apiErr.StatusCode,
+		options...,
+	)
+}
 
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -27,10 +58,18 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if !ok {
 		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected dto.ImageRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
-
 	request, err := common.DeepCopy(imageReq)
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to ImageRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+	if info.ImageRouting != nil && info.ChannelType == constant.ChannelTypeOpenAI {
+		route, routeErr := info.ImageRouting.ActiveRoute()
+		if routeErr != nil {
+			return types.NewError(routeErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		if route.BillingMode == hosttypes.ImageRoutingBillingMetered && route.UpstreamModel == "gpt-image-2" {
+			request.ResponseFormat = ""
+		}
 	}
 
 	err = helper.ModelMappedHelper(c, info, request)
@@ -46,7 +85,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	var requestBody io.Reader
 
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	if info.ImageRouting == nil && (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -69,10 +108,20 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			}
 
 			// apply param override
-			if len(info.ParamOverride) > 0 {
+			if info.ImageRouting == nil && len(info.ParamOverride) > 0 {
 				jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 				if err != nil {
 					return newAPIErrorFromParamOverride(err)
+				}
+			}
+			if info.ImageRouting != nil {
+				upstreamModel := strings.TrimSpace(info.UpstreamModelName)
+				if upstreamModel == "" {
+					return types.NewError(fmt.Errorf("image-auto upstream model is unavailable"), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+				}
+				jsonData, err = sjson.SetBytes(jsonData, "model", upstreamModel)
+				if err != nil {
+					return types.NewError(fmt.Errorf("failed to enforce image-auto upstream model: %w", err), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 				}
 			}
 
@@ -91,7 +140,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
-		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+		return sanitizeImageAutoError(info, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError))
 	}
 	var httpResp *http.Response
 	if resp != nil {
@@ -103,18 +152,31 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				httpResp.StatusCode = http.StatusOK
 			} else {
 				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+				if info.ImageRouting != nil {
+					newAPIError = types.ClassifyImageRoutingUpstreamResponse(newAPIError)
+				}
 				// reset status code 重置状态码
 				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-				return newAPIError
+				return sanitizeImageAutoError(info, newAPIError)
 			}
 		}
 	}
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
+		if info.ImageRouting != nil && info.ImageRouting.ReturnedImagesKnown && info.ImageRouting.ReturnedImages > 0 {
+			imageUsage, _ := usage.(*dto.Usage)
+			if err := prepareImageUsageForSettlement(info, imageUsage); err != nil {
+				return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
+			}
+			// A completed image event is independently usable. Settle exactly the
+			// fully written images and let the platform absorb any ambiguous or
+			// partially written remainder.
+			service.PostTextConsumeQuota(c, info, imageUsage, nil)
+		}
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-		return newAPIError
+		return sanitizeImageAutoError(info, newAPIError)
 	}
 
 	imageN := uint(1)
@@ -122,11 +184,24 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		imageN = *request.N
 	}
 
-	if usage.(*dto.Usage).TotalTokens == 0 {
-		usage.(*dto.Usage).TotalTokens = 1
+	imageUsage, ok := usage.(*dto.Usage)
+	if !ok {
+		return types.NewError(fmt.Errorf("invalid image usage type: %T", usage), types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
 	}
-	if usage.(*dto.Usage).PromptTokens == 0 {
-		usage.(*dto.Usage).PromptTokens = 1
+	if err := prepareImageUsageForSettlement(info, imageUsage); err != nil {
+		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
+	}
+
+	// Preserve legacy fixed-image billing behavior for models outside image-auto.
+	// image-auto must retain absent usage so its configured missing-usage route
+	// policy can settle transparently instead of fabricating a one-token result.
+	if info.ImageRouting == nil {
+		if imageUsage.TotalTokens == 0 {
+			imageUsage.TotalTokens = 1
+		}
+		if imageUsage.PromptTokens == 0 {
+			imageUsage.PromptTokens = 1
+		}
 	}
 
 	quality := request.Quality
@@ -146,6 +221,6 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		logContent = append(logContent, fmt.Sprintf("生成数量 %d", imageN))
 	}
 
-	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
+	service.PostTextConsumeQuota(c, info, imageUsage, logContent)
 	return nil
 }

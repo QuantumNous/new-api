@@ -34,6 +34,24 @@ type ChannelAffinitySetting struct {
 	MaxEntries            int                   `json:"max_entries"`
 	DefaultTTLSeconds     int                   `json:"default_ttl_seconds"`
 	Rules                 []ChannelAffinityRule `json:"rules"`
+
+	// PriorityAware, when true, drops an affinity binding and falls back to normal
+	// (priority-ordered) channel selection whenever a strictly higher-priority
+	// channel has recovered for the same (group, model) and has stayed enabled
+	// continuously for at least PriorityAwareStableSeconds. This lets a long-lived
+	// CLI/session that got pinned to a fallback channel during an auto-breaker
+	// disable window switch back to the primary channel once it is trustworthy,
+	// instead of staying on the fallback for the rest of the affinity TTL.
+	// Equal-or-lower priority never triggers a switch, so prompt-cache hit rate is
+	// preserved whenever nothing has actually improved.
+	PriorityAware bool `json:"priority_aware"`
+	// PriorityAwareStableSeconds is the minimum time a higher-priority channel must
+	// have been continuously enabled (per the in-memory channel cache) before
+	// priority-aware affinity trusts it enough to break an existing binding. This
+	// is the anti-flapping / anti-thundering-herd guard: a channel that just
+	// recovered (or is flapping disabled/enabled) will not immediately pull traffic
+	// away from a channel that is currently working. A value <= 0 falls back to 120.
+	PriorityAwareStableSeconds int `json:"priority_aware_stable_seconds"`
 }
 
 // Keep Codex CLI passthrough aligned with upstream. Codex uses lower-case
@@ -110,11 +128,13 @@ func buildCodexPassHeaderTemplate() map[string]interface{} {
 }
 
 var channelAffinitySetting = ChannelAffinitySetting{
-	Enabled:               true,
-	SwitchOnSuccess:       true,
-	KeepOnChannelDisabled: false,
-	MaxEntries:            100_000,
-	DefaultTTLSeconds:     3600,
+	Enabled:                    true,
+	SwitchOnSuccess:            true,
+	KeepOnChannelDisabled:      false,
+	MaxEntries:                 100_000,
+	DefaultTTLSeconds:          3600,
+	PriorityAware:              true,
+	PriorityAwareStableSeconds: 120,
 	Rules: []ChannelAffinityRule{
 		{
 			Name:       "codex cli trace",

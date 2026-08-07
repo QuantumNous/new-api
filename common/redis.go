@@ -158,6 +158,128 @@ func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
 	return nil
 }
 
+// RedisCacheVersion returns the current invalidation generation for a cache.
+// A missing version key is generation zero.
+func RedisCacheVersion(versionKey string) (int64, error) {
+	value, err := RDB.Get(context.Background(), versionKey).Int64()
+	if errors.Is(err, redis.Nil) {
+		return 0, nil
+	}
+	return value, err
+}
+
+func cacheVersionTTLSeconds() int {
+	if ttl := RedisKeyCacheSeconds(); ttl > 0 {
+		return ttl
+	}
+	return 24 * 60 * 60
+}
+
+// RedisHSetObjIfVersion populates a hash only when no invalidation happened
+// after its database snapshot was read. The version check, HSET and expiry are
+// one Redis operation so another instance cannot interleave an invalidation.
+func RedisHSetObjIfVersion(key string, obj interface{}, expiration time.Duration, versionKey string, expectedVersion int64) (bool, error) {
+	data := make(map[string]interface{})
+	v := reflect.ValueOf(obj)
+	if v.Kind() != reflect.Ptr || v.IsNil() || v.Elem().Kind() != reflect.Struct {
+		return false, fmt.Errorf("obj must be a non-nil pointer to a struct, got %T", obj)
+	}
+	v = v.Elem()
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		field := t.Field(i)
+		value := v.Field(i)
+		if field.Type.String() == "gorm.DeletedAt" {
+			continue
+		}
+		if value.Kind() == reflect.Ptr {
+			if value.IsNil() {
+				data[field.Name] = ""
+				continue
+			}
+			value = value.Elem()
+		}
+		if value.Kind() == reflect.Bool {
+			data[field.Name] = strconv.FormatBool(value.Bool())
+		} else {
+			data[field.Name] = fmt.Sprintf("%v", value.Interface())
+		}
+	}
+	args := make([]interface{}, 0, 2+2*len(data))
+	args = append(args, expectedVersion, int64(expiration/time.Second))
+	for field, value := range data {
+		args = append(args, field, value)
+	}
+	const script = "local current = redis.call('GET', KEYS[2]); " +
+		"if not current then current = '0' end; " +
+		"if current ~= ARGV[1] then return 0 end; " +
+		"for i = 3, #ARGV, 2 do redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1]) end; " +
+		"local ttl = tonumber(ARGV[2]); if ttl and ttl > 0 then redis.call('EXPIRE', KEYS[1], ttl) end; return 1"
+	result, err := RDB.Eval(context.Background(), script, []string{key, versionKey}, args...).Int64()
+	return result == 1, err
+}
+
+// RedisBumpCacheVersionAndDelete atomically prevents old snapshots from being
+// refilled and removes the current cache value across all application instances.
+func RedisBumpCacheVersionAndDelete(versionKey, cacheKey string) error {
+	// Version keys are coordination metadata, not durable state. Keep them for
+	// at least the cache lifetime so stale writers lose their CAS, then reclaim
+	// them to prevent create/delete churn from leaking Redis keys indefinitely.
+	const script = "redis.call('INCR', KEYS[1]); redis.call('EXPIRE', KEYS[1], ARGV[1]); redis.call('DEL', KEYS[2]); return 1"
+	return RDB.Eval(context.Background(), script, []string{versionKey, cacheKey}, cacheVersionTTLSeconds()).Err()
+}
+
+// RedisHIncrByWithVersion updates a cache after its durable database mutation.
+// A missing hash needs no pending delta because a later refill already sees the
+// committed database value.
+func RedisHIncrByWithVersion(key, field string, delta int64, versionKey string) error {
+	const script = "redis.call('INCR', KEYS[2]); redis.call('EXPIRE', KEYS[2], ARGV[3]); " +
+		"if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end; " +
+		"local ttl = redis.call('TTL', KEYS[1]); redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[2]); " +
+		"if ttl > 0 then redis.call('EXPIRE', KEYS[1], ttl) end; return 1"
+	return RDB.Eval(context.Background(), script, []string{key, versionKey}, field, delta, cacheVersionTTLSeconds()).Err()
+}
+
+// RedisHIncrByWithVersionPending applies debits before their database mutation
+// is durably flushed. Credits wait for the durable write, preventing a failed
+// batch from creating spendable cache-only quota. The debit total is recorded
+// even when the hash exists so acknowledgements can preserve newer mutations.
+func RedisHIncrByWithVersionPending(key, field string, delta int64, versionKey string) error {
+	pendingKey := versionKey + ":pending:" + field
+	const script = "redis.call('INCR', KEYS[2]); redis.call('EXPIRE', KEYS[2], ARGV[3]); " +
+		"if tonumber(ARGV[2]) >= 0 then return 0 end; " +
+		"redis.call('INCRBY', KEYS[3], ARGV[2]); redis.call('EXPIRE', KEYS[3], ARGV[3]); " +
+		"if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end; " +
+		"local ttl = redis.call('TTL', KEYS[1]); redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[2]); " +
+		"if ttl > 0 then redis.call('EXPIRE', KEYS[1], ttl) end; return 1"
+	return RDB.Eval(context.Background(), script, []string{key, versionKey, pendingKey}, field, delta, cacheVersionTTLSeconds()).Err()
+}
+
+// RedisHApplyPendingDelta applies uncommitted batch deltas after a
+// version-checked snapshot write. The pending total remains until the durable
+// batch writer acknowledges it; cache refills are readers, not owners, of the
+// cross-store commit record.
+func RedisHApplyPendingDelta(key, field, versionKey string) error {
+	pendingKey := versionKey + ":pending:" + field
+	const script = "local pending = redis.call('GET', KEYS[3]); if not pending then return 0 end; " +
+		"if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end; redis.call('HINCRBY', KEYS[1], ARGV[1], pending); return 1"
+	return RDB.Eval(context.Background(), script, []string{key, versionKey, pendingKey}, field).Err()
+}
+
+// RedisHAcknowledgePendingDelta acknowledges a quota mutation after the same
+// delta has been committed to the database. The script preserves newer pending
+// mutations and invalidates any refill that raced the database commit.
+func RedisHAcknowledgePendingDelta(key, field string, pendingDelta int64, versionKey string) error {
+	pendingKey := versionKey + ":pending:" + field
+	const script = "local pending = redis.call('GET', KEYS[1]); " +
+		"if pending and tonumber(ARGV[1]) ~= 0 then local remaining = tonumber(pending) - tonumber(ARGV[1]); " +
+		"if remaining == 0 then redis.call('DEL', KEYS[1]); " +
+		"else local ttl = redis.call('TTL', KEYS[1]); redis.call('SET', KEYS[1], remaining); " +
+		"if ttl > 0 then redis.call('EXPIRE', KEYS[1], ttl) end end end; " +
+		"redis.call('INCR', KEYS[2]); redis.call('EXPIRE', KEYS[2], ARGV[2]); redis.call('DEL', KEYS[3]); return 1"
+	return RDB.Eval(context.Background(), script, []string{pendingKey, versionKey, key}, pendingDelta, cacheVersionTTLSeconds()).Err()
+}
+
 func RedisHGetObj(key string, obj interface{}) error {
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis HGETALL: key=%s", key))

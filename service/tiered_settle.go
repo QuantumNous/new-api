@@ -161,9 +161,28 @@ func PrepareTieredBillingForSelectedGroup(c *gin.Context, relayInfo *relaycommon
 //   - ok=true, quota, result  when tiered billing applies
 //   - ok=false, 0, nil        when it doesn't (caller should fall through to existing logic)
 func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenParams) (ok bool, quota int, result *billingexpr.TieredResult) {
+	ok, quota, result, err := TryTieredSettleChecked(relayInfo, params)
+	if !ok || err == nil {
+		return ok, quota, result
+	}
+
+	quota = relayInfo.FinalPreConsumedQuota
+	if quota <= 0 {
+		quota = relayInfo.TieredBillingSnapshot.EstimatedQuotaAfterGroup
+	}
+	if quota < 0 {
+		quota = 0
+	}
+	return true, quota, nil
+}
+
+// TryTieredSettleChecked computes tiered settlement without converting a
+// calculation error into a successful charge. Callers that require durable
+// reconciliation can distinguish "not tiered" from "tiered but uncomputable".
+func TryTieredSettleChecked(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenParams) (ok bool, quota int, result *billingexpr.TieredResult, err error) {
 	snap := relayInfo.TieredBillingSnapshot
 	if snap == nil || snap.BillingMode != "tiered_expr" {
-		return false, 0, nil
+		return false, 0, nil, nil
 	}
 
 	requestInput := billingexpr.RequestInput{}
@@ -173,11 +192,7 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 
 	tr, err := billingexpr.ComputeTieredQuotaWithRequest(snap, params, requestInput)
 	if err != nil {
-		quota = relayInfo.FinalPreConsumedQuota
-		if quota <= 0 {
-			quota = snap.EstimatedQuotaAfterGroup
-		}
-		return true, quota, nil
+		return true, 0, nil, err
 	}
 
 	// Surface any int32 saturation from settlement onto RelayInfo so the
@@ -185,5 +200,5 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 	// (text, audio, WSS) consumes the returned quota. First non-nil wins.
 	noteQuotaClamp(relayInfo, tr.Clamp)
 
-	return true, tr.ActualQuotaAfterGroup, &tr
+	return true, tr.ActualQuotaAfterGroup, &tr, nil
 }

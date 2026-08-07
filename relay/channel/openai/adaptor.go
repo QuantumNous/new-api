@@ -11,6 +11,8 @@ import (
 	"net/textproto"
 	"net/url"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -476,28 +478,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 
 		if mf != nil && mf.File != nil {
-			// Check if "image" field exists in any form, including array notation
-			var imageFiles []*multipart.FileHeader
-			var exists bool
-
-			// First check for standard "image" field
-			if imageFiles, exists = mf.File["image"]; !exists || len(imageFiles) == 0 {
-				// If not found, check for "image[]" field
-				if imageFiles, exists = mf.File["image[]"]; !exists || len(imageFiles) == 0 {
-					// If still not found, iterate through all fields to find any that start with "image["
-					foundArrayImages := false
-					for fieldName, files := range mf.File {
-						if strings.HasPrefix(fieldName, "image[") && len(files) > 0 {
-							foundArrayImages = true
-							imageFiles = append(imageFiles, files...)
-						}
-					}
-
-					// If no image fields found at all
-					if !foundArrayImages && (len(imageFiles) == 0) {
-						return nil, errors.New("image is required")
-					}
-				}
+			imageFiles := orderedImageEditFiles(mf.File)
+			if len(imageFiles) == 0 {
+				return nil, errors.New("image is required")
 			}
 
 			// Process all image files
@@ -572,6 +555,43 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	default:
 		return request, nil
 	}
+}
+
+// orderedImageEditFiles accepts the multipart spellings recognized by the
+// image-auto admission check. Repeated fields retain their wire order, while
+// explicitly indexed fields use their numeric index instead of Go map order.
+func orderedImageEditFiles(files map[string][]*multipart.FileHeader) []*multipart.FileHeader {
+	ordered := make([]*multipart.FileHeader, 0)
+	ordered = append(ordered, files["image"]...)
+	ordered = append(ordered, files["image[]"]...)
+
+	type indexedImageFiles struct {
+		index int
+		field string
+		files []*multipart.FileHeader
+	}
+	indexed := make([]indexedImageFiles, 0)
+	for field, headers := range files {
+		if field == "image[]" || !strings.HasPrefix(field, "image[") || !strings.HasSuffix(field, "]") {
+			continue
+		}
+		rawIndex := strings.TrimSuffix(strings.TrimPrefix(field, "image["), "]")
+		index, err := strconv.Atoi(rawIndex)
+		if err != nil || rawIndex == "" || index < 0 {
+			continue
+		}
+		indexed = append(indexed, indexedImageFiles{index: index, field: field, files: headers})
+	}
+	sort.SliceStable(indexed, func(i, j int) bool {
+		if indexed[i].index == indexed[j].index {
+			return indexed[i].field < indexed[j].field
+		}
+		return indexed[i].index < indexed[j].index
+	})
+	for _, item := range indexed {
+		ordered = append(ordered, item.files...)
+	}
+	return ordered
 }
 
 func isJSONRequest(c *gin.Context) bool {

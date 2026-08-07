@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +13,29 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type failImageWriteNumber struct {
+	gin.ResponseWriter
+	failAt int
+	writes int
+}
+
+func (w *failImageWriteNumber) Write(p []byte) (int, error) {
+	w.writes++
+	if w.writes == w.failAt {
+		return 0, errors.New("forced downstream write failure")
+	}
+	return w.ResponseWriter.Write(p)
+}
+
+func (w *failImageWriteNumber) WriteString(s string) (int, error) {
+	return w.Write([]byte(s))
+}
 
 func newImageTestContext(t *testing.T, body, contentType string, isStream bool) (*gin.Context, *httptest.ResponseRecorder, *http.Response, *relaycommon.RelayInfo) {
 	t.Helper()
@@ -33,6 +54,79 @@ func newImageTestContext(t *testing.T, body, contentType string, isStream bool) 
 		IsStream:    isStream,
 	}
 	return c, recorder, resp, info
+}
+
+func TestOpenaiImageAutoNonStreamWriteFailureIsNotDelivered(t *testing.T) {
+	c, _, resp, info := newImageTestContext(t, `{"data":[{"b64_json":"valid"}]}`, "application/json", false)
+	enableImageAutoFixedRoute(t, info, 1)
+	c.Writer = &failImageWriteNumber{ResponseWriter: c.Writer, failAt: 1}
+
+	usage, err := OpenaiImageHandler(c, info, resp)
+
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.Equal(t, types.ErrorCodeWriteResponseBodyFailed, err.GetErrorCode())
+	require.False(t, info.ImageRouting.DownstreamPayloadStarted())
+	require.False(t, info.ImageRouting.ReturnedImagesKnown)
+}
+
+func TestOpenaiImageAutoJSONStreamSettlesOnlyFramesWrittenBeforeFailure(t *testing.T) {
+	c, _, resp, info := newImageTestContext(t, `{"data":[{"b64_json":"first"},{"b64_json":"second"}]}`, "application/json", true)
+	enableImageAutoFixedRoute(t, info, 2)
+	c.Writer = &failImageWriteNumber{ResponseWriter: c.Writer, failAt: 2}
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+
+	require.NotNil(t, usage)
+	require.NotNil(t, err)
+	require.Equal(t, types.ErrorCodeWriteResponseBodyFailed, err.GetErrorCode())
+	require.True(t, info.ImageRouting.DownstreamPayloadStarted())
+	require.True(t, info.ImageRouting.ReturnedImagesKnown)
+	require.Equal(t, uint(1), info.ImageRouting.ReturnedImages)
+	require.NoError(t, service.FinalizeImageRoutingSettlement(info, usage))
+	quota, breached := service.ResolveImageRoutingQuota(info, 999999)
+	require.Equal(t, 100000, quota)
+	require.False(t, breached)
+}
+
+func TestOpenaiImageAutoRejectsOversizedBufferedResponse(t *testing.T) {
+	c, recorder, resp, info := newImageTestContext(t, "", "application/json", false)
+	enableImageAutoFixedRoute(t, info, 1)
+	resp.ContentLength = maxBufferedImageResponseBytes + 1
+
+	usage, err := OpenaiImageHandler(c, info, resp)
+
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.Equal(t, types.ErrorCodeReadResponseBodyFailed, err.GetErrorCode())
+	require.False(t, c.Writer.Written())
+	require.Empty(t, recorder.Body.String())
+}
+
+func enableImageAutoFixedRoute(t *testing.T, info *relaycommon.RelayInfo, n uint) {
+	t.Helper()
+	plan, err := (types.ImageRoutingConfig{
+		Enabled:     true,
+		PublicModel: "image-auto",
+		PublicGroup: "imageauto",
+		MaxN:        4,
+		Routes: []types.ImageRoutingRoute{
+			{
+				ID:                 "alt",
+				ChannelID:          36,
+				Priority:           1,
+				Enabled:            true,
+				BillingMode:        types.ImageRoutingBillingFixed,
+				UpstreamModel:      "gpt-image-2",
+				FixedQuotaPerImage: 100000,
+			},
+		},
+	}).BuildPlan("low", n)
+	require.NoError(t, err)
+	info.ImageRouting = relaycommon.NewImageRoutingState(plan)
+	require.NoError(t, info.ImageRouting.ActivateRoute(0))
+	info.PriceData.UsePrice = true
+	info.PriceData.AddOtherRatio("n", float64(n))
 }
 
 func TestOpenaiImageDoResponseUsesInfoIsStream(t *testing.T) {
@@ -64,6 +158,133 @@ func TestOpenaiImageDoResponseUsesInfoIsStream(t *testing.T) {
 		require.Contains(t, recorder.Body.String(), `event: image_generation.completed`)
 		require.Contains(t, recorder.Body.String(), `data: [DONE]`)
 	})
+}
+
+func TestOpenaiImageAutoNonStreamingRequiresValidOutputBeforeWriting(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	for _, body := range []string{
+		`{"data":[]}`,
+		`{"data":[{}, {"url":""}, {"b64_json":"   "}]}`,
+	} {
+		c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+		enableImageAutoFixedRoute(t, info, 3)
+
+		usage, err := OpenaiImageHandler(c, info, resp)
+
+		require.Nil(t, usage)
+		require.NotNil(t, err)
+		require.Equal(t, types.ErrorCodeEmptyResponse, err.GetErrorCode())
+		require.True(t, types.IsSkipRetryError(err))
+		require.False(t, c.Writer.Written())
+		require.Empty(t, recorder.Body.String())
+	}
+}
+
+func TestOpenaiImageAutoNonStreamingCountsOnlyValidOutputs(t *testing.T) {
+	body := `{"data":[{"url":""},{"b64_json":"valid"},{"url":"   "}]}`
+	c, recorder, resp, info := newImageTestContext(t, body, "application/json", false)
+	enableImageAutoFixedRoute(t, info, 3)
+
+	usage, err := OpenaiImageHandler(c, info, resp)
+
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, 1.0, info.PriceData.OtherRatios()["n"])
+	require.Equal(t, body, recorder.Body.String())
+}
+
+func TestOpenaiImageAutoJSONAsStreamRequiresValidOutputBeforeWriting(t *testing.T) {
+	body := `{"data":[{"url":""},{"b64_json":" "}]}`
+	c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+	enableImageAutoFixedRoute(t, info, 2)
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.Equal(t, types.ErrorCodeEmptyResponse, err.GetErrorCode())
+	require.True(t, types.IsSkipRetryError(err))
+	require.False(t, c.Writer.Written())
+	require.Empty(t, recorder.Body.String())
+	require.NotContains(t, recorder.Header().Get("Content-Type"), "text/event-stream")
+}
+
+func TestOpenaiImageAutoJSONAsStreamEmitsAndBillsOnlyValidOutputs(t *testing.T) {
+	body := `{"data":[{"url":""},{"b64_json":"valid"},{"revised_prompt":"missing output"}]}`
+	c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+	enableImageAutoFixedRoute(t, info, 3)
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, 1, strings.Count(recorder.Body.String(), `event: image_generation.completed`))
+	require.Contains(t, recorder.Body.String(), `"b64_json":"valid"`)
+	require.Equal(t, 1.0, info.PriceData.OtherRatios()["n"])
+}
+
+func TestOpenaiImageAutoSSEErrorDoesNotBillInvalidOutputs(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"type":"image_generation.partial_image","b64_json":"partial"}`,
+		``,
+		`data: {"type":"image_generation.completed","b64_json":" "}`,
+		``,
+		`data: {"type":"upstream_error","error":{"message":"stream ID 77 from upstream.example; key sk-secret; balance 0"}}`,
+		``,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+	c, recorder, resp, info := newImageTestContext(t, body, "text/event-stream", true)
+	enableImageAutoFixedRoute(t, info, 3)
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+	require.NotNil(t, err)
+	require.Nil(t, usage)
+	require.True(t, c.Writer.Written(), "forwarded stream output must prevent a route retry")
+	require.False(t, types.IsImageRoutingErrorRetryable(err, true, true))
+	require.Contains(t, recorder.Body.String(), `event: error`)
+	require.Contains(t, recorder.Body.String(), `Image generation failed.`)
+	require.NotContains(t, recorder.Body.String(), `stream ID 77`)
+	require.NotContains(t, recorder.Body.String(), `upstream.example`)
+	require.NotContains(t, recorder.Body.String(), `sk-secret`)
+	require.NotContains(t, recorder.Body.String(), `balance 0`)
+	require.False(t, info.ImageRouting.ReturnedImagesKnown)
+}
+
+func TestOpenaiImageAutoSSECountsOnlyCompletedEventsWithOutput(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"type":"image_generation.partial_image","b64_json":"partial"}`,
+		``,
+		`data: {"type":"image_generation.completed","b64_json":""}`,
+		``,
+		`data: {"type":"image_generation.completed","url":"https://example.test/image.png"}`,
+		``,
+		`data: {"type":"image_edit.completed","revised_prompt":"missing output"}`,
+		``,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+	c, _, resp, info := newImageTestContext(t, body, "text/event-stream", true)
+	enableImageAutoFixedRoute(t, info, 3)
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NoError(t, service.FinalizeImageRoutingSettlement(info, usage))
+	require.Equal(t, 1.0, info.PriceData.OtherRatios()["n"])
+	quota, breached := service.ResolveImageRoutingQuota(info, 1)
+	require.Equal(t, 100000, quota)
+	require.False(t, breached)
 }
 
 // TestOpenaiImageStreamHandlerForwardsSSEAndUsage covers the core SSE path:
@@ -137,6 +358,28 @@ func TestOpenaiImageStreamHandlerUsesCompletedEventCount(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 7, usage.TotalTokens)
 	require.Equal(t, 2.0, info.PriceData.OtherRatios()["n"])
+}
+
+func TestOpenaiImageStreamHandlerNonImageAutoCountsCompletedEventWithoutOutput(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"type":"image_generation.completed","revised_prompt":"provider omitted output fields"}`,
+		``,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+	c, _, resp, info := newImageTestContext(t, body, "text/event-stream", true)
+	info.PriceData.UsePrice = true
+	info.PriceData.AddOtherRatio("n", 3)
+
+	_, err := OpenaiImageStreamHandler(c, info, resp)
+
+	require.Nil(t, err)
+	require.Nil(t, info.ImageRouting)
+	require.Equal(t, 1.0, info.PriceData.OtherRatios()["n"])
 }
 
 // blockingBody serves one SSE chunk, then blocks until Close (the scanner's
@@ -215,12 +458,9 @@ func newDisconnectingImageStream(t *testing.T, sseBody, disconnectAfter string) 
 	return c, recorder, resp, info
 }
 
-// TestOpenaiImageStreamHandlerClientDisconnectKeepsRequestedCount guards the
-// billing invariant: completed-event counting must not lower the charge when
-// the client aborts the stream. Upstream already generated (and charged for)
-// all requested images, so a disconnect after the first completed event keeps
-// the requested n instead of dropping it to 1.
-func TestOpenaiImageStreamHandlerClientDisconnectKeepsRequestedCount(t *testing.T) {
+// A completed frame whose flush fails is not a proven usable image and must
+// not become a user charge.
+func TestOpenaiImageStreamHandlerClientDisconnectDoesNotCountFailedFrame(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
 	t.Cleanup(func() { gin.SetMode(oldMode) })
@@ -231,12 +471,12 @@ func TestOpenaiImageStreamHandlerClientDisconnectKeepsRequestedCount(t *testing.
 
 	body := "data: {\"type\":\"image_generation.completed\",\"b64_json\":\"first\"}\n\n"
 	c, recorder, resp, info := newDisconnectingImageStream(t, body, "first")
-	info.PriceData.UsePrice = true
-	info.PriceData.AddOtherRatio("n", 3)
+	enableImageAutoFixedRoute(t, info, 3)
 
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
 
-	require.Nil(t, err)
+	require.NotNil(t, err)
+	require.Equal(t, types.ErrorCodeWriteResponseBodyFailed, err.GetErrorCode())
 	require.NotNil(t, usage)
 	require.NotNil(t, info.StreamStatus)
 	// A client abort surfaces as client_gone (main-loop ctx watch) or
@@ -245,13 +485,12 @@ func TestOpenaiImageStreamHandlerClientDisconnectKeepsRequestedCount(t *testing.
 		[]relaycommon.StreamEndReason{relaycommon.StreamEndReasonClientGone, relaycommon.StreamEndReasonHandlerStop},
 		info.StreamStatus.EndReason)
 	require.Contains(t, recorder.Body.String(), `"b64_json":"first"`)
-	require.Equal(t, 3.0, info.PriceData.OtherRatios()["n"], "client abort must not reduce the billed image count")
+	require.False(t, info.ImageRouting.ReturnedImagesKnown)
 }
 
-// TestOpenaiImageStreamHandlerClientDisconnectRaisesCount covers the other
-// direction of the abort guard: when completed events already exceed the
-// recorded n, the higher actual count is billed even though the client aborted.
-func TestOpenaiImageStreamHandlerClientDisconnectRaisesCount(t *testing.T) {
+// A later failed frame cannot erase an earlier fully flushed image, and cannot
+// increase the charge beyond that proven delivery.
+func TestOpenaiImageStreamHandlerClientDisconnectKeepsOnlyFlushedImages(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
 	t.Cleanup(func() { gin.SetMode(oldMode) })
@@ -268,18 +507,19 @@ func TestOpenaiImageStreamHandlerClientDisconnectRaisesCount(t *testing.T) {
 		``,
 	}, "\n")
 	c, _, resp, info := newDisconnectingImageStream(t, body, "second")
-	info.PriceData.UsePrice = true
-	info.PriceData.AddOtherRatio("n", 1)
+	enableImageAutoFixedRoute(t, info, 1)
 
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
 
-	require.Nil(t, err)
+	require.NotNil(t, err)
+	require.Equal(t, types.ErrorCodeWriteResponseBodyFailed, err.GetErrorCode())
 	require.NotNil(t, usage)
 	require.NotNil(t, info.StreamStatus)
 	require.Contains(t,
 		[]relaycommon.StreamEndReason{relaycommon.StreamEndReasonClientGone, relaycommon.StreamEndReasonHandlerStop},
 		info.StreamStatus.EndReason)
-	require.Equal(t, 2.0, info.PriceData.OtherRatios()["n"], "completed events beyond the recorded n must raise the charge even on abort")
+	require.True(t, info.ImageRouting.ReturnedImagesKnown)
+	require.Equal(t, uint(1), info.ImageRouting.ReturnedImages)
 }
 
 // TestOpenaiImageStreamHandlerWrapsJSONResponse covers the non-SSE fallback:
@@ -410,10 +650,7 @@ func TestOpenaiImageHandlersReturnJSONError(t *testing.T) {
 	})
 }
 
-// TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent verifies that an error
-// event inside the SSE stream is recorded as a soft error while the payload is
-// still forwarded to the client.
-func TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent(t *testing.T) {
+func TestOpenaiImageAutoSSEErrorBeforeOutputIsNotRetried(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
 	t.Cleanup(func() { gin.SetMode(oldMode) })
@@ -423,27 +660,67 @@ func TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent(t *testing.T) {
 	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
 
 	body := strings.Join([]string{
-		`event: image_generation.partial_image`,
-		`data: {"type":"image_generation.partial_image","b64_json":"partial"}`,
-		``,
 		`event: error`,
-		`data: {"type":"upstream_error","error":{"message":"stream error: stream ID 77; INTERNAL_ERROR; received from peer"}}`,
+		`data: {"type":"upstream_error","error":{"message":"stream ID 77 from upstream.example; key sk-secret; balance 0"}}`,
 		``,
 	}, "\n")
 
 	c, recorder, resp, info := newImageTestContext(t, body, "text/event-stream", true)
+	enableImageAutoFixedRoute(t, info, 3)
 
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
-	require.Nil(t, err)
-	require.NotNil(t, usage)
+	require.Nil(t, usage)
+	require.NotNil(t, err)
+	require.Equal(t, http.StatusBadGateway, err.StatusCode)
+	require.False(t, types.IsImageRoutingErrorRetryable(err, false, true))
+	require.False(t, c.Writer.Written())
+	require.Empty(t, recorder.Body.String())
+	require.NotContains(t, recorder.Header().Get("Content-Type"), "text/event-stream")
+	require.NotContains(t, err.ToOpenAIError().Message, `stream ID 77`)
+	require.NotContains(t, err.ToOpenAIError().Message, `upstream.example`)
+	require.NotContains(t, err.ToOpenAIError().Message, `sk-secret`)
+	require.NotContains(t, err.ToOpenAIError().Message, `balance 0`)
 	require.NotNil(t, info.StreamStatus)
-	require.Equal(t, relaycommon.StreamEndReasonEOF, info.StreamStatus.EndReason)
 	require.True(t, info.StreamStatus.HasErrors())
 	require.Equal(t, 1, info.StreamStatus.TotalErrorCount())
-	require.Contains(t, info.StreamStatus.Errors[0].Message, "INTERNAL_ERROR")
-	// The scanner strips the upstream "event: error" line; the event name is
-	// rebuilt from the JSON "type" field (upstream_error). The error message
-	// is still forwarded in the data: payload (stream ID 77).
-	require.Contains(t, recorder.Body.String(), `event: upstream_error`)
-	require.Contains(t, recorder.Body.String(), `stream ID 77`)
+	require.NotContains(t, info.StreamStatus.Errors[0].Message, `stream ID 77`)
+	require.False(t, info.ImageRouting.ReturnedImagesKnown)
+}
+
+func TestOpenaiImageAutoSSEErrorAfterCompletedOutputSettlesActualCountWithoutLeak(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"type":"image_generation.completed","b64_json":"valid-image"}`,
+		``,
+		`data: {"type":"image_generation.completed","url":" "}`,
+		``,
+		`data: {"type":"error","error":{"message":"stream ID 77 from upstream.example; key sk-secret; balance 0"}}`,
+		``,
+	}, "\n")
+	c, recorder, resp, info := newImageTestContext(t, body, "text/event-stream", true)
+	enableImageAutoFixedRoute(t, info, 3)
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+
+	require.NotNil(t, usage)
+	require.NotNil(t, err)
+	require.True(t, c.Writer.Written())
+	require.False(t, types.IsImageRoutingErrorRetryable(err, true, true))
+	require.Equal(t, 3.0, info.PriceData.OtherRatios()["n"])
+	require.True(t, info.ImageRouting.ReturnedImagesKnown)
+	require.Equal(t, uint(1), info.ImageRouting.ReturnedImages)
+	require.NoError(t, service.FinalizeImageRoutingSettlement(info, usage))
+	quota, breached := service.ResolveImageRoutingQuota(info, 999999)
+	require.Equal(t, 100000, quota)
+	require.False(t, breached)
+	require.Contains(t, recorder.Body.String(), `"b64_json":"valid-image"`)
+	require.Contains(t, recorder.Body.String(), `event: error`)
+	require.Contains(t, recorder.Body.String(), `Image generation failed.`)
+	require.NotContains(t, recorder.Body.String(), `stream ID 77`)
+	require.NotContains(t, recorder.Body.String(), `upstream.example`)
+	require.NotContains(t, recorder.Body.String(), `sk-secret`)
+	require.NotContains(t, recorder.Body.String(), `balance 0`)
 }

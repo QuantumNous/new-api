@@ -12,6 +12,15 @@ import (
 )
 
 func SetApiRouter(router *gin.Engine) {
+	// Refresh uses a dedicated limiter and must not consume the global API IP
+	// bucket. Otherwise a broken refresh loop can still block an explicit login
+	// before the request reaches its independent critical-action limiter.
+	authRefreshRoute := router.Group("/api")
+	authRefreshRoute.Use(middleware.RouteTag("api"))
+	authRefreshRoute.Use(gzip.Gzip(gzip.DefaultCompression))
+	authRefreshRoute.Use(middleware.BodyStorageCleanup())
+	authRefreshRoute.POST("/user/auth/refresh", middleware.SessionCookieOriginGuard(), middleware.AuthRefreshRateLimit(), middleware.DisableCache(), controller.RefreshAuth)
+
 	apiRouter := router.Group("/api")
 	apiRouter.Use(middleware.RouteTag("api"))
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
@@ -67,7 +76,6 @@ func SetApiRouter(router *gin.Engine) {
 
 		userRoute := apiRouter.Group("/user")
 		{
-			userRoute.POST("/auth/refresh", middleware.SessionCookieOriginGuard(), middleware.CriticalRateLimit(), middleware.DisableCache(), controller.RefreshAuth)
 			userRoute.POST("/auth/logout", middleware.SessionCookieOriginGuard(), middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AuthLogout)
 			userRoute.POST("/register", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, middleware.TurnstileCheck(), controller.Register)
 			userRoute.POST("/login", middleware.CriticalRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, middleware.TurnstileCheck(), controller.Login)
@@ -196,6 +204,7 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/payment_compliance", controller.ConfirmPaymentCompliance)
 			optionRoute.GET("/channel_affinity_cache", controller.GetChannelAffinityCacheStats)
 			optionRoute.DELETE("/channel_affinity_cache", controller.ClearChannelAffinityCache)
+			optionRoute.GET("/image_routing_cooldowns", controller.GetImageRoutingCooldowns)
 			optionRoute.POST("/rest_model_ratio", controller.ResetModelRatio)
 			optionRoute.GET("/waffo-pancake/catalog", controller.ListWaffoPancakeCatalog)
 			optionRoute.POST("/waffo-pancake/pair", controller.CreateWaffoPancakePair)
@@ -286,6 +295,15 @@ func SetApiRouter(router *gin.Engine) {
 			systemTaskRoute.GET("/current", controller.GetCurrentSystemTask)
 			systemTaskRoute.GET("/:task_id", controller.GetSystemTask)
 		}
+		// settlement_manual_review 的运维出口:核对上游账单后按可信 actual_quota
+		// 结清(0=全额退回预留),差额由 Settle→Reconcile 状态机完成,不直接改库。
+		imageAutoBillingRoute := apiRouter.Group("/image_auto_billing")
+		imageAutoBillingRoute.Use(middleware.AdminAuth())
+		{
+			imageAutoBillingRoute.GET("/review", controller.GetImageAutoBillingReviewJournals)
+			imageAutoBillingRoute.POST("/review/resolve", controller.ResolveImageAutoBillingReview)
+		}
+
 		systemInfoRoute := apiRouter.Group("/system-info")
 		systemInfoRoute.Use(middleware.RootAuth())
 		{

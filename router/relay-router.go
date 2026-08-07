@@ -66,11 +66,34 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 	}
+	studioSessionRouter := router.Group("/v1/studio")
+	studioSessionRouter.Use(middleware.RouteTag("relay"))
+	studioSessionRouter.Use(middleware.SystemPerformanceCheck())
+	studioSessionRouter.Use(middleware.UserAuth(), middleware.StudioSessionContext())
+	studioSessionRouter.Use(middleware.ModelRequestRateLimit())
+	{
+		studioSessionRouter.GET("/image-billing/:request_id", controller.StudioImageBilling)
+		studioSessionRouter.POST("/session-service-fee", controller.StudioServiceFee)
+		studioImageRouter := studioSessionRouter.Group("")
+		studioImageRouter.Use(middleware.Distribute())
+		studioImageRouter.POST("/images/generations", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIImage)
+		})
+		studioImageRouter.POST("/images/edits", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIImage)
+		})
+	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
+	{
+		// Chimera Studio task orchestration fee (no upstream channel)
+		relayV1Router.POST("/studio/service-fee", controller.StudioServiceFee)
+		// Token-scoped, ledger-authoritative image-auto billing lookup.
+		relayV1Router.GET("/studio/token-image-billing/:request_id", controller.StudioImageBilling)
+	}
 	{
 		// WebSocket 路由（统一到 Relay）
 		wsRouter := relayV1Router.Group("")

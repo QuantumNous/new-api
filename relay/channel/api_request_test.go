@@ -1,14 +1,102 @@
 package channel
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDoRequestMarksFailureBeforeWriteAsNotSent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{}`))
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:0/v1/images/generations", strings.NewReader(`{}`))
+	require.NoError(t, err)
+
+	routing := imageRoutingStateForTransportTest(t)
+	_, err = DoRequest(ctx, request, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}, ImageRouting: routing})
+	require.Error(t, err)
+	var relayErr *types.NewAPIError
+	require.ErrorAs(t, err, &relayErr)
+	require.True(t, types.IsRequestNotSentError(relayErr))
+	require.Equal(t, []int{1}, routing.AttemptedChannelIDs)
+}
+
+func imageRoutingStateForTransportTest(t *testing.T) *relaycommon.ImageRoutingState {
+	t.Helper()
+	plan, err := (types.ImageRoutingConfig{
+		Enabled: true, PublicModel: "image-auto", PublicGroup: "imageauto", MaxN: 1,
+		Routes: []types.ImageRoutingRoute{{
+			ID: "route-a", ChannelID: 1, Priority: 1, Enabled: true,
+			BillingMode: types.ImageRoutingBillingFixed, UpstreamModel: "gpt-image-2", FixedQuotaPerImage: 1,
+		}},
+	}).BuildPlan("low", 1)
+	require.NoError(t, err)
+	state := relaycommon.NewImageRoutingState(plan)
+	require.NoError(t, state.ActivateRoute(0))
+	return state
+}
+
+func TestDoRequestDoesNotRecordAttemptWhenProxySetupFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{}`))
+	request, err := http.NewRequest(http.MethodPost, "http://example.test/v1/images/generations", strings.NewReader(`{}`))
+	require.NoError(t, err)
+	routing := imageRoutingStateForTransportTest(t)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:  &relaycommon.ChannelMeta{ChannelSetting: dto.ChannelSettings{Proxy: "://invalid"}},
+		ImageRouting: routing,
+	}
+
+	_, err = DoRequest(ctx, request, info)
+
+	require.Error(t, err)
+	var relayErr *types.NewAPIError
+	require.ErrorAs(t, err, &relayErr)
+	require.True(t, types.IsRequestNotSentError(relayErr))
+	require.Empty(t, routing.AttemptedChannelIDs)
+}
+
+func TestDoRequestKeepsFailureAfterWriteAmbiguous(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		_, _ = io.Copy(io.Discard, request.Body)
+		connection, _, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Errorf("hijack test connection: %v", err)
+			return
+		}
+		_ = connection.Close()
+	}))
+	defer server.Close()
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{}`))
+	request, err := http.NewRequest(http.MethodPost, server.URL, strings.NewReader(`{}`))
+	require.NoError(t, err)
+
+	_, err = DoRequest(ctx, request, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}})
+	require.Error(t, err)
+	var relayErr *types.NewAPIError
+	require.ErrorAs(t, err, &relayErr)
+	require.False(t, types.IsRequestNotSentError(relayErr))
+}
 
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	t.Parallel()

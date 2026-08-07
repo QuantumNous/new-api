@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
@@ -74,6 +75,16 @@ type textQuotaSummary struct {
 // call), so token count alone is not sufficient to decide.
 func (s *textQuotaSummary) hasBillableUsage() bool {
 	return s.TotalTokens > 0 || !s.ToolCallSurchargeQuota.IsZero()
+}
+
+// BillingOutcome is returned by post-response settlement. Callers that do not
+// need it may ignore the result; image-auto persists it as safe audit metadata.
+type BillingOutcome struct {
+	ReservedQuota    int
+	ActualQuota      int
+	SettlementStatus string
+	SettlementErr    error
+	ReserveBreach    bool
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -394,7 +405,7 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 	return "openai"
 }
 
-func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) {
+func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) BillingOutcome {
 	originUsage := usage
 	billingUsage := effectiveBillingUsage(usage)
 	if usage == nil {
@@ -406,20 +417,45 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	adminRejectReason := common.GetContextKeyString(ctx, constant.ContextKeyAdminRejectReason)
 	summary := calculateTextQuotaSummary(ctx, relayInfo, billingUsage)
+	imageAutoMetered := relayInfo.ImageRouting != nil && relayInfo.ImageRouting.BillingMode() == hosttypes.ImageRoutingBillingMetered
+	useImageAutoMissingUsageFallback := imageAutoMetered && relayInfo.ImageRouting.MissingUsageFallback
 
 	var tieredResult *billingexpr.TieredResult
+	var tieredCalculationErr error
 	tieredBillingApplied := false
-	if originUsage != nil {
+	if originUsage != nil && !useImageAutoMissingUsageFallback {
 		var tieredUsedVars map[string]bool
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
 			tieredUsedVars = billingexpr.UsedVars(snap.ExprString)
 		}
-		tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, BuildTieredTokenParams(billingUsage, summary.IsClaudeUsageSemantic, tieredUsedVars))
+		tieredParams := BuildTieredTokenParams(billingUsage, summary.IsClaudeUsageSemantic, tieredUsedVars)
+		var tieredOk bool
+		var tieredQuota int
+		var tieredRes *billingexpr.TieredResult
+		if imageAutoMetered {
+			tieredOk, tieredQuota, tieredRes, tieredCalculationErr = TryTieredSettleChecked(relayInfo, tieredParams)
+		} else {
+			tieredOk, tieredQuota, tieredRes = TryTieredSettle(relayInfo, tieredParams)
+		}
 		if tieredOk {
 			tieredBillingApplied = true
-			tieredResult = tieredRes
-			summary.Quota = composeTieredTextQuota(relayInfo, summary, tieredQuota, tieredRes)
+			if tieredCalculationErr == nil {
+				tieredResult = tieredRes
+				summary.Quota = composeTieredTextQuota(relayInfo, summary, tieredQuota, tieredRes)
+			} else {
+				summary.Quota = 0
+			}
 		}
+	}
+	// image-auto either fixes the charge from the returned image count or caps
+	// metered usage at its request-start reservation. It runs after tiered
+	// pricing, so a frozen route profile remains the source of truth.
+	var reserveBreach bool
+	if tieredCalculationErr == nil {
+		summary.Quota, reserveBreach = ResolveImageRoutingQuota(relayInfo, summary.Quota)
+	}
+	if reserveBreach {
+		extraContent = append(extraContent, "按量图片费用超过预留上限，已按上限结算并隔离线路")
 	}
 
 	for _, item := range summary.ToolSurchargeItems {
@@ -440,16 +476,53 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		extraContent = append(extraContent, fmt.Sprintf("Audio Input 花费 %s", logger.LogQuota(common.QuotaFromDecimal(q))))
 	}
 
-	if !summary.hasBillableUsage() {
+	// Billable when upstream reports usage (tokens or a tool-call surcharge,
+	// e.g. /v1/alpha/search bills one web_search call with zero tokens) OR the
+	// image-auto route already resolved a positive charge (fixed per-image
+	// billing legitimately carries zero tokens).
+	hasChargeableResult := summary.hasBillableUsage() || (relayInfo.ImageRouting != nil && summary.Quota > 0)
+	if !hasChargeableResult {
 		extraContent = append(extraContent, "上游没有返回计费信息，无法扣费（可能是上游超时）")
 		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
-	} else {
-		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
-		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
 	}
 
-	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
+	outcome := BillingOutcome{
+		ReservedQuota: relayInfo.FinalPreConsumedQuota,
+		ActualQuota:   summary.Quota,
+		ReserveBreach: reserveBreach,
+	}
+	if tieredCalculationErr != nil {
+		outcome.SettlementStatus = "settlement_pending"
+		outcome.SettlementErr = tieredCalculationErr
+		if pendingErr := MarkBillingSettlementUnknown(relayInfo, tieredCalculationErr); pendingErr != nil {
+			outcome.SettlementErr = fmt.Errorf("%v; failed to persist manual-review settlement: %w", tieredCalculationErr, pendingErr)
+			logger.LogError(ctx, "failed to persist image-auto manual-review settlement: "+pendingErr.Error())
+		}
+		extraContent = append(extraContent, "阶梯计费计算失败，账本结算待对账")
+		logger.LogError(ctx, "image-auto metered tiered billing calculation failed; settlement pending")
+		disableImageRoutingMeteredRoute(
+			relayInfo,
+			"image-auto billing anomaly",
+			"image-auto metered billing calculation failed",
+		)
+	} else if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
+		outcome.SettlementStatus = "settlement_pending"
+		outcome.SettlementErr = err
+		extraContent = append(extraContent, "账本结算待对账")
 		logger.LogError(ctx, "error settling billing: "+err.Error())
+	} else {
+		outcome.SettlementStatus = "settled"
+		if hasChargeableResult {
+			model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
+			model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
+		}
+	}
+	if reserveBreach {
+		disableImageRoutingMeteredRoute(
+			relayInfo,
+			"image-auto reserve breach",
+			"image-auto metered usage exceeded the request-start reserve",
+		)
 	}
 
 	logModel := summary.ModelName
@@ -520,6 +593,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if tieredBillingApplied {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
+	attachImageRoutingBillingInfo(other, relayInfo, outcome)
 
 	attachQuotaSaturation(ctx, relayInfo, other)
 
@@ -539,5 +613,56 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	})
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))
+	})
+	return outcome
+}
+
+func attachImageRoutingBillingInfo(other map[string]interface{}, relayInfo *relaycommon.RelayInfo, outcome BillingOutcome) {
+	if relayInfo == nil || relayInfo.ImageRouting == nil || other == nil {
+		return
+	}
+	state := relayInfo.ImageRouting
+	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	if !ok || adminInfo == nil {
+		adminInfo = make(map[string]interface{})
+		other["admin_info"] = adminInfo
+	}
+	finalChannelID := 0
+	if route, err := state.ActiveRoute(); err == nil && route != nil {
+		finalChannelID = route.ChannelID
+	}
+	adminInfo["image_auto_billing"] = map[string]interface{}{
+		"config_revision":        state.Plan.Revision,
+		"attempted_channel_ids":  append([]int(nil), state.AttemptedChannelIDs...),
+		"final_channel_id":       finalChannelID,
+		"billing_mode":           state.BillingMode(),
+		"billing_model":          state.BillingModel,
+		"billing_group":          state.BillingGroup,
+		"reserved_quota":         outcome.ReservedQuota,
+		"actual_quota":           outcome.ActualQuota,
+		"settlement_status":      outcome.SettlementStatus,
+		"missing_usage_fallback": state.MissingUsageFallback,
+		"reserve_breach":         outcome.ReserveBreach,
+	}
+}
+
+func disableImageRoutingMeteredRoute(relayInfo *relaycommon.RelayInfo, channelName, reason string) {
+	if relayInfo == nil || relayInfo.ImageRouting == nil || relayInfo.ChannelMeta == nil {
+		return
+	}
+	route, err := relayInfo.ImageRouting.ActiveRoute()
+	if err != nil || route == nil || route.BillingMode != hosttypes.ImageRoutingBillingMetered {
+		return
+	}
+	channelError := *types.NewChannelError(
+		relayInfo.ChannelId,
+		relayInfo.ChannelType,
+		channelName,
+		false,
+		"",
+		true,
+	)
+	gopool.Go(func() {
+		DisableChannel(channelError, reason)
 	})
 }

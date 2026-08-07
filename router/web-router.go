@@ -19,6 +19,13 @@ type WebAssets struct {
 	IndexPage []byte
 }
 
+func isRelayNoRoutePath(path string) bool {
+	path = strings.ToLower(path)
+	return strings.HasPrefix(path, "/v1") ||
+		strings.HasPrefix(path, "/api") ||
+		strings.HasPrefix(path, "/assets")
+}
+
 func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	frontendFS := common.EmbedFolder(assets.BuildFS, "web/dist")
 
@@ -28,7 +35,7 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	router.Use(static.Serve("/", frontendFS))
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
-		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+		if isRelayNoRoutePath(c.Request.URL.Path) {
 			controller.RelayNotFound(c)
 			return
 		}

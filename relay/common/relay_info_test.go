@@ -1,10 +1,14 @@
 package common
 
 import (
+	"net/http/httptest"
 	"testing"
 
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -77,4 +81,36 @@ func TestRelayInfoMetaTypedNilReceiver(t *testing.T) {
 	assert.NotNil(t, firstOptions.Gemini.SupportsImagine)
 	assert.NotNil(t, firstOptions.Gemini.SafetySetting)
 	assert.NotNil(t, firstOptions.PreserveThinkingSuffix)
+}
+
+func TestGenRelayInfoImageCanonicalizesStudioUpstreamPath(t *testing.T) {
+	tests := []struct {
+		path     string
+		wantMode int
+		wantPath string
+	}{
+		{
+			path:     "/v1/studio/images/generations?trace=1",
+			wantMode: relayconstant.RelayModeImagesGenerations,
+			wantPath: "/v1/images/generations?trace=1",
+		},
+		{
+			path:     "/v1/studio/images/edits?trace=1",
+			wantMode: relayconstant.RelayModeImagesEdits,
+			wantPath: "/v1/images/edits?trace=1",
+		},
+	}
+
+	gin.SetMode(gin.TestMode)
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			context, _ := gin.CreateTestContext(httptest.NewRecorder())
+			context.Request = httptest.NewRequest("POST", test.path, nil)
+
+			info := GenRelayInfoImage(context, &dto.ImageRequest{Model: "image-auto"})
+
+			require.Equal(t, test.wantMode, info.RelayMode)
+			require.Equal(t, test.wantPath, info.RequestURLPath)
+		})
+	}
 }

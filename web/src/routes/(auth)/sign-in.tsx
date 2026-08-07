@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 
 import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
 import { SignIn } from '@/features/auth/sign-in'
+import { navigateThroughServer } from '@/lib/server-navigation'
 import { useAuthStore } from '@/stores/auth-store'
 
 const searchSchema = z.object({
@@ -38,7 +39,7 @@ export const Route = createFileRoute('/(auth)/sign-in')({
       const target =
         sanitizeAuthRedirect(search?.redirect, window.location.origin) ??
         '/dashboard'
-      throw redirect({ href: target, replace: true })
+      navigateThroughServer(target, 'replace')
     }
   },
 })

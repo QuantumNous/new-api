@@ -126,20 +126,20 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 
 func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
 	key := mark + c.ClientIP()
-	if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
-		writeRateLimited(c, duration)
+	allowed, retryAfter := inMemoryRateLimiter.RequestWithRetryAfter(key, maxRequestNum, duration)
+	if !allowed {
+		writeRateLimited(c, retryAfter)
 		return
 	}
 }
 
 // writeRateLimited rejects the request with 429 and a Retry-After hint so
 // clients can back off instead of treating the rejection as a fatal error.
-// The in-memory limiter cannot report the remaining window, so callers
-// without a TTL pass the full window duration as a conservative upper bound.
 func writeRateLimited(c *gin.Context, retryAfterSeconds int64) {
-	if retryAfterSeconds > 0 {
-		c.Header("Retry-After", strconv.FormatInt(retryAfterSeconds, 10))
+	if retryAfterSeconds < 1 {
+		retryAfterSeconds = 1
 	}
+	c.Header("Retry-After", strconv.FormatInt(retryAfterSeconds, 10))
 	c.Status(http.StatusTooManyRequests)
 	c.Abort()
 }
@@ -178,6 +178,17 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// AuthRefreshRateLimit isolates browser-session rotation from critical
+// anonymous actions such as login and password reset. A buggy or stale client
+// may temporarily lose refresh capability, but it must never lock the same IP
+// out of an explicit login attempt.
+func AuthRefreshRateLimit() func(c *gin.Context) {
+	if common.AuthRefreshRateLimitEnable {
+		return rateLimitFactory(common.AuthRefreshRateLimitNum, common.AuthRefreshRateLimitDuration, "AR")
+	}
+	return defNext
+}
+
 func DownloadRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.DownloadRateLimitNum, common.DownloadRateLimitDuration, "DW")
 }
@@ -211,8 +222,9 @@ func userRateLimitFactory(maxRequestNum int, duration int64, mark string) func(c
 			return
 		}
 		key := fmt.Sprintf("%s:user:%d", mark, userID)
-		if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
-			writeRateLimited(c, duration)
+		allowed, retryAfter := inMemoryRateLimiter.RequestWithRetryAfter(key, maxRequestNum, duration)
+		if !allowed {
+			writeRateLimited(c, retryAfter)
 			return
 		}
 	}

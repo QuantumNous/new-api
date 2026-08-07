@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -117,8 +118,9 @@ func GetOptions(c *gin.Context) {
 }
 
 type OptionUpdateRequest struct {
-	Key   string `json:"key"`
-	Value any    `json:"value"`
+	Key              string `json:"key"`
+	Value            any    `json:"value"`
+	ExpectedRevision *int64 `json:"expected_revision,omitempty"`
 }
 
 func UpdateOption(c *gin.Context) {
@@ -140,6 +142,13 @@ func UpdateOption(c *gin.Context) {
 		option.Value = common.Interface2String(option.Value.(int))
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
+	}
+	if err := validateImageRoutingOptionUpdate(option.Key, option.Value.(string)); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
 	}
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
@@ -363,7 +372,25 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	}
-	err = model.UpdateOption(option.Key, option.Value.(string))
+	if option.Key == setting.ImageRoutingConfigOption {
+		if option.ExpectedRevision == nil {
+			c.JSON(http.StatusConflict, gin.H{
+				"success": false,
+				"message": "image routing expected revision is required",
+			})
+			return
+		}
+		err = model.UpdateRevisionedOptionCAS(option.Key, option.Value.(string), *option.ExpectedRevision)
+		if errors.Is(err, model.ErrOptionRevisionConflict) {
+			c.JSON(http.StatusConflict, gin.H{
+				"success": false,
+				"message": "image routing revision conflict",
+			})
+			return
+		}
+	} else {
+		err = model.UpdateOption(option.Key, option.Value.(string))
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return

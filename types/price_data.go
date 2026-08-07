@@ -32,6 +32,19 @@ type PriceData struct {
 	GroupRatioInfo       GroupRatioInfo
 }
 
+// Clone returns an independent pricing snapshot suitable for a request that
+// may outlive a later pricing configuration update.
+func (p PriceData) Clone() PriceData {
+	cloned := p
+	if len(p.otherRatios) > 0 {
+		cloned.otherRatios = make(map[string]float64, len(p.otherRatios))
+		for key, ratio := range p.otherRatios {
+			cloned.otherRatios[key] = ratio
+		}
+	}
+	return cloned
+}
+
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {
 	if !isValidOtherRatio(ratio) {
 		return

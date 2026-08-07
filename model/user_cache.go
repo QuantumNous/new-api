@@ -51,6 +51,18 @@ func getUserCacheKey(userId int) string {
 	return fmt.Sprintf("user:%d", userId)
 }
 
+func getUserCacheVersionKey(userId int) string {
+	return fmt.Sprintf("cache-version:user:%d", userId)
+}
+
+// imageAutoUserQuotaCacheVersion returns the current quota-cache invalidation
+// generation for a user. It fences populateUserCache against a concurrent
+// invalidation or pending billing debit racing a stale database snapshot; it
+// is independent of, and layered underneath, the AuthVersion security fence.
+func imageAutoUserQuotaCacheVersion(userId int) (int64, error) {
+	return common.RedisCacheVersion(getUserCacheVersionKey(userId))
+}
+
 func userCacheTTLSeconds() int {
 	ttl := common.RedisKeyCacheSeconds()
 	if ttl <= 0 {
@@ -64,7 +76,7 @@ func invalidateUserCache(userId int) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	return common.RedisDelKey(getUserCacheKey(userId))
+	return common.RedisBumpCacheVersionAndDelete(getUserCacheVersionKey(userId), getUserCacheKey(userId))
 }
 
 // InvalidateUserCache is the exported version of invalidateUserCache.
@@ -77,7 +89,32 @@ func populateUserCache(user User) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	return writeUserCache(user.ToBaseUser(), true)
+	version, err := imageAutoUserQuotaCacheVersion(user.Id)
+	if err != nil {
+		return err
+	}
+	_, err = populateUserCacheAtImageAutoQuotaCacheVersion(user, version)
+	return err
+}
+
+// populateUserCacheAtImageAutoQuotaCacheVersion populates the user hash only
+// when the quota-cache generation still matches the one observed before the
+// database read that produced user, and reconciles any billing pending delta
+// that accumulated in the meantime. The write goes through the auth-fenced
+// writer so the AuthVersion security fence (pending fence, committed floor,
+// current hash version) is enforced atomically together with the quota
+// generation guard: bypassing it would let a stale snapshot re-authorize a
+// user mid restrictive change, and would skip the committed-version
+// bookkeeping the fence rollback recovery depends on.
+func populateUserCacheAtImageAutoQuotaCacheVersion(user User, version int64) (bool, error) {
+	if !common.RedisEnabled {
+		return false, nil
+	}
+	written, err := writeUserCacheWithQuotaVersionGuard(user.ToBaseUser(), true, version)
+	if err != nil || !written {
+		return written, err
+	}
+	return true, common.RedisHApplyPendingDelta(getUserCacheKey(user.Id), "Quota", getUserCacheVersionKey(user.Id))
 }
 
 // updateUserCache refreshes non-quota user cache fields.
@@ -148,11 +185,25 @@ func cacheIncrUserQuota(userId int, delta int64) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	return common.RedisHIncrBy(getUserCacheKey(userId), "Quota", delta)
+	return common.RedisHIncrByWithVersion(getUserCacheKey(userId), "Quota", delta, getUserCacheVersionKey(userId))
 }
 
 func cacheDecrUserQuota(userId int, delta int64) error {
 	return cacheIncrUserQuota(userId, -delta)
+}
+
+func cacheIncrUserQuotaPending(userId int, delta int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	return common.RedisHIncrByWithVersionPending(getUserCacheKey(userId), "Quota", delta, getUserCacheVersionKey(userId))
+}
+
+func cacheAcknowledgeUserQuotaPendingDelta(userId int, delta int64) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	return common.RedisHAcknowledgePendingDelta(getUserCacheKey(userId), "Quota", delta, getUserCacheVersionKey(userId))
 }
 
 // Helper functions to get individual fields if needed

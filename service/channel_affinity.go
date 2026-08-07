@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -18,6 +19,8 @@ import (
 	"github.com/samber/hot"
 	"github.com/tidwall/gjson"
 )
+
+const defaultChannelAffinityPriorityAwareStableSeconds = 120
 
 const (
 	ginKeyChannelAffinityCacheKey   = "channel_affinity_cache_key"
@@ -671,6 +674,39 @@ func ShouldKeepChannelAffinityOnChannelDisabled() bool {
 		return false
 	}
 	return setting.KeepOnChannelDisabled
+}
+
+// IsChannelAffinityStale reports whether an affinity binding pointing at
+// preferred should be dropped in favor of normal (priority-ordered) channel
+// selection for (usingGroup, modelName, requestPath).
+//
+// The binding is stale only when a channel with a strictly higher priority than
+// preferred currently leads that (group, model) in the memory cache AND that
+// leader has been continuously enabled for at least
+// PriorityAwareStableSeconds. Equal or lower priority never counts as stale, so
+// prompt-cache hit rate is preserved whenever nothing has actually improved, and
+// a channel that just recovered (or is flapping) cannot immediately steal
+// traffic away from a channel that is currently serving requests successfully.
+//
+// Read-only, memory-cache-backed (model.GetStablePriorityLeader): no DB access,
+// safe to call on every request that hits an affinity binding.
+func IsChannelAffinityStale(usingGroup string, modelName string, requestPath string, preferred *model.Channel) bool {
+	if preferred == nil {
+		return false
+	}
+	setting := operation_setting.GetChannelAffinitySetting()
+	if setting == nil || !setting.Enabled || !setting.PriorityAware {
+		return false
+	}
+	stableSeconds := setting.PriorityAwareStableSeconds
+	if stableSeconds <= 0 {
+		stableSeconds = defaultChannelAffinityPriorityAwareStableSeconds
+	}
+	leader, stable, found := model.GetStablePriorityLeader(usingGroup, modelName, requestPath, time.Duration(stableSeconds)*time.Second)
+	if !found || !stable || leader.Id == preferred.Id {
+		return false
+	}
+	return leader.GetPriority() > preferred.GetPriority()
 }
 
 func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int) {

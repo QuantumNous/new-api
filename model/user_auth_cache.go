@@ -46,12 +46,30 @@ func userAuthFenceTTLSeconds() int {
 }
 
 func writeUserCache(user *UserBase, includeQuota bool) error {
+	_, err := writeUserCacheWithQuotaVersionGuard(user, includeQuota, -1)
+	return err
+}
+
+// writeUserCacheWithQuotaVersionGuard is writeUserCache with an optional
+// image-auto quota-cache generation guard layered on top of the auth-version
+// fences, so a populate path can honor both invariants in one atomic script.
+// expectedQuotaVersion < 0 disables the guard (plain writeUserCache).
+//
+// With the guard enabled the write is additionally skipped — written=false,
+// nil error, no side effects — when the quota-cache generation no longer
+// matches the one observed before the database snapshot was read. On a
+// successful guarded write the Quota field is written unconditionally from the
+// snapshot: a matching generation proves no quota mutation happened since the
+// snapshot, because every cacheIncrUserQuota*/invalidation bumps the
+// generation. The unguarded path keeps the upstream behavior of preserving an
+// existing Quota field, which concurrent HINCRBYs may own.
+func writeUserCacheWithQuotaVersionGuard(user *UserBase, includeQuota bool, expectedQuotaVersion int64) (bool, error) {
 	if user == nil || user.Id <= 0 || !common.RedisEnabled {
-		return nil
+		return false, nil
 	}
 	user.CacheSchema = userCacheSchemaVersion
 	if user.AuthVersion <= 0 {
-		return fmt.Errorf("invalid user auth version")
+		return false, fmt.Errorf("invalid user auth version")
 	}
 	includeQuotaArg := "0"
 	if includeQuota {
@@ -66,6 +84,13 @@ local current = tonumber(redis.call('HGET', KEYS[1], 'AuthVersion') or '0')
 if pending > incoming or committed > incoming or current > incoming then
   return 0
 end
+local expectedGen = tonumber(ARGV[13])
+if expectedGen >= 0 then
+  local gen = tonumber(redis.call('GET', KEYS[4]) or '0')
+  if gen ~= expectedGen then
+    return 2
+  end
+end
 if committed < incoming then
   redis.call('SET', KEYS[3], ARGV[1])
 end
@@ -79,23 +104,31 @@ redis.call('HSET', KEYS[1],
   'Id', ARGV[2], 'Group', ARGV[3], 'Email', ARGV[4],
   'Status', ARGV[5], 'Role', ARGV[6], 'Username', ARGV[7],
   'Setting', ARGV[8], 'AuthVersion', ARGV[1], 'CacheSchema', ARGV[9])
-if ARGV[10] == '1' and redis.call('HEXISTS', KEYS[1], 'Quota') == 0 then
-  redis.call('HSET', KEYS[1], 'Quota', ARGV[11])
+if ARGV[10] == '1' then
+  if expectedGen >= 0 then
+    redis.call('HSET', KEYS[1], 'Quota', ARGV[11])
+  elseif redis.call('HEXISTS', KEYS[1], 'Quota') == 0 then
+    redis.call('HSET', KEYS[1], 'Quota', ARGV[11])
+  end
 end
 redis.call('EXPIRE', KEYS[1], ARGV[12])
 return 1`
 	result, err := common.RDB.Eval(context.Background(), script,
-		[]string{getUserCacheKey(user.Id), getUserAuthFenceKey(user.Id), getUserAuthVersionKey(user.Id)},
+		[]string{getUserCacheKey(user.Id), getUserAuthFenceKey(user.Id), getUserAuthVersionKey(user.Id), getUserCacheVersionKey(user.Id)},
 		user.AuthVersion, user.Id, user.Group, user.Email, user.Status, user.Role,
 		user.Username, user.Setting, user.CacheSchema, includeQuotaArg, user.Quota, ttl,
+		expectedQuotaVersion,
 	).Int()
 	if err != nil {
-		return err
+		return false, err
 	}
-	if result == 0 {
-		return ErrUserAuthCachePending
+	switch result {
+	case 0:
+		return false, ErrUserAuthCachePending
+	case 2:
+		return false, nil
 	}
-	return nil
+	return true, nil
 }
 
 func getUserAuthVersionFloor(userId int) (int64, error) {

@@ -95,6 +95,27 @@ func UserAuth() func(c *gin.Context) {
 	}
 }
 
+// StudioSessionContext turns an authenticated dashboard session into a
+// tokenless relay identity. Billing is attached directly to the user account;
+// no API token is created, exposed, or mutated.
+func StudioSessionContext() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		userID := c.GetInt("id")
+		userCache, err := model.GetUserCache(userID)
+		if err != nil {
+			abortWithOpenAiMessage(c, http.StatusInternalServerError, common.TranslateMessage(c, i18n.MsgDatabaseError))
+			return
+		}
+		userCache.WriteContext(c)
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, "imageauto")
+		if err := SetupContextForToken(c, &model.Token{UserId: userID, Name: "studio-session", Group: "imageauto"}); err != nil {
+			return
+		}
+		c.Set("studio_session", true)
+		c.Next()
+	}
+}
+
 func AdminAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		authHelper(c, common.RoleAdminUser)

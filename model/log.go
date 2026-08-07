@@ -609,6 +609,33 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	return logs, total, err
 }
 
+// GetImageAutoConsumeLogByRequestID returns the raw internal consume log only
+// after both user and token ownership have been matched. Unlike GetUserLogs it
+// deliberately does not strip admin_info because the authenticated Studio
+// billing endpoint needs the final settlement marker, not the debug payload.
+func GetImageAutoConsumeLogByRequestID(userID, tokenID int, requestID string) (*Log, error) {
+	if userID <= 0 || tokenID <= 0 || requestID == "" {
+		return nil, nil
+	}
+	order := "id desc"
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		order = clickHouseLogOrder("")
+	}
+	var log Log
+	result := LOG_DB.
+		Where("user_id = ? AND token_id = ? AND type = ? AND model_name = ? AND request_id = ?", userID, tokenID, LogTypeConsume, "image-auto", requestID).
+		Order(order).
+		Limit(1).
+		Find(&log)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
+	}
+	return &log, nil
+}
+
 type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`

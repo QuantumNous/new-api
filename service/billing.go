@@ -93,3 +93,33 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 	}
 	return nil
 }
+
+type settlementPendingMarker interface {
+	MarkSettlementPending(actualQuota int) error
+}
+
+type settlementUnknownMarker interface {
+	MarkSettlementUnknown(cause error) error
+}
+
+func MarkBillingSettlementPending(relayInfo *relaycommon.RelayInfo, actualQuota int) error {
+	if relayInfo == nil || relayInfo.Billing == nil {
+		return fmt.Errorf("billing session is unavailable")
+	}
+	marker, ok := relayInfo.Billing.(settlementPendingMarker)
+	if !ok {
+		return fmt.Errorf("billing session does not support durable pending targets")
+	}
+	return marker.MarkSettlementPending(actualQuota)
+}
+
+func MarkBillingSettlementUnknown(relayInfo *relaycommon.RelayInfo, cause error) error {
+	if relayInfo == nil || relayInfo.Billing == nil {
+		return fmt.Errorf("billing session is unavailable")
+	}
+	marker, ok := relayInfo.Billing.(settlementUnknownMarker)
+	if !ok {
+		return fmt.Errorf("billing session does not support manual-review settlement")
+	}
+	return marker.MarkSettlementUnknown(cause)
+}

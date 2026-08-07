@@ -24,19 +24,26 @@ import {
   FlaskConical,
   Key,
   LayoutDashboard,
+  Clock3,
+  Image,
   ListTodo,
+  MapPin,
   MessageSquare,
+  Palette,
   Radio,
   ServerCog,
   Settings,
   Ticket,
   User,
   Users,
+  UserCog,
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
+import { useAgentSummary } from '@/features/agent/hooks/use-agent-summary'
+import { buildAgentNavigation } from '@/features/agent/navigation'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -47,6 +54,8 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const agentSummary = useAgentSummary()
+  const agentItems = buildAgentNavigation(agentSummary.state, t)
 
   return {
     navGroups: [
@@ -54,6 +63,12 @@ export function useSidebarData(): SidebarData {
         id: 'chat',
         title: t('Chat'),
         items: [
+          {
+            title: t('Creative Studio'),
+            url: '/studio/',
+            icon: Palette,
+            reloadDocument: true,
+          },
           {
             title: t('Playground'),
             url: '/playground',
@@ -113,6 +128,7 @@ export function useSidebarData(): SidebarData {
             url: '/profile',
             icon: User,
           },
+          ...agentItems,
         ],
       },
       {
@@ -133,6 +149,34 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Agent Management'),
+            url: '/agent/admin',
+            icon: UserCog,
+            reloadDocument: true,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            title: t('User Activity'),
+            url: '/agent/active',
+            icon: Clock3,
+            reloadDocument: true,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            title: t('Regional Access'),
+            url: '/geo-admin/',
+            icon: MapPin,
+            reloadDocument: true,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            title: t('Image Routing'),
+            url: '/geo-admin/image-routing',
+            icon: Image,
+            reloadDocument: true,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Redemption Codes'),

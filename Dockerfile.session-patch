@@ -1,0 +1,15 @@
+FROM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS builder
+
+ENV GO111MODULE=on CGO_ENABLED=0
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN test -f web/dist/index.html \
+    && go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
+
+# Preserve the exact rc.21 runtime and frontend currently in production; only
+# replace the tested Go backend binary.
+FROM chimera-new-api:studio
+COPY --from=builder /build/new-api /new-api
+ENTRYPOINT ["/new-api"]
