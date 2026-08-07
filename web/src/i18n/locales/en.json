@@ -5247,6 +5247,8 @@
     "Your Turnstile site key": "Your Turnstile site key",
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
+    "Default User Group": "Default User Group",
+    "Group assigned to newly registered users. Must exist in Group Ratio settings.": "Group assigned to newly registered users. Must exist in Group Ratio settings.",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
   }

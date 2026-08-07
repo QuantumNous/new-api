@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -132,6 +133,7 @@ func InitOptionMap() {
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
+	common.OptionMap["DefaultUserGroup"] = common.DefaultUserGroup
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
@@ -211,6 +213,25 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
+	}
+	if key == "DefaultUserGroup" {
+		if value == "" {
+			return errors.New("默认分组不能为空")
+		}
+		if !ratio_setting.ContainsGroupRatio(value) {
+			return errors.New("默认分组不存在: " + value)
+		}
+	}
+	if key == "GroupRatio" {
+		// 拒绝移除当前默认分组：校验须在 DB 写入前执行（UpdateOption/UpdateOptionsBulk 均先走此函数），
+		// 否则 DB 已写入不含默认分组的新值而内存未更新，造成数据不一致。
+		checkGroupRatio := make(map[string]float64)
+		if err := common.UnmarshalJsonStr(value, &checkGroupRatio); err != nil {
+			return err
+		}
+		if _, ok := checkGroupRatio[common.GetDefaultUserGroup()]; !ok {
+			return errors.New("cannot remove default user group: " + common.GetDefaultUserGroup())
+		}
 	}
 	return nil
 }
@@ -529,6 +550,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSecretKey = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
+	case "DefaultUserGroup":
+		common.DefaultUserGroup = value
 	case "QuotaForInviter":
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":

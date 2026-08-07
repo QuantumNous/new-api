@@ -56,6 +56,7 @@ const quotaSchema = z.object({
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string(),
+  DefaultUserGroup: z.string().min(1),
   general_setting: z.object({
     docs_link: z.string(),
   }),
@@ -277,6 +278,23 @@ export function QuotaSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('External link for users to purchase quota')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='DefaultUserGroup'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Default User Group')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={t('default')} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Group assigned to newly registered users. Must exist in Group Ratio settings.')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

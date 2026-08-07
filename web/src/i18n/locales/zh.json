@@ -5247,6 +5247,8 @@
     "Your Turnstile site key": "您的 Turnstile 站点密钥",
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
+    "Default User Group": "新用户默认分组",
+    "Group assigned to newly registered users. Must exist in Group Ratio settings.": "新注册用户的默认分组，须在分组比例设置中存在。",
     "Zhipu V4": "智谱 V4",
     "Zoom": "缩放"
   }

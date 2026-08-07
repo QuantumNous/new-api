@@ -56,6 +56,14 @@ var (
 var OptionMap map[string]string
 var OptionMapRWMutex sync.RWMutex
 
+// GetDefaultUserGroup 返回当前配置的新用户默认分组，读取受 OptionMapRWMutex 保护。
+// 写入方（model/option.go 的 updateOptionMap）在持有 OptionMapRWMutex 写锁时直接赋值 common.DefaultUserGroup。
+func GetDefaultUserGroup() string {
+	OptionMapRWMutex.RLock()
+	defer OptionMapRWMutex.RUnlock()
+	return DefaultUserGroup
+}
+
 var ItemsPerPage = 10
 var MaxRecentItems = 1000
 
@@ -122,6 +130,7 @@ var TelegramBotToken = ""
 var TelegramBotName = ""
 
 var QuotaForNewUser = 0
+var DefaultUserGroup = "default" // 新用户默认分组，管理员可配置，仅对新注册用户生效
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 var ChannelDisableThreshold = 5.0
