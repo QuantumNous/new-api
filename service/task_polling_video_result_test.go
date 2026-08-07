@@ -76,6 +76,46 @@ func TestUpdateVideoSingleTaskArchivePersistsMetadataBeforeSuccessSettlement(t *
 	require.NotContains(t, string(stored.Data), "video.mp4?token=secret")
 }
 
+func TestUpdateVideoSingleTaskReturnSourceURLSkipsArchive(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	ctx := context.Background()
+
+	seedUser(t, 906, 1000)
+	seedToken(t, 916, 906, "sk-techmobi-source-url", 500)
+	task := newTechMobiPollingTask(t, 906, 936, 100, 916)
+	ch := newTechMobiPollingChannelWithSourceURL(936)
+	sourceURL := "https://secret.example/video.mp4?token=secret"
+	adaptor := &fakeVideoPollingAdaptor{
+		responseBody: techMobiArchiveResponseBody(),
+		taskResult: &relaycommon.TaskInfo{
+			TaskID:      "upstream-techmobi-success",
+			Status:      model.TaskStatusSuccess,
+			Url:         sourceURL,
+			Progress:    "100%",
+			TotalTokens: 40,
+		},
+		actualQuota: 40,
+	}
+	archiveTechMobiVideoResult = func(context.Context, string, string, string) (*model.VideoResult, error) {
+		t.Fatal("archive hook must not be called when TechMobi source URL return is enabled")
+		return nil, nil
+	}
+
+	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), techMobiTaskMap(task))
+	require.NoError(t, err)
+	require.Equal(t, 1, adaptor.adjustCalls)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusSuccess, stored.Status)
+	require.Equal(t, sourceURL, stored.PrivateData.ResultURL)
+	require.Nil(t, stored.PrivateData.VideoResult)
+	require.Equal(t, 40, stored.PrivateData.TotalTokens)
+	require.NotContains(t, string(stored.Data), "secret.example")
+	require.NotContains(t, string(stored.Data), "token=secret")
+}
+
 func TestUpdateVideoSingleTaskArchiveErrorDoesNotFinalizeOrSettle(t *testing.T) {
 	truncate(t)
 	restoreArchiveHookForPollingTest(t)
@@ -380,6 +420,15 @@ func newTechMobiPollingChannel(proxy string) *model.Channel {
 	if proxy != "" {
 		ch.SetSetting(dto.ChannelSettings{Proxy: proxy})
 	}
+	return ch
+}
+
+func newTechMobiPollingChannelWithSourceURL(id int) *model.Channel {
+	ch := newTechMobiPollingChannel("")
+	ch.Id = id
+	setting := ch.GetSetting()
+	setting.ReturnSourceURL = true
+	ch.SetSetting(setting)
 	return ch
 }
 
