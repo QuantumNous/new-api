@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ModelLandingPage } from "./model-landing-page";
-import { GPT_CONFIG } from "@/lib/model-landing";
+import { GPT_CONFIG, SEEDANCE_CONFIG } from "@/lib/model-landing";
 import type { PricingModel } from "@/lib/pricing";
 
 describe("ModelLandingPage", () => {
@@ -37,5 +37,16 @@ describe("ModelLandingPage", () => {
 
     expect(html).toContain("&quot;gpt-5.5&quot;");
     expect(html).not.toContain("model=<span class=\"text-emerald-600\">&quot;gpt-5&quot;</span>");
+  });
+
+  test("renders playable video examples for video model landings", () => {
+    const html = renderToStaticMarkup(
+      <ModelLandingPage config={SEEDANCE_CONFIG} locale="en" liveModels={[]} />
+    );
+
+    expect(html).toContain("/assets/video/v1.1.mp4");
+    expect(html).toContain("<video");
+    expect(html).toContain("controls=\"\"");
+    expect(html).toContain("poster=\"/assets/video/v1.1.jpg\"");
   });
 });

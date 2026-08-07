@@ -155,81 +155,93 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
   const about = props.description || props.vendorDescription;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 pt-28 pb-16 sm:px-6">
+    <main className="model-square-page relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_32%,#ffffff_62%,#f4f1ff_100%)] px-4 pt-28 pb-16 text-[#0B0B0F] sm:px-6 dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_36%,#070712_72%,#03040b_100%)] dark:text-white">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(schema) }} />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-0 bg-[linear-gradient(to_right,rgba(124,58,237,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(124,58,237,0.08)_1px,transparent_1px)] bg-[size:4.5rem_4.5rem] opacity-70 dark:bg-[linear-gradient(to_right,rgba(148,163,184,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.045)_1px,transparent_1px)] dark:opacity-45"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[34rem] opacity-40 dark:opacity-55"
+        style={{ background: "var(--home-hero-glow)" }}
+      />
+      <div className="relative z-10 mx-auto max-w-5xl">
 
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="text-muted-foreground mb-4 flex items-center gap-1 text-xs">
-        <Link href={localizePath("/", props.locale)} className="hover:text-foreground">
+      <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1 text-xs text-[#6B6475] dark:text-slate-300/72">
+        <Link href={localizePath("/", props.locale)} className="hover:text-[#0B0B0F] dark:hover:text-white">
           flatkey.ai
         </Link>
         <ChevronRight className="size-3" />
-        <Link href={modelsUrl} className="hover:text-foreground">
+        <Link href={modelsUrl} className="hover:text-[#0B0B0F] dark:hover:text-white">
           {copy.backToModels}
         </Link>
         <ChevronRight className="size-3" />
-        <span className="text-foreground/80 font-mono">{props.modelName}</span>
+        <span className="font-mono text-[#0B0B0F]/80 dark:text-white/80">{props.modelName}</span>
       </nav>
 
       {/* Header */}
-      <div className="mb-4 flex items-start gap-3">
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-violet-500/15 bg-violet-500/6">
-          <ModelLogo iconKey={props.iconKey} fallback={props.modelName.charAt(0).toUpperCase()} size={26} />
-        </span>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate font-mono text-2xl font-bold tracking-tight">{props.modelName}</h1>
+      <div className="mb-4 rounded-2xl border border-violet-500/16 bg-white/62 p-5 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.78)] backdrop-blur-sm dark:bg-white/[0.03]">
+        <div className="flex items-start gap-3">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-violet-500/15 bg-white/70 shadow-[0_18px_48px_-34px_rgba(91,33,182,0.7)] dark:bg-white/[0.04]">
+            <ModelLogo iconKey={props.iconKey} fallback={props.modelName.charAt(0).toUpperCase()} size={28} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate font-mono text-2xl leading-tight font-bold tracking-tight sm:text-3xl">{props.modelName}</h1>
             {trendLoaded && (online || degraded) ? (
               <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${
                   online
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
                 }`}
               >
                 <span className={`size-1.5 rounded-full ${online ? "bg-emerald-500" : "bg-amber-500"}`} />
                 {online ? copy.statusOnline : copy.statusDegraded}
               </span>
             ) : null}
-          </div>
-          <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-2 text-xs">
+            </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#6B6475] dark:text-slate-300/72">
             <span>{props.vendorName}</span>
             {props.endpointTypes.map((endpoint) => (
               <span
                 key={endpoint}
-                className="rounded-full border border-violet-500/20 bg-violet-500/5 px-2 py-0.5 font-mono text-[10px]"
+                className="rounded-full border border-violet-500/20 bg-violet-500/8 px-2 py-0.5 font-mono text-[10px] text-violet-700 dark:text-violet-200"
               >
                 {endpoint}
               </span>
             ))}
             {props.tags.map((tag) => (
-              <span key={tag} className="rounded-full border border-zinc-500/20 bg-zinc-500/5 px-2 py-0.5 text-[10px]">
+              <span key={tag} className="rounded-full border border-[#0B0B0F14] bg-white/62 px-2 py-0.5 text-[10px] dark:border-white/10 dark:bg-white/[0.04]">
                 {tag}
               </span>
             ))}
           </div>
+          </div>
         </div>
-      </div>
 
       {/* Intro + primary CTA */}
-      <section className="mb-4">
-        <p className="text-foreground/80 text-sm leading-relaxed">{intro}</p>
-        {about ? <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{about}</p> : null}
-        <div className="mt-3 flex flex-wrap items-center gap-3">
+      <section className="mt-4">
+        <p className="text-sm leading-relaxed text-[#37323F] dark:text-slate-200/82">{intro}</p>
+        {about ? <p className="mt-2 text-sm leading-relaxed text-[#6B6475] dark:text-slate-300/72">{about}</p> : null}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <Link
             href={signUpUrl}
-            className="flatkey-hero-cta inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-90"
+            className="flatkey-hero-cta inline-flex h-10 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-opacity hover:opacity-90"
           >
             {ui.ctaSignUp}
             <ArrowRight className="size-4" />
           </Link>
           {props.savingsPct > 0 ? (
-            <span className="text-muted-foreground text-xs">
+            <span className="text-xs text-[#6B6475] dark:text-slate-300/72">
               {ui.saveVsOfficial.replace("{pct}", String(props.savingsPct))}
             </span>
           ) : null}
         </div>
       </section>
+      </div>
 
       {/* Performance stat band */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -260,16 +272,16 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
       </div>
 
       {/* Discount */}
-      <div className="mt-3 rounded-xl border border-violet-500/25 bg-violet-500/[0.06] p-4">
-        <div className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">
+      <div className="mt-3 rounded-2xl border border-violet-500/16 bg-white/62 p-4 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.58)] backdrop-blur-sm dark:bg-white/[0.03]">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-violet-700 uppercase dark:text-violet-200">
           <BadgePercent className="size-3.5" />
           {copy.stackedDiscount}
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-3xl font-bold text-violet-700 dark:text-violet-300">{copy.upToOff}</span>
+          <span className="text-3xl font-bold text-violet-700 dark:text-violet-200">{copy.upToOff}</span>
           <a
             href={props.consoleTopUpUrl}
-            className="text-muted-foreground hover:text-foreground text-xs underline decoration-dotted underline-offset-2"
+            className="text-xs text-[#6B6475] underline decoration-dotted underline-offset-2 hover:text-[#0B0B0F] dark:text-slate-300/72 dark:hover:text-white"
           >
             {copy.discountNote} →
           </a>
@@ -280,14 +292,14 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
       <Section title={copy.pricing}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {props.priceRows.map((row) => (
-            <div key={row.labelKey} className="rounded-lg border bg-violet-500/[0.03] p-4">
-              <div className="text-muted-foreground text-xs">{copy[row.labelKey]}</div>
-              <div className="text-muted-foreground/70 mt-1 font-mono text-sm tabular-nums">
+            <div key={row.labelKey} className="rounded-xl border border-violet-500/14 bg-violet-500/[0.04] p-4 dark:bg-white/[0.025]">
+              <div className="text-xs text-[#6B6475] dark:text-slate-300/72">{copy[row.labelKey]}</div>
+              <div className="mt-1 font-mono text-sm text-[#6B6475]/80 tabular-nums dark:text-slate-300/60">
                 {copy.listPrice} <span className="line-through">{row.list}</span>
               </div>
               <div className="mt-0.5 font-mono text-2xl font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
                 {row.discounted}
-                <span className="text-muted-foreground/50 ml-1 text-sm font-normal">{copy.perMTokens}</span>
+                <span className="ml-1 text-sm font-normal text-[#6B6475]/70 dark:text-slate-300/58">{copy.perMTokens}</span>
               </div>
             </div>
           ))}
@@ -314,13 +326,13 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
               </span>
               <div>
                 <div className="text-sm font-semibold">{step.title}</div>
-                <div className="text-muted-foreground text-sm leading-relaxed">{step.body}</div>
+                <div className="text-sm leading-relaxed text-[#6B6475] dark:text-slate-300/72">{step.body}</div>
               </div>
             </li>
           ))}
         </ol>
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-semibold">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-[#6B6475] dark:text-slate-300/72">
             <Code2 className="size-3.5" />
             {copy.apiTitle}
           </span>
@@ -332,8 +344,8 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
                 onClick={() => setLang(item)}
                 className={`rounded-md px-2 py-0.5 font-mono text-[11px] transition-colors ${
                   lang === item
-                    ? "bg-violet-500/15 text-violet-700 dark:text-violet-300"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-violet-500/15 text-violet-700 dark:text-violet-200"
+                    : "text-[#6B6475] hover:text-[#0B0B0F] dark:text-slate-300/72 dark:hover:text-white"
                 }`}
               >
                 {item}
@@ -341,7 +353,7 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
             ))}
           </div>
         </div>
-        <pre className="overflow-x-auto rounded-lg bg-zinc-950 p-4 font-mono text-xs leading-relaxed text-zinc-100">
+        <pre className="overflow-x-auto rounded-xl border border-white/10 bg-[#0B0B0F] p-4 font-mono text-xs leading-relaxed text-zinc-100 shadow-[0_22px_60px_-44px_rgba(11,11,15,0.72)]">
           {example}
         </pre>
       </Section>
@@ -352,20 +364,20 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-muted-foreground border-b text-left text-xs">
+                <tr className="border-b border-violet-500/12 text-left text-xs text-[#6B6475] dark:text-slate-300/72">
                   <th className="py-2 font-medium">{ui.colModel}</th>
                   <th className="py-2 text-right font-medium">{ui.colInputPrice}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b bg-violet-500/[0.04]">
+                <tr className="border-b border-violet-500/12 bg-violet-500/[0.05]">
                   <td className="py-2 font-mono font-semibold">{props.modelName}</td>
                   <td className="py-2 text-right font-mono tabular-nums">{props.inputDiscounted}</td>
                 </tr>
                 {props.comparison.map((peer) => (
-                  <tr key={peer.modelName} className="border-b last:border-0">
+                  <tr key={peer.modelName} className="border-b border-violet-500/10 last:border-0">
                     <td className="py-2">
-                      <Link href={peerUrl(peer.modelName)} className="font-mono text-violet-600 hover:underline dark:text-violet-400">
+                      <Link href={peerUrl(peer.modelName)} className="font-mono text-violet-700 hover:underline dark:text-violet-200">
                         {peer.modelName}
                       </Link>
                     </td>
@@ -384,7 +396,7 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
           {trend.length > 1 ? (
             <DailyHealthBars points={trend} label={copy.availability} heightPx={64} />
           ) : (
-            <div className="text-muted-foreground/60 flex h-full items-center text-xs">
+            <div className="flex h-full items-center text-xs text-[#6B6475]/70 dark:text-slate-300/58">
               {trendLoaded ? copy.noData : "…"}
             </div>
           )}
@@ -393,11 +405,11 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
 
       {/* FAQ */}
       <Section title={ui.faqTitle}>
-        <div className="divide-y">
+        <div className="divide-y divide-violet-500/10">
           {faq.map((item) => (
             <div key={item.q} className="py-3 first:pt-0 last:pb-0">
               <h3 className="text-sm font-semibold">{item.q}</h3>
-              <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{item.a}</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#6B6475] dark:text-slate-300/72">{item.a}</p>
             </div>
           ))}
         </div>
@@ -411,10 +423,10 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
               <Link
                 key={peer.modelName}
                 href={peerUrl(peer.modelName)}
-                className="hover:border-violet-500/40 flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors"
+                className="flex items-center justify-between rounded-lg border border-violet-500/14 bg-white/46 px-3 py-2 text-sm transition-colors hover:border-violet-500/40 hover:bg-white/70 dark:bg-white/[0.025]"
               >
                 <span className="truncate font-mono">{peer.modelName}</span>
-                <span className="text-muted-foreground ml-2 shrink-0 font-mono text-xs tabular-nums">{peer.inputPrice}</span>
+                <span className="ml-2 shrink-0 font-mono text-xs text-[#6B6475] tabular-nums dark:text-slate-300/72">{peer.inputPrice}</span>
               </Link>
             ))}
           </div>
@@ -422,25 +434,26 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
       ) : null}
 
       {/* Final CTA */}
-      <section className="mt-6 rounded-xl border border-violet-500/25 bg-gradient-to-br from-violet-500/[0.08] to-emerald-500/[0.05] p-6 text-center">
+      <section className="mt-6 rounded-2xl border border-violet-500/16 bg-white/62 p-6 text-center shadow-[0_24px_70px_-52px_rgba(91,33,182,0.78)] backdrop-blur-sm dark:bg-white/[0.03]">
         <h2 className="text-lg font-bold">{ui.ctaTitle.replace("{model}", props.modelName)}</h2>
-        <p className="text-muted-foreground mx-auto mt-1 max-w-xl text-sm">{ui.ctaSubtitle}</p>
+        <p className="mx-auto mt-1 max-w-xl text-sm text-[#6B6475] dark:text-slate-300/72">{ui.ctaSubtitle}</p>
         <Link
           href={signUpUrl}
-          className="flatkey-hero-cta mt-4 inline-flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
+          className="flatkey-hero-cta mt-4 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-semibold shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-opacity hover:opacity-90"
         >
           {ui.ctaSignUp}
           <ArrowRight className="size-4" />
         </Link>
       </section>
-    </div>
+      </div>
+    </main>
   );
 }
 
 function Section(props: { title: string; icon?: ReactNode; children: ReactNode }) {
   return (
-    <section className="mt-4 rounded-xl border bg-white/60 p-4 dark:bg-white/[0.03]">
-      <h2 className="text-muted-foreground mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
+    <section className="mt-4 rounded-2xl border border-violet-500/16 bg-white/62 p-4 shadow-[0_24px_70px_-56px_rgba(91,33,182,0.58)] backdrop-blur-sm dark:bg-white/[0.03]">
+      <h2 className="mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wider text-violet-700 uppercase dark:text-violet-200">
         {props.icon}
         {props.title}
       </h2>
@@ -451,8 +464,8 @@ function Section(props: { title: string; icon?: ReactNode; children: ReactNode }
 
 function SpecRow(props: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-dashed py-1.5 last:border-0">
-      <dt className="text-muted-foreground text-xs">{props.label}</dt>
+    <div className="flex items-baseline justify-between gap-3 border-b border-dashed border-violet-500/14 py-1.5 last:border-0">
+      <dt className="text-xs text-[#6B6475] dark:text-slate-300/72">{props.label}</dt>
       <dd className={`text-right text-sm ${props.mono ? "font-mono text-xs" : ""}`}>{props.value}</dd>
     </div>
   );
@@ -460,11 +473,13 @@ function SpecRow(props: { label: string; value: string; mono?: boolean }) {
 
 function StatCard(props: { icon: ReactNode; label: string; value: string; tone: "emerald" | "violet" }) {
   const border =
-    props.tone === "emerald" ? "border-emerald-500/25 bg-emerald-500/[0.06]" : "border-violet-500/20 bg-violet-500/[0.04]";
-  const text = props.tone === "emerald" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground";
+    props.tone === "emerald"
+      ? "border-emerald-500/22 bg-emerald-500/[0.07]"
+      : "border-violet-500/16 bg-white/62 dark:bg-white/[0.03]";
+  const text = props.tone === "emerald" ? "text-emerald-700 dark:text-emerald-300" : "text-[#0B0B0F] dark:text-white";
   return (
-    <div className={`rounded-xl border p-4 ${border}`}>
-      <div className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">
+    <div className={`rounded-2xl border p-4 shadow-[0_24px_70px_-56px_rgba(91,33,182,0.58)] backdrop-blur-sm ${border}`}>
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-[#6B6475] uppercase dark:text-slate-300/72">
         {props.icon}
         {props.label}
       </div>

@@ -5,6 +5,7 @@ import { SiteShell } from "@/components/site-shell";
 import { isLocale, LOCALES } from "@/lib/locales";
 import {
   getModelLandingConfig,
+  getModelLandingConfigForPricingModel,
   getModelLandingConfigs,
   resolveModelLandingModels,
 } from "@/lib/model-landing";
@@ -38,6 +39,19 @@ export async function generateMetadata(props: Props) {
   const pricing = await getPricingData();
   const model = resolvePublicModel(pricing.models, params.slug);
   if (!model) return {};
+  const modelWithVendor = {
+    ...model,
+    vendor_name: model.vendor_name ?? getVendorName(model, pricing.vendors),
+  };
+  const modelSpecificConfig = getModelLandingConfigForPricingModel(modelWithVendor);
+  if (modelSpecificConfig) {
+    return buildMetadata({
+      title: modelSpecificConfig.seo.title,
+      description: modelSpecificConfig.seo.description,
+      pathname: modelPublicPath(model.model_name),
+      locale: params.locale,
+    });
+  }
   return buildMetadata({
     title: `${model.model_name} — pricing, availability & API`,
     description: `Live pricing, 30-day availability and a ready-to-run API example for ${model.model_name} on flatkey.ai.`,
@@ -70,6 +84,20 @@ export default async function Page(props: Props) {
   // Generic public model page: rankings / directory click-through target.
   const model = resolvePublicModel(pricing.models, params.slug);
   if (!model) notFound();
+  const modelWithVendor = {
+    ...model,
+    vendor_name: model.vendor_name ?? getVendorName(model, pricing.vendors),
+  };
+  const modelSpecificConfig = getModelLandingConfigForPricingModel(modelWithVendor);
+  if (modelSpecificConfig) {
+    return (
+      <ModelLandingPage
+        config={modelSpecificConfig}
+        locale={params.locale}
+        liveModels={resolveModelLandingModels(modelSpecificConfig, [modelWithVendor])}
+      />
+    );
+  }
 
   return (
     <SiteShell locale={params.locale} pathname={modelPublicPath(model.model_name)}>
