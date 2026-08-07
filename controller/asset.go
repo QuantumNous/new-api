@@ -10,7 +10,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -19,11 +18,13 @@ import (
 const assetMultipartEnvelopeMaxBytes = int64(1 << 20)
 
 var (
-	createAssetFromURL       = service.CreateAssetFromURL
-	uploadAsset              = service.UploadAsset
-	createAssetUploadSession = service.CreateAssetUploadSession
-	completeAssetUpload      = service.CompleteAssetUpload
-	getAsset                 = service.GetAsset
+	createAssetFromURL               = service.CreateAssetFromURL
+	uploadAsset                      = service.UploadAsset
+	createAssetUploadSession         = service.CreateAssetUploadSession
+	completeAssetUpload              = service.CompleteAssetUpload
+	getAsset                         = service.GetAsset
+	reconcileAssetForScope           = service.ReconcileAssetForScope
+	resolveAssetModelScopeForContext = service.ResolveAssetModelScopeForContext
 )
 
 func CreateAsset(c *gin.Context) {
@@ -32,16 +33,12 @@ func CreateAsset(c *gin.Context) {
 		writeAssetError(c, types.InitOpenAIError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest))
 		return
 	}
-	if !assetTokenAllowsModel(c, request.Model) {
-		writeAssetModelForbidden(c, request.Model)
-		return
-	}
 	result, err := createAssetFromURL(c.Request.Context(), service.AssetFromURLRequest{
 		UserID:    common.GetContextKeyInt(c, constant.ContextKeyUserId),
 		AssetType: strings.TrimSpace(request.AssetType),
 		URL:       strings.TrimSpace(request.URL),
 	})
-	writeAssetResult(c, result, err)
+	writeReconciledAssetResult(c, result, err)
 }
 
 func UploadAsset(c *gin.Context) {
@@ -58,11 +55,6 @@ func UploadAsset(c *gin.Context) {
 	}
 	defer file.Close()
 
-	modelName := strings.TrimSpace(c.Request.FormValue("model"))
-	if !assetTokenAllowsModel(c, modelName) {
-		writeAssetModelForbidden(c, modelName)
-		return
-	}
 	assetType := strings.TrimSpace(c.Request.FormValue("asset_type"))
 	if assetType == "" {
 		assetType = assetTypeFromContentType(header.Header.Get("Content-Type"))
@@ -78,17 +70,13 @@ func UploadAsset(c *gin.Context) {
 		Filename:  header.Filename,
 		Body:      file,
 	})
-	writeAssetResult(c, result, uploadErr)
+	writeReconciledAssetResult(c, result, uploadErr)
 }
 
 func CreateAssetUploadSession(c *gin.Context) {
 	var request dto.AssetUploadSessionRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		writeAssetError(c, types.InitOpenAIError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest))
-		return
-	}
-	if !assetTokenAllowsModel(c, request.Model) {
-		writeAssetModelForbidden(c, request.Model)
 		return
 	}
 	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
@@ -129,7 +117,7 @@ func CompleteAssetUpload(c *gin.Context) {
 		UploadID: uploadID,
 		Owner:    assetUploadOwner(userID),
 	})
-	writeAssetResult(c, result, err)
+	writeReconciledAssetResult(c, result, err)
 }
 
 func GetAsset(c *gin.Context) {
@@ -139,7 +127,26 @@ func GetAsset(c *gin.Context) {
 		return
 	}
 	result, err := getAsset(c.Request.Context(), common.GetContextKeyInt(c, constant.ContextKeyUserId), assetID)
-	writeAssetResult(c, result, err)
+	writeReconciledAssetResult(c, result, err)
+}
+
+func writeReconciledAssetResult(c *gin.Context, result *service.AssetResult, err error) {
+	if err != nil || result == nil {
+		writeAssetResult(c, result, err)
+		return
+	}
+	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
+	scope, scopeErr := resolveAssetModelScopeForContext(c, userID)
+	if scopeErr != nil {
+		writeAssetServiceError(c, scopeErr)
+		return
+	}
+	reconciled, reconcileErr := reconcileAssetForScope(c.Request.Context(), userID, result.PublicID, scope)
+	if reconcileErr != nil {
+		writeAssetServiceError(c, reconcileErr)
+		return
+	}
+	writeAssetResult(c, reconciled, nil)
 }
 
 func writeAssetResult(c *gin.Context, result *service.AssetResult, err error) {
@@ -164,28 +171,6 @@ func assetResponseFromResult(result *service.AssetResult) dto.AssetResponse {
 		CreatedAt:       result.CreatedAt,
 		SourceExpiresAt: result.SourceExpiresAt,
 	}
-}
-
-func assetTokenAllowsModel(c *gin.Context, modelName string) bool {
-	modelName = strings.TrimSpace(modelName)
-	if modelName == "" || !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
-		return true
-	}
-	value, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
-	if !ok {
-		return false
-	}
-	allowlist, ok := value.(map[string]bool)
-	return ok && service.TokenAllowsModel(allowlist, modelName)
-}
-
-func writeAssetModelForbidden(c *gin.Context, modelName string) {
-	c.JSON(http.StatusForbidden, gin.H{"error": types.OpenAIError{
-		Message: common.TranslateMessage(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": strings.TrimSpace(modelName)}),
-		Type:    string(types.ErrorCodeAccessDenied),
-		Code:    string(types.ErrorCodeAccessDenied),
-		Param:   "",
-	}})
 }
 
 func writeAssetServiceError(c *gin.Context, err error) {

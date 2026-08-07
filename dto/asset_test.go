@@ -39,14 +39,16 @@ func TestAssetCreateAndUploadSessionRequestsUseCanonicalJSONTags(t *testing.T) {
 	require.NoError(t, common.Unmarshal([]byte(`{"url":"https://cdn.example/image.png","asset_type":"Image","model":"gpt-4.1"}`), &create))
 	require.Equal(t, "https://cdn.example/image.png", create.URL)
 	require.Equal(t, "Image", create.AssetType)
-	require.Equal(t, "gpt-4.1", create.Model)
+	require.NotNil(t, create.Model)
+	require.Equal(t, "gpt-4.1", *create.Model)
 
 	var session AssetUploadSessionRequest
 	require.NoError(t, common.Unmarshal([]byte(`{"asset_type":"Video","content_type":"video/mp4","size_bytes":123,"model":"seedance-2.0"}`), &session))
 	require.Equal(t, "Video", session.AssetType)
 	require.Equal(t, "video/mp4", session.ContentType)
 	require.EqualValues(t, 123, session.SizeBytes)
-	require.Equal(t, "seedance-2.0", session.Model)
+	require.NotNil(t, session.Model)
+	require.Equal(t, "seedance-2.0", *session.Model)
 }
 
 func TestAssetUploadSessionResponsePublicShapeOmitsStorageFields(t *testing.T) {

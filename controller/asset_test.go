@@ -25,7 +25,11 @@ import (
 
 func TestCreateAssetFromURLUsesCanonicalServiceUserIDAndPublicShape(t *testing.T) {
 	originalCreate := createAssetFromURL
-	t.Cleanup(func() { createAssetFromURL = originalCreate })
+	restoreReconcile := installAssetControllerReconcileStub(t)
+	t.Cleanup(func() {
+		createAssetFromURL = originalCreate
+		restoreReconcile()
+	})
 
 	var got service.AssetFromURLRequest
 	createAssetFromURL = func(ctx context.Context, request service.AssetFromURLRequest) (*service.AssetResult, error) {
@@ -54,11 +58,18 @@ func TestCreateAssetFromURLUsesCanonicalServiceUserIDAndPublicShape(t *testing.T
 
 func TestCreateAssetOptionalModelAllowListAllowedDeniedAndOmitted(t *testing.T) {
 	originalCreate := createAssetFromURL
-	t.Cleanup(func() { createAssetFromURL = originalCreate })
+	originalReconcile := reconcileAssetForScope
+	t.Cleanup(func() {
+		createAssetFromURL = originalCreate
+		reconcileAssetForScope = originalReconcile
+	})
 	calls := 0
 	createAssetFromURL = func(context.Context, service.AssetFromURLRequest) (*service.AssetResult, error) {
 		calls++
 		return &service.AssetResult{PublicID: "ast_public", AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	reconcileAssetForScope = func(ctx context.Context, userID int, publicID string, scope service.AssetModelScope) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: publicID, AssetType: "Image", Status: model.AssetStatusActive}, nil
 	}
 
 	omitted, omittedRecorder := newAssetJSONContext(http.MethodPost, "/v1/assets", `{"url":"https://cdn.example.com/public.png","asset_type":"Image"}`)
@@ -80,14 +91,86 @@ func TestCreateAssetOptionalModelAllowListAllowedDeniedAndOmitted(t *testing.T) 
 	common.SetContextKey(denied, constant.ContextKeyTokenModelLimitEnabled, true)
 	common.SetContextKey(denied, constant.ContextKeyTokenModelLimit, map[string]bool{"gpt-4.1": true})
 	CreateAsset(denied)
-	require.Equal(t, http.StatusForbidden, deniedRecorder.Code)
-	requireAssetError(t, deniedRecorder.Body.Bytes(), string(types.ErrorCodeAccessDenied))
-	require.Equal(t, 2, calls)
+	require.Equal(t, http.StatusOK, deniedRecorder.Code)
+	require.Equal(t, 3, calls)
+}
+
+func TestAssetControllerIgnoresClientModelAndReconcilesWithAuthenticatedScope(t *testing.T) {
+	originalCreate := createAssetFromURL
+	originalUpload := uploadAsset
+	originalComplete := completeAssetUpload
+	originalGet := getAsset
+	originalReconcile := reconcileAssetForScope
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		createAssetFromURL = originalCreate
+		uploadAsset = originalUpload
+		completeAssetUpload = originalComplete
+		getAsset = originalGet
+		reconcileAssetForScope = originalReconcile
+		resolveAssetModelScopeForContext = originalResolve
+	})
+
+	scope := service.AssetModelScope{ScopeKey: "scope-auth", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}
+	resolveCalls := 0
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		resolveCalls++
+		return scope, nil
+	}
+	reconcileCalls := 0
+	reconcileAssetForScope = func(ctx context.Context, userID int, publicID string, gotScope service.AssetModelScope) (*service.AssetResult, error) {
+		reconcileCalls++
+		require.Equal(t, scope, gotScope)
+		require.Equal(t, 123, userID)
+		return &service.AssetResult{PublicID: publicID, AssetType: "Image", Status: model.AssetStatusProcessing}, nil
+	}
+
+	createAssetFromURL = func(ctx context.Context, request service.AssetFromURLRequest) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: "ast_json", AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	jsonCtx, jsonRecorder := newAssetJSONContext(http.MethodPost, "/v1/assets", `{"url":"https://cdn.example.com/public.png","asset_type":"Image","model":"client-value-must-not-select-readiness"}`)
+	setBlockedAssetModelContext(jsonCtx)
+	CreateAsset(jsonCtx)
+	require.Equal(t, http.StatusOK, jsonRecorder.Code, jsonRecorder.Body.String())
+	require.Contains(t, jsonRecorder.Body.String(), `"status":"Processing"`)
+
+	uploadAsset = func(ctx context.Context, request service.AssetUploadRequest) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: "ast_upload", AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	uploadCtx, uploadRecorder := newAssetMultipartContext(t, map[string]string{"model": "client-value-must-not-select-readiness", "asset_type": "Image"}, "file", "image.png", "image/png", serviceTestTinyPNG())
+	setBlockedAssetModelContext(uploadCtx)
+	UploadAsset(uploadCtx)
+	require.Equal(t, http.StatusOK, uploadRecorder.Code, uploadRecorder.Body.String())
+
+	completeAssetUpload = func(ctx context.Context, request service.AssetCompleteUploadRequest) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: "ast_complete", AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	completeCtx, completeRecorder := newAssetJSONContext(http.MethodPost, "/v1/assets/uploads/upl_public/complete", `{}`)
+	completeCtx.Params = gin.Params{{Key: "upload_id", Value: "upl_public"}}
+	setBlockedAssetModelContext(completeCtx)
+	CompleteAssetUpload(completeCtx)
+	require.Equal(t, http.StatusOK, completeRecorder.Code, completeRecorder.Body.String())
+
+	getAsset = func(ctx context.Context, userID int, assetID string) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: assetID, AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	getCtx, getRecorder := newAssetJSONContext(http.MethodGet, "/v1/assets/ast_get?model=client-value-must-not-select-readiness", "")
+	getCtx.Params = gin.Params{{Key: "asset_id", Value: "ast_get"}}
+	setBlockedAssetModelContext(getCtx)
+	GetAsset(getCtx)
+	require.Equal(t, http.StatusOK, getRecorder.Code, getRecorder.Body.String())
+
+	require.Equal(t, 4, resolveCalls)
+	require.Equal(t, 4, reconcileCalls)
 }
 
 func TestUploadAssetInfersTypeAndMapsMissingFile(t *testing.T) {
 	originalUpload := uploadAsset
-	t.Cleanup(func() { uploadAsset = originalUpload })
+	restoreReconcile := installAssetControllerReconcileStub(t)
+	t.Cleanup(func() {
+		uploadAsset = originalUpload
+		restoreReconcile()
+	})
 
 	var got service.AssetUploadRequest
 	uploadAsset = func(ctx context.Context, request service.AssetUploadRequest) (*service.AssetResult, error) {
@@ -116,7 +199,11 @@ func TestUploadAssetInfersTypeAndMapsMissingFile(t *testing.T) {
 
 func TestUploadAssetAllowsMultipartEnvelopeAndUsesServiceFileCap(t *testing.T) {
 	originalUpload := uploadAsset
-	t.Cleanup(func() { uploadAsset = originalUpload })
+	restoreReconcile := installAssetControllerReconcileStub(t)
+	t.Cleanup(func() {
+		uploadAsset = originalUpload
+		restoreReconcile()
+	})
 
 	exactFile := serviceTestTinyMP3()
 	t.Setenv("ASSET_MULTIPART_MAX_BYTES", strconv.Itoa(len(exactFile)))
@@ -181,6 +268,27 @@ func TestDirectUploadSessionDerivesOwnerAndReturnsRequiredHeadersOnly(t *testing
 	require.NotContains(t, recorder.Body.String(), "must/not/leak")
 }
 
+func TestUploadSessionIgnoresBlockedOptionalModelAndStaysPending(t *testing.T) {
+	originalSession := createAssetUploadSession
+	t.Cleanup(func() { createAssetUploadSession = originalSession })
+	createAssetUploadSession = func(ctx context.Context, request service.AssetUploadSessionRequest) (*service.AssetUploadSessionResult, error) {
+		return &service.AssetUploadSessionResult{
+			UploadID:      "upl_public",
+			PublicID:      "ast_public",
+			SignedURL:     "https://signed.example/upload",
+			UploadHeaders: map[string]string{"x-goog-if-generation-match": "0"},
+			ExpiresAt:     1785682501,
+		}, nil
+	}
+
+	ctx, recorder := newAssetJSONContext(http.MethodPost, "/v1/assets/uploads", `{"asset_type":"Image","content_type":"image/png","size_bytes":17,"model":"client-value-must-not-select-readiness"}`)
+	setBlockedAssetModelContext(ctx)
+	CreateAssetUploadSession(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), `"status":"pending"`)
+}
+
 func TestDirectUploadSessionOversizeReturnsStable413Envelope(t *testing.T) {
 	originalSession := createAssetUploadSession
 	t.Cleanup(func() { createAssetUploadSession = originalSession })
@@ -232,9 +340,11 @@ func TestAssetControllerMapsExpiredAndTypeMismatchErrorsToStableOpenAIEnvelope(t
 func TestCompleteUploadAndOwnedGetUseUserScopedService(t *testing.T) {
 	originalComplete := completeAssetUpload
 	originalGet := getAsset
+	restoreReconcile := installAssetControllerReconcileStub(t)
 	t.Cleanup(func() {
 		completeAssetUpload = originalComplete
 		getAsset = originalGet
+		restoreReconcile()
 	})
 
 	var completeReq service.AssetCompleteUploadRequest
@@ -332,6 +442,39 @@ func setAssetTokenContext(ctx *gin.Context, userID int) {
 	common.SetContextKey(ctx, constant.ContextKeyUserId, userID)
 }
 
+func setBlockedAssetModelContext(ctx *gin.Context) {
+	setAssetTokenContext(ctx, 123)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{"seedance-2.0": true})
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelBlacklistEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelBlacklist, map[string]bool{"client-value-must-not-select-readiness": true})
+}
+
+func installAssetControllerReconcileStub(t *testing.T) func() {
+	t.Helper()
+	originalReconcile := reconcileAssetForScope
+	originalResolve := resolveAssetModelScopeForContext
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		return service.AssetModelScope{ScopeKey: "test-scope", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}, nil
+	}
+	reconcileAssetForScope = func(ctx context.Context, userID int, publicID string, scope service.AssetModelScope) (*service.AssetResult, error) {
+		switch publicID {
+		case "ast_public":
+			return &service.AssetResult{PublicID: publicID, AssetType: "Image", Status: model.AssetStatusActive, CreatedAt: 1785678901, SourceExpiresAt: 1788270901}, nil
+		case "ast_upload", "ast_exact":
+			return &service.AssetResult{PublicID: publicID, AssetType: "Audio", Status: model.AssetStatusActive}, nil
+		default:
+			return &service.AssetResult{PublicID: publicID, AssetType: "Image", Status: model.AssetStatusProcessing, CreatedAt: 1785678901}, nil
+		}
+	}
+	return func() {
+		reconcileAssetForScope = originalReconcile
+		resolveAssetModelScopeForContext = originalResolve
+	}
+}
+
 func requireAssetError(t *testing.T, body []byte, code any) {
 	t.Helper()
 	var envelope struct {
@@ -364,4 +507,8 @@ func requireAssetPublicBody(t *testing.T, body string) {
 
 func serviceTestTinyMP3() []byte {
 	return []byte("ID3\x04\x00\x00\x00\x00\x00\x00payload")
+}
+
+func serviceTestTinyPNG() []byte {
+	return []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0, 'I', 'H', 'D', 'R'}
 }

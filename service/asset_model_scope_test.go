@@ -1,11 +1,16 @@
 package service
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,6 +93,29 @@ func TestResolveAssetModelScopeSpecificChannelChecksLowerPriorityTiers(t *testin
 	require.Equal(t, []string{"seedance-fast"}, scope.ModelNames)
 }
 
+func TestResolveAssetModelScopeForContextUsesAuthenticatedUnpricedPolicy(t *testing.T) {
+	db, _ := setupServiceModelAccessDB(t)
+	seedModelAccessScope(t, db, 125, "default", constant.ChannelTypeTechMobiVideo, "unpriced-video")
+	setModelAccessBilling(t, nil, nil, nil)
+
+	originalSelfUse := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = false
+	t.Cleanup(func() { operation_setting.SelfUseModeEnabled = originalSelfUse })
+
+	scope, err := ResolveAssetModelScopeForContext(assetModelScopeGinContext(t, nil), 0)
+	require.NoError(t, err)
+	require.Empty(t, scope.ModelNames)
+
+	scope, err = ResolveAssetModelScopeForContext(assetModelScopeGinContext(t, dto.UserSetting{AcceptUnsetRatioModel: true}), 0)
+	require.NoError(t, err)
+	require.Equal(t, []string{"unpriced-video"}, scope.ModelNames)
+
+	operation_setting.SelfUseModeEnabled = true
+	scope, err = ResolveAssetModelScopeForContext(assetModelScopeGinContext(t, nil), 0)
+	require.NoError(t, err)
+	require.Equal(t, []string{"unpriced-video"}, scope.ModelNames)
+}
+
 func TestResolveAssetModelScopeKeepsAdvertisedVideoModelWithoutMaterializer(t *testing.T) {
 	db, _ := setupServiceModelAccessDB(t)
 	seedModelAccessScope(t, db, 130, "default", constant.ChannelTypeMiniMaxH3, "advertised-video")
@@ -101,6 +129,19 @@ func TestResolveAssetModelScopeKeepsAdvertisedVideoModelWithoutMaterializer(t *t
 	candidates, err := AssetModelTargetCandidates(scope, "advertised-video")
 	require.NoError(t, err)
 	require.Empty(t, candidates)
+}
+
+func assetModelScopeGinContext(t *testing.T, userSetting any) *gin.Context {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/assets/ast_public", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "default")
+	if userSetting != nil {
+		common.SetContextKey(ctx, constant.ContextKeyUserSetting, userSetting)
+	}
+	return ctx
 }
 
 func TestResolveAssetModelScopeKeyUsesCanonicalPayload(t *testing.T) {

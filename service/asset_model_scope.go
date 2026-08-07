@@ -2,11 +2,15 @@ package service
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/gin-gonic/gin"
 )
 
 type AssetModelScopeInput struct {
@@ -75,6 +79,41 @@ func ResolveAssetModelScope(input AssetModelScopeInput) (AssetModelScope, error)
 		return AssetModelScope{}, err
 	}
 	return scope, nil
+}
+
+func ResolveAssetModelScopeForContext(c *gin.Context, _ int) (AssetModelScope, error) {
+	modelLimits := map[string]bool{}
+	if value, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit); ok {
+		if limits, valid := value.(map[string]bool); valid {
+			modelLimits = limits
+		}
+	}
+	modelBlacklist := map[string]bool{}
+	if value, ok := common.GetContextKey(c, constant.ContextKeyTokenModelBlacklist); ok {
+		if blacklist, valid := value.(map[string]bool); valid {
+			modelBlacklist = blacklist
+		}
+	}
+
+	userSetting, _ := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting)
+	acceptUnpriced := operation_setting.SelfUseModeEnabled || userSetting.AcceptUnsetRatioModel
+	specificChannelID := 0
+	rawSpecific := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyTokenSpecificChannelId))
+	if rawSpecific != "" {
+		if parsed, err := strconv.Atoi(rawSpecific); err == nil && parsed > 0 {
+			specificChannelID = parsed
+		}
+	}
+	return ResolveAssetModelScope(AssetModelScopeInput{
+		IdentityGroup:         common.GetContextKeyString(c, constant.ContextKeyUserGroup),
+		TokenGroup:            common.GetContextKeyString(c, constant.ContextKeyTokenGroup),
+		AcceptUnpriced:        acceptUnpriced,
+		ModelLimitsEnabled:    common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled),
+		ModelLimits:           modelLimits,
+		ModelBlacklistEnabled: common.GetContextKeyBool(c, constant.ContextKeyTokenModelBlacklistEnabled),
+		ModelBlacklist:        modelBlacklist,
+		SpecificChannelID:     specificChannelID,
+	})
 }
 
 func assetModelHasVideoEndpoint(endpoints []constant.EndpointType) bool {
