@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,6 +20,17 @@ var defNext = func(c *gin.Context) {
 	c.Next()
 }
 
+// recordAPIRateLimitAbort records rate_limit errors for Global API rate limiter (mark "GA"),
+// which covers user-facing /api and billing endpoints. Skips web/critical/search noise.
+func recordAPIRateLimitAbort(c *gin.Context, mark string, statusCode int, content string) {
+	if mark != "GA" {
+		return
+	}
+	service.RecordRequestErrorLog(c, constant.ErrorCategoryRateLimit, content, map[string]interface{}{
+		"status_code": statusCode,
+	}, false)
+}
+
 func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
 	ctx := context.Background()
 	rdb := common.RDB
@@ -25,6 +38,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 	listLength, err := rdb.LLen(ctx, key).Result()
 	if err != nil {
 		fmt.Println(err.Error())
+		recordAPIRateLimitAbort(c, mark, http.StatusInternalServerError, "global api rate limit check failed")
 		c.Status(http.StatusInternalServerError)
 		c.Abort()
 		return
@@ -37,6 +51,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		oldTime, err := time.Parse(timeFormat, oldTimeStr)
 		if err != nil {
 			fmt.Println(err)
+			recordAPIRateLimitAbort(c, mark, http.StatusInternalServerError, "global api rate limit check failed")
 			c.Status(http.StatusInternalServerError)
 			c.Abort()
 			return
@@ -45,6 +60,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		nowTime, err := time.Parse(timeFormat, nowTimeStr)
 		if err != nil {
 			fmt.Println(err)
+			recordAPIRateLimitAbort(c, mark, http.StatusInternalServerError, "global api rate limit check failed")
 			c.Status(http.StatusInternalServerError)
 			c.Abort()
 			return
@@ -53,6 +69,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		// See: https://stackoverflow.com/questions/50970900/why-is-time-since-returning-negative-durations-on-windows
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
+			recordAPIRateLimitAbort(c, mark, http.StatusTooManyRequests, "global api rate limit exceeded")
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
@@ -67,6 +84,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
 	key := mark + c.ClientIP()
 	if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
+		recordAPIRateLimitAbort(c, mark, http.StatusTooManyRequests, "global api rate limit exceeded")
 		c.Status(http.StatusTooManyRequests)
 		c.Abort()
 		return
