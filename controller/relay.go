@@ -181,17 +181,39 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
+	// excludeChannels tracks channel IDs that should no longer be selected in
+	// this request so each retry moves to a fresh channel. recordChannelFailure
+	// populates it: a channel-level failure excludes the channel immediately,
+	// while a per-key rate-limit only excludes it once every enabled key has
+	// been throttled (counted via channelTries), preserving the per-request key
+	// rotation that GetNextEnabledKey performs.
+	excludeChannels := make(map[int]bool)
+	// channelTries counts rate-limited attempts per channel, compared against
+	// the channel's enabled-key count by recordChannelFailure.
+	channelTries := make(map[int]int)
 	retryParam := &service.RetryParam{
-		Ctx:         c,
-		TokenGroup:  relayInfo.TokenGroup,
-		ModelName:   relayInfo.OriginModelName,
-		RequestPath: c.Request.URL.Path,
-		Retry:       common.GetPointer(0),
+		Ctx:             c,
+		TokenGroup:      relayInfo.TokenGroup,
+		ModelName:       relayInfo.OriginModelName,
+		RequestPath:     c.Request.URL.Path,
+		Retry:           common.GetPointer(0),
+		ExcludeChannels: excludeChannels,
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	// Adaptive retry budget: try every available channel before giving up.
+	// A fixed RetryTimes smaller than the channel pool would abort while
+	// healthy channels remain untried. We size the cap to cover all channels
+	// (count-1 retries after the first attempt) but never below the configured
+	// RetryTimes. The exclude-driven selection stops cleanly once the pool is
+	// exhausted, so an oversized cap costs nothing.
+	retryCap := common.RetryTimes
+	if availableChannels := countAvailableChannelsForRetry(c, relayInfo); availableChannels-1 > retryCap {
+		retryCap = availableChannels - 1
+	}
+
+	for ; retryParam.GetRetry() <= retryCap; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
@@ -200,6 +222,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		addUsedChannel(c, channel.Id)
+		// Channel exclusion bookkeeping (channelTries / excludeChannels) is done
+		// by recordChannelFailure after a failed attempt; nothing to do here on
+		// the success path.
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break
@@ -230,6 +255,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			clearCooldownForContext(c, channel.Id)
 			return
 		}
 
@@ -237,8 +263,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relayInfo.LastError = newAPIError
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		markCooldownFromError(c, channel.Id, newAPIError)
+		recordChannelFailure(channel.Id, channel.CountEnabledKeys(), newAPIError, excludeChannels, channelTries)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetry(c, relayInfo, newAPIError, retryCap-retryParam.GetRetry()) {
 			break
 		}
 	}
@@ -297,6 +325,31 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 	return meta
 }
 
+// countAvailableChannelsForRetry returns how many distinct channels can serve
+// this request, used to size the adaptive retry budget. For the "auto" token
+// group it sums channels across all of the user's auto groups (retry fails over
+// across them); otherwise it counts the single token group. When a fixed
+// channel is pinned (specific_channel_id / ChannelMeta), there is nothing to
+// fail over to, so it returns 1.
+func countAvailableChannelsForRetry(c *gin.Context, info *relaycommon.RelayInfo) int {
+	if info.ChannelMeta != nil {
+		return 1
+	}
+	if _, ok := c.Get("specific_channel_id"); ok {
+		return 1
+	}
+	requestPath := c.Request.URL.Path
+	if info.TokenGroup == "auto" {
+		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		total := 0
+		for _, g := range service.GetUserAutoGroup(userGroup) {
+			total += model.CountAvailableChannels(g, info.OriginModelName, requestPath)
+		}
+		return total
+	}
+	return model.CountAvailableChannels(info.TokenGroup, info.OriginModelName, requestPath)
+}
+
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
 		autoBan := c.GetBool("auto_ban")
@@ -328,8 +381,17 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	return channel, nil
 }
 
-func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
+func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.NewAPIError, retryTimes int) bool {
 	if openaiErr == nil {
+		return false
+	}
+	// Never retry once any bytes have been written to the client. Retrying
+	// would reuse the same http.ResponseWriter and append a second response
+	// (e.g. a fresh SSE stream from another channel) onto the partial output
+	// already sent, corrupting what the client sees. Individual stream handlers
+	// mostly avoid propagating a retryable error after their first flush, but
+	// this is the single authoritative guard that closes any gap.
+	if info != nil && info.HasSendResponse() {
 		return false
 	}
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
@@ -358,6 +420,60 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 		return false
 	}
 	return operation_setting.ShouldRetryByStatusCode(code)
+}
+
+// contextKeyIndex returns the multi-key index recorded for the current request,
+// or 0 for a single-key channel. It mirrors what SetupContextForSelectedChannel
+// stored from GetNextEnabledKey, so cooldown reads/writes target the exact key
+// that was used.
+func contextKeyIndex(c *gin.Context) int {
+	if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
+		return common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
+	}
+	return 0
+}
+
+// markCooldownFromError puts the failing channel key into a short cross-request
+// cooldown on a rate-limit response, so other requests skip a just-throttled
+// upstream instead of re-hitting it. The upstream Retry-After hint (if any)
+// sizes the cooldown; otherwise a small default is used. This is called only
+// from the relay loops (not from processChannelError) so channel health checks
+// never pollute live rate-limit state.
+func markCooldownFromError(c *gin.Context, channelId int, err *types.NewAPIError) {
+	if err == nil {
+		return
+	}
+	if err.IsRateLimited() {
+		model.MarkChannelKeyCooldown(channelId, contextKeyIndex(c), err.RetryAfterSeconds)
+	}
+}
+
+// clearCooldownForContext removes any cooldown on the key just used, called
+// after a successful request so a recovered upstream becomes immediately
+// selectable instead of waiting out the remaining TTL.
+func clearCooldownForContext(c *gin.Context, channelId int) {
+	model.ClearChannelKeyCooldown(channelId, contextKeyIndex(c))
+}
+
+// recordChannelFailure updates retry bookkeeping after a channel attempt fails,
+// deciding whether the next retry should rotate to another key of the same
+// channel or fail over to a different channel entirely.
+//
+// A channel-level failure (broken upstream backend: 5xx, auth_unavailable, etc.)
+// excludes the whole channel at once, since every key of that channel talks to
+// the same broken backend and retrying the remaining keys only adds latency. A
+// per-key rate-limit instead advances the key-rotation counter and excludes the
+// channel only once all of its enabled keys have been throttled. IsRateLimited
+// is the single source of truth for the distinction, shared with cooldown.
+func recordChannelFailure(channelID, enabledKeys int, err *types.NewAPIError, excludeChannels map[int]bool, channelTries map[int]int) {
+	if !err.IsRateLimited() {
+		excludeChannels[channelID] = true
+		return
+	}
+	channelTries[channelID]++
+	if channelTries[channelID] >= enabledKeys {
+		excludeChannels[channelID] = true
+	}
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
@@ -513,12 +629,19 @@ func RelayTask(c *gin.Context) {
 		}
 	}()
 
+	// excludeChannels / channelTries mirror the synchronous relay loop so task
+	// submission retries also move to a fresh channel (or the next key of a
+	// multi-key channel) instead of re-hitting one that just failed. The pinned
+	// LockedChannel branch is never excluded.
+	excludeChannels := make(map[int]bool)
+	channelTries := make(map[int]int)
 	retryParam := &service.RetryParam{
-		Ctx:         c,
-		TokenGroup:  relayInfo.TokenGroup,
-		ModelName:   relayInfo.OriginModelName,
-		RequestPath: c.Request.URL.Path,
-		Retry:       common.GetPointer(0),
+		Ctx:             c,
+		TokenGroup:      relayInfo.TokenGroup,
+		ModelName:       relayInfo.OriginModelName,
+		RequestPath:     c.Request.URL.Path,
+		Retry:           common.GetPointer(0),
+		ExcludeChannels: excludeChannels,
 	}
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
@@ -556,14 +679,20 @@ func RelayTask(c *gin.Context) {
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
+			// Success: clear any cooldown on the key just used so a recovered
+			// upstream becomes immediately selectable again.
+			clearCooldownForContext(c, channel.Id)
 			break
 		}
 
 		if !taskErr.LocalError {
+			taskAPIErr := types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode)
 			processChannelError(c,
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
-				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
+				taskAPIErr)
+			markCooldownFromError(c, channel.Id, taskAPIErr)
+			recordChannelFailure(channel.Id, channel.CountEnabledKeys(), taskAPIErr, excludeChannels, channelTries)
 		}
 
 		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
