@@ -1,6 +1,7 @@
 package oairesponses
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -244,6 +245,91 @@ func TestResponsesStreamEventToChatChunksCustomToolAndReasoning(t *testing.T) {
 	assert.Equal(t, "patch body", chunks[3].Choices[0].Delta.ToolCalls[0].Function.Arguments)
 	require.NotNil(t, chunks[4].Choices[0].FinishReason)
 	assert.Equal(t, "content_filter", *chunks[4].Choices[0].FinishReason)
+}
+
+func TestResponsesStreamEventToChatChunksEmitsToolMetadataOnlyOnce(t *testing.T) {
+	state := newTestResponsesStreamState()
+	outputIndex := 0
+
+	itemChunks := mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventOutputItemAdded,
+		OutputIndex: &outputIndex,
+		Item: &dto.ResponsesOutput{
+			Type:   responsesOutputTypeFunctionCall,
+			ID:     "fc_1",
+			CallId: "call_1",
+			Name:   "show_widget",
+		},
+	})
+	firstArgsChunks := mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventFunctionArgsDelta,
+		OutputIndex: &outputIndex,
+		Delta:       `{"widget_code":"<svg>`,
+	})
+	secondArgsChunks := mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventFunctionArgsDelta,
+		OutputIndex: &outputIndex,
+		Delta:       `</svg>"}`,
+	})
+
+	require.Len(t, itemChunks, 2)
+	require.Len(t, firstArgsChunks, 1)
+	require.Len(t, secondArgsChunks, 1)
+
+	first := itemChunks[1].Choices[0].Delta.ToolCalls[0]
+	assert.Equal(t, "call_1", first.ID)
+	assert.Equal(t, "function", first.Type)
+	assert.Equal(t, "show_widget", first.Function.Name)
+
+	for _, chunks := range [][]dto.ChatCompletionsStreamResponse{firstArgsChunks, secondArgsChunks} {
+		continuation := chunks[0].Choices[0].Delta.ToolCalls[0]
+		assert.Empty(t, continuation.ID)
+		assert.Nil(t, continuation.Type)
+		assert.Empty(t, continuation.Function.Name)
+
+		encoded, err := json.Marshal(continuation)
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), `"id"`)
+		assert.NotContains(t, string(encoded), `"type"`)
+		assert.NotContains(t, string(encoded), `"name"`)
+	}
+}
+
+func TestResponsesStreamEventToChatChunksEmitsMetadataForEachParallelTool(t *testing.T) {
+	state := newTestResponsesStreamState()
+	firstOutputIndex := 0
+	secondOutputIndex := 1
+
+	firstChunks := mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventOutputItemAdded,
+		OutputIndex: &firstOutputIndex,
+		Item: &dto.ResponsesOutput{
+			Type:   responsesOutputTypeFunctionCall,
+			CallId: "call_1",
+			Name:   "first_tool",
+		},
+	})
+	secondChunks := mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventOutputItemAdded,
+		OutputIndex: &secondOutputIndex,
+		Item: &dto.ResponsesOutput{
+			Type:   responsesOutputTypeFunctionCall,
+			CallId: "call_2",
+			Name:   "second_tool",
+		},
+	})
+
+	require.Len(t, firstChunks, 2)
+	require.Len(t, secondChunks, 1)
+
+	first := firstChunks[1].Choices[0].Delta.ToolCalls[0]
+	second := secondChunks[0].Choices[0].Delta.ToolCalls[0]
+	assert.Equal(t, "call_1", first.ID)
+	assert.Equal(t, "function", first.Type)
+	assert.Equal(t, 0, *first.Index)
+	assert.Equal(t, "call_2", second.ID)
+	assert.Equal(t, "function", second.Type)
+	assert.Equal(t, 1, *second.Index)
 }
 
 func TestResponsesStreamEventToChatChunksUsesTerminalDoneOutput(t *testing.T) {
