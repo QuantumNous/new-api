@@ -691,3 +691,11 @@ func TestAssetBindingResultPreservesOpaqueUpstreamURI(t *testing.T) {
 
 	require.Equal(t, "asset://asset-opaque-123", result.RewriteURI)
 }
+
+func TestAssetBindingResultTrimsOpaqueUpstreamURI(t *testing.T) {
+	result := assetBindingResult("ast_opaque", model.AssetBinding{
+		UpstreamAssetId: "  asset://asset-opaque-123  ",
+	})
+
+	require.Equal(t, "asset://asset-opaque-123", result.RewriteURI)
+}

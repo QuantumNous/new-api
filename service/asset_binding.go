@@ -582,12 +582,12 @@ func assetBindingResult(publicID string, binding model.AssetBinding) AssetBindin
 }
 
 func assetBindingRewriteURI(upstreamAssetID string) string {
-	if strings.HasPrefix(upstreamAssetID, "asset://") {
-		return upstreamAssetID
-	}
 	trimmed := strings.TrimSpace(upstreamAssetID)
 	if trimmed == "" {
 		return ""
+	}
+	if strings.HasPrefix(trimmed, "asset://") {
+		return trimmed
 	}
 	return "asset://" + trimmed
 }

@@ -15,6 +15,31 @@ type legacyAssetBindingSchema struct {
 	ChannelId int   `gorm:"uniqueIndex:idx_asset_binding_asset_channel"`
 }
 
+type recordingAssetBindingIndexMigrator struct {
+	indexes   map[string]bool
+	createErr error
+	calls     []string
+}
+
+func (m *recordingAssetBindingIndexMigrator) HasIndex(_ any, name string) bool {
+	return m.indexes[name]
+}
+
+func (m *recordingAssetBindingIndexMigrator) CreateIndex(_ any, name string) error {
+	m.calls = append(m.calls, "create:"+name)
+	if m.createErr != nil {
+		return m.createErr
+	}
+	m.indexes[name] = true
+	return nil
+}
+
+func (m *recordingAssetBindingIndexMigrator) DropIndex(_ any, name string) error {
+	m.calls = append(m.calls, "drop:"+name)
+	delete(m.indexes, name)
+	return nil
+}
+
 func (legacyAssetBindingSchema) TableName() string {
 	return "asset_bindings"
 }
@@ -89,6 +114,21 @@ func TestMigrateAssetBindingScopeIndexReplacesLegacyUniqueness(t *testing.T) {
 	require.NoError(t, db.Create(&AssetBinding{AssetId: asset.Id, ChannelId: 106, BindingScope: "scope-a"}).Error)
 	require.NoError(t, db.Create(&AssetBinding{AssetId: asset.Id, ChannelId: 106, BindingScope: "scope-b"}).Error)
 	require.Error(t, db.Create(&AssetBinding{AssetId: asset.Id, ChannelId: 106, BindingScope: "scope-a"}).Error)
+}
+
+func TestMigrateAssetBindingScopeIndexesKeepsLegacyIndexWhenCreateFails(t *testing.T) {
+	migrator := &recordingAssetBindingIndexMigrator{
+		indexes: map[string]bool{
+			legacyAssetBindingUniqueIndex: true,
+		},
+		createErr: errors.New("create index failed"),
+	}
+
+	err := migrateAssetBindingScopeIndexes(migrator)
+
+	require.ErrorContains(t, err, "failed to create scoped asset binding index")
+	require.True(t, migrator.indexes[legacyAssetBindingUniqueIndex])
+	require.Equal(t, []string{"create:" + assetBindingScopeUniqueIndex}, migrator.calls)
 }
 
 func TestAssetBindingCreateDoesNothingOnDuplicate(t *testing.T) {

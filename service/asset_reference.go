@@ -88,6 +88,20 @@ func (s AssetReferenceSet) readinessForChannelModel(channel *model.Channel, orig
 	if !scopesOK {
 		return AssetReadinessIneligible, false
 	}
+	if channel.Type != constant.ChannelTypeTechMobiVideo {
+		return s.readinessForChannelScope(channel, nil)
+	}
+	bestReadiness := AssetReadinessIneligible
+	for scope := range techMobiScopes {
+		readiness, eligible := s.readinessForChannelScope(channel, map[string]struct{}{scope: {}})
+		if eligible && (bestReadiness == AssetReadinessIneligible || readiness < bestReadiness) {
+			bestReadiness = readiness
+		}
+	}
+	return bestReadiness, bestReadiness != AssetReadinessIneligible
+}
+
+func (s AssetReferenceSet) readinessForChannelScope(channel *model.Channel, techMobiScopes map[string]struct{}) (AssetReadinessClass, bool) {
 	activeBindings := 0
 	recoverableSources := 0
 	for _, reference := range s.references {

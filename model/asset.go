@@ -39,6 +39,12 @@ const (
 	assetBindingScopeUniqueIndex  = "idx_asset_binding_asset_channel_scope"
 )
 
+type assetBindingIndexMigrator interface {
+	HasIndex(dst any, name string) bool
+	CreateIndex(dst any, name string) error
+	DropIndex(dst any, name string) error
+}
+
 // legacyBytePlusAssetMigrationWatermarkKey stores the highest legacy asset id
 // already migrated. Without it every process start rescans the whole
 // byteplus_assets table and pays ~3 queries per row before serving traffic.
@@ -636,14 +642,18 @@ func migrateAssetBindingScopeIndex() error {
 	if err := DB.Model(&AssetBinding{}).Where("binding_scope IS NULL").Update("binding_scope", "").Error; err != nil {
 		return fmt.Errorf("failed to backfill asset binding scopes: %w", err)
 	}
-	if DB.Migrator().HasIndex(&AssetBinding{}, legacyAssetBindingUniqueIndex) {
-		if err := DB.Migrator().DropIndex(&AssetBinding{}, legacyAssetBindingUniqueIndex); err != nil {
-			return fmt.Errorf("failed to drop legacy asset binding index: %w", err)
+	return migrateAssetBindingScopeIndexes(DB.Migrator())
+}
+
+func migrateAssetBindingScopeIndexes(migrator assetBindingIndexMigrator) error {
+	if !migrator.HasIndex(&AssetBinding{}, assetBindingScopeUniqueIndex) {
+		if err := migrator.CreateIndex(&AssetBinding{}, assetBindingScopeUniqueIndex); err != nil {
+			return fmt.Errorf("failed to create scoped asset binding index: %w", err)
 		}
 	}
-	if !DB.Migrator().HasIndex(&AssetBinding{}, assetBindingScopeUniqueIndex) {
-		if err := DB.Migrator().CreateIndex(&AssetBinding{}, assetBindingScopeUniqueIndex); err != nil {
-			return fmt.Errorf("failed to create scoped asset binding index: %w", err)
+	if migrator.HasIndex(&AssetBinding{}, legacyAssetBindingUniqueIndex) {
+		if err := migrator.DropIndex(&AssetBinding{}, legacyAssetBindingUniqueIndex); err != nil {
+			return fmt.Errorf("failed to drop legacy asset binding index: %w", err)
 		}
 	}
 	return nil

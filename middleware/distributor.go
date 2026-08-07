@@ -255,6 +255,10 @@ func Distribute() func(c *gin.Context) {
 						ChannelRanker: assetResolution.ChannelRanker(modelRequest.Model),
 					})
 					if err != nil {
+						if hasAssetRefs && !errors.Is(err, service.ErrChannelConcurrencyLimit) {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelUnavailable), types.ErrorCodeAssetChannelUnavailable)
+							return
+						}
 						statusCode := http.StatusServiceUnavailable
 						errorCode := types.ErrorCodeModelNotFound
 						if errors.Is(err, service.ErrChannelConcurrencyLimit) {
@@ -275,6 +279,10 @@ func Distribute() func(c *gin.Context) {
 						return
 					}
 					if channel == nil {
+						if hasAssetRefs {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelUnavailable), types.ErrorCodeAssetChannelUnavailable)
+							return
+						}
 						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
 						return
 					}

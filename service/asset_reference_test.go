@@ -177,6 +177,61 @@ func TestAssetReferenceRewriteMapPreservesOpaqueUpstreamURI(t *testing.T) {
 	}, refs.RewriteMapForChannel(106))
 }
 
+func TestTechMobiReadinessRequiresOneKeyScopeToCoverEveryAsset(t *testing.T) {
+	mapping := `{"seedance2.0-pro":"doubao/seedance-pro"}`
+	channel := &model.Channel{
+		Id:           106,
+		Type:         constant.ChannelTypeTechMobiVideo,
+		Key:          "techmobi-key-a\ntechmobi-key-b",
+		ModelMapping: &mapping,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	scopeA, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "techmobi-key-a"})
+	require.NoError(t, err)
+	scopeB, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "techmobi-key-b"})
+	require.NoError(t, err)
+
+	refs := AssetReferenceSet{
+		references: []assetReference{
+			{PublicID: "ast_scope_a", ExpectedAssetType: "Image"},
+			{PublicID: "ast_scope_b", ExpectedAssetType: "Image"},
+		},
+		assets: map[string]assetReferenceAsset{
+			"ast_scope_a": {
+				PublicID:     "ast_scope_a",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeA,
+					UpstreamAssetID: "asset-a",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+			"ast_scope_b": {
+				PublicID:     "ast_scope_b",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeB,
+					UpstreamAssetID: "asset-b",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	readiness, ok := refs.ReadinessForChannel(channel, "seedance2.0-pro")
+	require.False(t, ok)
+	require.Equal(t, AssetReadinessIneligible, readiness)
+}
+
 func TestAssetReferenceSetRejectsMixedSourceUnavailableBindingsOnDifferentChannels(t *testing.T) {
 	newAssetReferenceDB(t)
 	insertAssetReferenceAsset(t, assetReferenceSeed{UserID: 7, PublicID: "ast_1234567890abcdefABCDEF1234567890", AssetType: "Image", SourceStatus: model.AssetSourceStatusUnavailable, BindingChannelID: 131, UpstreamID: "generalized-upstream", BindingStatus: model.AssetStatusActive})

@@ -673,8 +673,8 @@ func MarkQueuedTaskAcceptedWithPollingKey(taskID string, owner string, expectedL
 		var current Task
 		if err := tx.Select("private_data", "user_id", "quota").Where("task_id = ?", taskID).First(&current).Error; err == nil {
 			current.PrivateData.UpstreamTaskID = upstreamTaskID
-			if pollingKey != "" {
-				current.PrivateData.Key = pollingKey
+			if trimmedPollingKey := strings.TrimSpace(pollingKey); trimmedPollingKey != "" {
+				current.PrivateData.Key = trimmedPollingKey
 			}
 			privateDataExpr = gorm.Expr("?", current.PrivateData)
 		} else {
@@ -730,8 +730,8 @@ func MarkQueuedTaskSubmissionUnknownWithPollingKey(taskID string, expectedAttemp
 		if upstreamTaskID != "" {
 			current.PrivateData.UpstreamTaskID = upstreamTaskID
 		}
-		if pollingKey != "" {
-			current.PrivateData.Key = pollingKey
+		if trimmedPollingKey := strings.TrimSpace(pollingKey); trimmedPollingKey != "" {
+			current.PrivateData.Key = trimmedPollingKey
 		}
 		updates := map[string]any{
 			"status":                             TaskStatusUnknown,

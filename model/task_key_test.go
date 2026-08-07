@@ -61,3 +61,58 @@ func TestTechMobiSubmittingFencePreservesSelectedKeyAfterExpiry(t *testing.T) {
 	require.Equal(t, "techmobi-key-b", stored.PrivateData.Key)
 	require.Equal(t, 11, stored.PrivateData.TokenId)
 }
+
+func TestTaskPollingKeyPersistenceTrimsAndIgnoresBlankValues(t *testing.T) {
+	t.Run("accepted trims selected key", func(t *testing.T) {
+		truncateTables(t)
+		task := &Task{
+			TaskID:                    "task_accepted_trimmed_polling_key",
+			UserId:                    7,
+			Status:                    TaskStatusQueued,
+			PreparationLeaseOwner:     "node-a",
+			PreparationLeaseExpiresAt: 220,
+			Quota:                     100,
+			Data:                      json.RawMessage(`{}`),
+			PrivateData:               TaskPrivateData{Key: "previous-key", TokenId: 11},
+		}
+		insertTask(t, task)
+
+		accepted, err := MarkQueuedTaskAcceptedWithPollingKey(
+			task.TaskID, "node-a", 220, 120, 130, 106, constant.TaskPlatform("106"), 246,
+			"upstream-task", []byte(`{"id":"upstream-task"}`), "  selected-key  ", nil, 120, 500,
+		)
+		require.NoError(t, err)
+		require.True(t, accepted)
+
+		var stored Task
+		require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+		require.Equal(t, "selected-key", stored.PrivateData.Key)
+		require.Equal(t, 11, stored.PrivateData.TokenId)
+	})
+
+	t.Run("unknown preserves key for blank input", func(t *testing.T) {
+		truncateTables(t)
+		task := &Task{
+			TaskID:                  "task_unknown_blank_polling_key",
+			UserId:                  7,
+			Status:                  TaskStatusQueued,
+			PreparationAttemptCount: 2,
+			Quota:                   100,
+			Data:                    json.RawMessage(`{}`),
+			PrivateData:             TaskPrivateData{Key: "selected-key", TokenId: 11},
+		}
+		insertTask(t, task)
+
+		quarantined, err := MarkQueuedTaskSubmissionUnknownWithPollingKey(
+			task.TaskID, 2, 120, 130, 106, constant.TaskPlatform("106"), 246,
+			"", nil, " \t ", nil, 120, 500,
+		)
+		require.NoError(t, err)
+		require.True(t, quarantined)
+
+		var stored Task
+		require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+		require.Equal(t, "selected-key", stored.PrivateData.Key)
+		require.Equal(t, 11, stored.PrivateData.TokenId)
+	})
+}
