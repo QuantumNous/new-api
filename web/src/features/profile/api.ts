@@ -98,15 +98,19 @@ export async function generateAccessToken(): Promise<ApiResponse<string>> {
 /**
  * Send email verification code
  */
+export function buildEmailVerificationPath(
+  email: string,
+  turnstileToken: string
+) {
+  const params = new URLSearchParams({ email, turnstile: turnstileToken })
+  return `/api/verification?${params}`
+}
+
 export async function sendEmailVerification(
   email: string,
-  turnstileToken?: string
+  turnstileToken: string
 ): Promise<ApiResponse> {
-  const params = new URLSearchParams({ email })
-  if (turnstileToken) {
-    params.append('turnstile', turnstileToken)
-  }
-  const res = await api.get(`/api/verification?${params}`)
+  const res = await api.get(buildEmailVerificationPath(email, turnstileToken))
   return res.data
 }
 
