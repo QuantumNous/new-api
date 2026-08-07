@@ -97,3 +97,19 @@ func TestWalletQuotaNonEmailNotifySkipsEmailAndDefault(t *testing.T) {
 		})
 	}
 }
+
+func TestWalletQuotaNonEmailNotifySkipsSubscriptionFunding(t *testing.T) {
+	_, ok := walletQuotaNonEmailNotifyPayload(&relaycommon.RelayInfo{
+		UserId:        44,
+		UserEmail:     "user@example.com",
+		UserQuota:     95,
+		BillingSource: BillingSourceSubscription,
+		UserSetting: dto.UserSetting{
+			NotifyType:            dto.NotifyTypeWebhook,
+			QuotaWarningThreshold: 100,
+		},
+	}, 10, 0)
+	if ok {
+		t.Fatal("wallet non-email notifier must skip subscription-funded consumption")
+	}
+}

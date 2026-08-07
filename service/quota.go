@@ -496,6 +496,9 @@ func walletQuotaNonEmailNotifyPayload(relayInfo *relaycommon.RelayInfo, quota in
 	if relayInfo == nil {
 		return dto.Notify{}, false
 	}
+	if relayInfo.BillingSource == BillingSourceSubscription {
+		return dto.Notify{}, false
+	}
 	userSetting := relayInfo.UserSetting
 	switch userSetting.NotifyType {
 	case dto.NotifyTypeWebhook, dto.NotifyTypeBark, dto.NotifyTypeGotify:

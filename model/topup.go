@@ -232,6 +232,81 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 	return RechargeWithPaymentSnapshot(referenceId, customerId, callerIp, PaymentSnapshot{})
 }
 
+func CompleteEpayTopUp(tradeNo string, actualPaymentMethod string, callerIp string) (bool, *TopUp, error) {
+	if strings.TrimSpace(tradeNo) == "" {
+		return false, nil, ErrTopUpNotFound
+	}
+
+	var quotaToAdd int
+	var credited bool
+	var rewardResult inviteRewardGrantResult
+	topUp := &TopUp{}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockQuery(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrTopUpNotFound
+			}
+			return err
+		}
+		if topUp.PaymentProvider != PaymentProviderEpay {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+
+		quotaToAdd = int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		if quotaToAdd <= 0 {
+			return ErrTopUpStatusInvalid
+		}
+
+		if normalized := strings.TrimSpace(actualPaymentMethod); normalized != "" && topUp.PaymentMethod != normalized {
+			topUp.PaymentMethod = normalized
+		}
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+		if _, err := ApplyWalletTopUpSuccessMutationTx(tx, topUp.UserId, int64(quotaToAdd), topUp.Id, topUp.TradeNo); err != nil {
+			return err
+		}
+		var rewardErr error
+		rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+		if rewardErr != nil {
+			return rewardErr
+		}
+		credited = true
+		return nil
+	})
+	if err != nil {
+		return false, nil, err
+	}
+
+	if topUp.Status == common.TopUpStatusSuccess {
+		EnqueuePaymentAnalyticsForTopUpBestEffort(topUp)
+	}
+	if credited {
+		syncTopUpQuotaCacheAfterCommit(topUp.UserId, int64(quotaToAdd), "epay topup")
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, "epay")
+		runInviteRewardPostCommitHooks(rewardResult)
+	} else if topUp.Status == common.TopUpStatusSuccess {
+		if err := TryGrantInviteRewardAfterTopUpSucceeded(topUp.UserId, topUp.Id); err != nil {
+			common.SysError(fmt.Sprintf("epay invite reward retry failed trade_no=%s user_id=%d error=%q", topUp.TradeNo, topUp.UserId, err.Error()))
+		}
+	}
+	return credited, topUp, nil
+}
+
 func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp string, snapshot PaymentSnapshot) (bool, error) {
 	if referenceId == "" {
 		return false, errors.New("未提供支付单号")

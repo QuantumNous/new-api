@@ -116,6 +116,14 @@ func cachePaymentGuardUser(t *testing.T, userID int) {
 	require.NoError(t, updateUserCache(user))
 }
 
+func markPaymentGuardTopUpAnalytics(t *testing.T, tradeNo string) {
+	t.Helper()
+	require.NoError(t, DB.Model(&TopUp{}).Where("trade_no = ?", tradeNo).Updates(map[string]any{
+		"ga_client_id":  "client." + tradeNo,
+		"ga_session_id": "session." + tradeNo,
+	}).Error)
+}
+
 func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	truncateTables(t)
 
@@ -214,6 +222,179 @@ func TestProviderRechargeRefreshesQuotaCacheAfterCommit(t *testing.T) {
 			require.Equal(t, int(2*common.QuotaPerUnit), cachedQuota)
 		})
 	}
+}
+
+func TestCompleteEpayTopUpCreditsWalletLifecycleCacheAndCycleOnce(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+	require.NoError(t, DB.AutoMigrate(&PaymentAnalyticsOutbox{}, &PaymentAnalyticsEventReceipt{}))
+
+	insertUserForPaymentGuardTest(t, 1810, 0)
+	insertTopUpForPaymentGuardTest(t, "epay-cache-cycle", 1810, PaymentProviderEpay)
+	markPaymentGuardTopUpAnalytics(t, "epay-cache-cycle")
+	cachePaymentGuardUser(t, 1810)
+
+	credited, topUp, err := CompleteEpayTopUp("epay-cache-cycle", "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	require.True(t, credited)
+	require.NotNil(t, topUp)
+	require.Equal(t, common.TopUpStatusSuccess, topUp.Status)
+	require.Equal(t, "alipay", topUp.PaymentMethod)
+	require.Positive(t, topUp.CompleteTime)
+
+	expectedQuota := int(2 * common.QuotaPerUnit)
+	require.Equal(t, expectedQuota, getUserQuotaForPaymentGuardTest(t, 1810))
+	cachedQuota, err := getUserQuotaCache(1810)
+	require.NoError(t, err)
+	require.Equal(t, expectedQuota, cachedQuota)
+
+	state := lifecycleStateForTest(t, 1810, QuotaLifecycleScopeWallet, "1810")
+	require.Equal(t, "topup:epay-cache-cycle", state.Cycle)
+	require.EqualValues(t, expectedQuota, state.Balance)
+	var logCount int64
+	require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", 1810, LogTypeTopup).Count(&logCount).Error)
+	require.EqualValues(t, 1, logCount)
+	var outboxCount int64
+	require.NoError(t, DB.Model(&PaymentAnalyticsOutbox{}).Where("event_id = ?", "flatkey:ga4:purchase:topup:epay-cache-cycle").Count(&outboxCount).Error)
+	require.EqualValues(t, 1, outboxCount)
+}
+
+func TestCompleteEpayTopUpReplayDoesNotRepeatOneTimeCreditEffects(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+	require.NoError(t, DB.AutoMigrate(&PaymentAnalyticsOutbox{}, &PaymentAnalyticsEventReceipt{}))
+
+	insertUserForPaymentGuardTest(t, 1811, 0)
+	insertTopUpForPaymentGuardTest(t, "epay-replay-once", 1811, PaymentProviderEpay)
+	markPaymentGuardTopUpAnalytics(t, "epay-replay-once")
+	cachePaymentGuardUser(t, 1811)
+
+	firstCredited, _, err := CompleteEpayTopUp("epay-replay-once", "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	require.True(t, firstCredited)
+	secondCredited, _, err := CompleteEpayTopUp("epay-replay-once", "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	require.False(t, secondCredited)
+
+	expectedQuota := int(2 * common.QuotaPerUnit)
+	require.Equal(t, expectedQuota, getUserQuotaForPaymentGuardTest(t, 1811))
+	cachedQuota, err := getUserQuotaCache(1811)
+	require.NoError(t, err)
+	require.Equal(t, expectedQuota, cachedQuota)
+
+	var stateCount int64
+	require.NoError(t, DB.Model(&QuotaLifecycleState{}).Where("user_id = ? AND scope_type = ? AND scope_id = ?", 1811, QuotaLifecycleScopeWallet, "1811").Count(&stateCount).Error)
+	require.EqualValues(t, 1, stateCount)
+	var logCount int64
+	require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", 1811, LogTypeTopup).Count(&logCount).Error)
+	require.EqualValues(t, 1, logCount)
+	var outboxCount int64
+	require.NoError(t, DB.Model(&PaymentAnalyticsOutbox{}).Where("event_id = ?", "flatkey:ga4:purchase:topup:epay-replay-once").Count(&outboxCount).Error)
+	require.EqualValues(t, 1, outboxCount)
+}
+
+func TestCompleteEpayTopUpRollsBackOnProviderMismatch(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 1812, 0)
+	insertTopUpForPaymentGuardTest(t, "epay-provider-mismatch", 1812, PaymentProviderStripe)
+
+	credited, topUp, err := CompleteEpayTopUp("epay-provider-mismatch", "alipay", "127.0.0.1")
+	require.ErrorIs(t, err, ErrPaymentMethodMismatch)
+	require.False(t, credited)
+	require.Nil(t, topUp)
+
+	stored := GetTopUpByTradeNo("epay-provider-mismatch")
+	require.NotNil(t, stored)
+	require.Equal(t, common.TopUpStatusPending, stored.Status)
+	require.Equal(t, PaymentProviderStripe, stored.PaymentProvider)
+	require.Zero(t, stored.CompleteTime)
+	require.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 1812))
+	var stateCount int64
+	require.NoError(t, DB.Model(&QuotaLifecycleState{}).Where("user_id = ?", 1812).Count(&stateCount).Error)
+	require.EqualValues(t, 0, stateCount)
+}
+
+func TestCompleteEpayTopUpRollsBackOrderWhenLifecycleCreditFails(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+	require.NoError(t, DB.AutoMigrate(&PaymentAnalyticsOutbox{}, &PaymentAnalyticsEventReceipt{}))
+
+	initialQuota := int(testMaxInt64 - int64(common.QuotaPerUnit) + 1)
+	insertUserForPaymentGuardTest(t, 1814, initialQuota)
+	insertTopUpForPaymentGuardTest(t, "epay-overflow-rollback", 1814, PaymentProviderEpay)
+	cachePaymentGuardUser(t, 1814)
+
+	credited, topUp, err := CompleteEpayTopUp("epay-overflow-rollback", "alipay", "127.0.0.1")
+	require.ErrorIs(t, err, ErrLifecycleQuotaBalanceOverflow)
+	require.False(t, credited)
+	require.Nil(t, topUp)
+
+	stored := GetTopUpByTradeNo("epay-overflow-rollback")
+	require.NotNil(t, stored)
+	require.Equal(t, common.TopUpStatusPending, stored.Status)
+	require.Equal(t, PaymentProviderEpay, stored.PaymentProvider)
+	require.Equal(t, PaymentProviderEpay, stored.PaymentMethod)
+	require.Zero(t, stored.CompleteTime)
+	require.Equal(t, initialQuota, getUserQuotaForPaymentGuardTest(t, 1814))
+	cachedQuota, cacheErr := getUserQuotaCache(1814)
+	require.NoError(t, cacheErr)
+	require.Equal(t, initialQuota, cachedQuota)
+
+	var stateCount int64
+	require.NoError(t, DB.Model(&QuotaLifecycleState{}).Where("user_id = ?", 1814).Count(&stateCount).Error)
+	require.EqualValues(t, 0, stateCount)
+	var logCount int64
+	require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", 1814, LogTypeTopup).Count(&logCount).Error)
+	require.EqualValues(t, 0, logCount)
+	var outboxCount int64
+	require.NoError(t, DB.Model(&PaymentAnalyticsOutbox{}).Where("event_id = ?", "flatkey:ga4:purchase:topup:epay-overflow-rollback").Count(&outboxCount).Error)
+	require.EqualValues(t, 0, outboxCount)
+}
+
+func TestCompleteEpayTopUpConcurrentReplayCreditsOnce(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+
+	insertUserForPaymentGuardTest(t, 1813, 0)
+	insertTopUpForPaymentGuardTest(t, "epay-concurrent-once", 1813, PaymentProviderEpay)
+	cachePaymentGuardUser(t, 1813)
+
+	start := make(chan struct{})
+	results := make(chan struct {
+		credited bool
+		err      error
+	}, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			credited, _, err := CompleteEpayTopUp("epay-concurrent-once", "alipay", "127.0.0.1")
+			results <- struct {
+				credited bool
+				err      error
+			}{credited: credited, err: err}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var creditedCount int
+	for result := range results {
+		require.NoError(t, result.err)
+		if result.credited {
+			creditedCount++
+		}
+	}
+	require.Equal(t, 1, creditedCount)
+	expectedQuota := int(2 * common.QuotaPerUnit)
+	require.Equal(t, expectedQuota, getUserQuotaForPaymentGuardTest(t, 1813))
+	state := lifecycleStateForTest(t, 1813, QuotaLifecycleScopeWallet, "1813")
+	require.Equal(t, "topup:epay-concurrent-once", state.Cycle)
+	require.EqualValues(t, expectedQuota, state.Balance)
 }
 
 func TestRechargeWaffoReportsOnlyActualPendingTransition(t *testing.T) {
