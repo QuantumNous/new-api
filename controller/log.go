@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -188,14 +189,23 @@ func GetLogsSelfStat(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	overview, err := model.GetSelfLogStat(username, time.Now())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	//tokenNum := model.SumUsedToken(logType, startTimestamp, endTimestamp, modelName, username, tokenName)
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"quota": quotaNum.Quota,
-			"rpm":   quotaNum.Rpm,
-			"tpm":   quotaNum.Tpm,
+			"quota":          quotaNum.Quota,
+			"rpm":            quotaNum.Rpm,
+			"tpm":            quotaNum.Tpm,
+			"total_requests": overview.TotalRequests,
+			"total_quota":    overview.TotalQuota,
+			"today_requests": overview.TodayRequests,
+			"today_quota":    overview.TodayQuota,
 			//"token": tokenNum,
 		},
 	})

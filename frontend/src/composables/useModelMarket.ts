@@ -4,7 +4,13 @@ import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
 import { isMockApi } from '@/api/client'
-import { parseUserModels } from '@/api/liveContracts'
+import {
+  parsePerfMetricsSummary,
+  parsePricingModels,
+  parseUserModels,
+  type PerfModelSummaryContract,
+  type PricingModelContract,
+} from '@/api/liveContracts'
 import { ApiError } from '@/api/types'
 import type { MarketModel } from '@/types/console'
 import { vendorMeta } from '@/constants/console'
@@ -29,6 +35,69 @@ export interface VendorGroup {
   healthy: number // health >= 95
   degraded: number // 80..94
   down: number // < 80
+}
+
+function modelType(endpoints: string[]): MarketModel['type'] {
+  if (endpoints.includes('image-generation')) return 'image'
+  if (endpoints.includes('embeddings')) return 'embedding'
+  if (endpoints.includes('jina-rerank')) return 'rerank'
+  if (endpoints.includes('openai-video')) return 'video'
+  if (endpoints.some((endpoint) => endpoint.includes('audio'))) return 'audio'
+  return 'chat'
+}
+
+function modelPrice(pricing: PricingModelContract): MarketModel['price'] {
+  if (pricing.quota_type === 1) {
+    return { per_call: pricing.model_price }
+  }
+  const input = pricing.model_ratio * 2
+  return {
+    input,
+    output: input * pricing.completion_ratio,
+    ...(pricing.cache_ratio === null
+      ? {}
+      : { cache_read: input * pricing.cache_ratio }),
+  }
+}
+
+export function buildLiveModelCatalog(
+  names: string[],
+  pricing: PricingModelContract[],
+  performance: PerfModelSummaryContract[]
+): ModelMarketCatalog {
+  const pricingByName = new Map(pricing.map((item) => [item.model_name, item]))
+  const performanceByName = new Map(
+    performance.map((item) => [item.model_name, item])
+  )
+  const models = names.map((name, index) => {
+    const price = pricingByName.get(name)
+    const metrics = performanceByName.get(name)
+    const vendor = price?.owner_by.trim() || '平台'
+    return {
+      id: index + 1,
+      name,
+      vendor,
+      type: modelType(price?.supported_endpoint_types ?? []),
+      billing:
+        price?.billing_mode === 'tiered_expr'
+          ? ('tiered' as const)
+          : price?.quota_type === 1
+            ? ('per_call' as const)
+            : ('token' as const),
+      price: price ? modelPrice(price) : {},
+      context: 0,
+      tagline: price?.description ?? '',
+      latency: metrics ? Math.max(0, metrics.avg_latency_ms / 1000) : 0,
+      tps: metrics ? Math.max(0, metrics.avg_tps) : 0,
+      health: metrics ? Math.min(100, Math.max(0, metrics.success_rate)) : 0,
+      channels: [],
+    }
+  })
+  return {
+    models,
+    channels: [],
+    vendors: [...new Set(models.map((model) => model.vendor))],
+  }
 }
 
 /**
@@ -74,27 +143,16 @@ export function useModelMarket() {
       if (isMockApi) {
         catalog.value = await api.get<ModelMarketCatalog>('/api/models/market')
       } else {
-        const names = parseUserModels(
-          await api.get<unknown>('/api/user/models')
+        const [rawNames, rawPricing, rawPerformance] = await Promise.all([
+          api.get<unknown>('/api/user/models'),
+          api.get<unknown>('/api/pricing'),
+          api.get<unknown>('/api/perf-metrics/summary'),
+        ])
+        catalog.value = buildLiveModelCatalog(
+          parseUserModels(rawNames),
+          parsePricingModels(rawPricing),
+          parsePerfMetricsSummary(rawPerformance)
         )
-        catalog.value = {
-          models: names.map((name, index) => ({
-            id: index + 1,
-            name,
-            vendor: '平台',
-            type: 'chat',
-            billing: 'token',
-            price: {},
-            context: 0,
-            tagline: '',
-            latency: 0,
-            tps: 0,
-            health: 0,
-            channels: [],
-          })),
-          channels: [],
-          vendors: ['平台'],
-        }
       }
     } catch (error) {
       toast.error(

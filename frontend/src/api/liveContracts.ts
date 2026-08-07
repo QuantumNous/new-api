@@ -61,6 +61,104 @@ export function parseUserModels(value: unknown): string[] {
   return invalidResponse(endpoint)
 }
 
+export interface PricingModelContract {
+  model_name: string
+  description: string
+  icon: string
+  tags: string
+  vendor_id: number
+  quota_type: number
+  model_ratio: number
+  model_price: number
+  owner_by: string
+  completion_ratio: number
+  cache_ratio: number | null
+  enable_groups: string[]
+  supported_endpoint_types: string[]
+  billing_mode: string
+}
+
+export interface PerfModelSummaryContract {
+  model_name: string
+  avg_latency_ms: number
+  success_rate: number
+  avg_tps: number
+}
+
+export function parsePricingModels(value: unknown): PricingModelContract[] {
+  const endpoint = '/api/pricing'
+  if (!Array.isArray(value)) invalidResponse(endpoint)
+  return value.map((item) => {
+    if (!isRecord(item)) invalidResponse(endpoint)
+    const endpoints = item.supported_endpoint_types ?? []
+    const groups = item.enable_groups ?? []
+    if (
+      !Array.isArray(endpoints) ||
+      endpoints.some((entry) => typeof entry !== 'string') ||
+      !Array.isArray(groups) ||
+      groups.some((entry) => typeof entry !== 'string')
+    ) {
+      invalidResponse(endpoint)
+    }
+    const cacheRatio =
+      item.cache_ratio === undefined || item.cache_ratio === null
+        ? null
+        : requiredNumber(item.cache_ratio, endpoint)
+    return {
+      model_name: requiredString(item.model_name, endpoint, false),
+      description: requiredString(item.description ?? '', endpoint),
+      icon: requiredString(item.icon ?? '', endpoint),
+      tags: requiredString(item.tags ?? '', endpoint),
+      vendor_id: requiredInteger(item.vendor_id ?? 0, endpoint),
+      quota_type: requiredInteger(item.quota_type, endpoint),
+      model_ratio: requiredNumber(item.model_ratio ?? 0, endpoint),
+      model_price: requiredNumber(item.model_price ?? 0, endpoint),
+      owner_by: requiredString(item.owner_by ?? '', endpoint),
+      completion_ratio: requiredNumber(item.completion_ratio ?? 0, endpoint),
+      cache_ratio: cacheRatio,
+      enable_groups: [...groups],
+      supported_endpoint_types: [...endpoints],
+      billing_mode: requiredString(item.billing_mode ?? '', endpoint),
+    }
+  })
+}
+
+export function parsePerfMetricsSummary(
+  value: unknown
+): PerfModelSummaryContract[] {
+  const endpoint = '/api/perf-metrics/summary'
+  if (!isRecord(value) || !Array.isArray(value.models)) {
+    invalidResponse(endpoint)
+  }
+  return value.models.map((item) => {
+    if (!isRecord(item)) invalidResponse(endpoint)
+    return {
+      model_name: requiredString(item.model_name, endpoint, false),
+      avg_latency_ms: requiredInteger(item.avg_latency_ms, endpoint),
+      success_rate: requiredNumber(item.success_rate, endpoint),
+      avg_tps: requiredNumber(item.avg_tps, endpoint),
+    }
+  })
+}
+
+export interface LogStatContract {
+  total_requests: number
+  total_quota: number
+  today_requests: number
+  today_quota: number
+}
+
+export function parseLogStat(value: unknown): LogStatContract {
+  const endpoint = '/api/log/self/stat'
+  if (!isRecord(value)) invalidResponse(endpoint)
+  return {
+    total_requests: requiredInteger(value.total_requests, endpoint),
+    total_quota: requiredInteger(value.total_quota, endpoint),
+    today_requests: requiredInteger(value.today_requests, endpoint),
+    today_quota: requiredInteger(value.today_quota, endpoint),
+  }
+}
+
 function parseToken(value: unknown, endpoint: string): TokenSummary {
   if (!isRecord(value)) invalidResponse(endpoint)
   const group = requiredString(value.group ?? '', endpoint)

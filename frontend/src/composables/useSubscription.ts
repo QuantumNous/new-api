@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
@@ -11,8 +12,9 @@ import {
   requiredNumber,
   requiredString,
 } from '@/api/contracts'
-import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
+import { useSubscriptionStore } from '@/stores/subscription'
 import type {
   Duration,
   DurationUnit,
@@ -186,15 +188,19 @@ export function parseBackendSubscription(value: unknown): BackendSubscription {
 export function useSubscription() {
   const { t } = useI18n()
   const toast = useToast()
+  const auth = useAuthStore()
+  const store = useSubscriptionStore()
+  const { plans, subscription, trafficPacks, loading, error } =
+    storeToRefs(store)
 
-  const plans = ref<Plan[]>([])
-  const subscription = ref<SubscriptionEntitlement | null>(null)
-  const trafficPacks = ref<TrafficEntitlement[]>([])
-  const loading = ref(true)
   const purchasingId = ref<number | null>(null)
   const savingAutoRenew = ref(false)
-  const initialError = ref('')
-  const request = useLatestRequest()
+  const initialError = computed(() => {
+    if (!error.value) return ''
+    return error.value instanceof ApiError
+      ? error.value.message
+      : t('plans.loadFailed')
+  })
 
   /** Split once here so both sections render from a stable, typed list. */
   const trafficPlans = computed<TrafficPlan[]>(() => [])
@@ -205,36 +211,16 @@ export function useSubscription() {
       ) as SubscriptionPlan[]
   )
 
-  async function load(): Promise<void> {
-    loading.value = true
-    initialError.value = ''
-    const result = await request.run((signal) =>
-      Promise.all([
-        api.get<Array<{ plan: BackendPlan }>>(
-          '/api/subscription/plans',
-          undefined,
-          { signal }
-        ),
-        api.get<BackendSubscriptionSelf>('/api/subscription/self', undefined, {
-          signal,
-        }),
-      ])
-    )
-    if (result.stale) return
-    loading.value = false
-    if (!result.ok) {
-      initialError.value =
-        result.error instanceof ApiError
-          ? result.error.message
-          : t('plans.loadFailed')
-      return
-    }
-    const [planList, summary] = result.value
+  async function loadSnapshot() {
+    const [planList, summary] = await Promise.all([
+      api.get<Array<{ plan: BackendPlan }>>('/api/subscription/plans'),
+      api.get<BackendSubscriptionSelf>('/api/subscription/self'),
+    ])
     if (!isMockApi) {
       if (!Array.isArray(planList) || !isRecord(summary)) {
         invalidResponse('/api/subscription/self')
       }
-      plans.value = planList.map((row) => {
+      const nextPlans = planList.map((row) => {
         if (!isRecord(row) || !isRecord(row.plan)) {
           invalidResponse('/api/subscription/plans')
         }
@@ -250,18 +236,20 @@ export function useSubscription() {
         return parseBackendSubscription(row.subscription)
       })
       const current = subscriptions.find((item) => item.status === 'active')
-      subscription.value = toEntitlement(
-        current,
-        plans.value.find((plan) => plan.id === current?.plan_id) as
-          SubscriptionPlan | undefined
-      )
-      trafficPacks.value = []
-      return
+      return {
+        plans: nextPlans,
+        subscription: toEntitlement(
+          current,
+          nextPlans.find((plan) => plan.id === current?.plan_id) as
+            SubscriptionPlan | undefined
+        ),
+        trafficPacks: [],
+      }
     }
     const rawPlanRows = planList as unknown as Array<
       { plan?: BackendPlan } & Record<string, unknown>
     >
-    plans.value = rawPlanRows.some((row) => row.plan)
+    const nextPlans = rawPlanRows.some((row) => row.plan)
       ? rawPlanRows.map((row) => toPlan(row.plan as BackendPlan))
       : (planList as unknown as Plan[])
     const legacySummary = summary as BackendSubscriptionSelf & {
@@ -269,18 +257,32 @@ export function useSubscription() {
       traffic?: TrafficEntitlement[]
     }
     if (legacySummary.subscription !== undefined || legacySummary.traffic) {
-      subscription.value = legacySummary.subscription ?? null
-      trafficPacks.value = legacySummary.traffic ?? []
+      return {
+        plans: nextPlans,
+        subscription: legacySummary.subscription ?? null,
+        trafficPacks: legacySummary.traffic ?? [],
+      }
     } else {
       const current = summary.subscriptions
         ?.map((item) => item.subscription)
         .find((item) => item.status === 'active')
-      subscription.value = toEntitlement(
-        current,
-        plans.value.find((plan) => plan.id === current?.plan_id) as
-          SubscriptionPlan | undefined
-      )
-      trafficPacks.value = []
+      return {
+        plans: nextPlans,
+        subscription: toEntitlement(
+          current,
+          nextPlans.find((plan) => plan.id === current?.plan_id) as
+            SubscriptionPlan | undefined
+        ),
+        trafficPacks: [],
+      }
+    }
+  }
+
+  async function load(options: { force?: boolean } = {}): Promise<void> {
+    try {
+      await store.load(auth.user?.id ?? null, loadSnapshot, options)
+    } catch {
+      // The store retains the cause for the page's error state.
     }
   }
 
@@ -294,6 +296,8 @@ export function useSubscription() {
           : '/api/subscription/balance/pay',
         { plan_id: plan.id }
       )
+      store.invalidate()
+      await load({ force: true })
       toast.success(t('plans.purchased'))
       return true
     } catch (err) {
@@ -312,8 +316,7 @@ export function useSubscription() {
         subscription: SubscriptionEntitlement | null
         traffic: TrafficEntitlement[]
       }>('/api/subscription/self', { auto_renew: enabled })
-      subscription.value = summary.subscription
-      trafficPacks.value = summary.traffic
+      store.setEntitlements(summary.subscription, summary.traffic)
       return true
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : String(err))

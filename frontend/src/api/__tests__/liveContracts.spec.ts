@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   parseLogPage,
+  parseLogStat,
+  parsePerfMetricsSummary,
+  parsePricingModels,
   parseRedeemedQuota,
   parseTokenPage,
   parseTopupInfo,
@@ -30,6 +33,65 @@ describe('live API contracts', () => {
     ])
     expect(parseUserModels({ models: [] })).toEqual([])
     expectInvalidResponse(() => parseUserModels({ models: [1] }))
+  })
+
+  it('parses model pricing and performance summaries with optional metadata', () => {
+    expect(
+      parsePricingModels([
+        {
+          model_name: 'gpt-4o',
+          description: 'Fast model',
+          quota_type: 0,
+          model_ratio: 0.5,
+          completion_ratio: 1.2,
+          cache_ratio: 0.25,
+          owner_by: 'OpenAI',
+          supported_endpoint_types: ['chat'],
+          enable_groups: ['default'],
+        },
+      ])[0]
+    ).toMatchObject({
+      model_name: 'gpt-4o',
+      model_ratio: 0.5,
+      cache_ratio: 0.25,
+      owner_by: 'OpenAI',
+    })
+    expect(
+      parsePerfMetricsSummary({
+        models: [
+          {
+            model_name: 'gpt-4o',
+            avg_latency_ms: 850,
+            success_rate: 99.5,
+            avg_tps: 42,
+          },
+        ],
+      })[0]
+    ).toEqual({
+      model_name: 'gpt-4o',
+      avg_latency_ms: 850,
+      success_rate: 99.5,
+      avg_tps: 42,
+    })
+    expectInvalidResponse(() => parsePricingModels([{ model_name: 'gpt-4o' }]))
+    expectInvalidResponse(() => parsePerfMetricsSummary({ models: [{}] }))
+  })
+
+  it('parses the log overview contract and rejects missing fields', () => {
+    expect(
+      parseLogStat({
+        total_requests: 20,
+        total_quota: 500,
+        today_requests: 2,
+        today_quota: 70,
+      })
+    ).toEqual({
+      total_requests: 20,
+      total_quota: 500,
+      today_requests: 2,
+      today_quota: 70,
+    })
+    expectInvalidResponse(() => parseLogStat({ quota: 500 }))
   })
 
   it('preserves backend token groups and safely normalizes legacy fields', () => {

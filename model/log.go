@@ -695,6 +695,26 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
+type SelfLogStat struct {
+	TotalRequests int64 `json:"total_requests"`
+	TotalQuota    int64 `json:"total_quota"`
+	TodayRequests int64 `json:"today_requests"`
+	TodayQuota    int64 `json:"today_quota"`
+}
+
+func GetSelfLogStat(username string, now time.Time) (stat SelfLogStat, err error) {
+	base := LOG_DB.Table("logs").Where("username = ? AND type = ?", username, LogTypeConsume)
+	if err = base.Select("count(*) total_requests, COALESCE(sum(quota), 0) total_quota").Scan(&stat).Error; err != nil {
+		return stat, err
+	}
+
+	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
+	err = base.Where("created_at >= ? AND created_at <= ?", startOfToday, now.Unix()).
+		Select("count(*) today_requests, COALESCE(sum(quota), 0) today_quota").
+		Scan(&stat).Error
+	return stat, err
+}
+
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 
