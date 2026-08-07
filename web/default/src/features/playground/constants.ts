@@ -46,6 +46,9 @@ export const API_ENDPOINTS = {
 // ~40s, standard is longer).
 export const VIDEO_POLL_INTERVAL_MS = 6000
 
+export const MODEL_GENERATOR_DRAFT_CLEANUP_KEY =
+  'flatkey:model-generator-draft:pending-cleanup'
+
 // Default group — uses 'default' as the safe fallback; auto-group is
 // only selected when the backend confirms it is available for the user.
 export const DEFAULT_GROUP = 'default' as const

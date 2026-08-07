@@ -226,9 +226,10 @@ module "cloud_run" {
   // so a plain `terraform apply` before then never injects a versionless secret.
   usage_recon_token_secret_id = var.enable_usage_recon_token ? google_secret_manager_secret.blockrun_usage_summary_token.secret_id : ""
 
-  frontend_base_url    = var.frontend_base_url
-  custom_domains       = var.custom_domains
-  asset_storage_bucket = google_storage_bucket.flatkey_assets.name
+  frontend_base_url           = var.frontend_base_url
+  custom_domains              = var.custom_domains
+  asset_storage_bucket        = google_storage_bucket.flatkey_assets.name
+  video_result_storage_bucket = google_storage_bucket.video_results.name
 
   // Scaling override（2026-05-25）：
   //   - 当前 ~2% 5xx 基线，监控显示高峰仅 2 个实例运行（远低于 maxScale=10）
@@ -243,6 +244,7 @@ module "cloud_run" {
     module.apis,
     google_secret_manager_secret_version.sql_dsn,
     google_secret_manager_secret_version.redis_url,
+    google_storage_bucket_iam_member.runtime_video_results_object_user,
   ]
 }
 
@@ -270,14 +272,15 @@ module "cloud_run_router" {
 
   usage_recon_token_secret_id = var.enable_usage_recon_token ? google_secret_manager_secret.blockrun_usage_summary_token.secret_id : ""
 
-  frontend_base_url    = var.frontend_base_url
-  custom_domains       = []
-  asset_storage_bucket = google_storage_bucket.flatkey_assets.name
-  min_instances        = var.router_min_instances
-  max_instances        = var.router_max_instances
-  concurrency          = var.router_concurrency
-  memory               = var.router_memory
-  node_type            = "slave"
+  frontend_base_url           = var.frontend_base_url
+  custom_domains              = []
+  asset_storage_bucket        = google_storage_bucket.flatkey_assets.name
+  video_result_storage_bucket = google_storage_bucket.video_results.name
+  min_instances               = var.router_min_instances
+  max_instances               = var.router_max_instances
+  concurrency                 = var.router_concurrency
+  memory                      = var.router_memory
+  node_type                   = "slave"
 
   prometheus_sidecar_enabled  = true
   prometheus_config_secret_id = google_secret_manager_secret.prometheus_run_monitoring_config.secret_id
@@ -288,6 +291,7 @@ module "cloud_run_router" {
     google_secret_manager_secret_version.sql_dsn,
     google_secret_manager_secret_version.redis_url,
     google_secret_manager_secret_version.prometheus_run_monitoring_config,
+    google_storage_bucket_iam_member.runtime_video_results_object_user,
   ]
 }
 
@@ -315,18 +319,20 @@ module "cloud_run_console" {
 
   usage_recon_token_secret_id = var.enable_usage_recon_token ? google_secret_manager_secret.blockrun_usage_summary_token.secret_id : ""
 
-  frontend_base_url    = ""
-  custom_domains       = []
-  asset_storage_bucket = google_storage_bucket.flatkey_assets.name
-  min_instances        = var.console_min_instances
-  max_instances        = var.console_max_instances
-  concurrency          = var.console_concurrency
-  node_type            = "master"
+  frontend_base_url           = ""
+  custom_domains              = []
+  asset_storage_bucket        = google_storage_bucket.flatkey_assets.name
+  video_result_storage_bucket = google_storage_bucket.video_results.name
+  min_instances               = var.console_min_instances
+  max_instances               = var.console_max_instances
+  concurrency                 = var.console_concurrency
+  node_type                   = "master"
 
   depends_on = [
     module.apis,
     google_secret_manager_secret_version.sql_dsn,
     google_secret_manager_secret_version.redis_url,
+    google_storage_bucket_iam_member.runtime_video_results_object_user,
   ]
 }
 

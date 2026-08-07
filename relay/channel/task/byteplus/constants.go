@@ -6,6 +6,7 @@ const ChannelName = "BytePlus"
 
 var ModelList = []string{
 	"seedance-2.0",
+	"seedance2.0-pro",
 	"seedance-2.0-fast",
 	"seedance-2.0-mini",
 }
@@ -18,25 +19,34 @@ type videoPriceKey struct {
 
 var videoPriceTable = map[string]map[videoPriceKey]float64{
 	"seedance-2.0": {
-		{hasVideo: false}:                46.0,
-		{hasVideo: true}:                 28.0,
-		{is1080p: true, hasVideo: false}: 51.0,
-		{is1080p: true, hasVideo: true}:  31.0,
-		{is4k: true, hasVideo: false}:    26.0,
-		{is4k: true, hasVideo: true}:     16.0,
+		{hasVideo: false}:                70.0,
+		{hasVideo: true}:                 43.0,
+		{is1080p: true, hasVideo: false}: 77.0,
+		{is1080p: true, hasVideo: true}:  47.0,
+		{is4k: true, hasVideo: false}:    40.0,
+		{is4k: true, hasVideo: true}:     24.0,
 	},
 	"seedance-2.0-fast": {
-		{hasVideo: false}: 37.0,
-		{hasVideo: true}:  22.0,
+		{hasVideo: false}: 56.0,
+		{hasVideo: true}:  33.0,
 	},
 	"seedance-2.0-mini": {
-		{hasVideo: false}: 23.0,
-		{hasVideo: true}:  14.0,
+		{hasVideo: false}: 35.0,
+		{hasVideo: true}:  21.0,
 	},
 }
 
+var videoPriceModelAliases = map[string]string{
+	"seedance2.0-pro": "seedance-2.0",
+	"Seedance2.0-pro": "seedance-2.0",
+}
+
 func getVideoInputRatio(modelName, resolution string, hasVideo bool) (float64, bool) {
-	prices, ok := videoPriceTable[strings.TrimSpace(modelName)]
+	modelName = strings.TrimSpace(modelName)
+	if canonical, ok := videoPriceModelAliases[modelName]; ok {
+		modelName = canonical
+	}
+	prices, ok := videoPriceTable[modelName]
 	if !ok {
 		return 0, false
 	}

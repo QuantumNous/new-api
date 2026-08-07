@@ -42,7 +42,7 @@ import {
   type PricingModel,
 } from "@/lib/pricing";
 import { localizePath, type Locale } from "@/lib/locales";
-import { getModelLandingConfigForModel } from "@/lib/model-landing";
+import { getModelLandingConfigForPricingModel } from "@/lib/model-landing";
 import { ROUTER_ORIGIN } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 import {
@@ -274,7 +274,7 @@ function ModelPriceCard(props: { model: PricingModel; locale: Locale; performanc
   const tags = parseTags(model.tags);
   const initial = model.model_name.charAt(0).toUpperCase();
   const iconKey = model.icon || model.vendor_icon;
-  const landingConfig = getModelLandingConfigForModel(model.model_name);
+  const landingConfig = getModelLandingConfigForPricingModel(model);
   const landingHref = landingConfig ? localizePath(`/models/${landingConfig.slug}`, props.locale) : null;
 
   const handleCopy = (event: React.MouseEvent<HTMLButtonElement>) => {

@@ -40,7 +40,11 @@ import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { FirstRunWelcome, GetKeyCard } from './components/playground-first-run'
 import { PlaygroundInput } from './components/playground-input'
-import { MESSAGE_ROLES, MESSAGE_STATUS } from './constants'
+import {
+  MESSAGE_ROLES,
+  MESSAGE_STATUS,
+  MODEL_GENERATOR_DRAFT_CLEANUP_KEY,
+} from './constants'
 import { usePlaygroundState, useChatHandler, useVideoGeneration } from './hooks'
 import {
   createUserMessage,
@@ -405,6 +409,15 @@ export function Playground({
     return true
   }, [firstRun, isFirstRunModelApplied])
 
+  const clearModelGeneratorDraft = useCallback(() => {
+    const storageKey = window.localStorage.getItem(
+      MODEL_GENERATOR_DRAFT_CLEANUP_KEY
+    )
+    if (!storageKey) return
+    window.localStorage.removeItem(storageKey)
+    window.localStorage.removeItem(MODEL_GENERATOR_DRAFT_CLEANUP_KEY)
+  }, [])
+
   const handleSendMessage = useCallback(
     (text: string, model?: string) => {
       if (!prepareFirstRunSend()) return
@@ -465,33 +478,46 @@ export function Playground({
     if (!trimmedPrompt) return
     if (!modelsData?.length) return
     if (isGenerating) return
+    if (!isFirstRunModelReady) return
 
-    initialPromptSubmittedRef.current = true
+    const timeoutId = window.setTimeout(() => {
+      if (initialPromptSubmittedRef.current) return
+      initialPromptSubmittedRef.current = true
 
-    if (initialGenerate === 'video') {
-      const requestedVideoModel = modelsData.find(
-        (model) => model.value === initialModel && isVideoGenModelName(model.value)
-      )
-      const videoModel = requestedVideoModel ?? modelsData.find((model) =>
-        isVideoGenModelName(model.value)
-      )
-      if (!videoModel) {
-        toast.error(i18next.t('No video generation model is available'))
+      if (initialGenerate === 'video') {
+        const requestedVideoModel = modelsData.find(
+          (model) =>
+            model.value === initialModel && isVideoGenModelName(model.value)
+        )
+        const videoModel =
+          requestedVideoModel ??
+          modelsData.find((model) => isVideoGenModelName(model.value))
+        if (!videoModel) {
+          toast.error(i18next.t('No video generation model is available'))
+          return
+        }
+        handleSendMessage(trimmedPrompt, videoModel.value)
+        clearModelGeneratorDraft()
+        navigate({ to: '/playground', replace: true })
         return
       }
-      handleSendMessage(trimmedPrompt, videoModel.value)
-      navigate({ to: '/playground', replace: true })
-      return
-    }
 
-    const requestedModel = modelsData.find((model) => model.value === initialModel)
-    handleSendMessage(trimmedPrompt, requestedModel?.value)
-    navigate({ to: '/playground', replace: true })
+      const requestedModel = modelsData.find(
+        (model) => model.value === initialModel
+      )
+      handleSendMessage(trimmedPrompt, requestedModel?.value)
+      clearModelGeneratorDraft()
+      navigate({ to: '/playground', replace: true })
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
   }, [
+    clearModelGeneratorDraft,
     handleSendMessage,
     initialGenerate,
     initialModel,
     initialPrompt,
+    isFirstRunModelReady,
     isGenerating,
     modelsData,
     navigate,

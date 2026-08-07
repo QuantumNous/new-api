@@ -53,16 +53,18 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
-import { useUpdateOption } from '../hooks/use-update-option'
+import { useUpdateOptionsBulk } from '../hooks/use-update-option'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  CompanyLogRoutingEnabled: z.boolean(),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
+  defaultCompanyLogRoutingEnabled: boolean
 }
 
 const HOURS_IN_DAY = 24
@@ -92,13 +94,15 @@ const quickSelectOptions = [
 
 export function LogSettingsSection({
   defaultEnabled,
+  defaultCompanyLogRoutingEnabled,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
-  const updateOption = useUpdateOption()
+  const updateOptions = useUpdateOptionsBulk()
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
       LogConsumeEnabled: defaultEnabled,
+      CompanyLogRoutingEnabled: defaultCompanyLogRoutingEnabled,
     },
   })
 
@@ -109,8 +113,11 @@ export function LogSettingsSection({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset({
+      LogConsumeEnabled: defaultEnabled,
+      CompanyLogRoutingEnabled: defaultCompanyLogRoutingEnabled,
+    })
+  }, [defaultCompanyLogRoutingEnabled, defaultEnabled, form])
 
   const purgeTimestamp = useMemo(() => {
     if (!purgeDate) return null
@@ -123,11 +130,21 @@ export function LogSettingsSection({
   }, [purgeDate])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const options: Array<{ key: string; value: string }> = []
+    if (values.LogConsumeEnabled !== defaultEnabled) {
+      options.push({
+        key: 'LogConsumeEnabled',
+        value: String(values.LogConsumeEnabled),
+      })
+    }
+    if (values.CompanyLogRoutingEnabled !== defaultCompanyLogRoutingEnabled) {
+      options.push({
+        key: 'CompanyLogRoutingEnabled',
+        value: String(values.CompanyLogRoutingEnabled),
+      })
+    }
+    if (options.length === 0) return
+    await updateOptions.mutateAsync({ options })
   }
 
   const handleRequestCleanLogs = () => {
@@ -172,7 +189,7 @@ export function LogSettingsSection({
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
+            isSaving={updateOptions.isPending}
             saveLabel='Save log settings'
           />
           <FormField
@@ -185,6 +202,30 @@ export function LogSettingsSection({
                   <FormDescription>
                     {t(
                       'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='CompanyLogRoutingEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Split company Codex logs')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Route root-account token logs from Codex channels to the separate company log table. When disabled, all logs stay in the default log table.'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>

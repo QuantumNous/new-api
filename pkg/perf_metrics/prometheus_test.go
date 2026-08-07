@@ -31,6 +31,7 @@ func resetPerfMetricsStateForTest(t *testing.T) {
 	prometheusModelAdmissionMu = sync.Mutex{}
 	prometheusModelDroppedSamples = prometheusModelDropCounters{}
 	resetBytePlusRealPersonMetricsForTest()
+	resetVideoResultMetricsForTest()
 }
 
 func TestRecordRelaySampleCapturesSuccessfulModelLatencyAndTTFT(t *testing.T) {

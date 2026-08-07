@@ -195,13 +195,27 @@ func seedChannel(t *testing.T, id int) {
 func restoreRatioSettings(t *testing.T) {
 	t.Helper()
 
+	originalModelPrice := ratio_setting.ModelPrice2JSONString()
 	originalModelRatio := ratio_setting.ModelRatio2JSONString()
+	originalCompletionRatio := ratio_setting.CompletionRatio2JSONString()
+	originalCacheRatio := ratio_setting.CacheRatio2JSONString()
+	originalCreateCacheRatio := ratio_setting.CreateCacheRatio2JSONString()
+	originalImageRatio := ratio_setting.ImageRatio2JSONString()
+	originalAudioRatio := ratio_setting.AudioRatio2JSONString()
+	originalAudioCompletionRatio := ratio_setting.AudioCompletionRatio2JSONString()
 	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
 	originalGroupGroupRatio := ratio_setting.GroupGroupRatio2JSONString()
 	originalGroupModelRatio := ratio_setting.GroupModelRatio2JSONString()
 
 	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(originalModelPrice))
 		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(originalModelRatio))
+		require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(originalCompletionRatio))
+		require.NoError(t, ratio_setting.UpdateCacheRatioByJSONString(originalCacheRatio))
+		require.NoError(t, ratio_setting.UpdateCreateCacheRatioByJSONString(originalCreateCacheRatio))
+		require.NoError(t, ratio_setting.UpdateImageRatioByJSONString(originalImageRatio))
+		require.NoError(t, ratio_setting.UpdateAudioRatioByJSONString(originalAudioRatio))
+		require.NoError(t, ratio_setting.UpdateAudioCompletionRatioByJSONString(originalAudioCompletionRatio))
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
 		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(originalGroupGroupRatio))
 		require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(originalGroupModelRatio))
@@ -988,15 +1002,18 @@ func TestSettle_NonPerCallSeedance_UsesTotalTokensAndScenarioRatio(t *testing.T)
 	seedToken(t, tokenID, userID, "sk-seedance-token-settle", tokenRemain)
 	seedChannel(t, channelID)
 
-	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"seedance-2.0":0.391}`))
+	ratio_setting.InitRatioSettings()
+	modelRatio, ok, _ := ratio_setting.GetModelRatio("seedance-2.0")
+	require.True(t, ok, "seedance-2.0 default model ratio must be registered")
+	require.Equal(t, 3.5, modelRatio)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
 	task.Properties.OriginModelName = "seedance-2.0"
 	task.PrivateData.BillingContext = &model.TaskBillingContext{
 		ModelPrice:      -1,
-		ModelRatio:      0.391,
+		ModelRatio:      modelRatio,
 		GroupRatio:      1,
-		OtherRatios:     map[string]float64{"video_input": 28.0 / 46.0},
+		OtherRatios:     map[string]float64{"video_input": 43.0 / 70.0},
 		OriginModelName: "seedance-2.0",
 		PerCallBilling:  false,
 	}
@@ -1009,7 +1026,7 @@ func TestSettle_NonPerCallSeedance_UsesTotalTokensAndScenarioRatio(t *testing.T)
 
 	settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
 
-	const actualQuota = 238
+	const actualQuota = 2150
 	const quotaDelta = actualQuota - preConsumed
 	assert.Equal(t, actualQuota, task.Quota)
 	assert.Equal(t, initQuota-quotaDelta, getUserQuota(t, userID))

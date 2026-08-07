@@ -4,7 +4,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "flatkey - Pricing",
   description:
-    "flatkey pricing with Go, Pro, Max and Enterprise plans covering official models, media credits and pay-per-call tools.",
+    "flatkey pricing with Go, Pro, Max and Enterprise plans covering official models, multimodal media credits and production usage controls.",
   pathname: "/pricing",
 });
 

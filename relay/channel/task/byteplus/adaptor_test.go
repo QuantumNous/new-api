@@ -141,7 +141,7 @@ func TestIdentityAndModelList(t *testing.T) {
 	if got := a.GetChannelName(); got != "BytePlus" {
 		t.Fatalf("channel name = %q, want BytePlus", got)
 	}
-	want := []string{"seedance-2.0", "seedance-2.0-fast", "seedance-2.0-mini"}
+	want := []string{"seedance-2.0", "seedance2.0-pro", "seedance-2.0-fast", "seedance-2.0-mini"}
 	got := a.GetModelList()
 	if len(got) != len(want) {
 		t.Fatalf("model list = %v, want %v", got, want)
@@ -162,13 +162,16 @@ func TestEstimateBillingUsesPublicModelPricingAcrossEndpointMappings(t *testing.
 		want       float64
 		wantRatio  bool
 	}{
-		{name: "2.0 720p video", model: "seedance-2.0", resolution: "720p", hasVideo: true, want: 28.0 / 46.0, wantRatio: true},
-		{name: "2.0 1080p no video", model: "seedance-2.0", resolution: "1080p", want: 51.0 / 46.0, wantRatio: true},
-		{name: "2.0 1080p video", model: "seedance-2.0", resolution: "1080p", hasVideo: true, want: 31.0 / 46.0, wantRatio: true},
-		{name: "2.0 4k no video", model: "seedance-2.0", resolution: "4K", want: 26.0 / 46.0, wantRatio: true},
-		{name: "2.0 4k video", model: "seedance-2.0", resolution: "4K", hasVideo: true, want: 16.0 / 46.0, wantRatio: true},
-		{name: "fast video", model: "seedance-2.0-fast", resolution: "4K", hasVideo: true, want: 22.0 / 37.0, wantRatio: true},
-		{name: "mini video", model: "seedance-2.0-mini", resolution: "1080p", hasVideo: true, want: 14.0 / 23.0, wantRatio: true},
+		{name: "2.0 720p video", model: "seedance-2.0", resolution: "720p", hasVideo: true, want: 43.0 / 70.0, wantRatio: true},
+		{name: "2.0 1080p no video", model: "seedance-2.0", resolution: "1080p", want: 77.0 / 70.0, wantRatio: true},
+		{name: "2.0 1080p video", model: "seedance-2.0", resolution: "1080p", hasVideo: true, want: 47.0 / 70.0, wantRatio: true},
+		{name: "2.0 4k no video", model: "seedance-2.0", resolution: "4K", want: 40.0 / 70.0, wantRatio: true},
+		{name: "2.0 4k video", model: "seedance-2.0", resolution: "4K", hasVideo: true, want: 24.0 / 70.0, wantRatio: true},
+		{name: "pro exact alias", model: "seedance2.0-pro", resolution: "720p", hasVideo: true, want: 43.0 / 70.0, wantRatio: true},
+		{name: "pro exact case alias", model: "Seedance2.0-pro", resolution: "720p", hasVideo: true, want: 43.0 / 70.0, wantRatio: true},
+		{name: "pro max boundary does not match", model: "seedance2.0-pro-max", resolution: "720p", hasVideo: true},
+		{name: "fast video", model: "seedance-2.0-fast", resolution: "4K", hasVideo: true, want: 33.0 / 56.0, wantRatio: true},
+		{name: "mini video", model: "seedance-2.0-mini", resolution: "1080p", hasVideo: true, want: 21.0 / 35.0, wantRatio: true},
 		{name: "mini baseline", model: "seedance-2.0-mini", resolution: "4K"},
 		{name: "unknown model", model: "seedance-unknown", resolution: "720p", hasVideo: true},
 	}

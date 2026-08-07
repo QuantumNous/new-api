@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
@@ -25,6 +26,7 @@ func setupOptionControllerTestDB(t *testing.T) *gorm.DB {
 	originalUsingSQLite := common.UsingSQLite
 	originalUsingMySQL := common.UsingMySQL
 	originalUsingPostgreSQL := common.UsingPostgreSQL
+	originalLogConsumeEnabled := common.LogConsumeEnabled
 	originalDB := model.DB
 	originalLogDB := model.LOG_DB
 	common.RedisEnabled = false
@@ -34,19 +36,12 @@ func setupOptionControllerTestDB(t *testing.T) *gorm.DB {
 
 	common.OptionMapRWMutex.Lock()
 	originalOptionMap := common.OptionMap
+	originalCompanyLogRoutingEnabled := "false"
+	if value, ok := originalOptionMap[model.OptionKeyCompanyLogRoutingEnabled]; ok {
+		originalCompanyLogRoutingEnabled = value
+	}
 	common.OptionMap = map[string]string{}
 	common.OptionMapRWMutex.Unlock()
-	t.Cleanup(func() {
-		common.RedisEnabled = originalRedisEnabled
-		common.UsingSQLite = originalUsingSQLite
-		common.UsingMySQL = originalUsingMySQL
-		common.UsingPostgreSQL = originalUsingPostgreSQL
-		model.DB = originalDB
-		model.LOG_DB = originalLogDB
-		common.OptionMapRWMutex.Lock()
-		common.OptionMap = originalOptionMap
-		common.OptionMapRWMutex.Unlock()
-	})
 
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
@@ -59,6 +54,17 @@ func setupOptionControllerTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to migrate option table: %v", err)
 	}
 	t.Cleanup(func() {
+		require.NoError(t, model.UpdateOption(model.OptionKeyCompanyLogRoutingEnabled, originalCompanyLogRoutingEnabled))
+		common.RedisEnabled = originalRedisEnabled
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingMySQL = originalUsingMySQL
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+		common.LogConsumeEnabled = originalLogConsumeEnabled
+		model.DB = originalDB
+		model.LOG_DB = originalLogDB
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = originalOptionMap
+		common.OptionMapRWMutex.Unlock()
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()
@@ -118,6 +124,33 @@ func TestUpdateOptionsBulkPersistsSidebarAndPlaygroundModelAtomically(t *testing
 	common.OptionMapRWMutex.RUnlock()
 	if optionMapModel != "gemini-2.5-flash" {
 		t.Fatalf("expected in-memory option map to update, got %q", optionMapModel)
+	}
+}
+
+func TestUpdateOptionsBulkPersistsLogSettingsAtomically(t *testing.T) {
+	db := setupOptionControllerTestDB(t)
+
+	ctx, recorder := newOptionRequestContext(t, map[string]any{
+		"options": []map[string]any{
+			{"key": "LogConsumeEnabled", "value": "false"},
+			{"key": model.OptionKeyCompanyLogRoutingEnabled, "value": "false"},
+		},
+	})
+	UpdateOptions(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected bulk log option update to succeed, got message: %s", response.Message)
+	}
+
+	for _, key := range []string{"LogConsumeEnabled", model.OptionKeyCompanyLogRoutingEnabled} {
+		var option model.Option
+		if err := db.First(&option, "key = ?", key).Error; err != nil {
+			t.Fatalf("failed to load %s: %v", key, err)
+		}
+		if option.Value != "false" {
+			t.Fatalf("unexpected %s value: %q", key, option.Value)
+		}
 	}
 }
 

@@ -17,13 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { isSidebarModuleEnabled } from '@/lib/nav-modules'
 import { Main } from '@/components/layout'
 import { Playground } from '@/features/playground'
+import { MODEL_GENERATOR_DRAFT_CLEANUP_KEY } from '@/features/playground/constants'
 
 export function validatePlaygroundSearch(
   search: Record<string, unknown>
-): { first?: 1; prompt?: string; generate?: 'image' | 'video'; model?: string } {
+): {
+  first?: 1
+  prompt?: string
+  generate?: 'image' | 'video'
+  model?: string
+  draft?: string
+} {
   // `?first=1` marks the post-registration first-run onboarding experience.
   // Keep the serialized URL stable as `first=1`; boolean values serialize as
   // `first=true`, while string values serialize with quotes.
@@ -36,11 +44,16 @@ export function validatePlaygroundSearch(
       ? search.generate
       : undefined
   const model = typeof search.model === 'string' ? search.model.trim() : ''
+  const draft =
+    typeof search.draft === 'string' && search.draft.length <= 12000
+      ? search.draft
+      : ''
   return {
     ...(isFirstRun ? { first: 1 } : {}),
     ...(prompt ? { prompt } : {}),
     ...(generate ? { generate } : {}),
     ...(model ? { model } : {}),
+    ...(draft ? { draft } : {}),
   }
 }
 
@@ -55,7 +68,46 @@ export const Route = createFileRoute('/_authenticated/playground/')({
 })
 
 function PlaygroundPage() {
-  const { first, generate, model, prompt } = Route.useSearch()
+  const { first, generate, model, prompt, draft } = Route.useSearch()
+  const navigate = Route.useNavigate()
+
+  useEffect(() => {
+    if (!draft) return
+    try {
+      const parsed = JSON.parse(draft) as {
+        storageKey?: unknown
+        request?: unknown
+      }
+      const storageKey =
+        typeof parsed.storageKey === 'string' && parsed.storageKey
+          ? parsed.storageKey
+          : 'flatkey:model-generator-draft'
+      window.localStorage.setItem(storageKey, JSON.stringify(parsed))
+      window.localStorage.setItem(MODEL_GENERATOR_DRAFT_CLEANUP_KEY, storageKey)
+      navigate({
+        to: '/playground',
+        search: {
+          ...(first === 1 ? { first: 1 as const } : {}),
+          ...(generate ? { generate } : {}),
+          ...(model ? { model } : {}),
+          ...(prompt ? { prompt } : {}),
+        },
+        replace: true,
+      })
+    } catch {
+      navigate({
+        to: '/playground',
+        search: {
+          ...(first === 1 ? { first: 1 as const } : {}),
+          ...(generate ? { generate } : {}),
+          ...(model ? { model } : {}),
+          ...(prompt ? { prompt } : {}),
+        },
+        replace: true,
+      })
+    }
+  }, [draft, first, generate, model, navigate, prompt])
+
   return (
     <Main className='p-0'>
       <Playground
