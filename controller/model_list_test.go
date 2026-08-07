@@ -529,11 +529,12 @@ func TestListModelsKeepsOpenAIResponseShape(t *testing.T) {
 	require.IsType(t, "", payload["object"])
 	data := payload["data"].([]any)
 	modelData := data[0].(map[string]any)
-	requireExactJSONKeys(t, modelData, "id", "object", "created", "owned_by", "supported_endpoint_types")
+	requireExactJSONKeys(t, modelData, "id", "object", "created", "owned_by", "type", "supported_endpoint_types")
 	require.IsType(t, "", modelData["id"])
 	require.IsType(t, "", modelData["object"])
 	require.IsType(t, float64(0), modelData["created"])
 	require.IsType(t, "", modelData["owned_by"])
+	require.IsType(t, "", modelData["type"])
 	require.IsType(t, []any{}, modelData["supported_endpoint_types"])
 }
 
@@ -669,6 +670,35 @@ func TestAvailableModelTypeInference(t *testing.T) {
 	require.Equal(t, "audio", availableModelType("eleven_sound_v1", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("sonilo-video-to-music", []constant.EndpointType{constant.EndpointTypeVideoToMusic}))
 	require.Equal(t, "text", availableModelType("gpt-5.5", []constant.EndpointType{constant.EndpointTypeOpenAI}))
+}
+
+func TestListModelsClassifiesCustomVideoEndpoint(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	createAvailableModelFixture(t, db, 92013, common.ChannelStatusEnabled, map[string][]string{
+		"default": {"MiniMax-H3"},
+	})
+	require.NoError(t, db.Create(&model.Model{
+		ModelName: "MiniMax-H3",
+		Endpoints: `{"video":{"path":"/v1/videos","method":"POST"}}`,
+		Status:    1,
+	}).Error)
+	model.RefreshPricing()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "default")
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload listModelsResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.Len(t, payload.Data, 1)
+	require.Equal(t, "MiniMax-H3", payload.Data[0].Id)
+	require.Equal(t, "video", payload.Data[0].Type)
+	require.Equal(t, []constant.EndpointType{constant.EndpointTypeVideo}, payload.Data[0].SupportedEndpointTypes)
 }
 
 func TestAvailableModelsIncludesSoniloWithoutModelMeta(t *testing.T) {
