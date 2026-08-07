@@ -39,6 +39,7 @@ export type ApiKeyModelAccessState = {
   defaultRatio: number | null
   fixedScope: boolean
   invalidAllowlistItems: string[]
+  invalidBlacklistItems: string[]
   scope: ModelAccessScope | null
   scopeModels: ModelAccessModel[]
   modelRatios: Readonly<Record<string, number>>
@@ -87,7 +88,9 @@ export function getApiKeyModelAccessState(
   access: UserModelAccess,
   group: string | null | undefined,
   modelLimitsEnabled: boolean,
-  modelLimits: readonly string[]
+  modelLimits: readonly string[],
+  modelBlacklistEnabled = false,
+  modelBlacklist: readonly string[] = []
 ): ApiKeyModelAccessState {
   const fixedScope =
     access.scope_mode === 'fixed_account' || access.groups.length === 0
@@ -106,11 +109,21 @@ export function getApiKeyModelAccessState(
   const invalidAllowlistItems = normalizedModelLimits.filter(
     (item) => !allowedMatchKeys.has(item)
   )
-  const effectiveModels = getEffectiveTokenModels(access, {
+  const normalizedModelBlacklist = getUniqueAllowlistItems(modelBlacklist)
+  const invalidBlacklistItems = normalizedModelBlacklist.filter(
+    (item) => !allowedMatchKeys.has(item)
+  )
+  let effectiveModels = getEffectiveTokenModels(access, {
     group: access.scope_mode === 'fixed_account' ? null : group,
     model_limits_enabled: modelLimitsEnabled,
     model_limits: normalizedModelLimits,
   })
+  if (modelBlacklistEnabled) {
+    const blacklist = new Set(normalizedModelBlacklist)
+    effectiveModels = effectiveModels.filter(
+      (model) => !blacklist.has(model.allowlist_match_key)
+    )
+  }
   const ratioContext = resolveModelRatioContext(access, group)
 
   return {
@@ -119,6 +132,7 @@ export function getApiKeyModelAccessState(
     effectiveModels,
     fixedScope,
     invalidAllowlistItems,
+    invalidBlacklistItems,
     scope,
     scopeModels,
     modelRatios: ratioContext.modelRatios,

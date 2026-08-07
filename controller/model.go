@@ -227,6 +227,14 @@ func ListModels(c *gin.Context, modelType int) {
 		return
 	}
 	ownerGroups := groups.ownerGroups
+	modelBlacklist := map[string]bool{}
+	if common.GetContextKeyBool(c, constant.ContextKeyTokenModelBlacklistEnabled) {
+		if blacklistValue, ok := common.GetContextKey(c, constant.ContextKeyTokenModelBlacklist); ok {
+			if blacklist, ok := blacklistValue.(map[string]bool); ok {
+				modelBlacklist = blacklist
+			}
+		}
+	}
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
 	if modelLimitEnable {
 		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
@@ -237,6 +245,9 @@ func ListModels(c *gin.Context, modelType int) {
 			tokenModelLimit = map[string]bool{}
 		}
 		for allowModel, _ := range tokenModelLimit {
+			if service.TokenBlocksModel(modelBlacklist, allowModel) {
+				continue
+			}
 			if !acceptUnsetRatioModel {
 				if !helper.HasModelBillingConfig(allowModel) {
 					continue
@@ -259,6 +270,9 @@ func ListModels(c *gin.Context, modelType int) {
 			models = model.GetGroupEnabledModels(ownerGroups[0])
 		}
 		for _, modelName := range models {
+			if service.TokenBlocksModel(modelBlacklist, modelName) {
+				continue
+			}
 			if !acceptUnsetRatioModel {
 				if !helper.HasModelBillingConfig(modelName) {
 					continue
@@ -288,11 +302,17 @@ func ListModels(c *gin.Context, modelType int) {
 				Type:        "model",
 			}
 		}
+		firstID := ""
+		lastID := ""
+		if len(useranthropicModels) > 0 {
+			firstID = useranthropicModels[0].ID
+			lastID = useranthropicModels[len(useranthropicModels)-1].ID
+		}
 		c.JSON(200, gin.H{
 			"data":     useranthropicModels,
-			"first_id": useranthropicModels[0].ID,
+			"first_id": firstID,
 			"has_more": false,
-			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
+			"last_id":  lastID,
 		})
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
@@ -352,7 +372,7 @@ func AvailableModels(c *gin.Context) {
 func availableModelType(modelID string, endpointTypes []constant.EndpointType) string {
 	for _, endpointType := range endpointTypes {
 		switch endpointType {
-		case constant.EndpointTypeOpenAIVideo:
+		case constant.EndpointTypeOpenAIVideo, constant.EndpointTypeVideo:
 			return "video"
 		case constant.EndpointTypeVideoToMusic:
 			return "audio"

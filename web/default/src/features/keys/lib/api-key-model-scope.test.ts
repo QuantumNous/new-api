@@ -112,6 +112,8 @@ function buildApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
     cross_group_retry: false,
     model_limits_enabled: false,
     model_limits: '',
+    model_blacklist_enabled: false,
+    model_blacklist: '',
     allow_ips: '',
     ...overrides,
   }
@@ -328,5 +330,19 @@ describe('API key model scope summary', () => {
     expect(
       getApiKeyCallableModels(access, buildApiKey({ group: 'removed-group' }))
     ).toEqual([])
+  })
+
+  test('removes blacklisted model families from callable models', () => {
+    const callableModels = getApiKeyCallableModels(
+      buildAccess(),
+      buildApiKey({
+        model_blacklist_enabled: true,
+        model_blacklist: 'wildcard-model',
+      })
+    )
+
+    expect(callableModels.map((model) => model.id)).toEqual([
+      'standard-model',
+    ])
   })
 })

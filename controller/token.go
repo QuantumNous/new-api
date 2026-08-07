@@ -188,15 +188,17 @@ func GetTokenUsage(c *gin.Context) {
 		"code":    true,
 		"message": "ok",
 		"data": gin.H{
-			"object":               "token_usage",
-			"name":                 token.Name,
-			"total_granted":        token.RemainQuota + token.UsedQuota,
-			"total_used":           token.UsedQuota,
-			"total_available":      token.RemainQuota,
-			"unlimited_quota":      token.UnlimitedQuota,
-			"model_limits":         token.GetModelLimitsMap(),
-			"model_limits_enabled": token.ModelLimitsEnabled,
-			"expires_at":           expiredAt,
+			"object":                  "token_usage",
+			"name":                    token.Name,
+			"total_granted":           token.RemainQuota + token.UsedQuota,
+			"total_used":              token.UsedQuota,
+			"total_available":         token.RemainQuota,
+			"unlimited_quota":         token.UnlimitedQuota,
+			"model_limits":            token.GetModelLimitsMap(),
+			"model_limits_enabled":    token.ModelLimitsEnabled,
+			"model_blacklist":         token.GetModelBlacklistMap(),
+			"model_blacklist_enabled": token.ModelBlacklistEnabled,
+			"expires_at":              expiredAt,
 		},
 	})
 }
@@ -232,24 +234,26 @@ func buildTokenForInsert(c *gin.Context, token model.Token, key string) (model.T
 		token.CrossGroupRetry = false
 	}
 	return model.Token{
-		UserId:             c.GetInt("id"),
-		Name:               token.Name,
-		Key:                key,
-		CreatedTime:        common.GetTimestamp(),
-		AccessedTime:       common.GetTimestamp(),
-		ExpiredTime:        token.ExpiredTime,
-		RemainQuota:        token.RemainQuota,
-		UnlimitedQuota:     token.UnlimitedQuota,
-		ModelLimitsEnabled: token.ModelLimitsEnabled,
-		ModelLimits:        token.ModelLimits,
-		AllowIps:           token.AllowIps,
-		Group:              token.Group,
-		CrossGroupRetry:    token.CrossGroupRetry,
-		Source:             token.Source,
-		DeviceIdHash:       token.DeviceIdHash,
-		ClientName:         token.ClientName,
-		ClientVersion:      token.ClientVersion,
-		LastUsedClientAt:   token.LastUsedClientAt,
+		UserId:                c.GetInt("id"),
+		Name:                  token.Name,
+		Key:                   key,
+		CreatedTime:           common.GetTimestamp(),
+		AccessedTime:          common.GetTimestamp(),
+		ExpiredTime:           token.ExpiredTime,
+		RemainQuota:           token.RemainQuota,
+		UnlimitedQuota:        token.UnlimitedQuota,
+		ModelLimitsEnabled:    token.ModelLimitsEnabled,
+		ModelLimits:           token.ModelLimits,
+		ModelBlacklistEnabled: token.ModelBlacklistEnabled,
+		ModelBlacklist:        token.ModelBlacklist,
+		AllowIps:              token.AllowIps,
+		Group:                 token.Group,
+		CrossGroupRetry:       token.CrossGroupRetry,
+		Source:                token.Source,
+		DeviceIdHash:          token.DeviceIdHash,
+		ClientName:            token.ClientName,
+		ClientVersion:         token.ClientVersion,
+		LastUsedClientAt:      token.LastUsedClientAt,
 	}, nil
 }
 
@@ -440,6 +444,8 @@ func UpdateToken(c *gin.Context) {
 		if !request.PreserveModelAccess {
 			cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
 			cleanToken.ModelLimits = token.ModelLimits
+			cleanToken.ModelBlacklistEnabled = token.ModelBlacklistEnabled
+			cleanToken.ModelBlacklist = token.ModelBlacklist
 			cleanToken.Group = token.Group
 			cleanToken.CrossGroupRetry = token.CrossGroupRetry
 		}
@@ -480,6 +486,8 @@ type tokenBatchUpdateRequest struct {
 	RemainQuota               *int            `json:"remain_quota"`
 	ModelLimitsEnabled        *bool           `json:"model_limits_enabled"`
 	ModelLimits               *string         `json:"model_limits"`
+	ModelBlacklistEnabled     *bool           `json:"model_blacklist_enabled"`
+	ModelBlacklist            *string         `json:"model_blacklist"`
 	UnsupportedUnlimitedQuota json.RawMessage `json:"unlimited_quota"`
 }
 
@@ -503,13 +511,15 @@ func updateTokenBatch(c *gin.Context, groupOnly bool) {
 		return
 	}
 	modelLimitsProvided := request.ModelLimitsEnabled != nil || request.ModelLimits != nil
+	modelBlacklistProvided := request.ModelBlacklistEnabled != nil || request.ModelBlacklist != nil
 	if len(request.UnsupportedUnlimitedQuota) != 0 ||
-		(request.Group == nil && request.RemainQuota == nil && !modelLimitsProvided) ||
-		(request.ModelLimitsEnabled == nil) != (request.ModelLimits == nil) {
+		(request.Group == nil && request.RemainQuota == nil && !modelLimitsProvided && !modelBlacklistProvided) ||
+		(request.ModelLimitsEnabled == nil) != (request.ModelLimits == nil) ||
+		(request.ModelBlacklistEnabled == nil) != (request.ModelBlacklist == nil) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if groupOnly && (request.Group == nil || request.RemainQuota != nil || modelLimitsProvided) {
+	if groupOnly && (request.Group == nil || request.RemainQuota != nil || modelLimitsProvided || modelBlacklistProvided) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
@@ -535,6 +545,10 @@ func updateTokenBatch(c *gin.Context, groupOnly bool) {
 	if request.ModelLimitsEnabled != nil && !*request.ModelLimitsEnabled {
 		emptyLimits := ""
 		request.ModelLimits = &emptyLimits
+	}
+	if request.ModelBlacklistEnabled != nil && !*request.ModelBlacklistEnabled {
+		emptyBlacklist := ""
+		request.ModelBlacklist = &emptyBlacklist
 	}
 
 	seen := make(map[int]struct{}, len(request.Ids))
@@ -565,12 +579,14 @@ func updateTokenBatch(c *gin.Context, groupOnly bool) {
 	}
 
 	count, err := model.BatchUpdateTokens(model.BatchUpdateTokensParams{
-		Ids:                request.Ids,
-		UserId:             userId,
-		Group:              request.Group,
-		RemainQuota:        request.RemainQuota,
-		ModelLimitsEnabled: request.ModelLimitsEnabled,
-		ModelLimits:        request.ModelLimits,
+		Ids:                   request.Ids,
+		UserId:                userId,
+		Group:                 request.Group,
+		RemainQuota:           request.RemainQuota,
+		ModelLimitsEnabled:    request.ModelLimitsEnabled,
+		ModelLimits:           request.ModelLimits,
+		ModelBlacklistEnabled: request.ModelBlacklistEnabled,
+		ModelBlacklist:        request.ModelBlacklist,
 	})
 	if errors.Is(err, model.ErrTokenBatchInvalid) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)

@@ -321,6 +321,38 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-unpriced-model")
 }
 
+func TestListModelsExcludesTokenBlacklistedModels(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	withTieredBillingConfig(t, map[string]string{
+		"zz-token-visible-model": "tiered_expr",
+		"zz-token-blocked-model": "tiered_expr",
+	}, map[string]string{
+		"zz-token-visible-model": `tier("base", p * 1 + c * 2)`,
+		"zz-token-blocked-model": `tier("base", p * 1 + c * 2)`,
+	})
+	setupModelListControllerTestDB(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
+		"zz-token-visible-model": true,
+		"zz-token-blocked-model": true,
+	})
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelBlacklistEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelBlacklist, map[string]bool{
+		"zz-token-blocked-model": true,
+	})
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "zz-token-visible-model")
+	require.NotContains(t, ids, "zz-token-blocked-model")
+}
+
 func TestAvailableModelsFiltersTokenLimitsByUsableGroupChannels(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	db := setupModelListControllerTestDB(t)
@@ -520,6 +552,33 @@ func TestListModelsKeepsAnthropicResponseShape(t *testing.T) {
 	require.IsType(t, "", modelData["type"])
 }
 
+func TestListModelsReturnsEmptyAnthropicPageWhenBlacklistRemovesAllModels(t *testing.T) {
+	originalSelfUseMode := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() { operation_setting.SelfUseModeEnabled = originalSelfUseMode })
+	setupModelListControllerTestDB(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{"contract-only-model": true})
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelBlacklistEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelBlacklist, map[string]bool{"contract-only-model": true})
+
+	require.NotPanics(t, func() {
+		ListModels(ctx, constant.ChannelTypeAnthropic)
+	})
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.Equal(t, []any{}, payload["data"])
+	require.Equal(t, "", payload["first_id"])
+	require.False(t, payload["has_more"].(bool))
+	require.Equal(t, "", payload["last_id"])
+}
+
 func TestListModelsKeepsGeminiResponseShape(t *testing.T) {
 	payload := requestDeclarativeModelResponse(t, constant.ChannelTypeGemini)
 	requireExactJSONKeys(t, payload, "models", "nextPageToken")
@@ -603,6 +662,7 @@ func TestAvailableModelsClassifiesVideoEndpointModels(t *testing.T) {
 
 func TestAvailableModelTypeInference(t *testing.T) {
 	require.Equal(t, "video", availableModelType("plain-name", []constant.EndpointType{constant.EndpointTypeOpenAIVideo}))
+	require.Equal(t, "video", availableModelType("MiniMax-H3", []constant.EndpointType{constant.EndpointTypeVideo}))
 	require.Equal(t, "image", availableModelType("gpt-image-2", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("gemini-2.5-flash-tts", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("eleven_multilingual_v2", []constant.EndpointType{constant.EndpointTypeOpenAI}))

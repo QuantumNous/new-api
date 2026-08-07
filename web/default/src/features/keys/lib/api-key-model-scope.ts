@@ -58,10 +58,17 @@ export function getApiKeyCallableModels(
 ): ModelAccessModel[] {
   if (!access || !apiKey) return []
   const currentAccountScope = isCurrentAccountModelScope(access, apiKey.group)
-  return getEffectiveTokenModels(access, {
+  const effectiveModels = getEffectiveTokenModels(access, {
     ...apiKey,
     group: currentAccountScope ? null : apiKey.group,
   })
+  if (!apiKey.model_blacklist_enabled) return effectiveModels
+  const blacklist = new Set(
+    (apiKey.model_blacklist || '').split(',').filter(Boolean)
+  )
+  return effectiveModels.filter(
+    (model) => !blacklist.has(model.allowlist_match_key)
+  )
 }
 
 export function getApiKeyModelScopeSummary(
@@ -85,7 +92,7 @@ export function getApiKeyModelScopeSummary(
     }
   }
 
-  if (apiKey.model_limits_enabled) {
+  if (apiKey.model_limits_enabled || apiKey.model_blacklist_enabled) {
     return {
       defaultRatio: ratioContext.defaultRatio,
       effectiveModels,
