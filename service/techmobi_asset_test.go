@@ -257,7 +257,7 @@ func TestTechMobiAssetMaterializerClassifiesHTTPDateRetryAfterAnd502WithoutLeaki
 			return &http.Response{
 				StatusCode: http.StatusBadGateway,
 				Body:       io.NopCloser(strings.NewReader(`{"code":"UPSTREAM_DOWN","request_id":"req-502","message":"bad gateway at https://upstream.example/private Authorization Bearer sk-live"}`)),
-				Header:     http.Header{"Retry-After": []string{time.Now().Add(20 * time.Second).UTC().Format(http.TimeFormat)}},
+				Header:     http.Header{"Retry-After": []string{time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC).Format(http.TimeFormat)}},
 			}, nil
 		})}, nil
 	}
@@ -278,10 +278,123 @@ func TestTechMobiAssetMaterializerClassifiesHTTPDateRetryAfterAnd502WithoutLeaki
 	require.Equal(t, AssetMaterializeErrorUpstream5xx, failure.Class)
 	require.Equal(t, http.StatusBadGateway, failure.HTTPStatus)
 	require.Equal(t, "UPSTREAM_DOWN", failure.UpstreamCode)
-	require.Greater(t, failure.RetryAfter, time.Duration(0))
+	require.Greater(t, failure.RetryAfter, time.Hour)
 	for _, marker := range []string{"bad gateway", "upstream.example", "api.mindon.example", "req-502", "Authorization", "sk-live"} {
 		require.NotContains(t, err.Error(), marker)
 	}
+}
+
+func TestTechMobiAssetMaterializerRejectsSuccessJSONWithTrailingGarbage(t *testing.T) {
+	oldFetch := techMobiAssetFetchSource
+	oldClientFactory := techMobiAssetHTTPClientFactory
+	t.Cleanup(func() {
+		techMobiAssetFetchSource = oldFetch
+		techMobiAssetHTTPClientFactory = oldClientFactory
+	})
+
+	techMobiAssetFetchSource = func(_ context.Context, _ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("body"))}, nil
+	}
+	techMobiAssetHTTPClientFactory = func(_ *model.Channel) (*http.Client, error) {
+		return &http.Client{Transport: techMobiRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			_, err := io.Copy(io.Discard, req.Body)
+			require.NoError(t, err)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"assetUrl":"asset://asset-opaque-123"} trailing garbage`)),
+				Header:     make(http.Header),
+			}, nil
+		})}, nil
+	}
+
+	baseURL := "https://api.mindon.example"
+	result, err := (techMobiAssetBindingMaterializer{}).CreateAsset(context.Background(), AssetMaterializeInput{
+		Asset:     model.Asset{ObjectKey: "reference.mp4"},
+		Channel:   &model.Channel{Type: constant.ChannelTypeTechMobiVideo, BaseURL: &baseURL},
+		SourceURL: "https://storage.example/signed-source",
+		Model:     "doubao/doubao-seedance-2-0-260128",
+		APIKey:    "channel-secret",
+	})
+
+	require.ErrorIs(t, err, errAssetUploadFailed)
+	require.Empty(t, result.UpstreamAssetID)
+	require.Empty(t, result.Status)
+}
+
+func TestTechMobiAssetMaterializerRejectsOversizeSuccessBodyNeutrally(t *testing.T) {
+	oldFetch := techMobiAssetFetchSource
+	oldClientFactory := techMobiAssetHTTPClientFactory
+	t.Cleanup(func() {
+		techMobiAssetFetchSource = oldFetch
+		techMobiAssetHTTPClientFactory = oldClientFactory
+	})
+
+	techMobiAssetFetchSource = func(_ context.Context, _ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("body"))}, nil
+	}
+	techMobiAssetHTTPClientFactory = func(_ *model.Channel) (*http.Client, error) {
+		return &http.Client{Transport: techMobiRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			_, err := io.Copy(io.Discard, req.Body)
+			require.NoError(t, err)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"assetUrl":"asset://asset-opaque-123"}` + strings.Repeat(" ", techMobiAssetResponseMaxSize))),
+				Header:     make(http.Header),
+			}, nil
+		})}, nil
+	}
+
+	baseURL := "https://api.mindon.example"
+	_, err := (techMobiAssetBindingMaterializer{}).CreateAsset(context.Background(), AssetMaterializeInput{
+		Asset:     model.Asset{ObjectKey: "reference.mp4"},
+		Channel:   &model.Channel{Type: constant.ChannelTypeTechMobiVideo, BaseURL: &baseURL},
+		SourceURL: "https://storage.example/signed-source",
+		Model:     "doubao/doubao-seedance-2-0-260128",
+		APIKey:    "channel-secret",
+	})
+
+	require.ErrorIs(t, err, errAssetUploadFailed)
+	require.NotContains(t, err.Error(), "asset-opaque-123")
+}
+
+func TestTechMobiAssetMaterializerAcceptsSuccessBodyAtMaxSize(t *testing.T) {
+	oldFetch := techMobiAssetFetchSource
+	oldClientFactory := techMobiAssetHTTPClientFactory
+	t.Cleanup(func() {
+		techMobiAssetFetchSource = oldFetch
+		techMobiAssetHTTPClientFactory = oldClientFactory
+	})
+
+	techMobiAssetFetchSource = func(_ context.Context, _ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("body"))}, nil
+	}
+	successPayload := `{"assetUrl":"asset://asset-at-limit"}`
+	successJSON := successPayload + strings.Repeat(" ", techMobiAssetResponseMaxSize-len(successPayload))
+	require.Len(t, successJSON, techMobiAssetResponseMaxSize)
+	techMobiAssetHTTPClientFactory = func(_ *model.Channel) (*http.Client, error) {
+		return &http.Client{Transport: techMobiRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			_, err := io.Copy(io.Discard, req.Body)
+			require.NoError(t, err)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(successJSON)),
+				Header:     make(http.Header),
+			}, nil
+		})}, nil
+	}
+
+	baseURL := "https://api.mindon.example"
+	result, err := (techMobiAssetBindingMaterializer{}).CreateAsset(context.Background(), AssetMaterializeInput{
+		Asset:     model.Asset{ObjectKey: "reference.mp4"},
+		Channel:   &model.Channel{Type: constant.ChannelTypeTechMobiVideo, BaseURL: &baseURL},
+		SourceURL: "https://storage.example/signed-source",
+		Model:     "doubao/doubao-seedance-2-0-260128",
+		APIKey:    "channel-secret",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "asset://asset-at-limit", result.UpstreamAssetID)
+	require.Equal(t, model.AssetStatusActive, result.Status)
 }
 
 func TestTechMobiAssetMaterializerTreatsProcessingResponseAsRetryable(t *testing.T) {

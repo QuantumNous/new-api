@@ -113,8 +113,15 @@ func (techMobiAssetBindingMaterializer) CreateAsset(ctx context.Context, input A
 		return AssetMaterializeResult{}, errAssetUploadFailed
 	}
 	defer response.Body.Close()
+	responseBody, err := readTechMobiAssetResponseBody(response.Body)
+	if err != nil {
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return AssetMaterializeResult{}, newTechMobiAssetHTTPFailure(response, techMobiAssetUploadResponse{}, err)
+		}
+		return AssetMaterializeResult{}, errAssetUploadFailed
+	}
 	var uploadResponse techMobiAssetUploadResponse
-	if err := common.DecodeJson(io.LimitReader(response.Body, techMobiAssetResponseMaxSize), &uploadResponse); err != nil {
+	if err := common.Unmarshal(responseBody, &uploadResponse); err != nil {
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
 			return AssetMaterializeResult{}, newTechMobiAssetHTTPFailure(response, techMobiAssetUploadResponse{}, err)
 		}
@@ -133,6 +140,20 @@ func (techMobiAssetBindingMaterializer) CreateAsset(ctx context.Context, input A
 		UpstreamAssetID: uploadResponse.AssetURL,
 		Status:          model.AssetStatusActive,
 	}, nil
+}
+
+func readTechMobiAssetResponseBody(body io.Reader) ([]byte, error) {
+	if body == nil {
+		return nil, errAssetUploadFailed
+	}
+	data, err := io.ReadAll(io.LimitReader(body, techMobiAssetResponseMaxSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > techMobiAssetResponseMaxSize {
+		return nil, errAssetUploadFailed
+	}
+	return data, nil
 }
 
 func newTechMobiAssetHTTPFailure(response *http.Response, uploadResponse techMobiAssetUploadResponse, cause error) error {
