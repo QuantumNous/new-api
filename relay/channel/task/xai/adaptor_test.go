@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,7 +117,11 @@ func TestNativeEditAllowsProviderSpecificPayloadWithoutPrompt(t *testing.T) {
 	require.Nil(t, taskErr)
 }
 
-func TestVideoConvertersExposeProtocolSpecificIDs(t *testing.T) {
+func TestVideoConvertersExposePublicIDsAndProxyURLs(t *testing.T) {
+	previousServerAddress := system_setting.ServerAddress
+	system_setting.ServerAddress = "https://video-proxy.example.com/"
+	t.Cleanup(func() { system_setting.ServerAddress = previousServerAddress })
+
 	task := &model.Task{
 		TaskID:     "task_public",
 		Status:     model.TaskStatusSuccess,
@@ -138,6 +143,9 @@ func TestVideoConvertersExposeProtocolSpecificIDs(t *testing.T) {
 	assert.Equal(t, "task_public", native["request_id"])
 	_, hasNativeID := native["id"]
 	assert.False(t, hasNativeID)
+	nativeVideo, ok := native["video"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://video-proxy.example.com/v1/videos/task_public/content", nativeVideo["url"])
 
 	openAIBody, err := adaptor.ConvertToOpenAIVideo(task)
 	require.NoError(t, err)
@@ -146,6 +154,7 @@ func TestVideoConvertersExposeProtocolSpecificIDs(t *testing.T) {
 	assert.Equal(t, "task_public", openAI["id"])
 	assert.Equal(t, "grok-imagine-video-1.5", openAI["model"])
 	assert.Equal(t, "completed", openAI["status"])
-	assert.Equal(t, "https://vidgen.x.ai/video.mp4", openAI["video_url"])
+	assert.Equal(t, "https://video-proxy.example.com/v1/videos/task_public/content", openAI["video_url"])
 	assert.Equal(t, "6", openAI["seconds"])
+	assert.Equal(t, "https://vidgen.x.ai/video.mp4", task.GetResultURL())
 }

@@ -23,7 +23,45 @@ import (
 type Adaptor struct {
 }
 
+func nativeGeminiAction(info *relaycommon.RelayInfo) string {
+	if info == nil || info.RelayMode != constant.RelayModeGemini {
+		return ""
+	}
+	requestPath := strings.SplitN(info.RequestURLPath, "?", 2)[0]
+	separator := strings.LastIndex(requestPath, ":")
+	if separator < 0 || separator == len(requestPath)-1 {
+		return ""
+	}
+	action := requestPath[separator+1:]
+	switch action {
+	case "generateContent", "streamGenerateContent", "countTokens", "embedContent", "batchEmbedContents", "predict":
+		return action
+	default:
+		return ""
+	}
+}
+
+func nativeGeminiVersion(info *relaycommon.RelayInfo) string {
+	if info == nil || info.RelayMode != constant.RelayModeGemini {
+		return ""
+	}
+	requestPath := strings.TrimPrefix(strings.SplitN(info.RequestURLPath, "?", 2)[0], "/")
+	version, _, found := strings.Cut(requestPath, "/")
+	if !found {
+		return ""
+	}
+	switch version {
+	case "v1beta":
+		return version
+	default:
+		return ""
+	}
+}
+
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	if nativeGeminiAction(info) == "countTokens" {
+		return request, nil
+	}
 	if len(request.Contents) > 0 {
 		for i, content := range request.Contents {
 			if i == 0 {
@@ -148,6 +186,16 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	}
 
 	version := model_setting.GetGeminiVersionSetting(info.UpstreamModelName)
+	if action := nativeGeminiAction(info); action != "" {
+		if requestVersion := nativeGeminiVersion(info); requestVersion != "" {
+			version = requestVersion
+		}
+		if action == "streamGenerateContent" {
+			action += "?alt=sse"
+			info.DisablePing = true
+		}
+		return fmt.Sprintf("%s/%s/models/%s:%s", info.ChannelBaseUrl, version, info.UpstreamModelName, action), nil
+	}
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return fmt.Sprintf("%s/%s/models/%s:predict", info.ChannelBaseUrl, version, info.UpstreamModelName), nil
@@ -263,6 +311,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	if info.RelayMode == constant.RelayModeGemini {
+		if nativeGeminiAction(info) == "countTokens" {
+			return GeminiCountTokensHandler(c, resp)
+		}
 		if strings.Contains(info.RequestURLPath, ":embedContent") ||
 			strings.Contains(info.RequestURLPath, ":batchEmbedContents") {
 			return NativeGeminiEmbeddingHandler(c, resp, info)

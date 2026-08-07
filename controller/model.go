@@ -185,6 +185,7 @@ func buildGeminiModel(model dto.OpenAIModels) dto.GeminiModel {
 		Name:                       "models/" + modelName,
 		BaseModelId:                modelName,
 		DisplayName:                modelName,
+		Description:                modelName,
 		SupportedGenerationMethods: methods,
 	}
 }
@@ -225,7 +226,7 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 	}, nil
 }
 
-func ListModels(c *gin.Context, modelType int) {
+func getUserModels(c *gin.Context) ([]dto.OpenAIModels, error) {
 	acceptUnsetRatioModel := operation_setting.SelfUseModeEnabled
 	if !acceptUnsetRatioModel {
 		userId := c.GetInt("id")
@@ -240,11 +241,7 @@ func ListModels(c *gin.Context, modelType int) {
 	userModelNames := make([]string, 0)
 	groups, err := getModelListGroups(c)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "get user group failed",
-		})
-		return
+		return nil, err
 	}
 	ownerGroups := groups.ownerGroups
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
@@ -279,6 +276,18 @@ func ListModels(c *gin.Context, modelType int) {
 	userOpenAiModels := make([]dto.OpenAIModels, 0, len(userModelNames))
 	for _, modelName := range userModelNames {
 		userOpenAiModels = append(userOpenAiModels, buildOpenAIModel(modelName, ownerByModel))
+	}
+	return userOpenAiModels, nil
+}
+
+func ListModels(c *gin.Context, modelType int) {
+	userOpenAiModels, err := getUserModels(c)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "get user group failed",
+		})
+		return
 	}
 
 	switch modelType {
@@ -345,6 +354,32 @@ func EnabledListModels(c *gin.Context) {
 
 func RetrieveModel(c *gin.Context, modelType int) {
 	modelId := c.Param("model")
+	if modelType == constant.ChannelTypeGemini {
+		models, err := getUserModels(c)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": gin.H{
+					"message": "get user group failed",
+					"type":    "server_error",
+				},
+			})
+			return
+		}
+		modelId = strings.TrimPrefix(modelId, "models/")
+		for _, item := range models {
+			if strings.TrimPrefix(item.Id, "models/") == modelId {
+				c.JSON(http.StatusOK, buildGeminiModel(item))
+				return
+			}
+		}
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{
+				"message": "Not Found",
+				"type":    "not_found",
+			},
+		})
+		return
+	}
 	if aiModel, ok := openAIModelsMap[modelId]; ok {
 		switch modelType {
 		case constant.ChannelTypeAnthropic:

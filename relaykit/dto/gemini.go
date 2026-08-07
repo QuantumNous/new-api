@@ -10,14 +10,15 @@ import (
 )
 
 type GeminiChatRequest struct {
-	Requests           []GeminiChatRequest        `json:"requests,omitempty"` // For batch requests
-	Contents           []GeminiChatContent        `json:"contents"`
-	SafetySettings     []GeminiChatSafetySettings `json:"safetySettings,omitempty"`
-	GenerationConfig   GeminiChatGenerationConfig `json:"generationConfig,omitempty"`
-	Tools              json.RawMessage            `json:"tools,omitempty"`
-	ToolConfig         *ToolConfig                `json:"toolConfig,omitempty"`
-	SystemInstructions *GeminiChatContent         `json:"systemInstruction,omitempty"`
-	CachedContent      string                     `json:"cachedContent,omitempty"`
+	Requests               []GeminiChatRequest        `json:"requests,omitempty"` // For batch requests
+	Contents               []GeminiChatContent        `json:"contents,omitempty"`
+	SafetySettings         []GeminiChatSafetySettings `json:"safetySettings,omitempty"`
+	GenerationConfig       GeminiChatGenerationConfig `json:"generationConfig,omitempty"`
+	Tools                  json.RawMessage            `json:"tools,omitempty"`
+	ToolConfig             *ToolConfig                `json:"toolConfig,omitempty"`
+	SystemInstructions     *GeminiChatContent         `json:"systemInstruction,omitempty"`
+	CachedContent          string                     `json:"cachedContent,omitempty"`
+	GenerateContentRequest *GeminiChatRequest         `json:"generateContentRequest,omitempty"`
 }
 
 // UnmarshalJSON allows GeminiChatRequest to accept both snake_case and camelCase fields.
@@ -64,16 +65,20 @@ type LatLng struct {
 }
 
 func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
+	request := r
+	if len(request.Contents) == 0 && request.GenerateContentRequest != nil {
+		request = request.GenerateContentRequest
+	}
 	var files []*types.FileMeta = make([]*types.FileMeta, 0)
 
 	var maxTokens int
 
-	if r.GenerationConfig.MaxOutputTokens != nil && *r.GenerationConfig.MaxOutputTokens > 0 {
-		maxTokens = int(*r.GenerationConfig.MaxOutputTokens)
+	if request.GenerationConfig.MaxOutputTokens != nil && *request.GenerationConfig.MaxOutputTokens > 0 {
+		maxTokens = int(*request.GenerationConfig.MaxOutputTokens)
 	}
 
 	var inputTexts []string
-	for _, content := range r.Contents {
+	for _, content := range request.Contents {
 		for _, part := range content.Parts {
 			if part.Text != "" {
 				inputTexts = append(inputTexts, part.Text)

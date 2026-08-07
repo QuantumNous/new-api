@@ -487,6 +487,47 @@ func TestListModelsGeminiReturnsNativeModelListShape(t *testing.T) {
 	assert.NotContains(t, body, `"nextPageToken":null`)
 }
 
+func TestRetrieveModelGeminiReturnsNativeCPACompatibleShape(t *testing.T) {
+	withSelfUseModeEnabled(t)
+
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Ability{
+		Group: "default", Model: "gemini-2.5-flash", ChannelId: 1, Enabled: true,
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1beta/models/gemini-2.5-flash", nil)
+	ctx.Params = gin.Params{{Key: "model", Value: "gemini-2.5-flash"}}
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+
+	RetrieveModel(ctx, constant.ChannelTypeGemini)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	var response dto.GeminiModel
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.Equal(t, "models/gemini-2.5-flash", response.Name)
+	assert.Equal(t, "gemini-2.5-flash", response.BaseModelId)
+	assert.Equal(t, "gemini-2.5-flash", response.Description)
+	assert.Equal(t, []string{"generateContent", "countTokens"}, response.SupportedGenerationMethods)
+}
+
+func TestRetrieveModelGeminiReturnsCPACompatibleNotFound(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	setupModelListControllerTestDB(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1beta/models/missing-model", nil)
+	ctx.Params = gin.Params{{Key: "model", Value: "missing-model"}}
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+
+	RetrieveModel(ctx, constant.ChannelTypeGemini)
+
+	assert.Equal(t, http.StatusNotFound, recorder.Code)
+	assert.JSONEq(t, `{"error":{"message":"Not Found","type":"not_found"}}`, recorder.Body.String())
+}
+
 func TestListModelsTokenLimitUsesResolvedCustomAutoGroups(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	originalMax := setting.GetMaxTokenAutoGroups()

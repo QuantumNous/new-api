@@ -417,7 +417,7 @@ func (a *TaskAdaptor) ConvertToNativeVideo(task *model.Task) ([]byte, error) {
 			video = make(map[string]any)
 			payload["video"] = video
 		}
-		video["url"] = task.GetResultURL()
+		video["url"] = taskcommon.BuildProxyURL(task.TaskID)
 	}
 	return common.Marshal(payload)
 }
@@ -461,7 +461,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	if task.Status == model.TaskStatusSuccess {
 		out["completed_at"] = task.FinishTime
 		if task.GetResultURL() != "" {
-			out["video_url"] = task.GetResultURL()
+			out["video_url"] = taskcommon.BuildProxyURL(task.TaskID)
 		}
 	}
 	if task.Status == model.TaskStatusFailure {
