@@ -423,48 +423,29 @@ func ExpireAssetUploadCAS(uploadID string, owner string, expiration AssetUploadE
 }
 
 func ActivateAssetBindingWithAssetCAS(activation AssetBindingActivation) (bool, error) {
-	activated := false
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		var asset Asset
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", activation.AssetID).
-			First(&asset).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil
-			}
-			return err
-		}
-		query := tx.Model(&AssetBinding{}).
-			Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", activation.AssetID, activation.ChannelID, activation.BindingScope).
-			Where("status IN ?", []string{AssetBindingStatusPending, AssetBindingStatusLeased})
-		if activation.LeaseOwner != "" {
-			query = query.Where("lease_owner = ?", activation.LeaseOwner)
-		}
-		status := activation.Status
-		if status == "" {
-			status = AssetStatusActive
-		}
-		result := query.Updates(map[string]any{
-			"status":            status,
-			"binding_scope":     activation.BindingScope,
-			"upstream_group_id": activation.UpstreamGroupID,
-			"upstream_asset_id": activation.UpstreamAssetID,
-			"lease_owner":       "",
-			"lease_expires_at":  int64(0),
-			"updated_at":        activation.Now,
-		})
-		if result.Error != nil {
-			return result.Error
-		}
-		activated = result.RowsAffected == 1
-		if !activated {
-			return nil
-		}
-		return tx.Model(&Asset{}).
-			Where("id = ?", asset.Id).
-			Update("status", AssetStatusActive).Error
+	query := DB.Model(&AssetBinding{}).
+		Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", activation.AssetID, activation.ChannelID, activation.BindingScope).
+		Where("status IN ?", []string{AssetBindingStatusPending, AssetBindingStatusLeased})
+	if activation.LeaseOwner != "" {
+		query = query.Where("lease_owner = ?", activation.LeaseOwner)
+	}
+	status := activation.Status
+	if status == "" {
+		status = AssetStatusActive
+	}
+	result := query.Updates(map[string]any{
+		"status":            status,
+		"binding_scope":     activation.BindingScope,
+		"upstream_group_id": activation.UpstreamGroupID,
+		"upstream_asset_id": activation.UpstreamAssetID,
+		"lease_owner":       "",
+		"lease_expires_at":  int64(0),
+		"updated_at":        activation.Now,
 	})
-	return activated, err
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
 }
 
 func FailAssetBindingCAS(assetID int64, channelID int, leaseOwner string, errorCode string, now int64) (bool, error) {

@@ -749,6 +749,51 @@ func TestAssetUploadFailureMarksUploadAndAssetTerminalOnce(t *testing.T) {
 	require.Zero(t, stored.ObjectGeneration)
 }
 
+func TestActivateAssetBindingWithAssetCASDoesNotPromoteSourceLifecycle(t *testing.T) {
+	newAssetTestDB(t, &Asset{}, &AssetBinding{})
+	asset := insertAssetForAssetTest(t, "asset_binding_preserve_lifecycle")
+	require.NoError(t, DB.Model(&Asset{}).Where("id = ?", asset.Id).Updates(map[string]any{
+		"status":        AssetStatusProcessing,
+		"source_status": AssetSourceStatusAvailable,
+	}).Error)
+	binding := AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       131,
+		BindingScope:    "scope-a",
+		UpstreamAssetId: "upstream-a",
+		Status:          AssetBindingStatusLeased,
+		LeaseOwner:      "node-a",
+		LeaseExpiresAt:  200,
+		CreatedAt:       100,
+		UpdatedAt:       100,
+	}
+	require.NoError(t, DB.Create(&binding).Error)
+
+	activated, err := ActivateAssetBindingWithAssetCAS(AssetBindingActivation{
+		AssetID:         asset.Id,
+		ChannelID:       131,
+		BindingScope:    "scope-a",
+		LeaseOwner:      "node-a",
+		UpstreamGroupID: "group-a",
+		UpstreamAssetID: "upstream-a",
+		Status:          AssetStatusActive,
+		Now:             160,
+	})
+	require.NoError(t, err)
+	require.True(t, activated)
+
+	var storedBinding AssetBinding
+	require.NoError(t, DB.First(&storedBinding, binding.Id).Error)
+	require.Equal(t, AssetStatusActive, storedBinding.Status)
+	require.Equal(t, "group-a", storedBinding.UpstreamGroupId)
+	require.Equal(t, "upstream-a", storedBinding.UpstreamAssetId)
+
+	var storedAsset Asset
+	require.NoError(t, DB.First(&storedAsset, asset.Id).Error)
+	require.Equal(t, AssetStatusProcessing, storedAsset.Status)
+	require.Equal(t, AssetSourceStatusAvailable, storedAsset.SourceStatus)
+}
+
 func TestAssetBindingActivationLocksAssetAndDoesNotLoseActivation(t *testing.T) {
 	newAssetTestDB(t, &Asset{}, &AssetBinding{})
 	asset := insertAssetForAssetTest(t, "asset_binding_activate")
