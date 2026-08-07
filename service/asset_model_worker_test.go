@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
@@ -144,6 +145,54 @@ func TestAssetModelRetryAfterOverridesScheduleAndPreservesAttemptAcrossBatches(t
 	require.Equal(t, int64(100), row.AttemptStartedAt)
 }
 
+func TestAssetModelWorkerRevalidatesTargetEligibilityBeforeProviderWrite(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, first := seedAssetModelWorkerReadiness(t, "ast_worker_revalidate_aaaaaaaaa", "techmobi-key-a\ntechmobi-key-b")
+	disableChannelCredential(t, first.ChannelId, 0)
+
+	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls), "stale target must not write provider asset")
+
+	rotated := requireAssetModelTarget(t, scope, "seedance-2.0")
+	require.Equal(t, first.Generation+1, rotated.Generation)
+	require.NotEqual(t, first.BindingScope, rotated.BindingScope)
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	require.Equal(t, model.AssetModelReadinessStatusPending, row.Status)
+	require.Equal(t, rotated.Generation, row.TargetGeneration)
+}
+
+func TestAssetModelWorkerRetryableProcessingRefreshSchedulesRetryWithoutFailingBinding(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{
+		getErr: &AssetMaterializeFailure{Class: AssetMaterializeErrorUpstream5xx, HTTPStatus: http.StatusBadGateway, RetryAfter: 40 * time.Second},
+	}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_refresh_retry_aaaaaa", "techmobi-key-a")
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId: asset.Id, ChannelId: target.ChannelId, BindingScope: target.BindingScope,
+		Status: model.AssetStatusProcessing, UpstreamAssetId: "upstream-processing", CreatedAt: 90, UpdatedAt: 90,
+	}).Error)
+
+	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	require.Equal(t, model.AssetModelReadinessStatusRetryWaiting, row.Status)
+	require.Equal(t, int64(140), row.NextRetryAt)
+
+	binding, err := model.GetAssetBindingForScope(asset.Id, target.ChannelId, target.BindingScope)
+	require.NoError(t, err)
+	require.NotEqual(t, model.AssetStatusFailed, binding.Status)
+	require.Equal(t, model.AssetBindingStatusPending, binding.Status)
+	require.Equal(t, AssetMaterializeErrorUpstream5xx, binding.ErrorCode)
+}
+
 func TestAssetModelWorkerExpiredLeaseAndGenerationDriftCannotActivate(t *testing.T) {
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)
@@ -236,6 +285,41 @@ func TestAssetModelStatusReopensWhenTargetEligibilityChanges(t *testing.T) {
 	require.Equal(t, model.AssetStatusActive, stored.Status)
 }
 
+func TestAssetModelWorkerStructuredEventsCoverRequiredOutcomesWithoutSecrets(t *testing.T) {
+	events := captureAssetModelWorkerEvents(t)
+	row := model.AssetModelReadiness{
+		ModelName:        "seedance-2.0",
+		TargetGeneration: 3,
+		ChannelId:        120,
+		AttemptCount:     2,
+	}
+
+	recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{Name: assetModelEventSelection, Model: row.ModelName, Generation: 1, ChannelID: 120})
+	recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{Name: assetModelEventCacheHit, Model: row.ModelName, Generation: 1, ChannelID: 120})
+	recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{Name: assetModelEventRotation, PublicAssetID: "ast_public", Model: row.ModelName, Generation: 2, ChannelID: 120})
+	recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{Name: assetModelEventWrite, PublicAssetID: "ast_public", Model: row.ModelName, Generation: 2, ChannelID: 120})
+	recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{Name: assetModelEventThrottle, PublicAssetID: "ast_public", Model: row.ModelName, Generation: 2, ChannelID: 120, ErrorClass: AssetMaterializeErrorThrottled, Attempt: 2, RetryDelay: 15 * time.Second})
+	recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{Name: assetModelEventWindowExhausted, PublicAssetID: "ast_public", Model: row.ModelName, Generation: 2, ChannelID: 120, Elapsed: assetModelGenerationWindow})
+	recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{Name: assetModelEventActivationLatency, PublicAssetID: "ast_public", Model: row.ModelName, Generation: 2, ChannelID: 120, Elapsed: 3 * time.Second})
+
+	require.ElementsMatch(t, []string{
+		assetModelEventSelection,
+		assetModelEventCacheHit,
+		assetModelEventRotation,
+		assetModelEventWrite,
+		assetModelEventThrottle,
+		assetModelEventWindowExhausted,
+		assetModelEventActivationLatency,
+	}, assetModelWorkerEventNames(events))
+	for _, event := range *events {
+		text := formatAssetModelWorkerEvent(event)
+		for _, forbidden := range []string{"techmobi-key", "binding_scope", "signed", "authorization", "upstream-processing", "body"} {
+			require.NotContains(t, text, forbidden)
+		}
+		require.Contains(t, text, "asset_model_event=")
+	}
+}
+
 type scriptedAssetModelCreate struct {
 	result AssetMaterializeResult
 	err    error
@@ -246,6 +330,7 @@ type scriptedAssetModelMaterializer struct {
 	create      []scriptedAssetModelCreate
 	createCalls int64
 	blockCreate chan struct{}
+	getErr      error
 }
 
 func (m *scriptedAssetModelMaterializer) CreateAsset(_ context.Context, input AssetMaterializeInput) (AssetMaterializeResult, error) {
@@ -264,6 +349,9 @@ func (m *scriptedAssetModelMaterializer) CreateAsset(_ context.Context, input As
 }
 
 func (m *scriptedAssetModelMaterializer) GetAsset(_ context.Context, _ AssetMaterializeInput, upstreamAssetID string) (AssetMaterializeResult, error) {
+	if m.getErr != nil {
+		return AssetMaterializeResult{}, m.getErr
+	}
 	return AssetMaterializeResult{UpstreamAssetID: upstreamAssetID, Status: model.AssetStatusActive}, nil
 }
 
@@ -319,4 +407,34 @@ func requireAssetModelTarget(t *testing.T, scope AssetModelScope, modelName stri
 	target, err := model.GetAssetModelCoverageTarget(scope.ScopeKey, modelName)
 	require.NoError(t, err)
 	return *target
+}
+
+func disableChannelCredential(t *testing.T, channelID int, credentialIndex int) {
+	t.Helper()
+	var channel model.Channel
+	require.NoError(t, model.DB.First(&channel, channelID).Error)
+	if channel.ChannelInfo.MultiKeyStatusList == nil {
+		channel.ChannelInfo.MultiKeyStatusList = map[int]int{}
+	}
+	channel.ChannelInfo.MultiKeyStatusList[credentialIndex] = common.ChannelStatusManuallyDisabled
+	require.NoError(t, channel.SaveChannelInfo())
+}
+
+func captureAssetModelWorkerEvents(t *testing.T) *[]assetModelWorkerEvent {
+	t.Helper()
+	events := make([]assetModelWorkerEvent, 0)
+	original := assetModelWorkerEventSink
+	assetModelWorkerEventSink = func(_ context.Context, event assetModelWorkerEvent) {
+		events = append(events, event)
+	}
+	t.Cleanup(func() { assetModelWorkerEventSink = original })
+	return &events
+}
+
+func assetModelWorkerEventNames(events *[]assetModelWorkerEvent) []string {
+	names := make([]string, 0, len(*events))
+	for _, event := range *events {
+		names = append(names, event.Name)
+	}
+	return names
 }

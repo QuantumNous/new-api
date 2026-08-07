@@ -485,6 +485,11 @@ func refreshProcessingAssetBinding(ctx context.Context, asset *model.Asset, chan
 			APIKey:  apiKey,
 		}, upstreamAssetID)
 		if err != nil {
+			errorClass := AssetMaterializeErrorClass(err)
+			if IsRetryableAssetMaterializeError(err) {
+				_, _ = resetProcessingAssetBindingForRetryCAS(asset.Id, channel.Id, bindingScope, upstreamAssetID, errorClass, assetBindingNow().Unix())
+				return AssetBindingResult{}, err
+			}
 			_, _ = model.RefreshProcessingAssetBindingCAS(model.AssetBindingProcessingRefresh{
 				AssetID:         asset.Id,
 				ChannelID:       channel.Id,
@@ -568,6 +573,26 @@ func refreshProcessingAssetBinding(ctx context.Context, asset *model.Asset, chan
 		}
 	}
 	return AssetBindingResult{}, ErrAssetBindingInitializing
+}
+
+func resetProcessingAssetBindingForRetryCAS(assetID int64, channelID int, bindingScope string, upstreamAssetID string, errorCode string, now int64) (bool, error) {
+	if strings.TrimSpace(upstreamAssetID) == "" {
+		return false, nil
+	}
+	result := model.DB.Model(&model.AssetBinding{}).
+		Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", assetID, channelID, bindingScope).
+		Where("status = ? AND upstream_asset_id = ?", model.AssetStatusProcessing, upstreamAssetID).
+		Updates(map[string]any{
+			"status":           model.AssetBindingStatusPending,
+			"error_code":       strings.TrimSpace(errorCode),
+			"lease_owner":      "",
+			"lease_expires_at": int64(0),
+			"updated_at":       now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
 }
 
 func signAssetBindingSourceURL(ctx context.Context, asset model.Asset) (string, error) {

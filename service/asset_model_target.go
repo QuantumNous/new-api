@@ -170,6 +170,12 @@ func ensureAssetModelCoverageTargetAt(scope AssetModelScope, modelName string, o
 			return nil, eligibleErr
 		}
 		if eligible {
+			recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{
+				Name:       assetModelEventCacheHit,
+				Model:      existing.ModelName,
+				Generation: existing.Generation,
+				ChannelID:  existing.ChannelId,
+			})
 			return existing, nil
 		}
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -184,8 +190,7 @@ func ensureAssetModelCoverageTargetAt(scope AssetModelScope, modelName string, o
 		return nil, ErrAssetBindingUnavailable
 	}
 
-	leaseExpiresAt := nowUnix + int64(assetBindingDefaultLeaseTTL.Seconds())
-	claimed, err := model.ClaimAssetModelTargetLease(scope.ScopeKey, modelName, owner, nowUnix, leaseExpiresAt)
+	leaseExpiresAt, claimed, err := claimAssetModelTargetSelectionLease(scope.ScopeKey, modelName, owner, nowUnix)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +209,19 @@ func ensureAssetModelCoverageTargetAt(scope AssetModelScope, modelName string, o
 	if !published {
 		return nil, ErrAssetBindingInitializing
 	}
+	recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{
+		Name:       assetModelEventSelection,
+		Model:      candidate.ModelName,
+		Generation: current.Generation + 1,
+		ChannelID:  candidate.ChannelId,
+	})
 	return model.GetAssetModelCoverageTarget(scope.ScopeKey, modelName)
+}
+
+func claimAssetModelTargetSelectionLease(scopeKey, modelName, owner string, nowUnix int64) (int64, bool, error) {
+	leaseExpiresAt := nowUnix + int64(assetModelTargetLeaseTTL.Seconds())
+	claimed, err := model.ClaimAssetModelTargetLease(scopeKey, modelName, owner, nowUnix, leaseExpiresAt)
+	return leaseExpiresAt, claimed, err
 }
 
 func AssetModelTargetIsEligible(scope AssetModelScope, target model.AssetModelCoverageTarget) (bool, error) {

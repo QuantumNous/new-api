@@ -208,6 +208,21 @@ func TestEnsureAssetModelCoverageTargetUsesDatabaseTimestampAtServiceBoundary(t 
 	require.Greater(t, target.UpdatedAt, int64(100))
 }
 
+func TestClaimAssetModelTargetSelectionLeaseUsesShortTTL(t *testing.T) {
+	newAssetReferenceDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.AssetModelCoverageTarget{}))
+	scope := AssetModelScope{ScopeKey: "scope-short-lease", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}
+
+	leaseExpiresAt, claimed, err := claimAssetModelTargetSelectionLease(scope.ScopeKey, "seedance-2.0", "owner", 100)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.Equal(t, int64(115), leaseExpiresAt)
+
+	var target model.AssetModelCoverageTarget
+	require.NoError(t, model.DB.Where("scope_key = ? AND model_name = ?", scope.ScopeKey, "seedance-2.0").First(&target).Error)
+	require.Equal(t, int64(115), target.LeaseExpiresAt)
+}
+
 func TestEnsureAssetModelCoverageTargetContextPropagatesContextTimestampError(t *testing.T) {
 	newAssetReferenceDB(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.AssetModelCoverageTarget{}))

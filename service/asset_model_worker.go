@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
@@ -24,9 +25,36 @@ const (
 
 var assetModelRetrySchedule = []time.Duration{5 * time.Second, 15 * time.Second, 30 * time.Second, 60 * time.Second}
 
+const (
+	assetModelEventSelection         = "selection"
+	assetModelEventCacheHit          = "cache_hit"
+	assetModelEventRotation          = "rotation"
+	assetModelEventWrite             = "write"
+	assetModelEventThrottle          = "throttle"
+	assetModelEventWindowExhausted   = "window_exhausted"
+	assetModelEventActivationLatency = "activation_latency"
+	assetModelEventRetry             = "retry"
+)
+
 type assetModelReadinessWorkerConfig struct {
 	Owner    string
 	Interval time.Duration
+}
+
+type assetModelWorkerEvent struct {
+	Name          string
+	PublicAssetID string
+	Model         string
+	Generation    int64
+	ChannelID     int
+	ErrorClass    string
+	Attempt       int
+	RetryDelay    time.Duration
+	Elapsed       time.Duration
+}
+
+var assetModelWorkerEventSink = func(ctx context.Context, event assetModelWorkerEvent) {
+	logger.LogInfo(ctx, formatAssetModelWorkerEvent(event))
 }
 
 type assetModelBindingRetryError struct {
@@ -176,12 +204,28 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 		}
 	}
 	if row.AttemptStartedAt > 0 && nowUnix-row.AttemptStartedAt >= int64(assetModelGenerationWindow.Seconds()) {
+		recordAssetModelWorkerEvent(ctx, assetModelWorkerEvent{
+			Name:          assetModelEventWindowExhausted,
+			PublicAssetID: asset.PublicId,
+			Model:         row.ModelName,
+			Generation:    row.TargetGeneration,
+			ChannelID:     row.ChannelId,
+			Attempt:       row.AttemptCount,
+			Elapsed:       time.Duration(nowUnix-row.AttemptStartedAt) * time.Second,
+		})
 		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix, false)
 	}
 
 	channel, err := loadAssetModelReadinessChannel(target.ChannelId)
 	if err != nil {
 		return err
+	}
+	eligible, err := AssetModelTargetIsEligible(assetModelScopeFromTarget(*target), *target)
+	if err != nil {
+		return err
+	}
+	if !eligible {
+		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix, false)
 	}
 	options, _, err := ResolveAssetModelTargetOptions(*target, channel)
 	if err != nil {
@@ -201,6 +245,15 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 	var retryErr assetModelBindingRetryError
 	if errors.As(err, &retryErr) || errors.Is(err, ErrAssetBindingInitializing) {
 		if row.AttemptStartedAt > 0 && nowUnix-row.AttemptStartedAt >= int64(assetModelGenerationWindow.Seconds()) {
+			recordAssetModelWorkerEvent(ctx, assetModelWorkerEvent{
+				Name:          assetModelEventWindowExhausted,
+				PublicAssetID: asset.PublicId,
+				Model:         row.ModelName,
+				Generation:    row.TargetGeneration,
+				ChannelID:     row.ChannelId,
+				Attempt:       row.AttemptCount,
+				Elapsed:       time.Duration(nowUnix-row.AttemptStartedAt) * time.Second,
+			})
 			return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix, false)
 		}
 		class := retryErr.class
@@ -229,6 +282,9 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 		if err == nil {
 			return &result.Binding, nil
 		}
+		if IsRetryableAssetMaterializeError(err) {
+			return nil, assetModelBindingRetryError{class: AssetMaterializeErrorClass(err), retryAfter: assetModelRetryAfter(err)}
+		}
 		if errors.Is(err, ErrAssetBindingInitializing) {
 			return nil, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
 		}
@@ -253,6 +309,13 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 		_, _ = model.FailAssetBindingForScopeCAS(asset.Id, target.ChannelId, target.BindingScope, owner, "asset_channel_unavailable", nowUnix)
 		return nil, assetModelBindingDefinitiveError{class: "asset_channel_unavailable"}
 	}
+	recordAssetModelWorkerEvent(ctx, assetModelWorkerEvent{
+		Name:          assetModelEventWrite,
+		PublicAssetID: asset.PublicId,
+		Model:         target.ModelName,
+		Generation:    target.Generation,
+		ChannelID:     target.ChannelId,
+	})
 	result, err := materializer.CreateAsset(ctx, AssetMaterializeInput{
 		UserID:     asset.UserId,
 		Asset:      asset,
@@ -301,12 +364,7 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 }
 
 func rotateAssetModelReadinessTarget(row model.AssetModelReadiness, target model.AssetModelCoverageTarget, owner string, nowUnix int64, exhausted bool) error {
-	scope := AssetModelScope{
-		ScopeKey:          target.ScopeKey,
-		Groups:            strings.Split(target.RoutingGroups, ","),
-		ModelNames:        []string{target.ModelName},
-		SpecificChannelID: target.SpecificChannelId,
-	}
+	scope := assetModelScopeFromTarget(target)
 	candidates, err := AssetModelTargetCandidates(scope, target.ModelName)
 	if err != nil {
 		return err
@@ -345,6 +403,12 @@ func rotateAssetModelReadinessTarget(row model.AssetModelReadiness, target model
 	if !published {
 		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
 	}
+	recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{
+		Name:       assetModelEventRotation,
+		Model:      target.ModelName,
+		Generation: current.Generation + 1,
+		ChannelID:  next.ChannelId,
+	})
 	updated, err := model.GetAssetModelCoverageTarget(target.ScopeKey, target.ModelName)
 	if err != nil {
 		return err
@@ -354,6 +418,16 @@ func rotateAssetModelReadinessTarget(row model.AssetModelReadiness, target model
 }
 
 func finishAssetModelReadinessActive(row model.AssetModelReadiness, owner string, nowUnix int64) error {
+	if row.AttemptStartedAt > 0 {
+		recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{
+			Name:       assetModelEventActivationLatency,
+			Model:      row.ModelName,
+			Generation: row.TargetGeneration,
+			ChannelID:  row.ChannelId,
+			Attempt:    row.AttemptCount,
+			Elapsed:    time.Duration(nowUnix-row.AttemptStartedAt) * time.Second,
+		})
+	}
 	_, err := model.ActivateAssetModelReadinessCAS(assetModelReadinessTransition(row, owner, nowUnix))
 	return err
 }
@@ -366,7 +440,19 @@ func finishAssetModelReadinessFailed(row model.AssetModelReadiness, owner string
 func scheduleAssetModelReadinessRetry(row model.AssetModelReadiness, owner string, nowUnix int64, class string, retryAfter time.Duration) error {
 	delay := assetModelRetryDelay(row.AttemptCount, retryAfter)
 	nextRetryAt := nowUnix + int64(delay.Seconds())
-	logAssetModelWorkerRetry(row, class, row.AttemptCount, delay)
+	eventName := assetModelEventRetry
+	if class == AssetMaterializeErrorThrottled {
+		eventName = assetModelEventThrottle
+	}
+	recordAssetModelWorkerEvent(context.Background(), assetModelWorkerEvent{
+		Name:       eventName,
+		Model:      row.ModelName,
+		Generation: row.TargetGeneration,
+		ChannelID:  row.ChannelId,
+		ErrorClass: class,
+		Attempt:    row.AttemptCount,
+		RetryDelay: delay,
+	})
 	_, err := model.ScheduleAssetModelReadinessRetryCAS(assetModelReadinessTransition(row, owner, nowUnix), class, nextRetryAt)
 	return err
 }
@@ -439,6 +525,15 @@ func assetModelReadinessMatchesTarget(row model.AssetModelReadiness, target mode
 		row.BindingScope == target.BindingScope
 }
 
+func assetModelScopeFromTarget(target model.AssetModelCoverageTarget) AssetModelScope {
+	return AssetModelScope{
+		ScopeKey:          target.ScopeKey,
+		Groups:            strings.Split(target.RoutingGroups, ","),
+		ModelNames:        []string{target.ModelName},
+		SpecificChannelID: target.SpecificChannelId,
+	}
+}
+
 func loadAssetModelReadinessByID(id int64) (model.AssetModelReadiness, error) {
 	var row model.AssetModelReadiness
 	err := model.DB.First(&row, id).Error
@@ -465,14 +560,25 @@ func markAssetModelTargetUnavailable(target model.AssetModelCoverageTarget, nowU
 		}).Error
 }
 
-func logAssetModelWorkerRetry(row model.AssetModelReadiness, class string, attempt int, delay time.Duration) {
-	common.SysLog(fmt.Sprintf(
-		"asset model readiness retry: model=%s generation=%d channel_id=%d error_class=%s attempt=%d retry_delay=%s",
-		row.ModelName,
-		row.TargetGeneration,
-		row.ChannelId,
-		strings.TrimSpace(class),
-		attempt,
-		delay.String(),
-	))
+func recordAssetModelWorkerEvent(ctx context.Context, event assetModelWorkerEvent) {
+	event.Name = strings.TrimSpace(event.Name)
+	if event.Name == "" {
+		return
+	}
+	assetModelWorkerEventSink(ctx, event)
+}
+
+func formatAssetModelWorkerEvent(event assetModelWorkerEvent) string {
+	return fmt.Sprintf(
+		"asset_model_event=%s public_asset_id=%s model=%s generation=%d channel_id=%d error_class=%s attempt=%d retry_delay_ms=%d elapsed_ms=%d",
+		strings.TrimSpace(event.Name),
+		strings.TrimSpace(event.PublicAssetID),
+		strings.TrimSpace(event.Model),
+		event.Generation,
+		event.ChannelID,
+		strings.TrimSpace(event.ErrorClass),
+		event.Attempt,
+		event.RetryDelay.Milliseconds(),
+		event.Elapsed.Milliseconds(),
+	)
 }
