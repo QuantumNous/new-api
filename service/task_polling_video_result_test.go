@@ -116,6 +116,45 @@ func TestUpdateVideoSingleTaskReturnSourceURLSkipsArchive(t *testing.T) {
 	require.NotContains(t, string(stored.Data), "token=secret")
 }
 
+func TestUpdateVideoSingleTaskReturnSourceURLMissingDoesNotFinalizeOrSettle(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	ctx := context.Background()
+
+	seedUser(t, 907, 1000)
+	seedToken(t, 917, 907, "sk-techmobi-source-url-missing", 500)
+	task := newTechMobiPollingTask(t, 907, 937, 100, 917)
+	ch := newTechMobiPollingChannelWithSourceURL(937)
+	adaptor := &fakeVideoPollingAdaptor{
+		responseBody: techMobiArchiveResponseBody(),
+		taskResult: &relaycommon.TaskInfo{
+			TaskID:   "upstream-techmobi-success",
+			Status:   model.TaskStatusSuccess,
+			Url:      "   ",
+			Progress: "100%",
+		},
+		actualQuota: 40,
+	}
+	archiveTechMobiVideoResult = func(context.Context, string, string, string) (*model.VideoResult, error) {
+		t.Fatal("archive hook must not be called when TechMobi source URL return is enabled")
+		return nil, nil
+	}
+
+	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), techMobiTaskMap(task))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing source URL")
+	require.Equal(t, 0, adaptor.adjustCalls)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusInProgress, stored.Status)
+	require.Equal(t, "50%", stored.Progress)
+	require.Zero(t, stored.FinishTime)
+	require.Empty(t, stored.PrivateData.ResultURL)
+	require.Nil(t, stored.PrivateData.VideoResult)
+	require.Equal(t, 100, stored.Quota)
+}
+
 func TestUpdateVideoSingleTaskArchiveErrorDoesNotFinalizeOrSettle(t *testing.T) {
 	truncate(t)
 	restoreArchiveHookForPollingTest(t)

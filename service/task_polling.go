@@ -461,6 +461,10 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		}
 	}
 
+	if returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess && strings.TrimSpace(taskResult.Url) == "" {
+		return fmt.Errorf("techmobi task %s missing source URL", task.TaskID)
+	}
+
 	if ch.Type == constant.ChannelTypeTechMobiVideo && !returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
 		if task.PrivateData.VideoResult == nil {
 			videoResult, archiveErr := archiveTechMobiVideoResult(ctx, task.TaskID, taskResult.Url, proxy)
