@@ -27,11 +27,12 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { createOAuthFlow } from '@/features/auth/api'
+import { createOAuthFlowDetails } from '@/features/auth/api'
 import {
   OAUTH_BIND_CALLBACK_MESSAGE,
   OAUTH_BIND_RESULT_MESSAGE,
 } from '@/features/auth/constants'
+import { buildCustomOAuthUrl } from '@/features/auth/lib/oauth'
 import { watchOAuthPopupClosed } from '@/features/auth/lib/oauth-bind-window'
 import {
   getOAuthSessionStorage,
@@ -154,7 +155,14 @@ export function AccountBindingsTab({
   }
 
   const startOAuthBinding = useCallback(
-    async (provider: string, buildUrl: (state: string) => string) => {
+    async (
+      provider: string,
+      buildUrl: (
+        state: string,
+        codeChallenge: string,
+        codeChallengeMethod: 'S256'
+      ) => string
+    ) => {
       const previous = pendingOAuthBinding.current
       if (previous) {
         clearPendingOAuthBinding(previous)
@@ -177,19 +185,25 @@ export function AccountBindingsTab({
       )
       pendingOAuthBinding.current = pending
       try {
-        const state = await createOAuthFlow(provider, 'bind')
+        const flow = await createOAuthFlowDetails(provider, 'bind')
         if (pendingOAuthBinding.current !== pending || popup.closed) return
         // Stamp the popup while it is still same-origin (about:blank). Tying
         // the mark to this state prevents a stale popup from claiming a later
         // login callback. If storage is blocked, do not navigate into a
         // callback that cannot safely identify the bind flow.
         if (
-          !markOAuthBindPopup(getOAuthSessionStorage(popup), provider, state)
+          !markOAuthBindPopup(
+            getOAuthSessionStorage(popup),
+            provider,
+            flow.flowToken
+          )
         ) {
           throw new Error('OAuth bind popup storage is unavailable')
         }
-        pending.state = state
-        popup.location.replace(buildUrl(state))
+        pending.state = flow.flowToken
+        popup.location.replace(
+          buildUrl(flow.flowToken, flow.codeChallenge, flow.codeChallengeMethod)
+        )
       } catch {
         const isCurrent = pendingOAuthBinding.current === pending
         clearPendingOAuthBinding(pending)
@@ -201,16 +215,17 @@ export function AccountBindingsTab({
   )
 
   const handleBindCustomOAuth = async (provider: CustomOAuthProviderInfo) => {
-    await startOAuthBinding(provider.slug, (state) => {
-      const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
-      const url = new URL(provider.authorization_endpoint)
-      url.searchParams.set('client_id', provider.client_id)
-      url.searchParams.set('redirect_uri', redirectUri)
-      url.searchParams.set('response_type', 'code')
-      url.searchParams.set('state', state)
-      if (provider.scopes) url.searchParams.set('scope', provider.scopes)
-      return url.toString()
-    })
+    await startOAuthBinding(
+      provider.slug,
+      (state, codeChallenge, codeChallengeMethod) => {
+        const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
+        return buildCustomOAuthUrl(provider, redirectUri, {
+          flowToken: state,
+          codeChallenge,
+          codeChallengeMethod,
+        })
+      }
+    )
   }
 
   useEffect(() => {

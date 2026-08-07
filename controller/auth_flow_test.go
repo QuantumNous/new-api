@@ -79,11 +79,16 @@ func TestGenerateOAuthCodeCarriesAffiliateInLoginFlow(t *testing.T) {
 	var response struct {
 		Success bool `json:"success"`
 		Data    struct {
-			FlowToken string `json:"flow_token"`
+			FlowToken           string `json:"flow_token"`
+			CodeChallenge       string `json:"code_challenge"`
+			CodeChallengeMethod string `json:"code_challenge_method"`
 		} `json:"data"`
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	require.True(t, response.Success)
+	assert.Equal(t, "S256", response.Data.CodeChallengeMethod)
+	assert.Equal(t, oauthPKCEChallenge(oauthPKCEVerifier(response.Data.FlowToken)), response.Data.CodeChallenge)
+	assert.Len(t, response.Data.CodeChallenge, 43)
 	flow, err := model.GetAuthFlow(response.Data.FlowToken, model.AuthFlowMatch{
 		Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentLogin,
 	})
@@ -91,6 +96,7 @@ func TestGenerateOAuthCodeCarriesAffiliateInLoginFlow(t *testing.T) {
 	var payload oauthFlowPayload
 	require.NoError(t, common.UnmarshalJsonStr(flow.Payload, &payload))
 	assert.Equal(t, "invite-code", payload.AffiliateCode)
+	assert.NotContains(t, flow.Payload, oauthPKCEVerifier(response.Data.FlowToken))
 	assert.Zero(t, flow.UserId)
 	assert.Empty(t, flow.SessionId)
 }

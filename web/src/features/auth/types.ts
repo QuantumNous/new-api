@@ -203,6 +203,7 @@ export interface CustomOAuthProviderInfo {
   client_id: string
   authorization_endpoint: string
   scopes: string
+  pkce_enabled: boolean
 }
 
 // ============================================================================

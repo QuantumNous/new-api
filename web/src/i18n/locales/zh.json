@@ -3246,6 +3246,8 @@
     "Parameter settings": "参数设置",
     "parameter.": "参数。",
     "Parameters": "参数",
+    "PKCE (S256)": "PKCE（S256）",
+    "Require a proof key for authorization code exchanges": "授权码交换必须提供证明密钥",
     "Parsed {{count}} service account file(s)": "已解析 {{count}} 个服务账号文件",
     "Partial Submission": "部分提交确认",
     "Pass Headers": "透传请求头",

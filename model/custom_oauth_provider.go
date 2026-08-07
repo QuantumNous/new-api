@@ -59,6 +59,7 @@ type CustomOAuthProvider struct {
 	// Advanced options
 	WellKnown           string `json:"well_known" gorm:"type:varchar(512)"`            // OIDC discovery endpoint (optional)
 	AuthStyle           int    `json:"auth_style" gorm:"default:0"`                    // 0=auto, 1=params, 2=header (Basic Auth)
+	PKCEEnabled         bool   `json:"pkce_enabled" gorm:"not null;default:false"`     // Use PKCE with the S256 challenge method
 	AccessPolicy        string `json:"access_policy" gorm:"type:text"`                 // JSON policy for access control based on user info
 	AccessDeniedMessage string `json:"access_denied_message" gorm:"type:varchar(512)"` // Custom error message template when access is denied
 

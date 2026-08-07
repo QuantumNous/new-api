@@ -102,6 +102,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
       email_field: '',
       well_known: '',
       auth_style: 0,
+      pkce_enabled: false,
       access_policy: '',
       access_denied_message: '',
     },
@@ -133,6 +134,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
         email_field: props.provider.email_field || '',
         well_known: props.provider.well_known || '',
         auth_style: props.provider.auth_style ?? 0,
+        pkce_enabled: props.provider.pkce_enabled ?? false,
         access_policy: props.provider.access_policy || '',
         access_denied_message: props.provider.access_denied_message || '',
       })
@@ -154,6 +156,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
         email_field: '',
         well_known: '',
         auth_style: 0,
+        pkce_enabled: false,
         access_policy: '',
         access_denied_message: '',
       })
@@ -412,6 +415,29 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='pkce_enabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('PKCE (S256)')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Require a proof key for authorization code exchanges'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
               )}
             />
           </div>

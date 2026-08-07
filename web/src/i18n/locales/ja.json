@@ -3246,6 +3246,8 @@
     "Parameter settings": "パラメータ設定",
     "parameter.": "パラメーター。",
     "Parameters": "パラメータ",
+    "PKCE (S256)": "PKCE（S256）",
+    "Require a proof key for authorization code exchanges": "認可コード交換に証明鍵を要求",
     "Parsed {{count}} service account file(s)": "__ PH_0 __サービスアカウントファイルを解析しました",
     "Partial Submission": "部分送信",
     "Pass Headers": "ヘッダーをパススルー",
