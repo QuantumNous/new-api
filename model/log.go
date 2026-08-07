@@ -522,10 +522,105 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
+// escapeLikeLiteral escapes !, %, and _ for literal LIKE matching with ESCAPE '!'.
+func escapeLikeLiteral(s string) string {
+	s = strings.ReplaceAll(s, "!", "!!")
+	s = strings.ReplaceAll(s, "%", "!%")
+	s = strings.ReplaceAll(s, "_", "!_")
+	return s
+}
+
+func GetErrorLogs(startTimestamp, endTimestamp int64, modelName, username, tokenName, keyword, errorCategory, requestId string, channel, userId, startIdx, num int) (logs []*Log, total int64, err error) {
+	tx := LOG_DB.Where("logs.type = ?", LogTypeError)
+
+	if modelName != "" {
+		tx = tx.Where("logs.model_name like ?", modelName)
+	}
+	if username != "" {
+		tx = tx.Where("logs.username = ?", username)
+	}
+	if tokenName != "" {
+		tx = tx.Where("logs.token_name = ?", tokenName)
+	}
+	if requestId != "" {
+		tx = tx.Where("logs.request_id = ?", requestId)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", endTimestamp)
+	}
+	if channel != 0 {
+		tx = tx.Where("logs.channel_id = ?", channel)
+	}
+	if userId != 0 {
+		tx = tx.Where("logs.user_id = ?", userId)
+	}
+	if errorCategory != "" {
+		// Cross-DB safe: LIKE on other JSON text. Escape category literal then wrap wildcards.
+		categoryPattern := "%\"error_category\":\"" + escapeLikeLiteral(errorCategory) + "\"%"
+		tx = tx.Where("logs.other LIKE ? ESCAPE '!'", categoryPattern)
+	}
+	if keyword != "" {
+		keywordPattern := "%" + escapeLikeLiteral(keyword) + "%"
+		tx = tx.Where("logs.content LIKE ? ESCAPE '!'", keywordPattern)
+	}
+
+	err = tx.Model(&Log{}).Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	channelIds := types.NewSet[int]()
+	for _, log := range logs {
+		if log.ChannelId != 0 {
+			channelIds.Add(log.ChannelId)
+		}
+	}
+
+	if channelIds.Len() > 0 {
+		var channels []struct {
+			Id   int    `gorm:"column:id"`
+			Name string `gorm:"column:name"`
+		}
+		if common.MemoryCacheEnabled {
+			for _, channelId := range channelIds.Items() {
+				if cacheChannel, err := CacheGetChannel(channelId); err == nil {
+					channels = append(channels, struct {
+						Id   int    `gorm:"column:id"`
+						Name string `gorm:"column:name"`
+					}{
+						Id:   channelId,
+						Name: cacheChannel.Name,
+					})
+				}
+			}
+		} else {
+			if err = DB.Table("channels").Select("id, name").Where("id IN ?", channelIds.Items()).Find(&channels).Error; err != nil {
+				return logs, total, err
+			}
+		}
+		channelMap := make(map[int]string, len(channels))
+		for _, ch := range channels {
+			channelMap[ch.Id] = ch.Name
+		}
+		for i := range logs {
+			logs[i].ChannelName = channelMap[logs[i].ChannelId]
+		}
+	}
+
+	return logs, total, err
+}
+
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
+		tx = LOG_DB.Where("logs.user_id = ? AND logs.type <> ?", userId, LogTypeError)
 	} else {
 		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}

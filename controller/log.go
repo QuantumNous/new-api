@@ -37,6 +37,13 @@ func GetUserLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	userId := c.GetInt("id")
 	logType, _ := strconv.Atoi(c.Query("type"))
+	// Error logs are admin-only; never expose type=5 on /api/log/self
+	if logType == model.LogTypeError {
+		pageInfo.SetTotal(0)
+		pageInfo.SetItems([]*model.Log{})
+		common.ApiSuccess(c, pageInfo)
+		return
+	}
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	tokenName := c.Query("token_name")
