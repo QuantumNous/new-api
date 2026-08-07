@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 
@@ -49,6 +51,10 @@ type perCallTaskBillingAdjuster interface {
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
+
+var archiveTechMobiVideoResult = ArchiveVideoResult
+
+var techMobiLogURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+`)
 
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
 // 每次最多处理 100 条，剩余的下个周期继续处理。
@@ -390,7 +396,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
 	}
 
-	logger.LogDebug(ctx, "updateVideoSingleTask response: %s", responseBody)
+	if ch.Type == constant.ChannelTypeTechMobiVideo {
+		logger.LogDebug(ctx, "updateVideoSingleTask response received: task_id=%s upstream_task_id=%s phase=fetched bytes=%d", task.TaskID, task.GetUpstreamTaskID(), len(responseBody))
+	} else {
+		logger.LogDebug(ctx, "updateVideoSingleTask response: %s", responseBody)
+	}
 
 	snap := task.Snapshot()
 
@@ -398,7 +408,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	// try parse as New API response format
 	var responseItems dto.TaskResponse[model.Task]
 	if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
-		logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: %+v", responseItems)
+		if ch.Type == constant.ChannelTypeTechMobiVideo {
+			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: task_id=%s upstream_task_id=%s phase=parsed status=%s", task.TaskID, task.GetUpstreamTaskID(), responseItems.Data.Status)
+		} else {
+			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: %+v", responseItems)
+		}
 		t := responseItems.Data
 		taskResult.TaskID = t.TaskID
 		taskResult.Status = string(t.Status)
@@ -410,9 +424,13 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
 	}
 
-	task.Data = redactVideoResponseBody(responseBody)
+	task.Data = redactVideoResponseForChannel(ch.Type, responseBody)
 
-	logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
+	if ch.Type == constant.ChannelTypeTechMobiVideo {
+		logger.LogDebug(ctx, "updateVideoSingleTask task result parsed: task_id=%s upstream_task_id=%s phase=parsed status=%s progress=%s", task.TaskID, task.GetUpstreamTaskID(), taskResult.Status, taskResult.Progress)
+	} else {
+		logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
+	}
 
 	now := time.Now().Unix()
 	if taskResult.Status == "" {
@@ -431,9 +449,24 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
 				// unknown error format, log original response
-				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
+				if ch.Type == constant.ChannelTypeTechMobiVideo {
+					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format", taskId))
+				} else {
+					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
+				}
 				taskResult = relaycommon.FailTaskInfo("upstream returned unrecognized message")
 			}
+		}
+	}
+
+	if ch.Type == constant.ChannelTypeTechMobiVideo && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
+		if task.PrivateData.VideoResult == nil {
+			videoResult, archiveErr := archiveTechMobiVideoResult(ctx, task.TaskID, taskResult.Url, ch.GetSetting().Proxy)
+			if archiveErr != nil {
+				perfmetrics.RecordVideoResultArchiveRetry("techmobi", "archive_failure")
+				return fmt.Errorf("archive techmobi video result failed for task %s: %s", task.TaskID, sanitizeVideoResultArchiveError(archiveErr))
+			}
+			task.PrivateData.VideoResult = videoResult
 		}
 	}
 
@@ -479,13 +512,20 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
-		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
+		if ch.Type == constant.ChannelTypeTechMobiVideo {
+			logger.LogInfo(ctx, fmt.Sprintf("TechMobi task failed: task_id=%s channel_id=%d status=%s reason=%s", task.TaskID, ch.Id, taskResult.Status, sanitizeTechMobiLogText(taskResult.Reason)))
+		} else {
+			logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
+		}
 		task.Status = model.TaskStatusFailure
 		task.Progress = taskcommon.ProgressComplete
 		if task.FinishTime == 0 {
 			task.FinishTime = now
 		}
 		task.FailReason = taskResult.Reason
+		if ch.Type == constant.ChannelTypeTechMobiVideo {
+			task.FailReason = sanitizeTechMobiLogText(task.FailReason)
+		}
 		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		taskResult.Progress = taskcommon.ProgressComplete
 		if quota != 0 {
@@ -510,6 +550,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			shouldRefund = false
 			shouldSettle = false
 		}
+	} else if isDone {
+		shouldRefund = false
+		shouldSettle = false
 	} else if !snap.Equal(task.Snapshot()) {
 		if _, err := task.UpdateWithStatus(snap.Status); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Failed to update task %s: %s", task.TaskID, err.Error()))
@@ -553,6 +596,103 @@ func redactVideoResponseBody(body []byte) []byte {
 		return body
 	}
 	return b
+}
+
+func redactVideoResponseForChannel(channelType int, body []byte) []byte {
+	redacted := redactVideoResponseBody(body)
+	if channelType == constant.ChannelTypeTechMobiVideo {
+		return redactTechMobiVideoResponseBody(redacted)
+	}
+	return redacted
+}
+
+func redactTechMobiVideoResponseBody(body []byte) []byte {
+	var value any
+	if err := common.Unmarshal(body, &value); err != nil {
+		return body
+	}
+	redacted := redactTechMobiVideoValue(value)
+	b, err := common.Marshal(redacted)
+	if err != nil {
+		return body
+	}
+	return b
+}
+
+func redactTechMobiVideoValue(v any) any {
+	switch value := v.(type) {
+	case map[string]any:
+		for key, child := range value {
+			if isTechMobiVideoURLKey(key) {
+				value[key] = redactTechMobiVideoURLValue(child)
+				continue
+			}
+			value[key] = redactTechMobiVideoValue(child)
+		}
+		return value
+	case []any:
+		for i, child := range value {
+			value[i] = redactTechMobiVideoValue(child)
+		}
+		return value
+	case string:
+		return redactTechMobiURLs(value)
+	default:
+		return value
+	}
+}
+
+func redactTechMobiVideoURLValue(v any) any {
+	return redactTechMobiVideoValue(v)
+}
+
+func isTechMobiVideoURLKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(key, "_", ""))
+	switch normalized {
+	case "url", "videourl", "downloadurl", "fileurl", "objecturl", "remoteurl":
+		return true
+	default:
+		return false
+	}
+}
+
+func sanitizeVideoResultArchiveError(err error) string {
+	if err == nil {
+		return "unknown error"
+	}
+	if errors.Is(err, ErrVideoResultConfig) {
+		return ErrVideoResultConfig.Error()
+	}
+	if errors.Is(err, ErrVideoResultInvalidTaskID) {
+		return ErrVideoResultInvalidTaskID.Error()
+	}
+	if errors.Is(err, ErrVideoResultInvalidContent) {
+		return ErrVideoResultInvalidContent.Error()
+	}
+	if errors.Is(err, ErrVideoResultTooLarge) {
+		return ErrVideoResultTooLarge.Error()
+	}
+	if errors.Is(err, ErrVideoResultAlreadyExists) {
+		return ErrVideoResultAlreadyExists.Error()
+	}
+	if errors.Is(err, ErrVideoResultUnavailable) {
+		return ErrVideoResultUnavailable.Error()
+	}
+	return "archive unavailable"
+}
+
+func sanitizeTechMobiLogText(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+	return taskcommon.ScrubBrandedText(redactTechMobiURLs(text))
+}
+
+func redactTechMobiURLs(text string) string {
+	return techMobiLogURLPattern.ReplaceAllStringFunc(text, func(match string) string {
+		trimmed := strings.TrimRight(match, ",.;:)")
+		return "[redacted]" + match[len(trimmed):]
+	})
 }
 
 func truncateBase64(s string) string {

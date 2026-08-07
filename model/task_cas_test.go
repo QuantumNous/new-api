@@ -188,6 +188,125 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 	assert.JSONEq(t, string(task.Data), string(snap.Data))
 }
 
+func TestTaskPrivateDataVideoResultJSONRoundtrip(t *testing.T) {
+	privateData := TaskPrivateData{
+		ResultURL: "https://example.com/result.mp4",
+		VideoResult: &VideoResult{
+			Bucket:      "video-results",
+			Object:      "tasks/task_1/result.mp4",
+			Generation:  123456789,
+			ContentType: "video/mp4",
+			Size:        42 << 20,
+			StoredAt:    1_700_000_000,
+			ExpiresAt:   1_700_086_400,
+		},
+	}
+
+	value, err := privateData.Value()
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"result_url":"https://example.com/result.mp4",
+		"video_result":{
+			"bucket":"video-results",
+			"object":"tasks/task_1/result.mp4",
+			"generation":123456789,
+			"content_type":"video/mp4",
+			"size":44040192,
+			"stored_at":1700000000,
+			"expires_at":1700086400
+		}
+	}`, string(value.([]byte)))
+
+	var roundtripped TaskPrivateData
+	require.NoError(t, roundtripped.Scan(value))
+	require.Equal(t, privateData, roundtripped)
+}
+
+func TestTaskPrivateDataVideoResultZeroValueSerializesStableShape(t *testing.T) {
+	privateData := TaskPrivateData{
+		VideoResult: &VideoResult{},
+	}
+
+	value, err := privateData.Value()
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"video_result":{
+			"bucket":"",
+			"object":"",
+			"generation":0,
+			"content_type":"",
+			"size":0,
+			"stored_at":0,
+			"expires_at":0
+		}
+	}`, string(value.([]byte)))
+}
+
+func TestTaskPrivateDataVideoResultSnapshotAndCASPreserveMetadata(t *testing.T) {
+	truncateTables(t)
+
+	metadata := &VideoResult{
+		Bucket:      "video-results",
+		Object:      "tasks/task_cas_video_result/result.mp4",
+		Generation:  987654321,
+		ContentType: "video/mp4",
+		Size:        1234,
+		StoredAt:    1_700_000_001,
+		ExpiresAt:   1_700_086_401,
+	}
+	task := &Task{
+		TaskID:   "task_cas_video_result",
+		Status:   TaskStatusInProgress,
+		Progress: "50%",
+		PrivateData: TaskPrivateData{
+			ResultURL:   "https://example.com/original.mp4",
+			VideoResult: metadata,
+		},
+		Data: json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	snap := task.Snapshot()
+	require.Equal(t, metadata, snap.VideoResult)
+	require.NotSame(t, metadata, snap.VideoResult)
+
+	task.Status = TaskStatusSuccess
+	task.Progress = "100%"
+	won, err := task.UpdateWithStatus(TaskStatusInProgress)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	var reloaded Task
+	require.NoError(t, DB.First(&reloaded, task.ID).Error)
+	require.Equal(t, metadata, reloaded.PrivateData.VideoResult)
+	require.True(t, task.Snapshot().Equal(reloaded.Snapshot()))
+}
+
+func TestTaskPrivateDataVideoResultSnapshotDetectsMetadataMutationAfterSnapshot(t *testing.T) {
+	task := &Task{
+		Status:   TaskStatusInProgress,
+		Progress: "50%",
+		PrivateData: TaskPrivateData{
+			VideoResult: &VideoResult{
+				Bucket:      "video-results",
+				Object:      "tasks/task_snapshot_mutation/result.mp4",
+				Generation:  1,
+				ContentType: "video/mp4",
+				Size:        100,
+				StoredAt:    200,
+				ExpiresAt:   300,
+			},
+		},
+		Data: json.RawMessage(`{}`),
+	}
+
+	before := task.Snapshot()
+	task.PrivateData.VideoResult.Generation = 2
+	after := task.Snapshot()
+
+	require.False(t, before.Equal(after))
+}
+
 // ---------------------------------------------------------------------------
 // UpdateWithStatus CAS — DB integration tests
 // ---------------------------------------------------------------------------

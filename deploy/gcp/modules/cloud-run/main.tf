@@ -164,6 +164,13 @@ resource "google_cloud_run_v2_service" "main" {
           value = var.asset_storage_bucket
         }
       }
+      dynamic "env" {
+        for_each = var.video_result_storage_bucket != "" ? [1] : []
+        content {
+          name  = "VIDEO_RESULT_STORAGE_BUCKET"
+          value = var.video_result_storage_bucket
+        }
+      }
 
       // Rate limits — defaults (60/180s) are far too tight behind a load
       // balancer that funnels real client IPs through proxy headers. Until

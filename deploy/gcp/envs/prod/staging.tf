@@ -336,6 +336,10 @@ resource "google_cloud_run_v2_service" "staging" {
         name  = "ASSET_STORAGE_BUCKET"
         value = google_storage_bucket.flatkey_assets_staging[0].name
       }
+      env {
+        name  = "VIDEO_RESULT_STORAGE_BUCKET"
+        value = google_storage_bucket.video_results_staging[0].name
+      }
 
       env {
         name = "SQL_DSN"
@@ -389,6 +393,7 @@ resource "google_cloud_run_v2_service" "staging" {
     google_secret_manager_secret_version.staging_sql_dsn,
     google_secret_manager_secret_iam_member.staging_runtime_secret_access,
     google_project_iam_member.staging_runtime_cloudsql,
+    google_storage_bucket_iam_member.staging_runtime_video_results_object_user,
   ]
 }
 
