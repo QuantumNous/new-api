@@ -17,6 +17,49 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	responsesOutputTypeReasoning = "reasoning"
+	responsesReasoningIDPrefix   = "rs_"
+)
+
+func validateResponsesReasoningOutput(output *dto.ResponsesOutput) error {
+	if output == nil || output.Type != responsesOutputTypeReasoning {
+		return nil
+	}
+	// Reasoning items can be replayed as Responses input. Reject malformed
+	// upstream IDs instead of rewriting provider-owned opaque identifiers.
+	if !strings.HasPrefix(output.ID, responsesReasoningIDPrefix) {
+		return fmt.Errorf(
+			"invalid Responses reasoning item id %q: expected prefix %q",
+			output.ID,
+			responsesReasoningIDPrefix,
+		)
+	}
+	return nil
+}
+
+func validateResponsesReasoningOutputs(outputs []dto.ResponsesOutput) error {
+	for i := range outputs {
+		if err := validateResponsesReasoningOutput(&outputs[i]); err != nil {
+			return fmt.Errorf("output[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func validateResponsesStreamReasoningOutputs(streamResponse *dto.ResponsesStreamResponse) error {
+	if streamResponse == nil {
+		return nil
+	}
+	if err := validateResponsesReasoningOutput(streamResponse.Item); err != nil {
+		return err
+	}
+	if streamResponse.Response != nil {
+		return validateResponsesReasoningOutputs(streamResponse.Response.Output)
+	}
+	return nil
+}
+
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -32,6 +75,9 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	}
+	if err := validateResponsesReasoningOutputs(responsesResponse.Output); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
 	}
 
 	// 写入新的 response body
@@ -84,6 +130,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	var responseTextBuilder strings.Builder
 	imageCounter := &relaycommon.ImageGenerationCallCounter{}
 	imageCommitted := false
+	var streamErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -92,6 +139,12 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
 			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
 			sr.Error(err)
+			return
+		}
+		if err := validateResponsesStreamReasoningOutputs(&streamResponse); err != nil {
+			logger.LogError(c, "invalid Responses stream item: "+err.Error())
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+			sr.Stop(streamErr)
 			return
 		}
 		sendResponsesStreamData(c, streamResponse, data)
@@ -157,6 +210,10 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
+
+	if streamErr != nil {
+		return nil, streamErr
+	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
