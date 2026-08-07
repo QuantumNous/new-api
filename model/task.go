@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -264,7 +265,8 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 	privateData := TaskPrivateData{}
 	if relayInfo != nil && relayInfo.ChannelMeta != nil {
 		if relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
-			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi {
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi ||
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeTechMobiVideo {
 			privateData.Key = relayInfo.ChannelMeta.ApiKey
 		}
 		if relayInfo.UpstreamModelName != "" {
@@ -583,21 +585,49 @@ func ClaimTaskPreparationLease(taskID string, owner string, expectedAttemptCount
 }
 
 func MarkQueuedTaskSubmitting(taskID string, owner string, expectedAttemptCount int, now int64, channelID int, platform constant.TaskPlatform, quota int) (bool, error) {
-	result := DB.Model(&Task{}).
-		Where("task_id = ? AND status = ?", taskID, TaskStatusQueued).
-		Where("preparation_status IN ?", []string{TaskPreparationStatusPreparing, TaskPreparationStatusSubmitting}).
-		Where("preparation_lease_owner = ? AND preparation_attempt_count = ? AND preparation_lease_expires_at > ?", owner, expectedAttemptCount, now).
-		Updates(map[string]any{
-			"preparation_status":               TaskPreparationStatusSubmitting,
-			"channel_id":                       channelID,
-			"platform":                         platform,
-			"accepted_accounting_actual_quota": quota,
-			"updated_at":                       now,
-		})
-	if result.Error != nil {
-		return false, result.Error
+	return MarkQueuedTaskSubmittingWithPollingKey(taskID, owner, expectedAttemptCount, now, channelID, platform, quota, "")
+}
+
+func MarkQueuedTaskSubmittingWithPollingKey(taskID string, owner string, expectedAttemptCount int, now int64, channelID int, platform constant.TaskPlatform, quota int, pollingKey string) (bool, error) {
+	updates := map[string]any{
+		"preparation_status":               TaskPreparationStatusSubmitting,
+		"channel_id":                       channelID,
+		"platform":                         platform,
+		"accepted_accounting_actual_quota": quota,
+		"updated_at":                       now,
 	}
-	return result.RowsAffected == 1, nil
+	if strings.TrimSpace(pollingKey) == "" {
+		result := DB.Model(&Task{}).
+			Where("task_id = ? AND status = ?", taskID, TaskStatusQueued).
+			Where("preparation_status IN ?", []string{TaskPreparationStatusPreparing, TaskPreparationStatusSubmitting}).
+			Where("preparation_lease_owner = ? AND preparation_attempt_count = ? AND preparation_lease_expires_at > ?", owner, expectedAttemptCount, now).
+			Updates(updates)
+		if result.Error != nil {
+			return false, result.Error
+		}
+		return result.RowsAffected == 1, nil
+	}
+
+	fenced := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var current Task
+		if err := tx.Select("private_data").Where("task_id = ?", taskID).First(&current).Error; err != nil {
+			return err
+		}
+		current.PrivateData.Key = strings.TrimSpace(pollingKey)
+		updates["private_data"] = current.PrivateData
+		result := tx.Model(&Task{}).
+			Where("task_id = ? AND status = ?", taskID, TaskStatusQueued).
+			Where("preparation_status IN ?", []string{TaskPreparationStatusPreparing, TaskPreparationStatusSubmitting}).
+			Where("preparation_lease_owner = ? AND preparation_attempt_count = ? AND preparation_lease_expires_at > ?", owner, expectedAttemptCount, now).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		fenced = result.RowsAffected == 1
+		return nil
+	})
+	return fenced, err
 }
 
 func RenewTaskPreparationLease(taskID string, owner string, expectedLeaseExpiresAt int64, now int64, leaseExpiresAt int64) (bool, error) {
@@ -633,12 +663,19 @@ func MarkQueuedTaskSubmitted(taskID string, owner string, expectedLeaseExpiresAt
 }
 
 func MarkQueuedTaskAccepted(taskID string, owner string, expectedLeaseExpiresAt int64, now int64, submitTime int64, channelID int, platform constant.TaskPlatform, quota int, upstreamTaskID string, taskData []byte, publicIDs []string, lastUsedAt int64, retentionUntil int64) (bool, error) {
+	return MarkQueuedTaskAcceptedWithPollingKey(taskID, owner, expectedLeaseExpiresAt, now, submitTime, channelID, platform, quota, upstreamTaskID, taskData, "", publicIDs, lastUsedAt, retentionUntil)
+}
+
+func MarkQueuedTaskAcceptedWithPollingKey(taskID string, owner string, expectedLeaseExpiresAt int64, now int64, submitTime int64, channelID int, platform constant.TaskPlatform, quota int, upstreamTaskID string, taskData []byte, pollingKey string, publicIDs []string, lastUsedAt int64, retentionUntil int64) (bool, error) {
 	accepted := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		privateDataExpr := gorm.Expr("private_data")
 		var current Task
 		if err := tx.Select("private_data", "user_id", "quota").Where("task_id = ?", taskID).First(&current).Error; err == nil {
 			current.PrivateData.UpstreamTaskID = upstreamTaskID
+			if trimmedPollingKey := strings.TrimSpace(pollingKey); trimmedPollingKey != "" {
+				current.PrivateData.Key = trimmedPollingKey
+			}
 			privateDataExpr = gorm.Expr("?", current.PrivateData)
 		} else {
 			return err
@@ -680,6 +717,10 @@ func MarkQueuedTaskAccepted(taskID string, owner string, expectedLeaseExpiresAt 
 }
 
 func MarkQueuedTaskSubmissionUnknown(taskID string, expectedAttemptCount int, now int64, submitTime int64, channelID int, platform constant.TaskPlatform, quota int, upstreamTaskID string, taskData []byte, publicIDs []string, lastUsedAt int64, retentionUntil int64) (bool, error) {
+	return MarkQueuedTaskSubmissionUnknownWithPollingKey(taskID, expectedAttemptCount, now, submitTime, channelID, platform, quota, upstreamTaskID, taskData, "", publicIDs, lastUsedAt, retentionUntil)
+}
+
+func MarkQueuedTaskSubmissionUnknownWithPollingKey(taskID string, expectedAttemptCount int, now int64, submitTime int64, channelID int, platform constant.TaskPlatform, quota int, upstreamTaskID string, taskData []byte, pollingKey string, publicIDs []string, lastUsedAt int64, retentionUntil int64) (bool, error) {
 	quarantined := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var current Task
@@ -688,6 +729,9 @@ func MarkQueuedTaskSubmissionUnknown(taskID string, expectedAttemptCount int, no
 		}
 		if upstreamTaskID != "" {
 			current.PrivateData.UpstreamTaskID = upstreamTaskID
+		}
+		if trimmedPollingKey := strings.TrimSpace(pollingKey); trimmedPollingKey != "" {
+			current.PrivateData.Key = trimmedPollingKey
 		}
 		updates := map[string]any{
 			"status":                             TaskStatusUnknown,

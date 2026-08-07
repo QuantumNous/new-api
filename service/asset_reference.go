@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
@@ -51,6 +52,7 @@ type assetReferenceAsset struct {
 
 type assetReferenceBinding struct {
 	ChannelID       int
+	BindingScope    string
 	UpstreamAssetID string
 	Status          string
 }
@@ -59,17 +61,47 @@ func (s AssetReferenceSet) HasReferences() bool {
 	return len(s.references) > 0
 }
 
-func (s AssetReferenceSet) ChannelRanker() ChannelReadinessRanker {
+func (s AssetReferenceSet) ChannelRanker(modelName ...string) ChannelReadinessRanker {
 	if !s.HasReferences() {
 		return nil
 	}
-	return assetReferenceRanker{set: s}
+	originModel := ""
+	if len(modelName) > 0 {
+		originModel = strings.TrimSpace(modelName[0])
+	}
+	return assetReferenceRanker{set: s, originModel: originModel}
 }
 
-func (s AssetReferenceSet) ReadinessForChannel(channel *model.Channel) (AssetReadinessClass, bool) {
+func (s AssetReferenceSet) ReadinessForChannel(channel *model.Channel, modelName ...string) (AssetReadinessClass, bool) {
+	originModel := ""
+	if len(modelName) > 0 {
+		originModel = strings.TrimSpace(modelName[0])
+	}
+	return s.readinessForChannelModel(channel, originModel)
+}
+
+func (s AssetReferenceSet) readinessForChannelModel(channel *model.Channel, originModel string) (AssetReadinessClass, bool) {
 	if !s.HasReferences() || channel == nil {
 		return AssetReadinessIneligible, false
 	}
+	techMobiScopes, scopesOK := techMobiBindingScopesForRequest(channel, originModel)
+	if !scopesOK {
+		return AssetReadinessIneligible, false
+	}
+	if channel.Type != constant.ChannelTypeTechMobiVideo {
+		return s.readinessForChannelScope(channel, nil)
+	}
+	bestReadiness := AssetReadinessIneligible
+	for scope := range techMobiScopes {
+		readiness, eligible := s.readinessForChannelScope(channel, map[string]struct{}{scope: {}})
+		if eligible && (bestReadiness == AssetReadinessIneligible || readiness < bestReadiness) {
+			bestReadiness = readiness
+		}
+	}
+	return bestReadiness, bestReadiness != AssetReadinessIneligible
+}
+
+func (s AssetReferenceSet) readinessForChannelScope(channel *model.Channel, techMobiScopes map[string]struct{}) (AssetReadinessClass, bool) {
 	activeBindings := 0
 	recoverableSources := 0
 	for _, reference := range s.references {
@@ -77,7 +109,7 @@ func (s AssetReferenceSet) ReadinessForChannel(channel *model.Channel) (AssetRea
 		if !ok || asset.AssetType != reference.ExpectedAssetType || !channelCanConsumeAssetType(channel, asset.AssetType) {
 			return AssetReadinessIneligible, false
 		}
-		if binding, ok := activeAssetReferenceBindingForChannel(asset.Bindings, channel.Id); ok {
+		if binding, ok := activeAssetReferenceBindingForRequest(asset.Bindings, channel, techMobiScopes); ok {
 			if asset.LegacyBytePlus && channel.Type != constant.ChannelTypeBytePlus {
 				return AssetReadinessIneligible, false
 			}
@@ -109,13 +141,28 @@ func (s AssetReferenceSet) RewriteMapForChannel(channelID int) map[string]string
 	if !s.HasReferences() || channelID <= 0 {
 		return nil
 	}
+	return s.rewriteMapForChannel(&model.Channel{Id: channelID}, nil)
+}
+
+func (s AssetReferenceSet) RewriteMapForSelectedChannel(channel *model.Channel, originModel string, apiKey string) map[string]string {
+	if !s.HasReferences() || channel == nil || channel.Id <= 0 {
+		return nil
+	}
+	techMobiScopes, ok := techMobiBindingScopeForSelectedKey(channel, originModel, apiKey)
+	if !ok {
+		return nil
+	}
+	return s.rewriteMapForChannel(channel, techMobiScopes)
+}
+
+func (s AssetReferenceSet) rewriteMapForChannel(channel *model.Channel, techMobiScopes map[string]struct{}) map[string]string {
 	rewriteMap := make(map[string]string)
 	for _, reference := range s.references {
 		asset := s.assets[reference.PublicID]
-		if binding, ok := activeAssetReferenceBindingForChannel(asset.Bindings, channelID); ok {
-			upstreamID := strings.TrimSpace(binding.UpstreamAssetID)
-			if upstreamID != "" {
-				rewriteMap["asset://"+reference.PublicID] = "asset://" + upstreamID
+		if binding, ok := activeAssetReferenceBindingForRequest(asset.Bindings, channel, techMobiScopes); ok {
+			upstreamURI := assetBindingRewriteURI(binding.UpstreamAssetID)
+			if upstreamURI != "" {
+				rewriteMap["asset://"+reference.PublicID] = upstreamURI
 			}
 		}
 	}
@@ -126,11 +173,107 @@ func (s AssetReferenceSet) RewriteMapForChannel(channelID int) map[string]string
 }
 
 type assetReferenceRanker struct {
-	set AssetReferenceSet
+	set         AssetReferenceSet
+	originModel string
 }
 
 func (r assetReferenceRanker) ChannelReadiness(channel *model.Channel) (AssetReadinessClass, bool) {
-	return r.set.ReadinessForChannel(channel)
+	return r.set.readinessForChannelModel(channel, r.originModel)
+}
+
+func activeAssetReferenceBindingForRequest(bindings []assetReferenceBinding, channel *model.Channel, techMobiScopes map[string]struct{}) (assetReferenceBinding, bool) {
+	if channel == nil {
+		return assetReferenceBinding{}, false
+	}
+	if channel.Type != constant.ChannelTypeTechMobiVideo || techMobiScopes == nil {
+		return activeAssetReferenceBindingForChannel(bindings, channel.Id)
+	}
+	for _, binding := range bindings {
+		if binding.ChannelID != channel.Id || !isActiveAssetReferenceBinding(binding) {
+			continue
+		}
+		if _, ok := techMobiScopes[binding.BindingScope]; ok {
+			return binding, true
+		}
+	}
+	return assetReferenceBinding{}, false
+}
+
+func techMobiBindingScopesForRequest(channel *model.Channel, originModel string) (map[string]struct{}, bool) {
+	if channel == nil {
+		return nil, false
+	}
+	if channel.Type != constant.ChannelTypeTechMobiVideo {
+		return nil, true
+	}
+	if strings.TrimSpace(originModel) == "" {
+		return nil, false
+	}
+	mappedModel, ok := assetReferenceMappedModel(channel.GetModelMapping(), originModel)
+	if !ok {
+		return nil, false
+	}
+	keys := enabledAssetMaterializeKeys(channel)
+	if len(keys) == 0 {
+		return nil, false
+	}
+	scopes := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		scope, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: mappedModel, APIKey: key.key})
+		if err != nil {
+			continue
+		}
+		scopes[scope] = struct{}{}
+	}
+	return scopes, len(scopes) > 0
+}
+
+func techMobiBindingScopeForSelectedKey(channel *model.Channel, originModel string, apiKey string) (map[string]struct{}, bool) {
+	if channel == nil {
+		return nil, false
+	}
+	if channel.Type != constant.ChannelTypeTechMobiVideo {
+		return nil, true
+	}
+	mappedModel, ok := assetReferenceMappedModel(channel.GetModelMapping(), originModel)
+	if !ok {
+		return nil, false
+	}
+	scope, err := assetBindingScope(channel.Type, AssetMaterializeOptions{
+		Model:  mappedModel,
+		APIKey: strings.TrimSpace(apiKey),
+	})
+	if err != nil {
+		return nil, false
+	}
+	return map[string]struct{}{scope: {}}, true
+}
+
+func assetReferenceMappedModel(rawMapping string, originModel string) (string, bool) {
+	current := strings.TrimSpace(originModel)
+	if current == "" {
+		return "", false
+	}
+	rawMapping = strings.TrimSpace(rawMapping)
+	if rawMapping == "" || rawMapping == "{}" {
+		return current, true
+	}
+	modelMap := make(map[string]string)
+	if err := common.Unmarshal([]byte(rawMapping), &modelMap); err != nil {
+		return "", false
+	}
+	visited := map[string]struct{}{current: {}}
+	for {
+		mapped := strings.TrimSpace(modelMap[current])
+		if mapped == "" || mapped == current {
+			return current, true
+		}
+		if _, exists := visited[mapped]; exists {
+			return "", false
+		}
+		visited[mapped] = struct{}{}
+		current = mapped
+	}
 }
 
 func ResolveAssetReferences(_ *gin.Context, userID int, req *dto.SeedanceVideoRequest) (AssetReferenceSet, *types.NewAPIError) {
@@ -176,6 +319,7 @@ func ResolveAssetReferences(_ *gin.Context, userID int, req *dto.SeedanceVideoRe
 		for _, binding := range item.Bindings {
 			asset.Bindings = append(asset.Bindings, assetReferenceBinding{
 				ChannelID:       binding.ChannelId,
+				BindingScope:    binding.BindingScope,
 				UpstreamAssetID: binding.UpstreamAssetId,
 				Status:          binding.Status,
 			})

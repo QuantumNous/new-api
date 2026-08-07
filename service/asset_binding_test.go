@@ -186,6 +186,10 @@ func TestAssetBindingReusesActiveBindingWithoutSigningOrProviderCreate(t *testin
 		CreatedAt:       100,
 		UpdatedAt:       100,
 	}).Error)
+	require.NoError(t, model.DB.Model(&model.Asset{}).Where("id = ?", asset.Id).Updates(map[string]any{
+		"source_status":     model.AssetSourceStatusExpired,
+		"source_expires_at": int64(99),
+	}).Error)
 	materializer := &recordingAssetMaterializer{}
 	restore := registerAssetMaterializerForTest(t, constant.ChannelTypeBytePlus, materializer)
 	defer restore()
@@ -678,4 +682,20 @@ func assertNoAssetBindingLeak(t *testing.T, err error) {
 			t.Fatalf("binding error leaked %q in %q", marker, text)
 		}
 	}
+}
+
+func TestAssetBindingResultPreservesOpaqueUpstreamURI(t *testing.T) {
+	result := assetBindingResult("ast_opaque", model.AssetBinding{
+		UpstreamAssetId: "asset://asset-opaque-123",
+	})
+
+	require.Equal(t, "asset://asset-opaque-123", result.RewriteURI)
+}
+
+func TestAssetBindingResultTrimsOpaqueUpstreamURI(t *testing.T) {
+	result := assetBindingResult("ast_opaque", model.AssetBinding{
+		UpstreamAssetId: "  asset://asset-opaque-123  ",
+	})
+
+	require.Equal(t, "asset://asset-opaque-123", result.RewriteURI)
 }

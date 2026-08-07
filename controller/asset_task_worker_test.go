@@ -305,6 +305,84 @@ func TestAssetTaskWorkerFallbackBeforeAcceptancePinsWinningChannel(t *testing.T)
 	require.Equal(t, winnerExpires, assetAfterLate.SourceExpiresAt)
 }
 
+func TestTechMobiAssetTaskWorkerPersistsSelectedKeyAfterAcceptance(t *testing.T) {
+	restoreDB := useControllerAssetTaskDBForTest(t)
+	defer restoreDB()
+	restorePricing := useControllerAssetTaskPricingForTest(t)
+	defer restorePricing()
+	restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+	defer restoreHooks()
+	oldRetryTimes := common.RetryTimes
+	common.RetryTimes = 0
+	defer func() { common.RetryTimes = oldRetryTimes }()
+
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeTechMobiVideo, controllerAssetMaterializer{})
+	defer restoreMaterializer()
+	adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "techmobi-upstream-task"}
+	restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeTechMobiVideo)), adaptor)
+	defer restoreAdaptor()
+
+	publicID := "ast_4234567890abcdefABCDEF1234567890"
+	seedControllerRelayUserToken(t, 7, 11, 10000, 10000)
+	seedControllerTechMobiTaskChannel(t, 106)
+	seedControllerAsset(t, 7, publicID, time.Now().Add(time.Hour).Unix())
+	task := seedControllerQueuedAssetTask(t, "task_techmobi_selected_key", model.TaskPreparationStatusPreparingAssets, "", 0)
+	task.ChannelId = 0
+	task.NormalizedRequestPayload = []byte(seedanceTaskBody(publicID))
+	require.NoError(t, model.DB.Save(task).Error)
+	model.InitChannelCache()
+
+	assetTaskWorkerTestNow = 1000
+	processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusSubmitted, stored.Status)
+	require.Equal(t, 106, stored.ChannelId)
+	require.Equal(t, "techmobi-key-b", stored.PrivateData.Key)
+}
+
+func TestTechMobiAssetTaskWorkerPersistsSelectedKeyForUnknownSubmission(t *testing.T) {
+	restoreDB := useControllerAssetTaskDBForTest(t)
+	defer restoreDB()
+	restorePricing := useControllerAssetTaskPricingForTest(t)
+	defer restorePricing()
+	restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+	defer restoreHooks()
+	oldRetryTimes := common.RetryTimes
+	common.RetryTimes = 0
+	defer func() { common.RetryTimes = oldRetryTimes }()
+
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeTechMobiVideo, controllerAssetMaterializer{})
+	defer restoreMaterializer()
+	adaptor := &controllerFakeTaskAdaptor{failByChannel: map[int]error{106: assertErr("connection reset after request write")}}
+	restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeTechMobiVideo)), adaptor)
+	defer restoreAdaptor()
+
+	publicID := "ast_4334567890abcdefABCDEF1234567890"
+	seedControllerRelayUserToken(t, 7, 11, 10000, 10000)
+	seedControllerTechMobiTaskChannel(t, 106)
+	seedControllerAsset(t, 7, publicID, time.Now().Add(time.Hour).Unix())
+	task := seedControllerQueuedAssetTask(t, "task_techmobi_unknown_key", model.TaskPreparationStatusPreparingAssets, "", 0)
+	task.ChannelId = 0
+	task.NormalizedRequestPayload = []byte(seedanceTaskBody(publicID))
+	require.NoError(t, model.DB.Save(task).Error)
+	model.InitChannelCache()
+
+	assetTaskWorkerTestNow = 1000
+	processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusUnknown, stored.Status)
+	require.Equal(t, model.TaskPreparationStatusUnknownOutcome, stored.PreparationStatus)
+	require.Equal(t, "techmobi-key-b", stored.PrivateData.Key)
+}
+
 func TestAssetTaskWorkerCrossTypeFallbackUsesSelectedAdaptorAndPricing(t *testing.T) {
 	restoreDB := useControllerAssetTaskDBForTest(t)
 	defer restoreDB()
@@ -1868,6 +1946,25 @@ func seedControllerTaskChannelTypeWithPriority(t *testing.T, id int, channelType
 		Enabled:   true,
 		Priority:  &priority,
 		Weight:    weight,
+	}).Error)
+}
+
+func seedControllerTechMobiTaskChannel(t *testing.T, id int) {
+	t.Helper()
+	seedControllerTaskChannelTypeWithPriority(t, id, constant.ChannelTypeTechMobiVideo, "techmobi-key-a\ntechmobi-key-b", 100, 1)
+	mapping := `{"seedance-2.0":"doubao/doubao-seedance-2-0-260128"}`
+	channelInfo := model.ChannelInfo{
+		IsMultiKey:           true,
+		MultiKeySize:         2,
+		MultiKeyMode:         constant.MultiKeyModePolling,
+		MultiKeyPollingIndex: 1,
+		MultiKeyStatusList: map[int]int{
+			0: common.ChannelStatusManuallyDisabled,
+		},
+	}
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", id).Updates(map[string]any{
+		"model_mapping": mapping,
+		"channel_info":  channelInfo,
 	}).Error)
 }
 

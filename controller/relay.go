@@ -367,7 +367,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	}
 	if retryParam.ChannelRanker == nil {
 		if assetReferences, ok := common.GetContextKeyType[service.AssetReferenceSet](c, constant.ContextKeyAssetReferenceSet); ok {
-			retryParam.ChannelRanker = assetReferences.ChannelRanker()
+			retryParam.ChannelRanker = assetReferences.ChannelRanker(info.OriginModelName)
 		}
 	}
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)

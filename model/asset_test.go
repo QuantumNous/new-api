@@ -9,6 +9,41 @@ import (
 	"gorm.io/gorm"
 )
 
+type legacyAssetBindingSchema struct {
+	Id        int64 `gorm:"primaryKey"`
+	AssetId   int64 `gorm:"uniqueIndex:idx_asset_binding_asset_channel"`
+	ChannelId int   `gorm:"uniqueIndex:idx_asset_binding_asset_channel"`
+}
+
+type recordingAssetBindingIndexMigrator struct {
+	indexes   map[string]bool
+	createErr error
+	calls     []string
+}
+
+func (m *recordingAssetBindingIndexMigrator) HasIndex(_ any, name string) bool {
+	return m.indexes[name]
+}
+
+func (m *recordingAssetBindingIndexMigrator) CreateIndex(_ any, name string) error {
+	m.calls = append(m.calls, "create:"+name)
+	if m.createErr != nil {
+		return m.createErr
+	}
+	m.indexes[name] = true
+	return nil
+}
+
+func (m *recordingAssetBindingIndexMigrator) DropIndex(_ any, name string) error {
+	m.calls = append(m.calls, "drop:"+name)
+	delete(m.indexes, name)
+	return nil
+}
+
+func (legacyAssetBindingSchema) TableName() string {
+	return "asset_bindings"
+}
+
 func TestAssetModelsAutoMigrateAndUniqueness(t *testing.T) {
 	db := newAssetTestDB(t, &Asset{}, &AssetBinding{}, &AssetUpload{})
 
@@ -37,6 +72,7 @@ func TestAssetModelsAutoMigrateAndUniqueness(t *testing.T) {
 	binding := AssetBinding{
 		AssetId:         asset.Id,
 		ChannelId:       131,
+		BindingScope:    "scope-a",
 		UpstreamGroupId: "group-a",
 		UpstreamAssetId: "upstream-a",
 		Status:          AssetBindingStatusLeased,
@@ -48,7 +84,51 @@ func TestAssetModelsAutoMigrateAndUniqueness(t *testing.T) {
 	duplicateBinding := binding
 	duplicateBinding.Id = 0
 	duplicateBinding.UpstreamAssetId = "upstream-b"
-	require.Error(t, db.Create(&duplicateBinding).Error, "asset/channel binding must be unique")
+	require.Error(t, db.Create(&duplicateBinding).Error, "asset/channel/scope binding must be unique")
+
+	differentScope := binding
+	differentScope.Id = 0
+	differentScope.BindingScope = "scope-b"
+	differentScope.UpstreamAssetId = "upstream-b"
+	require.NoError(t, db.Create(&differentScope).Error, "different credential/model scopes need independent bindings")
+}
+
+func TestMigrateAssetBindingScopeIndexReplacesLegacyUniqueness(t *testing.T) {
+	db := newAssetTestDB(t, &Asset{}, &legacyAssetBindingSchema{})
+	require.True(t, db.Migrator().HasIndex(&legacyAssetBindingSchema{}, legacyAssetBindingUniqueIndex))
+	require.NoError(t, db.Create(&legacyAssetBindingSchema{AssetId: 9001, ChannelId: 131}).Error)
+	require.NoError(t, db.AutoMigrate(&AssetBinding{}))
+	if !db.Migrator().HasIndex(&AssetBinding{}, legacyAssetBindingUniqueIndex) {
+		require.NoError(t, db.Migrator().CreateIndex(&legacyAssetBindingSchema{}, legacyAssetBindingUniqueIndex))
+	}
+	require.True(t, db.Migrator().HasIndex(&AssetBinding{}, legacyAssetBindingUniqueIndex))
+
+	require.NoError(t, migrateAssetBindingScopeIndex())
+	require.False(t, db.Migrator().HasIndex(&AssetBinding{}, legacyAssetBindingUniqueIndex))
+	require.True(t, db.Migrator().HasIndex(&AssetBinding{}, assetBindingScopeUniqueIndex))
+	legacyBinding, err := GetAssetBindingForScope(9001, 131, "")
+	require.NoError(t, err)
+	require.Empty(t, legacyBinding.BindingScope)
+
+	asset := insertAssetForAssetTest(t, "asset_binding_scope_migration")
+	require.NoError(t, db.Create(&AssetBinding{AssetId: asset.Id, ChannelId: 106, BindingScope: "scope-a"}).Error)
+	require.NoError(t, db.Create(&AssetBinding{AssetId: asset.Id, ChannelId: 106, BindingScope: "scope-b"}).Error)
+	require.Error(t, db.Create(&AssetBinding{AssetId: asset.Id, ChannelId: 106, BindingScope: "scope-a"}).Error)
+}
+
+func TestMigrateAssetBindingScopeIndexesKeepsLegacyIndexWhenCreateFails(t *testing.T) {
+	migrator := &recordingAssetBindingIndexMigrator{
+		indexes: map[string]bool{
+			legacyAssetBindingUniqueIndex: true,
+		},
+		createErr: errors.New("create index failed"),
+	}
+
+	err := migrateAssetBindingScopeIndexes(migrator)
+
+	require.ErrorContains(t, err, "failed to create scoped asset binding index")
+	require.True(t, migrator.indexes[legacyAssetBindingUniqueIndex])
+	require.Equal(t, []string{"create:" + assetBindingScopeUniqueIndex}, migrator.calls)
 }
 
 func TestAssetBindingCreateDoesNothingOnDuplicate(t *testing.T) {
