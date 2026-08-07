@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type MouseEvent, type R
 import {
   ArrowRight,
   BookOpen,
+  ChevronDown,
   Code2,
   Copy,
   ExternalLink,
@@ -187,7 +188,7 @@ function MediaModelLanding(props: {
   return (
     <SiteShell locale={props.locale} pathname={`/models/${props.config.slug}`}>
       <div className="model-square-page bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_32%,#ffffff_62%,#f4f1ff_100%)] text-[#0B0B0F] dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_36%,#070712_72%,#03040b_100%)] dark:text-white">
-        <div className="mx-6 max-w-[1120px] pt-10 pb-8 sm:mx-auto sm:px-8 lg:px-10 lg:pt-14">
+        <div className="px-6 pt-10 pb-8 sm:px-8 lg:px-10 lg:pt-14">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <Link
               href={localizePath("/models", props.locale)}
@@ -235,9 +236,9 @@ function MediaModelLanding(props: {
         </div>
 
         <section id="playground" className="border-y border-[#0B0B0F14] bg-[#f8f6fc] py-8">
-          <div className="mx-6 max-w-[1120px] sm:mx-auto sm:px-8 lg:px-10">
-            <div className="grid overflow-hidden rounded-2xl border border-[#0B0B0F14] bg-white shadow-[0_24px_70px_-46px_rgba(46,16,101,.26)] lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="min-w-0 border-b border-[#0B0B0F14] p-6 sm:p-7 lg:border-r lg:border-b-0 xl:p-8">
+          <div className="px-6 sm:px-8 lg:px-10">
+            <div className="grid overflow-hidden rounded-2xl border border-[#0B0B0F14] bg-white shadow-[0_24px_70px_-46px_rgba(46,16,101,.26)] lg:grid-cols-[minmax(0,0.9fr)_minmax(390px,1.1fr)] xl:grid-cols-[minmax(0,0.86fr)_minmax(430px,1.14fr)]">
+              <div className="min-w-0 border-b border-[#0B0B0F14] p-4 sm:p-5 lg:border-r lg:border-b-0 xl:p-6">
                 <PanelHeader title={props.t("Input")} right={props.t("Form")} />
                 <MediaPromptEditor
                   generator={generator}
@@ -263,7 +264,7 @@ function MediaModelLanding(props: {
                 </a>
               </div>
 
-              <div className="min-w-0 p-6 sm:p-7 xl:p-8">
+              <div className="min-w-0 p-4 sm:p-5 xl:p-6">
                 <PanelHeader title={props.t("Output")} right={props.t("Preview")} />
                 <OutputPreview
                   modelName={props.config.displayName}
@@ -299,7 +300,7 @@ function MediaModelLanding(props: {
           </div>
         </section>
 
-        <section id="examples" className="mx-6 max-w-[1120px] py-12 sm:mx-auto sm:px-8 lg:px-10">
+        <section id="examples" className="px-6 py-12 sm:px-8 lg:px-10">
           <div className="grid gap-4 md:grid-cols-4">
             <StatCard value="2M+" label={props.t(generator.kind === "video" ? "Videos generated" : "Images generated")} />
             <StatCard value="8s" label={props.t("Avg. response time")} />
@@ -336,7 +337,7 @@ function MediaModelLanding(props: {
         </section>
 
         <section className="border-y border-[#0B0B0F0D] bg-[#f8f6fc] py-12">
-          <div className="mx-6 max-w-[1120px] sm:mx-auto sm:px-8 lg:px-10">
+          <div className="px-6 sm:px-8 lg:px-10">
             <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
               <div>
                 <div className="text-xs font-extrabold tracking-[0.16em] text-[#7c3aed] uppercase">
@@ -383,7 +384,7 @@ function MediaModelLanding(props: {
           </div>
         </section>
 
-        <section className="mx-6 max-w-[1120px] py-12 sm:mx-auto sm:px-8 lg:px-10">
+        <section className="px-6 py-12 sm:px-8 lg:px-10">
           <div className="text-xs font-extrabold tracking-[0.16em] text-[#7c3aed] uppercase">
             {props.t("Why Flatkey")}
           </div>
@@ -397,7 +398,7 @@ function MediaModelLanding(props: {
           </div>
         </section>
 
-        <section className="mx-6 grid max-w-[1120px] gap-5 pb-12 sm:mx-auto sm:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-10">
+        <section className="grid gap-5 px-6 pb-12 sm:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-10">
           <div className="rounded-2xl border border-[#0B0B0F14] bg-white p-7 shadow-sm xl:p-8">
             <div className="mb-5 grid size-10 place-items-center rounded-full bg-[#f4f0ff] text-[#7c3aed]">
               <Code2 className="size-5" />
@@ -439,7 +440,7 @@ function MediaModelLanding(props: {
           </div>
         </section>
 
-        <section className="mx-6 grid max-w-[1120px] gap-5 pb-12 sm:mx-auto sm:px-8 lg:grid-cols-[1.3fr_0.8fr] lg:px-10">
+        <section className="grid gap-5 px-6 pb-12 sm:px-8 lg:grid-cols-[1.3fr_0.8fr] lg:px-10">
           <div>
             <div className="text-xs font-extrabold tracking-[0.16em] text-[#7c3aed] uppercase">FAQ</div>
             <h2 className="mt-2 text-2xl font-extrabold tracking-tight">
@@ -699,7 +700,7 @@ function MediaPromptEditor(props: {
         <textarea
           value={props.prompt}
           onChange={(event) => props.onPromptChange(event.target.value)}
-          className="mt-2 min-h-[140px] w-full resize-y rounded-xl border border-black/10 bg-[#fbfaff] p-4 font-mono text-sm leading-6 font-medium text-[#20222a] outline-none focus:border-[#7c3aed]"
+          className="mt-2 min-h-[140px] w-full resize-y rounded-[1.1rem] border border-[#ded8ea] bg-[#fcfbff] p-4 font-mono text-sm leading-6 font-medium text-[#20222a] shadow-[0_10px_28px_-26px_rgba(76,29,149,.72)] outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10"
         />
       </label>
       <div className="mt-2 text-right text-xs font-medium text-[#8b8891]">
@@ -713,7 +714,7 @@ function MediaPromptEditor(props: {
               key={item}
               type="button"
               onClick={() => props.onPromptChange(buildQuickPrompt(item, props.generator.kind))}
-              className="rounded-full border border-black/10 bg-white px-4 py-2.5 text-sm font-bold text-[#4f4d56] hover:border-[#7c3aed] hover:text-[#4c1d95]"
+              className="rounded-xl border border-[#e4deed] bg-[#fcfbff] px-3.5 py-2 text-[13px] font-bold text-[#4f4d56] shadow-[0_10px_20px_-18px_rgba(76,29,149,.45)] transition hover:border-[#7c3aed]/45 hover:bg-white hover:text-[#4c1d95]"
             >
               {props.t(item)}
             </button>
@@ -721,9 +722,11 @@ function MediaPromptEditor(props: {
         </div>
       </div>
       <div className="mt-6">
-        <div className="rounded-2xl border border-[#0B0B0F0D] bg-white/70 p-4 sm:p-5">
-          <div className="mb-4 text-sm font-extrabold text-[#2c2d33]">{props.t("Advanced Options")}</div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+        <div className="rounded-[1.35rem] border border-[#e2dbea] bg-[linear-gradient(180deg,#ffffff_0%,#fbf9ff_100%)] p-4 shadow-[0_18px_38px_-32px_rgba(76,29,149,.55)] sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="text-sm font-extrabold text-[#2c2d33]">{props.t("Advanced Options")}</div>
+          </div>
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-6">
             {fields.map((field) => (
               <div key={field.name} className={generatorFieldColumnClass(props.generator.kind, field)}>
                 <GeneratorFieldControl
@@ -790,7 +793,7 @@ function GeneratorFieldControl(props: {
 
   if (props.field.type === "boolean") {
     return (
-      <label className="flex min-h-[4.75rem] min-w-0 cursor-pointer items-center justify-between gap-4 rounded-2xl border border-black/10 bg-[#fbfaff] px-4 py-3 text-sm font-extrabold text-[#5d5b64] transition-colors hover:border-[#7c3aed]/35 hover:bg-white">
+      <label className="flex min-h-[4.55rem] min-w-0 cursor-pointer items-center justify-between gap-4 rounded-[1.05rem] border border-[#ded8ea] bg-white px-4 py-3 text-sm font-extrabold text-[#5d5b64] shadow-[0_10px_22px_-20px_rgba(76,29,149,.5)] transition hover:border-[#7c3aed]/35 hover:bg-[#fdfcff]">
         <span className="min-w-0 leading-5">{props.t(props.field.label)}</span>
         <span className="relative inline-flex h-7 w-12 shrink-0 items-center">
           <input
@@ -813,13 +816,13 @@ function GeneratorFieldControl(props: {
     const update = (next: number) => props.onChange(Math.min(max, Math.max(min, next)));
 
     return (
-      <label className="grid min-w-0 gap-2 text-sm font-extrabold text-[#5d5b64]">
-        <span className="truncate">{props.t(props.field.label)}</span>
-        <span className="grid h-12 grid-cols-[3rem_1fr_3rem] overflow-hidden rounded-xl border border-black/10 bg-[#fbfaff] text-base font-bold text-[#20222a]">
+      <label className="grid min-w-0 gap-2 text-[11px] font-extrabold tracking-normal text-[#77717f] uppercase">
+        <span>{props.t(props.field.label)}</span>
+        <span className="grid h-11 grid-cols-[2.75rem_1fr_2.75rem] overflow-hidden rounded-[0.95rem] border border-[#ded8ea] bg-white text-base font-bold tracking-normal text-[#20222a] shadow-[0_10px_22px_-20px_rgba(76,29,149,.5)] transition focus-within:border-[#7c3aed] focus-within:ring-4 focus-within:ring-[#7c3aed]/10">
           <button
             type="button"
             onClick={() => update(numericValue - 1)}
-            className="grid place-items-center border-r border-black/10 text-[#5d5b64] hover:bg-white"
+            className="grid place-items-center border-r border-[#ede7f4] text-[#5d5b64] transition hover:bg-[#f4f0ff] hover:text-[#4c1d95]"
           >
             <Minus className="size-3.5" />
           </button>
@@ -834,7 +837,7 @@ function GeneratorFieldControl(props: {
           <button
             type="button"
             onClick={() => update(numericValue + 1)}
-            className="grid place-items-center border-l border-black/10 text-[#5d5b64] hover:bg-white"
+            className="grid place-items-center border-l border-[#ede7f4] text-[#5d5b64] transition hover:bg-[#f4f0ff] hover:text-[#4c1d95]"
           >
             <Plus className="size-3.5" />
           </button>
@@ -845,9 +848,9 @@ function GeneratorFieldControl(props: {
 
   if (canUseSegmented) {
     return (
-      <div className="grid min-w-0 gap-2 text-sm font-extrabold text-[#5d5b64]">
-        <span className="truncate">{props.t(props.field.label)}</span>
-        <div className={`${segmentedGridClass(props.field)} min-h-12 gap-2 rounded-xl border border-black/10 bg-[#fbfaff] p-1.5`}>
+      <div className="grid min-w-0 gap-2 text-[11px] font-extrabold tracking-normal text-[#77717f] uppercase">
+        <span>{props.t(props.field.label)}</span>
+        <div className={`${segmentedGridClass(props.field)} min-h-11 gap-1.5 rounded-[0.95rem] border border-[#ded8ea] bg-[#f3f0f9] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,.8)]`}>
           {(props.field.options ?? []).map((item) => {
             const active = String(props.value) === item;
             return (
@@ -855,33 +858,38 @@ function GeneratorFieldControl(props: {
                 key={item}
                 type="button"
                 onClick={() => props.onChange(coerceGeneratorValue(props.field, item))}
-                className={`min-w-0 rounded-lg px-3 py-2.5 text-sm leading-5 font-extrabold transition ${
-                  active ? "bg-white text-[#4c1d95] shadow-sm" : "text-[#5d5b64] hover:bg-white/70"
+                className={`min-h-9 min-w-0 rounded-[0.72rem] px-3 py-2 text-[13px] leading-5 font-extrabold tracking-normal transition ${
+                  active
+                    ? "bg-white text-[#4c1d95] shadow-[0_8px_18px_-12px_rgba(76,29,149,.85)] ring-1 ring-[#7c3aed]/20"
+                    : "text-[#5d5b64] hover:bg-white/75 hover:text-[#3f236b]"
                 }`}
               >
-                <span className="block truncate">{item}</span>
+                <span className="block">{item}</span>
               </button>
             );
           })}
         </div>
-        {props.field.help ? <span className="text-[10px] font-medium text-[#8b8891]">{props.t(props.field.help)}</span> : null}
+        {props.field.help ? <span className="text-[10px] font-medium tracking-normal text-[#8b8891] normal-case">{props.t(props.field.help)}</span> : null}
       </div>
     );
   }
 
   return (
-    <label className="grid min-w-0 gap-2 text-sm font-extrabold text-[#5d5b64]">
-      <span className="truncate">{props.t(props.field.label)}</span>
+    <label className="grid min-w-0 gap-2 text-[11px] font-extrabold tracking-normal text-[#77717f] uppercase">
+      <span>{props.t(props.field.label)}</span>
       {props.field.type === "select" ? (
-        <select
-          value={String(props.value)}
-          onChange={(event) => props.onChange(coerceGeneratorValue(props.field, event.target.value))}
-          className="h-12 w-full min-w-0 rounded-xl border border-black/10 bg-[#fbfaff] px-4 text-sm font-bold text-[#20222a] outline-none focus:border-[#7c3aed]"
-        >
-          {(props.field.options ?? []).map((item) => (
-            <option key={item} value={item}>{item}</option>
-          ))}
-        </select>
+        <span className="relative block">
+          <select
+            value={String(props.value)}
+            onChange={(event) => props.onChange(coerceGeneratorValue(props.field, event.target.value))}
+            className="h-11 w-full min-w-0 appearance-none rounded-[0.95rem] border border-[#ded8ea] bg-white px-3.5 pr-9 text-sm font-bold tracking-normal text-[#20222a] shadow-[0_10px_22px_-20px_rgba(76,29,149,.5)] outline-none transition focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
+          >
+            {(props.field.options ?? []).map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-[#8b8891]" />
+        </span>
       ) : (
         <input
           type={props.field.type === "number" ? "number" : "text"}
@@ -889,10 +897,10 @@ function GeneratorFieldControl(props: {
           max={props.field.max}
           value={String(props.value)}
           onChange={(event) => props.onChange(coerceGeneratorValue(props.field, event.target.value))}
-          className="h-12 w-full min-w-0 rounded-xl border border-black/10 bg-[#fbfaff] px-4 text-sm font-bold text-[#20222a] outline-none focus:border-[#7c3aed]"
+          className="h-11 w-full min-w-0 rounded-[0.95rem] border border-[#ded8ea] bg-white px-3.5 text-sm font-bold tracking-normal text-[#20222a] shadow-[0_10px_22px_-20px_rgba(76,29,149,.5)] outline-none transition focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
         />
       )}
-      {props.field.help ? <span className="text-[10px] font-medium text-[#8b8891]">{props.t(props.field.help)}</span> : null}
+      {props.field.help ? <span className="text-[10px] font-medium tracking-normal text-[#8b8891] normal-case">{props.t(props.field.help)}</span> : null}
     </label>
   );
 }
@@ -955,8 +963,8 @@ function OutputPreview(props: {
   const primary = props.images[0] ?? { poster: "/assets/prompts/awesome-images/sports-shoe.png" };
 
   return (
-    <div className={props.kind === "video" ? "overflow-hidden rounded-2xl border border-black/10 bg-[#10131a] p-2 text-white" : "overflow-hidden rounded-2xl border border-black/10 bg-white p-2 text-[#0B0B0F]"}>
-      <div className={`relative overflow-hidden rounded-xl ${props.kind === "video" ? "aspect-video bg-[#171b24]" : "aspect-video bg-[#11131a]"}`}>
+    <div className={props.kind === "video" ? "overflow-hidden rounded-[1.35rem] border border-black/10 bg-[#10131a] p-2 text-white shadow-[0_18px_42px_-32px_rgba(15,15,18,.8)]" : "overflow-hidden rounded-[1.35rem] border border-black/10 bg-white p-2 text-[#0B0B0F] shadow-[0_18px_42px_-34px_rgba(76,29,149,.65)]"}>
+      <div className={`relative overflow-hidden rounded-[1.05rem] ${props.kind === "video" ? "aspect-video bg-[#171b24]" : "aspect-[16/10] bg-[#11131a]"}`}>
         {props.kind === "video" && primary?.video ? (
           <video
             className="h-full w-full object-cover"
@@ -971,7 +979,14 @@ function OutputPreview(props: {
           />
         ) : (
           <>
-            <Image src={primary.poster} alt="" fill sizes="(min-width: 1024px) 520px, 100vw" className="rounded-lg object-cover" priority={props.kind === "image"} />
+            <Image
+              src={primary.poster}
+              alt=""
+              fill
+              sizes="(min-width: 1280px) 620px, (min-width: 1024px) 56vw, 100vw"
+              className="object-cover"
+              priority={props.kind === "image"}
+            />
           </>
         )}
       </div>
@@ -982,7 +997,7 @@ function OutputPreview(props: {
           </span>
           <b>{props.modelName}</b>
         </div>
-        <span className={`line-clamp-2 ${props.kind === "video" ? "text-white/72" : "text-[#706a74]"}`}>{props.prompt}</span>
+        <span className={props.kind === "video" ? "text-white/72" : "text-[#706a74]"}>{props.prompt}</span>
       </div>
     </div>
   );
