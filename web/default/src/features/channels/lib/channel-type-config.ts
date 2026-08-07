@@ -177,11 +177,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     name: CHANNEL_TYPES[107],
     icon: 'doubao',
     defaultBaseUrl: 'https://ark.ap-southeast.bytepluses.com',
-    supportedModels: ['seedance-2.0', 'seedance-2.0-fast', 'seedance-2.0-mini'],
+    supportedModels: [
+      'seedance-2.0',
+      'seedance2.0-pro',
+      'seedance-2.0-fast',
+      'seedance-2.0-mini',
+    ],
     hints: {
       baseUrl: 'Default: https://ark.ap-southeast.bytepluses.com',
       key: 'BytePlus API key',
-      models: 'seedance-2.0,seedance-2.0-fast,seedance-2.0-mini',
+      models:
+        'seedance-2.0,seedance2.0-pro,seedance-2.0-fast,seedance-2.0-mini',
       other:
         'Ark Seedance video channel. Configure account endpoint IDs with model mapping; moderation bypass is enforced by the server.',
     },
