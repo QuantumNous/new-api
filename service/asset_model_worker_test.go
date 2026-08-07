@@ -166,6 +166,74 @@ func TestAssetModelWorkerRevalidatesTargetEligibilityBeforeProviderWrite(t *test
 	require.Equal(t, rotated.Generation, row.TargetGeneration)
 }
 
+func TestAssetModelWorkerBindingLeaseOutlivesReadinessLeaseDuringSlowProviderWrite(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{
+		blockFirstCreate: make(chan struct{}),
+		create:           []scriptedAssetModelCreate{{result: AssetMaterializeResult{UpstreamAssetID: "upstream-slow", Status: model.AssetStatusActive}}},
+	}
+	t.Cleanup(func() {
+		select {
+		case <-materializer.blockFirstCreate:
+		default:
+			close(materializer.blockFirstCreate)
+		}
+	})
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_slow_provider_aaaa", "techmobi-key-a")
+
+	errs := make(chan error, 1)
+	go func() {
+		processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+		if err == nil {
+			require.Equal(t, 1, processed)
+		}
+		errs <- err
+	}()
+	waitForAssetModelCreateCalls(t, materializer, 1)
+
+	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-b", time.Unix(140, 0))
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.EqualValues(t, 1, atomic.LoadInt64(&materializer.createCalls), "fresh binding lease must block duplicate provider writes after readiness lease takeover")
+
+	close(materializer.blockFirstCreate)
+	require.NoError(t, <-errs)
+	require.EqualValues(t, 1, atomic.LoadInt64(&materializer.createCalls))
+
+	binding, err := model.GetAssetBindingForScope(asset.Id, target.ChannelId, target.BindingScope)
+	require.NoError(t, err)
+	require.Equal(t, model.AssetStatusActive, binding.Status)
+	require.Equal(t, "upstream-slow", binding.UpstreamAssetId)
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	require.NotEqual(t, model.AssetModelReadinessStatusFailed, row.Status)
+}
+
+func TestAssetModelWorkerFinalPreflightRejectsTargetCredentialChangeBeforeProviderWrite(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_preflight_aaaaaaa", "techmobi-key-a\ntechmobi-key-b")
+
+	originalHook := assetModelWorkerFinalPreflightHook
+	assetModelWorkerFinalPreflightHook = func() {
+		disableChannelCredential(t, target.ChannelId, 0)
+	}
+	t.Cleanup(func() { assetModelWorkerFinalPreflightHook = originalHook })
+
+	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls), "final preflight must catch stale credentials before provider side effects")
+
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	require.NotEqual(t, model.AssetModelReadinessStatusActive, row.Status)
+	rotated := requireAssetModelTarget(t, scope, "seedance-2.0")
+	require.NotEqual(t, target.BindingScope, rotated.BindingScope)
+}
+
 func TestAssetModelWorkerRetryableProcessingRefreshSchedulesRetryWithoutFailingBinding(t *testing.T) {
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)
@@ -349,18 +417,22 @@ type scriptedAssetModelGet struct {
 }
 
 type scriptedAssetModelMaterializer struct {
-	mu          sync.Mutex
-	create      []scriptedAssetModelCreate
-	get         []scriptedAssetModelGet
-	createCalls int64
-	blockCreate chan struct{}
-	getIDs      []string
+	mu               sync.Mutex
+	create           []scriptedAssetModelCreate
+	get              []scriptedAssetModelGet
+	createCalls      int64
+	blockCreate      chan struct{}
+	blockFirstCreate chan struct{}
+	getIDs           []string
 }
 
 func (m *scriptedAssetModelMaterializer) CreateAsset(_ context.Context, input AssetMaterializeInput) (AssetMaterializeResult, error) {
-	atomic.AddInt64(&m.createCalls, 1)
+	call := atomic.AddInt64(&m.createCalls, 1)
 	if m.blockCreate != nil {
 		<-m.blockCreate
+	}
+	if m.blockFirstCreate != nil && call == 1 {
+		<-m.blockFirstCreate
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -472,4 +544,21 @@ func assetModelWorkerEventNames(events *[]assetModelWorkerEvent) []string {
 		names = append(names, event.Name)
 	}
 	return names
+}
+
+func waitForAssetModelCreateCalls(t *testing.T, materializer *scriptedAssetModelMaterializer, want int64) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		if atomic.LoadInt64(&materializer.createCalls) >= want {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for createCalls >= %d; got %d", want, atomic.LoadInt64(&materializer.createCalls))
+		case <-tick.C:
+		}
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -14,12 +15,15 @@ func openAssetModelReadinessTestDB(t *testing.T) {
 	t.Helper()
 
 	previous := DB
+	dsn := fmt.Sprintf("file:%s_%d?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"), time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
 	t.Cleanup(func() {
+		_ = sqlDB.Close()
 		DB = previous
 	})
-
-	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
-	require.NoError(t, err)
 	DB = db
 	require.NoError(t, DB.AutoMigrate(&AssetModelCoverageTarget{}, &AssetModelReadiness{}))
 }

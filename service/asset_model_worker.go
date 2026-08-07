@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -21,9 +23,11 @@ const (
 	assetModelReadinessLeaseTTL  = 30 * time.Second
 	assetModelTargetLeaseTTL     = 15 * time.Second
 	assetModelGenerationWindow   = 5 * time.Minute
+	assetModelProviderCallBuffer = 30 * time.Second
 )
 
 var assetModelRetrySchedule = []time.Duration{5 * time.Second, 15 * time.Second, 30 * time.Second, 60 * time.Second}
+var assetModelWorkerFinalPreflightHook func()
 
 const (
 	assetModelEventSelection         = "selection"
@@ -67,7 +71,8 @@ func (e assetModelBindingRetryError) Error() string {
 }
 
 type assetModelBindingDefinitiveError struct {
-	class string
+	class     string
+	exhausted bool
 }
 
 func (e assetModelBindingDefinitiveError) Error() string {
@@ -78,17 +83,31 @@ func StartAssetModelReadinessWorker() {
 	startAssetModelReadinessWorkerWithConfig(context.Background(), assetModelReadinessWorkerConfig{})
 }
 
+func assetModelReadinessWorkerOwner(configured string) string {
+	base := strings.TrimSpace(configured)
+	if base == "" {
+		base = strings.TrimSpace(os.Getenv("ASSET_MODEL_WORKER_OWNER"))
+	}
+	if base == "" {
+		base, _ = os.Hostname()
+		base = strings.TrimSpace(base)
+	}
+	if base == "" {
+		base = "asset-model-worker"
+	}
+	return fmt.Sprintf("%s-%s", base, assetModelWorkerRandomSuffix())
+}
+
+func assetModelWorkerRandomSuffix() string {
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err == nil {
+		return hex.EncodeToString(buf[:])
+	}
+	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
 func startAssetModelReadinessWorkerWithConfig(ctx context.Context, cfg assetModelReadinessWorkerConfig) {
-	owner := strings.TrimSpace(cfg.Owner)
-	if owner == "" {
-		owner = strings.TrimSpace(os.Getenv("ASSET_MODEL_WORKER_OWNER"))
-	}
-	if owner == "" {
-		owner, _ = os.Hostname()
-	}
-	if owner == "" {
-		owner = fmt.Sprintf("asset-model-worker-%d", time.Now().UnixNano())
-	}
+	owner := assetModelReadinessWorkerOwner(cfg.Owner)
 	interval := cfg.Interval
 	if interval <= 0 {
 		interval = assetModelWorkerPollInterval
@@ -118,7 +137,7 @@ func RunAssetModelReadinessBatch(ctx context.Context, owner string, now time.Tim
 	}
 	owner = strings.TrimSpace(owner)
 	if owner == "" {
-		owner = fmt.Sprintf("asset-model-worker-%d", time.Now().UnixNano())
+		owner = assetModelReadinessWorkerOwner("")
 	}
 	nowUnix := now.Unix()
 	rows, err := model.ListDueAssetModelReadiness(nowUnix, assetModelWorkerBatchSize)
@@ -264,7 +283,7 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 	}
 	var definitiveErr assetModelBindingDefinitiveError
 	if errors.As(err, &definitiveErr) {
-		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix, true)
+		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix, definitiveErr.exhausted)
 	}
 	return finishAssetModelReadinessFailed(row, owner, nowUnix, AssetMaterializeErrorInternal)
 }
@@ -297,59 +316,71 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 	if activeAssetBinding(binding) {
 		return binding, nil
 	}
-	claimed, err := model.ClaimAssetBindingForScopeLease(asset.Id, target.ChannelId, target.BindingScope, owner, nowUnix, nowUnix+int64(assetModelTargetLeaseTTL.Seconds()))
+	bindingLeaseExpiresAt := nowUnix + int64(assetBindingDefaultLeaseTTL.Seconds())
+	claimed, err := model.ClaimAssetBindingForScopeLease(asset.Id, target.ChannelId, target.BindingScope, owner, nowUnix, bindingLeaseExpiresAt)
 	if err != nil {
 		return nil, err
 	}
 	if !claimed {
 		return nil, ErrAssetBindingInitializing
 	}
-	materializer, ok := assetMaterializerForChannel(channel.Type)
+	if assetModelWorkerFinalPreflightHook != nil {
+		assetModelWorkerFinalPreflightHook()
+	}
+	currentTarget, currentChannel, currentOptions, err := finalPreflightAssetModelProviderWrite(target)
+	if err != nil {
+		_, _ = model.ReleaseAssetBindingForRetryLeaseCAS(asset.Id, target.ChannelId, target.BindingScope, owner, bindingLeaseExpiresAt, AssetMaterializeErrorProcessing, nowUnix)
+		return nil, err
+	}
+	materializer, ok := assetMaterializerForChannel(currentChannel.Type)
 	if !ok {
-		_, _ = model.FailAssetBindingForScopeCAS(asset.Id, target.ChannelId, target.BindingScope, owner, "asset_channel_unavailable", nowUnix)
-		return nil, assetModelBindingDefinitiveError{class: "asset_channel_unavailable"}
+		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, target.ChannelId, target.BindingScope, owner, bindingLeaseExpiresAt, "asset_channel_unavailable", nowUnix)
+		return nil, assetModelBindingDefinitiveError{class: "asset_channel_unavailable", exhausted: true}
 	}
 	recordAssetModelWorkerEvent(ctx, assetModelWorkerEvent{
 		Name:          assetModelEventWrite,
 		PublicAssetID: asset.PublicId,
-		Model:         target.ModelName,
-		Generation:    target.Generation,
-		ChannelID:     target.ChannelId,
+		Model:         currentTarget.ModelName,
+		Generation:    currentTarget.Generation,
+		ChannelID:     currentTarget.ChannelId,
 	})
-	result, err := materializer.CreateAsset(ctx, AssetMaterializeInput{
+	providerCtx, cancel := assetModelProviderCallContext(ctx)
+	defer cancel()
+	result, err := materializer.CreateAsset(providerCtx, AssetMaterializeInput{
 		UserID:     asset.UserId,
 		Asset:      asset,
-		Channel:    channel,
-		Model:      options.Model,
-		APIKey:     options.APIKey,
+		Channel:    currentChannel,
+		Model:      currentOptions.Model,
+		APIKey:     currentOptions.APIKey,
 		SignSource: signAssetBindingSourceURL,
 	})
 	if err != nil {
 		class := AssetMaterializeErrorClass(err)
 		if IsRetryableAssetMaterializeError(err) {
-			_, _ = model.ReleaseAssetBindingForRetryCAS(asset.Id, target.ChannelId, target.BindingScope, owner, class, nowUnix)
+			_, _ = model.ReleaseAssetBindingForRetryLeaseCAS(asset.Id, target.ChannelId, target.BindingScope, owner, bindingLeaseExpiresAt, class, nowUnix)
 			return nil, assetModelBindingRetryError{class: class, retryAfter: assetModelRetryAfter(err)}
 		}
-		_, _ = model.FailAssetBindingForScopeCAS(asset.Id, target.ChannelId, target.BindingScope, owner, class, nowUnix)
-		return nil, assetModelBindingDefinitiveError{class: class}
+		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, target.ChannelId, target.BindingScope, owner, bindingLeaseExpiresAt, class, nowUnix)
+		return nil, assetModelBindingDefinitiveError{class: class, exhausted: true}
 	}
 	if strings.TrimSpace(result.UpstreamAssetID) == "" || result.Status == model.AssetStatusFailed {
-		_, _ = model.FailAssetBindingForScopeCAS(asset.Id, target.ChannelId, target.BindingScope, owner, AssetMaterializeErrorDefinitive, nowUnix)
-		return nil, assetModelBindingDefinitiveError{class: AssetMaterializeErrorDefinitive}
+		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, target.ChannelId, target.BindingScope, owner, bindingLeaseExpiresAt, AssetMaterializeErrorDefinitive, nowUnix)
+		return nil, assetModelBindingDefinitiveError{class: AssetMaterializeErrorDefinitive, exhausted: true}
 	}
 	status := strings.TrimSpace(result.Status)
 	if status == "" {
 		status = model.AssetStatusActive
 	}
 	activated, err := model.ActivateAssetBindingWithAssetCAS(model.AssetBindingActivation{
-		AssetID:         asset.Id,
-		ChannelID:       target.ChannelId,
-		BindingScope:    target.BindingScope,
-		LeaseOwner:      owner,
-		UpstreamGroupID: result.UpstreamGroupID,
-		UpstreamAssetID: result.UpstreamAssetID,
-		Status:          status,
-		Now:             nowUnix,
+		AssetID:                asset.Id,
+		ChannelID:              target.ChannelId,
+		BindingScope:           target.BindingScope,
+		LeaseOwner:             owner,
+		ExpectedLeaseExpiresAt: bindingLeaseExpiresAt,
+		UpstreamGroupID:        result.UpstreamGroupID,
+		UpstreamAssetID:        result.UpstreamAssetID,
+		Status:                 status,
+		Now:                    nowUnix,
 	})
 	if err != nil {
 		return nil, err
@@ -361,6 +392,74 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 		return nil, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
 	}
 	return model.GetAssetBindingForScope(asset.Id, target.ChannelId, target.BindingScope)
+}
+
+func finalPreflightAssetModelProviderWrite(target model.AssetModelCoverageTarget) (model.AssetModelCoverageTarget, *model.Channel, AssetMaterializeOptions, error) {
+	current, err := model.GetAssetModelCoverageTarget(target.ScopeKey, target.ModelName)
+	if err != nil {
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, err
+	}
+	if !assetModelTargetWriteSnapshotMatches(target, *current) {
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
+	}
+	if current.Status != model.AssetModelTargetStatusActive {
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingDefinitiveError{class: "target_unavailable"}
+	}
+	channel, err := loadAssetModelReadinessChannel(current.ChannelId)
+	if err != nil {
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, err
+	}
+	scope := assetModelScopeFromTarget(*current)
+	eligible, err := AssetModelTargetIsEligible(scope, *current)
+	if err != nil {
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, err
+	}
+	if !eligible || !assetModelChannelEligible(scope, channel) || !assetModelTargetMatchesCurrentChannel(*current, channel) {
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingDefinitiveError{class: "target_unavailable"}
+	}
+	options, _, err := ResolveAssetModelTargetOptions(*current, channel)
+	if err != nil {
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingDefinitiveError{class: "target_unavailable"}
+	}
+	bindingScope, err := assetBindingScope(channel.Type, options)
+	if err != nil {
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingDefinitiveError{class: "target_unavailable"}
+	}
+	if bindingScope != current.BindingScope || bindingScope != target.BindingScope {
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingDefinitiveError{class: "target_unavailable"}
+	}
+	return *current, channel, options, nil
+}
+
+func assetModelTargetMatchesCurrentChannel(target model.AssetModelCoverageTarget, channel *model.Channel) bool {
+	for _, candidate := range assetModelCandidatesForChannel(channel, target.ModelName) {
+		if candidate.ChannelID == target.ChannelId &&
+			candidate.MappedModel == target.MappedModel &&
+			candidate.BindingScope == target.BindingScope &&
+			candidate.CredentialIndex == target.CredentialIndex {
+			return true
+		}
+	}
+	return false
+}
+
+func assetModelTargetWriteSnapshotMatches(expected, current model.AssetModelCoverageTarget) bool {
+	return strings.TrimSpace(expected.ScopeKey) == strings.TrimSpace(current.ScopeKey) &&
+		strings.TrimSpace(expected.ModelName) == strings.TrimSpace(current.ModelName) &&
+		expected.Status == current.Status &&
+		expected.Generation == current.Generation &&
+		expected.ChannelId == current.ChannelId &&
+		strings.TrimSpace(expected.MappedModel) == strings.TrimSpace(current.MappedModel) &&
+		strings.TrimSpace(expected.BindingScope) == strings.TrimSpace(current.BindingScope) &&
+		expected.CredentialIndex == current.CredentialIndex
+}
+
+func assetModelProviderCallContext(parent context.Context) (context.Context, context.CancelFunc) {
+	timeout := assetBindingDefaultLeaseTTL - assetModelProviderCallBuffer
+	if timeout <= 0 {
+		return context.WithCancel(parent)
+	}
+	return context.WithTimeout(parent, timeout)
 }
 
 func rotateAssetModelReadinessTarget(row model.AssetModelReadiness, target model.AssetModelCoverageTarget, owner string, nowUnix int64, exhausted bool) error {

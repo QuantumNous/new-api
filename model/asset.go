@@ -176,14 +176,15 @@ type AssetUploadExpiration struct {
 }
 
 type AssetBindingActivation struct {
-	AssetID         int64
-	ChannelID       int
-	BindingScope    string
-	LeaseOwner      string
-	UpstreamGroupID string
-	UpstreamAssetID string
-	Status          string
-	Now             int64
+	AssetID                int64
+	ChannelID              int
+	BindingScope           string
+	LeaseOwner             string
+	ExpectedLeaseExpiresAt int64
+	UpstreamGroupID        string
+	UpstreamAssetID        string
+	Status                 string
+	Now                    int64
 }
 
 type AssetBindingProcessingRefresh struct {
@@ -429,6 +430,9 @@ func ActivateAssetBindingWithAssetCAS(activation AssetBindingActivation) (bool, 
 	if activation.LeaseOwner != "" {
 		query = query.Where("lease_owner = ?", activation.LeaseOwner)
 	}
+	if activation.ExpectedLeaseExpiresAt > 0 {
+		query = query.Where("lease_expires_at = ?", activation.ExpectedLeaseExpiresAt)
+	}
 	status := activation.Status
 	if status == "" {
 		status = AssetStatusActive
@@ -453,11 +457,18 @@ func FailAssetBindingCAS(assetID int64, channelID int, leaseOwner string, errorC
 }
 
 func FailAssetBindingForScopeCAS(assetID int64, channelID int, bindingScope string, leaseOwner string, errorCode string, now int64) (bool, error) {
+	return FailAssetBindingForScopeLeaseCAS(assetID, channelID, bindingScope, leaseOwner, 0, errorCode, now)
+}
+
+func FailAssetBindingForScopeLeaseCAS(assetID int64, channelID int, bindingScope string, leaseOwner string, expectedLeaseExpiresAt int64, errorCode string, now int64) (bool, error) {
 	query := DB.Model(&AssetBinding{}).
 		Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", assetID, channelID, bindingScope).
 		Where("status = ?", AssetBindingStatusLeased)
 	if leaseOwner != "" {
 		query = query.Where("lease_owner = ?", leaseOwner)
+	}
+	if expectedLeaseExpiresAt > 0 {
+		query = query.Where("lease_expires_at = ?", expectedLeaseExpiresAt)
 	}
 	result := query.Updates(map[string]any{
 		"status":           AssetStatusFailed,
@@ -473,6 +484,10 @@ func FailAssetBindingForScopeCAS(assetID int64, channelID int, bindingScope stri
 }
 
 func ReleaseAssetBindingForRetryCAS(assetID int64, channelID int, bindingScope, leaseOwner, errorCode string, now int64) (bool, error) {
+	return ReleaseAssetBindingForRetryLeaseCAS(assetID, channelID, bindingScope, leaseOwner, 0, errorCode, now)
+}
+
+func ReleaseAssetBindingForRetryLeaseCAS(assetID int64, channelID int, bindingScope, leaseOwner string, expectedLeaseExpiresAt int64, errorCode string, now int64) (bool, error) {
 	if leaseOwner == "" {
 		return false, nil
 	}
@@ -480,15 +495,20 @@ func ReleaseAssetBindingForRetryCAS(assetID int64, channelID int, bindingScope, 
 		Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", assetID, channelID, bindingScope).
 		Where("status = ?", AssetBindingStatusLeased).
 		Where("lease_owner = ?", leaseOwner).
-		Updates(map[string]any{
-			"status":            AssetBindingStatusPending,
-			"upstream_group_id": "",
-			"upstream_asset_id": "",
-			"error_code":        sanitizeAssetBindingErrorCode(errorCode),
-			"lease_owner":       "",
-			"lease_expires_at":  int64(0),
-			"updated_at":        now,
-		})
+		Scopes(func(tx *gorm.DB) *gorm.DB {
+			if expectedLeaseExpiresAt > 0 {
+				return tx.Where("lease_expires_at = ?", expectedLeaseExpiresAt)
+			}
+			return tx
+		}).Updates(map[string]any{
+		"status":            AssetBindingStatusPending,
+		"upstream_group_id": "",
+		"upstream_asset_id": "",
+		"error_code":        sanitizeAssetBindingErrorCode(errorCode),
+		"lease_owner":       "",
+		"lease_expires_at":  int64(0),
+		"updated_at":        now,
+	})
 	if result.Error != nil {
 		return false, result.Error
 	}

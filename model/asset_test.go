@@ -885,6 +885,51 @@ func TestActivateAssetBindingWithAssetCASDoesNotPromoteSourceLifecycle(t *testin
 	require.Equal(t, AssetSourceStatusAvailable, storedAsset.SourceStatus)
 }
 
+func TestActivateAssetBindingWithAssetCASFencesExpectedLeaseExpiry(t *testing.T) {
+	newAssetTestDB(t, &Asset{}, &AssetBinding{})
+	asset := insertAssetForAssetTest(t, "asset_binding_activation_lease_fence")
+	require.NoError(t, DB.Create(&AssetBinding{
+		AssetId:        asset.Id,
+		ChannelId:      131,
+		BindingScope:   "scope-a",
+		Status:         AssetBindingStatusLeased,
+		LeaseOwner:     "node-a",
+		LeaseExpiresAt: 200,
+		CreatedAt:      100,
+		UpdatedAt:      100,
+	}).Error)
+
+	activated, err := ActivateAssetBindingWithAssetCAS(AssetBindingActivation{
+		AssetID:                asset.Id,
+		ChannelID:              131,
+		BindingScope:           "scope-a",
+		LeaseOwner:             "node-a",
+		ExpectedLeaseExpiresAt: 201,
+		UpstreamAssetID:        "upstream-stale",
+		Status:                 AssetStatusActive,
+		Now:                    160,
+	})
+	require.NoError(t, err)
+	require.False(t, activated)
+
+	activated, err = ActivateAssetBindingWithAssetCAS(AssetBindingActivation{
+		AssetID:                asset.Id,
+		ChannelID:              131,
+		BindingScope:           "scope-a",
+		LeaseOwner:             "node-a",
+		ExpectedLeaseExpiresAt: 200,
+		UpstreamAssetID:        "upstream-current",
+		Status:                 AssetStatusActive,
+		Now:                    160,
+	})
+	require.NoError(t, err)
+	require.True(t, activated)
+
+	var stored AssetBinding
+	require.NoError(t, DB.Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, 131, "scope-a").First(&stored).Error)
+	require.Equal(t, "upstream-current", stored.UpstreamAssetId)
+}
+
 func TestAssetBindingActivationLocksAssetAndDoesNotLoseActivation(t *testing.T) {
 	newAssetTestDB(t, &Asset{}, &AssetBinding{})
 	asset := insertAssetForAssetTest(t, "asset_binding_activate")
