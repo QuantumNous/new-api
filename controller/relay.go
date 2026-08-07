@@ -80,7 +80,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		var err error
 		ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
-			helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToOpenAIError())
+			upgradeErr := types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+			recordRelayEarlyError(c, constant.ErrorCategoryOther, upgradeErr)
+			helper.WssError(c, ws, upgradeErr.ToOpenAIError())
 			return
 		}
 		defer ws.Close()
@@ -114,12 +116,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		} else {
 			newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest)
 		}
+		recordRelayEarlyError(c, constant.ErrorCategoryValidation, newAPIError)
 		return
 	}
 
 	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
+		recordRelayEarlyError(c, constant.ErrorCategoryOther, newAPIError)
 		return
 	}
 
@@ -138,6 +142,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if contains {
 			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
 			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
+			recordRelayEarlyError(c, constant.ErrorCategoryValidation, newAPIError)
 			return
 		}
 	}
@@ -145,6 +150,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
+		recordRelayEarlyError(c, constant.ErrorCategoryValidation, newAPIError)
 		return
 	}
 
@@ -153,6 +159,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+		recordRelayEarlyError(c, constant.ErrorCategoryValidation, newAPIError)
 		return
 	}
 
@@ -163,6 +170,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	} else {
 		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
 		if newAPIError != nil {
+			recordRelayEarlyError(c, constant.ErrorCategoryQuota, newAPIError)
 			return
 		}
 	}
@@ -193,6 +201,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
+			recordRelayEarlyError(c, constant.ErrorCategoryChannel, newAPIError)
 			break
 		}
 
@@ -205,6 +214,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			} else {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
+			recordRelayEarlyError(c, constant.ErrorCategoryValidation, newAPIError)
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
@@ -386,10 +396,68 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 
 }
 
+func recordRelayEarlyError(c *gin.Context, category string, apiErr *types.NewAPIError) {
+	if apiErr == nil {
+		return
+	}
+	service.RecordRequestErrorLog(c, category, apiErr.MaskSensitiveErrorWithStatusCode(), map[string]interface{}{
+		"error_type":  apiErr.GetErrorType(),
+		"error_code":  apiErr.GetErrorCode(),
+		"status_code": apiErr.StatusCode,
+	}, false)
+}
+
+func mapTaskErrorCategory(taskErr *dto.TaskError) string {
+	if taskErr == nil {
+		return constant.ErrorCategoryOther
+	}
+	if !taskErr.LocalError {
+		return constant.ErrorCategoryUpstream
+	}
+	switch taskErr.Code {
+	case "get_channel_failed", "setup_locked_channel_failed", "channel_not_found", "task_channel_disable", "channel_no_available_key":
+		return constant.ErrorCategoryChannel
+	case string(types.ErrorCodeInsufficientUserQuota), string(types.ErrorCodePreConsumeTokenQuotaFailed):
+		return constant.ErrorCategoryQuota
+	case "read_request_body_failed", "invalid_request", "model_mapping_failed", "invalid_api_platform",
+		"task_not_exist", "invalid_relay_mode", "not_supported":
+		return constant.ErrorCategoryValidation
+	}
+	if strings.Contains(taskErr.Code, "quota") ||
+		strings.Contains(taskErr.Message, "额度不足") ||
+		strings.Contains(taskErr.Message, "预扣费") {
+		return constant.ErrorCategoryQuota
+	}
+	if taskErr.StatusCode == http.StatusBadRequest {
+		return constant.ErrorCategoryValidation
+	}
+	return constant.ErrorCategoryOther
+}
+
+func mapMidjourneyErrorCategory(mjErr *dto.MidjourneyResponse) string {
+	if mjErr == nil {
+		return constant.ErrorCategoryOther
+	}
+	if mjErr.Description == "quota_not_enough" {
+		return constant.ErrorCategoryQuota
+	}
+	if mjErr.Code == 30 {
+		return constant.ErrorCategoryChannel
+	}
+	if mjErr.Code == constant.MjRequestError {
+		return constant.ErrorCategoryValidation
+	}
+	return constant.ErrorCategoryUpstream
+}
+
 func RelayMidjourney(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatMjProxy, nil, nil)
 
 	if err != nil {
+		service.RecordRequestErrorLog(c, constant.ErrorCategoryOther, err.Error(), map[string]interface{}{
+			"error_code":  "gen_relay_info_failed",
+			"status_code": http.StatusInternalServerError,
+		}, false)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"description": fmt.Sprintf("failed to generate relay info: %s", err.Error()),
 			"type":        "upstream_error",
@@ -419,13 +487,19 @@ func RelayMidjourney(c *gin.Context) {
 			mjErr.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
 		}
+		content := fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)
+		service.RecordRequestErrorLog(c, mapMidjourneyErrorCategory(mjErr), content, map[string]interface{}{
+			"error_code":  mjErr.Code,
+			"status_code": statusCode,
+			"channel_id":  c.GetInt("channel_id"),
+		}, false)
 		c.JSON(statusCode, gin.H{
-			"description": fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
+			"description": content,
 			"type":        "upstream_error",
 			"code":        mjErr.Code,
 		})
 		channelId := c.GetInt("channel_id")
-		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): %s", channelId, statusCode, fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)))
+		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): %s", channelId, statusCode, content))
 	}
 }
 
@@ -456,10 +530,11 @@ func RelayNotFound(c *gin.Context) {
 func RelayTaskFetch(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, &dto.TaskError{
+		respondTaskError(c, &dto.TaskError{
 			Code:       "gen_relay_info_failed",
 			Message:    err.Error(),
 			StatusCode: http.StatusInternalServerError,
+			LocalError: true,
 		})
 		return
 	}
@@ -471,10 +546,11 @@ func RelayTaskFetch(c *gin.Context) {
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, &dto.TaskError{
+		respondTaskError(c, &dto.TaskError{
 			Code:       "gen_relay_info_failed",
 			Message:    err.Error(),
 			StatusCode: http.StatusInternalServerError,
+			LocalError: true,
 		})
 		return
 	}
@@ -595,6 +671,14 @@ func RelayTask(c *gin.Context) {
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
 func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
+	if taskErr == nil {
+		return
+	}
+	// Upstream failures already recorded in processChannelError; helper dedupes with allowRetryDuplicate=false.
+	service.RecordRequestErrorLog(c, mapTaskErrorCategory(taskErr), taskErr.Message, map[string]interface{}{
+		"error_code":  taskErr.Code,
+		"status_code": taskErr.StatusCode,
+	}, false)
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
