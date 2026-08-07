@@ -478,6 +478,15 @@ export const STATIC_I18N_KEYS = [
   'Batch detection failed',
   'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
 
+  // Error logs (category labelKeys from constants)
+  'Auth',
+  'Rate limit',
+  'Channel',
+  'Validation',
+  'Quota',
+  'Upstream error',
+  'Other',
+
   // Misc
   'Cancel',
   'Status',
