@@ -374,3 +374,34 @@ func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48ThinkingUsesAdaptiveHighE
 	require.Nil(t, claudeRequest.TopP)
 	require.Nil(t, claudeRequest.TopK)
 }
+
+func TestOpenAIChatRequestToClaudeMessages_Claude5OmitsSamplingParameters(t *testing.T) {
+	for _, model := range []string{"claude-fable-5", "claude-sonnet-5", "claude-opus-5"} {
+		t.Run(model, func(t *testing.T) {
+			request := dto.GeneralOpenAIRequest{
+				Model:       model,
+				Temperature: commonPointer(0.7),
+				TopP:        commonPointer(0.9),
+				TopK:        commonPointer(40),
+				Messages: []dto.Message{
+					{Role: "user", Content: "hello"},
+				},
+			}
+
+			claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, &relaycommon.RelayInfo{}, request)
+			require.NoError(t, err)
+			require.Equal(t, model, claudeRequest.Model)
+			require.Nil(t, claudeRequest.Temperature)
+			require.Nil(t, claudeRequest.TopP)
+			require.Nil(t, claudeRequest.TopK)
+		})
+	}
+}
+
+func TestAdaptorGetModelListIncludesClaude5Models(t *testing.T) {
+	models := (&Adaptor{}).GetModelList()
+
+	require.Contains(t, models, "claude-fable-5")
+	require.Contains(t, models, "claude-sonnet-5")
+	require.Contains(t, models, "claude-opus-5")
+}

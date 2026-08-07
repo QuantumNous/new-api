@@ -52,6 +52,14 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		request.MaxTokens = &defaultMaxTokens
 	}
 
+	if strings.HasPrefix(request.Model, "claude-fable-5") ||
+		strings.HasPrefix(request.Model, "claude-sonnet-5") ||
+		strings.HasPrefix(request.Model, "claude-opus-5") {
+		request.Temperature = nil
+		request.TopP = nil
+		request.TopK = nil
+	}
+
 	if baseModel, effortLevel, ok := reasoning.TrimEffortSuffix(request.Model); ok && effortLevel != "" &&
 		(strings.HasPrefix(request.Model, "claude-opus-4-6") ||
 			strings.HasPrefix(request.Model, "claude-opus-4-7") ||
