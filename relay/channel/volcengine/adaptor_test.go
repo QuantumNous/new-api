@@ -47,6 +47,12 @@ func TestGetRequestURLForVolcEnginePlans(t *testing.T) {
 			want:        "https://ark.cn-beijing.volces.com/api/plan/v3/responses",
 		},
 		{
+			name:        "agent plan image generations",
+			channelType: channelconstant.ChannelTypeVolcEngineAgentPlan,
+			relayMode:   relayconstant.RelayModeImagesGenerations,
+			want:        "https://ark.cn-beijing.volces.com/api/plan/v3/images/generations",
+		},
+		{
 			name:        "coding plan anthropic messages",
 			channelType: channelconstant.ChannelTypeVolcEngineCodingPlan,
 			relayFormat: types.RelayFormatClaude,
@@ -77,6 +83,12 @@ func TestGetRequestURLForVolcEnginePlans(t *testing.T) {
 			channelType: channelconstant.ChannelTypeVolcEngine,
 			relayMode:   relayconstant.RelayModeResponses,
 			want:        "https://ark.cn-beijing.volces.com/api/v3/responses",
+		},
+		{
+			name:        "ordinary volcengine image generations unchanged",
+			channelType: channelconstant.ChannelTypeVolcEngine,
+			relayMode:   relayconstant.RelayModeImagesGenerations,
+			want:        "https://ark.cn-beijing.volces.com/api/v3/images/generations",
 		},
 	}
 
