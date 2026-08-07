@@ -180,7 +180,8 @@ func writeAssetServiceError(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrAssetInvalidSourceURL),
 		errors.Is(err, service.ErrAssetUnsupportedMediaType),
 		errors.Is(err, service.ErrAssetFileRequired),
-		errors.Is(err, service.ErrAssetUploadValidation):
+		errors.Is(err, service.ErrAssetUploadValidation),
+		errors.Is(err, service.ErrAssetInvalidSpecificChannel):
 		status = http.StatusBadRequest
 		code = types.ErrorCodeInvalidAssetRequest
 	case errors.Is(err, service.ErrAssetTooLarge):

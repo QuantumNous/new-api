@@ -53,7 +53,7 @@ func ReconcileAssetForScope(ctx context.Context, userID int, publicID string, sc
 
 	targets := make(map[string]model.AssetModelCoverageTarget, len(scope.ModelNames))
 	for _, modelName := range scope.ModelNames {
-		target, targetErr := EnsureAssetModelCoverageTarget(scope, modelName, assetBindingLeaseOwner(), assetNow())
+		target, targetErr := EnsureAssetModelCoverageTargetContext(ctx, scope, modelName, assetBindingLeaseOwner())
 		if targetErr != nil {
 			if errors.Is(targetErr, ErrAssetBindingUnavailable) {
 				if failErr := markAssetModelReadinessFailed(asset.Id, scope.ScopeKey, modelName, now); failErr != nil {
@@ -75,7 +75,10 @@ func ReconcileAssetForScope(ctx context.Context, userID int, publicID string, sc
 	if err != nil {
 		return nil, err
 	}
-	strictStatus := ProjectAssetStatusForScope(*asset, scope, rows, targets)
+	strictStatus, err := projectAssetStatusForScope(*asset, scope, rows, targets)
+	if err != nil {
+		return nil, err
+	}
 	if AssetModelCoverageStrictEnabled {
 		result.Status = strictStatus
 	} else {
@@ -85,12 +88,20 @@ func ReconcileAssetForScope(ctx context.Context, userID int, publicID string, sc
 }
 
 func ProjectAssetStatusForScope(asset model.Asset, scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget) string {
+	status, err := projectAssetStatusForScope(asset, scope, rows, targets)
+	if err != nil {
+		return model.AssetStatusProcessing
+	}
+	return status
+}
+
+func projectAssetStatusForScope(asset model.Asset, scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget) (string, error) {
 	if sourceStatus := projectAssetSourceStatus(asset); sourceStatus != "" {
-		return sourceStatus
+		return sourceStatus, nil
 	}
 	modelNames := normalizedStrings(scope.ModelNames)
 	if len(modelNames) == 0 {
-		return model.AssetStatusFailed
+		return model.AssetStatusFailed, nil
 	}
 
 	rowsByModel := make(map[string]model.AssetModelReadiness, len(rows))
@@ -107,32 +118,36 @@ func ProjectAssetStatusForScope(asset model.Asset, scope AssetModelScope, rows [
 	for _, modelName := range modelNames {
 		row, ok := rowsByModel[modelName]
 		if !ok {
-			return model.AssetStatusProcessing
+			return model.AssetStatusProcessing, nil
 		}
 		if row.Status == model.AssetModelReadinessStatusFailed {
-			return model.AssetStatusFailed
+			return model.AssetStatusFailed, nil
 		}
 		target, ok := targets[modelName]
 		if !ok || !activeAssetModelTargetForScope(scope, target) {
-			return model.AssetStatusProcessing
+			return model.AssetStatusProcessing, nil
 		}
 		switch row.Status {
 		case model.AssetModelReadinessStatusFailed:
-			return model.AssetStatusFailed
+			return model.AssetStatusFailed, nil
 		case model.AssetModelReadinessStatusPending, model.AssetModelReadinessStatusProcessing, model.AssetModelReadinessStatusRetryWaiting:
-			return model.AssetStatusProcessing
+			return model.AssetStatusProcessing, nil
 		case model.AssetModelReadinessStatusActive:
+			activeBinding, err := assetHasActiveBindingForTargetStrict(asset.Id, target)
+			if err != nil {
+				return "", err
+			}
 			if row.TargetGeneration != target.Generation ||
 				row.ChannelId != target.ChannelId ||
 				row.BindingScope != target.BindingScope ||
-				!assetHasActiveBindingForTarget(asset.Id, target) {
-				return model.AssetStatusProcessing
+				!activeBinding {
+				return model.AssetStatusProcessing, nil
 			}
 		default:
-			return model.AssetStatusProcessing
+			return model.AssetStatusProcessing, nil
 		}
 	}
-	return model.AssetStatusActive
+	return model.AssetStatusActive, nil
 }
 
 func projectAssetSourceStatus(asset model.Asset) string {
@@ -164,14 +179,19 @@ func activeAssetModelTargetForScope(scope AssetModelScope, target model.AssetMod
 }
 
 func assetHasActiveBindingForTarget(assetID int64, target model.AssetModelCoverageTarget) bool {
+	active, err := assetHasActiveBindingForTargetStrict(assetID, target)
+	return err == nil && active
+}
+
+func assetHasActiveBindingForTargetStrict(assetID int64, target model.AssetModelCoverageTarget) (bool, error) {
 	var count int64
 	if err := model.DB.Model(&model.AssetBinding{}).
 		Where("asset_id = ? AND channel_id = ? AND binding_scope = ? AND status = ?", assetID, target.ChannelId, target.BindingScope, model.AssetStatusActive).
 		Where("upstream_asset_id <> ?", "").
 		Count(&count).Error; err != nil {
-		return false
+		return false, err
 	}
-	return count > 0
+	return count > 0, nil
 }
 
 func markAssetModelReadinessFailed(assetID int64, scopeKey, modelName string, now int64) error {

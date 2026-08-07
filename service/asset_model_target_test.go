@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -205,6 +206,21 @@ func TestEnsureAssetModelCoverageTargetUsesDatabaseTimestampAtServiceBoundary(t 
 	require.NotNil(t, target)
 	require.Greater(t, target.CreatedAt, int64(100))
 	require.Greater(t, target.UpdatedAt, int64(100))
+}
+
+func TestEnsureAssetModelCoverageTargetContextPropagatesContextTimestampError(t *testing.T) {
+	newAssetReferenceDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.AssetModelCoverageTarget{}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	target, err := EnsureAssetModelCoverageTargetContext(ctx, AssetModelScope{
+		ScopeKey: "scope-cancelled", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"},
+	}, "seedance-2.0", "owner")
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, target)
 }
 
 func TestResolveAssetModelTargetOptionsReloadsStoredCredentialIndex(t *testing.T) {

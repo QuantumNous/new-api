@@ -143,7 +143,11 @@ func assetModelCandidateKey(candidate AssetModelTargetCandidate) string {
 }
 
 func EnsureAssetModelCoverageTarget(scope AssetModelScope, modelName string, owner string, _ time.Time) (*model.AssetModelCoverageTarget, error) {
-	nowUnix, err := model.GetDBTimestampWithContext(context.Background())
+	return EnsureAssetModelCoverageTargetContext(context.Background(), scope, modelName, owner)
+}
+
+func EnsureAssetModelCoverageTargetContext(ctx context.Context, scope AssetModelScope, modelName string, owner string) (*model.AssetModelCoverageTarget, error) {
+	nowUnix, err := model.GetDBTimestampWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}

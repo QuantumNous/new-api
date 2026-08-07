@@ -164,6 +164,93 @@ func TestAssetControllerIgnoresClientModelAndReconcilesWithAuthenticatedScope(t 
 	require.Equal(t, 4, reconcileCalls)
 }
 
+func TestAssetControllerRejectsInvalidSpecificChannelBeforeReconcile(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	priority := int64(0)
+	weight := uint(100)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:       92021,
+		Type:     constant.ChannelTypeTechMobiVideo,
+		Status:   common.ChannelStatusEnabled,
+		Models:   "seedance-2.0",
+		Group:    "default",
+		Priority: &priority,
+		Weight:   &weight,
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group: "default", Model: "seedance-2.0", ChannelId: 92021,
+		Enabled: true, Priority: &priority, Weight: weight,
+	}).Error)
+
+	originalCreate := createAssetFromURL
+	originalReconcile := reconcileAssetForScope
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		createAssetFromURL = originalCreate
+		reconcileAssetForScope = originalReconcile
+		resolveAssetModelScopeForContext = originalResolve
+	})
+	createAssetFromURL = func(ctx context.Context, request service.AssetFromURLRequest) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: "ast_specific", AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	resolveAssetModelScopeForContext = service.ResolveAssetModelScopeForContext
+	reconcileCalls := 0
+	reconcileAssetForScope = func(ctx context.Context, userID int, publicID string, scope service.AssetModelScope) (*service.AssetResult, error) {
+		reconcileCalls++
+		return &service.AssetResult{PublicID: publicID, AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+
+	for _, raw := range []string{"abc", "0", "-7"} {
+		ctx, recorder := newAssetJSONContext(http.MethodPost, "/v1/assets", `{"url":"https://cdn.example.com/public.png","asset_type":"Image"}`)
+		setAssetTokenContext(ctx, 123)
+		common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+		common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "default")
+		common.SetContextKey(ctx, constant.ContextKeyTokenSpecificChannelId, raw)
+
+		CreateAsset(ctx)
+
+		require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+		requireAssetError(t, recorder.Body.Bytes(), "invalid_asset_request")
+	}
+
+	missing, missingRecorder := newAssetJSONContext(http.MethodPost, "/v1/assets", `{"url":"https://cdn.example.com/public.png","asset_type":"Image"}`)
+	setAssetTokenContext(missing, 123)
+	common.SetContextKey(missing, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(missing, constant.ContextKeyTokenGroup, "default")
+	CreateAsset(missing)
+	require.Equal(t, http.StatusOK, missingRecorder.Code, missingRecorder.Body.String())
+	require.Equal(t, 1, reconcileCalls)
+}
+
+func TestAssetControllerMapsReconcileBindingErrorToStorageError(t *testing.T) {
+	originalCreate := createAssetFromURL
+	originalReconcile := reconcileAssetForScope
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		createAssetFromURL = originalCreate
+		reconcileAssetForScope = originalReconcile
+		resolveAssetModelScopeForContext = originalResolve
+	})
+	createAssetFromURL = func(ctx context.Context, request service.AssetFromURLRequest) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: "ast_binding_error", AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		return service.AssetModelScope{ScopeKey: "scope", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}, nil
+	}
+	reconcileAssetForScope = func(ctx context.Context, userID int, publicID string, scope service.AssetModelScope) (*service.AssetResult, error) {
+		return nil, errors.New("asset binding lookup unavailable")
+	}
+
+	ctx, recorder := newAssetJSONContext(http.MethodPost, "/v1/assets", `{"url":"https://cdn.example.com/public.png","asset_type":"Image"}`)
+	setAssetTokenContext(ctx, 123)
+	CreateAsset(ctx)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+	requireAssetError(t, recorder.Body.Bytes(), "asset_storage_error")
+	requireAssetPublicBody(t, recorder.Body.String())
+}
+
 func TestUploadAssetInfersTypeAndMapsMissingFile(t *testing.T) {
 	originalUpload := uploadAsset
 	restoreReconcile := installAssetControllerReconcileStub(t)

@@ -116,6 +116,32 @@ func TestResolveAssetModelScopeForContextUsesAuthenticatedUnpricedPolicy(t *test
 	require.Equal(t, []string{"unpriced-video"}, scope.ModelNames)
 }
 
+func TestResolveAssetModelScopeForContextRejectsInvalidSpecificChannel(t *testing.T) {
+	for _, raw := range []string{"abc", "0", "-7"} {
+		t.Run(raw, func(t *testing.T) {
+			ctx := assetModelScopeGinContext(t, nil)
+			common.SetContextKey(ctx, constant.ContextKeyTokenSpecificChannelId, raw)
+
+			scope, err := ResolveAssetModelScopeForContext(ctx, 0)
+
+			require.Error(t, err)
+			require.Empty(t, scope.ModelNames)
+		})
+	}
+}
+
+func TestResolveAssetModelScopeForContextAllowsMissingSpecificChannel(t *testing.T) {
+	db, _ := setupServiceModelAccessDB(t)
+	seedModelAccessScope(t, db, 126, "default", constant.ChannelTypeTechMobiVideo, "default-video")
+	setModelAccessBilling(t, map[string]float64{"default-video": 1}, nil, nil)
+
+	scope, err := ResolveAssetModelScopeForContext(assetModelScopeGinContext(t, nil), 0)
+
+	require.NoError(t, err)
+	require.Zero(t, scope.SpecificChannelID)
+	require.Equal(t, []string{"default-video"}, scope.ModelNames)
+}
+
 func TestResolveAssetModelScopeKeepsAdvertisedVideoModelWithoutMaterializer(t *testing.T) {
 	db, _ := setupServiceModelAccessDB(t)
 	seedModelAccessScope(t, db, 130, "default", constant.ChannelTypeMiniMaxH3, "advertised-video")

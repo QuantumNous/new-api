@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestProjectAssetStatusForScopeAggregatesRequiredModelReadiness(t *testing.T) {
@@ -75,6 +77,52 @@ func TestReconcileAssetForScopeEnrollsReadinessWithoutPersistingAggregateStatus(
 	var stored model.Asset
 	require.NoError(t, model.DB.First(&stored, asset.Id).Error)
 	require.Equal(t, model.AssetStatusActive, stored.Status, "scope projection must not be written to shared assets.status")
+}
+
+func TestReconcileAssetForScopeReturnsActiveBindingLookupError(t *testing.T) {
+	newAssetStatusTestDB(t)
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &recordingAssetMaterializer{})
+	insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+		ID: 120, ChannelType: constant.ChannelTypeTechMobiVideo, Group: "default", ModelName: "seedance-2.0",
+		Priority: 80, Weight: 50, Key: "techmobi-key-a",
+		Mapping:     `{"seedance-2.0":"doubao/seedance-pro"}`,
+		ChannelInfo: model.ChannelInfo{IsMultiKey: false},
+	})
+	asset := insertAssetStatusAsset(t, model.AssetSourceStatusAvailable, model.AssetStatusActive)
+	scope := AssetModelScope{ScopeKey: "scope-binding-error", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}
+	target, err := ensureAssetModelCoverageTargetAt(scope, "seedance-2.0", "owner", 100)
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.AssetModelReadiness{
+		AssetId:          asset.Id,
+		ScopeKey:         scope.ScopeKey,
+		ModelName:        "seedance-2.0",
+		TargetGeneration: target.Generation,
+		ChannelId:        target.ChannelId,
+		BindingScope:     target.BindingScope,
+		Status:           model.AssetModelReadinessStatusActive,
+		CreatedAt:        100,
+		UpdatedAt:        100,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId: asset.Id, ChannelId: target.ChannelId, BindingScope: target.BindingScope,
+		Status: model.AssetStatusActive, UpstreamAssetId: "upstream",
+	}).Error)
+	restoreStrict := setAssetStrictForTest(t, true)
+	defer restoreStrict()
+
+	sentinel := errors.New("asset binding lookup unavailable")
+	callbackName := "asset_status_test:binding_lookup_error"
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Table == "asset_bindings" {
+			tx.AddError(sentinel)
+		}
+	}))
+	t.Cleanup(func() { require.NoError(t, model.DB.Callback().Query().Remove(callbackName)) })
+
+	result, err := ReconcileAssetForScope(context.Background(), asset.UserId, asset.PublicId, scope)
+
+	require.ErrorIs(t, err, sentinel)
+	require.Nil(t, result)
 }
 
 func newAssetStatusTestDB(t *testing.T) {

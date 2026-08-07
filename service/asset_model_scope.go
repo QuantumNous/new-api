@@ -1,6 +1,8 @@
 package service
 
 import (
+	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,6 +14,8 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
+
+var ErrAssetInvalidSpecificChannel = errors.New("invalid asset specific channel")
 
 type AssetModelScopeInput struct {
 	IdentityGroup         string
@@ -98,11 +102,12 @@ func ResolveAssetModelScopeForContext(c *gin.Context, _ int) (AssetModelScope, e
 	userSetting, _ := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting)
 	acceptUnpriced := operation_setting.SelfUseModeEnabled || userSetting.AcceptUnsetRatioModel
 	specificChannelID := 0
-	rawSpecific := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyTokenSpecificChannelId))
-	if rawSpecific != "" {
-		if parsed, err := strconv.Atoi(rawSpecific); err == nil && parsed > 0 {
-			specificChannelID = parsed
+	if rawSpecific, exists := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId); exists {
+		parsed, err := strconv.Atoi(strings.TrimSpace(fmt.Sprint(rawSpecific)))
+		if err != nil || parsed <= 0 {
+			return AssetModelScope{}, ErrAssetInvalidSpecificChannel
 		}
+		specificChannelID = parsed
 	}
 	return ResolveAssetModelScope(AssetModelScopeInput{
 		IdentityGroup:         common.GetContextKeyString(c, constant.ContextKeyUserGroup),
