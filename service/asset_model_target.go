@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"strconv"
@@ -26,6 +27,9 @@ type AssetModelTargetCandidate struct {
 func AssetModelTargetCandidates(scope AssetModelScope, modelName string) ([]AssetModelTargetCandidate, error) {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" || len(scope.Groups) == 0 {
+		return []AssetModelTargetCandidate{}, nil
+	}
+	if !assetModelScopeContainsModel(scope, modelName) {
 		return []AssetModelTargetCandidate{}, nil
 	}
 	seen := make(map[string]struct{})
@@ -138,11 +142,22 @@ func assetModelCandidateKey(candidate AssetModelTargetCandidate) string {
 	}, "\x00")
 }
 
-func EnsureAssetModelCoverageTarget(scope AssetModelScope, modelName string, owner string, now time.Time) (*model.AssetModelCoverageTarget, error) {
+func EnsureAssetModelCoverageTarget(scope AssetModelScope, modelName string, owner string, _ time.Time) (*model.AssetModelCoverageTarget, error) {
+	nowUnix, err := model.GetDBTimestampWithContext(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return ensureAssetModelCoverageTargetAt(scope, modelName, owner, nowUnix)
+}
+
+func ensureAssetModelCoverageTargetAt(scope AssetModelScope, modelName string, owner string, nowUnix int64) (*model.AssetModelCoverageTarget, error) {
 	scope.ScopeKey = strings.TrimSpace(scope.ScopeKey)
 	modelName = strings.TrimSpace(modelName)
 	owner = strings.TrimSpace(owner)
 	if scope.ScopeKey == "" || modelName == "" || owner == "" {
+		return nil, ErrAssetBindingUnavailable
+	}
+	if !assetModelScopeContainsModel(scope, modelName) {
 		return nil, ErrAssetBindingUnavailable
 	}
 	if existing, err := model.GetAssetModelCoverageTarget(scope.ScopeKey, modelName); err == nil {
@@ -157,7 +172,14 @@ func EnsureAssetModelCoverageTarget(scope AssetModelScope, modelName string, own
 		return nil, err
 	}
 
-	nowUnix := now.Unix()
+	candidates, err := AssetModelTargetCandidates(scope, modelName)
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 {
+		return nil, ErrAssetBindingUnavailable
+	}
+
 	leaseExpiresAt := nowUnix + int64(assetBindingDefaultLeaseTTL.Seconds())
 	claimed, err := model.ClaimAssetModelTargetLease(scope.ScopeKey, modelName, owner, nowUnix, leaseExpiresAt)
 	if err != nil {
@@ -169,13 +191,6 @@ func EnsureAssetModelCoverageTarget(scope AssetModelScope, modelName string, own
 	current, err := model.GetAssetModelCoverageTarget(scope.ScopeKey, modelName)
 	if err != nil {
 		return nil, err
-	}
-	candidates, err := AssetModelTargetCandidates(scope, modelName)
-	if err != nil {
-		return nil, err
-	}
-	if len(candidates) == 0 {
-		return current, nil
 	}
 	candidate := assetModelCoverageTargetFromCandidate(scope, modelName, candidates[0], 0)
 	published, err := model.PublishAssetModelTargetCAS(scope.ScopeKey, modelName, owner, current.Generation, leaseExpiresAt, candidate, nowUnix)
@@ -191,6 +206,7 @@ func EnsureAssetModelCoverageTarget(scope AssetModelScope, modelName string, own
 func AssetModelTargetIsEligible(scope AssetModelScope, target model.AssetModelCoverageTarget) (bool, error) {
 	if strings.TrimSpace(scope.ScopeKey) == "" ||
 		strings.TrimSpace(target.ScopeKey) != strings.TrimSpace(scope.ScopeKey) ||
+		!assetModelScopeContainsModel(scope, target.ModelName) ||
 		target.Status != model.AssetModelTargetStatusActive ||
 		target.ChannelId <= 0 ||
 		strings.TrimSpace(target.MappedModel) == "" ||
@@ -211,6 +227,19 @@ func AssetModelTargetIsEligible(scope AssetModelScope, target model.AssetModelCo
 		}
 	}
 	return false, nil
+}
+
+func assetModelScopeContainsModel(scope AssetModelScope, modelName string) bool {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return false
+	}
+	for _, scopedModel := range scope.ModelNames {
+		if strings.TrimSpace(scopedModel) == modelName {
+			return true
+		}
+	}
+	return false
 }
 
 func ResolveAssetModelTargetOptions(target model.AssetModelCoverageTarget, channel *model.Channel) (AssetMaterializeOptions, int, error) {

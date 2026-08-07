@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestAssetModelTargetCandidatesExpandsTechMobiCredentialsAndSortsDeterministically(t *testing.T) {
@@ -64,6 +65,97 @@ func TestAssetModelTargetCandidatesChecksLowerPriorityTiersAfterIneligibleChanne
 	require.Equal(t, 120, candidates[0].ChannelID)
 }
 
+func TestAssetModelTargetBoundaryRejectsModelOutsideScope(t *testing.T) {
+	newAssetReferenceDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.AssetModelCoverageTarget{}))
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &recordingAssetMaterializer{})
+	insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+		ID: 120, ChannelType: constant.ChannelTypeTechMobiVideo, Group: "default", ModelName: "excluded-model",
+		Priority: 80, Weight: 50, Key: "techmobi-key-a",
+		Mapping:     `{"excluded-model":"doubao/excluded"}`,
+		ChannelInfo: model.ChannelInfo{IsMultiKey: false},
+	})
+	scope := AssetModelScope{ScopeKey: "scope", Groups: []string{"default"}, ModelNames: []string{"allowed-model"}}
+
+	candidates, err := AssetModelTargetCandidates(scope, "excluded-model")
+	require.NoError(t, err)
+	require.Empty(t, candidates)
+
+	target, err := EnsureAssetModelCoverageTarget(scope, "excluded-model", "owner", time.Unix(100, 0))
+	require.ErrorIs(t, err, ErrAssetBindingUnavailable)
+	require.Nil(t, target)
+	_, err = model.GetAssetModelCoverageTarget("scope", "excluded-model")
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+
+	eligible, err := AssetModelTargetIsEligible(scope, model.AssetModelCoverageTarget{
+		ScopeKey:          "scope",
+		ModelName:         "excluded-model",
+		RoutingGroups:     "default",
+		ChannelId:         120,
+		MappedModel:       "doubao/excluded",
+		BindingScope:      "scope",
+		CredentialIndex:   0,
+		Status:            model.AssetModelTargetStatusActive,
+		SpecificChannelId: 0,
+	})
+	require.NoError(t, err)
+	require.False(t, eligible)
+}
+
+func TestEnsureAssetModelCoverageTargetNoCandidatesFailsWithoutSelectingLease(t *testing.T) {
+	tests := []struct {
+		name     string
+		register func(t *testing.T)
+		seed     func(t *testing.T)
+	}{
+		{
+			name: "no materializer",
+			register: func(t *testing.T) {
+				registerAssetMaterializerForTest(t, constant.ChannelTypeMiniMaxH3, nil)
+			},
+			seed: func(t *testing.T) {
+				insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+					ID: 130, ChannelType: constant.ChannelTypeMiniMaxH3, Group: "default", ModelName: "seedance-2.0",
+					Priority: 80, Weight: 50, Key: "provider-key",
+				})
+			},
+		},
+		{
+			name: "no enabled credential",
+			register: func(t *testing.T) {
+				registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &recordingAssetMaterializer{})
+			},
+			seed: func(t *testing.T) {
+				insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+					ID: 120, ChannelType: constant.ChannelTypeTechMobiVideo, Group: "default", ModelName: "seedance-2.0",
+					Priority: 80, Weight: 50, Key: "techmobi-key-a",
+					Mapping: `{"seedance-2.0":"doubao/seedance-pro"}`,
+					ChannelInfo: model.ChannelInfo{
+						IsMultiKey:         true,
+						MultiKeySize:       1,
+						MultiKeyStatusList: map[int]int{0: common.ChannelStatusManuallyDisabled},
+					},
+				})
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newAssetReferenceDB(t)
+			require.NoError(t, model.DB.AutoMigrate(&model.AssetModelCoverageTarget{}))
+			tt.register(t)
+			tt.seed(t)
+			scope := AssetModelScope{ScopeKey: "scope-" + tt.name, Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}
+
+			target, err := EnsureAssetModelCoverageTarget(scope, "seedance-2.0", "owner", time.Unix(100, 0))
+			require.ErrorIs(t, err, ErrAssetBindingUnavailable)
+			require.Nil(t, target)
+			_, err = model.GetAssetModelCoverageTarget(scope.ScopeKey, "seedance-2.0")
+			require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+		})
+	}
+}
+
 func TestEnsureAssetModelCoverageTargetReusesEligibleTargetAndPersistsCandidate(t *testing.T) {
 	newAssetReferenceDB(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.AssetModelCoverageTarget{}))
@@ -76,7 +168,7 @@ func TestEnsureAssetModelCoverageTargetReusesEligibleTargetAndPersistsCandidate(
 	})
 	scope := AssetModelScope{ScopeKey: "scope", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}
 
-	first, err := EnsureAssetModelCoverageTarget(scope, "seedance-2.0", "owner", time.Unix(100, 0))
+	first, err := ensureAssetModelCoverageTargetAt(scope, "seedance-2.0", "owner", 100)
 	require.NoError(t, err)
 	require.NotNil(t, first)
 	require.Equal(t, model.AssetModelTargetStatusActive, first.Status)
@@ -90,10 +182,29 @@ func TestEnsureAssetModelCoverageTargetReusesEligibleTargetAndPersistsCandidate(
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	second, err := EnsureAssetModelCoverageTarget(scope, "seedance-2.0", "owner", time.Unix(200, 0))
+	second, err := ensureAssetModelCoverageTargetAt(scope, "seedance-2.0", "owner", 200)
 	require.NoError(t, err)
 	require.Equal(t, first.Id, second.Id)
 	require.Equal(t, first.Generation, second.Generation)
+}
+
+func TestEnsureAssetModelCoverageTargetUsesDatabaseTimestampAtServiceBoundary(t *testing.T) {
+	newAssetReferenceDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.AssetModelCoverageTarget{}))
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &recordingAssetMaterializer{})
+	insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+		ID: 120, ChannelType: constant.ChannelTypeTechMobiVideo, Group: "default", ModelName: "seedance-2.0",
+		Priority: 80, Weight: 50, Key: "techmobi-key-a",
+		Mapping:     `{"seedance-2.0":"doubao/seedance-pro"}`,
+		ChannelInfo: model.ChannelInfo{IsMultiKey: false},
+	})
+	scope := AssetModelScope{ScopeKey: "scope-db-time", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}
+
+	target, err := EnsureAssetModelCoverageTarget(scope, "seedance-2.0", "owner", time.Unix(100, 0))
+	require.NoError(t, err)
+	require.NotNil(t, target)
+	require.Greater(t, target.CreatedAt, int64(100))
+	require.Greater(t, target.UpdatedAt, int64(100))
 }
 
 func TestResolveAssetModelTargetOptionsReloadsStoredCredentialIndex(t *testing.T) {
