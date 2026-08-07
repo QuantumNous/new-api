@@ -33,6 +33,7 @@ import {
   CreditCard,
   ListTodo,
   Settings,
+  AlertTriangle,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -124,6 +125,11 @@ export function useSidebarData(): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+          },
+          {
+            title: t('Error Logs'),
+            url: '/error-logs',
+            icon: AlertTriangle,
           },
           {
             title: t('Models'),
