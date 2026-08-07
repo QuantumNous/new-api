@@ -23,6 +23,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const maxAdsAttributionLength = 4096
@@ -1267,7 +1268,8 @@ func ManageUser(c *gin.Context) {
 				fmt.Sprintf("管理员减少用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
 		case "override":
 			oldQuota := user.Quota
-			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", req.Value).Error; err != nil {
+			delta := req.Value - oldQuota
+			if err := applyAdminQuotaDelta(user.Id, delta); err != nil {
 				common.ApiError(c, err)
 				return
 			}
@@ -1376,6 +1378,23 @@ func (l *topUpTryLock) TryLock() bool {
 	default:
 		return false
 	}
+}
+
+func applyAdminQuotaDelta(userID int, delta int) error {
+	if delta == 0 {
+		return nil
+	}
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		_, err := model.ApplyLifecycleQuotaMutation(tx, model.LifecycleQuotaMutation{
+			UserID:    userID,
+			ScopeType: model.QuotaLifecycleScopeWallet,
+			ScopeID:   int64(userID),
+			Delta:     int64(delta),
+			Cause:     "admin_adjustment",
+			SourceRef: "ManageUser:add_quota:override",
+		})
+		return err
+	})
 }
 
 func (l *topUpTryLock) Unlock() {

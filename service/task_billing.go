@@ -277,12 +277,12 @@ func SettleAcceptedTaskFundingOnce(ctx context.Context, task *model.Task, actual
 		if taskIsSubscription(task) {
 			weightedDelta := taskSubscriptionWeighted(task, int64(actualQuota)) - taskSubscriptionWeighted(task, int64(reservedQuota))
 			if weightedDelta != 0 {
-				if err := adjustSubscriptionFundingTx(tx, task.PrivateData.SubscriptionId, weightedDelta); err != nil {
+				if err := adjustSubscriptionFundingTx(tx, task.TaskID, task.PrivateData.SubscriptionId, weightedDelta); err != nil {
 					return err
 				}
 			}
 		} else {
-			if err := adjustWalletFundingTx(tx, task.UserId, delta); err != nil {
+			if err := adjustWalletFundingTx(tx, task.TaskID, task.UserId, delta); err != nil {
 				return err
 			}
 		}
@@ -537,25 +537,25 @@ func markAcceptedAccountingStepDone(taskID string, step string) (bool, error) {
 	return result.RowsAffected == 1, nil
 }
 
-func adjustWalletFundingTx(tx *gorm.DB, userID int, delta int) error {
+func adjustWalletFundingTx(tx *gorm.DB, taskID string, userID int, delta int) error {
 	if delta == 0 {
 		return nil
 	}
-	expr := gorm.Expr("quota - ?", delta)
-	if delta < 0 {
-		expr = gorm.Expr("quota + ?", -delta)
+	if userID <= 0 {
+		return fmt.Errorf("invalid user id")
 	}
-	result := tx.Model(&model.User{}).Where("id = ?", userID).Update("quota", expr)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected != 1 {
-		return fmt.Errorf("user %d not found for accepted accounting", userID)
-	}
-	return nil
+	_, err := model.ApplyLifecycleQuotaMutation(tx, model.LifecycleQuotaMutation{
+		UserID:    userID,
+		ScopeType: model.QuotaLifecycleScopeWallet,
+		ScopeID:   int64(userID),
+		Delta:     -int64(delta),
+		Cause:     "task_accepted_accounting",
+		SourceRef: acceptedAccountingLifecycleSourceRef(taskID),
+	})
+	return err
 }
 
-func adjustSubscriptionFundingTx(tx *gorm.DB, subscriptionID int, weightedDelta int64) error {
+func adjustSubscriptionFundingTx(tx *gorm.DB, taskID string, subscriptionID int, weightedDelta int64) error {
 	if subscriptionID <= 0 {
 		return fmt.Errorf("invalid subscription id")
 	}
@@ -566,15 +566,15 @@ func adjustSubscriptionFundingTx(tx *gorm.DB, subscriptionID int, weightedDelta 
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", subscriptionID).First(&sub).Error; err != nil {
 		return err
 	}
-	next := sub.AmountUsed + weightedDelta
-	if next < 0 {
-		next = 0
-	}
-	if sub.AmountTotal > 0 && next > sub.AmountTotal {
-		return fmt.Errorf("subscription used exceeds total, used=%d total=%d", next, sub.AmountTotal)
-	}
-	sub.AmountUsed = next
-	return tx.Save(&sub).Error
+	_, err := model.ApplyLifecycleQuotaMutation(tx, model.LifecycleQuotaMutation{
+		UserID:    sub.UserId,
+		ScopeType: model.QuotaLifecycleScopeSubscription,
+		ScopeID:   int64(subscriptionID),
+		Delta:     -weightedDelta,
+		Cause:     "task_accepted_accounting",
+		SourceRef: acceptedAccountingLifecycleSourceRef(taskID),
+	})
+	return err
 }
 
 func adjustTokenQuotaTx(tx *gorm.DB, tokenID int, delta int) error {
@@ -607,6 +607,13 @@ func acceptedAccountingRequestID(taskID string) string {
 		return prefix + taskID
 	}
 	return prefix + taskID[len(taskID)-(64-len(prefix)):]
+}
+
+func acceptedAccountingLifecycleSourceRef(taskID string) string {
+	if taskID == "" {
+		return "accepted-accounting"
+	}
+	return acceptedAccountingRequestID(taskID)
 }
 
 func acceptedAccountingRedisStepKey(taskID string, step string) string {

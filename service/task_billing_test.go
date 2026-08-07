@@ -52,8 +52,12 @@ func TestMain(m *testing.M) {
 		&model.Log{},
 		&model.Channel{},
 		&model.TopUp{},
+		&model.SubscriptionPlan{},
 		&model.UserSubscription{},
 		&model.UserSubscriptionContract{},
+		&model.SubscriptionPreConsumeRecord{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -69,7 +73,7 @@ func TestAcceptedTaskSubscriptionFundingConcurrentDeltasDoNotLoseUpdate(t *testi
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.TaskAcceptedAccountingLedger{}, &model.UserSubscription{}))
+	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.TaskAcceptedAccountingLedger{}, &model.User{}, &model.UserSubscription{}, &model.RecallLifecycleEvent{}, &model.QuotaLifecycleState{}))
 	model.DB = db
 	model.LOG_DB = db
 	defer func() {
@@ -78,6 +82,12 @@ func TestAcceptedTaskSubscriptionFundingConcurrentDeltasDoNotLoseUpdate(t *testi
 		_ = sqlDB.Close()
 	}()
 
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       7,
+		Username: "accepted_subscription_concurrent",
+		Status:   common.UserStatusEnabled,
+		AffCode:  "accepted_subscription_concurrent",
+	}).Error)
 	require.NoError(t, model.DB.Create(&model.UserSubscription{
 		Id:          7001,
 		UserId:      7,
@@ -149,6 +159,9 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM top_ups")
 		model.DB.Exec("DELETE FROM user_subscription_contracts")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		model.DB.Exec("DELETE FROM subscription_pre_consume_records")
+		model.DB.Exec("DELETE FROM recall_lifecycle_events")
+		model.DB.Exec("DELETE FROM quota_lifecycle_states")
 	})
 }
 
@@ -174,9 +187,18 @@ func seedToken(t *testing.T, id int, userId int, key string, remainQuota int) {
 
 func seedSubscription(t *testing.T, id int, userId int, amountTotal int64, amountUsed int64) {
 	t.Helper()
+	plan := &model.SubscriptionPlan{
+		Title:         "test plan " + strconv.Itoa(id),
+		DurationValue: 1,
+		DurationUnit:  model.SubscriptionDurationMonth,
+		TotalAmount:   amountTotal,
+		Enabled:       true,
+	}
+	require.NoError(t, model.DB.Create(plan).Error)
 	sub := &model.UserSubscription{
 		Id:          id,
 		UserId:      userId,
+		PlanId:      plan.Id,
 		AmountTotal: amountTotal,
 		AmountUsed:  amountUsed,
 		Status:      "active",
