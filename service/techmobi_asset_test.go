@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
@@ -187,6 +188,142 @@ func TestTechMobiAssetMaterializerRejectsAndSanitizesUpstreamFailures(t *testing
 	require.NotContains(t, err.Error(), "signed.example")
 	require.NotContains(t, err.Error(), "storage.example")
 	require.NotContains(t, err.Error(), "sk-live")
+}
+
+func TestTechMobiAssetMaterializerClassifies429WithoutLeakingPrivateFields(t *testing.T) {
+	oldFetch := techMobiAssetFetchSource
+	oldClientFactory := techMobiAssetHTTPClientFactory
+	t.Cleanup(func() {
+		techMobiAssetFetchSource = oldFetch
+		techMobiAssetHTTPClientFactory = oldClientFactory
+	})
+
+	techMobiAssetFetchSource = func(_ context.Context, _ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("body"))}, nil
+	}
+	techMobiAssetHTTPClientFactory = func(_ *model.Channel) (*http.Client, error) {
+		return &http.Client{Transport: techMobiRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			_, err := io.Copy(io.Discard, req.Body)
+			require.NoError(t, err)
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"QuotaWriteQPMExceeded","message":"provider quota says retry with signed URL https://storage.example/secret?key=sk-live"}}`)),
+				Header: http.Header{
+					"Retry-After":  []string{"15"},
+					"X-Request-Id": []string{"req-rate-limit"},
+				},
+			}, nil
+		})}, nil
+	}
+
+	baseURL := "https://api.mindon.example"
+	_, err := (techMobiAssetBindingMaterializer{}).CreateAsset(context.Background(), AssetMaterializeInput{
+		Asset:     model.Asset{ObjectKey: "reference.mp4"},
+		Channel:   &model.Channel{Type: constant.ChannelTypeTechMobiVideo, BaseURL: &baseURL},
+		SourceURL: "https://storage.example/signed-secret",
+		Model:     "doubao/doubao-seedance-2-0-260128",
+		APIKey:    "sk-live-channel-secret",
+	})
+
+	require.Error(t, err)
+	var failure *AssetMaterializeFailure
+	require.ErrorAs(t, err, &failure)
+	require.True(t, IsRetryableAssetMaterializeError(err))
+	require.Equal(t, AssetMaterializeErrorThrottled, failure.Class)
+	require.Equal(t, http.StatusTooManyRequests, failure.HTTPStatus)
+	require.Equal(t, "QuotaWriteQPMExceeded", failure.UpstreamCode)
+	require.Equal(t, 15*time.Second, failure.RetryAfter)
+	require.Equal(t, "req-rate-limit", failure.RequestID)
+	for _, marker := range []string{"provider quota", "api.mindon.example", "req-rate-limit", "Authorization", "sk-live", "storage.example"} {
+		require.NotContains(t, err.Error(), marker)
+	}
+}
+
+func TestTechMobiAssetMaterializerClassifiesHTTPDateRetryAfterAnd502WithoutLeaking(t *testing.T) {
+	oldFetch := techMobiAssetFetchSource
+	oldClientFactory := techMobiAssetHTTPClientFactory
+	t.Cleanup(func() {
+		techMobiAssetFetchSource = oldFetch
+		techMobiAssetHTTPClientFactory = oldClientFactory
+	})
+
+	techMobiAssetFetchSource = func(_ context.Context, _ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("body"))}, nil
+	}
+	techMobiAssetHTTPClientFactory = func(_ *model.Channel) (*http.Client, error) {
+		return &http.Client{Transport: techMobiRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			_, err := io.Copy(io.Discard, req.Body)
+			require.NoError(t, err)
+			return &http.Response{
+				StatusCode: http.StatusBadGateway,
+				Body:       io.NopCloser(strings.NewReader(`{"code":"UPSTREAM_DOWN","request_id":"req-502","message":"bad gateway at https://upstream.example/private Authorization Bearer sk-live"}`)),
+				Header:     http.Header{"Retry-After": []string{time.Now().Add(20 * time.Second).UTC().Format(http.TimeFormat)}},
+			}, nil
+		})}, nil
+	}
+
+	baseURL := "https://api.mindon.example"
+	_, err := (techMobiAssetBindingMaterializer{}).CreateAsset(context.Background(), AssetMaterializeInput{
+		Asset:     model.Asset{ObjectKey: "reference.mp4"},
+		Channel:   &model.Channel{Type: constant.ChannelTypeTechMobiVideo, BaseURL: &baseURL},
+		SourceURL: "https://storage.example/signed-secret",
+		Model:     "doubao/doubao-seedance-2-0-260128",
+		APIKey:    "sk-live-channel-secret",
+	})
+
+	require.Error(t, err)
+	var failure *AssetMaterializeFailure
+	require.ErrorAs(t, err, &failure)
+	require.True(t, IsRetryableAssetMaterializeError(err))
+	require.Equal(t, AssetMaterializeErrorUpstream5xx, failure.Class)
+	require.Equal(t, http.StatusBadGateway, failure.HTTPStatus)
+	require.Equal(t, "UPSTREAM_DOWN", failure.UpstreamCode)
+	require.Greater(t, failure.RetryAfter, time.Duration(0))
+	for _, marker := range []string{"bad gateway", "upstream.example", "api.mindon.example", "req-502", "Authorization", "sk-live"} {
+		require.NotContains(t, err.Error(), marker)
+	}
+}
+
+func TestTechMobiAssetMaterializerTreatsProcessingResponseAsRetryable(t *testing.T) {
+	oldFetch := techMobiAssetFetchSource
+	oldClientFactory := techMobiAssetHTTPClientFactory
+	t.Cleanup(func() {
+		techMobiAssetFetchSource = oldFetch
+		techMobiAssetHTTPClientFactory = oldClientFactory
+	})
+
+	techMobiAssetFetchSource = func(_ context.Context, _ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("body"))}, nil
+	}
+	techMobiAssetHTTPClientFactory = func(_ *model.Channel) (*http.Client, error) {
+		return &http.Client{Transport: techMobiRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			_, err := io.Copy(io.Discard, req.Body)
+			require.NoError(t, err)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"status":"Processing","code":"PENDING_UPSTREAM","request_id":"req-processing"}`)),
+				Header:     make(http.Header),
+			}, nil
+		})}, nil
+	}
+
+	baseURL := "https://api.mindon.example"
+	_, err := (techMobiAssetBindingMaterializer{}).CreateAsset(context.Background(), AssetMaterializeInput{
+		Asset:     model.Asset{ObjectKey: "reference.mp4"},
+		Channel:   &model.Channel{Type: constant.ChannelTypeTechMobiVideo, BaseURL: &baseURL},
+		SourceURL: "https://storage.example/signed-secret",
+		Model:     "doubao/doubao-seedance-2-0-260128",
+		APIKey:    "sk-live-channel-secret",
+	})
+
+	require.Error(t, err)
+	var failure *AssetMaterializeFailure
+	require.ErrorAs(t, err, &failure)
+	require.True(t, IsRetryableAssetMaterializeError(err))
+	require.Equal(t, AssetMaterializeErrorProcessing, failure.Class)
+	require.Equal(t, "PENDING_UPSTREAM", failure.UpstreamCode)
+	require.Equal(t, "req-processing", failure.RequestID)
+	require.NotContains(t, err.Error(), "req-processing")
 }
 
 func TestTechMobiAssetMaterializerGetAssetIsImmediatelyActive(t *testing.T) {

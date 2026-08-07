@@ -312,7 +312,16 @@ func createLeasedAssetBinding(ctx context.Context, asset *model.Asset, channel *
 		SignSource: signAssetBindingSourceURL,
 	})
 	if err != nil {
-		_, _ = model.FailAssetBindingForScopeCAS(asset.Id, channel.Id, bindingScope, owner, assetBindingProviderErrorCode, assetBindingNow().Unix())
+		errorClass := AssetMaterializeErrorClass(err)
+		if IsRetryableAssetMaterializeError(err) {
+			_, _ = model.ReleaseAssetBindingForRetryCAS(asset.Id, channel.Id, bindingScope, owner, errorClass, assetBindingNow().Unix())
+			return AssetBindingResult{}, ErrAssetBindingInitializing
+		}
+		errorCode := assetBindingProviderErrorCode
+		if errorClass == AssetMaterializeErrorDefinitive {
+			errorCode = errorClass
+		}
+		_, _ = model.FailAssetBindingForScopeCAS(asset.Id, channel.Id, bindingScope, owner, errorCode, assetBindingNow().Unix())
 		return AssetBindingResult{}, sanitizeAssetBindingError(err)
 	}
 	if strings.TrimSpace(result.UpstreamAssetID) == "" {
@@ -324,7 +333,7 @@ func createLeasedAssetBinding(ctx context.Context, asset *model.Asset, channel *
 		status = model.AssetStatusActive
 	}
 	if status == model.AssetStatusFailed {
-		_, _ = model.FailAssetBindingForScopeCAS(asset.Id, channel.Id, bindingScope, owner, assetBindingProviderErrorCode, assetBindingNow().Unix())
+		_, _ = model.FailAssetBindingForScopeCAS(asset.Id, channel.Id, bindingScope, owner, AssetMaterializeErrorDefinitive, assetBindingNow().Unix())
 		return AssetBindingResult{}, ErrAssetBindingUnavailable
 	}
 	activated, err := model.ActivateAssetBindingWithAssetCAS(model.AssetBindingActivation{
@@ -607,7 +616,7 @@ func sanitizeAssetBindingError(err error) error {
 }
 
 func AssetBindingAPIError(err error) *types.NewAPIError {
-	if errors.Is(err, ErrAssetBindingInitializing) {
+	if errors.Is(err, ErrAssetBindingInitializing) || IsRetryableAssetMaterializeError(err) {
 		return assetError(err, types.ErrorCodeAssetNotReady, http.StatusConflict)
 	}
 	return assetError(err, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)

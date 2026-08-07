@@ -472,6 +472,47 @@ func FailAssetBindingForScopeCAS(assetID int64, channelID int, bindingScope stri
 	return result.RowsAffected == 1, nil
 }
 
+func ReleaseAssetBindingForRetryCAS(assetID int64, channelID int, bindingScope, leaseOwner, errorCode string, now int64) (bool, error) {
+	query := DB.Model(&AssetBinding{}).
+		Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", assetID, channelID, bindingScope).
+		Where("status = ?", AssetBindingStatusLeased)
+	if leaseOwner != "" {
+		query = query.Where("lease_owner = ?", leaseOwner)
+	}
+	result := query.Updates(map[string]any{
+		"status":            AssetBindingStatusPending,
+		"upstream_group_id": "",
+		"upstream_asset_id": "",
+		"error_code":        sanitizeAssetBindingErrorCode(errorCode),
+		"lease_owner":       "",
+		"lease_expires_at":  int64(0),
+		"updated_at":        now,
+	})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func sanitizeAssetBindingErrorCode(code string) string {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return ""
+	}
+	var builder strings.Builder
+	for _, r := range code {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+			builder.WriteRune(r)
+			if builder.Len() >= 64 {
+				break
+			}
+			continue
+		}
+		break
+	}
+	return builder.String()
+}
+
 func RefreshProcessingAssetBindingCAS(refresh AssetBindingProcessingRefresh) (bool, error) {
 	if refresh.UpstreamAssetID == "" {
 		return false, nil

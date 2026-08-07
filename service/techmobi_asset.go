@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -30,7 +31,15 @@ var (
 type techMobiAssetBindingMaterializer struct{}
 
 type techMobiAssetUploadResponse struct {
-	AssetURL string `json:"assetUrl"`
+	AssetURL  string `json:"assetUrl"`
+	Status    string `json:"status"`
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id"`
+	Error     struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
 }
 
 func (techMobiAssetBindingMaterializer) CreateAsset(ctx context.Context, input AssetMaterializeInput) (AssetMaterializeResult, error) {
@@ -98,16 +107,24 @@ func (techMobiAssetBindingMaterializer) CreateAsset(ctx context.Context, input A
 		if response != nil && response.Body != nil {
 			_ = response.Body.Close()
 		}
+		if requestErr != nil && (errors.Is(requestErr, context.DeadlineExceeded) || isNetTimeout(requestErr)) {
+			return AssetMaterializeResult{}, newAssetMaterializeFailure(AssetMaterializeErrorTimeout, 0, "", 0, "", requestErr)
+		}
 		return AssetMaterializeResult{}, errAssetUploadFailed
 	}
 	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return AssetMaterializeResult{}, errAssetUploadFailed
-	}
-
 	var uploadResponse techMobiAssetUploadResponse
 	if err := common.DecodeJson(io.LimitReader(response.Body, techMobiAssetResponseMaxSize), &uploadResponse); err != nil {
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return AssetMaterializeResult{}, newTechMobiAssetHTTPFailure(response, techMobiAssetUploadResponse{}, err)
+		}
 		return AssetMaterializeResult{}, errAssetUploadFailed
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return AssetMaterializeResult{}, newTechMobiAssetHTTPFailure(response, uploadResponse, nil)
+	}
+	if strings.EqualFold(strings.TrimSpace(uploadResponse.Status), model.AssetStatusProcessing) {
+		return AssetMaterializeResult{}, newAssetMaterializeFailure(AssetMaterializeErrorProcessing, response.StatusCode, techMobiAssetUpstreamCode(uploadResponse), 0, techMobiAssetRequestID(response, uploadResponse), nil)
 	}
 	if !isValidTechMobiAssetURL(uploadResponse.AssetURL) {
 		return AssetMaterializeResult{}, errAssetUploadFailed
@@ -116,6 +133,43 @@ func (techMobiAssetBindingMaterializer) CreateAsset(ctx context.Context, input A
 		UpstreamAssetID: uploadResponse.AssetURL,
 		Status:          model.AssetStatusActive,
 	}, nil
+}
+
+func newTechMobiAssetHTTPFailure(response *http.Response, uploadResponse techMobiAssetUploadResponse, cause error) error {
+	status := 0
+	var header http.Header
+	if response != nil {
+		status = response.StatusCode
+		header = response.Header
+	}
+	upstreamCode := techMobiAssetUpstreamCode(uploadResponse)
+	class := assetMaterializeClassForHTTPStatus(status, upstreamCode)
+	return newAssetMaterializeFailure(
+		class,
+		status,
+		upstreamCode,
+		parseAssetMaterializeRetryAfter(header.Get("Retry-After"), time.Now()),
+		techMobiAssetRequestID(response, uploadResponse),
+		cause,
+	)
+}
+
+func techMobiAssetUpstreamCode(response techMobiAssetUploadResponse) string {
+	if strings.TrimSpace(response.Error.Code) != "" {
+		return strings.TrimSpace(response.Error.Code)
+	}
+	return strings.TrimSpace(response.Code)
+}
+
+func techMobiAssetRequestID(response *http.Response, uploadResponse techMobiAssetUploadResponse) string {
+	if response != nil {
+		for _, key := range []string{"X-Request-Id", "X-Request-ID", "X-Requestid"} {
+			if value := strings.TrimSpace(response.Header.Get(key)); value != "" {
+				return value
+			}
+		}
+	}
+	return strings.TrimSpace(uploadResponse.RequestID)
 }
 
 func (techMobiAssetBindingMaterializer) GetAsset(_ context.Context, _ AssetMaterializeInput, upstreamAssetID string) (AssetMaterializeResult, error) {

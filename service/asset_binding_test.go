@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -444,6 +445,86 @@ func TestAssetBindingProviderFailedResultDoesNotRetryInSameMaterializeCall(t *te
 	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ?", asset.Id, channel.Id).Error)
 	require.Equal(t, model.AssetStatusFailed, binding.Status)
 	require.EqualValues(t, 1, binding.AttemptCount)
+}
+
+func TestAssetBindingRetryableMaterializeErrorReleasesBindingForReclaim(t *testing.T) {
+	newAssetServiceTestDB(t)
+	installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_retryable_release_aaaaaaaaaaaa")
+	channel := insertMaterializeChannel(t, 131)
+	materializer := &recordingAssetMaterializer{createErr: &AssetMaterializeFailure{Class: AssetMaterializeErrorThrottled, HTTPStatus: http.StatusTooManyRequests}}
+	restore := registerAssetMaterializerForTest(t, constant.ChannelTypeBytePlus, materializer)
+	defer restore()
+	assetBindingNow = func() time.Time { return time.Unix(100, 0) }
+	t.Cleanup(func() { assetBindingNow = time.Now })
+
+	_, err := MaterializeAssetBinding(context.Background(), AssetBindingRequest{
+		UserID:       asset.UserId,
+		PublicID:     asset.PublicId,
+		Channel:      channel,
+		LeaseOwner:   "node-a",
+		PollLimit:    1,
+		LeaseTTL:     time.Minute,
+		ExpectedType: "Image",
+	})
+
+	require.ErrorIs(t, err, ErrAssetBindingInitializing)
+	var binding model.AssetBinding
+	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ?", asset.Id, channel.Id).Error)
+	require.Equal(t, model.AssetBindingStatusPending, binding.Status)
+	require.Equal(t, AssetMaterializeErrorThrottled, binding.ErrorCode)
+	require.Empty(t, binding.LeaseOwner)
+	require.Zero(t, binding.LeaseExpiresAt)
+
+	materializer.createErr = nil
+	assetBindingNow = func() time.Time { return time.Unix(101, 0) }
+	result, err := MaterializeAssetBinding(context.Background(), AssetBindingRequest{
+		UserID:       asset.UserId,
+		PublicID:     asset.PublicId,
+		Channel:      channel,
+		LeaseOwner:   "node-b",
+		PollLimit:    1,
+		LeaseTTL:     time.Minute,
+		ExpectedType: "Image",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "asset://upstream-"+asset.PublicId, result.RewriteURI)
+	require.Equal(t, int64(2), atomic.LoadInt64(&materializer.createCalls))
+}
+
+func TestAssetBindingDefinitiveMaterializeErrorRemainsFailed(t *testing.T) {
+	newAssetServiceTestDB(t)
+	installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_definitive_failed_aaaaaaaaaaaa")
+	channel := insertMaterializeChannel(t, 131)
+	materializer := &recordingAssetMaterializer{createErr: &AssetMaterializeFailure{Class: AssetMaterializeErrorDefinitive, HTTPStatus: http.StatusBadRequest}}
+	restore := registerAssetMaterializerForTest(t, constant.ChannelTypeBytePlus, materializer)
+	defer restore()
+
+	_, err := MaterializeAssetBinding(context.Background(), AssetBindingRequest{
+		UserID:       asset.UserId,
+		PublicID:     asset.PublicId,
+		Channel:      channel,
+		LeaseOwner:   "node-a",
+		PollLimit:    1,
+		LeaseTTL:     time.Minute,
+		ExpectedType: "Image",
+	})
+
+	require.ErrorIs(t, err, ErrAssetBindingUnavailable)
+	var binding model.AssetBinding
+	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ?", asset.Id, channel.Id).Error)
+	require.Equal(t, model.AssetStatusFailed, binding.Status)
+	require.Equal(t, AssetMaterializeErrorDefinitive, binding.ErrorCode)
+}
+
+func TestAssetBindingAPIErrorMapsRetryableMaterializeToAssetNotReady(t *testing.T) {
+	apiErr := AssetBindingAPIError(&AssetMaterializeFailure{Class: AssetMaterializeErrorUpstream5xx})
+
+	require.Equal(t, types.ErrorCodeAssetNotReady, apiErr.GetErrorCode())
+	require.Equal(t, http.StatusConflict, apiErr.StatusCode)
+	require.NotContains(t, apiErr.Error(), "upstream_5xx")
 }
 
 func TestAssetBindingFailedNextRequestReclaimsAndCreatesOnce(t *testing.T) {
