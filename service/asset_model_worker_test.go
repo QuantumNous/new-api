@@ -170,7 +170,10 @@ func TestAssetModelWorkerRetryableProcessingRefreshSchedulesRetryWithoutFailingB
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)
 	materializer := &scriptedAssetModelMaterializer{
-		getErr: &AssetMaterializeFailure{Class: AssetMaterializeErrorUpstream5xx, HTTPStatus: http.StatusBadGateway, RetryAfter: 40 * time.Second},
+		get: []scriptedAssetModelGet{
+			{err: &AssetMaterializeFailure{Class: AssetMaterializeErrorUpstream5xx, HTTPStatus: http.StatusBadGateway, RetryAfter: 40 * time.Second}},
+			{result: AssetMaterializeResult{UpstreamAssetID: "upstream-processing", Status: model.AssetStatusActive}},
+		},
 	}
 	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
 	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_refresh_retry_aaaaaa", "techmobi-key-a")
@@ -189,8 +192,23 @@ func TestAssetModelWorkerRetryableProcessingRefreshSchedulesRetryWithoutFailingB
 	binding, err := model.GetAssetBindingForScope(asset.Id, target.ChannelId, target.BindingScope)
 	require.NoError(t, err)
 	require.NotEqual(t, model.AssetStatusFailed, binding.Status)
-	require.Equal(t, model.AssetBindingStatusPending, binding.Status)
-	require.Equal(t, AssetMaterializeErrorUpstream5xx, binding.ErrorCode)
+	require.Equal(t, model.AssetStatusProcessing, binding.Status)
+	require.Equal(t, "upstream-processing", binding.UpstreamAssetId)
+	require.Equal(t, "", binding.ErrorCode)
+	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls))
+
+	processed, err = RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(140, 0))
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls), "retry must poll existing upstream asset instead of creating a duplicate")
+	require.Equal(t, []string{"upstream-processing", "upstream-processing"}, materializer.getUpstreamIDs())
+
+	binding, err = model.GetAssetBindingForScope(asset.Id, target.ChannelId, target.BindingScope)
+	require.NoError(t, err)
+	require.Equal(t, model.AssetStatusActive, binding.Status)
+	require.Equal(t, "upstream-processing", binding.UpstreamAssetId)
+	row = requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	require.Equal(t, model.AssetModelReadinessStatusActive, row.Status)
 }
 
 func TestAssetModelWorkerExpiredLeaseAndGenerationDriftCannotActivate(t *testing.T) {
@@ -325,12 +343,18 @@ type scriptedAssetModelCreate struct {
 	err    error
 }
 
+type scriptedAssetModelGet struct {
+	result AssetMaterializeResult
+	err    error
+}
+
 type scriptedAssetModelMaterializer struct {
 	mu          sync.Mutex
 	create      []scriptedAssetModelCreate
+	get         []scriptedAssetModelGet
 	createCalls int64
 	blockCreate chan struct{}
-	getErr      error
+	getIDs      []string
 }
 
 func (m *scriptedAssetModelMaterializer) CreateAsset(_ context.Context, input AssetMaterializeInput) (AssetMaterializeResult, error) {
@@ -349,10 +373,21 @@ func (m *scriptedAssetModelMaterializer) CreateAsset(_ context.Context, input As
 }
 
 func (m *scriptedAssetModelMaterializer) GetAsset(_ context.Context, _ AssetMaterializeInput, upstreamAssetID string) (AssetMaterializeResult, error) {
-	if m.getErr != nil {
-		return AssetMaterializeResult{}, m.getErr
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.getIDs = append(m.getIDs, upstreamAssetID)
+	if len(m.get) > 0 {
+		next := m.get[0]
+		m.get = m.get[1:]
+		return next.result, next.err
 	}
 	return AssetMaterializeResult{UpstreamAssetID: upstreamAssetID, Status: model.AssetStatusActive}, nil
+}
+
+func (m *scriptedAssetModelMaterializer) getUpstreamIDs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.getIDs...)
 }
 
 type keyAwareAssetModelMaterializer struct {
