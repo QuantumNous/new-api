@@ -66,14 +66,16 @@ type AssetModelReadiness struct {
 }
 
 type AssetModelReadinessTransition struct {
-	AssetId          int64
-	ScopeKey         string
-	ModelName        string
-	TargetGeneration int64
-	ChannelId        int
-	BindingScope     string
-	LeaseOwner       string
-	Now              int64
+	AssetId                int64
+	ScopeKey               string
+	ModelName              string
+	TargetGeneration       int64
+	ChannelId              int
+	BindingScope           string
+	LeaseOwner             string
+	ExpectedAttemptCount   int
+	ExpectedLeaseExpiresAt int64
+	Now                    int64
 }
 
 func EnsureAssetModelReadiness(assetID int64, scopeKey string, modelNames []string, now int64) error {
@@ -185,14 +187,18 @@ func ClaimAssetModelReadinessLease(id int64, owner string, now, leaseExpiresAt i
 	return result.RowsAffected == 1, nil
 }
 
-func ResetAssetModelReadinessForTargetCAS(id int64, owner string, target AssetModelCoverageTarget, now int64) (bool, error) {
+func ResetAssetModelReadinessForTargetCAS(id int64, owner string, expectedAttemptCount int, expectedLeaseExpiresAt int64, target AssetModelCoverageTarget, now int64) (bool, error) {
 	owner = strings.TrimSpace(owner)
+	target.ScopeKey = strings.TrimSpace(target.ScopeKey)
+	target.ModelName = strings.TrimSpace(target.ModelName)
 	if DB == nil || id <= 0 || owner == "" {
 		return false, nil
 	}
 
 	result := DB.Model(&AssetModelReadiness{}).
-		Where("id = ? AND lease_owner = ? AND lease_expires_at > ?", id, owner, now).
+		Where("id = ? AND scope_key = ? AND model_name = ?", id, target.ScopeKey, target.ModelName).
+		Where("status = ? AND lease_owner = ? AND attempt_count = ? AND lease_expires_at = ? AND lease_expires_at > ?",
+			AssetModelReadinessStatusProcessing, owner, expectedAttemptCount, expectedLeaseExpiresAt, now).
 		Updates(map[string]any{
 			"target_generation":  target.Generation,
 			"channel_id":         target.ChannelId,
@@ -260,7 +266,7 @@ func ClaimAssetModelTargetLease(scopeKey, modelName, owner string, now, leaseExp
 	return result.RowsAffected == 1, nil
 }
 
-func PublishAssetModelTargetCAS(scopeKey, modelName, owner string, candidate AssetModelCoverageTarget, now int64) (bool, error) {
+func PublishAssetModelTargetCAS(scopeKey, modelName, owner string, expectedGeneration int64, expectedLeaseExpiresAt int64, candidate AssetModelCoverageTarget, now int64) (bool, error) {
 	scopeKey = strings.TrimSpace(scopeKey)
 	modelName = strings.TrimSpace(modelName)
 	owner = strings.TrimSpace(owner)
@@ -269,7 +275,8 @@ func PublishAssetModelTargetCAS(scopeKey, modelName, owner string, candidate Ass
 	}
 
 	result := DB.Model(&AssetModelCoverageTarget{}).
-		Where("scope_key = ? AND model_name = ? AND lease_owner = ? AND lease_expires_at > ?", scopeKey, modelName, owner, now).
+		Where("scope_key = ? AND model_name = ? AND generation = ?", scopeKey, modelName, expectedGeneration).
+		Where("lease_owner = ? AND lease_expires_at = ? AND lease_expires_at > ?", owner, expectedLeaseExpiresAt, now).
 		Updates(map[string]any{
 			"routing_groups":      candidate.RoutingGroups,
 			"specific_channel_id": candidate.SpecificChannelId,
@@ -299,6 +306,7 @@ func RotateAssetModelTargetCAS(scopeKey, modelName string, expectedGeneration in
 
 	result := DB.Model(&AssetModelCoverageTarget{}).
 		Where("scope_key = ? AND model_name = ? AND status = ? AND generation = ?", scopeKey, modelName, AssetModelTargetStatusActive, expectedGeneration).
+		Where("lease_owner = '' OR lease_expires_at <= ?", now).
 		Updates(map[string]any{
 			"routing_groups":      "",
 			"specific_channel_id": 0,
@@ -333,7 +341,8 @@ func finishAssetModelReadinessCAS(transition AssetModelReadinessTransition, stat
 
 	result := DB.Model(&AssetModelReadiness{}).
 		Where("asset_id = ? AND scope_key = ? AND model_name = ?", transition.AssetId, transition.ScopeKey, transition.ModelName).
-		Where("status = ? AND lease_owner = ? AND lease_expires_at > ?", AssetModelReadinessStatusProcessing, transition.LeaseOwner, transition.Now).
+		Where("status = ? AND lease_owner = ? AND attempt_count = ? AND lease_expires_at = ? AND lease_expires_at > ?",
+			AssetModelReadinessStatusProcessing, transition.LeaseOwner, transition.ExpectedAttemptCount, transition.ExpectedLeaseExpiresAt, transition.Now).
 		Where("target_generation = ? AND channel_id = ? AND binding_scope = ?", transition.TargetGeneration, transition.ChannelId, transition.BindingScope).
 		Updates(map[string]any{
 			"status":           status,

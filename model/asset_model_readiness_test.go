@@ -132,6 +132,7 @@ func TestAssetModelReadinessCASFencingRetryActiveFailedAndReset(t *testing.T) {
 	won, err := ClaimAssetModelReadinessLease(row.Id, "worker", 20, 100)
 	require.NoError(t, err)
 	require.True(t, won)
+	row = requireOneReadiness(t, 9, "scope", "model")
 
 	target := AssetModelCoverageTarget{
 		ScopeKey:          "scope",
@@ -144,7 +145,7 @@ func TestAssetModelReadinessCASFencingRetryActiveFailedAndReset(t *testing.T) {
 		CandidateIndex:    3,
 		CredentialIndex:   4,
 	}
-	reset, err := ResetAssetModelReadinessForTargetCAS(row.Id, "worker", target, 30)
+	reset, err := ResetAssetModelReadinessForTargetCAS(row.Id, "worker", row.AttemptCount, row.LeaseExpiresAt, target, 30)
 	require.NoError(t, err)
 	require.True(t, reset)
 	row = requireOneReadiness(t, 9, "scope", "model")
@@ -158,15 +159,18 @@ func TestAssetModelReadinessCASFencingRetryActiveFailedAndReset(t *testing.T) {
 	won, err = ClaimAssetModelReadinessLease(row.Id, "worker", 40, 120)
 	require.NoError(t, err)
 	require.True(t, won)
+	row = requireOneReadiness(t, 9, "scope", "model")
 	transition := AssetModelReadinessTransition{
-		AssetId:          9,
-		ScopeKey:         "scope",
-		ModelName:        "model",
-		TargetGeneration: 2,
-		ChannelId:        101,
-		BindingScope:     "tenant-a",
-		LeaseOwner:       "worker",
-		Now:              50,
+		AssetId:                9,
+		ScopeKey:               "scope",
+		ModelName:              "model",
+		TargetGeneration:       2,
+		ChannelId:              101,
+		BindingScope:           "tenant-a",
+		LeaseOwner:             "worker",
+		ExpectedAttemptCount:   row.AttemptCount,
+		ExpectedLeaseExpiresAt: row.LeaseExpiresAt,
+		Now:                    50,
 	}
 	ok, err := ScheduleAssetModelReadinessRetryCAS(transition, " provider/time out! ", 90)
 	require.NoError(t, err)
@@ -180,6 +184,9 @@ func TestAssetModelReadinessCASFencingRetryActiveFailedAndReset(t *testing.T) {
 	won, err = ClaimAssetModelReadinessLease(row.Id, "worker", 91, 140)
 	require.NoError(t, err)
 	require.True(t, won)
+	row = requireOneReadiness(t, 9, "scope", "model")
+	transition.ExpectedAttemptCount = row.AttemptCount
+	transition.ExpectedLeaseExpiresAt = row.LeaseExpiresAt
 	stale := transition
 	stale.TargetGeneration = 1
 	stale.Now = 92
@@ -198,12 +205,75 @@ func TestAssetModelReadinessCASFencingRetryActiveFailedAndReset(t *testing.T) {
 	row.LeaseOwner = "worker"
 	row.LeaseExpiresAt = 200
 	require.NoError(t, DB.Save(&row).Error)
+	transition.ExpectedLeaseExpiresAt = 200
 	ok, err = FailAssetModelReadinessCAS(transition, "fatal/provider")
 	require.NoError(t, err)
 	require.True(t, ok)
 	row = requireOneReadiness(t, 9, "scope", "model")
 	require.Equal(t, AssetModelReadinessStatusFailed, row.Status)
 	require.Equal(t, "fatal_provider", row.ErrorClass)
+}
+
+func TestAssetModelReadinessSameOwnerReclaimRequiresFreshAttemptFence(t *testing.T) {
+	openAssetModelReadinessTestDB(t)
+	require.NoError(t, EnsureAssetModelReadiness(11, "scope", []string{"model"}, 1))
+	row := requireOneReadiness(t, 11, "scope", "model")
+	won, err := ClaimAssetModelReadinessLease(row.Id, "node-a", 10, 20)
+	require.NoError(t, err)
+	require.True(t, won)
+	attemptOne := requireOneReadiness(t, 11, "scope", "model")
+
+	won, err = ClaimAssetModelReadinessLease(row.Id, "node-a", 21, 60)
+	require.NoError(t, err)
+	require.True(t, won)
+	attemptTwo := requireOneReadiness(t, 11, "scope", "model")
+	require.Equal(t, 2, attemptTwo.AttemptCount)
+	require.Equal(t, int64(60), attemptTwo.LeaseExpiresAt)
+
+	staleTransition := AssetModelReadinessTransition{
+		AssetId:                11,
+		ScopeKey:               "scope",
+		ModelName:              "model",
+		LeaseOwner:             "node-a",
+		ExpectedAttemptCount:   attemptOne.AttemptCount,
+		ExpectedLeaseExpiresAt: attemptOne.LeaseExpiresAt,
+		Now:                    22,
+	}
+	ok, err := ActivateAssetModelReadinessCAS(staleTransition)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	freshTransition := staleTransition
+	freshTransition.ExpectedAttemptCount = attemptTwo.AttemptCount
+	freshTransition.ExpectedLeaseExpiresAt = attemptTwo.LeaseExpiresAt
+	ok, err = ActivateAssetModelReadinessCAS(freshTransition)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	require.NoError(t, DB.Model(&AssetModelReadiness{}).Where("id = ?", row.Id).Updates(map[string]any{
+		"status":           AssetModelReadinessStatusProcessing,
+		"lease_owner":      "node-a",
+		"lease_expires_at": int64(90),
+		"attempt_count":    3,
+	}).Error)
+	target := AssetModelCoverageTarget{
+		ScopeKey:     "scope",
+		ModelName:    "model",
+		Generation:   1,
+		ChannelId:    77,
+		BindingScope: "tenant",
+	}
+	reset, err := ResetAssetModelReadinessForTargetCAS(row.Id, "node-a", attemptOne.AttemptCount, attemptOne.LeaseExpiresAt, target, 30)
+	require.NoError(t, err)
+	require.False(t, reset)
+	mismatchedTarget := target
+	mismatchedTarget.ScopeKey = "other-scope"
+	reset, err = ResetAssetModelReadinessForTargetCAS(row.Id, "node-a", 3, 90, mismatchedTarget, 30)
+	require.NoError(t, err)
+	require.False(t, reset)
+	reset, err = ResetAssetModelReadinessForTargetCAS(row.Id, "node-a", 3, 90, target, 30)
+	require.NoError(t, err)
+	require.True(t, reset)
 }
 
 func TestAssetModelTargetLeasePublishAndRotateCAS(t *testing.T) {
@@ -234,13 +304,13 @@ func TestAssetModelTargetLeasePublishAndRotateCAS(t *testing.T) {
 		CredentialIndex:   2,
 		CandidateIndex:    5,
 	}
-	published, err := PublishAssetModelTargetCAS("scope", "model", "owner-b", candidate, 20)
+	published, err := PublishAssetModelTargetCAS("scope", "model", "owner-b", 0, 130, candidate, 20)
 	require.NoError(t, err)
 	require.False(t, published)
-	published, err = PublishAssetModelTargetCAS("scope", "model", "owner-a", candidate, 21)
+	published, err = PublishAssetModelTargetCAS("scope", "model", "owner-a", 0, 130, candidate, 21)
 	require.NoError(t, err)
 	require.True(t, published)
-	published, err = PublishAssetModelTargetCAS("scope", "model", "owner-a", candidate, 22)
+	published, err = PublishAssetModelTargetCAS("scope", "model", "owner-a", 0, 130, candidate, 22)
 	require.NoError(t, err)
 	require.False(t, published)
 	target, err = GetAssetModelCoverageTarget("scope", "model")
@@ -264,6 +334,53 @@ func TestAssetModelTargetLeasePublishAndRotateCAS(t *testing.T) {
 	require.Equal(t, "", target.MappedModel)
 	require.Equal(t, -1, target.CandidateIndex)
 	require.Equal(t, -1, target.CredentialIndex)
+}
+
+func TestAssetModelTargetPublishSameOwnerReclaimRequiresCurrentLeaseExpiry(t *testing.T) {
+	openAssetModelReadinessTestDB(t)
+
+	won, err := ClaimAssetModelTargetLease("scope", "model", "owner-a", 10, 100)
+	require.NoError(t, err)
+	require.True(t, won)
+	won, err = ClaimAssetModelTargetLease("scope", "model", "owner-a", 11, 150)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	candidate := AssetModelCoverageTarget{ChannelId: 88, BindingScope: "tenant"}
+	published, err := PublishAssetModelTargetCAS("scope", "model", "owner-a", 0, 100, candidate, 20)
+	require.NoError(t, err)
+	require.False(t, published)
+	published, err = PublishAssetModelTargetCAS("scope", "model", "owner-a", 0, 150, candidate, 21)
+	require.NoError(t, err)
+	require.True(t, published)
+	published, err = PublishAssetModelTargetCAS("scope", "model", "owner-a", 0, 150, candidate, 22)
+	require.NoError(t, err)
+	require.False(t, published)
+
+	target, err := GetAssetModelCoverageTarget("scope", "model")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), target.Generation)
+}
+
+func TestAssetModelTargetRotateDoesNotStealLiveLease(t *testing.T) {
+	openAssetModelReadinessTestDB(t)
+
+	require.NoError(t, DB.Create(&AssetModelCoverageTarget{
+		ScopeKey:       "scope",
+		ModelName:      "model",
+		Status:         AssetModelTargetStatusActive,
+		Generation:     7,
+		LeaseOwner:     "publisher",
+		LeaseExpiresAt: 100,
+		ChannelId:      88,
+	}).Error)
+
+	rotated, err := RotateAssetModelTargetCAS("scope", "model", 7, "ignored", 50)
+	require.NoError(t, err)
+	require.False(t, rotated)
+	rotated, err = RotateAssetModelTargetCAS("scope", "model", 7, "ignored", 101)
+	require.NoError(t, err)
+	require.True(t, rotated)
 }
 
 func readinessModelNames(rows []AssetModelReadiness) []string {
