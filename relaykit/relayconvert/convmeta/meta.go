@@ -60,6 +60,10 @@ type ClaudeConvertInfo struct {
 
 	ToolCallBaseIndex      int
 	ToolCallMaxIndexOffset int
+	// ToolCallOpenIndexes tracks started-but-not-stopped parallel tool_use
+	// block indexes; nil outside a tools run. Guards delta/stop so they never
+	// target an index without an active content_block_start (#4389).
+	ToolCallOpenIndexes map[int]bool
 }
 
 const (
