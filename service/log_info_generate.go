@@ -69,9 +69,7 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 	}
 }
 
-// AppendRequestMetadata records the final upstream routing decision in the
-// admin-only portion of a usage log. URLs are sanitized before persistence so
-// API keys, signatures, tokens, and embedded passwords are never stored.
+// AppendRequestMetadata adds a sanitized upstream target to admin-only log data.
 func AppendRequestMetadata(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
 	if other == nil {
 		return

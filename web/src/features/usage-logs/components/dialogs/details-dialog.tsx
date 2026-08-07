@@ -743,7 +743,6 @@ export function DetailsDialog(props: DetailsDialogProps) {
           )}
         </div>
 
-        {/* Final upstream routing metadata (admin only) */}
         {requestMetadata && (
           <DetailSection
             icon={<Route className='size-3.5' aria-hidden='true' />}

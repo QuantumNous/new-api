@@ -439,7 +439,6 @@ export function FetchModelsDialog({
     } else {
       dialogBody = (
         <div className='space-y-4'>
-          {/* Search Bar */}
           <div className='relative'>
             <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
             <Input
@@ -450,7 +449,6 @@ export function FetchModelsDialog({
             />
           </div>
 
-          {/* Tabs for New vs Existing vs Removed */}
           <Tabs
             key={`${activeChannel?.id ?? 'custom'}-${fetchedModels.length}-${removedModels.length}`}
             defaultValue={defaultTab}
@@ -511,7 +509,6 @@ export function FetchModelsDialog({
             )}
           </Tabs>
 
-          {/* Selection Summary */}
           <div className='bg-muted/50 rounded-lg border p-3 text-sm'>
             {t('{{n}} model(s) selected', { n: selectedModels.length })}
           </div>

@@ -186,8 +186,7 @@ type RelayInfo struct {
 }
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
-	// A retry may switch channels. Clear the previous attempt's target before
-	// resolving the next URL so an early failure cannot log stale routing data.
+	// Clear routing metadata before a retry selects its upstream.
 	c.Set(string(constant.ContextKeyUpstreamRequestURL), "")
 	c.Set(string(constant.ContextKeyUpstreamRequestMethod), "")
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)

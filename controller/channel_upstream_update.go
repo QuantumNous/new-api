@@ -269,9 +269,7 @@ func collectPendingUpstreamModelChangesFromModels(
 	redirectSourceSet := make(map[string]struct{}, len(modelMapping))
 	redirectTargetSet := make(map[string]struct{}, len(modelMapping))
 	for source, target := range modelMapping {
-		// VolcEngine endpoint mappings bind a real discovered model name to
-		// its inference endpoint. They are not virtual aliases and must still
-		// participate in upstream removal detection.
+		// Endpoint mappings remain subject to upstream removal detection.
 		if strings.HasPrefix(target, "ep-") {
 			continue
 		}
@@ -665,8 +663,7 @@ func fetchVolcEngineEndpoints(channel *model.Channel, baseURL string, key string
 			modelNames = append(modelNames, name)
 			seen[name] = struct{}{}
 		}
-		// Built-in endpoints take precedence when a custom endpoint exposes
-		// the same model name.
+		// Built-in endpoints win model-name conflicts.
 		modelMapping[name] = inner.ModelMapping[name]
 	}
 	if len(modelNames) == 0 {

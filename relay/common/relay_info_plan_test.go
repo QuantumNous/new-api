@@ -3,8 +3,8 @@ package common
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/stretchr/testify/assert"
-	"github.com/warjiang/new-api/constant"
 )
 
 func TestVolcEnginePlanChannelsSupportStreamOptions(t *testing.T) {
