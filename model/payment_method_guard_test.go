@@ -7,6 +7,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,6 +91,31 @@ func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int {
 	return user.Quota
 }
 
+func setupPaymentGuardRedis(t *testing.T) *miniredis.Miniredis {
+	t.Helper()
+	mr := miniredis.RunT(t)
+	previousRDB := common.RDB
+	previousRedisEnabled := common.RedisEnabled
+	previousSyncFrequency := common.SyncFrequency
+	common.RDB = redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	common.RedisEnabled = true
+	common.SyncFrequency = 60
+	t.Cleanup(func() {
+		require.NoError(t, common.RDB.Close())
+		common.RDB = previousRDB
+		common.RedisEnabled = previousRedisEnabled
+		common.SyncFrequency = previousSyncFrequency
+	})
+	return mr
+}
+
+func cachePaymentGuardUser(t *testing.T, userID int) {
+	t.Helper()
+	var user User
+	require.NoError(t, DB.Where("id = ?", userID).First(&user).Error)
+	require.NoError(t, updateUserCache(user))
+}
+
 func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	truncateTables(t)
 
@@ -102,6 +129,91 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	require.NotNil(t, topUp)
 	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
+}
+
+func TestManualCompleteTopUpRefreshesQuotaCacheAfterCommit(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+
+	insertUserForPaymentGuardTest(t, 1801, 0)
+	insertTopUpForPaymentGuardTest(t, "manual-cache-guard", 1801, PaymentProviderStripe)
+	cachePaymentGuardUser(t, 1801)
+
+	require.NoError(t, ManualCompleteTopUp("manual-cache-guard", "127.0.0.1"))
+
+	cachedQuota, err := getUserQuotaCache(1801)
+	require.NoError(t, err)
+	require.Equal(t, int(2*common.QuotaPerUnit), cachedQuota)
+}
+
+func TestCreemRechargeRefreshesQuotaCacheAfterCommit(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+
+	insertUserForPaymentGuardTest(t, 1802, 0)
+	insertTopUpForPaymentGuardTest(t, "creem-cache-guard", 1802, PaymentProviderCreem)
+	cachePaymentGuardUser(t, 1802)
+
+	require.NoError(t, RechargeCreem("creem-cache-guard", "", "", "127.0.0.1"))
+
+	cachedQuota, err := getUserQuotaCache(1802)
+	require.NoError(t, err)
+	require.Equal(t, 2, cachedQuota)
+}
+
+func TestProviderRechargeRefreshesQuotaCacheAfterCommit(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		userID   int
+		tradeNo  string
+		provider string
+		recharge func(string) (bool, error)
+	}{
+		{
+			name:     "waffo",
+			userID:   1803,
+			tradeNo:  "waffo-cache-guard",
+			provider: PaymentProviderWaffo,
+			recharge: func(tradeNo string) (bool, error) {
+				return RechargeWaffo(tradeNo, "127.0.0.1")
+			},
+		},
+		{
+			name:     "waffo_pancake",
+			userID:   1804,
+			tradeNo:  "waffo-pancake-cache-guard",
+			provider: PaymentProviderWaffoPancake,
+			recharge: func(tradeNo string) (bool, error) {
+				return RechargeWaffoPancake(tradeNo)
+			},
+		},
+		{
+			name:     "paddle",
+			userID:   1805,
+			tradeNo:  "paddle-cache-guard",
+			provider: PaymentProviderPaddle,
+			recharge: func(tradeNo string) (bool, error) {
+				return RechargePaddle(tradeNo, 1805, "gateway-cache-guard", "127.0.0.1")
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+			setupPaymentGuardRedis(t)
+
+			insertUserForPaymentGuardTest(t, tc.userID, 0)
+			insertTopUpForPaymentGuardTest(t, tc.tradeNo, tc.userID, tc.provider)
+			cachePaymentGuardUser(t, tc.userID)
+
+			recharged, err := tc.recharge(tc.tradeNo)
+			require.NoError(t, err)
+			require.True(t, recharged)
+
+			cachedQuota, err := getUserQuotaCache(tc.userID)
+			require.NoError(t, err)
+			require.Equal(t, int(2*common.QuotaPerUnit), cachedQuota)
+		})
+	}
 }
 
 func TestRechargeWaffoReportsOnlyActualPendingTransition(t *testing.T) {

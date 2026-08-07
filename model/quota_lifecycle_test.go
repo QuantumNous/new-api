@@ -454,6 +454,83 @@ func TestApplyLifecycleQuotaMutationDoesNotAutoMigrateLifecycleTables(t *testing
 	require.False(t, DB.Migrator().HasTable(&RecallLifecycleEvent{}))
 }
 
+func TestApplyWalletQuotaOverrideTxUsesLockedCurrentBalance(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+
+	user := createLifecycleQuotaTestUser(t, "wallet-override-current", 150, 100)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("quota", 175).Error)
+
+	var result LifecycleQuotaMutationResult
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		result, applyErr = ApplyWalletQuotaOverrideTx(tx, user.Id, 90, "admin_adjustment", "admin:override:current")
+		return applyErr
+	})
+
+	require.NoError(t, err)
+	require.EqualValues(t, 175, result.PreviousBalance)
+	require.EqualValues(t, 90, result.CurrentBalance)
+	require.Equal(t, 90, walletQuotaForTest(t, user.Id))
+	state := lifecycleStateForTest(t, user.Id, QuotaLifecycleScopeWallet, strconv.Itoa(user.Id))
+	require.Equal(t, "baseline:wallet:"+strconv.Itoa(user.Id), state.Cycle)
+	require.EqualValues(t, 90, state.Balance)
+}
+
+func TestApplyWalletQuotaOverrideTxRejectsDeltaOverflow(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+
+	user := createLifecycleQuotaTestUser(t, "wallet-override-overflow", -1, 100)
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		_, applyErr := ApplyWalletQuotaOverrideTx(tx, user.Id, testMaxInt64, "admin_adjustment", "admin:override:overflow")
+		return applyErr
+	})
+
+	require.ErrorIs(t, err, ErrLifecycleQuotaBalanceOverflow)
+	require.Equal(t, -1, walletQuotaForTest(t, user.Id))
+	var stateCount int64
+	require.NoError(t, DB.Model(&QuotaLifecycleState{}).
+		Where("user_id = ? AND scope_type = ? AND scope_id = ?", user.Id, QuotaLifecycleScopeWallet, strconv.Itoa(user.Id)).
+		Count(&stateCount).Error)
+	require.Equal(t, int64(0), stateCount)
+}
+
+func TestApplyWalletTopUpSuccessMutationTxRotatesCycleForRepeatLowEvent(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+
+	user := createLifecycleQuotaTestUser(t, "wallet-topup-cycle", 150, 100)
+	ok, err := PreConsumeUserQuota(user.Id, 60)
+	require.NoError(t, err)
+	require.True(t, ok)
+	baselineCycle := "baseline:wallet:" + strconv.Itoa(user.Id)
+	requireLifecycleEvents(t, user.Id, QuotaLifecycleScopeWallet, strconv.Itoa(user.Id), baselineCycle, []string{RecallLifecycleTriggerQuotaLow})
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		_, applyErr := ApplyWalletTopUpSuccessMutationTx(tx, user.Id, 100, 10, "cycle-rotate-trade")
+		return applyErr
+	})
+	require.NoError(t, err)
+	requireLifecycleState(t, user.Id, QuotaLifecycleScopeWallet, strconv.Itoa(user.Id), "topup:cycle-rotate-trade", 190, 100)
+
+	ok, err = PreConsumeUserQuota(user.Id, 160)
+	require.NoError(t, err)
+	require.True(t, ok)
+	requireLifecycleEvents(t, user.Id, QuotaLifecycleScopeWallet, strconv.Itoa(user.Id), "topup:cycle-rotate-trade", []string{RecallLifecycleTriggerQuotaLow})
+}
+
+func TestApplyWalletTopUpSuccessMutationTxUsesTopUpIDCycleFallback(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+
+	user := createLifecycleQuotaTestUser(t, "wallet-topup-id-cycle", 20, 100)
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		_, applyErr := ApplyWalletTopUpSuccessMutationTx(tx, user.Id, 100, 77, "")
+		return applyErr
+	})
+
+	require.NoError(t, err)
+	requireLifecycleState(t, user.Id, QuotaLifecycleScopeWallet, strconv.Itoa(user.Id), "topups:77", 120, 100)
+}
+
 func TestLifecycleQuotaWalletAdaptersCommitSynchronouslyWhenBatchEnabled(t *testing.T) {
 	setupLifecycleQuotaMutationTestDB(t, 1)
 	common.BatchUpdateEnabled = true

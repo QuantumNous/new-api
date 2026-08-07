@@ -4,8 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
 func TestNotifyLang(t *testing.T) {
@@ -47,5 +49,51 @@ func TestRenderQuotaNotifyContent(t *testing.T) {
 		if !strings.Contains(got, quota) || !strings.Contains(got, warning) {
 			t.Errorf("%s content missing quota/warning: %s", nt, got)
 		}
+	}
+}
+
+func TestWalletQuotaNonEmailNotifyAllowsOnlyWebhookBarkGotify(t *testing.T) {
+	if err := i18n.Init(); err != nil {
+		t.Fatalf("i18n init failed: %v", err)
+	}
+	for _, notifyType := range []string{dto.NotifyTypeWebhook, dto.NotifyTypeBark, dto.NotifyTypeGotify} {
+		t.Run(notifyType, func(t *testing.T) {
+			notify, ok := walletQuotaNonEmailNotifyPayload(&relaycommon.RelayInfo{
+				UserId:    42,
+				UserEmail: "user@example.com",
+				UserQuota: 95,
+				UserSetting: dto.UserSetting{
+					NotifyType:            notifyType,
+					QuotaWarningThreshold: 100,
+				},
+			}, 10, 0)
+
+			if !ok {
+				t.Fatalf("expected %s notification payload", notifyType)
+			}
+			if notify.Type != dto.NotifyTypeQuotaExceed {
+				t.Fatalf("unexpected notify type %q", notify.Type)
+			}
+		})
+	}
+}
+
+func TestWalletQuotaNonEmailNotifySkipsEmailAndDefault(t *testing.T) {
+	originalThreshold := common.QuotaRemindThreshold
+	common.QuotaRemindThreshold = 100
+	t.Cleanup(func() { common.QuotaRemindThreshold = originalThreshold })
+
+	for _, notifyType := range []string{"", dto.NotifyTypeEmail} {
+		t.Run("notify_type_"+notifyType, func(t *testing.T) {
+			_, ok := walletQuotaNonEmailNotifyPayload(&relaycommon.RelayInfo{
+				UserId:      43,
+				UserEmail:   "user@example.com",
+				UserQuota:   95,
+				UserSetting: dto.UserSetting{NotifyType: notifyType},
+			}, 10, 0)
+			if ok {
+				t.Fatalf("wallet non-email notifier must skip notify type %q", notifyType)
+			}
+		})
 	}
 }

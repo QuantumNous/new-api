@@ -450,8 +450,9 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 		}
 	}
 
-	_ = sendEmail
-	_ = preConsumedQuota
+	if sendEmail && (quota+preConsumedQuota) != 0 {
+		checkAndSendWalletQuotaNonEmailNotify(relayInfo, quota, preConsumedQuota)
+	}
 
 	return nil
 }
@@ -477,6 +478,45 @@ func renderQuotaNotifyContent(lang, notifyType, warning, quota, link string) str
 	default:
 		return i18n.Translate(lang, i18n.MsgNotifyQuotaEmail, data)
 	}
+}
+
+func checkAndSendWalletQuotaNonEmailNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {
+	gopool.Go(func() {
+		notify, ok := walletQuotaNonEmailNotifyPayload(relayInfo, quota, preConsumedQuota)
+		if !ok {
+			return
+		}
+		if err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, notify); err != nil {
+			common.SysError(fmt.Sprintf("failed to send wallet quota non-email notify to user %d: %s", relayInfo.UserId, err.Error()))
+		}
+	})
+}
+
+func walletQuotaNonEmailNotifyPayload(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) (dto.Notify, bool) {
+	if relayInfo == nil {
+		return dto.Notify{}, false
+	}
+	userSetting := relayInfo.UserSetting
+	switch userSetting.NotifyType {
+	case dto.NotifyTypeWebhook, dto.NotifyTypeBark, dto.NotifyTypeGotify:
+	default:
+		return dto.Notify{}, false
+	}
+	threshold := common.QuotaRemindThreshold
+	if userSetting.QuotaWarningThreshold != 0 {
+		threshold = int(userSetting.QuotaWarningThreshold)
+	}
+	consumeQuota := quota + preConsumedQuota
+	remaining := relayInfo.UserQuota - consumeQuota
+	if remaining >= threshold {
+		return dto.Notify{}, false
+	}
+
+	lang := notifyLang(userSetting.Language)
+	title := i18n.Translate(lang, i18n.MsgNotifyQuotaTitle)
+	topUpLink := PaymentReturnURL("/console/topup")
+	content := renderQuotaNotifyContent(lang, userSetting.NotifyType, title, logger.FormatQuota(remaining), topUpLink)
+	return dto.NewNotify(dto.NotifyTypeQuotaExceed, title, content, nil), true
 }
 
 func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {

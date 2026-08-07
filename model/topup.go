@@ -301,7 +301,7 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 				return err
 			}
 		}
-		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, int64(quotaToAdd), 0, "topup_success", topUp.TradeNo); err != nil {
+		if _, err := ApplyWalletTopUpSuccessMutationTx(tx, topUp.UserId, int64(quotaToAdd), topUp.Id, topUp.TradeNo); err != nil {
 			return err
 		}
 		if err := EnqueueAdsPurchaseInTx(tx, topUp); err != nil {
@@ -555,7 +555,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		}
 
 		// 增加用户额度（立即写库，保持一致性）
-		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, int64(quotaToAdd), 0, "topup_success", topUp.TradeNo); err != nil {
+		if _, err := ApplyWalletTopUpSuccessMutationTx(tx, topUp.UserId, int64(quotaToAdd), topUp.Id, topUp.TradeNo); err != nil {
 			return err
 		}
 
@@ -575,6 +575,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 	// 事务外记录日志，避免阻塞
 	if completed {
+		syncTopUpQuotaCacheAfterCommit(userId, int64(quotaToAdd), "manual topup")
 		RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
 		runInviteRewardPostCommitHooks(rewardResult)
 	}
@@ -643,7 +644,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 				return err
 			}
 		}
-		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, quota, 0, "topup_success", topUp.TradeNo); err != nil {
+		if _, err := ApplyWalletTopUpSuccessMutationTx(tx, topUp.UserId, quota, topUp.Id, topUp.TradeNo); err != nil {
 			return err
 		}
 
@@ -665,6 +666,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		EnqueuePaymentAnalyticsForTopUpBestEffort(topUp)
 	}
 	if credited {
+		syncTopUpQuotaCacheAfterCommit(topUp.UserId, quota, "creem topup")
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
 		runInviteRewardPostCommitHooks(rewardResult)
 	}
@@ -724,7 +726,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 			return err
 		}
 
-		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, int64(quotaToAdd), 0, "topup_success", topUp.TradeNo); err != nil {
+		if _, err := ApplyWalletTopUpSuccessMutationTx(tx, topUp.UserId, int64(quotaToAdd), topUp.Id, topUp.TradeNo); err != nil {
 			return err
 		}
 
@@ -746,6 +748,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 		EnqueuePaymentAnalyticsForTopUpBestEffort(topUp)
 	}
 	if credited {
+		syncTopUpQuotaCacheAfterCommit(topUp.UserId, int64(quotaToAdd), "waffo topup")
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
 		runInviteRewardPostCommitHooks(rewardResult)
 	}
@@ -803,7 +806,7 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 			return err
 		}
 
-		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, int64(quotaToAdd), 0, "topup_success", topUp.TradeNo); err != nil {
+		if _, err := ApplyWalletTopUpSuccessMutationTx(tx, topUp.UserId, int64(quotaToAdd), topUp.Id, topUp.TradeNo); err != nil {
 			return err
 		}
 
@@ -825,6 +828,7 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 		EnqueuePaymentAnalyticsForTopUpBestEffort(topUp)
 	}
 	if credited {
+		syncTopUpQuotaCacheAfterCommit(topUp.UserId, int64(quotaToAdd), "waffo pancake topup")
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 		runInviteRewardPostCommitHooks(rewardResult)
 	}
@@ -923,7 +927,7 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 		}
 		quotaToAdd += int(bonusQuota)
 
-		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, int64(quotaToAdd), 0, "topup_success", topUp.TradeNo); err != nil {
+		if _, err := ApplyWalletTopUpSuccessMutationTx(tx, topUp.UserId, int64(quotaToAdd), topUp.Id, topUp.TradeNo); err != nil {
 			return err
 		}
 
@@ -955,11 +959,21 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 		EnqueuePaymentAnalyticsForTopUpBestEffort(topUp)
 	}
 	if credited {
+		syncTopUpQuotaCacheAfterCommit(topUp.UserId, int64(quotaToAdd), "paddle topup")
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Paddle充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPaddle)
 		runInviteRewardPostCommitHooks(rewardResult)
 	}
 
 	return credited, nil
+}
+
+func syncTopUpQuotaCacheAfterCommit(userID int, quotaDelta int64, label string) {
+	if quotaDelta == 0 {
+		return
+	}
+	if err := cacheIncrUserQuota(userID, quotaDelta); err != nil {
+		common.SysLog(fmt.Sprintf("failed to increase user quota cache after %s: %s", label, err.Error()))
+	}
 }
 
 func isCompletedPaddleTopUp(tradeNo string, expectedUserId int, expectedGatewayTradeNo string) bool {

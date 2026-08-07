@@ -179,6 +179,53 @@ func ApplyWalletQuotaMutationTx(tx *gorm.DB, userID int, delta int64, requireAtL
 	})
 }
 
+func ApplyWalletTopUpSuccessMutationTx(tx *gorm.DB, userID int, delta int64, topUpID int, tradeNo string) (LifecycleQuotaMutationResult, error) {
+	sourceRef := walletTopUpCycleKey(topUpID, tradeNo)
+	return ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+		UserID:          userID,
+		ScopeType:       QuotaLifecycleScopeWallet,
+		ScopeID:         int64(userID),
+		Delta:           delta,
+		Cause:           "topup_success",
+		SourceRef:       sourceRef,
+		NextCycleKey:    sourceRef,
+		NextCycleSource: sourceRef,
+	})
+}
+
+func walletTopUpCycleKey(topUpID int, tradeNo string) string {
+	if normalized := strings.TrimSpace(tradeNo); normalized != "" {
+		return "topup:" + normalized
+	}
+	return fmt.Sprintf("topups:%d", topUpID)
+}
+
+func ApplyWalletQuotaOverrideTx(tx *gorm.DB, userID int, target int64, cause string, sourceRef string) (LifecycleQuotaMutationResult, error) {
+	if tx == nil {
+		return LifecycleQuotaMutationResult{}, errors.New("quota lifecycle mutation requires transaction")
+	}
+	if userID <= 0 {
+		return LifecycleQuotaMutationResult{}, errors.New("quota lifecycle mutation requires user id")
+	}
+	var user User
+	if err := lockQuery(tx).Where("id = ?", userID).First(&user).Error; err != nil {
+		return LifecycleQuotaMutationResult{}, err
+	}
+	current := int64(user.Quota)
+	delta, err := checkedLifecycleQuotaSub(target, current)
+	if err != nil {
+		return LifecycleQuotaMutationResult{}, err
+	}
+	result, err := ApplyWalletQuotaMutationTx(tx, userID, delta, 0, cause, sourceRef)
+	if err != nil {
+		return LifecycleQuotaMutationResult{}, err
+	}
+	if result.CurrentBalance != target {
+		return LifecycleQuotaMutationResult{}, fmt.Errorf("wallet quota override final balance mismatch, target=%d actual=%d", target, result.CurrentBalance)
+	}
+	return result, nil
+}
+
 func validateLifecycleQuotaScope(userID int, scopeType string, scopeID int64) error {
 	switch scopeType {
 	case QuotaLifecycleScopeWallet:
