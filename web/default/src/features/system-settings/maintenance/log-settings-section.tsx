@@ -51,12 +51,14 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  ErrorLogEnabled: z.boolean(),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
-  defaultEnabled: boolean
+  defaultConsumeEnabled: boolean
+  defaultErrorLogEnabled: boolean
 }
 
 const HOURS_IN_DAY = 24
@@ -84,15 +86,14 @@ const quickSelectOptions = [
   },
 ]
 
-export function LogSettingsSection({
-  defaultEnabled,
-}: LogSettingsSectionProps) {
+export function LogSettingsSection(props: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
-      LogConsumeEnabled: defaultEnabled,
+      LogConsumeEnabled: props.defaultConsumeEnabled,
+      ErrorLogEnabled: props.defaultErrorLogEnabled,
     },
   })
 
@@ -103,8 +104,11 @@ export function LogSettingsSection({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset({
+      LogConsumeEnabled: props.defaultConsumeEnabled,
+      ErrorLogEnabled: props.defaultErrorLogEnabled,
+    })
+  }, [props.defaultConsumeEnabled, props.defaultErrorLogEnabled, form])
 
   const purgeTimestamp = useMemo(() => {
     if (!purgeDate) return null
@@ -117,11 +121,23 @@ export function LogSettingsSection({
   }, [purgeDate])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const updates: Array<{ key: string; value: boolean }> = []
+    if (values.LogConsumeEnabled !== props.defaultConsumeEnabled) {
+      updates.push({
+        key: 'LogConsumeEnabled',
+        value: values.LogConsumeEnabled,
+      })
+    }
+    if (values.ErrorLogEnabled !== props.defaultErrorLogEnabled) {
+      updates.push({
+        key: 'ErrorLogEnabled',
+        value: values.ErrorLogEnabled,
+      })
+    }
+    if (updates.length === 0) return
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
   }
 
   const handleRequestCleanLogs = () => {
@@ -179,6 +195,32 @@ export function LogSettingsSection({
                   <FormDescription>
                     {t(
                       'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
+                    )}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ErrorLogEnabled'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5 pe-4'>
+                  <FormLabel className='text-base'>
+                    {t('Record error logs')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Record failed API requests for admin troubleshooting. Increases database writes.'
                     )}
                   </FormDescription>
                 </div>
