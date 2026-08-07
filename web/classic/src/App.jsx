@@ -42,6 +42,7 @@ const Chat2Link = lazy(() => import('./pages/Chat2Link'));
 const Midjourney = lazy(() => import('./pages/Midjourney'));
 const Pricing = lazy(() => import('./pages/Pricing'));
 const Task = lazy(() => import('./pages/Task'));
+const ErrorLog = lazy(() => import('./pages/ErrorLog'));
 const ModelPage = lazy(() => import('./pages/Model'));
 const ModelDeploymentPage = lazy(() => import('./pages/ModelDeployment'));
 const Playground = lazy(() => import('./pages/Playground'));
@@ -351,6 +352,16 @@ function App() {
                 <Task />
               </LazyRoute>
             </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/error-logs'
+          element={
+            <AdminRoute>
+              <LazyRoute>
+                <ErrorLog />
+              </LazyRoute>
+            </AdminRoute>
           }
         />
         <Route

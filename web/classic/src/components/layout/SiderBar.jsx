@@ -45,6 +45,7 @@ const routerMap = {
   detail: '/console',
   pricing: '/pricing',
   task: '/console/task',
+  errorLog: '/console/error-logs',
   models: '/console/models',
   deployment: '/console/deployment',
   playground: '/console/playground',
@@ -181,6 +182,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('用户管理'),
         itemKey: 'user',
         to: '/user',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('错误日志'),
+        itemKey: 'errorLog',
+        to: '/errorLog',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

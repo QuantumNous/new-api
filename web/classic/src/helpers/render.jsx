@@ -44,6 +44,7 @@ import {
   Package,
   Server,
   CalendarClock,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -99,6 +100,8 @@ export function getLucideIcon(key, selected = false) {
       return <ImageIcon {...commonProps} color={iconColor} />;
     case 'task':
       return <CheckSquare {...commonProps} color={iconColor} />;
+    case 'errorLog':
+      return <AlertTriangle {...commonProps} color={iconColor} />;
     case 'topup':
       return <CreditCard {...commonProps} color={iconColor} />;
     case 'channel':

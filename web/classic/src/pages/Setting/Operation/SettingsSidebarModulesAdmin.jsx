@@ -66,6 +66,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       redemption: true,
       user: true,
       subscription: true,
+      errorLog: true,
       setting: true,
     },
   });
@@ -127,6 +128,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         redemption: true,
         user: true,
         subscription: true,
+        errorLog: true,
         setting: true,
       },
     };
@@ -174,7 +176,42 @@ export default function SettingsSidebarModulesAdmin(props) {
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
         const modules = JSON.parse(props.options.SidebarModulesAdmin);
-        setSidebarModulesAdmin(modules);
+        setSidebarModulesAdmin({
+          ...modules,
+          admin: {
+            enabled: true,
+            channel: true,
+            models: true,
+            deployment: true,
+            redemption: true,
+            user: true,
+            subscription: true,
+            errorLog: true,
+            setting: true,
+            ...(modules.admin || {}),
+          },
+          console: {
+            enabled: true,
+            detail: true,
+            token: true,
+            log: true,
+            midjourney: true,
+            task: true,
+            ...(modules.console || {}),
+          },
+          chat: {
+            enabled: true,
+            playground: true,
+            chat: true,
+            ...(modules.chat || {}),
+          },
+          personal: {
+            enabled: true,
+            topup: true,
+            personal: true,
+            ...(modules.personal || {}),
+          },
+        });
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
@@ -196,6 +233,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             redemption: true,
             user: true,
             subscription: true,
+            errorLog: true,
             setting: true,
           },
         };
@@ -271,6 +309,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           description: t('兑换码生成管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
+        {
+          key: 'errorLog',
+          title: t('错误日志'),
+          description: t('失败请求排查'),
+        },
         {
           key: 'setting',
           title: t('系统设置'),
