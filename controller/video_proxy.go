@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -112,8 +113,11 @@ func VideoProxy(c *gin.Context) {
 			return
 		}
 	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
-		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
-		req.Header.Set("Authorization", "Bearer "+channel.Key)
+		var useChannelAuth bool
+		videoURL, useChannelAuth = resolveOpenAIVideoContentURL(baseURL, task.GetUpstreamTaskID(), task.GetResultURL())
+		if useChannelAuth {
+			req.Header.Set("Authorization", "Bearer "+channel.Key)
+		}
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()
@@ -180,6 +184,21 @@ func VideoProxy(c *gin.Context) {
 	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
 	}
+}
+
+func resolveOpenAIVideoContentURL(baseURL, upstreamTaskID, resultURL string) (string, bool) {
+	if taskcommon.IsAgnesAPIBaseURL(baseURL) {
+		candidate := strings.TrimSpace(resultURL)
+		parsed, err := url.Parse(candidate)
+		if err == nil &&
+			parsed.IsAbs() &&
+			parsed.Host != "" &&
+			(parsed.Scheme == "http" || parsed.Scheme == "https") {
+			return candidate, false
+		}
+	}
+
+	return fmt.Sprintf("%s/v1/videos/%s/content", baseURL, upstreamTaskID), true
 }
 
 func writeVideoDataURL(c *gin.Context, dataURL string) error {

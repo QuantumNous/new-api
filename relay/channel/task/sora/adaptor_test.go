@@ -39,3 +39,47 @@ func TestSoraBuildRequestBodyReturnsReplayablePassThroughBody(t *testing.T) {
 	require.NoError(t, replayBody.Close())
 	assert.Equal(t, payload, replay)
 }
+
+func TestBuildTaskFetchURLUsesAgnesStatusEndpointOnlyForAgnes(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{
+			name:    "Agnes",
+			baseURL: "https://apihub.agnes-ai.com/v1",
+			want:    "https://apihub.agnes-ai.com/agnesapi?video_id=task-123",
+		},
+		{
+			name:    "other OpenAI-compatible provider",
+			baseURL: "https://video.example.com",
+			want:    "https://video.example.com/v1/videos/task-123",
+		},
+		{
+			name:    "Agnes lookalike",
+			baseURL: "https://apihub.agnes-ai.com.evil.example",
+			want:    "https://apihub.agnes-ai.com.evil.example/v1/videos/task-123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildTaskFetchURL(tt.baseURL, "task-123")
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestParseTaskResultUsesMetadataURLOnlyForAgnes(t *testing.T) {
+	body := []byte(`{"id":"task-123","status":"completed","metadata":{"url":"https://cdn.agnes-ai.com/video.mp4"}}`)
+
+	agnesResult, err := (&TaskAdaptor{baseURL: "https://apihub.agnes-ai.com"}).ParseTaskResult(body)
+	require.NoError(t, err)
+	assert.Equal(t, "https://cdn.agnes-ai.com/video.mp4", agnesResult.Url)
+
+	otherResult, err := (&TaskAdaptor{baseURL: "https://video.example.com"}).ParseTaskResult(body)
+	require.NoError(t, err)
+	assert.Empty(t, otherResult.Url)
+}
