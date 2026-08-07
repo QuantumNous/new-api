@@ -269,9 +269,6 @@ export const STATIC_I18N_KEYS = [
   'Weekly',
   'Monthly',
 
-  // CC Switch dialog
-  'Import to CC Switch',
-  'Open CC Switch',
   'Primary Model',
   'Haiku Model',
   'Sonnet Model',

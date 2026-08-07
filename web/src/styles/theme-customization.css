@@ -1,0 +1,78 @@
+/* Non-color appearance controls retained for the fixed fog-forest theme. */
+[data-theme-font='sans'] {
+  --font-body: var(--font-sans);
+}
+
+[data-theme-font='serif'] {
+  --font-body: var(--font-serif);
+  font-feature-settings:
+    'kern' 1,
+    'liga' 1,
+    'calt' 1,
+    'tnum' 1;
+}
+
+[data-theme-font='serif'] :is(h1, h2, h3, h4, h5, h6),
+[data-theme-font='serif'] [data-slot='sheet-title'],
+[data-theme-font='serif'] [data-slot='dialog-title'],
+[data-theme-font='serif'] [data-slot='alert-dialog-title'],
+[data-theme-font='serif'] [data-slot='drawer-title'],
+[data-theme-font='serif'] [data-slot='card-title'] {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+[data-theme-radius='none'] {
+  --radius: 0rem;
+}
+[data-theme-radius='sm'] {
+  --radius: 0.3rem;
+}
+[data-theme-radius='md'] {
+  --radius: 0.5rem;
+}
+[data-theme-radius='lg'] {
+  --radius: 0.75rem;
+}
+[data-theme-radius='xl'] {
+  --radius: 1rem;
+}
+
+[data-theme-scale='sm'] {
+  --text-xs: 0.7rem;
+  --text-sm: 0.78rem;
+  --text-base: 0.88rem;
+  --text-lg: 1rem;
+  --text-xl: 1.13rem;
+  --text-2xl: 1.38rem;
+  --text-3xl: 1.7rem;
+  --spacing: 0.225rem;
+}
+[data-theme-scale='lg'] {
+  --text-xs: 0.84rem;
+  --text-sm: 0.95rem;
+  --text-base: 1.075rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.35rem;
+  --text-2xl: 1.65rem;
+  --text-3xl: 2rem;
+  --spacing: 0.28rem;
+}
+[data-theme-scale='xl'] {
+  --text-xs: 0.9rem;
+  --text-sm: 1rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.45rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.15rem;
+  --spacing: 0.3rem;
+}
+
+@media (min-width: 1280px) {
+  [data-theme-content-layout='centered'] [data-slot='sidebar-inset'] > * {
+    max-width: var(--max-content-width, 1280px);
+    margin-inline: auto;
+    width: 100%;
+  }
+}

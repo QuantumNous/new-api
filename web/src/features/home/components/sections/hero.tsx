@@ -196,33 +196,6 @@ export function Hero(props: HeroProps) {
                 <span>Cherry Studio</span>
               </a>
 
-              {/* CC Switch */}
-              <a
-                href='https://ccswitch.io'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
-              >
-                <img
-                  src='https://ccswitch.io/favicon.png'
-                  alt='CC Switch'
-                  className='size-6 shrink-0 rounded-md object-contain'
-                  onError={(e) => {
-                    // Fallback to a styled text avatar if the remote favicon fails to load in sandbox or local environments
-                    e.currentTarget.style.display = 'none'
-                    const fallback = e.currentTarget.nextSibling as HTMLElement
-                    if (fallback) fallback.style.display = 'flex'
-                  }}
-                />
-                <span
-                  style={{ display: 'none' }}
-                  className='size-6 shrink-0 items-center justify-center rounded-md bg-blue-500/10 text-[10px] font-bold text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'
-                >
-                  CC
-                </span>
-                <span>CC Switch</span>
-              </a>
-
               {/* "更多" */}
               <div className='group border-border/40 bg-muted/15 text-foreground/55 hover:border-border hover:bg-muted/30 hover:text-foreground flex cursor-default items-center gap-2.5 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'>
                 <MoreIcon />

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight, ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
+import { ArrowRight, ChevronRight } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,10 +29,8 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from '@/components/ui/command'
 import { useSearch } from '@/context/search-context'
-import { useTheme } from '@/context/theme-provider'
 import { useSidebarView } from '@/hooks/use-sidebar-view'
 
 import { navigateCommandTarget } from './command-navigation'
@@ -41,7 +39,6 @@ import { ScrollArea } from './ui/scroll-area'
 export function CommandMenu() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { setTheme } = useTheme()
   const { open, setOpen } = useSearch()
   // Reuse the exact role/config-filtered navigation shown in the sidebar.
   // Keeping a second unfiltered source here would expose admin commands to
@@ -104,22 +101,6 @@ export function CommandMenu() {
                 })}
               </CommandGroup>
             ))}
-            <CommandSeparator />
-            <CommandGroup heading='Theme'>
-              <CommandItem onSelect={() => runCommand(() => setTheme('light'))}>
-                <Sun /> <span>{t('Light')}</span>
-              </CommandItem>
-              <CommandItem onSelect={() => runCommand(() => setTheme('dark'))}>
-                <Moon className='scale-90' />
-                <span>{t('Dark')}</span>
-              </CommandItem>
-              <CommandItem
-                onSelect={() => runCommand(() => setTheme('system'))}
-              >
-                <Laptop />
-                <span>{t('System')}</span>
-              </CommandItem>
-            </CommandGroup>
           </ScrollArea>
         </CommandList>
       </Command>
