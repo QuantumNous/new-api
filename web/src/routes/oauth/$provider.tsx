@@ -214,6 +214,7 @@ function OAuthCallback() {
             state,
             error: search.error,
             error_description: search.error_description,
+            redirect_origin: window.location.origin,
           },
           skipBusinessError: true,
           skipAuthRefresh: true,

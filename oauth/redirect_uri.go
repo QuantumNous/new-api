@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -13,7 +14,14 @@ import (
 // send the exact same value, so derive it from the callback request instead of
 // ServerAddress, or multi-domain deployments fail with invalid_grant.
 func callbackRedirectURI(c *gin.Context, path string) string {
-	if c == nil || c.Request == nil || c.Request.Host == "" {
+	if c == nil || c.Request == nil {
+		return system_setting.ServerAddress + path
+	}
+	// Load balancers strip the port from Host, so a rebuilt URI is never byte-identical.
+	if origin, err := common.NormalizeOrigin(c.Query("redirect_origin")); err == nil {
+		return origin + path
+	}
+	if c.Request.Host == "" {
 		return system_setting.ServerAddress + path
 	}
 	scheme := "https"
