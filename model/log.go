@@ -702,8 +702,8 @@ type SelfLogStat struct {
 	TodayQuota    int64 `json:"today_quota"`
 }
 
-func GetSelfLogStat(username string, now time.Time) (stat SelfLogStat, err error) {
-	base := LOG_DB.Table("logs").Where("username = ? AND type = ?", username, LogTypeConsume)
+func GetSelfLogStat(userId int, now time.Time) (stat SelfLogStat, err error) {
+	base := LOG_DB.Table("logs").Where("user_id = ? AND type = ?", userId, LogTypeConsume)
 	if err = base.Select("count(*) total_requests, COALESCE(sum(quota), 0) total_quota").Scan(&stat).Error; err != nil {
 		return stat, err
 	}
@@ -716,16 +716,33 @@ func GetSelfLogStat(username string, now time.Time) (stat SelfLogStat, err error
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+	return sumUsedQuota(0, logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+}
+
+// SumUsedQuotaForUser keeps self-service statistics scoped to the stable user id.
+func SumUsedQuotaForUser(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, channel int, group string) (stat Stat, err error) {
+	if userId <= 0 {
+		return stat, errors.New("invalid user id")
+	}
+	return sumUsedQuota(userId, logType, startTimestamp, endTimestamp, modelName, "", tokenName, channel, group)
+}
+
+func sumUsedQuota(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm")
 
-	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
-		return stat, err
-	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
-		return stat, err
+	if userId > 0 {
+		tx = tx.Where("user_id = ?", userId)
+		rpmTpmQuery = rpmTpmQuery.Where("user_id = ?", userId)
+	} else {
+		if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
+			return stat, err
+		}
+		if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
+			return stat, err
+		}
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)

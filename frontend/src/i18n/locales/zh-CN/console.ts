@@ -463,6 +463,7 @@ export default {
     viewList: '列表视图',
     resultCount: '共 {count} 个模型',
     snapshotNote: '性能为快照数据',
+    metadataUnavailable: '模型列表已加载，部分价格或性能数据暂不可用',
     detail: '详情',
     copyHint: '点击复制「{name}」',
     copied: '已复制模型名「{name}」',

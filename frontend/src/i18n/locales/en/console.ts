@@ -469,6 +469,8 @@ export default {
     viewList: 'List view',
     resultCount: '{count} models',
     snapshotNote: 'Performance is a snapshot',
+    metadataUnavailable:
+      'Models loaded, but some pricing or performance data is unavailable',
     detail: 'Details',
     copyHint: 'Click to copy “{name}”',
     copied: 'Copied model name “{name}”',

@@ -101,8 +101,9 @@ onMounted(load)
           name="model-search"
           class="w-full sm:w-64"
         />
-        <div v-if="isMockApi" class="flex flex-1 flex-wrap items-center gap-3">
+        <div class="flex flex-1 flex-wrap items-center gap-3">
           <FilterSelect
+            v-if="channelOptions.length > 0"
             v-model="channel"
             :options="channelSelectOptions"
             :label="t('models.channelFilter')"
@@ -210,29 +211,6 @@ onMounted(load)
       />
     </ConsoleCard>
 
-    <ConsoleCard v-else-if="!isMockApi" :padded="false">
-      <ul class="divide-y divide-[var(--border-subtle)]">
-        <li
-          v-for="model in groups.flatMap((group) => group.models)"
-          :key="model.name"
-          class="flex min-h-14 items-center justify-between gap-3 px-4 py-3"
-        >
-          <span
-            class="min-w-0 truncate font-mono text-sm text-[var(--text-primary)]"
-          >
-            {{ model.name }}
-          </span>
-          <ConsoleButton
-            variant="ghost"
-            size="sm"
-            @click="copyName(model.name)"
-          >
-            {{ t('common.copy') }}
-          </ConsoleButton>
-        </li>
-      </ul>
-    </ConsoleCard>
-
     <!-- vendor groups -->
     <template v-else>
       <VendorSection
@@ -246,7 +224,6 @@ onMounted(load)
 
     <!-- detail modal -->
     <ConsoleModal
-      v-if="isMockApi"
       :open="detailModel != null"
       :title="detailModel?.name ?? ''"
       size="lg"

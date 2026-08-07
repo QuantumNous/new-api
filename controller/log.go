@@ -176,7 +176,7 @@ func GetLogsStat(c *gin.Context) {
 }
 
 func GetLogsSelfStat(c *gin.Context) {
-	username := c.GetString("username")
+	userId := c.GetInt("id")
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -184,12 +184,12 @@ func GetLogsSelfStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	quotaNum, err := model.SumUsedQuotaForUser(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, channel, group)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	overview, err := model.GetSelfLogStat(username, time.Now())
+	overview, err := model.GetSelfLogStat(userId, time.Now())
 	if err != nil {
 		common.ApiError(c, err)
 		return

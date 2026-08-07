@@ -143,15 +143,27 @@ export function useModelMarket() {
       if (isMockApi) {
         catalog.value = await api.get<ModelMarketCatalog>('/api/models/market')
       } else {
-        const [rawNames, rawPricing, rawPerformance] = await Promise.all([
-          api.get<unknown>('/api/user/models'),
-          api.get<unknown>('/api/pricing'),
-          api.get<unknown>('/api/perf-metrics/summary'),
+        const names = parseUserModels(
+          await api.get<unknown>('/api/user/models')
+        )
+        const [pricingResult, performanceResult] = await Promise.allSettled([
+          api.get<unknown>('/api/pricing').then(parsePricingModels),
+          api
+            .get<unknown>('/api/perf-metrics/summary')
+            .then(parsePerfMetricsSummary),
         ])
+        if (
+          pricingResult.status === 'rejected' ||
+          performanceResult.status === 'rejected'
+        ) {
+          toast.warning(t('models.metadataUnavailable'))
+        }
         catalog.value = buildLiveModelCatalog(
-          parseUserModels(rawNames),
-          parsePricingModels(rawPricing),
-          parsePerfMetricsSummary(rawPerformance)
+          names,
+          pricingResult.status === 'fulfilled' ? pricingResult.value : [],
+          performanceResult.status === 'fulfilled'
+            ? performanceResult.value
+            : []
         )
       }
     } catch (error) {
