@@ -350,6 +350,33 @@ func TestReleaseAssetBindingForRetryCASDoesNotReleaseStaleStatus(t *testing.T) {
 	require.EqualValues(t, 100, stored.UpdatedAt)
 }
 
+func TestReleaseAssetBindingForRetryCASRejectsEmptyLeaseOwner(t *testing.T) {
+	newAssetTestDB(t, &Asset{}, &AssetBinding{})
+	asset := insertAssetForAssetTest(t, "asset_binding_retry_empty_owner")
+	require.NoError(t, DB.Create(&AssetBinding{
+		AssetId:        asset.Id,
+		ChannelId:      131,
+		BindingScope:   "scope-a",
+		Status:         AssetBindingStatusLeased,
+		LeaseOwner:     "node-a",
+		LeaseExpiresAt: 200,
+		ErrorCode:      "old",
+		CreatedAt:      100,
+		UpdatedAt:      100,
+	}).Error)
+
+	released, err := ReleaseAssetBindingForRetryCAS(asset.Id, 131, "scope-a", "", "throttled", 160)
+
+	require.NoError(t, err)
+	require.False(t, released)
+	var stored AssetBinding
+	require.NoError(t, DB.First(&stored, "asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, 131, "scope-a").Error)
+	require.Equal(t, AssetBindingStatusLeased, stored.Status)
+	require.Equal(t, "node-a", stored.LeaseOwner)
+	require.Equal(t, "old", stored.ErrorCode)
+	require.EqualValues(t, 100, stored.UpdatedAt)
+}
+
 func TestMigrateLegacyBytePlusAssetsPreservesPublicIDsAndBindingsIdempotently(t *testing.T) {
 	newAssetTestDB(t, &Asset{}, &AssetBinding{}, &BytePlusAssetGroup{}, &BytePlusAsset{})
 

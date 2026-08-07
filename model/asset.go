@@ -473,21 +473,22 @@ func FailAssetBindingForScopeCAS(assetID int64, channelID int, bindingScope stri
 }
 
 func ReleaseAssetBindingForRetryCAS(assetID int64, channelID int, bindingScope, leaseOwner, errorCode string, now int64) (bool, error) {
-	query := DB.Model(&AssetBinding{}).
-		Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", assetID, channelID, bindingScope).
-		Where("status = ?", AssetBindingStatusLeased)
-	if leaseOwner != "" {
-		query = query.Where("lease_owner = ?", leaseOwner)
+	if leaseOwner == "" {
+		return false, nil
 	}
-	result := query.Updates(map[string]any{
-		"status":            AssetBindingStatusPending,
-		"upstream_group_id": "",
-		"upstream_asset_id": "",
-		"error_code":        sanitizeAssetBindingErrorCode(errorCode),
-		"lease_owner":       "",
-		"lease_expires_at":  int64(0),
-		"updated_at":        now,
-	})
+	result := DB.Model(&AssetBinding{}).
+		Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", assetID, channelID, bindingScope).
+		Where("status = ?", AssetBindingStatusLeased).
+		Where("lease_owner = ?", leaseOwner).
+		Updates(map[string]any{
+			"status":            AssetBindingStatusPending,
+			"upstream_group_id": "",
+			"upstream_asset_id": "",
+			"error_code":        sanitizeAssetBindingErrorCode(errorCode),
+			"lease_owner":       "",
+			"lease_expires_at":  int64(0),
+			"updated_at":        now,
+		})
 	if result.Error != nil {
 		return false, result.Error
 	}
