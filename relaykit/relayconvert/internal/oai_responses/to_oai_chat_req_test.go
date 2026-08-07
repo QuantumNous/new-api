@@ -295,6 +295,33 @@ func TestResponsesRequestToChatCompletionsRequestRejectsStatefulFields(t *testin
 	}
 }
 
+func TestResponsesRequestToChatCompletionsRequestPreservesPenalties(t *testing.T) {
+	tests := []struct {
+		name      string
+		frequency *float64
+		presence  *float64
+	}{
+		{name: "positive values", frequency: lo.ToPtr(0.5), presence: lo.ToPtr(1.5)},
+		{name: "explicit zero values", frequency: lo.ToPtr(0.0), presence: lo.ToPtr(0.0)},
+		{name: "unset stays nil", frequency: nil, presence: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+				Model:            "gpt-test",
+				Input:            mustRawMessage(t, "hello"),
+				FrequencyPenalty: tt.frequency,
+				PresencePenalty:  tt.presence,
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.frequency, got.FrequencyPenalty)
+			assert.Equal(t, tt.presence, got.PresencePenalty)
+		})
+	}
+}
+
 func mustRawMessage(t *testing.T, value any) []byte {
 	t.Helper()
 	raw, err := kitutil.Marshal(value)
