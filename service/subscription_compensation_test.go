@@ -59,6 +59,8 @@ func setupSubscriptionCompensationTestDB(t *testing.T) {
 		&model.UserSubscriptionContract{},
 		&model.SubscriptionChangeIntent{},
 		&model.SubscriptionProviderBinding{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	))
 }
 

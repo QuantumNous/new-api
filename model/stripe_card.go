@@ -181,8 +181,8 @@ func CreditStripeAutoCharge(userId int, amountUnits int, money float64, gatewayT
 		if err := tx.Create(topUp).Error; err != nil {
 			return err
 		}
-		return tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error
+		_, err := ApplyWalletQuotaMutationTx(tx, userId, int64(quotaToAdd), 0, "topup_success", tradeNo)
+		return err
 	})
 	if err != nil {
 		return err

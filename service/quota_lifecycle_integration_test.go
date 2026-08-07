@@ -72,6 +72,27 @@ func TestQuotaLifecycleBillingReserveFundingRollbackRestoresWallet(t *testing.T)
 	requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), 100)
 }
 
+func TestQuotaLifecyclePostConsumeWalletRuntimeSeamBatchModes(t *testing.T) {
+	for _, batchEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("batch_%v", batchEnabled), func(t *testing.T) {
+			truncate(t)
+			restoreLifecycleThresholdForServiceTest(t, 100)
+			common.BatchUpdateEnabled = batchEnabled
+
+			const userID = 108
+			seedUser(t, userID, 150)
+			relayInfo := &relaycommon.RelayInfo{UserId: userID}
+
+			require.NoError(t, PostConsumeQuota(relayInfo, 60, 0, false))
+			require.NoError(t, PostConsumeQuota(relayInfo, -20, 0, false))
+
+			require.Equal(t, 110, getUserQuota(t, userID))
+			requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), 110)
+			require.Equal(t, int64(1), countLifecycleEventsForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID)))
+		})
+	}
+}
+
 func TestQuotaLifecycleFundingSubscriptionReserveAndRefund(t *testing.T) {
 	for _, batchEnabled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("batch_%v", batchEnabled), func(t *testing.T) {

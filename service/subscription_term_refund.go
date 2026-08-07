@@ -233,8 +233,7 @@ func RefundSubscriptionTermSegment(userID int, termSegmentID int64) (*Subscripti
 			return err
 		}
 		if refundQuota > 0 {
-			if err := tx.Model(&model.User{}).Where("id = ?", userID).
-				Update("quota", gorm.Expr("quota + ?", refundQuota)).Error; err != nil {
+			if _, err := model.ApplyWalletQuotaMutationTx(tx, userID, int64(refundQuota), 0, "subscription_term_refund", refundKey); err != nil {
 				return err
 			}
 		}

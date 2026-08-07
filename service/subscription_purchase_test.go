@@ -69,6 +69,8 @@ func setupSubscriptionPurchaseServiceTestDB(t *testing.T) {
 		&model.SubscriptionDiscountAccount{},
 		&model.SubscriptionDiscountEntry{},
 		&model.RecallEvent{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	))
 }
 

@@ -891,11 +891,23 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 	if requiredQuota > 0 && availableQuota < requiredQuota {
 		return nil, nil, errors.New("insufficient balance")
 	}
-	newQuota := availableQuota - requiredQuota
-	if err := tx.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", newQuota).Error; err != nil {
-		return nil, nil, err
+	netDelta := refundQuota - int64(requiredQuota)
+	if netDelta != 0 {
+		requireAtLeast := int64(0)
+		if netDelta < 0 {
+			requireAtLeast = -netDelta
+		}
+		result, err := model.ApplyWalletQuotaMutationTx(tx, user.Id, netDelta, requireAtLeast, "subscription_purchase_balance", fmt.Sprintf("subscription:purchase:intent:%d", intent.Id))
+		if err != nil {
+			return nil, nil, err
+		}
+		if !result.Applied {
+			return nil, nil, errors.New("insufficient balance")
+		}
+		user.Quota = int(result.CurrentBalance)
+	} else {
+		user.Quota = availableQuota - requiredQuota
 	}
-	user.Quota = newQuota
 
 	snapshot, err := subscriptionPurchasePlanSnapshot(plan)
 	if err != nil {

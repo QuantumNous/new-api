@@ -81,6 +81,8 @@ func migrateSubscriptionRecurringTestDB(t *testing.T) {
 		&InviteSubscriptionReward{},
 		&SubscriptionDiscountAccount{},
 		&SubscriptionDiscountEntry{},
+		&RecallLifecycleEvent{},
+		&QuotaLifecycleState{},
 	))
 }
 

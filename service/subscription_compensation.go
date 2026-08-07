@@ -84,12 +84,11 @@ func prepareStripeToBalanceCompensationTx(tx *gorm.DB, user *model.User, contrac
 	}
 	tradeNo := fmt.Sprintf("SUBCOMPUSR%dINT%d", user.Id, intent.Id)
 	if requiredQuota > 0 {
-		debit := tx.Model(&model.User{}).Where("id = ? AND quota >= ?", user.Id, requiredQuota).
-			Update("quota", gorm.Expr("quota - ?", requiredQuota))
-		if debit.Error != nil {
-			return debit.Error
+		result, err := model.ApplyWalletQuotaMutationTx(tx, user.Id, -int64(requiredQuota), int64(requiredQuota), "subscription_balance_debit", tradeNo)
+		if err != nil {
+			return err
 		}
-		if debit.RowsAffected != 1 {
+		if !result.Applied {
 			return errors.New("subscription balance debit conditional update failed")
 		}
 	}
@@ -404,12 +403,11 @@ func refundSubscriptionCompensationWalletDebitDefault(ctx context.Context, inten
 				return errors.New("Stripe-to-balance refund order transition failed")
 			}
 			if chargedQuota > 0 {
-				credit := tx.Model(&model.User{}).Where("id = ?", intent.UserId).
-					Update("quota", gorm.Expr("quota + ?", chargedQuota))
-				if credit.Error != nil {
-					return credit.Error
+				result, err := model.ApplyWalletQuotaMutationTx(tx, intent.UserId, int64(chargedQuota), 0, "subscription_balance_refund", intent.WalletDebitTradeNo)
+				if err != nil {
+					return err
 				}
-				if credit.RowsAffected != 1 {
+				if !result.Applied {
 					return errors.New("Stripe-to-balance refund quota credit failed")
 				}
 			}

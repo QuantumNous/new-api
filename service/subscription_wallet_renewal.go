@@ -168,12 +168,26 @@ func RenewWalletSubscriptionContract(contractID int64) (*WalletSubscriptionRenew
 			return handleExistingWalletRenewalTx(tx, &contract, renewalKey, result, err)
 		}
 		if requiredQuota > 0 {
-			res := tx.Model(&model.User{}).Where("id = ? AND quota >= ?", user.Id, requiredQuota).
-				Update("quota", gorm.Expr("quota - ?", requiredQuota))
-			if res.Error != nil {
-				return res.Error
+			var mutation model.LifecycleQuotaMutationResult
+			err := tx.Transaction(func(debitTx *gorm.DB) error {
+				var err error
+				mutation, err = model.ApplyWalletQuotaMutationTx(debitTx, user.Id, -int64(requiredQuota), int64(requiredQuota), "subscription_renewal_wallet_debit", renewalKey)
+				return err
+			})
+			if err != nil {
+				if errors.Is(err, model.ErrLifecycleQuotaWalletBalanceChanged) {
+					deleted := tx.Where("id = ? AND trade_no = ?", order.Id, order.TradeNo).Delete(&model.SubscriptionOrder{})
+					if deleted.Error != nil {
+						return deleted.Error
+					}
+					if deleted.RowsAffected != 1 {
+						return errors.New("wallet renewal success order cleanup failed")
+					}
+					return pauseWalletRenewalTx(tx, &contract, model.SubscriptionRenewalStatusPausedInsufficientBalance, result)
+				}
+				return err
 			}
-			if res.RowsAffected != 1 {
+			if !mutation.Applied {
 				deleted := tx.Where("id = ? AND trade_no = ?", order.Id, order.TradeNo).Delete(&model.SubscriptionOrder{})
 				if deleted.Error != nil {
 					return deleted.Error

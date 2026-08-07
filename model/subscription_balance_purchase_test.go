@@ -12,7 +12,7 @@ import (
 func setupBalancePurchaseTest(t *testing.T) *SubscriptionPlan {
 	t.Helper()
 	setupInviteSubRewardTest(t)
-	require.NoError(t, DB.AutoMigrate(&SubscriptionPlan{}, &UserSubscription{}, &TopUp{}))
+	require.NoError(t, DB.AutoMigrate(&SubscriptionPlan{}, &UserSubscription{}, &TopUp{}, &RecallLifecycleEvent{}, &QuotaLifecycleState{}))
 
 	plan := &SubscriptionPlan{
 		Title:         "Go",

@@ -20,7 +20,7 @@ func setupDataToolCallTestDB(t *testing.T) {
 
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &DataToolCall{}))
+	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &DataToolCall{}, &RecallLifecycleEvent{}, &QuotaLifecycleState{}))
 	DB = db
 	common.UsingSQLite = true
 	common.UsingMySQL = false
@@ -253,7 +253,7 @@ func TestCompleteAndSettleDataToolCallRefundsZeroResult(t *testing.T) {
 
 func TestGetHighestActiveSubscriptionTierRankForDataToolGate(t *testing.T) {
 	setupDataToolCallTestDB(t)
-	require.NoError(t, DB.AutoMigrate(&SubscriptionPlan{}, &UserSubscription{}))
+	require.NoError(t, DB.AutoMigrate(&SubscriptionPlan{}, &UserSubscription{}, &RecallLifecycleEvent{}, &QuotaLifecycleState{}))
 	user := &User{Username: "data-tool-plan", Password: "password", Quota: 500, AffCode: "dt07"}
 	require.NoError(t, DB.Create(user).Error)
 	proRank := 20

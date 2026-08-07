@@ -22,7 +22,10 @@ const (
 	lifecycleQuotaMinInt64 = -lifecycleQuotaMaxInt64 - 1
 )
 
-var ErrLifecycleQuotaBalanceOverflow = errors.New("quota lifecycle balance arithmetic overflow")
+var (
+	ErrLifecycleQuotaBalanceOverflow      = errors.New("quota lifecycle balance arithmetic overflow")
+	ErrLifecycleQuotaWalletBalanceChanged = errors.New("quota lifecycle wallet balance changed concurrently")
+)
 
 type QuotaLifecycleState struct {
 	Id           int64  `json:"id" gorm:"primaryKey"`
@@ -164,6 +167,18 @@ func ApplyLifecycleQuotaMutation(tx *gorm.DB, mutation LifecycleQuotaMutation) (
 	return result, nil
 }
 
+func ApplyWalletQuotaMutationTx(tx *gorm.DB, userID int, delta int64, requireAtLeast int64, cause string, sourceRef string) (LifecycleQuotaMutationResult, error) {
+	return ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+		UserID:         userID,
+		ScopeType:      QuotaLifecycleScopeWallet,
+		ScopeID:        int64(userID),
+		Delta:          delta,
+		RequireAtLeast: requireAtLeast,
+		Cause:          cause,
+		SourceRef:      sourceRef,
+	})
+}
+
 func validateLifecycleQuotaScope(userID int, scopeType string, scopeID int64) error {
 	switch scopeType {
 	case QuotaLifecycleScopeWallet:
@@ -237,7 +252,7 @@ func updateLifecycleQuotaAuthoritativeBalance(tx *gorm.DB, userID int, scopeType
 			return previous, res.Error
 		}
 		if res.RowsAffected != 1 {
-			return previous, errors.New("quota lifecycle wallet balance changed concurrently")
+			return previous, ErrLifecycleQuotaWalletBalanceChanged
 		}
 		return current, nil
 	case QuotaLifecycleScopeSubscription:

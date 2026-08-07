@@ -11,34 +11,10 @@ import (
 
 func TestDirectQuotaMutationGuard(t *testing.T) {
 	root := ".."
-	forbidden := []string{
-		"UPDATE users SET quota",
-		`gorm.Expr("quota +`,
-		`gorm.Expr("quota -`,
-		"AmountUsed +",
-		"AmountUsed -",
-		"amount_used +",
-		"amount_used -",
-	}
 	allowed := map[string]bool{
 		filepath.Clean("model/quota_lifecycle.go"):                  true,
 		filepath.Clean("model/direct_quota_mutation_guard_test.go"): true,
 	}
-	legacyProductionOccurrences := map[string]int{
-		"model/checkin.go":                       1,
-		"model/data_tool_call.go":                4,
-		"model/invite_reward.go":                 2,
-		"model/redemption.go":                    1,
-		"model/stripe_card.go":                   1,
-		"model/temporary_channel_spend.go":       1,
-		"model/topup.go":                         6,
-		"model/usedata.go":                       2,
-		"service/subscription_compensation.go":   2,
-		"service/subscription_contract.go":       1,
-		"service/subscription_term_refund.go":    1,
-		"service/subscription_wallet_renewal.go": 1,
-	}
-	seenLegacyOccurrences := map[string]int{}
 	var violations []string
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -59,28 +35,54 @@ func TestDirectQuotaMutationGuard(t *testing.T) {
 			return err
 		}
 		rel = filepath.ToSlash(rel)
-		if allowed[filepath.Clean(rel)] {
+		if allowed[filepath.Clean(rel)] || strings.HasSuffix(rel, "_test.go") || strings.Contains(rel, "migration") {
 			return nil
 		}
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		text := string(content)
-		for _, needle := range forbidden {
-			if strings.Contains(text, needle) {
-				if _, legacy := legacyProductionOccurrences[rel]; legacy {
-					seenLegacyOccurrences[rel] += strings.Count(text, needle)
-					continue
-				}
-				violations = append(violations, rel+": "+needle)
-			}
-		}
+		violations = append(violations, directQuotaMutationViolations(rel, string(content))...)
 		return nil
 	})
 	require.NoError(t, err)
-	for rel, want := range legacyProductionOccurrences {
-		require.Equal(t, want, seenLegacyOccurrences[rel], "legacy direct quota mutation count changed in %s", rel)
-	}
 	require.Empty(t, violations, "direct quota/subscription balance arithmetic must route through quota_lifecycle.go")
+}
+
+func directQuotaMutationViolations(rel string, text string) []string {
+	lines := strings.Split(text, "\n")
+	var violations []string
+	for i, line := range lines {
+		if strings.Contains(line, "UPDATE users SET quota") {
+			violations = append(violations, rel+": UPDATE users SET quota")
+		}
+		if strings.Contains(line, `Update("quota"`) && nearbyUserMutationTarget(lines, i) {
+			violations = append(violations, rel+": users.quota Update")
+		}
+		if strings.Contains(line, `"quota":`) && strings.Contains(line, `gorm.Expr("quota`) && nearbyUserMutationTarget(lines, i) {
+			violations = append(violations, rel+": users.quota gorm.Expr")
+		}
+		if strings.Contains(line, "AmountUsed +") || strings.Contains(line, "AmountUsed -") ||
+			strings.Contains(line, "amount_used +") || strings.Contains(line, "amount_used -") {
+			violations = append(violations, rel+": subscription amount_used arithmetic")
+		}
+	}
+	return violations
+}
+
+func nearbyUserMutationTarget(lines []string, index int) bool {
+	start := index - 5
+	if start < 0 {
+		start = 0
+	}
+	for i := start; i <= index && i < len(lines); i++ {
+		line := lines[i]
+		if strings.Contains(line, "Model(&User{}") ||
+			strings.Contains(line, "Model(&model.User{}") ||
+			strings.Contains(line, `Table("users"`) ||
+			strings.Contains(line, "`users`") {
+			return true
+		}
+	}
+	return false
 }

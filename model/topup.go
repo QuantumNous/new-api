@@ -289,19 +289,19 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 			return err
 		}
 
-		updateFields := map[string]interface{}{"quota": gorm.Expr("quota + ?", quotaToAdd)}
 		if strings.TrimSpace(customerId) != "" {
-			updateFields["stripe_customer"] = strings.TrimSpace(customerId)
+			// stripe_card_bound is deliberately NOT set here. SaveCard only means the Checkout
+			// was created with card-scoped setup_future_usage; since local payment methods
+			// (Alipay/Pix/UPI…) stay available on such sessions, the user may have completed
+			// this top-up without any card being saved. Marking card_bound on SaveCard alone
+			// would flag those users as offline-chargeable and break postpaid auto-charge.
+			// Binding happens in backfillCardFingerprintFromTopUp, which first verifies via
+			// the Stripe API that the customer actually has a saved card.
+			if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("stripe_customer", strings.TrimSpace(customerId)).Error; err != nil {
+				return err
+			}
 		}
-		// stripe_card_bound is deliberately NOT set here. SaveCard only means the Checkout
-		// was created with card-scoped setup_future_usage; since local payment methods
-		// (Alipay/Pix/UPI…) stay available on such sessions, the user may have completed
-		// this top-up without any card being saved. Marking card_bound on SaveCard alone
-		// would flag those users as offline-chargeable and break postpaid auto-charge.
-		// Binding happens in backfillCardFingerprintFromTopUp, which first verifies via
-		// the Stripe API that the customer actually has a saved card.
-		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields).Error
-		if err != nil {
+		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, int64(quotaToAdd), 0, "topup_success", topUp.TradeNo); err != nil {
 			return err
 		}
 		if err := EnqueueAdsPurchaseInTx(tx, topUp); err != nil {
@@ -555,7 +555,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		}
 
 		// 增加用户额度（立即写库，保持一致性）
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, int64(quotaToAdd), 0, "topup_success", topUp.TradeNo); err != nil {
 			return err
 		}
 
@@ -620,9 +620,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		quota = topUp.Amount
 
 		// 构建更新字段，优先使用邮箱，如果邮箱为空则使用用户名
-		updateFields := map[string]interface{}{
-			"quota": gorm.Expr("quota + ?", quota),
-		}
+		updateFields := map[string]interface{}{}
 
 		// 如果有客户邮箱，尝试更新用户邮箱（仅当用户邮箱为空时）
 		if customerEmail != "" {
@@ -639,8 +637,13 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			}
 		}
 
-		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields).Error
-		if err != nil {
+		if len(updateFields) > 0 {
+			err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields).Error
+			if err != nil {
+				return err
+			}
+		}
+		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, quota, 0, "topup_success", topUp.TradeNo); err != nil {
 			return err
 		}
 
@@ -721,7 +724,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 			return err
 		}
 
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, int64(quotaToAdd), 0, "topup_success", topUp.TradeNo); err != nil {
 			return err
 		}
 
@@ -800,7 +803,7 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 			return err
 		}
 
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, int64(quotaToAdd), 0, "topup_success", topUp.TradeNo); err != nil {
 			return err
 		}
 
@@ -920,7 +923,7 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 		}
 		quotaToAdd += int(bonusQuota)
 
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+		if _, err := ApplyWalletQuotaMutationTx(tx, topUp.UserId, int64(quotaToAdd), 0, "topup_success", topUp.TradeNo); err != nil {
 			return err
 		}
 

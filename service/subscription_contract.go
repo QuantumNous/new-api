@@ -1159,9 +1159,12 @@ func applyBalanceOnePeriodChangeTx(tx *gorm.DB, user *model.User, contract *mode
 		return nil, errors.New("insufficient balance")
 	}
 	if requiredQuota > 0 {
-		if err := tx.Model(&model.User{}).Where("id = ?", user.Id).
-			Update("quota", gorm.Expr("quota - ?", requiredQuota)).Error; err != nil {
+		result, err := model.ApplyWalletQuotaMutationTx(tx, user.Id, -int64(requiredQuota), int64(requiredQuota), "subscription_balance_debit", fmt.Sprintf("subscription-contract:intent:%d", intent.Id))
+		if err != nil {
 			return nil, err
+		}
+		if !result.Applied {
+			return nil, errors.New("insufficient balance")
 		}
 	}
 

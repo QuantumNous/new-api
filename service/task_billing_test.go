@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -356,34 +357,46 @@ func TestLogTaskConsumptionIncludesGroupModelRatioSource(t *testing.T) {
 // ===========================================================================
 
 func TestRefundTaskQuota_Wallet(t *testing.T) {
-	truncate(t)
-	ctx := context.Background()
+	for _, tc := range []struct {
+		name     string
+		platform constant.TaskPlatform
+	}{
+		{name: "task_video", platform: constant.TaskPlatformSuno},
+		{name: "midjourney", platform: constant.TaskPlatformMidjourney},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncate(t)
+			ctx := context.Background()
 
-	const userID, tokenID, channelID = 1, 1, 1
-	const initQuota, preConsumed = 10000, 3000
-	const tokenRemain = 5000
+			const initQuota, preConsumed = 10000, 3000
+			const tokenRemain = 5000
+			userID := 100 + len(tc.name)
+			tokenID := 200 + len(tc.name)
+			channelID := 300 + len(tc.name)
 
-	seedUser(t, userID, initQuota)
-	seedToken(t, tokenID, userID, "sk-test-key", tokenRemain)
-	seedChannel(t, channelID)
+			seedUser(t, userID, initQuota)
+			seedToken(t, tokenID, userID, "sk-test-key-"+tc.name, tokenRemain)
+			seedChannel(t, channelID)
 
-	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+			task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+			task.Platform = tc.platform
 
-	RefundTaskQuota(ctx, task, "task failed: upstream error")
+			RefundTaskQuota(ctx, task, "task failed: upstream error")
 
-	// User quota should increase by preConsumed
-	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
+			assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
+			requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), initQuota+preConsumed)
+			assert.Equal(t, int64(0), countLifecycleEventsForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID)))
 
-	// Token remain_quota should increase, used_quota should decrease
-	assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
-	assert.Equal(t, -preConsumed, getTokenUsedQuota(t, tokenID))
+			assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
+			assert.Equal(t, -preConsumed, getTokenUsedQuota(t, tokenID))
 
-	// A refund log should be created
-	log := getLastLog(t)
-	require.NotNil(t, log)
-	assert.Equal(t, model.LogTypeRefund, log.Type)
-	assert.Equal(t, preConsumed, log.Quota)
-	assert.Equal(t, "test-model", log.ModelName)
+			log := getLastLog(t)
+			require.NotNil(t, log)
+			assert.Equal(t, model.LogTypeRefund, log.Type)
+			assert.Equal(t, preConsumed, log.Quota)
+			assert.Equal(t, "test-model", log.ModelName)
+		})
+	}
 }
 
 func TestRefundTaskQuota_Subscription(t *testing.T) {
@@ -789,6 +802,8 @@ func TestCASGuardedRefund_Win(t *testing.T) {
 
 	// Refund should have happened
 	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
+	requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), initQuota+preConsumed)
+	assert.Equal(t, int64(0), countLifecycleEventsForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID)))
 	assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
 
 	log := getLastLog(t)

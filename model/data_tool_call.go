@@ -102,17 +102,16 @@ func ReserveDataToolCall(input ReserveDataToolCallInput) (*DataToolCall, bool, e
 		}
 
 		if input.Quota > 0 {
-			userUpdate := tx.Model(&User{}).
-				Where("id = ? AND quota >= ?", input.UserID, input.Quota).
-				Updates(map[string]any{
-					"quota":      gorm.Expr("quota - ?", input.Quota),
-					"used_quota": gorm.Expr("used_quota + ?", input.Quota),
-				})
-			if userUpdate.Error != nil {
-				return userUpdate.Error
+			result, err := ApplyWalletQuotaMutationTx(tx, input.UserID, -int64(input.Quota), int64(input.Quota), "data_tool_reserve", input.IdempotencyKey)
+			if err != nil {
+				return err
 			}
-			if userUpdate.RowsAffected == 0 {
+			if !result.Applied {
 				return ErrDataToolUserQuotaInsufficient
+			}
+			if err := tx.Model(&User{}).Where("id = ?", input.UserID).
+				Update("used_quota", gorm.Expr("used_quota + ?", input.Quota)).Error; err != nil {
+				return err
 			}
 
 			if input.TokenID > 0 && !input.TokenUnlimited {
@@ -240,24 +239,24 @@ func CompleteAndSettleDataToolCall(input CompleteAndSettleDataToolCallInput) (in
 		quotaDelta = input.FinalQuota - call.ChargedQuota
 		userID = call.UserID
 		if quotaDelta > 0 {
-			userUpdate := tx.Model(&User{}).
-				Where("id = ? AND quota >= ?", call.UserID, quotaDelta).
-				Updates(map[string]any{
-					"quota":      gorm.Expr("quota - ?", quotaDelta),
-					"used_quota": gorm.Expr("used_quota + ?", quotaDelta),
-				})
-			if userUpdate.Error != nil {
-				return userUpdate.Error
+			result, err := ApplyWalletQuotaMutationTx(tx, call.UserID, -int64(quotaDelta), int64(quotaDelta), "data_tool_settle", call.IdempotencyKey)
+			if err != nil {
+				return err
 			}
-			if userUpdate.RowsAffected == 0 {
+			if !result.Applied {
 				return ErrDataToolUserQuotaInsufficient
+			}
+			if err := tx.Model(&User{}).Where("id = ?", call.UserID).
+				Update("used_quota", gorm.Expr("used_quota + ?", quotaDelta)).Error; err != nil {
+				return err
 			}
 		} else if quotaDelta < 0 {
 			refund := -quotaDelta
-			if err := tx.Model(&User{}).Where("id = ?", call.UserID).Updates(map[string]any{
-				"quota":      gorm.Expr("quota + ?", refund),
-				"used_quota": gorm.Expr("used_quota - ?", refund),
-			}).Error; err != nil {
+			if _, err := ApplyWalletQuotaMutationTx(tx, call.UserID, int64(refund), 0, "data_tool_refund", call.IdempotencyKey); err != nil {
+				return err
+			}
+			if err := tx.Model(&User{}).Where("id = ?", call.UserID).
+				Update("used_quota", gorm.Expr("used_quota - ?", refund)).Error; err != nil {
 				return err
 			}
 		}
@@ -384,10 +383,11 @@ func FailAndRefundDataToolCall(id int, errorMessage string) error {
 		refundedQuota = call.ChargedQuota
 		userID = call.UserID
 		if refundedQuota > 0 {
-			if err := tx.Model(&User{}).Where("id = ?", call.UserID).Updates(map[string]any{
-				"quota":      gorm.Expr("quota + ?", refundedQuota),
-				"used_quota": gorm.Expr("used_quota - ?", refundedQuota),
-			}).Error; err != nil {
+			if _, err := ApplyWalletQuotaMutationTx(tx, call.UserID, int64(refundedQuota), 0, "data_tool_refund", call.IdempotencyKey); err != nil {
+				return err
+			}
+			if err := tx.Model(&User{}).Where("id = ?", call.UserID).
+				Update("used_quota", gorm.Expr("used_quota - ?", refundedQuota)).Error; err != nil {
 				return err
 			}
 			if call.TokenID > 0 {
