@@ -77,11 +77,20 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 			// so storage-layer faults are not masked as quota exhaustion.
 			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 		}
+		tokenDebited := !relayInfo.IsPlayground
 		err = reserveWalletQuota(relayInfo.UserId, preConsumedQuota)
 		if err != nil {
-			if rollbackErr := model.IncreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, preConsumedQuota); rollbackErr != nil {
-				common.SysLog(fmt.Sprintf("error rolling back token quota after wallet pre-consume failure (userId=%d, tokenId=%d, amount=%d, walletErr=%s): %s",
-					relayInfo.UserId, relayInfo.TokenId, preConsumedQuota, err.Error(), rollbackErr.Error()))
+			if tokenDebited {
+				if rollbackErr := model.IncreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, preConsumedQuota); rollbackErr != nil {
+					common.SysLog(fmt.Sprintf("error rolling back token quota after wallet pre-consume failure (userId=%d, tokenId=%d, requestId=%s, amount=%d, walletErr=%s, rollbackErr=%s)",
+						relayInfo.UserId, relayInfo.TokenId, relayInfo.RequestId, preConsumedQuota, err.Error(), rollbackErr.Error()))
+					return types.NewError(
+						fmt.Errorf("failed to roll back token quota after wallet pre-consume failure (userId=%d, tokenId=%d, requestId=%s, amount=%d, walletErr=%s): %w",
+							relayInfo.UserId, relayInfo.TokenId, relayInfo.RequestId, preConsumedQuota, err.Error(), rollbackErr),
+						types.ErrorCodeUpdateDataError,
+						types.ErrOptionWithSkipRetry(),
+					)
+				}
 			}
 			if errors.Is(err, ErrInsufficientWalletQuota) {
 				return types.NewErrorWithStatusCode(fmt.Errorf("%s", buildPreConsumeQuotaFailedMessage(c, currentWalletQuota(relayInfo.UserId), preConsumedQuota)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(), walletTopUpHintPreserveOption())

@@ -255,6 +255,31 @@ func TestQuotaLifecycleTaskAcceptedWalletFundingEmitsLifecycleStateAndEvent(t *t
 	require.Equal(t, int64(1), countLifecycleEventsForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID)))
 }
 
+func TestQuotaLifecycleAcceptedWalletFundingCanSettleThroughZero(t *testing.T) {
+	truncate(t)
+	restoreLifecycleThresholdForServiceTest(t, 100)
+
+	const userID, tokenID, channelID = 112, 112, 112
+	seedUser(t, userID, 50)
+	seedToken(t, tokenID, userID, "sk-accepted-wallet-through-zero", 1000)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, 0, tokenID, BillingSourceWallet, 0)
+	task.TaskID = "accepted-wallet-through-zero"
+	task.AcceptedAccountingStatus = model.TaskAcceptedAccountingProcessing
+	task.AcceptedAccountingReservedQuota = 0
+	task.AcceptedAccountingActualQuota = 80
+	require.NoError(t, model.DB.Create(task).Error)
+
+	require.NoError(t, SettleAcceptedTaskFundingOnce(context.Background(), task, 80))
+
+	require.Equal(t, -30, getUserQuota(t, userID))
+	require.Equal(t, 920, getTokenRemainQuota(t, tokenID))
+	require.Equal(t, 80, getTokenUsedQuota(t, tokenID))
+	requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), -30)
+	require.Equal(t, int64(1), countLifecycleEventsByTypeForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), model.RecallLifecycleTriggerQuotaExhaustedUnpaid))
+}
+
 func TestQuotaLifecycleTaskAcceptedFundingRollsBackLifecycleOnTokenFailure(t *testing.T) {
 	truncate(t)
 	restoreLifecycleThresholdForServiceTest(t, 100)
@@ -360,6 +385,15 @@ func countLifecycleEventsForServiceTest(t *testing.T, userID int, scopeType stri
 	var count int64
 	require.NoError(t, model.DB.Model(&model.RecallLifecycleEvent{}).
 		Where("user_id = ? AND scope_type = ? AND scope_id = ?", userID, scopeType, scopeID).
+		Count(&count).Error)
+	return count
+}
+
+func countLifecycleEventsByTypeForServiceTest(t *testing.T, userID int, scopeType string, scopeID string, eventType string) int64 {
+	t.Helper()
+	var count int64
+	require.NoError(t, model.DB.Model(&model.RecallLifecycleEvent{}).
+		Where("user_id = ? AND scope_type = ? AND scope_id = ? AND event_type = ?", userID, scopeType, scopeID, eventType).
 		Count(&count).Error)
 	return count
 }

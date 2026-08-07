@@ -230,8 +230,14 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		// 预扣费失败，回滚令牌额度
 		if s.tokenConsumed > 0 && !s.relayInfo.IsPlayground {
 			if rollbackErr := model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, s.tokenConsumed); rollbackErr != nil {
-				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
-					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
+				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%d, tokenId=%d, requestId=%s, amount=%d, fundingErr=%s, rollbackErr=%s)",
+					s.relayInfo.UserId, s.relayInfo.TokenId, s.relayInfo.RequestId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
+				return types.NewError(
+					fmt.Errorf("failed to roll back token quota after funding pre-consume failure (userId=%d, tokenId=%d, requestId=%s, amount=%d, fundingErr=%s): %w",
+						s.relayInfo.UserId, s.relayInfo.TokenId, s.relayInfo.RequestId, s.tokenConsumed, err.Error(), rollbackErr),
+					types.ErrorCodeUpdateDataError,
+					types.ErrOptionWithSkipRetry(),
+				)
 			}
 			s.tokenConsumed = 0
 		}

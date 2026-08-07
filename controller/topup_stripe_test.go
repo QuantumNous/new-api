@@ -1952,6 +1952,8 @@ func setupStripeFulfillmentTestDB(t *testing.T) {
 		&model.UserSubscription{},
 		&model.SubscriptionProviderBinding{},
 		&model.PaymentWebhookEvent{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	))
 }
 
