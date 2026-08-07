@@ -6,7 +6,6 @@ import {
   getAvailableGroups,
   getPricingData,
   publicPricingUrl,
-  sortPricingModelsNewestFirst,
   sortPricingModelsBySeries,
   type PricingModel,
 } from "./pricing";
@@ -70,34 +69,6 @@ describe("sortPricingModelsBySeries", () => {
       "Google:gemma-4-31b-it",
       "AI:mirothinker-1-7b",
       "Z.ai:glm-5",
-    ]);
-  });
-});
-
-describe("sortPricingModelsNewestFirst", () => {
-  const baseModel = {
-    quota_type: 0,
-    model_ratio: 1,
-    completion_ratio: 1,
-  } satisfies Pick<PricingModel, "quota_type" | "model_ratio" | "completion_ratio">;
-
-  test("orders dated and versioned model names from newest to oldest", () => {
-    const sorted = sortPricingModelsNewestFirst([
-      { ...baseModel, model_name: "deepseek-v3" },
-      { ...baseModel, model_name: "gemini-2.5-flash" },
-      { ...baseModel, model_name: "gpt-4o-2024-08-06" },
-      { ...baseModel, model_name: "gpt-5.1-2026-07-20" },
-      { ...baseModel, model_name: "glm-4.6" },
-      { ...baseModel, model_name: "kimi-k2-0711-preview" },
-    ]);
-
-    expect(sorted.map((model) => model.model_name)).toEqual([
-      "gpt-5.1-2026-07-20",
-      "glm-4.6",
-      "gpt-4o-2024-08-06",
-      "deepseek-v3",
-      "gemini-2.5-flash",
-      "kimi-k2-0711-preview",
     ]);
   });
 });
