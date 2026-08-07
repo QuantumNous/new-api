@@ -163,6 +163,7 @@ func main() {
 		return a
 	}
 	controller.StartAssetTaskWorker()
+	service.StartAssetModelReadinessWorker()
 
 	// Channel upstream model update check task
 	controller.StartChannelUpstreamModelUpdateTask()

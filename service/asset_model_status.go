@@ -75,6 +75,14 @@ func ReconcileAssetForScope(ctx context.Context, userID int, publicID string, sc
 	if err != nil {
 		return nil, err
 	}
+	if reopened, reopenErr := reopenStaleAssetModelReadinessRows(asset.Id, rows, targets, now); reopenErr != nil {
+		return nil, reopenErr
+	} else if reopened {
+		rows, err = model.ListAssetModelReadiness(asset.Id, scope.ScopeKey, scope.ModelNames)
+		if err != nil {
+			return nil, err
+		}
+	}
 	strictStatus, err := projectAssetStatusForScope(*asset, scope, rows, targets)
 	if err != nil {
 		return nil, err
@@ -202,4 +210,39 @@ func markAssetModelReadinessFailed(assetID int64, scopeKey, modelName string, no
 			"error_class": "target_unavailable",
 			"updated_at":  now,
 		}).Error
+}
+
+func reopenStaleAssetModelReadinessRows(assetID int64, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget, now int64) (bool, error) {
+	reopened := false
+	for _, row := range rows {
+		if row.Status != model.AssetModelReadinessStatusActive {
+			continue
+		}
+		target, ok := targets[row.ModelName]
+		if !ok || assetModelReadinessMatchesTarget(row, target) {
+			continue
+		}
+		result := model.DB.Model(&model.AssetModelReadiness{}).
+			Where("asset_id = ? AND scope_key = ? AND model_name = ?", assetID, row.ScopeKey, row.ModelName).
+			Where("status = ? AND target_generation = ? AND channel_id = ? AND binding_scope = ?",
+				model.AssetModelReadinessStatusActive, row.TargetGeneration, row.ChannelId, row.BindingScope).
+			Updates(map[string]any{
+				"target_generation":  target.Generation,
+				"channel_id":         target.ChannelId,
+				"binding_scope":      target.BindingScope,
+				"status":             model.AssetModelReadinessStatusPending,
+				"error_class":        "",
+				"attempt_count":      0,
+				"attempt_started_at": int64(0),
+				"next_retry_at":      int64(0),
+				"lease_owner":        "",
+				"lease_expires_at":   int64(0),
+				"updated_at":         now,
+			})
+		if result.Error != nil {
+			return false, result.Error
+		}
+		reopened = reopened || result.RowsAffected == 1
+	}
+	return reopened, nil
 }
