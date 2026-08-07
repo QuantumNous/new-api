@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -8,6 +9,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
+
+var ErrInsufficientWalletQuota = errors.New("insufficient wallet quota")
 
 // ---------------------------------------------------------------------------
 // FundingSource — 资金来源接口（钱包 or 订阅）
@@ -40,10 +43,21 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	if amount <= 0 {
 		return nil
 	}
-	if err := model.DecreaseUserQuota(w.userId, amount, false); err != nil {
+	if err := reserveWalletQuota(w.userId, amount); err != nil {
 		return err
 	}
 	w.consumed = amount
+	return nil
+}
+
+func reserveWalletQuota(userID int, amount int) error {
+	ok, err := model.PreConsumeUserQuota(userID, amount)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrInsufficientWalletQuota
+	}
 	return nil
 }
 

@@ -77,8 +77,15 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 			// so storage-layer faults are not masked as quota exhaustion.
 			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 		}
-		err = model.DecreaseUserQuota(relayInfo.UserId, preConsumedQuota, false)
+		err = reserveWalletQuota(relayInfo.UserId, preConsumedQuota)
 		if err != nil {
+			if rollbackErr := model.IncreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, preConsumedQuota); rollbackErr != nil {
+				common.SysLog(fmt.Sprintf("error rolling back token quota after wallet pre-consume failure (userId=%d, tokenId=%d, amount=%d, walletErr=%s): %s",
+					relayInfo.UserId, relayInfo.TokenId, preConsumedQuota, err.Error(), rollbackErr.Error()))
+			}
+			if errors.Is(err, ErrInsufficientWalletQuota) {
+				return types.NewErrorWithStatusCode(fmt.Errorf("%s", buildPreConsumeQuotaFailedMessage(c, currentWalletQuota(relayInfo.UserId), preConsumedQuota)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(), walletTopUpHintPreserveOption())
+			}
 			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 		}
 		logger.LogInfo(c, fmt.Sprintf("用户 %d 预扣费 %s, 预扣费后剩余额度: %s", relayInfo.UserId, logger.FormatQuota(preConsumedQuota), logger.FormatQuota(userQuota-preConsumedQuota)))

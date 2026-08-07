@@ -3,14 +3,22 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
+	_ "unsafe"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+//go:linkname modelBatchUpdate github.com/QuantumNous/new-api/model.batchUpdate
+func modelBatchUpdate()
 
 func TestQuotaLifecycleFundingWalletReserveSettleRefund(t *testing.T) {
 	for _, batchEnabled := range []bool{false, true} {
@@ -29,6 +37,29 @@ func TestQuotaLifecycleFundingWalletReserveSettleRefund(t *testing.T) {
 			require.Equal(t, 110, getUserQuota(t, userID))
 			requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), 110)
 			require.Equal(t, int64(1), countLifecycleEventsForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID)))
+		})
+	}
+}
+
+func TestWalletFundingConcurrentPreConsumeDoesNotOverdrawBatchModes(t *testing.T) {
+	for _, batchEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("batch_%v", batchEnabled), func(t *testing.T) {
+			truncate(t)
+			restoreLifecycleThresholdForServiceTest(t, 100)
+			common.BatchUpdateEnabled = batchEnabled
+
+			const userID = 109
+			seedUser(t, userID, 100)
+
+			runConcurrentServiceCalls(2, func() error {
+				return (&WalletFunding{userId: userID}).PreConsume(80)
+			}, func(successes int, failures int) {
+				require.Equal(t, 1, successes)
+				require.Equal(t, 1, failures)
+			})
+
+			require.Equal(t, 20, getUserQuota(t, userID))
+			requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), 20)
 		})
 	}
 }
@@ -72,6 +103,35 @@ func TestQuotaLifecycleBillingReserveFundingRollbackRestoresWallet(t *testing.T)
 	requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), 100)
 }
 
+func TestBillingSessionConcurrentWalletReserveFundingDoesNotOverdrawBatchModes(t *testing.T) {
+	for _, batchEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("batch_%v", batchEnabled), func(t *testing.T) {
+			truncate(t)
+			restoreLifecycleThresholdForServiceTest(t, 100)
+			common.BatchUpdateEnabled = batchEnabled
+
+			const userID = 110
+			seedUser(t, userID, 100)
+
+			runConcurrentServiceCalls(2, func() error {
+				session := &BillingSession{
+					relayInfo: &relaycommon.RelayInfo{
+						UserId: userID,
+					},
+					funding: &WalletFunding{userId: userID},
+				}
+				return session.reserveFunding(80)
+			}, func(successes int, failures int) {
+				require.Equal(t, 1, successes)
+				require.Equal(t, 1, failures)
+			})
+
+			require.Equal(t, 20, getUserQuota(t, userID))
+			requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), 20)
+		})
+	}
+}
+
 func TestQuotaLifecyclePostConsumeWalletRuntimeSeamBatchModes(t *testing.T) {
 	for _, batchEnabled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("batch_%v", batchEnabled), func(t *testing.T) {
@@ -89,6 +149,58 @@ func TestQuotaLifecyclePostConsumeWalletRuntimeSeamBatchModes(t *testing.T) {
 			require.Equal(t, 110, getUserQuota(t, userID))
 			requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), 110)
 			require.Equal(t, int64(1), countLifecycleEventsForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID)))
+		})
+	}
+}
+
+func TestPreConsumeQuotaConcurrentFallbackDoesNotOverdrawAndRollsBackTokenBatchModes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, batchEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("batch_%v", batchEnabled), func(t *testing.T) {
+			truncate(t)
+			restoreLifecycleThresholdForServiceTest(t, 100)
+			common.BatchUpdateEnabled = batchEnabled
+			modelCommonKeyCol = "`key`"
+
+			const (
+				userID   = 111
+				tokenID  = 111
+				tokenKey = "sk-legacy-fallback-concurrent"
+			)
+			seedUser(t, userID, 100)
+			seedToken(t, tokenID, userID, tokenKey, 200)
+
+			runConcurrentServiceCalls(2, func() error {
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+				c.Set("token_quota", 200)
+				apiErr := PreConsumeQuota(c, 80, &relaycommon.RelayInfo{
+					UserId:          userID,
+					TokenId:         tokenID,
+					TokenKey:        tokenKey,
+					UsingGroup:      "default",
+					UserGroup:       "default",
+					BillingSource:   BillingSourceWallet,
+					OriginModelName: "test-model",
+					ForcePreConsume: true,
+				})
+				if apiErr != nil {
+					return apiErr
+				}
+				return nil
+			}, func(successes int, failures int) {
+				require.Equal(t, 1, successes)
+				require.Equal(t, 1, failures)
+			})
+
+			require.Equal(t, 20, getUserQuota(t, userID))
+			if batchEnabled {
+				modelBatchUpdate()
+			}
+			require.Equal(t, 120, getTokenRemainQuota(t, tokenID))
+			require.Equal(t, 80, getTokenUsedQuota(t, tokenID))
+			requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), 20)
 		})
 	}
 }
@@ -184,6 +296,35 @@ func TestQuotaLifecycleTaskAcceptedSubscriptionFundingEmitsLifecycleStateAndEven
 	require.EqualValues(t, 60, getSubscriptionUsed(t, subID))
 	requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeSubscription, strconv.Itoa(subID), 90)
 	require.Equal(t, int64(1), countLifecycleEventsForServiceTest(t, userID, model.QuotaLifecycleScopeSubscription, strconv.Itoa(subID)))
+}
+
+func runConcurrentServiceCalls(count int, call func() error, assertCounts func(successes int, failures int)) {
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	errs := make(chan error, count)
+
+	wg.Add(count)
+	for i := 0; i < count; i++ {
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- call()
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	successes := 0
+	failures := 0
+	for err := range errs {
+		if err != nil {
+			failures++
+			continue
+		}
+		successes++
+	}
+	assertCounts(successes, failures)
 }
 
 func restoreLifecycleThresholdForServiceTest(t *testing.T, threshold int) {
