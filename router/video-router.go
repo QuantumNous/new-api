@@ -8,16 +8,17 @@ import (
 )
 
 func SetVideoRouter(router *gin.Engine) {
-	// Video proxy: accepts either session auth (dashboard) or token auth (API clients)
+	// Locally generated public task IDs are capability URLs. Legacy task IDs
+	// still require either session auth (dashboard) or token auth (API clients).
 	videoProxyRouter := router.Group("/v1")
 	videoProxyRouter.Use(middleware.RouteTag("relay"))
-	videoProxyRouter.Use(middleware.TokenOrUserAuth())
+	videoProxyRouter.Use(middleware.VideoProxyAuth())
 	{
 		videoProxyRouter.GET("/videos/:task_id/content", controller.VideoProxy)
 	}
 	openAIVideoProxyRouter := router.Group("/openai/v1")
 	openAIVideoProxyRouter.Use(middleware.RouteTag("relay"))
-	openAIVideoProxyRouter.Use(middleware.TokenOrUserAuth())
+	openAIVideoProxyRouter.Use(middleware.VideoProxyAuth())
 	{
 		openAIVideoProxyRouter.GET("/videos/:task_id/content", controller.VideoProxy)
 	}

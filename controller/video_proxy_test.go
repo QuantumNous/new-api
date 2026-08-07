@@ -21,6 +21,7 @@ import (
 
 func TestVideoProxyForwardsRangeForXAIResult(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	const publicTaskID = "task_0123456789abcdefghijklmnopqrstuv"
 
 	requestHeaders := make(chan http.Header, 1)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +68,7 @@ func TestVideoProxyForwardsRangeForXAIResult(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&channel).Error)
 	task := model.Task{
-		TaskID:    "task_public",
+		TaskID:    publicTaskID,
 		Platform:  constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeXai)),
 		UserId:    42,
 		ChannelId: channel.Id,
@@ -80,11 +81,10 @@ func TestVideoProxyForwardsRangeForXAIResult(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodGet, "/v1/videos/task_public/content", nil)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/videos/"+publicTaskID+"/content", nil)
 	c.Request.Header.Set("Range", "bytes=1-3")
 	c.Request.Header.Set("If-Range", `"video-etag"`)
 	c.Params = []gin.Param{{Key: "task_id", Value: task.TaskID}}
-	c.Set("id", task.UserId)
 
 	VideoProxy(c)
 

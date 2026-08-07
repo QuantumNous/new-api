@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -32,13 +33,15 @@ func (t TaskStatus) ToVideoStatus() string {
 }
 
 const (
-	TaskStatusNotStart   TaskStatus = "NOT_START"
-	TaskStatusSubmitted             = "SUBMITTED"
-	TaskStatusQueued                = "QUEUED"
-	TaskStatusInProgress            = "IN_PROGRESS"
-	TaskStatusFailure               = "FAILURE"
-	TaskStatusSuccess               = "SUCCESS"
-	TaskStatusUnknown               = "UNKNOWN"
+	TaskStatusNotStart    TaskStatus = "NOT_START"
+	TaskStatusSubmitted              = "SUBMITTED"
+	TaskStatusQueued                 = "QUEUED"
+	TaskStatusInProgress             = "IN_PROGRESS"
+	TaskStatusFailure                = "FAILURE"
+	TaskStatusSuccess                = "SUCCESS"
+	TaskStatusUnknown                = "UNKNOWN"
+	publicTaskIDPrefix               = "task_"
+	publicTaskIDKeyLength            = 32
 )
 
 // TaskRefundLegacyCutoff separates tasks created before timeout refunds were
@@ -143,7 +146,25 @@ func (t *Task) GetResultURL() string {
 // GenerateTaskID 生成对外暴露的 task_xxxx 格式 ID
 func GenerateTaskID() string {
 	key, _ := common.GenerateRandomCharsKey(32)
-	return "task_" + key
+	return publicTaskIDPrefix + key
+}
+
+// IsPublicTaskID reports whether taskID has the opaque, locally generated
+// public ID format. These IDs contain about 190 bits of cryptographic entropy
+// and are safe to use as capability URLs; legacy upstream task IDs are not.
+func IsPublicTaskID(taskID string) bool {
+	if len(taskID) != len(publicTaskIDPrefix)+publicTaskIDKeyLength ||
+		!strings.HasPrefix(taskID, publicTaskIDPrefix) {
+		return false
+	}
+	for _, char := range taskID[len(publicTaskIDPrefix):] {
+		if (char < '0' || char > '9') &&
+			(char < 'a' || char > 'z') &&
+			(char < 'A' || char > 'Z') {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *TaskPrivateData) Scan(val interface{}) error {
@@ -347,6 +368,21 @@ func GetByTaskId(userId int, taskId string) (*Task, bool, error) {
 		return nil, false, err
 	}
 	return task, exist, err
+}
+
+// GetByPublicTaskID resolves an opaque public task ID without a user scope.
+// Callers must not use this for legacy or upstream-provided task IDs.
+func GetByPublicTaskID(taskID string) (*Task, bool, error) {
+	if !IsPublicTaskID(taskID) {
+		return nil, false, nil
+	}
+	var task *Task
+	err := DB.Where("task_id = ?", taskID).First(&task).Error
+	exists, err := RecordExist(err)
+	if err != nil {
+		return nil, false, err
+	}
+	return task, exists, nil
 }
 
 func GetByTaskIds(userId int, taskIds []any) ([]*Task, error) {

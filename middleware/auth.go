@@ -272,6 +272,20 @@ func TokenOrUserAuth() func(c *gin.Context) {
 	}
 }
 
+// VideoProxyAuth allows opaque, locally generated public task IDs to be used
+// as capability URLs. Legacy and upstream-provided IDs still require normal
+// session or API token authentication.
+func VideoProxyAuth() func(c *gin.Context) {
+	tokenOrUserAuth := TokenOrUserAuth()
+	return func(c *gin.Context) {
+		if model.IsPublicTaskID(c.Param("task_id")) {
+			c.Next()
+			return
+		}
+		tokenOrUserAuth(c)
+	}
+}
+
 // TokenAuthReadOnly 宽松版本的令牌认证中间件，用于只读查询接口。
 // 只验证令牌 key 是否存在，不检查令牌状态、过期时间和额度。
 // 即使令牌已过期、已耗尽或已禁用，也允许访问。
