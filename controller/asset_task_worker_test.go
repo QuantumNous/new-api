@@ -344,6 +344,173 @@ func TestTechMobiAssetTaskWorkerPersistsSelectedKeyAfterAcceptance(t *testing.T)
 	require.Equal(t, "techmobi-key-b", stored.PrivateData.Key)
 }
 
+func TestTechMobiAssetTaskWorkerRequeuesProcessingBindingThenSubmitsWhenActive(t *testing.T) {
+	restoreDB := useControllerAssetTaskDBForTest(t)
+	defer restoreDB()
+	restorePricing := useControllerAssetTaskPricingForTest(t)
+	defer restorePricing()
+	restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+	defer restoreHooks()
+	oldRetryTimes := common.RetryTimes
+	common.RetryTimes = 0
+	defer func() { common.RetryTimes = oldRetryTimes }()
+
+	var getCalls atomic.Int32
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeTechMobiVideo, controllerProcessingThenActiveMaterializer{
+		getCalls:    &getCalls,
+		activeAfter: 3,
+	})
+	defer restoreMaterializer()
+	adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "techmobi-upstream-after-assets-ready"}
+	restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeTechMobiVideo)), adaptor)
+	defer restoreAdaptor()
+
+	publicID := "ast_5234567890abcdefABCDEF1234567890"
+	seedControllerRelayUserToken(t, 7, 11, 10000, 10000)
+	seedControllerTechMobiTaskChannel(t, 106)
+	seedControllerAsset(t, 7, publicID, time.Now().Add(time.Hour).Unix())
+	task := seedControllerQueuedAssetTask(t, "task_techmobi_wait_for_binding", model.TaskPreparationStatusPreparingAssets, "", 0)
+	task.CreatedAt = 1000
+	task.ChannelId = 0
+	task.NormalizedRequestPayload = []byte(seedanceTaskBody(publicID))
+	require.NoError(t, model.DB.Save(task).Error)
+	model.InitChannelCache()
+
+	assetTaskWorkerTestNow = 1000
+	processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	var waiting model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&waiting).Error)
+	require.EqualValues(t, model.TaskStatusQueued, waiting.Status)
+	require.Equal(t, model.TaskPreparationStatusPreparingAssets, waiting.PreparationStatus)
+	require.Empty(t, waiting.PreparationLeaseOwner)
+	require.EqualValues(t, 1001, waiting.PreparationLeaseExpiresAt)
+	require.Empty(t, waiting.FailReason)
+	require.Zero(t, adaptor.providerCalls.Load(), "video generation must not start while the binding is processing")
+	require.Equal(t, 10000, getControllerUserQuota(t, 7), "waiting for an asset binding must not refund the task")
+	var refundLogs int64
+	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("type = ?", model.LogTypeRefund).Count(&refundLogs).Error)
+	require.Zero(t, refundLogs)
+
+	processed, err = RunAssetTaskWorkerOnce(context.Background(), "node-b", 10)
+	require.NoError(t, err)
+	require.Equal(t, 0, processed, "the task must not be polled again before the scheduled check")
+
+	assetTaskWorkerTestNow = 1001
+	processed, err = RunAssetTaskWorkerOnce(context.Background(), "node-b", 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	var submitted model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&submitted).Error)
+	require.EqualValues(t, model.TaskStatusSubmitted, submitted.Status)
+	require.Equal(t, model.TaskPreparationStatusReady, submitted.PreparationStatus)
+	require.Equal(t, "techmobi-upstream-after-assets-ready", submitted.PrivateData.UpstreamTaskID)
+	require.EqualValues(t, 1, adaptor.providerCalls.Load())
+	require.EqualValues(t, 4, getCalls.Load())
+}
+
+func TestTechMobiAssetTaskWorkerRequeuesProcessingSourceThenSubmitsWhenActive(t *testing.T) {
+	restoreDB := useControllerAssetTaskDBForTest(t)
+	defer restoreDB()
+	restorePricing := useControllerAssetTaskPricingForTest(t)
+	defer restorePricing()
+	restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+	defer restoreHooks()
+	oldRetryTimes := common.RetryTimes
+	common.RetryTimes = 0
+	defer func() { common.RetryTimes = oldRetryTimes }()
+
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeTechMobiVideo, controllerAssetMaterializer{})
+	defer restoreMaterializer()
+	adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "techmobi-upstream-after-source-ready"}
+	restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeTechMobiVideo)), adaptor)
+	defer restoreAdaptor()
+
+	publicID := "ast_7234567890abcdefABCDEF1234567890"
+	seedControllerRelayUserToken(t, 7, 11, 10000, 10000)
+	seedControllerTechMobiTaskChannel(t, 106)
+	seedControllerAsset(t, 7, publicID, time.Now().Add(time.Hour).Unix())
+	require.NoError(t, model.DB.Model(&model.Asset{}).Where("public_id = ?", publicID).Update("status", model.AssetStatusProcessing).Error)
+	task := seedControllerQueuedAssetTask(t, "task_techmobi_wait_for_source", model.TaskPreparationStatusPreparingAssets, "", 0)
+	task.CreatedAt = 1000
+	task.ChannelId = 0
+	task.NormalizedRequestPayload = []byte(seedanceTaskBody(publicID))
+	require.NoError(t, model.DB.Save(task).Error)
+	model.InitChannelCache()
+
+	assetTaskWorkerTestNow = 1000
+	processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	var waiting model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&waiting).Error)
+	require.EqualValues(t, model.TaskStatusQueued, waiting.Status)
+	require.Equal(t, model.TaskPreparationStatusPreparingAssets, waiting.PreparationStatus)
+	require.EqualValues(t, 1001, waiting.PreparationLeaseExpiresAt)
+	require.Zero(t, adaptor.providerCalls.Load())
+
+	require.NoError(t, model.DB.Model(&model.Asset{}).Where("public_id = ?", publicID).Update("status", model.AssetStatusActive).Error)
+	assetTaskWorkerTestNow = 1001
+	processed, err = RunAssetTaskWorkerOnce(context.Background(), "node-b", 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	var submitted model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&submitted).Error)
+	require.EqualValues(t, model.TaskStatusSubmitted, submitted.Status)
+	require.Equal(t, "techmobi-upstream-after-source-ready", submitted.PrivateData.UpstreamTaskID)
+	require.EqualValues(t, 1, adaptor.providerCalls.Load())
+}
+
+func TestTechMobiAssetTaskWorkerFailsProcessingBindingAtReadyDeadline(t *testing.T) {
+	restoreDB := useControllerAssetTaskDBForTest(t)
+	defer restoreDB()
+	restorePricing := useControllerAssetTaskPricingForTest(t)
+	defer restorePricing()
+	restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+	defer restoreHooks()
+	oldRetryTimes := common.RetryTimes
+	common.RetryTimes = 0
+	defer func() { common.RetryTimes = oldRetryTimes }()
+
+	var getCalls atomic.Int32
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeTechMobiVideo, controllerProcessingThenActiveMaterializer{
+		getCalls:    &getCalls,
+		activeAfter: 100,
+	})
+	defer restoreMaterializer()
+	adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "must-not-submit"}
+	restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeTechMobiVideo)), adaptor)
+	defer restoreAdaptor()
+
+	publicID := "ast_6234567890abcdefABCDEF1234567890"
+	seedControllerRelayUserToken(t, 7, 11, 10000, 10000)
+	seedControllerTechMobiTaskChannel(t, 106)
+	seedControllerAsset(t, 7, publicID, time.Now().Add(time.Hour).Unix())
+	task := seedControllerQueuedAssetTask(t, "task_techmobi_binding_deadline", model.TaskPreparationStatusPreparingAssets, "", 0)
+	task.CreatedAt = 700
+	task.ChannelId = 0
+	task.NormalizedRequestPayload = []byte(seedanceTaskBody(publicID))
+	require.NoError(t, model.DB.Save(task).Error)
+	model.InitChannelCache()
+
+	assetTaskWorkerTestNow = 1000
+	processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	var failed model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&failed).Error)
+	require.EqualValues(t, model.TaskStatusFailure, failed.Status)
+	require.Equal(t, model.TaskPreparationStatusFailed, failed.PreparationStatus)
+	require.Equal(t, "asset is not ready", failed.FailReason)
+	require.Zero(t, adaptor.providerCalls.Load())
+}
+
 func TestTechMobiAssetTaskWorkerPersistsSelectedKeyForUnknownSubmission(t *testing.T) {
 	restoreDB := useControllerAssetTaskDBForTest(t)
 	defer restoreDB()
@@ -1974,6 +2141,28 @@ func seedanceTaskBody(publicID string) string {
 
 type controllerAssetMaterializerWithCounter struct {
 	calls *atomic.Int32
+}
+
+type controllerProcessingThenActiveMaterializer struct {
+	getCalls    *atomic.Int32
+	activeAfter int32
+}
+
+func (m controllerProcessingThenActiveMaterializer) CreateAsset(_ context.Context, input service.AssetMaterializeInput) (service.AssetMaterializeResult, error) {
+	return service.AssetMaterializeResult{
+		UpstreamGroupID: "group",
+		UpstreamAssetID: "upstream-" + input.Asset.PublicId,
+		Status:          model.AssetStatusProcessing,
+	}, nil
+}
+
+func (m controllerProcessingThenActiveMaterializer) GetAsset(_ context.Context, _ service.AssetMaterializeInput, upstreamAssetID string) (service.AssetMaterializeResult, error) {
+	call := m.getCalls.Add(1)
+	status := model.AssetStatusProcessing
+	if call > m.activeAfter {
+		status = model.AssetStatusActive
+	}
+	return service.AssetMaterializeResult{UpstreamAssetID: upstreamAssetID, Status: status}, nil
 }
 
 func (m controllerAssetMaterializerWithCounter) CreateAsset(ctx context.Context, input service.AssetMaterializeInput) (service.AssetMaterializeResult, error) {

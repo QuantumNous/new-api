@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,8 +26,10 @@ import (
 )
 
 const (
-	assetTaskWorkerLeaseSeconds = 120
-	assetTaskWorkerBatchSize    = 10
+	assetTaskWorkerLeaseSeconds     = 120
+	assetTaskWorkerBatchSize        = 10
+	assetTaskAssetReadyTimeout      = 5 * time.Minute
+	assetTaskAssetReadyPollInterval = time.Second
 )
 
 var (
@@ -380,6 +383,10 @@ func runLeasedAssetTask(ctx context.Context, taskID string, owner string, lease 
 	}
 	c, info, err := rebuildAssetTaskContext(task)
 	if err != nil {
+		now := assetTaskWorkerNowUnix()
+		if assetTaskShouldWaitForAssets(task, err, now) {
+			return requeueLeasedAssetTaskForAssetPreparation(ctx, task, owner, lease, now)
+		}
 		return failLeasedAssetTaskPreparation(ctx, task, owner, lease, err)
 	}
 	c.Request = c.Request.WithContext(ctx)
@@ -398,6 +405,10 @@ func runLeasedAssetTask(ctx context.Context, taskID string, owner string, lease 
 		if channelErr != nil {
 			if err := ctx.Err(); err != nil {
 				return err
+			}
+			now := assetTaskWorkerNowUnix()
+			if assetTaskShouldWaitForAssets(task, channelErr, now) {
+				return requeueLeasedAssetTaskForAssetPreparation(ctx, task, owner, lease, now)
 			}
 			lastErr = channelErr.Err
 			break
@@ -458,6 +469,13 @@ func runLeasedAssetTask(ctx context.Context, taskID string, owner string, lease 
 	return failLeasedAssetTaskPreparation(ctx, task, owner, lease, lastErr)
 }
 
+func assetTaskShouldWaitForAssets(task *model.Task, err error, now int64) bool {
+	var apiErr *types.NewAPIError
+	return errors.As(err, &apiErr) &&
+		apiErr.GetErrorCode() == types.ErrorCodeAssetNotReady &&
+		now < task.CreatedAt+int64(assetTaskAssetReadyTimeout/time.Second)
+}
+
 func rebuildAssetTaskContext(task *model.Task) (*gin.Context, *relaycommon.RelayInfo, error) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptestRequestFromPayload(task.NormalizedRequestPayload)
@@ -490,7 +508,7 @@ func rebuildAssetTaskContext(task *model.Task) (*gin.Context, *relaycommon.Relay
 	}
 	refs, apiErr := service.ResolveAssetReferences(c, task.UserId, &seedanceReq)
 	if apiErr != nil {
-		return nil, nil, apiErr.Err
+		return nil, nil, apiErr
 	}
 	common.SetContextKey(c, constant.ContextKeyAssetReferenceSet, refs)
 	info := &relaycommon.RelayInfo{
@@ -737,4 +755,23 @@ func failLeasedAssetTaskPreparation(ctx context.Context, task *model.Task, owner
 		return err
 	}
 	return failAssetTaskPreparation(ctx, task, owner, leaseExpiresAt, cause)
+}
+
+func requeueLeasedAssetTaskForAssetPreparation(ctx context.Context, task *model.Task, owner string, lease *taskPreparationLease, now int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	leaseExpiresAt, err := lease.freeze()
+	if err != nil {
+		return err
+	}
+	retryAt := now + int64(assetTaskAssetReadyPollInterval/time.Second)
+	won, err := model.RequeueQueuedTaskForAssetPreparation(task.TaskID, owner, leaseExpiresAt, now, retryAt)
+	if err != nil {
+		return err
+	}
+	if !won {
+		return fmt.Errorf("task preparation lease lost before asset retry")
+	}
+	return nil
 }
