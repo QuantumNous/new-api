@@ -184,9 +184,17 @@ func (p *Proxy) recordOnce(state *auditState, status int, header http.Header, el
 	}
 	accepted := p.store.Enqueue(record)
 	if p.cfg.Debug {
-		log.Printf("proxy[debug]: recorded %s status=%d stream=%t body=%dB prompt=%dB raw=%dB parsed=%t truncated=%t latency=%dms enqueued=%t",
-			record.Path, record.StatusCode, record.IsStream, record.BodyBytes, len(record.PromptText),
-			len(record.RawBody), facts.Parsed, record.Truncated, record.LatencyMs, accepted)
+		// inspected is logged next to body because the two diverging is the whole
+		// diagnosis for an empty record: body is what the client declared, inspected
+		// is what actually reached extraction. Far fewer bytes inspected than declared
+		// means the body was never fully sent — an upstream that rejected the request
+		// before reading it, or a client that disconnected mid-upload — as opposed to
+		// a body that arrived whole and simply was not JSON.
+		log.Printf("proxy[debug]: recorded %s status=%d stream=%t body=%dB inspected=%dB prompt=%dB raw=%dB parsed=%t partial=%t evicted=%t truncated=%t latency=%dms enqueued=%t",
+			record.Path, record.StatusCode, record.IsStream, record.BodyBytes,
+			state.capture.bytesRead.Load(), len(record.PromptText), len(record.RawBody),
+			facts.Parsed, facts.Partial, facts.PromptEvicted, record.Truncated,
+			record.LatencyMs, accepted)
 	}
 }
 
