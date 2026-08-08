@@ -6394,6 +6394,8 @@
     "Activity SMTP is not configured. Configure it before sending.": "活动 SMTP 尚未配置。请先配置后再发送。",
     "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "活动 SMTP 投递失败。请检查主机、端口、凭据、TLS 模式和发件人授权后重试。",
     "Delivery status is uncertain. Check the mailbox provider before retrying.": "投递状态不确定。重试前请先检查邮箱服务商。",
+    "sending": "正在通过 SMTP 发送",
+    "Unknown delivery error": "未知投递错误",
     "Attributed spend": "归因消费额",
     "New external cash": "新增外部现金",
     "Direct top-up": "直接充值",
@@ -6522,6 +6524,10 @@
     "lifecycle_recipient_inconsistent": "生命周期收件人不一致",
     "lifecycle_message_inconsistent": "生命周期消息不一致",
     "lifecycle_enrollment_failed": "生命周期入列失败",
+    "lifecycle_enrollment_retry": "生命周期登记将重试",
+    "lifecycle_retry": "生命周期重试",
+    "lifecycle_skipped": "生命周期已跳过",
+    "persistent_exclusion": "持久排除",
     "quota_recovered": "额度已恢复",
     "quota_cycle_changed": "额度周期已变化",
     "engagement_opted_out": "已退出互动邮件",
@@ -6530,6 +6536,7 @@
     "smtp_uncertain": "SMTP 状态不确定",
     "activity_smtp_not_configured": "活动 SMTP 未配置",
     "activity_smtp_send_failed": "活动 SMTP 发送失败",
+    "Unknown message state": "未知消息状态",
     "Unknown lifecycle event": "未知生命周期事件",
     "Unknown lifecycle outcome": "未知生命周期结果"
   }

@@ -174,6 +174,7 @@ const recallActivitySMTPCopyKeys = [
   'Activity SMTP is not configured. Configure it before sending.',
   'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
   'Delivery status is uncertain. Check the mailbox provider before retrying.',
+  'Unknown delivery error',
 ] as const
 
 const lifecycleVisibleCopyKeys = [
@@ -204,6 +205,10 @@ const lifecycleVisibleCopyKeys = [
   'lifecycle_recipient_inconsistent',
   'lifecycle_message_inconsistent',
   'lifecycle_enrollment_failed',
+  'lifecycle_enrollment_retry',
+  'lifecycle_retry',
+  'lifecycle_skipped',
+  'persistent_exclusion',
   'quota_recovered',
   'quota_cycle_changed',
   'engagement_opted_out',
@@ -212,6 +217,13 @@ const lifecycleVisibleCopyKeys = [
   'smtp_uncertain',
   'activity_smtp_not_configured',
   'activity_smtp_send_failed',
+  'scheduled',
+  'sending',
+  'accepted',
+  'retry_wait',
+  'uncertain',
+  'cancelled',
+  'Unknown message state',
   'Unknown lifecycle event',
   'Unknown lifecycle outcome',
   'Delivery Policy',

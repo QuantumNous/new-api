@@ -101,9 +101,8 @@ export function formatRecallDeliveryErrorMessage(
 ): string {
   const copyKey = getRecallDeliveryErrorCopyKey(code)
   if (copyKey) return t(copyKey)
-  if (message) return message
-  if (code) return code
-  return message
+  if (!code && !message) return ''
+  return t('Unknown delivery error')
 }
 
 function formatTimestamp(value: number): string {

@@ -6394,6 +6394,8 @@
     "Activity SMTP is not configured. Configure it before sending.": "SMTP cho hoạt động chưa được cấu hình. Hãy cấu hình trước khi gửi.",
     "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "Gửi SMTP cho hoạt động thất bại. Hãy kiểm tra máy chủ, cổng, thông tin xác thực, chế độ TLS và ủy quyền người gửi, rồi thử lại.",
     "Delivery status is uncertain. Check the mailbox provider before retrying.": "Trang thai phat khong chac chan. Hay kiem tra nha cung cap hop thu truoc khi thu lai.",
+    "sending": "Đang gửi qua SMTP",
+    "Unknown delivery error": "Lỗi gửi không xác định",
     "Attributed spend": "Chi tieu duoc ghi nhan",
     "New external cash": "Tien ngoai bo moi",
     "Direct top-up": "Nap tien truc tiep",
@@ -6522,6 +6524,10 @@
     "lifecycle_recipient_inconsistent": "Người nhận vòng đời không nhất quán",
     "lifecycle_message_inconsistent": "Tin nhắn vòng đời không nhất quán",
     "lifecycle_enrollment_failed": "Ghi danh vòng đời thất bại",
+    "lifecycle_enrollment_retry": "Sẽ thử lại đăng ký vòng đời",
+    "lifecycle_retry": "Thử lại vòng đời",
+    "lifecycle_skipped": "Đã bỏ qua vòng đời",
+    "persistent_exclusion": "Loại trừ lâu dài",
     "quota_recovered": "Hạn mức đã phục hồi",
     "quota_cycle_changed": "Chu kỳ hạn mức đã thay đổi",
     "engagement_opted_out": "Đã từ chối email tương tác",
@@ -6530,6 +6536,7 @@
     "smtp_uncertain": "SMTP chưa chắc trạng thái",
     "activity_smtp_not_configured": "SMTP hoạt động chưa được cấu hình",
     "activity_smtp_send_failed": "Gửi SMTP hoạt động thất bại",
+    "Unknown message state": "Trạng thái tin nhắn không xác định",
     "Unknown lifecycle event": "Sự kiện vòng đời không xác định",
     "Unknown lifecycle outcome": "Kết quả vòng đời không xác định"
   }

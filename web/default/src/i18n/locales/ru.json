@@ -6394,6 +6394,8 @@
     "Activity SMTP is not configured. Configure it before sending.": "SMTP для активности не настроен. Настройте его перед отправкой.",
     "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "Доставка через Activity SMTP не удалась. Проверьте хост, порт, учетные данные, режим TLS и авторизацию отправителя, затем повторите попытку.",
     "Delivery status is uncertain. Check the mailbox provider before retrying.": "Статус доставки неопределен. Проверьте почтового провайдера перед повторной попыткой.",
+    "sending": "Отправляется через SMTP",
+    "Unknown delivery error": "Неизвестная ошибка доставки",
     "Attributed spend": "Атрибутированные расходы",
     "New external cash": "Новые внешние платежи",
     "Direct top-up": "Прямое пополнение",
@@ -6522,6 +6524,10 @@
     "lifecycle_recipient_inconsistent": "Получатель жизненного цикла несогласован",
     "lifecycle_message_inconsistent": "Сообщение жизненного цикла несогласовано",
     "lifecycle_enrollment_failed": "Зачисление жизненного цикла не удалось",
+    "lifecycle_enrollment_retry": "Регистрация жизненного цикла будет повторена",
+    "lifecycle_retry": "Повтор жизненного цикла",
+    "lifecycle_skipped": "Жизненный цикл пропущен",
+    "persistent_exclusion": "Постоянное исключение",
     "quota_recovered": "Квота восстановлена",
     "quota_cycle_changed": "Цикл квоты изменился",
     "engagement_opted_out": "Отказ от вовлекающих писем",
@@ -6530,6 +6536,7 @@
     "smtp_uncertain": "SMTP не определен",
     "activity_smtp_not_configured": "SMTP активности не настроен",
     "activity_smtp_send_failed": "Ошибка отправки SMTP активности",
+    "Unknown message state": "Неизвестное состояние сообщения",
     "Unknown lifecycle event": "Неизвестное событие жизненного цикла",
     "Unknown lifecycle outcome": "Неизвестный результат жизненного цикла"
   }

@@ -6394,6 +6394,8 @@
     "Activity SMTP is not configured. Configure it before sending.": "Activity SMTP is not configured. Configure it before sending.",
     "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.",
     "Delivery status is uncertain. Check the mailbox provider before retrying.": "Delivery status is uncertain. Check the mailbox provider before retrying.",
+    "sending": "Sending via SMTP",
+    "Unknown delivery error": "Unknown delivery error",
     "Attributed spend": "Attributed spend",
     "New external cash": "New external cash",
     "Direct top-up": "Direct top-up",
@@ -6522,6 +6524,10 @@
     "lifecycle_recipient_inconsistent": "Lifecycle recipient inconsistent",
     "lifecycle_message_inconsistent": "Lifecycle message inconsistent",
     "lifecycle_enrollment_failed": "Lifecycle enrollment failed",
+    "lifecycle_enrollment_retry": "Lifecycle enrollment will retry",
+    "lifecycle_retry": "Lifecycle retry",
+    "lifecycle_skipped": "Lifecycle skipped",
+    "persistent_exclusion": "Persistent exclusion",
     "quota_recovered": "Quota recovered",
     "quota_cycle_changed": "Quota cycle changed",
     "engagement_opted_out": "Engagement opt-out",
@@ -6530,6 +6536,7 @@
     "smtp_uncertain": "SMTP uncertain",
     "activity_smtp_not_configured": "Activity SMTP not configured",
     "activity_smtp_send_failed": "Activity SMTP send failed",
+    "Unknown message state": "Unknown message state",
     "Unknown lifecycle event": "Unknown lifecycle event",
     "Unknown lifecycle outcome": "Unknown lifecycle outcome"
   }

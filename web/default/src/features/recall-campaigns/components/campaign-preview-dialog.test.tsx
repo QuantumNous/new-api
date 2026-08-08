@@ -28,8 +28,11 @@ mock.module('@/components/ui/dialog', () => ({
   ),
 }))
 
-const { CampaignPreviewDialogContent } =
-  await import('./campaign-preview-dialog-content')
+const {
+  CampaignPreviewDialogContent,
+  formatRecallLifecycleOutcomeCode,
+  formatRecallMessageState,
+} = await import('./campaign-preview-dialog-content')
 const { RECALL_CAMPAIGN_PREVIEW_DIALOG_DESCRIPTION } =
   await import('./campaign-preview-dialog')
 
@@ -46,6 +49,13 @@ beforeAll(async () => {
           skipped: 'Skipped',
           invalid_email: 'Invalid lifecycle email',
           lease_recovered: 'Lease recovered for retry',
+          lifecycle_enrollment_retry: 'Lifecycle enrollment retry',
+          lifecycle_retry: 'Lifecycle retry',
+          lifecycle_skipped: 'Lifecycle skipped',
+          persistent_exclusion: 'Persistent exclusion',
+          sending: 'Sending via SMTP',
+          'SMTP accepted': 'SMTP accepted',
+          'Unknown message state': 'Unknown message state',
           'Unknown lifecycle event': 'Unknown lifecycle event',
           'Unknown lifecycle outcome': 'Unknown lifecycle outcome',
         },
@@ -56,6 +66,34 @@ beforeAll(async () => {
 })
 
 describe('campaign preview dialog', () => {
+  test('formats every audited lifecycle outcome without exposing known backend codes', () => {
+    const t = testI18n.t.bind(testI18n)
+
+    for (const code of [
+      'lifecycle_enrollment_retry',
+      'lifecycle_retry',
+      'lifecycle_skipped',
+      'persistent_exclusion',
+    ]) {
+      expect(formatRecallLifecycleOutcomeCode(code, t)).toBe(testI18n.t(code))
+      expect(formatRecallLifecycleOutcomeCode(code, t)).not.toBe(code)
+    }
+
+    expect(formatRecallLifecycleOutcomeCode('unknown_future_code', t)).toBe(
+      'Unknown lifecycle outcome'
+    )
+  })
+
+  test('formats every audited recall message state with a safe fallback', () => {
+    const t = testI18n.t.bind(testI18n)
+
+    expect(formatRecallMessageState('accepted', t)).toBe('SMTP accepted')
+    expect(formatRecallMessageState('sending', t)).toBe('Sending via SMTP')
+    expect(formatRecallMessageState('unknown_future_state', t)).toBe(
+      'Unknown message state'
+    )
+  })
+
   test('uses neutral activation review copy in the dialog description', () => {
     expect(RECALL_CAMPAIGN_PREVIEW_DIALOG_DESCRIPTION).toBe(
       'Review eligibility, exclusions, and delivery validation before activation.'

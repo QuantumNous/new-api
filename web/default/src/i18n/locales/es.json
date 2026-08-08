@@ -6394,6 +6394,8 @@
     "Activity SMTP is not configured. Configure it before sending.": "El SMTP de la actividad no está configurado. Configúralo antes de enviar.",
     "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "Falló la entrega SMTP de la actividad. Revisa el host, el puerto, las credenciales, el modo TLS y la autorización del remitente, y vuelve a intentarlo.",
     "Delivery status is uncertain. Check the mailbox provider before retrying.": "El estado de entrega es incierto. Consulta al proveedor de correo antes de reintentarlo.",
+    "sending": "Enviando por SMTP",
+    "Unknown delivery error": "Error de entrega desconocido",
     "Attributed spend": "Gasto atribuido",
     "New external cash": "Nuevo efectivo externo",
     "Direct top-up": "Recarga directa",
@@ -6522,6 +6524,10 @@
     "lifecycle_recipient_inconsistent": "Destinatario del ciclo de vida incoherente",
     "lifecycle_message_inconsistent": "Mensaje del ciclo de vida incoherente",
     "lifecycle_enrollment_failed": "Inscripción del ciclo de vida fallida",
+    "lifecycle_enrollment_retry": "El registro del ciclo de vida se reintentará",
+    "lifecycle_retry": "Reintento del ciclo de vida",
+    "lifecycle_skipped": "Ciclo de vida omitido",
+    "persistent_exclusion": "Exclusión persistente",
     "quota_recovered": "Cuota recuperada",
     "quota_cycle_changed": "Ciclo de cuota cambiado",
     "engagement_opted_out": "Baja de interacción",
@@ -6530,6 +6536,7 @@
     "smtp_uncertain": "SMTP incierto",
     "activity_smtp_not_configured": "SMTP de actividad no configurado",
     "activity_smtp_send_failed": "Envío SMTP de actividad fallido",
+    "Unknown message state": "Estado de mensaje desconocido",
     "Unknown lifecycle event": "Evento de ciclo de vida desconocido",
     "Unknown lifecycle outcome": "Resultado de ciclo de vida desconocido"
   }

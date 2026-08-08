@@ -300,8 +300,40 @@ const pages: Record<string, RecallMetricResult[]> = {
           amount_minor: 0,
           failure_code: '',
         },
+        {
+          row_id: 4,
+          recipient_id: 14,
+          message_id: 104,
+          user_id: 504,
+          email: 'sending@example.com',
+          occurred_at: 1_900_000_010,
+          stage_no: 2,
+          state: 'sending',
+          conversion_kind: '',
+          trade_no: '',
+          payment_category: '',
+          currency: '',
+          amount_minor: 0,
+          failure_code: '',
+        },
+        {
+          row_id: 5,
+          recipient_id: 15,
+          message_id: 105,
+          user_id: 505,
+          email: 'unknown-state@example.com',
+          occurred_at: 1_900_000_020,
+          stage_no: 3,
+          state: 'unknown_future_state',
+          conversion_kind: '',
+          trade_no: '',
+          payment_category: '',
+          currency: '',
+          amount_minor: 0,
+          failure_code: '',
+        },
       ],
-      total: 2,
+      total: 3,
       amounts: [],
       snapshot: 'accepted-page-snapshot',
       next_cursor: 'accepted-next',
@@ -592,6 +624,8 @@ await testI18n.use(initReactI18next).init({
       translation: {
         'Recipient status': 'Recipient status',
         'SMTP accepted': 'SMTP accepted',
+        sending: 'Sending via SMTP',
+        'Unknown message state': 'Unknown message state',
         converted: 'Paid recipient',
         direct: 'Own-link attribution',
         assisted: 'Follow-up attribution',
@@ -813,7 +847,11 @@ describe('CampaignMetricCardSection', () => {
     ).map((cell) => cell.textContent)
 
     expect(acceptedCells).toContain('SMTP accepted')
+    expect(acceptedCells).toContain('Sending via SMTP')
+    expect(acceptedCells).toContain('Unknown message state')
     expect(acceptedCells).not.toContain('accepted')
+    expect(acceptedCells).not.toContain('sending')
+    expect(acceptedCells).not.toContain('unknown_future_state')
 
     await click('Failed messages')
     await React.act(async () => {

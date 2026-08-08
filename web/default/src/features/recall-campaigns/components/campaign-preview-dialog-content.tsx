@@ -20,6 +20,10 @@ const knownLifecycleOutcomeCodes = new Set<string>([
   'lifecycle_recipient_inconsistent',
   'lifecycle_message_inconsistent',
   'lifecycle_enrollment_failed',
+  'lifecycle_enrollment_retry',
+  'lifecycle_retry',
+  'lifecycle_skipped',
+  'persistent_exclusion',
   'quota_recovered',
   'quota_cycle_changed',
   'engagement_opted_out',
@@ -40,12 +44,24 @@ const knownLifecycleEventTypes = new Set<string>([
   'payment_succeeded',
 ])
 
+const knownRecallMessageStates = new Set<string>([
+  'scheduled',
+  'leased',
+  'sending',
+  'accepted',
+  'retry_wait',
+  'uncertain',
+  'failed',
+  'cancelled',
+])
+
 type Translate = (key: string) => string
 
 function formatTimestamp(value: number): string {
   return value > 0 ? new Date(value * 1000).toLocaleString() : '-'
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function formatRecallLifecycleOutcomeCode(
   code: string,
   t: Translate
@@ -56,6 +72,7 @@ export function formatRecallLifecycleOutcomeCode(
   return t(code)
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function formatRecallLifecycleEventType(
   code: string,
   t: Translate
@@ -64,8 +81,10 @@ export function formatRecallLifecycleEventType(
   return t(code)
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function formatRecallMessageState(state: string, t: Translate): string {
   if (state === 'accepted') return t('SMTP accepted')
+  if (!knownRecallMessageStates.has(state)) return t('Unknown message state')
   return t(state)
 }
 

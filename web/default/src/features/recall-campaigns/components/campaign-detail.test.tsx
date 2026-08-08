@@ -75,6 +75,9 @@ beforeAll(async () => {
           invalid_email: 'Invalid lifecycle email',
           quota_recovered: 'Quota recovered before send',
           'SMTP accepted': 'SMTP accepted',
+          sending: 'Sending via SMTP',
+          'Unknown delivery error': 'Unknown delivery error',
+          'Unknown message state': 'Unknown message state',
           'Unknown lifecycle event': 'Unknown lifecycle event',
           'Unknown lifecycle outcome': 'Unknown lifecycle outcome',
         },
@@ -519,12 +522,14 @@ describe('Recall campaign delivery errors', () => {
     ).toBe('Translated uncertain SMTP delivery')
   })
 
-  test('uses backend message only as an unknown error fallback', () => {
+  test('uses safe generic copy for unknown delivery errors', () => {
     const t = (key: string) =>
       key ===
       'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
         ? 'Translated Activity SMTP failure'
-        : `translated:${key}`
+        : key === 'Unknown delivery error'
+          ? 'Translated unknown delivery error'
+          : `translated:${key}`
 
     expect(
       formatRecallDeliveryErrorMessage(
@@ -532,10 +537,13 @@ describe('Recall campaign delivery errors', () => {
         'Raw backend detail',
         t
       )
-    ).toBe('Raw backend detail')
+    ).toBe('Translated unknown delivery error')
 
+    expect(
+      formatRecallDeliveryErrorMessage('unknown_backend_code', '', t)
+    ).toBe('Translated unknown delivery error')
     expect(formatRecallDeliveryErrorMessage('', 'Raw backend detail', t)).toBe(
-      'Raw backend detail'
+      'Translated unknown delivery error'
     )
     expect(formatRecallDeliveryErrorMessage('', '', t)).toBe('')
   })
@@ -697,7 +705,7 @@ describe('CampaignDetail recipient rendering', () => {
     expect(recipientHtml).not.toContain('USD 1600')
   })
 
-  test('renders accepted email message state with SMTP context', () => {
+  test('renders email message states with SMTP context and safe fallback', () => {
     const recipient: RecallRecipient = {
       id: 2,
       campaign_id: 42,
@@ -739,6 +747,42 @@ describe('CampaignDetail recipient rendering', () => {
           created_at: 0,
           updated_at: 0,
         },
+        {
+          id: 102,
+          recipient_id: 2,
+          stage_no: 2,
+          template_version: 3,
+          scheduled_at: 0,
+          state: 'sending',
+          attempt_count: 1,
+          next_attempt_at: 0,
+          lease_expires_at: 0,
+          provider_message_id: '',
+          accepted_at: 0,
+          failed_at: 0,
+          last_error_code: '',
+          last_error_message: '',
+          created_at: 0,
+          updated_at: 0,
+        },
+        {
+          id: 103,
+          recipient_id: 2,
+          stage_no: 3,
+          template_version: 3,
+          scheduled_at: 0,
+          state: 'unknown_future_state',
+          attempt_count: 1,
+          next_attempt_at: 0,
+          lease_expires_at: 0,
+          provider_message_id: '',
+          accepted_at: 0,
+          failed_at: 0,
+          last_error_code: '',
+          last_error_message: '',
+          created_at: 0,
+          updated_at: 0,
+        },
       ],
     }
 
@@ -747,6 +791,10 @@ describe('CampaignDetail recipient rendering', () => {
     )
 
     expect(recipientHtml).toContain('SMTP accepted')
+    expect(recipientHtml).toContain('Sending via SMTP')
+    expect(recipientHtml).toContain('Unknown message state')
     expect(recipientHtml).not.toContain('Stage 1 · accepted')
+    expect(recipientHtml).not.toContain('Stage 2 · sending')
+    expect(recipientHtml).not.toContain('unknown_future_state')
   })
 })

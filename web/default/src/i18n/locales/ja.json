@@ -6394,6 +6394,8 @@
     "Activity SMTP is not configured. Configure it before sending.": "アクティビティ SMTP が設定されていません。送信前に設定してください。",
     "Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.": "Activity SMTP の配信に失敗しました。ホスト、ポート、認証情報、TLS モード、送信者の承認を確認してから再試行してください。",
     "Delivery status is uncertain. Check the mailbox provider before retrying.": "配信状態が不確実です。再試行する前にメールボックスプロバイダーを確認してください。",
+    "sending": "SMTP で送信中",
+    "Unknown delivery error": "不明な配信エラー",
     "Attributed spend": "アトリビューション済み支出",
     "New external cash": "新規外部入金",
     "Direct top-up": "直接チャージ",
@@ -6522,6 +6524,10 @@
     "lifecycle_recipient_inconsistent": "ライフサイクル受信者の不整合",
     "lifecycle_message_inconsistent": "ライフサイクルメッセージの不整合",
     "lifecycle_enrollment_failed": "ライフサイクル登録失敗",
+    "lifecycle_enrollment_retry": "ライフサイクル登録を再試行します",
+    "lifecycle_retry": "ライフサイクル再試行",
+    "lifecycle_skipped": "ライフサイクルをスキップ",
+    "persistent_exclusion": "永続的な除外",
     "quota_recovered": "クォータ回復済み",
     "quota_cycle_changed": "クォータサイクル変更済み",
     "engagement_opted_out": "エンゲージメント配信拒否",
@@ -6530,6 +6536,7 @@
     "smtp_uncertain": "SMTP 不確定",
     "activity_smtp_not_configured": "アクティビティ SMTP 未設定",
     "activity_smtp_send_failed": "アクティビティ SMTP 送信失敗",
+    "Unknown message state": "不明なメッセージ状態",
     "Unknown lifecycle event": "不明なライフサイクルイベント",
     "Unknown lifecycle outcome": "不明なライフサイクル結果"
   }
