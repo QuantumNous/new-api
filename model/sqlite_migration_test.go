@@ -48,4 +48,98 @@ func TestSQLiteMigrateDBCanRunTwiceOnSameDatabase(t *testing.T) {
 	require.True(t, db.Migrator().HasIndex(&StripeBonusClaim{}, "idx_stripe_bonus_claims_card_fingerprint"))
 	require.True(t, db.Migrator().HasTable(&TopUpBonusClaim{}))
 	require.True(t, db.Migrator().HasIndex(&TopUpBonusClaim{}, "idx_topup_bonus_user_tier_seq"))
+
+	require.True(t, db.Migrator().HasIndex(&SubscriptionTermSegment{}, "idx_subscription_term_order_segment"))
+	assertSQLiteSubscriptionTermConstraints(t, db)
+	assertSQLiteWalletLedgerConstraints(t, db)
+}
+
+func TestMigrationModelDescriptorsIncludeCriticalSQLiteModels(t *testing.T) {
+	models := orderedMigrationModels()
+	require.NotEmpty(t, models)
+	require.Len(t, migrationModelValues(models), len(models))
+
+	seen := map[string]bool{}
+	for _, m := range models {
+		require.NotEmpty(t, m.name)
+		require.NotNil(t, m.model)
+		require.False(t, seen[m.name], "duplicate migration model %s", m.name)
+		seen[m.name] = true
+	}
+
+	require.True(t, seen["StripeBonusClaim"])
+	require.True(t, seen["TopUpBonusClaim"])
+	require.True(t, seen["SubscriptionOrder"])
+	require.True(t, seen["SubscriptionTermSegment"])
+	require.True(t, seen["WalletLedgerEntry"])
+}
+
+func assertSQLiteSubscriptionTermConstraints(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	refundKey := "sqlite-refund-key-1"
+	require.NoError(t, db.Create(&SubscriptionTermSegment{
+		ContractId:     1001,
+		OrderId:        2001,
+		PlanId:         3001,
+		SegmentIndex:   0,
+		StartTime:      100,
+		EndTime:        200,
+		AllocatedMoney: 30,
+		Status:         SubscriptionTermStatusActive,
+		RefundKey:      &refundKey,
+	}).Error)
+
+	otherRefundKey := "sqlite-refund-key-2"
+	err := db.Create(&SubscriptionTermSegment{
+		ContractId:     1002,
+		OrderId:        2001,
+		PlanId:         3002,
+		SegmentIndex:   0,
+		StartTime:      200,
+		EndTime:        300,
+		AllocatedMoney: 30,
+		Status:         SubscriptionTermStatusActive,
+		RefundKey:      &otherRefundKey,
+	}).Error
+	require.Error(t, err)
+
+	duplicateRefundKey := refundKey
+	err = db.Create(&SubscriptionTermSegment{
+		ContractId:     1003,
+		OrderId:        2003,
+		PlanId:         3003,
+		SegmentIndex:   0,
+		StartTime:      300,
+		EndTime:        400,
+		AllocatedMoney: 30,
+		Status:         SubscriptionTermStatusActive,
+		RefundKey:      &duplicateRefundKey,
+	}).Error
+	require.Error(t, err)
+}
+
+func assertSQLiteWalletLedgerConstraints(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	require.NoError(t, db.Create(&WalletLedgerEntry{
+		UserId:        10,
+		EntryKey:      "sqlite-wallet-entry-1",
+		QuotaDelta:    500,
+		MoneyAmount:   15,
+		EntryType:     WalletLedgerEntryTypePrepaidDebit,
+		OrderId:       2001,
+		TermSegmentId: 3001,
+	}).Error)
+
+	err := db.Create(&WalletLedgerEntry{
+		UserId:        11,
+		EntryKey:      "sqlite-wallet-entry-1",
+		QuotaDelta:    500,
+		MoneyAmount:   15,
+		EntryType:     WalletLedgerEntryTypePrepaidDebit,
+		OrderId:       2002,
+		TermSegmentId: 3002,
+	}).Error
+	require.Error(t, err)
 }

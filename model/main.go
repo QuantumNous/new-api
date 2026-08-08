@@ -267,100 +267,7 @@ func migrateDB() error {
 		return err
 	}
 
-	err := DB.AutoMigrate(
-		&Channel{},
-		&Token{},
-		&CliDeviceAuthorization{},
-		&User{},
-		&RecallCampaign{},
-		&RecallRecipient{},
-		&RecallMessage{},
-		&RecallExclusionBatch{},
-		&RecallCampaignExclusion{},
-		&RecallTranslationTask{},
-		&RecallEmailQuotaWindow{},
-		&RecallEmailPacingState{},
-		&RecallEvent{},
-		&RecallLifecycleEvent{},
-		&RecallContinuousTriggerSlot{},
-		&QuotaLifecycleState{},
-		&RegistrationDomainState{},
-		&RegistrationDomainBlock{},
-		&RegistrationDomainBlockUser{},
-		&NewUserBonusClaim{},
-		&InviteRewardEvent{},
-		&InviteSubscriptionReward{},
-		&SubscriptionDiscountAccount{},
-		&SubscriptionDiscountEntry{},
-		&PasskeyCredential{},
-		&Option{},
-		&Redemption{},
-		&Ability{},
-		&Log{},
-		&LogRequestSample{},
-		&Midjourney{},
-		&TopUp{},
-		&AdsAttributionOutbox{},
-		&PaymentAnalyticsOutbox{},
-		&PaymentAnalyticsEventReceipt{},
-		&StripeBonusClaim{},
-		&TopUpBonusClaim{},
-		&UserInvoiceProfile{},
-		&PaymentInvoice{},
-		&QuotaData{},
-		&QuotaDataToken{},
-		&Task{},
-		&TaskAcceptedAccountingLedger{},
-		&TaskAcceptedAccountingLogLedger{},
-		&Asset{},
-		&AssetBinding{},
-		&AssetUpload{},
-		&Model{},
-		&Vendor{},
-		&PrefillGroup{},
-		&Setup{},
-		&TwoFA{},
-		&TwoFABackupCode{},
-		&Checkin{},
-		&SubscriptionOrder{},
-		&UserSubscription{},
-		&SubscriptionProviderBinding{},
-		&PaymentWebhookEvent{},
-		&SubscriptionPreConsumeRecord{},
-		&FreePlanGrant{},
-		&UserSubscriptionContract{},
-		&SubscriptionChangeIntent{},
-		&SubscriptionTierRankReservation{},
-		&SubscriptionTermSegment{},
-		&WalletLedgerEntry{},
-		&CustomOAuthProvider{},
-		&UserOAuthBinding{},
-		&PerfMetric{},
-		&DingTalkAlertCooldownRecord{},
-		&ModelAvailabilityState{},
-		&CodexModelGovernanceRecord{},
-		&CodexModelGovernanceProbeState{},
-		&CodexModelGovernanceAlertCooldownRecord{},
-		&TemporaryChannelModelSpend{},
-		&ComputeNode{},
-		&DataToolCall{},
-		&BytePlusAssetGroup{},
-		&BytePlusRealPersonProfile{},
-		&BytePlusVisualValidationSession{},
-		&APIIdempotencyRecord{},
-		&BytePlusAssetTempObject{},
-		&BytePlusAsset{},
-		&AdsSpendDaily{},
-		&AdsDailyKeyword{},
-		&AdsDailyCreative{},
-		&AdsDailyLanding{},
-		&AdsPilotCampaignDaily{},
-		&AdsPilotInsight{},
-		&AdsPilotAction{},
-		&AdsPilotProposal{},
-		&AdsPilotMeta{},
-		&PromptLibraryItem{},
-	)
+	err := DB.AutoMigrate(migrationModelValues(orderedMigrationModels())...)
 	if err != nil {
 		return err
 	}
@@ -391,18 +298,13 @@ func migrateDB() error {
 	return migrateStartupInvitationValue()
 }
 
-func migrateDBFast() error {
-	if err := migrateRecallRecipientIdentity(); err != nil {
-		return err
-	}
-	if err := backfillTaskIDsBeforeUniqueIndex(); err != nil {
-		return err
-	}
+type migrationModel struct {
+	model interface{}
+	name  string
+}
 
-	migrations := []struct {
-		model interface{}
-		name  string
-	}{
+func orderedMigrationModels() []migrationModel {
+	return []migrationModel{
 		{&Channel{}, "Channel"},
 		{&Token{}, "Token"},
 		{&CliDeviceAuthorization{}, "CliDeviceAuthorization"},
@@ -496,6 +398,25 @@ func migrateDBFast() error {
 		{&AdsPilotMeta{}, "AdsPilotMeta"},
 		{&PromptLibraryItem{}, "PromptLibraryItem"},
 	}
+}
+
+func migrationModelValues(models []migrationModel) []interface{} {
+	values := make([]interface{}, 0, len(models))
+	for _, m := range models {
+		values = append(values, m.model)
+	}
+	return values
+}
+
+func migrateDBFast() error {
+	if err := migrateRecallRecipientIdentity(); err != nil {
+		return err
+	}
+	if err := backfillTaskIDsBeforeUniqueIndex(); err != nil {
+		return err
+	}
+
+	migrations := orderedMigrationModels()
 	// GORM also migrates associations, so parallel AutoMigrate calls can race
 	// when related models share a table dependency.
 	for _, m := range migrations {
