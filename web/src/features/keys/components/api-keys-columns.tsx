@@ -35,7 +35,8 @@ import dayjs from '@/lib/dayjs'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { API_KEY_STATUSES } from '../constants'
+import { API_KEY_STATUS, API_KEY_STATUSES } from '../constants'
+import { isApiKeyExpired, isApiKeyExhausted } from '../lib'
 import type { ApiKey } from '../types'
 import { ApiKeyGroupCell } from './api-key-group-cell'
 import { ApiKeyTimestampCell } from './api-key-timestamp-cell'
@@ -117,7 +118,31 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       accessorKey: 'status',
       header: t('Status'),
       cell: ({ row }) => {
-        const statusConfig = API_KEY_STATUSES[row.getValue('status') as number]
+        const apiKey = row.original
+        const statusValue = row.getValue('status') as number
+
+        if (isApiKeyExpired(apiKey.expired_time)) {
+          return (
+            <StatusBadge
+              label={t('Expired')}
+              variant='warning'
+              copyable={false}
+              className='-ml-1.5'
+            />
+          )
+        }
+        if (isApiKeyExhausted(apiKey.remain_quota, apiKey.unlimited_quota)) {
+          return (
+            <StatusBadge
+              label={t('Exhausted')}
+              variant='danger'
+              copyable={false}
+              className='-ml-1.5'
+            />
+          )
+        }
+
+        const statusConfig = API_KEY_STATUSES[statusValue]
         if (!statusConfig) return null
         return (
           <StatusBadge
@@ -128,7 +153,25 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
           />
         )
       },
-      filterFn: (row, id, value) => value.includes(String(row.getValue(id))),
+      filterFn: (row, id, value) => {
+        const apiKey = row.original
+        const statusValue = row.getValue(id) as number
+
+        if (
+          value.includes(String(API_KEY_STATUS.EXPIRED)) &&
+          isApiKeyExpired(apiKey.expired_time)
+        ) {
+          return true
+        }
+        if (
+          value.includes(String(API_KEY_STATUS.EXHAUSTED)) &&
+          isApiKeyExhausted(apiKey.remain_quota, apiKey.unlimited_quota)
+        ) {
+          return true
+        }
+
+        return value.includes(String(statusValue))
+      },
       size: 120,
       meta: { mobileBadge: true },
     },

@@ -20,7 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { Table as TanstackTable } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -31,7 +31,7 @@ import {
   useDebouncedColumnFilter,
   useDataTable,
 } from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
+import { type StatusBadgeProps, StatusBadge } from '@/components/status-badge'
 import {
   Empty,
   EmptyDescription,
@@ -52,6 +52,7 @@ import {
   API_KEY_STATUSES,
   ERROR_MESSAGES,
 } from '../constants'
+import { isApiKeyExpired, isApiKeyExhausted } from '../lib'
 import type { ApiKey } from '../types'
 import { ApiKeyCell, UnlimitedQuotaBadge } from './api-keys-cells'
 import { useApiKeysColumns } from './api-keys-columns'
@@ -66,8 +67,38 @@ const API_KEYS_MOBILE_SKELETON_IDS = Array.from(
   (_, index) => `api-key-mobile-skeleton-${index + 1}`
 )
 
-function isDisabledApiKeyRow(apiKey: ApiKey) {
-  return apiKey.status !== API_KEY_STATUS.ENABLED
+function isDisabledApiKeyRow(apiKey: ApiKey): boolean {
+  return (
+    apiKey.status !== API_KEY_STATUS.ENABLED ||
+    isApiKeyExpired(apiKey.expired_time) ||
+    isApiKeyExhausted(apiKey.remain_quota, apiKey.unlimited_quota)
+  )
+}
+
+function renderApiKeyStatusBadge(
+  t: (key: string) => string,
+  expired: boolean,
+  exhausted: boolean,
+  statusConfig: (Pick<StatusBadgeProps, 'variant'> & { label: string }) | null
+): ReactNode {
+  if (expired) {
+    return (
+      <StatusBadge label={t('Expired')} variant='warning' copyable={false} />
+    )
+  }
+  if (exhausted) {
+    return (
+      <StatusBadge label={t('Exhausted')} variant='danger' copyable={false} />
+    )
+  }
+  if (!statusConfig) return null
+  return (
+    <StatusBadge
+      label={t(statusConfig.label)}
+      variant={statusConfig.variant}
+      copyable={false}
+    />
+  )
 }
 
 function ApiKeysMobileSkeleton() {
@@ -129,8 +160,16 @@ function ApiKeysMobileList({
     <div className='divide-border overflow-hidden rounded-lg border'>
       {rows.map((row) => {
         const apiKey = row.original
-        const statusConfig = API_KEY_STATUSES[apiKey.status]
+        const statusValue = apiKey.status
+        const expired = isApiKeyExpired(apiKey.expired_time)
+        const exhausted = isApiKeyExhausted(
+          apiKey.remain_quota,
+          apiKey.unlimited_quota
+        )
+        const statusConfig = expired || exhausted ? null : API_KEY_STATUSES[statusValue]
         const total = apiKey.used_quota + apiKey.remain_quota
+
+        const mobileBadge = renderApiKeyStatusBadge(t, expired, exhausted, statusConfig)
 
         return (
           <div
@@ -149,13 +188,7 @@ function ApiKeysMobileList({
                   {t('API Key')}
                 </div>
               </div>
-              {statusConfig && (
-                <StatusBadge
-                  label={t(statusConfig.label)}
-                  variant={statusConfig.variant}
-                  copyable={false}
-                />
-              )}
+              {mobileBadge}
             </div>
 
             <div className='flex min-w-0 items-center justify-between gap-2'>
@@ -228,7 +261,14 @@ export function ApiKeysTable() {
     columnId: '_tokenSearch',
     onColumnFiltersChange,
   })
-  const shouldSearch = Boolean(globalFilter?.trim() || tokenFilter.trim())
+  const statusFilter =
+    (columnFilters.find((filter) => filter.id === 'status')?.value as
+      | string[]
+      | undefined) ?? []
+  const statusFilterValue = statusFilter[0] ?? ''
+  const shouldSearch = Boolean(
+    globalFilter?.trim() || tokenFilter.trim() || statusFilterValue !== ''
+  )
 
   // Fetch data with React Query
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
@@ -239,6 +279,7 @@ export function ApiKeysTable() {
       pagination.pageSize,
       globalFilter,
       tokenFilter,
+      statusFilterValue,
       refreshTrigger,
     ],
     queryFn: async () => {
@@ -246,6 +287,7 @@ export function ApiKeysTable() {
         ? await searchApiKeys({
             keyword: globalFilter,
             token: tokenFilter,
+            status: statusFilterValue,
             p: pagination.pageIndex + 1,
             size: pagination.pageSize,
           })
@@ -289,6 +331,7 @@ export function ApiKeysTable() {
     onGlobalFilterChange,
     onColumnFiltersChange,
     manualPagination: true,
+    manualFiltering: true,
     totalCount: data?.total || 0,
     ensurePageInRange,
   })

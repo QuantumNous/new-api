@@ -45,10 +45,11 @@ export async function getApiKeys(
 export async function searchApiKeys(
   params: SearchApiKeysParams
 ): Promise<GetApiKeysResponse> {
-  const { keyword = '', token = '', p, size } = params
+  const { keyword = '', token = '', status = '', p, size } = params
   const queryParams = new URLSearchParams()
   if (keyword) queryParams.set('keyword', keyword)
   if (token) queryParams.set('token', token)
+  if (status) queryParams.set('status', status)
   if (p != null) queryParams.set('p', String(p))
   if (size != null) queryParams.set('size', String(size))
   const res = await api.get(`/api/token/search?${queryParams.toString()}`)
@@ -104,7 +105,9 @@ export async function updateApiKeyStatus(
   id: number,
   status: number
 ): Promise<ApiResponse<ApiKey>> {
-  const res = await api.put('/api/token/?status_only=true', { id, status })
+  const res = await api.put('/api/token/?status_only=true', { id, status }, {
+    skipBusinessError: true,
+  })
   return res.data
 }
 
