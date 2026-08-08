@@ -180,6 +180,8 @@ const OPERATIONS_SECTIONS = [
             settings['seedance_asset_official.platform'] === 'overseas'
               ? 'overseas'
               : 'cn',
+          projectName:
+            settings['seedance_asset_official.project_name'] || 'default',
         }}
       />
     ),

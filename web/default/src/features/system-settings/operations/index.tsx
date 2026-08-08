@@ -74,6 +74,7 @@ const defaultOperationsSettings: OperationsSettings = {
   'seedance_asset_official.refresh_on_get': true,
   'seedance_asset_official.default_callback_url': '',
   'seedance_asset_official.platform': 'cn',
+  'seedance_asset_official.project_name': 'default',
 }
 
 export function OperationsSettings() {

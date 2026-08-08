@@ -49,6 +49,7 @@ const schema = z.object({
   refreshOnGet: z.boolean(),
   defaultCallbackUrl: z.string(),
   platform: z.enum(['cn', 'overseas']),
+  projectName: z.string().min(1),
 })
 
 type Values = z.infer<typeof schema>
@@ -62,6 +63,7 @@ export function SeedanceOfficialAssetSettingsSection({
     refreshOnGet: boolean
     defaultCallbackUrl: string
     platform: 'cn' | 'overseas'
+    projectName: string
   }
 }) {
   const { t } = useTranslation()
@@ -75,6 +77,7 @@ export function SeedanceOfficialAssetSettingsSection({
       refreshOnGet: defaultValues.refreshOnGet,
       defaultCallbackUrl: defaultValues.defaultCallbackUrl,
       platform: defaultValues.platform === 'overseas' ? 'overseas' : 'cn',
+      projectName: defaultValues.projectName || 'default',
     },
   })
 
@@ -111,6 +114,12 @@ export function SeedanceOfficialAssetSettingsSection({
       updates.push({
         key: 'seedance_asset_official.platform',
         value: values.platform,
+      })
+    }
+    if (values.projectName !== defaultValues.projectName) {
+      updates.push({
+        key: 'seedance_asset_official.project_name',
+        value: values.projectName.trim() || 'default',
       })
     }
 
@@ -212,6 +221,25 @@ export function SeedanceOfficialAssetSettingsSection({
                 <FormDescription>
                   {t(
                     'Channel Key must be AK|SK or AK|SK|Region; Base URL optional (uses platform default host when empty)'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='projectName'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Official asset project name')}</FormLabel>
+                <FormControl>
+                  <Input placeholder='project_zzz' {...field} />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'BytePlus/Volcengine ProjectName used by CreateAssetGroup and CreateAsset'
                   )}
                 </FormDescription>
                 <FormMessage />

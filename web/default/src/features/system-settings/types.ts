@@ -329,6 +329,7 @@ export type OperationsSettings = {
   'seedance_asset_official.refresh_on_get': boolean
   'seedance_asset_official.default_callback_url': string
   'seedance_asset_official.platform': string
+  'seedance_asset_official.project_name': string
 }
 
 export type SecuritySettings = {

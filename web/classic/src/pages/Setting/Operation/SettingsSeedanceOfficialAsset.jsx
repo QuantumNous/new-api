@@ -37,6 +37,7 @@ export default function SettingsSeedanceOfficialAsset(props) {
     'seedance_asset_official.refresh_on_get': true,
     'seedance_asset_official.default_callback_url': '',
     'seedance_asset_official.platform': 'cn',
+    'seedance_asset_official.project_name': 'default',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -83,6 +84,7 @@ export default function SettingsSeedanceOfficialAsset(props) {
       'seedance_asset_official.refresh_on_get': true,
       'seedance_asset_official.default_callback_url': '',
       'seedance_asset_official.platform': 'cn',
+      'seedance_asset_official.project_name': 'default',
     };
     for (let key in props.options) {
       if (Object.keys(currentInputs).includes(key)) {
@@ -178,6 +180,18 @@ export default function SettingsSeedanceOfficialAsset(props) {
                   )}
                   extraText={t(
                     '渠道 Key 填 AK|SK 或 AK|SK|Region；Base URL 可空（按所选平台使用默认 Host）'
+                  )}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Input
+                  field={'seedance_asset_official.project_name'}
+                  label={t('官方素材项目名 ProjectName')}
+                  onChange={handleFieldChange(
+                    'seedance_asset_official.project_name'
+                  )}
+                  extraText={t(
+                    '对应 BytePlus/火山控制台项目名，例如 project_zzz；默认 default'
                   )}
                 />
               </Col>

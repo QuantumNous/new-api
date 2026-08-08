@@ -61,7 +61,7 @@ func CreateSeedanceAssetGroupFor(userId int, provider, groupName, description, g
 			"Name":        name,
 			"Description": description,
 			"GroupType":   model.SeedanceGroupTypeAIGC,
-			"ProjectName": "default",
+			"ProjectName": operation_setting.GetSeedanceOfficialProjectName(),
 		})
 		if err != nil {
 			return nil, err
@@ -303,7 +303,7 @@ func CreateSeedanceRemoteAssetFor(userId int, provider, assetURL, assetType, nam
 			"GroupId":     gid,
 			"URL":         assetURL,
 			"AssetType":   toOfficialAssetType(assetType),
-			"ProjectName": "default",
+			"ProjectName": operation_setting.GetSeedanceOfficialProjectName(),
 		}
 		if strings.TrimSpace(name) != "" {
 			body["Name"] = strings.TrimSpace(name)
@@ -599,6 +599,7 @@ func CreateSeedanceRealPersonSessionFor(userId int, provider, callbackURL string
 		}
 		_, result, _, err := seedanceOfficialDo(gw, "CreateVisualValidateSession", map[string]any{
 			"CallbackURL": cb,
+			"ProjectName": operation_setting.GetSeedanceOfficialProjectName(),
 		})
 		if err != nil {
 			return nil, err

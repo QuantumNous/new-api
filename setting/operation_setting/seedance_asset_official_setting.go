@@ -21,6 +21,8 @@ type SeedanceAssetOfficialSetting struct {
 	DefaultCallbackURL string `json:"default_callback_url"`
 	// Platform: cn（国内火山）或 overseas（海外 BytePlus），可切换，互不替换
 	Platform string `json:"platform"`
+	// ProjectName 方舟/BytePlus 项目名，对应控制台 Project（如 project_zzz）
+	ProjectName string `json:"project_name"`
 }
 
 var seedanceAssetOfficialSetting = SeedanceAssetOfficialSetting{
@@ -29,6 +31,7 @@ var seedanceAssetOfficialSetting = SeedanceAssetOfficialSetting{
 	RefreshOnGet:       true,
 	DefaultCallbackURL: "",
 	Platform:           SeedanceOfficialPlatformCN,
+	ProjectName:        "default",
 }
 
 func init() {
@@ -50,4 +53,12 @@ func NormalizeSeedanceOfficialPlatform(platform string) string {
 	default:
 		return SeedanceOfficialPlatformCN
 	}
+}
+
+func GetSeedanceOfficialProjectName() string {
+	name := strings.TrimSpace(seedanceAssetOfficialSetting.ProjectName)
+	if name == "" {
+		return "default"
+	}
+	return name
 }
