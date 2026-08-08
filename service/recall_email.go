@@ -1162,7 +1162,7 @@ func recallEmailHTMLTemplateUsesField(source string, fieldName string) (bool, er
 }
 
 func renderRecallEmailHTML(source string, input RecallEmailRenderInput) (string, error) {
-	if _, err := parseRecallEmailHTMLForCampaign(input.CampaignType, source); err != nil {
+	if _, err := parseRecallEmailHTMLForDelivery(input.CampaignType, input.DeliveryPolicy, source); err != nil {
 		return "", fmt.Errorf("recall email html: %w", err)
 	}
 	compiled, err := htmltemplate.New("recall_email_html").Option("missingkey=error").Parse(source)

@@ -136,6 +136,20 @@ func TestRecallEmailRenderServicePolicyCannotRenderUnsubscribe(t *testing.T) {
 
 	_, body, err = RenderRecallEmail(RecallEmailRenderInput{
 		CampaignType:   model.RecallCampaignTypeContentOnly,
+		DeliveryPolicy: model.RecallDeliveryPolicyService,
+		Language:       "en",
+		Template: RecallEmailTemplate{
+			Subject:  "Service HTML",
+			BodyHTML: `<!doctype html><html><body><p>Hello {{.RecipientName}}</p><a href="https://flatkey.ai/console">Open Flatkey</a></body></html>`,
+		},
+		RecipientName: "Ada",
+	})
+	require.NoError(t, err)
+	require.Contains(t, body, "Open Flatkey")
+	require.NotContains(t, body, "Unsubscribe")
+
+	_, body, err = RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:   model.RecallCampaignTypeContentOnly,
 		DeliveryPolicy: model.RecallDeliveryPolicyEngagement,
 		Language:       "en",
 		Template: RecallEmailTemplate{

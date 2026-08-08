@@ -199,6 +199,11 @@ func TestSubscriptionLifecycleFallbackCycleUsesOrderIDWhenTradeNumberMissing(t *
 	require.Equal(t, fmt.Sprintf("subscription_orders:%d", order.Id), state.Cycle)
 	event := requireSubscriptionLifecycleEventBySource(t, user.Id, RecallLifecycleTriggerPaymentSucceeded, int64(order.Id))
 	require.Equal(t, fmt.Sprintf("subscription_orders:%d", order.Id), event.ScopeId)
+	var payload struct {
+		SubscriptionScopeID int64 `json:"subscription_scope_id"`
+	}
+	require.NoError(t, common.Unmarshal([]byte(event.EventData), &payload))
+	require.EqualValues(t, sub.Id, payload.SubscriptionScopeID)
 }
 
 func TestSubscriptionLifecycleProviderMatrixSuccessAndExpiryReplayOnce(t *testing.T) {

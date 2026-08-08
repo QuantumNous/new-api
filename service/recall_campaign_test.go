@@ -814,6 +814,8 @@ func TestRecallCampaignExportHonorsCancelledContext(t *testing.T) {
 func TestRecallCampaignSaveDraftValidatesAndNormalizes(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
 	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
 	service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
 	service.now = func() time.Time { return now }
@@ -2425,6 +2427,42 @@ func TestNormalizeRecallEmailTemplateRequiresExactlyOneBody(t *testing.T) {
 			require.ErrorContains(t, err, testCase.wantErr)
 		})
 	}
+}
+
+func TestRecallCampaignContinuousServiceDraftAllowsHTMLWithoutUnsubscribe(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
+	service.now = func() time.Time { return now }
+
+	draft := validRecallCampaignDraft(now)
+	draft.CampaignType = model.RecallCampaignTypeContentOnly
+	draft.ExecutionMode = "continuous"
+	draft.DeliveryPolicy = model.RecallDeliveryPolicyService
+	draft.LifecycleTrigger = model.RecallLifecycleTriggerQuotaLow
+	draft.LifecycleTriggerConfig = "{}"
+	draft.AudienceTemplate = ""
+	draft.Audience = RecallAudienceConfig{}
+	draft.Schedule = RecallScheduleConfig{}
+	draft.CouponSource = ""
+	draft.ExistingCouponID = ""
+	draft.Discount = RecallDiscountConfig{}
+	draft.Products = RecallProductScope{}
+	draft.PromotionExpiryMode = ""
+	draft.PromotionExpiresAt = 0
+	draft.PromotionValidSeconds = 0
+	draft.Emails[0].Templates["en"] = RecallEmailTemplate{
+		Subject:  "Service notice",
+		BodyHTML: `<!doctype html><html><body><p>Hello {{.RecipientName}}</p><a href="https://flatkey.ai/console">Open Flatkey</a></body></html>`,
+	}
+
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+
+	require.NoError(t, err)
+	require.Equal(t, model.RecallDeliveryPolicyService, campaign.DeliveryPolicy)
 }
 
 func TestRecallCampaignSaveDraftRejectsInvalidBoundaries(t *testing.T) {

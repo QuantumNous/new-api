@@ -32,10 +32,11 @@ var recallEmailFieldsByCampaignType = map[string]map[string]struct{}{
 }
 
 type recallEmailHTMLDocument struct {
-	campaignType string
-	source       string
-	root         *html.Node
-	slots        []recallEmailHTMLSlot
+	campaignType   string
+	deliveryPolicy string
+	source         string
+	root           *html.Node
+	slots          []recallEmailHTMLSlot
 }
 
 type recallEmailHTMLSlot struct {
@@ -49,7 +50,11 @@ func parseRecallEmailHTML(source string) (*recallEmailHTMLDocument, error) {
 }
 
 func parseRecallEmailHTMLForCampaign(campaignType string, source string) (*recallEmailHTMLDocument, error) {
-	policy, err := recallEmailHTMLPolicyForCampaign(campaignType)
+	return parseRecallEmailHTMLForDelivery(campaignType, model.RecallDeliveryPolicyEngagement, source)
+}
+
+func parseRecallEmailHTMLForDelivery(campaignType string, deliveryPolicy string, source string) (*recallEmailHTMLDocument, error) {
+	policy, err := recallEmailHTMLPolicyForDelivery(campaignType, deliveryPolicy)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +71,7 @@ func parseRecallEmailHTMLForCampaign(campaignType string, source string) (*recal
 	if err != nil {
 		return nil, fmt.Errorf("parse recall email html: %w", err)
 	}
-	document := &recallEmailHTMLDocument{campaignType: policy.CampaignType, source: source, root: root}
+	document := &recallEmailHTMLDocument{campaignType: policy.CampaignType, deliveryPolicy: policy.DeliveryPolicy, source: source, root: root}
 	foundActions := make(map[string]struct{})
 	if err := walkRecallEmailHTML(root, false, false, document, foundActions); err != nil {
 		return nil, err
@@ -80,28 +85,54 @@ func parseRecallEmailHTMLForCampaign(campaignType string, source string) (*recal
 }
 
 func recallEmailHTMLPolicyForCampaign(campaignType string) (recallEmailHTMLPolicy, error) {
+	return recallEmailHTMLPolicyForDelivery(campaignType, model.RecallDeliveryPolicyEngagement)
+}
+
+func recallEmailHTMLPolicyForDelivery(campaignType string, deliveryPolicy string) (recallEmailHTMLPolicy, error) {
 	campaignType, err := normalizeRecallCampaignType(campaignType)
 	if err != nil {
 		return recallEmailHTMLPolicy{}, err
 	}
-	allowedFields, ok := recallEmailFieldsByCampaignType[campaignType]
+	baseFields, ok := recallEmailFieldsByCampaignType[campaignType]
 	if !ok {
 		return recallEmailHTMLPolicy{}, fmt.Errorf("unsupported recall campaign type %q", campaignType)
 	}
-	policy := recallEmailHTMLPolicy{CampaignType: campaignType, AllowedFields: allowedFields, RequiredHrefFields: []string{"UnsubscribeURL"}}
+	deliveryPolicy = recallEmailHTMLDeliveryPolicy(deliveryPolicy)
+	allowedFields := make(map[string]struct{}, len(baseFields))
+	for field := range baseFields {
+		allowedFields[field] = struct{}{}
+	}
+	policy := recallEmailHTMLPolicy{CampaignType: campaignType, DeliveryPolicy: deliveryPolicy, AllowedFields: allowedFields}
+	if deliveryPolicy != model.RecallDeliveryPolicyService {
+		policy.RequiredHrefFields = append(policy.RequiredHrefFields, "UnsubscribeURL")
+	} else {
+		delete(policy.AllowedFields, "UnsubscribeURL")
+	}
 	if campaignType == model.RecallCampaignTypePromotion {
 		policy.RequiredHrefFields = append(policy.RequiredHrefFields, "ClaimURL")
 	}
 	return policy, nil
 }
 
+func recallEmailHTMLDeliveryPolicy(value string) string {
+	if strings.TrimSpace(value) == model.RecallDeliveryPolicyService {
+		return model.RecallDeliveryPolicyService
+	}
+	return model.RecallDeliveryPolicyEngagement
+}
+
 type recallEmailHTMLPolicy struct {
 	CampaignType       string
+	DeliveryPolicy     string
 	AllowedFields      map[string]struct{}
 	RequiredHrefFields []string
 }
 
 func validateRecallEmailTemplateBodyContract(campaignType string, template RecallEmailTemplate) (RecallEmailTemplate, error) {
+	return validateRecallEmailTemplateBodyContractForDelivery(campaignType, model.RecallDeliveryPolicyEngagement, template)
+}
+
+func validateRecallEmailTemplateBodyContractForDelivery(campaignType string, deliveryPolicy string, template RecallEmailTemplate) (RecallEmailTemplate, error) {
 	template.Subject = strings.TrimSpace(template.Subject)
 	template.BodyText = strings.TrimSpace(template.BodyText)
 	template.BodyHTML = strings.TrimSpace(template.BodyHTML)
@@ -115,7 +146,7 @@ func validateRecallEmailTemplateBodyContract(campaignType string, template Recal
 		return RecallEmailTemplate{}, fmt.Errorf("recall email template subject must be single line")
 	}
 	if template.BodyHTML != "" {
-		if _, err := parseRecallEmailHTMLForCampaign(campaignType, template.BodyHTML); err != nil {
+		if _, err := parseRecallEmailHTMLForDelivery(campaignType, deliveryPolicy, template.BodyHTML); err != nil {
 			return RecallEmailTemplate{}, fmt.Errorf("recall email template body html: %w", err)
 		}
 	}
@@ -155,7 +186,7 @@ func (document *recallEmailHTMLDocument) Rebuild(translations []string) (string,
 		return "", fmt.Errorf("recall email html must contain at most %d bytes", recallEmailHTMLMaxBytes)
 	}
 	output := rendered.String()
-	if _, err := parseRecallEmailHTMLForCampaign(document.campaignType, output); err != nil {
+	if _, err := parseRecallEmailHTMLForDelivery(document.campaignType, document.deliveryPolicy, output); err != nil {
 		return "", err
 	}
 	return output, nil

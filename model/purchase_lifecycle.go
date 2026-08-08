@@ -438,20 +438,21 @@ func insertPurchaseLifecycleEventForSubscriptionOrder(tx *gorm.DB, order *Subscr
 		availableAt = order.CreateTime + int64(recallLifecyclePaymentPendingDelay.Seconds())
 	}
 	payload, err := common.Marshal(map[string]any{
-		"purchase_kind":    PurchaseLifecycleKindSubscription,
-		"source_table":     purchaseLifecycleSubscriptionTable,
-		"source_id":        sourceID,
-		"trade_no":         tradeNo,
-		"user_id":          order.UserId,
-		"from_status":      transition.FromStatus,
-		"to_status":        normalizePurchaseLifecycleStatus(transition.ToStatus),
-		"payment_provider": order.PaymentProvider,
-		"payment_method":   order.PaymentMethod,
-		"amount":           0,
-		"money":            order.Money,
-		"currency":         order.PaymentCurrency,
-		"credit":           0,
-		"source_ref":       strings.TrimSpace(transition.SourceRef),
+		"purchase_kind":         PurchaseLifecycleKindSubscription,
+		"source_table":          purchaseLifecycleSubscriptionTable,
+		"source_id":             sourceID,
+		"trade_no":              tradeNo,
+		"user_id":               order.UserId,
+		"from_status":           transition.FromStatus,
+		"to_status":             normalizePurchaseLifecycleStatus(transition.ToStatus),
+		"payment_provider":      order.PaymentProvider,
+		"payment_method":        order.PaymentMethod,
+		"amount":                0,
+		"money":                 order.Money,
+		"currency":              order.PaymentCurrency,
+		"credit":                0,
+		"source_ref":            strings.TrimSpace(transition.SourceRef),
+		"subscription_scope_id": transition.SubscriptionScopeID,
 	})
 	if err != nil {
 		return false, err

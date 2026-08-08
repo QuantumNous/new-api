@@ -27,10 +27,11 @@ type RecallTranslationWorker struct {
 }
 
 type recallTranslationSourceSnapshot struct {
-	CampaignType string             `json:"campaign_type"`
-	Name         string             `json:"name"`
-	Current      []RecallEmailStage `json:"current_email_sequence"`
-	English      []RecallEmailStage `json:"english_email_sequence"`
+	CampaignType   string             `json:"campaign_type"`
+	DeliveryPolicy string             `json:"delivery_policy"`
+	Name           string             `json:"name"`
+	Current        []RecallEmailStage `json:"current_email_sequence"`
+	English        []RecallEmailStage `json:"english_email_sequence"`
 }
 
 type recallTranslationResultSnapshot struct {
@@ -189,7 +190,7 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 		}
 		return nil, result, err
 	}
-	generated, err := applyRecallEmailGenerationResult(snapshot.CampaignType, snapshot.English, translated)
+	generated, err := applyRecallEmailGenerationResultForDelivery(snapshot.CampaignType, snapshot.DeliveryPolicy, snapshot.English, translated)
 	if err == nil {
 		generated, err = incrementRecallEmailTemplateVersions(snapshot.Current, generated)
 	}
@@ -267,11 +268,16 @@ func (w *RecallTranslationWorker) failRecallTranslationTask(ctx context.Context,
 }
 
 func buildRecallTranslationSourceSnapshot(campaignType string, name string, current []RecallEmailStage, english []RecallEmailStage) (string, error) {
+	return buildRecallTranslationSourceSnapshotForDelivery(campaignType, model.RecallDeliveryPolicyEngagement, name, current, english)
+}
+
+func buildRecallTranslationSourceSnapshotForDelivery(campaignType string, deliveryPolicy string, name string, current []RecallEmailStage, english []RecallEmailStage) (string, error) {
 	payload, err := common.Marshal(recallTranslationSourceSnapshot{
-		CampaignType: campaignType,
-		Name:         strings.TrimSpace(name),
-		Current:      current,
-		English:      english,
+		CampaignType:   campaignType,
+		DeliveryPolicy: recallEmailHTMLDeliveryPolicy(deliveryPolicy),
+		Name:           strings.TrimSpace(name),
+		Current:        current,
+		English:        english,
 	})
 	if err != nil {
 		return "", err

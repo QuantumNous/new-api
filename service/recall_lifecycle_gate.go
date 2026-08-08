@@ -2,6 +2,7 @@ package service
 
 import (
 	"net/mail"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -23,10 +24,14 @@ type recallLifecycleQuotaGateData struct {
 }
 
 type recallLifecyclePurchaseGateData struct {
-	PurchaseKind string `json:"purchase_kind"`
-	SourceID     int64  `json:"source_id"`
-	TradeNo      string `json:"trade_no"`
-	ToStatus     string `json:"to_status"`
+	PurchaseKind        string `json:"purchase_kind"`
+	SourceTable         string `json:"source_table"`
+	SourceID            int64  `json:"source_id"`
+	TradeNo             string `json:"trade_no"`
+	ToStatus            string `json:"to_status"`
+	Credit              int64  `json:"credit"`
+	SourceRef           string `json:"source_ref"`
+	SubscriptionScopeID int64  `json:"subscription_scope_id"`
 }
 
 func recallLifecycleSMTPGate(tx *gorm.DB, input model.RecallLifecycleSMTPGateInput) (model.RecallLifecycleSMTPGateResult, error) {
@@ -121,6 +126,13 @@ func recallLifecycleQuotaGateReason(tx *gorm.DB, event model.RecallLifecycleEven
 		if state.Balance > 0 {
 			return "quota_recovered", nil
 		}
+		recovered, err := recallLifecycleQuotaRecoveredByRelatedPaymentSuccess(tx, event, scopeType, scopeID)
+		if err != nil {
+			return "", err
+		}
+		if recovered {
+			return "quota_recovered", nil
+		}
 		return "", nil
 	}
 	threshold := recallLifecycleCurrentQuotaThreshold(user)
@@ -128,6 +140,114 @@ func recallLifecycleQuotaGateReason(tx *gorm.DB, event model.RecallLifecycleEven
 		return "quota_recovered", nil
 	}
 	return "", nil
+}
+
+func recallLifecycleQuotaRecoveredByRelatedPaymentSuccess(tx *gorm.DB, event model.RecallLifecycleEvent, scopeType string, scopeID string) (bool, error) {
+	switch scopeType {
+	case model.QuotaLifecycleScopeWallet:
+		return recallLifecycleWalletRecoveredByTopUpSuccess(tx, event, scopeID)
+	case model.QuotaLifecycleScopeSubscription:
+		return recallLifecycleSubscriptionRecoveredByRenewalSuccess(tx, event, scopeID)
+	default:
+		return false, nil
+	}
+}
+
+func recallLifecycleNewerPaymentSucceededEvents(tx *gorm.DB, userID int, occurredAfter int64, purchaseKind string) ([]model.RecallLifecycleEvent, error) {
+	var events []model.RecallLifecycleEvent
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ? AND event_type = ? AND scope_type = ? AND occurred_at > ?", userID, model.RecallLifecycleTriggerPaymentSucceeded, purchaseKind, occurredAfter).
+		Order("occurred_at ASC, id ASC").
+		Find(&events).Error; err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+func recallLifecycleWalletRecoveredByTopUpSuccess(tx *gorm.DB, event model.RecallLifecycleEvent, scopeID string) (bool, error) {
+	if strings.TrimSpace(scopeID) == "" {
+		return false, nil
+	}
+	events, err := recallLifecycleNewerPaymentSucceededEvents(tx, event.UserId, event.OccurredAt, model.PurchaseLifecycleKindTopUp)
+	if err != nil {
+		return false, err
+	}
+	for _, successEvent := range events {
+		data := recallLifecyclePurchaseGateData{}
+		if err := common.Unmarshal([]byte(successEvent.EventData), &data); err != nil {
+			continue
+		}
+		if strings.TrimSpace(data.PurchaseKind) != model.PurchaseLifecycleKindTopUp || strings.ToLower(strings.TrimSpace(data.ToStatus)) != common.TopUpStatusSuccess {
+			continue
+		}
+		var topUp model.TopUp
+		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND status = ?", event.UserId, common.TopUpStatusSuccess)
+		if data.SourceID > 0 {
+			query = query.Where("id = ?", data.SourceID)
+		} else {
+			tradeNo := strings.TrimSpace(data.TradeNo)
+			if tradeNo == "" {
+				tradeNo = strings.TrimSpace(successEvent.ScopeId)
+			}
+			query = query.Where("trade_no = ?", tradeNo)
+		}
+		if err := query.First(&topUp).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				continue
+			}
+			return false, err
+		}
+		if data.Credit > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func recallLifecycleSubscriptionRecoveredByRenewalSuccess(tx *gorm.DB, event model.RecallLifecycleEvent, scopeID string) (bool, error) {
+	subscriptionID, err := strconv.ParseInt(strings.TrimSpace(scopeID), 10, 64)
+	if err != nil || subscriptionID <= 0 {
+		return false, nil
+	}
+	events, err := recallLifecycleNewerPaymentSucceededEvents(tx, event.UserId, event.OccurredAt, model.PurchaseLifecycleKindSubscription)
+	if err != nil {
+		return false, err
+	}
+	for _, successEvent := range events {
+		data := recallLifecyclePurchaseGateData{}
+		if err := common.Unmarshal([]byte(successEvent.EventData), &data); err != nil {
+			continue
+		}
+		if strings.TrimSpace(data.PurchaseKind) != model.PurchaseLifecycleKindSubscription || strings.ToLower(strings.TrimSpace(data.ToStatus)) != common.TopUpStatusSuccess {
+			continue
+		}
+		if data.SubscriptionScopeID != subscriptionID {
+			continue
+		}
+		_, found, err := recallLifecycleSubscriptionSuccessOrder(tx, event.UserId, data)
+		if err != nil || !found {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func recallLifecycleSubscriptionSuccessOrder(tx *gorm.DB, userID int, data recallLifecyclePurchaseGateData) (model.SubscriptionOrder, bool, error) {
+	var order model.SubscriptionOrder
+	query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND status = ?", userID, common.TopUpStatusSuccess)
+	if data.SourceID > 0 {
+		query = query.Where("id = ?", data.SourceID)
+	} else {
+		query = query.Where("trade_no = ?", strings.TrimSpace(data.TradeNo))
+	}
+	if err := query.First(&order).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return model.SubscriptionOrder{}, false, nil
+		}
+		return model.SubscriptionOrder{}, false, err
+	}
+	return order, true, nil
 }
 
 func recallLifecycleCurrentQuotaThreshold(user model.User) int64 {
