@@ -66,12 +66,6 @@ export function buildTopNavLinks(
     href: OFFICIAL_DOCUMENTATION_URL,
     external: true,
   })
-  links.push(
-    websiteLink(
-      options.translate('Playground (website navigation)'),
-      '/playground'
-    )
-  )
 
   const rankings = options.modules.rankings
   if (rankings.enabled) {
