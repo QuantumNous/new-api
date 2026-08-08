@@ -23,12 +23,20 @@ type ChannelSettings struct {
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+	// MaxConcurrency limits simultaneous in-flight relay attempts for the channel.
+	// Zero means unlimited.
+	MaxConcurrency int `json:"max_concurrency,omitempty"`
+	// RPMLimit limits relay attempts admitted in a rolling 60-second window.
+	// Zero means unlimited.
+	RPMLimit int `json:"rpm_limit,omitempty"`
 }
 
 const (
-	HTTPProtocolAuto         = "auto"
-	HTTPProtocolHTTP1        = "http1"
-	MaxHTTP2ConnectionShards = 8
+	HTTPProtocolAuto            = "auto"
+	HTTPProtocolHTTP1           = "http1"
+	MaxHTTP2ConnectionShards    = 8
+	MaxChannelConcurrencyLimit  = 1_000_000
+	MaxChannelRequestsPerMinute = 1_000_000
 )
 
 // ValidateHTTPTransport validates save-time HTTP transport channel settings.
@@ -47,6 +55,19 @@ func (s *ChannelSettings) ValidateHTTPTransport() error {
 	}
 	if protocol == HTTPProtocolHTTP1 && s.HTTP2ConnectionShards > 1 {
 		return fmt.Errorf("http2_connection_shards must be 1 when http_protocol is http1")
+	}
+	return nil
+}
+
+func (s *ChannelSettings) ValidateAdmissionLimits() error {
+	if s == nil {
+		return nil
+	}
+	if s.MaxConcurrency < 0 || s.MaxConcurrency > MaxChannelConcurrencyLimit {
+		return fmt.Errorf("invalid max_concurrency: %d", s.MaxConcurrency)
+	}
+	if s.RPMLimit < 0 || s.RPMLimit > MaxChannelRequestsPerMinute {
+		return fmt.Errorf("invalid rpm_limit: %d", s.RPMLimit)
 	}
 	return nil
 }

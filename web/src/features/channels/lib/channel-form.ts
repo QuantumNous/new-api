@@ -73,6 +73,9 @@ function isOptionalProxyURL(value: string | undefined): boolean {
 export const HTTP_PROTOCOL_AUTO = 'auto'
 export const HTTP_PROTOCOL_HTTP1 = 'http1'
 export const MAX_HTTP2_CONNECTION_SHARDS = 8
+export const MAX_CHANNEL_ADMISSION_LIMIT = 1_000_000
+const CHANNEL_ADMISSION_LIMIT_ERROR =
+  'Channel limits must be whole numbers from 0 to 1000000'
 
 export function normalizeHttpProtocol(
   value: string | undefined | null
@@ -258,6 +261,18 @@ export const channelFormSchema = z
       .refine(isOptionalProxyURL, ERROR_MESSAGES.INVALID_PROXY),
     http_protocol: z.enum(['auto', 'http1']).optional(),
     http2_connection_shards: z.number().int().optional(),
+    max_concurrency: z
+      .number()
+      .int(CHANNEL_ADMISSION_LIMIT_ERROR)
+      .min(0, CHANNEL_ADMISSION_LIMIT_ERROR)
+      .max(MAX_CHANNEL_ADMISSION_LIMIT, CHANNEL_ADMISSION_LIMIT_ERROR)
+      .optional(),
+    rpm_limit: z
+      .number()
+      .int(CHANNEL_ADMISSION_LIMIT_ERROR)
+      .min(0, CHANNEL_ADMISSION_LIMIT_ERROR)
+      .max(MAX_CHANNEL_ADMISSION_LIMIT, CHANNEL_ADMISSION_LIMIT_ERROR)
+      .optional(),
     pass_through_body_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
@@ -430,6 +445,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   proxy: '',
   http_protocol: HTTP_PROTOCOL_AUTO,
   http2_connection_shards: 1,
+  max_concurrency: 0,
+  rpm_limit: 0,
   pass_through_body_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
@@ -470,6 +487,8 @@ export function transformChannelToFormDefaults(
     proxy: '',
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
     http2_connection_shards: 1,
+    max_concurrency: 0,
+    rpm_limit: 0,
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
@@ -487,8 +506,12 @@ export function transformChannelToFormDefaults(
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
         http_protocol: protocol,
-        http2_connection_shards:
-          protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
+        http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
+        max_concurrency:
+          typeof parsed.max_concurrency === 'number'
+            ? parsed.max_concurrency
+            : 0,
+        rpm_limit: typeof parsed.rpm_limit === 'number' ? parsed.rpm_limit : 0,
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
@@ -622,6 +645,12 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     settingObj.http_protocol = HTTP_PROTOCOL_HTTP1
   } else if (shards > 1) {
     settingObj.http2_connection_shards = shards
+  }
+  if ((formData.max_concurrency ?? 0) > 0) {
+    settingObj.max_concurrency = formData.max_concurrency
+  }
+  if ((formData.rpm_limit ?? 0) > 0) {
+    settingObj.rpm_limit = formData.rpm_limit
   }
 
   return JSON.stringify(settingObj)
