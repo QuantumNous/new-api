@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 )
@@ -73,7 +74,7 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 	return textRaw
 }
 
-func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
+func ChatCompletionsRequestToResponsesRequest(info convmeta.Meta, req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
 	if req == nil {
 		return nil, errors.New("request is nil")
 	}
@@ -84,6 +85,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		return nil, fmt.Errorf("n>1 is not supported in responses compatibility mode")
 	}
 
+	preserveReasoning := convmeta.OptionsOf(info).PreserveReasoningContent
 	var instructionsParts []string
 	inputItems := make([]map[string]any, 0, len(req.Messages))
 
@@ -150,6 +152,18 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 				instructionsParts = append(instructionsParts, s)
 			}
 			continue
+		}
+
+		if preserveReasoning && role == "assistant" {
+			if reasoning := msg.GetReasoningContent(); reasoning != "" {
+				inputItems = append(inputItems, map[string]any{
+					"type": "reasoning",
+					"id":   fmt.Sprintf("rs_%s", kitutil.GetUUID()),
+					"summary": []map[string]any{
+						{"type": "summary_text", "text": reasoning},
+					},
+				})
+			}
 		}
 
 		item := map[string]any{

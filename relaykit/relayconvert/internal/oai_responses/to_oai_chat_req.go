@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
@@ -15,6 +16,7 @@ const (
 	responsesInputTypeFunctionCallOutput = "function_call_output"
 	responsesInputTypeCustomToolCall     = "custom_tool_call"
 	responsesInputTypeCustomToolOutput   = "custom_tool_call_output"
+	responsesInputTypeReasoning          = "reasoning"
 )
 
 const (
@@ -24,7 +26,7 @@ const (
 	ResponsesInputTypeCustomToolOutput   = responsesInputTypeCustomToolOutput
 )
 
-func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, error) {
+func ResponsesRequestToChatCompletionsRequest(info convmeta.Meta, req *dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, error) {
 	if req == nil {
 		return nil, errors.New("request is nil")
 	}
@@ -35,7 +37,8 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 		return nil, err
 	}
 
-	messages, err := responsesRequestMessagesToChat(req)
+	preserveReasoning := convmeta.OptionsOf(info).PreserveReasoningContent
+	messages, err := responsesRequestMessagesToChat(req, preserveReasoning)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +125,7 @@ func ValidateRequestChatUnsupportedFields(req *dto.OpenAIResponsesRequest) error
 	return validateResponsesRequestChatUnsupportedFields(req)
 }
 
-func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Message, error) {
+func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest, preserveReasoning bool) ([]dto.Message, error) {
 	messages := make([]dto.Message, 0)
 	if rawJSONPresent(req.Instructions) {
 		instructions, err := responsesJSONString(req.Instructions)
@@ -151,12 +154,16 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 		if err := kitutil.Unmarshal(req.Input, &items); err != nil {
 			return nil, fmt.Errorf("invalid input array: %w", err)
 		}
+		pendingReasoning := ""
 		for _, item := range items {
-			nextMessages, err := responsesInputItemToChatMessages(item, messages)
+			nextMessages, err := responsesInputItemToChatMessages(item, messages, &pendingReasoning, preserveReasoning)
 			if err != nil {
 				return nil, err
 			}
 			messages = nextMessages
+		}
+		if preserveReasoning {
+			messages = attachPendingReasoningToLastAssistant(messages, &pendingReasoning)
 		}
 		return messages, nil
 	default:
@@ -164,22 +171,44 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 	}
 }
 
-func responsesInputItemToChatMessages(item map[string]any, messages []dto.Message) ([]dto.Message, error) {
+func responsesInputItemToChatMessages(item map[string]any, messages []dto.Message, pendingReasoning *string, preserveReasoning bool) ([]dto.Message, error) {
 	itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 	switch itemType {
+	case responsesInputTypeReasoning:
+		if preserveReasoning {
+			appendPendingReasoning(pendingReasoning, responsesItemReasoningText(item))
+		}
+		return messages, nil
 	case responsesInputTypeFunctionCall:
 		toolCall, err := responsesFunctionCallItemToChatToolCall(item)
 		if err != nil {
 			return nil, err
 		}
-		return appendToolCallToLastAssistant(messages, toolCall), nil
+		if preserveReasoning {
+			appendPendingReasoning(pendingReasoning, responsesItemReasoningText(item))
+		}
+		messages = appendToolCallToLastAssistant(messages, toolCall)
+		if preserveReasoning {
+			messages = attachPendingReasoningToLastAssistant(messages, pendingReasoning)
+		}
+		return messages, nil
 	case responsesInputTypeCustomToolCall:
 		toolCall, err := responsesCustomToolCallItemToChatToolCall(item)
 		if err != nil {
 			return nil, err
 		}
-		return appendToolCallToLastAssistant(messages, toolCall), nil
-	case responsesInputTypeFunctionCallOutput:
+		if preserveReasoning {
+			appendPendingReasoning(pendingReasoning, responsesItemReasoningText(item))
+		}
+		messages = appendToolCallToLastAssistant(messages, toolCall)
+		if preserveReasoning {
+			messages = attachPendingReasoningToLastAssistant(messages, pendingReasoning)
+		}
+		return messages, nil
+	case responsesInputTypeFunctionCallOutput, responsesInputTypeCustomToolOutput:
+		if preserveReasoning {
+			messages = attachPendingReasoningToLastAssistant(messages, pendingReasoning)
+		}
 		callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"]))
 		content := responseToolOutputToChatContent(item["output"])
 		return append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content}), nil
@@ -193,7 +222,72 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 	if err != nil {
 		return nil, err
 	}
-	return append(messages, dto.Message{Role: role, Content: content}), nil
+	if !preserveReasoning {
+		return append(messages, dto.Message{Role: role, Content: content}), nil
+	}
+
+	message := dto.Message{Role: role, Content: content}
+	if role == "assistant" {
+		if pendingReasoning != nil {
+			appendReasoningContent(&message, *pendingReasoning)
+			*pendingReasoning = ""
+		}
+		appendReasoningContent(&message, responsesItemReasoningText(item))
+		return append(messages, message), nil
+	}
+
+	messages = attachPendingReasoningToLastAssistant(messages, pendingReasoning)
+	return append(messages, message), nil
+}
+
+func responsesItemReasoningText(item map[string]any) string {
+	for _, key := range []string{"reasoning_content", "reasoning"} {
+		if text, ok := item[key].(string); ok && text != "" {
+			return text
+		}
+	}
+	if strings.TrimSpace(kitutil.Interface2String(item["type"])) != responsesInputTypeReasoning {
+		return ""
+	}
+	for _, key := range []string{"summary", "content"} {
+		content, err := responsesInputContentToChatContent(item[key])
+		if text, ok := content.(string); err == nil && ok && text != "" {
+			return text
+		}
+	}
+	return kitutil.Interface2String(item["text"])
+}
+
+func appendPendingReasoning(pending *string, reasoning string) {
+	if pending == nil || reasoning == "" || *pending == reasoning {
+		return
+	}
+	*pending += reasoning
+}
+
+func attachPendingReasoningToLastAssistant(messages []dto.Message, pending *string) []dto.Message {
+	if pending == nil || *pending == "" {
+		return messages
+	}
+	reasoning := *pending
+	*pending = ""
+	if len(messages) == 0 || messages[len(messages)-1].Role != "assistant" {
+		return append(messages, dto.Message{Role: "assistant", ReasoningContent: &reasoning})
+	}
+	appendReasoningContent(&messages[len(messages)-1], reasoning)
+	return messages
+}
+
+func appendReasoningContent(message *dto.Message, reasoning string) {
+	if message == nil || reasoning == "" {
+		return
+	}
+	current := message.GetReasoningContent()
+	if current == reasoning {
+		return
+	}
+	merged := current + reasoning
+	message.ReasoningContent = &merged
 }
 
 func responsesInputContentToChatContent(content any) (any, error) {
@@ -232,7 +326,7 @@ func responsesContentPartsToChatContent(parts []any) (any, error) {
 
 		partType := strings.TrimSpace(kitutil.Interface2String(part["type"]))
 		switch partType {
-		case "input_text", "output_text", "text":
+		case "input_text", "output_text", "summary_text", "reasoning_text", "text":
 			text := kitutil.Interface2String(part["text"])
 			textOnly.WriteString(text)
 			chatParts = append(chatParts, map[string]any{

@@ -32,11 +32,11 @@ func ApplyGeminiThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convme
 }
 
 func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
-	return oaichat.ChatCompletionsRequestToResponsesRequest(req)
+	return oaichat.ChatCompletionsRequestToResponsesRequest(nil, req)
 }
 
 func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, error) {
-	return oairesponses.ResponsesRequestToChatCompletionsRequest(req)
+	return oairesponses.ResponsesRequestToChatCompletionsRequest(nil, req)
 }
 
 func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Meta, req *dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {

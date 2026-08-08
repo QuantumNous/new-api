@@ -11,6 +11,7 @@ import (
 )
 
 func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
+	preserveReasoning := convmeta.OptionsOf(info).PreserveReasoningContent
 	modelName := ""
 	isStream := false
 	if info != nil {
@@ -30,7 +31,14 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 
 		var mediaContents []dto.MediaContent
 		var toolCalls []dto.ToolCallRequest
+		var reasoning strings.Builder
 		for _, part := range content.Parts {
+			if part.Thought {
+				if preserveReasoning && message.Role == "assistant" {
+					reasoning.WriteString(part.Text)
+				}
+				continue
+			}
 			if part.Text != "" {
 				mediaContent := dto.MediaContent{
 					Type: "text",
@@ -84,8 +92,12 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 		} else if len(mediaContents) > 0 {
 			message.SetMediaContent(mediaContents)
 		}
+		if reasoning.Len() > 0 {
+			reasoningContent := reasoning.String()
+			message.ReasoningContent = &reasoningContent
+		}
 
-		if len(message.ParseContent()) > 0 || len(message.ToolCalls) > 0 {
+		if len(message.ParseContent()) > 0 || len(message.ToolCalls) > 0 || message.GetReasoningContent() != "" {
 			messages = append(messages, message)
 		}
 	}

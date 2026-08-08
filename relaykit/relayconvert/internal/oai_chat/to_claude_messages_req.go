@@ -237,6 +237,11 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 			Role:    message.Role,
 			Content: message.Content,
 		}
+		if opts.PreserveReasoningContent && message.Role == "assistant" {
+			if reasoning := message.GetReasoningContent(); reasoning != "" {
+				fmtMessage.ReasoningContent = &reasoning
+			}
+		}
 		if message.Role == "tool" {
 			fmtMessage.ToolCallId = message.ToolCallId
 		}
@@ -246,6 +251,9 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		if lastMessage.Role == message.Role && lastMessage.Role != "tool" {
 			if lastMessage.IsStringContent() && message.IsStringContent() {
 				fmtMessage.SetStringContent(strings.Trim(fmt.Sprintf("%s %s", lastMessage.StringContent(), message.StringContent()), "\""))
+				if mergedReasoning := lastMessage.GetReasoningContent() + fmtMessage.GetReasoningContent(); mergedReasoning != "" {
+					fmtMessage.ReasoningContent = &mergedReasoning
+				}
 				formatMessages = formatMessages[:len(formatMessages)-1]
 			}
 		}
@@ -329,7 +337,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 					Content:   message.Content,
 				},
 			}
-		} else if message.IsStringContent() && message.ToolCalls == nil {
+		} else if message.IsStringContent() && message.ToolCalls == nil && message.GetReasoningContent() == "" {
 			text := message.StringContent()
 			if text == "" {
 				text = "..."
@@ -337,9 +345,22 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 			claudeMessage.Content = text
 		} else {
 			claudeMediaMessages := make([]dto.ClaudeMediaMessage, 0)
+			reasoningEmitted := false
+			if message.Role == "assistant" {
+				if reasoning := message.GetReasoningContent(); reasoning != "" {
+					claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+						Type:     "thinking",
+						Thinking: kitutil.GetPointer(reasoning),
+					})
+					reasoningEmitted = true
+				}
+			}
 			for _, mediaMessage := range message.ParseContent() {
 				switch mediaMessage.Type {
 				case "text":
+					if reasoningEmitted && mediaMessage.Text == "..." {
+						continue
+					}
 					if mediaMessage.Text != "" {
 						claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
 							Type: "text",

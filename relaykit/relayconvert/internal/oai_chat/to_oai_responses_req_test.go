@@ -28,7 +28,7 @@ func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing
 		},
 	}
 
-	got, err := ChatCompletionsRequestToResponsesRequest(req)
+	got, err := ChatCompletionsRequestToResponsesRequest(nil, req)
 	require.NoError(t, err)
 
 	assert.Equal(t, "gpt-test", got.Model)
@@ -60,7 +60,7 @@ func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *
 				},
 			}
 
-			got, err := ChatCompletionsRequestToResponsesRequest(req)
+			got, err := ChatCompletionsRequestToResponsesRequest(nil, req)
 			require.NoError(t, err)
 			assert.Equal(t, tt.budget, got.ThinkingBudget)
 
@@ -76,7 +76,7 @@ func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *
 }
 
 func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testing.T) {
-	_, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+	_, err := ChatCompletionsRequestToResponsesRequest(nil, &dto.GeneralOpenAIRequest{
 		Model: "gpt-test",
 		N:     lo.ToPtr(2),
 	})

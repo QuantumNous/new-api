@@ -31,6 +31,8 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		return nil, err
 	}
 
+	opts := convmeta.OptionsOf(info)
+	preserveReasoning := opts.PreserveReasoningContent
 	claudeRequest := &dto.ClaudeRequest{
 		Model:       req.Model,
 		Temperature: req.Temperature,
@@ -41,7 +43,7 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		claudeRequest.MaxTokens = kitutil.GetPointer(*req.MaxOutputTokens)
 	}
 	if claudeRequest.MaxTokens == nil || *claudeRequest.MaxTokens == 0 {
-		if defaultMaxTokens, configured := convmeta.OptionsOf(info).Claude.DefaultMaxTokensFor(req.Model); configured {
+		if defaultMaxTokens, configured := opts.Claude.DefaultMaxTokensFor(req.Model); configured {
 			value := uint(defaultMaxTokens)
 			claudeRequest.MaxTokens = &value
 		}
@@ -82,20 +84,49 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 	if err != nil {
 		return nil, err
 	}
+	pendingReasoning := ""
 	for _, item := range inputItems {
 		itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 		switch itemType {
-		case ResponsesInputTypeFunctionCall:
-			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item, "arguments"))
-		case ResponsesInputTypeCustomToolCall:
-			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item, "input"))
+		case responsesInputTypeReasoning:
+			if preserveReasoning {
+				appendPendingReasoning(&pendingReasoning, responsesItemReasoningText(item))
+			}
+		case ResponsesInputTypeFunctionCall, ResponsesInputTypeCustomToolCall:
+			if preserveReasoning {
+				appendPendingReasoning(&pendingReasoning, responsesItemReasoningText(item))
+				claudeRequest.Messages = appendClaudeReasoning(claudeRequest.Messages, pendingReasoning)
+				pendingReasoning = ""
+			}
+			inputKey := "arguments"
+			if itemType == ResponsesInputTypeCustomToolCall {
+				inputKey = "input"
+			}
+			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item, inputKey))
 		case ResponsesInputTypeFunctionCallOutput, ResponsesInputTypeCustomToolOutput:
+			if preserveReasoning {
+				claudeRequest.Messages = appendClaudeReasoning(claudeRequest.Messages, pendingReasoning)
+				pendingReasoning = ""
+			}
 			claudeRequest.Messages = appendClaudeToolResult(claudeRequest.Messages, responsesFunctionOutputItemToClaudeToolResult(item))
 		default:
 			role := responsesClaudeRole(item)
 			parts, err := responsesInputContentToClaudeMediaMessages(c, item["content"])
 			if err != nil {
 				return nil, err
+			}
+			if preserveReasoning && role == "assistant" {
+				appendPendingReasoning(&pendingReasoning, responsesItemReasoningText(item))
+				if pendingReasoning != "" {
+					parts = append([]dto.ClaudeMediaMessage{{
+						Type:     "thinking",
+						Thinking: kitutil.GetPointer(pendingReasoning),
+					}}, parts...)
+					pendingReasoning = ""
+				}
+			} else if preserveReasoning {
+				claudeRequest.Messages = appendClaudeReasoning(claudeRequest.Messages, pendingReasoning)
+				pendingReasoning = ""
 			}
 			if role == "system" {
 				systemMessages = append(systemMessages, parts...)
@@ -115,7 +146,9 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 			})
 		}
 	}
-
+	if preserveReasoning {
+		claudeRequest.Messages = appendClaudeReasoning(claudeRequest.Messages, pendingReasoning)
+	}
 	if len(systemMessages) > 0 {
 		claudeRequest.System = systemMessages
 	}
@@ -126,6 +159,34 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		return nil, sharedclaude.ErrMissingMaxTokens
 	}
 	return claudeRequest, nil
+}
+
+func appendClaudeReasoning(messages []dto.ClaudeMessage, reasoning string) []dto.ClaudeMessage {
+	if reasoning == "" {
+		return messages
+	}
+	thinking := dto.ClaudeMediaMessage{
+		Type:     "thinking",
+		Thinking: kitutil.GetPointer(reasoning),
+	}
+	if len(messages) > 0 && messages[len(messages)-1].Role == "assistant" {
+		last := messages[len(messages)-1]
+		parts := claudeMessageContentParts(last.Content)
+		insertAt := 0
+		for insertAt < len(parts) && parts[insertAt].Type == "thinking" {
+			insertAt++
+		}
+		parts = append(parts, dto.ClaudeMediaMessage{})
+		copy(parts[insertAt+1:], parts[insertAt:])
+		parts[insertAt] = thinking
+		last.Content = parts
+		messages[len(messages)-1] = last
+		return messages
+	}
+	return append(messages, dto.ClaudeMessage{
+		Role:    "assistant",
+		Content: []dto.ClaudeMediaMessage{thinking},
+	})
 }
 
 func responsesFunctionDeclarationsToClaudeTools(functions []dto.FunctionRequest) []any {
