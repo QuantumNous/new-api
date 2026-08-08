@@ -36,6 +36,13 @@ func TestParseSeedanceOfficialKey(t *testing.T) {
 	if _, _, _, err := parseSeedanceOfficialKey("|SK", ""); err == nil {
 		t.Fatal("expected error for empty AK")
 	}
+	if _, _, _, err := parseSeedanceOfficialKey("sk-test|secret", ""); err == nil {
+		t.Fatal("expected error for API key mistaken as AK")
+	}
+	ak, sk, region, err = parseSeedanceOfficialKey("AKLT1\nSKSECRET\nap-southeast-1", seedanceOfficialCNRegion)
+	if err != nil || ak != "AKLT1" || sk != "SKSECRET" || region != "ap-southeast-1" {
+		t.Fatalf("newline key parse got %s %s %s err=%v", ak, sk, region, err)
+	}
 }
 
 func TestSeedanceOfficialEndpointForPlatform(t *testing.T) {
@@ -50,6 +57,21 @@ func TestSeedanceOfficialEndpointForPlatform(t *testing.T) {
 	ov2 := seedanceOfficialEndpointForPlatform("byteplus")
 	if ov2.Host != seedanceOfficialOverseasHost {
 		t.Fatalf("byteplus alias: %+v", ov2)
+	}
+}
+
+func TestIsSeedanceOfficialAllowedHost(t *testing.T) {
+	if !isSeedanceOfficialAllowedHost("ark.ap-southeast-1.byteplusapi.com") {
+		t.Fatal("byteplus host should be allowed")
+	}
+	if !isSeedanceOfficialAllowedHost("ark.cn-beijing.volcengineapi.com") {
+		t.Fatal("volc host should be allowed")
+	}
+	if isSeedanceOfficialAllowedHost("api.openai.com") {
+		t.Fatal("openai host must be rejected")
+	}
+	if isSeedanceOfficialAllowedHost("996k.cn") {
+		t.Fatal("unrelated host must be rejected")
 	}
 }
 

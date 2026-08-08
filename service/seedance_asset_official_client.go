@@ -56,7 +56,26 @@ type seedanceOfficialGateway struct {
 }
 
 func parseSeedanceOfficialKey(raw, defaultRegion string) (ak, sk, region string, err error) {
-	parts := strings.Split(strings.TrimSpace(raw), "|")
+	raw = strings.TrimSpace(raw)
+	raw = strings.Trim(raw, `"'`)
+	raw = strings.TrimPrefix(raw, "Bearer ")
+	raw = strings.TrimPrefix(raw, "bearer ")
+	raw = strings.TrimSpace(raw)
+
+	var parts []string
+	if strings.Contains(raw, "|") {
+		parts = strings.Split(raw, "|")
+	} else {
+		// 兼容 AK 与 SK 分行粘贴
+		lines := make([]string, 0, 3)
+		for _, line := range strings.Split(raw, "\n") {
+			line = strings.TrimSpace(strings.Trim(line, `"'`))
+			if line != "" {
+				lines = append(lines, line)
+			}
+		}
+		parts = lines
+	}
 	if len(parts) < 2 {
 		return "", "", "", fmt.Errorf("key must be AK|SK or AK|SK|Region")
 	}
@@ -64,6 +83,10 @@ func parseSeedanceOfficialKey(raw, defaultRegion string) (ak, sk, region string,
 	sk = strings.TrimSpace(parts[1])
 	if ak == "" || sk == "" {
 		return "", "", "", fmt.Errorf("empty AK or SK")
+	}
+	// 常见误填：把推理 API Key（sk-...）当成 IAM AK/SK
+	if strings.HasPrefix(strings.ToLower(ak), "sk-") || strings.HasPrefix(strings.ToLower(sk), "sk-") {
+		return "", "", "", fmt.Errorf("expect IAM Access Key ID/Secret, not API Key (sk-...)")
 	}
 	region = strings.TrimSpace(defaultRegion)
 	if region == "" {
@@ -101,14 +124,24 @@ func resolveSeedanceOfficialGateway() (*seedanceOfficialGateway, error) {
 	host := profile.Host
 	base := strings.TrimSpace(ch.GetBaseURL())
 	if base != "" {
+		overrideHost := ""
+		overrideScheme := ""
 		u, uErr := url.Parse(base)
 		if uErr == nil && u.Host != "" {
-			host = u.Host
+			overrideHost = u.Host
 			if u.Scheme != "" {
-				scheme = u.Scheme
+				overrideScheme = u.Scheme
 			}
 		} else if !strings.Contains(base, "://") {
-			host = strings.TrimSuffix(base, "/")
+			overrideHost = strings.TrimSuffix(base, "/")
+		}
+		if overrideHost != "" && isSeedanceOfficialAllowedHost(overrideHost) {
+			host = overrideHost
+			if overrideScheme != "" {
+				scheme = overrideScheme
+			}
+		} else if overrideHost != "" {
+			common.SysLog(fmt.Sprintf("seedance official ignore unrelated channel base_url host=%s, using default host=%s", overrideHost, profile.Host))
 		}
 	}
 	return &seedanceOfficialGateway{
@@ -210,8 +243,12 @@ func officialUpstreamError(httpStatus int, raw map[string]any, respBytes []byte,
 		status = http.StatusNotFound
 	case "invalidparameter", "invalidparameter.missingparameter", "missingparameter":
 		status = http.StatusBadRequest
-	case "unauthorized", "unauthorizedoperation", "signaturedoesnotmatch", "invalidaccesskey", "authfailure", "invalidcredential":
+	case "unauthorized", "unauthorizedoperation", "signaturedoesnotmatch", "invalidaccesskey", "authfailure", "invalidcredential", "authenticationerror":
 		status = http.StatusUnauthorized
+		if msg == "" {
+			msg = "AuthenticationError"
+		}
+		msg += "。请确认渠道 Key 为 BytePlus 控制台 IAM 的 Access Key ID|Secret Access Key（不是推理 API Key，也不是国内火山 AK/SK），格式：AK|SK 或 AK|SK|ap-southeast-1"
 	case "unsupported_country_region_territory":
 		status = http.StatusForbidden
 		if msg == "" {
@@ -278,6 +315,21 @@ func maskProxyForLog(proxyURL string) string {
 		u.User = url.UserPassword("***", "***")
 	}
 	return u.String()
+}
+
+func isSeedanceOfficialAllowedHost(host string) bool {
+	h := strings.ToLower(strings.TrimSpace(host))
+	if h == "" {
+		return false
+	}
+	// 去掉可能的端口
+	if i := strings.IndexByte(h, ':'); i >= 0 {
+		h = h[:i]
+	}
+	return strings.Contains(h, "byteplusapi.com") ||
+		strings.Contains(h, "volcengineapi.com") ||
+		strings.Contains(h, "volces.com") ||
+		strings.HasPrefix(h, "ark.")
 }
 
 func toOfficialAssetType(t string) string {
