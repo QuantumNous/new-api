@@ -1,0 +1,269 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["replay", "exploration", "budgets", "findings", "coverage_candidates"],
+  "properties": {
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "checkpoint_reached"],
+      "properties": {
+        "status": {"type": "string", "enum": ["passed", "failed"]},
+        "checkpoint_reached": {"type": "boolean"}
+      }
+    },
+    "exploration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "actions_used"],
+      "properties": {
+        "status": {"type": "string", "enum": ["passed", "failed", "not_started"]},
+        "actions_used": {"type": "integer", "minimum": 0}
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replay_seconds", "exploration_seconds", "max_actions"],
+      "properties": {
+        "replay_seconds": {"type": "integer", "minimum": 1},
+        "exploration_seconds": {"type": "integer", "minimum": 1},
+        "max_actions": {"type": "integer", "minimum": 1}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "title", "target_url", "steps", "expected", "actual", "evidence_paths", "confidence", "proposed_case"],
+        "properties": {
+          "severity": {"type": "string", "minLength": 1, "enum": ["critical", "high", "medium", "low", "info"]},
+          "title": {"type": "string", "minLength": 1},
+          "target_url": {"type": "string", "minLength": 1},
+          "steps": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "expected": {"type": "string", "minLength": 1},
+          "actual": {"type": "string", "minLength": 1},
+          "evidence_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "confidence": {"type": "string", "minLength": 1, "enum": ["low", "medium", "high"]},
+          "proposed_case": {"$ref": "#/$defs/proposed_case"}
+        }
+      }
+    },
+    "coverage_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "target_url", "steps", "expected", "observed", "business_value", "evidence_paths", "confidence", "mutates_state", "cleanup_requirement", "proposed_case"],
+        "properties": {
+          "title": {"type": "string", "minLength": 1},
+          "target_url": {"type": "string", "minLength": 1},
+          "steps": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "expected": {"type": "string", "minLength": 1},
+          "observed": {"type": "string", "minLength": 1},
+          "business_value": {"type": "string", "minLength": 1},
+          "evidence_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "confidence": {"type": "string", "minLength": 1, "enum": ["low", "medium", "high"]},
+          "mutates_state": {"type": "boolean"},
+          "cleanup_requirement": {"type": "string", "enum": ["required", "not_required"]},
+          "proposed_case": {"$ref": "#/$defs/proposed_case"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "proposed_case": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fixture", "start", "steps", "assertions", "cleanup"],
+          "properties": {
+            "fixture": {"type": "string", "enum": ["anonymous", "registered_user", "user_with_api_key"]},
+            "start": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["origin", "path"],
+              "properties": {
+                "origin": {"type": "string", "enum": ["staging_website", "staging_console"]},
+                "path": {"type": "string", "pattern": "^/(?!/)[^\\u0000-\\u001f\\u007f\\\\?#]*$", "minLength": 1, "maxLength": 256}
+              }
+            },
+            "steps": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["navigate"],
+                    "properties": {
+                      "navigate": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["path"],
+                        "properties": {
+                          "path": {"type": "string", "pattern": "^/(?!/)[^\\u0000-\\u001f\\u007f\\\\?#]*$", "minLength": 1, "maxLength": 256}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["navigate_back"],
+                    "properties": {
+                      "navigate_back": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [],
+                        "properties": {}
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["click"],
+                    "properties": {
+                      "click": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["locator"],
+                        "properties": {
+                          "locator": {"$ref": "#/$defs/locator"}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["fill"],
+                    "properties": {
+                      "fill": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["locator", "value"],
+                        "properties": {
+                          "locator": {"$ref": "#/$defs/locator"},
+                          "value": {"$ref": "#/$defs/non_control_string"}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["select"],
+                    "properties": {
+                      "select": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["locator", "value"],
+                        "properties": {
+                          "locator": {"$ref": "#/$defs/locator"},
+                          "value": {"$ref": "#/$defs/non_control_string"}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["wait_for"],
+                    "properties": {
+                      "wait_for": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["locator"],
+                        "properties": {
+                          "locator": {"$ref": "#/$defs/locator"}
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "assertions": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["page_status_not"],
+                    "properties": {
+                      "page_status_not": {"type": "integer", "minimum": 100, "maximum": 599}
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["url_not_contains"],
+                    "properties": {
+                      "url_not_contains": {"$ref": "#/$defs/non_control_string"}
+                    }
+                  }
+                ]
+              }
+            },
+            "cleanup": {"type": "string", "enum": ["not_required"]}
+          }
+        }
+      ]
+    },
+    "locator": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["by", "role", "name"],
+          "properties": {
+            "by": {"type": "string", "enum": ["role"]},
+            "role": {"$ref": "#/$defs/non_control_string"},
+            "name": {"$ref": "#/$defs/non_control_string"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["by", "label"],
+          "properties": {
+            "by": {"type": "string", "enum": ["label"]},
+            "label": {"$ref": "#/$defs/non_control_string"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["by", "text"],
+          "properties": {
+            "by": {"type": "string", "enum": ["text"]},
+            "text": {"$ref": "#/$defs/non_control_string"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["by", "test_id"],
+          "properties": {
+            "by": {"type": "string", "enum": ["test_id"]},
+            "test_id": {"$ref": "#/$defs/non_control_string"}
+          }
+        }
+      ]
+    },
+    "non_control_string": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]{1,256}$"
+    }
+  }
+}

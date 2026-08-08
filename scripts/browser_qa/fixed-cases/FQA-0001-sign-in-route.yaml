@@ -1,0 +1,33 @@
+schema_version: 1
+id: FQA-0001
+kind: coverage_baseline
+name: Sign in route does not resolve to a missing page
+enabled: false
+severity: medium
+owner: browser-qa
+fixture: anonymous
+start:
+  origin: staging_website
+  path: /zh
+steps:
+  - click:
+      locator:
+        by: role
+        role: link
+        name: Sign in
+assertions:
+  - page_status_not: 404
+  - url_not_contains: /404
+evidence:
+  screenshot_on_failure: true
+  capture_console: true
+  capture_network: false
+cleanup: not_required
+source:
+  run_id: "000000001"
+  finding_fingerprint: "fqa-0001-sign-in-route"
+  evidence_uri: "gs://flatkey-browser-qa-private/fixed-cases/fqa-0001"
+promotion:
+  state: candidate_draft
+  attempts_required: 3
+  attempts_passed: 0

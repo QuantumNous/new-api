@@ -1,0 +1,794 @@
+name: GCP Browser QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Browser QA mode to run"
+        required: true
+        default: normal
+        type: choice
+        options:
+          - normal
+          - core
+          - cleanup-only
+          - promotion-only
+      original_run_id:
+        description: "Required cleanup-only or promotion-only original run id"
+        required: false
+        type: string
+      fail_on_findings:
+        description: "Fail the workflow when browser QA reports sanitized exploratory findings"
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      mode:
+        description: "Browser QA mode to run"
+        required: true
+        type: string
+      original_run_id:
+        description: "Required cleanup-only or promotion-only original run id"
+        required: false
+        type: string
+      fail_on_findings:
+        description: "Fail the workflow when browser QA reports sanitized exploratory findings"
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      STAGING_BROWSER_QA_DINGTALK_WEBHOOK:
+        required: true
+      STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET:
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-browser-qa-manual
+  queue: max
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  QA_AR_REPO_URL: ${{ vars.GCP_BROWSER_QA_AR_REPO_URL }}
+  QA_WIF_PROVIDER: ${{ vars.GCP_BROWSER_QA_WIF_PROVIDER }}
+  QA_DEPLOYER_SA: ${{ vars.GCP_BROWSER_QA_DEPLOYER_SA }}
+  QA_GCS_BUCKET: ${{ vars.GCP_BROWSER_QA_GCS_BUCKET }}
+  QA_BROKER_SERVICE: flatkey-staging-browser-qa-broker
+  QA_MAIN_JOB: flatkey-staging-browser-qa
+  QA_CLEANUP_JOB: flatkey-staging-browser-qa-cleanup
+  IMAGE_URI: ${{ vars.GCP_BROWSER_QA_AR_REPO_URL }}/browser-qa:${{ github.sha }}-${{ github.run_attempt }}
+
+jobs:
+  browser-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      candidate_pr_bundle_count: ${{ steps.candidates.outputs.candidate_pr_bundle_count || steps.candidates_recovery.outputs.candidate_pr_bundle_count || '0' }}
+    steps:
+      - name: Validate dispatch inputs
+        id: qa
+        shell: bash
+        env:
+          DISPATCH_MODE: ${{ inputs.mode }}
+          DISPATCH_ORIGINAL_RUN_ID: ${{ inputs.original_run_id }}
+          DISPATCH_FAIL_ON_FINDINGS: ${{ inputs.fail_on_findings }}
+          TRUSTED_GITHUB_RUN_ID: ${{ github.run_id }}
+          QA_GMAIL_BASE: ${{ vars.GCP_BROWSER_QA_GMAIL_BASE }}
+        run: |
+          set -euo pipefail
+          case "${DISPATCH_MODE}" in
+            normal|core|cleanup-only|promotion-only)
+              ;;
+            *)
+              echo "mode must be normal, core, cleanup-only, or promotion-only" >&2
+              exit 2
+              ;;
+          esac
+          case "${DISPATCH_FAIL_ON_FINDINGS}" in
+            true|false)
+              ;;
+            *)
+              echo "fail_on_findings must be true or false" >&2
+              exit 2
+              ;;
+          esac
+          if [[ "${DISPATCH_MODE}" == "cleanup-only" || "${DISPATCH_MODE}" == "promotion-only" ]]; then
+            if [[ -z "${DISPATCH_ORIGINAL_RUN_ID}" ]]; then
+              echo "cleanup-only and promotion-only require original_run_id" >&2
+              exit 2
+            fi
+            if [[ ! "${DISPATCH_ORIGINAL_RUN_ID}" =~ ^[0-9]+$ ]]; then
+              echo "original_run_id must contain only digits" >&2
+              exit 2
+            fi
+            EFFECTIVE_RUN_ID="${DISPATCH_ORIGINAL_RUN_ID}"
+          else
+            if [[ -z "${QA_GMAIL_BASE}" ]]; then
+              echo "GCP_BROWSER_QA_GMAIL_BASE is required for normal/core browser QA" >&2
+              exit 2
+            fi
+            if [[ "${QA_GMAIL_BASE}" == *+* || "${QA_GMAIL_BASE}" == *,* || "${QA_GMAIL_BASE}" == *$'\r'* || "${QA_GMAIL_BASE}" == *$'\n'* || ! "${QA_GMAIL_BASE}" =~ ^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+              echo "GCP_BROWSER_QA_GMAIL_BASE must be a safe base email without plus tag, comma, CR, or LF" >&2
+              exit 2
+            fi
+            EFFECTIVE_RUN_ID="${TRUSTED_GITHUB_RUN_ID}"
+          fi
+          if [[ ! "${EFFECTIVE_RUN_ID}" =~ ^[0-9]+$ ]]; then
+            echo "run id must contain only digits" >&2
+            exit 2
+          fi
+          BROWSER_QA_MODE="${DISPATCH_MODE}"
+          MAIN_EXECUTION_ID="main-${EFFECTIVE_RUN_ID}"
+          CLEANUP_EXECUTION_ID="cleanup-${EFFECTIVE_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "effective_run_id=${EFFECTIVE_RUN_ID}" >> "$GITHUB_OUTPUT"
+          echo "main_execution_id=${MAIN_EXECUTION_ID}" >> "$GITHUB_OUTPUT"
+          echo "cleanup_execution_id=${CLEANUP_EXECUTION_ID}" >> "$GITHUB_OUTPUT"
+          {
+            echo "EFFECTIVE_RUN_ID=${EFFECTIVE_RUN_ID}"
+            echo "BROWSER_QA_MODE=${BROWSER_QA_MODE}"
+            echo "FAIL_ON_FINDINGS=${DISPATCH_FAIL_ON_FINDINGS}"
+            echo "MAIN_EXECUTION_ID=${MAIN_EXECUTION_ID}"
+            echo "CLEANUP_EXECUTION_ID=${CLEANUP_EXECUTION_ID}"
+          } >> "$GITHUB_ENV"
+
+      - name: Checkout
+        if: always()
+        uses: actions/checkout@v4
+
+      - name: Auth to GCP via QA WIF
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.QA_WIF_PROVIDER }}
+          service_account: ${{ env.QA_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure docker for Artifact Registry
+        if: ${{ inputs.mode == 'normal' || inputs.mode == 'core' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Set up Docker buildx
+        if: ${{ inputs.mode == 'normal' || inputs.mode == 'core' }}
+        uses: docker/setup-buildx-action@v3
+
+      - name: Run browser QA unit and contract tests
+        if: ${{ inputs.mode == 'normal' || inputs.mode == 'core' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s scripts/browser_qa/tests -v
+
+      - name: Build browser QA image
+        if: ${{ inputs.mode == 'normal' || inputs.mode == 'core' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --file scripts/browser_qa/Dockerfile \
+            --tag "${IMAGE_URI}" \
+            .
+
+      - name: Smoke test browser QA image
+        if: ${{ inputs.mode == 'normal' || inputs.mode == 'core' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_user="$(docker inspect --format='{{.Config.User}}' "${IMAGE_URI}")"
+          if [[ -z "${runtime_user}" || "${runtime_user}" == "root" || "${runtime_user}" == "0" ]]; then
+            echo "image runtime user must be non-root" >&2
+            exit 1
+          fi
+          docker run --rm --entrypoint sh "${IMAGE_URI}" -c 'test "$(id -u)" != "0"'
+          docker run --rm --entrypoint codex "${IMAGE_URI}" --version
+          docker run --rm --entrypoint playwright-mcp "${IMAGE_URI}" --version
+          docker run --rm -i --entrypoint python3 "${IMAGE_URI}" - <<'PY'
+          import json
+          import os
+          import subprocess
+          import tempfile
+          from types import SimpleNamespace
+
+          from scripts.browser_qa.flatkey_browser_qa.supervisor import ChromiumRuntime
+          from scripts.browser_qa.flatkey_browser_qa.mcp_budget_wrapper import playwright_child_command
+
+          runtime_root = tempfile.mkdtemp(prefix="browser-qa-smoke-")
+          chromium = ChromiumRuntime(
+              runtime_root=runtime_root,
+              proxy=SimpleNamespace(host="127.0.0.1", port=9),
+              popen_factory=subprocess.Popen,
+              timeout_seconds=20,
+              startup_stderr_limit_bytes=8192,
+          )
+          child = None
+          try:
+              chromium.start()
+              command = playwright_child_command(runtime_root, cdp_endpoint=chromium.cdp_endpoint)
+              child = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+              requests = [
+                  {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "browser-qa-workflow-smoke", "version": "1"}}},
+                  {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                  {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+              ]
+              stdout, stderr = child.communicate("".join(json.dumps(item) + "\n" for item in requests), timeout=20)
+              if child.returncode != 0:
+                  raise RuntimeError(f"playwright MCP failed: {stderr[-400:]}")
+              responses = [json.loads(line) for line in stdout.splitlines() if line.strip()]
+              by_id = {item.get("id"): item for item in responses}
+              if "result" not in by_id.get(1, {}):
+                  raise RuntimeError("initialize response missing")
+              tools = by_id.get(2, {}).get("result", {}).get("tools", [])
+              if not isinstance(tools, list) or not tools:
+                  raise RuntimeError("tools/list response missing tools")
+          finally:
+              if child is not None and child.poll() is None:
+                  child.terminate()
+                  try:
+                      child.wait(timeout=5)
+                  except subprocess.TimeoutExpired:
+                      child.kill()
+              chromium.stop()
+          PY
+
+      - name: Push browser QA image
+        if: ${{ inputs.mode == 'normal' || inputs.mode == 'core' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker push "${IMAGE_URI}"
+
+      - name: Update browser QA Cloud Run resources
+        if: ${{ inputs.mode == 'normal' || inputs.mode == 'core' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run services update "${QA_BROKER_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --image="${IMAGE_URI}" \
+            --quiet
+          gcloud run jobs update "${QA_MAIN_JOB}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --memory="2Gi" \
+            --image="${IMAGE_URI}" \
+            --quiet
+          gcloud run jobs update "${QA_CLEANUP_JOB}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --image="${IMAGE_URI}" \
+            --quiet
+
+      - name: Execute main browser QA job
+        id: main
+        if: ${{ inputs.mode == 'normal' || inputs.mode == 'core' }}
+        continue-on-error: true
+        timeout-minutes: 90
+        shell: bash
+        env:
+          QA_GMAIL_BASE: ${{ vars.GCP_BROWSER_QA_GMAIL_BASE }}
+        run: |
+          set +e
+          gcloud run jobs execute "${QA_MAIN_JOB}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --args=main \
+            --update-env-vars="FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID},FLATKEY_QA_GMAIL_BASE=${QA_GMAIL_BASE},FLATKEY_BROWSER_QA_MODE=${BROWSER_QA_MODE},FLATKEY_BROWSER_QA_EXECUTION_ID=${MAIN_EXECUTION_ID},FLATKEY_BROWSER_QA_GCS_BUCKET=${QA_GCS_BUCKET}" \
+            --wait \
+            --quiet
+          main_status=$?
+          set -e
+          echo "main_status=${main_status}" >> "$GITHUB_OUTPUT"
+          echo "MAIN_STATUS=${main_status}" >> "$GITHUB_ENV"
+          exit "${main_status}"
+
+      - name: Execute cleanup browser QA job
+        id: cleanup
+        if: ${{ always() && steps.qa.outcome == 'success' && inputs.mode != 'promotion-only' }}
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set +e
+          gcloud run jobs execute "${QA_CLEANUP_JOB}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --args=cleanup \
+            --update-env-vars="FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID},FLATKEY_BROWSER_QA_MAIN_EXECUTION_ID=${MAIN_EXECUTION_ID},FLATKEY_BROWSER_QA_CLEANUP_EXECUTION_ID=${CLEANUP_EXECUTION_ID},FLATKEY_BROWSER_QA_GCS_BUCKET=${QA_GCS_BUCKET}" \
+            --wait \
+            --quiet
+          cleanup_status=$?
+          set -e
+          echo "cleanup_status=${cleanup_status}" >> "$GITHUB_OUTPUT"
+          echo "CLEANUP_STATUS=${cleanup_status}" >> "$GITHUB_ENV"
+          exit "${cleanup_status}"
+
+      - name: Fetch sanitized manifest and write summary
+        id: manifest
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest_path="${RUNNER_TEMP}/browser-qa-manifest.json"
+          root_object="runs/${EFFECTIVE_RUN_ID}/manifest.json"
+          gcs_uri="gs://${QA_GCS_BUCKET}/${root_object}"
+          cleanup_outcome="${{ steps.cleanup.outcome || 'skipped' }}"
+          set +e
+          gcloud storage cp "${gcs_uri}" "${manifest_path}" --quiet
+          fetch_status=$?
+          set -e
+          if [[ "${fetch_status}" -ne 0 ]]; then
+            if [[ "${cleanup_outcome}" != "success" ]]; then
+              if [[ "${BROWSER_QA_MODE}" == "promotion-only" ]]; then
+                manifest_status="infrastructure_failed"
+                cleanup_status="unknown"
+              else
+                manifest_status="cleanup_failed"
+                cleanup_status="cleanup_failed"
+              fi
+            else
+              manifest_status="infrastructure_failed"
+              cleanup_status="unknown"
+            fi
+            {
+              echo "manifest_status=${manifest_status}"
+              echo "replay_status=unknown"
+              echo "exploration_status=unknown"
+              echo "exploration_actions=0"
+              echo "finding_count=0"
+              echo "finding_summaries_b64=W10="
+              echo "cleanup_status=${cleanup_status}"
+              echo "gcs_uri=${gcs_uri}"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "### Browser QA"
+              echo "- status: ${manifest_status}"
+              echo "- replay status: unknown"
+              echo "- exploration status: unknown"
+              echo "- exploration actions: 0"
+              echo "- finding count: 0"
+              echo "- cleanup status: ${cleanup_status}"
+              echo "- gcs_uri: ${gcs_uri}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python3 - "${manifest_path}" "${gcs_uri}" "${{ steps.main.outcome || 'skipped' }}" "${cleanup_outcome}" "${BROWSER_QA_MODE}" <<'PY'
+          import base64
+          import json
+          import os
+          import sys
+
+          from scripts.browser_qa.flatkey_browser_qa import cleanup_job, dingtalk
+
+          ALLOWED_ROOT_STATUS = {"passed", "findings_detected", "replay_failed", "infrastructure_failed", "cleanup_failed"}
+          ALLOWED_ROOT_FIELDS = {"schema_version", "run_id", "status", "latest", "executions", "candidates", "candidate_events"}
+          CANDIDATE_FIELDS = {"schema_version", "kind", "fingerprint", "target_url", "proposed_case", "source", "promotion"}
+          EMPTY_FINDING_SUMMARIES_B64 = "W10="
+
+          def finding_summaries_b64(summaries):
+              return base64.urlsafe_b64encode(
+                  json.dumps(summaries, ensure_ascii=False, separators=(",", ":")).encode()
+              ).decode("ascii")
+
+          def validate_finding_summaries(summaries):
+              if not isinstance(summaries, list):
+                  raise ValueError("main summary finding_summaries invalid")
+              dingtalk._validate_finding_summaries(tuple(summaries))
+              return summaries
+
+          def validate_root_manifest(manifest, run_id):
+              if not isinstance(manifest, dict) or manifest.get("run_id") != run_id or manifest.get("schema_version") != 1:
+                  raise ValueError("root manifest identity invalid")
+              if set(manifest) - ALLOWED_ROOT_FIELDS:
+                  raise ValueError("root manifest fields invalid")
+              candidates = manifest.get("candidates", [])
+              if not isinstance(candidates, list) or len(candidates) > 20:
+                  raise ValueError("root manifest candidates invalid")
+              if any(not isinstance(item, dict) or set(item) != CANDIDATE_FIELDS for item in candidates):
+                  raise ValueError("root manifest candidates invalid")
+              events = manifest.get("candidate_events", [])
+              if not isinstance(events, list) or len(events) > 20:
+                  raise ValueError("root manifest candidate events invalid")
+              if any(not isinstance(item, dict) or set(item) != {"kind", "candidate_kind"} or item["kind"] != "candidate_bundle_failed" or item["candidate_kind"] not in {"finding", "coverage"} for item in events):
+                  raise ValueError("root manifest candidate events invalid")
+              status = manifest.get("status")
+              if status not in ALLOWED_ROOT_STATUS:
+                  raise ValueError("root manifest status invalid")
+              latest = manifest.get("latest")
+              if not isinstance(latest, dict) or not isinstance(latest.get("main_execution_id"), str):
+                  raise ValueError("latest.main_execution_id missing")
+              executions = manifest.get("executions")
+              if not isinstance(executions, list):
+                  raise ValueError("root manifest executions invalid")
+              main = next((item for item in executions if item.get("kind") == "main" and item.get("execution_id") == latest["main_execution_id"]), None)
+              if not isinstance(main, dict):
+                  raise ValueError("latest.main_execution_id record missing")
+              summary = main.get("summary")
+              cleanup_job._validate_record_summary("main", summary)
+              if "finding_summaries" not in summary:
+                  summary = dict(summary)
+                  summary["finding_summaries"] = []
+              else:
+                  validate_finding_summaries(summary["finding_summaries"])
+              cleanup = None
+              cleanup_id = latest.get("cleanup_execution_id")
+              if cleanup_id is not None:
+                  cleanup = next((item for item in executions if item.get("kind") == "cleanup" and item.get("execution_id") == cleanup_id), None)
+                  if not isinstance(cleanup, dict):
+                      raise ValueError("latest cleanup record missing")
+              return status, summary, cleanup or {}
+
+          manifest_path, gcs_uri, main_outcome, cleanup_outcome, qa_mode = sys.argv[1:6]
+          manifest_error = None
+          root_status = "infrastructure_failed"
+          main_summary = {"replay_status": "unknown", "exploration_status": "unknown", "exploration_actions": 0, "finding_count": 0, "finding_summaries": []}
+          cleanup_record = {}
+          try:
+              with open(manifest_path, encoding="utf-8") as handle:
+                  manifest = json.load(handle)
+              run_id = os.environ["EFFECTIVE_RUN_ID"]
+              root_status, main_summary, cleanup_record = validate_root_manifest(manifest, run_id)
+          except Exception as exc:
+              manifest_error = type(exc).__name__
+          if qa_mode != "promotion-only" and cleanup_outcome != "success":
+              status = "cleanup_failed"
+          elif manifest_error is not None:
+              status = "infrastructure_failed"
+          elif main_outcome not in ("success", "failure", "skipped"):
+              status = "infrastructure_failed"
+          elif main_outcome == "failure" and root_status == "passed":
+              status = "infrastructure_failed"
+          else:
+              status = root_status
+          encoded_finding_summaries = (
+              finding_summaries_b64(main_summary["finding_summaries"])
+              if manifest_error is None and isinstance(main_summary.get("finding_summaries"), list)
+              else EMPTY_FINDING_SUMMARIES_B64
+          )
+          summary = [
+              "### Browser QA",
+              f"- status: {status}",
+              f"- replay status: {main_summary['replay_status']}",
+              f"- exploration status: {main_summary['exploration_status']}",
+              f"- exploration actions: {main_summary['exploration_actions']}",
+              f"- finding count: {main_summary['finding_count']}",
+              f"- cleanup status: {cleanup_record.get('status', 'unknown')}",
+              f"- gcs_uri: {gcs_uri}",
+          ]
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"manifest_status={status}\n")
+              output.write(f"replay_status={main_summary['replay_status']}\n")
+              output.write(f"exploration_status={main_summary['exploration_status']}\n")
+              output.write(f"exploration_actions={main_summary['exploration_actions']}\n")
+              output.write(f"finding_count={main_summary['finding_count']}\n")
+              output.write(f"finding_summaries_b64={encoded_finding_summaries}\n")
+              output.write(f"cleanup_status={cleanup_record.get('status', 'unknown')}\n")
+              output.write(f"gcs_uri={gcs_uri}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+              output.write("\n".join(summary) + "\n")
+          PY
+
+      - name: Validate candidate promotion attempts
+        id: candidates
+        if: ${{ always() && inputs.mode == 'normal' && steps.manifest.outcome == 'success' && steps.manifest.outputs.manifest_status != 'cleanup_failed' }}
+        continue-on-error: true
+        timeout-minutes: 90
+        shell: bash
+        env:
+          QA_GMAIL_BASE: ${{ vars.GCP_BROWSER_QA_GMAIL_BASE }}
+        run: |
+          set -euo pipefail
+          root_manifest_path="${RUNNER_TEMP}/browser-qa-manifest.json"
+          plan_path="${RUNNER_TEMP}/browser-qa-candidate-plan.json"
+          summary_dir="${RUNNER_TEMP}/browser-qa-candidate-summaries"
+          pr_bundle_dir="${RUNNER_TEMP}/browser-qa-candidate-pr-bundles"
+          pr_bundle_path="${pr_bundle_dir}/candidate-pr-bundles.json"
+          # browser_qa_candidate_pr_bundles schema_version fixed_case fingerprint branch promotion source
+          mkdir -p "${summary_dir}"
+          mkdir -p "${pr_bundle_dir}"
+          python3 -B -m scripts.browser_qa.flatkey_browser_qa.candidate_orchestrator plan \
+            --root-manifest "${root_manifest_path}" \
+            --bucket "${QA_GCS_BUCKET}" \
+            --run-id "${EFFECTIVE_RUN_ID}" \
+            --output "${plan_path}" > "${summary_dir}/plan-summary.json"
+          candidate_status="skipped"
+          candidate_count=0
+          promotion_failures=0
+          infrastructure_failures=0
+          cleanup_failures=0
+          while IFS= read -r candidate_json; do
+            candidate_count=$((candidate_count + 1))
+            candidate_path="${summary_dir}/candidate-${candidate_count}.json"
+            printf '%s\n' "${candidate_json}" > "${candidate_path}"
+            attempt_paths=()
+            while IFS= read -r attempt_json; do
+              attempt_id="$(jq -r '.attempt_id' <<< "${attempt_json}")"
+              candidate_b64="$(jq -r '.candidate_b64' <<< "${attempt_json}")"
+              manifest_uri="$(jq -r '.manifest_uri' <<< "${attempt_json}")"
+              if [[ ! "${attempt_id}" =~ ^attempt-[A-Za-z0-9][A-Za-z0-9._-]{0,55}$ || ! "${candidate_b64}" =~ ^[A-Za-z0-9_-]+$ || "${manifest_uri}" != gs://"${QA_GCS_BUCKET}"/runs/"${EFFECTIVE_RUN_ID}"/candidates/*/"${attempt_id}"/manifest.json ]]; then
+                echo "candidate plan produced unsafe attempt fields" >&2
+                exit 1
+              fi
+              set +e
+              gcloud run jobs execute "${QA_MAIN_JOB}" \
+                --project="${PROJECT_ID}" \
+                --region="${REGION}" \
+                --args=candidate \
+                --update-env-vars="FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID},FLATKEY_QA_GMAIL_BASE=${QA_GMAIL_BASE},FLATKEY_BROWSER_QA_EXECUTION_ID=${attempt_id},FLATKEY_BROWSER_QA_GCS_BUCKET=${QA_GCS_BUCKET},BROWSER_QA_CANDIDATE_B64=${candidate_b64},BROWSER_QA_ATTEMPT_ID=${attempt_id}" \
+                --wait \
+                --quiet
+              execute_status=$?
+              set -e
+              attempt_manifest_path="${summary_dir}/${attempt_id}.json"
+              gcloud storage cp "${manifest_uri}" "${attempt_manifest_path}" --quiet
+              attempt_paths+=("${attempt_manifest_path}")
+              aggregate_path="${summary_dir}/candidate-${candidate_count}-summary.json"
+              aggregate_args=()
+              for path in "${attempt_paths[@]}"; do
+                aggregate_args+=(--attempt-manifest "${path}")
+              done
+              python3 -B -m scripts.browser_qa.flatkey_browser_qa.candidate_orchestrator aggregate \
+                --candidate "${candidate_path}" \
+                "${aggregate_args[@]}" \
+                --output "${aggregate_path}" > "${summary_dir}/candidate-${candidate_count}-summary-line.json"
+              decision="$(jq -r '.decision' "${aggregate_path}")"
+              reason="$(jq -r '.reason // ""' "${aggregate_path}")"
+              if [[ "${decision}" == "blocked" && "${reason}" == "cleanup_failed" ]]; then
+                cleanup_failures=$((cleanup_failures + 1))
+                break
+              fi
+              if [[ "${execute_status}" -ne 0 ]]; then
+                infrastructure_failures=$((infrastructure_failures + 1))
+              fi
+            done < <(jq -c '.attempts[]' "${candidate_path}")
+            final_summary="${summary_dir}/candidate-${candidate_count}-summary.json"
+            final_decision="$(jq -r '.decision' "${final_summary}")"
+            final_reason="$(jq -r '.reason // ""' "${final_summary}")"
+            if [[ "${final_decision}" == "blocked" && "${final_reason}" == "cleanup_failed" ]]; then
+              cleanup_failures=$((cleanup_failures + 1))
+              break
+            elif [[ "${final_decision}" == "incomplete" && "${final_reason}" == "infrastructure" ]]; then
+              infrastructure_failures=$((infrastructure_failures + 1))
+            elif [[ "${final_decision}" != "ready_for_review" && "${final_decision}" != "awaiting_product_fix" ]]; then
+              promotion_failures=$((promotion_failures + 1))
+            fi
+          done < <(jq -c '.candidates[]' "${plan_path}")
+          if [[ "${cleanup_failures}" -gt 0 ]]; then
+            candidate_status="cleanup_failed"
+          elif [[ "${infrastructure_failures}" -gt 0 ]]; then
+            candidate_status="infrastructure_failed"
+          elif [[ "${promotion_failures}" -gt 0 ]]; then
+            candidate_status="promotion_failed"
+          elif [[ "${candidate_count}" -gt 0 ]]; then
+            candidate_status="passed"
+          fi
+          python3 -B -m scripts.browser_qa.flatkey_browser_qa.github_candidate_pr build-artifact \
+            --plan "${plan_path}" \
+            --summary-dir "${summary_dir}" \
+            --output "${pr_bundle_path}" > "${summary_dir}/candidate-pr-bundle-summary.json"
+          candidate_pr_bundle_count="$(jq -r '.candidate_pr_bundle_count' "${summary_dir}/candidate-pr-bundle-summary.json")"
+          if [[ ! "${candidate_pr_bundle_count}" =~ ^[0-9]+$ ]]; then
+            echo "candidate pr bundle count invalid" >&2
+            exit 1
+          fi
+          {
+            echo "candidate_status=${candidate_status}"
+            echo "candidate_count=${candidate_count}"
+            echo "candidate_pr_bundle_count=${candidate_pr_bundle_count}"
+          } >> "$GITHUB_OUTPUT"
+          if [[ "${candidate_status}" == "cleanup_failed" || "${candidate_status}" == "infrastructure_failed" || "${candidate_status}" == "promotion_failed" ]]; then
+            exit 1
+          fi
+
+      - name: Upload normal candidate PR bundles
+        if: ${{ always() && inputs.mode == 'normal' && steps.candidates.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-qa-candidate-pr-bundles
+          path: ${{ runner.temp }}/browser-qa-candidate-pr-bundles/candidate-pr-bundles.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Recover candidate promotion from existing manifests
+        id: candidates_recovery
+        if: ${{ always() && inputs.mode == 'promotion-only' && steps.manifest.outcome == 'success' && steps.manifest.outputs.manifest_status != 'cleanup_failed' }}
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          root_manifest_path="${RUNNER_TEMP}/browser-qa-manifest.json"
+          plan_path="${RUNNER_TEMP}/browser-qa-candidate-plan.json"
+          summary_dir="${RUNNER_TEMP}/browser-qa-candidate-recovery"
+          pr_bundle_dir="${RUNNER_TEMP}/browser-qa-candidate-pr-bundles"
+          pr_bundle_path="${pr_bundle_dir}/candidate-pr-bundles.json"
+          # browser_qa_candidate_pr_bundles schema_version fixed_case fingerprint branch promotion source
+          mkdir -p "${summary_dir}"
+          mkdir -p "${pr_bundle_dir}"
+          python3 -B -m scripts.browser_qa.flatkey_browser_qa.candidate_orchestrator plan \
+            --root-manifest "${root_manifest_path}" \
+            --bucket "${QA_GCS_BUCKET}" \
+            --run-id "${EFFECTIVE_RUN_ID}" \
+            --output "${plan_path}" > "${summary_dir}/plan-summary.json"
+          candidate_status="skipped"
+          candidate_count=0
+          promotion_failures=0
+          infrastructure_failures=0
+          cleanup_failures=0
+          while IFS= read -r candidate_json; do
+            candidate_count=$((candidate_count + 1))
+            candidate_path="${summary_dir}/candidate-${candidate_count}.json"
+            printf '%s\n' "${candidate_json}" > "${candidate_path}"
+            attempt_paths=()
+            while IFS= read -r attempt_json; do
+              attempt_id="$(jq -r '.attempt_id' <<< "${attempt_json}")"
+              manifest_uri="$(jq -r '.manifest_uri' <<< "${attempt_json}")"
+              if [[ ! "${attempt_id}" =~ ^attempt-[A-Za-z0-9][A-Za-z0-9._-]{0,55}$ || "${manifest_uri}" != gs://"${QA_GCS_BUCKET}"/runs/"${EFFECTIVE_RUN_ID}"/candidates/*/"${attempt_id}"/manifest.json ]]; then
+                echo "candidate recovery plan produced unsafe attempt fields" >&2
+                exit 1
+              fi
+              attempt_manifest_path="${summary_dir}/${attempt_id}.json"
+              gcloud storage cp "${manifest_uri}" "${attempt_manifest_path}" --quiet
+              attempt_paths+=("${attempt_manifest_path}")
+            done < <(jq -c '.attempts[]' "${candidate_path}")
+            aggregate_path="${summary_dir}/candidate-${candidate_count}-summary.json"
+            aggregate_args=()
+            for path in "${attempt_paths[@]}"; do
+              aggregate_args+=(--attempt-manifest "${path}")
+            done
+            python3 -B -m scripts.browser_qa.flatkey_browser_qa.candidate_orchestrator aggregate \
+              --candidate "${candidate_path}" \
+              "${aggregate_args[@]}" \
+              --output "${aggregate_path}" > "${summary_dir}/candidate-${candidate_count}-summary-line.json"
+            decision="$(jq -r '.decision' "${aggregate_path}")"
+            reason="$(jq -r '.reason // ""' "${aggregate_path}")"
+            if [[ "${decision}" == "blocked" && "${reason}" == "cleanup_failed" ]]; then
+              cleanup_failures=$((cleanup_failures + 1))
+              break
+            elif [[ "${decision}" == "incomplete" && "${reason}" == "infrastructure" ]]; then
+              infrastructure_failures=$((infrastructure_failures + 1))
+            elif [[ "${decision}" != "ready_for_review" && "${decision}" != "awaiting_product_fix" ]]; then
+              promotion_failures=$((promotion_failures + 1))
+            fi
+          done < <(jq -c '.candidates[]' "${plan_path}")
+          if [[ "${cleanup_failures}" -gt 0 ]]; then
+            candidate_status="cleanup_failed"
+          elif [[ "${infrastructure_failures}" -gt 0 ]]; then
+            candidate_status="infrastructure_failed"
+          elif [[ "${promotion_failures}" -gt 0 ]]; then
+            candidate_status="promotion_failed"
+          elif [[ "${candidate_count}" -gt 0 ]]; then
+            candidate_status="passed"
+          fi
+          python3 -B -m scripts.browser_qa.flatkey_browser_qa.github_candidate_pr build-artifact \
+            --plan "${plan_path}" \
+            --summary-dir "${summary_dir}" \
+            --output "${pr_bundle_path}" > "${summary_dir}/candidate-pr-bundle-summary.json"
+          candidate_pr_bundle_count="$(jq -r '.candidate_pr_bundle_count' "${summary_dir}/candidate-pr-bundle-summary.json")"
+          if [[ ! "${candidate_pr_bundle_count}" =~ ^[0-9]+$ ]]; then
+            echo "candidate pr bundle count invalid" >&2
+            exit 1
+          fi
+          {
+            echo "candidate_status=${candidate_status}"
+            echo "candidate_count=${candidate_count}"
+            echo "candidate_pr_bundle_count=${candidate_pr_bundle_count}"
+          } >> "$GITHUB_OUTPUT"
+          if [[ "${candidate_status}" == "cleanup_failed" || "${candidate_status}" == "infrastructure_failed" || "${candidate_status}" == "promotion_failed" ]]; then
+            exit 1
+          fi
+
+      - name: Upload recovery candidate PR bundles
+        if: ${{ always() && inputs.mode == 'promotion-only' && steps.candidates_recovery.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-qa-candidate-pr-bundles
+          path: ${{ runner.temp }}/browser-qa-candidate-pr-bundles/candidate-pr-bundles.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Send terminal Browser QA report to DingTalk
+        if: always()
+        shell: bash
+        env:
+          DINGTALK_WEBHOOK: ${{ secrets.STAGING_BROWSER_QA_DINGTALK_WEBHOOK }}
+          DINGTALK_SIGNING_SECRET: ${{ secrets.STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET }}
+          BROWSER_QA_FINAL_STATUS: ${{ steps.manifest.outputs.manifest_status || 'infrastructure_failed' }}
+          BROWSER_QA_REPLAY_STATUS: ${{ steps.manifest.outputs.replay_status || 'unknown' }}
+          BROWSER_QA_EXPLORATION_STATUS: ${{ steps.manifest.outputs.exploration_status || 'unknown' }}
+          BROWSER_QA_EXPLORATION_ACTIONS: ${{ steps.manifest.outputs.exploration_actions || '0' }}
+          BROWSER_QA_FINDING_COUNT: ${{ steps.manifest.outputs.finding_count || '0' }}
+          BROWSER_QA_FINDING_SUMMARIES_B64: ${{ steps.manifest.outputs.finding_summaries_b64 || 'W10=' }}
+          BROWSER_QA_CLEANUP_STATUS: ${{ steps.manifest.outputs.cleanup_status || 'unknown' }}
+          BROWSER_QA_CANDIDATE_STATUS: ${{ (steps.candidates.outcome == 'failure' && !steps.candidates.outputs.candidate_status && 'unknown') || (steps.candidates_recovery.outcome == 'failure' && !steps.candidates_recovery.outputs.candidate_status && 'unknown') || steps.candidates.outputs.candidate_status || steps.candidates_recovery.outputs.candidate_status || 'skipped' }}
+          BROWSER_QA_CANDIDATE_COUNT: ${{ steps.candidates.outputs.candidate_count || steps.candidates_recovery.outputs.candidate_count || '0' }}
+          BROWSER_QA_CANDIDATE_PR_BUNDLE_COUNT: ${{ steps.candidates.outputs.candidate_pr_bundle_count || steps.candidates_recovery.outputs.candidate_pr_bundle_count || '0' }}
+          BROWSER_QA_GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BROWSER_QA_GCS_URI: ${{ steps.manifest.outputs.gcs_uri || format('gs://browser-qa-report-unavailable/runs/{0}/manifest.json', github.run_id) }}
+        run: python3 -B -m scripts.browser_qa.flatkey_browser_qa.dingtalk
+
+      - name: Fail standalone workflow for actionable QA states
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          final_status="${{ steps.manifest.outputs.manifest_status || 'infrastructure_failed' }}"
+          candidate_status="${{ (steps.candidates.outcome == 'failure' && !steps.candidates.outputs.candidate_status && 'unknown') || (steps.candidates_recovery.outcome == 'failure' && !steps.candidates_recovery.outputs.candidate_status && 'unknown') || steps.candidates.outputs.candidate_status || steps.candidates_recovery.outputs.candidate_status || 'skipped' }}"
+          candidate_step_outcome="${{ steps.candidates.outcome || steps.candidates_recovery.outcome || 'skipped' }}"
+          fail_on_findings="${FAIL_ON_FINDINGS:-false}"
+          if [[ "${final_status}" == "cleanup_failed" ]]; then
+            echo "Browser QA completed with cleanup_failed" >&2
+            exit 1
+          fi
+          if [[ "${candidate_step_outcome}" == "failure" ]]; then
+            echo "Browser QA candidate promotion step failed before a trusted status was exported" >&2
+            exit 1
+          fi
+          case "${candidate_status}" in
+            cleanup_failed|infrastructure_failed|promotion_failed|unknown)
+              echo "Browser QA candidate promotion completed with ${candidate_status}" >&2
+              exit 1
+              ;;
+          esac
+          case "${final_status}" in
+            passed)
+              exit 0
+              ;;
+            findings_detected)
+              if [[ "${fail_on_findings}" == "true" ]]; then
+                echo "Browser QA completed with findings_detected" >&2
+                exit 1
+              fi
+              echo "Browser QA completed with findings_detected; alert-only because fail_on_findings=false" >&2
+              exit 0
+              ;;
+            cleanup_failed|infrastructure_failed|replay_failed)
+              echo "Browser QA completed with ${final_status}" >&2
+              exit 1
+              ;;
+            *)
+              echo "Browser QA completed with unknown status: ${final_status}" >&2
+              exit 1
+              ;;
+          esac
+
+  candidate-pr:
+    needs: browser-qa
+    if: ${{ always() && needs.browser-qa.result == 'success' && needs.browser-qa.outputs.candidate_pr_bundle_count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download sanitized candidate PR bundles
+        uses: actions/download-artifact@v4
+        with:
+          name: browser-qa-candidate-pr-bundles
+          path: ${{ runner.temp }}/browser-qa-candidate-pr-bundles
+
+      - name: Upsert browser QA candidate Draft PRs
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B -m scripts.browser_qa.flatkey_browser_qa.github_candidate_pr upsert \
+            --artifact "${RUNNER_TEMP}/browser-qa-candidate-pr-bundles/candidate-pr-bundles.json" \
+            --repository "SolveaCX/new-api" \
+            --base "staging"

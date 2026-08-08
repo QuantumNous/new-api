@@ -38,6 +38,7 @@ env:
   STAGING_APP_CONSOLE_ORIGIN: ${{ vars.STAGING_APP_CONSOLE_ORIGIN || 'https://staging-console.flatkey.ai' }}
   STAGING_COOKIE_SESSION_DOMAIN: ${{ vars.STAGING_COOKIE_SESSION_DOMAIN || '' }}
   STAGING_SESSION_COOKIE_SECURE: ${{ vars.STAGING_SESSION_COOKIE_SECURE || 'true' }}
+  STAGING_BROWSER_QA_ALLOW_EMAIL_ALIASES: true
   STAGING_VOC_DATA_MCP_URL: ${{ vars.STAGING_VOC_DATA_MCP_URL }}
   STAGING_VOC_DATA_MCP_MODE: ${{ vars.STAGING_VOC_DATA_MCP_MODE || 'direct' }}
   STAGING_VOC_DATA_MCP_AUTH_HEADER: ${{ vars.STAGING_VOC_DATA_MCP_AUTH_HEADER || 'X-API-Key' }}
@@ -62,11 +63,18 @@ jobs:
 
       - name: Compute image URI
         id: compute_image
+        env:
+          DISPATCH_IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
+          set -euo pipefail
           short_sha="${GITHUB_SHA::12}"
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
-          if [[ -n "${{ inputs.image_tag }}" ]]; then
-            echo "image_uri=${AR_REPO_URL}/server:${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${DISPATCH_IMAGE_TAG}" ]]; then
+            if [[ ! "${DISPATCH_IMAGE_TAG}" =~ ^staging-sha-[0-9a-f]{12,40}$ ]]; then
+              echo "::error::Invalid image_tag. Expected empty or staging-sha-<12-40 lowercase hex>."
+              exit 1
+            fi
+            echo "image_uri=${AR_REPO_URL}/server:${DISPATCH_IMAGE_TAG}" >> "$GITHUB_OUTPUT"
             echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
           else
             echo "image_uri=${AR_REPO_URL}/server:staging-sha-${short_sha}" >> "$GITHUB_OUTPUT"
@@ -162,6 +170,7 @@ jobs:
             "APP_CONSOLE_ORIGIN=${STAGING_APP_CONSOLE_ORIGIN}"
             "COOKIE_SESSION_DOMAIN=${effective_cookie_domain}"
             "SESSION_COOKIE_SECURE=${STAGING_SESSION_COOKIE_SECURE}"
+            "STAGING_BROWSER_QA_ALLOW_EMAIL_ALIASES=${STAGING_BROWSER_QA_ALLOW_EMAIL_ALIASES}"
             "VOC_DATA_MCP_URL=${STAGING_VOC_DATA_MCP_URL}"
             "VOC_DATA_MCP_SERVICE_KEY=${{ secrets.STAGING_VOC_DATA_MCP_SERVICE_KEY }}"
             "VOC_DATA_MCP_MODE=${STAGING_VOC_DATA_MCP_MODE}"
@@ -275,3 +284,19 @@ jobs:
           echo "- Revision: \`${{ steps.deploy.outputs.new_revision }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Image:    \`${{ needs.build.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL:      ${url}" >> "$GITHUB_STEP_SUMMARY"
+
+  browser-qa-normal:
+    needs: deploy
+    uses: ./.github/workflows/gcp-browser-qa.yml
+    permissions:
+      # Reusable workflow calls cannot elevate permissions inside the called workflow;
+      # this caller ceiling is the exact union of called jobs, not an expansion of browser-qa.
+      contents: write
+      pull-requests: write
+      id-token: write
+    with:
+      mode: normal
+      fail_on_findings: false
+    secrets:
+      STAGING_BROWSER_QA_DINGTALK_WEBHOOK: ${{ secrets.STAGING_BROWSER_QA_DINGTALK_WEBHOOK }}
+      STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET: ${{ secrets.STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET }}

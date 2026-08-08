@@ -1,0 +1,190 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "kind", "name", "enabled", "severity", "owner", "fixture", "start", "steps", "assertions", "evidence", "cleanup", "source", "promotion"],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "enabled": {"const": true}
+        }
+      },
+      "then": {
+        "properties": {
+          "promotion": {
+            "properties": {
+              "state": {"const": "ready_for_review"},
+              "attempts_required": {"const": 3},
+              "attempts_passed": {"const": 3}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "pattern": "^FQA-[0-9]{4,}$", "minLength": 8, "maxLength": 32},
+    "kind": {"type": "string", "enum": ["bug_regression", "coverage_baseline"]},
+    "name": {"$ref": "#/$defs/non_control_string"},
+    "enabled": {"type": "boolean"},
+    "severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
+    "owner": {"type": "string", "const": "browser-qa"},
+    "fixture": {"type": "string", "enum": ["anonymous", "registered_user", "user_with_api_key"]},
+    "start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "path"],
+      "properties": {
+        "origin": {"type": "string", "enum": ["staging_website", "staging_console", "docs"]},
+        "path": {"type": "string", "pattern": "^/(?!/)[^\\u0000-\\u001f\\u007f\\\\?#]*$", "minLength": 1, "maxLength": 256}
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "maxProperties": 1,
+        "properties": {
+          "navigate": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": {"type": "string", "pattern": "^/(?!/)[^\\u0000-\\u001f\\u007f\\\\?#]*$", "minLength": 1, "maxLength": 256}
+            }
+          },
+          "navigate_back": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "click": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["locator"],
+            "properties": {"locator": {"$ref": "#/$defs/locator"}}
+          },
+          "fill": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["locator", "value"],
+            "properties": {
+              "locator": {"$ref": "#/$defs/locator"},
+              "value": {"$ref": "#/$defs/non_control_string"}
+            }
+          },
+          "select": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["locator", "value"],
+            "properties": {
+              "locator": {"$ref": "#/$defs/locator"},
+              "value": {"$ref": "#/$defs/non_control_string"}
+            }
+          },
+          "wait_for": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["locator"],
+            "properties": {"locator": {"$ref": "#/$defs/locator"}}
+          }
+        }
+      }
+    },
+    "assertions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "maxProperties": 1,
+        "properties": {
+          "page_status_not": {"type": "integer", "minimum": 100, "maximum": 599},
+          "url_not_contains": {"$ref": "#/$defs/non_control_string"}
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["screenshot_on_failure", "capture_console", "capture_network"],
+      "properties": {
+        "screenshot_on_failure": {"type": "boolean"},
+        "capture_console": {"type": "boolean"},
+        "capture_network": {"type": "boolean"}
+      }
+    },
+    "cleanup": {"type": "string", "enum": ["required", "not_required"]},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "finding_fingerprint", "evidence_uri"],
+      "properties": {
+        "run_id": {"$ref": "#/$defs/non_control_string"},
+        "finding_fingerprint": {"$ref": "#/$defs/non_control_string"},
+        "evidence_uri": {"type": "string", "pattern": "^gs://[^\\u0000-\\u001f\\u007f/?#@]+(?:/[^\\u0000-\\u001f\\u007f?#@]*)?$", "minLength": 6, "maxLength": 256}
+      }
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "attempts_required", "attempts_passed"],
+      "properties": {
+        "state": {"type": "string", "enum": ["candidate_draft", "reproduced_3_of_3", "awaiting_product_fix", "fixed_behavior_passed_3_of_3", "passed_3_of_3", "ready_for_review"]},
+        "attempts_required": {"type": "integer", "const": 3},
+        "attempts_passed": {"type": "integer", "minimum": 0, "maximum": 3}
+      }
+    }
+  },
+  "$defs": {
+    "non_control_string": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]{1,256}$"
+    },
+    "locator": {
+      "type": "object",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "required": ["by", "role", "name"],
+          "properties": {
+            "by": {"type": "string", "const": "role"},
+            "role": {"$ref": "#/$defs/non_control_string"},
+            "name": {"$ref": "#/$defs/non_control_string"}
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["by", "label"],
+          "properties": {
+            "by": {"type": "string", "const": "label"},
+            "label": {"$ref": "#/$defs/non_control_string"}
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["by", "text"],
+          "properties": {
+            "by": {"type": "string", "const": "text"},
+            "text": {"$ref": "#/$defs/non_control_string"}
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["by", "test_id"],
+          "properties": {
+            "by": {"type": "string", "const": "test_id"},
+            "test_id": {"$ref": "#/$defs/non_control_string"}
+          }
+        }
+      ]
+    }
+  }
+}
