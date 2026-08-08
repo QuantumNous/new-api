@@ -219,8 +219,7 @@ func RequestPaddlePay(c *gin.Context) {
 	transaction, err := createPaddleTransaction(c, tradeNo, user, req.Amount, payMoney)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Paddle 创建交易失败 user_id=%d trade_no=%s sandbox=%t amount=%d money=%.2f error=%q", id, tradeNo, setting.EffectivePaddleSandbox(), req.Amount, payMoney, err.Error()))
-		topUp.Status = common.TopUpStatusFailed
-		_ = topUp.Update()
+		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentProviderPaddle, common.TopUpStatusFailed)
 		errorMessage := "拉起支付失败"
 		if setting.EffectivePaddleSandbox() || c.GetInt("role") >= common.RoleAdminUser {
 			errorMessage = fmt.Sprintf("Paddle 创建交易失败：%s", err.Error())
@@ -230,8 +229,7 @@ func RequestPaddlePay(c *gin.Context) {
 	}
 	if strings.TrimSpace(transaction.Data.ID) == "" {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Paddle 创建交易无 transaction_id user_id=%d trade_no=%s", id, tradeNo))
-		topUp.Status = common.TopUpStatusFailed
-		_ = topUp.Update()
+		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentProviderPaddle, common.TopUpStatusFailed)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}

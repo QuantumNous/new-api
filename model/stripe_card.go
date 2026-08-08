@@ -122,17 +122,32 @@ func RecordStripeAutoChargeAttempt(userId int, amountUnits int, attemptKey strin
 		return
 	}
 	now := common.GetTimestamp()
-	topUp := &TopUp{
-		UserId:          userId,
-		Amount:          int64(amountUnits),
-		TradeNo:         "autofail_" + strings.TrimSpace(attemptKey),
-		PaymentMethod:   PaymentMethodStripe,
-		PaymentProvider: PaymentProviderStripeAuto,
-		CreateTime:      now,
-		CompleteTime:    now,
-		Status:          common.TopUpStatusFailed,
-	}
-	if err := DB.Create(topUp).Error; err != nil {
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		topUp := &TopUp{
+			UserId:          userId,
+			Amount:          int64(amountUnits),
+			TradeNo:         "autofail_" + strings.TrimSpace(attemptKey),
+			PaymentMethod:   PaymentMethodStripe,
+			PaymentProvider: PaymentProviderStripeAuto,
+			CreateTime:      now,
+			Status:          common.TopUpStatusPending,
+		}
+		if err := tx.Create(topUp).Error; err != nil {
+			return err
+		}
+		_, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindTopUp,
+			SourceID:   int64(topUp.Id),
+			TradeNo:    topUp.TradeNo,
+			UserID:     userId,
+			FromStatus: []string{common.TopUpStatusPending},
+			ToStatus:   common.TopUpStatusFailed,
+			OccurredAt: now,
+			SourceRef:  "RecordStripeAutoChargeAttempt",
+		})
+		return err
+	})
+	if err != nil {
 		// A duplicate trade_no (same attempt key) is fine — the cooldown row already exists.
 		common.SysLog("failed to record stripe auto-charge attempt cooldown row: " + err.Error())
 	}
@@ -175,13 +190,22 @@ func CreditStripeAutoCharge(userId int, amountUnits int, money float64, gatewayT
 			PaymentMethod:   PaymentMethodStripe,
 			PaymentProvider: PaymentProviderStripeAuto,
 			CreateTime:      common.GetTimestamp(),
-			CompleteTime:    common.GetTimestamp(),
-			Status:          common.TopUpStatusSuccess,
+			Status:          common.TopUpStatusPending,
 		}
 		if err := tx.Create(topUp).Error; err != nil {
 			return err
 		}
-		_, err := ApplyWalletTopUpSuccessMutationTx(tx, userId, int64(quotaToAdd), topUp.Id, tradeNo)
+		_, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindTopUp,
+			SourceID:   int64(topUp.Id),
+			TradeNo:    topUp.TradeNo,
+			UserID:     userId,
+			FromStatus: []string{common.TopUpStatusPending},
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: common.GetTimestamp(),
+			Credit:     int64(quotaToAdd),
+			SourceRef:  "CreditStripeAutoCharge",
+		})
 		return err
 	})
 	if err != nil {

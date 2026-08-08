@@ -458,8 +458,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		}
 		if err := model.SaveUserInvoiceProfile(profile); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 保存用户开票资料失败 user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
-			topUp.Status = common.TopUpStatusFailed
-			_ = topUp.Update()
+			_ = model.UpdatePendingTopUpStatus(referenceId, model.PaymentProviderStripe, common.TopUpStatusFailed)
 			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "保存开票资料失败"})
 			return
 		}
@@ -475,8 +474,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		}
 		if err := model.CreatePaymentInvoiceSnapshot(paymentInvoice); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建开票快照失败 user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
-			topUp.Status = common.TopUpStatusFailed
-			_ = topUp.Update()
+			_ = model.UpdatePendingTopUpStatus(referenceId, model.PaymentProviderStripe, common.TopUpStatusFailed)
 			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建开票快照失败"})
 			return
 		}
@@ -491,8 +489,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	if invoiceRequested {
 		if err := ensureStripeKey(); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 开票准备客户失败（密钥无效）user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
-			topUp.Status = common.TopUpStatusFailed
-			_ = topUp.Update()
+			_ = model.UpdatePendingTopUpStatus(referenceId, model.PaymentProviderStripe, common.TopUpStatusFailed)
 			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
 			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 			return
@@ -500,8 +497,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		customerId, err := ensureStripeInvoiceCustomer(topUp, user, invoiceFields)
 		if err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 开票准备客户失败 user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
-			topUp.Status = common.TopUpStatusFailed
-			_ = topUp.Update()
+			_ = model.UpdatePendingTopUpStatus(referenceId, model.PaymentProviderStripe, common.TopUpStatusFailed)
 			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
 			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 			return
@@ -517,8 +513,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	checkoutSession, err := genStripeLink(referenceId, checkoutCustomerId, checkoutEmail, checkout, req.SuccessURL, req.CancelURL, invoiceRequested, req.SaveCard, embedded, stripeCheckoutSubmitMessage(normalizedAmount, bonusAmount), recallDiscount)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建 Checkout Session 失败 user_id=%d trade_no=%s amount=%d error=%q", id, referenceId, req.Amount, err.Error()))
-		topUp.Status = common.TopUpStatusFailed
-		_ = topUp.Update()
+		_ = model.UpdatePendingTopUpStatus(referenceId, model.PaymentProviderStripe, common.TopUpStatusFailed)
 		if invoiceRequested {
 			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
 		}
@@ -545,8 +540,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 
 	failMissingPayload := func(what string) {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe Checkout Session 缺少%s user_id=%d trade_no=%s", what, id, referenceId))
-		topUp.Status = common.TopUpStatusFailed
-		_ = topUp.Update()
+		_ = model.UpdatePendingTopUpStatus(referenceId, model.PaymentProviderStripe, common.TopUpStatusFailed)
 		if invoiceRequested {
 			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
 		}
@@ -982,8 +976,7 @@ func sessionAsyncPaymentFailed(ctx context.Context, event stripe.Event, callerIp
 		return nil
 	}
 
-	topUp.Status = common.TopUpStatusFailed
-	if err := topUp.Update(); err != nil {
+	if err := model.UpdatePendingTopUpStatus(referenceId, model.PaymentProviderStripe, common.TopUpStatusFailed); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 标记充值订单失败状态失败 trade_no=%s client_ip=%s error=%q", referenceId, callerIp, err.Error()))
 		return nil
 	}
