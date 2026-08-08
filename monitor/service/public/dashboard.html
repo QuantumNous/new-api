@@ -1,0 +1,2519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitor Dashboard</title>
+  <link id="favicon" rel="icon" href="" type="image/png">
+  <meta name="description" content="NewAPI Monitor Dashboard">
+  <link rel="stylesheet" href="./static/fonts/fonts.css">
+  <script src="./static/tailwind.min.js"></script>
+  <script src="./static/echarts.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
+          },
+          colors: {
+            primary: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              200: '#99f6e4',
+              300: '#5eead4',
+              400: '#2dd4bf',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+              800: '#115e59',
+              900: '#134e4a'
+            }
+          },
+          boxShadow: {
+            glow: '0 24px 80px rgba(20, 184, 166, 0.18)'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    html.dark {
+      color-scheme: dark;
+    }
+
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(45, 212, 191, 0.18), transparent 24%),
+        radial-gradient(circle at bottom left, rgba(20, 184, 166, 0.12), transparent 20%),
+        linear-gradient(135deg, #f8fafc 0%, #f0fdfa 42%, #f3f4f6 100%);
+    }
+
+    html.dark body {
+      background:
+        radial-gradient(circle at top right, rgba(20, 184, 166, 0.20), transparent 22%),
+        radial-gradient(circle at bottom left, rgba(45, 212, 191, 0.10), transparent 20%),
+        linear-gradient(135deg, #020617 0%, #0f172a 45%, #020617 100%);
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, 0.76);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+    }
+
+    html.dark .glass {
+      background: rgba(15, 23, 42, 0.72);
+      border-color: rgba(148, 163, 184, 0.14);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+    }
+
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(20, 184, 166, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(20, 184, 166, 0.05) 1px, transparent 1px);
+      background-size: 56px 56px;
+    }
+
+    .metric-chip {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    html.dark .metric-chip {
+      border-color: rgba(71, 85, 105, 0.55);
+      background: rgba(15, 23, 42, 0.78);
+    }
+
+    .metric-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-card::after {
+      content: '';
+      position: absolute;
+      inset: auto -20% -50% auto;
+      width: 140px;
+      height: 140px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(20, 184, 166, 0.14), transparent 65%);
+      pointer-events: none;
+    }
+
+    .chart-panel {
+      height: 400px;
+    }
+
+    .mini-chart-panel {
+      height: 420px;
+    }
+
+    .section-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.85rem;
+      background: rgba(20, 184, 166, 0.12);
+      color: #0d9488;
+    }
+
+    html.dark .section-icon {
+      background: rgba(20, 184, 166, 0.18);
+      color: #5eead4;
+    }
+
+    .subtle-select {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    html.dark .subtle-select {
+      border-color: rgba(71, 85, 105, 0.58);
+      background: rgba(15, 23, 42, 0.82);
+      color: #e2e8f0;
+    }
+
+    .selector-panel {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+    }
+
+    html.dark .selector-panel {
+      border-color: rgba(71, 85, 105, 0.58);
+      background: rgba(15, 23, 42, 0.94);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+    }
+
+    .selected-model-row {
+      box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.35);
+      background: linear-gradient(135deg, rgba(20, 184, 166, 0.14), rgba(59, 130, 246, 0.06));
+    }
+
+    html.dark .selected-model-row {
+      box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.35);
+      background: linear-gradient(135deg, rgba(20, 184, 166, 0.16), rgba(30, 41, 59, 0.08));
+    }
+  </style>
+</head>
+
+<body class="min-h-screen overflow-x-hidden text-slate-900 antialiased dark:text-white">
+  <div class="pointer-events-none fixed inset-0 overflow-hidden">
+    <div class="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-primary-400/20 blur-3xl"></div>
+    <div class="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary-500/15 blur-3xl"></div>
+    <div class="absolute left-1/3 top-1/4 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl"></div>
+    <div class="grid-bg absolute inset-0"></div>
+  </div>
+
+  <div class="px-6 py-8 md:px-8 md:py-10">
+    <div class="mx-auto max-w-7xl space-y-6">
+      <header class="glass rounded-[28px] p-6 md:p-8 relative">
+        <div class="absolute right-6 top-6 flex items-center gap-2 md:right-8 md:top-8">
+          <button id="themeToggle"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200/80 bg-white/80 text-slate-500 transition hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-400 dark:hover:text-white"
+            title="切换主题">
+            <i id="themeIcon" data-lucide="sun" class="h-4 w-4"></i>
+          </button>
+          <button id="refreshButton"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200/80 bg-white/80 text-slate-500 transition hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-400 dark:hover:text-white"
+            title="刷新数据">
+            <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+          </button>
+          <a id="headerDocsLink" href="#" target="_blank" rel="noopener noreferrer"
+            class="hidden h-10 items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 text-sm font-bold text-slate-600 transition hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:text-white">
+            <i data-lucide="book-open" class="h-4 w-4"></i>
+            文档
+          </a>
+          <a id="headerPlatformLink" href="#" target="_top"
+            class="inline-flex h-10 items-center gap-2 rounded-2xl bg-primary-500 px-4 text-sm font-bold text-white transition hover:bg-primary-600 dark:bg-primary-500 dark:text-slate-950 dark:hover:bg-primary-400">
+            进入平台
+          </a>
+        </div>
+
+        <div class="flex items-center gap-4 mb-4">
+          <div class="h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-white shadow-sm dark:bg-slate-900">
+            <img id="headerLogo" src="" alt="Logo" class="h-full w-full object-contain p-1">
+          </div>
+          <div
+            class="inline-flex items-center gap-2 rounded-full border border-primary-200/70 bg-white/80 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.22em] text-primary-700 dark:border-primary-900/60 dark:bg-slate-900/80 dark:text-primary-300">
+            <span class="h-2 w-2 rounded-full bg-primary-500"></span>
+            RUN
+          </div>
+        </div>
+        <h1 class="text-3xl font-black tracking-tight text-slate-900 dark:text-white md:text-5xl">
+          <span id="headerSiteName">Monitor</span>
+          <span class="bg-gradient-to-r from-primary-500 via-cyan-500 to-emerald-500 bg-clip-text text-transparent">
+            Monitor</span>
+        </h1>
+        <p class="mt-4 max-w-3xl text-sm leading-8 text-slate-600 dark:text-slate-300 md:text-base">
+           全站总览，检索 Key 与渠道的使用情况，及时发现异常波动、失败请求与主要消耗来源。
+        </p>
+      </header>
+
+      <section id="errorState"
+        class="hidden glass rounded-[28px] border border-rose-200/70 p-6 text-rose-700 dark:border-rose-900/40 dark:text-rose-300">
+        <div class="flex items-start gap-3">
+          <i data-lucide="triangle-alert" class="mt-0.5 h-5 w-5 shrink-0"></i>
+          <div>
+            <div class="font-bold">请求失败</div>
+            <p id="errorMessage" class="mt-2 text-sm leading-7"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass rounded-[28px] px-5 py-3">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 shrink-0">
+            <div class="relative w-full">
+              <i data-lucide="key"
+                class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
+              <input id="keySearchInput" type="text" placeholder="sk-Key / 渠道ID / 用户名"
+                class="w-full rounded-full border border-primary-300/90 bg-white/90 py-2 pl-9 pr-9 text-sm font-medium outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-200 dark:border-primary-700/80 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-primary-500 dark:focus:ring-primary-900/40">
+              <button id="keyClearButton" type="button"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 hidden text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200"
+                title="清除">
+                <i data-lucide="x" class="h-4 w-4"></i>
+              </button>
+            </div>
+            <button id="keySearchButton" type="button"
+              class="inline-flex h-[38px] w-[44px] items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-500 transition hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-400 dark:hover:text-white"
+              title="搜索 Key">
+              <i data-lucide="search" class="h-4 w-4"></i>
+            </button>
+          </div>
+          <div id="hoursButtonGroup" class="flex items-center gap-1.5 overflow-x-auto"></div>
+          <div id="customTimeRange" class="hidden flex items-center gap-2 mt-2 flex-wrap">
+            <input type="datetime-local" id="customStartTime" class="rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300" />
+            <span class="text-xs text-slate-500">—</span>
+            <input type="datetime-local" id="customEndTime" class="rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300" />
+            <button type="button" id="customTimeApply" class="shrink-0 rounded-lg bg-primary-500 px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-primary-600 dark:bg-primary-500 dark:text-slate-950 dark:hover:bg-primary-400">确认</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="keyInfoSection" class="hidden space-y-6">
+        <div id="keyInfoCards" class="grid gap-4 xl:grid-cols-4"></div>
+        <div id="detailMetaGrid" class="hidden grid gap-4 md:grid-cols-2 xl:grid-cols-4"></div>
+        <article class="glass rounded-[28px] p-6 md:p-7">
+          <div class="mb-5 flex items-center gap-3">
+            <span class="section-icon"><i data-lucide="chart-spline" class="h-4 w-4"></i></span>
+            <div>
+              <div id="detailTrendEyebrow"
+                class="text-xs font-extrabold uppercase tracking-[0.22em] text-primary-700 dark:text-primary-300">Key
+                Trend</div>
+              <h2 id="detailTrendTitle" class="mt-1 text-2xl font-black text-slate-900 dark:text-white">Key 使用趋势</h2>
+            </div>
+          </div>
+          <div id="keyTrendChart" class="chart-panel w-full"></div>
+        </article>
+        <article class="glass rounded-[28px] p-6 md:p-7">
+          <div class="mb-5 flex items-center gap-3">
+            <span class="section-icon"><i data-lucide="layout-list" class="h-4 w-4"></i></span>
+            <div>
+              <div id="detailModelsEyebrow"
+                class="text-xs font-extrabold uppercase tracking-[0.22em] text-primary-700 dark:text-primary-300">Key
+                Models</div>
+              <h2 id="detailModelsTitle" class="mt-1 text-2xl font-black text-slate-900 dark:text-white">Key 模型排行</h2>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full border-separate border-spacing-y-3">
+              <thead>
+                <tr id="keyModelsTableHead" class="text-left text-xs font-extrabold tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  <th class="px-4 py-2">模型</th>
+                  <th class="px-4 py-2">请求数</th>
+                  <th class="px-4 py-2">成功率</th>
+                  <th class="px-4 py-2">平均耗时</th>
+                  <th class="px-4 py-2">总 Tokens</th>
+                  <th class="px-4 py-2">消耗额度</th>
+                </tr>
+              </thead>
+              <tbody id="keyModelsTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <div id="dashboardContent" class="space-y-6">
+        <section class="grid gap-4 xl:grid-cols-4" id="overviewCards"></section>
+
+        <section class="glass rounded-[28px] p-6 md:p-7">
+          <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div class="flex items-center gap-3">
+              <span class="section-icon"><i data-lucide="chart-column-big" class="h-4 w-4"></i></span>
+              <div>
+                <div class="text-xs font-extrabold uppercase tracking-[0.22em] text-primary-700 dark:text-primary-300">
+                  Hourly Trend</div>
+                <h2 class="mt-1 text-2xl font-black text-slate-900 dark:text-white">请求趋势</h2>
+              </div>
+            </div>
+            <div class="flex flex-col items-start gap-3 md:items-end">
+              <div class="flex flex-wrap items-center gap-3">
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+                  <i data-lucide="filter" class="h-4 w-4"></i>
+                  <span>趋势模型</span>
+                </label>
+                <div class="relative w-[280px] max-w-full">
+                  <button id="trendModelSelectButton" type="button"
+                    class="subtle-select flex w-full items-center justify-between rounded-2xl px-4 py-2.5 text-left text-sm font-medium outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-200 dark:focus:border-primary-500 dark:focus:ring-primary-900/40">
+                    <span id="trendModelSelectLabel">总趋势</span>
+                    <i data-lucide="chevrons-up-down" class="h-4 w-4 text-slate-500 dark:text-slate-400"></i>
+                  </button>
+                  <div id="trendModelDropdown"
+                    class="selector-panel absolute right-0 top-[calc(100%+10px)] z-30 hidden w-full rounded-2xl p-3">
+                    <div class="mb-3 relative">
+                      <i data-lucide="search"
+                        class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
+                      <input id="trendModelSearchInput" type="text" placeholder="搜索模型名称"
+                        class="w-full rounded-xl border border-slate-200/80 bg-white/90 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-200 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-200 dark:focus:border-primary-500 dark:focus:ring-primary-900/40">
+                    </div>
+                    <div id="trendModelOptions" class="max-h-72 space-y-1 overflow-y-auto"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="text-sm text-slate-500 dark:text-slate-400" id="lastUpdatedChip">尚未加载</div>
+            </div>
+          </div>
+          <div id="trendModelCards" class="mb-5 hidden grid gap-3 md:grid-cols-2 xl:grid-cols-4"></div>
+          <div id="trendChart" class="chart-panel w-full"></div>
+          <div
+            class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500 dark:text-slate-400">
+            <div id="trendRangeText">数据时间范围：-</div>
+            <div id="trendSummaryText">最近一段时间的请求表现</div>
+          </div>
+        </section>
+
+        <section class="glass rounded-[28px] p-6 md:p-7">
+          <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div class="flex items-center gap-2.5">
+                <span class="section-icon"><i data-lucide="bot" class="h-4 w-4"></i></span>
+                <div class="text-xs font-extrabold uppercase tracking-[0.22em] text-primary-700 dark:text-primary-300">
+                  Top
+                  Models</div>
+              </div>
+              <h2 class="mt-2 text-2xl font-black text-slate-900 dark:text-white">热门模型排行</h2>
+            </div>
+            <div class="flex flex-col items-start gap-3 md:items-end">
+              <p class="max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300 md:text-right">
+                聚焦当前最活跃的模型，横向对比请求量、成功率、响应耗时与消耗额度，快速识别关键负载模型。
+              </p>
+              <div
+                class="inline-flex rounded-2xl border border-slate-200/80 bg-white/80 p-1 dark:border-slate-700 dark:bg-slate-900/80">
+                <button id="topModelsTableViewButton" type="button"
+                  class="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-3 py-2 text-xs font-bold text-white transition hover:bg-primary-600 dark:bg-primary-500 dark:text-slate-950 dark:hover:bg-primary-400">
+                  <i data-lucide="table-properties" class="h-4 w-4"></i>
+                  <span>表格</span>
+                </button>
+                <button id="topModelsChartViewButton" type="button"
+                  class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 transition hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">
+                  <i data-lucide="chart-bar-big" class="h-4 w-4"></i>
+                  <span>图表</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div id="topModelsTableView" class="overflow-x-auto">
+            <table class="min-w-full border-separate border-spacing-y-3">
+              <thead>
+                <tr id="topModelsTableHead" class="text-left text-xs font-extrabold tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  <th class="px-4 py-2">模型</th>
+                  <th class="px-4 py-2">请求数</th>
+                  <th class="px-4 py-2">成功率</th>
+                  <th class="px-4 py-2">平均耗时</th>
+                  <th class="px-4 py-2">总 Tokens</th>
+                  <th class="px-4 py-2">总 Quota</th>
+                </tr>
+              </thead>
+              <tbody id="topModelsTable"></tbody>
+            </table>
+          </div>
+          <div id="topModelsChartView" class="mini-chart-panel hidden w-full"></div>
+        </section>
+      </div>
+
+      <!-- <section class="mt-4 rounded-[32px] bg-slate-950 px-8 py-14 text-white shadow-2xl shadow-slate-950/20">
+        <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div class="max-w-3xl">
+            <h2 class="text-3xl font-black tracking-tight md:text-4xl">一个密钥，访问所有模型</h2>
+            <p class="mt-4 text-sm leading-8 text-white/80 md:text-base">
+              发现、比较并集成数百个 AI 模型。统一 API，按量付费，即刻开始。
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <a id="ctaLink" href="#" target="_top"
+              class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-primary-400">开始使用</a>
+          </div>
+        </div>
+      </section> -->
+    </div>
+  </div>
+
+  <footer class="relative z-10 px-6 pb-10 pt-4">
+    <div class="mx-auto max-w-7xl">
+      <div
+        class="glass flex flex-col items-center justify-between gap-4 rounded-3xl px-6 py-5 text-center md:flex-row md:text-left">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 overflow-hidden rounded-2xl bg-white dark:bg-slate-900">
+            <img id="footerLogo" src="" alt="Logo" class="h-full w-full object-contain p-1">
+          </div>
+          <div>
+            <div id="footerName" class="text-sm font-bold text-slate-900 dark:text-white">Monitor</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400">Unified AI Gateway</div>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-4 text-sm text-slate-500 dark:text-slate-400">
+          <span>&copy; <span id="footerYear"></span> <span id="footerCopyright"></span>. All rights reserved.</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script>
+    const HOURS_PRESETS = [
+      { value: '1', label: '1H' },
+      { value: '2', label: '2H' },
+      { value: '6', label: '6H' },
+      { value: '12', label: '12H' },
+      { value: '24', label: '1D' },
+      { value: '48', label: '2D' },
+      { value: '72', label: '3D' },
+      { value: '168', label: '7D' },
+      { value: 'all', label: 'ALL' },
+    ];
+
+    let quotaPerUnit = 500000;
+    let autoRefreshTimer = null;
+    const pageSearchParams = new URLSearchParams(window.location.search);
+    const DASHBOARD_FILENAME = '/dashboard.html';
+    const initialMonitorApiToken = pageSearchParams.get('monitor_api_token')
+      || pageSearchParams.get('api_token')
+      || pageSearchParams.get('MONITOR_API_TOKEN')
+      || '';
+    const initialBasePath = (() => {
+      const pathname = String(window.location.pathname || '/').replace(/\/+$/, '') || '/';
+      if (pathname === '/' || pathname === DASHBOARD_FILENAME) {
+        return '';
+      }
+      if (pathname.endsWith(DASHBOARD_FILENAME)) {
+        return pathname.slice(0, -DASHBOARD_FILENAME.length) || '';
+      }
+      return pathname;
+    })();
+    const initialSearchAccess = (() => {
+      try {
+        return JSON.parse(sessionStorage.getItem('newapi-monitor-search-access') || 'null');
+      } catch (_error) {
+        return null;
+      }
+    })();
+
+    const state = {
+      basePath: initialBasePath,
+      loading: false,
+      data: null,
+      hours: '24',
+      customStart: null,
+      customEnd: null,
+      detailData: null,
+      detailMode: null,
+      detailExpandedModelName: null,
+      topModelsView: 'table',
+      topModelsSortField: 'totalQuota',
+      topModelsSortOrder: 'desc',
+      detailModelsSortField: 'totalQuota',
+      detailModelsSortOrder: 'desc',
+      expandedModelName: null,
+      trendMode: 'all',
+      trendModelName: '__all__',
+      trendModelData: null,
+      modelOptions: [],
+      monitorApiToken: initialMonitorApiToken.trim(),
+      geetestCaptchaId: '',
+      geetestEnabled: false,
+      searchAccessToken: '',
+      searchAccessTarget: '',
+      pendingSearchValue: '',
+      searchCaptcha: null,
+      searchCaptchaReady: false,
+    };
+    const systemThemeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+    let trendChartInstance = null;
+    let topModelsChartInstance = null;
+    let keyTrendChartInstance = null;
+    let searchCaptchaInitPromise = null;
+
+    const elements = {
+      keySearchInput: document.getElementById('keySearchInput'),
+      keySearchButton: document.getElementById('keySearchButton'),
+      keyClearButton: document.getElementById('keyClearButton'),
+      keyInfoSection: document.getElementById('keyInfoSection'),
+      dashboardContent: document.getElementById('dashboardContent'),
+      keyInfoCards: document.getElementById('keyInfoCards'),
+      detailMetaGrid: document.getElementById('detailMetaGrid'),
+      keyTrendChart: document.getElementById('keyTrendChart'),
+      keyModelsTable: document.getElementById('keyModelsTable'),
+      detailTrendEyebrow: document.getElementById('detailTrendEyebrow'),
+      detailTrendTitle: document.getElementById('detailTrendTitle'),
+      detailModelsEyebrow: document.getElementById('detailModelsEyebrow'),
+      keyModelsTableHead: document.getElementById('keyModelsTableHead'),
+      detailModelsTitle: document.getElementById('detailModelsTitle'),
+      hoursButtonGroup: document.getElementById('hoursButtonGroup'),
+      customTimeRange: document.getElementById('customTimeRange'),
+      customStartTime: document.getElementById('customStartTime'),
+      customEndTime: document.getElementById('customEndTime'),
+      customTimeApply: document.getElementById('customTimeApply'),
+      refreshButton: document.getElementById('refreshButton'),
+      overviewCards: document.getElementById('overviewCards'),
+      trendChart: document.getElementById('trendChart'),
+      trendModelSelectButton: document.getElementById('trendModelSelectButton'),
+      trendModelSelectLabel: document.getElementById('trendModelSelectLabel'),
+      trendModelDropdown: document.getElementById('trendModelDropdown'),
+      trendModelSearchInput: document.getElementById('trendModelSearchInput'),
+      trendModelOptions: document.getElementById('trendModelOptions'),
+      trendModelCards: document.getElementById('trendModelCards'),
+      topModelsTable: document.getElementById('topModelsTable'),
+      topModelsTableView: document.getElementById('topModelsTableView'),
+      topModelsChartView: document.getElementById('topModelsChartView'),
+      topModelsTableViewButton: document.getElementById('topModelsTableViewButton'),
+      topModelsChartViewButton: document.getElementById('topModelsChartViewButton'),
+      apiPathChip: document.getElementById('apiPathChip'),
+      lastUpdatedChip: document.getElementById('lastUpdatedChip'),
+      trendSummaryText: document.getElementById('trendSummaryText'),
+      trendRangeText: document.getElementById('trendRangeText'),
+      errorState: document.getElementById('errorState'),
+      errorMessage: document.getElementById('errorMessage'),
+    };
+
+    function getLocalStorageItem(key) {
+      try {
+        return localStorage.getItem(key);
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    function setLocalStorageItem(key, value) {
+      try {
+        localStorage.setItem(key, value);
+      } catch (_error) {
+        // Ignore localStorage failures in private mode or restricted contexts.
+      }
+    }
+
+    function getThemeMode() {
+      const themeMode = String(getLocalStorageItem('theme-mode') || '').trim().toLowerCase();
+      if (themeMode === 'light' || themeMode === 'dark' || themeMode === 'auto') {
+        return themeMode;
+      }
+
+      const legacyTheme = String(getLocalStorageItem('newapi-monitor-theme') || '').trim().toLowerCase();
+      if (legacyTheme === 'light' || legacyTheme === 'dark') {
+        return legacyTheme;
+      }
+
+      return 'auto';
+    }
+
+    function resolveTheme(mode = getThemeMode()) {
+      if (mode === 'light' || mode === 'dark') {
+        return mode;
+      }
+
+      const storedTheme = String(getLocalStorageItem('theme') || '').trim().toLowerCase();
+      if (storedTheme === 'light' || storedTheme === 'dark') {
+        return storedTheme;
+      }
+
+      return systemThemeMedia.matches ? 'dark' : 'light';
+    }
+
+    function syncThemeStorage(mode, theme) {
+      setLocalStorageItem('theme-mode', mode);
+      setLocalStorageItem('theme', theme);
+      setLocalStorageItem('newapi-monitor-theme', theme);
+    }
+
+    function applyTheme() {
+      const mode = getThemeMode();
+      const theme = resolveTheme(mode);
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      syncThemeStorage(mode, theme);
+      updateThemeIcon();
+    }
+
+    function toggleTheme() {
+      const currentMode = getThemeMode();
+      const nextMode = currentMode === 'light' ? 'dark' : currentMode === 'dark' ? 'auto' : 'light';
+      const nextTheme = resolveTheme(nextMode);
+      syncThemeStorage(nextMode, nextTheme);
+      document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+      updateThemeIcon();
+      lucide.createIcons();
+    }
+
+    function updateThemeIcon() {
+      const icon = document.getElementById('themeIcon');
+      if (icon) {
+        const isDark = document.documentElement.classList.contains('dark');
+        icon.setAttribute('data-lucide', isDark ? 'moon' : 'sun');
+      }
+    }
+
+    function getPlatformRootUrl() {
+      return `${window.location.origin}/`;
+    }
+
+    function buildPlatformConsoleUrl() {
+      return new URL('console', getPlatformRootUrl()).toString();
+    }
+
+    function applyPlatformUrl(url) {
+      const targetUrl = String(url || '').trim();
+      if (!targetUrl) {
+        return;
+      }
+
+      const platformLinks = [document.getElementById('headerPlatformLink'), document.getElementById('ctaLink')];
+      platformLinks.forEach((link) => {
+        if (!link) {
+          return;
+        }
+
+        link.href = targetUrl;
+        link.target = '_self';
+        if (link.dataset.boundNavigation === 'true') {
+          return;
+        }
+
+        link.dataset.boundNavigation = 'true';
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          window.location.assign(targetUrl);
+        });
+      });
+    }
+
+    function getSiteMetaFromLocalStorage() {
+      return {
+        docsLink: String(getLocalStorageItem('docs_link') || '').trim(),
+        systemName: String(getLocalStorageItem('system_name') || '').trim(),
+        logo: String(getLocalStorageItem('logo') || '').trim(),
+      };
+    }
+
+    function mergeSiteMeta(remoteMeta = {}) {
+      const localMeta = getSiteMetaFromLocalStorage();
+      return {
+        ...remoteMeta,
+        docsLink: localMeta.docsLink || remoteMeta.docsLink || '',
+        systemName: localMeta.systemName || remoteMeta.systemName || '',
+        logo: localMeta.logo || remoteMeta.logo || '',
+        serverAddress: buildPlatformConsoleUrl(),
+      };
+    }
+
+    function formatNumber(value) {
+      return Number(value || 0).toLocaleString('zh-CN');
+    }
+
+    function formatPercent(value) {
+      return `${Number(value || 0).toFixed(2)}%`;
+    }
+
+    function formatSeconds(value) {
+      return `${Number(value || 0).toFixed(2)}s`;
+    }
+
+    function formatCreditsFromQuota(value) {
+      const credits = Number(value || 0) / quotaPerUnit;
+      return credits.toLocaleString('zh-CN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+
+    function formatTimestamp(value) {
+      if (!value) return '-';
+      return new Date(Number(value) * 1000).toLocaleString('zh-CN', { hour12: false });
+    }
+
+    function formatNullableText(value, fallback = '-') {
+      if (value === null || value === undefined) return fallback;
+      const text = String(value).trim();
+      return text ? text : fallback;
+    }
+
+    function formatStatusLabel(value) {
+      return Number(value) === 1 ? '正常' : '已禁用';
+    }
+
+    function formatTimeLabel(value, isMinuteLevel) {
+      if (!value) return '-';
+      const date = new Date(Number(value) * 1000);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hour = String(date.getHours()).padStart(2, '0');
+      const minute = String(date.getMinutes()).padStart(2, '0');
+      if (isMinuteLevel) {
+        return `${hour}:${minute}`;
+      }
+      return `${month}-${day} ${hour}:00`;
+    }
+
+    function detectMinuteLevel(hourlyStats) {
+      if (hourlyStats.length < 2) return false;
+      const gap = Math.abs(Number(hourlyStats[1].hour) - Number(hourlyStats[0].hour));
+      return gap > 0 && gap <= 120;
+    }
+
+    function parseDetailSearchQuery(rawValue) {
+      const value = rawValue.trim();
+      if (!value) {
+        return null;
+      }
+
+      if (/^sk-/i.test(value)) {
+        return {
+          mode: 'key',
+          value,
+        };
+      }
+
+      if (/^\d+$/.test(value)) {
+        return {
+          mode: 'channel',
+          value,
+        };
+      }
+
+      return {
+        mode: 'user',
+        value,
+      };
+    }
+
+    function setDetailSectionCopy(mode) {
+      const isChannel = mode === 'channel';
+      const isUser = mode === 'user';
+      const label = isChannel ? '渠道' : isUser ? '用户' : 'Key';
+      const labelEn = isChannel ? 'Channel' : isUser ? 'User' : 'Key';
+      elements.detailTrendEyebrow.textContent = `${labelEn} Trend`;
+      elements.detailTrendTitle.textContent = `${label}使用趋势`;
+      elements.detailModelsEyebrow.textContent = `${labelEn} Models`;
+      elements.detailModelsTitle.textContent = `${label}模型排行`;
+    }
+
+    function renderHoursButtons() {
+      const activeClass = 'shrink-0 rounded-lg bg-primary-500 px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-primary-600 dark:bg-primary-500 dark:text-slate-950 dark:hover:bg-primary-400';
+      const inactiveClass = 'shrink-0 rounded-lg border border-slate-200/80 bg-white/80 px-2.5 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white';
+
+      const isCustom = state.hours === 'custom';
+      elements.hoursButtonGroup.innerHTML = HOURS_PRESETS.map((preset) => {
+        const isActive = !isCustom && state.hours === preset.value;
+        return `<button type="button" class="${isActive ? activeClass : inactiveClass}" data-hours-btn="${preset.value}">${preset.label}</button>`;
+      }).join('') + `<button type="button" class="${isCustom ? activeClass : inactiveClass}" data-hours-btn="custom">自定义</button>`;
+
+      elements.customTimeRange.classList.toggle('hidden', !isCustom);
+
+      elements.hoursButtonGroup.querySelectorAll('[data-hours-btn]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const value = button.getAttribute('data-hours-btn') || '24';
+          if (value === 'custom') {
+            state.hours = 'custom';
+            renderHoursButtons();
+            // Set default range: last 24h
+            const now = new Date();
+            const yesterday = new Date(now.getTime() - 24 * 3600 * 1000);
+            elements.customStartTime.value = yesterday.toISOString().slice(0, 16);
+            elements.customEndTime.value = now.toISOString().slice(0, 16);
+            return;
+          }
+          if (state.hours === value) return;
+          state.hours = value;
+          state.customStart = null;
+          state.customEnd = null;
+          state.expandedModelName = null;
+          renderHoursButtons();
+          hideError();
+          if (state.detailData && elements.keySearchInput.value.trim()) {
+            void loadDetailBySearch(elements.keySearchInput.value);
+          } else {
+            void loadDashboard();
+          }
+        });
+      });
+
+      // Custom time apply button
+      elements.customTimeApply.onclick = () => {
+        const startVal = elements.customStartTime.value;
+        const endVal = elements.customEndTime.value;
+        if (!startVal || !endVal) return;
+        const startTs = Math.floor(new Date(startVal).getTime() / 1000);
+        const endTs = Math.floor(new Date(endVal).getTime() / 1000);
+        if (endTs <= startTs) return;
+        // Store exact timestamps for API calls that support it
+        state.customStart = startTs;
+        state.customEnd = endTs;
+        // Convert to hours from start to now for APIs that only support hours
+        const nowTs = Math.floor(Date.now() / 1000);
+        const hoursFromNow = Math.ceil((nowTs - startTs) / 3600);
+        state.hours = String(hoursFromNow);
+        state.expandedModelName = null;
+        hideError();
+        if (state.detailData && elements.keySearchInput.value.trim()) {
+          void loadDetailBySearch(elements.keySearchInput.value);
+        } else {
+          void loadDashboard();
+        }
+      };
+    }
+
+    function renderTrendModelOptions(models) {
+      state.modelOptions = models;
+      const hasCurrent = state.trendModelName === '__all__' || models.some((model) => model.name === state.trendModelName);
+      if (!hasCurrent) {
+        state.trendModelName = '__all__';
+        state.trendMode = 'all';
+      }
+      elements.trendModelSelectLabel.textContent = state.trendModelName === '__all__' ? '总趋势' : state.trendModelName;
+      renderTrendModelOptionsList(elements.trendModelSearchInput.value.trim());
+    }
+
+    function renderTrendModelOptionsList(keyword = '') {
+      const term = keyword.trim().toLowerCase();
+      const options = [{ name: '__all__', label: '总趋势' }].concat(
+        state.modelOptions
+          .filter((model) => !term || model.name.toLowerCase().includes(term))
+          .map((model) => ({ name: model.name, label: model.name }))
+      );
+
+      elements.trendModelOptions.innerHTML = options.map((option) => {
+        const isSelected = state.trendModelName === option.name;
+        return `
+          <button
+            type="button"
+            class="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition ${isSelected
+            ? 'bg-primary-500/12 text-primary-700 dark:bg-primary-500/18 dark:text-primary-200'
+            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/80'
+          }"
+            data-model-option="${option.name}"
+          >
+            <span class="truncate">${option.label}</span>
+            ${isSelected ? '<i data-lucide="check" class="h-4 w-4"></i>' : ''}
+          </button>
+        `;
+      }).join('') || '<div class="px-3 py-4 text-sm text-slate-500 dark:text-slate-400">没有匹配的模型</div>';
+
+      elements.trendModelOptions.querySelectorAll('[data-model-option]').forEach((button) => {
+        button.addEventListener('click', () => {
+          state.trendModelName = button.getAttribute('data-model-option') || '__all__';
+          state.trendMode = state.trendModelName === '__all__' ? 'all' : 'model';
+          elements.trendModelSelectLabel.textContent = state.trendModelName === '__all__' ? '总趋势' : state.trendModelName;
+          elements.trendModelDropdown.classList.add('hidden');
+          elements.trendModelSearchInput.value = '';
+          renderTrendModelOptionsList('');
+          hideError();
+          void loadTrendBySelection();
+          lucide.createIcons();
+        });
+      });
+
+      lucide.createIcons();
+    }
+
+    function renderTrendModelCards(summary) {
+      if (!summary) {
+        elements.trendModelCards.classList.add('hidden');
+        elements.trendModelCards.innerHTML = '';
+        return;
+      }
+
+      const cards = [
+        { label: '模型请求数', value: formatNumber(summary.totalRecords), hint: `成功 ${formatNumber(summary.successRecords)} / 失败 ${formatNumber(summary.failedRecords)}`, icon: 'activity' },
+        { label: '模型成功率', value: formatPercent(summary.successRate), hint: `平均耗时 ${formatSeconds(summary.avgTime)}`, icon: 'shield-check' },
+        { label: '模型消耗额度', value: formatCreditsFromQuota(summary.totalQuota), hint: `总 Tokens ${formatNumber(summary.totalTokens)}`, icon: 'wallet-cards' },
+        { label: '活跃时段', value: formatNumber(summary.activeHours), hint: `峰值请求 ${formatNumber(summary.peakCount)}`, icon: 'clock-3' },
+      ];
+
+      elements.trendModelCards.innerHTML = cards.map((card) => `
+        <article class="metric-chip rounded-2xl px-4 py-4">
+          <div class="flex items-start justify-between gap-3">
+            <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">${card.label}</div>
+            <span class="section-icon shrink-0"><i data-lucide="${card.icon}" class="h-4 w-4"></i></span>
+          </div>
+          <div class="mt-3 text-2xl font-black text-slate-900 dark:text-white">${card.value}</div>
+          <div class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">${card.hint}</div>
+        </article>
+      `).join('');
+      elements.trendModelCards.classList.remove('hidden');
+    }
+
+    function setTopModelsView(view) {
+      state.topModelsView = view;
+      const isTable = view === 'table';
+
+      elements.topModelsTableView.classList.toggle('hidden', !isTable);
+      elements.topModelsChartView.classList.toggle('hidden', isTable);
+
+      const activeClass = 'inline-flex items-center gap-2 rounded-xl bg-primary-500 px-3 py-2 text-xs font-bold text-white transition hover:bg-primary-600 dark:bg-primary-500 dark:text-slate-950 dark:hover:bg-primary-400';
+      const inactiveClass = 'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 transition hover:text-slate-900 dark:text-slate-300 dark:hover:text-white';
+
+      elements.topModelsTableViewButton.className = isTable ? activeClass : inactiveClass;
+      elements.topModelsChartViewButton.className = isTable ? inactiveClass : activeClass;
+
+      if (!isTable && state.data?.top_models?.length) {
+        renderTopModelsChart(state.data.top_models);
+      }
+
+      lucide.createIcons();
+    }
+
+    function getAuthHeaders() {
+      return {};
+    }
+
+    function setSearchAccessToken(token) {
+      state.searchAccessToken = (token || '').trim();
+      if (state.searchAccessToken && state.searchAccessTarget) {
+        sessionStorage.setItem('newapi-monitor-search-access', JSON.stringify({
+          token: state.searchAccessToken,
+          target: state.searchAccessTarget,
+        }));
+      } else {
+        sessionStorage.removeItem('newapi-monitor-search-access');
+      }
+    }
+
+    function setSearchAccess(target, token) {
+      state.searchAccessTarget = (target || '').trim();
+      setSearchAccessToken(token);
+    }
+
+    async function revokeSearchAccessToken(token, options = {}) {
+      const searchToken = String(token || '').trim();
+      if (!searchToken) {
+        return;
+      }
+
+      try {
+        await fetch(buildApiUrl('/api/search/access/revoke', {}, {
+          includeSearchToken: false,
+        }), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ search_token: searchToken }),
+          keepalive: Boolean(options.keepalive),
+        });
+      } catch (_error) {
+        // Ignore revoke failures on unload or transient network errors.
+      }
+    }
+
+    function clearSearchAccess(options = {}) {
+      const previousToken = state.searchAccessToken;
+      state.searchAccessTarget = '';
+      setSearchAccessToken('');
+      if (options.revoke && previousToken) {
+        void revokeSearchAccessToken(previousToken, options);
+      }
+    }
+
+    function buildSearchTarget(scope, value) {
+      return `${scope}:${String(value || '').trim()}`;
+    }
+
+    function getSearchTargetFromRawValue(rawValue) {
+      const parsed = parseDetailSearchQuery(rawValue);
+      if (!parsed) {
+        return '';
+      }
+
+      return buildSearchTarget(parsed.mode, parsed.value);
+    }
+
+    function hasSearchAccessForRawValue(rawValue) {
+      const target = getSearchTargetFromRawValue(rawValue);
+      return Boolean(target && state.searchAccessToken && state.searchAccessTarget === target);
+    }
+
+    function withBasePath(path) {
+      const normalizedPath = String(path || '').startsWith('/') ? String(path || '') : `/${String(path || '')}`;
+      return `${state.basePath}${normalizedPath}`;
+    }
+
+    function buildApiUrl(path, extraParams = {}, options = {}) {
+      const params = new URLSearchParams();
+
+      Object.entries(extraParams).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') {
+          return;
+        }
+        params.set(key, String(value));
+      });
+
+      if (options.includeMonitorApiToken !== false && state.monitorApiToken) {
+        params.set('monitor_api_token', state.monitorApiToken);
+      }
+
+      const canUseSearchToken = options.includeSearchToken !== false
+        && state.searchAccessToken
+        && (!options.searchTarget || options.searchTarget === state.searchAccessTarget);
+
+      if (canUseSearchToken) {
+        params.set('search_token', state.searchAccessToken);
+      }
+
+      const query = params.toString();
+      const fullPath = withBasePath(path);
+      return query ? `${fullPath}?${query}` : fullPath;
+    }
+
+    function rememberSearchAccessToken(payload, searchTarget) {
+      if (payload?.search_token) {
+        setSearchAccess(payload.search_target || searchTarget, payload.search_token);
+      }
+    }
+
+    function isSearchVerificationError(payload, response) {
+      if (response?.status !== 403) {
+        return false;
+      }
+
+      return payload?.code === 'SEARCH_CAPTCHA_REQUIRED'
+        || payload?.code === 'SEARCH_CAPTCHA_INVALID'
+        || payload?.code === 'SEARCH_VERIFICATION_REQUIRED';
+    }
+
+    async function ensureSearchCaptcha() {
+      if (!state.geetestEnabled || !state.geetestCaptchaId) {
+        throw new Error('搜索需要先完成验证，请联系管理员配置极验。');
+      }
+
+      if (state.searchCaptcha && state.searchCaptchaReady) {
+        return state.searchCaptcha;
+      }
+
+      if (searchCaptchaInitPromise) {
+        return searchCaptchaInitPromise;
+      }
+
+      if (typeof window.initGeetest4 !== 'function') {
+        throw new Error('极验脚本加载失败，请刷新页面重试');
+      }
+
+      searchCaptchaInitPromise = new Promise((resolve, reject) => {
+        window.initGeetest4({
+          captchaId: state.geetestCaptchaId,
+          product: 'bind',
+          language: 'zho',
+          protocol: window.location.protocol === 'https:' ? 'https://' : 'http://',
+        }, (captchaObj) => {
+          state.searchCaptcha = captchaObj;
+
+          captchaObj.onReady(() => {
+            state.searchCaptchaReady = true;
+            resolve(captchaObj);
+          });
+
+          captchaObj.onSuccess(() => {
+            const validate = captchaObj.getValidate();
+            const pendingValue = state.pendingSearchValue;
+            state.pendingSearchValue = '';
+
+            if (!validate || !pendingValue) {
+              captchaObj.reset();
+              return;
+            }
+
+            hideError();
+            void loadDetailBySearch(pendingValue, validate).finally(() => {
+              captchaObj.reset();
+            });
+          });
+
+          captchaObj.onError((error) => {
+            const message = error?.msg || '验证码加载失败，请稍后重试';
+            showError(message);
+            reject(new Error(message));
+          });
+
+          captchaObj.onClose(() => {
+            state.pendingSearchValue = '';
+          });
+        });
+      }).catch((error) => {
+        searchCaptchaInitPromise = null;
+        state.searchCaptcha = null;
+        state.searchCaptchaReady = false;
+        throw error;
+      });
+
+      return searchCaptchaInitPromise;
+    }
+
+    function setLoading(loading) {
+      state.loading = loading;
+      elements.refreshButton.disabled = loading;
+      elements.refreshButton.innerHTML = loading
+        ? '<i data-lucide="loader-circle" class="h-5 w-5 animate-spin"></i>'
+        : '<i data-lucide="refresh-cw" class="h-5 w-5"></i>';
+      lucide.createIcons();
+    }
+
+    function showError(message) {
+      elements.errorMessage.textContent = message;
+      elements.errorState.classList.remove('hidden');
+    }
+
+    function hideError() {
+      elements.errorState.classList.add('hidden');
+      elements.errorMessage.textContent = '';
+    }
+
+    function renderOverview(overview) {
+      const cards = [
+        { label: '总请求数', value: formatNumber(overview.totalRecords), hint: `成功 ${formatNumber(overview.successRecords)} / 失败 ${formatNumber(overview.failedRecords)}`, icon: 'waypoints' },
+        { label: '成功率', value: formatPercent(overview.successRate), hint: `平均耗时 ${formatSeconds(overview.avgTime)}`, icon: 'badge-check' },
+        { label: '消耗额度', value: formatCreditsFromQuota(overview.totalQuota), hint: `原始 Quota ${formatNumber(overview.totalQuota)}`, icon: 'coins' },
+        { label: '总 Tokens', value: formatNumber(overview.totalTokens), hint: `活跃小时 ${formatNumber(overview.activeHours)}`, icon: 'cpu' },
+      ];
+
+      elements.overviewCards.innerHTML = cards.map((card) => `
+        <article class="glass metric-card rounded-[24px] p-6">
+          <div class="flex items-start justify-between gap-4">
+            <div class="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">${card.label}</div>
+            <span class="section-icon shrink-0"><i data-lucide="${card.icon}" class="h-4 w-4"></i></span>
+          </div>
+          <div class="mt-4 text-3xl font-black text-slate-900 dark:text-white">${card.value}</div>
+          <div class="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">${card.hint}</div>
+        </article>
+      `).join('');
+    }
+
+    function renderTrend(hourlyStats, context = null) {
+      if (!hourlyStats.length) {
+        if (trendChartInstance) {
+          trendChartInstance.clear();
+        }
+        elements.trendChart.innerHTML = '<div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">暂无趋势数据</div>';
+        return;
+      }
+
+      const maxTotal = Math.max(...hourlyStats.map(item => item.total), 1);
+      if (context?.summary) {
+        elements.trendSummaryText.textContent = `${context.summary.modelName} | 成功率 ${formatPercent(context.summary.successRate)} | 峰值 ${formatNumber(maxTotal)} 次请求`;
+        elements.trendRangeText.textContent = `模型时间范围：${formatTimestamp(context.summary.firstUsedAt)} - ${formatTimestamp(context.summary.lastUsedAt)}`;
+      } else {
+        elements.trendSummaryText.textContent = `峰值 ${formatNumber(maxTotal)} 次请求`;
+        if (state.data?.overview) {
+          elements.trendRangeText.textContent = `数据时间范围：${formatTimestamp(state.data.overview.firstSeenAt)} - ${formatTimestamp(state.data.overview.lastSeenAt)}`;
+        }
+      }
+
+      if (!trendChartInstance) {
+        trendChartInstance = echarts.init(elements.trendChart, null, { renderer: 'canvas' });
+        window.addEventListener('resize', () => {
+          if (trendChartInstance) {
+            trendChartInstance.resize();
+          }
+        });
+      }
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const isMinuteLevel = detectMinuteLevel(hourlyStats);
+      const labels = hourlyStats.map(item => formatTimeLabel(item.hour, isMinuteLevel));
+      trendChartInstance.setOption({
+        animationDuration: 500,
+        animationDurationUpdate: 300,
+        grid: {
+          left: 20,
+          right: 20,
+          top: 50,
+          bottom: 20,
+          containLabel: true,
+        },
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: isDark ? 'rgba(15,23,42,0.94)' : 'rgba(255,255,255,0.96)',
+          borderColor: isDark ? 'rgba(45,212,191,0.18)' : 'rgba(15,23,42,0.08)',
+          textStyle: {
+            color: isDark ? '#e2e8f0' : '#0f172a',
+          },
+        },
+        legend: {
+          top: 0,
+          textStyle: {
+            color: isDark ? '#cbd5e1' : '#475569',
+            fontSize: 12,
+          },
+        },
+        xAxis: {
+          type: 'category',
+          data: labels,
+          axisLabel: {
+            show: false,
+            color: isDark ? '#94a3b8' : '#64748b',
+            fontSize: 11,
+            rotate: 25,
+          },
+          axisLine: {
+            lineStyle: {
+              color: isDark ? '#334155' : '#cbd5e1',
+            },
+          },
+          axisTick: {
+            show: false,
+          },
+        },
+        yAxis: [
+          {
+            type: 'value',
+            name: '请求数',
+            axisLabel: {
+              color: isDark ? '#94a3b8' : '#64748b',
+            },
+            splitLine: {
+              lineStyle: {
+                color: isDark ? 'rgba(148,163,184,0.10)' : 'rgba(148,163,184,0.18)',
+              },
+            },
+          },
+          {
+            type: 'value',
+            name: '耗时(s)',
+            axisLabel: {
+              color: isDark ? '#94a3b8' : '#64748b',
+            },
+            splitLine: {
+              show: false,
+            },
+          },
+        ],
+        series: [
+          {
+            name: '总请求',
+            type: 'bar',
+            barMaxWidth: 28,
+            itemStyle: {
+              borderRadius: [10, 10, 0, 0],
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: '#2dd4bf' },
+                { offset: 1, color: '#0d9488' },
+              ]),
+            },
+            data: hourlyStats.map(item => item.total),
+          },
+          {
+            name: '成功请求',
+            type: 'line',
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 7,
+            yAxisIndex: 0,
+            lineStyle: {
+              width: 3,
+              color: '#22c55e',
+            },
+            itemStyle: {
+              color: '#22c55e',
+            },
+            areaStyle: {
+              color: 'rgba(34,197,94,0.12)',
+            },
+            data: hourlyStats.map(item => item.success),
+          },
+          {
+            name: '失败请求',
+            type: 'line',
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 6,
+            yAxisIndex: 0,
+            lineStyle: {
+              width: 3,
+              color: '#ef4444',
+            },
+            itemStyle: {
+              color: '#ef4444',
+            },
+            areaStyle: {
+              color: 'rgba(239,68,68,0.10)',
+            },
+            data: hourlyStats.map(item => item.failed),
+          },
+          {
+            name: '平均耗时',
+            type: 'line',
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 6,
+            yAxisIndex: 1,
+            lineStyle: {
+              width: 2,
+              color: '#f59e0b',
+            },
+            itemStyle: {
+              color: '#f59e0b',
+            },
+            data: hourlyStats.map(item => Number(item.avgTime || 0)),
+          },
+        ],
+      });
+    }
+
+    async function loadTrendBySelection() {
+      if (!state.data) {
+        return;
+      }
+
+      const selected = state.trendModelName;
+      state.trendModelName = selected;
+
+      if (selected === '__all__') {
+        state.trendMode = 'all';
+        state.trendModelData = null;
+        renderTrendModelCards(null);
+        renderTrend(state.data.hourly_stats, null);
+        return;
+      }
+
+      state.trendMode = 'model';
+      try {
+        const hours = state.hours;
+        const response = await fetch(buildApiUrl('/api/logs', {
+          model_name: selected,
+          hours,
+        }, {
+          includeSearchToken: false,
+        }), {
+          headers: {
+            ...getAuthHeaders(),
+          },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.message || `请求失败 (${response.status})`);
+        }
+
+        state.trendModelData = payload.data;
+        renderTrendModelCards(payload.data.summary);
+        renderTrend(payload.data.hourly_stats || [], payload.data);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '模型趋势加载失败');
+      } finally {
+        lucide.createIcons();
+      }
+    }
+
+    const TOP_MODEL_COLUMNS = [
+      { label: '模型', field: null },
+      { label: '请求数', field: 'count' },
+      { label: '成功率', field: 'successRate' },
+      { label: '平均耗时', field: 'avgTime' },
+      { label: '总 Tokens', field: 'totalTokens' },
+      { label: '总 Quota', field: 'totalQuota' },
+    ];
+
+    function renderTopModelsHead() {
+      const headRow = document.getElementById('topModelsTableHead');
+      if (!headRow) return;
+      headRow.innerHTML = TOP_MODEL_COLUMNS.map(col => {
+        if (!col.field) return `<th class="px-4 py-2">${col.label}</th>`;
+        const isActive = state.topModelsSortField === col.field;
+        const arrow = isActive
+          ? (state.topModelsSortOrder === 'desc' ? '↓' : '↑')
+          : '↕';
+        const activeClass = isActive ? 'text-primary-600 dark:text-primary-400' : '';
+        return `<th class="px-4 py-2 cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-200 transition-colors ${activeClass}" data-sort-field="${col.field}">
+          ${col.label} <span class="ml-0.5 text-[10px] opacity-60">${arrow}</span>
+        </th>`;
+      }).join('');
+      headRow.querySelectorAll('[data-sort-field]').forEach(th => {
+        th.addEventListener('click', () => {
+          const field = th.getAttribute('data-sort-field');
+          if (state.topModelsSortField === field) {
+            state.topModelsSortOrder = state.topModelsSortOrder === 'desc' ? 'asc' : 'desc';
+          } else {
+            state.topModelsSortField = field;
+            state.topModelsSortOrder = 'desc';
+          }
+          if (state.data?.top_models) renderTopModels(state.data.top_models);
+        });
+      });
+    }
+
+    function renderTopModels(topModels) {
+      renderTopModelsHead();
+
+      if (!topModels.length) {
+        elements.topModelsTable.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">暂无模型排行数据</td></tr>';
+        if (topModelsChartInstance) {
+          topModelsChartInstance.clear();
+        }
+        return;
+      }
+
+      // Sort data
+      let sorted = [...topModels];
+      if (state.topModelsSortField) {
+        sorted.sort((a, b) => {
+          const av = a[state.topModelsSortField] ?? 0;
+          const bv = b[state.topModelsSortField] ?? 0;
+          return state.topModelsSortOrder === 'desc' ? bv - av : av - bv;
+        });
+      }
+
+      elements.topModelsTable.innerHTML = sorted.map((model) => {
+        const isSelected = state.trendMode === 'model' && state.trendModelName === model.name;
+        const isExpanded = state.expandedModelName === model.name;
+        return `
+          <tr class="rounded-2xl text-sm text-slate-700 dark:text-slate-200 ${isSelected ? 'selected-model-row' : 'bg-white/70 dark:bg-slate-900/70'}">
+            <td class="rounded-l-2xl px-4 py-4">
+              <button type="button" class="flex w-full items-center gap-3 text-left" data-model-row="${model.name}">
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-primary-500/10 text-primary-600 dark:bg-primary-500/20 dark:text-primary-300">
+                  <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" class="h-4 w-4"></i>
+                </span>
+                <div class="min-w-0">
+                  <div class="truncate font-mono text-base font-bold text-slate-800 dark:text-white">${model.name}</div>
+                  ${isSelected ? '<div class="mt-1 text-[11px] font-bold text-primary-600 dark:text-primary-300">当前趋势模型</div>' : ''}
+                </div>
+              </button>
+            </td>
+            <td class="px-4 py-4">${formatNumber(model.count)}</td>
+            <td class="px-4 py-4">${formatPercent(model.successRate)}</td>
+            <td class="px-4 py-4">${formatSeconds(model.avgTime)}</td>
+            <td class="px-4 py-4">${formatNumber(model.totalTokens)}</td>
+            <td class="rounded-r-2xl px-4 py-4">${formatCreditsFromQuota(model.totalQuota)}</td>
+          </tr>
+          ${isExpanded ? `
+            <tr>
+              <td colspan="6" class="px-2 pt-0">
+                <div class="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-4 dark:border-slate-700 dark:bg-slate-900/70">
+                  <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div class="metric-chip rounded-xl px-3 py-3">
+                      <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">最近使用</div>
+                      <div class="mt-1.5 text-sm font-bold text-slate-900 dark:text-white">${formatTimestamp(model.lastUsedAt)}</div>
+                    </div>
+                    <div class="metric-chip rounded-xl px-3 py-3">
+                      <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">输入 Tokens</div>
+                      <div class="mt-1.5 text-sm font-bold text-slate-900 dark:text-white">${formatNumber(model.totalPromptTokens)}</div>
+                    </div>
+                    <div class="metric-chip rounded-xl px-3 py-3">
+                      <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">输出 Tokens</div>
+                      <div class="mt-1.5 text-sm font-bold text-slate-900 dark:text-white">${formatNumber(model.totalCompletionTokens)}</div>
+                    </div>
+                    <div class="metric-chip rounded-xl px-3 py-3">
+                      <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">失败次数</div>
+                      <div class="mt-1.5 text-sm font-bold text-slate-900 dark:text-white">${formatNumber(model.failedCount)}</div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          ` : ''}
+        `;
+      }).join('');
+
+      elements.topModelsTable.querySelectorAll('[data-model-row]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const modelName = button.getAttribute('data-model-row');
+          state.expandedModelName = state.expandedModelName === modelName ? null : modelName;
+          renderTopModels(state.data?.top_models || topModels);
+          lucide.createIcons();
+        });
+      });
+
+      lucide.createIcons();
+    }
+
+    function renderTopModelsChart(topModels) {
+      if (!topModels.length) {
+        if (topModelsChartInstance) {
+          topModelsChartInstance.clear();
+        }
+        return;
+      }
+
+      if (!topModelsChartInstance) {
+        topModelsChartInstance = echarts.init(elements.topModelsChartView, null, { renderer: 'canvas' });
+        window.addEventListener('resize', () => {
+          if (topModelsChartInstance) {
+            topModelsChartInstance.resize();
+          }
+        });
+      }
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const models = topModels.slice(0, 6);
+      const radarColors = ['#14b8a6', '#22c55e', '#f59e0b', '#8b5cf6', '#ef4444', '#3b82f6'];
+      const maxCount = Math.max(...models.map((model) => Number(model.count || 0)), 1);
+      const maxTokens = Math.max(...models.map((model) => Number(model.totalTokens || 0)), 1);
+      const maxCredits = Math.max(...models.map((model) => Number(model.totalQuota || 0) / quotaPerUnit), 1);
+      const maxActiveHours = Math.max(...models.map((model) => Number(model.activeHours || 0)), 1);
+      const maxAvgTime = Math.max(...models.map((model) => Number(model.avgTime || 0)), 1);
+
+      const radarIndicators = [
+        { name: '请求量', max: 100 },
+        { name: '成功率', max: 100 },
+        { name: '响应速度', max: 100 },
+        { name: '总 Tokens', max: 100 },
+        { name: '消耗额度', max: 100 },
+        { name: '活跃时段', max: 100 },
+      ];
+
+      const radarSeriesData = models.map((model) => {
+        const credits = Number(model.totalQuota || 0) / quotaPerUnit;
+        const avgTime = Number(model.avgTime || 0);
+        const speedScore = maxAvgTime > 0 ? Math.max(0, 100 - (avgTime / maxAvgTime) * 100) : 100;
+
+        return {
+          name: model.name,
+          value: [
+            Number(((Number(model.count || 0) / maxCount) * 100).toFixed(2)),
+            Number(model.successRate || 0),
+            Number(speedScore.toFixed(2)),
+            Number(((Number(model.totalTokens || 0) / maxTokens) * 100).toFixed(2)),
+            Number(((credits / maxCredits) * 100).toFixed(2)),
+            Number(((Number(model.activeHours || 0) / maxActiveHours) * 100).toFixed(2)),
+          ],
+          raw: model,
+        };
+      });
+
+      topModelsChartInstance.setOption({
+        animationDuration: 500,
+        animationDurationUpdate: 300,
+        tooltip: {
+          trigger: 'item',
+          backgroundColor: isDark ? 'rgba(15,23,42,0.94)' : 'rgba(255,255,255,0.96)',
+          borderColor: isDark ? 'rgba(45,212,191,0.18)' : 'rgba(15,23,42,0.08)',
+          textStyle: {
+            color: isDark ? '#e2e8f0' : '#0f172a',
+          },
+          formatter: (params) => {
+            const raw = params.data.raw;
+            return [
+              `<div style="font-weight:700;margin-bottom:6px;">${raw.name}</div>`,
+              `请求数：${formatNumber(raw.count)}`,
+              `成功率：${formatPercent(raw.successRate)}`,
+              `平均耗时：${formatSeconds(raw.avgTime)}`,
+              `总 Tokens：${formatNumber(raw.totalTokens)}`,
+              `消耗额度：${formatCreditsFromQuota(raw.totalQuota)}`,
+              `活跃时段：${formatNumber(raw.activeHours)}`,
+            ].join('<br/>');
+          },
+        },
+        legend: {
+          top: 'middle',
+          right: 0,
+          orient: 'vertical',
+          textStyle: {
+            color: isDark ? '#cbd5e1' : '#475569',
+            fontSize: 12,
+            width: 170,
+            overflow: 'truncate',
+          },
+          type: 'scroll',
+          pageTextStyle: {
+            color: isDark ? '#cbd5e1' : '#475569',
+          },
+          pageIconColor: isDark ? '#5eead4' : '#0d9488',
+          pageIconInactiveColor: isDark ? '#475569' : '#94a3b8',
+          itemWidth: 14,
+          itemHeight: 10,
+          itemGap: 14,
+          data: models.map((model) => model.name),
+        },
+        radar: {
+          center: ['34%', '56%'],
+          radius: '58%',
+          indicator: radarIndicators,
+          splitNumber: 5,
+          axisName: {
+            color: isDark ? '#e2e8f0' : '#334155',
+            fontSize: 12,
+            fontWeight: 700,
+          },
+          axisLine: {
+            lineStyle: {
+              color: isDark ? 'rgba(148,163,184,0.18)' : 'rgba(148,163,184,0.26)',
+            },
+          },
+          splitLine: {
+            lineStyle: {
+              color: isDark ? 'rgba(148,163,184,0.14)' : 'rgba(148,163,184,0.18)',
+            },
+          },
+          splitArea: {
+            areaStyle: {
+              color: isDark
+                ? ['rgba(15,23,42,0.12)', 'rgba(15,23,42,0.04)']
+                : ['rgba(255,255,255,0.12)', 'rgba(255,255,255,0.04)'],
+            },
+          },
+        },
+        color: radarColors,
+        series: [
+          {
+            type: 'radar',
+            symbol: 'circle',
+            symbolSize: 6,
+            data: radarSeriesData,
+            lineStyle: {
+              width: 2.5,
+            },
+            itemStyle: {
+              borderWidth: 2,
+              borderColor: isDark ? '#0f172a' : '#ffffff',
+            },
+            areaStyle: {
+              opacity: 0.14,
+            },
+            emphasis: {
+              lineStyle: {
+                width: 3.5,
+              },
+              areaStyle: {
+                opacity: 0.20,
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    function clearDetailInfo() {
+      state.detailData = null;
+      state.detailMode = null;
+      state.detailExpandedModelName = null;
+      elements.keyInfoSection.classList.add('hidden');
+      elements.dashboardContent.classList.remove('hidden');
+      elements.keyInfoCards.innerHTML = '';
+      elements.detailMetaGrid.innerHTML = '';
+      elements.detailMetaGrid.classList.add('hidden');
+      elements.keyModelsTable.innerHTML = '';
+      setDetailSectionCopy('key');
+      if (keyTrendChartInstance) {
+        keyTrendChartInstance.clear();
+      }
+    }
+
+    function renderDetailMeta(items) {
+      const visibleItems = items.filter((item) => item && item.label);
+      if (!visibleItems.length) {
+        elements.detailMetaGrid.innerHTML = '';
+        elements.detailMetaGrid.classList.add('hidden');
+        return;
+      }
+
+      elements.detailMetaGrid.innerHTML = visibleItems.map((item) => `
+        <article class="glass metric-card rounded-[24px] p-6">
+          <div class="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">${item.label}</div>
+          <div class="mt-4 text-2xl font-black text-slate-900 dark:text-white">${item.value}</div>
+          <div class="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">${item.hint || '&nbsp;'}</div>
+        </article>
+      `).join('');
+      elements.detailMetaGrid.classList.remove('hidden');
+    }
+
+    function renderKeyInfo(data) {
+      state.detailData = data;
+      const isUserMode = data.token && data.token.tokenId === 0;
+      state.detailMode = isUserMode ? 'user' : 'key';
+      state.detailExpandedModelName = null;
+      setDetailSectionCopy(isUserMode ? 'user' : 'key');
+      const token = data.token;
+      const user = data.user;
+      const usage = data.usage_summary;
+
+      const statusLabel = formatStatusLabel(token.status);
+      const quotaLabel = token.unlimitedQuota ? '无限额度' : `剩余 ${formatCreditsFromQuota(token.remainQuota)}`;
+      const totalQuota = Number(token.usedQuota || 0) + Number(token.remainQuota || 0);
+      const shouldShowQuotaProgress = !token.unlimitedQuota && totalQuota > 0;
+      const quotaUsagePercent = shouldShowQuotaProgress
+        ? Math.min(100, Math.max(0, (Number(token.usedQuota || 0) / totalQuota) * 100))
+        : 0;
+
+      const cards = [
+        {
+          label: 'Key 信息',
+          value: token.name,
+          hint: `${token.maskedKey} · ${formatNullableText(token.group)} · ${statusLabel}`,
+          icon: 'key-round',
+        },
+      ];
+
+      elements.keyInfoCards.innerHTML = cards.map((card) => `
+        <article class="glass metric-card rounded-[28px] p-6 md:p-7 xl:col-span-4">
+          <div class="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)] xl:items-start">
+            <div class="flex h-full min-h-[280px] flex-col">
+              <div class="flex items-center gap-3">
+                <span class="section-icon shrink-0"><i data-lucide="${card.icon}" class="h-4 w-4"></i></span>
+                <div class="text-xs font-extrabold uppercase tracking-[0.22em] text-primary-700 dark:text-primary-300">${card.label}</div>
+              </div>
+              <div class="flex flex-1 flex-col justify-center">
+                <div class="text-3xl font-black tracking-tight text-slate-900 dark:text-white md:text-4xl">${card.value}</div>
+                <div class="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">${card.hint}</div>
+                ${shouldShowQuotaProgress ? `
+                <div class="mt-5 max-w-xl">
+                  <div class="mb-2 flex items-center justify-between gap-4 text-xs font-bold text-slate-500 dark:text-slate-400">
+                    <span>使用进度 ${quotaUsagePercent.toFixed(2)}%</span>
+                    <span>${formatCreditsFromQuota(token.usedQuota)} / ${formatCreditsFromQuota(totalQuota)}</span>
+                  </div>
+                  <div class="h-2.5 overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800/80">
+                    <div class="h-full rounded-full bg-gradient-to-r from-primary-500 via-cyan-500 to-emerald-500" style="width: ${quotaUsagePercent.toFixed(2)}%"></div>
+                  </div>
+                </div>
+                ` : ''}
+                <div class="mt-5 flex flex-wrap gap-2">
+                  <span class="metric-chip rounded-full px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">用户 ${user.username}</span>
+                  <span class="metric-chip rounded-full px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">${formatNullableText(user.displayName)}</span>
+                  <span class="metric-chip rounded-full px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">成功率 ${formatPercent(usage.successRate)}</span>
+                  <span class="metric-chip rounded-full px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">${formatNumber(usage.modelCount)} 个模型</span>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-[24px] border border-primary-400/30 bg-gradient-to-br from-primary-600 via-cyan-600 to-emerald-600 p-5 text-white shadow-glow">
+              <div class="text-xs font-extrabold uppercase tracking-[0.18em] text-white/80">额度状态</div>
+              <div class="mt-3 text-3xl font-black text-white">${quotaLabel}</div>
+              <div class="mt-2 text-sm leading-7 text-white/85">已用 ${formatCreditsFromQuota(token.usedQuota)} · 累计请求 ${formatNumber(user.requestCount)} 次</div>
+              <div class="mt-5 space-y-3 text-sm">
+                <div class="flex items-center justify-between gap-4 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                  <span class="font-bold text-white/80">Key 汇总</span>
+                  <span class="font-black text-white">${formatNumber(usage.totalRecords)} 次</span>
+                </div>
+                <div class="flex items-center justify-between gap-4 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                  <span class="font-bold text-white/80">总 Tokens</span>
+                  <span class="font-black text-white">${formatNumber(usage.totalTokens)}</span>
+                </div>
+                <div class="flex items-center justify-between gap-4 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                  <span class="font-bold text-white/80">当前状态</span>
+                  <span class="font-black text-white">${statusLabel}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-4 xl:grid-cols-2">
+            <div class="metric-chip rounded-[24px] px-5 py-5">
+              <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">时间信息</div>
+              <div class="mt-4 space-y-3 text-sm">
+                <div class="flex items-center justify-between gap-4">
+                  <span class="text-slate-500 dark:text-slate-400">创建时间</span>
+                  <span class="font-bold text-slate-900 dark:text-white">${formatTimestamp(token.createdTime)}</span>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                  <span class="text-slate-500 dark:text-slate-400">最近访问</span>
+                  <span class="font-bold text-slate-900 dark:text-white">${formatTimestamp(token.accessedTime)}</span>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                  <span class="text-slate-500 dark:text-slate-400">过期时间</span>
+                  <span class="font-bold text-slate-900 dark:text-white">${Number(token.expiredTime) === -1 ? '不过期' : formatTimestamp(token.expiredTime)}</span>
+                </div>
+              </div>
+            </div>
+            <div class="metric-chip rounded-[24px] px-5 py-5">
+              <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">用户信息</div>
+              <div class="mt-4 space-y-3 text-sm">
+                <div class="flex items-center justify-between gap-4">
+                  <span class="text-slate-500 dark:text-slate-400">用户 ID</span>
+                  <span class="font-bold text-slate-900 dark:text-white">${formatNullableText(user.userId)}</span>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                  <span class="text-slate-500 dark:text-slate-400">用户额度</span>
+                  <span class="font-bold text-slate-900 dark:text-white">${formatCreditsFromQuota(user.remainQuota)}</span>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                  <span class="text-slate-500 dark:text-slate-400">累计已用</span>
+                  <span class="font-bold text-slate-900 dark:text-white">${formatCreditsFromQuota(user.usedQuota)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      `).join('');
+
+      elements.detailMetaGrid.innerHTML = '';
+      elements.detailMetaGrid.classList.add('hidden');
+
+      renderKeyModelsTable(data.top_models || []);
+
+      elements.dashboardContent.classList.add('hidden');
+      elements.keyInfoSection.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        renderKeyTrendChart(data.hourly_stats || []);
+        lucide.createIcons();
+      });
+    }
+
+    function renderChannelInfo(data) {
+      state.detailData = data;
+      state.detailMode = 'channel';
+      state.detailExpandedModelName = null;
+      setDetailSectionCopy('channel');
+
+      const channel = data.channel;
+      const usage = data.usage_summary;
+      const statusLabel = formatStatusLabel(channel.status);
+      const autoBanLabel = Number(channel.autoBan) === 1 ? '开启' : '关闭';
+      const tagLabel = channel.tag ? channel.tag : '无标签';
+
+      const cards = [
+        {
+          label: '渠道信息',
+          value: `#${channel.channelId}`,
+          hint: `类型 ${formatNumber(channel.channelType)} · ${statusLabel}`,
+          icon: 'waypoints',
+        },
+        {
+          label: '响应与消耗',
+          value: `${formatNumber(channel.responseTime)} ms`,
+          hint: `已用 ${formatCreditsFromQuota(channel.usedQuota)} · 余额 ${formatNumber(channel.balance)}`,
+          icon: 'gauge',
+        },
+        {
+          label: '路由配置',
+          value: `优先级 ${formatNumber(channel.priority)}`,
+          hint: `权重 ${formatNumber(channel.weight)} · 自动封禁 ${autoBanLabel} · ${tagLabel}`,
+          icon: 'git-branch-plus',
+        },
+        {
+          label: '渠道汇总',
+          value: `${formatNumber(usage.totalRecords)} 次`,
+          hint: `成功率 ${formatPercent(usage.successRate)} · 失败 ${formatNumber(usage.failedRecords)}`,
+          icon: 'bar-chart-3',
+        },
+      ];
+
+      elements.keyInfoCards.innerHTML = cards.map((card) => `
+        <article class="glass metric-card rounded-[24px] p-6">
+          <div class="flex items-start justify-between gap-4">
+            <div class="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">${card.label}</div>
+            <span class="section-icon shrink-0"><i data-lucide="${card.icon}" class="h-4 w-4"></i></span>
+          </div>
+          <div class="mt-4 text-2xl font-black text-slate-900 dark:text-white">${card.value}</div>
+          <div class="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">${card.hint}</div>
+        </article>
+      `).join('');
+
+      renderDetailMeta([
+        {
+          label: '创建时间',
+          value: formatTimestamp(channel.createdTime),
+          hint: `最近测试 ${formatTimestamp(channel.testTime)}`,
+        },
+        {
+          label: '平均耗时',
+          value: formatSeconds(usage.avgTime),
+          hint: `成功率 ${formatPercent(usage.successRate)}`,
+        },
+        {
+          label: '历史额度',
+          value: formatCreditsFromQuota(usage.totalQuota),
+          hint: `总 Tokens ${formatNumber(usage.totalTokens)}`,
+        },
+        {
+          label: '输入 Tokens',
+          value: formatNumber(usage.totalPromptTokens),
+          hint: `输出 ${formatNumber(usage.totalCompletionTokens)}`,
+        },
+      ]);
+
+      renderKeyModelsTable(data.top_models || []);
+
+      elements.dashboardContent.classList.add('hidden');
+      elements.keyInfoSection.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        renderKeyTrendChart(data.hourly_stats || []);
+        lucide.createIcons();
+      });
+    }
+
+    function renderKeyTrendChart(hourlyStats) {
+      if (!hourlyStats.length) {
+        if (keyTrendChartInstance) {
+          keyTrendChartInstance.clear();
+        }
+        elements.keyTrendChart.innerHTML = '<div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">暂无趋势数据</div>';
+        return;
+      }
+
+      if (keyTrendChartInstance) {
+        keyTrendChartInstance.dispose();
+      }
+      keyTrendChartInstance = echarts.init(elements.keyTrendChart, null, { renderer: 'canvas' });
+      window.addEventListener('resize', () => {
+        if (keyTrendChartInstance) {
+          keyTrendChartInstance.resize();
+        }
+      });
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const isMinute = detectMinuteLevel(hourlyStats);
+      const labels = hourlyStats.map((item) => formatTimeLabel(item.hour, isMinute));
+      const showQuotaSeries = state.detailMode === 'channel' && hourlyStats.some((item) => Number(item.totalQuota || 0) > 0);
+
+      keyTrendChartInstance.setOption({
+        animationDuration: 500,
+        grid: { left: 20, right: 20, top: 50, bottom: 20, containLabel: true },
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: isDark ? 'rgba(15,23,42,0.94)' : 'rgba(255,255,255,0.96)',
+          borderColor: isDark ? 'rgba(45,212,191,0.18)' : 'rgba(15,23,42,0.08)',
+          textStyle: { color: isDark ? '#e2e8f0' : '#0f172a' },
+        },
+        legend: { top: 0, textStyle: { color: isDark ? '#cbd5e1' : '#475569', fontSize: 12 } },
+        xAxis: {
+          type: 'category',
+          data: labels,
+          axisLabel: { show: false },
+          axisLine: { lineStyle: { color: isDark ? '#334155' : '#cbd5e1' } },
+          axisTick: { show: false },
+        },
+        yAxis: [
+          { type: 'value', name: '请求数', axisLabel: { color: isDark ? '#94a3b8' : '#64748b' }, splitLine: { lineStyle: { color: isDark ? 'rgba(148,163,184,0.10)' : 'rgba(148,163,184,0.18)' } } },
+          ...(showQuotaSeries ? [{
+            type: 'value',
+            name: 'Quota',
+            axisLabel: { color: isDark ? '#94a3b8' : '#64748b' },
+            splitLine: { show: false },
+          }] : []),
+        ],
+        series: [
+          {
+            name: '总请求',
+            type: 'bar',
+            barMaxWidth: 28,
+            itemStyle: {
+              borderRadius: [10, 10, 0, 0],
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: '#2dd4bf' },
+                { offset: 1, color: '#0d9488' },
+              ]),
+            },
+            data: hourlyStats.map((item) => item.total),
+          },
+          {
+            name: '成功请求',
+            type: 'line',
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 7,
+            lineStyle: { width: 3, color: '#22c55e' },
+            itemStyle: { color: '#22c55e' },
+            areaStyle: { color: 'rgba(34,197,94,0.12)' },
+            data: hourlyStats.map((item) => item.success),
+          },
+          {
+            name: '失败请求',
+            type: 'line',
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 6,
+            lineStyle: { width: 3, color: '#ef4444' },
+            itemStyle: { color: '#ef4444' },
+            areaStyle: { color: 'rgba(239,68,68,0.10)' },
+            data: hourlyStats.map((item) => item.failed),
+          },
+          ...(showQuotaSeries ? [{
+            name: '消耗额度',
+            type: 'line',
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 6,
+            yAxisIndex: 1,
+            lineStyle: { width: 2, color: '#8b5cf6' },
+            itemStyle: { color: '#8b5cf6' },
+            areaStyle: { color: 'rgba(139,92,246,0.10)' },
+            data: hourlyStats.map((item) => Number(item.totalQuota || 0)),
+          }] : []),
+        ],
+      });
+    }
+
+    const KEY_MODEL_COLUMNS = [
+      { label: '模型', field: null },
+      { label: '请求数', field: 'count' },
+      { label: '成功率', field: 'successRate' },
+      { label: '平均耗时', field: 'avgTime' },
+      { label: '总 Tokens', field: 'totalTokens' },
+      { label: '消耗额度', field: 'totalQuota' },
+    ];
+
+    function renderKeyModelsHead() {
+      const headRow = elements.keyModelsTableHead;
+      if (!headRow) return;
+      headRow.innerHTML = KEY_MODEL_COLUMNS.map(col => {
+        if (!col.field) return `<th class="px-4 py-2">${col.label}</th>`;
+        const isActive = state.detailModelsSortField === col.field;
+        const arrow = isActive
+          ? (state.detailModelsSortOrder === 'desc' ? '↓' : '↑')
+          : '↕';
+        const activeClass = isActive ? 'text-primary-600 dark:text-primary-400' : '';
+        return `<th class="px-4 py-2 cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-200 transition-colors ${activeClass}" data-detail-sort-field="${col.field}">
+          ${col.label} <span class="ml-0.5 text-[10px] opacity-60">${arrow}</span>
+        </th>`;
+      }).join('');
+      headRow.querySelectorAll('[data-detail-sort-field]').forEach(th => {
+        th.addEventListener('click', () => {
+          const field = th.getAttribute('data-detail-sort-field');
+          if (state.detailModelsSortField === field) {
+            state.detailModelsSortOrder = state.detailModelsSortOrder === 'desc' ? 'asc' : 'desc';
+          } else {
+            state.detailModelsSortField = field;
+            state.detailModelsSortOrder = 'desc';
+          }
+          if (state.detailData?.top_models) renderKeyModelsTable(state.detailData.top_models);
+        });
+      });
+    }
+
+    function renderKeyModelsTable(topModels) {
+      renderKeyModelsHead();
+      if (!topModels.length) {
+        elements.keyModelsTable.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">暂无模型数据</td></tr>';
+        return;
+      }
+
+      // Sort data
+      let sorted = [...topModels];
+      if (state.detailModelsSortField) {
+        sorted.sort((a, b) => {
+          const av = a[state.detailModelsSortField] ?? 0;
+          const bv = b[state.detailModelsSortField] ?? 0;
+          return state.detailModelsSortOrder === 'desc' ? bv - av : av - bv;
+        });
+      }
+
+      const isChannelMode = state.detailMode === 'channel';
+      elements.keyModelsTable.innerHTML = sorted.map((model) => {
+        const isExpanded = state.detailExpandedModelName === model.name;
+        return `
+          <tr class="rounded-2xl bg-white/70 text-sm text-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+            <td class="rounded-l-2xl px-4 py-4">
+              <button type="button" class="flex w-full items-center gap-3 text-left" data-detail-model-row="${model.name}">
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-primary-500/10 text-primary-600 dark:bg-primary-500/20 dark:text-primary-300">
+                  <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" class="h-4 w-4"></i>
+                </span>
+                <div class="min-w-0 font-mono text-base font-bold text-slate-800 dark:text-white">${model.name}</div>
+              </button>
+            </td>
+            <td class="px-4 py-4">${formatNumber(model.count)}</td>
+            <td class="px-4 py-4">${formatPercent(model.successRate)}</td>
+            <td class="px-4 py-4">${formatSeconds(model.avgTime)}</td>
+            <td class="px-4 py-4">${formatNumber(model.totalTokens)}</td>
+            <td class="rounded-r-2xl px-4 py-4">${formatCreditsFromQuota(model.totalQuota)}</td>
+          </tr>
+          ${isExpanded ? `
+            <tr>
+              <td colspan="6" class="px-2 pt-0">
+                <div class="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-4 dark:border-slate-700 dark:bg-slate-900/70">
+                  <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div class="metric-chip rounded-xl px-3 py-3">
+                      <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">成功 / 失败</div>
+                      <div class="mt-1.5 text-sm font-bold text-slate-900 dark:text-white">${formatNumber(model.successCount)} / ${formatNumber(model.failedCount)}</div>
+                    </div>
+                    <div class="metric-chip rounded-xl px-3 py-3">
+                      <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">首次 / 最近使用</div>
+                      <div class="mt-1.5 text-sm font-bold text-slate-900 dark:text-white">${formatTimestamp(model.firstUsedAt)}</div>
+                      <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">${formatTimestamp(model.lastUsedAt)}</div>
+                    </div>
+                    <div class="metric-chip rounded-xl px-3 py-3">
+                      <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">输入 / 输出 Tokens</div>
+                      <div class="mt-1.5 text-sm font-bold text-slate-900 dark:text-white">${formatNumber(model.totalPromptTokens)}</div>
+                      <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">${formatNumber(model.totalCompletionTokens)}</div>
+                    </div>
+                    <div class="metric-chip rounded-xl px-3 py-3">
+                      <div class="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">平均消耗</div>
+                      <div class="mt-1.5 text-sm font-bold text-slate-900 dark:text-white">${formatCreditsFromQuota(model.avgQuotaPerRequest)}</div>
+                      <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">${formatNumber(model.avgTotalTokens)} Tokens / 次</div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          ` : ''}
+        `;
+      }).join('');
+
+      elements.keyModelsTable.querySelectorAll('[data-detail-model-row]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const modelName = button.getAttribute('data-detail-model-row');
+          state.detailExpandedModelName = state.detailExpandedModelName === modelName ? null : modelName;
+          renderKeyModelsTable(state.detailData?.top_models || topModels);
+          lucide.createIcons();
+        });
+      });
+
+      lucide.createIcons();
+    }
+
+    async function loadKeyQuota(key, verificationData = null) {
+      if (!key || !key.trim()) {
+        clearDetailInfo();
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await fetch(buildApiUrl('/api/key/quota', {
+          key: key.trim(),
+          hours: state.hours,
+          ...(verificationData ? verificationData : {}),
+        }, {
+          searchTarget: buildSearchTarget('key', key.trim()),
+        }), {
+          headers: { ...getAuthHeaders() },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (isSearchVerificationError(payload, response)) {
+          clearSearchAccess({ revoke: true });
+        }
+        if (!response.ok) {
+          throw new Error(payload.message || `Key 查询失败 (${response.status})`);
+        }
+
+        rememberSearchAccessToken(payload, buildSearchTarget('key', key.trim()));
+        renderKeyInfo(payload.data);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : 'Key 查询失败');
+        clearDetailInfo();
+      } finally {
+        setLoading(false);
+        lucide.createIcons();
+      }
+    }
+
+    async function loadChannelRecords(channelId, verificationData = null) {
+      if (!channelId || !String(channelId).trim()) {
+        clearDetailInfo();
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await fetch(buildApiUrl('/api/channel/records', {
+          channel_id: String(channelId).trim(),
+          hours: state.hours,
+          ...(verificationData ? verificationData : {}),
+        }, {
+          searchTarget: buildSearchTarget('channel', String(channelId).trim()),
+        }), {
+          headers: { ...getAuthHeaders() },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (isSearchVerificationError(payload, response)) {
+          clearSearchAccess({ revoke: true });
+        }
+        if (!response.ok) {
+          throw new Error(payload.message || `渠道查询失败 (${response.status})`);
+        }
+
+        rememberSearchAccessToken(payload, buildSearchTarget('channel', String(channelId).trim()));
+        renderChannelInfo(payload.data);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '渠道查询失败');
+        clearDetailInfo();
+      } finally {
+        setLoading(false);
+        lucide.createIcons();
+      }
+    }
+
+    // Search by username
+    async function loadUserQuota(username, verificationData = null) {
+      if (!username || !username.trim()) {
+        clearDetailInfo();
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await fetch(buildApiUrl('/api/user/quota', {
+          username: username.trim(),
+          hours: state.hours,
+          ...(state.customStart && state.customEnd ? { start: state.customStart, end: state.customEnd } : {}),
+          ...(verificationData ? verificationData : {}),
+        }, {
+          searchTarget: buildSearchTarget('user', username.trim()),
+        }), {
+          headers: { ...getAuthHeaders() },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (isSearchVerificationError(payload, response)) {
+          clearSearchAccess({ revoke: true });
+        }
+        if (!response.ok) {
+          throw new Error(payload.message || `用户查询失败 (${response.status})`);
+        }
+
+        rememberSearchAccessToken(payload, buildSearchTarget('user', username.trim()));
+        renderKeyInfo(payload.data);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '用户查询失败');
+        clearDetailInfo();
+      } finally {
+        setLoading(false);
+        lucide.createIcons();
+      }
+    }
+
+    async function loadDetailBySearch(rawValue, verificationData = null) {
+      const parsed = parseDetailSearchQuery(rawValue);
+      if (!parsed) {
+        clearDetailInfo();
+        return;
+      }
+
+      if (parsed.mode === 'channel') {
+        await loadChannelRecords(parsed.value, verificationData);
+        return;
+      }
+
+      if (parsed.mode === 'user') {
+        await loadUserQuota(parsed.value, verificationData);
+        return;
+      }
+
+      await loadKeyQuota(parsed.value, verificationData);
+    }
+
+    function refreshCurrentView() {
+      hideError();
+      if (state.detailData && elements.keySearchInput.value.trim()) {
+        void loadDetailBySearch(elements.keySearchInput.value);
+        return;
+      }
+      void loadDashboard();
+    }
+
+    function renderDashboard(data) {
+      state.data = data;
+      if (elements.apiPathChip) {
+        elements.apiPathChip.textContent = `GET ${withBasePath('/api/dashboard')}?hours=${data.hours}`;
+      }
+      if (elements.lastUpdatedChip) {
+        elements.lastUpdatedChip.textContent = `更新时间 ${new Date().toLocaleString('zh-CN', { hour12: false })}`;
+      }
+      renderOverview(data.overview);
+      renderTopModels(data.top_models);
+      renderTrendModelOptions(state.modelOptions.length ? state.modelOptions : (data.top_models || []));
+      if (state.topModelsView === 'chart') {
+        renderTopModelsChart(data.top_models);
+      }
+      void loadTrendBySelection();
+    }
+
+    async function loadDashboard() {
+      hideError();
+      setLoading(true);
+
+      const hours = state.hours;
+      try {
+        const [response, modelOptions] = await Promise.all([
+          fetch(buildApiUrl('/api/dashboard', { hours }, {
+            includeSearchToken: false,
+          }), {
+            headers: {
+              ...getAuthHeaders(),
+            },
+          }),
+          loadModelOptions(hours),
+        ]);
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.message || `请求失败 (${response.status})`);
+        }
+
+        state.modelOptions = Array.isArray(modelOptions) && modelOptions.length
+          ? modelOptions
+          : (payload.data?.top_models || []);
+        renderDashboard(payload.data);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '请求失败');
+      } finally {
+        setLoading(false);
+        lucide.createIcons();
+      }
+    }
+
+    async function loadModelOptions(hours) {
+      try {
+        const response = await fetch(buildApiUrl('/api/logs/models', { hours }, {
+          includeSearchToken: false,
+        }), {
+          headers: {
+            ...getAuthHeaders(),
+          },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.data) {
+          return null;
+        }
+        return payload.data;
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    function initialize() {
+      applyTheme();
+      if (initialSearchAccess?.token) {
+        sessionStorage.removeItem('newapi-monitor-search-access');
+        void revokeSearchAccessToken(initialSearchAccess.token);
+      }
+      document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+      elements.refreshButton.addEventListener('click', refreshCurrentView);
+      window.addEventListener('pagehide', () => {
+        clearSearchAccess({ revoke: true, keepalive: true });
+      });
+
+      function doKeySearch() {
+        hideError();
+        const searchValue = elements.keySearchInput.value.trim();
+        if (!searchValue) {
+          clearDetailInfo();
+          return;
+        }
+
+        if (state.monitorApiToken || hasSearchAccessForRawValue(searchValue)) {
+          void loadDetailBySearch(searchValue);
+          return;
+        }
+
+        clearSearchAccess({ revoke: true });
+
+        if (!state.geetestEnabled) {
+          showError('搜索需要先完成验证，请联系管理员配置极验或通过 monitor_api_token 访问。');
+          return;
+        }
+
+        state.pendingSearchValue = searchValue;
+        void ensureSearchCaptcha()
+          .then((captchaObj) => {
+            captchaObj.showCaptcha();
+          })
+          .catch((error) => {
+            showError(error instanceof Error ? error.message : '验证码加载失败，请稍后重试');
+          });
+      }
+
+      function updateClearButton() {
+        elements.keyClearButton.classList.toggle('hidden', !elements.keySearchInput.value.trim());
+      }
+
+      elements.keySearchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          doKeySearch();
+        }
+      });
+      elements.keySearchInput.addEventListener('input', () => {
+        updateClearButton();
+        if (!elements.keySearchInput.value.trim()) {
+          clearDetailInfo();
+        }
+      });
+      elements.keySearchButton.addEventListener('click', doKeySearch);
+      elements.keyClearButton.addEventListener('click', () => {
+        elements.keySearchInput.value = '';
+        updateClearButton();
+        clearDetailInfo();
+        hideError();
+      });
+
+      elements.trendModelSelectButton.addEventListener('click', () => {
+        elements.trendModelDropdown.classList.toggle('hidden');
+        if (!elements.trendModelDropdown.classList.contains('hidden')) {
+          elements.trendModelSearchInput.focus();
+          renderTrendModelOptionsList(elements.trendModelSearchInput.value.trim());
+        }
+        lucide.createIcons();
+      });
+      elements.trendModelSearchInput.addEventListener('input', () => {
+        renderTrendModelOptionsList(elements.trendModelSearchInput.value.trim());
+      });
+      elements.trendModelSearchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          elements.trendModelDropdown.classList.add('hidden');
+          elements.trendModelSearchInput.blur();
+        }
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!elements.trendModelDropdown.contains(event.target) && !elements.trendModelSelectButton.contains(event.target)) {
+          elements.trendModelDropdown.classList.add('hidden');
+        }
+      });
+
+      elements.topModelsTableViewButton.addEventListener('click', () => setTopModelsView('table'));
+      elements.topModelsChartViewButton.addEventListener('click', () => setTopModelsView('chart'));
+      setTopModelsView('table');
+      renderHoursButtons();
+
+      document.getElementById('footerYear').textContent = String(new Date().getFullYear());
+
+      fetch(buildApiUrl('/api/config', {}, {
+        includeSearchToken: false,
+      }))
+        .then((r) => r.json())
+        .then((payload) => {
+          const d = mergeSiteMeta(payload?.data || {});
+          state.geetestCaptchaId = d.geetestCaptchaId || '';
+          state.geetestEnabled = Boolean(d.searchVerificationEnabled && d.geetestCaptchaId);
+          if (d.quotaPerUnit) {
+            quotaPerUnit = Number(d.quotaPerUnit);
+          }
+
+          if (d.logo) {
+            document.getElementById('headerLogo').src = d.logo;
+            document.getElementById('footerLogo').src = d.logo;
+            document.getElementById('favicon').href = d.logo;
+          }
+          if (d.systemName) {
+            document.getElementById('headerSiteName').textContent = d.systemName;
+            document.getElementById('footerName').textContent = d.systemName;
+            document.getElementById('footerCopyright').textContent = d.systemName;
+            document.title = d.systemName + ' 实时监控台';
+          }
+          if (d.docsLink) {
+            const docsEl = document.getElementById('headerDocsLink');
+            docsEl.href = d.docsLink;
+            docsEl.classList.remove('hidden');
+            docsEl.classList.add('inline-flex');
+          }
+          applyPlatformUrl(d.serverAddress);
+
+          const ttl = Number(d.cacheTtlSeconds || 900);
+          const interval = Math.round(ttl * 2 / 3) * 1000;
+          if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+          autoRefreshTimer = setInterval(() => {
+            if (state.detailData && elements.keySearchInput.value.trim()) {
+              void loadDetailBySearch(elements.keySearchInput.value);
+            } else {
+              void loadDashboard();
+            }
+          }, interval);
+        })
+        .catch(() => { })
+        .finally(() => {
+          loadDashboard();
+        });
+
+      applyPlatformUrl(buildPlatformConsoleUrl());
+      systemThemeMedia.addEventListener('change', () => {
+        if (getThemeMode() === 'auto') {
+          applyTheme();
+          lucide.createIcons();
+        }
+      });
+      window.addEventListener('storage', (event) => {
+        if (!event.key || ['theme', 'theme-mode', 'docs_link', 'system_name', 'logo'].includes(event.key)) {
+          applyTheme();
+
+          const siteMeta = mergeSiteMeta({});
+          if (siteMeta.logo) {
+            document.getElementById('headerLogo').src = siteMeta.logo;
+            document.getElementById('footerLogo').src = siteMeta.logo;
+            document.getElementById('favicon').href = siteMeta.logo;
+          }
+          if (siteMeta.systemName) {
+            document.getElementById('headerSiteName').textContent = siteMeta.systemName;
+            document.getElementById('footerName').textContent = siteMeta.systemName;
+            document.getElementById('footerCopyright').textContent = siteMeta.systemName;
+            document.title = siteMeta.systemName + ' 实时监控台';
+          }
+          if (siteMeta.docsLink) {
+            const docsEl = document.getElementById('headerDocsLink');
+            docsEl.href = siteMeta.docsLink;
+            docsEl.classList.remove('hidden');
+            docsEl.classList.add('inline-flex');
+          }
+          applyPlatformUrl(siteMeta.serverAddress);
+          lucide.createIcons();
+        }
+      });
+      lucide.createIcons();
+    }
+
+    initialize();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,37 @@
+{
+  "name": "newapi-monitor-service",
+  "version": "1.0.0",
+  "description": "Standalone Node.js service for NewAPI monitoring stats",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:restart": "pm2 restart newapi-monitor-service",
+    "pm2:stop": "pm2 stop newapi-monitor-service",
+    "pm2:logs": "pm2 logs newapi-monitor-service",
+    "pm2:status": "pm2 status"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.32.1",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "pg": "^8.20.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.18.0",
+    "pm2": "^6.0.14",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
