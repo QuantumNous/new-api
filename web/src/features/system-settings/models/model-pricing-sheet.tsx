@@ -188,13 +188,15 @@ export const ModelPricingEditorPanel = forwardRef<
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
-      setPricingMode(
-        editData.billingMode === 'tiered_expr'
-          ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
-      )
+      let nextPricingMode: PricingMode = 'per-token'
+      if (editData.billingMode === 'tiered_expr') {
+        nextPricingMode = 'tiered_expr'
+      } else if (editData.billingMode === 'utf8_bytes') {
+        nextPricingMode = 'utf8_bytes'
+      } else if (editData.price) {
+        nextPricingMode = 'per-request'
+      }
+      setPricingMode(nextPricingMode)
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {
@@ -544,9 +546,12 @@ export const ModelPricingEditorPanel = forwardRef<
                   onValueChange={handleModeChange}
                   className='gap-4'
                 >
-                  <TabsList className='grid w-full grid-cols-3'>
+                  <TabsList className='grid w-full grid-cols-4'>
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
+                    </TabsTrigger>
+                    <TabsTrigger value='utf8_bytes'>
+                      {t('UTF-8 bytes')}
                     </TabsTrigger>
                     <TabsTrigger value='per-request'>
                       {t('Per-request')}
@@ -595,6 +600,22 @@ export const ModelPricingEditorPanel = forwardRef<
                           )
                         })}
                       </div>
+                    </FieldGroup>
+                  </TabsContent>
+
+                  <TabsContent value='utf8_bytes' className='pt-0'>
+                    <FieldGroup className='gap-5'>
+                      <Field>
+                        <FieldLabel>{t('Input price')}</FieldLabel>
+                        <PriceInput
+                          value={promptPrice}
+                          placeholder='15'
+                          onChange={handlePromptPriceChange}
+                        />
+                        <FieldDescription>
+                          {t('USD price per 1M UTF-8 input bytes.')}
+                        </FieldDescription>
+                      </Field>
                     </FieldGroup>
                   </TabsContent>
 

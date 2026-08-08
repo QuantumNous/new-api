@@ -273,6 +273,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         (acc, model) => {
           const mode =
             model.billingMode === 'per-request' ||
+            model.billingMode === 'utf8_bytes' ||
             model.billingMode === 'tiered_expr'
               ? model.billingMode
               : 'per-token'
@@ -281,9 +282,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
         },
         {
           'per-token': 0,
+          utf8_bytes: 0,
           'per-request': 0,
           tiered_expr: 0,
-        } as Record<'per-token' | 'per-request' | 'tiered_expr', number>
+        } as Record<PricingMode, number>
       ),
     [models]
   )
@@ -294,6 +296,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
       let editBillingMode: PricingMode = 'per-token'
       if (editableModel.billingMode === 'tiered_expr') {
         editBillingMode = 'tiered_expr'
+      } else if (editableModel.billingMode === 'utf8_bytes') {
+        editBillingMode = 'utf8_bytes'
       } else if (editableModel.price && editableModel.price !== '') {
         editBillingMode = 'per-request'
       }
@@ -527,7 +531,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         value: string | undefined
       ) => {
         if (!value || value === '') return
-        const parsed = parseFloat(value)
+        const parsed = Number.parseFloat(value)
         if (Number.isFinite(parsed)) target[name] = parsed
       }
 
@@ -564,6 +568,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
           setIfPresent(imageMap, name, data.imageRatio)
           setIfPresent(audioMap, name, data.audioRatio)
           setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+        } else if (data.billingMode === 'utf8_bytes') {
+          billingModeMap[name] = 'utf8_bytes'
+          setIfPresent(ratioMap, name, data.ratio)
         } else if (data.price && data.price !== '') {
           setIfPresent(priceMap, name, data.price)
         } else {
@@ -691,6 +698,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
                     label: 'Per-token',
                     value: 'per-token',
                     count: modeCounts['per-token'],
+                  },
+                  {
+                    label: 'UTF-8 bytes',
+                    value: 'utf8_bytes',
+                    count: modeCounts.utf8_bytes,
                   },
                   {
                     label: 'Per-request',

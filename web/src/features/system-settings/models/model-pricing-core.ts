@@ -39,7 +39,11 @@ export type ModelPricingFormValues = z.infer<
   ReturnType<typeof createModelPricingSchema>
 >
 
-export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
+export type PricingMode =
+  | 'per-token'
+  | 'utf8_bytes'
+  | 'per-request'
+  | 'tiered_expr'
 
 export type LaneKey =
   | 'completion'
@@ -236,6 +240,17 @@ export function buildPreviewRows(
         key: 'price',
         label: 'ModelPrice',
         value: values.price || t('Empty'),
+      },
+    ]
+  }
+
+  if (mode === 'utf8_bytes') {
+    return [
+      { key: 'mode', label: 'BillingMode', value: 'utf8_bytes' },
+      {
+        key: 'inputPrice',
+        label: t('Input price'),
+        value: promptPrice ? `$${promptPrice}` : t('Empty'),
       },
     ]
   }

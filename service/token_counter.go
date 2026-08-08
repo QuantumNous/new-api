@@ -15,6 +15,7 @@ import (
 	constant2 "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -177,13 +178,22 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 }
 
 func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
+	if meta == nil {
+		return 0, errors.New("token count meta is nil")
+	}
+
+	if info.BillingMode == "" {
+		info.BillingMode = billing_setting.GetBillingMode(info.OriginModelName)
+	}
+	if info.BillingMode == billing_setting.BillingModeUTF8Bytes {
+		count := len(meta.CombineText)
+		common.SetContextKey(c, constant.ContextKeyPromptTokens, count)
+		return count, nil
+	}
+
 	// 是否统计token
 	if !constant.CountToken {
 		return 0, nil
-	}
-
-	if meta == nil {
-		return 0, errors.New("token count meta is nil")
 	}
 
 	if info.RelayFormat == types.RelayFormatOpenAIRealtime {

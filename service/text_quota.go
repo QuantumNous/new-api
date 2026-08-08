@@ -17,6 +17,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -263,8 +264,20 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.CacheCreationTokens1h = usage.ClaudeCacheCreation1hTokens
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
+	isUTF8BytesBilling := relayInfo.BillingMode == billing_setting.BillingModeUTF8Bytes
+	if isUTF8BytesBilling {
+		summary.PromptTokens = relayInfo.GetEstimatePromptTokens()
+		summary.CompletionTokens = 0
+		summary.TotalTokens = summary.PromptTokens
+		summary.CacheTokens = 0
+		summary.CacheCreationTokens = 0
+		summary.CacheCreationTokens5m = 0
+		summary.CacheCreationTokens1h = 0
+		summary.ImageTokens = 0
+		summary.AudioTokens = 0
+	}
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
-	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
+	isOpenRouterClaudeBilling := !isUTF8BytesBilling && relayInfo.ChannelMeta != nil &&
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
 		summary.IsClaudeUsageSemantic
 
@@ -476,7 +489,10 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	} else {
 		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
-	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), originUsage)
+	if relayInfo.BillingMode == billing_setting.BillingModeUTF8Bytes {
+		other["billing_mode"] = billing_setting.BillingModeUTF8Bytes
+	}
+	appendTextUsageBillingPathForLog(ctx, other, relayInfo, originUsage)
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
 	}
@@ -540,4 +556,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))
 	})
+}
+
+func appendTextUsageBillingPathForLog(ctx *gin.Context, other map[string]interface{}, relayInfo *relaycommon.RelayInfo, usage *dto.Usage) {
+	if relayInfo.BillingMode == billing_setting.BillingModeUTF8Bytes {
+		appendUsageBillingPathForLog(other, true, nil)
+		return
+	}
+	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), usage)
 }

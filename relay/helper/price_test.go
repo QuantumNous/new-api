@@ -272,3 +272,41 @@ func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T)
 	require.Equal(t, common.QuotaClampOverflow, clamp.Kind)
 	require.Nil(t, info.Billing)
 }
+
+func TestModelPriceHelperUTF8BytesDoesNotReserveCompletionTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+	})
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode":    `{"utf8-bytes-price-model":"utf8_bytes"}`,
+		"group_ratio_setting.group_ratio": `{"default":1}`,
+	}))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"utf8-bytes-price-model":7.5}`))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "utf8-bytes-price-model",
+		BillingMode:     billing_setting.BillingModeUTF8Bytes,
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	}
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{}`,
+	}))
+
+	priceData, err := ModelPriceHelper(ctx, info, 7, &types.TokenCountMeta{MaxTokens: 1000})
+
+	require.NoError(t, err)
+	require.Equal(t, 52, priceData.QuotaToPreConsume)
+}
