@@ -292,6 +292,25 @@ func ClaudeResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 	if streamErr != nil {
 		return nil, streamErr
 	}
+
+	// Emit the terminal response.completed event with the final usage. Without
+	// this the client (e.g. Codex) never sees the stream terminate.
+	if claudeInfo.Usage != nil {
+		state.SetUsage(claudeInfo.Usage)
+	}
+	finalResults, err := relayconvert.FinalizeStreamResponse(c, info, state)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponse)
+	}
+	for _, result := range finalResults {
+		event, ok := result.Value.(relayconvert.ChatToResponsesStreamEvent)
+		if !ok {
+			continue
+		}
+		if !sendEvent(event) {
+			return nil, streamErr
+		}
+	}
 	return claudeInfo.Usage, nil
 }
 
