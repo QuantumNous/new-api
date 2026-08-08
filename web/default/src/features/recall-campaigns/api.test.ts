@@ -65,20 +65,60 @@ afterEach(() => {
 })
 
 describe('recall campaign API contracts', () => {
+  function makeZeroAudienceConfig(): RecallCampaignDraft['audience_config'] {
+    return {
+      registration_age_days: 0,
+      min_request_count: 0,
+      max_quota: 0,
+      min_paid_amount: 0,
+      last_api_call_age_days: 0,
+      last_payment_age_days: 0,
+      subscription_expired_days: 0,
+      min_subscription_amount: 0,
+      min_subscription_count: 0,
+      payment_providers: [],
+      groups: [],
+      group_mode: '',
+      require_verified_email: false,
+      registration_start_at: 0,
+      registration_end_at: 0,
+      specified_user_ids: [],
+      specified_emails: [],
+    }
+  }
+
   function makeRecallDraft(): RecallCampaignDraft {
     return {
       campaign_type: 'content_only',
       name: 'Continuous recall',
       audience_template: '',
-      audience_config: {},
+      audience_config: makeZeroAudienceConfig(),
       execution_mode: 'continuous',
       lifecycle_trigger: 'user_registered',
       lifecycle_trigger_config: {},
-      schedule: { mode: 'immediate' },
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: '',
+        weekday: 0,
+        hour: 0,
+        minute: 0,
+      },
       coupon_source: '',
       existing_coupon_id: '',
-      discount_config: {},
-      product_scope: {},
+      discount_config: {
+        type: 'percent',
+        percent_off: 0,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      },
+      product_scope: {
+        topup_price_ids: [],
+        subscription_price_ids: [],
+      },
       promotion_expiry_mode: '',
       promotion_expires_at: 0,
       promotion_valid_seconds: 0,
@@ -86,7 +126,11 @@ describe('recall campaign API contracts', () => {
       worker_concurrency: 1,
       email_sequence: [],
       defer_localization: false,
-    } as RecallCampaignDraft
+    }
+  }
+
+  function parseCapturedPayload(): Record<string, unknown> {
+    return JSON.parse(String(capturedConfig?.data)) as Record<string, unknown>
   }
 
   function makeRecallCampaignDetail(
@@ -138,14 +182,50 @@ describe('recall campaign API contracts', () => {
 
       await call()
 
-      const payload = JSON.parse(String(capturedConfig?.data)) as Record<
-        string,
-        unknown
-      >
+      const payload = parseCapturedPayload()
       expect(capturedConfig?.method).toBe(method)
       expect(payload.lifecycle_trigger_config).toBe('{}')
     }
   )
+
+  test.each([
+    ['create', () => createRecallCampaign(makeRecallDraft())],
+    ['update', () => updateRecallCampaign(42, makeRecallDraft())],
+    ['Stripe validation', () => validateRecallStripeConfig(makeRecallDraft())],
+  ])(
+    'serializes continuous %s audience as the backend zero-value object',
+    async (_name, call) => {
+      respondWith({ success: true, data: {} })
+
+      await call()
+
+      const payload = parseCapturedPayload()
+      expect(payload.audience_template).toBe('')
+      expect(payload.audience_config).toEqual({})
+    }
+  )
+
+  test('preserves legacy audience config while adapting a draft for the wire API', async () => {
+    const draft = makeRecallDraft()
+    draft.execution_mode = 'manual'
+    draft.audience_template = 'first_purchase'
+    draft.audience_config = {
+      ...makeZeroAudienceConfig(),
+      registration_age_days: 30,
+      min_request_count: 3,
+      payment_providers: ['stripe'],
+      groups: ['paid'],
+      group_mode: 'allow',
+      require_verified_email: true,
+    }
+    respondWith({ success: true, data: {} })
+
+    await createRecallCampaign(draft)
+
+    const payload = parseCapturedPayload()
+    expect(payload.audience_template).toBe('first_purchase')
+    expect(payload.audience_config).toEqual(draft.audience_config)
+  })
 
   test('does not mutate a recall campaign draft while adapting it for the wire API', async () => {
     const draft = makeRecallDraft()

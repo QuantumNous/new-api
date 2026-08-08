@@ -120,8 +120,11 @@ function buildRecallMetricUserParams(
 
 type RecallCampaignDraftWire = Omit<
   RecallCampaignDraft,
-  'lifecycle_trigger_config'
+  'audience_config' | 'lifecycle_trigger_config'
 > & {
+  audience_config:
+    | RecallCampaignDraft['audience_config']
+    | Record<string, never>
   lifecycle_trigger_config: string
 }
 
@@ -136,6 +139,8 @@ function encodeRecallCampaignDraft(
 ): RecallCampaignDraftWire {
   return {
     ...draft,
+    audience_config:
+      draft.execution_mode === 'continuous' ? {} : draft.audience_config,
     lifecycle_trigger_config: JSON.stringify(
       draft.lifecycle_trigger_config ?? {}
     ),
