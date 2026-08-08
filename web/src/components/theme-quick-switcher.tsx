@@ -17,16 +17,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Monitor, Sun, MoonStar } from 'lucide-react'
-import { motion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/context/theme-provider'
 import { cn } from '@/lib/utils'
 
+function ActiveIndicator({ prefersReduced }: { prefersReduced: boolean | null }) {
+  if (prefersReduced) {
+    return <div className='bg-accent ring-border absolute inset-0 rounded-md ring-1' />
+  }
+  return (
+    <motion.span
+      layoutId='theme-switcher-active'
+      className='bg-accent ring-border absolute inset-0 rounded-md ring-1'
+      transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.2 }}
+      animate={{ rotate: 360 }}
+    />
+  )
+}
+
 export function ThemeQuickSwitcher() {
   const { t } = useTranslation()
   const { theme, setTheme } = useTheme()
+  const prefersReduced = useReducedMotion()
 
   return (
     <div className='px-2 pt-1.5 pb-1'>
@@ -49,24 +64,9 @@ export function ThemeQuickSwitcher() {
             aria-label={t('System')}
             aria-checked={theme === 'system'}
             onClick={() => setTheme('system')}
-            className={cn(
-              'relative size-7',
-              theme === 'system' && 'text-accent-foreground'
-            )}
+            className={cn('relative size-7', theme === 'system' && 'text-accent-foreground')}
           >
-            {theme === 'system' && (
-              <motion.span
-                layoutId='theme-switcher-active'
-                className='bg-accent ring-border absolute inset-0 rounded-md ring-1'
-                transition={{
-                  type: 'spring',
-                  stiffness: 500,
-                  damping: 30,
-                  mass: 0.2,
-                }}
-                animate={{ rotate: 360 }}
-              />
-            )}
+            {theme === 'system' && <ActiveIndicator prefersReduced={prefersReduced} />}
             <Monitor className='relative z-10 size-[0.95rem]' />
           </Button>
           <Button
@@ -76,24 +76,9 @@ export function ThemeQuickSwitcher() {
             aria-label={t('Light')}
             aria-checked={theme === 'light'}
             onClick={() => setTheme('light')}
-            className={cn(
-              'relative size-7',
-              theme === 'light' && 'text-accent-foreground'
-            )}
+            className={cn('relative size-7', theme === 'light' && 'text-accent-foreground')}
           >
-            {theme === 'light' && (
-              <motion.span
-                layoutId='theme-switcher-active'
-                className='bg-accent ring-border absolute inset-0 rounded-md ring-1'
-                transition={{
-                  type: 'spring',
-                  stiffness: 500,
-                  damping: 30,
-                  mass: 0.2,
-                }}
-                animate={{ rotate: 360 }}
-              />
-            )}
+            {theme === 'light' && <ActiveIndicator prefersReduced={prefersReduced} />}
             <Sun className='relative z-10 size-[0.95rem]' />
           </Button>
           <Button
@@ -103,24 +88,9 @@ export function ThemeQuickSwitcher() {
             aria-label={t('Dark')}
             aria-checked={theme === 'dark'}
             onClick={() => setTheme('dark')}
-            className={cn(
-              'relative size-7',
-              theme === 'dark' && 'text-accent-foreground'
-            )}
+            className={cn('relative size-7', theme === 'dark' && 'text-accent-foreground')}
           >
-            {theme === 'dark' && (
-              <motion.span
-                layoutId='theme-switcher-active'
-                className='bg-accent ring-border absolute inset-0 rounded-md ring-1'
-                transition={{
-                  type: 'spring',
-                  stiffness: 500,
-                  damping: 30,
-                  mass: 0.2,
-                }}
-                animate={{ rotate: 360 }}
-              />
-            )}
+            {theme === 'dark' && <ActiveIndicator prefersReduced={prefersReduced} />}
             <MoonStar className='relative z-10 size-[0.95rem]' />
           </Button>
         </div>

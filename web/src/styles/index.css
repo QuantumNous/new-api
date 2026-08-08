@@ -146,7 +146,20 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+/* TextShimmer: background-position sweep from right to left */
+@keyframes shimmer {
+  0% { background-position: 100% center; }
+  100% { background-position: 0% center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer {
+    animation: none !important;
+  }
+}
+
 /* Override auto-skeleton-react inline styles with Vercel shimmer */
+
 .auto-skeleton-fade [class^='skeleton-'] {
   background: linear-gradient(
     90deg,
