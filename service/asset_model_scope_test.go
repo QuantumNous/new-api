@@ -16,23 +16,24 @@ import (
 
 func TestResolveAssetModelScopeFiltersAuthenticatedVideoModels(t *testing.T) {
 	db, _ := setupServiceModelAccessDB(t)
-	seedModelAccessScope(t, db, 101, "default", constant.ChannelTypeTechMobiVideo, "seedance-fast", "seedance-pro")
-	seedModelAccessScope(t, db, 102, "vip", constant.ChannelTypeBytePlus, "seedance-pro", "vip-video")
+	seedModelAccessScope(t, db, 101, "default", constant.ChannelTypeTechMobiVideo, "seedance-2.0-fast", "seedance-2.0")
+	seedModelAccessScope(t, db, 102, "vip", constant.ChannelTypeBytePlus, "seedance-2.0", "vip-video")
 	seedModelAccessScope(t, db, 103, "default", constant.ChannelTypeOpenAI, "chat-only")
 	seedModelAccessScope(t, db, 104, "vip", constant.ChannelTypeAnthropic, "vip-chat")
 	setModelAccessBilling(t, map[string]float64{
-		"seedance-fast": 1,
-		"seedance-pro":  1,
-		"vip-video":     1,
-		"chat-only":     1,
-		"vip-chat":      1,
+		"seedance-2.0-fast": 1,
+		"seedance-2.0":      1,
+		"vip-video":         1,
+		"chat-only":         1,
+		"vip-chat":          1,
 	}, nil, nil)
 
 	auto, err := ResolveAssetModelScope(AssetModelScopeInput{IdentityGroup: "default", TokenGroup: "auto"})
 	require.NoError(t, err)
 	require.Equal(t, []string{"default", "vip"}, auto.Groups)
-	require.Equal(t, []string{"seedance-fast", "seedance-pro", "vip-video"}, auto.ModelNames)
+	require.Equal(t, []string{"seedance-2.0", "seedance-2.0-fast"}, auto.ModelNames)
 	require.Len(t, auto.ScopeKey, 64)
+	require.NotContains(t, auto.ModelNames, "vip-video")
 	require.NotContains(t, auto.ModelNames, "chat-only")
 	require.NotContains(t, auto.ModelNames, "vip-chat")
 
@@ -41,28 +42,28 @@ func TestResolveAssetModelScopeFiltersAuthenticatedVideoModels(t *testing.T) {
 		TokenGroup:         "auto",
 		ModelLimitsEnabled: true,
 		ModelLimits: map[string]bool{
-			"seedance-fast": true,
-			"seedance-pro":  true,
+			"seedance-2.0-fast": true,
+			"seedance-2.0":      true,
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []string{"seedance-fast", "seedance-pro"}, allowlist.ModelNames)
+	require.Equal(t, []string{"seedance-2.0", "seedance-2.0-fast"}, allowlist.ModelNames)
 
 	blacklist, err := ResolveAssetModelScope(AssetModelScopeInput{
 		IdentityGroup:         "default",
 		TokenGroup:            "auto",
 		ModelBlacklistEnabled: true,
-		ModelBlacklist:        map[string]bool{"seedance-pro": true},
+		ModelBlacklist:        map[string]bool{"seedance-2.0": true},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []string{"seedance-fast", "vip-video"}, blacklist.ModelNames)
+	require.Equal(t, []string{"seedance-2.0-fast"}, blacklist.ModelNames)
 }
 
 func TestResolveAssetModelScopeSpecificChannelRemovesUnsupportedVideoModels(t *testing.T) {
 	db, _ := setupServiceModelAccessDB(t)
-	seedModelAccessScope(t, db, 120, "default", constant.ChannelTypeTechMobiVideo, "seedance-fast")
-	seedModelAccessScope(t, db, 121, "default", constant.ChannelTypeBytePlus, "seedance-pro")
-	setModelAccessBilling(t, map[string]float64{"seedance-fast": 1, "seedance-pro": 1}, nil, nil)
+	seedModelAccessScope(t, db, 120, "default", constant.ChannelTypeTechMobiVideo, "seedance-2.0-fast")
+	seedModelAccessScope(t, db, 121, "default", constant.ChannelTypeBytePlus, "seedance-2.0")
+	setModelAccessBilling(t, map[string]float64{"seedance-2.0-fast": 1, "seedance-2.0": 1}, nil, nil)
 
 	scope, err := ResolveAssetModelScope(AssetModelScopeInput{
 		IdentityGroup:     "default",
@@ -70,19 +71,19 @@ func TestResolveAssetModelScopeSpecificChannelRemovesUnsupportedVideoModels(t *t
 		SpecificChannelID: 120,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []string{"seedance-fast"}, scope.ModelNames)
+	require.Equal(t, []string{"seedance-2.0-fast"}, scope.ModelNames)
 	require.Equal(t, 120, scope.SpecificChannelID)
 }
 
 func TestResolveAssetModelScopeSpecificChannelChecksLowerPriorityTiers(t *testing.T) {
 	db, _ := setupServiceModelAccessDB(t)
-	seedModelAccessScope(t, db, 120, "default", constant.ChannelTypeTechMobiVideo, "seedance-fast")
-	seedModelAccessScope(t, db, 121, "default", constant.ChannelTypeBytePlus, "seedance-fast")
+	seedModelAccessScope(t, db, 120, "default", constant.ChannelTypeTechMobiVideo, "seedance-2.0-fast")
+	seedModelAccessScope(t, db, 121, "default", constant.ChannelTypeBytePlus, "seedance-2.0-fast")
 	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 120).Update("priority", int64(50)).Error)
 	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 120).Update("priority", int64(50)).Error)
 	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 121).Update("priority", int64(10)).Error)
 	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 121).Update("priority", int64(10)).Error)
-	setModelAccessBilling(t, map[string]float64{"seedance-fast": 1}, nil, nil)
+	setModelAccessBilling(t, map[string]float64{"seedance-2.0-fast": 1}, nil, nil)
 
 	scope, err := ResolveAssetModelScope(AssetModelScopeInput{
 		IdentityGroup:     "default",
@@ -90,12 +91,12 @@ func TestResolveAssetModelScopeSpecificChannelChecksLowerPriorityTiers(t *testin
 		SpecificChannelID: 121,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []string{"seedance-fast"}, scope.ModelNames)
+	require.Equal(t, []string{"seedance-2.0-fast"}, scope.ModelNames)
 }
 
 func TestResolveAssetModelScopeForContextUsesAuthenticatedUnpricedPolicy(t *testing.T) {
 	db, _ := setupServiceModelAccessDB(t)
-	seedModelAccessScope(t, db, 125, "default", constant.ChannelTypeTechMobiVideo, "unpriced-video")
+	seedModelAccessScope(t, db, 125, "default", constant.ChannelTypeTechMobiVideo, "seedance-2.0-unpriced")
 	setModelAccessBilling(t, nil, nil, nil)
 
 	originalSelfUse := operation_setting.SelfUseModeEnabled
@@ -108,12 +109,12 @@ func TestResolveAssetModelScopeForContextUsesAuthenticatedUnpricedPolicy(t *test
 
 	scope, err = ResolveAssetModelScopeForContext(assetModelScopeGinContext(t, dto.UserSetting{AcceptUnsetRatioModel: true}), 0)
 	require.NoError(t, err)
-	require.Equal(t, []string{"unpriced-video"}, scope.ModelNames)
+	require.Equal(t, []string{"seedance-2.0-unpriced"}, scope.ModelNames)
 
 	operation_setting.SelfUseModeEnabled = true
 	scope, err = ResolveAssetModelScopeForContext(assetModelScopeGinContext(t, nil), 0)
 	require.NoError(t, err)
-	require.Equal(t, []string{"unpriced-video"}, scope.ModelNames)
+	require.Equal(t, []string{"seedance-2.0-unpriced"}, scope.ModelNames)
 }
 
 func TestResolveAssetModelScopeForContextRejectsInvalidSpecificChannel(t *testing.T) {
@@ -132,29 +133,57 @@ func TestResolveAssetModelScopeForContextRejectsInvalidSpecificChannel(t *testin
 
 func TestResolveAssetModelScopeForContextAllowsMissingSpecificChannel(t *testing.T) {
 	db, _ := setupServiceModelAccessDB(t)
-	seedModelAccessScope(t, db, 126, "default", constant.ChannelTypeTechMobiVideo, "default-video")
-	setModelAccessBilling(t, map[string]float64{"default-video": 1}, nil, nil)
+	seedModelAccessScope(t, db, 126, "default", constant.ChannelTypeTechMobiVideo, "seedance-2.0-default")
+	setModelAccessBilling(t, map[string]float64{"seedance-2.0-default": 1}, nil, nil)
 
 	scope, err := ResolveAssetModelScopeForContext(assetModelScopeGinContext(t, nil), 0)
 
 	require.NoError(t, err)
 	require.Zero(t, scope.SpecificChannelID)
-	require.Equal(t, []string{"default-video"}, scope.ModelNames)
+	require.Equal(t, []string{"seedance-2.0-default"}, scope.ModelNames)
 }
 
-func TestResolveAssetModelScopeKeepsAdvertisedVideoModelWithoutMaterializer(t *testing.T) {
+func TestResolveAssetModelScopeKeepsAdvertisedSeedanceModelWithoutMaterializer(t *testing.T) {
 	db, _ := setupServiceModelAccessDB(t)
-	seedModelAccessScope(t, db, 130, "default", constant.ChannelTypeMiniMaxH3, "advertised-video")
-	setModelAccessBilling(t, map[string]float64{"advertised-video": 1}, nil, nil)
+	seedModelAccessScope(t, db, 130, "default", constant.ChannelTypeMiniMaxH3, "seedance-2.0-custom")
+	setModelAccessBilling(t, map[string]float64{"seedance-2.0-custom": 1}, nil, nil)
 	registerAssetMaterializerForTest(t, constant.ChannelTypeMiniMaxH3, nil)
 
 	scope, err := ResolveAssetModelScope(AssetModelScopeInput{IdentityGroup: "default", TokenGroup: "default"})
 	require.NoError(t, err)
-	require.Equal(t, []string{"advertised-video"}, scope.ModelNames)
+	require.Equal(t, []string{"seedance-2.0-custom"}, scope.ModelNames)
 
-	candidates, err := AssetModelTargetCandidates(scope, "advertised-video")
+	candidates, err := AssetModelTargetCandidates(scope, "seedance-2.0-custom")
 	require.NoError(t, err)
 	require.Empty(t, candidates)
+}
+
+func TestResolveAssetModelScopeExcludesUnrelatedVideoModels(t *testing.T) {
+	db, _ := setupServiceModelAccessDB(t)
+	seedModelAccessScope(t, db, 131, "default", constant.ChannelTypeBytePlus, "seedance-2.0", "sora-2", "vip-video")
+	setModelAccessBilling(t, map[string]float64{"seedance-2.0": 1, "sora-2": 1, "vip-video": 1}, nil, nil)
+
+	scope, err := ResolveAssetModelScope(AssetModelScopeInput{IdentityGroup: "default", TokenGroup: "default"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"seedance-2.0"}, scope.ModelNames)
+}
+
+func TestAssetModelHasReusableAssetCapabilityMatchesOnlySeedance20Family(t *testing.T) {
+	tests := map[string]bool{
+		"seedance-2.0":                      true,
+		"seedance2.0-pro":                   true,
+		"doubao/doubao-seedance-2-0-260128": true,
+		"bytedance/seedance_2_0_fast":       true,
+		"seedance-1.5-pro":                  false,
+		"seedance-20":                       false,
+		"notseedance-2.0":                   false,
+		"sora-2":                            false,
+	}
+	for modelName, expected := range tests {
+		t.Run(modelName, func(t *testing.T) {
+			require.Equal(t, expected, assetModelHasReusableAssetCapability(modelName))
+		})
+	}
 }
 
 func assetModelScopeGinContext(t *testing.T, userSetting any) *gin.Context {

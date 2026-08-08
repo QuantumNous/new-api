@@ -61,7 +61,7 @@ func ResolveAssetModelScope(input AssetModelScopeInput) (AssetModelScope, error)
 
 	videoModels := make([]string, 0, len(access.models))
 	for _, item := range access.models {
-		if assetModelHasVideoEndpoint(item.SupportedEndpointTypes) {
+		if assetModelHasVideoEndpoint(item.SupportedEndpointTypes) && assetModelHasReusableAssetCapability(item.ID) {
 			videoModels = append(videoModels, item.ID)
 		}
 	}
@@ -128,6 +128,34 @@ func assetModelHasVideoEndpoint(endpoints []constant.EndpointType) bool {
 		}
 	}
 	return false
+}
+
+// The reusable asset library currently targets the Seedance 2.0 family. A
+// generic video endpoint is not enough to declare that a model can consume an
+// upstream asset ID: Sora, Veo, and other video models use different reference
+// contracts. Keep this declaration independent from live channel eligibility so
+// a declared Seedance model with a broken materializer or credential remains in
+// the required scope and can surface as terminal coverage failure.
+func assetModelHasReusableAssetCapability(modelName string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(modelName))
+	for offset := 0; ; {
+		index := strings.Index(normalized[offset:], "seedance")
+		if index < 0 {
+			return false
+		}
+		index += offset
+		if index == 0 || !isAssetModelNameAlphaNumeric(normalized[index-1]) {
+			suffix := strings.TrimLeft(normalized[index+len("seedance"):], "-_./ ")
+			return strings.HasPrefix(suffix, "2.0") ||
+				strings.HasPrefix(suffix, "2-0") ||
+				strings.HasPrefix(suffix, "2_0")
+		}
+		offset = index + len("seedance")
+	}
+}
+
+func isAssetModelNameAlphaNumeric(value byte) bool {
+	return value >= 'a' && value <= 'z' || value >= '0' && value <= '9'
 }
 
 func filterAssetModelsForSpecificChannel(groups []string, modelNames []string, channelID int) ([]string, error) {
