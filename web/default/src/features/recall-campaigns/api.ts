@@ -118,6 +118,73 @@ function buildRecallMetricUserParams(
   return { ...filters, metric }
 }
 
+type RecallCampaignDraftWire = Omit<
+  RecallCampaignDraft,
+  'lifecycle_trigger_config'
+> & {
+  lifecycle_trigger_config: string
+}
+
+type RecallCampaignDetailWire = Omit<RecallCampaignDetail, 'draft'> & {
+  draft: Omit<RecallCampaignDraft, 'lifecycle_trigger_config'> & {
+    lifecycle_trigger_config?: unknown
+  }
+}
+
+function encodeRecallCampaignDraft(
+  draft: RecallCampaignDraft
+): RecallCampaignDraftWire {
+  return {
+    ...draft,
+    lifecycle_trigger_config: JSON.stringify(
+      draft.lifecycle_trigger_config ?? {}
+    ),
+  }
+}
+
+function decodeLifecycleTriggerConfig(value: unknown): Record<string, never> {
+  if (value === undefined || value === '') return {}
+  if (typeof value !== 'string') {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      return value as Record<string, never>
+    }
+    throw new RecallApiError(
+      'Invalid recall campaign lifecycle_trigger_config: expected JSON object'
+    )
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value) as unknown
+  } catch {
+    throw new RecallApiError(
+      'Invalid recall campaign lifecycle_trigger_config JSON'
+    )
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new RecallApiError(
+      'Invalid recall campaign lifecycle_trigger_config: expected JSON object'
+    )
+  }
+
+  return parsed as Record<string, never>
+}
+
+function decodeRecallCampaignDetail(
+  detail: RecallCampaignDetailWire
+): RecallCampaignDetail {
+  return {
+    ...detail,
+    draft: {
+      ...detail.draft,
+      lifecycle_trigger_config: decodeLifecycleTriggerConfig(
+        detail.draft.lifecycle_trigger_config
+      ),
+    },
+  }
+}
+
 export async function listRecallCampaigns(
   search: RecallCampaignSearch
 ): Promise<ApiResponse<RecallPage<RecallCampaignSummary>>> {
@@ -128,7 +195,10 @@ export async function listRecallCampaigns(
 export async function createRecallCampaign(
   draft: RecallCampaignDraft
 ): Promise<ApiResponse<RecallCampaignSummary>> {
-  const response = await api.post('/api/recall-campaigns/', draft)
+  const response = await api.post(
+    '/api/recall-campaigns/',
+    encodeRecallCampaignDraft(draft)
+  )
   return requireRecallSuccess(response.data)
 }
 
@@ -136,14 +206,23 @@ export async function getRecallCampaign(
   id: number
 ): Promise<ApiResponse<RecallCampaignDetail>> {
   const response = await api.get(`/api/recall-campaigns/${id}`)
-  return requireRecallSuccess(response.data)
+  const envelope = requireRecallSuccess(
+    response.data as ApiResponse<RecallCampaignDetailWire>
+  )
+  return {
+    ...envelope,
+    data: envelope.data ? decodeRecallCampaignDetail(envelope.data) : undefined,
+  }
 }
 
 export async function updateRecallCampaign(
   id: number,
   draft: RecallCampaignDraft
 ): Promise<ApiResponse<RecallCampaignSummary>> {
-  const response = await api.put(`/api/recall-campaigns/${id}`, draft)
+  const response = await api.put(
+    `/api/recall-campaigns/${id}`,
+    encodeRecallCampaignDraft(draft)
+  )
   return requireRecallSuccess(response.data)
 }
 
@@ -233,7 +312,7 @@ export async function validateRecallStripeConfig(
 ): Promise<ApiResponse<RecallStripePreview>> {
   const response = await api.post(
     '/api/recall-campaigns/stripe/validate',
-    draft
+    encodeRecallCampaignDraft(draft)
   )
   return requireRecallSuccess(response.data)
 }

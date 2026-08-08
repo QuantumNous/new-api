@@ -65,6 +65,175 @@ afterEach(() => {
 })
 
 describe('recall campaign API contracts', () => {
+  function makeRecallDraft(): RecallCampaignDraft {
+    return {
+      campaign_type: 'content_only',
+      name: 'Continuous recall',
+      audience_template: '',
+      audience_config: {},
+      execution_mode: 'continuous',
+      lifecycle_trigger: 'user_registered',
+      lifecycle_trigger_config: {},
+      schedule: { mode: 'immediate' },
+      coupon_source: '',
+      existing_coupon_id: '',
+      discount_config: {},
+      product_scope: {},
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+      enrollment_limit: 0,
+      worker_concurrency: 1,
+      email_sequence: [],
+      defer_localization: false,
+    } as RecallCampaignDraft
+  }
+
+  function makeRecallCampaignDetail(
+    lifecycleTriggerConfig: unknown
+  ): Record<string, unknown> {
+    return {
+      id: 42,
+      campaign_type: 'content_only',
+      name: 'Continuous recall',
+      status: 'draft',
+      audience_template: '',
+      execution_mode: 'continuous',
+      lifecycle_trigger: 'user_registered',
+      scheduled_at: 0,
+      next_run_at: 0,
+      coupon_source: '',
+      stripe_coupon_id: '',
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+      enrollment_limit: 0,
+      worker_concurrency: 1,
+      config_revision: 1,
+      created_by: 1,
+      created_at: 1,
+      updated_at: 1,
+      activated_at: 0,
+      completed_at: 0,
+      recipient_total: 0,
+      draft: {
+        ...makeRecallDraft(),
+        lifecycle_trigger_config: lifecycleTriggerConfig,
+      },
+    }
+  }
+
+  test.each([
+    ['create', () => createRecallCampaign(makeRecallDraft()), 'post'],
+    ['update', () => updateRecallCampaign(42, makeRecallDraft()), 'put'],
+    [
+      'Stripe validation',
+      () => validateRecallStripeConfig(makeRecallDraft()),
+      'post',
+    ],
+  ])(
+    'serializes lifecycle trigger config as a JSON string for %s',
+    async (_name, call, method) => {
+      respondWith({ success: true, data: {} })
+
+      await call()
+
+      const payload = JSON.parse(String(capturedConfig?.data)) as Record<
+        string,
+        unknown
+      >
+      expect(capturedConfig?.method).toBe(method)
+      expect(payload.lifecycle_trigger_config).toBe('{}')
+    }
+  )
+
+  test('does not mutate a recall campaign draft while adapting it for the wire API', async () => {
+    const draft = makeRecallDraft()
+    const originalDraft = structuredClone(draft)
+    respondWith({ success: true, data: {} })
+
+    await createRecallCampaign(draft)
+
+    expect(draft).toEqual(originalDraft)
+    expect(draft.lifecycle_trigger_config).toEqual({})
+  })
+
+  test('decodes a lifecycle trigger config JSON string from campaign detail responses', async () => {
+    const detail = makeRecallCampaignDetail('{"custom":true}')
+    respondWith({ success: true, data: detail })
+
+    const response = await getRecallCampaign(42)
+
+    expect(response.data?.draft.lifecycle_trigger_config).toEqual({
+      custom: true,
+    })
+    expect(
+      (detail.draft as Record<string, unknown>).lifecycle_trigger_config
+    ).toBe('{"custom":true}')
+    expect(response.data).not.toBe(detail)
+    expect(response.data?.draft).not.toBe(detail.draft)
+  })
+
+  test.each([
+    ['blank', ''],
+    ['missing', undefined],
+  ])(
+    'decodes a %s lifecycle trigger config from campaign detail responses as an empty object',
+    async (_name, lifecycleTriggerConfig) => {
+      const detail = makeRecallCampaignDetail(lifecycleTriggerConfig)
+      if (lifecycleTriggerConfig === undefined) {
+        delete (detail.draft as Record<string, unknown>)
+          .lifecycle_trigger_config
+      }
+      respondWith({ success: true, data: detail })
+
+      const response = await getRecallCampaign(42)
+
+      expect(response.data?.draft.lifecycle_trigger_config).toEqual({})
+    }
+  )
+
+  test('rejects malformed lifecycle trigger config JSON before campaign detail data reaches the UI', async () => {
+    respondWith({
+      success: true,
+      data: makeRecallCampaignDetail('{not json'),
+    })
+
+    await expect(getRecallCampaign(42)).rejects.toThrow(
+      'Invalid recall campaign lifecycle_trigger_config JSON'
+    )
+  })
+
+  test.each([
+    ['null', 'null'],
+    ['array', '[]'],
+    ['string', '"invalid"'],
+  ])(
+    'rejects non-object lifecycle trigger config JSON (%s) before campaign detail data reaches the UI',
+    async (_name, lifecycleTriggerConfig) => {
+      respondWith({
+        success: true,
+        data: makeRecallCampaignDetail(lifecycleTriggerConfig),
+      })
+
+      await expect(getRecallCampaign(42)).rejects.toThrow(
+        'Invalid recall campaign lifecycle_trigger_config: expected JSON object'
+      )
+    }
+  )
+
+  test('keeps campaign detail failure envelope handling ahead of lifecycle trigger config decoding', async () => {
+    respondWith({
+      success: false,
+      message: 'Campaign detail unavailable',
+      data: makeRecallCampaignDetail('{not json'),
+    })
+
+    await expect(getRecallCampaign(42)).rejects.toThrow(
+      'Campaign detail unavailable'
+    )
+  })
+
   test('loads configured top-up and subscription products from existing APIs', async () => {
     respondWith({ success: true, data: { stripe_price_ids: {} } })
 
