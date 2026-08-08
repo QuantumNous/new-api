@@ -45,4 +45,3 @@ This preserves the bounded terminal behavior for genuinely exhausted candidates 
 - Target drift and temporary target failures schedule retry without candidate-zero replay or target unavailability.
 - Definitive/five-minute-window exhaustion still advances candidates and fails after the final candidate.
 - Status and `available_models` share one batched binding lookup and preserve existing projection results.
-
