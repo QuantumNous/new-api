@@ -143,7 +143,6 @@
 ## Accessibility
 
 - Target standard: WCAG 2.2 AA.
-- Keyboard/focus behavior: Date-time pickers, validity mode, duration inputs, shared limit, tabs, locale selection, stage navigation, generation, retry, dialogs, and editors are fully keyboard operable. Failed activation focuses the first blocker; closed dialogs restore focus.
 - Keyboard/focus behavior: Date-time pickers, validity mode, duration inputs, shared limit, execution mode, lifecycle trigger, processing-start mode, lifecycle preview, tabs, locale selection, stage navigation, generation, retry, pause/resume/cancel dialogs, and editors are fully keyboard operable. Failed activation focuses the first blocker; closed dialogs restore focus.
 - Contrast/readability: Status pairs semantic text and icons with color. Counts and version mismatches use readable text.
 - Screen-reader semantics: Date selections include timezone text; hourly usage and reset changes use a polite live region; failures and blockers use alert semantics; locale rows expose language and status together.
@@ -152,7 +151,6 @@
 ## Responsive behavior
 
 - Supported breakpoints/devices: Existing Console breakpoints, with desktop as the primary authoring surface and narrow-screen support from 360px.
-- Layout adaptations: Desktop translation review places English and target content side by side. Narrow screens stack the shared limit above the activity table, wrap date and time controls without horizontal scrolling, and stack English above the editable target while keeping locale/status context visible.
 - Layout adaptations: Desktop translation review places English and target content side by side. Narrow screens stack the shared limit above the activity table, wrap date and time controls without horizontal scrolling, stack Continuous trigger/policy/start/preview controls before the one-stage editor, and stack English above the editable target while keeping locale/status context visible.
 - Touch/hover differences: Touch targets are at least 44px where practical; critical help and blockers never depend on hover.
 
@@ -160,7 +158,6 @@
 
 - Loading: Keep the last saved source and quota status visible; show bounded generation or setting-save progress and prevent duplicate mutations.
 - Empty: Show English editors and `Translations not generated`; do not materialize seven editable target forms. Quota status still shows `0 / limit` for an empty queue.
-- Error: Preserve the last successful targets, show a retry action, and keep activation blocked when the stored set is stale or incomplete. A quota read/write failure pauses Activity emails without affecting other email services.
 - Error: Preserve the last successful targets, show a retry action, and keep activation blocked when the stored set is stale or incomplete. A quota read/write failure pauses Activity emails without affecting other email services. Continuous activation errors name the blocked trigger, invalid processing-start boundary, or duplicate active/paused owner without mutating immutable fields.
 - Success: Show aggregate readiness such as `21/21 translations ready`, a normalized effective expiry, and current hourly usage; manual review remains optional.
 - Disabled: Activation explains the exact stage/locale or expiry blocker and recovery action. An exhausted quota explains that queued work resumes at the next reset.
@@ -169,7 +166,6 @@
 ## Content voice
 
 - Tone: Direct, operational, and recovery-oriented.
-- Terminology: Use `Coupon redeem-by`, `Promotion validity`, `Fixed expiry date`, `Valid after each run`, `Effective expiry`, `Minimum purchase`, `USD`, `INR`, `BRL`, `JPY`, `Activity email limit`, `Sent this hour`, `Resets at`, `English content`, `Translation review`, `Generate 7 translations`, `Regenerate 7 translations`, `Manually edited`, `Stale`, `Unable to publish`, `OFF`, and `Save {{amount}}` consistently.
 - Terminology: Use `Coupon redeem-by`, `Promotion validity`, `Fixed expiry date`, `Valid after each run`, `Effective expiry`, `Minimum purchase`, `USD`, `INR`, `BRL`, `JPY`, `Activity email limit`, `Sent this hour`, `Resets at`, `Continuous`, `Lifecycle Trigger`, `Delivery Policy`, `Service`, `Engagement`, `From now`, `Custom date and time`, `Processing start`, `Estimated events`, `Due now`, `SMTP accepted`, `English content`, `Translation review`, `Generate 7 translations`, `Regenerate 7 translations`, `Manually edited`, `Stale`, `Unable to publish`, `OFF`, and `Save {{amount}}` consistently.
 - Microcopy rules: State the local timezone, effective expiry, exact quota scope, lifecycle trigger condition, fixed policy, selected processing-start boundary, what changed, why activation or delivery is waiting, whether manual edits will be replaced, and the next safe action. For SMTP outcomes, say `SMTP accepted` only; never imply inbox delivery.
 
@@ -178,7 +174,6 @@
 - Framework/styling system: React 19, TypeScript, react-hook-form, Zod, TanStack Query, Tailwind CSS 4, and existing Base UI/shadcn-style components.
 - Design-token constraints: Reuse existing theme tokens and semantic variants.
 - Performance constraints: Translation remains one bounded batch across all stages and seven targets; prevent duplicate in-flight requests. Hourly accounting uses one small database row per UTC hour and stops scanning later messages once the shared allowance is exhausted.
-- Compatibility constraints: Preserve exact eight-locale persistence, existing English-only automatic API clients, complete manual API clients, historical relative-validity campaigns, immutable legacy minimum-currency runtime records, HTML validation, protected tokens, queued-message snapshots, SQLite/MySQL/PostgreSQL support, and multi-node correctness. New drafts store only explicitly entered minimum currencies; legacy records keep their stored currency semantics. Common SMTP and non-Recall callers must not depend on the Activity limiter. Wallet savings are a client preview from existing offer data; checkout always recalculates and selects the offer on the server.
 - Compatibility constraints: Preserve exact eight-locale persistence, existing English-only automatic API clients, complete manual API clients, historical relative-validity campaigns, Manual/Once/Recurring execution behavior, immutable legacy minimum-currency runtime records, HTML validation, protected tokens, queued-message snapshots, SQLite/MySQL/PostgreSQL support, and multi-node correctness. New drafts store only explicitly entered minimum currencies; legacy records keep their stored currency semantics. Continuous drafts reject legacy audience, recurrence, product, coupon, discount, and promotion fields instead of silently discarding them. Common SMTP and non-Recall callers must not depend on the Activity limiter. Wallet savings are a client preview from existing offer data; checkout always recalculates and selects the offer on the server.
 - Test/screenshot expectations: Desktop 1440px and mobile 390px; both validity modes, coupon-capped expiry, minimum purchase disabled and enabled with USD/INR/BRL/JPY inputs, quota available/exhausted, live limit adjustment, Manual/Once/Recurring unchanged, Continuous trigger selection, fixed policy badge, From now/custom start, invalid custom time, masked event-boundary preview, service warning, one-stage editor, no add-stage control, lifecycle metrics, pause/resume/cancel, immutable trigger/start after activation, new draft, generation success, optional correction, stale source, regeneration warning, failed generation, blocked activation, and ready activation.
 

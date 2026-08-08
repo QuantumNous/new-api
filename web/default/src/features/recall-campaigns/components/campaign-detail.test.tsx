@@ -45,6 +45,8 @@ mock.module('@tanstack/react-router', () => ({
 
 mock.module('./campaign-preview-dialog', () => ({
   CampaignPreviewDialog: () => null,
+  RECALL_CAMPAIGN_PREVIEW_DIALOG_DESCRIPTION:
+    'Review eligibility, exclusions, and delivery validation before activation.',
 }))
 
 mock.module('./campaign-action-dialog', () => ({

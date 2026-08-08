@@ -17,6 +17,9 @@ interface CampaignPreviewDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
+export const RECALL_CAMPAIGN_PREVIEW_DIALOG_DESCRIPTION =
+  'Review eligibility, exclusions, and delivery validation before activation.'
+
 export function CampaignPreviewDialog(props: CampaignPreviewDialogProps) {
   const { t } = useTranslation()
   const preview = useQuery({
@@ -32,9 +35,7 @@ export function CampaignPreviewDialog(props: CampaignPreviewDialogProps) {
         <DialogHeader>
           <DialogTitle>{t('Campaign preview')}</DialogTitle>
           <DialogDescription>
-            {t(
-              'Review eligibility, exclusions, and promotion validation before activation.'
-            )}
+            {t(RECALL_CAMPAIGN_PREVIEW_DIALOG_DESCRIPTION)}
           </DialogDescription>
         </DialogHeader>
         <CampaignPreviewDialogContent

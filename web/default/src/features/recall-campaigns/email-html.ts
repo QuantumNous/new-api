@@ -228,6 +228,16 @@ export function getRecallEmailStarterHtml(
     : RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
 }
 
+function getRecallDisallowedEmailActions(
+  campaignType: RecallCampaignType,
+  deliveryPolicy: RecallDeliveryPolicy
+): readonly string[] {
+  const allowedActions = new Set(
+    getRecallEmailActions(campaignType, deliveryPolicy)
+  )
+  return RECALL_EMAIL_ACTIONS.filter((action) => !allowedActions.has(action))
+}
+
 function escapeRecallHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -275,10 +285,31 @@ ${claimAction}${unsubscribeAction.trimEnd()}
 </html>`
 }
 
-function stripRecallUnsubscribeControls(html: string): string {
-  return html
-    .replace(/<a\b[^>]*{{\.UnsubscribeURL}}[^>]*>[\s\S]*?<\/a>/gi, '')
-    .replace(/{{\.UnsubscribeURL}}/g, '')
+function escapeRecallTemplateActionPattern(action: string): string {
+  return action.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function stripRecallDisallowedTemplateActions(
+  html: string,
+  campaignType: RecallCampaignType,
+  deliveryPolicy: RecallDeliveryPolicy
+): string {
+  const disallowedActions = getRecallDisallowedEmailActions(
+    campaignType,
+    deliveryPolicy
+  )
+  if (disallowedActions.length === 0) return html
+
+  return disallowedActions
+    .reduce((normalized, action) => {
+      const pattern = escapeRecallTemplateActionPattern(action)
+      return normalized
+        .replace(
+          new RegExp(`<a\\b[^>]*${pattern}[^>]*>[\\s\\S]*?<\\/a>`, 'gi'),
+          ''
+        )
+        .replace(new RegExp(pattern, 'g'), '')
+    }, html)
     .replace(/<p>\s*<\/p>/gi, '')
     .replace(/<td\b([^>]*)>\s*<\/td>/gi, '<td$1></td>')
 }
@@ -290,9 +321,11 @@ export function normalizeRecallBodyInputToHtml(
 ): string {
   const trimmed = bodyInput.trim()
   if (/<\/?[a-z][\w:-]*(?:\s[^<>]*)?>/i.test(trimmed)) {
-    return campaignType === 'content_only' && deliveryPolicy === 'service'
-      ? stripRecallUnsubscribeControls(bodyInput)
-      : bodyInput
+    return stripRecallDisallowedTemplateActions(
+      bodyInput,
+      campaignType,
+      deliveryPolicy
+    )
   }
   return convertRecallBodyTextToHtml(bodyInput, campaignType, deliveryPolicy)
 }

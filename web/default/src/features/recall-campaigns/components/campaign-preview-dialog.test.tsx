@@ -14,7 +14,10 @@ mock.module('@/components/ui/dialog', () => ({
   DialogDescription: (props: React.HTMLAttributes<HTMLParagraphElement>) => (
     <p {...props} />
   ),
-  DialogFooter: (props: React.HTMLAttributes<HTMLDivElement>) => (
+  DialogFooter: ({
+    showCloseButton: _showCloseButton,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & { showCloseButton?: boolean }) => (
     <footer {...props} />
   ),
   DialogHeader: (props: React.HTMLAttributes<HTMLDivElement>) => (
@@ -27,6 +30,8 @@ mock.module('@/components/ui/dialog', () => ({
 
 const { CampaignPreviewDialogContent } =
   await import('./campaign-preview-dialog-content')
+const { RECALL_CAMPAIGN_PREVIEW_DIALOG_DESCRIPTION } =
+  await import('./campaign-preview-dialog')
 
 const testI18n = createInstance()
 
@@ -40,6 +45,15 @@ beforeAll(async () => {
 })
 
 describe('campaign preview dialog', () => {
+  test('uses neutral activation review copy in the dialog description', () => {
+    expect(RECALL_CAMPAIGN_PREVIEW_DIALOG_DESCRIPTION).toBe(
+      'Review eligibility, exclusions, and delivery validation before activation.'
+    )
+    expect(RECALL_CAMPAIGN_PREVIEW_DIALOG_DESCRIPTION).not.toContain(
+      'promotion validation'
+    )
+  })
+
   test('renders event-boundary lifecycle estimates with masked samples and recheck warning', () => {
     const preview = {
       eligible_total: 0,

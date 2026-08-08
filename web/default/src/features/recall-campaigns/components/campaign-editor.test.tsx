@@ -1736,6 +1736,55 @@ describe('CampaignEditor schedule modes', () => {
     dispose(root)
   })
 
+  test('switching a promotion draft to service Continuous strips promotion and unsubscribe tokens before submit', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates.en.body_text = ''
+    draft.email_sequence[0].templates.en.body_html = [
+      '<p>Service-safe copy for {{.RecipientName}}</p>',
+      '<p>{{.ProductSummary}}</p>',
+      '<p>Use {{.PromotionCodeMasked}} before {{.ExpiresAt}}</p>',
+      '<p><a href="{{.ClaimURL}}">Claim</a></p>',
+      '<p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>',
+    ].join('')
+    draft.email_sequence.push({
+      stage_no: 2,
+      delay_seconds: 86_400,
+      template_version: 1,
+      templates: {
+        en: {
+          subject: 'Second subject',
+          body_text: '',
+          body_html: '<p>{{.ClaimURL}}</p>',
+        },
+      },
+    })
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    const html = submitted.email_sequence[0].templates.en.body_html ?? ''
+    expect(submitted.execution_mode).toBe('continuous')
+    expect(submitted.delivery_policy).toBe('service')
+    expect(submitted.email_sequence).toHaveLength(1)
+    expect(html).toContain('Service-safe copy for {{.RecipientName}}')
+    for (const forbidden of [
+      '{{.ProductSummary}}',
+      '{{.PromotionCodeMasked}}',
+      '{{.ExpiresAt}}',
+      '{{.ClaimURL}}',
+      '{{.UnsubscribeURL}}',
+    ]) {
+      expect(html).not.toContain(forbidden)
+    }
+    dispose(root)
+  })
+
   test('uses From now by default and DateTimePicker for custom continuous starts', async () => {
     const draft = makeContinuousDraft()
     const { root, container } = renderEditorDom(draft)

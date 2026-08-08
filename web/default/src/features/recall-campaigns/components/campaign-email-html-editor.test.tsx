@@ -274,6 +274,34 @@ describe('recall email preview race guard', () => {
     expect(prepared?.template.body_html).toContain('href="{{.UnsubscribeURL}}"')
   })
 
+  test('prepares service-policy content preview without promotion or unsubscribe tokens', async () => {
+    const prepared = await prepareRecallEmailPreviewRequest({
+      campaignType: 'content_only',
+      deliveryPolicy: 'service',
+      nextRequestId: () => 5,
+      subject: 'Service update',
+      bodyHTML: [
+        '<p>Account update for {{.RecipientName}}</p>',
+        '<p>{{.ProductSummary}}</p>',
+        '<p>Use {{.PromotionCodeMasked}} before {{.ExpiresAt}}</p>',
+        '<p><a href="{{.ClaimURL}}">Claim</a></p>',
+        '<p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>',
+      ].join(''),
+      validateBody: async () => true,
+    })
+
+    expect(prepared?.template.body_html).toContain('{{.RecipientName}}')
+    for (const forbidden of [
+      '{{.ProductSummary}}',
+      '{{.PromotionCodeMasked}}',
+      '{{.ExpiresAt}}',
+      '{{.ClaimURL}}',
+      '{{.UnsubscribeURL}}',
+    ]) {
+      expect(prepared?.template.body_html).not.toContain(forbidden)
+    }
+  })
+
   test('assigns the preview request id only after body validation completes', async () => {
     let resolveValidation: ((valid: boolean) => void) | undefined
     let nextRequestId = 0
