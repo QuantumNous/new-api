@@ -129,6 +129,12 @@ describe('recall campaign API contracts', () => {
     }
   }
 
+  function makeContinuousDraftWithStaleAudienceTemplate(): RecallCampaignDraft {
+    const draft = makeRecallDraft()
+    draft.audience_template = 'first_purchase'
+    return draft
+  }
+
   function parseCapturedPayload(): Record<string, unknown> {
     return JSON.parse(String(capturedConfig?.data)) as Record<string, unknown>
   }
@@ -189,9 +195,26 @@ describe('recall campaign API contracts', () => {
   )
 
   test.each([
-    ['create', () => createRecallCampaign(makeRecallDraft())],
-    ['update', () => updateRecallCampaign(42, makeRecallDraft())],
-    ['Stripe validation', () => validateRecallStripeConfig(makeRecallDraft())],
+    [
+      'create',
+      () =>
+        createRecallCampaign(makeContinuousDraftWithStaleAudienceTemplate()),
+    ],
+    [
+      'update',
+      () =>
+        updateRecallCampaign(
+          42,
+          makeContinuousDraftWithStaleAudienceTemplate()
+        ),
+    ],
+    [
+      'Stripe validation',
+      () =>
+        validateRecallStripeConfig(
+          makeContinuousDraftWithStaleAudienceTemplate()
+        ),
+    ],
   ])(
     'serializes continuous %s audience as the backend zero-value object',
     async (_name, call) => {
