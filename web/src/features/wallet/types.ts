@@ -156,6 +156,8 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  /** Whether affiliate rewards are enabled */
+  affiliate_rewards_enabled?: boolean
 }
 
 /**

@@ -27,3 +27,12 @@ export function generateAffiliateLink(affCode: string): string {
   if (typeof window === 'undefined') return ''
   return `${window.location.origin}/sign-up?aff=${affCode}`
 }
+
+/**
+ * Affiliate rewards are visible only when the backend explicitly enables them.
+ * Missing data is treated as disabled to avoid showing the block before the
+ * system setting is available.
+ */
+export function shouldShowAffiliateRewards(enabled?: boolean): boolean {
+  return enabled === true
+}

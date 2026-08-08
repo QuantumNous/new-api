@@ -265,11 +265,15 @@ func ListModels(c *gin.Context, modelType int) {
 	switch modelType {
 	case constant.ChannelTypeAnthropic:
 		useranthropicModels := make([]dto.AnthropicModel, len(userOpenAiModels))
-		for i, model := range userOpenAiModels {
+		for i, m := range userOpenAiModels {
+			id := m.Id
+			if !strings.HasPrefix(id, "claude-") {
+				id = "claude-" + id
+			}
 			useranthropicModels[i] = dto.AnthropicModel{
-				ID:          model.Id,
-				CreatedAt:   time.Unix(int64(model.Created), 0).UTC().Format(time.RFC3339),
-				DisplayName: model.Id,
+				ID:          id,
+				CreatedAt:   time.Unix(int64(m.Created), 0).UTC().Format(time.RFC3339),
+				DisplayName: m.Id,
 				Type:        "model",
 			}
 		}
@@ -329,11 +333,19 @@ func EnabledListModels(c *gin.Context) {
 
 func RetrieveModel(c *gin.Context, modelType int) {
 	modelId := c.Param("model")
-	if aiModel, ok := openAIModelsMap[modelId]; ok {
+	lookupId := modelId
+	if modelType == constant.ChannelTypeAnthropic {
+		lookupId = resolveAnthropicModelID(modelId)
+	}
+	if aiModel, ok := openAIModelsMap[lookupId]; ok {
 		switch modelType {
 		case constant.ChannelTypeAnthropic:
+			id := aiModel.Id
+			if !strings.HasPrefix(id, "claude-") {
+				id = "claude-" + id
+			}
 			c.JSON(200, dto.AnthropicModel{
-				ID:          aiModel.Id,
+				ID:          id,
 				CreatedAt:   time.Unix(int64(aiModel.Created), 0).UTC().Format(time.RFC3339),
 				DisplayName: aiModel.Id,
 				Type:        "model",
@@ -352,4 +364,18 @@ func RetrieveModel(c *gin.Context, modelType int) {
 			"error": openAIError,
 		})
 	}
+}
+
+func resolveAnthropicModelID(id string) string {
+	if !strings.HasPrefix(id, "claude-") {
+		return id
+	}
+	if _, ok := openAIModelsMap[id]; ok {
+		return id
+	}
+	stripped := id[len("claude-"):]
+	if stripped == "" {
+		return id
+	}
+	return stripped
 }
