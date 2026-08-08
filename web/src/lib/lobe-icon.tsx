@@ -25,13 +25,51 @@ For commercial licensing, please contact support@quantumnous.com
  * - Chained properties: "OpenAI.Avatar.type={'platform'}"
  * - Size parameter: getLobeIcon("OpenAI", 20)
  */
-import * as LobeIcons from '@lobehub/icons'
+import Ai360 from '@lobehub/icons/es/Ai360'
+import Anthropic from '@lobehub/icons/es/Anthropic'
+import Azure from '@lobehub/icons/es/Azure'
+import AzureAI from '@lobehub/icons/es/AzureAI'
+import Claude from '@lobehub/icons/es/Claude'
+import Cloudflare from '@lobehub/icons/es/Cloudflare'
+import Cohere from '@lobehub/icons/es/Cohere'
+import DeepSeek from '@lobehub/icons/es/DeepSeek'
+import Doubao from '@lobehub/icons/es/Doubao'
+import Gemini from '@lobehub/icons/es/Gemini'
+import Google from '@lobehub/icons/es/Google'
+import Hunyuan from '@lobehub/icons/es/Hunyuan'
+import Jimeng from '@lobehub/icons/es/Jimeng'
+import Jina from '@lobehub/icons/es/Jina'
+import Kling from '@lobehub/icons/es/Kling'
+import Midjourney from '@lobehub/icons/es/Midjourney'
+import Minimax from '@lobehub/icons/es/Minimax'
+import Mistral from '@lobehub/icons/es/Mistral'
+import Moonshot from '@lobehub/icons/es/Moonshot'
+import NewAPI from '@lobehub/icons/es/NewAPI'
+import Ollama from '@lobehub/icons/es/Ollama'
+import OpenAI from '@lobehub/icons/es/OpenAI'
+import OpenRouter from '@lobehub/icons/es/OpenRouter'
+import Perplexity from '@lobehub/icons/es/Perplexity'
+import Qwen from '@lobehub/icons/es/Qwen'
+import Replicate from '@lobehub/icons/es/Replicate'
+import SiliconCloud from '@lobehub/icons/es/SiliconCloud'
+import Spark from '@lobehub/icons/es/Spark'
+import Suno from '@lobehub/icons/es/Suno'
+import Vidu from '@lobehub/icons/es/Vidu'
+import Wenxin from '@lobehub/icons/es/Wenxin'
+import XAI from '@lobehub/icons/es/XAI'
+import Yi from '@lobehub/icons/es/Yi'
+import Zhipu from '@lobehub/icons/es/Zhipu'
 import type React from 'react'
 
-import { IconSub2api } from '@/assets/custom/icon-sub2api'
 
-const CUSTOM_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
-  Sub2API: IconSub2api,
+// Static icon map: replaces import * as LobeIcons from '@lobehub/icons'
+// Each brand's default export is assigned by name for tree-shakeable static resolution.
+const LOBE_ICONS: Record<string, Record<string, unknown> | React.ComponentType<Record<string, unknown>>> = {
+  Ai360, Anthropic, Azure, AzureAI, Claude, Cloudflare, Cohere,
+  DeepSeek, Doubao, Gemini, Google, Hunyuan, Jimeng, Jina, Kling,
+  Midjourney, Minimax, Mistral, Moonshot, NewAPI, Ollama, OpenAI,
+  OpenRouter, Perplexity, Qwen, Replicate, SiliconCloud, Spark, Suno,
+  Vidu, Wenxin, XAI, Yi, Zhipu,
 }
 
 /**
@@ -106,16 +144,9 @@ export function getLobeIcon(
     )
   }
 
-  // Parse component path and chained properties
   const segments = trimmedName.split('.')
   const baseKey = segments[0]
-  const CustomIcon = CUSTOM_ICONS[baseKey]
-  if (CustomIcon) {
-    return <CustomIcon size={size} />
-  }
-  const BaseIcon = (LobeIcons as Record<string, unknown>)[baseKey] as
-    | Record<string, unknown>
-    | undefined
+  const BaseIcon = LOBE_ICONS[baseKey] as Record<string, unknown> | undefined
 
   let IconComponent: React.ComponentType<Record<string, unknown>> | undefined
   let propStartIndex: number
@@ -126,7 +157,7 @@ export function getLobeIcon(
     >
     propStartIndex = 2
   } else {
-    IconComponent = (LobeIcons as Record<string, unknown>)[baseKey] as
+    IconComponent = LOBE_ICONS[baseKey] as
       | React.ComponentType<Record<string, unknown>>
       | undefined
     propStartIndex = segments.length > 1 && /^[A-Z]/.test(segments[1]) ? 2 : 1
