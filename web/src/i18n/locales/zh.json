@@ -5248,6 +5248,10 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Regenerate access token?": "重新生成访问令牌？",
+    "This token is shown only once. Store it now — it cannot be retrieved later.": "此令牌仅显示一次，请立即保存，之后无法再次查看。",
+    "For security reasons the existing token cannot be displayed again. Regenerating creates a new token and invalidates the current one immediately.": "出于安全考虑，现有令牌无法再次显示。重新生成会创建新令牌，并立即使当前令牌失效。",
+    "The current token stops working immediately. Any integration still using it will fail until you update it with the new token.": "当前令牌会立即停止工作。仍在使用它的集成将全部失败，直到你更新为新令牌。"
   }
 }

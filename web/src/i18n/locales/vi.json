@@ -5248,6 +5248,10 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Regenerate access token?": "Tạo lại token truy cập?",
+    "This token is shown only once. Store it now — it cannot be retrieved later.": "Token này chỉ hiển thị một lần. Hãy lưu lại ngay — sau này không thể xem lại được.",
+    "For security reasons the existing token cannot be displayed again. Regenerating creates a new token and invalidates the current one immediately.": "Vì lý do bảo mật, token hiện tại không thể hiển thị lại. Việc tạo lại sẽ sinh ra token mới và vô hiệu hóa ngay token hiện tại.",
+    "The current token stops working immediately. Any integration still using it will fail until you update it with the new token.": "Token hiện tại sẽ ngừng hoạt động ngay lập tức. Mọi tích hợp còn dùng nó sẽ lỗi cho đến khi bạn cập nhật sang token mới."
   }
 }

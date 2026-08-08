@@ -5248,6 +5248,10 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Regenerate access token?": "Régénérer le jeton d'accès ?",
+    "This token is shown only once. Store it now — it cannot be retrieved later.": "Ce jeton n'est affiché qu'une seule fois. Enregistrez-le maintenant, il ne pourra plus être récupéré ensuite.",
+    "For security reasons the existing token cannot be displayed again. Regenerating creates a new token and invalidates the current one immediately.": "Pour des raisons de sécurité, le jeton existant ne peut pas être affiché à nouveau. La régénération crée un nouveau jeton et invalide immédiatement l'actuel.",
+    "The current token stops working immediately. Any integration still using it will fail until you update it with the new token.": "Le jeton actuel cesse de fonctionner immédiatement. Toute intégration l'utilisant encore échouera jusqu'à ce que vous la mettiez à jour avec le nouveau jeton."
   }
 }
