@@ -460,7 +460,7 @@ func TestCompleteUploadAndOwnedGetUseUserScopedService(t *testing.T) {
 	GetAsset(getCtx)
 	require.Equal(t, http.StatusOK, getRecorder.Code, getRecorder.Body.String())
 	require.Equal(t, 456, getUserID)
-	require.Contains(t, getRecorder.Body.String(), `"status":"Processing"`)
+	require.Contains(t, getRecorder.Body.String(), `"status":"Active"`)
 	requireAssetPublicBody(t, getRecorder.Body.String())
 }
 
