@@ -287,8 +287,9 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	balanceUsd := decimal.NewFromFloat(balance).Div(decimal.NewFromFloat(operation_setting.Price)).InexactFloat64()
+	channel.UpdateBalance(balanceUsd)
+	return balanceUsd, nil
 }
 
 func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
