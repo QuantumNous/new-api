@@ -39,19 +39,28 @@ func validRecallContinuousDraft() RecallCampaignDraft {
 	return draft
 }
 
-func TestRecallCampaignContinuousRequiresLifecycleCollectionMarker(t *testing.T) {
+func TestRecallCampaignContinuousDraftSaveAndUpdateDoNotRequireLifecycleCollectionMarker(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
 	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	draft := validRecallContinuousDraft()
+	draft.ProcessingStartAt = time.Now().Add(time.Hour).Unix()
 
-	_, err := service.SaveDraft(context.Background(), 7, validRecallContinuousDraft())
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
 
-	require.ErrorContains(t, err, "lifecycle event collection marker")
-	var count int64
-	require.NoError(t, model.DB.Model(&model.Option{}).
-		Where("key = ?", model.OptionKeyRecallLifecycleEventCollectionStartedAt).
-		Count(&count).Error)
-	require.Zero(t, count)
+	require.NoError(t, err)
+	require.Equal(t, draft.ProcessingStartAt, campaign.ProcessingStartAt)
+	assertRecallLifecycleCollectionMarkerAbsent(t)
+
+	updatedDraft := validRecallContinuousDraft()
+	updatedDraft.Name = "Updated quota low lifecycle notice"
+	updatedDraft.ProcessingStartAt = draft.ProcessingStartAt + 60
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, updatedDraft)
+
+	require.NoError(t, err)
+	require.Equal(t, updatedDraft.Name, updated.Name)
+	require.Equal(t, updatedDraft.ProcessingStartAt, updated.ProcessingStartAt)
+	assertRecallLifecycleCollectionMarkerAbsent(t)
 }
 
 func TestRecallCampaignContinuousPreviewAndActivationRequireLifecycleCollectionMarker(t *testing.T) {
@@ -110,6 +119,45 @@ func TestRecallCampaignContinuousActivationClaimsSlotAndUsesDBTimeForFromNow(t *
 	var slot model.RecallContinuousTriggerSlot
 	require.NoError(t, model.DB.First(&slot, "trigger = ?", model.RecallLifecycleTriggerQuotaLow).Error)
 	require.Equal(t, campaign.Id, slot.CampaignId)
+}
+
+func TestRecallCampaignContinuousPreviewAndActivationRejectProcessingStartOutsideCollectionBoundary(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	marker, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	dbNow, err := model.GetDBTimestampWithContext(context.Background())
+	require.NoError(t, err)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+
+	for _, test := range []struct {
+		name              string
+		processingStartAt int64
+	}{
+		{name: "too early", processingStartAt: marker - 1},
+		{name: "future", processingStartAt: dbNow + 86400},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			draft := validRecallContinuousDraft()
+			draft.ProcessingStartAt = test.processingStartAt
+
+			campaign, err := service.SaveDraft(context.Background(), 7, draft)
+			require.NoError(t, err)
+			require.Equal(t, test.processingStartAt, campaign.ProcessingStartAt)
+
+			_, _, err = service.Preview(context.Background(), campaign.Id, 10)
+			require.ErrorContains(t, err, "processing start")
+
+			err = service.Activate(context.Background(), 7, campaign.Id)
+
+			require.ErrorContains(t, err, "processing start")
+			var ownedSlots int64
+			require.NoError(t, model.DB.Model(&model.RecallContinuousTriggerSlot{}).
+				Where("trigger = ? AND campaign_id <> 0", model.RecallLifecycleTriggerQuotaLow).
+				Count(&ownedSlots).Error)
+			require.Zero(t, ownedSlots)
+		})
+	}
 }
 
 func TestRecallCampaignContinuousBlankDeliveryPolicyCanonicalizesToTriggerPolicy(t *testing.T) {
@@ -396,10 +444,10 @@ func TestRecallCampaignContinuousRejectsCompleteWithoutReleasingSlot(t *testing.
 	}
 }
 
-func TestRecallCampaignContinuousRejectsWrongPolicyAudiencePromotionAndBoundaries(t *testing.T) {
+func TestRecallCampaignContinuousRejectsWrongPolicyAudiencePromotionAndStageShape(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
-	marker, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
 	require.NoError(t, err)
 	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
 
@@ -418,8 +466,6 @@ func TestRecallCampaignContinuousRejectsWrongPolicyAudiencePromotionAndBoundarie
 			d.Discount.Type = "percent"
 			d.Discount.PercentOff = 10
 		}, want: "promotion"},
-		{name: "too early", mutate: func(d *RecallCampaignDraft) { d.ProcessingStartAt = marker - 1 }, want: "processing start"},
-		{name: "future", mutate: func(d *RecallCampaignDraft) { d.ProcessingStartAt = time.Now().Add(time.Hour).Unix() }, want: "processing start"},
 		{name: "extra stage", mutate: func(d *RecallCampaignDraft) {
 			d.Emails = append(d.Emails, RecallEmailStage{StageNo: 2, DelaySeconds: 60, Templates: map[string]RecallEmailTemplate{"en": {Subject: "Again", BodyText: "Again."}}})
 		}, want: "one email stage"},

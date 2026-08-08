@@ -595,9 +595,6 @@ func (s *RecallCampaignService) SaveDraft(ctx context.Context, actorID int, draf
 	if err != nil {
 		return nil, err
 	}
-	if err := validateRecallContinuousLifecycleCollectionBoundary(ctx, normalized); err != nil {
-		return nil, err
-	}
 	normalized.Emails, err = s.prepareRecallEmailStages(ctx, normalized.CampaignType, normalized.DeliveryPolicy, normalized.Emails, nil, normalized.DeferLocalization)
 	if err != nil {
 		return nil, err
@@ -634,9 +631,6 @@ func (s *RecallCampaignService) UpdateDraft(ctx context.Context, actorID int, id
 		}
 		normalized, err := validateAndNormalizeRecallCampaignDraftForPersistence(canonical, s.now())
 		if err != nil {
-			return nil, err
-		}
-		if err := validateRecallContinuousLifecycleCollectionBoundary(ctx, normalized); err != nil {
 			return nil, err
 		}
 		normalized.Emails, err = s.prepareRecallEmailStages(ctx, normalized.CampaignType, normalized.DeliveryPolicy, normalized.Emails, current.Emails, normalized.DeferLocalization)
@@ -1053,8 +1047,8 @@ func (s *RecallCampaignService) Preview(ctx context.Context, id int64, sampleSiz
 		return RecallAudiencePreview{}, nil, err
 	}
 	if draft.ExecutionMode == "continuous" {
-		if _, err := model.GetRecallLifecycleEventCollectionStartedAtWithContext(ctx); err != nil {
-			return RecallAudiencePreview{}, nil, fmt.Errorf("recall lifecycle event collection marker: %w", err)
+		if err := validateRecallContinuousLifecycleCollectionBoundary(ctx, draft); err != nil {
+			return RecallAudiencePreview{}, nil, err
 		}
 		return RecallAudiencePreview{Sample: []RecallAudienceCandidate{}, Exclusions: map[string]int64{}}, nil, nil
 	}
