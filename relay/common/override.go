@@ -30,6 +30,11 @@ var paramOverrideSensitivePathPrefixes = []string{
 	"model",
 	"original_model",
 	"upstream_model",
+	"reasoning",
+	"reasoning_effort",
+	"output_config",
+	"generationConfig.thinkingConfig",
+	"generation_config.thinking_config",
 	"service_tier",
 	"inference_geo",
 	"speed",
@@ -191,6 +196,7 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 	if err != nil {
 		return nil, err
 	}
+	syncReasoningEffortAfterParamOverride(info, jsonData, result)
 	syncRuntimeHeaderOverrideFromContext(info, overrideCtx)
 	if info != nil {
 		if recorder != nil {
@@ -200,6 +206,51 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 		}
 	}
 	return result, nil
+}
+
+func syncReasoningEffortAfterParamOverride(info *RelayInfo, before, after []byte) {
+	if info == nil {
+		return
+	}
+	_, existedBefore := extractReasoningEffortFromJSON(info.GetFinalRequestRelayFormat(), before)
+	effort, existsAfter := extractReasoningEffortFromJSON(info.GetFinalRequestRelayFormat(), after)
+	if existsAfter {
+		info.SetReasoningEffort(effort)
+		return
+	}
+	if existedBefore {
+		info.SetReasoningEffort("")
+	}
+}
+
+func extractReasoningEffortFromJSON(format types.RelayFormat, data []byte) (string, bool) {
+	var paths []string
+	switch format {
+	case types.RelayFormatOpenAI:
+		paths = []string{"reasoning_effort", "reasoning.effort"}
+	case types.RelayFormatOpenAIResponses:
+		paths = []string{"reasoning.effort"}
+	case types.RelayFormatClaude:
+		paths = []string{"output_config.effort"}
+	case types.RelayFormatGemini:
+		paths = []string{
+			"generationConfig.thinkingConfig.thinkingLevel",
+			"generation_config.thinking_config.thinking_level",
+		}
+	default:
+		return "", false
+	}
+	for _, path := range paths {
+		value := gjson.GetBytes(data, path)
+		if !value.Exists() {
+			continue
+		}
+		if value.Type != gjson.String {
+			return "", true
+		}
+		return strings.TrimSpace(value.String()), true
+	}
+	return "", false
 }
 
 func shouldEnableParamOverrideAudit(paramOverride map[string]interface{}) bool {
