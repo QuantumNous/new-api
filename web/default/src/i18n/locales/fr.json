@@ -6529,6 +6529,8 @@
     "order_state_changed": "État de commande modifié",
     "smtp_uncertain": "SMTP incertain",
     "activity_smtp_not_configured": "SMTP d’activité non configuré",
-    "activity_smtp_send_failed": "Échec d’envoi SMTP d’activité"
+    "activity_smtp_send_failed": "Échec d’envoi SMTP d’activité",
+    "Unknown lifecycle event": "Événement de cycle de vie inconnu",
+    "Unknown lifecycle outcome": "Résultat de cycle de vie inconnu"
   }
 }

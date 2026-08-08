@@ -6529,6 +6529,8 @@
     "order_state_changed": "Trạng thái đơn hàng đã thay đổi",
     "smtp_uncertain": "SMTP chưa chắc trạng thái",
     "activity_smtp_not_configured": "SMTP hoạt động chưa được cấu hình",
-    "activity_smtp_send_failed": "Gửi SMTP hoạt động thất bại"
+    "activity_smtp_send_failed": "Gửi SMTP hoạt động thất bại",
+    "Unknown lifecycle event": "Sự kiện vòng đời không xác định",
+    "Unknown lifecycle outcome": "Kết quả vòng đời không xác định"
   }
 }

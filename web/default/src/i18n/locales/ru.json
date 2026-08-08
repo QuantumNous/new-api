@@ -6529,6 +6529,8 @@
     "order_state_changed": "Состояние заказа изменилось",
     "smtp_uncertain": "SMTP не определен",
     "activity_smtp_not_configured": "SMTP активности не настроен",
-    "activity_smtp_send_failed": "Ошибка отправки SMTP активности"
+    "activity_smtp_send_failed": "Ошибка отправки SMTP активности",
+    "Unknown lifecycle event": "Неизвестное событие жизненного цикла",
+    "Unknown lifecycle outcome": "Неизвестный результат жизненного цикла"
   }
 }

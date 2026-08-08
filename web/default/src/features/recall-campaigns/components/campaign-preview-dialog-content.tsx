@@ -30,6 +30,16 @@ const knownLifecycleOutcomeCodes = new Set<string>([
   'activity_smtp_send_failed',
 ])
 
+const knownLifecycleEventTypes = new Set<string>([
+  'user_registered',
+  'registration_unused',
+  'quota_low',
+  'quota_exhausted_unpaid',
+  'payment_failed',
+  'payment_pending',
+  'payment_succeeded',
+])
+
 type Translate = (key: string) => string
 
 function formatTimestamp(value: number): string {
@@ -40,7 +50,17 @@ export function formatRecallLifecycleOutcomeCode(
   code: string,
   t: Translate
 ): string {
-  if (!knownLifecycleOutcomeCodes.has(code)) return code
+  if (!knownLifecycleOutcomeCodes.has(code)) {
+    return t('Unknown lifecycle outcome')
+  }
+  return t(code)
+}
+
+export function formatRecallLifecycleEventType(
+  code: string,
+  t: Translate
+): string {
+  if (!knownLifecycleEventTypes.has(code)) return t('Unknown lifecycle event')
   return t(code)
 }
 
@@ -121,7 +141,9 @@ export function CampaignPreviewDialogContent(props: {
                   {data.lifecycle.samples.map((sample) => (
                     <tr className='border-b last:border-0' key={sample.id}>
                       <td className='p-2'>{sample.id}</td>
-                      <td className='p-2'>{t(sample.event_type)}</td>
+                      <td className='p-2'>
+                        {formatRecallLifecycleEventType(sample.event_type, t)}
+                      </td>
                       <td className='p-2'>{sample.user}</td>
                       <td className='p-2'>
                         {sample.scope_type}: {sample.scope}

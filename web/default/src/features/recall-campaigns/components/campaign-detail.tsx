@@ -45,7 +45,10 @@ import { CampaignEditor } from './campaign-editor'
 import { CampaignExclusionDialog } from './campaign-exclusion-dialog'
 import { CampaignMetricCardSection } from './campaign-metric-drawer'
 import { CampaignPreviewDialog } from './campaign-preview-dialog'
-import { formatRecallLifecycleOutcomeCode } from './campaign-preview-dialog-content'
+import {
+  formatRecallLifecycleEventType,
+  formatRecallLifecycleOutcomeCode,
+} from './campaign-preview-dialog-content'
 
 const DETAIL_PAGE_SIZE = 100
 const activationLocales = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi']
@@ -504,7 +507,9 @@ export function CampaignDetail(props: CampaignDetailProps) {
                 {events.map((event) => (
                   <li className='rounded-lg border p-3' key={event.id}>
                     <div className='flex justify-between gap-3'>
-                      <strong>{t(event.event_type)}</strong>
+                      <strong>
+                        {formatRecallLifecycleEventType(event.event_type, t)}
+                      </strong>
                       <span className='text-muted-foreground text-xs'>
                         {formatTimestamp(event.created_at)}
                       </span>

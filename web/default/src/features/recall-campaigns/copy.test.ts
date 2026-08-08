@@ -212,6 +212,8 @@ const lifecycleVisibleCopyKeys = [
   'smtp_uncertain',
   'activity_smtp_not_configured',
   'activity_smtp_send_failed',
+  'Unknown lifecycle event',
+  'Unknown lifecycle outcome',
   'Delivery Policy',
   'Service',
   'Engagement',

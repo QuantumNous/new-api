@@ -6529,6 +6529,8 @@
     "order_state_changed": "订单状态已变化",
     "smtp_uncertain": "SMTP 状态不确定",
     "activity_smtp_not_configured": "活动 SMTP 未配置",
-    "activity_smtp_send_failed": "活动 SMTP 发送失败"
+    "activity_smtp_send_failed": "活动 SMTP 发送失败",
+    "Unknown lifecycle event": "未知生命周期事件",
+    "Unknown lifecycle outcome": "未知生命周期结果"
   }
 }

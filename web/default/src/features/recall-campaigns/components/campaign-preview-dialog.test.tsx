@@ -46,6 +46,8 @@ beforeAll(async () => {
           skipped: 'Skipped',
           invalid_email: 'Invalid lifecycle email',
           lease_recovered: 'Lease recovered for retry',
+          'Unknown lifecycle event': 'Unknown lifecycle event',
+          'Unknown lifecycle outcome': 'Unknown lifecycle outcome',
         },
       },
     },
@@ -91,6 +93,21 @@ describe('campaign preview dialog', () => {
             attempt_count: 1,
             last_error_code: 'lease_recovered',
           },
+          {
+            id: 102,
+            event_type: 'unknown_future_event',
+            user: 'user_***99',
+            scope_type: 'balance',
+            scope: 'global',
+            business_key: 'trade_***999',
+            recipient_identity: 'b***@example.com',
+            disposition: 'skipped',
+            disposition_reason_code: 'unknown_future_reason',
+            occurred_at: 1_899_960_100,
+            available_at: 1_900_000_200,
+            attempt_count: 1,
+            last_error_code: 'unknown_future_error',
+          },
         ],
       },
     } as RecallCampaignPreview
@@ -118,6 +135,12 @@ describe('campaign preview dialog', () => {
     expect(html).not.toContain('skipped (invalid_email)')
     expect(html).toContain('Lease recovered for retry')
     expect(html).not.toContain('lease_recovered')
+    expect(html).toContain('Unknown lifecycle event')
+    expect(html).toContain('Skipped (Unknown lifecycle outcome)')
+    expect(html).toContain('Unknown lifecycle outcome')
+    expect(html).not.toContain('unknown_future_event')
+    expect(html).not.toContain('unknown_future_reason')
+    expect(html).not.toContain('unknown_future_error')
     expect(html).toContain('Occurred at')
     expect(html).toContain(
       'Send-time rechecks can reduce the final recipient count.'

@@ -10,6 +10,7 @@ import type {
   RecallCampaignMetrics,
   RecallCampaignType,
   RecallEmailStage,
+  RecallEvent,
   RecallMetricCard,
   RecallMetricKey,
   RecallRecipient,
@@ -73,6 +74,8 @@ beforeAll(async () => {
           engagement_opted_out: 'Engagement opt-out',
           invalid_email: 'Invalid lifecycle email',
           quota_recovered: 'Quota recovered before send',
+          'Unknown lifecycle event': 'Unknown lifecycle event',
+          'Unknown lifecycle outcome': 'Unknown lifecycle outcome',
         },
       },
     },
@@ -356,7 +359,8 @@ function renderCampaignDetail(
 }
 
 function renderContinuousCampaignDetail(
-  metrics: RecallCampaignMetrics = makeContinuousMetrics()
+  metrics: RecallCampaignMetrics = makeContinuousMetrics(),
+  events: RecallEvent[] = []
 ): string {
   const campaignId = 42
   const queryClient = new QueryClient({
@@ -381,7 +385,7 @@ function renderContinuousCampaignDetail(
   })
   queryClient.setQueryData(recallCampaignKeys.events(campaignId, 1), {
     success: true,
-    data: { items: [], total: 0, page: 1, page_size: 100 },
+    data: { items: events, total: events.length, page: 1, page_size: 100 },
   })
 
   return renderToStaticMarkup(
@@ -560,11 +564,30 @@ describe('CampaignDetail metric rendering', () => {
     expect(metricsHtml).not.toContain('engagement_opted_out')
     expect(metricsHtml).toContain('Skip breakdown')
     expect(metricsHtml).toContain('Invalid lifecycle email')
-    expect(metricsHtml).toContain('unknown_future_reason')
+    expect(metricsHtml).toContain('Unknown lifecycle outcome')
+    expect(metricsHtml).not.toContain('unknown_future_reason')
     expect(metricsHtml).toContain('Processing latency')
     expect(metricsHtml).toContain('Quota recovered before send')
     expect(metricsHtml).not.toContain('quota_recovered')
     expect(metricsHtml).not.toContain('Accepted messages')
+  })
+
+  test('hides unknown lifecycle event identifiers in the audit timeline', () => {
+    const html = renderContinuousCampaignDetail(makeContinuousMetrics(), [
+      {
+        id: 1,
+        campaign_id: 42,
+        recipient_id: 0,
+        event_type: 'unknown_future_event',
+        source: 'activity',
+        source_event_id: 'evt_123',
+        event_data: '',
+        created_at: 1_900_000_000,
+      },
+    ])
+
+    expect(html).toContain('Unknown lifecycle event')
+    expect(html).not.toContain('unknown_future_event')
   })
 
   test('offers pause and cancel while running continuous activities, without complete', () => {

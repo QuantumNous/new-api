@@ -6529,6 +6529,8 @@
     "order_state_changed": "注文状態が変更済み",
     "smtp_uncertain": "SMTP 不確定",
     "activity_smtp_not_configured": "アクティビティ SMTP 未設定",
-    "activity_smtp_send_failed": "アクティビティ SMTP 送信失敗"
+    "activity_smtp_send_failed": "アクティビティ SMTP 送信失敗",
+    "Unknown lifecycle event": "不明なライフサイクルイベント",
+    "Unknown lifecycle outcome": "不明なライフサイクル結果"
   }
 }
