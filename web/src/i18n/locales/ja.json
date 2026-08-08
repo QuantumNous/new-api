@@ -5248,6 +5248,10 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Regenerate access token?": "アクセストークンを再生成しますか？",
+    "This token is shown only once. Store it now — it cannot be retrieved later.": "このトークンは一度しか表示されません。今すぐ保存してください。後から取得することはできません。",
+    "For security reasons the existing token cannot be displayed again. Regenerating creates a new token and invalidates the current one immediately.": "セキュリティ上の理由により、既存のトークンを再表示することはできません。再生成すると新しいトークンが作成され、現在のトークンは直ちに無効になります。",
+    "The current token stops working immediately. Any integration still using it will fail until you update it with the new token.": "現在のトークンは直ちに使用できなくなります。それを使用している連携は、新しいトークンに更新するまですべて失敗します。"
   }
 }

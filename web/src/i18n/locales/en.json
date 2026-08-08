@@ -5248,6 +5248,10 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Regenerate access token?": "Regenerate access token?",
+    "This token is shown only once. Store it now — it cannot be retrieved later.": "This token is shown only once. Store it now — it cannot be retrieved later.",
+    "For security reasons the existing token cannot be displayed again. Regenerating creates a new token and invalidates the current one immediately.": "For security reasons the existing token cannot be displayed again. Regenerating creates a new token and invalidates the current one immediately.",
+    "The current token stops working immediately. Any integration still using it will fail until you update it with the new token.": "The current token stops working immediately. Any integration still using it will fail until you update it with the new token."
   }
 }
