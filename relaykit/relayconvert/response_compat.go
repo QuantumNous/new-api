@@ -28,6 +28,10 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	return oaichat.StreamResponseOpenAI2Claude(openAIResponse, info)
 }
 
+func FinalizeStreamResponseOpenAI2Claude(info convmeta.Meta) []*dto.ClaudeResponse {
+	return oaichat.FinalizeStreamResponseOpenAI2Claude(info)
+}
+
 func StopReasonClaudeToOpenAI(reason string) string {
 	return claudemessages.StopReasonClaudeToOpenAI(reason)
 }
