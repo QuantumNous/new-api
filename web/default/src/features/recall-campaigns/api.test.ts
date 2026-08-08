@@ -216,7 +216,7 @@ describe('recall campaign API contracts', () => {
         ),
     ],
   ])(
-    'serializes continuous %s audience as the backend zero-value object',
+    'serializes continuous %s audience and discount as backend zero-value objects',
     async (_name, call) => {
       respondWith({ success: true, data: {} })
 
@@ -225,10 +225,11 @@ describe('recall campaign API contracts', () => {
       const payload = parseCapturedPayload()
       expect(payload.audience_template).toBe('')
       expect(payload.audience_config).toEqual({})
+      expect(payload.discount_config).toEqual({})
     }
   )
 
-  test('preserves legacy audience config while adapting a draft for the wire API', async () => {
+  test('preserves legacy audience and discount config while adapting a draft for the wire API', async () => {
     const draft = makeRecallDraft()
     draft.execution_mode = 'manual'
     draft.audience_template = 'first_purchase'
@@ -241,6 +242,15 @@ describe('recall campaign API contracts', () => {
       group_mode: 'allow',
       require_verified_email: true,
     }
+    draft.discount_config = {
+      ...draft.discount_config,
+      type: 'fixed',
+      amount_off: 500,
+      currency: 'USD',
+      currency_options: { eur: 450 },
+      minimum_amount: 1000,
+      minimum_amount_currency: 'usd',
+    }
     respondWith({ success: true, data: {} })
 
     await createRecallCampaign(draft)
@@ -248,6 +258,7 @@ describe('recall campaign API contracts', () => {
     const payload = parseCapturedPayload()
     expect(payload.audience_template).toBe('first_purchase')
     expect(payload.audience_config).toEqual(draft.audience_config)
+    expect(payload.discount_config).toEqual(draft.discount_config)
   })
 
   test('does not mutate a recall campaign draft while adapting it for the wire API', async () => {
