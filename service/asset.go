@@ -110,6 +110,7 @@ type AssetResult struct {
 	PublicID        string
 	AssetType       string
 	Status          string
+	AvailableModels []string
 	SignedURL       string
 	ContentType     string
 	SizeBytes       int64
@@ -909,6 +910,7 @@ func resultFromAsset(asset *model.Asset) *AssetResult {
 		PublicID:        asset.PublicId,
 		AssetType:       asset.AssetType,
 		Status:          asset.Status,
+		AvailableModels: []string{},
 		ContentType:     asset.ContentType,
 		SizeBytes:       asset.SizeBytes,
 		SHA256:          asset.SHA256,

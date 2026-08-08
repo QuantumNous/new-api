@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -462,6 +463,57 @@ func TestCompleteUploadAndOwnedGetUseUserScopedService(t *testing.T) {
 	require.Equal(t, 456, getUserID)
 	require.Contains(t, getRecorder.Body.String(), `"status":"Active"`)
 	requireAssetPublicBody(t, getRecorder.Body.String())
+}
+
+func TestAssetResponseAvailableModelsAlwaysPresentArray(t *testing.T) {
+	emptyCtx, emptyRecorder := newAssetJSONContext(http.MethodGet, "/v1/assets/ast_empty", "")
+	writeAssetResult(emptyCtx, &service.AssetResult{
+		PublicID:        "ast_empty",
+		AssetType:       "Image",
+		Status:          model.AssetStatusProcessing,
+		AvailableModels: nil,
+		CreatedAt:       1785678901,
+	}, nil)
+	require.Equal(t, http.StatusOK, emptyRecorder.Code, emptyRecorder.Body.String())
+	require.Contains(t, emptyRecorder.Body.String(), `"available_models":[]`)
+
+	var emptyPayload map[string]any
+	require.NoError(t, common.Unmarshal(emptyRecorder.Body.Bytes(), &emptyPayload))
+	require.IsType(t, []any{}, emptyPayload["available_models"])
+
+	nonEmptyCtx, nonEmptyRecorder := newAssetJSONContext(http.MethodGet, "/v1/assets/ast_ready", "")
+	writeAssetResult(nonEmptyCtx, &service.AssetResult{
+		PublicID:        "ast_ready",
+		AssetType:       "Image",
+		Status:          model.AssetStatusProcessing,
+		AvailableModels: []string{"seedance-2.0-fast"},
+		CreatedAt:       1785678901,
+	}, nil)
+	require.Equal(t, http.StatusOK, nonEmptyRecorder.Code, nonEmptyRecorder.Body.String())
+
+	var response dto.AssetResponse
+	require.NoError(t, common.Unmarshal(nonEmptyRecorder.Body.Bytes(), &response))
+	require.Equal(t, []string{"seedance-2.0-fast"}, response.AvailableModels)
+	requireAssetPublicBody(t, nonEmptyRecorder.Body.String())
+}
+
+func TestAssetResponseOpenAPIDeclaresRequiredAvailableModelsArray(t *testing.T) {
+	body, err := os.ReadFile("../docs/openapi/relay.json")
+	require.NoError(t, err)
+	var spec map[string]any
+	require.NoError(t, common.Unmarshal(body, &spec))
+
+	components := spec["components"].(map[string]any)
+	schemas := components["schemas"].(map[string]any)
+	asset := schemas["Asset"].(map[string]any)
+	required := asset["required"].([]any)
+	require.Contains(t, required, "available_models")
+
+	properties := asset["properties"].(map[string]any)
+	availableModels := properties["available_models"].(map[string]any)
+	require.Equal(t, "array", availableModels["type"])
+	items := availableModels["items"].(map[string]any)
+	require.Equal(t, "string", items["type"])
 }
 
 func TestAssetControllerMapsStorageAndNotFoundErrorsToStableOpenAIEnvelope(t *testing.T) {

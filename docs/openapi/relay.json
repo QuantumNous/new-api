@@ -3683,6 +3683,7 @@
           "object",
           "asset_type",
           "status",
+          "available_models",
           "asset_url",
           "created_at"
         ],
@@ -3721,6 +3722,16 @@
               "Expired"
             ],
             "example": "Processing"
+          },
+          "available_models": {
+            "type": "array",
+            "description": "Models in the current authenticated scope with verified active asset readiness.",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "seedance-2.0-fast"
+            ]
           },
           "asset_url": {
             "type": "string",

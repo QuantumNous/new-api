@@ -92,6 +92,10 @@ func ReconcileAssetForScope(ctx context.Context, userID int, publicID string, sc
 	} else {
 		result.Status = projectedAssetStatus(asset)
 	}
+	result.AvailableModels, err = availableAssetModelsForScope(asset.Id, scope, rows, targets)
+	if err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
@@ -200,6 +204,48 @@ func assetHasActiveBindingForTargetStrict(assetID int64, target model.AssetModel
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func availableAssetModelsForScope(assetID int64, scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget) ([]string, error) {
+	modelNames := normalizedStrings(scope.ModelNames)
+	if len(modelNames) == 0 {
+		return []string{}, nil
+	}
+	rowsByModel := make(map[string]model.AssetModelReadiness, len(rows))
+	for _, row := range rows {
+		name := strings.TrimSpace(row.ModelName)
+		if name == "" {
+			continue
+		}
+		if existing, ok := rowsByModel[name]; !ok || row.UpdatedAt > existing.UpdatedAt || row.Id > existing.Id {
+			rowsByModel[name] = row
+		}
+	}
+
+	available := make([]string, 0, len(modelNames))
+	for _, modelName := range modelNames {
+		row, ok := rowsByModel[modelName]
+		if !ok || row.Status != model.AssetModelReadinessStatusActive {
+			continue
+		}
+		target, ok := targets[modelName]
+		if !ok || !activeAssetModelTargetForScope(scope, target) {
+			continue
+		}
+		if row.TargetGeneration != target.Generation ||
+			row.ChannelId != target.ChannelId ||
+			row.BindingScope != target.BindingScope {
+			continue
+		}
+		activeBinding, err := assetHasActiveBindingForTargetStrict(assetID, target)
+		if err != nil {
+			return nil, err
+		}
+		if activeBinding {
+			available = append(available, modelName)
+		}
+	}
+	return normalizedStrings(available), nil
 }
 
 func markAssetModelReadinessFailed(assetID int64, scopeKey, modelName string, now int64) error {

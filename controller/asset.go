@@ -162,11 +162,16 @@ func writeAssetResult(c *gin.Context, result *service.AssetResult, err error) {
 }
 
 func assetResponseFromResult(result *service.AssetResult) dto.AssetResponse {
+	availableModels := result.AvailableModels
+	if availableModels == nil {
+		availableModels = []string{}
+	}
 	return dto.AssetResponse{
 		ID:              result.PublicID,
 		Object:          "asset",
 		AssetType:       result.AssetType,
 		Status:          result.Status,
+		AvailableModels: availableModels,
 		AssetURL:        "asset://" + result.PublicID,
 		CreatedAt:       result.CreatedAt,
 		SourceExpiresAt: result.SourceExpiresAt,
