@@ -47,6 +47,10 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
+	if info.RelayMode == constant.RelayModeAudioTranscription {
+		return a.convertASRRequest(c, info, request)
+	}
+
 	if info.RelayMode != constant.RelayModeAudioSpeech {
 		return nil, errors.New("unsupported audio relay mode")
 	}
@@ -273,6 +277,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			return fmt.Sprintf("%s/api/v3/rerank", baseUrl), nil
 		case constant.RelayModeResponses:
 			return fmt.Sprintf("%s/api/v3/responses", baseUrl), nil
+		case constant.RelayModeAudioTranscription:
+			return asrSubmitURL, nil
 		case constant.RelayModeAudioSpeech:
 			if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
 				return "wss://openspeech.bytedance.com/api/v1/tts/ws_binary", nil
@@ -286,6 +292,17 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
+
+	if info.RelayMode == constant.RelayModeAudioTranscription {
+		req.Set("X-Api-Key", info.ApiKey)
+		req.Set("X-Api-Resource-Id", asrResourceID)
+		if requestID, exists := c.Get(contextKeyASRRequestID); exists {
+			req.Set("X-Api-Request-Id", requestID.(string))
+		}
+		req.Set("X-Api-Sequence", "-1")
+		req.Set("Content-Type", "application/json")
+		return nil
+	}
 
 	if info.RelayMode == constant.RelayModeAudioSpeech {
 		parts := strings.Split(info.ApiKey, "|")
@@ -330,6 +347,15 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if info.RelayMode == constant.RelayModeAudioTranscription {
+		bodyBytes, err := io.ReadAll(requestBody)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read ASR request body: %w", err)
+		}
+		c.Set(contextKeyASRSubmitBody, bodyBytes)
+		return nil, nil
+	}
+
 	if info.RelayMode == constant.RelayModeAudioSpeech {
 		baseUrl := info.ChannelBaseUrl
 		if baseUrl == "" {
@@ -346,6 +372,10 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info.RelayMode == constant.RelayModeAudioTranscription {
+		return handleASRResponse(c, info)
+	}
+
 	if info.RelayFormat == types.RelayFormatClaude {
 		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
 			adaptor := claude.Adaptor{}
