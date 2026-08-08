@@ -2039,7 +2039,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Pour les déploiements privés, format : https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Imposer une réponse JSON syntaxiquement valide",
@@ -5248,6 +5248,17 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "L'application automatique est indisponible dans cet environnement. Téléchargez la version manuellement ou ouvrez la page GitHub.",
+    "Backend update API unavailable; showing release notes only.": "API de mise à jour backend indisponible ; affichage des notes de version uniquement.",
+    "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Déploiement Docker détecté. La mise à jour binaire sur place est désactivée. Mettez à niveau avec : docker compose pull && docker compose up -d",
+    "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "La mise à jour sur place télécharge le binaire de release officiel et remplace l'exécutable en cours (installations binaires uniquement). Les utilisateurs Docker doivent tirer une nouvelle image.",
+    "Rollback completed. Please restart the new-api process.": "Rollback terminé. Veuillez redémarrer le processus new-api.",
+    "Rollback failed": "Échec du rollback",
+    "Rollback last backup": "Revenir à la dernière sauvegarde",
+    "Rollback versions": "Versions de rollback",
+    "Rolling back...": "Rollback en cours…",
+    "Update completed. Please restart the new-api process to load the new binary.": "Mise à jour terminée. Redémarrez le processus new-api pour charger le nouveau binaire.",
+    "Update now": "Mettre à jour maintenant"
   }
 }

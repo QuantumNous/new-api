@@ -2039,7 +2039,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "構文的に有効な JSON 応答を強制",
@@ -5248,6 +5248,17 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Automatic apply is unavailable in this environment. Download the release manually or open the GitHub page.": "この環境では自動適用できません。リリースを手動でダウンロードするか GitHub ページを開いてください。",
+    "Backend update API unavailable; showing release notes only.": "バックエンド更新 API を利用できないため、リリースノートのみ表示します。",
+    "Docker deployment detected. In-place binary update is disabled. Upgrade with: docker compose pull && docker compose up -d": "Docker デプロイを検出しました。バイナリの直接更新は無効です。docker compose pull && docker compose up -d でアップグレードしてください。",
+    "In-place update downloads the official release binary and replaces the running executable (binary installs only). Docker users should pull a new image instead.": "インプレース更新は公式リリースバイナリをダウンロードし、実行中の実行ファイルを置き換えます（バイナリインストールのみ）。Docker では新しいイメージを pull してください。",
+    "Rollback completed. Please restart the new-api process.": "ロールバックが完了しました。new-api プロセスを再起動してください。",
+    "Rollback failed": "ロールバックに失敗しました",
+    "Rollback last backup": "直前のバックアップに戻す",
+    "Rollback versions": "ロールバック可能なバージョン",
+    "Rolling back...": "ロールバック中…",
+    "Update completed. Please restart the new-api process to load the new binary.": "更新が完了しました。新しいバイナリを読み込むには new-api プロセスを再起動してください。",
+    "Update now": "今すぐ更新"
   }
 }
