@@ -57,7 +57,7 @@ func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
 
 		// 如果找到配置项，则更新配置
 		if len(configMap) > 0 {
-			if err := updateConfigFromMap(config, configMap); err != nil {
+			if err := UpdateConfigFromMap(config, configMap); err != nil {
 				common.SysError("failed to update config " + name + ": " + err.Error())
 				continue
 			}
@@ -277,9 +277,24 @@ func ConfigToMap(config interface{}) (map[string]string, error) {
 	return configToMap(config)
 }
 
+// PostUpdater 由需要在字段写入后收尾的配置模块实现。
+//
+// 典型用途是发布一份供读路径使用的不可变快照，或对刚写入的字段做归一化。回调在配置更新
+// 的调用栈内同步执行，此时调用方已持有 model 侧的选项写锁，因此实现不得再去获取任何可能
+// 反向依赖该锁的资源。
+type PostUpdater interface {
+	AfterConfigUpdate()
+}
+
 // UpdateConfigFromMap 从map更新配置对象（导出函数）
 func UpdateConfigFromMap(config interface{}, configMap map[string]string) error {
-	return updateConfigFromMap(config, configMap)
+	if err := updateConfigFromMap(config, configMap); err != nil {
+		return err
+	}
+	if hook, ok := config.(PostUpdater); ok {
+		hook.AfterConfigUpdate()
+	}
+	return nil
 }
 
 // ExportAllConfigs 导出所有已注册的配置为扁平结构

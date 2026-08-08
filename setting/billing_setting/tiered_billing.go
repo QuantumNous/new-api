@@ -2,6 +2,8 @@ package billing_setting
 
 import (
 	"fmt"
+	"maps"
+	"sync/atomic"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -17,6 +19,9 @@ const (
 
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr
+//
+// billingSetting 是热更新的写入目标，配置同步会用反射原地改写它，随时可能处于中间状态。
+// 读路径一律不得读取该变量，必须走 billingSnapshot，见下方说明。
 type BillingSetting struct {
 	BillingMode map[string]string `json:"billing_mode"`
 	BillingExpr map[string]string `json:"billing_expr"`
@@ -27,8 +32,41 @@ var billingSetting = BillingSetting{
 	BillingExpr: make(map[string]string),
 }
 
+// billingSnapshot 持有一份对读者不可变的副本。
+//
+// 计费热路径每个请求都要查这两个映射，而配置同步每 60 秒重写它们一次。以整体替换的方式
+// 发布快照，读者要么看到旧的一份、要么看到新的一份，不存在中间态；同时读路径不需要加锁，
+// 是所有可选方案里最快的。
+//
+// 这里刻意不使用 types.RWMap：RWMap 只保护映射内容，不保护 *RWMap 指针字段本身的替换，
+// 而 updateConfigFromMap 在遇到字面量 "null" 时正会替换该指针（config.go 的 reflect.Ptr
+// 分支），于是指针的读写之间仍存在竞争。保持裸 map 加快照既避开了这一点，也让数据库中已有的
+// 序列化形式完全不变。
+var billingSnapshot atomic.Pointer[BillingSetting]
+
 func init() {
 	config.GlobalConfig.Register("billing_setting", &billingSetting)
+	publishBillingSnapshot()
+}
+
+// AfterConfigUpdate 实现 config.PostUpdater，在热更新写完字段后重新发布快照。
+func (s *BillingSetting) AfterConfigUpdate() {
+	// 配置值为字面量 "null" 时映射会被置为 nil。读 nil 映射本身是安全的，这里复原成空映射，
+	// 只是为了避免 nil 经 configToMap 再次序列化成 "null" 而长期固化。
+	if s.BillingMode == nil {
+		s.BillingMode = make(map[string]string)
+	}
+	if s.BillingExpr == nil {
+		s.BillingExpr = make(map[string]string)
+	}
+	publishBillingSnapshot()
+}
+
+func publishBillingSnapshot() {
+	billingSnapshot.Store(&BillingSetting{
+		BillingMode: maps.Clone(billingSetting.BillingMode),
+		BillingExpr: maps.Clone(billingSetting.BillingExpr),
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -36,23 +74,23 @@ func init() {
 // ---------------------------------------------------------------------------
 
 func GetBillingMode(model string) string {
-	if mode, ok := billingSetting.BillingMode[model]; ok {
+	if mode, ok := billingSnapshot.Load().BillingMode[model]; ok {
 		return mode
 	}
 	return BillingModeRatio
 }
 
 func GetBillingExpr(model string) (string, bool) {
-	expr, ok := billingSetting.BillingExpr[model]
+	expr, ok := billingSnapshot.Load().BillingExpr[model]
 	return expr, ok
 }
 
 func GetBillingModeCopy() map[string]string {
-	return lo.Assign(billingSetting.BillingMode)
+	return lo.Assign(billingSnapshot.Load().BillingMode)
 }
 
 func GetBillingExprCopy() map[string]string {
-	return lo.Assign(billingSetting.BillingExpr)
+	return lo.Assign(billingSnapshot.Load().BillingExpr)
 }
 
 func GetPricingSyncData(base map[string]any) map[string]any {
