@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -110,7 +111,10 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	model.RefreshPricing()
+	res := service.SyncModelChannelAvailability("model.create")
+	if !res.PricingRefreshed {
+		model.RefreshPricing()
+	}
 	common.ApiSuccess(c, &m)
 }
 
@@ -130,26 +134,56 @@ func UpdateModelMeta(c *gin.Context) {
 
 	if statusOnly {
 		// 只更新状态，防止误清空其他字段
-		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Update("status", m.Status).Error; err != nil {
+		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Updates(map[string]interface{}{
+			"status":                m.Status,
+			"auto_disabled_by_rule": false,
+			"updated_time":          common.GetTimestamp(),
+		}).Error; err != nil {
 			common.ApiError(c, err)
 			return
 		}
-	} else {
-		// 名称冲突检查
-		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
-			common.ApiError(c, err)
-			return
-		} else if dup {
-			common.ApiErrorMsg(c, "模型名称已存在")
-			return
+		// Re-evaluate immediately so auto-disable can correct a manual enable without channels.
+		res := service.SyncModelChannelAvailability("model.status_update")
+		if !res.PricingRefreshed {
+			model.RefreshPricing()
 		}
-
-		if err := m.Update(); err != nil {
-			common.ApiError(c, err)
-			return
-		}
+		common.ApiSuccess(c, &m)
+		return
 	}
-	model.RefreshPricing()
+
+	// 名称冲突检查
+	if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
+		common.ApiError(c, err)
+		return
+	} else if dup {
+		common.ApiErrorMsg(c, "模型名称已存在")
+		return
+	}
+
+	// Preserve previous status to detect explicit status changes.
+	var prev model.Model
+	_ = model.DB.Select("id", "status", "model_name", "name_rule").Where("id = ?", m.Id).First(&prev).Error
+
+	if err := m.Update(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Admin explicitly changed status via metadata editor -> clear auto-disable marker.
+	// Other metadata edits do not clear the marker.
+	pricingRefreshed := false
+	if prev.Id != 0 && prev.Status != m.Status {
+		service.ClearModelAutoDisabledByRule(m.Id)
+		res := service.SyncModelChannelAvailability("model.status_update")
+		pricingRefreshed = res.PricingRefreshed
+	}
+	// Name/rule changes can alter availability matching.
+	if prev.Id == 0 || prev.ModelName != m.ModelName || prev.NameRule != m.NameRule {
+		res := service.SyncModelChannelAvailability("model.update")
+		pricingRefreshed = pricingRefreshed || res.PricingRefreshed
+	}
+	if !pricingRefreshed {
+		model.RefreshPricing()
+	}
 	common.ApiSuccess(c, &m)
 }
 
@@ -165,7 +199,10 @@ func DeleteModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	model.RefreshPricing()
+	res := service.SyncModelChannelAvailability("model.delete")
+	if !res.PricingRefreshed {
+		model.RefreshPricing()
+	}
 	common.ApiSuccess(c, nil)
 }
 
@@ -336,4 +373,26 @@ func enrichModels(models []*model.Model) {
 		mm.MatchedModels = names
 		mm.MatchedCount = len(names)
 	}
+}
+
+// BatchDisableModelsNoChannels 批量禁用无可用渠道的模型
+func BatchDisableModelsNoChannels(c *gin.Context) {
+	result := service.ManualDisableModelsWithoutChannels()
+	common.ApiSuccess(c, gin.H{
+		"disabled": result.Disabled,
+		"enabled":  result.Enabled,
+		"skipped":  result.Skipped,
+		"reason":   result.Reason,
+	})
+}
+
+// BatchEnableModelsWithChannels 批量启用：仅恢复被渠道可用性规则自动禁用、且现已有可用渠道的模型
+func BatchEnableModelsWithChannels(c *gin.Context) {
+	result := service.ManualEnableModelsWithChannels()
+	common.ApiSuccess(c, gin.H{
+		"disabled": result.Disabled,
+		"enabled":  result.Enabled,
+		"skipped":  result.Skipped,
+		"reason":   result.Reason,
+	})
 }

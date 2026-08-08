@@ -41,3 +41,24 @@ service/relayconvert/chat_responses_live_local_test.go
 service/openaicompat/chat_responses_live_local_test.go
 go.work
 go.work.sum
+
+# Local verification artifacts / temp files (never commit)
+output/
+.playwright-cli/
+*.png
+!docs/images/**
+!electron/**/*.png
+!web/public/**/*.png
+!web/src/**/*.png
+server_out.txt
+server_err.txt
+web_out.txt
+web_err.txt
+_hashpwd.go
+TODO.md
+auth_token.txt
+*.log
+
+# i18n machine-generated reports
+web/src/i18n/locales/_reports/
+

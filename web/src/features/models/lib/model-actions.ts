@@ -20,7 +20,12 @@ import { type QueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
-import { updateModelStatus, deleteModel as deleteModelAPI } from '../api'
+import {
+  updateModelStatus,
+  deleteModel as deleteModelAPI,
+  batchDisableModelsNoChannels,
+  batchEnableModelsWithChannels,
+} from '../api'
 import { modelsQueryKeys } from './query-keys'
 
 // ============================================================================
@@ -269,4 +274,88 @@ export async function handleBatchDisableModels(
   } catch (error: unknown) {
     toast.error((error as Error)?.message || i18next.t('Batch disable failed'))
   }
+}
+
+// ============================================================================
+// Batch Channel Availability Actions
+// ============================================================================
+
+type BatchChannelAvailabilityResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    disabled?: number
+    enabled?: number
+  }
+}
+
+async function runBatchChannelAvailabilityAction(options: {
+  action: () => Promise<BatchChannelAvailabilityResponse>
+  getCount: (data?: BatchChannelAvailabilityResponse['data']) => number
+  successMessageKey: string
+  emptyMessageKey: string
+  failureMessageKey: string
+  catchMessageKey: string
+  queryClient?: QueryClient
+  onSuccess?: (count: number) => void
+}): Promise<void> {
+  try {
+    const response = await options.action()
+    if (response.success) {
+      const count = options.getCount(response.data)
+      if (count > 0) {
+        toast.success(i18next.t(options.successMessageKey, { count }))
+      } else {
+        toast.info(i18next.t(options.emptyMessageKey))
+      }
+      options.queryClient?.invalidateQueries({
+        queryKey: modelsQueryKeys.lists(),
+      })
+      options.onSuccess?.(count)
+    } else {
+      toast.error(response.message || i18next.t(options.failureMessageKey))
+    }
+  } catch (error: unknown) {
+    toast.error((error as Error)?.message || i18next.t(options.catchMessageKey))
+  }
+}
+
+/**
+ * One-click disable all models that currently have no available channels.
+ */
+export async function handleBatchDisableModelsNoChannels(
+  queryClient?: QueryClient,
+  onSuccess?: (disabledCount: number) => void
+): Promise<void> {
+  await runBatchChannelAvailabilityAction({
+    action: batchDisableModelsNoChannels,
+    getCount: (data) => data?.disabled ?? 0,
+    successMessageKey:
+      'Successfully disabled {{count}} model(s) with no available channels',
+    emptyMessageKey: 'No models with unavailable channels found',
+    failureMessageKey: 'Failed to batch disable models',
+    catchMessageKey: 'Batch disable failed',
+    queryClient,
+    onSuccess,
+  })
+}
+
+/**
+ * One-click enable all models that currently have available channels.
+ */
+export async function handleBatchEnableModelsWithChannels(
+  queryClient?: QueryClient,
+  onSuccess?: (enabledCount: number) => void
+): Promise<void> {
+  await runBatchChannelAvailabilityAction({
+    action: batchEnableModelsWithChannels,
+    getCount: (data) => data?.enabled ?? 0,
+    successMessageKey:
+      'Successfully enabled {{count}} model(s) with recovered channels',
+    emptyMessageKey: 'No auto-disabled models with recovered channels found',
+    failureMessageKey: 'Failed to batch enable models',
+    catchMessageKey: 'Batch enable failed',
+    queryClient,
+    onSuccess,
+  })
 }

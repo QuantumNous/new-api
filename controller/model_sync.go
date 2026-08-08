@@ -15,6 +15,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -434,8 +435,13 @@ func SyncUpstreamModels(c *gin.Context) {
 					needUpdate = true
 				}
 				if containsField(ow.Fields, "status") {
-					local.Status = chooseStatus(up.Status, local.Status)
-					needUpdate = true
+					newStatus := chooseStatus(up.Status, local.Status)
+					// Only clear auto-disable marker when status actually changes.
+					if newStatus != local.Status {
+						local.Status = newStatus
+						local.AutoDisabledByRule = false
+						needUpdate = true
+					}
 				}
 				if !needUpdate {
 					return nil
@@ -447,6 +453,14 @@ func SyncUpstreamModels(c *gin.Context) {
 				updatedList = append(updatedList, ow.ModelName)
 				return nil
 			})
+		}
+	}
+
+	if createdModels > 0 || updatedModels > 0 {
+		res := service.SyncModelChannelAvailability("model.sync_upstream")
+		// Rebuild pricing for new/updated metadata unless sync already did.
+		if !res.PricingRefreshed {
+			model.RefreshPricing()
 		}
 	}
 
@@ -486,13 +500,12 @@ func coalesce(a, b string) string {
 }
 
 func chooseStatus(primary, fallback int) int {
-	if primary == 0 && fallback != 0 {
-		return fallback
-	}
+	// 0 is a legitimate disabled status. Prefer non-zero primary, otherwise fallback
+	// (which may also be 0). Call sites that need a default enabled status pass 1.
 	if primary != 0 {
 		return primary
 	}
-	return 1
+	return fallback
 }
 
 // SyncUpstreamPreview 预览上游与本地的差异（仅用于弹窗选择）
