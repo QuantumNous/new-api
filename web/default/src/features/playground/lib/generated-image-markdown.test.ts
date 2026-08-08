@@ -31,6 +31,33 @@ describe('splitGeneratedImageMarkdown', () => {
         {
           alt: 'astronaut cat',
           src: 'data:image/png;base64,QUJDRA==',
+          downloadName: 'generated-image-1.png',
+        },
+      ],
+      hasPendingImage: false,
+    })
+  })
+
+  test('derives ordered download names from supported image MIME types', () => {
+    const result = splitGeneratedImageMarkdown(
+      [
+        '![first](data:image/jpeg;base64,QUJDRA==)',
+        '![second](data:image/webp;base64,RUZHSA==)',
+      ].join('\n\n')
+    )
+
+    expect(result).toEqual({
+      text: '',
+      images: [
+        {
+          alt: 'first',
+          src: 'data:image/jpeg;base64,QUJDRA==',
+          downloadName: 'generated-image-1.jpg',
+        },
+        {
+          alt: 'second',
+          src: 'data:image/webp;base64,RUZHSA==',
+          downloadName: 'generated-image-2.webp',
         },
       ],
       hasPendingImage: false,
