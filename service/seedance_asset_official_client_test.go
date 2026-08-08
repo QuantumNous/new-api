@@ -84,6 +84,15 @@ func TestIsSeedanceOfficialAllowedHost(t *testing.T) {
 	if isSeedanceOfficialAllowedHost("996k.cn") {
 		t.Fatal("unrelated host must be rejected")
 	}
+	if isSeedanceOfficialAllowedHost("ark.ap-southeast.bytepluses.com") {
+		t.Fatal("inference bytepluses host must be rejected")
+	}
+	if isSeedanceOfficialAllowedHost("ark.cn-beijing.volces.com") {
+		t.Fatal("inference volces host must be rejected")
+	}
+	if isSeedanceOfficialAllowedHost("ark.example.com") {
+		t.Fatal("arbitrary ark. host must be rejected")
+	}
 }
 
 func TestOfficialUpstreamErrorValidatePending(t *testing.T) {

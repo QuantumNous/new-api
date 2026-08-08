@@ -172,7 +172,7 @@ func resolveSeedanceOfficialGateway() (*seedanceOfficialGateway, error) {
 				scheme = overrideScheme
 			}
 		} else if overrideHost != "" {
-			common.SysLog(fmt.Sprintf("seedance official ignore unrelated channel base_url host=%s, using default host=%s", overrideHost, profile.Host))
+			common.SysLog(fmt.Sprintf("seedance official ignore channel base_url host=%s (inference hosts like bytepluses/volces are not for CreateAsset OpenAPI); using default host=%s", overrideHost, profile.Host))
 		}
 	}
 	return &seedanceOfficialGateway{
@@ -418,10 +418,12 @@ func isSeedanceOfficialAllowedHost(host string) bool {
 	if i := strings.IndexByte(h, ':'); i >= 0 {
 		h = h[:i]
 	}
-	return strings.Contains(h, "byteplusapi.com") ||
-		strings.Contains(h, "volcengineapi.com") ||
-		strings.Contains(h, "volces.com") ||
-		strings.HasPrefix(h, "ark.")
+	// 仅接受 OpenAPI 管理域名（CreateAsset* 用 AK/SK 签名）。
+	// 渠道下拉里的推理域名（*.bytepluses.com / *.volces.com）不能用于官方素材。
+	return strings.HasSuffix(h, ".byteplusapi.com") ||
+		h == "byteplusapi.com" ||
+		strings.HasSuffix(h, ".volcengineapi.com") ||
+		h == "volcengineapi.com"
 }
 
 func toOfficialAssetType(t string) string {
