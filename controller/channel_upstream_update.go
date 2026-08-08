@@ -349,6 +349,10 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		})), nil
 	}
 
+	if channel.Type == constant.ChannelTypeKuocai {
+		return fetchKuocaiUpstreamModelIDs(channel, baseURL)
+	}
+
 	if channel.Type == constant.ChannelTypeGemini {
 		key, _, apiErr := channel.GetNextEnabledKey()
 		if apiErr != nil {
@@ -423,6 +427,47 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return item.ID
 	})
 	return normalizeModelNames(ids), nil
+}
+
+func fetchKuocaiUpstreamModelIDs(channel *model.Channel, baseURL string) ([]string, error) {
+	body, err := getFetchModelsResponseBody(
+		http.MethodGet,
+		strings.TrimRight(baseURL, "/")+"/health",
+		channel,
+		http.Header{},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		Code int `json:"code"`
+		Data struct {
+			Models []struct {
+				Key  string `json:"key"`
+				Kind string `json:"kind"`
+			} `json:"models"`
+		} `json:"data"`
+	}
+	if err := common.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("invalid Kuocai health response: %w", err)
+	}
+	if result.Code != http.StatusOK {
+		return nil, fmt.Errorf("Kuocai health response code: %d", result.Code)
+	}
+
+	modelNames := make([]string, 0, len(result.Data.Models))
+	for _, upstreamModel := range result.Data.Models {
+		if !strings.EqualFold(upstreamModel.Kind, "video") || strings.TrimSpace(upstreamModel.Key) == "" {
+			continue
+		}
+		modelNames = append(modelNames, upstreamModel.Key)
+	}
+	modelNames = normalizeModelNames(modelNames)
+	if len(modelNames) == 0 {
+		return nil, fmt.Errorf("Kuocai health response contains no video model names")
+	}
+	return modelNames, nil
 }
 
 func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string) ([]string, error) {

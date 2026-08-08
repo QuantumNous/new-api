@@ -408,6 +408,34 @@ func TestFetchNewAPIModelsUsesOpenAIContract(t *testing.T) {
 	require.Equal(t, []string{"gpt-5", "gpt-5-mini"}, models)
 }
 
+func TestFetchKuocaiModelsUsesHealthAndExcludesImages(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/health", r.URL.Path)
+		assert.Empty(t, r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{
+  "code": 200,
+  "data": {
+    "models": [
+      {"key":"seedance","kind":"video","model_id":52},
+      {"key":"seedance_fast","kind":"video","model_id":51},
+      {"key":"fengling_image2","kind":"image","model_id":45}
+    ]
+  }
+}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	baseURL := server.URL
+	channel := &model.Channel{Type: constant.ChannelTypeKuocai, BaseURL: &baseURL}
+
+	models, err := fetchChannelUpstreamModelIDs(channel)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"seedance", "seedance_fast"}, models)
+}
+
 func TestNormalizeModelNames(t *testing.T) {
 	result := normalizeModelNames([]string{
 		" gpt-4o ",
