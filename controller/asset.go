@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -33,12 +34,18 @@ func CreateAsset(c *gin.Context) {
 		writeAssetError(c, types.InitOpenAIError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest))
 		return
 	}
+	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
+	scope, scopeErr := resolveAssetModelScopeForContext(c, userID)
+	if scopeErr != nil {
+		writeAssetServiceError(c, scopeErr)
+		return
+	}
 	result, err := createAssetFromURL(c.Request.Context(), service.AssetFromURLRequest{
-		UserID:    common.GetContextKeyInt(c, constant.ContextKeyUserId),
+		UserID:    userID,
 		AssetType: strings.TrimSpace(request.AssetType),
 		URL:       strings.TrimSpace(request.URL),
 	})
-	writeReconciledAssetResult(c, result, err)
+	writeReconciledAssetResultForScope(c, userID, scope, result, err)
 }
 
 func UploadAsset(c *gin.Context) {
@@ -64,13 +71,19 @@ func UploadAsset(c *gin.Context) {
 		return
 	}
 
+	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
+	scope, scopeErr := resolveAssetModelScopeForContext(c, userID)
+	if scopeErr != nil {
+		writeAssetServiceError(c, scopeErr)
+		return
+	}
 	result, uploadErr := uploadAsset(c.Request.Context(), service.AssetUploadRequest{
-		UserID:    common.GetContextKeyInt(c, constant.ContextKeyUserId),
+		UserID:    userID,
 		AssetType: assetType,
 		Filename:  header.Filename,
 		Body:      file,
 	})
-	writeReconciledAssetResult(c, result, uploadErr)
+	writeReconciledAssetResultForScope(c, userID, scope, result, uploadErr)
 }
 
 func CreateAssetUploadSession(c *gin.Context) {
@@ -141,12 +154,35 @@ func writeReconciledAssetResult(c *gin.Context, result *service.AssetResult, err
 		writeAssetServiceError(c, scopeErr)
 		return
 	}
+	writeReconciledAssetResultForScope(c, userID, scope, result, nil)
+}
+
+func writeReconciledAssetResultForScope(c *gin.Context, userID int, scope service.AssetModelScope, result *service.AssetResult, err error) {
+	if err != nil || result == nil {
+		writeAssetResult(c, result, err)
+		return
+	}
 	reconciled, reconcileErr := reconcileAssetForScope(c.Request.Context(), userID, result.PublicID, scope)
 	if reconcileErr != nil {
+		if isInternalAssetServiceError(reconcileErr) {
+			writeAssetResult(c, fallbackAssetResultAfterReconcileError(result), nil)
+			return
+		}
 		writeAssetServiceError(c, reconcileErr)
 		return
 	}
 	writeAssetResult(c, reconciled, nil)
+}
+
+func fallbackAssetResultAfterReconcileError(result *service.AssetResult) *service.AssetResult {
+	fallback := *result
+	fallback.AvailableModels = []string{}
+	switch fallback.Status {
+	case model.AssetStatusCreating, model.AssetStatusProcessing, model.AssetStatusFailed, model.AssetStatusExpired:
+	default:
+		fallback.Status = model.AssetStatusProcessing
+	}
+	return &fallback
 }
 
 func writeAssetResult(c *gin.Context, result *service.AssetResult, err error) {
@@ -179,6 +215,16 @@ func assetResponseFromResult(result *service.AssetResult) dto.AssetResponse {
 }
 
 func writeAssetServiceError(c *gin.Context, err error) {
+	status, code := assetServiceErrorStatusAndCode(err)
+	writeAssetError(c, types.InitOpenAIError(code, status))
+}
+
+func isInternalAssetServiceError(err error) bool {
+	status, _ := assetServiceErrorStatusAndCode(err)
+	return status == http.StatusInternalServerError
+}
+
+func assetServiceErrorStatusAndCode(err error) (int, types.ErrorCode) {
 	status := http.StatusInternalServerError
 	code := types.ErrorCodeAssetStorageError
 	switch {
@@ -205,7 +251,7 @@ func writeAssetServiceError(c *gin.Context, err error) {
 		status = http.StatusInternalServerError
 		code = types.ErrorCodeAssetStorageError
 	}
-	writeAssetError(c, types.InitOpenAIError(code, status))
+	return status, code
 }
 
 func writeAssetError(c *gin.Context, apiErr *types.NewAPIError) {

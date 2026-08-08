@@ -224,7 +224,7 @@ func TestAssetControllerRejectsInvalidSpecificChannelBeforeReconcile(t *testing.
 	require.Equal(t, 1, reconcileCalls)
 }
 
-func TestAssetControllerMapsReconcileBindingErrorToStorageError(t *testing.T) {
+func TestAssetControllerFallsBackWhenReconcileBindingErrorFollowsDurableCreate(t *testing.T) {
 	originalCreate := createAssetFromURL
 	originalReconcile := reconcileAssetForScope
 	originalResolve := resolveAssetModelScopeForContext
@@ -247,9 +247,167 @@ func TestAssetControllerMapsReconcileBindingErrorToStorageError(t *testing.T) {
 	setAssetTokenContext(ctx, 123)
 	CreateAsset(ctx)
 
-	require.Equal(t, http.StatusInternalServerError, recorder.Code)
-	requireAssetError(t, recorder.Body.Bytes(), "asset_storage_error")
+	requireAssetFallbackProcessingResponse(t, recorder, "ast_binding_error", "Image")
 	requireAssetPublicBody(t, recorder.Body.String())
+}
+
+func TestCreateAssetReconcileFailureReturnsPublicIDAndResolvesScopeBeforeCreate(t *testing.T) {
+	originalCreate := createAssetFromURL
+	originalReconcile := reconcileAssetForScope
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		createAssetFromURL = originalCreate
+		reconcileAssetForScope = originalReconcile
+		resolveAssetModelScopeForContext = originalResolve
+	})
+
+	resolved := false
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		resolved = true
+		return service.AssetModelScope{ScopeKey: "scope-direct", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}, nil
+	}
+	createAssetFromURL = func(ctx context.Context, request service.AssetFromURLRequest) (*service.AssetResult, error) {
+		require.True(t, resolved, "scope must be resolved before durable direct URL asset creation")
+		return &service.AssetResult{
+			PublicID:        "ast_reconcile_direct",
+			AssetType:       "Image",
+			Status:          model.AssetStatusActive,
+			AvailableModels: []string{"stale-model"},
+			CreatedAt:       1785678901,
+		}, nil
+	}
+	reconcileAssetForScope = func(context.Context, int, string, service.AssetModelScope) (*service.AssetResult, error) {
+		return nil, errors.New("asset binding lookup unavailable")
+	}
+
+	ctx, recorder := newAssetJSONContext(http.MethodPost, "/v1/assets", `{"url":"https://cdn.example.com/public.png","asset_type":"Image"}`)
+	setAssetTokenContext(ctx, 123)
+	CreateAsset(ctx)
+
+	requireAssetFallbackProcessingResponse(t, recorder, "ast_reconcile_direct", "Image")
+}
+
+func TestCreateAssetReconcileFailurePreservesSourceTerminalStatus(t *testing.T) {
+	originalCreate := createAssetFromURL
+	originalReconcile := reconcileAssetForScope
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		createAssetFromURL = originalCreate
+		reconcileAssetForScope = originalReconcile
+		resolveAssetModelScopeForContext = originalResolve
+	})
+
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		return service.AssetModelScope{ScopeKey: "scope-terminal", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}, nil
+	}
+	createAssetFromURL = func(ctx context.Context, request service.AssetFromURLRequest) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: "ast_reconcile_failed_source", AssetType: "Image", Status: model.AssetStatusFailed}, nil
+	}
+	reconcileAssetForScope = func(context.Context, int, string, service.AssetModelScope) (*service.AssetResult, error) {
+		return nil, errors.New("asset binding lookup unavailable")
+	}
+
+	ctx, recorder := newAssetJSONContext(http.MethodPost, "/v1/assets", `{"url":"https://cdn.example.com/public.png","asset_type":"Image"}`)
+	setAssetTokenContext(ctx, 123)
+	CreateAsset(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var response dto.AssetResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Equal(t, "ast_reconcile_failed_source", response.ID)
+	require.Equal(t, model.AssetStatusFailed, response.Status)
+	require.Empty(t, response.AvailableModels)
+}
+
+func TestUploadAssetReconcileFailureReturnsPublicIDAndResolvesScopeBeforeUpload(t *testing.T) {
+	originalUpload := uploadAsset
+	originalReconcile := reconcileAssetForScope
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		uploadAsset = originalUpload
+		reconcileAssetForScope = originalReconcile
+		resolveAssetModelScopeForContext = originalResolve
+	})
+
+	resolved := false
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		resolved = true
+		return service.AssetModelScope{ScopeKey: "scope-upload", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}, nil
+	}
+	uploadAsset = func(ctx context.Context, request service.AssetUploadRequest) (*service.AssetResult, error) {
+		require.True(t, resolved, "scope must be resolved before durable multipart asset creation")
+		_, err := io.Copy(io.Discard, request.Body)
+		require.NoError(t, err)
+		return &service.AssetResult{PublicID: "ast_reconcile_upload", AssetType: request.AssetType, Status: model.AssetStatusActive}, nil
+	}
+	reconcileAssetForScope = func(context.Context, int, string, service.AssetModelScope) (*service.AssetResult, error) {
+		return nil, errors.New("asset binding lookup unavailable")
+	}
+
+	ctx, recorder := newAssetMultipartContext(t, nil, "file", "image.png", "image/png", serviceTestTinyPNG())
+	setAssetTokenContext(ctx, 123)
+	UploadAsset(ctx)
+
+	requireAssetFallbackProcessingResponse(t, recorder, "ast_reconcile_upload", "Image")
+}
+
+func TestCompleteAssetUploadReconcileFailureReturnsPublicID(t *testing.T) {
+	originalComplete := completeAssetUpload
+	originalReconcile := reconcileAssetForScope
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		completeAssetUpload = originalComplete
+		reconcileAssetForScope = originalReconcile
+		resolveAssetModelScopeForContext = originalResolve
+	})
+
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		return service.AssetModelScope{ScopeKey: "scope-complete", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}, nil
+	}
+	completeAssetUpload = func(ctx context.Context, request service.AssetCompleteUploadRequest) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: "ast_reconcile_complete", AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	reconcileAssetForScope = func(context.Context, int, string, service.AssetModelScope) (*service.AssetResult, error) {
+		return nil, errors.New("asset binding lookup unavailable")
+	}
+
+	ctx, recorder := newAssetJSONContext(http.MethodPost, "/v1/assets/uploads/upl_public/complete", `{}`)
+	ctx.Params = gin.Params{{Key: "upload_id", Value: "upl_public"}}
+	setAssetTokenContext(ctx, 123)
+	CompleteAssetUpload(ctx)
+
+	requireAssetFallbackProcessingResponse(t, recorder, "ast_reconcile_complete", "Image")
+}
+
+func TestGetAssetReconcileFailureReturnsPublicIDAndStillReconciles(t *testing.T) {
+	originalGet := getAsset
+	originalReconcile := reconcileAssetForScope
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		getAsset = originalGet
+		reconcileAssetForScope = originalReconcile
+		resolveAssetModelScopeForContext = originalResolve
+	})
+
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		return service.AssetModelScope{ScopeKey: "scope-get", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}, nil
+	}
+	getAsset = func(ctx context.Context, userID int, assetID string) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: assetID, AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	reconcileCalls := 0
+	reconcileAssetForScope = func(context.Context, int, string, service.AssetModelScope) (*service.AssetResult, error) {
+		reconcileCalls++
+		return nil, errors.New("asset binding lookup unavailable")
+	}
+
+	ctx, recorder := newAssetJSONContext(http.MethodGet, "/v1/assets/ast_reconcile_get", "")
+	ctx.Params = gin.Params{{Key: "asset_id", Value: "ast_reconcile_get"}}
+	setAssetTokenContext(ctx, 123)
+	GetAsset(ctx)
+
+	require.Equal(t, 1, reconcileCalls)
+	requireAssetFallbackProcessingResponse(t, recorder, "ast_reconcile_get", "Image")
 }
 
 func TestUploadAssetInfersTypeAndMapsMissingFile(t *testing.T) {
@@ -635,6 +793,19 @@ func requireAssetErrorMessage(t *testing.T, body []byte, code any, message strin
 	require.Equal(t, code, envelope.Error.Code)
 	require.Equal(t, message, envelope.Error.Message)
 	require.NotContains(t, strings.ToLower(envelope.Error.Message), "storage")
+}
+
+func requireAssetFallbackProcessingResponse(t *testing.T, recorder *httptest.ResponseRecorder, publicID string, assetType string) {
+	t.Helper()
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var response dto.AssetResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Equal(t, publicID, response.ID)
+	require.Equal(t, assetType, response.AssetType)
+	require.Equal(t, model.AssetStatusProcessing, response.Status)
+	require.Empty(t, response.AvailableModels)
+	require.Equal(t, "asset://"+publicID, response.AssetURL)
+	requireAssetPublicBody(t, recorder.Body.String())
 }
 
 func requireAssetPublicBody(t *testing.T, body string) {
