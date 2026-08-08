@@ -51,6 +51,7 @@ type seedanceOfficialGateway struct {
 	SecretKey string
 	Region    string
 	Platform  string
+	Proxy     string
 	ChannelId int
 }
 
@@ -79,10 +80,8 @@ func resolveSeedanceOfficialGateway() (*seedanceOfficialGateway, error) {
 	if cfg == nil || !cfg.Enabled || cfg.GatewayChannelId <= 0 {
 		return nil, newSeedanceErr(http.StatusServiceUnavailable, "gateway_not_configured", "Seedance 官方素材未配置或未启用")
 	}
-	ch, err := model.CacheGetChannel(cfg.GatewayChannelId)
-	if err != nil || ch == nil {
-		ch, err = model.GetChannelById(cfg.GatewayChannelId, true)
-	}
+	// 官方素材强依赖渠道 Setting.Proxy；避免内存缓存里旧 Setting 导致刚改的代理不生效
+	ch, err := model.GetChannelById(cfg.GatewayChannelId, true)
 	if err != nil || ch == nil {
 		return nil, newSeedanceErr(http.StatusServiceUnavailable, "gateway_not_configured", "Seedance 官方素材渠道不存在")
 	}
@@ -119,6 +118,7 @@ func resolveSeedanceOfficialGateway() (*seedanceOfficialGateway, error) {
 		SecretKey: sk,
 		Region:    region,
 		Platform:  platform,
+		Proxy:     strings.TrimSpace(ch.GetSetting().Proxy),
 		ChannelId: ch.Id,
 	}, nil
 }
@@ -158,7 +158,11 @@ func seedanceOfficialDo(gw *seedanceOfficialGateway, action string, body any) (s
 		return 0, nil, nil, newSeedanceErr(http.StatusInternalServerError, "sign_error", err.Error())
 	}
 
-	resp, err := GetHttpClient().Do(req)
+	client, clientErr := GetHttpClientWithProxy(gw.Proxy)
+	if clientErr != nil {
+		return 0, nil, nil, newSeedanceErr(http.StatusBadRequest, "proxy_url_invalid", "官方素材渠道代理地址无效: "+clientErr.Error())
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, nil, nil, newSeedanceErr(http.StatusBadGateway, "upstream_error", err.Error())
 	}
@@ -208,6 +212,16 @@ func officialUpstreamError(httpStatus int, raw map[string]any, respBytes []byte,
 		status = http.StatusBadRequest
 	case "unauthorized", "unauthorizedoperation", "signaturedoesnotmatch", "invalidaccesskey", "authfailure", "invalidcredential":
 		status = http.StatusUnauthorized
+	case "unsupported_country_region_territory":
+		status = http.StatusForbidden
+		if msg == "" {
+			msg = "Country, region, or territory not supported"
+		}
+		proxyHint := "未配置 Proxy（仍走服务器本地出口）"
+		if gw != nil && strings.TrimSpace(gw.Proxy) != "" {
+			proxyHint = "已配置 Proxy=" + maskProxyForLog(gw.Proxy)
+		}
+		msg += "；BytePlus 判定地区不可用。" + proxyHint + "。请换新加坡等支持地区节点，或确认账号注册地区可用，并重新部署含 Proxy 支持的后端"
 	}
 	if code == "" {
 		code = "upstream_error"
@@ -253,6 +267,17 @@ func truncateForLog(b []byte, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+func maskProxyForLog(proxyURL string) string {
+	u, err := url.Parse(strings.TrimSpace(proxyURL))
+	if err != nil || u.Host == "" {
+		return "(invalid)"
+	}
+	if u.User != nil {
+		u.User = url.UserPassword("***", "***")
+	}
+	return u.String()
 }
 
 func toOfficialAssetType(t string) string {
