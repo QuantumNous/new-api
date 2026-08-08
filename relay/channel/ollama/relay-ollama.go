@@ -140,6 +140,15 @@ func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*Ollam
 				cm.ToolCalls = calls
 			}
 		}
+		if m.Role == "assistant" {
+			// Replay the previous assistant turn's reasoning so thinking models
+			// keep multi-turn tool-call context.
+			if reasoning := m.GetReasoningContent(); reasoning != "" {
+				if raw, err := common.Marshal(reasoning); err == nil {
+					cm.Thinking = raw
+				}
+			}
+		}
 		chatReq.Messages = append(chatReq.Messages, cm)
 	}
 	return chatReq, nil
