@@ -416,6 +416,65 @@ func TestRecallLifecyclePreviewAndMetricsExposeMaskedOperationalData(t *testing.
 	require.EqualValues(t, 1, metrics.ErrorCodeCounts["lease_recovered"])
 }
 
+func TestRecallLifecyclePreviewUsesDBTimeForDraftFromNowWithoutPersisting(t *testing.T) {
+	setupRecallLifecycleServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	draft := validRecallContinuousDraft()
+	require.Zero(t, draft.ProcessingStartAt)
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+	require.Zero(t, campaign.ProcessingStartAt)
+	beforeDB, err := model.GetDBTimestampWithContext(context.Background())
+	require.NoError(t, err)
+	oldEvent := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 901, 120, 120, `{}`)
+	futureAvailableAt := beforeDB + 3600
+	futureEvent := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 902, futureAvailableAt, futureAvailableAt, `{}`)
+
+	preview, err := service.PreviewLifecycle(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	afterDB, err := model.GetDBTimestampWithContext(context.Background())
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, preview.ProcessingStartAt, beforeDB)
+	require.LessOrEqual(t, preview.ProcessingStartAt, afterDB)
+	require.GreaterOrEqual(t, preview.ProcessingStartAt, preview.CollectionStartAt)
+	require.EqualValues(t, 1, preview.EstimatedCount)
+	require.EqualValues(t, futureEvent.AvailableAt, preview.EarliestAvailable)
+	require.Len(t, preview.Samples, 1)
+	require.Equal(t, futureEvent.Id, preview.Samples[0].ID)
+	require.NotEqual(t, oldEvent.Id, preview.Samples[0].ID)
+	stored, err := model.GetRecallCampaignByIDWithContext(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	require.Zero(t, stored.ProcessingStartAt)
+}
+
+func TestRecallLifecyclePreviewAndMetricsEmptyBacklogReturnZeroAggregates(t *testing.T) {
+	setupRecallLifecycleServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	_, campaign := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignRunning, 100)
+
+	preview, err := service.PreviewLifecycle(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, preview.EstimatedCount)
+	require.EqualValues(t, 0, preview.DueCount)
+	require.EqualValues(t, 0, preview.EarliestAvailable)
+	require.Empty(t, preview.Samples)
+
+	metrics, err := GetRecallLifecycleMetrics(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, metrics.EventTotal)
+	require.EqualValues(t, 0, metrics.PendingNotDueCount)
+	require.EqualValues(t, 0, metrics.DueBacklogCount)
+	require.EqualValues(t, 0, metrics.LastProcessedAt)
+	require.EqualValues(t, 0, metrics.MaxProcessingLatencySeconds)
+	require.Empty(t, metrics.SkipReasonCounts)
+	require.Empty(t, metrics.SendBlockedReasonCounts)
+	require.Empty(t, metrics.ErrorCodeCounts)
+}
+
 func setupRecallLifecycleServiceTestDB(t *testing.T) {
 	t.Helper()
 	setupRecallCampaignTestDB(t)

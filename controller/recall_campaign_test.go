@@ -783,6 +783,39 @@ func TestRecallLifecyclePreviewUsesBoundaryCountsAndMaskedBoundedSamples(t *test
 	require.NotContains(t, body, "secret")
 }
 
+func TestRecallLifecyclePreviewUsesDBTimeForDraftFromNowWithoutPersisting(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	seedRecallControllerLifecycleMarker(t, harness, recallControllerBoundary)
+	draft := recallControllerContinuousDraft()
+	require.Zero(t, draft.ProcessingStartAt)
+	create := invokeRecallHandler(t, CreateRecallCampaign, http.MethodPost, "/", recallControllerJSON(t, draft), 7, nil)
+	campaignID := int64(decodeRecallEnvelope(t, create)["data"].(map[string]any)["id"].(float64))
+	beforeDB, err := model.GetDBTimestampWithContext(context.Background())
+	require.NoError(t, err)
+	oldEvent := seedRecallControllerLifecycleEvent(t, harness, model.RecallLifecycleTriggerQuotaLow, 221, recallControllerBoundary+1, recallControllerBoundary+1, model.RecallLifecycleEventPending, `{}`)
+	futureEvent := seedRecallControllerLifecycleEvent(t, harness, model.RecallLifecycleTriggerQuotaLow, 222, beforeDB+3600, beforeDB+3600, model.RecallLifecycleEventPending, `{}`)
+
+	preview := invokeRecallHandler(t, PreviewRecallCampaign, http.MethodPost, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaignID)}})
+	payload := decodeRecallEnvelope(t, preview)
+	require.Equal(t, true, payload["success"], payload["message"])
+	afterDB, err := model.GetDBTimestampWithContext(context.Background())
+	require.NoError(t, err)
+	lifecycle := payload["data"].(map[string]any)["lifecycle"].(map[string]any)
+	processingStartAt := int64(lifecycle["processing_start_at"].(float64))
+	require.GreaterOrEqual(t, processingStartAt, beforeDB)
+	require.LessOrEqual(t, processingStartAt, afterDB)
+	require.GreaterOrEqual(t, processingStartAt, int64(recallControllerBoundary))
+	require.EqualValues(t, 1, lifecycle["estimated_count"])
+	require.EqualValues(t, futureEvent.AvailableAt, lifecycle["earliest_available_at"])
+	samples := lifecycle["samples"].([]any)
+	require.Len(t, samples, 1)
+	require.EqualValues(t, futureEvent.Id, samples[0].(map[string]any)["id"])
+	require.NotEqualValues(t, oldEvent.Id, samples[0].(map[string]any)["id"])
+	var stored model.RecallCampaign
+	require.NoError(t, harness.db.First(&stored, campaignID).Error)
+	require.Zero(t, stored.ProcessingStartAt)
+}
+
 func TestRecallLifecycleMetricsExposeBacklogDispositionMessageAndSkipBreakdowns(t *testing.T) {
 	harness := setupRecallControllerHarness(t)
 	setRecallControllerSMTPOptions(t, "smtp.activity.example.com", "587", "activity@example.com", "campaigns@example.com", "secret", "true", "false")
@@ -832,6 +865,37 @@ func TestRecallLifecycleMetricsExposeBacklogDispositionMessageAndSkipBreakdowns(
 	require.EqualValues(t, 1, lifecycle["skip_reason_counts"].(map[string]any)["invalid_email"])
 	require.EqualValues(t, 1, lifecycle["send_blocked_reason_counts"].(map[string]any)["no_account_email"])
 	require.EqualValues(t, 1, lifecycle["error_code_counts"].(map[string]any)["lease_recovered"])
+}
+
+func TestRecallLifecyclePreviewAndMetricsEmptyBacklogReturnZeroAggregates(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	seedRecallControllerLifecycleMarker(t, harness, recallControllerBoundary)
+	draft := recallControllerContinuousDraft()
+	draft.ProcessingStartAt = recallControllerBoundary
+	create := invokeRecallHandler(t, CreateRecallCampaign, http.MethodPost, "/", recallControllerJSON(t, draft), 7, nil)
+	campaignID := int64(decodeRecallEnvelope(t, create)["data"].(map[string]any)["id"].(float64))
+
+	preview := invokeRecallHandler(t, PreviewRecallCampaign, http.MethodPost, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaignID)}})
+	previewPayload := decodeRecallEnvelope(t, preview)
+	require.Equal(t, true, previewPayload["success"], previewPayload["message"])
+	previewLifecycle := previewPayload["data"].(map[string]any)["lifecycle"].(map[string]any)
+	require.EqualValues(t, 0, previewLifecycle["estimated_count"])
+	require.EqualValues(t, 0, previewLifecycle["due_count"])
+	require.EqualValues(t, 0, previewLifecycle["earliest_available_at"])
+	require.Empty(t, previewLifecycle["samples"])
+
+	metrics := invokeRecallHandler(t, GetRecallCampaignMetrics, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaignID)}})
+	metricsPayload := decodeRecallEnvelope(t, metrics)
+	require.Equal(t, true, metricsPayload["success"], metricsPayload["message"])
+	metricsLifecycle := metricsPayload["data"].(map[string]any)["lifecycle"].(map[string]any)
+	require.EqualValues(t, 0, metricsLifecycle["event_total"])
+	require.EqualValues(t, 0, metricsLifecycle["pending_not_due_count"])
+	require.EqualValues(t, 0, metricsLifecycle["due_backlog_count"])
+	require.EqualValues(t, 0, metricsLifecycle["last_processed_at"])
+	require.EqualValues(t, 0, metricsLifecycle["max_processing_latency_seconds"])
+	require.Empty(t, metricsLifecycle["skip_reason_counts"])
+	require.Empty(t, metricsLifecycle["send_blocked_reason_counts"])
+	require.Empty(t, metricsLifecycle["error_code_counts"])
 }
 
 func TestRecallEventsAPIOmitsRawEventData(t *testing.T) {

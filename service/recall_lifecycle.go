@@ -115,7 +115,7 @@ func (s *RecallCampaignService) PreviewLifecycle(ctx context.Context, id int64) 
 		var earliest struct {
 			Value int64
 		}
-		if err := query().Select("MIN(available_at) AS value").Scan(&earliest).Error; err != nil {
+		if err := query().Select("COALESCE(MIN(available_at), 0) AS value").Scan(&earliest).Error; err != nil {
 			return err
 		}
 		events := make([]model.RecallLifecycleEvent, 0, recallLifecyclePreviewSampleLimit)
@@ -198,7 +198,7 @@ func GetRecallLifecycleMetrics(ctx context.Context, campaignID int64) (*RecallLi
 		LastProcessedAt             int64
 		MaxProcessingLatencySeconds int64
 	}{}
-	if err := base().Select("MAX(CASE WHEN resolved_at > processed_at THEN resolved_at ELSE processed_at END) AS last_processed_at, MAX(CASE WHEN resolved_at > 0 AND available_at > 0 AND resolved_at >= available_at THEN resolved_at - available_at WHEN processed_at > 0 AND available_at > 0 AND processed_at >= available_at THEN processed_at - available_at ELSE 0 END) AS max_processing_latency_seconds").
+	if err := base().Select("COALESCE(MAX(CASE WHEN resolved_at > processed_at THEN resolved_at ELSE processed_at END), 0) AS last_processed_at, COALESCE(MAX(CASE WHEN resolved_at > 0 AND available_at > 0 AND resolved_at >= available_at THEN resolved_at - available_at WHEN processed_at > 0 AND available_at > 0 AND processed_at >= available_at THEN processed_at - available_at ELSE 0 END), 0) AS max_processing_latency_seconds").
 		Scan(&processing).Error; err != nil {
 		return nil, err
 	}
@@ -257,6 +257,9 @@ func recallLifecycleCampaignBoundaryDB(ctx context.Context, db *gorm.DB, id int6
 	dbNow, err := getDBTimestampForLifecycleTx(db)
 	if err != nil {
 		return nil, 0, 0, false, err
+	}
+	if campaign.ProcessingStartAt == 0 {
+		campaign.ProcessingStartAt = dbNow
 	}
 	if campaign.ProcessingStartAt < marker || campaign.ProcessingStartAt > dbNow {
 		return nil, 0, 0, false, fmt.Errorf("continuous recall campaign processing start must be between lifecycle event collection marker and database time")
