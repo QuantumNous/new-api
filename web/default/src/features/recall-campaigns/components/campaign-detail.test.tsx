@@ -66,7 +66,16 @@ beforeAll(async () => {
   await testI18n.use(initReactI18next).init({
     lng: 'en',
     fallbackLng: 'en',
-    resources: { en: { translation: {} } },
+    resources: {
+      en: {
+        translation: {
+          no_account_email: 'No account email address',
+          engagement_opted_out: 'Engagement opt-out',
+          invalid_email: 'Invalid lifecycle email',
+          quota_recovered: 'Quota recovered before send',
+        },
+      },
+    },
     interpolation: { escapeValue: false },
   })
 })
@@ -157,12 +166,12 @@ function makeContinuousMetrics(): RecallCampaignMetrics {
       messages_failed_count: 2,
       messages_cancelled_count: 1,
       skip_reason_counts: {
-        ineligible: 2,
-        suppressed: 1,
+        invalid_email: 2,
+        unknown_future_reason: 1,
       },
       send_blocked_reason_counts: {
-        no_email: 1,
-        engagement_opt_out: 1,
+        no_account_email: 1,
+        engagement_opted_out: 1,
       },
       error_code_counts: {
         quota_recovered: 2,
@@ -545,11 +554,16 @@ describe('CampaignDetail metric rendering', () => {
     expect(metricsHtml).toContain('SMTP accepted')
     expect(metricsHtml).toContain('Uncertain messages')
     expect(metricsHtml).toContain('Send blocked breakdown')
-    expect(metricsHtml).toContain('engagement_opt_out')
+    expect(metricsHtml).toContain('No account email address')
+    expect(metricsHtml).toContain('Engagement opt-out')
+    expect(metricsHtml).not.toContain('no_account_email')
+    expect(metricsHtml).not.toContain('engagement_opted_out')
     expect(metricsHtml).toContain('Skip breakdown')
-    expect(metricsHtml).toContain('suppressed')
+    expect(metricsHtml).toContain('Invalid lifecycle email')
+    expect(metricsHtml).toContain('unknown_future_reason')
     expect(metricsHtml).toContain('Processing latency')
-    expect(metricsHtml).toContain('quota_recovered')
+    expect(metricsHtml).toContain('Quota recovered before send')
+    expect(metricsHtml).not.toContain('quota_recovered')
     expect(metricsHtml).not.toContain('Accepted messages')
   })
 

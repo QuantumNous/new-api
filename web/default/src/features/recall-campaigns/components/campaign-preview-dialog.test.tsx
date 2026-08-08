@@ -39,7 +39,16 @@ beforeAll(async () => {
   await testI18n.use(initReactI18next).init({
     lng: 'en',
     fallbackLng: 'en',
-    resources: { en: { translation: {} } },
+    resources: {
+      en: {
+        translation: {
+          quota_low: 'Low quota trigger',
+          skipped: 'Skipped',
+          invalid_email: 'Invalid lifecycle email',
+          lease_recovered: 'Lease recovered for retry',
+        },
+      },
+    },
     interpolation: { escapeValue: false },
   })
 })
@@ -75,12 +84,12 @@ describe('campaign preview dialog', () => {
             scope: 'global',
             business_key: 'trade_***123',
             recipient_identity: 'a***@example.com',
-            disposition: 'due',
-            disposition_reason_code: '',
+            disposition: 'skipped',
+            disposition_reason_code: 'invalid_email',
             occurred_at: 1_899_960_000,
             available_at: 1_900_000_100,
             attempt_count: 1,
-            last_error_code: '',
+            last_error_code: 'lease_recovered',
           },
         ],
       },
@@ -100,10 +109,15 @@ describe('campaign preview dialog', () => {
     expect(html).toContain('12')
     expect(html).toContain('Due now')
     expect(html).toContain('5')
-    expect(html).toContain('quota_low')
+    expect(html).toContain('Low quota trigger')
+    expect(html).not.toContain('quota_low')
     expect(html).toContain('user_***42')
     expect(html).toContain('a***@example.com')
     expect(html).toContain('trade_***123')
+    expect(html).toContain('Skipped (Invalid lifecycle email)')
+    expect(html).not.toContain('skipped (invalid_email)')
+    expect(html).toContain('Lease recovered for retry')
+    expect(html).not.toContain('lease_recovered')
     expect(html).toContain('Occurred at')
     expect(html).toContain(
       'Send-time rechecks can reduce the final recipient count.'

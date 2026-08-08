@@ -6508,6 +6508,27 @@
     "Safe error-code breakdown": "Safe error-code breakdown",
     "Pausing freezes new lifecycle enrollment and SMTP delivery while events continue to accumulate.": "Pausing freezes new lifecycle enrollment and SMTP delivery while events continue to accumulate.",
     "Resuming processes lifecycle backlog from the immutable processing start.": "Resuming processes lifecycle backlog from the immutable processing start.",
-    "Cancelling releases the lifecycle trigger slot, cancels unsent messages, and preserves history.": "Cancelling releases the lifecycle trigger slot, cancels unsent messages, and preserves history."
+    "Cancelling releases the lifecycle trigger slot, cancels unsent messages, and preserves history.": "Cancelling releases the lifecycle trigger slot, cancels unsent messages, and preserves history.",
+    "pending": "Pending",
+    "enrolled": "Enrolled",
+    "skipped": "Skipped",
+    "processed": "Processed",
+    "no_account_email": "No account email",
+    "lease_recovered": "Lease recovered",
+    "malformed_event_data": "Malformed event data",
+    "missing_user": "Missing user",
+    "invalid_email_sequence": "Invalid email sequence",
+    "missing_stage_one": "Missing first email stage",
+    "lifecycle_recipient_inconsistent": "Lifecycle recipient inconsistent",
+    "lifecycle_message_inconsistent": "Lifecycle message inconsistent",
+    "lifecycle_enrollment_failed": "Lifecycle enrollment failed",
+    "quota_recovered": "Quota recovered",
+    "quota_cycle_changed": "Quota cycle changed",
+    "engagement_opted_out": "Engagement opt-out",
+    "registration_used": "Registration already used",
+    "order_state_changed": "Order state changed",
+    "smtp_uncertain": "SMTP uncertain",
+    "activity_smtp_not_configured": "Activity SMTP not configured",
+    "activity_smtp_send_failed": "Activity SMTP send failed"
   }
 }

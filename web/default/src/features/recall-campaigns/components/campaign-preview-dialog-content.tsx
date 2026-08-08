@@ -2,8 +2,46 @@ import { useTranslation } from 'react-i18next'
 import { formatRecallMinorAmount, recallFixedCurrencies } from '../helpers'
 import type { RecallCampaignPreview } from '../types'
 
+const knownLifecycleOutcomeCodes = new Set<string>([
+  'pending',
+  'leased',
+  'enrolled',
+  'skipped',
+  'processed',
+  'suppressed',
+  'failed',
+  'invalid_email',
+  'no_account_email',
+  'lease_recovered',
+  'malformed_event_data',
+  'missing_user',
+  'invalid_email_sequence',
+  'missing_stage_one',
+  'lifecycle_recipient_inconsistent',
+  'lifecycle_message_inconsistent',
+  'lifecycle_enrollment_failed',
+  'quota_recovered',
+  'quota_cycle_changed',
+  'engagement_opted_out',
+  'registration_used',
+  'order_state_changed',
+  'smtp_uncertain',
+  'activity_smtp_not_configured',
+  'activity_smtp_send_failed',
+])
+
+type Translate = (key: string) => string
+
 function formatTimestamp(value: number): string {
   return value > 0 ? new Date(value * 1000).toLocaleString() : '-'
+}
+
+export function formatRecallLifecycleOutcomeCode(
+  code: string,
+  t: Translate
+): string {
+  if (!knownLifecycleOutcomeCodes.has(code)) return code
+  return t(code)
 }
 
 export function CampaignPreviewDialogContent(props: {
@@ -83,7 +121,7 @@ export function CampaignPreviewDialogContent(props: {
                   {data.lifecycle.samples.map((sample) => (
                     <tr className='border-b last:border-0' key={sample.id}>
                       <td className='p-2'>{sample.id}</td>
-                      <td className='p-2'>{sample.event_type}</td>
+                      <td className='p-2'>{t(sample.event_type)}</td>
                       <td className='p-2'>{sample.user}</td>
                       <td className='p-2'>
                         {sample.scope_type}: {sample.scope}
@@ -92,8 +130,11 @@ export function CampaignPreviewDialogContent(props: {
                       <td className='p-2'>{sample.recipient_identity}</td>
                       <td className='p-2'>
                         {sample.disposition_reason_code
-                          ? `${sample.disposition} (${sample.disposition_reason_code})`
-                          : sample.disposition}
+                          ? `${formatRecallLifecycleOutcomeCode(sample.disposition, t)} (${formatRecallLifecycleOutcomeCode(sample.disposition_reason_code, t)})`
+                          : formatRecallLifecycleOutcomeCode(
+                              sample.disposition,
+                              t
+                            )}
                       </td>
                       <td className='p-2'>
                         {formatTimestamp(sample.occurred_at)}
@@ -102,7 +143,14 @@ export function CampaignPreviewDialogContent(props: {
                         {formatTimestamp(sample.available_at)}
                       </td>
                       <td className='p-2'>{sample.attempt_count}</td>
-                      <td className='p-2'>{sample.last_error_code || '-'}</td>
+                      <td className='p-2'>
+                        {sample.last_error_code
+                          ? formatRecallLifecycleOutcomeCode(
+                              sample.last_error_code,
+                              t
+                            )
+                          : '-'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

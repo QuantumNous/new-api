@@ -187,6 +187,31 @@ const lifecycleVisibleCopyKeys = [
   'payment_failed',
   'payment_pending',
   'payment_succeeded',
+  'pending',
+  'leased',
+  'enrolled',
+  'skipped',
+  'processed',
+  'suppressed',
+  'failed',
+  'invalid_email',
+  'no_account_email',
+  'lease_recovered',
+  'malformed_event_data',
+  'missing_user',
+  'invalid_email_sequence',
+  'missing_stage_one',
+  'lifecycle_recipient_inconsistent',
+  'lifecycle_message_inconsistent',
+  'lifecycle_enrollment_failed',
+  'quota_recovered',
+  'quota_cycle_changed',
+  'engagement_opted_out',
+  'registration_used',
+  'order_state_changed',
+  'smtp_uncertain',
+  'activity_smtp_not_configured',
+  'activity_smtp_send_failed',
   'Delivery Policy',
   'Service',
   'Engagement',
@@ -240,8 +265,6 @@ const lifecycleVisibleCopyKeys = [
   'Resuming processes lifecycle backlog from the immutable processing start.',
   'Cancelling releases the lifecycle trigger slot, cancels unsent messages, and preserves history.',
 ] as const
-
-const lifecycleAllowedEnglishCopyKeys = new Set<string>(['SMTP accepted'])
 
 const recallHelpKeys = [
   'Subject must be 200 characters or fewer',
@@ -450,7 +473,7 @@ describe('recall campaign copy', () => {
           `${locale} has an empty lifecycle value for ${key}`
         ).toBeTruthy()
 
-        if (locale === 'en' || lifecycleAllowedEnglishCopyKeys.has(key)) {
+        if (locale === 'en') {
           continue
         }
 
