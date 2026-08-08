@@ -37,8 +37,11 @@ func setupRecallLifecycleTestDB(t *testing.T) *gorm.DB {
 
 	require.NoError(t, DB.AutoMigrate(
 		&Option{},
+		&User{},
 		&RecallCampaign{},
 		&RecallRecipient{},
+		&RecallMessage{},
+		&RecallEvent{},
 		&RecallLifecycleEvent{},
 		&RecallContinuousTriggerSlot{},
 		&QuotaLifecycleState{},
@@ -412,7 +415,7 @@ func TestLifecycleSchemaAndSevenSlotSeeding(t *testing.T) {
 	require.True(t, DB.Migrator().HasColumn(&RecallCampaign{}, "LifecycleTriggerConfig"))
 	require.True(t, DB.Migrator().HasColumn(&RecallCampaign{}, "ProcessingStartAt"))
 	require.True(t, DB.Migrator().HasColumn(&RecallRecipient{}, "LifecycleEventId"))
-	for _, field := range []string{"ScopeType", "ScopeId", "BusinessKey", "OccurredAt", "AvailableAt", "SchemaVersion", "LastErrorCode", "ResolvedAt"} {
+	for _, field := range []string{"ScopeType", "ScopeId", "BusinessKey", "OccurredAt", "AvailableAt", "SchemaVersion", "LeaseEpoch", "LastErrorCode", "ResolvedAt"} {
 		require.True(t, DB.Migrator().HasColumn(&RecallLifecycleEvent{}, field), field)
 	}
 	require.True(t, DB.Migrator().HasIndex(&RecallRecipient{}, "idx_recall_lifecycle_event"))
