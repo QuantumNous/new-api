@@ -1,6 +1,6 @@
 <!--
 填写规范：
-- PR 标题可以使用自然的英文描述，不要求固定前缀；类型通过 GitHub label 区分。
+- PR 标题必须使用 Conventional Commits 格式：`<type>(<scope>): <description>`，例如 `fix(web): correct token refresh flow`。类型与 GitHub 类型/区域 label 对应：`feat`、`fix`、`chore`、`refactor`、`docs`、`test`、`perf`。该标题会作为 squash merge 的 commit message。
 - PR 正文结构使用英文 heading，正文内容使用中文。
 - 一个 PR 对应一个主要 Issue；使用 `Fixes #N` 关闭主 Issue，使用 `Related #N` 或 `Part of #N` 关联更大的工作。
 - 不要直接推送或合并到 `main`。
