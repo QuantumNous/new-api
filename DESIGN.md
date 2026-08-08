@@ -32,7 +32,6 @@
 ## Brand
 
 - Personality: Operational, restrained, reliable, and explicit about state.
-- Trust signals: Exact language counts, source-version freshness, effective expiry, explicit per-currency minimums, current hourly usage, reset time, atomic quota accounting, atomic generation, precise activation blockers, and preserved prior content after failures.
 - Trust signals: Exact language counts, source-version freshness, effective expiry, explicit per-currency minimums, current hourly usage, reset time, atomic quota accounting, atomic generation, precise activation blockers, masked lifecycle event-boundary estimates, lifecycle disposition/message metrics, safe `SMTP accepted` wording, and preserved prior content after failures.
 - Avoid: Marketing flourish, Unix timestamps or raw seconds as primary controls, ambiguous expiry, guessed or hidden minimum-amount currencies, ambiguous quota scope, silent English fallback during activation, or presenting copied English as valid localization.
 
@@ -66,7 +65,6 @@
 ## Personas and jobs
 
 - Primary personas: Flatkey administrators and campaign operators.
-- User jobs: Configure understandable offer expiry, optionally set per-currency minimums, control shared Activity email throughput, author an activity email once, generate localized variants, optionally correct a target language, understand readiness, and activate safely.
 - User jobs: Configure understandable offer expiry, optionally set per-currency minimums, select a lifecycle trigger, confirm the fixed service/engagement delivery policy, choose `From now` or a valid custom processing start, control shared Activity email throughput, author an activity email once, generate localized variants, optionally correct a target language, understand lifecycle backlog/readiness, pause/resume/cancel safely, and activate safely.
 - Key contexts of use: Desktop-first administrator Console; occasional mobile inspection or correction; one to three email stages; time-sensitive activity launches.
 

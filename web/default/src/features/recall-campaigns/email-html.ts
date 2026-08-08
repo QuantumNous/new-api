@@ -1,4 +1,4 @@
-import type { RecallCampaignType } from './types'
+import type { RecallCampaignType, RecallDeliveryPolicy } from './types'
 
 export const RECALL_EMAIL_ACTIONS = [
   '{{.RecipientName}}',
@@ -13,6 +13,8 @@ export const RECALL_CONTENT_ONLY_EMAIL_ACTIONS = [
   '{{.RecipientName}}',
   '{{.UnsubscribeURL}}',
 ] as const
+
+export const RECALL_SERVICE_EMAIL_ACTIONS = ['{{.RecipientName}}'] as const
 
 export const RECALL_EMAIL_ACTION_DESCRIPTIONS: Record<
   (typeof RECALL_EMAIL_ACTIONS)[number],
@@ -200,6 +202,32 @@ export const RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML = `<!doctype html>
   </body>
 </html>`
 
+export const RECALL_SERVICE_EMAIL_STARTER_HTML =
+  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML.replace(
+    /\s*<tr>\s*<td style="padding: 28px 0 0; color: #5d687c; font-size: 14px; line-height: 1\.6; text-align: right;">\s*<a href="{{\.UnsubscribeURL}}" style="color: #5d687c; text-decoration: underline;">Unsubscribe<\/a>\s*<\/td>\s*<\/tr>/,
+    ''
+  )
+
+export function getRecallEmailActions(
+  campaignType: RecallCampaignType,
+  deliveryPolicy: RecallDeliveryPolicy = 'engagement'
+): readonly (typeof RECALL_EMAIL_ACTIONS)[number][] {
+  if (campaignType === 'promotion') return RECALL_EMAIL_ACTIONS
+  return deliveryPolicy === 'service'
+    ? RECALL_SERVICE_EMAIL_ACTIONS
+    : RECALL_CONTENT_ONLY_EMAIL_ACTIONS
+}
+
+export function getRecallEmailStarterHtml(
+  campaignType: RecallCampaignType,
+  deliveryPolicy: RecallDeliveryPolicy = 'engagement'
+): string {
+  if (campaignType === 'promotion') return RECALL_EMAIL_STARTER_HTML
+  return deliveryPolicy === 'service'
+    ? RECALL_SERVICE_EMAIL_STARTER_HTML
+    : RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
+}
+
 function escapeRecallHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -211,7 +239,8 @@ function escapeRecallHtml(value: string): string {
 
 export function convertRecallBodyTextToHtml(
   bodyText: string,
-  campaignType: RecallCampaignType = 'promotion'
+  campaignType: RecallCampaignType = 'promotion',
+  deliveryPolicy: RecallDeliveryPolicy = 'engagement'
 ): string {
   const paragraphs = bodyText
     .replace(/\r\n?/g, '\n')
@@ -225,6 +254,10 @@ export function convertRecallBodyTextToHtml(
     campaignType === 'promotion'
       ? '      <p><a href="{{.ClaimURL}}">Claim your offer</a></p>\n'
       : ''
+  const unsubscribeAction =
+    campaignType === 'content_only' && deliveryPolicy === 'service'
+      ? ''
+      : '      <p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>\n'
 
   return `<!doctype html>
 <html>
@@ -236,21 +269,32 @@ export function convertRecallBodyTextToHtml(
   <body>
     <main>
       ${paragraphs || '<p>Hello {{.RecipientName}},</p>'}
-${claimAction}      <p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>
+${claimAction}${unsubscribeAction.trimEnd()}
     </main>
   </body>
 </html>`
 }
 
+function stripRecallUnsubscribeControls(html: string): string {
+  return html
+    .replace(/<a\b[^>]*{{\.UnsubscribeURL}}[^>]*>[\s\S]*?<\/a>/gi, '')
+    .replace(/{{\.UnsubscribeURL}}/g, '')
+    .replace(/<p>\s*<\/p>/gi, '')
+    .replace(/<td\b([^>]*)>\s*<\/td>/gi, '<td$1></td>')
+}
+
 export function normalizeRecallBodyInputToHtml(
   bodyInput: string,
-  campaignType: RecallCampaignType = 'promotion'
+  campaignType: RecallCampaignType = 'promotion',
+  deliveryPolicy: RecallDeliveryPolicy = 'engagement'
 ): string {
   const trimmed = bodyInput.trim()
   if (/<\/?[a-z][\w:-]*(?:\s[^<>]*)?>/i.test(trimmed)) {
-    return bodyInput
+    return campaignType === 'content_only' && deliveryPolicy === 'service'
+      ? stripRecallUnsubscribeControls(bodyInput)
+      : bodyInput
   }
-  return convertRecallBodyTextToHtml(bodyInput, campaignType)
+  return convertRecallBodyTextToHtml(bodyInput, campaignType, deliveryPolicy)
 }
 
 export function insertRecallEmailAction(

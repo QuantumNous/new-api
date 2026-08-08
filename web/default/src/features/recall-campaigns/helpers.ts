@@ -1,8 +1,7 @@
 import type { UseFormReturn } from 'react-hook-form'
 import {
-  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
-  RECALL_EMAIL_STARTER_HTML,
   convertRecallBodyTextToHtml,
+  getRecallEmailStarterHtml,
   normalizeRecallBodyInputToHtml,
 } from './email-html'
 import type {
@@ -26,6 +25,8 @@ export {
   RECALL_EMAIL_ACTIONS,
   RECALL_EMAIL_STARTER_HTML,
   convertRecallBodyTextToHtml,
+  getRecallEmailActions,
+  getRecallEmailStarterHtml,
   insertRecallEmailAction,
   normalizeRecallBodyInputToHtml,
 } from './email-html'
@@ -320,15 +321,20 @@ export function prepareRecallCampaignSubmitDraft(
     draft.discount_config as RecallCampaignDraft['discount_config'] & {
       coupon_redeem_by?: number
     }
-  const starterHtml =
-    draft.campaign_type === 'content_only'
-      ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
-      : RECALL_EMAIL_STARTER_HTML
-
   const continuous = draft.execution_mode === 'continuous'
   if (continuous) {
     assertContinuousDraftFieldsEmpty(draft)
   }
+  const effectiveCampaignType = continuous
+    ? 'content_only'
+    : draft.campaign_type
+  const effectiveDeliveryPolicy = continuous
+    ? (draft.delivery_policy ?? 'engagement')
+    : 'engagement'
+  const starterHtml = getRecallEmailStarterHtml(
+    effectiveCampaignType,
+    effectiveDeliveryPolicy
+  )
   const normalizedDiscountConfig = continuous
     ? {
         type: 'percent' as const,
@@ -345,7 +351,7 @@ export function prepareRecallCampaignSubmitDraft(
       }
   return {
     ...draft,
-    campaign_type: continuous ? 'content_only' : draft.campaign_type,
+    campaign_type: effectiveCampaignType,
     audience_template: continuous ? '' : draft.audience_template,
     schedule:
       draft.execution_mode === 'manual' || continuous
@@ -396,7 +402,16 @@ export function prepareRecallCampaignSubmitDraft(
     promotion_expiry_mode: continuous ? '' : draft.promotion_expiry_mode,
     promotion_expires_at: continuous ? 0 : draft.promotion_expires_at,
     promotion_valid_seconds: continuous ? 0 : draft.promotion_valid_seconds,
-    email_sequence: draft.email_sequence.map((stage) => {
+    email_sequence: (continuous
+      ? [
+          {
+            ...draft.email_sequence[0],
+            stage_no: 1,
+            delay_seconds: 0,
+          },
+        ]
+      : draft.email_sequence
+    ).map((stage) => {
       const templates = Object.fromEntries(
         Object.entries(stage.templates ?? {})
           .filter(
@@ -419,7 +434,8 @@ export function prepareRecallCampaignSubmitDraft(
                   body_text: '',
                   body_html: normalizeRecallBodyInputToHtml(
                     template.body_html ?? '',
-                    draft.campaign_type
+                    effectiveCampaignType,
+                    effectiveDeliveryPolicy
                   ),
                 },
               ]
@@ -429,7 +445,8 @@ export function prepareRecallCampaignSubmitDraft(
             if (bodyText) {
               normalizedBodyHTML = convertRecallBodyTextToHtml(
                 template.body_text ?? '',
-                draft.campaign_type
+                effectiveCampaignType,
+                effectiveDeliveryPolicy
               )
             } else if (locale === 'en') {
               normalizedBodyHTML = starterHtml

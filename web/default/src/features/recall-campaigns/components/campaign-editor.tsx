@@ -37,9 +37,8 @@ import {
 } from '../audience-inputs'
 import { audienceTemplateDescriptionKeys } from '../copy'
 import {
-  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
-  RECALL_EMAIL_STARTER_HTML,
   formatRecallMinorAmount,
+  getRecallEmailStarterHtml,
   normalizeRecallCouponSource,
   normalizeRecallDiscountType,
   parseRecallMajorAmount,
@@ -269,6 +268,13 @@ function normalizeRecallScheduleForMode(
       promotion_expiry_mode: '',
       promotion_expires_at: 0,
       promotion_valid_seconds: 0,
+      email_sequence: [
+        {
+          ...draft.email_sequence[0],
+          stage_no: 1,
+          delay_seconds: 0,
+        },
+      ],
     }
   }
   return {
@@ -288,17 +294,15 @@ function getRecallLifecycleDeliveryPolicy(
 ): RecallDeliveryPolicy {
   return trigger
     ? recallLifecycleDeliveryPolicyByTrigger[trigger]
-    : recallLifecycleDeliveryPolicyByTrigger.user_registered
+    : 'engagement'
 }
 
 function createRecallEmailTemplates(
   templates: Record<string, RecallEmailTemplate> = {},
-  campaignType: RecallCampaignDraft['campaign_type'] = 'promotion'
+  campaignType: RecallCampaignDraft['campaign_type'] = 'promotion',
+  deliveryPolicy: RecallDeliveryPolicy = 'engagement'
 ): Record<string, RecallEmailTemplate> {
-  const starterHtml =
-    campaignType === 'content_only'
-      ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
-      : RECALL_EMAIL_STARTER_HTML
+  const starterHtml = getRecallEmailStarterHtml(campaignType, deliveryPolicy)
   const englishTemplate = templates.en ?? {
     subject: '',
     body_text: '',
@@ -369,7 +373,8 @@ export function createRecallCampaignFormDraft(
       ...stage,
       templates: createRecallEmailTemplates(
         stage.templates,
-        preparedDraft.campaign_type
+        preparedDraft.campaign_type,
+        preparedDraft.delivery_policy
       ),
     })),
   }
@@ -556,12 +561,8 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const lifecycleTrigger = form.watch('lifecycle_trigger') || 'user_registered'
   const deliveryPolicy = getRecallLifecycleDeliveryPolicy(lifecycleTrigger)
   const processingStartAt = form.watch('processing_start_at') ?? 0
-  const [processingStartMode, setProcessingStartModeState] =
-    useState<RecallProcessingStartMode>(
-      defaultValues.processing_start_at && defaultValues.processing_start_at > 0
-        ? 'custom'
-        : 'from_now'
-    )
+  const processingStartMode: RecallProcessingStartMode =
+    processingStartAt > 0 ? 'custom' : 'from_now'
   const scheduleTimezone = form.watch('schedule.timezone')
   const groups = form.watch('audience_config.groups')
   const groupMode = form.watch('audience_config.group_mode')
@@ -774,13 +775,23 @@ export function CampaignEditor(props: CampaignEditorProps) {
   }
 
   const setProcessingStartMode = (mode: RecallProcessingStartMode) => {
-    setProcessingStartModeState(mode)
     if (mode === 'from_now') {
       form.setValue('processing_start_at', 0, {
         shouldDirty: true,
         shouldValidate: true,
       })
+      return
     }
+    form.setValue(
+      'processing_start_at',
+      processingStartAt > 0
+        ? processingStartAt
+        : getDefaultFutureStartSeconds(),
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      }
+    )
   }
 
   const persistDraft = async (
@@ -927,8 +938,11 @@ export function CampaignEditor(props: CampaignEditorProps) {
         shouldValidate: true,
       }
     )
+    form.setValue('email_sequence', normalized.email_sequence, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
     if (normalized.execution_mode !== 'continuous') {
-      setProcessingStartModeState('from_now')
       form.setValue('processing_start_at', 0, {
         shouldDirty: true,
         shouldValidate: true,
@@ -986,19 +1000,20 @@ export function CampaignEditor(props: CampaignEditorProps) {
       shouldDirty: true,
       shouldValidate: true,
     })
-    const nextStarter =
-      value === 'content_only'
-        ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
-        : RECALL_EMAIL_STARTER_HTML
+    const nextDeliveryPolicy =
+      executionMode === 'continuous' ? deliveryPolicy : 'engagement'
+    const nextStarter = getRecallEmailStarterHtml(value, nextDeliveryPolicy)
+    const starterTemplates = new Set([
+      getRecallEmailStarterHtml('promotion'),
+      getRecallEmailStarterHtml('content_only', 'engagement'),
+      getRecallEmailStarterHtml('content_only', 'service'),
+    ])
     current.email_sequence.forEach((stage, index) => {
       Object.keys(stage.templates).forEach((locale) => {
         const path =
           `email_sequence.${index}.templates.${locale}.body_html` as FieldPath<RecallCampaignDraft>
         const currentBody = stage.templates[locale]?.body_html ?? ''
-        if (
-          currentBody === RECALL_EMAIL_STARTER_HTML ||
-          currentBody === RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
-        ) {
+        if (starterTemplates.has(currentBody)) {
           form.setValue(path, nextStarter, {
             shouldDirty: true,
             shouldValidate: true,

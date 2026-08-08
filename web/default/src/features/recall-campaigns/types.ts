@@ -253,16 +253,16 @@ export interface RecallCampaignSummary {
   campaign_type: RecallCampaignType
   name: string
   status: RecallCampaignStatus
-  audience_template: RecallAudienceTemplate
+  audience_template: RecallAudienceTemplate | ''
   execution_mode: RecallExecutionMode
   delivery_policy?: RecallDeliveryPolicy
   lifecycle_trigger?: RecallLifecycleTrigger | ''
   processing_start_at?: number
   scheduled_at: number
   next_run_at: number
-  coupon_source: RecallCouponSource
+  coupon_source: RecallCouponSource | ''
   stripe_coupon_id: string
-  promotion_expiry_mode: RecallPromotionExpiryMode
+  promotion_expiry_mode: RecallPromotionExpiryMode | ''
   promotion_expires_at: number
   promotion_valid_seconds: number
   enrollment_limit: number

@@ -128,7 +128,11 @@ export function CampaignPreviewDialogContent(props: {
               </dl>
             </div>
             <div className='rounded-lg border p-3'>
-              <h3 className='font-medium'>{t('Promotion validation')}</h3>
+              <h3 className='font-medium'>
+                {data.stripe
+                  ? t('Promotion validation')
+                  : t('Delivery validation')}
+              </h3>
               {data.stripe ? (
                 <>
                   <p>

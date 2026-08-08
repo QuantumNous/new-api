@@ -292,7 +292,13 @@ mock.module('@/components/datetime-picker', () => ({
     onChange?: (date: Date | undefined) => void
     value?: Date
   }) => {
-    if (props.id) latestDateTimePickerProps[props.id] = props
+    React.useEffect(() => {
+      if (!props.id) return
+      latestDateTimePickerProps[props.id] = props
+      return () => {
+        delete latestDateTimePickerProps[props.id ?? '']
+      }
+    }, [props])
     return (
       <input
         data-testid='datetime-picker'
@@ -1546,6 +1552,43 @@ describe('CampaignEditor schedule modes', () => {
     expect(html).not.toContain('Add email stage')
   })
 
+  test('uses service-policy Continuous starter content without unsubscribe controls', () => {
+    const draft = makeContinuousDraft()
+    draft.email_sequence[0].templates.en = {
+      subject: '',
+      body_text: '',
+      body_html: '',
+    }
+
+    const prepared = createRecallCampaignFormDraft(draft)
+
+    expect(prepared.email_sequence[0].templates.en.body_html).toContain(
+      '{{.RecipientName}}'
+    )
+    expect(prepared.email_sequence[0].templates.en.body_html).not.toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
+  test('keeps unsubscribe controls for engagement-policy Continuous content', () => {
+    const draft = makeContinuousDraft()
+    draft.lifecycle_trigger = 'payment_pending'
+    draft.delivery_policy = 'engagement'
+    draft.email_sequence[0].templates.en = {
+      subject: '',
+      body_text: '',
+      body_html: '',
+    }
+
+    const html = renderEditor('first_purchase', draft)
+    const prepared = createRecallCampaignFormDraft(draft)
+
+    expect(html).toContain('aria-label="Insert {{.UnsubscribeURL}}"')
+    expect(prepared.email_sequence[0].templates.en.body_html).toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
   test('switching to Continuous resets legacy audience schedule coupon discount product and promotion state before submit', async () => {
     const draft = makeDraft('specified_users')
     draft.audience_config = {
@@ -1658,6 +1701,41 @@ describe('CampaignEditor schedule modes', () => {
     dispose(root)
   })
 
+  test('switching a multi-stage draft to Continuous keeps exactly first stage with zero delay', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence.push({
+      stage_no: 2,
+      delay_seconds: 86_400,
+      template_version: 1,
+      templates: {
+        en: { subject: 'Second subject', body_text: 'Second body' },
+      },
+    })
+    const { root, container } = renderEditorDom(draft)
+
+    expect(container.textContent).toContain('Remove stage')
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    expect(container.textContent).not.toContain('Add email stage')
+    expect(container.textContent).not.toContain('Remove stage')
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted.execution_mode).toBe('continuous')
+    expect(submitted.email_sequence).toHaveLength(1)
+    expect(submitted.email_sequence[0]).toMatchObject({
+      stage_no: 1,
+      delay_seconds: 0,
+    })
+    expect(submitted.email_sequence[0].templates.en.subject).toBe(
+      'English subject'
+    )
+    dispose(root)
+  })
+
   test('uses From now by default and DateTimePicker for custom continuous starts', async () => {
     const draft = makeContinuousDraft()
     const { root, container } = renderEditorDom(draft)
@@ -1682,6 +1760,62 @@ describe('CampaignEditor schedule modes', () => {
     )?.[0] as RecallCampaignDraft & { processing_start_at: number }
     expect(submitted.execution_mode).toBe('continuous')
     expect(submitted.processing_start_at).toBe(1_893_553_440)
+    dispose(root)
+  })
+
+  test('derives processing start mode from reset draft timestamps after rerender', async () => {
+    const customDraft = makeContinuousDraft()
+    customDraft.processing_start_at = 1_900_000_000
+    const { root, queryClient } = renderEditorDom(customDraft, {
+      campaignId: 77,
+      configRevision: 1,
+    })
+
+    expect(
+      latestDateTimePickerProps['recall-processing-start-at'].value
+    ).toEqual(new Date(1_900_000_000 * 1000))
+
+    const fromNowDraft = makeContinuousDraft()
+    delete latestDateTimePickerProps['recall-processing-start-at']
+    React.act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <I18nextProvider i18n={testI18n}>
+            <CampaignEditor
+              campaignId={77}
+              configRevision={2}
+              initialDraft={fromNowDraft}
+              specifiedUsersSelector={MockSpecifiedUsersSelector}
+            />
+          </I18nextProvider>
+        </QueryClientProvider>
+      )
+    })
+    await flushReactWork()
+
+    expect(latestDateTimePickerProps['recall-processing-start-at']).toBeFalsy()
+
+    const nextCustomDraft = makeContinuousDraft()
+    nextCustomDraft.processing_start_at = 1_900_500_000
+    React.act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <I18nextProvider i18n={testI18n}>
+            <CampaignEditor
+              campaignId={77}
+              configRevision={3}
+              initialDraft={nextCustomDraft}
+              specifiedUsersSelector={MockSpecifiedUsersSelector}
+            />
+          </I18nextProvider>
+        </QueryClientProvider>
+      )
+    })
+    await flushReactWork()
+
+    expect(
+      latestDateTimePickerProps['recall-processing-start-at'].value
+    ).toEqual(new Date(1_900_500_000 * 1000))
     dispose(root)
   })
 

@@ -5,6 +5,8 @@ import {
   RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   RECALL_EMAIL_STARTER_HTML,
   convertRecallBodyTextToHtml,
+  getRecallEmailActions,
+  getRecallEmailStarterHtml,
   insertRecallEmailAction,
   normalizeRecallBodyInputToHtml,
 } from './email-html'
@@ -23,6 +25,16 @@ describe('recall email HTML helpers', () => {
 
   test('exports the content-only action subset', () => {
     expect(RECALL_CONTENT_ONLY_EMAIL_ACTIONS).toEqual([
+      '{{.RecipientName}}',
+      '{{.UnsubscribeURL}}',
+    ])
+  })
+
+  test('omits unsubscribe placeholders from service-policy content email actions', () => {
+    expect(getRecallEmailActions('content_only', 'service')).toEqual([
+      '{{.RecipientName}}',
+    ])
+    expect(getRecallEmailActions('content_only', 'engagement')).toEqual([
       '{{.RecipientName}}',
       '{{.UnsubscribeURL}}',
     ])
@@ -64,6 +76,17 @@ describe('recall email HTML helpers', () => {
     expect(html).not.toContain('CR')
   })
 
+  test('provides service-policy content starter HTML without unsubscribe controls', () => {
+    const html = getRecallEmailStarterHtml('content_only', 'service')
+
+    expect(html).toContain('{{.RecipientName}}')
+    expect(html).not.toContain('{{.UnsubscribeURL}}')
+    expect(html).not.toContain('Unsubscribe')
+    expect(getRecallEmailStarterHtml('content_only', 'engagement')).toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
   test('converts legacy text paragraphs into escaped editable HTML', () => {
     const html = convertRecallBodyTextToHtml(
       'Hello\r\nSecond line\r\n\r\n<>&"\''
@@ -88,6 +111,20 @@ describe('recall email HTML helpers', () => {
     expect(html).toContain('href="{{.UnsubscribeURL}}"')
   })
 
+  test('converts service-policy content text without unsubscribe controls', () => {
+    const html = convertRecallBodyTextToHtml(
+      'Service update\nRead the details',
+      'content_only',
+      'service'
+    )
+
+    expect(html).toContain('<p>Service update</p>')
+    expect(html).toContain('<p>Read the details</p>')
+    expect(html).not.toContain('{{.ClaimURL}}')
+    expect(html).not.toContain('{{.UnsubscribeURL}}')
+    expect(html).not.toContain('Unsubscribe')
+  })
+
   test('converts plain body input to escaped HTML with required action links', () => {
     const html = normalizeRecallBodyInputToHtml('Hello\n2 < 3 & "quoted"')
 
@@ -107,6 +144,18 @@ describe('recall email HTML helpers', () => {
     expect(html).toContain('<p>2 &lt; 3</p>')
     expect(html).not.toContain('{{.ClaimURL}}')
     expect(html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
+  test('normalizes service-policy content HTML by stripping unsubscribe tokens', () => {
+    const html = normalizeRecallBodyInputToHtml(
+      '<p>Hello</p><p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>',
+      'content_only',
+      'service'
+    )
+
+    expect(html).toContain('<p>Hello</p>')
+    expect(html).not.toContain('{{.UnsubscribeURL}}')
+    expect(html).not.toContain('Unsubscribe')
   })
 
   test('preserves real HTML body input for existing backend validation', () => {

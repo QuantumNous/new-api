@@ -112,7 +112,7 @@ function makeContinuousSummary(): RecallCampaignSummary {
     activated_at: 0,
     completed_at: 0,
     recipient_total: 0,
-  } as RecallCampaignSummary
+  }
 }
 
 describe('CampaignTable lifecycle columns', () => {

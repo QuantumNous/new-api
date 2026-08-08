@@ -133,6 +133,7 @@ describe('recall email preview race guard', () => {
   const latest = {
     requestId: 2,
     campaignType: 'promotion' as const,
+    deliveryPolicy: 'engagement' as const,
     subject: 'Current subject',
     bodyHTML: '<p>Current body</p>',
   }
@@ -164,6 +165,7 @@ describe('recall email preview race guard', () => {
         candidate: {
           requestId: 1,
           campaignType: 'promotion',
+          deliveryPolicy: 'engagement',
           subject: 'Older subject',
           bodyHTML: '<p>Older body</p>',
         },
@@ -227,6 +229,7 @@ describe('recall email preview race guard', () => {
       createRecallEmailPreviewTemplate({
         subject: 'Actual subject',
         bodyHTML: source,
+        deliveryPolicy: 'engagement',
       })
     ).toEqual({ subject: 'Actual subject', body_html: source })
   })
@@ -235,6 +238,7 @@ describe('recall email preview race guard', () => {
     const operatorBody = 'Plain preview\n2 < 3'
     const prepared = await prepareRecallEmailPreviewRequest({
       campaignType: 'promotion',
+      deliveryPolicy: 'engagement',
       nextRequestId: () => 3,
       subject: '',
       bodyHTML: operatorBody,
@@ -244,6 +248,7 @@ describe('recall email preview race guard', () => {
     expect(prepared?.snapshot).toEqual({
       requestId: 3,
       campaignType: 'promotion',
+      deliveryPolicy: 'engagement',
       subject: '',
       bodyHTML: operatorBody,
     })
@@ -257,6 +262,7 @@ describe('recall email preview race guard', () => {
   test('prepares content-only plain-text preview without a claim action', async () => {
     const prepared = await prepareRecallEmailPreviewRequest({
       campaignType: 'content_only',
+      deliveryPolicy: 'engagement',
       nextRequestId: () => 4,
       subject: 'Product update',
       bodyHTML: 'Product update\nRead the details',
@@ -273,6 +279,7 @@ describe('recall email preview race guard', () => {
     let nextRequestId = 0
     const preparing = prepareRecallEmailPreviewRequest({
       campaignType: 'promotion',
+      deliveryPolicy: 'engagement',
       nextRequestId: () => (nextRequestId += 1),
       subject: 'Subject',
       bodyHTML: '<p>Body</p>',
@@ -335,6 +342,20 @@ describe('CampaignEmailHtmlEditor', () => {
     expect(html).not.toContain('aria-label="Insert {{.ExpiresAt}}"')
     expect(html).not.toContain('aria-label="Insert {{.ClaimURL}}"')
     expect(html).not.toContain('Preview uses sample recipient and offer data.')
+  })
+
+  test('hides unsubscribe insertion controls for service-policy Continuous content', () => {
+    const draft = makeDraft()
+    draft.campaign_type = 'content_only'
+    draft.execution_mode = 'continuous'
+    draft.delivery_policy = 'service'
+    draft.lifecycle_trigger = 'quota_low'
+    const html = renderEditor(false, draft)
+
+    expect(html).toContain('aria-label="Insert {{.RecipientName}}"')
+    expect(html).not.toContain('aria-label="Insert {{.UnsubscribeURL}}"')
+    expect(html).not.toContain('Personal link that stops future recall emails')
+    expect(html).not.toContain('&lt;a href=&quot;{{.UnsubscribeURL}}&quot;&gt;')
   })
 
   test('explains every placeholder directly in the editor', () => {

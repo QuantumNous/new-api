@@ -129,4 +129,24 @@ describe('campaign preview dialog', () => {
       )
     ).not.toThrow()
   })
+
+  test('uses neutral validation copy when no promotion preview applies', () => {
+    const preview = {
+      eligible_total: 0,
+      exclusions: {},
+      sample: [],
+      stripe: null,
+      lifecycle: null,
+    } satisfies RecallCampaignPreview
+
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <CampaignPreviewDialogContent data={preview} />
+      </I18nextProvider>
+    )
+
+    expect(html).toContain('Delivery validation')
+    expect(html).toContain('Not applicable')
+    expect(html).not.toContain('Promotion validation')
+  })
 })

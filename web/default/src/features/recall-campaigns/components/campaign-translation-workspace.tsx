@@ -341,7 +341,9 @@ export function CampaignTranslationWorkspace(
               : undefined
           }
         />
-        {stages.fields.length > 1 && !props.immutable ? (
+        {stages.fields.length > 1 &&
+        executionMode !== 'continuous' &&
+        !props.immutable ? (
           <Button
             type='button'
             variant='outline'
