@@ -134,12 +134,6 @@ func (techMobiAssetBindingMaterializer) CreateAsset(ctx context.Context, input A
 		return AssetMaterializeResult{}, newTechMobiAssetHTTPFailure(response, uploadResponse, nil)
 	}
 	if strings.EqualFold(strings.TrimSpace(uploadResponse.Status), model.AssetStatusProcessing) {
-		if isValidTechMobiAssetURL(uploadResponse.AssetURL) {
-			return AssetMaterializeResult{
-				UpstreamAssetID: uploadResponse.AssetURL,
-				Status:          model.AssetStatusProcessing,
-			}, nil
-		}
 		return AssetMaterializeResult{}, newAssetMaterializeFailure(AssetMaterializeErrorProcessing, response.StatusCode, techMobiAssetUpstreamCode(uploadResponse), 0, techMobiAssetRequestID(response, uploadResponse), nil)
 	}
 	if !isValidTechMobiAssetURL(uploadResponse.AssetURL) {
@@ -206,10 +200,7 @@ func (techMobiAssetBindingMaterializer) GetAsset(_ context.Context, _ AssetMater
 	if !isValidTechMobiAssetURL(upstreamAssetID) {
 		return AssetMaterializeResult{}, errAssetUploadFailed
 	}
-	return AssetMaterializeResult{
-		UpstreamAssetID: upstreamAssetID,
-		Status:          model.AssetStatusActive,
-	}, nil
+	return AssetMaterializeResult{}, newAssetMaterializeFailure(AssetMaterializeErrorProcessing, 0, "", 0, "", nil)
 }
 
 func writeTechMobiAssetMultipart(pipeWriter *io.PipeWriter, writer *multipart.Writer, modelName string, filename string, source io.Reader) error {
