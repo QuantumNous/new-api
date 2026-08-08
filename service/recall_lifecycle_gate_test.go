@@ -550,6 +550,90 @@ func TestRecallLifecycleEmailRendersTriggerVariablesFromSnapshotWithHTMLEscaping
 	require.NotContains(t, body, "/api/recall/unsubscribe")
 }
 
+func TestRecallLifecycleEmailMissingEventRetriesBeforeSMTP(t *testing.T) {
+	fixture := newRecallLifecycleEmailFixture(t, model.RecallLifecycleTriggerPaymentSucceeded, map[string]any{
+		"purchase_kind": model.PurchaseLifecycleKindTopUp,
+		"trade_no":      "gate-success-ok",
+		"to_status":     common.TopUpStatusSuccess,
+	})
+	seedRecallLifecycleValidMutableFacts(t, fixture, model.RecallLifecycleTriggerPaymentSucceeded)
+	event := loadRecallLifecycleEventForRecipient(t, fixture.recipient.Id)
+	require.NoError(t, model.DB.Delete(&model.RecallLifecycleEvent{}, event.Id).Error)
+	templateJSON, err := common.Marshal(map[string]RecallEmailTemplate{
+		"en": {
+			Subject:  "Payment complete",
+			BodyHTML: `<!doctype html><html><body><p>{{.trade_no}}</p><p>{{.completed_at}}</p></body></html>`,
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).
+		Where("id = ?", fixture.message.Id).
+		Update("template_snapshot", string(templateJSON)).Error)
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	require.Empty(t, *fixture.sent)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageRetryWait, stored.State)
+	require.Equal(t, "lifecycle_event_lookup_failed", stored.LastErrorCode)
+	require.Equal(t, 1, stored.PreSendAttemptCount)
+	require.Greater(t, stored.NextAttemptAt, recallEmailTestNow)
+	assertRecallLifecycleSMTPAdmissionDidNotConsume(t)
+}
+
+func TestRecallLifecycleEmailMalformedEventFailsBeforeSMTP(t *testing.T) {
+	fixture := newRecallLifecycleEmailFixture(t, model.RecallLifecycleTriggerPaymentSucceeded, map[string]any{
+		"purchase_kind": model.PurchaseLifecycleKindTopUp,
+		"trade_no":      "gate-success-ok",
+		"to_status":     common.TopUpStatusSuccess,
+	})
+	seedRecallLifecycleValidMutableFacts(t, fixture, model.RecallLifecycleTriggerPaymentSucceeded)
+	event := loadRecallLifecycleEventForRecipient(t, fixture.recipient.Id)
+	require.NoError(t, model.DB.Model(&model.RecallLifecycleEvent{}).
+		Where("id = ?", event.Id).
+		Update("event_data", "{").Error)
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	require.Empty(t, *fixture.sent)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageFailed, stored.State)
+	require.Equal(t, "invalid_lifecycle_event", stored.LastErrorCode)
+	require.Zero(t, stored.PreSendAttemptCount)
+	assertRecallLifecycleSMTPAdmissionDidNotConsume(t)
+}
+
+func TestRecallLifecyclePaymentSucceededMissingOccurredAtFailsBeforeSMTP(t *testing.T) {
+	fixture := newRecallLifecycleEmailFixture(t, model.RecallLifecycleTriggerPaymentSucceeded, map[string]any{
+		"purchase_kind": model.PurchaseLifecycleKindTopUp,
+		"trade_no":      "gate-success-ok",
+		"to_status":     common.TopUpStatusSuccess,
+	})
+	seedRecallLifecycleValidMutableFacts(t, fixture, model.RecallLifecycleTriggerPaymentSucceeded)
+	event := loadRecallLifecycleEventForRecipient(t, fixture.recipient.Id)
+	require.NoError(t, model.DB.Model(&model.RecallLifecycleEvent{}).
+		Where("id = ?", event.Id).
+		Update("occurred_at", 0).Error)
+	templateJSON, err := common.Marshal(map[string]RecallEmailTemplate{
+		"en": {
+			Subject:  "Payment complete",
+			BodyHTML: `<!doctype html><html><body><p>{{.trade_no}}</p><p>{{.completed_at}}</p></body></html>`,
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).
+		Where("id = ?", fixture.message.Id).
+		Update("template_snapshot", string(templateJSON)).Error)
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	require.Empty(t, *fixture.sent)
+	stored := loadRecallEmailMessageByID(t, fixture.message.Id)
+	require.Equal(t, model.RecallMessageFailed, stored.State)
+	require.Equal(t, "invalid_lifecycle_event", stored.LastErrorCode)
+	assertRecallLifecycleSMTPAdmissionDidNotConsume(t)
+}
+
 func seedRecallLifecycleValidMutableFacts(t *testing.T, fixture recallEmailFixture, trigger string) {
 	t.Helper()
 	switch trigger {

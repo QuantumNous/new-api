@@ -2584,7 +2584,7 @@ func (s *RecallCampaignService) localizeRecallEmailStagesForLifecycleTrigger(ctx
 			localized[i].Templates = templates
 			continue
 		}
-		if templates, reusable := reusableRecallEmailTemplatesForDelivery(campaignType, deliveryPolicy, stage, storedByStage[stage.StageNo]); reusable {
+		if templates, reusable := reusableRecallEmailTemplatesForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, stage, storedByStage[stage.StageNo]); reusable {
 			localized[i].Templates = templates
 			continue
 		}
@@ -2596,7 +2596,7 @@ func (s *RecallCampaignService) localizeRecallEmailStagesForLifecycleTrigger(ctx
 
 	var translated map[int]map[string]RecallEmailTemplate
 	var translateErr error
-	translated, translateErr = s.translateRecallEmailStagesForCampaign(ctx, campaignType, needsTranslation)
+	translated, translateErr = translateRecallEmailStagesWithTranslator(ctx, s.emailTranslator, campaignType, deliveryPolicy, lifecycleTrigger, needsTranslation)
 	if translateErr != nil {
 		if errors.Is(translateErr, errRecallEmailTranslationNotConfigured) {
 			return localized, nil
@@ -2671,6 +2671,10 @@ func reusableRecallEmailTemplates(campaignType string, incoming RecallEmailStage
 }
 
 func reusableRecallEmailTemplatesForDelivery(campaignType string, deliveryPolicy string, incoming RecallEmailStage, stored RecallEmailStage) (map[string]RecallEmailTemplate, bool) {
+	return reusableRecallEmailTemplatesForLifecycleTrigger(campaignType, deliveryPolicy, "", incoming, stored)
+}
+
+func reusableRecallEmailTemplatesForLifecycleTrigger(campaignType string, deliveryPolicy string, lifecycleTrigger string, incoming RecallEmailStage, stored RecallEmailStage) (map[string]RecallEmailTemplate, bool) {
 	if stored.StageNo != incoming.StageNo || len(stored.Templates) != len(recallEmailTranslationLanguages)+1 {
 		return nil, false
 	}
@@ -2678,7 +2682,7 @@ func reusableRecallEmailTemplatesForDelivery(campaignType string, deliveryPolicy
 	if !exists {
 		return nil, false
 	}
-	storedEnglish, err := normalizeRecallEmailTemplateForDelivery(campaignType, deliveryPolicy, stored.StageNo, "en", storedEnglish)
+	storedEnglish, err := normalizeRecallEmailTemplateForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, stored.StageNo, "en", storedEnglish)
 	if err != nil || storedEnglish != incoming.Templates["en"] {
 		return nil, false
 	}
@@ -2688,13 +2692,13 @@ func reusableRecallEmailTemplatesForDelivery(campaignType string, deliveryPolicy
 		if !exists {
 			return nil, false
 		}
-		template, err = normalizeRecallEmailTemplateForDelivery(campaignType, deliveryPolicy, stored.StageNo, language, template)
+		template, err = normalizeRecallEmailTemplateForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, stored.StageNo, language, template)
 		if err != nil {
 			return nil, false
 		}
 		targets[language] = template
 	}
-	templates, err := canonicalRecallEmailTemplatesForDelivery(campaignType, deliveryPolicy, stored.StageNo, storedEnglish, targets)
+	templates, err := canonicalRecallEmailTemplatesForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, stored.StageNo, storedEnglish, targets)
 	return templates, err == nil
 }
 

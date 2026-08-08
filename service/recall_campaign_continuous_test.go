@@ -516,6 +516,66 @@ func TestRecallCampaignContinuousTemplateVariablesAreTriggerScoped(t *testing.T)
 	require.ErrorContains(t, err, `unsupported template field "payment_url"`)
 }
 
+func TestRecallCampaignContinuousSaveDraftTranslatesWithLifecycleContext(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	translator := &recallDeliveryAwareFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}), translator)
+
+	draft := validRecallContinuousDraft()
+	draft.LifecycleTrigger = model.RecallLifecycleTriggerPaymentSucceeded
+	draft.DeliveryPolicy = model.RecallDeliveryPolicyService
+	draft.Emails[0].Templates = map[string]RecallEmailTemplate{
+		"en": {
+			Subject:  "Payment complete",
+			BodyHTML: `<!doctype html><html><body><p>Trade {{.trade_no}}</p><p>{{.amount}} {{.currency}}</p><p>{{.completed_at}}</p></body></html>`,
+		},
+	}
+
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{model.RecallCampaignTypeContentOnly}, translator.campaignTypes)
+	require.Equal(t, []string{model.RecallDeliveryPolicyService}, translator.deliveryPolicies)
+	require.Equal(t, []string{model.RecallLifecycleTriggerPaymentSucceeded}, translator.lifecycleTriggers)
+	var stages []RecallEmailStage
+	require.NoError(t, common.Unmarshal([]byte(campaign.EmailSequenceConfig), &stages))
+	requireRecallCampaignCanonicalLanguages(t, stages)
+	require.Contains(t, stages[0].Templates["ja"].BodyHTML, "ja:delivery:Trade ")
+}
+
+func TestRecallCampaignContinuousUpdateDraftReusesLifecycleTranslations(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	translator := &recallDeliveryAwareFakeEmailTranslator{}
+	service := NewRecallCampaignServiceWithTranslator(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}), translator)
+
+	draft := validRecallContinuousDraft()
+	draft.LifecycleTrigger = model.RecallLifecycleTriggerPaymentSucceeded
+	draft.DeliveryPolicy = model.RecallDeliveryPolicyService
+	draft.Emails[0].Templates = map[string]RecallEmailTemplate{
+		"en": {
+			Subject:  "Payment complete",
+			BodyHTML: `<!doctype html><html><body><p>Trade {{.trade_no}}</p><p>{{.amount}} {{.currency}}</p><p>{{.completed_at}}</p></body></html>`,
+		},
+	}
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+	require.NoError(t, err)
+
+	draft.Name = "Renamed payment complete"
+	updated, err := service.UpdateDraft(context.Background(), 7, campaign.Id, draft)
+
+	require.NoError(t, err)
+	require.Len(t, translator.lifecycleTriggers, 1, "unchanged lifecycle English HTML must reuse stored localized HTML")
+	var stages []RecallEmailStage
+	require.NoError(t, common.Unmarshal([]byte(updated.EmailSequenceConfig), &stages))
+	require.Contains(t, stages[0].Templates["ja"].BodyHTML, "ja:delivery:Trade ")
+}
+
 func TestRecallCampaignContinuousActivationImmutableFields(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

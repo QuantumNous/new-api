@@ -32,6 +32,8 @@ var (
 	ErrRecallEmailLeaseLost                 = errors.New("recall email message lease was lost")
 	errRecallEmailProductScopeInvalid       = errors.New("recall email product scope is invalid")
 	errRecallEmailProductSummaryUnavailable = errors.New("recall email product summary is unavailable")
+	errRecallLifecycleEventLookupFailed     = errors.New("recall lifecycle event lookup failed")
+	errRecallLifecycleEventInvalid          = errors.New("recall lifecycle event is invalid")
 )
 
 type RecallEmailQuotaWaitError struct {
@@ -483,11 +485,21 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	if recipientName == "" {
 		recipientName = strings.TrimSpace(item.User.Username)
 	}
+	lifecycleVariables, err := w.recallLifecycleEmailVariables(ctx, item, baseOrigin, recipientName)
+	if err != nil {
+		if errors.Is(err, errRecallLifecycleEventLookupFailed) {
+			return w.finishPreAcceptError(ctx, item, "lifecycle_event_lookup_failed", true)
+		}
+		if errors.Is(err, errRecallLifecycleEventInvalid) {
+			return w.finishPreAcceptError(ctx, item, "invalid_lifecycle_event", false)
+		}
+		return w.finishPreAcceptError(ctx, item, "lifecycle_event_lookup_failed", true)
+	}
 	subject, htmlBody, err := RenderRecallEmail(RecallEmailRenderInput{
 		CampaignType:        campaignType,
 		DeliveryPolicy:      deliveryPolicy,
 		LifecycleTrigger:    item.Campaign.LifecycleTrigger,
-		LifecycleVariables:  w.recallLifecycleEmailVariables(ctx, item, baseOrigin, recipientName),
+		LifecycleVariables:  lifecycleVariables,
 		Language:            resolvedLanguage,
 		Template:            template,
 		RecipientName:       recipientName,
@@ -1185,29 +1197,28 @@ func renderRecallEmailHTML(source string, input RecallEmailRenderInput) (string,
 	return rendered.String(), nil
 }
 
-func (w *RecallEmailWorker) recallLifecycleEmailVariables(ctx context.Context, item *model.RecallEmailWorkItem, baseOrigin string, recipientName string) map[string]string {
+func (w *RecallEmailWorker) recallLifecycleEmailVariables(ctx context.Context, item *model.RecallEmailWorkItem, baseOrigin string, recipientName string) (map[string]string, error) {
 	if item == nil || item.Recipient.LifecycleEventId == nil {
-		return nil
+		return nil, nil
 	}
 	trigger := strings.TrimSpace(item.Campaign.LifecycleTrigger)
 	if trigger == "" {
-		return nil
+		return nil, nil
 	}
 	variables := recallLifecycleEmailEmptyVariables(trigger)
 	if len(variables) == 0 {
-		return nil
+		return nil, nil
 	}
 	event := model.RecallLifecycleEvent{}
 	if err := model.DB.WithContext(ctx).First(&event, "id = ?", *item.Recipient.LifecycleEventId).Error; err != nil {
-		event.EventData = item.Recipient.EligibilitySnapshot
-		event.EventType = trigger
+		return nil, fmt.Errorf("%w: %v", errRecallLifecycleEventLookupFailed, err)
 	}
-	if strings.TrimSpace(event.EventData) == "" {
-		event.EventData = item.Recipient.EligibilitySnapshot
+	if strings.TrimSpace(event.EventType) != trigger {
+		return nil, fmt.Errorf("%w: event type %q does not match trigger %q", errRecallLifecycleEventInvalid, event.EventType, trigger)
 	}
 	snapshot, err := decodeRecallLifecycleEventData(event.EventData)
 	if err != nil {
-		snapshot = map[string]any{}
+		return nil, fmt.Errorf("%w: malformed event data: %v", errRecallLifecycleEventInvalid, err)
 	}
 	baseOrigin = strings.TrimRight(strings.TrimSpace(baseOrigin), "/")
 	variables["site_name"] = common.SystemName
@@ -1244,9 +1255,11 @@ func (w *RecallEmailWorker) recallLifecycleEmailVariables(ctx context.Context, i
 		}
 		if event.OccurredAt > 0 {
 			variables["completed_at"] = recallEmailTemplateTime(event.OccurredAt)
+		} else if trigger == model.RecallLifecycleTriggerPaymentSucceeded {
+			return nil, fmt.Errorf("%w: payment_succeeded event missing occurred_at", errRecallLifecycleEventInvalid)
 		}
 	}
-	return variables
+	return variables, nil
 }
 
 func recallLifecycleEmailEmptyVariables(trigger string) map[string]string {
