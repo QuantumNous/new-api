@@ -86,6 +86,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		constant.ChannelTypeJimeng,
 		constant.ChannelTypeDoubaoVideo,
 		constant.ChannelTypeVidu,
+		// Volc Native accepts only Fire Ark's native /api/v3 routes, which
+		// cannot be represented by the generic channel-test request builder.
+		constant.ChannelTypeVolcNative,
 	}
 	if lo.Contains(unsupportedTestChannelTypes, channel.Type) {
 		channelTypeName := constant.GetChannelTypeName(channel.Type)
