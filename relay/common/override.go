@@ -30,6 +30,8 @@ var paramOverrideSensitivePathPrefixes = []string{
 	"model",
 	"original_model",
 	"upstream_model",
+	"reasoning",
+	"reasoning_effort",
 	"service_tier",
 	"inference_geo",
 	"speed",
@@ -191,6 +193,7 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 	if err != nil {
 		return nil, err
 	}
+	syncReasoningEffort(info, result)
 	syncRuntimeHeaderOverrideFromContext(info, overrideCtx)
 	if info != nil {
 		if recorder != nil {
@@ -200,6 +203,28 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 		}
 	}
 	return result, nil
+}
+
+// syncReasoningEffort keeps request metadata aligned with the final outbound
+// body after parameter overrides have been applied. Adapters populate this
+// field before overrides run, so reading the final JSON prevents logs from
+// reporting the pre-override effort.
+func syncReasoningEffort(info *RelayInfo, jsonData []byte) {
+	if info == nil {
+		return
+	}
+	info.ReasoningEffort = ""
+
+	for _, path := range []string{"reasoning.effort", "reasoning_effort"} {
+		value := gjson.GetBytes(jsonData, path)
+		if !value.Exists() {
+			continue
+		}
+		if value.Type == gjson.String {
+			info.ReasoningEffort = value.String()
+		}
+		return
+	}
 }
 
 func shouldEnableParamOverrideAudit(paramOverride map[string]interface{}) bool {

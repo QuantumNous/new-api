@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -2151,6 +2152,103 @@ func TestApplyParamOverrideWithRelayInfoRecordsOperationAuditInDebugMode(t *test
 	if !reflect.DeepEqual(info.ParamOverrideAudit, expected) {
 		t.Fatalf("unexpected param override audit, got %#v", info.ParamOverrideAudit)
 	}
+}
+
+func TestApplyParamOverrideWithRelayInfoSyncsResponsesReasoningEffort(t *testing.T) {
+	originalDebugEnabled := common2.DebugEnabled
+	common2.DebugEnabled = false
+	t.Cleanup(func() {
+		common2.DebugEnabled = originalDebugEnabled
+	})
+
+	info := &RelayInfo{
+		ReasoningEffort: "high",
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"mode":  "set",
+						"path":  "reasoning.effort",
+						"value": "max",
+					},
+				},
+			},
+		},
+	}
+
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(`{
+		"model":"gpt-5.6-sol",
+		"reasoning":{"effort":"high"}
+	}`), info)
+	require.NoError(t, err)
+	assertJSONEqual(t, `{
+		"model":"gpt-5.6-sol",
+		"reasoning":{"effort":"max"}
+	}`, string(out))
+	assert.Equal(t, "max", info.ReasoningEffort)
+	assert.Equal(t, []string{"set reasoning.effort = max"}, info.ParamOverrideAudit)
+}
+
+func TestApplyParamOverrideWithRelayInfoClearsRemovedReasoningEffort(t *testing.T) {
+	info := &RelayInfo{
+		ReasoningEffort: "high",
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"mode": "delete",
+						"path": "reasoning.effort",
+					},
+				},
+			},
+		},
+	}
+
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(`{
+		"model":"gpt-5.6-sol",
+		"reasoning":{"effort":"high"}
+	}`), info)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{
+		"model":"gpt-5.6-sol",
+		"reasoning":{}
+	}`, string(out))
+	assert.Empty(t, info.ReasoningEffort)
+}
+
+func TestApplyParamOverrideWithRelayInfoSyncsChatReasoningEffort(t *testing.T) {
+	originalDebugEnabled := common2.DebugEnabled
+	common2.DebugEnabled = false
+	t.Cleanup(func() {
+		common2.DebugEnabled = originalDebugEnabled
+	})
+
+	info := &RelayInfo{
+		ReasoningEffort: "high",
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"mode":  "set",
+						"path":  "reasoning_effort",
+						"value": "xhigh",
+					},
+				},
+			},
+		},
+	}
+
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(`{
+		"model":"gpt-5.6-sol",
+		"reasoning_effort":"high"
+	}`), info)
+	require.NoError(t, err)
+	assertJSONEqual(t, `{
+		"model":"gpt-5.6-sol",
+		"reasoning_effort":"xhigh"
+	}`, string(out))
+	assert.Equal(t, "xhigh", info.ReasoningEffort)
+	assert.Equal(t, []string{"set reasoning_effort = xhigh"}, info.ParamOverrideAudit)
 }
 
 func TestApplyParamOverrideWithRelayInfoRecordsOnlyKeyOperationsWhenDebugDisabled(t *testing.T) {
