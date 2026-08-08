@@ -43,16 +43,31 @@ func TestProjectAssetStatusForScopeAggregatesRequiredModelReadiness(t *testing.T
 func TestProjectAssetStatusForScopeUsesSourceLifecycleFirst(t *testing.T) {
 	newAssetStatusTestDB(t)
 	scope := AssetModelScope{ScopeKey: "scope", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}
+	targets := map[string]model.AssetModelCoverageTarget{
+		"seedance-2.0": activeAssetStatusTarget(scope, "seedance-2.0", 132, "", 22),
+	}
+
+	var bindingQueries int64
+	sentinel := errors.New("asset binding lookup must not run")
+	callbackName := "asset_status_test:source_lifecycle_first"
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Table == "asset_bindings" {
+			atomic.AddInt64(&bindingQueries, 1)
+			tx.AddError(sentinel)
+		}
+	}))
+	t.Cleanup(func() { require.NoError(t, model.DB.Callback().Query().Remove(callbackName)) })
 
 	require.Equal(t, model.AssetStatusCreating, ProjectAssetStatusForScope(
-		model.Asset{Status: model.AssetStatusCreating, SourceStatus: model.AssetSourceStatusUnavailable}, scope, nil, nil,
+		model.Asset{Status: model.AssetStatusCreating, SourceStatus: model.AssetSourceStatusUnavailable}, scope, nil, targets,
 	))
 	require.Equal(t, model.AssetStatusFailed, ProjectAssetStatusForScope(
-		model.Asset{Status: model.AssetStatusActive, SourceStatus: model.AssetSourceStatusUnavailable}, scope, nil, nil,
+		model.Asset{Status: model.AssetStatusActive, SourceStatus: model.AssetSourceStatusUnavailable}, scope, nil, targets,
 	))
 	require.Equal(t, model.AssetStatusExpired, ProjectAssetStatusForScope(
-		model.Asset{Status: model.AssetStatusActive, SourceStatus: model.AssetSourceStatusExpired}, scope, nil, nil,
+		model.Asset{Status: model.AssetStatusActive, SourceStatus: model.AssetSourceStatusExpired}, scope, nil, targets,
 	))
+	require.Equal(t, int64(0), atomic.LoadInt64(&bindingQueries))
 }
 
 func TestReconcileAssetForScopeEnrollsReadinessWithoutPersistingAggregateStatus(t *testing.T) {

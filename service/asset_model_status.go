@@ -100,6 +100,9 @@ func ReconcileAssetForScope(ctx context.Context, userID int, publicID string, sc
 }
 
 func ProjectAssetStatusForScope(asset model.Asset, scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget) string {
+	if sourceStatus := projectAssetSourceStatus(asset); sourceStatus != "" {
+		return sourceStatus
+	}
 	activeBindingKeys, err := loadActiveAssetBindingKeysForTargets(asset.Id, targets)
 	if err != nil {
 		return model.AssetStatusProcessing
@@ -188,22 +191,6 @@ func activeAssetModelTargetForScope(scope AssetModelScope, target model.AssetMod
 		target.ChannelId > 0 &&
 		target.SpecificChannelId == scope.SpecificChannelID &&
 		target.RoutingGroups == assetModelRoutingGroups(scope.Groups)
-}
-
-func assetHasActiveBindingForTarget(assetID int64, target model.AssetModelCoverageTarget) bool {
-	active, err := assetHasActiveBindingForTargetStrict(assetID, target)
-	return err == nil && active
-}
-
-func assetHasActiveBindingForTargetStrict(assetID int64, target model.AssetModelCoverageTarget) (bool, error) {
-	var count int64
-	if err := model.DB.Model(&model.AssetBinding{}).
-		Where("asset_id = ? AND channel_id = ? AND binding_scope = ? AND status = ?", assetID, target.ChannelId, target.BindingScope, model.AssetStatusActive).
-		Where("upstream_asset_id <> ?", "").
-		Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
 }
 
 type assetBindingTargetKey struct {
