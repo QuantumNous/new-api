@@ -115,7 +115,7 @@ For two assets:
 2. Poll `GET /v1/assets/{asset_id}` for each asset.
 3. For `seedance-2.0-fast`, proceed only when both responses include `seedance-2.0-fast` in `available_models`.
 4. For `seedance-2.0`, proceed only when both responses include `seedance-2.0` in `available_models`.
-5. Poll the video task until a terminal status. Only `succeeded` or `completed` is success. `failed`, `cancelled`, `canceled`, and `expired` are failures.
+5. Poll the video task until a terminal status. `SUCCESS`, `success`, `completed`, and `succeeded` are success. `failed`, `cancelled`, `canceled`, and `expired` are failures.
 
 Fast request example:
 
@@ -202,6 +202,34 @@ Only the owner of an asset can query or use it. Missing assets and assets owned 
 
 Use a staging or freshly deployed production key with Seedance 2.0 fast and pro access. Do not log real API keys.
 
+The repository includes a probe script that uploads two images, waits for the selected model in both assets' `available_models`, creates one video task, polls the task to a terminal state, and prints timing JSON.
+
+Set required environment variables:
+
+```powershell
+$env:FLATKEY_BASE_URL = "https://api.example.com"
+$env:FLATKEY_TEST_API_KEY = "<flatkey-api-key>"
+$env:FAST_MODEL = "seedance-2.0-fast"
+$env:PRO_MODEL = "seedance-2.0"
+```
+
+Run both model slots with two fresh image files:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\asset_model_coverage_probe.ps1 -ImagePath1 C:\tmp\asset-a.png -ImagePath2 C:\tmp\asset-b.png -ModelSlot fast
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\asset_model_coverage_probe.ps1 -ImagePath1 C:\tmp\asset-c.png -ImagePath2 C:\tmp\asset-d.png -ModelSlot pro
+```
+
+Probe exit codes:
+
+| Exit code | Meaning |
+| ---: | --- |
+| 0 | The selected model became available for both assets and the video task ended in `SUCCESS`, `success`, `completed`, or `succeeded`. |
+| 2 | Asset contract failure, such as a terminal asset status before model readiness or `Active` without the selected model in `available_models`. |
+| 3 | Video task creation did not return a public task ID. |
+| 4 | Video task reached a non-success terminal state, including failed, cancelled, canceled, or expired. |
+| 1 | Probe setup, upload, polling, or request failure. |
+
 Record these timestamps for each run:
 
 | Field | Capture point |
@@ -213,8 +241,8 @@ Record these timestamps for each run:
 | `pro_ready_at` | When both assets first include `seedance-2.0` in `available_models`. |
 | `fast_task_created_at` | When the fast task creation response is received. |
 | `pro_task_created_at` | When the pro task creation response is received. |
-| `fast_terminal_at` | When the fast task reaches `succeeded` or `completed`, or a failure terminal state. |
-| `pro_terminal_at` | When the pro task reaches `succeeded` or `completed`, or a failure terminal state. |
+| `fast_terminal_at` | When the fast task reaches `SUCCESS`, `success`, `completed`, `succeeded`, or a failure terminal state. |
+| `pro_terminal_at` | When the pro task reaches `SUCCESS`, `success`, `completed`, `succeeded`, or a failure terminal state. |
 
 Derived durations:
 
@@ -235,7 +263,7 @@ Recommended checks:
 3. Poll both assets every 1 to 2 seconds. Verify `available_models` is always present and is an array.
 4. When only `seedance-2.0-fast` is present, create only the fast task. Do not create pro yet.
 5. Create the pro task only after `seedance-2.0` appears for both assets.
-6. Poll each task result. Treat only `succeeded` or `completed` as pass; `failed`, `cancelled`, `canceled`, `expired`, and timeout are fail.
+6. Poll each task result. Treat `SUCCESS`, `success`, `completed`, and `succeeded` as pass; `failed`, `cancelled`, `canceled`, `expired`, and timeout are fail.
 7. Repeat once after temporarily disabling or changing a route in staging. The asset should project back to `Processing` or keep the task in preparation instead of exposing a stale binding error.
 
 ## Staged Enablement
