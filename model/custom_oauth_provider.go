@@ -59,6 +59,7 @@ type CustomOAuthProvider struct {
 	// Advanced options
 	WellKnown           string `json:"well_known" gorm:"type:varchar(512)"`            // OIDC discovery endpoint (optional)
 	AuthStyle           int    `json:"auth_style" gorm:"default:0"`                    // 0=auto, 1=params, 2=header (Basic Auth)
+	AutoLinkPolicy      string `json:"auto_link_policy" gorm:"type:varchar(32);default:'none'"`
 	AccessPolicy        string `json:"access_policy" gorm:"type:text"`                 // JSON policy for access control based on user info
 	AccessDeniedMessage string `json:"access_denied_message" gorm:"type:varchar(512)"` // Custom error message template when access is denied
 
@@ -190,6 +191,14 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	}
 	if provider.Scopes == "" {
 		provider.Scopes = "openid profile email"
+	}
+	if provider.AutoLinkPolicy == "" {
+		provider.AutoLinkPolicy = "none"
+	}
+	switch provider.AutoLinkPolicy {
+	case "none", "email_verified", "username":
+	default:
+		return errors.New("invalid auto link policy")
 	}
 	if strings.TrimSpace(provider.AccessPolicy) != "" {
 		var policy accessPolicyPayload

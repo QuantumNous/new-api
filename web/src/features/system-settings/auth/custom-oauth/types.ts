@@ -40,6 +40,7 @@ export interface CustomOAuthProvider {
   email_field: string
   well_known: string
   auth_style: number // 0=auto, 1=params, 2=header
+  auto_link_policy: 'none' | 'email_verified' | 'username'
   access_policy: string
   access_denied_message: string
 }
@@ -73,6 +74,7 @@ export const customOAuthFormSchema = z.object({
   email_field: z.string().optional().default(''),
   well_known: z.string().optional().default(''),
   auth_style: z.number().int().min(0).max(2).default(0),
+  auto_link_policy: z.enum(['none', 'email_verified', 'username']).default('none'),
   access_policy: z.string().optional().default(''),
   access_denied_message: z.string().optional().default(''),
 })
@@ -221,4 +223,10 @@ export const AUTH_STYLE_OPTIONS = [
   { value: 0, labelKey: 'Auto Detect' },
   { value: 1, labelKey: 'Params (in body)' },
   { value: 2, labelKey: 'Header (Basic Auth)' },
+] as const
+
+export const AUTO_LINK_POLICY_OPTIONS = [
+  { value: 'none', labelKey: 'Do not auto-link existing users' },
+  { value: 'email_verified', labelKey: 'Auto-link by email' },
+  { value: 'username', labelKey: 'Auto-link by username' },
 ] as const

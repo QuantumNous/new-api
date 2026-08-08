@@ -18,7 +18,6 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
@@ -94,7 +93,7 @@ func (p *GenericOAuthProvider) ExchangeToken(ctx context.Context, code string, c
 
 	logger.LogDebug(ctx, "[OAuth-Generic-%s] ExchangeToken: code=%s...", p.config.Slug, code[:min(len(code), 10)])
 
-	redirectUri := fmt.Sprintf("%s/oauth/%s", system_setting.ServerAddress, p.config.Slug)
+	redirectUri := BuildOAuthRedirectURI(c, p.config.Slug)
 	values := url.Values{}
 	values.Set("grant_type", "authorization_code")
 	values.Set("code", code)
@@ -243,6 +242,10 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 	username := gjson.Get(bodyStr, p.config.UsernameField).String()
 	displayName := gjson.Get(bodyStr, p.config.DisplayNameField).String()
 	email := gjson.Get(bodyStr, p.config.EmailField).String()
+	emailVerified := false
+	if emailVerifiedValue := gjson.Get(bodyStr, "email_verified"); emailVerifiedValue.Exists() {
+		emailVerified = emailVerifiedValue.Bool()
+	}
 
 	// If user ID field returns a number, convert it
 	if userId == "" {
@@ -285,7 +288,8 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 		DisplayName:    displayName,
 		Email:          email,
 		Extra: map[string]any{
-			"provider": p.config.Slug,
+			"provider":       p.config.Slug,
+			"email_verified": emailVerified,
 		},
 	}, nil
 }
@@ -315,6 +319,13 @@ func (p *GenericOAuthProvider) GetProviderPrefix() string {
 // GetProviderId returns the provider ID for binding purposes
 func (p *GenericOAuthProvider) GetProviderId() int {
 	return p.config.Id
+}
+
+func (p *GenericOAuthProvider) GetAutoLinkPolicy() string {
+	if p.config.AutoLinkPolicy == "" {
+		return "none"
+	}
+	return p.config.AutoLinkPolicy
 }
 
 func normalizeAuthorizationTokenType(tokenType string) string {

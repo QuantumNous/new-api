@@ -47,7 +47,6 @@ import {
   buildLinuxDOOAuthUrl,
   buildOIDCOAuthUrl,
 } from '@/lib/oauth'
-
 import {
   getSelfOAuthBindings,
   unbindCustomOAuth,
@@ -500,7 +499,7 @@ export function AccountBindingsTab({
                       </div>
                       <p className='text-muted-foreground truncate text-xs'>
                         {isBound
-                          ? binding?.external_id || t('Bound')
+                          ? binding?.provider_user_id || t('Bound')
                           : t('Not bound')}
                       </p>
                     </div>
