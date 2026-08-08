@@ -34,6 +34,7 @@ func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
+		resourceChannelId := common.GetContextKeyInt(c, constant.ContextKeyUpstreamResourceChannelId)
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
@@ -43,6 +44,10 @@ func Distribute() func(c *gin.Context) {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
 				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
+				return
+			}
+			if resourceChannelId > 0 && resourceChannelId != id {
+				abortWithOpenAiMessage(c, http.StatusForbidden, "the token-specific channel does not own this upstream resource")
 				return
 			}
 			channel, err = model.GetChannelById(id, true)
@@ -77,7 +82,19 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 
-			if shouldSelectChannel {
+			if resourceChannelId > 0 {
+				channel, err = model.GetChannelById(resourceChannelId, true)
+				if err != nil {
+					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
+					return
+				}
+				if channel.Status != common.ChannelStatusEnabled {
+					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+					return
+				}
+			}
+
+			if shouldSelectChannel && channel == nil {
 				if modelRequest.Model == "" {
 					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
 					return
@@ -161,8 +178,19 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
+		if !channelSupportsRequestPath(channel, c.Request.URL.Path, modelRequest.Model) {
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, "selected channel does not support this request path")
+			return
+		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model); setupErr != nil {
+			statusCode := setupErr.StatusCode
+			if statusCode < http.StatusBadRequest || setupErr.GetErrorCode() == types.ErrorCodeChannelNoAvailableKey {
+				statusCode = http.StatusServiceUnavailable
+			}
+			abortWithOpenAiMessage(c, statusCode, setupErr.Error(), setupErr.GetErrorCode())
+			return
+		}
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
@@ -171,11 +199,14 @@ func Distribute() func(c *gin.Context) {
 }
 
 // channelSupportsRequestPath reports whether a channel can serve the request path.
-// Only Advanced Custom (type 58) channels are path-checked; all other channel types
-// always pass. A type-58 channel is usable only when one of its routes matches.
+// File/Batch resources require a native OpenAI Batch opt-in; Advanced Custom
+// channels are usable only when one of their routes matches.
 func channelSupportsRequestPath(channel *model.Channel, requestPath string, requestModel string) bool {
 	if channel == nil {
 		return false
+	}
+	if model.IsOpenAIUpstreamResourcePath(requestPath) {
+		return channel.SupportsNativeOpenAIBatch()
 	}
 	if channel.Type != constant.ChannelTypeAdvancedCustom {
 		return true
@@ -251,6 +282,9 @@ func getJSONStringValue(result gjson.Result, field string) (string, error) {
 }
 
 func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
+	if modelName := common.GetContextKeyString(c, constant.ContextKeyUpstreamResourceModel); modelName != "" {
+		return &ModelRequest{Model: modelName}, true, nil
+	}
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
 	var err error
@@ -466,7 +500,19 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
 
-	key, index, newAPIError := channel.GetNextEnabledKey()
+	var key string
+	var index int
+	var newAPIError *types.NewAPIError
+	resourceKeyFingerprint := common.GetContextKeyString(c, constant.ContextKeyUpstreamResourceKeyFingerprint)
+	_, hasResourceKeyIndex := common.GetContextKey(c, constant.ContextKeyUpstreamResourceKeyIndex)
+	switch {
+	case resourceKeyFingerprint != "":
+		key, index, newAPIError = channel.GetEnabledKeyByFingerprint(resourceKeyFingerprint)
+	case hasResourceKeyIndex && channel.ChannelInfo.IsMultiKey:
+		key, index, newAPIError = channel.GetEnabledKeyByIndex(common.GetContextKeyInt(c, constant.ContextKeyUpstreamResourceKeyIndex))
+	default:
+		key, index, newAPIError = channel.GetNextEnabledKey()
+	}
 	if newAPIError != nil {
 		return newAPIError
 	}

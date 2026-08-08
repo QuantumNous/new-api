@@ -30,6 +30,7 @@ const defaultOperationsSettings: OperationsSettings = {
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
+  'openai_batch_setting.enabled': false,
   QuotaRemindThreshold: '',
   SMTPServer: '',
   SMTPPort: '',

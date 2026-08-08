@@ -282,6 +282,32 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	}
 }
 
+func ChannelKeyFingerprint(key string) string {
+	return common.Sha1([]byte(key))
+}
+
+func (channel *Channel) GetEnabledKeyByIndex(index int) (string, int, *types.NewAPIError) {
+	keys := channel.GetKeys()
+	if index < 0 || index >= len(keys) {
+		return "", 0, types.NewError(errors.New("upstream resource key index is out of range"), types.ErrorCodeChannelNoAvailableKey)
+	}
+	if status, exists := channel.ChannelInfo.MultiKeyStatusList[index]; exists && status != common.ChannelStatusEnabled {
+		return "", 0, types.NewError(errors.New("upstream resource key is disabled"), types.ErrorCodeChannelNoAvailableKey)
+	}
+	return keys[index], index, nil
+}
+
+func (channel *Channel) GetEnabledKeyByFingerprint(fingerprint string) (string, int, *types.NewAPIError) {
+	fingerprint = strings.TrimSpace(fingerprint)
+	for index, key := range channel.GetKeys() {
+		if ChannelKeyFingerprint(key) != fingerprint {
+			continue
+		}
+		return channel.GetEnabledKeyByIndex(index)
+	}
+	return "", 0, types.NewError(errors.New("upstream resource key no longer exists"), types.ErrorCodeChannelNoAvailableKey)
+}
+
 func (channel *Channel) SaveChannelInfo() error {
 	return DB.Model(channel).Update("channel_info", channel.ChannelInfo).Error
 }
@@ -1015,6 +1041,10 @@ func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
 		}
 	}
 	return setting
+}
+
+func (channel *Channel) SupportsNativeOpenAIBatch() bool {
+	return channel != nil && channel.Type == constant.ChannelTypeOpenAI && channel.GetOtherSettings().NativeOpenAIBatch
 }
 
 func (channel *Channel) SetOtherSettings(setting dto.ChannelOtherSettings) {
