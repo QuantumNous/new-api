@@ -1,13 +1,13 @@
 package claude
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -46,7 +46,7 @@ func TestHandleClaudeResponseData_ConvertsToResponsesFormat(t *testing.T) {
 	require.Nil(t, err)
 
 	var resp dto.OpenAIResponsesResponse
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp), "body should be Responses JSON, got: %s", w.Body.String())
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &resp), "body should be Responses JSON, got: %s", w.Body.String())
 	assert.Equal(t, "response", resp.Object)
 	assert.NotEmpty(t, resp.ID, "response ID should be set")
 
@@ -109,15 +109,17 @@ func TestClaudeResponsesStreamHandler_EmitsResponsesSSE(t *testing.T) {
 
 	// Parse the emitted Responses SSE stream and assert the converted contract:
 	// a response.created carrying the response ID, output_text deltas that join to
-	// the Claude text, and a terminal response.completed with final usage.
+	// the Claude text, and a terminal response.completed with final usage. Event
+	// positions are recorded so ordering can be asserted as well.
 	var (
-		createdID  string
-		deltaText  strings.Builder
-		sawDelta   bool
-		completed  bool
-		finalUsage *dto.Usage
-		sawCreated bool
+		createdID    string
+		deltaText    strings.Builder
+		finalUsage   *dto.Usage
+		createdIndex = -1
+		deltaIndex   = -1
+		doneIndex    = -1
 	)
+	eventIndex := 0
 	for _, block := range strings.Split(w.Body.String(), "\n\n") {
 		var eventType, dataLine string
 		for _, line := range strings.Split(block, "\n") {
@@ -132,39 +134,47 @@ func TestClaudeResponsesStreamHandler_EmitsResponsesSSE(t *testing.T) {
 			continue
 		}
 		var payload map[string]any
-		require.NoError(t, json.Unmarshal([]byte(dataLine), &payload), "SSE data should be JSON: %s", dataLine)
+		require.NoError(t, common.Unmarshal([]byte(dataLine), &payload), "SSE data should be JSON: %s", dataLine)
 
 		switch eventType {
 		case "response.created":
-			sawCreated = true
+			if createdIndex == -1 {
+				createdIndex = eventIndex
+			}
 			if respObj, ok := payload["response"].(map[string]any); ok {
 				createdID, _ = respObj["id"].(string)
 			}
 		case "response.output_text.delta":
-			sawDelta = true
+			deltaIndex = eventIndex
 			if d, ok := payload["delta"].(string); ok {
 				deltaText.WriteString(d)
 			}
 		case "response.completed":
-			completed = true
+			doneIndex = eventIndex
 			if respObj, ok := payload["response"].(map[string]any); ok {
 				if u, ok := respObj["usage"].(map[string]any); ok {
-					b, _ := json.Marshal(u)
+					b, mErr := common.Marshal(u)
+					require.NoError(t, mErr)
 					var uu dto.Usage
-					if json.Unmarshal(b, &uu) == nil {
-						finalUsage = &uu
-					}
+					require.NoError(t, common.Unmarshal(b, &uu))
+					finalUsage = &uu
 				}
 			}
 		}
+		eventIndex++
 	}
 
-	assert.True(t, sawCreated, "should emit response.created")
+	assert.NotEqual(t, -1, createdIndex, "should emit response.created")
 	assert.NotEmpty(t, createdID, "response.created should carry the response ID")
-	assert.True(t, sawDelta, "should emit response.output_text.delta")
+	assert.NotEqual(t, -1, deltaIndex, "should emit response.output_text.delta")
 	assert.Equal(t, "ok", deltaText.String(), "text deltas should join to the Claude text")
-	assert.True(t, completed, "should emit a terminal response.completed")
+	assert.NotEqual(t, -1, doneIndex, "should emit a terminal response.completed")
 	require.NotNil(t, finalUsage, "response.completed should carry usage")
 	assert.Equal(t, 10, finalUsage.PromptTokens)
 	assert.Equal(t, 5, finalUsage.CompletionTokens)
+	assert.Equal(t, 15, finalUsage.TotalTokens)
+
+	// ordering: created precedes the output deltas; completed follows them
+	assert.Less(t, createdIndex, deltaIndex, "response.created should precede output events")
+	assert.Greater(t, doneIndex, deltaIndex, "response.completed should follow output events")
 }
