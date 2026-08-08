@@ -209,6 +209,90 @@ func TestReconcileAssetForScopeAvailableModelsIncludesOnlyCurrentExactActiveBind
 	require.Equal(t, []string{"seedance-2.0-fast"}, result.AvailableModels)
 }
 
+func TestReconcileAssetForScopeAvailableModelsRejectsEachNonExactBinding(t *testing.T) {
+	cases := []struct {
+		name    string
+		binding func(model.AssetModelCoverageTarget) model.AssetBinding
+	}{
+		{
+			name: "wrong channel",
+			binding: func(target model.AssetModelCoverageTarget) model.AssetBinding {
+				return model.AssetBinding{
+					ChannelId:       target.ChannelId + 100,
+					BindingScope:    target.BindingScope,
+					Status:          model.AssetStatusActive,
+					UpstreamAssetId: "wrong-channel-upstream",
+				}
+			},
+		},
+		{
+			name: "wrong binding scope",
+			binding: func(target model.AssetModelCoverageTarget) model.AssetBinding {
+				return model.AssetBinding{
+					ChannelId:       target.ChannelId,
+					BindingScope:    target.BindingScope + ":wrong",
+					Status:          model.AssetStatusActive,
+					UpstreamAssetId: "wrong-scope-upstream",
+				}
+			},
+		},
+		{
+			name: "blank upstream id",
+			binding: func(target model.AssetModelCoverageTarget) model.AssetBinding {
+				return model.AssetBinding{
+					ChannelId:       target.ChannelId,
+					BindingScope:    target.BindingScope,
+					Status:          model.AssetStatusActive,
+					UpstreamAssetId: "",
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			newAssetStatusTestDB(t)
+			registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &recordingAssetMaterializer{})
+			insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+				ID: 150, ChannelType: constant.ChannelTypeTechMobiVideo, Group: "default", ModelName: "seedance-2.0-fast",
+				Priority: 80, Weight: 50, Key: "techmobi-key-fast",
+				Mapping:     `{"seedance-2.0-fast":"doubao/seedance-fast"}`,
+				ChannelInfo: model.ChannelInfo{IsMultiKey: false},
+			})
+			asset := insertAssetStatusAsset(t, model.AssetSourceStatusAvailable, model.AssetStatusActive)
+			scope := AssetModelScope{
+				ScopeKey:   "scope-non-exact-binding",
+				Groups:     []string{"default"},
+				ModelNames: []string{"seedance-2.0-fast"},
+			}
+			target, err := ensureAssetModelCoverageTargetAt(scope, "seedance-2.0-fast", "owner", 100)
+			require.NoError(t, err)
+			require.NoError(t, model.DB.Create(&model.AssetModelReadiness{
+				AssetId:          asset.Id,
+				ScopeKey:         scope.ScopeKey,
+				ModelName:        "seedance-2.0-fast",
+				TargetGeneration: target.Generation,
+				ChannelId:        target.ChannelId,
+				BindingScope:     target.BindingScope,
+				Status:           model.AssetModelReadinessStatusActive,
+				CreatedAt:        100,
+				UpdatedAt:        100,
+			}).Error)
+			binding := tc.binding(*target)
+			binding.AssetId = asset.Id
+			require.NoError(t, model.DB.Create(&binding).Error)
+			restoreStrict := setAssetStrictForTest(t, true)
+			defer restoreStrict()
+
+			result, err := ReconcileAssetForScope(context.Background(), asset.UserId, asset.PublicId, scope)
+
+			require.NoError(t, err)
+			require.Equal(t, model.AssetStatusProcessing, result.Status)
+			require.Empty(t, result.AvailableModels)
+		})
+	}
+}
+
 func TestReconcileAssetForScopeAvailableModelsEmptyForSourceTerminalAssets(t *testing.T) {
 	newAssetStatusTestDB(t)
 	asset := insertAssetStatusAsset(t, model.AssetSourceStatusUnavailable, model.AssetStatusActive)
