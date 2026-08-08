@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
@@ -255,6 +257,91 @@ func TestReconcileAssetForScopeAvailableModelsIncludesOnlyCurrentExactActiveBind
 	require.NoError(t, err)
 	require.Equal(t, model.AssetStatusProcessing, result.Status)
 	require.Equal(t, []string{"seedance-2.0-fast"}, result.AvailableModels)
+}
+
+func TestReconcileAssetForScopeBatchesActiveBindingLookupByCompoundTargetKey(t *testing.T) {
+	newAssetStatusTestDB(t)
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &recordingAssetMaterializer{})
+	priority := int64(80)
+	weight := uint(50)
+	mapping := `{"seedance-2.0-fast":"doubao/seedance-fast","seedance-2.0":"doubao/seedance-pro"}`
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:           170,
+		Type:         constant.ChannelTypeTechMobiVideo,
+		Key:          "techmobi-key-shared",
+		Status:       common.ChannelStatusEnabled,
+		Name:         "asset-status-shared-channel",
+		Group:        "default",
+		Models:       "seedance-2.0-fast,seedance-2.0",
+		Priority:     &priority,
+		Weight:       &weight,
+		ModelMapping: &mapping,
+		ChannelInfo:  model.ChannelInfo{IsMultiKey: false},
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group: "default", Model: "seedance-2.0-fast", ChannelId: 170,
+		Enabled: true, Priority: &priority, Weight: weight,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group: "default", Model: "seedance-2.0", ChannelId: 170,
+		Enabled: true, Priority: &priority, Weight: weight,
+	}).Error)
+	asset := insertAssetStatusAsset(t, model.AssetSourceStatusAvailable, model.AssetStatusActive)
+	scope := AssetModelScope{
+		ScopeKey:   "scope-batched-bindings",
+		Groups:     []string{"default"},
+		ModelNames: []string{"seedance-2.0-fast", "seedance-2.0"},
+	}
+	fastTarget, err := ensureAssetModelCoverageTargetAt(scope, "seedance-2.0-fast", "owner", 100)
+	require.NoError(t, err)
+	proTarget, err := ensureAssetModelCoverageTargetAt(scope, "seedance-2.0", "owner", 100)
+	require.NoError(t, err)
+	require.Equal(t, fastTarget.ChannelId, proTarget.ChannelId)
+	require.NotEqual(t, fastTarget.BindingScope, proTarget.BindingScope)
+	require.NoError(t, model.DB.Create(&model.AssetModelReadiness{
+		AssetId:          asset.Id,
+		ScopeKey:         scope.ScopeKey,
+		ModelName:        "seedance-2.0-fast",
+		TargetGeneration: fastTarget.Generation,
+		ChannelId:        fastTarget.ChannelId,
+		BindingScope:     fastTarget.BindingScope,
+		Status:           model.AssetModelReadinessStatusActive,
+		CreatedAt:        100,
+		UpdatedAt:        100,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.AssetModelReadiness{
+		AssetId:          asset.Id,
+		ScopeKey:         scope.ScopeKey,
+		ModelName:        "seedance-2.0",
+		TargetGeneration: proTarget.Generation,
+		ChannelId:        proTarget.ChannelId,
+		BindingScope:     proTarget.BindingScope,
+		Status:           model.AssetModelReadinessStatusActive,
+		CreatedAt:        100,
+		UpdatedAt:        100,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId: asset.Id, ChannelId: fastTarget.ChannelId, BindingScope: fastTarget.BindingScope,
+		Status: model.AssetStatusActive, UpstreamAssetId: "upstream-fast",
+	}).Error)
+	restoreStrict := setAssetStrictForTest(t, true)
+	defer restoreStrict()
+
+	var bindingQueries int64
+	callbackName := "asset_status_test:binding_lookup_batch"
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement != nil && tx.Statement.Table == "asset_bindings" {
+			atomic.AddInt64(&bindingQueries, 1)
+		}
+	}))
+	t.Cleanup(func() { require.NoError(t, model.DB.Callback().Query().Remove(callbackName)) })
+
+	result, err := ReconcileAssetForScope(context.Background(), asset.UserId, asset.PublicId, scope)
+
+	require.NoError(t, err)
+	require.Equal(t, model.AssetStatusProcessing, result.Status)
+	require.Equal(t, []string{"seedance-2.0-fast"}, result.AvailableModels)
+	require.Equal(t, int64(1), atomic.LoadInt64(&bindingQueries))
 }
 
 func TestReconcileAssetForScopeAvailableModelsRejectsEachNonExactBinding(t *testing.T) {

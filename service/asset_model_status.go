@@ -83,12 +83,16 @@ func ReconcileAssetForScope(ctx context.Context, userID int, publicID string, sc
 			return nil, err
 		}
 	}
-	strictStatus, err := projectAssetStatusForScope(*asset, scope, rows, targets)
+	activeBindingKeys, err := loadActiveAssetBindingKeysForTargets(asset.Id, targets)
+	if err != nil {
+		return nil, err
+	}
+	strictStatus, err := projectAssetStatusForScope(*asset, scope, rows, targets, activeBindingKeys)
 	if err != nil {
 		return nil, err
 	}
 	result.Status = strictStatus
-	result.AvailableModels, err = availableAssetModelsForScope(asset.Id, scope, rows, targets)
+	result.AvailableModels, err = availableAssetModelsForScope(scope, rows, targets, activeBindingKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -96,14 +100,18 @@ func ReconcileAssetForScope(ctx context.Context, userID int, publicID string, sc
 }
 
 func ProjectAssetStatusForScope(asset model.Asset, scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget) string {
-	status, err := projectAssetStatusForScope(asset, scope, rows, targets)
+	activeBindingKeys, err := loadActiveAssetBindingKeysForTargets(asset.Id, targets)
+	if err != nil {
+		return model.AssetStatusProcessing
+	}
+	status, err := projectAssetStatusForScope(asset, scope, rows, targets, activeBindingKeys)
 	if err != nil {
 		return model.AssetStatusProcessing
 	}
 	return status
 }
 
-func projectAssetStatusForScope(asset model.Asset, scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget) (string, error) {
+func projectAssetStatusForScope(asset model.Asset, scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget, activeBindingKeys activeAssetBindingKeySet) (string, error) {
 	if sourceStatus := projectAssetSourceStatus(asset); sourceStatus != "" {
 		return sourceStatus, nil
 	}
@@ -141,14 +149,10 @@ func projectAssetStatusForScope(asset model.Asset, scope AssetModelScope, rows [
 		case model.AssetModelReadinessStatusPending, model.AssetModelReadinessStatusProcessing, model.AssetModelReadinessStatusRetryWaiting:
 			return model.AssetStatusProcessing, nil
 		case model.AssetModelReadinessStatusActive:
-			activeBinding, err := assetHasActiveBindingForTargetStrict(asset.Id, target)
-			if err != nil {
-				return "", err
-			}
 			if row.TargetGeneration != target.Generation ||
 				row.ChannelId != target.ChannelId ||
 				row.BindingScope != target.BindingScope ||
-				!activeBinding {
+				!activeBindingKeys.has(target) {
 				return model.AssetStatusProcessing, nil
 			}
 		default:
@@ -202,7 +206,69 @@ func assetHasActiveBindingForTargetStrict(assetID int64, target model.AssetModel
 	return count > 0, nil
 }
 
-func availableAssetModelsForScope(assetID int64, scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget) ([]string, error) {
+type assetBindingTargetKey struct {
+	channelID    int
+	bindingScope string
+}
+
+type activeAssetBindingKeySet map[assetBindingTargetKey]struct{}
+
+func (set activeAssetBindingKeySet) has(target model.AssetModelCoverageTarget) bool {
+	if set == nil {
+		return false
+	}
+	_, ok := set[assetBindingKeyForTarget(target)]
+	return ok
+}
+
+func assetBindingKeyForTarget(target model.AssetModelCoverageTarget) assetBindingTargetKey {
+	return assetBindingTargetKey{
+		channelID:    target.ChannelId,
+		bindingScope: strings.TrimSpace(target.BindingScope),
+	}
+}
+
+func loadActiveAssetBindingKeysForTargets(assetID int64, targets map[string]model.AssetModelCoverageTarget) (activeAssetBindingKeySet, error) {
+	requested := make(activeAssetBindingKeySet, len(targets))
+	for _, target := range targets {
+		key := assetBindingKeyForTarget(target)
+		if key.channelID <= 0 {
+			continue
+		}
+		requested[key] = struct{}{}
+	}
+	if len(requested) == 0 {
+		return activeAssetBindingKeySet{}, nil
+	}
+
+	clauses := make([]string, 0, len(requested))
+	args := make([]any, 0, len(requested)*2)
+	for key := range requested {
+		clauses = append(clauses, "(channel_id = ? AND binding_scope = ?)")
+		args = append(args, key.channelID, key.bindingScope)
+	}
+
+	var bindings []model.AssetBinding
+	if err := model.DB.Model(&model.AssetBinding{}).
+		Select("channel_id, binding_scope").
+		Where("asset_id = ? AND status = ?", assetID, model.AssetStatusActive).
+		Where("upstream_asset_id <> ?", "").
+		Where("("+strings.Join(clauses, " OR ")+")", args...).
+		Find(&bindings).Error; err != nil {
+		return nil, err
+	}
+
+	active := make(activeAssetBindingKeySet, len(bindings))
+	for _, binding := range bindings {
+		key := assetBindingTargetKey{channelID: binding.ChannelId, bindingScope: strings.TrimSpace(binding.BindingScope)}
+		if _, ok := requested[key]; ok {
+			active[key] = struct{}{}
+		}
+	}
+	return active, nil
+}
+
+func availableAssetModelsForScope(scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget, activeBindingKeys activeAssetBindingKeySet) ([]string, error) {
 	modelNames := normalizedStrings(scope.ModelNames)
 	if len(modelNames) == 0 {
 		return []string{}, nil
@@ -233,11 +299,7 @@ func availableAssetModelsForScope(assetID int64, scope AssetModelScope, rows []m
 			row.BindingScope != target.BindingScope {
 			continue
 		}
-		activeBinding, err := assetHasActiveBindingForTargetStrict(assetID, target)
-		if err != nil {
-			return nil, err
-		}
-		if activeBinding {
+		if activeBindingKeys.has(target) {
 			available = append(available, modelName)
 		}
 	}
