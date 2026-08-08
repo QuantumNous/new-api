@@ -51,6 +51,17 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
+	group, err := model.GetUserGroup(userId, true)
+	if err != nil {
+		common.ApiErrorMsg(c, "获取用户分组失败")
+		return
+	}
+	payMoney := getSubscriptionPayMoney(plan.PriceAmount, group)
+	if payMoney < 0.01 {
+		common.ApiErrorMsg(c, "套餐金额过低")
+		return
+	}
+
 	if plan.MaxPurchasePerUser > 0 {
 		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
 		if err != nil {
@@ -87,7 +98,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
+		Money:           payMoney,
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderEpay,
@@ -102,7 +113,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("SUB:%s", plan.Title),
-		Money:          strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
+		Money:          strconv.FormatFloat(payMoney, 'f', 2, 64),
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,
