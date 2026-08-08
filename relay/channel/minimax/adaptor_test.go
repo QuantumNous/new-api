@@ -13,7 +13,12 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
+
+func TestModelListIncludesMiniMaxH3Video(t *testing.T) {
+	require.Contains(t, (&Adaptor{}).GetModelList(), "MiniMax-H3")
+}
 
 func TestGetRequestURLForImageGeneration(t *testing.T) {
 	t.Parallel()

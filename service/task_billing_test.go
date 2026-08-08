@@ -751,6 +751,16 @@ type mockAdaptor struct {
 	adjustReturn int
 }
 
+type checkedMockAdaptor struct {
+	*mockAdaptor
+	checkedReturn int
+	clamp         *common.QuotaClamp
+}
+
+func (m *checkedMockAdaptor) AdjustBillingOnCompleteChecked(_ *model.Task, _ *relaycommon.TaskInfo) (int, *common.QuotaClamp) {
+	return m.checkedReturn, m.clamp
+}
+
 func (m *mockAdaptor) Init(_ *relaycommon.RelayInfo) {}
 func (m *mockAdaptor) FetchTask(string, string, map[string]any, string) (*http.Response, error) {
 	return nil, nil
@@ -847,4 +857,37 @@ func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestSettle_CheckedAdaptorAdjustmentTakesPriority(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 33, 33, 33
+	const initQuota, preConsumed, actualQuota = 10000, 5000, 3000
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-checked-adj", 8000)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	adaptor := &checkedMockAdaptor{
+		mockAdaptor:   &mockAdaptor{adjustReturn: 4000},
+		checkedReturn: actualQuota,
+		clamp: &common.QuotaClamp{
+			Op:      "QuotaFromFloat",
+			Kind:    common.QuotaClampOverflow,
+			Clamped: common.MaxQuota,
+		},
+	}
+
+	settleTaskBillingOnComplete(ctx, adaptor, task, &relaycommon.TaskInfo{Status: model.TaskStatusSuccess})
+
+	assert.Equal(t, actualQuota, task.Quota)
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	var other map[string]any
+	require.NoError(t, common.Unmarshal([]byte(log.Other), &other))
+	adminInfo, ok := other["admin_info"].(map[string]any)
+	require.True(t, ok)
+	require.NotNil(t, adminInfo["quota_saturation"])
 }
