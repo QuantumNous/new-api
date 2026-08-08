@@ -164,7 +164,7 @@ type SubscriptionPlan struct {
 	Subtitle string `json:"subtitle" gorm:"type:varchar(255);default:''"`
 
 	// Display money amount (follow existing code style: float64 for money)
-	PriceAmount float64  `json:"price_amount" gorm:"type:decimal(10,6);not null;default:0"`
+	PriceAmount float64  `json:"price_amount" gorm:"type:decimal(10,6);not null;default:0.000000"`
 	Currency    string   `json:"currency" gorm:"type:varchar(8);not null;default:'USD'"`
 	PixPriceBRL *float64 `json:"pix_price_brl" gorm:"type:decimal(10,6)"`
 	UpiPriceINR *float64 `json:"upi_price_inr" gorm:"type:decimal(10,6)"`
@@ -580,7 +580,7 @@ type SubscriptionOrder struct {
 	CompleteTime    int64  `json:"complete_time"`
 
 	PurchaseMonths     int     `json:"purchase_months" gorm:"type:int;not null;default:0"`
-	UnitPrice          float64 `json:"unit_price" gorm:"type:decimal(10,6);not null;default:0"`
+	UnitPrice          float64 `json:"unit_price" gorm:"type:decimal(10,6);not null;default:0.000000"`
 	PaymentCurrency    string  `json:"payment_currency" gorm:"type:varchar(8);not null;default:'USD';index"`
 	PaymentAmountMinor int64   `json:"payment_amount_minor" gorm:"type:bigint;not null;default:0"`
 	PlanSnapshot       string  `json:"plan_snapshot" gorm:"type:text"`

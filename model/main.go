@@ -251,6 +251,9 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
+	if common.UsingSQLite {
+		return migrateDBFast()
+	}
 	if err := migrateRecallRecipientIdentity(); err != nil {
 		return err
 	}
@@ -480,12 +483,27 @@ func migrateDBFast() error {
 		{&APIIdempotencyRecord{}, "APIIdempotencyRecord"},
 		{&BytePlusAssetTempObject{}, "BytePlusAssetTempObject"},
 		{&BytePlusAsset{}, "BytePlusAsset"},
+		{&AdsSpendDaily{}, "AdsSpendDaily"},
+		{&AdsDailyKeyword{}, "AdsDailyKeyword"},
+		{&AdsDailyCreative{}, "AdsDailyCreative"},
+		{&AdsDailyLanding{}, "AdsDailyLanding"},
+		{&AdsPilotCampaignDaily{}, "AdsPilotCampaignDaily"},
+		{&AdsPilotInsight{}, "AdsPilotInsight"},
+		{&AdsPilotAction{}, "AdsPilotAction"},
+		{&AdsPilotProposal{}, "AdsPilotProposal"},
+		{&AdsPilotMeta{}, "AdsPilotMeta"},
 		{&PromptLibraryItem{}, "PromptLibraryItem"},
 	}
 	// GORM also migrates associations, so parallel AutoMigrate calls can race
 	// when related models share a table dependency.
 	for _, m := range migrations {
-		if err := DB.AutoMigrate(m.model); err != nil {
+		var err error
+		if common.UsingSQLite && sqliteModelNeedsColumnOnlyMigration(m.model) {
+			err = ensureSQLiteModelColumnsAndIndexes(m.model)
+		} else {
+			err = DB.AutoMigrate(m.model)
+		}
+		if err != nil {
 			return fmt.Errorf("failed to migrate %s: %v", m.name, err)
 		}
 	}
@@ -517,6 +535,44 @@ func migrateDBFast() error {
 		return err
 	}
 	common.SysLog("database migrated")
+	return nil
+}
+
+func sqliteModelNeedsColumnOnlyMigration(model interface{}) bool {
+	switch model.(type) {
+	case *SubscriptionOrder, *SubscriptionTermSegment, *WalletLedgerEntry:
+		return true
+	default:
+		return false
+	}
+}
+
+func ensureSQLiteModelColumnsAndIndexes(model interface{}) error {
+	stmt := &gorm.Statement{DB: DB}
+	if err := stmt.Parse(model); err != nil {
+		return err
+	}
+	if !DB.Migrator().HasTable(model) {
+		return DB.Migrator().CreateTable(model)
+	}
+	for _, dbName := range stmt.Schema.DBNames {
+		field := stmt.Schema.FieldsByDBName[dbName]
+		if field == nil || field.IgnoreMigration {
+			continue
+		}
+		if !DB.Migrator().HasColumn(model, dbName) {
+			if err := DB.Migrator().AddColumn(model, dbName); err != nil {
+				return err
+			}
+		}
+	}
+	for _, idx := range stmt.Schema.ParseIndexes() {
+		if !DB.Migrator().HasIndex(model, idx.Name) {
+			if err := DB.Migrator().CreateIndex(model, idx.Name); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
