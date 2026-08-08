@@ -203,14 +203,11 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 	target, err := model.GetAssetModelCoverageTarget(row.ScopeKey, row.ModelName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return finishAssetModelReadinessFailed(row, owner, nowUnix, "target_unavailable")
+			return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
 		}
 		return err
 	}
 	if target.Status != model.AssetModelTargetStatusActive {
-		if target.Status == model.AssetModelTargetStatusUnavailable {
-			return finishAssetModelReadinessFailed(row, owner, nowUnix, "target_unavailable")
-		}
 		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
 	}
 	if !assetModelReadinessMatchesTarget(row, *target) {
@@ -249,11 +246,11 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 		return err
 	}
 	if !eligible {
-		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix)
+		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
 	}
 	options, _, err := ResolveAssetModelTargetOptions(*target, channel)
 	if err != nil {
-		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix)
+		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
 	}
 
 	binding, err := prepareAssetModelBinding(ctx, asset, *target, channel, options, owner, nowUnix)
@@ -417,7 +414,7 @@ func finalPreflightAssetModelProviderWrite(target model.AssetModelCoverageTarget
 		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
 	}
 	if current.Status != model.AssetModelTargetStatusActive {
-		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingDefinitiveError{class: "target_unavailable"}
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
 	}
 	channel, err := loadAssetModelReadinessChannel(current.ChannelId)
 	if err != nil {
@@ -429,18 +426,18 @@ func finalPreflightAssetModelProviderWrite(target model.AssetModelCoverageTarget
 		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, err
 	}
 	if !eligible || !assetModelChannelEligible(scope, channel) || !assetModelTargetMatchesCurrentChannel(*current, channel) {
-		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingDefinitiveError{class: "target_unavailable"}
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
 	}
 	options, _, err := ResolveAssetModelTargetOptions(*current, channel)
 	if err != nil {
-		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingDefinitiveError{class: "target_unavailable"}
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
 	}
 	bindingScope, err := assetBindingScope(channel.Type, options)
 	if err != nil {
-		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingDefinitiveError{class: "target_unavailable"}
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
 	}
 	if bindingScope != current.BindingScope || bindingScope != target.BindingScope {
-		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingDefinitiveError{class: "target_unavailable"}
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
 	}
 	return *current, channel, options, nil
 }
@@ -483,11 +480,16 @@ func rotateAssetModelReadinessTarget(row model.AssetModelReadiness, target model
 		return err
 	}
 	nextIndex := 0
+	matched := false
 	for i, candidate := range candidates {
 		if assetModelTargetMatchesCandidate(target, candidate) {
 			nextIndex = i + 1
+			matched = true
 			break
 		}
+	}
+	if !matched {
+		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
 	}
 	if nextIndex >= len(candidates) || nextIndex < 0 {
 		if err := markAssetModelTargetUnavailable(target, nowUnix); err != nil {

@@ -247,12 +247,40 @@ func TestAssetModelWorkerRevalidatesTargetEligibilityBeforeProviderWrite(t *test
 	require.Equal(t, 1, processed)
 	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls), "stale target must not write provider asset")
 
-	rotated := requireAssetModelTarget(t, scope, "seedance-2.0")
-	require.Equal(t, first.Generation+1, rotated.Generation)
-	require.NotEqual(t, first.BindingScope, rotated.BindingScope)
+	unchanged := requireAssetModelTarget(t, scope, "seedance-2.0")
+	require.Equal(t, first.Generation, unchanged.Generation)
+	require.Equal(t, first.BindingScope, unchanged.BindingScope)
+	require.Equal(t, model.AssetModelTargetStatusActive, unchanged.Status)
 	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
-	require.Equal(t, model.AssetModelReadinessStatusPending, row.Status)
-	require.Equal(t, rotated.Generation, row.TargetGeneration)
+	require.Equal(t, model.AssetModelReadinessStatusRetryWaiting, row.Status)
+	require.Equal(t, first.Generation, row.TargetGeneration)
+	require.Equal(t, int64(105), row.NextRetryAt)
+}
+
+func TestAssetModelWorkerRetriesWhenPersistedTargetFallsOutOfCandidateSet(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, first := seedAssetModelWorkerReadiness(t, "ast_worker_target_drift_retry", "techmobi-key-a\ntechmobi-key-b")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", first.ChannelId).Updates(map[string]any{
+		"key": "techmobi-key-c",
+	}).Error)
+
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls), "candidate drift must not replay candidate zero")
+
+	unchanged := requireAssetModelTarget(t, scope, "seedance-2.0")
+	require.Equal(t, first.Generation, unchanged.Generation)
+	require.Equal(t, first.CandidateIndex, unchanged.CandidateIndex)
+	require.Equal(t, first.BindingScope, unchanged.BindingScope)
+	require.Equal(t, model.AssetModelTargetStatusActive, unchanged.Status)
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	require.Equal(t, model.AssetModelReadinessStatusRetryWaiting, row.Status)
+	require.Equal(t, first.Generation, row.TargetGeneration)
+	require.Equal(t, int64(105), row.NextRetryAt)
 }
 
 func TestAssetModelWorkerBindingLeaseOutlivesReadinessLeaseDuringSlowProviderWrite(t *testing.T) {
@@ -318,8 +346,12 @@ func TestAssetModelWorkerFinalPreflightRejectsTargetCredentialChangeBeforeProvid
 
 	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
 	require.NotEqual(t, model.AssetModelReadinessStatusActive, row.Status)
-	rotated := requireAssetModelTarget(t, scope, "seedance-2.0")
-	require.NotEqual(t, target.BindingScope, rotated.BindingScope)
+	require.Equal(t, model.AssetModelReadinessStatusRetryWaiting, row.Status)
+	require.Equal(t, int64(105), row.NextRetryAt)
+	unchanged := requireAssetModelTarget(t, scope, "seedance-2.0")
+	require.Equal(t, target.Generation, unchanged.Generation)
+	require.Equal(t, target.BindingScope, unchanged.BindingScope)
+	require.Equal(t, model.AssetModelTargetStatusActive, unchanged.Status)
 }
 
 func TestAssetModelWorkerRetryableProcessingRefreshSchedulesRetryWithoutFailingBinding(t *testing.T) {
