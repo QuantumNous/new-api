@@ -35,7 +35,7 @@ func TestAssetModelWorkerRetriesTransientScheduleAndPublishesActiveOnlyWhenExact
 		{now: 105, wantNext: 120, wantState: model.AssetModelReadinessStatusRetryWaiting},
 		{now: 120, wantNext: 150, wantState: model.AssetModelReadinessStatusRetryWaiting},
 	} {
-		processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(step.now, 0))
+		processed, err := runAssetModelReadinessBatchAt(t, "node-a", step.now)
 		require.NoError(t, err)
 		require.Equal(t, 1, processed)
 
@@ -45,7 +45,7 @@ func TestAssetModelWorkerRetriesTransientScheduleAndPublishesActiveOnlyWhenExact
 		require.Equal(t, model.AssetStatusProcessing, ProjectAssetStatusForScope(asset, scope, []model.AssetModelReadiness{row}, map[string]model.AssetModelCoverageTarget{target.ModelName: target}))
 	}
 
-	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(150, 0))
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 150)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	row := requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
@@ -57,6 +57,60 @@ func TestAssetModelWorkerRetriesTransientScheduleAndPublishesActiveOnlyWhenExact
 	require.EqualValues(t, 4, atomic.LoadInt64(&materializer.createCalls))
 }
 
+func TestAssetModelWorkerRefreshesDBTimeForEveryBatchRow(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{
+		blockFirstCreate: make(chan struct{}),
+		create: []scriptedAssetModelCreate{
+			{result: AssetMaterializeResult{UpstreamAssetID: "upstream-first", Status: model.AssetStatusActive}},
+			{err: &AssetMaterializeFailure{Class: AssetMaterializeErrorUpstream5xx, HTTPStatus: http.StatusBadGateway}},
+		},
+	}
+	t.Cleanup(func() {
+		select {
+		case <-materializer.blockFirstCreate:
+		default:
+			close(materializer.blockFirstCreate)
+		}
+	})
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	firstAsset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_fresh_time_first", "techmobi-key-a")
+	secondAsset := insertMaterializeAsset(t, "ast_worker_fresh_time_second")
+	require.NoError(t, model.EnsureAssetModelReadiness(secondAsset.Id, scope.ScopeKey, scope.ModelNames, 90))
+
+	dbNow := atomic.Int64{}
+	dbNow.Store(100)
+	originalDBTimestamp := assetModelWorkerDBTimestamp
+	assetModelWorkerDBTimestamp = func(context.Context) (int64, error) {
+		return dbNow.Load(), nil
+	}
+	t.Cleanup(func() { assetModelWorkerDBTimestamp = originalDBTimestamp })
+
+	errs := make(chan error, 1)
+	go func() {
+		processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
+		if err == nil {
+			require.Equal(t, 2, processed)
+		}
+		errs <- err
+	}()
+	waitForAssetModelCreateCalls(t, materializer, 1)
+	dbNow.Store(131)
+	close(materializer.blockFirstCreate)
+	require.NoError(t, <-errs)
+
+	first := requireAssetModelReadinessRow(t, firstAsset.Id, scope, target.ModelName)
+	require.Equal(t, model.AssetModelReadinessStatusActive, first.Status)
+	second := requireAssetModelReadinessRow(t, secondAsset.Id, scope, target.ModelName)
+	require.Equal(t, model.AssetModelReadinessStatusRetryWaiting, second.Status)
+	require.Equal(t, int64(136), second.NextRetryAt)
+
+	claimed, err := model.ClaimAssetModelReadinessLease(second.Id, "node-b", 131, 161)
+	require.NoError(t, err)
+	require.False(t, claimed, "second row must not be immediately reclaimable with the DB time observed before its claim")
+}
+
 func TestAssetModelRotationAdvancesCandidateAfterGenerationWindowAndKeepsOldBinding(t *testing.T) {
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)
@@ -66,20 +120,20 @@ func TestAssetModelRotationAdvancesCandidateAfterGenerationWindowAndKeepsOldBind
 	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
 	asset, scope, _ := seedAssetModelWorkerReadiness(t, "ast_worker_rotate_aaaaaaaaaaa", "techmobi-key-a\ntechmobi-key-b")
 
-	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	first := requireAssetModelTarget(t, scope, "seedance-2.0")
 	require.Equal(t, 0, first.CandidateIndex)
 
-	processed, err = RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(401, 0))
+	processed, err = runAssetModelReadinessBatchAt(t, "node-a", 401)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	second := requireAssetModelTarget(t, scope, "seedance-2.0")
 	require.Equal(t, 1, second.CandidateIndex)
 	require.Equal(t, int64(2), second.Generation)
 
-	processed, err = RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(402, 0))
+	processed, err = runAssetModelReadinessBatchAt(t, "node-a", 402)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
@@ -102,7 +156,7 @@ func TestAssetModelDefinitiveCandidatesFailOnlyAfterAllCandidatesExhausted(t *te
 	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
 	asset, scope, _ := seedAssetModelWorkerReadiness(t, "ast_worker_definitive_aaaaaaaa", "techmobi-key-a\ntechmobi-key-b")
 
-	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
@@ -111,13 +165,48 @@ func TestAssetModelDefinitiveCandidatesFailOnlyAfterAllCandidatesExhausted(t *te
 	require.Equal(t, 1, target.CandidateIndex)
 	require.Equal(t, model.AssetModelTargetStatusActive, target.Status)
 
-	processed, err = RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(101, 0))
+	processed, err = runAssetModelReadinessBatchAt(t, "node-a", 101)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	row = requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
 	target = requireAssetModelTarget(t, scope, "seedance-2.0")
 	require.Equal(t, model.AssetModelReadinessStatusFailed, row.Status)
 	require.Equal(t, model.AssetModelTargetStatusUnavailable, target.Status)
+}
+
+func TestAssetModelRetryWindowFailsAfterFinalCandidate(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{create: []scriptedAssetModelCreate{
+		{err: &AssetMaterializeFailure{Class: AssetMaterializeErrorUpstream5xx, HTTPStatus: http.StatusBadGateway}},
+	}}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_final_retry_aaaaaa", "techmobi-key-a")
+
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
+	require.Equal(t, model.AssetModelReadinessStatusRetryWaiting, row.Status)
+	require.Equal(t, int64(100), row.AttemptStartedAt)
+	require.EqualValues(t, 1, atomic.LoadInt64(&materializer.createCalls))
+
+	processed, err = runAssetModelReadinessBatchAt(t, "node-a", 401)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	row = requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
+	updated := requireAssetModelTarget(t, scope, target.ModelName)
+	require.Equal(t, model.AssetModelReadinessStatusFailed, row.Status)
+	require.Equal(t, model.AssetModelTargetStatusUnavailable, updated.Status)
+	require.Equal(t, target.Generation+1, updated.Generation)
+	require.Equal(t, 0, updated.CandidateIndex)
+	require.EqualValues(t, 1, atomic.LoadInt64(&materializer.createCalls), "final candidate exhaustion must not republish and retry the same candidate")
+
+	processed, err = runAssetModelReadinessBatchAt(t, "node-a", 402)
+	require.NoError(t, err)
+	require.Equal(t, 0, processed)
+	stable := requireAssetModelTarget(t, scope, target.ModelName)
+	require.Equal(t, updated.Generation, stable.Generation)
 }
 
 func TestAssetModelRetryAfterOverridesScheduleAndPreservesAttemptAcrossBatches(t *testing.T) {
@@ -130,14 +219,14 @@ func TestAssetModelRetryAfterOverridesScheduleAndPreservesAttemptAcrossBatches(t
 	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
 	asset, scope, _ := seedAssetModelWorkerReadiness(t, "ast_worker_retry_after_aaaaaaa", "techmobi-key-a")
 
-	_, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+	_, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
 	require.NoError(t, err)
 	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
 	require.Equal(t, int64(145), row.NextRetryAt)
 	require.Equal(t, 1, row.AttemptCount)
 	require.Equal(t, int64(100), row.AttemptStartedAt)
 
-	_, err = RunAssetModelReadinessBatch(context.Background(), "node-b", time.Unix(145, 0))
+	_, err = runAssetModelReadinessBatchAt(t, "node-b", 145)
 	require.NoError(t, err)
 	row = requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
 	require.Equal(t, int64(160), row.NextRetryAt)
@@ -153,7 +242,7 @@ func TestAssetModelWorkerRevalidatesTargetEligibilityBeforeProviderWrite(t *test
 	asset, scope, first := seedAssetModelWorkerReadiness(t, "ast_worker_revalidate_aaaaaaaaa", "techmobi-key-a\ntechmobi-key-b")
 	disableChannelCredential(t, first.ChannelId, 0)
 
-	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls), "stale target must not write provider asset")
@@ -185,7 +274,7 @@ func TestAssetModelWorkerBindingLeaseOutlivesReadinessLeaseDuringSlowProviderWri
 
 	errs := make(chan error, 1)
 	go func() {
-		processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+		processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
 		if err == nil {
 			require.Equal(t, 1, processed)
 		}
@@ -193,7 +282,7 @@ func TestAssetModelWorkerBindingLeaseOutlivesReadinessLeaseDuringSlowProviderWri
 	}()
 	waitForAssetModelCreateCalls(t, materializer, 1)
 
-	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-b", time.Unix(140, 0))
+	processed, err := runAssetModelReadinessBatchAt(t, "node-b", 140)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	require.EqualValues(t, 1, atomic.LoadInt64(&materializer.createCalls), "fresh binding lease must block duplicate provider writes after readiness lease takeover")
@@ -223,7 +312,7 @@ func TestAssetModelWorkerFinalPreflightRejectsTargetCredentialChangeBeforeProvid
 	}
 	t.Cleanup(func() { assetModelWorkerFinalPreflightHook = originalHook })
 
-	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls), "final preflight must catch stale credentials before provider side effects")
@@ -250,7 +339,7 @@ func TestAssetModelWorkerRetryableProcessingRefreshSchedulesRetryWithoutFailingB
 		Status: model.AssetStatusProcessing, UpstreamAssetId: "upstream-processing", CreatedAt: 90, UpdatedAt: 90,
 	}).Error)
 
-	processed, err := RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(100, 0))
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
@@ -265,7 +354,7 @@ func TestAssetModelWorkerRetryableProcessingRefreshSchedulesRetryWithoutFailingB
 	require.Equal(t, "", binding.ErrorCode)
 	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls))
 
-	processed, err = RunAssetModelReadinessBatch(context.Background(), "node-a", time.Unix(140, 0))
+	processed, err = runAssetModelReadinessBatchAt(t, "node-a", 140)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
 	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls), "retry must poll existing upstream asset instead of creating a duplicate")
@@ -325,7 +414,7 @@ func TestAssetModelMultiNodeCreatesExactProviderAssetOnce(t *testing.T) {
 		go func() {
 			ready.Done()
 			ready.Wait()
-			_, err := RunAssetModelReadinessBatch(context.Background(), owner, time.Unix(100, 0))
+			_, err := runAssetModelReadinessBatchAt(t, owner, 100)
 			errs <- err
 		}()
 	}
@@ -483,6 +572,20 @@ func newAssetModelWorkerTestDB(t *testing.T) {
 	t.Helper()
 	newAssetReferenceDB(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.AssetModelCoverageTarget{}, &model.AssetModelReadiness{}))
+	assetModelWorkerTestDBTime.Store(100)
+	originalDBTimestamp := assetModelWorkerDBTimestamp
+	assetModelWorkerDBTimestamp = func(context.Context) (int64, error) {
+		return assetModelWorkerTestDBTime.Load(), nil
+	}
+	t.Cleanup(func() { assetModelWorkerDBTimestamp = originalDBTimestamp })
+}
+
+var assetModelWorkerTestDBTime atomic.Int64
+
+func runAssetModelReadinessBatchAt(t *testing.T, owner string, now int64) (int, error) {
+	t.Helper()
+	assetModelWorkerTestDBTime.Store(now)
+	return RunAssetModelReadinessBatch(context.Background(), owner, time.Unix(now, 0))
 }
 
 func seedAssetModelWorkerReadiness(t *testing.T, publicID string, keys string) (model.Asset, AssetModelScope, model.AssetModelCoverageTarget) {

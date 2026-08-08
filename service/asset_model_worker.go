@@ -28,6 +28,7 @@ const (
 
 var assetModelRetrySchedule = []time.Duration{5 * time.Second, 15 * time.Second, 30 * time.Second, 60 * time.Second}
 var assetModelWorkerFinalPreflightHook func()
+var assetModelWorkerDBTimestamp = model.GetDBTimestampWithContext
 
 const (
 	assetModelEventSelection         = "selection"
@@ -116,7 +117,7 @@ func startAssetModelReadinessWorkerWithConfig(ctx context.Context, cfg assetMode
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
-			now, err := model.GetDBTimestampWithContext(ctx)
+			now, err := assetModelWorkerDBTimestamp(ctx)
 			if err != nil {
 				common.SysError("asset model worker timestamp error: " + err.Error())
 			} else if _, err := RunAssetModelReadinessBatch(ctx, owner, time.Unix(now, 0)); err != nil {
@@ -147,8 +148,13 @@ func RunAssetModelReadinessBatch(ctx context.Context, owner string, now time.Tim
 	processed := 0
 	var errs []error
 	for _, due := range rows {
-		leaseExpiresAt := nowUnix + int64(assetModelReadinessLeaseTTL.Seconds())
-		claimed, err := model.ClaimAssetModelReadinessLease(due.Id, owner, nowUnix, leaseExpiresAt)
+		currentNowUnix, err := assetModelWorkerDBTimestamp(ctx)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		leaseExpiresAt := currentNowUnix + int64(assetModelReadinessLeaseTTL.Seconds())
+		claimed, err := model.ClaimAssetModelReadinessLease(due.Id, owner, currentNowUnix, leaseExpiresAt)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -162,7 +168,7 @@ func RunAssetModelReadinessBatch(ctx context.Context, owner string, now time.Tim
 			continue
 		}
 		processed++
-		if err := PrepareAssetModelReadiness(ctx, row, owner, now); err != nil {
+		if err := PrepareAssetModelReadiness(ctx, row, owner, time.Unix(currentNowUnix, 0)); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -468,9 +474,12 @@ func rotateAssetModelReadinessTarget(row model.AssetModelReadiness, target model
 	if err != nil {
 		return err
 	}
-	nextIndex := target.CandidateIndex + 1
-	if !exhausted && nextIndex >= len(candidates) {
-		nextIndex = target.CandidateIndex
+	nextIndex := 0
+	for i, candidate := range candidates {
+		if assetModelTargetMatchesCandidate(target, candidate) {
+			nextIndex = i + 1
+			break
+		}
 	}
 	if nextIndex >= len(candidates) || nextIndex < 0 {
 		if err := markAssetModelTargetUnavailable(target, nowUnix); err != nil {
@@ -514,6 +523,13 @@ func rotateAssetModelReadinessTarget(row model.AssetModelReadiness, target model
 	}
 	_, err = model.ResetAssetModelReadinessForTargetCAS(row.Id, owner, row.AttemptCount, row.LeaseExpiresAt, *updated, nowUnix)
 	return err
+}
+
+func assetModelTargetMatchesCandidate(target model.AssetModelCoverageTarget, candidate AssetModelTargetCandidate) bool {
+	return target.ChannelId == candidate.ChannelID &&
+		strings.TrimSpace(target.MappedModel) == strings.TrimSpace(candidate.MappedModel) &&
+		strings.TrimSpace(target.BindingScope) == strings.TrimSpace(candidate.BindingScope) &&
+		target.CredentialIndex == candidate.CredentialIndex
 }
 
 func finishAssetModelReadinessActive(row model.AssetModelReadiness, owner string, nowUnix int64) error {
