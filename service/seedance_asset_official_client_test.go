@@ -60,6 +60,17 @@ func TestSeedanceOfficialEndpointForPlatform(t *testing.T) {
 	}
 }
 
+func TestAlignOfficialRegion(t *testing.T) {
+	got := alignOfficialRegion("overseas", "cn-beijing", seedanceOfficialOverseasRegion)
+	if got != seedanceOfficialOverseasRegion {
+		t.Fatalf("should ignore cn region on overseas, got %s", got)
+	}
+	got = alignOfficialRegion("overseas", "ap-southeast-1", seedanceOfficialOverseasRegion)
+	if got != "ap-southeast-1" {
+		t.Fatalf("keep overseas region, got %s", got)
+	}
+}
+
 func TestIsSeedanceOfficialAllowedHost(t *testing.T) {
 	if !isSeedanceOfficialAllowedHost("ark.ap-southeast-1.byteplusapi.com") {
 		t.Fatal("byteplus host should be allowed")

@@ -2,8 +2,10 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/volc/sign"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"golang.org/x/net/proxy"
 )
 
 const (
@@ -55,12 +58,19 @@ type seedanceOfficialGateway struct {
 	ChannelId int
 }
 
+func sanitizeSeedanceOfficialKeyPart(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, `"'`)
+	s = strings.ReplaceAll(s, "\r", "")
+	s = strings.TrimPrefix(s, "\ufeff")
+	return strings.TrimSpace(s)
+}
+
 func parseSeedanceOfficialKey(raw, defaultRegion string) (ak, sk, region string, err error) {
-	raw = strings.TrimSpace(raw)
-	raw = strings.Trim(raw, `"'`)
+	raw = sanitizeSeedanceOfficialKeyPart(raw)
 	raw = strings.TrimPrefix(raw, "Bearer ")
 	raw = strings.TrimPrefix(raw, "bearer ")
-	raw = strings.TrimSpace(raw)
+	raw = sanitizeSeedanceOfficialKeyPart(raw)
 
 	var parts []string
 	if strings.Contains(raw, "|") {
@@ -69,7 +79,7 @@ func parseSeedanceOfficialKey(raw, defaultRegion string) (ak, sk, region string,
 		// 兼容 AK 与 SK 分行粘贴
 		lines := make([]string, 0, 3)
 		for _, line := range strings.Split(raw, "\n") {
-			line = strings.TrimSpace(strings.Trim(line, `"'`))
+			line = sanitizeSeedanceOfficialKeyPart(line)
 			if line != "" {
 				lines = append(lines, line)
 			}
@@ -79,8 +89,8 @@ func parseSeedanceOfficialKey(raw, defaultRegion string) (ak, sk, region string,
 	if len(parts) < 2 {
 		return "", "", "", fmt.Errorf("key must be AK|SK or AK|SK|Region")
 	}
-	ak = strings.TrimSpace(parts[0])
-	sk = strings.TrimSpace(parts[1])
+	ak = sanitizeSeedanceOfficialKeyPart(parts[0])
+	sk = sanitizeSeedanceOfficialKeyPart(parts[1])
 	if ak == "" || sk == "" {
 		return "", "", "", fmt.Errorf("empty AK or SK")
 	}
@@ -93,9 +103,29 @@ func parseSeedanceOfficialKey(raw, defaultRegion string) (ak, sk, region string,
 		region = seedanceOfficialCNRegion
 	}
 	if len(parts) >= 3 && strings.TrimSpace(parts[2]) != "" {
-		region = strings.TrimSpace(parts[2])
+		region = sanitizeSeedanceOfficialKeyPart(parts[2])
 	}
 	return ak, sk, region, nil
+}
+
+// alignOfficialRegion 以运营平台为准；Key 第三段若与平台冲突（如海外却写 cn-beijing）则忽略
+func alignOfficialRegion(platform, keyRegion, profileRegion string) string {
+	region := strings.TrimSpace(keyRegion)
+	if region == "" {
+		return profileRegion
+	}
+	lower := strings.ToLower(region)
+	if platform == operation_setting.SeedanceOfficialPlatformOverseas {
+		if strings.HasPrefix(lower, "cn-") || strings.Contains(lower, "beijing") {
+			return profileRegion
+		}
+	}
+	if platform == operation_setting.SeedanceOfficialPlatformCN {
+		if strings.Contains(lower, "southeast") || strings.Contains(lower, "byteplus") {
+			return profileRegion
+		}
+	}
+	return region
 }
 
 func resolveSeedanceOfficialGateway() (*seedanceOfficialGateway, error) {
@@ -117,8 +147,9 @@ func resolveSeedanceOfficialGateway() (*seedanceOfficialGateway, error) {
 	profile := seedanceOfficialEndpointForPlatform(platform)
 	ak, sk, region, parseErr := parseSeedanceOfficialKey(key, profile.Region)
 	if parseErr != nil {
-		return nil, newSeedanceErr(http.StatusServiceUnavailable, "gateway_not_configured", "Seedance 官方素材渠道 Key 须为 AK|SK 或 AK|SK|Region")
+		return nil, newSeedanceErr(http.StatusServiceUnavailable, "gateway_not_configured", "Seedance 官方素材渠道 Key 须为 AK|SK 或 AK|SK|Region: "+parseErr.Error())
 	}
+	region = alignOfficialRegion(platform, region, profile.Region)
 
 	scheme := "https"
 	host := profile.Host
@@ -179,8 +210,10 @@ func seedanceOfficialDo(gw *seedanceOfficialGateway, action string, body any) (s
 	if err != nil {
 		return 0, nil, nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	// 与 BytePlus 文档示例一致；不把 content-type 纳入 SignedHeaders
+	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
 	req.Host = gw.Host
+	req.Header.Set("Host", gw.Host)
 
 	if err = sign.SignRequest(req, sign.Credentials{
 		AccessKeyID:     gw.AccessKey,
@@ -191,7 +224,7 @@ func seedanceOfficialDo(gw *seedanceOfficialGateway, action string, body any) (s
 		return 0, nil, nil, newSeedanceErr(http.StatusInternalServerError, "sign_error", err.Error())
 	}
 
-	client, clientErr := GetHttpClientWithProxy(gw.Proxy)
+	client, clientErr := newSeedanceOfficialHTTPClient(gw.Proxy)
 	if clientErr != nil {
 		return 0, nil, nil, newSeedanceErr(http.StatusBadRequest, "proxy_url_invalid", "官方素材渠道代理地址无效: "+clientErr.Error())
 	}
@@ -248,7 +281,7 @@ func officialUpstreamError(httpStatus int, raw map[string]any, respBytes []byte,
 		if msg == "" {
 			msg = "AuthenticationError"
 		}
-		msg += "。请确认渠道 Key 为 BytePlus 控制台 IAM 的 Access Key ID|Secret Access Key（不是推理 API Key，也不是国内火山 AK/SK），格式：AK|SK 或 AK|SK|ap-southeast-1"
+		msg += "。请确认渠道 Key 为 BytePlus IAM 的 AK|SK。" + officialAuthDiag(gw)
 	case "unsupported_country_region_territory":
 		status = http.StatusForbidden
 		if msg == "" {
@@ -315,6 +348,65 @@ func maskProxyForLog(proxyURL string) string {
 		u.User = url.UserPassword("***", "***")
 	}
 	return u.String()
+}
+
+func officialAuthDiag(gw *seedanceOfficialGateway) string {
+	if gw == nil {
+		return "diag=nil"
+	}
+	akPrefix := gw.AccessKey
+	if len(akPrefix) > 10 {
+		akPrefix = akPrefix[:10]
+	}
+	proxyHint := "proxy=off"
+	if strings.TrimSpace(gw.Proxy) != "" {
+		proxyHint = "proxy=on"
+	}
+	return fmt.Sprintf("diag(ak_prefix=%s..., sk_len=%d, region=%s, host=%s, project=%s, %s, channel=%d)",
+		akPrefix, len(gw.SecretKey), gw.Region, gw.Host, operation_setting.GetSeedanceOfficialProjectName(), proxyHint, gw.ChannelId)
+}
+
+// newSeedanceOfficialHTTPClient 官方素材专用客户端：关闭 HTTP/2，避免部分代理/签名场景异常
+func newSeedanceOfficialHTTPClient(proxyURL string) (*http.Client, error) {
+	timeout := 60 * time.Second
+	if common.RelayTimeout > 0 {
+		timeout = time.Duration(common.RelayTimeout) * time.Second
+	}
+	transport := &http.Transport{
+		Proxy:               http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:   false,
+		MaxIdleConns:        20,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 15 * time.Second,
+	}
+	proxyURL = strings.TrimSpace(proxyURL)
+	if proxyURL != "" {
+		u, err := url.Parse(proxyURL)
+		if err != nil {
+			return nil, err
+		}
+		switch strings.ToLower(u.Scheme) {
+		case "http", "https":
+			transport.Proxy = http.ProxyURL(u)
+		case "socks5", "socks5h":
+			var auth *proxy.Auth
+			if u.User != nil {
+				pass, _ := u.User.Password()
+				auth = &proxy.Auth{User: u.User.Username(), Password: pass}
+			}
+			dialer, dErr := proxy.SOCKS5("tcp", u.Host, auth, proxy.Direct)
+			if dErr != nil {
+				return nil, dErr
+			}
+			transport.Proxy = nil
+			transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return dialer.Dial(network, addr)
+			}
+		default:
+			return nil, fmt.Errorf("unsupported proxy scheme: %s", u.Scheme)
+		}
+	}
+	return &http.Client{Transport: transport, Timeout: timeout}, nil
 }
 
 func isSeedanceOfficialAllowedHost(host string) bool {
