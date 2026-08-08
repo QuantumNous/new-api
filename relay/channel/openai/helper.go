@@ -22,6 +22,7 @@ import (
 // 辅助函数
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
+	data = trimStreamDataPrefix(data)
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
@@ -32,6 +33,14 @@ func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 		return handleGeminiFormat(c, data, info)
 	}
 	return nil
+}
+
+func trimStreamDataPrefix(data string) string {
+	data = strings.TrimSpace(data)
+	for strings.HasPrefix(data, "data:") {
+		data = strings.TrimSpace(strings.TrimPrefix(data, "data:"))
+	}
+	return data
 }
 
 func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {
@@ -108,6 +117,7 @@ func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, res
 }
 
 func processTokenData(relayMode int, data string, responseTextBuilder *strings.Builder, toolCount *int) error {
+	data = trimStreamDataPrefix(data)
 	switch relayMode {
 	case relayconstant.RelayModeChatCompletions:
 		var streamResponse dto.ChatCompletionsStreamResponse
@@ -136,6 +146,7 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 	containStreamUsage *bool, info *relaycommon.RelayInfo,
 	shouldSendLastResp *bool) error {
 
+	lastStreamData = trimStreamDataPrefix(lastStreamData)
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
 	if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &lastStreamResponse); err != nil {
 		return err
@@ -163,6 +174,7 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	responseId string, createAt int64, model string, systemFingerprint string,
 	usage *dto.Usage, containStreamUsage bool) {
 
+	lastStreamData = trimStreamDataPrefix(lastStreamData)
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
 		if info.ShouldIncludeUsage && !containStreamUsage {
