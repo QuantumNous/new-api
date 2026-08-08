@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 type recordingAssetMaterializer struct {
@@ -96,6 +97,22 @@ func (m *recordingAssetMaterializer) capturedIdempotencyKeys() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]string(nil), m.idempotencyKeys...)
+}
+
+func installAssetBindingActivationDBError(t *testing.T, shouldFail func() bool, err error) {
+	t.Helper()
+	callbackName := "test:asset_binding_activation_db_error:" + strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	require.NoError(t, model.DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "AssetBinding" {
+			return
+		}
+		if shouldFail() {
+			tx.AddError(err)
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Update().Remove(callbackName))
+	})
 }
 
 func TestAssetBindingConcurrentClaimersCreateProviderAssetOnce(t *testing.T) {
@@ -630,6 +647,94 @@ func TestAssetBindingActivationRecoveryAcceptsSameStoredProviderResult(t *testin
 	require.NoError(t, err)
 	require.Equal(t, "asset://upstream-recovered", result.RewriteURI)
 	require.Equal(t, int64(1), atomic.LoadInt64(&materializer.createCalls))
+}
+
+func TestAssetBindingActivationRecoveryRetriesAfterDBErrorWithCurrentLease(t *testing.T) {
+	newAssetServiceTestDB(t)
+	installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_activation_recovery_db_error")
+	channel := insertMaterializeChannel(t, 131)
+	activationErr := errors.New("activation db write failed")
+	activationErrors := atomic.Int64{}
+	materializer := &recordingAssetMaterializer{
+		createAssetID: "upstream-db-error-recovered",
+		createStatus:  model.AssetStatusActive,
+		beforeCreate: func(AssetMaterializeInput) {
+			installAssetBindingActivationDBError(t, func() bool {
+				return activationErrors.Add(1) == 1
+			}, activationErr)
+		},
+	}
+	restore := registerAssetMaterializerForTest(t, constant.ChannelTypeBytePlus, materializer)
+	defer restore()
+
+	result, err := MaterializeAssetBinding(context.Background(), AssetBindingRequest{
+		UserID:       asset.UserId,
+		PublicID:     asset.PublicId,
+		Channel:      channel,
+		LeaseOwner:   "node-a",
+		PollLimit:    1,
+		LeaseTTL:     time.Minute,
+		ExpectedType: "Image",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "asset://upstream-db-error-recovered", result.RewriteURI)
+	require.EqualValues(t, 2, activationErrors.Load(), "first activation write must hit DB error and recovery must retry once")
+	require.Equal(t, int64(1), atomic.LoadInt64(&materializer.createCalls))
+	keys := materializer.capturedIdempotencyKeys()
+	require.Equal(t, []string{assetBindingIdempotencyKey(asset.SHA256, asset.Id, channel.Id, "")}, keys)
+	var binding model.AssetBinding
+	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ?", asset.Id, channel.Id).Error)
+	require.Equal(t, model.AssetStatusActive, binding.Status)
+	require.Equal(t, "upstream-db-error-recovered", binding.UpstreamAssetId)
+}
+
+func TestAssetBindingActivationRecoveryPersistentDBErrorDoesNotFakeSuccessOrOverwriteConflict(t *testing.T) {
+	newAssetServiceTestDB(t)
+	installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_activation_persistent_db_error")
+	channel := insertMaterializeChannel(t, 131)
+	activationErr := errors.New("activation db write persistently failed")
+	activationErrors := atomic.Int64{}
+	materializer := &recordingAssetMaterializer{
+		createAssetID: "upstream-provider-result",
+		createStatus:  model.AssetStatusActive,
+		beforeCreate: func(input AssetMaterializeInput) {
+			require.NoError(t, model.DB.Model(&model.AssetBinding{}).
+				Where("asset_id = ? AND channel_id = ?", input.Asset.Id, input.Channel.Id).
+				Updates(map[string]any{
+					"status":            model.AssetStatusActive,
+					"upstream_asset_id": "upstream-conflict",
+					"lease_owner":       "",
+					"lease_expires_at":  int64(0),
+				}).Error)
+			installAssetBindingActivationDBError(t, func() bool {
+				activationErrors.Add(1)
+				return true
+			}, activationErr)
+		},
+	}
+	restore := registerAssetMaterializerForTest(t, constant.ChannelTypeBytePlus, materializer)
+	defer restore()
+
+	_, err := MaterializeAssetBinding(context.Background(), AssetBindingRequest{
+		UserID:       asset.UserId,
+		PublicID:     asset.PublicId,
+		Channel:      channel,
+		LeaseOwner:   "node-a",
+		PollLimit:    1,
+		LeaseTTL:     time.Minute,
+		ExpectedType: "Image",
+	})
+
+	require.ErrorIs(t, err, ErrAssetBindingUnavailable)
+	require.EqualValues(t, 1, activationErrors.Load(), "conflicting stored result should be reread without retrying a write over it")
+	require.Equal(t, int64(1), atomic.LoadInt64(&materializer.createCalls))
+	var binding model.AssetBinding
+	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ?", asset.Id, channel.Id).Error)
+	require.Equal(t, model.AssetStatusActive, binding.Status)
+	require.Equal(t, "upstream-conflict", binding.UpstreamAssetId)
 }
 
 func TestAssetBindingProviderResultRecoveryReusesStoredProcessingResult(t *testing.T) {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -421,6 +422,38 @@ func TestAssetModelWorkerActivationRecoveryAcceptsSameStoredProviderResult(t *te
 	require.NoError(t, err)
 	require.Equal(t, model.AssetStatusActive, binding.Status)
 	require.Equal(t, "upstream-worker-recovered", binding.UpstreamAssetId)
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
+	require.Equal(t, model.AssetModelReadinessStatusActive, row.Status)
+}
+
+func TestAssetModelWorkerActivationRecoveryRetriesAfterDBErrorWithCurrentLease(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	activationErr := errors.New("worker activation db write failed")
+	activationErrors := atomic.Int64{}
+	materializer := &scriptedAssetModelMaterializer{
+		create: []scriptedAssetModelCreate{{result: AssetMaterializeResult{UpstreamAssetID: "upstream-worker-db-error", Status: model.AssetStatusActive}}},
+		beforeCreate: func(AssetMaterializeInput) {
+			installAssetBindingActivationDBError(t, func() bool {
+				return activationErrors.Add(1) == 1
+			}, activationErr)
+		},
+	}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_activation_db_error", "techmobi-key-a")
+
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.EqualValues(t, 2, activationErrors.Load(), "first activation write must hit DB error and recovery must retry once")
+	require.EqualValues(t, 1, atomic.LoadInt64(&materializer.createCalls))
+	keys := materializer.capturedIdempotencyKeys()
+	require.Equal(t, []string{assetBindingIdempotencyKey(asset.SHA256, asset.Id, target.ChannelId, target.BindingScope)}, keys)
+	binding, err := model.GetAssetBindingForScope(asset.Id, target.ChannelId, target.BindingScope)
+	require.NoError(t, err)
+	require.Equal(t, model.AssetStatusActive, binding.Status)
+	require.Equal(t, "upstream-worker-db-error", binding.UpstreamAssetId)
 	row := requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
 	require.Equal(t, model.AssetModelReadinessStatusActive, row.Status)
 }
