@@ -123,6 +123,15 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+
+		// SEO fields
+		"seo_title":        common.SEOTitle,
+		"seo_title_suffix": common.SEOTitleSuffix,
+		"seo_description":  common.SEODescription,
+		"seo_keywords":     common.SEOKeywords,
+		"seo_site_url":     common.SEOSiteURL,
+		"seo_og_image":     common.SEOOGImage,
+		"seo_robots_index": common.SEORobotsIndex,
 	}
 
 	// 根据启用状态注入可选内容

@@ -118,6 +118,13 @@ export type SiteSettings = {
   'legal.privacy_policy': string
   HeaderNavModules: string
   SidebarModulesAdmin: string
+  'SEO.Title': string
+  'SEO.TitleSuffix': string
+  'SEO.Description': string
+  'SEO.Keywords': string
+  'SEO.SiteURL': string
+  'SEO.OGImage': string
+  'SEO.RobotsIndex': string
 }
 
 export type AuthSettings = {
