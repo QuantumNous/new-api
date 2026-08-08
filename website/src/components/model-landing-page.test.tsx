@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ModelLandingPage } from "./model-landing-page";
-import { GPT_CONFIG, SEEDANCE_CONFIG } from "@/lib/model-landing";
+import { GPT_CONFIG, GPT_IMAGE_2_CONFIG, SEEDANCE_CONFIG } from "@/lib/model-landing";
 import type { PricingModel } from "@/lib/pricing";
 
 describe("ModelLandingPage", () => {
@@ -27,16 +27,22 @@ describe("ModelLandingPage", () => {
       <ModelLandingPage config={GPT_CONFIG} locale="en" liveModels={liveModels} />
     );
 
-    expect(html.indexOf("Primary Vendor")).toBeLessThan(html.indexOf("Mini Vendor"));
+    expect(html).toContain("$0.7 in / $5.6 out");
+    expect(html).not.toContain("$0.2 in / $0.2 out");
   });
 
-  test("uses gpt-5.5 in the GPT SDK parameter example", () => {
+  test("opens GPT-image-2 directly in Playground with its model and prompt", () => {
     const html = renderToStaticMarkup(
-      <ModelLandingPage config={GPT_CONFIG} locale="en" liveModels={[]} />
+      <ModelLandingPage config={GPT_IMAGE_2_CONFIG} locale="zh" liveModels={[]} />
     );
+    const encodedHref = html.match(/href="([^"]*\/playground\?[^"]*)"/)?.[1];
 
-    expect(html).toContain("&quot;gpt-5.5&quot;");
-    expect(html).not.toContain("model=<span class=\"text-emerald-600\">&quot;gpt-5&quot;</span>");
+    expect(encodedHref).toBeDefined();
+    const url = new URL(encodedHref!.replaceAll("&amp;", "&"));
+    expect(url.pathname).toBe("/playground");
+    expect(url.searchParams.get("model")).toBe("gpt-image-2");
+    expect(url.searchParams.get("prompt")).toBe(GPT_IMAGE_2_CONFIG.examplePrompt);
+    expect(url.searchParams.has("redirect")).toBe(false);
   });
 
   test("renders playable video examples for video model landings", () => {
