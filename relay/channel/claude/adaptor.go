@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -29,6 +30,23 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	return request, nil
 }
 
+func (a *Adaptor) ConvertClaudeCountTokensRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	return &dto.ClaudeCountTokensRequest{
+		Model:             request.Model,
+		System:            request.System,
+		Messages:          request.Messages,
+		CacheControl:      request.CacheControl,
+		ContextManagement: request.ContextManagement,
+		McpServers:        request.McpServers,
+		OutputConfig:      request.OutputConfig,
+		OutputFormat:      request.OutputFormat,
+		Speed:             request.Speed,
+		Thinking:          request.Thinking,
+		ToolChoice:        request.ToolChoice,
+		Tools:             request.Tools,
+	}, nil
+}
+
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	//TODO implement me
 	return nil, errors.New("not implemented")
@@ -43,7 +61,11 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	requestURL := fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)
+	path := "/v1/messages"
+	if info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
+		path = "/v1/messages/count_tokens"
+	}
+	requestURL := fmt.Sprintf("%s%s", info.ChannelBaseUrl, path)
 	if !shouldAppendClaudeBetaQuery(info) {
 		return requestURL, nil
 	}
@@ -124,10 +146,16 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	info.FinalRequestRelayFormat = types.RelayFormatClaude
 	if info.IsStream {
+		info.StreamTerminalRequired = true
 		return ClaudeStreamHandler(c, resp, info)
 	} else {
 		return ClaudeHandler(c, resp, info)
 	}
+}
+
+func (a *Adaptor) DoClaudeCountTokensResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) *types.NewAPIError {
+	info.FinalRequestRelayFormat = types.RelayFormatClaude
+	return ClaudeCountTokensHandler(c, resp)
 }
 
 func (a *Adaptor) GetModelList() []string {

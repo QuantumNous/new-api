@@ -131,7 +131,7 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]inter
 	}
 	ss := relayInfo.StreamStatus
 	status := "ok"
-	if !ss.IsNormalEnd() || ss.HasErrors() {
+	if !ss.IsSuccessful() {
 		status = "error"
 	}
 	streamInfo := map[string]interface{}{

@@ -412,6 +412,45 @@ func TestStreamScannerHandler_StreamStatus_EOFWithoutDone(t *testing.T) {
 	assert.True(t, info.StreamStatus.IsNormalEnd())
 }
 
+func TestStreamScannerHandler_StreamStatus_RequiredTerminalMissing(t *testing.T) {
+	t.Parallel()
+
+	c, resp, info := setupStreamTest(t, strings.NewReader("data: first\ndata: second\n"))
+	info.StreamTerminalRequired = true
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonIncomplete, info.StreamStatus.EndReason)
+	assert.Error(t, info.StreamStatus.EndError)
+	assert.False(t, info.StreamStatus.IsNormalEnd())
+}
+
+func TestStreamScannerHandler_StreamStatus_RequiredTerminalDrainsQueuedEvents(t *testing.T) {
+	t.Parallel()
+
+	var body strings.Builder
+	for i := 0; i < 20; i++ {
+		fmt.Fprintf(&body, "data: chunk_%d\n", i)
+	}
+	body.WriteString("data: terminal\n")
+	c, resp, info := setupStreamTest(t, strings.NewReader(body.String()))
+	info.StreamTerminalRequired = true
+
+	var count atomic.Int64
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		count.Add(1)
+		if data == "terminal" {
+			sr.Done()
+		}
+	})
+
+	assert.Equal(t, int64(21), count.Load())
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+	assert.True(t, info.StreamStatus.IsNormalEnd())
+}
+
 func TestStreamScannerHandler_StreamStatus_HandlerStop(t *testing.T) {
 	t.Parallel()
 
