@@ -627,6 +627,7 @@ func AddChannel(c *gin.Context) {
 	}
 
 	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
+	addChannelRequest.Channel.BalanceInfo = nil
 	keys := make([]string, 0)
 	switch addChannelRequest.Mode {
 	case "multi_to_single":
@@ -1432,8 +1433,11 @@ func CopyChannel(c *gin.Context) {
 	clone.Name = origin.Name + suffix
 	clone.TestTime = 0
 	clone.ResponseTime = 0
+	// New API balance snapshots belong to one channel and must not be copied.
+	clone.BalanceInfo = nil
 	if resetBalance {
 		clone.Balance = 0
+		clone.BalanceUpdatedTime = 0
 		clone.UsedQuota = 0
 	}
 

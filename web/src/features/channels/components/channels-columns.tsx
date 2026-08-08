@@ -56,10 +56,15 @@ import { formatTimestampToDate } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
 import { getCodexUsage } from '../api'
-import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
+import {
+  CHANNEL_STATUS_CONFIG,
+  CHANNEL_TYPE_NEW_API,
+  MODEL_FETCHABLE_TYPES,
+} from '../constants'
 import {
   formatRelativeTime,
   formatResponseTime,
+  formatNewAPIBalance,
   getBalanceVariant,
   getChannelTypeIcon,
   getChannelTypeLabel,
@@ -333,6 +338,8 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const isTagRow = isTagAggregateRow(channel)
   const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
+  const newAPIBalance =
+    channel.type === CHANNEL_TYPE_NEW_API ? channel.balance_info : null
   const [isUpdating, setIsUpdating] = useState(false)
   const [codexUsageOpen, setCodexUsageOpen] = useState(false)
   const [codexUsageResponse, setCodexUsageResponse] =
@@ -358,9 +365,12 @@ function BalanceCell({ channel }: { channel: Channel }) {
       showSymbol: layout !== 'card',
     })
   )
-  const remainingFull = withSuffix(
+  let remainingFull = withSuffix(
     formatCurrencyFromUSD(balance, balanceFormatOptions)
   )
+  if (newAPIBalance) {
+    remainingFull = formatNewAPIBalance(newAPIBalance, t('Unlimited'))
+  }
   const usedDisplay =
     usedFull.length > MAX_INLINE_BALANCE_CHARS
       ? withSuffix(
@@ -371,16 +381,16 @@ function BalanceCell({ channel }: { channel: Channel }) {
           })
         )
       : usedFull
-  const remainingDisplay =
-    remainingFull.length > MAX_INLINE_BALANCE_CHARS
-      ? withSuffix(
-          formatCurrencyFromUSD(balance, {
-            compact: true,
-            locale,
-            showSymbol: layout !== 'card',
-          })
-        )
-      : remainingFull
+  let remainingDisplay = remainingFull
+  if (!newAPIBalance && remainingFull.length > MAX_INLINE_BALANCE_CHARS) {
+    remainingDisplay = withSuffix(
+      formatCurrencyFromUSD(balance, {
+        compact: true,
+        locale,
+        showSymbol: layout !== 'card',
+      })
+    )
+  }
   const usedLabel = `${t('Used:')} ${usedFull}`
   const remainingLabel = `${t('Remaining:')} ${remainingFull}`
   const maskedUsedLabel = `${t('Used:')} ${SENSITIVE_MASK}`
@@ -416,7 +426,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
   }
 
   // Regular channel row: show used and remaining with click to update
-  const variant = getBalanceVariant(balance)
+  const variant = newAPIBalance ? 'success' : getBalanceVariant(balance)
 
   const handleClickUpdate = async () => {
     if (isUpdating) {
@@ -1090,7 +1100,13 @@ export function useChannelsColumns(
 
       // Balance column (Used/Remaining)
       {
-        accessorKey: 'balance',
+        id: 'balance',
+        // Native-unit balances must not be sorted as if the legacy USD value
+        // represented the same quantity.
+        accessorFn: (channel) =>
+          channel.type === CHANNEL_TYPE_NEW_API && channel.balance_info
+            ? null
+            : channel.balance,
         header: t('Used / Remaining'),
         cell: ({ row }) => <BalanceCell channel={row.original} />,
         size: 180,

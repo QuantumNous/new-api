@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
+import { DollarSign, Loader2, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -29,7 +29,9 @@ import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 
 import { getCodexUsage, updateChannelBalance } from '../../api'
-import { channelsQueryKeys } from '../../lib'
+import { CHANNEL_TYPE_NEW_API } from '../../constants'
+import { channelsQueryKeys, formatNewAPIBalance } from '../../lib'
+import type { ChannelBalanceInfo } from '../../types'
 import { useChannels } from '../channels-provider'
 import {
   CodexUsageDialog,
@@ -50,9 +52,10 @@ export function BalanceQueryDialog({
   const queryClient = useQueryClient()
   const [isQuerying, setIsQuerying] = useState(false)
   const [balance, setBalance] = useState<number | null>(null)
-  const [balanceUpdatedTime, setBalanceUpdatedTime] = useState<number | null>(
+  const [balanceInfo, setBalanceInfo] = useState<ChannelBalanceInfo | null>(
     null
   )
+  const [balanceUpdatedAt, setBalanceUpdatedAt] = useState<number | null>(null)
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
 
@@ -90,25 +93,35 @@ export function BalanceQueryDialog({
     setIsQuerying(true)
     try {
       const response = await updateChannelBalance(currentRow.id)
-      if (response.success && response.balance !== undefined) {
-        const newBalance = response.balance
+      const hasBalance = response.balance !== undefined
+      const hasStructuredData = response.data !== undefined
+      const hasPayload = hasBalance || hasStructuredData
+
+      if (hasPayload) {
         const now = Math.floor(Date.now() / 1000)
+        if (hasBalance) {
+          setBalance(response.balance ?? null)
+        }
+        if (response.data) {
+          setBalanceInfo(response.data)
+        }
+        setBalanceUpdatedAt(now)
 
-        setBalance(newBalance)
-        setBalanceUpdatedTime(now)
-        toast.success(t('Balance updated successfully'))
-
-        // Update currentRow immediately with new balance and timestamp
         setCurrentRow({
           ...currentRow,
-          balance: newBalance,
-          balance_updated_time: now,
+          balance: response.balance ?? currentRow.balance,
+          balance_info: response.data ?? currentRow.balance_info,
+          balance_updated_time: hasBalance
+            ? now
+            : currentRow.balance_updated_time,
         })
-
-        // Invalidate queries to refresh the table
         await queryClient.invalidateQueries({
           queryKey: channelsQueryKeys.lists(),
         })
+      }
+
+      if (response.success && hasPayload) {
+        toast.success(t('Balance updated successfully'))
       } else {
         toast.error(response.message || t('Failed to query balance'))
       }
@@ -123,21 +136,10 @@ export function BalanceQueryDialog({
 
   const handleClose = () => {
     setBalance(null)
-    setBalanceUpdatedTime(null)
+    setBalanceInfo(null)
+    setBalanceUpdatedAt(null)
     setCodexUsageResponse(null)
     onOpenChange(false)
-  }
-
-  const formatBalance = (bal: number) =>
-    formatCurrencyFromUSD(bal, {
-      digitsLarge: 2,
-      digitsSmall: 4,
-      abbreviate: false,
-    })
-
-  const formatDate = (timestamp: number) => {
-    if (!timestamp) return 'Never'
-    return formatTimestampToDate(timestamp)
   }
 
   if (isCodex) {
@@ -155,6 +157,23 @@ export function BalanceQueryDialog({
       />
     )
   }
+
+  const displayedInfo =
+    currentRow.type === CHANNEL_TYPE_NEW_API
+      ? (balanceInfo ?? currentRow.balance_info)
+      : null
+  const displayedBalance = balance ?? currentRow.balance
+  const displayedAmount = displayedInfo
+    ? formatNewAPIBalance(displayedInfo, t('Unlimited'))
+    : formatCurrencyFromUSD(displayedBalance, {
+        digitsLarge: 2,
+        digitsSmall: 4,
+        abbreviate: false,
+      })
+  const displayedUpdatedAt =
+    displayedInfo?.updated_at ??
+    balanceUpdatedAt ??
+    currentRow.balance_updated_time
 
   return (
     <Dialog
@@ -176,22 +195,19 @@ export function BalanceQueryDialog({
       }
     >
       <div className='space-y-4 py-4'>
-        {/* Current Balance Display */}
         <div className='bg-muted/50 rounded-lg border p-4'>
           <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
             <IconBadge tone='success' size='xs'>
-              <DollarSign />
+              <DollarSign aria-hidden='true' />
             </IconBadge>
             <span>{t('Current Balance')}</span>
           </div>
-          <div className='text-2xl font-bold'>
-            {balance !== null
-              ? formatBalance(balance)
-              : formatBalance(currentRow.balance)}
-          </div>
+          <div className='text-2xl font-bold break-all'>{displayedAmount}</div>
           <div className='text-muted-foreground mt-2 text-xs'>
             {t('Last updated:')}{' '}
-            {formatDate(balanceUpdatedTime ?? currentRow.balance_updated_time)}
+            {displayedUpdatedAt > 0
+              ? formatTimestampToDate(displayedUpdatedAt)
+              : t('Never')}
           </div>
         </div>
 

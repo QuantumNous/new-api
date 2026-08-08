@@ -21,6 +21,7 @@ import { formatTimestampToDate } from '@/lib/format'
 
 import {
   CHANNEL_STATUS_CONFIG,
+  CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPES,
   MULTI_KEY_STATUS_CONFIG,
   RESPONSE_TIME_CONFIG,
@@ -561,8 +562,11 @@ export function channelNeedsAttention(channel: Channel): boolean {
     return true
   }
 
-  // Low balance (less than $1)
-  if (channel.balance > 0 && channel.balance < 1) {
+  // Legacy balances are USD. Structured native balances must not be compared
+  // against the legacy one-dollar threshold.
+  const hasNewAPIBalance =
+    channel.type === CHANNEL_TYPE_NEW_API && channel.balance_info
+  if (!hasNewAPIBalance && channel.balance > 0 && channel.balance < 1) {
     return true
   }
 
@@ -586,7 +590,9 @@ export function getAttentionReason(channel: Channel): string | null {
   if (channel.status === 3) {
     return 'Auto-disabled'
   }
-  if (channel.balance > 0 && channel.balance < 1) {
+  const hasNewAPIBalance =
+    channel.type === CHANNEL_TYPE_NEW_API && channel.balance_info
+  if (!hasNewAPIBalance && channel.balance > 0 && channel.balance < 1) {
     return 'Low balance'
   }
   if (
