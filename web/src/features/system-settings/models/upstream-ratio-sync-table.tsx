@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useDebounce } from '@/hooks/use-debounce'
 
 import type { DifferencesMap, RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
@@ -88,6 +89,7 @@ export function UpstreamRatioSyncTable({
 }: UpstreamRatioSyncTableProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 250)
   const [ratioTypeFilter, setRatioTypeFilter] = useState<string>('')
 
   const dataSource = useMemo<ModelRow[]>(() => {
@@ -106,8 +108,8 @@ export function UpstreamRatioSyncTable({
   const filteredData = useMemo(() => {
     let data = dataSource
 
-    if (search.trim()) {
-      const lower = search.toLowerCase()
+    if (debouncedSearch.trim()) {
+      const lower = debouncedSearch.toLowerCase()
       data = data.filter((row) => row.model.toLowerCase().includes(lower))
     }
 
@@ -116,7 +118,7 @@ export function UpstreamRatioSyncTable({
     }
 
     return data
-  }, [dataSource, search, ratioTypeFilter])
+  }, [dataSource, debouncedSearch, ratioTypeFilter])
 
   const upstreamNames = useMemo(() => {
     const set = new Set<string>()
