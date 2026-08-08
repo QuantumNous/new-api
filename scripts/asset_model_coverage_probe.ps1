@@ -342,8 +342,8 @@ function Set-AssetModelReadyResult {
     $readyMs = Get-ElapsedMs $AcceptedAtUtc.ToUniversalTime()
     $Asset["status_at_model_ready"] = [string](Get-PublicProperty $Asset "status")
     $Asset["model_ready_ms"] = $readyMs
-    $Asset["terminal_ms"] = $readyMs
     if ((Get-PublicProperty $Asset "status") -eq "Active") {
+        $Asset["terminal_ms"] = $readyMs
         $Asset["active_ms"] = $readyMs
     }
 }
