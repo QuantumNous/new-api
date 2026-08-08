@@ -33,7 +33,7 @@ func TestSignRequestSetsHeaders(t *testing.T) {
 	if !strings.HasPrefix(auth, "HMAC-SHA256 Credential=AKTEST/20260808/cn-beijing/ark/request") {
 		t.Fatalf("Authorization prefix unexpected: %s", auth)
 	}
-	if !strings.Contains(auth, "SignedHeaders=host;x-content-sha256;x-date") {
+	if !strings.Contains(auth, "SignedHeaders=content-type;host;x-content-sha256;x-date") {
 		t.Fatalf("SignedHeaders unexpected: %s", auth)
 	}
 	if !strings.Contains(auth, "Signature=") {

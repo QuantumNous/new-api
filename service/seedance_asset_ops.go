@@ -61,6 +61,7 @@ func CreateSeedanceAssetGroupFor(userId int, provider, groupName, description, g
 			"Name":        name,
 			"Description": description,
 			"GroupType":   model.SeedanceGroupTypeAIGC,
+			"ProjectName": "default",
 		})
 		if err != nil {
 			return nil, err
@@ -299,9 +300,10 @@ func CreateSeedanceRemoteAssetFor(userId int, provider, assetURL, assetType, nam
 			return nil, err
 		}
 		body := map[string]any{
-			"GroupId":   gid,
-			"URL":       assetURL,
-			"AssetType": toOfficialAssetType(assetType),
+			"GroupId":     gid,
+			"URL":         assetURL,
+			"AssetType":   toOfficialAssetType(assetType),
+			"ProjectName": "default",
 		}
 		if strings.TrimSpace(name) != "" {
 			body["Name"] = strings.TrimSpace(name)

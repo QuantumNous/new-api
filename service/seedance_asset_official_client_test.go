@@ -62,7 +62,7 @@ func TestOfficialUpstreamErrorValidatePending(t *testing.T) {
 			},
 		},
 	}
-	err := officialUpstreamError(http.StatusOK, raw)
+	err := officialUpstreamError(http.StatusOK, raw, nil, true, &seedanceOfficialGateway{Platform: "overseas", Host: seedanceOfficialOverseasHost}, "GetVisualValidateResult")
 	se, ok := err.(*SeedanceAssetError)
 	if !ok {
 		t.Fatalf("expected SeedanceAssetError, got %T", err)

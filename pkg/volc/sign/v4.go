@@ -64,6 +64,9 @@ func SignRequest(req *http.Request, cred Credentials, body []byte, now time.Time
 	}
 
 	signedHeaders := []string{"host", "x-content-sha256", "x-date"}
+	if ct := strings.TrimSpace(req.Header.Get("Content-Type")); ct != "" {
+		signedHeaders = append(signedHeaders, "content-type")
+	}
 	sort.Strings(signedHeaders)
 
 	canonicalHeaders := strings.Builder{}

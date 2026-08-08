@@ -168,32 +168,29 @@ func seedanceOfficialDo(gw *seedanceOfficialGateway, action string, body any) (s
 		return resp.StatusCode, nil, nil, err
 	}
 	raw = map[string]any{}
+	jsonOK := false
 	if len(respBytes) > 0 {
-		_ = common.Unmarshal(respBytes, &raw)
+		jsonOK = common.Unmarshal(respBytes, &raw) == nil
 	}
-	if err = officialUpstreamError(resp.StatusCode, raw); err != nil {
+	if err = officialUpstreamError(resp.StatusCode, raw, respBytes, jsonOK, gw, action); err != nil {
 		return resp.StatusCode, nil, raw, err
 	}
 	return resp.StatusCode, asMap(raw["Result"]), raw, nil
 }
 
-func officialUpstreamError(httpStatus int, raw map[string]any) error {
+func officialUpstreamError(httpStatus int, raw map[string]any, respBytes []byte, jsonOK bool, gw *seedanceOfficialGateway, action string) error {
 	meta := asMap(raw["ResponseMetadata"])
-	if meta == nil {
-		if httpStatus >= 400 {
-			return upstreamFail(httpStatus, raw, "官方素材上游错误")
-		}
-		return nil
-	}
-	errObj := asMap(meta["Error"])
+	errObj := asMap(mapGet(meta, "Error"))
 	if errObj == nil {
-		if httpStatus >= 400 {
-			return upstreamFail(httpStatus, raw, "官方素材上游错误")
-		}
-		return nil
+		errObj = asMap(mapGet(raw, "Error", "error"))
 	}
 	code := pickString(mapGet(errObj, "Code", "code"))
-	msg := pickString(mapGet(errObj, "Message", "message"), "官方素材上游错误")
+	msg := pickString(mapGet(errObj, "Message", "message"), mapGet(raw, "message"), mapGet(raw, "Message"))
+	hasUpstreamErr := errObj != nil || code != "" || (msg != "" && httpStatus >= 400)
+	if !hasUpstreamErr && httpStatus < 400 {
+		return nil
+	}
+
 	status := httpStatus
 	if status < 400 {
 		status = http.StatusBadRequest
@@ -202,20 +199,60 @@ func officialUpstreamError(httpStatus int, raw map[string]any) error {
 	case "validatepending":
 		status = http.StatusNotFound
 		code = "group_not_found"
-		if msg == "" || msg == "官方素材上游错误" {
+		if msg == "" {
 			msg = "尚未完成活体或 token 无效"
 		}
 	case "notfound", "resourcenotfound", "invalidparameter.notfound":
 		status = http.StatusNotFound
 	case "invalidparameter", "invalidparameter.missingparameter", "missingparameter":
 		status = http.StatusBadRequest
-	case "unauthorized", "unauthorizedoperation", "signaturedoesnotmatch", "invalidaccesskey":
+	case "unauthorized", "unauthorizedoperation", "signaturedoesnotmatch", "invalidaccesskey", "authfailure", "invalidcredential":
 		status = http.StatusUnauthorized
 	}
 	if code == "" {
 		code = "upstream_error"
 	}
+	if msg == "" {
+		snippet := strings.TrimSpace(string(respBytes))
+		if len(snippet) > 500 {
+			snippet = snippet[:500] + "…"
+		}
+		if snippet == "" || !jsonOK {
+			msg = fmt.Sprintf("官方素材上游错误 (HTTP %d, action=%s, platform=%s, host=%s)", httpStatus, action, gwPlatform(gw), gwHost(gw))
+			if snippet != "" {
+				msg += ": " + snippet
+			}
+		} else {
+			msg = fmt.Sprintf("官方素材上游错误 (HTTP %d)", httpStatus)
+		}
+	} else if code != "group_not_found" {
+		msg = fmt.Sprintf("%s [%s] (HTTP %d, action=%s, platform=%s)", msg, code, httpStatus, action, gwPlatform(gw))
+	}
+	common.SysLog(fmt.Sprintf("seedance official upstream error: action=%s platform=%s host=%s status=%d code=%s msg=%s body=%s",
+		action, gwPlatform(gw), gwHost(gw), httpStatus, code, msg, truncateForLog(respBytes, 800)))
 	return newSeedanceErr(status, code, msg)
+}
+
+func gwPlatform(gw *seedanceOfficialGateway) string {
+	if gw == nil {
+		return ""
+	}
+	return gw.Platform
+}
+
+func gwHost(gw *seedanceOfficialGateway) string {
+	if gw == nil {
+		return ""
+	}
+	return gw.Host
+}
+
+func truncateForLog(b []byte, n int) string {
+	s := strings.TrimSpace(string(b))
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 func toOfficialAssetType(t string) string {
