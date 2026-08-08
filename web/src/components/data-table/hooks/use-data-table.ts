@@ -360,6 +360,16 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     initialExpanded,
     options.onExpandedChange
   )
+  const [columnFilters, onColumnFiltersChange] = useControllableTableState(
+    options.columnFilters,
+    [],
+    options.onColumnFiltersChange
+  )
+  const [globalFilter, onGlobalFilterChange] = useControllableTableState(
+    options.globalFilter,
+    '',
+    options.onGlobalFilterChange
+  )
   const [pagination, onPaginationChange] = useControllableTableState(
     options.pagination,
     initialPagination,
@@ -388,8 +398,8 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
       columnSizing,
       rowSelection,
       expanded,
-      columnFilters: options.columnFilters,
-      globalFilter: options.globalFilter,
+      columnFilters,
+      globalFilter,
       pagination,
     },
     enableRowSelection: options.enableRowSelection,
@@ -408,8 +418,8 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     onColumnSizingChange,
     onRowSelectionChange,
     onExpandedChange,
-    onColumnFiltersChange: options.onColumnFiltersChange,
-    onGlobalFilterChange: options.onGlobalFilterChange,
+    onColumnFiltersChange,
+    onGlobalFilterChange,
     onPaginationChange,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: withFilteredRowModel

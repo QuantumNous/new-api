@@ -54,9 +54,14 @@ func GetEnabledModels() []string {
 	return models
 }
 
-func GetAllEnableAbilities() []Ability {
+func ListEnabledAbilities() ([]Ability, error) {
 	var abilities []Ability
-	DB.Find(&abilities, "enabled = ?", true)
+	err := DB.Where("enabled = ?", true).Find(&abilities).Error
+	return abilities, err
+}
+
+func GetAllEnableAbilities() []Ability {
+	abilities, _ := ListEnabledAbilities()
 	return abilities
 }
 
