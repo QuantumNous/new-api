@@ -139,28 +139,36 @@ func TestLogQuotaDataSplitsRowsByUseGroupTokenChannelAndNode(t *testing.T) {
 	CacheQuotaDataLock.Unlock()
 
 	LogQuotaData(QuotaDataLogParams{
-		UserID:    1,
-		Username:  "alice",
-		ModelName: "gpt-a",
-		CreatedAt: 3661,
-		UseGroup:  "vip",
-		TokenID:   11,
-		ChannelID: 1,
-		NodeName:  "node-a",
-		Quota:     100,
-		TokenUsed: 40,
+		UserID:              1,
+		Username:            "alice",
+		ModelName:           "gpt-a",
+		CreatedAt:           3661,
+		UseGroup:            "vip",
+		TokenID:             11,
+		ChannelID:           1,
+		NodeName:            "node-a",
+		Quota:               100,
+		TokenUsed:           40,
+		PromptTokens:        25,
+		CompletionTokens:    15,
+		CacheTokens:         4,
+		CacheCreationTokens: 2,
 	})
 	LogQuotaData(QuotaDataLogParams{
-		UserID:    1,
-		Username:  "alice",
-		ModelName: "gpt-a",
-		CreatedAt: 3700,
-		UseGroup:  "vip",
-		TokenID:   11,
-		ChannelID: 1,
-		NodeName:  "node-a",
-		Quota:     50,
-		TokenUsed: 20,
+		UserID:              1,
+		Username:            "alice",
+		ModelName:           "gpt-a",
+		CreatedAt:           3700,
+		UseGroup:            "vip",
+		TokenID:             11,
+		ChannelID:           1,
+		NodeName:            "node-a",
+		Quota:               50,
+		TokenUsed:           20,
+		PromptTokens:        10,
+		CompletionTokens:    10,
+		CacheTokens:         3,
+		CacheCreationTokens: 1,
 	})
 	LogQuotaData(QuotaDataLogParams{
 		UserID:    1,
@@ -188,6 +196,10 @@ func TestLogQuotaDataSplitsRowsByUseGroupTokenChannelAndNode(t *testing.T) {
 	require.Equal(t, 2, rows[0].Count)
 	require.Equal(t, 150, rows[0].Quota)
 	require.Equal(t, 60, rows[0].TokenUsed)
+	require.Equal(t, 35, rows[0].PromptTokens)
+	require.Equal(t, 25, rows[0].CompletionTokens)
+	require.Equal(t, 7, rows[0].CacheTokens)
+	require.Equal(t, 3, rows[0].CacheCreationTokens)
 	require.Equal(t, "default", rows[1].UseGroup)
 	require.Equal(t, 25, rows[1].Quota)
 }

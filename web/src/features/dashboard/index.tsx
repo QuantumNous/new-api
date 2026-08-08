@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { Eye, EyeOff } from 'lucide-react'
-import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
+import {
+  useState,
+  useCallback,
+  useMemo,
+  lazy,
+  Suspense,
+  useEffect,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
@@ -47,9 +54,9 @@ import {
   saveChartPreferences,
 } from './lib'
 import {
-  type DashboardSectionId,
   DASHBOARD_DEFAULT_SECTION,
   DASHBOARD_SECTION_IDS,
+  type DashboardSectionId,
 } from './section-registry'
 import type {
   DashboardChartPreferences,
@@ -59,7 +66,6 @@ import type {
 } from './types'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
-
 const LOG_STAT_CARD_FALLBACK_KEYS = [
   'count',
   'quota',
@@ -110,6 +116,12 @@ const LazyUserCharts = lazy(() =>
 const LazyFlowCharts = lazy(() =>
   import('./components/flow/flow-charts').then((m) => ({
     default: m.FlowCharts,
+  }))
+)
+
+const LazyChannelAnalytics = lazy(() =>
+  import('./components/channels/channel-analytics').then((m) => ({
+    default: m.ChannelAnalytics,
   }))
 )
 
@@ -189,6 +201,9 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   users: {
     titleKey: 'User Analytics',
   },
+  channels: {
+    titleKey: 'Channel Analytics',
+  },
 }
 
 export function Dashboard() {
@@ -248,10 +263,21 @@ export function Dashboard() {
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          ((section !== 'users' && section !== 'channels') || isAdmin)
       ),
     [isAdmin]
   )
+
+  useEffect(() => {
+    if (userRole === undefined || isAdmin) return
+    if (activeSection !== 'users' && activeSection !== 'channels') return
+    void navigate({
+      to: '/dashboard/$section',
+      params: { section: 'models' },
+    })
+  }, [activeSection, isAdmin, navigate, userRole])
   const handleSectionChange = useCallback(
     (section: string) => {
       void navigate({
@@ -397,6 +423,13 @@ export function Dashboard() {
                   filters={userChartsFilters}
                   onFiltersChange={setUserChartsFilters}
                 />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'channels' && isAdmin && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyChannelAnalytics />
               </Suspense>
             </FadeIn>
           )}
