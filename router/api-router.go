@@ -22,6 +22,24 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", anonymousRequestBodyLimit, controller.PostSetup)
 		apiRouter.GET("/status", controller.GetStatus)
+		// 营销站公开接口（无需登录，复用全局限流 + 关键接口关键限流）
+		publicRouter := apiRouter.Group("/public")
+		{
+			publicRouter.GET("/site-config", controller.GetPublicSiteConfig)
+			publicRouter.GET("/pricing", controller.GetPublicPricing)
+			publicRouter.GET("/model-categories", controller.GetPublicModelCategories)
+			publicRouter.POST("/sales-lead", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.PostPublicSalesLead)
+		}
+		// 模型商店后台管理（管理员，需 AdminAuth）
+		marketModelRoute := apiRouter.Group("/admin/market-models")
+		marketModelRoute.Use(middleware.AdminAuth())
+		marketModelRoute.GET("/", controller.ListMarketModels)
+		marketModelRoute.GET("/:id", controller.GetMarketModel)
+		marketModelRoute.POST("/", controller.CreateMarketModel)
+		marketModelRoute.PUT("/:id", controller.UpdateMarketModel)
+		marketModelRoute.DELETE("/:id", controller.DeleteMarketModel)
+		// 模型商店公开读取（门店展示，仅已上架）
+		apiRouter.GET("/market-models", controller.GetPublicMarketModels)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
@@ -233,6 +251,10 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		registerChannelRoutes(apiRouter)
 		registerAuthzRoutes(apiRouter)
+		registerTeamRoutes(apiRouter)
+		registerSlaRoutes(apiRouter)
+		registerRegionRouteRoutes(apiRouter)
+		registerDistributorRoutes(apiRouter)
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())
 		{

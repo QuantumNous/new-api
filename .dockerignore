@@ -7,6 +7,16 @@ Makefile
 docs
 .eslintcache
 .gocache
-/web/node_modules
+# 依赖一律在镜像内 bun install，任何层级的 node_modules 都不需要进构建上下文
+# (Dependencies are installed inside the image; no node_modules at any depth.)
+**/node_modules
+# web/dist 由 builder 阶段产出并 COPY --from，构建上下文里的产物一律忽略
+# (web/dist is produced by the builder stage; ignore any prebuilt output here.)
 /web/dist
+/web/classic/dist
+/web/default/dist
+# 运行时目录，由 compose 以 bind mount 挂载
+# (Runtime directories, provided by compose bind mounts.)
+/data
+/logs
 !THIRD-PARTY-LICENSES.md

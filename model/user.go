@@ -101,6 +101,8 @@ type User struct {
 	AffQuota         int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
 	AffHistoryQuota  int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
 	InviterId        int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	TeamId           int64                      `json:"team_id" gorm:"type:bigint;column:team_id;index"` // 所属企业团队（部门账单聚合）
+	RegionPreference string                     `json:"region_preference" gorm:"type:varchar(16);column:region_preference;default:''"` // 区域路由偏好（用户级），空表示不限定，交由 X-Region / 请求上下文决定
 	DeletedAt        gorm.DeletedAt             `gorm:"index"`
 	LinuxDOId        string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting          string                     `json:"setting" gorm:"type:text;column:setting"`
@@ -114,16 +116,18 @@ type User struct {
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:          user.Id,
-		Group:       user.Group,
-		Quota:       user.Quota,
-		Status:      user.Status,
-		Role:        user.Role,
-		Username:    user.Username,
-		Setting:     user.Setting,
-		Email:       user.Email,
-		AuthVersion: user.AuthVersion,
-		CacheSchema: userCacheSchemaVersion,
+		Id:               user.Id,
+		Group:            user.Group,
+		Quota:            user.Quota,
+		Status:           user.Status,
+		Role:             user.Role,
+		Username:         user.Username,
+		Setting:          user.Setting,
+		Email:            user.Email,
+		RegionPreference: user.RegionPreference,
+		TeamId:           user.TeamId,
+		AuthVersion:      user.AuthVersion,
+		CacheSchema:      userCacheSchemaVersion,
 	}
 	return cache
 }
@@ -1446,4 +1450,21 @@ func RootUserExists() bool {
 		return false
 	}
 	return true
+}
+
+// GetUsersByInviterId 列出由指定邀请人直接发展的下级用户（分销商下级用户查询）。
+func GetUsersByInviterId(inviterId int, page, pageSize int) ([]*User, int64, error) {
+	var items []*User
+	var total int64
+	q := DB.Model(&User{}).Where("inviter_id = ?", inviterId)
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	offset := (page - 1) * pageSize
+	if err := q.Order("id DESC").Offset(offset).Limit(pageSize).
+		Select("id, username, email, quota, used_quota, status, group, created_at, inviter_id, team_id").
+		Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -74,6 +75,7 @@ type Log struct {
 	ChannelName       string `json:"channel_name" gorm:"->"`
 	TokenId           int    `json:"token_id" gorm:"default:0;index"`
 	Group             string `json:"group" gorm:"index"`
+	TeamId            int64  `json:"team_id" gorm:"type:bigint;index:idx_logs_team_id;default:0"` // 所属企业团队，用于团队级用量/计费聚合
 	Ip                string `json:"ip" gorm:"index;default:''"`
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
@@ -373,6 +375,12 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		UseTime:          params.UseTimeSeconds,
 		IsStream:         params.IsStream,
 		Group:            params.Group,
+		TeamId: func() int64 {
+			if v, ok := common.GetContextKeyType[int64](c, constant.ContextKeyUserTeamId); ok {
+				return v
+			}
+			return 0
+		}(),
 		Ip: func() string {
 			if needRecordIp {
 				return c.ClientIP()
