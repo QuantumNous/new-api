@@ -48,6 +48,7 @@ import { CampaignPreviewDialog } from './campaign-preview-dialog'
 import {
   formatRecallLifecycleEventType,
   formatRecallLifecycleOutcomeCode,
+  formatRecallMessageState,
 } from './campaign-preview-dialog-content'
 
 const DETAIL_PAGE_SIZE = 100
@@ -427,7 +428,8 @@ export function CampaignDetail(props: CampaignDetailProps) {
                                 {t('Stage {{stage}}', {
                                   stage: message.stage_no,
                                 })}{' '}
-                                · {t(message.state)} · {t('TemplateVersion')}{' '}
+                                · {formatRecallMessageState(message.state, t)} ·{' '}
+                                {t('TemplateVersion')}{' '}
                                 {message.template_version}
                               </div>
                               <div>

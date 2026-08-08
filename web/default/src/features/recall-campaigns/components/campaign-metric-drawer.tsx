@@ -32,6 +32,10 @@ import type {
   RecallMetricRow,
   RecallPaymentCategory,
 } from '../types'
+import {
+  formatRecallLifecycleOutcomeCode,
+  formatRecallMessageState,
+} from './campaign-preview-dialog-content'
 
 const METRIC_PAGE_SIZE = 50
 
@@ -242,7 +246,11 @@ function getPaymentCategoryLabel(category: RecallPaymentCategory): string {
   return category ? paymentCategoryLabels[category] : '-'
 }
 
-function formatCell(row: RecallMetricRow, column: keyof RecallMetricRow) {
+function formatCell(
+  row: RecallMetricRow,
+  column: keyof RecallMetricRow,
+  t: (key: string) => string
+) {
   if (column === 'email') return maskEmail(row.email)
   if (column === 'occurred_at') {
     return row.occurred_at > 0
@@ -255,10 +263,23 @@ function formatCell(row: RecallMetricRow, column: keyof RecallMetricRow) {
       : '-'
   }
   if (column === 'payment_category') {
-    return getPaymentCategoryLabel(row.payment_category)
+    return t(getPaymentCategoryLabel(row.payment_category))
   }
   if (column === 'currency') {
     return row.currency ? row.currency.toUpperCase() : '-'
+  }
+  if (column === 'state') {
+    return row.message_id > 0
+      ? formatRecallMessageState(row.state, t)
+      : t(String(row.state || '-'))
+  }
+  if (column === 'conversion_kind') {
+    return t(String(row.conversion_kind || '-'))
+  }
+  if (column === 'failure_code') {
+    return row.failure_code
+      ? formatRecallLifecycleOutcomeCode(row.failure_code, t)
+      : '-'
   }
   return String(row[column] || '-')
 }
@@ -587,11 +608,7 @@ export function CampaignMetricDrawer(
                 <TableRow key={`${row.row_id}:${row.message_id}`}>
                   {rowColumns(card).map((column) => (
                     <TableCell key={column}>
-                      {column === 'payment_category' ||
-                      column === 'state' ||
-                      column === 'conversion_kind'
-                        ? t(formatCell(row, column))
-                        : formatCell(row, column)}
+                      {formatCell(row, column, t)}
                     </TableCell>
                   ))}
                 </TableRow>

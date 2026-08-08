@@ -64,6 +64,11 @@ export function formatRecallLifecycleEventType(
   return t(code)
 }
 
+export function formatRecallMessageState(state: string, t: Translate): string {
+  if (state === 'accepted') return t('SMTP accepted')
+  return t(state)
+}
+
 export function CampaignPreviewDialogContent(props: {
   data?: RecallCampaignPreview
   isError?: boolean

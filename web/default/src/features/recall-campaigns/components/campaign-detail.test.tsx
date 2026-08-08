@@ -74,6 +74,7 @@ beforeAll(async () => {
           engagement_opted_out: 'Engagement opt-out',
           invalid_email: 'Invalid lifecycle email',
           quota_recovered: 'Quota recovered before send',
+          'SMTP accepted': 'SMTP accepted',
           'Unknown lifecycle event': 'Unknown lifecycle event',
           'Unknown lifecycle outcome': 'Unknown lifecycle outcome',
         },
@@ -694,5 +695,58 @@ describe('CampaignDetail recipient rendering', () => {
 
     expect(recipientHtml).toContain('$16.00')
     expect(recipientHtml).not.toContain('USD 1600')
+  })
+
+  test('renders accepted email message state with SMTP context', () => {
+    const recipient: RecallRecipient = {
+      id: 2,
+      campaign_id: 42,
+      user_id: 7825,
+      language_snapshot: 'en',
+      state: 'queued',
+      stripe_customer_id: '',
+      promotion_code_masked: '',
+      promotion_expires_at: 0,
+      first_sent_at: 0,
+      last_sent_at: 0,
+      clicked_at: 0,
+      converted_at: 0,
+      conversion_kind: '',
+      conversion_trade_no: '',
+      conversion_currency: '',
+      conversion_amount: 0,
+      discount_amount: 0,
+      last_error_code: '',
+      last_error_message: '',
+      created_at: 0,
+      updated_at: 0,
+      messages: [
+        {
+          id: 101,
+          recipient_id: 2,
+          stage_no: 1,
+          template_version: 3,
+          scheduled_at: 0,
+          state: 'accepted',
+          attempt_count: 1,
+          next_attempt_at: 0,
+          lease_expires_at: 0,
+          provider_message_id: '',
+          accepted_at: 1_900_000_000,
+          failed_at: 0,
+          last_error_code: '',
+          last_error_message: '',
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+    }
+
+    const recipientHtml = campaignRecipientsMarkup(
+      renderCampaignDetail('content_only', makeMetrics(), [recipient])
+    )
+
+    expect(recipientHtml).toContain('SMTP accepted')
+    expect(recipientHtml).not.toContain('Stage 1 · accepted')
   })
 })
