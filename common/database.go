@@ -41,4 +41,4 @@ func UsingLogDatabase(databaseType DatabaseType) bool {
 	return logDatabaseType == databaseType
 }
 
-var SQLitePath = "one-api.db?_busy_timeout=30000"
+var SQLitePath = "one-api.db?_pragma=busy_timeout(30000)"
