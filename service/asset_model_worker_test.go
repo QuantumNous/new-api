@@ -234,6 +234,29 @@ func TestAssetModelRetryAfterOverridesScheduleAndPreservesAttemptAcrossBatches(t
 	require.Equal(t, int64(100), row.AttemptStartedAt)
 }
 
+func TestAssetModelWorkerFailsWhenTargetAlreadyUnavailable(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_target_unavailable", "techmobi-key-a")
+	require.NoError(t, model.DB.Model(&model.AssetModelCoverageTarget{}).
+		Where("scope_key = ? AND model_name = ?", scope.ScopeKey, target.ModelName).
+		Updates(map[string]any{
+			"status":     model.AssetModelTargetStatusUnavailable,
+			"updated_at": int64(99),
+		}).Error)
+
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls))
+
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
+	require.Equal(t, model.AssetModelReadinessStatusFailed, row.Status)
+	require.Equal(t, "target_unavailable", row.ErrorClass)
+}
+
 func TestAssetModelWorkerRevalidatesTargetEligibilityBeforeProviderWrite(t *testing.T) {
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)
@@ -352,6 +375,34 @@ func TestAssetModelWorkerFinalPreflightRejectsTargetCredentialChangeBeforeProvid
 	require.Equal(t, target.Generation, unchanged.Generation)
 	require.Equal(t, target.BindingScope, unchanged.BindingScope)
 	require.Equal(t, model.AssetModelTargetStatusActive, unchanged.Status)
+}
+
+func TestAssetModelWorkerFinalPreflightFailsWhenTargetBecomesUnavailable(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_preflight_unavail", "techmobi-key-a")
+
+	originalHook := assetModelWorkerFinalPreflightHook
+	assetModelWorkerFinalPreflightHook = func() {
+		require.NoError(t, model.DB.Model(&model.AssetModelCoverageTarget{}).
+			Where("scope_key = ? AND model_name = ?", scope.ScopeKey, target.ModelName).
+			Updates(map[string]any{
+				"status":     model.AssetModelTargetStatusUnavailable,
+				"updated_at": int64(100),
+			}).Error)
+	}
+	t.Cleanup(func() { assetModelWorkerFinalPreflightHook = originalHook })
+
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls), "unavailable target must stop before provider write")
+
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
+	require.Equal(t, model.AssetModelReadinessStatusFailed, row.Status)
+	require.Equal(t, "target_unavailable", row.ErrorClass)
 }
 
 func TestAssetModelWorkerRetryableProcessingRefreshSchedulesRetryWithoutFailingBinding(t *testing.T) {

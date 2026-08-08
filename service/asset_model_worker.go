@@ -79,6 +79,12 @@ func (e assetModelBindingDefinitiveError) Error() string {
 	return "asset model binding definitive failure"
 }
 
+type assetModelTargetUnavailableError struct{}
+
+func (e assetModelTargetUnavailableError) Error() string {
+	return "asset model target unavailable"
+}
+
 func StartAssetModelReadinessWorker() {
 	startAssetModelReadinessWorkerWithConfig(context.Background(), assetModelReadinessWorkerConfig{})
 }
@@ -208,6 +214,9 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 		return err
 	}
 	if target.Status != model.AssetModelTargetStatusActive {
+		if target.Status == model.AssetModelTargetStatusUnavailable {
+			return finishAssetModelReadinessFailed(row, owner, nowUnix, "target_unavailable")
+		}
 		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
 	}
 	if !assetModelReadinessMatchesTarget(row, *target) {
@@ -282,6 +291,10 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 			class = AssetMaterializeErrorProcessing
 		}
 		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, class, retryErr.retryAfter)
+	}
+	var targetUnavailableErr assetModelTargetUnavailableError
+	if errors.As(err, &targetUnavailableErr) {
+		return finishAssetModelReadinessFailed(row, owner, nowUnix, "target_unavailable")
 	}
 	var definitiveErr assetModelBindingDefinitiveError
 	if errors.As(err, &definitiveErr) {
@@ -409,6 +422,9 @@ func finalPreflightAssetModelProviderWrite(target model.AssetModelCoverageTarget
 	current, err := model.GetAssetModelCoverageTarget(target.ScopeKey, target.ModelName)
 	if err != nil {
 		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, err
+	}
+	if current.Status == model.AssetModelTargetStatusUnavailable {
+		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelTargetUnavailableError{}
 	}
 	if !assetModelTargetWriteSnapshotMatches(target, *current) {
 		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
