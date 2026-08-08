@@ -321,6 +321,8 @@ func setupSubscriptionInvoiceServiceTestDB(t *testing.T) {
 		&model.RecallCampaign{},
 		&model.RecallRecipient{},
 		&model.RecallEvent{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	))
 }
 

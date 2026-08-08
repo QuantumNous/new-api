@@ -615,7 +615,24 @@ func (o *SubscriptionOrder) Insert() error {
 	if o.CreateTime == 0 {
 		o.CreateTime = common.GetTimestamp()
 	}
-	return DB.Create(o).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(o).Error; err != nil {
+			return err
+		}
+		if normalizePurchaseLifecycleStatus(o.Status) != common.TopUpStatusPending {
+			return nil
+		}
+		_, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindSubscription,
+			SourceID:   int64(o.Id),
+			TradeNo:    o.TradeNo,
+			UserID:     o.UserId,
+			ToStatus:   common.TopUpStatusPending,
+			OccurredAt: o.CreateTime,
+			SourceRef:  "subscription_order.insert",
+		})
+		return err
+	})
 }
 
 func (o *SubscriptionOrder) Update() error {
@@ -964,6 +981,10 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 }
 
 func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, providerBindingId int64) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanWithCycleTx(tx, userId, plan, source, providerBindingId, "")
+}
+
+func createUserSubscriptionFromPlanWithCycleTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, providerBindingId int64, cycleKey string) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -984,7 +1005,7 @@ func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -1047,8 +1068,13 @@ func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	if source != "admin" {
 		mutation.Cause = "subscription_purchase"
-		mutation.NextCycleKey = fmt.Sprintf("subscription:%d:%d", sub.Id, sub.StartTime)
-		mutation.NextCycleSource = source
+		if strings.TrimSpace(cycleKey) != "" {
+			mutation.NextCycleKey = strings.TrimSpace(cycleKey)
+			mutation.NextCycleSource = strings.TrimSpace(cycleKey)
+		} else {
+			mutation.NextCycleKey = fmt.Sprintf("subscription:%d:%d", sub.Id, sub.StartTime)
+			mutation.NextCycleSource = source
+		}
 	}
 	if _, err := ApplyLifecycleQuotaMutation(tx, mutation); err != nil {
 		return nil, err
@@ -1089,10 +1115,10 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			analyticsPlanTitle = "Subscription"
 			return nil
 		}
-		if order.Status != common.TopUpStatusPending {
+		if !purchaseLifecycleStatusAllowed(normalizePurchaseLifecycleStatus(order.Status), subscriptionSuccessFromStatuses()) {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
+		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 		if err != nil {
 			return err
 		}
@@ -1100,12 +1126,40 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			// still allow completion for already purchased orders
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		applied, err := persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindSubscription,
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: subscriptionSuccessFromStatuses(),
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: common.GetTimestamp(),
+			SourceRef:  "subscription_order.complete",
+		}, func(tx *gorm.DB, locked *SubscriptionOrder, transition *PurchaseLifecycleTransition) error {
+			if providerPayload != "" {
+				locked.ProviderPayload = providerPayload
+			}
+			if actualPaymentMethod != "" && locked.PaymentMethod != actualPaymentMethod {
+				locked.PaymentMethod = actualPaymentMethod
+			}
+			sub, err := createUserSubscriptionFromPlanWithCycleTx(tx, locked.UserId, plan, "order", 0, subscriptionOrderLifecycleCycleKey(locked.Id, locked.TradeNo))
+			if err != nil {
+				return err
+			}
+			transition.SubscriptionScopeID = int64(sub.Id)
+			if err := upsertSubscriptionTopUpTx(tx, locked); err != nil {
+				return err
+			}
+			return tx.Model(&SubscriptionOrder{}).Where("id = ?", locked.Id).Updates(map[string]any{
+				"provider_payload": locked.ProviderPayload,
+				"payment_method":   locked.PaymentMethod,
+			}).Error
+		})
 		if err != nil {
 			return err
 		}
-		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
-			return err
+		if !applied {
+			return nil
 		}
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
@@ -1114,9 +1168,6 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		}
 		if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
 			order.PaymentMethod = actualPaymentMethod
-		}
-		if err := tx.Save(&order).Error; err != nil {
-			return err
 		}
 		logUserId = order.UserId
 		logPlanTitle = plan.Title
@@ -1294,12 +1345,20 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
 			return ErrPaymentMethodMismatch
 		}
-		if order.Status != common.TopUpStatusPending {
+		_, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindSubscription,
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: []string{common.TopUpStatusPending},
+			ToStatus:   common.TopUpStatusExpired,
+			OccurredAt: common.GetTimestamp(),
+			SourceRef:  "subscription_order.expire",
+		})
+		if errors.Is(err, ErrSubscriptionOrderStatusInvalid) {
 			return nil
 		}
-		order.Status = common.TopUpStatusExpired
-		order.CompleteTime = common.GetTimestamp()
-		return tx.Save(&order).Error
+		return err
 	})
 }
 
@@ -1398,10 +1457,6 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			}
 		}
 
-		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, PaymentMethodBalance); err != nil {
-			return err
-		}
-
 		now := common.GetTimestamp()
 		tradeNo := fmt.Sprintf("SUBBALUSR%dNO%s%d", userId, common.GetRandomString(6), time.Now().UnixNano())
 		order := &SubscriptionOrder{
@@ -1412,9 +1467,8 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			TradeNo:         tradeNo,
 			PaymentMethod:   PaymentMethodBalance,
 			PaymentProvider: PaymentProviderBalance,
-			Status:          common.TopUpStatusSuccess,
+			Status:          common.TopUpStatusPending,
 			CreateTime:      now,
-			CompleteTime:    now,
 			ProviderPayload: fmt.Sprintf("charged_quota=%d", requiredQuota),
 		}
 		if err := tx.Create(order).Error; err != nil {
@@ -1423,9 +1477,31 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 
 		// 让余额购买的订阅也进入计费历史（与网关支付订阅一致，见 CompleteSubscriptionOrder）。
 		// 记录为一笔 method=balance 的成功付款，Money=套餐价，Amount=0（不加钱包余额）。
-		if err := upsertSubscriptionTopUpTx(tx, order); err != nil {
+		applied, err := persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindSubscription,
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: []string{common.TopUpStatusPending},
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: now,
+			SourceRef:  "subscription_order.balance_purchase",
+		}, func(tx *gorm.DB, locked *SubscriptionOrder, transition *PurchaseLifecycleTransition) error {
+			sub, err := createUserSubscriptionFromPlanWithCycleTx(tx, locked.UserId, plan, PaymentMethodBalance, 0, subscriptionOrderLifecycleCycleKey(locked.Id, locked.TradeNo))
+			if err != nil {
+				return err
+			}
+			transition.SubscriptionScopeID = int64(sub.Id)
+			return upsertSubscriptionTopUpTx(tx, locked)
+		})
+		if err != nil {
 			return err
 		}
+		if !applied {
+			return ErrSubscriptionOrderStatusInvalid
+		}
+		order.Status = common.TopUpStatusSuccess
+		order.CompleteTime = now
 
 		logPlanTitle = plan.Title
 		logMoney = chargedPrice

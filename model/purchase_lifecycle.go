@@ -10,8 +10,10 @@ import (
 )
 
 const (
-	PurchaseLifecycleKindTopUp  = "topup"
-	purchaseLifecycleTopUpTable = "top_ups"
+	PurchaseLifecycleKindTopUp         = "topup"
+	PurchaseLifecycleKindSubscription  = "subscription"
+	purchaseLifecycleTopUpTable        = "top_ups"
+	purchaseLifecycleSubscriptionTable = "subscription_orders"
 )
 
 type PurchaseLifecycleTransition struct {
@@ -24,12 +26,20 @@ type PurchaseLifecycleTransition struct {
 	OccurredAt int64
 	Credit     int64
 	SourceRef  string
+
+	SubscriptionScopeID int64
 }
 
 type purchaseLifecycleWinnerHook func(tx *gorm.DB, topUp *TopUp, transition *PurchaseLifecycleTransition) error
+type purchaseLifecycleSubscriptionWinnerHook func(tx *gorm.DB, order *SubscriptionOrder, transition *PurchaseLifecycleTransition) error
 
 func PersistPurchaseLifecycleTransition(tx *gorm.DB, transition PurchaseLifecycleTransition) (bool, error) {
 	return persistPurchaseLifecycleTransitionWithWinner(tx, transition, nil)
+}
+
+func PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx *gorm.DB, transition PurchaseLifecycleTransition, winnerHook purchaseLifecycleSubscriptionWinnerHook) (bool, error) {
+	transition.Kind = PurchaseLifecycleKindSubscription
+	return persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx, transition, winnerHook)
 }
 
 func persistPurchaseLifecycleTransitionWithWinner(tx *gorm.DB, transition PurchaseLifecycleTransition, winnerHook purchaseLifecycleWinnerHook) (bool, error) {
@@ -39,6 +49,9 @@ func persistPurchaseLifecycleTransitionWithWinner(tx *gorm.DB, transition Purcha
 	kind := strings.TrimSpace(transition.Kind)
 	if kind == "" {
 		kind = PurchaseLifecycleKindTopUp
+	}
+	if kind == PurchaseLifecycleKindSubscription {
+		return persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx, transition, nil)
 	}
 	if kind != PurchaseLifecycleKindTopUp {
 		return false, fmt.Errorf("unsupported purchase lifecycle kind %q", kind)
@@ -135,6 +148,110 @@ func persistPurchaseLifecycleTransitionWithWinner(tx *gorm.DB, transition Purcha
 	return true, nil
 }
 
+func persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx *gorm.DB, transition PurchaseLifecycleTransition, winnerHook purchaseLifecycleSubscriptionWinnerHook) (bool, error) {
+	if tx == nil {
+		return false, errors.New("purchase lifecycle transition requires transaction")
+	}
+	toStatus := normalizePurchaseLifecycleStatus(transition.ToStatus)
+	if toStatus == "" {
+		return false, errors.New("purchase lifecycle transition requires target status")
+	}
+	if transition.UserID <= 0 {
+		return false, errors.New("purchase lifecycle transition requires user id")
+	}
+
+	order, err := lockPurchaseLifecycleSubscriptionOrder(tx, transition)
+	if err != nil {
+		return false, err
+	}
+	if order.UserId != transition.UserID {
+		return false, ErrSubscriptionOrderStatusInvalid
+	}
+	tradeNo := strings.TrimSpace(transition.TradeNo)
+	if tradeNo == "" {
+		tradeNo = strings.TrimSpace(order.TradeNo)
+	}
+	if tradeNo != "" && strings.TrimSpace(order.TradeNo) != "" && tradeNo != strings.TrimSpace(order.TradeNo) {
+		return false, ErrSubscriptionOrderStatusInvalid
+	}
+	currentStatus := normalizePurchaseLifecycleStatus(order.Status)
+	if currentStatus == toStatus {
+		if toStatus == common.TopUpStatusPending {
+			inserted, insertErr := insertPurchaseLifecycleEventForSubscriptionOrder(tx, order, transition, RecallLifecycleTriggerPaymentPending)
+			return inserted, insertErr
+		}
+		return false, nil
+	}
+	if !purchaseLifecycleStatusAllowed(currentStatus, transition.FromStatus) {
+		return false, ErrSubscriptionOrderStatusInvalid
+	}
+
+	occurredAt := transition.OccurredAt
+	if occurredAt <= 0 {
+		occurredAt = getDBTimestampTx(tx)
+	}
+	switch toStatus {
+	case common.TopUpStatusPending:
+		order.Status = common.TopUpStatusPending
+	case common.TopUpStatusSuccess:
+		order.Status = common.TopUpStatusSuccess
+		order.CompleteTime = occurredAt
+	case common.TopUpStatusFailed, common.TopUpStatusExpired, "cancelled", "canceled":
+		order.Status = toStatus
+		order.CompleteTime = occurredAt
+	default:
+		return false, ErrSubscriptionOrderStatusInvalid
+	}
+	result := tx.Model(&SubscriptionOrder{}).Where("id = ? AND status = ?", order.Id, currentStatus).Updates(map[string]any{
+		"status":        order.Status,
+		"complete_time": order.CompleteTime,
+	})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected != 1 {
+		latest, err := lockPurchaseLifecycleSubscriptionOrder(tx, transition)
+		if err != nil {
+			return false, err
+		}
+		if latest.UserId != transition.UserID {
+			return false, ErrSubscriptionOrderStatusInvalid
+		}
+		if normalizePurchaseLifecycleStatus(latest.Status) == toStatus {
+			return false, nil
+		}
+		return false, ErrSubscriptionOrderStatusInvalid
+	}
+	if winnerHook != nil {
+		if err := winnerHook(tx, order, &transition); err != nil {
+			return false, err
+		}
+	}
+
+	eventType := purchaseLifecycleEventType(toStatus)
+	if eventType != "" {
+		if _, err := insertPurchaseLifecycleEventForSubscriptionOrder(tx, order, transition, eventType); err != nil {
+			return false, err
+		}
+	}
+	if toStatus == common.TopUpStatusSuccess && transition.SubscriptionScopeID > 0 {
+		cycleKey := subscriptionOrderLifecycleCycleKey(order.Id, order.TradeNo)
+		if _, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+			UserID:          order.UserId,
+			ScopeType:       QuotaLifecycleScopeSubscription,
+			ScopeID:         transition.SubscriptionScopeID,
+			Cause:           subscriptionOrderLifecycleSuccessCause(order),
+			SourceRef:       cycleKey,
+			NextCycleKey:    cycleKey,
+			NextCycleSource: cycleKey,
+			OccurredAt:      occurredAt,
+		}); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
 func lockPurchaseLifecycleTopUp(tx *gorm.DB, transition PurchaseLifecycleTransition) (*TopUp, error) {
 	topUp := &TopUp{}
 	query := lockQuery(tx)
@@ -158,6 +275,31 @@ func lockPurchaseLifecycleTopUp(tx *gorm.DB, transition PurchaseLifecycleTransit
 		return nil, err
 	}
 	return topUp, nil
+}
+
+func lockPurchaseLifecycleSubscriptionOrder(tx *gorm.DB, transition PurchaseLifecycleTransition) (*SubscriptionOrder, error) {
+	order := &SubscriptionOrder{}
+	query := lockQuery(tx)
+	if transition.SourceID > 0 {
+		if err := query.Where("id = ?", transition.SourceID).First(order).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, ErrSubscriptionOrderNotFound
+			}
+			return nil, err
+		}
+		return order, nil
+	}
+	tradeNo := strings.TrimSpace(transition.TradeNo)
+	if tradeNo == "" {
+		return nil, ErrSubscriptionOrderNotFound
+	}
+	if err := query.Where("trade_no = ?", tradeNo).First(order).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSubscriptionOrderNotFound
+		}
+		return nil, err
+	}
+	return order, nil
 }
 
 func insertPurchaseLifecycleEventForTopUp(tx *gorm.DB, topUp *TopUp, transition PurchaseLifecycleTransition, eventType string) (bool, error) {
@@ -218,6 +360,78 @@ func insertPurchaseLifecycleEventForTopUp(tx *gorm.DB, topUp *TopUp, transition 
 	return result.RowsAffected == 1, nil
 }
 
+func insertPurchaseLifecycleEventForSubscriptionOrder(tx *gorm.DB, order *SubscriptionOrder, transition PurchaseLifecycleTransition, eventType string) (bool, error) {
+	occurredAt := transition.OccurredAt
+	if occurredAt <= 0 {
+		occurredAt = getDBTimestampTx(tx)
+	}
+	tradeNo := strings.TrimSpace(order.TradeNo)
+	sourceID := int64(order.Id)
+	occurrence, err := NewRecallLifecyclePurchaseOccurrence(eventType, PurchaseLifecycleKindSubscription, tradeNo, purchaseLifecycleSubscriptionTable, sourceID, order.UserId)
+	if err != nil {
+		return false, err
+	}
+	scopeID := tradeNo
+	if scopeID == "" {
+		scopeID = fmt.Sprintf("%s:%d", purchaseLifecycleSubscriptionTable, sourceID)
+	}
+	availableAt := occurredAt
+	if eventType == RecallLifecycleTriggerPaymentPending {
+		availableAt = order.CreateTime + int64(recallLifecyclePaymentPendingDelay.Seconds())
+	}
+	payload, err := common.Marshal(map[string]any{
+		"purchase_kind":    PurchaseLifecycleKindSubscription,
+		"source_table":     purchaseLifecycleSubscriptionTable,
+		"source_id":        sourceID,
+		"trade_no":         tradeNo,
+		"user_id":          order.UserId,
+		"from_status":      transition.FromStatus,
+		"to_status":        normalizePurchaseLifecycleStatus(transition.ToStatus),
+		"payment_provider": order.PaymentProvider,
+		"payment_method":   order.PaymentMethod,
+		"amount":           0,
+		"money":            order.Money,
+		"currency":         order.PaymentCurrency,
+		"credit":           0,
+		"source_ref":       strings.TrimSpace(transition.SourceRef),
+	})
+	if err != nil {
+		return false, err
+	}
+	event := &RecallLifecycleEvent{
+		EventType:         eventType,
+		OccurrenceKeyHash: occurrence.Hash,
+		ScopeType:         PurchaseLifecycleKindSubscription,
+		ScopeId:           scopeID,
+		BusinessKey:       occurrence.Canonical,
+		UserId:            order.UserId,
+		EventData:         string(payload),
+		Disposition:       RecallLifecycleEventPending,
+		OccurredAt:        occurredAt,
+		AvailableAt:       availableAt,
+		SchemaVersion:     1,
+	}
+	result := insertRecallLifecycleEvent(tx, event)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func subscriptionOrderLifecycleCycleKey(orderID int, tradeNo string) string {
+	if normalized := strings.TrimSpace(tradeNo); normalized != "" {
+		return "subscription_order:" + normalized
+	}
+	return fmt.Sprintf("subscription_orders:%d", orderID)
+}
+
+func subscriptionOrderLifecycleSuccessCause(order *SubscriptionOrder) string {
+	if order != nil && strings.TrimSpace(order.RenewalSource) != "" {
+		return "subscription_renewal"
+	}
+	return "subscription_purchase"
+}
+
 func purchaseLifecycleEventType(status string) string {
 	switch normalizePurchaseLifecycleStatus(status) {
 	case common.TopUpStatusPending:
@@ -248,5 +462,9 @@ func purchaseLifecycleStatusAllowed(current string, allowed []string) bool {
 }
 
 func topUpSuccessFromStatuses() []string {
+	return []string{common.TopUpStatusPending, common.TopUpStatusFailed, common.TopUpStatusExpired, "cancelled", "canceled"}
+}
+
+func subscriptionSuccessFromStatuses() []string {
 	return []string{common.TopUpStatusPending, common.TopUpStatusFailed, common.TopUpStatusExpired, "cancelled", "canceled"}
 }

@@ -898,7 +898,7 @@ func CompleteSubscriptionOrderWithProviderBinding(tradeNo string, providerPayloa
 		if order.Status == common.TopUpStatusSuccess {
 			return nil
 		}
-		if order.Status != common.TopUpStatusPending {
+		if !purchaseLifecycleStatusAllowed(normalizePurchaseLifecycleStatus(order.Status), subscriptionSuccessFromStatuses()) {
 			return ErrSubscriptionOrderStatusInvalid
 		}
 		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
@@ -906,11 +906,40 @@ func CompleteSubscriptionOrderWithProviderBinding(tradeNo string, providerPayloa
 			return err
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		if _, err := createUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order", binding.Id); err != nil {
+		applied, err := persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindSubscription,
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: subscriptionSuccessFromStatuses(),
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: common.GetTimestamp(),
+			SourceRef:  "subscription_order.provider_binding_complete",
+		}, func(tx *gorm.DB, locked *SubscriptionOrder, transition *PurchaseLifecycleTransition) error {
+			if providerPayload != "" {
+				locked.ProviderPayload = providerPayload
+			}
+			if actualPaymentMethod != "" && locked.PaymentMethod != actualPaymentMethod {
+				locked.PaymentMethod = actualPaymentMethod
+			}
+			sub, err := createUserSubscriptionFromPlanWithCycleTx(tx, locked.UserId, plan, "order", binding.Id, subscriptionOrderLifecycleCycleKey(locked.Id, locked.TradeNo))
+			if err != nil {
+				return err
+			}
+			transition.SubscriptionScopeID = int64(sub.Id)
+			if err := upsertSubscriptionTopUpTx(tx, locked); err != nil {
+				return err
+			}
+			return tx.Model(&SubscriptionOrder{}).Where("id = ?", locked.Id).Updates(map[string]any{
+				"provider_payload": locked.ProviderPayload,
+				"payment_method":   locked.PaymentMethod,
+			}).Error
+		})
+		if err != nil {
 			return err
 		}
-		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
-			return err
+		if !applied {
+			return nil
 		}
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
@@ -919,9 +948,6 @@ func CompleteSubscriptionOrderWithProviderBinding(tradeNo string, providerPayloa
 		}
 		if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
 			order.PaymentMethod = actualPaymentMethod
-		}
-		if err := tx.Save(&order).Error; err != nil {
-			return err
 		}
 		logUserId = order.UserId
 		logPlanTitle = plan.Title

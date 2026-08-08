@@ -470,45 +470,64 @@ func reconcilePaidInvoice(ctx context.Context, invoiceID string, reservation *mo
 		if err != nil {
 			return err
 		}
-		grant, err := model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
-			ContractId:           contract.Id,
-			UserId:               order.UserId,
-			PlanId:               order.PlanId,
-			ProviderBindingId:    binding.Id,
-			GrantKey:             "stripe:" + invoiceID,
-			PaymentMode:          model.SubscriptionPaymentModeStripeRecurring,
-			AmountTotal:          recurringInvoiceGrantAmountTotal(plan, planSnapshot),
-			MediaCreditsTotal:    recurringInvoiceGrantMediaCredits(plan, planSnapshot),
-			Window5hAmount:       recurringInvoiceGrantWindow5h(plan, planSnapshot),
-			WindowWeekAmount:     recurringInvoiceGrantWindowWeek(plan, planSnapshot),
-			UpgradeGroup:         recurringInvoiceGrantUpgradeGroup(plan, planSnapshot),
-			PeriodStart:          facts.PeriodStart,
-			PeriodEnd:            facts.PeriodEnd,
-			EndReasonForPrevious: previousEntitlementEndReason(intent.Kind),
-			Source:               model.PaymentMethodStripe,
+		var grant *model.GrantEntitlementResult
+		applied, err := model.PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, model.PurchaseLifecycleTransition{
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: []string{common.TopUpStatusPending, common.TopUpStatusFailed, common.TopUpStatusExpired, "cancelled", "canceled"},
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: common.GetTimestamp(),
+			SourceRef:  "stripe.invoice." + invoiceID,
+		}, func(tx *gorm.DB, locked *model.SubscriptionOrder, transition *model.PurchaseLifecycleTransition) error {
+			var err error
+			grant, err = model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
+				ContractId:           contract.Id,
+				UserId:               locked.UserId,
+				PlanId:               locked.PlanId,
+				ProviderBindingId:    binding.Id,
+				GrantKey:             "stripe:" + invoiceID,
+				PaymentMode:          model.SubscriptionPaymentModeStripeRecurring,
+				AmountTotal:          recurringInvoiceGrantAmountTotal(plan, planSnapshot),
+				MediaCreditsTotal:    recurringInvoiceGrantMediaCredits(plan, planSnapshot),
+				Window5hAmount:       recurringInvoiceGrantWindow5h(plan, planSnapshot),
+				WindowWeekAmount:     recurringInvoiceGrantWindowWeek(plan, planSnapshot),
+				UpgradeGroup:         recurringInvoiceGrantUpgradeGroup(plan, planSnapshot),
+				PeriodStart:          facts.PeriodStart,
+				PeriodEnd:            facts.PeriodEnd,
+				EndReasonForPrevious: previousEntitlementEndReason(intent.Kind),
+				Source:               model.PaymentMethodStripe,
+			})
+			if err != nil {
+				return err
+			}
+			if grant != nil && grant.Entitlement != nil {
+				transition.SubscriptionScopeID = int64(grant.Entitlement.Id)
+			}
+			locked.ProviderPayload = fmt.Sprintf("invoice_id=%s;subscription_id=%s;change_intent_id=%d", invoiceID, facts.SubscriptionID, intent.Id)
+			if err := tx.Model(locked).Where("id = ?", locked.Id).Update("provider_payload", locked.ProviderPayload).Error; err != nil {
+				return err
+			}
+			intent.Status = model.SubscriptionChangeIntentStatusApplied
+			intent.ProviderInvoiceId = invoiceID
+			intent.ProviderBindingId = binding.Id
+			intent.EffectiveAt = facts.PeriodStart
+			return tx.Model(intent).Updates(map[string]interface{}{
+				"status":              intent.Status,
+				"provider_invoice_id": intent.ProviderInvoiceId,
+				"provider_binding_id": intent.ProviderBindingId,
+				"effective_at":        intent.EffectiveAt,
+				"updated_at":          common.GetTimestamp(),
+			}).Error
 		})
 		if err != nil {
 			return err
 		}
+		if !applied {
+			return nil
+		}
 		order.Status = common.TopUpStatusSuccess
-		order.CompleteTime = common.GetTimestamp()
 		order.ProviderPayload = fmt.Sprintf("invoice_id=%s;subscription_id=%s;change_intent_id=%d", invoiceID, facts.SubscriptionID, intent.Id)
-		if err := tx.Save(order).Error; err != nil {
-			return err
-		}
-		intent.Status = model.SubscriptionChangeIntentStatusApplied
-		intent.ProviderInvoiceId = invoiceID
-		intent.ProviderBindingId = binding.Id
-		intent.EffectiveAt = facts.PeriodStart
-		if err := tx.Model(intent).Updates(map[string]interface{}{
-			"status":              intent.Status,
-			"provider_invoice_id": intent.ProviderInvoiceId,
-			"provider_binding_id": intent.ProviderBindingId,
-			"effective_at":        intent.EffectiveAt,
-			"updated_at":          common.GetTimestamp(),
-		}).Error; err != nil {
-			return err
-		}
 		if err := tx.Model(contract).Where("id = ?", contract.Id).Updates(map[string]interface{}{
 			"status":                      model.SubscriptionContractStatusActive,
 			"payment_mode":                model.SubscriptionPaymentModeStripeRecurring,
@@ -1939,42 +1958,67 @@ func completeOneTimeSubscriptionPurchase(ctx context.Context, tradeNo string, pr
 		now := common.GetTimestamp()
 		periodStart := now
 		periodEnd := time.Unix(periodStart, 0).AddDate(0, order.PurchaseMonths, 0).Unix()
-		grant, err := model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
-			ContractId:           contract.Id,
-			UserId:               order.UserId,
-			PlanId:               order.PlanId,
-			ProviderBindingId:    0,
-			GrantKey:             paymentProvider + "-one-time:" + order.TradeNo,
-			PaymentMode:          model.SubscriptionPaymentModePrepaid,
-			AmountTotal:          snapshot.TotalAmount,
-			MediaCreditsTotal:    snapshot.MediaCreditsMonthly,
-			Window5hAmount:       common.GetPointer(snapshot.Window5hAmount),
-			WindowWeekAmount:     common.GetPointer(snapshot.WindowWeekAmount),
-			UpgradeGroup:         common.GetPointer(snapshot.UpgradeGroup),
-			PeriodStart:          periodStart,
-			PeriodEnd:            periodEnd,
-			EndReasonForPrevious: previousEntitlementEndReason(intent.Kind),
-			Source:               strings.TrimSpace(order.PaymentMethod),
+		var grant *model.GrantEntitlementResult
+		applied, err := model.PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, model.PurchaseLifecycleTransition{
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: []string{common.TopUpStatusPending, common.TopUpStatusFailed, common.TopUpStatusExpired, "cancelled", "canceled"},
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: now,
+			SourceRef:  paymentProvider + ".one_time_purchase",
+		}, func(tx *gorm.DB, locked *model.SubscriptionOrder, transition *model.PurchaseLifecycleTransition) error {
+			var err error
+			grant, err = model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
+				ContractId:           contract.Id,
+				UserId:               locked.UserId,
+				PlanId:               locked.PlanId,
+				ProviderBindingId:    0,
+				GrantKey:             paymentProvider + "-one-time:" + locked.TradeNo,
+				PaymentMode:          model.SubscriptionPaymentModePrepaid,
+				AmountTotal:          snapshot.TotalAmount,
+				MediaCreditsTotal:    snapshot.MediaCreditsMonthly,
+				Window5hAmount:       common.GetPointer(snapshot.Window5hAmount),
+				WindowWeekAmount:     common.GetPointer(snapshot.WindowWeekAmount),
+				UpgradeGroup:         common.GetPointer(snapshot.UpgradeGroup),
+				PeriodStart:          periodStart,
+				PeriodEnd:            periodEnd,
+				EndReasonForPrevious: previousEntitlementEndReason(intent.Kind),
+				Source:               strings.TrimSpace(locked.PaymentMethod),
+			})
+			if err != nil {
+				return err
+			}
+			if grant != nil && grant.Entitlement != nil {
+				transition.SubscriptionScopeID = int64(grant.Entitlement.Id)
+			}
+			if err := createPrepaidTermSegmentsTx(tx, contract.Id, locked.Id, locked.PlanId, PrepaidTermAllocation{
+				CanonicalWalletUnitPrice: snapshot.PriceAmount,
+			}, periodStart, locked.PurchaseMonths); err != nil {
+				return err
+			}
+			plan := model.SubscriptionPlan{Id: locked.PlanId}
+			if err := markPrepaidPurchaseAppliedTx(tx, &contract, &intent, &plan, periodStart, periodEnd, locked.TradeNo, locked.PaymentMethod); err != nil {
+				return err
+			}
+			if strings.TrimSpace(providerPayload) != "" {
+				locked.ProviderPayload = providerPayload
+				if err := tx.Model(locked).Where("id = ?", locked.Id).Update("provider_payload", locked.ProviderPayload).Error; err != nil {
+					return err
+				}
+			}
+			return nil
 		})
 		if err != nil {
 			return err
 		}
-		if err := createPrepaidTermSegmentsTx(tx, contract.Id, order.Id, order.PlanId, PrepaidTermAllocation{
-			CanonicalWalletUnitPrice: snapshot.PriceAmount,
-		}, periodStart, order.PurchaseMonths); err != nil {
-			return err
-		}
-		plan := model.SubscriptionPlan{Id: order.PlanId}
-		if err := markPrepaidPurchaseAppliedTx(tx, &contract, &intent, &plan, periodStart, periodEnd, order.TradeNo, order.PaymentMethod); err != nil {
-			return err
+		if !applied {
+			return nil
 		}
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = now
 		if strings.TrimSpace(providerPayload) != "" {
 			order.ProviderPayload = providerPayload
-		}
-		if err := tx.Save(&order).Error; err != nil {
-			return err
 		}
 		if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
 			if _, err := model.CommitSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
@@ -2153,10 +2197,16 @@ func terminatePendingOneTimePurchase(ctx context.Context, tradeNo string, intent
 				return err
 			}
 		}
-		if err := tx.Model(&order).Updates(map[string]interface{}{
-			"status":        orderStatus,
-			"complete_time": common.GetTimestamp(),
-		}).Error; err != nil {
+		if _, err := model.PersistPurchaseLifecycleTransition(tx, model.PurchaseLifecycleTransition{
+			Kind:       model.PurchaseLifecycleKindSubscription,
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: []string{common.TopUpStatusPending},
+			ToStatus:   orderStatus,
+			OccurredAt: common.GetTimestamp(),
+			SourceRef:  paymentProvider + ".one_time_terminal",
+		}); err != nil {
 			return err
 		}
 		intentID := order.ChangeIntentId
