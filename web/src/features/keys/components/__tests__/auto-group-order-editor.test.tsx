@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
-import { after, describe, test } from 'node:test'
+import { afterAll, describe, test } from 'bun:test'
 
 import { Window } from 'happy-dom'
 
@@ -185,7 +185,7 @@ function findButton(container: ParentNode, label: string): HTMLButtonElement {
 }
 
 describe('Auto group order editor', () => {
-  after(() => {
+  afterAll(() => {
     domWindow.close()
   })
 

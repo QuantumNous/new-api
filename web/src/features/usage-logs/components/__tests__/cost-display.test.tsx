@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
-import { after, describe, test } from 'node:test'
+import { afterAll, describe, test } from 'bun:test'
 
 import { Window } from 'happy-dom'
 import type React from 'react'
@@ -105,7 +105,7 @@ function normalizedText(value: string | null): string {
 }
 
 describe('log cost display', () => {
-  after(() => {
+  afterAll(() => {
     domWindow.close()
   })
 
