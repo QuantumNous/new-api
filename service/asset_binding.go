@@ -296,7 +296,8 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 			return result, nil
 		}
 	}
-	for attempt := 0; attempt < pollLimit; attempt++ {
+	rematerializationRetryAvailable := true
+	for attempt := 0; attempt < pollLimit; {
 		now = assetBindingNow().Unix()
 		leaseExpiresAt := now + int64(leaseTTL.Seconds())
 		claimed, err := model.ClaimAssetBindingForScopeLease(asset.Id, request.Channel.Id, bindingScope, owner, now, leaseExpiresAt)
@@ -324,8 +325,14 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 			if handled {
 				return result, nil
 			}
+			if rematerializationRetryAvailable {
+				rematerializationRetryAvailable = false
+				continue
+			}
+			return AssetBindingResult{}, ErrAssetBindingInitializing
 		}
-		if attempt+1 < pollLimit {
+		attempt++
+		if attempt < pollLimit {
 			if err := assetBindingPollSleep(ctx, pollDelay); err != nil {
 				return AssetBindingResult{}, sanitizeAssetBindingError(err)
 			}
