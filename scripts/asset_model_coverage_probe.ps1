@@ -68,6 +68,46 @@ function Get-PublicProperty {
     return $property.Value
 }
 
+function Get-PublicStringArray {
+    param(
+        [object]$Object,
+        [string]$Name
+    )
+
+    $value = Get-PublicProperty $Object $Name
+    if ($null -eq $value) {
+        return @()
+    }
+    if ($value -is [string]) {
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            return @()
+        }
+        return @([string]$value)
+    }
+
+    $items = @()
+    foreach ($item in @($value)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$item)) {
+            $items += [string]$item
+        }
+    }
+    return @($items)
+}
+
+function Test-ModelAvailable {
+    param(
+        [string[]]$AvailableModels,
+        [string]$Model
+    )
+
+    foreach ($availableModel in @($AvailableModels)) {
+        if ($availableModel -eq $Model) {
+            return $true
+        }
+    }
+    return $false
+}
+
 function New-ProbeError {
     param(
         [string]$Phase,
@@ -248,13 +288,32 @@ function Invoke-AssetUpload {
             id = [string]$assetId
             bytes = [int64]$file.Length
             upload_ms = $uploadMs
-            status = $null
+            upload_status = [string](Get-PublicProperty $json "status")
+            upload_available_models = @(Get-PublicStringArray $json "available_models")
+            status = [string](Get-PublicProperty $json "status")
+            available_models = @(Get-PublicStringArray $json "available_models")
+            get_count = 0
+            status_at_model_ready = $null
+            model_ready_ms = $null
             terminal_ms = $null
             active_ms = $null
         }
     } catch {
         throw (New-ProbeError "asset upload" $_)
     }
+}
+
+function Set-AssetLatestStatus {
+    param(
+        [System.Collections.IDictionary]$Asset,
+        [object]$StatusResponse
+    )
+
+    $status = [string](Get-PublicProperty $StatusResponse "status")
+    $availableModels = @(Get-PublicStringArray $StatusResponse "available_models")
+    $Asset["status"] = $status
+    $Asset["available_models"] = @($availableModels)
+    $Asset["get_count"] = [int](Get-PublicProperty $Asset "get_count") + 1
 }
 
 function Set-AssetTerminalResult {
@@ -274,35 +333,64 @@ function Set-AssetTerminalResult {
     }
 }
 
-function Wait-AssetsTerminal {
+function Set-AssetModelReadyResult {
+    param(
+        [System.Collections.IDictionary]$Asset,
+        [DateTime]$AcceptedAtUtc
+    )
+
+    $readyMs = Get-ElapsedMs $AcceptedAtUtc.ToUniversalTime()
+    $Asset["status_at_model_ready"] = [string](Get-PublicProperty $Asset "status")
+    $Asset["model_ready_ms"] = $readyMs
+    $Asset["terminal_ms"] = $readyMs
+    if ((Get-PublicProperty $Asset "status") -eq "Active") {
+        $Asset["active_ms"] = $readyMs
+    }
+}
+
+function Wait-AssetsModelReady {
     param(
         [string]$BaseUrl,
         [hashtable]$Headers,
         [System.Collections.IDictionary[]]$Assets,
-        [DateTime[]]$AcceptedAtUtc
+        [DateTime[]]$AcceptedAtUtc,
+        [string]$TargetModel
     )
 
     if ($Assets.Count -ne $AcceptedAtUtc.Count) {
         throw "asset status polling failed"
     }
 
-    $terminal = New-Object bool[] $Assets.Count
+    $modelReady = New-Object bool[] $Assets.Count
     $remaining = $Assets.Count
 
     while ($remaining -gt 0) {
-        Assert-BeforeDeadline "asset status polling"
+        Assert-BeforeDeadline "asset model readiness polling"
         for ($index = 0; $index -lt $Assets.Count; $index++) {
-            if ($terminal[$index]) {
+            if ($modelReady[$index]) {
                 continue
             }
 
             $asset = $Assets[$index]
             $assetId = Get-PublicProperty $asset "id"
             $statusResponse = Invoke-JsonRequest -Method GET -Uri "$BaseUrl/v1/assets/$assetId" -Headers $Headers -Phase "asset status"
-            $status = [string](Get-PublicProperty $statusResponse "status")
-            if ($status -in @("Active", "Failed", "Expired")) {
+            Set-AssetLatestStatus -Asset $asset -StatusResponse $statusResponse
+            $status = [string](Get-PublicProperty $asset "status")
+            $availableModels = @(Get-PublicStringArray $asset "available_models")
+
+            if ($status -in @("Failed", "Expired")) {
                 Set-AssetTerminalResult -Asset $asset -Status $status -AcceptedAtUtc $AcceptedAtUtc[$index]
-                $terminal[$index] = $true
+                throw "asset $assetId reached terminal status $status before $TargetModel became available"
+            }
+
+            if (($status -eq "Active") -and (-not (Test-ModelAvailable -AvailableModels $availableModels -Model $TargetModel))) {
+                Set-AssetTerminalResult -Asset $asset -Status $status -AcceptedAtUtc $AcceptedAtUtc[$index]
+                throw "asset $assetId is Active but available_models does not include $TargetModel"
+            }
+
+            if (Test-ModelAvailable -AvailableModels $availableModels -Model $TargetModel) {
+                Set-AssetModelReadyResult -Asset $asset -AcceptedAtUtc $AcceptedAtUtc[$index]
+                $modelReady[$index] = $true
                 $remaining--
             }
         }
@@ -398,12 +486,18 @@ try {
     $asset2 = Invoke-AssetUpload -BaseUrl $baseUrl -Headers $headers -Path $ImagePath2
     $asset2AcceptedAtUtc = [DateTime]::UtcNow
     $result.assets = @($result.assets + $asset2)
-    Wait-AssetsTerminal -BaseUrl $baseUrl -Headers $headers -Assets @($asset1, $asset2) -AcceptedAtUtc @($asset1AcceptedAtUtc, $asset2AcceptedAtUtc)
+    try {
+        Wait-AssetsModelReady -BaseUrl $baseUrl -Headers $headers -Assets @($asset1, $asset2) -AcceptedAtUtc @($asset1AcceptedAtUtc, $asset2AcceptedAtUtc) -TargetModel $selectedModel
+    } catch {
+        $result.task.status = "asset_model_not_ready"
+        $result.error = [string]$_.Exception.Message
+        $result | ConvertTo-Json -Depth 20
+        exit 2
+    }
 
-    $asset1Status = Get-PublicProperty $asset1 "status"
-    $asset2Status = Get-PublicProperty $asset2 "status"
-    if (($asset1Status -ne "Active") -or ($asset2Status -ne "Active")) {
-        $result.task.status = "asset_not_active"
+    if ((-not (Test-ModelAvailable -AvailableModels @(Get-PublicStringArray $asset1 "available_models") -Model $selectedModel)) -or
+        (-not (Test-ModelAvailable -AvailableModels @(Get-PublicStringArray $asset2 "available_models") -Model $selectedModel))) {
+        $result.task.status = "asset_model_not_ready"
         $result | ConvertTo-Json -Depth 20
         exit 2
     }
