@@ -258,7 +258,13 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 		return assetBindingResult(asset.PublicId, *existing), nil
 	}
 	if processingAssetBinding(existing) {
-		return refreshProcessingAssetBinding(ctx, asset, request.Channel, bindingScope, request.Model, request.APIKey, existing.UpstreamAssetId, pollLimit, pollDelay)
+		result, handled, err := handleProcessingAssetBinding(ctx, asset, request.Channel, bindingScope, request.Model, request.APIKey, existing.UpstreamAssetId, pollLimit, pollDelay)
+		if err != nil {
+			return AssetBindingResult{}, err
+		}
+		if handled {
+			return result, nil
+		}
 	}
 	if !assetReferenceSourceRecoverable(assetReferenceAsset{
 		SourceStatus:    asset.SourceStatus,
@@ -282,7 +288,13 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 		return assetBindingResult(asset.PublicId, *binding), nil
 	}
 	if processingAssetBinding(binding) {
-		return refreshProcessingAssetBinding(ctx, asset, request.Channel, bindingScope, request.Model, request.APIKey, binding.UpstreamAssetId, pollLimit, pollDelay)
+		result, handled, err := handleProcessingAssetBinding(ctx, asset, request.Channel, bindingScope, request.Model, request.APIKey, binding.UpstreamAssetId, pollLimit, pollDelay)
+		if err != nil {
+			return AssetBindingResult{}, err
+		}
+		if handled {
+			return result, nil
+		}
 	}
 	for attempt := 0; attempt < pollLimit; attempt++ {
 		now = assetBindingNow().Unix()
@@ -305,7 +317,13 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 			return assetBindingResult(asset.PublicId, *loaded), nil
 		}
 		if processingAssetBinding(loaded) {
-			return refreshProcessingAssetBinding(ctx, asset, request.Channel, bindingScope, request.Model, request.APIKey, loaded.UpstreamAssetId, pollLimit, pollDelay)
+			result, handled, err := handleProcessingAssetBinding(ctx, asset, request.Channel, bindingScope, request.Model, request.APIKey, loaded.UpstreamAssetId, pollLimit, pollDelay)
+			if err != nil {
+				return AssetBindingResult{}, err
+			}
+			if handled {
+				return result, nil
+			}
 		}
 		if attempt+1 < pollLimit {
 			if err := assetBindingPollSleep(ctx, pollDelay); err != nil {
@@ -314,6 +332,37 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 		}
 	}
 	return AssetBindingResult{}, ErrAssetBindingInitializing
+}
+
+func handleProcessingAssetBinding(ctx context.Context, asset *model.Asset, channel *model.Channel, bindingScope string, modelName string, apiKey string, upstreamAssetID string, pollLimit int, pollDelay time.Duration) (AssetBindingResult, bool, error) {
+	if !assetBindingRequiresRematerializationFromProcessing(channel) {
+		result, err := refreshProcessingAssetBinding(ctx, asset, channel, bindingScope, modelName, apiKey, upstreamAssetID, pollLimit, pollDelay)
+		return result, true, err
+	}
+	rematerialized, err := markProcessingAssetBindingForRematerialization(asset.Id, channel.Id, bindingScope, upstreamAssetID)
+	if err != nil {
+		return AssetBindingResult{}, false, sanitizeAssetBindingError(err)
+	}
+	if !rematerialized {
+		return AssetBindingResult{}, false, ErrAssetBindingInitializing
+	}
+	return AssetBindingResult{}, false, nil
+}
+
+func assetBindingRequiresRematerializationFromProcessing(channel *model.Channel) bool {
+	return channel != nil && channel.Type == constant.ChannelTypeTechMobiVideo
+}
+
+func markProcessingAssetBindingForRematerialization(assetID int64, channelID int, bindingScope string, upstreamAssetID string) (bool, error) {
+	return model.RefreshProcessingAssetBindingCAS(model.AssetBindingProcessingRefresh{
+		AssetID:         assetID,
+		ChannelID:       channelID,
+		BindingScope:    bindingScope,
+		UpstreamAssetID: upstreamAssetID,
+		Status:          model.AssetStatusFailed,
+		ErrorCode:       AssetMaterializeErrorProcessing,
+		Now:             assetBindingNow().Unix(),
+	})
 }
 
 func createLeasedAssetBinding(ctx context.Context, asset *model.Asset, channel *model.Channel, owner string, expectedLeaseExpiresAt int64, pollLimit int, pollDelay time.Duration, modelName string, apiKey string, bindingScope string) (AssetBindingResult, error) {

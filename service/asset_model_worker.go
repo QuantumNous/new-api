@@ -312,17 +312,22 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 		return existing, nil
 	}
 	if processingAssetBinding(existing) {
-		result, err := refreshProcessingAssetBinding(ctx, &asset, channel, target.BindingScope, options.Model, options.APIKey, existing.UpstreamAssetId, 1, 0)
-		if err == nil {
+		result, handled, err := handleProcessingAssetBinding(ctx, &asset, channel, target.BindingScope, options.Model, options.APIKey, existing.UpstreamAssetId, 1, 0)
+		if err != nil {
+			if !handled {
+				return nil, err
+			}
+			if IsRetryableAssetMaterializeError(err) {
+				return nil, assetModelBindingRetryError{class: AssetMaterializeErrorClass(err), retryAfter: assetModelRetryAfter(err)}
+			}
+			if errors.Is(err, ErrAssetBindingInitializing) {
+				return nil, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
+			}
+			return nil, assetModelBindingDefinitiveError{class: AssetMaterializeErrorDefinitive}
+		}
+		if handled {
 			return &result.Binding, nil
 		}
-		if IsRetryableAssetMaterializeError(err) {
-			return nil, assetModelBindingRetryError{class: AssetMaterializeErrorClass(err), retryAfter: assetModelRetryAfter(err)}
-		}
-		if errors.Is(err, ErrAssetBindingInitializing) {
-			return nil, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
-		}
-		return nil, assetModelBindingDefinitiveError{class: AssetMaterializeErrorDefinitive}
 	}
 	binding, _, err := model.CreateAssetBindingForScopeIfAbsent(asset.Id, target.ChannelId, target.BindingScope, nowUnix)
 	if err != nil {
@@ -505,7 +510,13 @@ func rotateAssetModelReadinessTarget(row model.AssetModelReadiness, target model
 		}
 	}
 	if !matched {
-		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
+		if len(candidates) == 0 {
+			if err := markAssetModelTargetUnavailable(target, nowUnix); err != nil {
+				return err
+			}
+			return finishAssetModelReadinessFailed(row, owner, nowUnix, "target_unavailable")
+		}
+		nextIndex = 0
 	}
 	if nextIndex >= len(candidates) || nextIndex < 0 {
 		if err := markAssetModelTargetUnavailable(target, nowUnix); err != nil {

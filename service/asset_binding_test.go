@@ -427,6 +427,58 @@ func TestAssetBindingExistingProcessingRefreshesWithGetOnly(t *testing.T) {
 	require.Len(t, store.signed, 0, "Get-only refresh must not sign source URLs")
 }
 
+func TestTechMobiAssetBindingHistoricalProcessingOpaqueAssetRematerializes(t *testing.T) {
+	newAssetServiceTestDB(t)
+	store := installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_techmobi_processing_remat")
+	channel := &model.Channel{Id: 106, Type: constant.ChannelTypeTechMobiVideo, Status: common.ChannelStatusEnabled}
+	options := AssetMaterializeOptions{
+		Model:  "seedance-2.0-fast",
+		APIKey: "selected-techmobi-key",
+	}
+	bindingScope, err := assetBindingScope(channel.Type, options)
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       channel.Id,
+		BindingScope:    bindingScope,
+		Status:          model.AssetStatusProcessing,
+		UpstreamAssetId: "asset://historical-processing",
+		CreatedAt:       100,
+		UpdatedAt:       100,
+	}).Error)
+	materializer := &recordingAssetMaterializer{
+		getErr:        errors.New("TechMobi processing rows must not be refreshed from opaque asset URLs"),
+		createAssetID: "asset://new-techmobi-binding",
+	}
+	restore := registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	defer restore()
+
+	result, err := MaterializeAssetBinding(context.Background(), AssetBindingRequest{
+		UserID:       asset.UserId,
+		PublicID:     asset.PublicId,
+		Channel:      channel,
+		LeaseOwner:   "node-a",
+		PollLimit:    2,
+		PollDelay:    0,
+		LeaseTTL:     time.Minute,
+		ExpectedType: "Image",
+		Model:        options.Model,
+		APIKey:       options.APIKey,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "asset://new-techmobi-binding", result.RewriteURI)
+	require.Zero(t, atomic.LoadInt64(&materializer.getCalls))
+	require.Equal(t, int64(1), atomic.LoadInt64(&materializer.createCalls))
+	require.Len(t, store.signed, 1, "rematerialization must sign and upload the recoverable source")
+	var binding model.AssetBinding
+	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, channel.Id, bindingScope).Error)
+	require.Equal(t, model.AssetStatusActive, binding.Status)
+	require.Equal(t, "asset://new-techmobi-binding", binding.UpstreamAssetId)
+	require.EqualValues(t, 1, binding.AttemptCount)
+}
+
 func TestAssetBindingProcessingPollTimeoutReturnsNotReady(t *testing.T) {
 	newAssetServiceTestDB(t)
 	installAssetServiceTestDeps(t)
