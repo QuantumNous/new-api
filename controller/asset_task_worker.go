@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,10 +17,12 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
@@ -157,6 +160,10 @@ func queueAssetTaskForPreparation(c *gin.Context, info *relaycommon.RelayInfo, p
 	if err != nil {
 		return nil, service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 	}
+	specificChannelID, err := queuedAssetTaskSpecificChannelID(c)
+	if err != nil {
+		return nil, service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
 	now := time.Now().Unix()
 	taskID := info.PublicTaskID
 	if strings.TrimSpace(taskID) == "" {
@@ -194,16 +201,29 @@ func queueAssetTaskForPreparation(c *gin.Context, info *relaycommon.RelayInfo, p
 			UpstreamModelName: taskUpstreamModelName(info),
 		},
 		PrivateData: model.TaskPrivateData{
-			BillingSource:  info.BillingSource,
-			SubscriptionId: info.SubscriptionId,
-			TokenId:        info.TokenId,
-			BillingContext: taskBillingContextSnapshot(info),
+			BillingSource:     info.BillingSource,
+			SubscriptionId:    info.SubscriptionId,
+			TokenId:           info.TokenId,
+			SpecificChannelId: specificChannelID,
+			BillingContext:    taskBillingContextSnapshot(info),
 		},
 	}
 	if err := task.Insert(); err != nil {
 		return nil, service.TaskErrorWrapper(err, "queue_task_failed", http.StatusInternalServerError)
 	}
 	return video, nil
+}
+
+func queuedAssetTaskSpecificChannelID(c *gin.Context) (int, error) {
+	raw := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyTokenSpecificChannelId))
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, service.ErrAssetInvalidSpecificChannel
+	}
+	return value, nil
 }
 
 func normalizedTaskPayload(c *gin.Context) ([]byte, error) {
@@ -392,7 +412,7 @@ func runLeasedAssetTask(ctx context.Context, taskID string, owner string, lease 
 	c.Request = c.Request.WithContext(ctx)
 	retryParam := &service.RetryParam{
 		Ctx:        c,
-		TokenGroup: task.Group,
+		TokenGroup: info.TokenGroup,
 		ModelName:  task.Properties.OriginModelName,
 		Retry:      common.GetPointer(0),
 	}
@@ -412,6 +432,18 @@ func runLeasedAssetTask(ctx context.Context, taskID string, owner string, lease 
 			}
 			lastErr = channelErr.Err
 			break
+		}
+		if task.PrivateData.SpecificChannelId > 0 {
+			if setupErr := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName); setupErr != nil {
+				releaseChannelConcurrencyForRequest(c)
+				lastErr = setupErr.Err
+				break
+			}
+			if rewriteErr := middleware.RefreshAssetRewriteMapForSelectedChannel(c, channel); rewriteErr != nil {
+				releaseChannelConcurrencyForRequest(c)
+				lastErr = rewriteErr.Err
+				break
+			}
 		}
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
@@ -470,10 +502,14 @@ func runLeasedAssetTask(ctx context.Context, taskID string, owner string, lease 
 }
 
 func assetTaskShouldWaitForAssets(task *model.Task, err error, now int64) bool {
+	if task == nil || err == nil || now >= task.CreatedAt+int64(assetTaskAssetReadyTimeout/time.Second) {
+		return false
+	}
 	var apiErr *types.NewAPIError
-	return errors.As(err, &apiErr) &&
-		apiErr.GetErrorCode() == types.ErrorCodeAssetNotReady &&
-		now < task.CreatedAt+int64(assetTaskAssetReadyTimeout/time.Second)
+	if errors.As(err, &apiErr) && apiErr.GetErrorCode() == types.ErrorCodeAssetNotReady {
+		return true
+	}
+	return service.IsRetryableAssetMaterializeError(err)
 }
 
 func rebuildAssetTaskContext(task *model.Task) (*gin.Context, *relaycommon.RelayInfo, error) {
@@ -483,24 +519,82 @@ func rebuildAssetTaskContext(task *model.Task) (*gin.Context, *relaycommon.Relay
 	common.SetContextKey(c, constant.ContextKeyUserGroup, task.Group)
 	common.SetContextKey(c, constant.ContextKeyUsingGroup, task.Group)
 	common.SetContextKey(c, constant.ContextKeyAssetMaterializeEnabled, true)
+	identityGroup := task.Group
 	userQuota := 0
 	userSetting := dto.UserSetting{}
-	if user, err := model.GetUserById(task.UserId, false); err == nil && user != nil {
-		userQuota = user.Quota
-		common.SetContextKey(c, constant.ContextKeyUserQuota, user.Quota)
-		common.SetContextKey(c, constant.ContextKeyUserSetting, userSetting)
+	user, err := model.GetUserById(task.UserId, false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("queued task user unavailable: %w", err)
 	}
+	if user == nil || user.Status != common.UserStatusEnabled {
+		return nil, nil, fmt.Errorf("queued task user %d is disabled", task.UserId)
+	}
+	userQuota = user.Quota
+	userSetting = user.GetSetting()
+	identityGroup = strings.TrimSpace(user.Group)
+	if identityGroup == "" || identityGroup == plgGroup {
+		identityGroup = plgGroup
+	}
+	common.SetContextKey(c, constant.ContextKeyUserGroup, identityGroup)
+	common.SetContextKey(c, constant.ContextKeyUserQuota, user.Quota)
+	common.SetContextKey(c, constant.ContextKeyUserSetting, userSetting)
 	tokenKey := ""
 	tokenName := ""
+	routingGroup := identityGroup
 	if task.PrivateData.TokenId > 0 {
-		if token, err := model.GetTokenById(task.PrivateData.TokenId); err == nil && token != nil {
-			tokenKey = token.Key
-			tokenName = token.Name
-			common.SetContextKey(c, constant.ContextKeyTokenKey, token.Key)
-			common.SetContextKey(c, constant.ContextKeyTokenId, token.Id)
-			common.SetContextKey(c, constant.ContextKeyTokenGroup, task.Group)
-			c.Set("token_name", token.Name)
+		token, err := model.GetTokenById(task.PrivateData.TokenId)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%w: %v", model.ErrTokenInvalid, err)
 		}
+		if token.UserId != task.UserId {
+			return nil, nil, fmt.Errorf("%w: token does not belong to queued task user", model.ErrTokenInvalid)
+		}
+		switch model.GetEffectiveTokenStatus(token, common.GetTimestamp()) {
+		case common.TokenStatusEnabled:
+		case common.TokenStatusExpired:
+			return nil, nil, model.ErrTokenExpired
+		case common.TokenStatusExhausted:
+			return nil, nil, model.ErrTokenExhausted
+		default:
+			return nil, nil, model.ErrTokenUnavailable
+		}
+		tokenKey = token.Key
+		tokenName = token.Name
+		tokenGroup := strings.TrimSpace(token.Group)
+		crossGroupRetry := token.CrossGroupRetry
+		if identityGroup == plgGroup {
+			tokenGroup = plgGroup
+			crossGroupRetry = false
+		}
+		if identityGroup != plgGroup && tokenGroup != "" {
+			if !service.GroupInUserUsableGroups(identityGroup, tokenGroup) {
+				return nil, nil, fmt.Errorf("queued task token group %s is not usable by user group %s", tokenGroup, identityGroup)
+			}
+			if !ratio_setting.ContainsGroupRatio(tokenGroup) && tokenGroup != "auto" {
+				return nil, nil, fmt.Errorf("queued task token group %s is deprecated", tokenGroup)
+			}
+		}
+		routingGroup = tokenGroup
+		if routingGroup == "" {
+			routingGroup = identityGroup
+		}
+		common.SetContextKey(c, constant.ContextKeyTokenKey, token.Key)
+		common.SetContextKey(c, constant.ContextKeyTokenId, token.Id)
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, tokenGroup)
+		common.SetContextKey(c, constant.ContextKeyTokenModelLimitEnabled, token.ModelLimitsEnabled)
+		common.SetContextKey(c, constant.ContextKeyTokenModelLimit, token.GetModelLimitsMap())
+		common.SetContextKey(c, constant.ContextKeyTokenModelBlacklistEnabled, token.ModelBlacklistEnabled)
+		common.SetContextKey(c, constant.ContextKeyTokenModelBlacklist, token.GetModelBlacklistMap())
+		common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, crossGroupRetry)
+		c.Set("token_name", token.Name)
+	}
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, routingGroup)
+	if task.PrivateData.SpecificChannelId > 0 {
+		common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, strconv.Itoa(task.PrivateData.SpecificChannelId))
+		common.SetContextKey(c, constant.ContextKeyChannelId, task.PrivateData.SpecificChannelId)
+	}
+	if err := enforceQueuedAssetTaskTokenModelAccess(c, task.Properties.OriginModelName); err != nil {
+		return nil, nil, err
 	}
 	var seedanceReq dto.SeedanceVideoRequest
 	if err := common.Unmarshal(task.NormalizedRequestPayload, &seedanceReq); err != nil {
@@ -515,8 +609,9 @@ func rebuildAssetTaskContext(task *model.Task) (*gin.Context, *relaycommon.Relay
 		UserId:                task.UserId,
 		TokenId:               task.PrivateData.TokenId,
 		TokenKey:              tokenKey,
-		UsingGroup:            task.Group,
-		TokenGroup:            task.Group,
+		UsingGroup:            routingGroup,
+		UserGroup:             identityGroup,
+		TokenGroup:            routingGroup,
 		OriginModelName:       task.Properties.OriginModelName,
 		BillingSource:         task.PrivateData.BillingSource,
 		SubscriptionId:        task.PrivateData.SubscriptionId,
@@ -524,17 +619,44 @@ func rebuildAssetTaskContext(task *model.Task) (*gin.Context, *relaycommon.Relay
 		UserSetting:           userSetting,
 		ForcePreConsume:       true,
 		FinalPreConsumedQuota: task.Quota,
-		ChannelMeta:           &relaycommon.ChannelMeta{},
 		TaskRelayInfo: &relaycommon.TaskRelayInfo{
 			Action:       task.Action,
 			PublicTaskID: task.TaskID,
 		},
 		PriceData: types.PriceData{Quota: task.Quota},
 	}
+	if task.PrivateData.SpecificChannelId == 0 {
+		info.ChannelMeta = &relaycommon.ChannelMeta{}
+	}
 	if tokenName != "" {
 		c.Set("token_name", tokenName)
 	}
 	return c, info, nil
+}
+
+func enforceQueuedAssetTaskTokenModelAccess(c *gin.Context, modelName string) error {
+	if common.GetContextKeyBool(c, constant.ContextKeyTokenModelBlacklistEnabled) {
+		if value, exists := common.GetContextKey(c, constant.ContextKeyTokenModelBlacklist); exists {
+			if blacklist, ok := value.(map[string]bool); ok && service.TokenBlocksModel(blacklist, modelName) {
+				return fmt.Errorf("queued task token is not allowed to use model %s", modelName)
+			}
+		}
+	}
+	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
+		return nil
+	}
+	value, exists := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
+	if !exists {
+		return fmt.Errorf("queued task token has no model access")
+	}
+	allowlist, ok := value.(map[string]bool)
+	if !ok {
+		allowlist = map[string]bool{}
+	}
+	if !service.TokenAllowsModel(allowlist, modelName) {
+		return fmt.Errorf("queued task token is not allowed to use model %s", modelName)
+	}
+	return nil
 }
 
 func httptestRequestFromPayload(payload []byte) *http.Request {

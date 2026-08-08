@@ -71,6 +71,7 @@ func TestAssetRelayTaskQueuesBeforeProviderOrMaterializer(t *testing.T) {
 	common.SetContextKey(c, constant.ContextKeyTokenModelLimit, map[string]bool{"seedance-2.0": true})
 	common.SetContextKey(c, constant.ContextKeyChannelId, 131)
 	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeBytePlus)
+	common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, "120")
 	common.SetContextKey(c, constant.ContextKeyChannelKey, "sk-provider-secret-queue")
 	common.SetContextKey(c, constant.ContextKeyUserSetting, dto.UserSetting{BillingPreference: "wallet_only"})
 
@@ -106,6 +107,7 @@ func TestAssetRelayTaskQueuesBeforeProviderOrMaterializer(t *testing.T) {
 	require.Equal(t, response.TaskID, task.TaskID)
 	require.Equal(t, 7, task.UserId)
 	require.Equal(t, 11, task.PrivateData.TokenId)
+	require.Equal(t, 120, task.PrivateData.SpecificChannelId)
 	require.NotNil(t, task.PrivateData.BillingContext)
 	require.Greater(t, task.Quota, 0)
 
@@ -1355,6 +1357,330 @@ func TestAssetTaskQueuePersistsQueuedTaskAndReturnsImmediately(t *testing.T) {
 	require.NotContains(t, persisted, "X-Goog-Signature")
 }
 
+func TestRebuildAssetTaskContextRestoresCurrentTokenRestrictionsAndSpecificChannel(t *testing.T) {
+	restoreDB := useControllerAssetTaskDBForTest(t)
+	defer restoreDB()
+	restoreSettings := useControllerAssetTaskAccessSettingsForTest(t)
+	defer restoreSettings()
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP","auto":"Auto"}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":1}`))
+
+	seedControllerRelayUserToken(t, 7, 11, 1000, 1000)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 7).Update("group", "vip").Error)
+	require.NoError(t, model.DB.Model(&model.Token{}).Where("id = ?", 11).Updates(map[string]any{
+		"group":                   "auto",
+		"model_limits_enabled":    true,
+		"model_limits":            "seedance-2.0-fast,seedance-2.0-pro",
+		"model_blacklist_enabled": true,
+		"model_blacklist":         "seedance-2.0-pro",
+		"cross_group_retry":       true,
+	}).Error)
+	task := seedControllerQueuedAssetTask(t, "task_restore_current_token_scope", model.TaskPreparationStatusPreparingAssets, "", 0)
+	task.NormalizedRequestPayload = []byte(`{"model":"seedance-2.0-fast","content":[{"type":"text","text":"prompt"}]}`)
+	task.Properties.OriginModelName = "seedance-2.0-fast"
+	task.PrivateData.BillingContext.OriginModelName = "seedance-2.0-fast"
+	task.PrivateData.SpecificChannelId = 120
+	require.NoError(t, model.DB.Save(task).Error)
+
+	c, info, err := rebuildAssetTaskContext(task)
+	require.NoError(t, err)
+	require.Equal(t, "vip", common.GetContextKeyString(c, constant.ContextKeyUserGroup))
+	require.Equal(t, "auto", common.GetContextKeyString(c, constant.ContextKeyTokenGroup))
+	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled))
+	require.Equal(t, map[string]bool{"seedance-2.0-fast": true, "seedance-2.0-pro": true}, mustContextBoolMap(t, c, constant.ContextKeyTokenModelLimit))
+	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyTokenModelBlacklistEnabled))
+	require.Equal(t, map[string]bool{"seedance-2.0-pro": true}, mustContextBoolMap(t, c, constant.ContextKeyTokenModelBlacklist))
+	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyTokenCrossGroupRetry))
+	require.Equal(t, "120", common.GetContextKeyString(c, constant.ContextKeyTokenSpecificChannelId))
+	require.Equal(t, "auto", common.GetContextKeyString(c, constant.ContextKeyUsingGroup))
+	require.Equal(t, "auto", info.TokenGroup)
+	require.Equal(t, "auto", info.UsingGroup)
+}
+
+func TestAssetTaskWorkerFailsClosedWhenQueuedUserIsNoLongerUsable(t *testing.T) {
+	testCases := []struct {
+		name   string
+		mutate func(t *testing.T)
+	}{
+		{
+			name: "deleted",
+			mutate: func(t *testing.T) {
+				require.NoError(t, model.DB.Delete(&model.User{}, 7).Error)
+			},
+		},
+		{
+			name: "disabled",
+			mutate: func(t *testing.T) {
+				require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", 7).Update("status", common.UserStatusDisabled).Error)
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			restoreDB := useControllerAssetTaskDBForTest(t)
+			defer restoreDB()
+			restorePricing := useControllerAssetTaskPricingForTest(t)
+			defer restorePricing()
+			restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+			defer restoreHooks()
+
+			adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "must-not-submit-user-" + testCase.name}
+			restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeBytePlus)), adaptor)
+			defer restoreAdaptor()
+
+			seedControllerRelayUserToken(t, 7, 11, 1000, 500)
+			seedControllerTaskChannel(t, 131, "sk-provider-user-"+testCase.name)
+			task := seedControllerQueuedAssetTask(t, "task_user_"+testCase.name, model.TaskPreparationStatusPreparingAssets, "", 0)
+			testCase.mutate(t)
+			model.InitChannelCache()
+
+			assetTaskWorkerTestNow = 1000
+			processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+			require.NoError(t, err)
+			require.Equal(t, 1, processed)
+			require.Zero(t, adaptor.providerCalls.Load(), "worker must fail before provider submission")
+			expectedUserQuota := 1123
+			expectedTokenRemain := 623
+			expectedRefundLogs := int64(1)
+			if testCase.name == "deleted" {
+				expectedUserQuota = -1
+				expectedTokenRemain = -1
+			}
+			assertQueuedAssetTaskFailedAndRefunded(t, task.TaskID, expectedUserQuota, expectedTokenRemain, expectedRefundLogs)
+		})
+	}
+}
+
+func TestAssetTaskWorkerFailsClosedWhenQueuedTokenIsNoLongerUsable(t *testing.T) {
+	testCases := []struct {
+		name   string
+		mutate func(t *testing.T)
+	}{
+		{
+			name: "deleted",
+			mutate: func(t *testing.T) {
+				require.NoError(t, model.DB.Delete(&model.Token{}, 11).Error)
+			},
+		},
+		{
+			name: "disabled",
+			mutate: func(t *testing.T) {
+				require.NoError(t, model.DB.Model(&model.Token{}).Where("id = ?", 11).Update("status", common.TokenStatusDisabled).Error)
+			},
+		},
+		{
+			name: "expired",
+			mutate: func(t *testing.T) {
+				require.NoError(t, model.DB.Model(&model.Token{}).Where("id = ?", 11).Updates(map[string]any{
+					"status":       common.TokenStatusEnabled,
+					"expired_time": int64(999),
+				}).Error)
+			},
+		},
+		{
+			name: "exhausted",
+			mutate: func(t *testing.T) {
+				require.NoError(t, model.DB.Model(&model.Token{}).Where("id = ?", 11).Updates(map[string]any{
+					"status":          common.TokenStatusEnabled,
+					"remain_quota":    0,
+					"unlimited_quota": false,
+				}).Error)
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			restoreDB := useControllerAssetTaskDBForTest(t)
+			defer restoreDB()
+			restorePricing := useControllerAssetTaskPricingForTest(t)
+			defer restorePricing()
+			restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+			defer restoreHooks()
+
+			adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "must-not-submit-token-" + testCase.name}
+			restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeBytePlus)), adaptor)
+			defer restoreAdaptor()
+
+			seedControllerRelayUserToken(t, 7, 11, 1000, 500)
+			seedControllerTaskChannel(t, 131, "sk-provider-token-"+testCase.name)
+			task := seedControllerQueuedAssetTask(t, "task_token_"+testCase.name, model.TaskPreparationStatusPreparingAssets, "", 0)
+			testCase.mutate(t)
+			model.InitChannelCache()
+
+			assetTaskWorkerTestNow = 1000
+			processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+			require.NoError(t, err)
+			require.Equal(t, 1, processed)
+			require.Zero(t, adaptor.providerCalls.Load(), "worker must fail before provider submission")
+			expectedTokenRemain := 623
+			if testCase.name == "deleted" {
+				expectedTokenRemain = -1
+			} else if testCase.name == "exhausted" {
+				expectedTokenRemain = 123
+			}
+			assertQueuedAssetTaskFailedAndRefunded(t, task.TaskID, 1123, expectedTokenRemain, 1)
+		})
+	}
+}
+
+func TestAssetTaskWorkerFailsClosedWhenQueuedTokenGroupIsNoLongerAuthorized(t *testing.T) {
+	testCases := []struct {
+		name   string
+		mutate func(t *testing.T)
+	}{
+		{
+			name: "unusable_group",
+			mutate: func(t *testing.T) {
+				require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default"}`))
+				require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":1}`))
+			},
+		},
+		{
+			name: "missing_group_ratio",
+			mutate: func(t *testing.T) {
+				require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP"}`))
+				require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`))
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			restoreDB := useControllerAssetTaskDBForTest(t)
+			defer restoreDB()
+			restorePricing := useControllerAssetTaskPricingForTest(t)
+			defer restorePricing()
+			restoreSettings := useControllerAssetTaskAccessSettingsForTest(t)
+			defer restoreSettings()
+			restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+			defer restoreHooks()
+
+			adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "must-not-submit-group-" + testCase.name}
+			restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeBytePlus)), adaptor)
+			defer restoreAdaptor()
+
+			seedControllerRelayUserToken(t, 7, 11, 1000, 500)
+			require.NoError(t, model.DB.Model(&model.Token{}).Where("id = ?", 11).Update("group", "vip").Error)
+			seedControllerTaskChannelWithPriority(t, 131, "sk-provider-group-"+testCase.name, 100, 1)
+			require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 131).Update("group", "vip").Error)
+			require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", 131).Update("group", "vip").Error)
+			task := seedControllerQueuedAssetTask(t, "task_group_"+testCase.name, model.TaskPreparationStatusPreparingAssets, "", 0)
+			testCase.mutate(t)
+			model.InitChannelCache()
+
+			assetTaskWorkerTestNow = 1000
+			processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+			require.NoError(t, err)
+			require.Equal(t, 1, processed)
+			require.Zero(t, adaptor.providerCalls.Load(), "worker must fail before provider submission")
+			assertQueuedAssetTaskFailedAndRefunded(t, task.TaskID, 1123, 623, 1)
+		})
+	}
+}
+
+func TestAssetTaskWorkerFailsClosedWhenQueuedTokenModelAccessIsRevoked(t *testing.T) {
+	testCases := []struct {
+		name   string
+		mutate func(t *testing.T)
+	}{
+		{
+			name: "allowlist_excludes_model",
+			mutate: func(t *testing.T) {
+				require.NoError(t, model.DB.Model(&model.Token{}).Where("id = ?", 11).Updates(map[string]any{
+					"model_limits_enabled": true,
+					"model_limits":         "seedance-2.0-pro",
+				}).Error)
+			},
+		},
+		{
+			name: "blacklist_blocks_model",
+			mutate: func(t *testing.T) {
+				require.NoError(t, model.DB.Model(&model.Token{}).Where("id = ?", 11).Updates(map[string]any{
+					"model_blacklist_enabled": true,
+					"model_blacklist":         "seedance-2.0",
+				}).Error)
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			restoreDB := useControllerAssetTaskDBForTest(t)
+			defer restoreDB()
+			restorePricing := useControllerAssetTaskPricingForTest(t)
+			defer restorePricing()
+			restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+			defer restoreHooks()
+
+			adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "must-not-submit-model-" + testCase.name}
+			restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeBytePlus)), adaptor)
+			defer restoreAdaptor()
+
+			seedControllerRelayUserToken(t, 7, 11, 1000, 500)
+			seedControllerTaskChannel(t, 131, "sk-provider-model-"+testCase.name)
+			task := seedControllerQueuedAssetTask(t, "task_model_"+testCase.name, model.TaskPreparationStatusPreparingAssets, "", 0)
+			testCase.mutate(t)
+			model.InitChannelCache()
+
+			assetTaskWorkerTestNow = 1000
+			processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+			require.NoError(t, err)
+			require.Equal(t, 1, processed)
+			require.Zero(t, adaptor.providerCalls.Load(), "worker must fail before provider submission")
+			assertQueuedAssetTaskFailedAndRefunded(t, task.TaskID, 1123, 623, 1)
+		})
+	}
+}
+
+func TestAssetTaskWorkerHonorsQueuedSpecificChannelDuringSelection(t *testing.T) {
+	restoreDB := useControllerAssetTaskDBForTest(t)
+	defer restoreDB()
+	restorePricing := useControllerAssetTaskPricingForTest(t)
+	defer restorePricing()
+	restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+	defer restoreHooks()
+
+	adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "upstream-specific-channel"}
+	restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeBytePlus)), adaptor)
+	defer restoreAdaptor()
+
+	seedControllerRelayUserToken(t, 7, 11, 1000, 500)
+	seedControllerTaskChannelWithPriority(t, 131, "sk-provider-high-priority", 100, 1)
+	seedControllerTaskChannelWithPriority(t, 132, "sk-provider-specific", 1, 1)
+	task := seedControllerQueuedAssetTask(t, "task_specific_channel_worker", model.TaskPreparationStatusPreparingAssets, "", 0)
+	task.PrivateData.SpecificChannelId = 132
+	require.NoError(t, model.DB.Save(task).Error)
+	model.InitChannelCache()
+
+	assetTaskWorkerTestNow = 1000
+	processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.Equal(t, []int{132}, adaptor.channelsSeen)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusSubmitted, stored.Status)
+	require.Equal(t, 132, stored.ChannelId)
+	require.Equal(t, "upstream-specific-channel", stored.PrivateData.UpstreamTaskID)
+}
+
+func TestAssetTaskShouldWaitForAssetNotReadyAndRetryableMaterializeErrors(t *testing.T) {
+	task := &model.Task{CreatedAt: 100}
+	assetNotReady := types.NewError(errors.New("asset is preparing"), types.ErrorCodeAssetNotReady)
+	require.True(t, assetTaskShouldWaitForAssets(task, assetNotReady, 399))
+	require.True(t, assetTaskShouldWaitForAssets(task, context.DeadlineExceeded, 399))
+	require.False(t, assetTaskShouldWaitForAssets(task, errors.New("definitive failure"), 399))
+	require.False(t, assetTaskShouldWaitForAssets(task, assetNotReady, 400))
+}
+
+func mustContextBoolMap(t *testing.T, c *gin.Context, key constant.ContextKey) map[string]bool {
+	t.Helper()
+	value, ok := common.GetContextKey(c, key)
+	require.True(t, ok)
+	result, ok := value.(map[string]bool)
+	require.True(t, ok)
+	return result
+}
+
 func TestAssetTaskPreparationStaleLeaseTakeoverAndLateResultFenced(t *testing.T) {
 	restoreDB := useControllerAssetTaskDBForTest(t)
 	defer restoreDB()
@@ -1973,6 +2299,16 @@ func useControllerAssetTaskPricingForTest(t *testing.T) func() {
 	}
 }
 
+func useControllerAssetTaskAccessSettingsForTest(t *testing.T) func() {
+	t.Helper()
+	originalUsableGroups := setting.UserUsableGroups2JSONString()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	return func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUsableGroups))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+	}
+}
+
 var assetTaskWorkerTestNow int64
 
 func useAssetTaskWorkerHooksForTest(t *testing.T, leaseSeconds int64, now func() int64) func() {
@@ -2037,7 +2373,7 @@ func seedControllerAsset(t *testing.T, userID int, publicID string, sourceExpire
 
 func seedControllerRelayUserToken(t *testing.T, userID int, tokenID int, userQuota int, tokenQuota int) {
 	t.Helper()
-	require.NoError(t, model.DB.Create(&model.User{Id: userID, Username: fmt.Sprintf("task-user-%d", userID), Quota: userQuota, Status: common.UserStatusEnabled, AffCode: fmt.Sprintf("task-user-%d", userID)}).Error)
+	require.NoError(t, model.DB.Create(&model.User{Id: userID, Username: fmt.Sprintf("task-user-%d", userID), Group: "default", Quota: userQuota, Status: common.UserStatusEnabled, AffCode: fmt.Sprintf("task-user-%d", userID)}).Error)
 	require.NoError(t, model.DB.Create(&model.Token{Id: tokenID, UserId: userID, Key: fmt.Sprintf("sk-task-token-%d", tokenID), Name: "task-token", Status: common.TokenStatusEnabled, RemainQuota: tokenQuota}).Error)
 }
 
@@ -2067,6 +2403,24 @@ func getControllerTokenRemain(t *testing.T, tokenID int) int {
 	var token model.Token
 	require.NoError(t, model.DB.Select("remain_quota").Where("id = ?", tokenID).First(&token).Error)
 	return token.RemainQuota
+}
+
+func assertQueuedAssetTaskFailedAndRefunded(t *testing.T, taskID string, expectedUserQuota int, expectedTokenRemain int, expectedRefundLogs int64) {
+	t.Helper()
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", taskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusFailure, stored.Status)
+	require.Equal(t, model.TaskPreparationStatusFailed, stored.PreparationStatus)
+	require.NotEmpty(t, stored.FailReason)
+	if expectedUserQuota >= 0 {
+		require.Equal(t, expectedUserQuota, getControllerUserQuota(t, 7))
+	}
+	if expectedTokenRemain >= 0 {
+		require.Equal(t, expectedTokenRemain, getControllerTokenRemain(t, 11))
+	}
+	var refundLogs int64
+	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("type = ?", model.LogTypeRefund).Count(&refundLogs).Error)
+	require.EqualValues(t, expectedRefundLogs, refundLogs)
 }
 
 func countControllerConsumeLogs(t *testing.T) int64 {

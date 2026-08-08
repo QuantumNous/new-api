@@ -162,6 +162,22 @@ func MaterializeAssetBindingsForChannel(ctx context.Context, userID int, set Ass
 	if err != nil {
 		return nil, err
 	}
+	if set.strictCoverage {
+		if set.target == nil {
+			return nil, ErrAssetBindingInitializing
+		}
+		if channel.Id != set.target.ChannelId {
+			return nil, ErrAssetBindingUnavailable
+		}
+		if bindingScope != set.target.BindingScope {
+			return nil, ErrAssetBindingUnavailable
+		}
+		readiness, eligible := set.targetReadinessForChannel(channel, set.target.ModelName)
+		if !eligible || readiness != AssetReadinessVerifiedTarget {
+			return nil, ErrAssetBindingInitializing
+		}
+		bindingScope = set.target.BindingScope
+	}
 	rewriteMap := make(map[string]string, len(set.references))
 	for _, reference := range set.references {
 		asset := set.assets[reference.PublicID]
@@ -371,6 +387,26 @@ func createLeasedAssetBinding(ctx context.Context, asset *model.Asset, channel *
 func ResolveAssetMaterializeOptions(set AssetReferenceSet, channel *model.Channel, options AssetMaterializeOptions) (AssetMaterializeOptions, int, error) {
 	if channel == nil || channel.Type != constant.ChannelTypeTechMobiVideo || !set.HasReferences() {
 		return options, -1, nil
+	}
+	if set.strictCoverage {
+		if set.target == nil {
+			return AssetMaterializeOptions{}, -1, ErrAssetBindingInitializing
+		}
+		if !assetReferenceTargetMatchesScope(set.scope, *set.target, set.target.ModelName) {
+			return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
+		}
+		targetOptions, index, err := ResolveAssetModelTargetOptions(*set.target, channel)
+		if err != nil {
+			return AssetMaterializeOptions{}, -1, err
+		}
+		scope, err := assetBindingScope(channel.Type, targetOptions)
+		if err != nil {
+			return AssetMaterializeOptions{}, -1, err
+		}
+		if scope != set.target.BindingScope {
+			return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
+		}
+		return targetOptions, index, nil
 	}
 	keys := enabledAssetMaterializeKeys(channel)
 	if len(keys) == 0 {

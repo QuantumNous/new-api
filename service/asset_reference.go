@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"sort"
@@ -17,10 +18,11 @@ import (
 type AssetReadinessClass int
 
 const (
-	AssetReadinessIneligible   AssetReadinessClass = -1
-	AssetReadinessAllBound     AssetReadinessClass = 0
-	AssetReadinessPartialBound AssetReadinessClass = 1
-	AssetReadinessRecoverable  AssetReadinessClass = 2
+	AssetReadinessIneligible     AssetReadinessClass = -1
+	AssetReadinessVerifiedTarget AssetReadinessClass = 0
+	AssetReadinessAllBound       AssetReadinessClass = 1
+	AssetReadinessPartialBound   AssetReadinessClass = 2
+	AssetReadinessRecoverable    AssetReadinessClass = 3
 )
 
 type ChannelReadinessRanker interface {
@@ -28,8 +30,13 @@ type ChannelReadinessRanker interface {
 }
 
 type AssetReferenceSet struct {
-	references []assetReference
-	assets     map[string]assetReferenceAsset
+	references          []assetReference
+	assets              map[string]assetReferenceAsset
+	strictCoverage      bool
+	scope               AssetModelScope
+	target              *model.AssetModelCoverageTarget
+	readinessByPublicID map[string]model.AssetModelReadiness
+	preparationChannels map[int]struct{}
 }
 
 type assetReference struct {
@@ -38,6 +45,7 @@ type assetReference struct {
 }
 
 type assetReferenceAsset struct {
+	ID              int64
 	PublicID        string
 	AssetType       string
 	Status          string
@@ -84,6 +92,12 @@ func (s AssetReferenceSet) readinessForChannelModel(channel *model.Channel, orig
 	if !s.HasReferences() || channel == nil {
 		return AssetReadinessIneligible, false
 	}
+	if s.strictCoverage {
+		if s.target == nil {
+			return s.preparationReadinessForChannel(channel)
+		}
+		return s.targetReadinessForChannel(channel, originModel)
+	}
 	techMobiScopes, scopesOK := techMobiBindingScopesForRequest(channel, originModel)
 	if !scopesOK {
 		return AssetReadinessIneligible, false
@@ -99,6 +113,22 @@ func (s AssetReferenceSet) readinessForChannelModel(channel *model.Channel, orig
 		}
 	}
 	return bestReadiness, bestReadiness != AssetReadinessIneligible
+}
+
+func (s AssetReferenceSet) preparationReadinessForChannel(channel *model.Channel) (AssetReadinessClass, bool) {
+	if channel == nil || len(s.preparationChannels) == 0 {
+		return AssetReadinessIneligible, false
+	}
+	if _, ok := s.preparationChannels[channel.Id]; !ok {
+		return AssetReadinessIneligible, false
+	}
+	for _, reference := range s.references {
+		asset, ok := s.assets[reference.PublicID]
+		if !ok || asset.AssetType != reference.ExpectedAssetType || !channelCanConsumeAssetType(channel, asset.AssetType) {
+			return AssetReadinessIneligible, false
+		}
+	}
+	return AssetReadinessRecoverable, true
 }
 
 func (s AssetReferenceSet) readinessForChannelScope(channel *model.Channel, techMobiScopes map[string]struct{}) (AssetReadinessClass, bool) {
@@ -137,6 +167,45 @@ func (s AssetReferenceSet) readinessForChannelScope(channel *model.Channel, tech
 	}
 }
 
+func (s AssetReferenceSet) targetReadinessForChannel(channel *model.Channel, originModel string) (AssetReadinessClass, bool) {
+	if s.target == nil || channel == nil || channel.Id != s.target.ChannelId {
+		return AssetReadinessIneligible, false
+	}
+	if !assetReferenceTargetMatchesScope(s.scope, *s.target, originModel) {
+		return AssetReadinessIneligible, false
+	}
+	for _, reference := range s.references {
+		asset, ok := s.assets[reference.PublicID]
+		if !ok || asset.AssetType != reference.ExpectedAssetType || !channelCanConsumeAssetType(channel, asset.AssetType) {
+			return AssetReadinessIneligible, false
+		}
+		row, ok := s.readinessByPublicID[reference.PublicID]
+		if !ok || !assetModelReadinessMatchesTarget(row, *s.target) || row.AssetId != asset.ID || row.Status != model.AssetModelReadinessStatusActive {
+			return AssetReadinessRecoverable, true
+		}
+		if _, ok := activeAssetReferenceBindingForScope(asset.Bindings, channel.Id, s.target.BindingScope); !ok {
+			return AssetReadinessRecoverable, true
+		}
+	}
+	return AssetReadinessVerifiedTarget, true
+}
+
+func assetReferenceTargetMatchesScope(scope AssetModelScope, target model.AssetModelCoverageTarget, originModel string) bool {
+	if target.Status != model.AssetModelTargetStatusActive ||
+		strings.TrimSpace(target.ScopeKey) == "" ||
+		strings.TrimSpace(target.ModelName) == "" ||
+		target.ChannelId <= 0 {
+		return false
+	}
+	if strings.TrimSpace(originModel) != "" && strings.TrimSpace(originModel) != strings.TrimSpace(target.ModelName) {
+		return false
+	}
+	if strings.TrimSpace(scope.ScopeKey) == "" {
+		return false
+	}
+	return activeAssetModelTargetForScope(scope, target)
+}
+
 func (s AssetReferenceSet) RewriteMapForChannel(channelID int) map[string]string {
 	if !s.HasReferences() || channelID <= 0 {
 		return nil
@@ -147,6 +216,15 @@ func (s AssetReferenceSet) RewriteMapForChannel(channelID int) map[string]string
 func (s AssetReferenceSet) RewriteMapForSelectedChannel(channel *model.Channel, originModel string, apiKey string) map[string]string {
 	if !s.HasReferences() || channel == nil || channel.Id <= 0 {
 		return nil
+	}
+	if s.strictCoverage {
+		if s.target == nil {
+			return nil
+		}
+		if readiness, ok := s.targetReadinessForChannel(channel, originModel); !ok || readiness != AssetReadinessVerifiedTarget {
+			return nil
+		}
+		return s.rewriteMapForChannel(channel, map[string]struct{}{s.target.BindingScope: {}})
 	}
 	techMobiScopes, ok := techMobiBindingScopeForSelectedKey(channel, originModel, apiKey)
 	if !ok {
@@ -276,7 +354,7 @@ func assetReferenceMappedModel(rawMapping string, originModel string) (string, b
 	}
 }
 
-func ResolveAssetReferences(_ *gin.Context, userID int, req *dto.SeedanceVideoRequest) (AssetReferenceSet, *types.NewAPIError) {
+func ResolveAssetReferences(c *gin.Context, userID int, req *dto.SeedanceVideoRequest) (AssetReferenceSet, *types.NewAPIError) {
 	references, apiErr := extractAssetReferences(req)
 	if apiErr != nil {
 		return AssetReferenceSet{}, apiErr
@@ -306,6 +384,7 @@ func ResolveAssetReferences(_ *gin.Context, userID int, req *dto.SeedanceVideoRe
 	assets := make(map[string]assetReferenceAsset, len(generalized)+len(legacy))
 	for publicID, item := range generalized {
 		asset := assetReferenceAsset{
+			ID:              item.Asset.Id,
 			PublicID:        publicID,
 			AssetType:       item.Asset.AssetType,
 			Status:          item.Asset.Status,
@@ -344,6 +423,7 @@ func ResolveAssetReferences(_ *gin.Context, userID int, req *dto.SeedanceVideoRe
 		}
 	}
 
+	set := AssetReferenceSet{references: references, assets: assets, strictCoverage: AssetModelCoverageStrictEnabled}
 	for _, reference := range references {
 		asset, ok := assets[reference.PublicID]
 		if !ok {
@@ -359,7 +439,89 @@ func ResolveAssetReferences(_ *gin.Context, userID int, req *dto.SeedanceVideoRe
 			return AssetReferenceSet{}, assetError(errors.New("asset expired"), types.ErrorCodeAssetExpired, http.StatusGone)
 		}
 	}
-	return AssetReferenceSet{references: references, assets: assets}, nil
+	if AssetModelCoverageStrictEnabled {
+		if err := set.loadAssetModelTargetReadiness(c, userID, req); err != nil {
+			return AssetReferenceSet{}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		}
+	}
+	return set, nil
+}
+
+func (s *AssetReferenceSet) loadAssetModelTargetReadiness(c *gin.Context, userID int, req *dto.SeedanceVideoRequest) error {
+	if s == nil || !s.HasReferences() || req == nil || strings.TrimSpace(req.Model) == "" {
+		return nil
+	}
+	scope, err := ResolveAssetModelScopeForContext(c, userID)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(scope.ScopeKey) == "" {
+		scope.ScopeKey, err = assetModelScopeKey(scope)
+		if err != nil {
+			return err
+		}
+	}
+	s.scope = scope
+	now, err := model.GetDBTimestampWithContext(ginRequestContext(c))
+	if err != nil {
+		return err
+	}
+	for _, reference := range s.references {
+		asset := s.assets[reference.PublicID]
+		if asset.ID <= 0 {
+			continue
+		}
+		if err := model.EnsureAssetModelReadiness(asset.ID, scope.ScopeKey, []string{req.Model}, now); err != nil {
+			return err
+		}
+	}
+	target, err := EnsureAssetModelCoverageTargetContext(ginRequestContext(c), scope, req.Model, assetBindingLeaseOwner())
+	if err != nil {
+		if errors.Is(err, ErrAssetBindingInitializing) {
+			candidates, candidateErr := AssetModelTargetCandidates(scope, req.Model)
+			if candidateErr != nil {
+				return candidateErr
+			}
+			s.preparationChannels = make(map[int]struct{}, len(candidates))
+			for _, candidate := range candidates {
+				if candidate.ChannelID > 0 {
+					s.preparationChannels[candidate.ChannelID] = struct{}{}
+				}
+			}
+			return nil
+		}
+		if errors.Is(err, ErrAssetBindingUnavailable) {
+			return nil
+		}
+		return err
+	}
+	if target == nil {
+		return nil
+	}
+	readinessByPublicID := make(map[string]model.AssetModelReadiness, len(s.references))
+	for _, reference := range s.references {
+		asset := s.assets[reference.PublicID]
+		if asset.ID <= 0 {
+			continue
+		}
+		rows, err := model.ListAssetModelReadiness(asset.ID, scope.ScopeKey, []string{req.Model})
+		if err != nil {
+			return err
+		}
+		if len(rows) > 0 {
+			readinessByPublicID[reference.PublicID] = rows[len(rows)-1]
+		}
+	}
+	s.target = target
+	s.readinessByPublicID = readinessByPublicID
+	return nil
+}
+
+func ginRequestContext(c *gin.Context) context.Context {
+	if c != nil && c.Request != nil {
+		return c.Request.Context()
+	}
+	return context.Background()
 }
 
 func ResolveLegacyBytePlusAssetBindingReferences(userID int, req *dto.SeedanceVideoRequest) (BytePlusAssetReferenceResolution, *types.NewAPIError) {

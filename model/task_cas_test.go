@@ -190,7 +190,8 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 
 func TestTaskPrivateDataVideoResultJSONRoundtrip(t *testing.T) {
 	privateData := TaskPrivateData{
-		ResultURL: "https://example.com/result.mp4",
+		ResultURL:         "https://example.com/result.mp4",
+		SpecificChannelId: 120,
 		VideoResult: &VideoResult{
 			Bucket:      "video-results",
 			Object:      "tasks/task_1/result.mp4",
@@ -206,6 +207,7 @@ func TestTaskPrivateDataVideoResultJSONRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, `{
 		"result_url":"https://example.com/result.mp4",
+		"specific_channel_id":120,
 		"video_result":{
 			"bucket":"video-results",
 			"object":"tasks/task_1/result.mp4",
