@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -318,16 +319,37 @@ export function PlaygroundChat({
                                             )}
                                             {generatedImageContent.images.map(
                                               (image, imageIndex) => (
-                                                <img
-                                                  alt={
-                                                    image.alt ||
-                                                    t('Generated image')
-                                                  }
-                                                  className='h-auto max-w-full rounded-lg'
-                                                  decoding='async'
+                                                <div
+                                                  className='space-y-2'
                                                   key={`${message.key}-${version.id}-generated-image-${imageIndex}`}
-                                                  src={image.src}
-                                                />
+                                                >
+                                                  <img
+                                                    alt={
+                                                      image.alt ||
+                                                      t('Generated image')
+                                                    }
+                                                    className='h-auto max-w-full rounded-lg'
+                                                    decoding='async'
+                                                    src={image.src}
+                                                  />
+                                                  <div className='flex justify-end'>
+                                                    <Button
+                                                      size='sm'
+                                                      variant='outline'
+                                                      render={
+                                                        <a
+                                                          download={
+                                                            image.downloadName
+                                                          }
+                                                          href={image.src}
+                                                        />
+                                                      }
+                                                    >
+                                                      <Download data-icon='inline-start' />
+                                                      {t('Download')}
+                                                    </Button>
+                                                  </div>
+                                                </div>
                                               )
                                             )}
                                             {generatedImageContent.hasPendingImage && (

@@ -229,6 +229,7 @@ export function parseThinkTags(content: string): {
 export interface GeneratedImageMarkdown {
   alt: string
   src: string
+  downloadName: string
 }
 
 /**
@@ -243,14 +244,16 @@ export function splitGeneratedImageMarkdown(content: string): {
 } {
   const images: GeneratedImageMarkdown[] = []
   const imagePattern =
-    /!\[([^\]\r\n]*)\]\((data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=\r\n]+)\)/gi
+    /!\[([^\]\r\n]*)\]\((data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=\r\n]+)\)/gi
   const pendingImagePattern =
     /!\[[^\]\r\n]*\]\(data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=\r\n]*$/i
 
   let hasPendingImage = false
   const text = content
-    .replace(imagePattern, (_match, alt: string, src: string) => {
-      images.push({ alt, src })
+    .replace(imagePattern, (_match, alt: string, src: string, type: string) => {
+      const extension = type.toLowerCase().replace('jpeg', 'jpg')
+      const downloadName = `generated-image-${images.length + 1}.${extension}`
+      images.push({ alt, src, downloadName })
       return ''
     })
     .replace(pendingImagePattern, () => {
