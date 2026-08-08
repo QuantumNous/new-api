@@ -50,7 +50,13 @@ export type ConfirmPaymentComplianceResponse = {
   }
 }
 
-export type SystemTaskStatus = 'pending' | 'running' | 'succeeded' | 'failed'
+export type SystemTaskStatus =
+  | 'pending'
+  | 'running'
+  | 'pause_requested'
+  | 'paused'
+  | 'succeeded'
+  | 'failed'
 
 export type SystemTask<
   TPayload = Record<string, unknown>,
@@ -93,6 +99,55 @@ export type LogCleanupTask = SystemTask<
   LogCleanupTaskState,
   LogCleanupTaskResult
 >
+
+export type SavingsLifetimeBackfillPayload = {
+  target: {
+    id: number
+    created_at: number
+    request_id: string
+  }
+  target_count: number
+  batch_size: number
+  price_snapshot_at: number
+  pricing_snapshot_hash: string
+  quota_per_unit_snapshot: number
+  usd_cny_rate_micros: number
+}
+
+export type SavingsLifetimeBackfillState = {
+  cursor: {
+    id: number
+    created_at: number
+    request_id: string
+  }
+  processed_count: number
+  estimated_count: number
+  skipped_count: number
+  ambiguous_cursor_count: number
+  progress: number
+}
+
+export type SavingsLifetimeBackfillResult = {
+  processed_count: number
+  estimated_count: number
+  skipped_count: number
+  ambiguous_cursor_count: number
+}
+
+export type SavingsLifetimeBackfillTask = SystemTask<
+  SavingsLifetimeBackfillPayload,
+  SavingsLifetimeBackfillState,
+  SavingsLifetimeBackfillResult
+>
+
+export type StartSavingsLifetimeBackfillResponse = {
+  success: boolean
+  message: string
+  data?: {
+    created: boolean
+    task: SavingsLifetimeBackfillTask
+  }
+}
 
 export type SystemTaskResponse<TTask = SystemTask | null> = {
   success: boolean
@@ -218,6 +273,7 @@ export type ModelSettings = {
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
   'tool_price_setting.prices': string
+  SavingsEstimateSetting: string
   TopupGroupRatio: string
   GroupRatio: string
   UserUsableGroups: string
@@ -273,6 +329,7 @@ export type BillingSettings = {
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
   'tool_price_setting.prices': string
+  SavingsEstimateSetting: string
   TopupGroupRatio: string
   GroupRatio: string
   UserUsableGroups: string

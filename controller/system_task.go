@@ -34,6 +34,62 @@ func CreateLogCleanupSystemTask(c *gin.Context) {
 	})
 }
 
+func CreateSavingsLifetimeBackfillTask(c *gin.Context) {
+	task, created, err := service.StartSavingsLifetimeBackfill()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"created": created,
+			"task":    task.ToResponse(),
+		},
+	})
+}
+
+func GetSavingsLifetimeBackfillTask(c *gin.Context) {
+	task, err := model.GetLatestSystemTask(model.SystemTaskTypeSavingsBackfill)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if task == nil {
+		common.ApiSuccess(c, nil)
+		return
+	}
+	common.ApiSuccess(c, task.ToResponse())
+}
+
+func PauseSavingsLifetimeBackfillTask(c *gin.Context) {
+	task, err := service.PauseSavingsLifetimeBackfill(c.Query("task_id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, task.ToResponse())
+}
+
+func ResumeSavingsLifetimeBackfillTask(c *gin.Context) {
+	task, err := service.ResumeSavingsLifetimeBackfill(c.Query("task_id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, task.ToResponse())
+}
+
+func RetrySavingsLifetimeBackfillTask(c *gin.Context) {
+	task, err := service.RetrySavingsLifetimeBackfill(c.Query("task_id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, task.ToResponse())
+}
+
 func GetCurrentSystemTask(c *gin.Context) {
 	taskType := c.Query("type")
 	if taskType == "" {

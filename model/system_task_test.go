@@ -74,6 +74,81 @@ func TestSystemTaskCreateAndActiveLifecycle(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSystemTaskPauseAndResumePreservesStateAndActiveKey(t *testing.T) {
+	truncateTables(t)
+	task, err := CreateSystemTask(SystemTaskTypeSavingsBackfill, testSystemTaskPayload{}, testSystemTaskState{})
+	require.NoError(t, err)
+	claimed, ok, err := ClaimSystemTask(task.ID, task.Type, "runner-pause", common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	requested, err := RequestSystemTaskPause(task.TaskID, task.Type)
+	require.NoError(t, err)
+	assert.Equal(t, SystemTaskStatusPauseRequested, requested.Status)
+	state := testSystemTaskState{Processed: 25, Progress: 50}
+	require.NoError(t, UpdateSystemTaskState(claimed.TaskID, "runner-pause", state))
+	require.NoError(t, CompleteSystemTaskPause(claimed.TaskID, "runner-pause"))
+
+	paused, err := GetSystemTaskByTaskID(task.TaskID)
+	require.NoError(t, err)
+	require.NotNil(t, paused)
+	assert.Equal(t, SystemTaskStatusPaused, paused.Status)
+	require.NotNil(t, paused.ActiveKey)
+	assert.Empty(t, paused.LockedBy)
+	var savedState testSystemTaskState
+	require.NoError(t, paused.DecodeState(&savedState))
+	assert.Equal(t, state, savedState)
+
+	resumed, err := ResumeSystemTask(task.TaskID, task.Type)
+	require.NoError(t, err)
+	assert.Equal(t, SystemTaskStatusPending, resumed.Status)
+	claimedAgain, ok, err := ClaimSystemTask(task.ID, task.Type, "runner-resume", common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.NoError(t, FinishSystemTask(claimedAgain.TaskID, "runner-resume", SystemTaskStatusSucceeded, nil, ""))
+}
+
+func TestSystemTaskCanPauseBeforeClaim(t *testing.T) {
+	truncateTables(t)
+	task, err := CreateSystemTask(SystemTaskTypeSavingsBackfill, nil, nil)
+	require.NoError(t, err)
+
+	paused, err := RequestSystemTaskPause(task.TaskID, task.Type)
+	require.NoError(t, err)
+	assert.Equal(t, SystemTaskStatusPaused, paused.Status)
+	_, ok, err := ClaimSystemTask(task.ID, task.Type, "runner", common.GetTimestamp()+60)
+	require.NoError(t, err)
+	assert.False(t, ok)
+
+	_, err = ResumeSystemTask(task.TaskID, task.Type)
+	require.NoError(t, err)
+}
+
+func TestRetryFailedSystemTaskPreservesPayloadAndState(t *testing.T) {
+	truncateTables(t)
+	payload := testSystemTaskPayload{TargetTimestamp: 123, BatchSize: 500}
+	state := testSystemTaskState{Processed: 50, Progress: 25}
+	task, err := CreateSystemTask(SystemTaskTypeSavingsBackfill, payload, state)
+	require.NoError(t, err)
+	claimed, ok, err := ClaimSystemTask(task.ID, task.Type, "runner-failed", common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.NoError(t, FinishSystemTask(claimed.TaskID, "runner-failed", SystemTaskStatusFailed, nil, "database error"))
+
+	retried, err := RetryFailedSystemTask(task.TaskID, task.Type)
+
+	require.NoError(t, err)
+	assert.Equal(t, SystemTaskStatusPending, retried.Status)
+	require.NotNil(t, retried.ActiveKey)
+	assert.Empty(t, retried.Error)
+	var decodedPayload testSystemTaskPayload
+	var decodedState testSystemTaskState
+	require.NoError(t, retried.DecodePayload(&decodedPayload))
+	require.NoError(t, retried.DecodeState(&decodedState))
+	assert.Equal(t, payload, decodedPayload)
+	assert.Equal(t, state, decodedState)
+}
+
 func TestSystemTaskActiveKeyPreventsDuplicateActiveRun(t *testing.T) {
 	truncateTables(t)
 

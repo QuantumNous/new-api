@@ -21,6 +21,10 @@ import { api } from '@/lib/api'
 import type {
   FlowQuotaDataItem,
   QuotaDataItem,
+  SavingsSummary,
+  SavingsLifetimeSummary,
+  SavingsTrend,
+  SavingsTrendGranularity,
   UptimeGroupResult,
 } from './types'
 
@@ -48,6 +52,38 @@ export async function getUserQuotaDates(
     endpoint,
     { params }
   )
+  return res.data
+}
+
+export async function getUserSavingsSummary(params: {
+  start_timestamp: number
+  end_timestamp: number
+}) {
+  const res = await api.get<{ success: boolean; data: SavingsSummary }>(
+    '/api/user/savings/summary',
+    { params }
+  )
+  return res.data
+}
+
+export async function getUserSavingsTrend(params: {
+  start_timestamp: number
+  end_timestamp: number
+  granularity: SavingsTrendGranularity
+  utc_offset_minutes: number
+}) {
+  const res = await api.get<{ success: boolean; data: SavingsTrend }>(
+    '/api/user/savings/trend',
+    { params }
+  )
+  return res.data
+}
+
+export async function getUserSavingsLifetime() {
+  const res = await api.get<{
+    success: boolean
+    data: SavingsLifetimeSummary
+  }>('/api/user/savings/lifetime')
   return res.data
 }
 

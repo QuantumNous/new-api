@@ -24,6 +24,17 @@ common.already_exists: "已存在"
 common.name_cannot_be_empty: "名稱不能為空"
 common.batch_too_many: "批次請求數量過多，最多 {{.Max}} 條"
 
+# 節省金額估算訊息
+savings.time_range_required: "必須傳入開始和結束時間"
+savings.utc_offset_required: "必須傳入時區偏移"
+savings.utc_offset_invalid: "時區偏移無效"
+savings.end_after_now: "結束時間不能晚於目前時間"
+savings.time_range_invalid: "時間範圍無效"
+savings.time_range_too_large: "時間範圍過大，請縮小時間範圍"
+savings.hour_range_too_large: "小時粒度最多查詢 48 小時"
+savings.granularity_invalid: "趨勢粒度無效"
+savings.too_many_buckets: "趨勢時間桶過多，請縮小時間範圍"
+
 # Auth middleware messages
 auth.not_logged_in: "無權進行此操作，未登入且未提供 access token"
 auth.access_token_invalid: "無權進行此操作，access token 無效"

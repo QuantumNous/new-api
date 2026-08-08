@@ -55,6 +55,7 @@ var (
 	// 缓存映射：模型名 -> 启用分组 / 计费类型
 	modelEnableGroups     = make(map[string][]string)
 	modelQuotaTypeMap     = make(map[string]int)
+	modelPricingMap       = make(map[string]Pricing)
 	modelEnableGroupsLock = sync.RWMutex{}
 )
 
@@ -77,6 +78,14 @@ func GetPricing() []Pricing {
 	return pricingMap
 }
 
+func GetPricingByModel(modelName string) (Pricing, bool) {
+	GetPricing()
+	modelEnableGroupsLock.RLock()
+	defer modelEnableGroupsLock.RUnlock()
+	pricing, ok := modelPricingMap[modelName]
+	return pricing, ok
+}
+
 func InvalidatePricingCache() {
 	updatePricingLock.Lock()
 	defer updatePricingLock.Unlock()
@@ -84,6 +93,9 @@ func InvalidatePricingCache() {
 	pricingMap = nil
 	vendorsList = nil
 	lastGetPricingTime = time.Time{}
+	modelEnableGroupsLock.Lock()
+	modelPricingMap = make(map[string]Pricing)
+	modelEnableGroupsLock.Unlock()
 }
 
 // GetVendors 返回当前定价接口使用到的供应商信息
@@ -418,9 +430,11 @@ func updatePricing() {
 	modelEnableGroupsLock.Lock()
 	modelEnableGroups = make(map[string][]string)
 	modelQuotaTypeMap = make(map[string]int)
+	modelPricingMap = make(map[string]Pricing)
 	for _, p := range pricingMap {
 		modelEnableGroups[p.ModelName] = p.EnableGroup
 		modelQuotaTypeMap[p.ModelName] = p.QuotaType
+		modelPricingMap[p.ModelName] = p
 	}
 	modelEnableGroupsLock.Unlock()
 
