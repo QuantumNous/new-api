@@ -397,24 +397,24 @@ func (s *ResponsesToChatStreamState) toolDelta(tool *responsesStreamTool, explic
 	}
 
 	chunks := s.ensureStart()
-	callID := strings.TrimSpace(tool.CallID)
-	if callID == "" {
-		callID = tool.Key
-	}
 	responseTool := dto.ToolCallResponse{
-		ID:   callID,
-		Type: "function",
 		Function: dto.FunctionResponse{
 			Arguments: argsDelta,
 		},
 	}
 	responseTool.SetIndex(tool.Index)
+	if !tool.Sent {
+		callID := strings.TrimSpace(tool.CallID)
+		if callID == "" {
+			callID = tool.Key
+		}
+		responseTool.ID = callID
+		responseTool.Type = "function"
+		tool.Sent = true
+	}
 	if !tool.NameSent && tool.Name != "" {
 		responseTool.Function.Name = tool.Name
 		tool.NameSent = true
-	}
-	if !tool.Sent {
-		tool.Sent = true
 	}
 	if argsDelta != "" {
 		tool.ArgsSentAt += len(argsDelta)
