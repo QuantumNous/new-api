@@ -283,6 +283,14 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		}
 		shouldAttachThoughtSignature := (message.Role == "assistant" || message.Role == "model") && sharedgemini.ShouldAttachThoughtSignature(opts)
 		signatureAttached := false
+		if (message.Role == "assistant" || message.Role == "model") && message.GetReasoningContent() != "" {
+			// Replayed reasoning becomes a thought part ahead of any function_call,
+			// mirroring the model-turn shape Gemini returns.
+			parts = append(parts, dto.GeminiPart{
+				Text:    message.GetReasoningContent(),
+				Thought: true,
+			})
+		}
 		if message.ToolCalls != nil {
 			for _, call := range message.ParseToolCalls() {
 				args := map[string]interface{}{}

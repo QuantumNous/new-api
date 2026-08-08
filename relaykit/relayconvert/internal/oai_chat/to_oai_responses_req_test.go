@@ -2,6 +2,7 @@ package oaichat
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -73,6 +74,88 @@ func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *
 			assert.Equal(t, tt.want, value.Int())
 		})
 	}
+}
+
+func TestChatCompletionsRequestToResponsesRequestPreservesAssistantReasoning(t *testing.T) {
+	reasoning := "需要先定位城市，再调用天气接口"
+
+	newAssistantMsg := func() dto.Message {
+		msg := dto.Message{Role: "assistant", ReasoningContent: lo.ToPtr(reasoning)}
+		msg.SetToolCalls([]dto.ToolCallRequest{
+			{
+				ID:   "call_1",
+				Type: "function",
+				Function: dto.FunctionRequest{
+					Name:      "get_weather",
+					Arguments: `{}`,
+				},
+			},
+		})
+		return msg
+	}
+
+	t.Run("reasoning with tool calls", func(t *testing.T) {
+		got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+			Model: "gpt-test",
+			Messages: []dto.Message{
+				{Role: "user", Content: "查天气"},
+				newAssistantMsg(),
+				{Role: "tool", ToolCallId: "call_1", Content: "晴"},
+				{Role: "user", Content: "继续"},
+			},
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, "user", gjson.GetBytes(got.Input, "0.role").String())
+		assert.Equal(t, "reasoning", gjson.GetBytes(got.Input, "1.type").String())
+		assert.True(t, strings.HasPrefix(gjson.GetBytes(got.Input, "1.id").String(), "rs_"))
+		assert.Equal(t, "summary_text", gjson.GetBytes(got.Input, "1.summary.0.type").String())
+		assert.Equal(t, reasoning, gjson.GetBytes(got.Input, "1.summary.0.text").String())
+		assert.Equal(t, "assistant", gjson.GetBytes(got.Input, "2.role").String())
+		assert.Equal(t, "function_call", gjson.GetBytes(got.Input, "3.type").String())
+		assert.Equal(t, "call_1", gjson.GetBytes(got.Input, "3.call_id").String())
+		assert.Equal(t, "function_call_output", gjson.GetBytes(got.Input, "4.type").String())
+		assert.Equal(t, "user", gjson.GetBytes(got.Input, "5.role").String())
+	})
+
+	t.Run("reasoning with text content", func(t *testing.T) {
+		msg := dto.Message{Role: "assistant", Content: "已查到结果", ReasoningContent: lo.ToPtr(reasoning)}
+		got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+			Model:    "gpt-test",
+			Messages: []dto.Message{msg},
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, "reasoning", gjson.GetBytes(got.Input, "0.type").String())
+		assert.Equal(t, reasoning, gjson.GetBytes(got.Input, "0.summary.0.text").String())
+		assert.Equal(t, "assistant", gjson.GetBytes(got.Input, "1.role").String())
+		assert.Equal(t, "已查到结果", gjson.GetBytes(got.Input, "1.content").String())
+	})
+
+	t.Run("reasoning alias field", func(t *testing.T) {
+		msg := dto.Message{Role: "assistant", Content: "ok", Reasoning: lo.ToPtr(reasoning)}
+		got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+			Model:    "gpt-test",
+			Messages: []dto.Message{msg},
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, "reasoning", gjson.GetBytes(got.Input, "0.type").String())
+		assert.Equal(t, reasoning, gjson.GetBytes(got.Input, "0.summary.0.text").String())
+	})
+
+	t.Run("user message reasoning is not emitted", func(t *testing.T) {
+		msg := dto.Message{Role: "user", Content: "hi", ReasoningContent: lo.ToPtr(reasoning)}
+		got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+			Model:    "gpt-test",
+			Messages: []dto.Message{msg},
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, "user", gjson.GetBytes(got.Input, "0.role").String())
+		assert.Equal(t, "", gjson.GetBytes(got.Input, "0.type").String())
+		assert.Equal(t, "", gjson.GetBytes(got.Input, "1.type").String())
+	})
 }
 
 func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testing.T) {

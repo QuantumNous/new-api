@@ -18,6 +18,10 @@
       "role": "model",
       "parts": [
         {
+          "text": "Let me look.",
+          "thought": true
+        },
+        {
           "functionCall": {
             "name": "get_weather",
             "args": {

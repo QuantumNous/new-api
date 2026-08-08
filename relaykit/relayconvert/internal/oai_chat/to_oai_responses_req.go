@@ -73,6 +73,23 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 	return textRaw
 }
 
+// chatReasoningToResponsesInputItem converts replayed assistant reasoning
+// (reasoning_content in chat history) into a Responses reasoning input item.
+// The summary array carries the text, matching the shape OpenAI returns and
+// clients replay.
+func chatReasoningToResponsesInputItem(reasoning string) map[string]any {
+	if reasoning == "" {
+		return nil
+	}
+	return map[string]any{
+		"type": "reasoning",
+		"id":   fmt.Sprintf("rs_%s", kitutil.GetUUID()),
+		"summary": []map[string]any{
+			{"type": "summary_text", "text": reasoning},
+		},
+	}
+}
+
 func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
 	if req == nil {
 		return nil, errors.New("request is nil")
@@ -150,6 +167,15 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 				instructionsParts = append(instructionsParts, s)
 			}
 			continue
+		}
+
+		// Replay assistant reasoning as its own input item before the
+		// message/function_call items, so reasoning-capable upstream models keep
+		// multi-turn tool-call context.
+		if role == "assistant" {
+			if reasoningItem := chatReasoningToResponsesInputItem(msg.GetReasoningContent()); reasoningItem != nil {
+				inputItems = append(inputItems, reasoningItem)
+			}
 		}
 
 		item := map[string]any{
