@@ -1,0 +1,120 @@
+name: Feature
+description: 新的 new-api 能力或用户可见工作流改进
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **填写规范（人和自动化 Agent 都必须遵守）**
+
+        - 模板名称和类型 label 使用英文；Issue 标题不要求固定前缀，可用自然的简短标题。
+        - Issue 正文使用中文，按下面字段填写，不要粘贴未经整理的 Agent 输出或思考过程。
+        - 一个 Issue 只描述一个主要结果；较大的工作可以拆成子 Issue。
+        - 不要包含 API key、token、生产环境主机清单、用户数据或未脱敏日志。
+        - 这是 Feature 模板；回归问题使用 Bug，内部重构、CI、文档或设计决策使用 Task / Refactor / Decision。
+
+        **提交前检查**
+
+        - 已搜索已有 Issue，并确认不是重复提议。
+        - 已明确用户场景和可观察的完成标准。
+        - 如果是多 PR 工作，已选择对应范围并说明最终结果。
+
+        **填写要求**
+
+        - 必填字段必须完成。
+        - 推荐字段只在适用时填写。
+        - 不要发布空的额外标题。
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## 必填信息
+        请完成下面所有字段。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: 功能上线后应该存在什么具体能力或行为？
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Problem / use case
+      description: 谁在当前流程中受阻？现有能力为什么不够？
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: 用可观察的验收条件描述完成结果；不要只写“代码完成”。
+      placeholder: |
+        - [ ]
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: 这个 Issue 需要几个 PR 完成？
+      options:
+        - 单个 PR：一个 PR 关闭本 Issue
+        - 多个 PR：拆分子 Issue，每个子 Issue 由对应 PR 关闭
+      default: 0
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## 推荐补充
+        只填写有助于评审方案的字段；不要粘贴密钥。
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: 明确不应顺带纳入的 API、协议、部署或架构改动。
+    validations:
+      required: false
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed approach
+      description: 填写高层方案即可，不要在 Issue 中写完整实现计划。
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: 填写被拒绝的设计或当前 workaround。
+    validations:
+      required: false
+
+  - type: textarea
+    id: area
+    attributes:
+      label: Area
+      description: 填写负责该变化的 package、workflow、provider、页面或部署区域。
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: 填写链接、先例、截图或脱敏说明。
+    validations:
+      required: false

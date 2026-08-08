@@ -1,0 +1,110 @@
+name: Task / Refactor / Decision
+description: 内部重构、CI、文档、性能工作或设计决策
+labels: ["chore"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **填写规范（人和自动化 Agent 都必须遵守）**
+
+        - 模板名称和类型 label 使用英文；Issue 标题不要求固定前缀，可用自然的简短标题。
+        - Issue 正文使用中文，按下面字段填写，不要粘贴未经整理的 Agent 输出或思考过程。
+        - 一个 Issue 只描述一个主要结果；较大的工作可以拆成子 Issue。
+        - 不要包含 API key、token、生产环境主机清单、用户数据或未脱敏日志。
+        - 这是内部工作模板：重构、CI、文档、性能、chore 和设计决策都使用它。
+
+        **提交前检查**
+
+        - 已明确这个 Issue 要解决的目标，而不是只描述“整理一下”。
+        - 已写出可观察的完成标准。
+        - 如果是多 PR 工作，已选择对应范围并说明最终结果。
+
+        **填写要求**
+
+        - 必填字段必须完成。
+        - 推荐字段只在适用时填写。
+        - 不要发布空的额外标题。
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## 必填信息
+        请完成下面所有字段。
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      placeholder: |
+        - [ ]
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: 这个 Issue 需要几个 PR 完成？
+      options:
+        - 单个 PR：一个 PR 关闭本 Issue
+        - 多个 PR：拆分子 Issue，每个子 Issue 由对应 PR 关闭
+      default: 0
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## 推荐补充
+        只填写有助于做出或评审决策的字段；不要粘贴密钥。
+
+  - type: textarea
+    id: background
+    attributes:
+      label: Background
+      description: 填写为什么现在做、之前的决定或理解目标所需的链接。
+    validations:
+      required: false
+
+  - type: textarea
+    id: out
+    attributes:
+      label: Out of scope
+      description: 明确不应顺带纳入的工作。
+    validations:
+      required: false
+
+  - type: textarea
+    id: observe
+    attributes:
+      label: How to observe success
+      description: 填写命令、页面状态、文件结构、CI job、指标或前后对比结果。
+    validations:
+      required: false
+
+  - type: textarea
+    id: suspected
+    attributes:
+      label: Suspected areas
+      description: 填写相关文件、package、符号、workflow 或文档；不确定时留空。
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: 填写无法放入上述字段的链接或脱敏说明。
+    validations:
+      required: false

@@ -1,0 +1,169 @@
+name: Bug
+description: 可复现的 new-api 故障或回归问题
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **填写规范（人和自动化 Agent 都必须遵守）**
+
+        - 模板名称和类型 label 使用英文；Issue 标题不要求固定前缀，可用自然的简短标题。
+        - Issue 正文使用中文，按下面字段填写，不要粘贴未经整理的 Agent 输出或思考过程。
+        - 一个 Issue 只描述一个主要结果；较大的工作可以拆成子 Issue。
+        - 不要包含 API key、token、生产环境主机清单、用户数据或未脱敏日志。
+        - 这是 Bug 模板；新功能使用 Feature，内部重构、CI、文档或设计决策使用 Task / Refactor / Decision。
+
+        **提交前检查**
+
+        - 已搜索已有 Issue，并在“相关 Issue”中说明相近但不同的问题。
+        - 已准备可复现步骤和完整环境信息。
+        - 如果是 fork 或下游部署特有的问题，已在未修改的 new-api 版本中复现或说明无法复现的原因。
+
+        **填写要求**
+
+        - 必填字段必须完成。
+        - 推荐字段只在适用时填写。
+        - 不要发布空的额外标题。
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## 必填信息
+        请完成下面所有字段。
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: 这是可复现的故障或回归问题，不是功能提议或使用咨询。
+          required: true
+        - label: 我已搜索已有 Issue，并会在“相关 Issue”中说明相近问题。
+          required: true
+        - label: 我已删除报告中的密钥、敏感配置、用户数据和生产环境信息。
+          required: true
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: 具体描述什么坏了、为什么重要，以及影响范围。
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: 写出最短且准确的复现步骤；必要时包含命令、端点、模型和输入。
+      placeholder: |
+        1.
+        2.
+        3.
+        4. 观察到……
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: 应该发生什么，以及什么情况不能算成功。
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: 实际输出、状态码、页面状态或错误信息。
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: 提供足够复现问题的环境信息。
+      value: |
+        - 项目版本或 commit：
+        - 工作区 / 分支：
+        - 部署方式：源码 / Docker / 其他：
+        - 操作系统 / 架构：
+        - Go 版本：
+        - 浏览器及版本（仅前端问题）：
+        - 数据库及版本：
+        - 命令、端点、模型或相关参数：
+        - 配置或 fixture（已脱敏）：
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## 推荐补充
+        只填写有助于复现和定位问题的字段；不要粘贴密钥。
+
+  - type: textarea
+    id: error-output
+    attributes:
+      label: Error output
+      description: 可填写 traceback、命令错误、CI 日志、浏览器 Console 或服务端日志。
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: 谁会受影响、发生频率，以及是否有临时规避方案。
+    validations:
+      required: false
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: 可填写指标、截图、请求响应对比或重复复现结果。
+    validations:
+      required: false
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related issues
+      description: 填写相近问题，或说明为什么本 Issue 与它相关但不是重复。
+      placeholder: |
+        相关但不同：#…
+        不是 #… 的重复问题，因为……
+    validations:
+      required: false
+
+  - type: textarea
+    id: suspected
+    attributes:
+      label: Suspected code paths
+      description: 填写已经检查过的文件、package、符号或 workflow；不确定时留空。
+    validations:
+      required: false
+
+  - type: textarea
+    id: regression
+    attributes:
+      label: Suggested regression coverage
+      description: 可填写能够防止问题再次出现的最小测试或 smoke command。
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: 填写无法放入上述字段的链接或脱敏说明。
+    validations:
+      required: false
