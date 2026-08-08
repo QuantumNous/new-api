@@ -59,6 +59,14 @@ func TestAssetMaterializeRetryAfterCapsNumericValueBeforeDurationConversion(t *t
 	require.Equal(t, 24*time.Hour, parseAssetMaterializeRetryAfter("9223372036854775807", now))
 }
 
+func TestAssetMaterializeRetryAfterCapsPositiveNumericOverflow(t *testing.T) {
+	now := time.Date(2026, 8, 8, 1, 0, 0, 0, time.UTC)
+
+	require.Equal(t, 24*time.Hour, parseAssetMaterializeRetryAfter("999999999999999999999999999999", now))
+	require.Zero(t, parseAssetMaterializeRetryAfter("-999999999999999999999999999999", now))
+	require.Zero(t, parseAssetMaterializeRetryAfter("999999999999999999999999999999x", now))
+}
+
 func TestAssetMaterializeRetryAfterCapsFarFutureHTTPDate(t *testing.T) {
 	now := time.Date(2026, 8, 8, 1, 0, 0, 0, time.UTC)
 	farFuture := now.Add(90 * 24 * time.Hour).Format(http.TimeFormat)

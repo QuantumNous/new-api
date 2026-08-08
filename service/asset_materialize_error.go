@@ -109,6 +109,11 @@ func parseAssetMaterializeRetryAfter(value string, now time.Time) time.Duration 
 			return assetMaterializeMaxRetryAfter
 		}
 		return time.Duration(seconds) * time.Second
+	} else {
+		var numErr *strconv.NumError
+		if errors.As(err, &numErr) && errors.Is(numErr.Err, strconv.ErrRange) && isPositiveDecimalDigits(value) {
+			return assetMaterializeMaxRetryAfter
+		}
 	}
 	when, err := http.ParseTime(value)
 	if err != nil {
@@ -122,6 +127,18 @@ func parseAssetMaterializeRetryAfter(value string, now time.Time) time.Duration 
 		return assetMaterializeMaxRetryAfter
 	}
 	return delay
+}
+
+func isPositiveDecimalDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func isNetTimeout(err error) bool {
