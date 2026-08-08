@@ -151,6 +151,10 @@ func writeReconciledAssetResult(c *gin.Context, result *service.AssetResult, err
 	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
 	scope, scopeErr := resolveAssetModelScopeForContext(c, userID)
 	if scopeErr != nil {
+		if isInternalAssetServiceError(scopeErr) {
+			writeAssetResult(c, fallbackAssetResultAfterReconcileError(result), nil)
+			return
+		}
 		writeAssetServiceError(c, scopeErr)
 		return
 	}

@@ -410,6 +410,100 @@ func TestGetAssetReconcileFailureReturnsPublicIDAndStillReconciles(t *testing.T)
 	requireAssetFallbackProcessingResponse(t, recorder, "ast_reconcile_get", "Image")
 }
 
+func TestCompleteAssetUploadScopeResolveInternalErrorReturnsPublicID(t *testing.T) {
+	originalComplete := completeAssetUpload
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		completeAssetUpload = originalComplete
+		resolveAssetModelScopeForContext = originalResolve
+	})
+
+	completeAssetUpload = func(ctx context.Context, request service.AssetCompleteUploadRequest) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: "ast_scope_complete", AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		return service.AssetModelScope{}, errors.New("scope database unavailable")
+	}
+
+	ctx, recorder := newAssetJSONContext(http.MethodPost, "/v1/assets/uploads/upl_scope/complete", `{}`)
+	ctx.Params = gin.Params{{Key: "upload_id", Value: "upl_scope"}}
+	setAssetTokenContext(ctx, 123)
+	CompleteAssetUpload(ctx)
+
+	requireAssetFallbackProcessingResponse(t, recorder, "ast_scope_complete", "Image")
+}
+
+func TestGetAssetScopeResolveInternalErrorReturnsPublicID(t *testing.T) {
+	originalGet := getAsset
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		getAsset = originalGet
+		resolveAssetModelScopeForContext = originalResolve
+	})
+
+	getAsset = func(ctx context.Context, userID int, assetID string) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: assetID, AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		return service.AssetModelScope{}, errors.New("scope database unavailable")
+	}
+
+	ctx, recorder := newAssetJSONContext(http.MethodGet, "/v1/assets/ast_scope_get", "")
+	ctx.Params = gin.Params{{Key: "asset_id", Value: "ast_scope_get"}}
+	setAssetTokenContext(ctx, 123)
+	GetAsset(ctx)
+
+	requireAssetFallbackProcessingResponse(t, recorder, "ast_scope_get", "Image")
+}
+
+func TestCompleteAssetUploadScopeResolveInvalidSpecificChannelReturns400(t *testing.T) {
+	originalComplete := completeAssetUpload
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		completeAssetUpload = originalComplete
+		resolveAssetModelScopeForContext = originalResolve
+	})
+
+	completeAssetUpload = func(ctx context.Context, request service.AssetCompleteUploadRequest) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: "ast_scope_complete_4xx", AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		return service.AssetModelScope{}, service.ErrAssetInvalidSpecificChannel
+	}
+
+	ctx, recorder := newAssetJSONContext(http.MethodPost, "/v1/assets/uploads/upl_scope_4xx/complete", `{}`)
+	ctx.Params = gin.Params{{Key: "upload_id", Value: "upl_scope_4xx"}}
+	setAssetTokenContext(ctx, 123)
+	CompleteAssetUpload(ctx)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	requireAssetError(t, recorder.Body.Bytes(), "invalid_asset_request")
+}
+
+func TestGetAssetScopeResolveInvalidSpecificChannelReturns400(t *testing.T) {
+	originalGet := getAsset
+	originalResolve := resolveAssetModelScopeForContext
+	t.Cleanup(func() {
+		getAsset = originalGet
+		resolveAssetModelScopeForContext = originalResolve
+	})
+
+	getAsset = func(ctx context.Context, userID int, assetID string) (*service.AssetResult, error) {
+		return &service.AssetResult{PublicID: assetID, AssetType: "Image", Status: model.AssetStatusActive}, nil
+	}
+	resolveAssetModelScopeForContext = func(c *gin.Context, userID int) (service.AssetModelScope, error) {
+		return service.AssetModelScope{}, service.ErrAssetInvalidSpecificChannel
+	}
+
+	ctx, recorder := newAssetJSONContext(http.MethodGet, "/v1/assets/ast_scope_get_4xx", "")
+	ctx.Params = gin.Params{{Key: "asset_id", Value: "ast_scope_get_4xx"}}
+	setAssetTokenContext(ctx, 123)
+	GetAsset(ctx)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	requireAssetError(t, recorder.Body.Bytes(), "invalid_asset_request")
+}
+
 func TestUploadAssetInfersTypeAndMapsMissingFile(t *testing.T) {
 	originalUpload := uploadAsset
 	restoreReconcile := installAssetControllerReconcileStub(t)
