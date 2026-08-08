@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/mail"
 	"strconv"
@@ -15,6 +16,8 @@ import (
 )
 
 const recallLifecycleLeaseTTL = 5 * time.Minute
+
+var errRecallLifecycleFenceLost = errors.New("recall lifecycle lease fence lost")
 
 type RecallLifecycleWorker struct {
 	owner string
@@ -61,6 +64,9 @@ func (w *RecallLifecycleWorker) RunBatch(ctx context.Context, limit int) (int, e
 		}
 		created, err := w.enrollClaimedEvent(ctx, *claimed)
 		if err != nil {
+			if errors.Is(err, errRecallLifecycleFenceLost) {
+				continue
+			}
 			deferred, deferErr := model.DeferRecallLifecycleEvent(ctx, model.RecallLifecycleEventDeferral{
 				EventID:              claimed.Id,
 				Owner:                w.owner,
@@ -135,8 +141,14 @@ func (w *RecallLifecycleWorker) enrollClaimedEvent(ctx context.Context, claimed 
 			if !complete {
 				return skipRecallLifecycleEventTx(tx, event, w.owner, "lifecycle_recipient_inconsistent", dbNow)
 			}
-			_, err = resolveRecallLifecycleEventTx(tx, event, w.owner, stored.CampaignId, stored.Id, dbNow)
-			return err
+			resolved, err := resolveRecallLifecycleEventTx(tx, event, w.owner, stored.CampaignId, stored.Id, dbNow)
+			if err != nil {
+				return err
+			}
+			if !resolved {
+				return errRecallLifecycleFenceLost
+			}
+			return nil
 		}
 		message.RecipientId = stored.Id
 		if err := model.CreateRecallMessagesWithStateEventsTx(tx, stored.CampaignId, []model.RecallMessage{message}, dbNow); err != nil {
@@ -152,6 +164,9 @@ func (w *RecallLifecycleWorker) enrollClaimedEvent(ctx context.Context, claimed 
 		resolved, err := resolveRecallLifecycleEventTx(tx, event, w.owner, stored.CampaignId, stored.Id, dbNow)
 		if err != nil {
 			return err
+		}
+		if !resolved {
+			return errRecallLifecycleFenceLost
 		}
 		if resolved && insertResult.RowsAffected == 1 {
 			created = true
@@ -282,8 +297,8 @@ func recallLifecycleExistingEnrollmentCompleteTx(tx *gorm.DB, stored model.Recal
 	}
 	var stateEvents int64
 	if err := tx.Model(&model.RecallEvent{}).
-		Where("campaign_id = ? AND recipient_id = ? AND message_id = ? AND event_type = ? AND source = ?",
-			stored.CampaignId, stored.Id, message.Id, "message_state_changed", "message_state").
+		Where("campaign_id = ? AND recipient_id = ? AND message_id = ? AND event_type = ? AND source = ? AND source_event_id = ?",
+			stored.CampaignId, stored.Id, message.Id, "message_state_changed", "message_state", fmt.Sprintf("%d:1", message.Id)).
 		Count(&stateEvents).Error; err != nil {
 		return false, err
 	}
@@ -360,7 +375,13 @@ func skipRecallLifecycleEventTx(tx *gorm.DB, event model.RecallLifecycleEvent, o
 			"lease_owner":             "",
 			"lease_expires_at":        int64(0),
 		})
-	return result.Error
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return errRecallLifecycleFenceLost
+	}
+	return nil
 }
 
 func recallLifecycleEnrollmentErrorCode(err error) string {

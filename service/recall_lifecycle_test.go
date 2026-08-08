@@ -155,6 +155,52 @@ func TestRecallLifecycleRetryTransientEnrollmentDefersAndContinuesBatch(t *testi
 	require.Equal(t, model.RecallLifecycleEventEnrolled, goodEvent.Disposition)
 }
 
+func TestRecallLifecycleResolveRollbackAfterMessageInsertLeaseTakeover(t *testing.T) {
+	setupRecallLifecycleServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignRunning, 100)
+	event := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 603, 120, 120, `{}`)
+	stealRecallLifecycleLeaseBeforeFinalUpdateOnce(t, event.Id, "node-b")
+
+	enrolled, err := NewRecallLifecycleWorker("node-a").RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, enrolled)
+
+	var recipients, messages, stateEvents int64
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Count(&recipients).Error)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Count(&messages).Error)
+	require.NoError(t, model.DB.Model(&model.RecallEvent{}).Count(&stateEvents).Error)
+	require.Zero(t, recipients)
+	require.Zero(t, messages)
+	require.Zero(t, stateEvents)
+
+	var stolen model.RecallLifecycleEvent
+	require.NoError(t, model.DB.First(&stolen, event.Id).Error)
+	require.Equal(t, model.RecallLifecycleEventLeased, stolen.Disposition)
+	require.Equal(t, "node-a", stolen.LeaseOwner)
+	require.EqualValues(t, 1, stolen.LeaseEpoch)
+
+	require.NoError(t, model.DB.Model(&model.RecallLifecycleEvent{}).
+		Where("id = ?", event.Id).
+		Updates(map[string]any{
+			"disposition":      model.RecallLifecycleEventPending,
+			"lease_owner":      "",
+			"lease_expires_at": int64(0),
+			"next_attempt_at":  int64(0),
+		}).Error)
+
+	enrolled, err = NewRecallLifecycleWorker("node-b").RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, enrolled)
+
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Count(&recipients).Error)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Count(&messages).Error)
+	require.NoError(t, model.DB.Model(&model.RecallEvent{}).Count(&stateEvents).Error)
+	require.EqualValues(t, 1, recipients)
+	require.EqualValues(t, 1, messages)
+	require.EqualValues(t, 1, stateEvents)
+}
+
 func TestRecallLifecycleReplacementConflictHalfFinishedDoesNotCreateOldCampaignMessage(t *testing.T) {
 	setupRecallLifecycleServiceTestDB(t)
 	setRecallCampaignEnabled(t, true)
@@ -209,6 +255,65 @@ func TestRecallLifecycleReplacementConflictCompleteIdempotentRecovery(t *testing
 	require.Equal(t, model.RecallLifecycleEventEnrolled, stored.Disposition)
 	require.Equal(t, oldCampaign.Id, stored.CampaignId)
 	require.Equal(t, recipient.Id, stored.RecipientId)
+}
+
+func TestRecallLifecycleReplacementConflictCompleteWithLaterStateEventRecovers(t *testing.T) {
+	setupRecallLifecycleServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, oldCampaign := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignCancelled, 100)
+	_, replacement := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignRunning, 100)
+	require.NoError(t, model.DB.Model(&model.RecallContinuousTriggerSlot{}).
+		Where("trigger = ?", model.RecallLifecycleTriggerQuotaLow).
+		Update("campaign_id", replacement.Id).Error)
+	event := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 703, 120, 120, `{}`)
+	recipient := createRecallLifecycleExistingRecipient(t, oldCampaign.Id, event)
+	message := createRecallLifecycleExistingStageOne(t, oldCampaign.Id, recipient.Id)
+	createRecallLifecycleLaterStateEvent(t, oldCampaign.Id, recipient.Id, message.Id)
+
+	enrolled, err := NewRecallLifecycleWorker("node-a").RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, enrolled)
+
+	var recipients, messages int64
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Count(&recipients).Error)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Count(&messages).Error)
+	require.EqualValues(t, 1, recipients)
+	require.EqualValues(t, 1, messages)
+
+	var stored model.RecallLifecycleEvent
+	require.NoError(t, model.DB.First(&stored, event.Id).Error)
+	require.Equal(t, model.RecallLifecycleEventEnrolled, stored.Disposition)
+	require.Equal(t, oldCampaign.Id, stored.CampaignId)
+	require.Equal(t, recipient.Id, stored.RecipientId)
+}
+
+func TestRecallLifecycleReplacementConflictNonBaselineStateEventIsInconsistent(t *testing.T) {
+	setupRecallLifecycleServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, oldCampaign := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignCancelled, 100)
+	_, replacement := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignRunning, 100)
+	require.NoError(t, model.DB.Model(&model.RecallContinuousTriggerSlot{}).
+		Where("trigger = ?", model.RecallLifecycleTriggerQuotaLow).
+		Update("campaign_id", replacement.Id).Error)
+	event := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 704, 120, 120, `{}`)
+	recipient := createRecallLifecycleExistingRecipient(t, oldCampaign.Id, event)
+	message := createRecallLifecycleExistingStageOneWithoutBaseline(t, recipient.Id)
+	createRecallLifecycleLaterStateEvent(t, oldCampaign.Id, recipient.Id, message.Id)
+
+	enrolled, err := NewRecallLifecycleWorker("node-a").RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, enrolled)
+
+	var recipients, messages int64
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Count(&recipients).Error)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Count(&messages).Error)
+	require.EqualValues(t, 1, recipients)
+	require.EqualValues(t, 1, messages)
+
+	var stored model.RecallLifecycleEvent
+	require.NoError(t, model.DB.First(&stored, event.Id).Error)
+	require.Equal(t, model.RecallLifecycleEventSkipped, stored.Disposition)
+	require.Equal(t, "lifecycle_recipient_inconsistent", stored.DispositionReasonCode)
 }
 
 func TestRecallLifecycleEnrollmentLimitNonPositiveIsSafe(t *testing.T) {
@@ -314,6 +419,40 @@ func injectRecallRecipientCreateErrorOnce(t *testing.T, userID int, injectErr er
 	})
 }
 
+func stealRecallLifecycleLeaseBeforeFinalUpdateOnce(t *testing.T, eventID int64, owner string) {
+	t.Helper()
+	name := fmt.Sprintf("recall_lifecycle_test_lease_steal_%d", eventID)
+	messageName := fmt.Sprintf("recall_lifecycle_test_message_seen_%d", eventID)
+	triggered := false
+	messageInserted := false
+	require.NoError(t, model.DB.Callback().Create().After("gorm:create").Register(messageName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallMessage" {
+			return
+		}
+		messageInserted = true
+	}))
+	require.NoError(t, model.DB.Callback().Update().Before("gorm:update").Register(name, func(tx *gorm.DB) {
+		if triggered || tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallLifecycleEvent" {
+			return
+		}
+		if !messageInserted || tx.Statement.Clauses["WHERE"].Name == "" {
+			return
+		}
+		triggered = true
+		tx.Session(&gorm.Session{NewDB: true, SkipHooks: true}).
+			Model(&model.RecallLifecycleEvent{}).
+			Where("id = ?", eventID).
+			Updates(map[string]any{
+				"lease_owner": owner,
+				"lease_epoch": gorm.Expr("lease_epoch + ?", 1),
+			})
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Update().Remove(name))
+		require.NoError(t, model.DB.Callback().Create().Remove(messageName))
+	})
+}
+
 func createRecallLifecycleExistingRecipient(t *testing.T, campaignID int64, event model.RecallLifecycleEvent) model.RecallRecipient {
 	t.Helper()
 	eventID := event.Id
@@ -351,4 +490,40 @@ func createRecallLifecycleExistingStageOne(t *testing.T, campaignID int64, recip
 	}))
 	require.NoError(t, model.DB.First(&message, "recipient_id = ? AND stage_no = ?", recipientID, 1).Error)
 	return message
+}
+
+func createRecallLifecycleExistingStageOneWithoutBaseline(t *testing.T, recipientID int64) model.RecallMessage {
+	t.Helper()
+	templateJSON, err := common.Marshal(map[string]RecallEmailTemplate{
+		"en": {Subject: "Notice", BodyText: "Body"},
+	})
+	require.NoError(t, err)
+	message := model.RecallMessage{
+		RecipientId:         recipientID,
+		StageNo:             1,
+		TemplateSnapshot:    string(templateJSON),
+		ScheduledAt:         120,
+		State:               model.RecallMessageScheduled,
+		TemplateVersion:     1,
+		StateVersion:        2,
+		PreSendAttemptCount: 0,
+	}
+	require.NoError(t, model.DB.Create(&message).Error)
+	return message
+}
+
+func createRecallLifecycleLaterStateEvent(t *testing.T, campaignID int64, recipientID int64, messageID int64) model.RecallEvent {
+	t.Helper()
+	event := model.RecallEvent{
+		CampaignId:    campaignID,
+		RecipientId:   recipientID,
+		MessageId:     messageID,
+		EventType:     "message_state_changed",
+		Source:        "message_state",
+		SourceEventId: fmt.Sprintf("%d:2", messageID),
+		EventData:     `{}`,
+		CreatedAt:     121,
+	}
+	require.NoError(t, model.DB.Create(&event).Error)
+	return event
 }
