@@ -31,14 +31,6 @@ import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
 import type { UpstreamChannel } from '../types'
 import {
@@ -235,27 +227,18 @@ export function ChannelSelectorDialog({
 
           return (
             <div className='flex min-w-0 items-center gap-2'>
-              <Select
-                items={ENDPOINT_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                }))}
+              <select
+                className='border-input bg-background h-8 w-32 shrink-0 rounded-md border px-2 text-sm'
                 value={endpointType}
-                onValueChange={(v) => v !== null && handleTypeChange(v)}
+                onChange={(e) => handleTypeChange(e.target.value)}
+                aria-label={t('Sync Endpoint')}
               >
-                <SelectTrigger className='h-8 w-32'>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {ENDPOINT_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+                {ENDPOINT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
               {endpointType === 'custom' && (
                 <Input
                   value={currentEndpoint}
