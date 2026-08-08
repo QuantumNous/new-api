@@ -1113,6 +1113,18 @@ func ManageUser(c *gin.Context) {
 		}
 	case "enable":
 		user.Status = common.UserStatusEnabled
+	case "forbid_recharge":
+		user.QuotaForbidden = true
+		if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota_forbidden", true).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	case "allow_recharge":
+		user.QuotaForbidden = false
+		if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota_forbidden", false).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	case "delete":
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDeleteRootUser)
@@ -1251,8 +1263,9 @@ func ManageUser(c *gin.Context) {
 		"id":       user.Id,
 	})
 	clearUser := model.User{
-		Role:   user.Role,
-		Status: user.Status,
+		Role:           user.Role,
+		Status:         user.Status,
+		QuotaForbidden: user.QuotaForbidden,
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

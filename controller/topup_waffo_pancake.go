@@ -358,6 +358,10 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "用户不存在"})
 		return
 	}
+	if user.QuotaForbidden {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "该用户已被禁止充值"})
+		return
+	}
 
 	group, err := model.GetUserGroup(id, true)
 	if err != nil {

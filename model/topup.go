@@ -133,6 +133,15 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 			return errors.New("充值订单状态错误")
 		}
 
+		// 检查用户是否被禁止充值
+		var chargeUser User
+		if err := tx.Where("id = ?", topUp.UserId).First(&chargeUser).Error; err != nil {
+			return errors.New("用户不存在")
+		}
+		if chargeUser.QuotaForbidden {
+			return errors.New("该用户已被禁止充值")
+		}
+
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		err = tx.Save(topUp).Error
@@ -153,6 +162,8 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		common.SysError("topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
 	}
+
+	go ProcessCommissionForTopUp(topUp.UserId, topUp.Id, topUp.Money)
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 
@@ -328,6 +339,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	}
 
 	var userId int
+	var topUpId int
 	var quotaToAdd int
 	var payMoney float64
 	var paymentMethod string
@@ -341,6 +353,10 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 		// 幂等处理：已成功直接返回
 		if topUp.Status == common.TopUpStatusSuccess {
+			topUpId = topUp.Id
+			userId = topUp.UserId
+			payMoney = topUp.Money
+			paymentMethod = topUp.PaymentMethod
 			return nil
 		}
 
@@ -375,6 +391,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return err
 		}
 
+		topUpId = topUp.Id
 		userId = topUp.UserId
 		payMoney = topUp.Money
 		paymentMethod = topUp.PaymentMethod
@@ -387,6 +404,11 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 	// 事务外记录日志，避免阻塞
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+
+	if topUpId > 0 {
+		go ProcessCommissionForTopUp(userId, topUpId, payMoney)
+	}
+
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
@@ -414,6 +436,15 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
+		}
+
+		// 检查用户是否被禁止充值
+		var chargeUser User
+		if err := tx.Where("id = ?", topUp.UserId).First(&chargeUser).Error; err != nil {
+			return errors.New("用户不存在")
+		}
+		if chargeUser.QuotaForbidden {
+			return errors.New("该用户已被禁止充值")
 		}
 
 		topUp.CompleteTime = common.GetTimestamp()
@@ -459,6 +490,8 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("充值失败，请稍后重试")
 	}
 
+	go ProcessCommissionForTopUp(topUp.UserId, topUp.Id, topUp.Money)
+
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
 
 	return nil
@@ -502,6 +535,15 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 			return errors.New("无效的充值额度")
 		}
 
+		// 检查用户是否被禁止充值
+		var chargeUser User
+		if err := tx.Where("id = ?", topUp.UserId).First(&chargeUser).Error; err != nil {
+			return errors.New("用户不存在")
+		}
+		if chargeUser.QuotaForbidden {
+			return errors.New("该用户已被禁止充值")
+		}
+
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
@@ -521,6 +563,8 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
+		go ProcessCommissionForTopUp(topUp.UserId, topUp.Id, topUp.Money)
+
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
 	}
 
@@ -563,6 +607,15 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 			return errors.New("无效的充值额度")
 		}
 
+		// 检查用户是否被禁止充值
+		var chargeUser User
+		if err := tx.Where("id = ?", topUp.UserId).First(&chargeUser).Error; err != nil {
+			return errors.New("用户不存在")
+		}
+		if chargeUser.QuotaForbidden {
+			return errors.New("该用户已被禁止充值")
+		}
+
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
@@ -582,8 +635,86 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
+		go ProcessCommissionForTopUp(topUp.UserId, topUp.Id, topUp.Money)
+
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 	}
 
 	return nil
+}
+
+// RechargeEpay 处理易支付充值（事务内原子更新订单 + 加额度）
+func RechargeEpay(tradeNo string, actualPaymentType string, bonusPercent float64) (quotaToAdd int, bonusQuota int, err error) {
+	if tradeNo == "" {
+		return 0, 0, errors.New("未提供支付单号")
+	}
+
+	topUp := &TopUp{}
+
+	refCol := "`trade_no`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		refCol = `"trade_no"`
+	}
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return errors.New("充值订单不存在")
+		}
+
+		if topUp.PaymentProvider != PaymentProviderEpay {
+			return ErrPaymentMethodMismatch
+		}
+
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil // 幂等
+		}
+
+		if topUp.Status != common.TopUpStatusPending {
+			return errors.New("充值订单状态错误")
+		}
+
+		// 检查用户是否被禁止充值
+		var chargeUser User
+		if err := tx.Where("id = ?", topUp.UserId).First(&chargeUser).Error; err != nil {
+			return errors.New("用户不存在")
+		}
+		if chargeUser.QuotaForbidden {
+			return errors.New("该用户已被禁止充值")
+		}
+
+		// 同步实际支付方式
+		if actualPaymentType != "" && topUp.PaymentMethod != actualPaymentType {
+			topUp.PaymentMethod = actualPaymentType
+		}
+
+		// 计算额度
+		dAmount := decimal.NewFromInt(topUp.Amount)
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		if quotaToAdd <= 0 {
+			return errors.New("无效的充值额度")
+		}
+
+		// 计算加赠
+		bonusQuota = 0
+		if bonusPercent > 0 {
+			bonusQuota = int(float64(quotaToAdd) * bonusPercent / 100.0)
+		}
+
+		totalQuota := quotaToAdd + bonusQuota
+
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", totalQuota)).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	return
 }

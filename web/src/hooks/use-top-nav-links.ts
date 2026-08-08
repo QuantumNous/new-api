@@ -86,6 +86,13 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
   }
 
+  // Service Status (requires login)
+  links.push({
+    title: t('Service Status'),
+    href: '/status',
+    requiresAuth: !isAuthed,
+  })
+
   // Docs (supports external links)
   if (modules?.docs !== false) {
     if (docsLink) {
@@ -98,6 +105,12 @@ export function useTopNavLinks(): TopNavLink[] {
   // About
   if (modules?.about !== false) {
     links.push({ title: t('About'), href: '/about' })
+  }
+
+  // Custom Page (admin-configurable name and content)
+  if (modules?.custom_page !== false) {
+    const customTitle = (status?.CustomPageTitle as string) || t('Custom Page')
+    links.push({ title: customTitle, href: '/custom' })
   }
 
   return links

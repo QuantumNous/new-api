@@ -86,7 +86,11 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	}
 
 	id := c.GetInt("id")
-	user, _ := model.GetUserById(id, false)
+	user, err := model.GetUserById(id, false)
+	if err != nil || user == nil || user.QuotaForbidden {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "该用户已被禁止充值"})
+		return
+	}
 	chargedMoney := GetChargedAmount(float64(req.Amount), *user)
 
 	reference := fmt.Sprintf("new-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))

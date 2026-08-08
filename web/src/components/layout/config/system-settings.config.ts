@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type TFunction } from 'i18next'
 import {
+  Activity,
   Box,
   CreditCard,
   Layout,
@@ -84,6 +85,11 @@ function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
           title: t('Operations'),
           icon: Wrench,
           items: getOperationsSectionNavItems(t),
+        },
+        {
+          title: t('Service Status Page'),
+          icon: Activity,
+          url: '/system-settings/status-page',
         },
       ],
     },

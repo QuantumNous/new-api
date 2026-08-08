@@ -42,6 +42,8 @@ import {
   getDiscountLabel,
   getPaymentIcon,
   getMinTopupAmount,
+  getMaxTopupAmount,
+  isEpayGateway1Method,
   calculatePresetPricing,
 } from '../lib'
 import type {
@@ -324,15 +326,30 @@ export function RechargeFormCard({
                         method.min_topup || 0,
                         getMinTopupAmount(topupInfo)
                       )
-                      const disabled = minTopup > topupAmount
-                      const disabledReason = disabled
+                      const maxTopup = getMaxTopupAmount(topupInfo)
+                      const isG2 = method.type.startsWith('g2:')
+                      const exceedsMax =
+                        isEpayGateway1Method(method.type) &&
+                        maxTopup > 0 &&
+                        topupAmount > maxTopup
+                      const belowMin = minTopup > topupAmount
+                      const disabled = belowMin || exceedsMax
+                      const disabledReason = belowMin
                         ? t('Minimum topup amount: {{amount}}', {
                             amount: minTopup,
                           })
-                        : undefined
-                      const disabledLabel = disabled
+                        : exceedsMax
+                          ? t('Maximum topup amount: {{amount}}', {
+                              amount: maxTopup,
+                            })
+                          : undefined
+                      const disabledLabel = belowMin
                         ? `${t('Minimum:')} ${minTopup}`
-                        : undefined
+                        : exceedsMax
+                          ? `${t('Maximum:')} ${maxTopup}`
+                          : undefined
+                      const bonusRate = topupInfo?.epay_gateway2_bonus
+                      const showBonus = isG2 && bonusRate && bonusRate > 0
 
                       const button = (
                         <Button
@@ -368,6 +385,11 @@ export function RechargeFormCard({
                               </span>
                             )}
                           </span>
+                          {showBonus && (
+                            <span className='ml-auto text-xs font-semibold text-green-600'>
+                              +{bonusRate}%
+                            </span>
+                          )}
                         </Button>
                       )
 

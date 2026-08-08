@@ -26,6 +26,9 @@ type WaffoPancakeCreateSessionParams struct {
 	BuyerEmail              string
 	ExpiresInSeconds        *int
 	OrderMerchantExternalID string
+	// ReturnURL is where the buyer is redirected after a successful payment.
+	// When empty the product-level SuccessURL is used as fallback.
+	ReturnURL string
 }
 
 // WaffoPancakeCheckoutSession is the response of CreateWaffoPancakeCheckoutSession.
@@ -111,6 +114,7 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 		return nil, fmt.Errorf("build Waffo Pancake client: %w", err)
 	}
 
+	successURL := optionalString(strings.TrimSpace(params.ReturnURL))
 	sdkParams := pancake.AuthenticatedCheckoutParams{
 		CreateCheckoutSessionParams: pancake.CreateCheckoutSessionParams{
 			ProductID:               params.ProductID,
@@ -118,6 +122,7 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 			BuyerEmail:              optionalString(params.BuyerEmail),
 			ExpiresInSeconds:        params.ExpiresInSeconds,
 			OrderMerchantExternalID: optionalString(params.OrderMerchantExternalID),
+			SuccessURL:              successURL,
 		},
 		BuyerIdentity: params.BuyerIdentity,
 	}

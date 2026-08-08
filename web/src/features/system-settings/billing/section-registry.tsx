@@ -72,10 +72,7 @@ const BILLING_SECTIONS = [
               settings['quota_setting.enable_free_model_pre_consume'],
           },
         }}
-        complianceConfirmed={
-          (settings['payment_setting.compliance_confirmed'] ?? false) &&
-          settings['payment_setting.compliance_terms_version'] === 'v1'
-        }
+        complianceConfirmed
       />
     ),
   },
@@ -87,6 +84,7 @@ const BILLING_SECTIONS = [
         defaultValues={{
           QuotaPerUnit: settings.QuotaPerUnit,
           USDExchangeRate: settings.USDExchangeRate,
+          CommissionUSDExchangeRate: settings.CommissionUSDExchangeRate,
           DisplayInCurrencyEnabled: settings.DisplayInCurrencyEnabled,
           DisplayTokenStatEnabled: settings.DisplayTokenStatEnabled,
           general_setting: {
@@ -137,10 +135,13 @@ const BILLING_SECTIONS = [
           PayAddress: settings.PayAddress,
           EpayId: settings.EpayId,
           EpayKey: settings.EpayKey,
+          EpayFee: settings.EpayFee ?? '0',
           Price: settings.Price,
           MinTopUp: settings.MinTopUp,
+          MaxTopUp: settings.MaxTopUp,
           CustomCallbackAddress: settings.CustomCallbackAddress,
           PayMethods: settings.PayMethods,
+          EpayGateway2: settings.EpayGateway2 ?? '{}',
           AmountOptions: settings['payment_setting.amount_options'],
           AmountDiscount: settings['payment_setting.amount_discount'],
           StripeApiSecret: settings.StripeApiSecret,
@@ -153,6 +154,7 @@ const BILLING_SECTIONS = [
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,
           CreemProducts: settings.CreemProducts,
+          PaymentTip: settings.PaymentTip ?? '',
         }}
         waffoDefaultValues={{
           WaffoEnabled: settings.WaffoEnabled ?? false,
@@ -178,13 +180,6 @@ const BILLING_SECTIONS = [
         }}
         waffoPancakeProvisionedStoreID={settings.WaffoPancakeStoreID ?? ''}
         waffoPancakeProvisionedProductID={settings.WaffoPancakeProductID ?? ''}
-        complianceDefaults={{
-          confirmed: settings['payment_setting.compliance_confirmed'] ?? false,
-          termsVersion:
-            settings['payment_setting.compliance_terms_version'] ?? '',
-          confirmedAt: settings['payment_setting.compliance_confirmed_at'] ?? 0,
-          confirmedBy: settings['payment_setting.compliance_confirmed_by'] ?? 0,
-        }}
       />
     ),
   },

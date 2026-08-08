@@ -98,7 +98,11 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 	}
 
 	id := c.GetInt("id")
-	user, _ := model.GetUserById(id, false)
+	user, err := model.GetUserById(id, false)
+	if err != nil || user == nil || user.QuotaForbidden {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "该用户已被禁止充值"})
+		return
+	}
 
 	// 生成唯一的订单引用ID
 	reference := fmt.Sprintf("creem-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))

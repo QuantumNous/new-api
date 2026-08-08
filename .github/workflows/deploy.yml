@@ -1,0 +1,95 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  docker:
+    name: Build and push Docker image to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Build & Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: docker
+    if: ${{ vars.VPS_HOST != '' }}
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build frontend
+        run: |
+          cd web/default
+          bun install --frozen-lockfile
+          bun run build
+          cd ../..
+
+      - name: Build Go binary
+        run: |
+          GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o new-api .
+
+      - name: Package artifact
+        run: tar -czf deploy.tar.gz new-api web/default/dist
+
+      - name: Copy to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.VPS_HOST }}
+          username: ${{ vars.VPS_USER || 'root' }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          source: deploy.tar.gz
+          target: /tmp
+
+      - name: Deploy and restart
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ vars.VPS_HOST }}
+          username: ${{ vars.VPS_USER || 'root' }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            set -e
+            cd /root/new-api
+            git pull origin main || true
+            tar -xzf /tmp/deploy.tar.gz
+            systemctl restart new-api
+            rm /tmp/deploy.tar.gz
+            echo "Deploy completed at $(date)"

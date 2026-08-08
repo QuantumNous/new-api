@@ -147,6 +147,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		keyCol = `"key"`
 	}
+	var topupId int
 	common.RandomSleep()
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := lockForUpdate(tx).Where(keyCol+" = ?", key).First(redemption).Error
@@ -158,6 +159,14 @@ func Redeem(key string, userId int) (quota int, err error) {
 		}
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
 			return errors.New("该兑换码已过期")
+		}
+		// 检查用户是否被禁止充值
+		var redeemUser User
+		if err := tx.Where("id = ?", userId).First(&redeemUser).Error; err != nil {
+			return errors.New("用户不存在")
+		}
+		if redeemUser.QuotaForbidden {
+			return errors.New("该用户已被禁止充值")
 		}
 		// Compare-and-swap on status: only the transaction that flips
 		// enabled -> used may credit quota, so a concurrent redeem of the
@@ -175,13 +184,39 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if result.RowsAffected == 0 {
 			return errors.New("该兑换码已被使用")
 		}
-		return tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
+		if err := tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error; err != nil {
+			return err
+		}
+
+		// Create top_up record for redemption code (for commission tracking)
+		now := common.GetTimestamp()
+		topup := TopUp{
+			UserId:          userId,
+			Amount:          int64(redemption.Quota),
+			Money:           float64(redemption.Quota) / common.QuotaPerUnit,
+			TradeNo:         key,
+			PaymentMethod:   "redemption",
+			PaymentProvider: "redemption",
+			CreateTime:      now,
+			CompleteTime:    now,
+			Status:          common.TopUpStatusSuccess,
+		}
+		if err := tx.Create(&topup).Error; err != nil {
+			return err
+		}
+		topupId = topup.Id
+		return nil
 	})
 	if err != nil {
 		common.SysError("redemption failed: " + err.Error())
 		return 0, ErrRedeemFailed
 	}
 	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+
+	// 兑换码返佣：使用统一返佣逻辑
+	money := float64(redemption.Quota) / common.QuotaPerUnit
+	go ProcessCommissionForTopUp(userId, topupId, money)
+
 	return redemption.Quota, nil
 }
 

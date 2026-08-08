@@ -13,9 +13,43 @@ var PayAddress = ""
 var CustomCallbackAddress = ""
 var EpayId = ""
 var EpayKey = ""
+var EpayFee float64 = 0
 var Price = 7.3
 var MinTopUp = 1
+var MaxTopUp = 0 // 0 表示不限制
 var USDExchangeRate = 7.3
+var CommissionUSDExchangeRate = 7.3
+
+// EpayGateway2 holds configuration for a second epay gateway.
+// Stored as JSON in the "EpayGateway2" option key.
+type EpayGateway2Config struct {
+	Address    string              `json:"address"`
+	MerchantID string              `json:"merchant_id"`
+	Key        string              `json:"key"`
+	Name       string              `json:"name"`
+	PayMethods []map[string]string `json:"pay_methods"`
+	Bonus      float64             `json:"bonus"` // 充值加赠比例（百分比），例如 10 表示加赠 10%
+	Price      float64             `json:"price"` // 独立价格/汇率，0 表示使用全局 Price
+}
+
+var EpayGateway2 = EpayGateway2Config{}
+
+func UpdateEpayGateway2ByJsonString(jsonString string) error {
+	cfg := EpayGateway2Config{}
+	if err := common.Unmarshal([]byte(jsonString), &cfg); err != nil {
+		return err
+	}
+	EpayGateway2 = cfg
+	return nil
+}
+
+func EpayGateway2ToJsonString() string {
+	jsonBytes, err := common.Marshal(EpayGateway2)
+	if err != nil {
+		return "{}"
+	}
+	return string(jsonBytes)
+}
 
 var PayMethods = []map[string]string{
 	{

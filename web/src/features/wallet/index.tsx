@@ -24,11 +24,18 @@ import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
 
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
+import {
+  getCommissionWallet,
+  transferCommissionToBalance,
+} from '@/features/commission/api'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
@@ -108,6 +115,40 @@ export function Wallet(props: WalletProps) {
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
+
+  const queryClient = useQueryClient()
+  const { data: commissionWallet, isLoading: commissionLoading } = useQuery({
+    queryKey: ['commission', 'wallet'],
+    queryFn: async () => {
+      const res = await getCommissionWallet()
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load commission wallet')
+      }
+      return res.data
+    },
+    staleTime: 30_000,
+    retry: false,
+  })
+
+  const handleCommissionTransfer = useCallback(
+    async (amount: number) => {
+      try {
+        const res = await transferCommissionToBalance(amount)
+        if (res.success) {
+          toast.success(res.message || t('Transfer successful'))
+          await getSelf()
+          await queryClient.invalidateQueries({
+            queryKey: ['commission', 'wallet'],
+          })
+        } else {
+          toast.error(res.message || t('Transfer failed'))
+        }
+      } catch (_error) {
+        toast.error(t('Transfer failed'))
+      }
+    },
+    [queryClient, t]
+  )
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -342,11 +383,13 @@ export function Wallet(props: WalletProps) {
             <AffiliateRewardsCard
               user={user}
               affiliateLink={affiliateLink}
-              onTransfer={() => setTransferDialogOpen(true)}
+              commissionBalance={commissionWallet?.balance ?? 0}
+              commissionTotalEarned={commissionWallet?.total_earned ?? 0}
+              onCommissionTransfer={handleCommissionTransfer}
               complianceConfirmed={
                 topupInfo?.payment_compliance_confirmed !== false
               }
-              loading={affiliateLoading}
+              loading={affiliateLoading || commissionLoading}
             />
           </div>
         </SectionPageLayout.Content>
@@ -363,6 +406,8 @@ export function Wallet(props: WalletProps) {
         processing={processing || waffoProcessing || pancakeProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
+        tip={topupInfo?.payment_tip}
+        bonusRate={topupInfo?.epay_gateway2_bonus}
       />
 
       <TransferDialog

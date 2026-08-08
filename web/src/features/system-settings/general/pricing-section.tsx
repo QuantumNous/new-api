@@ -62,6 +62,9 @@ const createPricingSchema = (t: (key: string) => string) =>
       USDExchangeRate: z.coerce
         .number()
         .min(0.0001, t('Exchange rate must be greater than 0')),
+      CommissionUSDExchangeRate: z.coerce
+        .number()
+        .min(0.0001, t('Exchange rate must be greater than 0')),
       DisplayInCurrencyEnabled: z.boolean(),
       DisplayTokenStatEnabled: z.boolean(),
       general_setting: z.object({
@@ -259,6 +262,27 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                 )}
               />
             )}
+
+            <FormField
+              control={form.control}
+              name='CommissionUSDExchangeRate'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Commission CNY per USD')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='0.01'
+                      {...safeNumberFieldProps(field)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Exchange rate used for converting CNY topups to USD in commission calculations')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {displayType === 'CUSTOM' && (
               <div className='grid gap-4 sm:grid-cols-2'>

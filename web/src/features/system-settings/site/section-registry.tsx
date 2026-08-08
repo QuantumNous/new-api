@@ -26,6 +26,7 @@ import {
 import { HeaderNavigationSection } from '../maintenance/header-navigation-section'
 import { NoticeSection } from '../maintenance/notice-section'
 import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
+import { CustomPageSection } from '../content/custom-page-section'
 import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
@@ -86,6 +87,16 @@ const SITE_SECTIONS = [
         />
       )
     },
+  },
+  {
+    id: 'custom-page',
+    titleKey: 'Custom Page',
+    build: (settings: SiteSettings) => (
+      <CustomPageSection
+        defaultTitle={settings.CustomPageTitle ?? ''}
+        defaultContent={settings.CustomPageContent ?? ''}
+      />
+    ),
   },
 ] as const
 

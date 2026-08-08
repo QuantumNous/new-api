@@ -107,6 +107,7 @@ func GetStatus(c *gin.Context) {
 		// 模块管理配置
 		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
 		"SidebarModulesAdmin": common.OptionMap["SidebarModulesAdmin"],
+		"CustomPageTitle":     common.OptionMap["CustomPageTitle"],
 
 		"oidc_enabled":                system_setting.GetOIDCSettings().Enabled,
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,
@@ -363,6 +364,17 @@ func ResetPassword(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data":    password,
+	})
+	return
+}
+
+func GetCustomPage(c *gin.Context) {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    common.OptionMap["CustomPageContent"],
 	})
 	return
 }

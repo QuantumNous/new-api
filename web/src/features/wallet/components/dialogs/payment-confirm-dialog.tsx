@@ -47,6 +47,8 @@ interface PaymentConfirmDialogProps {
   processing: boolean
   discountRate?: number
   usdExchangeRate?: number
+  tip?: string
+  bonusRate?: number
 }
 
 export function PaymentConfirmDialog({
@@ -60,11 +62,19 @@ export function PaymentConfirmDialog({
   processing,
   discountRate = DEFAULT_DISCOUNT_RATE,
   usdExchangeRate = 1,
+  tip,
+  bonusRate,
 }: PaymentConfirmDialogProps) {
   const { t } = useTranslation()
   const hasDiscount = discountRate > 0 && discountRate < 1 && paymentAmount > 0
   const originalAmount = hasDiscount ? paymentAmount / discountRate : 0
   const discountAmount = hasDiscount ? originalAmount - paymentAmount : 0
+  const isG2 = paymentMethod?.type.startsWith('g2:')
+  const hasBonus = isG2 && bonusRate && bonusRate > 0
+  const bonusAmount =
+    hasBonus && !calculating
+      ? (topupAmount * usdExchangeRate * bonusRate) / 100
+      : 0
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -123,6 +133,23 @@ export function PaymentConfirmDialog({
             </div>
           )}
 
+          {hasBonus && !calculating && (
+            <div className='rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950'>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>
+                  {t('Bonus')} (+{bonusRate}%)
+                </span>
+                <span className='font-semibold text-green-600'>
+                  +{formatLocalCurrencyAmount(bonusAmount, {
+                    digitsLarge: 2,
+                    digitsSmall: 2,
+                    abbreviate: false,
+                  })}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className='border-t pt-4'>
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-sm'>
@@ -140,6 +167,12 @@ export function PaymentConfirmDialog({
             </div>
           </div>
         </div>
+
+        {tip && (
+          <div className='rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200'>
+            {tip}
+          </div>
+        )}
 
         <AlertDialogFooter className='grid grid-cols-2 gap-2 sm:flex'>
           <AlertDialogCancel disabled={processing}>

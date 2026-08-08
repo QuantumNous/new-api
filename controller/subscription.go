@@ -103,6 +103,10 @@ func SubscriptionRequestBalancePay(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
+	if user, err := model.GetUserById(userId, false); err == nil && user != nil && user.QuotaForbidden {
+		common.ApiErrorMsg(c, "该用户已被禁止充值")
+		return
+	}
 	var req SubscriptionBalancePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
 		common.ApiErrorMsg(c, "参数错误")

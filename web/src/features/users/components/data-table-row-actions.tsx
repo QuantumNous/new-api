@@ -28,6 +28,8 @@ import {
   ShieldAlert,
   Link2,
   CreditCard,
+  Ban,
+  CheckCircle,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -197,6 +199,24 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
+
+        {user.quota_forbidden ? (
+          <DropdownMenuItem onClick={() => handleManage('allow_recharge')}>
+            {t('Allow Recharge')}
+            <DropdownMenuShortcut>
+              <CheckCircle size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onClick={() => handleManage('forbid_recharge')}>
+            {t('Forbid Recharge')}
+            <DropdownMenuShortcut>
+              <Ban size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSeparator />
 
         <DropdownMenuItem
           onSelect={(event) => {

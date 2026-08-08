@@ -53,6 +53,7 @@ export interface AuthUser {
   stripe_customer?: string
   sidebar_modules?: string
   permissions?: UserPermissions
+  quota_forbidden?: boolean
 }
 
 export interface LoginSession {

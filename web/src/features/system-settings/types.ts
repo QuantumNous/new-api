@@ -118,6 +118,8 @@ export type SiteSettings = {
   'legal.privacy_policy': string
   HeaderNavModules: string
   SidebarModulesAdmin: string
+  CustomPageTitle: string
+  CustomPageContent: string
 }
 
 export type AuthSettings = {
@@ -256,6 +258,7 @@ export type BillingSettings = {
   'quota_setting.enable_free_model_pre_consume': boolean
   QuotaPerUnit: number
   USDExchangeRate: number
+  CommissionUSDExchangeRate: number
   'general_setting.quota_display_type': string
   'general_setting.custom_currency_symbol': string
   'general_setting.custom_currency_exchange_rate': number
@@ -284,10 +287,13 @@ export type BillingSettings = {
   PayAddress: string
   EpayId: string
   EpayKey: string
+  EpayFee: string
   Price: number
   MinTopUp: number
+  MaxTopUp: number
   CustomCallbackAddress: string
   PayMethods: string
+  EpayGateway2: string
   'payment_setting.amount_options': string
   'payment_setting.amount_discount': string
   'payment_setting.compliance_confirmed': boolean
@@ -327,6 +333,7 @@ export type BillingSettings = {
   // section (saved via /api/option/waffo-pancake/save).
   WaffoPancakeStoreID: string
   WaffoPancakeProductID: string
+  PaymentTip: string
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number

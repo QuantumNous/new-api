@@ -128,6 +128,8 @@ export interface TopupInfo {
   pay_methods: PaymentMethod[]
   /** Minimum topup amount for online topup */
   min_topup: number
+  /** Maximum topup amount for Epay Gateway 1 (0 = no limit) */
+  max_topup?: number
   /** Minimum topup amount for Stripe */
   stripe_min_topup: number
   /** Preset amount options */
@@ -156,6 +158,12 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  /** Custom tip shown in the payment confirmation dialog */
+  payment_tip?: string
+  /** Bonus percentage for Epay Gateway 2 (e.g. 10 = 10% extra) */
+  epay_gateway2_bonus?: number
+  /** Whether the user is forbidden from recharging (returned by backend when true) */
+  quota_forbidden?: boolean
 }
 
 /**

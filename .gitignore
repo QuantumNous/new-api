@@ -8,6 +8,7 @@ upload
 build
 *.db-journal
 logs
+*.log
 web/dist
 web/node_modules
 .env
@@ -31,6 +32,7 @@ electron/dist
 .gocache-temp
 .gopath
 .test
+vendor/
 token_estimator_test.go
 skills-lock.json
 .playwright-mcp

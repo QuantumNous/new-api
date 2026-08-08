@@ -69,6 +69,8 @@ func InitOptionMap() {
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
+	common.OptionMap["CustomPageTitle"] = ""
+	common.OptionMap["CustomPageContent"] = ""
 	common.OptionMap["Footer"] = common.Footer
 	common.OptionMap["SystemName"] = common.SystemName
 	common.OptionMap["Logo"] = common.Logo
@@ -80,9 +82,14 @@ func InitOptionMap() {
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
 	common.OptionMap["EpayKey"] = ""
+	common.OptionMap["EpayFee"] = "0"
+	common.OptionMap["EpayGateway2"] = "{}"
+	common.OptionMap["PaymentTip"] = ""
 	common.OptionMap["Price"] = strconv.FormatFloat(operation_setting.Price, 'f', -1, 64)
 	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(operation_setting.USDExchangeRate, 'f', -1, 64)
+	common.OptionMap["CommissionUSDExchangeRate"] = strconv.FormatFloat(operation_setting.CommissionUSDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
+	common.OptionMap["MaxTopUp"] = strconv.Itoa(operation_setting.MaxTopUp)
 	common.OptionMap["StripeMinTopUp"] = strconv.Itoa(setting.StripeMinTopUp)
 	common.OptionMap["StripeApiSecret"] = setting.StripeApiSecret
 	common.OptionMap["StripeWebhookSecret"] = setting.StripeWebhookSecret
@@ -425,12 +432,20 @@ func updateOptionMap(key string, value string) (err error) {
 		operation_setting.EpayId = value
 	case "EpayKey":
 		operation_setting.EpayKey = value
+	case "EpayFee":
+		operation_setting.EpayFee, _ = strconv.ParseFloat(value, 64)
+	case "EpayGateway2":
+		err = operation_setting.UpdateEpayGateway2ByJsonString(value)
 	case "Price":
 		operation_setting.Price, _ = strconv.ParseFloat(value, 64)
 	case "USDExchangeRate":
 		operation_setting.USDExchangeRate, _ = strconv.ParseFloat(value, 64)
+	case "CommissionUSDExchangeRate":
+		operation_setting.CommissionUSDExchangeRate, _ = strconv.ParseFloat(value, 64)
 	case "MinTopUp":
 		operation_setting.MinTopUp, _ = strconv.Atoi(value)
+	case "MaxTopUp":
+		operation_setting.MaxTopUp, _ = strconv.Atoi(value)
 	case "StripeApiSecret":
 		setting.StripeApiSecret = value
 	case "StripeWebhookSecret":

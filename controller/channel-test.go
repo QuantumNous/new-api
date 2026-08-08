@@ -903,6 +903,7 @@ func TestChannel(c *gin.Context) {
 	go channel.UpdateResponseTime(milliseconds)
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
+		recordChannelStatusProbe(channel, false, milliseconds, result.newAPIError.Error())
 		c.JSON(http.StatusOK, gin.H{
 			"success":    false,
 			"message":    result.newAPIError.Error(),
@@ -911,6 +912,7 @@ func TestChannel(c *gin.Context) {
 		})
 		return
 	}
+	recordChannelStatusProbe(channel, true, milliseconds, "")
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -979,8 +981,10 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 
 		if newAPIError == nil {
 			summary.Succeeded++
+			recordChannelStatusProbe(channel, true, milliseconds, "")
 		} else {
 			summary.Failed++
+			recordChannelStatusProbe(channel, false, milliseconds, newAPIError.Error())
 		}
 
 		// disable channel

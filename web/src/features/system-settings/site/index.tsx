@@ -36,6 +36,8 @@ const defaultSiteSettings: SiteSettings = {
   'legal.privacy_policy': '',
   HeaderNavModules: '',
   SidebarModulesAdmin: '',
+  CustomPageTitle: 'Custom Page',
+  CustomPageContent: '',
 }
 
 export function SiteSettings() {

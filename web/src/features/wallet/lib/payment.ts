@@ -148,27 +148,58 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
 }
 
 /**
- * Get minimum topup amount from topup info
+ * Get maximum topup amount for Epay Gateway 1 from topup info.
+ * Returns 0 if there is no limit.
+ */
+export function getMaxTopupAmount(topupInfo: TopupInfo | null): number {
+  if (!topupInfo) {
+    return 0
+  }
+  return topupInfo.max_topup || 0
+}
+
+/**
+ * Check if a payment method belongs to Epay Gateway 1 (not g2:, not stripe/creem/waffo).
+ */
+export function isEpayGateway1Method(methodType: string): boolean {
+  if (methodType.startsWith('g2:')) return false
+  if (methodType === PAYMENT_TYPES.STRIPE) return false
+  if (methodType === PAYMENT_TYPES.CREEM) return false
+  if (methodType === PAYMENT_TYPES.WAFFO) return false
+  if (methodType === PAYMENT_TYPES.WAFFO_PANCAKE) return false
+  return true
+}
+
+/**
+ * Get minimum topup amount from topup info.
+ * Uses the smallest minimum across all enabled gateways so that one gateway's
+ * min doesn't accidentally block others (e.g. Epay1's min hiding Pancake's min).
  */
 export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
   if (!topupInfo) {
     return DEFAULT_MIN_TOPUP
   }
 
+  const candidates: number[] = []
+
   if (topupInfo.enable_online_topup) {
-    return topupInfo.min_topup
+    candidates.push(topupInfo.min_topup)
   }
-
   if (topupInfo.enable_stripe_topup) {
-    return topupInfo.stripe_min_topup
+    candidates.push(topupInfo.stripe_min_topup)
+  }
+  if (topupInfo.enable_waffo_topup && topupInfo.waffo_min_topup) {
+    candidates.push(topupInfo.waffo_min_topup)
+  }
+  if (
+    topupInfo.enable_waffo_pancake_topup &&
+    topupInfo.waffo_pancake_min_topup
+  ) {
+    candidates.push(topupInfo.waffo_pancake_min_topup)
   }
 
-  if (topupInfo.enable_waffo_topup) {
-    return topupInfo.waffo_min_topup || DEFAULT_MIN_TOPUP
-  }
-
-  if (topupInfo.enable_waffo_pancake_topup) {
-    return topupInfo.waffo_pancake_min_topup || DEFAULT_MIN_TOPUP
+  if (candidates.length > 0) {
+    return Math.min(...candidates)
   }
 
   return DEFAULT_MIN_TOPUP

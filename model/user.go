@@ -106,6 +106,7 @@ type User struct {
 	Setting          string                     `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	QuotaForbidden   bool                       `json:"quota_forbidden" gorm:"default:false;column:quota_forbidden"`
 	CreatedAt        int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AuthVersion      int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`

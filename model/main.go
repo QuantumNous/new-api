@@ -292,6 +292,12 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&Ticket{},
+		&TicketMessage{},
+		&CommissionRecord{},
+		&CommissionWallet{},
+		&WithdrawalRequest{},
+		&ChannelStatusProbeLog{},
 	)
 	if err != nil {
 		return err
@@ -353,6 +359,12 @@ func migrateDBFast() error {
 		{&SystemInstance{}, "SystemInstance"},
 		{&SystemTask{}, "SystemTask"},
 		{&SystemTaskLock{}, "SystemTaskLock"},
+		{&Ticket{}, "Ticket"},
+		{&TicketMessage{}, "TicketMessage"},
+		{&CommissionRecord{}, "CommissionRecord"},
+		{&CommissionWallet{}, "CommissionWallet"},
+		{&WithdrawalRequest{}, "WithdrawalRequest"},
+		{&ChannelStatusProbeLog{}, "ChannelStatusProbeLog"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
