@@ -281,8 +281,11 @@ func TestResponsesStreamEventToChatChunksEmitsToolMetadataOnlyOnce(t *testing.T)
 	assert.Equal(t, "function", first.Type)
 	assert.Equal(t, "show_widget", first.Function.Name)
 
-	for _, chunks := range [][]dto.ChatCompletionsStreamResponse{firstArgsChunks, secondArgsChunks} {
+	for i, chunks := range [][]dto.ChatCompletionsStreamResponse{firstArgsChunks, secondArgsChunks} {
 		continuation := chunks[0].Choices[0].Delta.ToolCalls[0]
+		require.NotNil(t, continuation.Index)
+		assert.Equal(t, 0, *continuation.Index)
+		assert.Equal(t, []string{`{"widget_code":"<svg>`, `</svg>"}`}[i], continuation.Function.Arguments)
 		assert.Empty(t, continuation.ID)
 		assert.Nil(t, continuation.Type)
 		assert.Empty(t, continuation.Function.Name)
@@ -318,6 +321,26 @@ func TestResponsesStreamEventToChatChunksEmitsMetadataForEachParallelTool(t *tes
 			Name:   "second_tool",
 		},
 	})
+	firstArgsChunks := mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventFunctionArgsDelta,
+		OutputIndex: &firstOutputIndex,
+		Delta:       `{"first":`,
+	})
+	secondArgsChunks := mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventFunctionArgsDelta,
+		OutputIndex: &secondOutputIndex,
+		Delta:       `{"second":`,
+	})
+	firstArgsEndChunks := mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventFunctionArgsDelta,
+		OutputIndex: &firstOutputIndex,
+		Delta:       `"one"}`,
+	})
+	secondArgsEndChunks := mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type:        responsesEventFunctionArgsDelta,
+		OutputIndex: &secondOutputIndex,
+		Delta:       `"two"}`,
+	})
 
 	require.Len(t, firstChunks, 2)
 	require.Len(t, secondChunks, 1)
@@ -330,6 +353,27 @@ func TestResponsesStreamEventToChatChunksEmitsMetadataForEachParallelTool(t *tes
 	assert.Equal(t, "call_2", second.ID)
 	assert.Equal(t, "function", second.Type)
 	assert.Equal(t, 1, *second.Index)
+
+	continuations := []struct {
+		chunks    []dto.ChatCompletionsStreamResponse
+		index     int
+		arguments string
+	}{
+		{firstArgsChunks, 0, `{"first":`},
+		{secondArgsChunks, 1, `{"second":`},
+		{firstArgsEndChunks, 0, `"one"}`},
+		{secondArgsEndChunks, 1, `"two"}`},
+	}
+	for _, tt := range continuations {
+		require.Len(t, tt.chunks, 1)
+		continuation := tt.chunks[0].Choices[0].Delta.ToolCalls[0]
+		require.NotNil(t, continuation.Index)
+		assert.Equal(t, tt.index, *continuation.Index)
+		assert.Equal(t, tt.arguments, continuation.Function.Arguments)
+		assert.Empty(t, continuation.ID)
+		assert.Nil(t, continuation.Type)
+		assert.Empty(t, continuation.Function.Name)
+	}
 }
 
 func TestResponsesStreamEventToChatChunksUsesTerminalDoneOutput(t *testing.T) {
