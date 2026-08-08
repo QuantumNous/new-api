@@ -513,6 +513,43 @@ func TestRecallLifecycleMIMEPolicy(t *testing.T) {
 	}
 }
 
+func TestRecallLifecycleEmailRendersTriggerVariablesFromSnapshotWithHTMLEscaping(t *testing.T) {
+	fixture := newRecallLifecycleEmailFixture(t, model.RecallLifecycleTriggerPaymentSucceeded, map[string]any{
+		"purchase_kind": model.PurchaseLifecycleKindTopUp,
+		"trade_no":      "gate-success-ok",
+		"to_status":     common.TopUpStatusSuccess,
+		"amount":        "<strong>50</strong>",
+		"money":         "<strong>50</strong>",
+		"currency":      "US<&D",
+	})
+	seedRecallLifecycleValidMutableFacts(t, fixture, model.RecallLifecycleTriggerPaymentSucceeded)
+	require.NoError(t, model.DB.Model(&model.User{}).
+		Where("id = ?", fixture.user.Id).
+		Update("display_name", `<Ada & Co>`).Error)
+	templateJSON, err := common.Marshal(map[string]RecallEmailTemplate{
+		"en": {
+			Subject:  "Payment complete",
+			BodyHTML: `<!doctype html><html><body><p>{{.user_display_name}}</p><p>{{.trade_no}}</p><p>{{.amount}} {{.currency}}</p><p>{{.completed_at}}</p></body></html>`,
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).
+		Where("id = ?", fixture.message.Id).
+		Update("template_snapshot", string(templateJSON)).Error)
+
+	require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+	require.Len(t, *fixture.sent, 1)
+	body := (*fixture.sent)[0].htmlBody
+	require.Contains(t, body, "&lt;Ada &amp; Co&gt;")
+	require.Contains(t, body, "gate-success-ok")
+	require.Contains(t, body, "&lt;strong&gt;50&lt;/strong&gt;")
+	require.Contains(t, body, "US&lt;&amp;D")
+	require.Contains(t, body, time.Unix(recallEmailTestNow-10, 0).UTC().Format("2006-01-02 15:04 UTC"))
+	require.NotContains(t, body, "<strong>50</strong>")
+	require.NotContains(t, body, "/api/recall/unsubscribe")
+}
+
 func seedRecallLifecycleValidMutableFacts(t *testing.T, fixture recallEmailFixture, trigger string) {
 	t.Helper()
 	switch trigger {

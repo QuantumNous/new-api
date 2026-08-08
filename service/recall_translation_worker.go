@@ -27,11 +27,12 @@ type RecallTranslationWorker struct {
 }
 
 type recallTranslationSourceSnapshot struct {
-	CampaignType   string             `json:"campaign_type"`
-	DeliveryPolicy string             `json:"delivery_policy"`
-	Name           string             `json:"name"`
-	Current        []RecallEmailStage `json:"current_email_sequence"`
-	English        []RecallEmailStage `json:"english_email_sequence"`
+	CampaignType     string             `json:"campaign_type"`
+	DeliveryPolicy   string             `json:"delivery_policy"`
+	LifecycleTrigger string             `json:"lifecycle_trigger,omitempty"`
+	Name             string             `json:"name"`
+	Current          []RecallEmailStage `json:"current_email_sequence"`
+	English          []RecallEmailStage `json:"english_email_sequence"`
 }
 
 type recallTranslationResultSnapshot struct {
@@ -190,7 +191,7 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 		}
 		return nil, result, err
 	}
-	generated, err := applyRecallEmailGenerationResultForDelivery(snapshot.CampaignType, snapshot.DeliveryPolicy, snapshot.English, translated)
+	generated, err := applyRecallEmailGenerationResultForLifecycleTrigger(snapshot.CampaignType, snapshot.DeliveryPolicy, snapshot.LifecycleTrigger, snapshot.English, translated)
 	if err == nil {
 		generated, err = incrementRecallEmailTemplateVersions(snapshot.Current, generated)
 	}
@@ -272,12 +273,17 @@ func buildRecallTranslationSourceSnapshot(campaignType string, name string, curr
 }
 
 func buildRecallTranslationSourceSnapshotForDelivery(campaignType string, deliveryPolicy string, name string, current []RecallEmailStage, english []RecallEmailStage) (string, error) {
+	return buildRecallTranslationSourceSnapshotForLifecycleTrigger(campaignType, deliveryPolicy, "", name, current, english)
+}
+
+func buildRecallTranslationSourceSnapshotForLifecycleTrigger(campaignType string, deliveryPolicy string, lifecycleTrigger string, name string, current []RecallEmailStage, english []RecallEmailStage) (string, error) {
 	payload, err := common.Marshal(recallTranslationSourceSnapshot{
-		CampaignType:   campaignType,
-		DeliveryPolicy: recallEmailHTMLDeliveryPolicy(deliveryPolicy),
-		Name:           strings.TrimSpace(name),
-		Current:        current,
-		English:        english,
+		CampaignType:     campaignType,
+		DeliveryPolicy:   recallEmailHTMLDeliveryPolicy(deliveryPolicy),
+		LifecycleTrigger: strings.TrimSpace(lifecycleTrigger),
+		Name:             strings.TrimSpace(name),
+		Current:          current,
+		English:          english,
 	})
 	if err != nil {
 		return "", err

@@ -71,6 +71,8 @@ type recallEmailProductSummaryCacheEntry struct {
 type RecallEmailRenderInput struct {
 	CampaignType        string
 	DeliveryPolicy      string
+	LifecycleTrigger    string
+	LifecycleVariables  map[string]string
 	Language            string
 	Template            RecallEmailTemplate
 	RecipientName       string
@@ -80,15 +82,6 @@ type RecallEmailRenderInput struct {
 	ClaimURL            string
 	UnsubscribeURL      string
 	IncludeUnsubscribe  bool
-}
-
-type recallEmailHTMLRenderData struct {
-	RecipientName       string
-	PromotionCodeMasked string
-	ProductSummary      string
-	ExpiresAt           string
-	ClaimURL            string
-	UnsubscribeURL      string
 }
 
 type recallEmailCopy struct {
@@ -493,6 +486,8 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	subject, htmlBody, err := RenderRecallEmail(RecallEmailRenderInput{
 		CampaignType:        campaignType,
 		DeliveryPolicy:      deliveryPolicy,
+		LifecycleTrigger:    item.Campaign.LifecycleTrigger,
+		LifecycleVariables:  w.recallLifecycleEmailVariables(ctx, item, baseOrigin, recipientName),
 		Language:            resolvedLanguage,
 		Template:            template,
 		RecipientName:       recipientName,
@@ -1162,20 +1157,23 @@ func recallEmailHTMLTemplateUsesField(source string, fieldName string) (bool, er
 }
 
 func renderRecallEmailHTML(source string, input RecallEmailRenderInput) (string, error) {
-	if _, err := parseRecallEmailHTMLForDelivery(input.CampaignType, input.DeliveryPolicy, source); err != nil {
+	if _, err := parseRecallEmailHTMLForLifecycleTrigger(input.CampaignType, input.DeliveryPolicy, input.LifecycleTrigger, source); err != nil {
 		return "", fmt.Errorf("recall email html: %w", err)
 	}
 	compiled, err := htmltemplate.New("recall_email_html").Option("missingkey=error").Parse(source)
 	if err != nil {
 		return "", fmt.Errorf("parse recall email html template: %w", err)
 	}
-	data := recallEmailHTMLRenderData{
-		RecipientName:       input.RecipientName,
-		PromotionCodeMasked: input.PromotionCodeMasked,
-		ProductSummary:      input.ProductSummary,
-		ExpiresAt:           time.Unix(input.ExpiresAt, 0).UTC().Format("2006-01-02 15:04 UTC"),
-		ClaimURL:            input.ClaimURL,
-		UnsubscribeURL:      input.UnsubscribeURL,
+	data := map[string]string{
+		"RecipientName":       input.RecipientName,
+		"PromotionCodeMasked": input.PromotionCodeMasked,
+		"ProductSummary":      input.ProductSummary,
+		"ExpiresAt":           time.Unix(input.ExpiresAt, 0).UTC().Format("2006-01-02 15:04 UTC"),
+		"ClaimURL":            input.ClaimURL,
+		"UnsubscribeURL":      input.UnsubscribeURL,
+	}
+	for key, value := range input.LifecycleVariables {
+		data[key] = value
 	}
 	var rendered bytes.Buffer
 	if err := compiled.Execute(&rendered, data); err != nil {
@@ -1185,4 +1183,108 @@ func renderRecallEmailHTML(source string, input RecallEmailRenderInput) (string,
 		return "", fmt.Errorf("recall email html must contain at most %d bytes", recallEmailHTMLMaxBytes)
 	}
 	return rendered.String(), nil
+}
+
+func (w *RecallEmailWorker) recallLifecycleEmailVariables(ctx context.Context, item *model.RecallEmailWorkItem, baseOrigin string, recipientName string) map[string]string {
+	if item == nil || item.Recipient.LifecycleEventId == nil {
+		return nil
+	}
+	trigger := strings.TrimSpace(item.Campaign.LifecycleTrigger)
+	if trigger == "" {
+		return nil
+	}
+	variables := recallLifecycleEmailEmptyVariables(trigger)
+	if len(variables) == 0 {
+		return nil
+	}
+	event := model.RecallLifecycleEvent{}
+	if err := model.DB.WithContext(ctx).First(&event, "id = ?", *item.Recipient.LifecycleEventId).Error; err != nil {
+		event.EventData = item.Recipient.EligibilitySnapshot
+		event.EventType = trigger
+	}
+	if strings.TrimSpace(event.EventData) == "" {
+		event.EventData = item.Recipient.EligibilitySnapshot
+	}
+	snapshot, err := decodeRecallLifecycleEventData(event.EventData)
+	if err != nil {
+		snapshot = map[string]any{}
+	}
+	baseOrigin = strings.TrimRight(strings.TrimSpace(baseOrigin), "/")
+	variables["site_name"] = common.SystemName
+	variables["user_display_name"] = recipientName
+	variables["console_url"] = baseOrigin + "/console"
+	if item.User.CreatedAt > 0 {
+		variables["registration_time"] = recallEmailTemplateTime(item.User.CreatedAt)
+	}
+	switch trigger {
+	case model.RecallLifecycleTriggerQuotaLow, model.RecallLifecycleTriggerQuotaExhaustedUnpaid:
+		scopeType := recallLifecycleSnapshotString(snapshot, "scope_type")
+		scopeID := recallLifecycleSnapshotString(snapshot, "scope_id")
+		if scopeType != "" && scopeID != "" {
+			variables["quota_scope"] = scopeType + ":" + scopeID
+		}
+		variables["balance_snapshot"] = recallLifecycleSnapshotString(snapshot, "current_balance")
+		variables["effective_threshold"] = recallLifecycleSnapshotString(snapshot, "threshold")
+		variables["top_up_url"] = baseOrigin + "/console/topup"
+	case model.RecallLifecycleTriggerPaymentFailed, model.RecallLifecycleTriggerPaymentPending, model.RecallLifecycleTriggerPaymentSucceeded:
+		variables["purchase_kind"] = recallLifecycleSnapshotString(snapshot, "purchase_kind")
+		variables["trade_no"] = recallLifecycleSnapshotString(snapshot, "trade_no")
+		amount := recallLifecycleSnapshotString(snapshot, "amount")
+		if amount == "" {
+			amount = recallLifecycleSnapshotString(snapshot, "money")
+		}
+		variables["amount"] = amount
+		variables["currency"] = recallLifecycleSnapshotString(snapshot, "currency")
+		if paymentURL := recallLifecycleSnapshotString(snapshot, "payment_url"); paymentURL != "" {
+			variables["payment_url"] = paymentURL
+		} else if tradeNo := variables["trade_no"]; tradeNo != "" {
+			variables["payment_url"] = baseOrigin + "/console/topup?trade_no=" + url.QueryEscape(tradeNo)
+		} else {
+			variables["payment_url"] = baseOrigin + "/console/topup"
+		}
+		if event.OccurredAt > 0 {
+			variables["completed_at"] = recallEmailTemplateTime(event.OccurredAt)
+		}
+	}
+	return variables
+}
+
+func recallLifecycleEmailEmptyVariables(trigger string) map[string]string {
+	fields, ok := recallLifecycleEmailFieldsByTrigger[strings.TrimSpace(trigger)]
+	if !ok {
+		return nil
+	}
+	variables := make(map[string]string, len(fields))
+	for _, field := range fields {
+		variables[field] = ""
+	}
+	return variables
+}
+
+func recallLifecycleSnapshotString(snapshot map[string]any, key string) string {
+	value, ok := snapshot[key]
+	if !ok || value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case int:
+		return strconv.Itoa(typed)
+	case int64:
+		return strconv.FormatInt(typed, 10)
+	case float64:
+		return strconv.FormatFloat(typed, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(typed)
+	default:
+		return strings.TrimSpace(fmt.Sprint(typed))
+	}
+}
+
+func recallEmailTemplateTime(unixSeconds int64) string {
+	if unixSeconds <= 0 {
+		return ""
+	}
+	return time.Unix(unixSeconds, 0).UTC().Format("2006-01-02 15:04 UTC")
 }

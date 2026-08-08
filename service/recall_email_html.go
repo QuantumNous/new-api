@@ -31,6 +31,30 @@ var recallEmailFieldsByCampaignType = map[string]map[string]struct{}{
 	},
 }
 
+var recallLifecycleEmailFieldsByTrigger = map[string][]string{
+	model.RecallLifecycleTriggerUserRegistered: {
+		"site_name", "user_display_name", "console_url", "registration_time",
+	},
+	model.RecallLifecycleTriggerRegistrationUnused: {
+		"site_name", "user_display_name", "console_url", "registration_time",
+	},
+	model.RecallLifecycleTriggerQuotaLow: {
+		"site_name", "user_display_name", "console_url", "quota_scope", "balance_snapshot", "effective_threshold", "top_up_url",
+	},
+	model.RecallLifecycleTriggerQuotaExhaustedUnpaid: {
+		"site_name", "user_display_name", "console_url", "quota_scope", "balance_snapshot", "top_up_url",
+	},
+	model.RecallLifecycleTriggerPaymentFailed: {
+		"site_name", "user_display_name", "console_url", "purchase_kind", "trade_no", "amount", "currency", "payment_url",
+	},
+	model.RecallLifecycleTriggerPaymentPending: {
+		"site_name", "user_display_name", "console_url", "purchase_kind", "trade_no", "amount", "currency", "payment_url",
+	},
+	model.RecallLifecycleTriggerPaymentSucceeded: {
+		"site_name", "user_display_name", "console_url", "purchase_kind", "trade_no", "amount", "currency", "completed_at",
+	},
+}
+
 type recallEmailHTMLDocument struct {
 	campaignType   string
 	deliveryPolicy string
@@ -54,7 +78,11 @@ func parseRecallEmailHTMLForCampaign(campaignType string, source string) (*recal
 }
 
 func parseRecallEmailHTMLForDelivery(campaignType string, deliveryPolicy string, source string) (*recallEmailHTMLDocument, error) {
-	policy, err := recallEmailHTMLPolicyForDelivery(campaignType, deliveryPolicy)
+	return parseRecallEmailHTMLForLifecycleTrigger(campaignType, deliveryPolicy, "", source)
+}
+
+func parseRecallEmailHTMLForLifecycleTrigger(campaignType string, deliveryPolicy string, lifecycleTrigger string, source string) (*recallEmailHTMLDocument, error) {
+	policy, err := recallEmailHTMLPolicyForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +117,10 @@ func recallEmailHTMLPolicyForCampaign(campaignType string) (recallEmailHTMLPolic
 }
 
 func recallEmailHTMLPolicyForDelivery(campaignType string, deliveryPolicy string) (recallEmailHTMLPolicy, error) {
+	return recallEmailHTMLPolicyForLifecycleTrigger(campaignType, deliveryPolicy, "")
+}
+
+func recallEmailHTMLPolicyForLifecycleTrigger(campaignType string, deliveryPolicy string, lifecycleTrigger string) (recallEmailHTMLPolicy, error) {
 	campaignType, err := normalizeRecallCampaignType(campaignType)
 	if err != nil {
 		return recallEmailHTMLPolicy{}, err
@@ -110,6 +142,15 @@ func recallEmailHTMLPolicyForDelivery(campaignType string, deliveryPolicy string
 	}
 	if campaignType == model.RecallCampaignTypePromotion {
 		policy.RequiredHrefFields = append(policy.RequiredHrefFields, "ClaimURL")
+	}
+	lifecycleTrigger = strings.TrimSpace(lifecycleTrigger)
+	if lifecycleTrigger != "" {
+		if err := model.ValidateRecallLifecycleTrigger(lifecycleTrigger); err != nil {
+			return recallEmailHTMLPolicy{}, err
+		}
+		for _, field := range recallLifecycleEmailFieldsByTrigger[lifecycleTrigger] {
+			policy.AllowedFields[field] = struct{}{}
+		}
 	}
 	return policy, nil
 }

@@ -479,6 +479,43 @@ func TestRecallCampaignContinuousRejectsWrongPolicyAudiencePromotionAndStageShap
 	}
 }
 
+func TestRecallCampaignContinuousTemplateVariablesAreTriggerScoped(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+
+	draft := validRecallContinuousDraft()
+	draft.LifecycleTrigger = model.RecallLifecycleTriggerPaymentSucceeded
+	draft.DeliveryPolicy = model.RecallDeliveryPolicyService
+	for language := range draft.Emails[0].Templates {
+		draft.Emails[0].Templates[language] = RecallEmailTemplate{
+			Subject:  "Payment complete",
+			BodyHTML: `<!doctype html><html><body><p>Trade {{.trade_no}}</p><p>{{.amount}} {{.currency}}</p><p>{{.completed_at}}</p></body></html>`,
+		}
+	}
+
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+
+	require.NoError(t, err)
+	require.Equal(t, model.RecallLifecycleTriggerPaymentSucceeded, campaign.LifecycleTrigger)
+
+	wrongTrigger := draft
+	wrongTrigger.Emails = append([]RecallEmailStage(nil), draft.Emails...)
+	wrongTrigger.Emails[0].Templates = map[string]RecallEmailTemplate{}
+	for language := range draft.Emails[0].Templates {
+		wrongTrigger.Emails[0].Templates[language] = RecallEmailTemplate{
+			Subject:  "Payment complete",
+			BodyHTML: `<!doctype html><html><body><p>{{.payment_url}}</p></body></html>`,
+		}
+	}
+
+	_, err = service.SaveDraft(context.Background(), 7, wrongTrigger)
+
+	require.ErrorContains(t, err, `unsupported template field "payment_url"`)
+}
+
 func TestRecallCampaignContinuousActivationImmutableFields(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

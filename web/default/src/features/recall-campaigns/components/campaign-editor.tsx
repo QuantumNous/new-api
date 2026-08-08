@@ -118,7 +118,12 @@ const recallLifecycleVariablesByTrigger: Record<
   RecallLifecycleTrigger,
   string[]
 > = {
-  user_registered: ['site_name', 'user_display_name', 'console_url'],
+  user_registered: [
+    'site_name',
+    'user_display_name',
+    'console_url',
+    'registration_time',
+  ],
   registration_unused: [
     'site_name',
     'user_display_name',
@@ -126,13 +131,26 @@ const recallLifecycleVariablesByTrigger: Record<
     'registration_time',
   ],
   quota_low: [
+    'site_name',
+    'user_display_name',
+    'console_url',
     'quota_scope',
     'balance_snapshot',
     'effective_threshold',
     'top_up_url',
   ],
-  quota_exhausted_unpaid: ['quota_scope', 'balance_snapshot', 'top_up_url'],
+  quota_exhausted_unpaid: [
+    'site_name',
+    'user_display_name',
+    'console_url',
+    'quota_scope',
+    'balance_snapshot',
+    'top_up_url',
+  ],
   payment_failed: [
+    'site_name',
+    'user_display_name',
+    'console_url',
     'purchase_kind',
     'trade_no',
     'amount',
@@ -140,6 +158,9 @@ const recallLifecycleVariablesByTrigger: Record<
     'payment_url',
   ],
   payment_pending: [
+    'site_name',
+    'user_display_name',
+    'console_url',
     'purchase_kind',
     'trade_no',
     'amount',
@@ -147,6 +168,9 @@ const recallLifecycleVariablesByTrigger: Record<
     'payment_url',
   ],
   payment_succeeded: [
+    'site_name',
+    'user_display_name',
+    'console_url',
     'purchase_kind',
     'trade_no',
     'amount',
@@ -1719,7 +1743,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
                   {recallLifecycleVariablesByTrigger[lifecycleTrigger].map(
                     (variable) => (
                       <Badge key={variable} variant='outline'>
-                        {variable}
+                        {`{{.${variable}}}`}
                       </Badge>
                     )
                   )}

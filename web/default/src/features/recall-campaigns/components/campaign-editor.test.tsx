@@ -1572,6 +1572,21 @@ describe('CampaignEditor schedule modes', () => {
     expect(html).not.toContain('Add email stage')
   })
 
+  test('shows copy-ready Continuous trigger placeholders instead of raw field names', () => {
+    const draft = makeContinuousDraft()
+    draft.lifecycle_trigger = 'payment_succeeded'
+    draft.delivery_policy = 'service'
+    const html = renderEditor('first_purchase', draft)
+
+    expect(html).toContain('Trigger variables')
+    expect(html).toContain('{{.trade_no}}')
+    expect(html).toContain('{{.amount}}')
+    expect(html).toContain('{{.currency}}')
+    expect(html).toContain('{{.completed_at}}')
+    expect(html).not.toContain('>trade_no<')
+    expect(html).not.toContain('raw')
+  })
+
   test('uses service-policy Continuous starter content without unsubscribe controls', () => {
     const draft = makeContinuousDraft()
     draft.email_sequence[0].templates.en = {
