@@ -11,42 +11,46 @@ import (
 func TestRecallLifecycleEventLeaseTwoNodesExpiredRecoveryAndStaleOwnerFencing(t *testing.T) {
 	setupRecallLifecycleTestDB(t)
 	event := createRecallLifecycleModelEvent(t, RecallLifecycleTriggerQuotaLow, 101, 100, 100)
+	dbNow, err := GetDBTimestampWithContext(context.Background())
+	require.NoError(t, err)
 
-	first, won, err := ClaimDueRecallLifecycleEvent(context.Background(), event.Id, "node-a", 150, 210)
+	first, won, err := ClaimDueRecallLifecycleEvent(context.Background(), event.Id, "node-a", dbNow, dbNow+60)
 	require.NoError(t, err)
 	require.True(t, won)
 	require.Equal(t, RecallLifecycleEventLeased, first.Disposition)
 	require.EqualValues(t, 1, first.LeaseEpoch)
 
-	second, won, err := ClaimDueRecallLifecycleEvent(context.Background(), event.Id, "node-b", 151, 220)
+	second, won, err := ClaimDueRecallLifecycleEvent(context.Background(), event.Id, "node-b", dbNow+1, dbNow+70)
 	require.NoError(t, err)
 	require.False(t, won)
 	require.Nil(t, second)
 
-	recovered, won, err := ClaimDueRecallLifecycleEvent(context.Background(), event.Id, "node-b", 211, 280)
+	recovered, won, err := ClaimDueRecallLifecycleEvent(context.Background(), event.Id, "node-b", dbNow+61, dbNow+120)
 	require.NoError(t, err)
 	require.True(t, won)
 	require.EqualValues(t, 2, recovered.LeaseEpoch)
 	require.Equal(t, "node-b", recovered.LeaseOwner)
 
 	resolved, err := ResolveRecallLifecycleEventEnrollment(context.Background(), RecallLifecycleEventEnrollmentResolution{
-		EventID:     event.Id,
-		Owner:       "node-a",
-		LeaseEpoch:  1,
-		CampaignID:  11,
-		RecipientID: 12,
-		ResolvedAt:  212,
+		EventID:              event.Id,
+		Owner:                "node-a",
+		LeaseEpoch:           1,
+		ExpectedLeaseExpires: first.LeaseExpiresAt,
+		CampaignID:           11,
+		RecipientID:          12,
+		ResolvedAt:           dbNow + 62,
 	})
 	require.NoError(t, err)
 	require.False(t, resolved)
 
 	resolved, err = ResolveRecallLifecycleEventEnrollment(context.Background(), RecallLifecycleEventEnrollmentResolution{
-		EventID:     event.Id,
-		Owner:       "node-b",
-		LeaseEpoch:  recovered.LeaseEpoch,
-		CampaignID:  21,
-		RecipientID: 22,
-		ResolvedAt:  213,
+		EventID:              event.Id,
+		Owner:                "node-b",
+		LeaseEpoch:           recovered.LeaseEpoch,
+		ExpectedLeaseExpires: recovered.LeaseExpiresAt,
+		CampaignID:           21,
+		RecipientID:          22,
+		ResolvedAt:           dbNow + 63,
 	})
 	require.NoError(t, err)
 	require.True(t, resolved)
@@ -57,6 +61,91 @@ func TestRecallLifecycleEventLeaseTwoNodesExpiredRecoveryAndStaleOwnerFencing(t 
 	require.EqualValues(t, 21, stored.CampaignId)
 	require.EqualValues(t, 22, stored.RecipientId)
 	require.Empty(t, stored.LeaseOwner)
+}
+
+func TestRecallLifecycleRecoveryExpiredOwnerCannotResolveSkipOrDefer(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+	event := createRecallLifecycleModelEvent(t, RecallLifecycleTriggerQuotaLow, 301, 100, 100)
+	dbNow, err := GetDBTimestampWithContext(context.Background())
+	require.NoError(t, err)
+	claimed, won, err := ClaimDueRecallLifecycleEvent(context.Background(), event.Id, "node-a", dbNow, dbNow+60)
+	require.NoError(t, err)
+	require.True(t, won)
+	claimed.LeaseExpiresAt = dbNow - 1
+	require.NoError(t, DB.Model(&RecallLifecycleEvent{}).
+		Where("id = ?", event.Id).
+		Update("lease_expires_at", claimed.LeaseExpiresAt).Error)
+
+	resolved, err := ResolveRecallLifecycleEventEnrollment(context.Background(), RecallLifecycleEventEnrollmentResolution{
+		EventID:              event.Id,
+		Owner:                "node-a",
+		LeaseEpoch:           claimed.LeaseEpoch,
+		ExpectedLeaseExpires: claimed.LeaseExpiresAt,
+		CampaignID:           11,
+		RecipientID:          12,
+		ResolvedAt:           dbNow + 2,
+	})
+	require.NoError(t, err)
+	require.False(t, resolved)
+
+	skipped, err := SkipRecallLifecycleEvent(context.Background(), event.Id, "node-a", claimed.LeaseEpoch, claimed.LeaseExpiresAt, "malformed_event_data")
+	require.NoError(t, err)
+	require.False(t, skipped)
+
+	deferred, err := DeferRecallLifecycleEvent(context.Background(), RecallLifecycleEventDeferral{
+		EventID:              event.Id,
+		Owner:                "node-a",
+		LeaseEpoch:           claimed.LeaseEpoch,
+		ExpectedLeaseExpires: claimed.LeaseExpiresAt,
+		ErrorCode:            "db_timeout_order_12345",
+	})
+	require.NoError(t, err)
+	require.False(t, deferred)
+
+	var stored RecallLifecycleEvent
+	require.NoError(t, DB.First(&stored, event.Id).Error)
+	require.Equal(t, RecallLifecycleEventLeased, stored.Disposition)
+	require.Equal(t, "node-a", stored.LeaseOwner)
+	require.EqualValues(t, dbNow-1, stored.LeaseExpiresAt)
+}
+
+func TestRecallLifecycleRetryDeferSetsBoundedBackoffAndFencesEpoch(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+	event := createRecallLifecycleModelEvent(t, RecallLifecycleTriggerQuotaLow, 302, 100, 100)
+	dbNow, err := GetDBTimestampWithContext(context.Background())
+	require.NoError(t, err)
+	claimed, won, err := ClaimDueRecallLifecycleEvent(context.Background(), event.Id, "node-a", dbNow, dbNow+300)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	deferred, err := DeferRecallLifecycleEvent(context.Background(), RecallLifecycleEventDeferral{
+		EventID:              event.Id,
+		Owner:                "node-b",
+		LeaseEpoch:           claimed.LeaseEpoch,
+		ExpectedLeaseExpires: claimed.LeaseExpiresAt,
+		ErrorCode:            "wrong_owner",
+	})
+	require.NoError(t, err)
+	require.False(t, deferred)
+
+	deferred, err = DeferRecallLifecycleEvent(context.Background(), RecallLifecycleEventDeferral{
+		EventID:              event.Id,
+		Owner:                "node-a",
+		LeaseEpoch:           claimed.LeaseEpoch,
+		ExpectedLeaseExpires: claimed.LeaseExpiresAt,
+		ErrorCode:            "db timeout order=raw-1234567890",
+	})
+	require.NoError(t, err)
+	require.True(t, deferred)
+
+	var stored RecallLifecycleEvent
+	require.NoError(t, DB.First(&stored, event.Id).Error)
+	require.Equal(t, RecallLifecycleEventPending, stored.Disposition)
+	require.Empty(t, stored.LeaseOwner)
+	require.Zero(t, stored.LeaseExpiresAt)
+	require.Greater(t, stored.NextAttemptAt, dbNow)
+	require.LessOrEqual(t, stored.NextAttemptAt, dbNow+3600)
+	require.Equal(t, "dbtimeoutorderraw-1234567890", stored.LastErrorCode)
 }
 
 func TestRecallLifecycleEventLeaseEligibilityPredicate(t *testing.T) {

@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestRecallLifecycleEnrollmentCreatesOneOccurrenceRecipientAndStageOneMessage(t *testing.T) {
@@ -43,10 +45,35 @@ func TestRecallLifecycleEnrollmentCreatesOneOccurrenceRecipientAndStageOneMessag
 	require.Equal(t, model.RecallMessageScheduled, messages[0].State)
 	require.EqualValues(t, 120, messages[0].ScheduledAt)
 
+	var stateEvents int64
+	require.NoError(t, model.DB.Model(&model.RecallEvent{}).
+		Where("campaign_id = ? AND recipient_id = ? AND message_id = ? AND event_type = ? AND source = ?",
+			campaign.Id, recipients[0].Id, messages[0].Id, "message_state_changed", "message_state").
+		Count(&stateEvents).Error)
+	require.EqualValues(t, 1, stateEvents)
+
 	again, err := worker.RunBatch(context.Background(), 10)
 	require.NoError(t, err)
 	require.Zero(t, again)
 	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Count(new(int64)).Error)
+}
+
+func TestRecallLifecyclePausedCampaignDoesNotEnroll(t *testing.T) {
+	setupRecallLifecycleServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignPaused, 100)
+	event := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 311, 120, 120, `{}`)
+
+	enrolled, err := NewRecallLifecycleWorker("node-a").RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, enrolled)
+
+	var stored model.RecallLifecycleEvent
+	require.NoError(t, model.DB.First(&stored, event.Id).Error)
+	require.Equal(t, model.RecallLifecycleEventPending, stored.Disposition)
+	var recipients int64
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Count(&recipients).Error)
+	require.Zero(t, recipients)
 }
 
 func TestRecallLifecycleEnrollmentBoundaryRecoveryAndCampaignReplacement(t *testing.T) {
@@ -101,6 +128,87 @@ func TestRecallLifecycleEnrollmentSkipsMalformedTerminalAndContinues(t *testing.
 	var goodStored model.RecallLifecycleEvent
 	require.NoError(t, model.DB.First(&goodStored, good.Id).Error)
 	require.Equal(t, model.RecallLifecycleEventEnrolled, goodStored.Disposition)
+}
+
+func TestRecallLifecycleRetryTransientEnrollmentDefersAndContinuesBatch(t *testing.T) {
+	setupRecallLifecycleServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignRunning, 100)
+	transient := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 601, 120, 120, `{}`)
+	good := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 602, 121, 121, `{}`)
+	injectRecallRecipientCreateErrorOnce(t, 601, errors.New("temporary insert outage order=raw-601"))
+
+	enrolled, err := NewRecallLifecycleWorker("node-a").RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, enrolled)
+
+	var retryEvent model.RecallLifecycleEvent
+	require.NoError(t, model.DB.First(&retryEvent, transient.Id).Error)
+	require.Equal(t, model.RecallLifecycleEventPending, retryEvent.Disposition)
+	require.Empty(t, retryEvent.LeaseOwner)
+	require.Zero(t, retryEvent.LeaseExpiresAt)
+	require.NotZero(t, retryEvent.NextAttemptAt)
+	require.Equal(t, "temporaryinsertoutageorderraw-601", retryEvent.LastErrorCode)
+
+	var goodEvent model.RecallLifecycleEvent
+	require.NoError(t, model.DB.First(&goodEvent, good.Id).Error)
+	require.Equal(t, model.RecallLifecycleEventEnrolled, goodEvent.Disposition)
+}
+
+func TestRecallLifecycleReplacementConflictHalfFinishedDoesNotCreateOldCampaignMessage(t *testing.T) {
+	setupRecallLifecycleServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, oldCampaign := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignCancelled, 100)
+	_, replacement := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignRunning, 100)
+	require.NoError(t, model.DB.Model(&model.RecallContinuousTriggerSlot{}).
+		Where("trigger = ?", model.RecallLifecycleTriggerQuotaLow).
+		Update("campaign_id", replacement.Id).Error)
+	event := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 701, 120, 120, `{}`)
+	createRecallLifecycleExistingRecipient(t, oldCampaign.Id, event)
+
+	enrolled, err := NewRecallLifecycleWorker("node-a").RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, enrolled)
+
+	var recipients, messages int64
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Count(&recipients).Error)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Count(&messages).Error)
+	require.EqualValues(t, 1, recipients)
+	require.Zero(t, messages)
+
+	var stored model.RecallLifecycleEvent
+	require.NoError(t, model.DB.First(&stored, event.Id).Error)
+	require.Equal(t, model.RecallLifecycleEventSkipped, stored.Disposition)
+	require.Equal(t, "lifecycle_recipient_inconsistent", stored.DispositionReasonCode)
+}
+
+func TestRecallLifecycleReplacementConflictCompleteIdempotentRecovery(t *testing.T) {
+	setupRecallLifecycleServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, oldCampaign := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignCancelled, 100)
+	_, replacement := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignRunning, 100)
+	require.NoError(t, model.DB.Model(&model.RecallContinuousTriggerSlot{}).
+		Where("trigger = ?", model.RecallLifecycleTriggerQuotaLow).
+		Update("campaign_id", replacement.Id).Error)
+	event := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 702, 120, 120, `{}`)
+	recipient := createRecallLifecycleExistingRecipient(t, oldCampaign.Id, event)
+	createRecallLifecycleExistingStageOne(t, oldCampaign.Id, recipient.Id)
+
+	enrolled, err := NewRecallLifecycleWorker("node-a").RunBatch(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, enrolled)
+
+	var recipients, messages int64
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Count(&recipients).Error)
+	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Count(&messages).Error)
+	require.EqualValues(t, 1, recipients)
+	require.EqualValues(t, 1, messages)
+
+	var stored model.RecallLifecycleEvent
+	require.NoError(t, model.DB.First(&stored, event.Id).Error)
+	require.Equal(t, model.RecallLifecycleEventEnrolled, stored.Disposition)
+	require.Equal(t, oldCampaign.Id, stored.CampaignId)
+	require.Equal(t, recipient.Id, stored.RecipientId)
 }
 
 func TestRecallLifecycleEnrollmentLimitNonPositiveIsSafe(t *testing.T) {
@@ -184,4 +292,63 @@ func createRecallLifecycleEnrollmentEvent(t *testing.T, trigger string, userID i
 	require.NoError(t, err)
 	require.True(t, inserted)
 	return event
+}
+
+func injectRecallRecipientCreateErrorOnce(t *testing.T, userID int, injectErr error) {
+	t.Helper()
+	name := fmt.Sprintf("recall_lifecycle_test_insert_error_%d", userID)
+	triggered := false
+	require.NoError(t, model.DB.Callback().Create().Before("gorm:create").Register(name, func(tx *gorm.DB) {
+		if triggered || tx.Statement == nil || tx.Statement.Schema == nil || tx.Statement.Schema.Name != "RecallRecipient" {
+			return
+		}
+		recipient, ok := tx.Statement.Dest.(*model.RecallRecipient)
+		if !ok || recipient.UserId != userID {
+			return
+		}
+		triggered = true
+		tx.AddError(injectErr)
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Create().Remove(name))
+	})
+}
+
+func createRecallLifecycleExistingRecipient(t *testing.T, campaignID int64, event model.RecallLifecycleEvent) model.RecallRecipient {
+	t.Helper()
+	eventID := event.Id
+	recipient := model.RecallRecipient{
+		CampaignId:          campaignID,
+		LifecycleEventId:    &eventID,
+		RecipientIdentity:   model.RecallLifecycleRecipientIdentity(event.EventType, event.OccurrenceKeyHash),
+		UserId:              event.UserId,
+		EligibilitySnapshot: event.EventData,
+		EmailSnapshot:       fmt.Sprintf("user-%d@example.com", event.UserId),
+		LanguageSnapshot:    "en",
+		State:               model.RecallRecipientContacting,
+	}
+	require.NoError(t, model.DB.Create(&recipient).Error)
+	return recipient
+}
+
+func createRecallLifecycleExistingStageOne(t *testing.T, campaignID int64, recipientID int64) model.RecallMessage {
+	t.Helper()
+	templateJSON, err := common.Marshal(map[string]RecallEmailTemplate{
+		"en": {Subject: "Notice", BodyText: "Body"},
+	})
+	require.NoError(t, err)
+	message := model.RecallMessage{
+		RecipientId:         recipientID,
+		StageNo:             1,
+		TemplateSnapshot:    string(templateJSON),
+		ScheduledAt:         120,
+		State:               model.RecallMessageScheduled,
+		TemplateVersion:     1,
+		PreSendAttemptCount: 0,
+	}
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		return model.CreateRecallMessagesWithStateEventsTx(tx, campaignID, []model.RecallMessage{message}, 120)
+	}))
+	require.NoError(t, model.DB.First(&message, "recipient_id = ? AND stage_no = ?", recipientID, 1).Error)
+	return message
 }

@@ -61,7 +61,20 @@ func (w *RecallLifecycleWorker) RunBatch(ctx context.Context, limit int) (int, e
 		}
 		created, err := w.enrollClaimedEvent(ctx, *claimed)
 		if err != nil {
-			return enrolled, err
+			deferred, deferErr := model.DeferRecallLifecycleEvent(ctx, model.RecallLifecycleEventDeferral{
+				EventID:              claimed.Id,
+				Owner:                w.owner,
+				LeaseEpoch:           claimed.LeaseEpoch,
+				ExpectedLeaseExpires: claimed.LeaseExpiresAt,
+				ErrorCode:            recallLifecycleTransientErrorCode(err),
+			})
+			if deferErr != nil {
+				return enrolled, deferErr
+			}
+			if !deferred {
+				continue
+			}
+			continue
 		}
 		if created {
 			enrolled++
@@ -99,38 +112,48 @@ func (w *RecallLifecycleWorker) enrollClaimedEvent(ctx context.Context, claimed 
 		if err != nil {
 			return skipRecallLifecycleEventTx(tx, event, w.owner, recallLifecycleEnrollmentErrorCode(err), dbNow)
 		}
-		if err := tx.Clauses(clause.OnConflict{
+		insertResult := tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "lifecycle_event_id"}},
 			DoNothing: true,
-		}).Create(&recipient).Error; err != nil {
-			return err
+		}).Create(&recipient)
+		if insertResult.Error != nil {
+			return insertResult.Error
 		}
 		var stored model.RecallRecipient
 		if err := tx.Where("lifecycle_event_id = ?", event.Id).First(&stored).Error; err != nil {
+			return err
+		}
+		expectedIdentity := model.RecallLifecycleRecipientIdentity(event.EventType, event.OccurrenceKeyHash)
+		if !recallLifecycleStoredRecipientMatchesEvent(stored, event, expectedIdentity) {
+			return skipRecallLifecycleEventTx(tx, event, w.owner, "lifecycle_recipient_inconsistent", dbNow)
+		}
+		if stored.CampaignId != campaign.Id {
+			complete, err := recallLifecycleExistingEnrollmentCompleteTx(tx, stored, event)
+			if err != nil {
+				return err
+			}
+			if !complete {
+				return skipRecallLifecycleEventTx(tx, event, w.owner, "lifecycle_recipient_inconsistent", dbNow)
+			}
+			_, err = resolveRecallLifecycleEventTx(tx, event, w.owner, stored.CampaignId, stored.Id, dbNow)
 			return err
 		}
 		message.RecipientId = stored.Id
 		if err := model.CreateRecallMessagesWithStateEventsTx(tx, stored.CampaignId, []model.RecallMessage{message}, dbNow); err != nil {
 			return err
 		}
-		result := tx.Model(&model.RecallLifecycleEvent{}).
-			Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ?",
-				event.Id, model.RecallLifecycleEventLeased, w.owner, event.LeaseEpoch).
-			Updates(map[string]any{
-				"disposition":             model.RecallLifecycleEventEnrolled,
-				"disposition_reason_code": "",
-				"campaign_id":             stored.CampaignId,
-				"recipient_id":            stored.Id,
-				"processed_at":            dbNow,
-				"resolved_at":             dbNow,
-				"lease_owner":             "",
-				"lease_expires_at":        int64(0),
-				"last_error_code":         "",
-			})
-		if result.Error != nil {
-			return result.Error
+		complete, err := recallLifecycleExistingEnrollmentCompleteTx(tx, stored, event)
+		if err != nil {
+			return err
 		}
-		if result.RowsAffected == 1 && stored.CampaignId == campaign.Id {
+		if !complete {
+			return skipRecallLifecycleEventTx(tx, event, w.owner, "lifecycle_message_inconsistent", dbNow)
+		}
+		resolved, err := resolveRecallLifecycleEventTx(tx, event, w.owner, stored.CampaignId, stored.Id, dbNow)
+		if err != nil {
+			return err
+		}
+		if resolved && insertResult.RowsAffected == 1 {
 			created = true
 		}
 		return nil
@@ -226,6 +249,72 @@ func recallLifecycleEnrollmentRowsTx(tx *gorm.DB, campaign model.RecallCampaign,
 	return recipient, message, nil
 }
 
+func recallLifecycleStoredRecipientMatchesEvent(stored model.RecallRecipient, event model.RecallLifecycleEvent, expectedIdentity string) bool {
+	if stored.LifecycleEventId == nil || *stored.LifecycleEventId != event.Id {
+		return false
+	}
+	if strings.TrimSpace(stored.RecipientIdentity) != expectedIdentity {
+		return false
+	}
+	return stored.UserId == event.UserId
+}
+
+func recallLifecycleExistingEnrollmentCompleteTx(tx *gorm.DB, stored model.RecallRecipient, event model.RecallLifecycleEvent) (bool, error) {
+	var campaign model.RecallCampaign
+	if err := tx.Select("id", "status", "execution_mode", "lifecycle_trigger").
+		First(&campaign, stored.CampaignId).Error; err != nil {
+		return false, err
+	}
+	if campaign.ExecutionMode != "continuous" || campaign.LifecycleTrigger != event.EventType {
+		return false, nil
+	}
+	switch campaign.Status {
+	case model.RecallCampaignRunning, model.RecallCampaignPaused, model.RecallCampaignCancelled, model.RecallCampaignCompleted:
+	default:
+		return false, nil
+	}
+	var message model.RecallMessage
+	if err := tx.Where("recipient_id = ? AND stage_no = ?", stored.Id, 1).First(&message).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	var stateEvents int64
+	if err := tx.Model(&model.RecallEvent{}).
+		Where("campaign_id = ? AND recipient_id = ? AND message_id = ? AND event_type = ? AND source = ?",
+			stored.CampaignId, stored.Id, message.Id, "message_state_changed", "message_state").
+		Count(&stateEvents).Error; err != nil {
+		return false, err
+	}
+	return stateEvents == 1, nil
+}
+
+func resolveRecallLifecycleEventTx(tx *gorm.DB, event model.RecallLifecycleEvent, owner string, campaignID int64, recipientID int64, resolvedAt int64) (bool, error) {
+	dbNow, err := getDBTimestampForLifecycleTx(tx)
+	if err != nil {
+		return false, err
+	}
+	result := tx.Model(&model.RecallLifecycleEvent{}).
+		Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expires_at = ? AND lease_expires_at > ?",
+			event.Id, model.RecallLifecycleEventLeased, strings.TrimSpace(owner), event.LeaseEpoch, event.LeaseExpiresAt, dbNow).
+		Updates(map[string]any{
+			"disposition":             model.RecallLifecycleEventEnrolled,
+			"disposition_reason_code": "",
+			"campaign_id":             campaignID,
+			"recipient_id":            recipientID,
+			"processed_at":            resolvedAt,
+			"resolved_at":             resolvedAt,
+			"lease_owner":             "",
+			"lease_expires_at":        int64(0),
+			"last_error_code":         "",
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 func decodeRecallLifecycleEventData(value string) (map[string]any, error) {
 	var data map[string]any
 	if strings.TrimSpace(value) == "" {
@@ -256,9 +345,13 @@ func parseRecallLifecycleMarker(value string) (int64, error) {
 
 func skipRecallLifecycleEventTx(tx *gorm.DB, event model.RecallLifecycleEvent, owner string, reasonCode string, resolvedAt int64) error {
 	reasonCode = recallLifecycleEnrollmentErrorCode(fmt.Errorf("%s", reasonCode))
+	dbNow, err := getDBTimestampForLifecycleTx(tx)
+	if err != nil {
+		return err
+	}
 	result := tx.Model(&model.RecallLifecycleEvent{}).
-		Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ?",
-			event.Id, model.RecallLifecycleEventLeased, strings.TrimSpace(owner), event.LeaseEpoch).
+		Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expires_at = ? AND lease_expires_at > ?",
+			event.Id, model.RecallLifecycleEventLeased, strings.TrimSpace(owner), event.LeaseEpoch, event.LeaseExpiresAt, dbNow).
 		Updates(map[string]any{
 			"disposition":             model.RecallLifecycleEventSkipped,
 			"disposition_reason_code": reasonCode,
@@ -273,9 +366,40 @@ func skipRecallLifecycleEventTx(tx *gorm.DB, event model.RecallLifecycleEvent, o
 func recallLifecycleEnrollmentErrorCode(err error) string {
 	code := strings.TrimSpace(err.Error())
 	switch code {
-	case "malformed_event_data", "missing_user", "invalid_email", "invalid_email_sequence", "missing_stage_one":
+	case "malformed_event_data", "missing_user", "invalid_email", "invalid_email_sequence", "missing_stage_one", "lifecycle_recipient_inconsistent", "lifecycle_message_inconsistent":
 		return code
 	default:
 		return "lifecycle_enrollment_failed"
 	}
+}
+
+func recallLifecycleTransientErrorCode(err error) string {
+	code := strings.TrimSpace(err.Error())
+	if code == "" {
+		return "lifecycle_enrollment_retry"
+	}
+	return code
+}
+
+func getDBTimestampForLifecycleTx(tx *gorm.DB) (int64, error) {
+	if tx == nil || tx.Dialector == nil {
+		return 0, fmt.Errorf("database is not initialized")
+	}
+	query := "SELECT UNIX_TIMESTAMP()"
+	switch tx.Dialector.Name() {
+	case "postgres":
+		query = "SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()))::bigint"
+	case "sqlite":
+		query = "SELECT strftime('%s','now')"
+	case "mysql":
+		query = "SELECT UNIX_TIMESTAMP()"
+	}
+	var ts int64
+	if err := tx.Raw(query).Scan(&ts).Error; err != nil {
+		return 0, err
+	}
+	if ts <= 0 {
+		return 0, fmt.Errorf("database timestamp query returned non-positive timestamp: %d", ts)
+	}
+	return ts, nil
 }

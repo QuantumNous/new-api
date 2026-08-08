@@ -68,12 +68,21 @@ type RecallLifecycleEvent struct {
 }
 
 type RecallLifecycleEventEnrollmentResolution struct {
-	EventID     int64
-	Owner       string
-	LeaseEpoch  int64
-	CampaignID  int64
-	RecipientID int64
-	ResolvedAt  int64
+	EventID              int64
+	Owner                string
+	LeaseEpoch           int64
+	ExpectedLeaseExpires int64
+	CampaignID           int64
+	RecipientID          int64
+	ResolvedAt           int64
+}
+
+type RecallLifecycleEventDeferral struct {
+	EventID              int64
+	Owner                string
+	LeaseEpoch           int64
+	ExpectedLeaseExpires int64
+	ErrorCode            string
 }
 
 type RecallContinuousTriggerSlot struct {
@@ -369,48 +378,137 @@ func ResolveRecallLifecycleEventEnrollment(ctx context.Context, resolution Recal
 	if ctx == nil {
 		return false, fmt.Errorf("context is nil")
 	}
-	if resolution.EventID <= 0 || strings.TrimSpace(resolution.Owner) == "" || resolution.LeaseEpoch <= 0 || resolution.CampaignID <= 0 || resolution.RecipientID <= 0 {
+	if resolution.EventID <= 0 || strings.TrimSpace(resolution.Owner) == "" || resolution.LeaseEpoch <= 0 || resolution.ExpectedLeaseExpires <= 0 || resolution.CampaignID <= 0 || resolution.RecipientID <= 0 {
 		return false, fmt.Errorf("recall lifecycle event enrollment resolution requires event, owner, epoch, campaign, and recipient")
 	}
-	result := DB.WithContext(ctx).Model(&RecallLifecycleEvent{}).
-		Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ?",
-			resolution.EventID, RecallLifecycleEventLeased, strings.TrimSpace(resolution.Owner), resolution.LeaseEpoch).
-		Updates(map[string]any{
-			"disposition":             RecallLifecycleEventEnrolled,
-			"disposition_reason_code": "",
-			"campaign_id":             resolution.CampaignID,
-			"recipient_id":            resolution.RecipientID,
-			"processed_at":            resolution.ResolvedAt,
-			"resolved_at":             resolution.ResolvedAt,
-			"lease_owner":             "",
-			"lease_expires_at":        int64(0),
-			"last_error_code":         "",
-		})
-	if result.Error != nil {
-		return false, result.Error
+	resolved := false
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		dbNow, err := getDBTimestamp(tx)
+		if err != nil {
+			return err
+		}
+		result := tx.Model(&RecallLifecycleEvent{}).
+			Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expires_at = ? AND lease_expires_at > ?",
+				resolution.EventID, RecallLifecycleEventLeased, strings.TrimSpace(resolution.Owner), resolution.LeaseEpoch, resolution.ExpectedLeaseExpires, dbNow).
+			Updates(map[string]any{
+				"disposition":             RecallLifecycleEventEnrolled,
+				"disposition_reason_code": "",
+				"campaign_id":             resolution.CampaignID,
+				"recipient_id":            resolution.RecipientID,
+				"processed_at":            resolution.ResolvedAt,
+				"resolved_at":             resolution.ResolvedAt,
+				"lease_owner":             "",
+				"lease_expires_at":        int64(0),
+				"last_error_code":         "",
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		resolved = result.RowsAffected == 1
+		return nil
+	})
+	if err != nil {
+		return false, err
 	}
-	return result.RowsAffected == 1, nil
+	return resolved, nil
 }
 
-func SkipRecallLifecycleEvent(ctx context.Context, id int64, owner string, leaseEpoch int64, reasonCode string, resolvedAt int64) (bool, error) {
+func SkipRecallLifecycleEvent(ctx context.Context, id int64, owner string, leaseEpoch int64, expectedLeaseExpires int64, reasonCode string) (bool, error) {
 	reasonCode = sanitizeRecallErrorCode(reasonCode)
 	if reasonCode == "" {
 		reasonCode = "lifecycle_skipped"
 	}
-	result := DB.WithContext(ctx).Model(&RecallLifecycleEvent{}).
-		Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ?", id, RecallLifecycleEventLeased, strings.TrimSpace(owner), leaseEpoch).
-		Updates(map[string]any{
-			"disposition":             RecallLifecycleEventSkipped,
-			"disposition_reason_code": reasonCode,
-			"last_error_code":         reasonCode,
-			"resolved_at":             resolvedAt,
-			"lease_owner":             "",
-			"lease_expires_at":        int64(0),
-		})
-	if result.Error != nil {
-		return false, result.Error
+	skipped := false
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		dbNow, err := getDBTimestamp(tx)
+		if err != nil {
+			return err
+		}
+		result := tx.Model(&RecallLifecycleEvent{}).
+			Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expires_at = ? AND lease_expires_at > ?",
+				id, RecallLifecycleEventLeased, strings.TrimSpace(owner), leaseEpoch, expectedLeaseExpires, dbNow).
+			Updates(map[string]any{
+				"disposition":             RecallLifecycleEventSkipped,
+				"disposition_reason_code": reasonCode,
+				"last_error_code":         reasonCode,
+				"resolved_at":             dbNow,
+				"lease_owner":             "",
+				"lease_expires_at":        int64(0),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		skipped = result.RowsAffected == 1
+		return nil
+	})
+	if err != nil {
+		return false, err
 	}
-	return result.RowsAffected == 1, nil
+	return skipped, nil
+}
+
+func DeferRecallLifecycleEvent(ctx context.Context, deferral RecallLifecycleEventDeferral) (bool, error) {
+	if ctx == nil {
+		return false, fmt.Errorf("context is nil")
+	}
+	if deferral.EventID <= 0 || strings.TrimSpace(deferral.Owner) == "" || deferral.LeaseEpoch <= 0 || deferral.ExpectedLeaseExpires <= 0 {
+		return false, fmt.Errorf("recall lifecycle event deferral requires event, owner, epoch, and expected lease")
+	}
+	errorCode := sanitizeRecallErrorCode(deferral.ErrorCode)
+	if errorCode == "" {
+		errorCode = "lifecycle_retry"
+	}
+	deferred := false
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		dbNow, err := getDBTimestamp(tx)
+		if err != nil {
+			return err
+		}
+		var event RecallLifecycleEvent
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expires_at = ? AND lease_expires_at > ?",
+				deferral.EventID, RecallLifecycleEventLeased, strings.TrimSpace(deferral.Owner), deferral.LeaseEpoch, deferral.ExpectedLeaseExpires, dbNow).
+			First(&event).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+		nextAttemptAt := dbNow + recallLifecycleRetryBackoffSeconds(event.AttemptCount)
+		result := tx.Model(&RecallLifecycleEvent{}).
+			Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expires_at = ? AND lease_expires_at > ?",
+				event.Id, RecallLifecycleEventLeased, strings.TrimSpace(deferral.Owner), deferral.LeaseEpoch, deferral.ExpectedLeaseExpires, dbNow).
+			Updates(map[string]any{
+				"disposition":      RecallLifecycleEventPending,
+				"lease_owner":      "",
+				"lease_expires_at": int64(0),
+				"next_attempt_at":  nextAttemptAt,
+				"last_error_code":  errorCode,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		deferred = result.RowsAffected == 1
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return deferred, nil
+}
+
+func recallLifecycleRetryBackoffSeconds(attemptCount int) int64 {
+	if attemptCount < 1 {
+		attemptCount = 1
+	}
+	backoff := int64(60)
+	for i := 1; i < attemptCount && backoff < 3600; i++ {
+		backoff *= 2
+	}
+	if backoff > 3600 {
+		return 3600
+	}
+	return backoff
 }
 
 func insertRecallLifecycleEvent(tx *gorm.DB, event *RecallLifecycleEvent) *gorm.DB {
