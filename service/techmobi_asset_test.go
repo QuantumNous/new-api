@@ -43,6 +43,7 @@ func TestTechMobiAssetMaterializerStreamsMultipartUpload(t *testing.T) {
 			require.Equal(t, http.MethodPost, req.Method)
 			require.Equal(t, "https://api.mindon.example/v1/assets/upload", req.URL.String())
 			require.Equal(t, "Bearer channel-secret", req.Header.Get("Authorization"))
+			require.Equal(t, "idem-techmobi-upload", req.Header.Get("Idempotency-Key"))
 			require.LessOrEqual(t, req.ContentLength, int64(0), "upload must remain streaming")
 			require.Nil(t, req.GetBody, "streaming upload must not retain a replay buffer")
 
@@ -82,15 +83,54 @@ func TestTechMobiAssetMaterializerStreamsMultipartUpload(t *testing.T) {
 			ObjectKey:   "assets/user/reference.png",
 			ContentType: "image/png",
 		},
-		Channel:   &model.Channel{Type: constant.ChannelTypeTechMobiVideo, BaseURL: &baseURL},
-		SourceURL: "https://storage.example/signed-source",
-		Model:     "doubao/doubao-seedance-2-0-260128",
-		APIKey:    "channel-secret",
+		Channel:        &model.Channel{Type: constant.ChannelTypeTechMobiVideo, BaseURL: &baseURL},
+		SourceURL:      "https://storage.example/signed-source",
+		Model:          "doubao/doubao-seedance-2-0-260128",
+		APIKey:         "channel-secret",
+		IdempotencyKey: "idem-techmobi-upload",
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, "asset://asset-opaque-123", result.UpstreamAssetID)
 	require.Equal(t, model.AssetStatusActive, result.Status)
+}
+
+func TestTechMobiAssetMaterializerSendsIdempotencyKey(t *testing.T) {
+	oldFetch := techMobiAssetFetchSource
+	oldClientFactory := techMobiAssetHTTPClientFactory
+	t.Cleanup(func() {
+		techMobiAssetFetchSource = oldFetch
+		techMobiAssetHTTPClientFactory = oldClientFactory
+	})
+
+	techMobiAssetFetchSource = func(_ context.Context, _ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("body"))}, nil
+	}
+	techMobiAssetHTTPClientFactory = func(_ *model.Channel) (*http.Client, error) {
+		return &http.Client{Transport: techMobiRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			require.Equal(t, "idem-header-key", req.Header.Get("Idempotency-Key"))
+			_, err := io.Copy(io.Discard, req.Body)
+			require.NoError(t, err)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"assetUrl":"asset://asset-idem-header"}`)),
+				Header:     make(http.Header),
+			}, nil
+		})}, nil
+	}
+
+	baseURL := "https://api.mindon.example"
+	result, err := (techMobiAssetBindingMaterializer{}).CreateAsset(context.Background(), AssetMaterializeInput{
+		Asset:          model.Asset{ObjectKey: "reference.mp4"},
+		Channel:        &model.Channel{Type: constant.ChannelTypeTechMobiVideo, BaseURL: &baseURL},
+		SourceURL:      "https://storage.example/signed-source",
+		Model:          "doubao/doubao-seedance-2-0-260128",
+		APIKey:         "channel-secret",
+		IdempotencyKey: "idem-header-key",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "asset://asset-idem-header", result.UpstreamAssetID)
 }
 
 func TestTechMobiAssetMaterializerUsesDefaultBaseURL(t *testing.T) {

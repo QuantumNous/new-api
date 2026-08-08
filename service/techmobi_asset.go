@@ -93,6 +93,9 @@ func (techMobiAssetBindingMaterializer) CreateAsset(ctx context.Context, input A
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Authorization", "Bearer "+apiKey)
 	request.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+	if idempotencyKey := strings.TrimSpace(input.IdempotencyKey); idempotencyKey != "" {
+		request.Header.Set("Idempotency-Key", idempotencyKey)
+	}
 
 	writeDone := make(chan error, 1)
 	go func() {

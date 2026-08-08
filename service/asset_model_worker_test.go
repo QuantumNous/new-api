@@ -366,6 +366,65 @@ func TestAssetModelWorkerRetryableProcessingRefreshSchedulesRetryWithoutFailingB
 	require.Equal(t, model.AssetModelReadinessStatusActive, row.Status)
 }
 
+func TestAssetModelWorkerIdempotencyKeyStableAcrossRetry(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{create: []scriptedAssetModelCreate{
+		{err: &AssetMaterializeFailure{Class: AssetMaterializeErrorThrottled, HTTPStatus: http.StatusTooManyRequests}},
+		{result: AssetMaterializeResult{UpstreamAssetID: "upstream-idem-worker", Status: model.AssetStatusActive}},
+	}}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_idempotency_aaaa", "techmobi-key-a")
+
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	processed, err = runAssetModelReadinessBatchAt(t, "node-b", 105)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	keys := materializer.capturedIdempotencyKeys()
+	require.Len(t, keys, 2)
+	require.NotEmpty(t, keys[0])
+	require.Equal(t, keys[0], keys[1])
+	require.NotContains(t, keys[0], "techmobi-key-a")
+	require.Equal(t, assetBindingIdempotencyKey(asset.SHA256, asset.Id, target.ChannelId, target.BindingScope), keys[0])
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
+	require.Equal(t, model.AssetModelReadinessStatusActive, row.Status)
+}
+
+func TestAssetModelWorkerActivationRecoveryAcceptsSameStoredProviderResult(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{
+		create: []scriptedAssetModelCreate{{result: AssetMaterializeResult{UpstreamAssetID: "upstream-worker-recovered", Status: model.AssetStatusActive}}},
+		beforeCreate: func(input AssetMaterializeInput) {
+			require.NoError(t, model.DB.Model(&model.AssetBinding{}).
+				Where("asset_id = ? AND channel_id = ?", input.Asset.Id, input.Channel.Id).
+				Updates(map[string]any{
+					"status":            model.AssetStatusActive,
+					"upstream_asset_id": "upstream-worker-recovered",
+					"lease_owner":       "",
+					"lease_expires_at":  int64(0),
+				}).Error)
+		},
+	}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_activation_recovery", "techmobi-key-a")
+
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.EqualValues(t, 1, atomic.LoadInt64(&materializer.createCalls))
+	binding, err := model.GetAssetBindingForScope(asset.Id, target.ChannelId, target.BindingScope)
+	require.NoError(t, err)
+	require.Equal(t, model.AssetStatusActive, binding.Status)
+	require.Equal(t, "upstream-worker-recovered", binding.UpstreamAssetId)
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
+	require.Equal(t, model.AssetModelReadinessStatusActive, row.Status)
+}
+
 func TestAssetModelWorkerExpiredLeaseAndGenerationDriftCannotActivate(t *testing.T) {
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)
@@ -510,7 +569,9 @@ type scriptedAssetModelMaterializer struct {
 	createCalls      int64
 	blockCreate      chan struct{}
 	blockFirstCreate chan struct{}
+	beforeCreate     func(AssetMaterializeInput)
 	getIDs           []string
+	idempotencyKeys  []string
 }
 
 func (m *scriptedAssetModelMaterializer) CreateAsset(_ context.Context, input AssetMaterializeInput) (AssetMaterializeResult, error) {
@@ -521,8 +582,12 @@ func (m *scriptedAssetModelMaterializer) CreateAsset(_ context.Context, input As
 	if m.blockFirstCreate != nil && call == 1 {
 		<-m.blockFirstCreate
 	}
+	if m.beforeCreate != nil {
+		m.beforeCreate(input)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.idempotencyKeys = append(m.idempotencyKeys, input.IdempotencyKey)
 	if len(m.create) == 0 {
 		return AssetMaterializeResult{UpstreamAssetID: "upstream-" + input.APIKey, Status: model.AssetStatusActive}, nil
 	}
@@ -547,6 +612,12 @@ func (m *scriptedAssetModelMaterializer) getUpstreamIDs() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]string(nil), m.getIDs...)
+}
+
+func (m *scriptedAssetModelMaterializer) capturedIdempotencyKeys() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.idempotencyKeys...)
 }
 
 type keyAwareAssetModelMaterializer struct {

@@ -352,12 +352,13 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 	providerCtx, cancel := assetModelProviderCallContext(ctx)
 	defer cancel()
 	result, err := materializer.CreateAsset(providerCtx, AssetMaterializeInput{
-		UserID:     asset.UserId,
-		Asset:      asset,
-		Channel:    currentChannel,
-		Model:      currentOptions.Model,
-		APIKey:     currentOptions.APIKey,
-		SignSource: signAssetBindingSourceURL,
+		UserID:         asset.UserId,
+		Asset:          asset,
+		Channel:        currentChannel,
+		Model:          currentOptions.Model,
+		APIKey:         currentOptions.APIKey,
+		IdempotencyKey: assetBindingIdempotencyKey(asset.SHA256, asset.Id, currentTarget.ChannelId, currentTarget.BindingScope),
+		SignSource:     signAssetBindingSourceURL,
 	})
 	if err != nil {
 		class := AssetMaterializeErrorClass(err)
@@ -388,9 +389,17 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 		Now:                    nowUnix,
 	})
 	if err != nil {
+		recovered, recoveryErr := recoverAssetBindingAfterProviderResult(ctx, materializer, &asset, currentChannel, target.BindingScope, currentOptions.Model, currentOptions.APIKey, owner, bindingLeaseExpiresAt, result, status, 1, 0)
+		if recoveryErr == nil {
+			return &recovered.Binding, nil
+		}
 		return nil, err
 	}
 	if !activated {
+		recovered, recoveryErr := recoverAssetBindingAfterProviderResult(ctx, materializer, &asset, currentChannel, target.BindingScope, currentOptions.Model, currentOptions.APIKey, owner, bindingLeaseExpiresAt, result, status, 1, 0)
+		if recoveryErr == nil {
+			return &recovered.Binding, nil
+		}
 		return nil, ErrAssetBindingInitializing
 	}
 	if status == model.AssetStatusProcessing {

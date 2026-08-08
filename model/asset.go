@@ -424,6 +424,9 @@ func ExpireAssetUploadCAS(uploadID string, owner string, expiration AssetUploadE
 }
 
 func ActivateAssetBindingWithAssetCAS(activation AssetBindingActivation) (bool, error) {
+	if activation.LeaseOwner != "" && activation.ExpectedLeaseExpiresAt <= 0 {
+		return false, nil
+	}
 	query := DB.Model(&AssetBinding{}).
 		Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", activation.AssetID, activation.ChannelID, activation.BindingScope).
 		Where("status IN ?", []string{AssetBindingStatusPending, AssetBindingStatusLeased})
