@@ -17,12 +17,14 @@ var defaultTrustedProxyCIDRs = []string{
 	"172.16.0.0/12",
 	"192.168.0.0/16",
 	"fc00::/7",
+	// Cloud L7 load balancers commonly forward from RFC 6598 shared address space, not RFC 1918.
+	"100.64.0.0/10",
 }
 
 func ConfigureTrustedProxies(engine *gin.Engine) error {
 	rawTrustedProxies := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES"))
 	if rawTrustedProxies == "" {
-		log.Print("WARNING: TRUSTED_PROXIES is unset or blank; trusting loopback, RFC 1918, and IPv6 ULA proxy addresses for compatibility. Set TRUSTED_PROXIES=none to trust no proxies, or configure explicit proxy IPs/CIDRs to replace these defaults.")
+		log.Print("WARNING: TRUSTED_PROXIES is unset or blank; trusting loopback, RFC 1918, RFC 6598 shared address space, and IPv6 ULA proxy addresses for compatibility. Set TRUSTED_PROXIES=none to trust no proxies, or configure explicit proxy IPs/CIDRs to replace these defaults.")
 		return engine.SetTrustedProxies(defaultTrustedProxyCIDRs)
 	}
 	if strings.EqualFold(rawTrustedProxies, "none") {
