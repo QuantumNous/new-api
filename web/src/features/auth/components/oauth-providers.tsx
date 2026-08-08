@@ -27,6 +27,7 @@ import {
   IconWeChat,
 } from '@/assets/brand-icons'
 import { Button } from '@/components/ui/button'
+import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
 import { useOAuthLogin } from '../hooks/use-oauth-login'
@@ -143,6 +144,7 @@ export function OAuthProviders({
         key: `custom-${provider.slug}`,
         label: t('Continue with {{name}}', { name: provider.name }),
         onClick: () => handleCustomOAuthLogin(provider),
+        icon: provider.icon ? getLobeIcon(provider.icon, 16) : undefined,
       })
     }
   }
