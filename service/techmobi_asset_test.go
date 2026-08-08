@@ -439,6 +439,67 @@ func TestTechMobiAssetMaterializerTreatsProcessingResponseAsRetryable(t *testing
 	require.NotContains(t, err.Error(), "req-processing")
 }
 
+func TestTechMobiAssetMaterializerProcessingWithAssetURLReturnsProcessingResult(t *testing.T) {
+	result, err := createTechMobiAssetWithUploadResponse(t, `{"status":"Processing","assetUrl":"asset://upstream-processing"}`)
+
+	require.NoError(t, err)
+	require.Equal(t, "asset://upstream-processing", result.UpstreamAssetID)
+	require.Equal(t, model.AssetStatusProcessing, result.Status)
+}
+
+func TestTechMobiAssetMaterializerProcessingMissingAssetURLIsRetryable(t *testing.T) {
+	result, err := createTechMobiAssetWithUploadResponse(t, `{"status":"Processing"}`)
+
+	require.Error(t, err)
+	require.Empty(t, result.UpstreamAssetID)
+	require.True(t, IsRetryableAssetMaterializeError(err))
+	require.Equal(t, AssetMaterializeErrorProcessing, AssetMaterializeErrorClass(err))
+}
+
+func TestTechMobiAssetMaterializerProcessingInvalidAssetURLIsRetryable(t *testing.T) {
+	result, err := createTechMobiAssetWithUploadResponse(t, `{"status":"Processing","assetUrl":" asset://upstream-processing"}`)
+
+	require.Error(t, err)
+	require.Empty(t, result.UpstreamAssetID)
+	require.True(t, IsRetryableAssetMaterializeError(err))
+	require.Equal(t, AssetMaterializeErrorProcessing, AssetMaterializeErrorClass(err))
+}
+
+func createTechMobiAssetWithUploadResponse(t *testing.T, uploadBody string) (AssetMaterializeResult, error) {
+	t.Helper()
+
+	oldFetch := techMobiAssetFetchSource
+	oldClientFactory := techMobiAssetHTTPClientFactory
+	t.Cleanup(func() {
+		techMobiAssetFetchSource = oldFetch
+		techMobiAssetHTTPClientFactory = oldClientFactory
+	})
+
+	techMobiAssetFetchSource = func(_ context.Context, _ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("body"))}, nil
+	}
+	techMobiAssetHTTPClientFactory = func(_ *model.Channel) (*http.Client, error) {
+		return &http.Client{Transport: techMobiRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			_, err := io.Copy(io.Discard, req.Body)
+			require.NoError(t, err)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(uploadBody)),
+				Header:     make(http.Header),
+			}, nil
+		})}, nil
+	}
+
+	baseURL := "https://api.mindon.example"
+	return (techMobiAssetBindingMaterializer{}).CreateAsset(context.Background(), AssetMaterializeInput{
+		Asset:     model.Asset{ObjectKey: "reference.mp4"},
+		Channel:   &model.Channel{Type: constant.ChannelTypeTechMobiVideo, BaseURL: &baseURL},
+		SourceURL: "https://storage.example/signed-source",
+		Model:     "doubao/doubao-seedance-2-0-260128",
+		APIKey:    "channel-secret",
+	})
+}
+
 func TestTechMobiAssetMaterializerGetAssetIsImmediatelyActive(t *testing.T) {
 	result, err := (techMobiAssetBindingMaterializer{}).GetAsset(
 		context.Background(),

@@ -49,6 +49,23 @@ func TestAssetMaterializeRetryAfterIgnoresNonPositiveAndExpiredValues(t *testing
 	require.Zero(t, parseAssetMaterializeRetryAfter(now.Add(-time.Minute).Format(http.TimeFormat), now))
 }
 
+func TestAssetMaterializeRequestTimeoutHTTPStatusIsRetryable(t *testing.T) {
+	require.Equal(t, AssetMaterializeErrorTimeout, assetMaterializeClassForHTTPStatus(http.StatusRequestTimeout, ""))
+}
+
+func TestAssetMaterializeRetryAfterCapsNumericValueBeforeDurationConversion(t *testing.T) {
+	now := time.Date(2026, 8, 8, 1, 0, 0, 0, time.UTC)
+
+	require.Equal(t, 24*time.Hour, parseAssetMaterializeRetryAfter("9223372036854775807", now))
+}
+
+func TestAssetMaterializeRetryAfterCapsFarFutureHTTPDate(t *testing.T) {
+	now := time.Date(2026, 8, 8, 1, 0, 0, 0, time.UTC)
+	farFuture := now.Add(90 * 24 * time.Hour).Format(http.TimeFormat)
+
+	require.Equal(t, 24*time.Hour, parseAssetMaterializeRetryAfter(farFuture, now))
+}
+
 func TestAssetMaterializeHTTPClassificationTreatsStableQuotaCodeAsThrottled(t *testing.T) {
 	require.Equal(t, AssetMaterializeErrorThrottled, assetMaterializeClassForHTTPStatus(http.StatusBadRequest, "QuotaWriteQPMExceeded"))
 	require.Equal(t, AssetMaterializeErrorDefinitive, assetMaterializeClassForHTTPStatus(http.StatusBadRequest, "InvalidAsset"))

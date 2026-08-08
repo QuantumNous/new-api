@@ -337,6 +337,12 @@ function Get-PublicTaskStatus {
     return ""
 }
 
+function Test-TaskTerminalSucceeded {
+    param([string]$Status)
+    $normalized = $Status.Trim().ToLowerInvariant()
+    return $normalized -in @("success", "completed", "succeeded")
+}
+
 function Wait-TaskTerminal {
     param(
         [string]$BaseUrl,
@@ -444,6 +450,9 @@ try {
 
     Wait-TaskTerminal -BaseUrl $baseUrl -Headers $headers -Task $result.task -TaskId $taskId -AcceptedAtUtc $taskAcceptedAtUtc
     $result | ConvertTo-Json -Depth 20
+    if (-not (Test-TaskTerminalSucceeded $result.task.status)) {
+        exit 4
+    }
 } catch {
     $result.error = [string]$_.Exception.Message
     $result | ConvertTo-Json -Depth 20

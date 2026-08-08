@@ -17,6 +17,8 @@ const (
 	AssetMaterializeErrorProcessing  = "upstream_processing"
 	AssetMaterializeErrorDefinitive  = "definitive"
 	AssetMaterializeErrorInternal    = "internal"
+
+	assetMaterializeMaxRetryAfter = 24 * time.Hour
 )
 
 type AssetMaterializeFailure struct {
@@ -82,6 +84,9 @@ func assetMaterializeClassForHTTPStatus(status int, upstreamCode string) string 
 	if status == http.StatusTooManyRequests || code == "QuotaWriteQPMExceeded" {
 		return AssetMaterializeErrorThrottled
 	}
+	if status == http.StatusRequestTimeout {
+		return AssetMaterializeErrorTimeout
+	}
 	if status >= 500 && status <= 599 {
 		return AssetMaterializeErrorUpstream5xx
 	}
@@ -100,6 +105,9 @@ func parseAssetMaterializeRetryAfter(value string, now time.Time) time.Duration 
 		if seconds <= 0 {
 			return 0
 		}
+		if seconds > int64(assetMaterializeMaxRetryAfter/time.Second) {
+			return assetMaterializeMaxRetryAfter
+		}
 		return time.Duration(seconds) * time.Second
 	}
 	when, err := http.ParseTime(value)
@@ -109,6 +117,9 @@ func parseAssetMaterializeRetryAfter(value string, now time.Time) time.Duration 
 	delay := when.Sub(now)
 	if delay <= 0 {
 		return 0
+	}
+	if delay > assetMaterializeMaxRetryAfter {
+		return assetMaterializeMaxRetryAfter
 	}
 	return delay
 }

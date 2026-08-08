@@ -131,6 +131,12 @@ func (techMobiAssetBindingMaterializer) CreateAsset(ctx context.Context, input A
 		return AssetMaterializeResult{}, newTechMobiAssetHTTPFailure(response, uploadResponse, nil)
 	}
 	if strings.EqualFold(strings.TrimSpace(uploadResponse.Status), model.AssetStatusProcessing) {
+		if isValidTechMobiAssetURL(uploadResponse.AssetURL) {
+			return AssetMaterializeResult{
+				UpstreamAssetID: uploadResponse.AssetURL,
+				Status:          model.AssetStatusProcessing,
+			}, nil
+		}
 		return AssetMaterializeResult{}, newAssetMaterializeFailure(AssetMaterializeErrorProcessing, response.StatusCode, techMobiAssetUpstreamCode(uploadResponse), 0, techMobiAssetRequestID(response, uploadResponse), nil)
 	}
 	if !isValidTechMobiAssetURL(uploadResponse.AssetURL) {
