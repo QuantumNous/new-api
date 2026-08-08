@@ -102,7 +102,7 @@ func UserAcceptsUnpricedModels(user *model.UserBase) bool {
 }
 
 func ResolveTokenModelAccess(input TokenModelAccessInput) (*ResolvedTokenModelAccess, error) {
-	groups := resolveTokenAccessGroups(input.IdentityGroup, input.TokenGroup)
+	groups := ResolveTokenAccessGroups(input.IdentityGroup, input.TokenGroup)
 	access, err := resolveStrictModelAccess(groups, input.AcceptUnpriced)
 	if err != nil {
 		return nil, err
@@ -314,7 +314,7 @@ func explicitGroupModelRatios(group string, modelIDs []string) map[string]float6
 	return ratios
 }
 
-func resolveTokenAccessGroups(identityGroup, tokenGroup string) []string {
+func ResolveTokenAccessGroups(identityGroup, tokenGroup string) []string {
 	identityGroup = strings.TrimSpace(identityGroup)
 	tokenGroup = strings.TrimSpace(tokenGroup)
 	if identityGroup == "" {

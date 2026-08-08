@@ -25,9 +25,13 @@ import (
 
 type controllerAssetMaterializer struct {
 	createErr error
+	called    *bool
 }
 
 func (m controllerAssetMaterializer) CreateAsset(ctx context.Context, input service.AssetMaterializeInput) (service.AssetMaterializeResult, error) {
+	if m.called != nil {
+		*m.called = true
+	}
 	if m.createErr != nil {
 		return service.AssetMaterializeResult{}, m.createErr
 	}
@@ -407,7 +411,11 @@ func TestGetChannelRetryMaterializationFailureClearsStaleMapAndReturnsError(t *t
 	defer restoreRuntime()
 	restoreDB := useControllerAssetChannelSelectionDBForTest(t)
 	defer restoreDB()
-	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeBytePlus, controllerAssetMaterializer{createErr: errors.New("BytePlus secret signed=https://signed.example/?X-Goog-Signature=abc")})
+	materializerCalled := false
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeBytePlus, controllerAssetMaterializer{
+		createErr: errors.New("BytePlus secret signed=https://signed.example/?X-Goog-Signature=abc"),
+		called:    &materializerCalled,
+	})
 	defer restoreMaterializer()
 
 	priority := int64(100)
@@ -448,6 +456,8 @@ func TestGetChannelRetryMaterializationFailureClearsStaleMapAndReturnsError(t *t
 
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(c, constant.ContextKeyUserId, 7)
+	common.SetContextKey(c, constant.ContextKeyAssetMaterializeEnabled, true)
 	common.SetContextKey(c, constant.ContextKeyAssetReferenceSet, refs)
 	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{"asset://" + asset.PublicId: "asset://stale"})
 	common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, map[string]string{"asset://" + asset.PublicId: "asset://stale"})
@@ -465,6 +475,7 @@ func TestGetChannelRetryMaterializationFailureClearsStaleMapAndReturnsError(t *t
 	})
 	require.Nil(t, selected)
 	require.NotNil(t, channelErr)
+	require.True(t, materializerCalled)
 	require.Equal(t, http.StatusServiceUnavailable, channelErr.StatusCode)
 	require.Contains(t, channelErr.Error(), "asset channel unavailable")
 	require.NotContains(t, channelErr.Error(), "BytePlus")

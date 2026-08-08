@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	_ "unsafe"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -17,12 +18,16 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+//go:linkname middlewareModelCommonGroupCol github.com/QuantumNous/new-api/model.commonGroupCol
+var middlewareModelCommonGroupCol string
 
 type middlewareAssetMaterializer struct {
 	createErr error
@@ -969,6 +974,56 @@ func TestAssetReferenceExternalRequestDefersMaterializationUntilWorkerFlag(t *te
 	require.Equal(t, 0, calls)
 }
 
+func TestAssetReferenceStrictInitializingTargetKeepsRequestEligibleForQueue(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	originalStrict := service.AssetModelCoverageStrictEnabled
+	service.AssetModelCoverageStrictEnabled = true
+	defer func() { service.AssetModelCoverageStrictEnabled = originalStrict }()
+	originalSelfUse := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	defer func() { operation_setting.SelfUseModeEnabled = originalSelfUse }()
+
+	calls := 0
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeBytePlus, middlewareAssetMaterializer{calls: &calls})
+	defer restoreMaterializer()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	publicID := "ast_1234567890abcdefABCDEF1234567890"
+	insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+	model.InitChannelCache()
+
+	scope, err := service.ResolveAssetModelScope(service.AssetModelScopeInput{IdentityGroup: "default", AcceptUnpriced: true})
+	require.NoError(t, err)
+	require.Contains(t, scope.ModelNames, "seedance-2.0")
+	now := model.GetDBTimestamp()
+	require.NoError(t, model.DB.Create(&model.AssetModelCoverageTarget{
+		ScopeKey:        scope.ScopeKey,
+		ModelName:       "seedance-2.0",
+		Status:          model.AssetModelTargetStatusSelecting,
+		Generation:      0,
+		CandidateIndex:  -1,
+		CredentialIndex: -1,
+		LeaseOwner:      "other-node",
+		LeaseExpiresAt:  now + 60,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}).Error)
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		require.Equal(t, 131, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		_, hasRewrite := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		require.False(t, hasRewrite, "initializing target may select a queueing candidate but must not rewrite or submit")
+		c.Status(http.StatusOK)
+	})
+	recorder := performBytePlusAssetDistributorRequest(router, "", `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, 0, calls)
+}
+
 func TestAssetReferenceMaterializationFailuresAbortBeforeHandler(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -1187,10 +1242,11 @@ func useMiddlewareBytePlusAssetDBForTest(t *testing.T) func() {
 	prevUsingSQLite := common.UsingSQLite
 	prevUsingMySQL := common.UsingMySQL
 	prevUsingPostgreSQL := common.UsingPostgreSQL
+	prevCommonGroupCol := middlewareModelCommonGroupCol
 
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.BytePlusRealPersonProfile{}, &model.BytePlusAsset{}, &model.Asset{}, &model.AssetBinding{}))
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}, &model.ModelAvailabilityState{}, &model.BytePlusRealPersonProfile{}, &model.BytePlusAsset{}, &model.Asset{}, &model.AssetBinding{}, &model.AssetModelCoverageTarget{}, &model.AssetModelReadiness{}))
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	model.DB = db
@@ -1198,6 +1254,7 @@ func useMiddlewareBytePlusAssetDBForTest(t *testing.T) func() {
 	common.UsingSQLite = true
 	common.UsingMySQL = false
 	common.UsingPostgreSQL = false
+	middlewareModelCommonGroupCol = "`group`"
 
 	return func() {
 		model.DB = prevDB
@@ -1205,6 +1262,7 @@ func useMiddlewareBytePlusAssetDBForTest(t *testing.T) func() {
 		common.UsingSQLite = prevUsingSQLite
 		common.UsingMySQL = prevUsingMySQL
 		common.UsingPostgreSQL = prevUsingPostgreSQL
+		middlewareModelCommonGroupCol = prevCommonGroupCol
 		model.InitChannelCache()
 		_ = sqlDB.Close()
 	}
