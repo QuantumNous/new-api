@@ -7,7 +7,20 @@ export type RecallAudienceTemplate =
   | 'specified_users'
 
 export type RecallCampaignType = 'promotion' | 'content_only'
-export type RecallExecutionMode = 'manual' | 'scheduled_once' | 'recurring'
+export type RecallExecutionMode =
+  | 'manual'
+  | 'scheduled_once'
+  | 'recurring'
+  | 'continuous'
+export type RecallLifecycleTrigger =
+  | 'user_registered'
+  | 'registration_unused'
+  | 'quota_low'
+  | 'quota_exhausted_unpaid'
+  | 'payment_failed'
+  | 'payment_pending'
+  | 'payment_succeeded'
+export type RecallDeliveryPolicy = 'service' | 'engagement'
 export type RecallCouponSource = 'automatic' | 'existing'
 export type RecallDiscountType = 'percent' | 'fixed'
 export type RecallPromotionExpiryMode = 'relative' | 'fixed'
@@ -125,6 +138,10 @@ export interface RecallCampaignDraft {
   audience_template: RecallAudienceTemplate
   audience_config: RecallAudienceConfig
   execution_mode: RecallExecutionMode
+  delivery_policy?: RecallDeliveryPolicy
+  lifecycle_trigger?: RecallLifecycleTrigger | ''
+  lifecycle_trigger_config?: Record<string, never>
+  processing_start_at?: number
   schedule: RecallScheduleConfig
   coupon_source: RecallCouponSource
   existing_coupon_id: string
@@ -238,6 +255,9 @@ export interface RecallCampaignSummary {
   status: RecallCampaignStatus
   audience_template: RecallAudienceTemplate
   execution_mode: RecallExecutionMode
+  delivery_policy?: RecallDeliveryPolicy
+  lifecycle_trigger?: RecallLifecycleTrigger | ''
+  processing_start_at?: number
   scheduled_at: number
   next_run_at: number
   coupon_source: RecallCouponSource
@@ -394,6 +414,50 @@ export interface RecallCampaignMetrics {
   no_coupon_count: number
   currency_metrics: RecallCurrencyMetrics[]
   metric_cards?: Record<string, RecallMetricCard>
+  lifecycle?: RecallLifecycleMetrics
+}
+
+export interface RecallLifecyclePreviewSample {
+  event_id: number
+  occurred_at: number
+  available_at: number
+  user_id: number
+  email_masked: string
+  business_key: string
+}
+
+export interface RecallLifecyclePreview {
+  processing_start_at: number
+  collection_start_at: number
+  earliest_available_at: number
+  estimated_count: number
+  due_count: number
+  samples: RecallLifecyclePreviewSample[]
+}
+
+export interface RecallLifecycleMetrics {
+  processing_start_at: number
+  collection_start_at: number
+  pending_not_due_count: number
+  due_count: number
+  leased_count: number
+  enrolled_count: number
+  skipped_count: number
+  failed_event_count: number
+  queued_message_count: number
+  smtp_accepted_count: number
+  uncertain_message_count: number
+  failed_message_count: number
+  cancelled_message_count: number
+  ineligible_count: number
+  suppressed_count: number
+  no_email_count: number
+  engagement_opt_out_count: number
+  lease_recovery_count: number
+  retry_count: number
+  last_processed_event_at: number
+  processing_latency_seconds: number
+  error_codes: Record<string, number>
 }
 
 export interface RecallMetricAmount {
@@ -507,6 +571,7 @@ export interface RecallCampaignPreview {
   sample: RecallAudienceCandidate[]
   exclusions: Record<string, number>
   stripe: RecallStripePreview | null
+  lifecycle?: RecallLifecyclePreview | null
 }
 
 export type RecallCampaignAction =

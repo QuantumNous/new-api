@@ -34,8 +34,10 @@ import {
 import type {
   RecallCampaignAction,
   RecallCampaignStatus,
+  RecallExecutionMode,
   RecallEmailLocalizationBlocker,
   RecallEmailStage,
+  RecallLifecycleMetrics,
   RecallRecipient,
 } from '../types'
 import { CampaignActionDialog } from './campaign-action-dialog'
@@ -104,13 +106,70 @@ function formatTimestamp(value: number): string {
 }
 
 function actionsForStatus(
-  status: RecallCampaignStatus
+  status: RecallCampaignStatus,
+  executionMode: RecallExecutionMode = 'manual'
 ): RecallCampaignAction[] {
   if (status === 'draft') return ['activate', 'cancel']
   if (status === 'scheduled') return ['pause', 'cancel']
+  if (executionMode === 'continuous') {
+    if (status === 'running') return ['pause', 'cancel']
+    if (status === 'paused') return ['resume', 'cancel']
+  }
   if (status === 'running') return ['pause', 'complete', 'cancel']
   if (status === 'paused') return ['resume', 'complete', 'cancel']
   return []
+}
+
+function LifecycleMetricCards(props: {
+  metrics: RecallLifecycleMetrics
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const cards = [
+    ['Pending not due', props.metrics.pending_not_due_count],
+    ['Due now', props.metrics.due_count],
+    ['Leased events', props.metrics.leased_count],
+    ['Enrolled events', props.metrics.enrolled_count],
+    ['Skipped events', props.metrics.skipped_count],
+    ['Failed events', props.metrics.failed_event_count],
+    ['Queued messages', props.metrics.queued_message_count],
+    ['SMTP accepted', props.metrics.smtp_accepted_count],
+    ['Uncertain messages', props.metrics.uncertain_message_count],
+    ['Failed messages', props.metrics.failed_message_count],
+    ['Cancelled messages', props.metrics.cancelled_message_count],
+    ['Ineligible at send time', props.metrics.ineligible_count],
+    ['Suppressed at send time', props.metrics.suppressed_count],
+    ['No account email', props.metrics.no_email_count],
+    ['Engagement opt-outs', props.metrics.engagement_opt_out_count],
+    ['Lease recoveries', props.metrics.lease_recovery_count],
+    ['Retries', props.metrics.retry_count],
+    ['Processing latency', props.metrics.processing_latency_seconds],
+  ] as const
+
+  return (
+    <div className='space-y-3'>
+      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+        {cards.map(([label, value]) => (
+          <div className='rounded-lg border p-3' key={label}>
+            <div className='text-muted-foreground text-xs'>{t(label)}</div>
+            <div className='text-xl font-semibold'>{value}</div>
+          </div>
+        ))}
+      </div>
+      {Object.keys(props.metrics.error_codes).length > 0 ? (
+        <div className='rounded-lg border p-3 text-sm'>
+          <div className='font-medium'>{t('Safe error-code breakdown')}</div>
+          <dl className='mt-2 space-y-1'>
+            {Object.entries(props.metrics.error_codes).map(([code, count]) => (
+              <div className='flex justify-between gap-4' key={code}>
+                <dt>{code}</dt>
+                <dd>{count}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 interface CampaignDetailProps {
@@ -208,6 +267,10 @@ export function CampaignDetail(props: CampaignDetailProps) {
           {t(formatRecallCampaignType(detail.campaign_type))}
         </Badge>
         <Badge variant='secondary'>{t(detail.status)}</Badge>
+        <Badge variant='outline'>{t(detail.execution_mode)}</Badge>
+        {detail.lifecycle_trigger ? (
+          <Badge variant='outline'>{t(detail.lifecycle_trigger)}</Badge>
+        ) : null}
         <Button variant='outline' onClick={() => setPreviewOpen(true)}>
           {t('Preview')}
         </Button>
@@ -217,16 +280,18 @@ export function CampaignDetail(props: CampaignDetailProps) {
         <Button variant='outline' onClick={downloadExport}>
           {t('Export CSV')}
         </Button>
-        {actionsForStatus(detail.status).map((action) => (
-          <Button
-            key={action}
-            variant={action === 'cancel' ? 'destructive' : 'default'}
-            disabled={action === 'activate' && !activationReadiness.ready}
-            onClick={() => setDialog({ action })}
-          >
-            {t(action)}
-          </Button>
-        ))}
+        {actionsForStatus(detail.status, detail.execution_mode).map(
+          (action) => (
+            <Button
+              key={action}
+              variant={action === 'cancel' ? 'destructive' : 'default'}
+              disabled={action === 'activate' && !activationReadiness.ready}
+              onClick={() => setDialog({ action })}
+            >
+              {t(action)}
+            </Button>
+          )
+        )}
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='space-y-4'>
@@ -253,6 +318,11 @@ export function CampaignDetail(props: CampaignDetailProps) {
             <CardContent>
               {metrics ? (
                 <>
+                  {metrics.lifecycle ? (
+                    <div className='mb-4'>
+                      <LifecycleMetricCards metrics={metrics.lifecycle} />
+                    </div>
+                  ) : null}
                   <CampaignMetricCardSection
                     campaignId={props.campaignId}
                     metricCards={metrics.metric_cards}
@@ -491,6 +561,7 @@ export function CampaignDetail(props: CampaignDetailProps) {
           <CampaignActionDialog
             campaignId={props.campaignId}
             action={dialog.action}
+            executionMode={detail.execution_mode}
             recipientId={dialog.recipientId}
             uncertain={dialog.uncertain}
             open

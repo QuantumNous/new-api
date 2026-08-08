@@ -1,10 +1,32 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeAll, describe, expect, test } from 'bun:test'
+import * as React from 'react'
+import { beforeAll, describe, expect, mock, test } from 'bun:test'
 import { createInstance } from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
 import type { RecallCampaignPreview } from '../types'
-import { CampaignPreviewDialog } from './campaign-preview-dialog'
+
+mock.module('@/components/ui/dialog', () => ({
+  Dialog: (props: { children: React.ReactNode; open?: boolean }) =>
+    props.open ? <div>{props.children}</div> : null,
+  DialogContent: (props: React.HTMLAttributes<HTMLDivElement>) => (
+    <section {...props} />
+  ),
+  DialogDescription: (props: React.HTMLAttributes<HTMLParagraphElement>) => (
+    <p {...props} />
+  ),
+  DialogFooter: (props: React.HTMLAttributes<HTMLDivElement>) => (
+    <footer {...props} />
+  ),
+  DialogHeader: (props: React.HTMLAttributes<HTMLDivElement>) => (
+    <header {...props} />
+  ),
+  DialogTitle: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
+    <h2 {...props} />
+  ),
+}))
+
+const { CampaignPreviewDialogContent } =
+  await import('./campaign-preview-dialog-content')
 
 const testI18n = createInstance()
 
@@ -18,8 +40,52 @@ beforeAll(async () => {
 })
 
 describe('campaign preview dialog', () => {
+  test('renders event-boundary lifecycle estimates with masked samples and recheck warning', () => {
+    const preview = {
+      eligible_total: 0,
+      exclusions: {},
+      sample: [],
+      stripe: null,
+      lifecycle: {
+        processing_start_at: 1_900_000_000,
+        collection_start_at: 1_899_900_000,
+        earliest_available_at: 1_899_950_000,
+        estimated_count: 12,
+        due_count: 5,
+        samples: [
+          {
+            event_id: 101,
+            occurred_at: 1_899_960_000,
+            available_at: 1_900_000_100,
+            user_id: 42,
+            email_masked: 'a***@example.com',
+            business_key: 'trade_***123',
+          },
+        ],
+      },
+    } as RecallCampaignPreview
+
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <CampaignPreviewDialogContent data={preview} />
+      </I18nextProvider>
+    )
+
+    expect(html).toContain('Lifecycle event boundary')
+    expect(html).toContain('Estimated events')
+    expect(html).toContain('12')
+    expect(html).toContain('Due now')
+    expect(html).toContain('5')
+    expect(html).toContain('a***@example.com')
+    expect(html).toContain('trade_***123')
+    expect(html).toContain(
+      'Send-time rechecks can reduce the final recipient count.'
+    )
+    expect(html).not.toContain('Eligible total')
+    expect(html).not.toContain('Promotion validation')
+  })
+
   test('renders a fixed discount when currency options are null', () => {
-    const campaignId = 42
     const preview = {
       eligible_total: 1,
       exclusions: {},
@@ -41,22 +107,12 @@ describe('campaign preview dialog', () => {
         product_ids: [],
       },
     } satisfies RecallCampaignPreview
-    const queryClient = new QueryClient()
-    queryClient.setQueryData(['recall-campaigns', 'preview', campaignId], {
-      data: preview,
-    })
 
     expect(() =>
       renderToStaticMarkup(
-        <QueryClientProvider client={queryClient}>
-          <I18nextProvider i18n={testI18n}>
-            <CampaignPreviewDialog
-              campaignId={campaignId}
-              open
-              onOpenChange={() => undefined}
-            />
-          </I18nextProvider>
-        </QueryClientProvider>
+        <I18nextProvider i18n={testI18n}>
+          <CampaignPreviewDialogContent data={preview} />
+        </I18nextProvider>
       )
     ).not.toThrow()
   })

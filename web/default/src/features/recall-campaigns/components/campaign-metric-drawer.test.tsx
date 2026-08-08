@@ -696,9 +696,9 @@ describe('CampaignMetricCardSection', () => {
       messages_failed: makeCard('messages_failed', 1, 'failed-card-snapshot'),
     })
 
-    await click('Accepted messages')
+    await click('SMTP accepted')
 
-    expect(container.textContent).toContain('Accepted messages')
+    expect(container.textContent).toContain('SMTP accepted')
     expect(container.textContent).toContain('Message rows')
     expect(container.textContent).toContain(
       'Historical excluded identities were not recorded'
@@ -741,7 +741,7 @@ describe('CampaignMetricCardSection', () => {
       messages_failed: makeCard('messages_failed', 1, 'failed-card-snapshot'),
     })
 
-    await click('Accepted messages')
+    await click('SMTP accepted')
     await click('Download current results')
     await click('Failed messages')
     await click('Download current results')
@@ -1039,7 +1039,7 @@ describe('CampaignMetricCardSection', () => {
       ),
     })
 
-    await click('Accepted messages')
+    await click('SMTP accepted')
     expect(container.textContent).toContain('Stage')
     expect(inputProps['recall-metric-state']).toBeUndefined()
 

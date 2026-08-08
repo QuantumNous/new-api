@@ -180,6 +180,9 @@ export function CampaignTranslationWorkspace(
   const campaignType =
     useWatch({ control: props.form.control, name: 'campaign_type' }) ??
     'promotion'
+  const executionMode =
+    useWatch({ control: props.form.control, name: 'execution_mode' }) ??
+    'manual'
   const stages = useFieldArray({
     control: props.form.control,
     name: 'email_sequence',
@@ -486,7 +489,9 @@ export function CampaignTranslationWorkspace(
           : t('Generate 7 translations')}
       </Button>
 
-      {stages.fields.length < 3 && !props.immutable ? (
+      {stages.fields.length < 3 &&
+      executionMode !== 'continuous' &&
+      !props.immutable ? (
         <Button
           type='button'
           variant='outline'

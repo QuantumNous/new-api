@@ -274,30 +274,70 @@ export function prepareRecallCampaignSubmitDraft(
       ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
       : RECALL_EMAIL_STARTER_HTML
 
+  const continuous = draft.execution_mode === 'continuous'
   return {
     ...draft,
+    campaign_type: continuous ? 'content_only' : draft.campaign_type,
     schedule:
-      draft.execution_mode === 'manual'
+      draft.execution_mode === 'manual' || continuous
         ? {
             scheduled_at: 0,
             timezone: '',
-            frequency: 'daily',
-            weekday: 1,
+            frequency: continuous ? '' : 'daily',
+            weekday: continuous ? 0 : 1,
             hour: 0,
             minute: 0,
           }
         : draft.schedule,
     discount_config: {
       ...discountConfig,
-      ...normalizeRecallMinimumSpendForSubmit(discountConfig),
+      ...(continuous
+        ? {
+            type: 'percent',
+            percent_off: 0,
+            amount_off: 0,
+            currency: '',
+            currency_options: {},
+            minimum_amount: 0,
+            minimum_amount_currency: '',
+          }
+        : normalizeRecallMinimumSpendForSubmit(discountConfig)),
     },
     audience_config: {
-      ...draft.audience_config,
-      groups: normalizeRecallGroupsForMode(
-        draft.audience_config.groups,
-        draft.audience_config.group_mode
-      ),
+      ...(continuous
+        ? {
+            registration_age_days: 0,
+            min_request_count: 0,
+            max_quota: 0,
+            min_paid_amount: 0,
+            last_api_call_age_days: 0,
+            last_payment_age_days: 0,
+            subscription_expired_days: 0,
+            min_subscription_amount: 0,
+            min_subscription_count: 0,
+            payment_providers: [],
+            groups: [],
+            group_mode: '',
+            require_verified_email: false,
+            registration_start_at: 0,
+            registration_end_at: 0,
+            specified_user_ids: [],
+            specified_emails: [],
+          }
+        : {
+            ...draft.audience_config,
+            groups: normalizeRecallGroupsForMode(
+              draft.audience_config.groups,
+              draft.audience_config.group_mode
+            ),
+          }),
     },
+    existing_coupon_id: continuous ? '' : draft.existing_coupon_id,
+    product_scope: continuous
+      ? { topup_price_ids: [], subscription_price_ids: [] }
+      : draft.product_scope,
+    promotion_expires_at: continuous ? 0 : draft.promotion_expires_at,
+    promotion_valid_seconds: continuous ? 0 : draft.promotion_valid_seconds,
     email_sequence: draft.email_sequence.map((stage) => {
       const templates = Object.fromEntries(
         Object.entries(stage.templates ?? {})

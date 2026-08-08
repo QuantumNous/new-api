@@ -7,6 +7,25 @@ import {
 const FUTURE_TIMESTAMP = Math.floor(Date.now() / 1000) + 86_400
 const FIXED_SCHEMA_NOW_SECONDS = Date.UTC(2026, 6, 15, 8, 0) / 1_000
 const FIXED_SCHEMA_NOW_MS = FIXED_SCHEMA_NOW_SECONDS * 1_000
+const recallLifecycleTriggers = [
+  'user_registered',
+  'registration_unused',
+  'quota_low',
+  'quota_exhausted_unpaid',
+  'payment_failed',
+  'payment_pending',
+  'payment_succeeded',
+] as const
+
+const recallLifecyclePolicyByTrigger = {
+  user_registered: 'service',
+  registration_unused: 'engagement',
+  quota_low: 'service',
+  quota_exhausted_unpaid: 'service',
+  payment_failed: 'service',
+  payment_pending: 'engagement',
+  payment_succeeded: 'service',
+} as const
 
 function makeDraft() {
   return {
@@ -75,6 +94,67 @@ function makeDraft() {
   }
 }
 
+function makeContinuousDraft(trigger = 'quota_low') {
+  const draft = makeDraft() as ReturnType<typeof makeDraft> & {
+    delivery_policy: string
+    lifecycle_trigger: string
+    lifecycle_trigger_config: Record<string, never>
+    processing_start_at: number
+  }
+  draft.campaign_type = 'content_only'
+  draft.audience_template = 'first_purchase'
+  draft.audience_config = {
+    registration_age_days: 0,
+    min_request_count: 0,
+    max_quota: 0,
+    min_paid_amount: 0,
+    last_api_call_age_days: 0,
+    last_payment_age_days: 0,
+    subscription_expired_days: 0,
+    min_subscription_amount: 0,
+    min_subscription_count: 0,
+    payment_providers: [],
+    groups: [],
+    group_mode: '',
+    require_verified_email: false,
+  }
+  draft.execution_mode = 'continuous'
+  draft.schedule = {
+    scheduled_at: 0,
+    timezone: '',
+    frequency: '',
+    weekday: 0,
+    hour: 0,
+    minute: 0,
+  }
+  draft.coupon_source = 'automatic'
+  draft.existing_coupon_id = ''
+  draft.discount_config = {
+    type: 'percent',
+    percent_off: 0,
+    amount_off: 0,
+    currency: '',
+    currency_options: {},
+    minimum_amount: 0,
+    minimum_amount_currency: '',
+  }
+  draft.product_scope = {
+    topup_price_ids: [],
+    subscription_price_ids: [],
+  }
+  draft.promotion_expiry_mode = 'relative'
+  draft.promotion_expires_at = 0
+  draft.promotion_valid_seconds = 0
+  draft.delivery_policy =
+    recallLifecyclePolicyByTrigger[
+      trigger as keyof typeof recallLifecyclePolicyByTrigger
+    ]
+  draft.lifecycle_trigger = trigger
+  draft.lifecycle_trigger_config = {}
+  draft.processing_start_at = 0
+  return draft
+}
+
 function withFixedSchemaNow(callback: () => void) {
   const realDateNow = Date.now
   Date.now = () => FIXED_SCHEMA_NOW_MS
@@ -86,6 +166,151 @@ function withFixedSchemaNow(callback: () => void) {
 }
 
 describe('recallCampaignDraftSchema', () => {
+  test('accepts exact execution modes including continuous lifecycle activities', () => {
+    expect(recallCampaignDraftSchema.parse(makeDraft()).execution_mode).toBe(
+      'manual'
+    )
+
+    const once = makeDraft()
+    once.execution_mode = 'scheduled_once'
+    once.schedule = {
+      scheduled_at: FUTURE_TIMESTAMP,
+      timezone: 'UTC',
+      frequency: 'daily',
+      weekday: 1,
+      hour: 9,
+      minute: 0,
+    }
+    expect(recallCampaignDraftSchema.parse(once).execution_mode).toBe(
+      'scheduled_once'
+    )
+
+    const recurring = makeDraft()
+    recurring.execution_mode = 'recurring'
+    recurring.schedule = {
+      scheduled_at: FUTURE_TIMESTAMP,
+      timezone: 'UTC',
+      frequency: 'weekly',
+      weekday: 2,
+      hour: 9,
+      minute: 0,
+    }
+    expect(recallCampaignDraftSchema.parse(recurring).execution_mode).toBe(
+      'recurring'
+    )
+
+    expect(
+      recallCampaignDraftSchema.parse(makeContinuousDraft()).execution_mode
+    ).toBe('continuous')
+  })
+
+  test('accepts all seven lifecycle triggers with their fixed delivery policies', () => {
+    for (const trigger of recallLifecycleTriggers) {
+      const parsed = recallCampaignDraftSchema.parse(
+        makeContinuousDraft(trigger)
+      )
+
+      expect(parsed.lifecycle_trigger).toBe(trigger)
+      expect(parsed.delivery_policy).toBe(
+        recallLifecyclePolicyByTrigger[trigger]
+      )
+    }
+  })
+
+  test('rejects legacy audience, schedule, and promotion fields for continuous drafts', () => {
+    const cases = [
+      {
+        patch: (draft: ReturnType<typeof makeContinuousDraft>) => {
+          draft.audience_config.registration_age_days = 7
+        },
+        path: ['audience_config', 'registration_age_days'],
+      },
+      {
+        patch: (draft: ReturnType<typeof makeContinuousDraft>) => {
+          draft.schedule.scheduled_at = FUTURE_TIMESTAMP
+        },
+        path: ['schedule', 'scheduled_at'],
+      },
+      {
+        patch: (draft: ReturnType<typeof makeContinuousDraft>) => {
+          draft.product_scope.topup_price_ids = ['price_topup_usd']
+        },
+        path: ['product_scope', 'topup_price_ids'],
+      },
+      {
+        patch: (draft: ReturnType<typeof makeContinuousDraft>) => {
+          draft.discount_config.percent_off = 20
+        },
+        path: ['discount_config', 'percent_off'],
+      },
+      {
+        patch: (draft: ReturnType<typeof makeContinuousDraft>) => {
+          draft.promotion_valid_seconds = 604_800
+        },
+        path: ['promotion_valid_seconds'],
+      },
+    ] as const
+
+    for (const currentCase of cases) {
+      const draft = makeContinuousDraft()
+      currentCase.patch(draft)
+      const result = recallCampaignDraftSchema.safeParse(draft)
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues).toContainEqual(
+          expect.objectContaining({ path: currentCase.path })
+        )
+      }
+    }
+  })
+
+  test('requires continuous drafts to use exactly one lifecycle email stage', () => {
+    const twoStages = makeContinuousDraft()
+    twoStages.email_sequence.push({
+      stage_no: 2,
+      delay_seconds: 86_400,
+      template_version: 1,
+      manual_locales: [],
+      templates: {
+        en: {
+          subject: 'Follow-up',
+          body_text: 'Follow-up body',
+        },
+      },
+    })
+
+    const result = recallCampaignDraftSchema.safeParse(twoStages)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['email_sequence'],
+          message: 'Continuous activities allow exactly one email stage',
+        })
+      )
+    }
+  })
+
+  test('keeps trigger and processing start immutable after activation', () => {
+    const update = makeContinuousDraft('payment_failed')
+    update.lifecycle_trigger = 'payment_succeeded'
+    update.processing_start_at = 1_900_000_000
+
+    const result = recallCampaignActivatedUpdateSchema.safeParse(update)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ['lifecycle_trigger'] })
+      )
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ path: ['processing_start_at'] })
+      )
+    }
+  })
+
   test('defaults legacy drafts without a campaign type to promotion', () => {
     const draft = makeDraft()
     delete draft.campaign_type

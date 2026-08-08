@@ -59,7 +59,7 @@ const metricLabels: Record<RecallMetricKey, string> = {
   excluded: 'Excluded',
   opened_recipients: 'Users who opened',
   observed_clicks: 'Observed clicks',
-  messages_accepted: 'Accepted messages',
+  messages_accepted: 'SMTP accepted',
   messages_failed: 'Failed messages',
   direct_conversions: 'Direct conversions',
   assisted_conversions: 'Assisted conversions',

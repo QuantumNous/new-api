@@ -136,6 +136,38 @@ function makeMetrics(): RecallCampaignMetrics {
   }
 }
 
+function makeContinuousMetrics(): RecallCampaignMetrics {
+  return {
+    ...makeMetrics(),
+    lifecycle: {
+      processing_start_at: 1_900_000_000,
+      collection_start_at: 1_899_900_000,
+      pending_not_due_count: 11,
+      due_count: 7,
+      leased_count: 3,
+      enrolled_count: 5,
+      skipped_count: 2,
+      failed_event_count: 1,
+      queued_message_count: 4,
+      smtp_accepted_count: 6,
+      uncertain_message_count: 1,
+      failed_message_count: 2,
+      cancelled_message_count: 1,
+      ineligible_count: 2,
+      suppressed_count: 1,
+      no_email_count: 1,
+      engagement_opt_out_count: 1,
+      lease_recovery_count: 2,
+      retry_count: 3,
+      last_processed_event_at: 1_900_000_500,
+      processing_latency_seconds: 90,
+      error_codes: {
+        quota_recovered: 2,
+      },
+    },
+  } as RecallCampaignMetrics
+}
+
 function makeMetricCard(
   key: RecallMetricKey,
   total: number,
@@ -235,6 +267,33 @@ function makeDetail(campaignType: RecallCampaignType): RecallCampaignDetail {
   }
 }
 
+function makeContinuousDetail(): RecallCampaignDetail {
+  const detail = makeDetail('content_only') as RecallCampaignDetail & {
+    delivery_policy: string
+    lifecycle_trigger: string
+    processing_start_at: number
+    draft: RecallCampaignDetail['draft'] & {
+      delivery_policy: string
+      lifecycle_trigger: string
+      lifecycle_trigger_config: Record<string, never>
+      processing_start_at: number
+    }
+  }
+  detail.status = 'running'
+  detail.execution_mode = 'continuous'
+  detail.audience_template = 'first_purchase'
+  detail.delivery_policy = 'service'
+  detail.lifecycle_trigger = 'quota_low'
+  detail.processing_start_at = 1_900_000_000
+  detail.draft.execution_mode = 'continuous'
+  detail.draft.delivery_policy = 'service'
+  detail.draft.lifecycle_trigger = 'quota_low'
+  detail.draft.lifecycle_trigger_config = {}
+  detail.draft.processing_start_at = 1_900_000_000
+  detail.draft.promotion_valid_seconds = 0
+  return detail
+}
+
 function renderCampaignDetail(
   campaignType: RecallCampaignType,
   metrics: RecallCampaignMetrics = makeMetrics(),
@@ -265,6 +324,44 @@ function renderCampaignDetail(
       page: 1,
       page_size: 100,
     },
+  })
+  queryClient.setQueryData(recallCampaignKeys.events(campaignId, 1), {
+    success: true,
+    data: { items: [], total: 0, page: 1, page_size: 100 },
+  })
+
+  return renderToStaticMarkup(
+    <QueryClientProvider client={queryClient}>
+      <I18nextProvider i18n={testI18n}>
+        <CampaignDetail campaignId={campaignId} />
+      </I18nextProvider>
+    </QueryClientProvider>
+  )
+}
+
+function renderContinuousCampaignDetail(
+  metrics: RecallCampaignMetrics = makeContinuousMetrics()
+): string {
+  const campaignId = 42
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        enabled: false,
+        retry: false,
+      },
+    },
+  })
+  queryClient.setQueryData(recallCampaignKeys.detail(campaignId), {
+    success: true,
+    data: makeContinuousDetail(),
+  })
+  queryClient.setQueryData(recallCampaignKeys.metrics(campaignId), {
+    success: true,
+    data: metrics,
+  })
+  queryClient.setQueryData(recallCampaignKeys.recipients(campaignId, 1), {
+    success: true,
+    data: { items: [], total: 0, page: 1, page_size: 100 },
   })
   queryClient.setQueryData(recallCampaignKeys.events(campaignId, 1), {
     success: true,
@@ -424,6 +521,34 @@ describe('Recall campaign delivery errors', () => {
 })
 
 describe('CampaignDetail metric rendering', () => {
+  test('renders continuous lifecycle identity and operational metric cards', () => {
+    const html = renderContinuousCampaignDetail()
+    const metricsHtml = campaignMetricsMarkup(html)
+
+    expect(html).toContain('continuous')
+    expect(html).toContain('quota_low')
+    expect(metricsHtml).toContain('Pending not due')
+    expect(metricsHtml).toContain('>11</div>')
+    expect(metricsHtml).toContain('Due now')
+    expect(metricsHtml).toContain('>7</div>')
+    expect(metricsHtml).toContain('Enrolled events')
+    expect(metricsHtml).toContain('Queued messages')
+    expect(metricsHtml).toContain('SMTP accepted')
+    expect(metricsHtml).toContain('Uncertain messages')
+    expect(metricsHtml).toContain('Engagement opt-outs')
+    expect(metricsHtml).toContain('Processing latency')
+    expect(metricsHtml).toContain('quota_recovered')
+    expect(metricsHtml).not.toContain('Accepted messages')
+  })
+
+  test('offers pause and cancel while running continuous activities, without complete', () => {
+    const html = renderContinuousCampaignDetail()
+
+    expect(html).toContain('pause')
+    expect(html).toContain('cancel')
+    expect(html).not.toContain('complete')
+  })
+
   test('renders opened users beside observed clicks from authoritative metric cards', () => {
     const metricsHtml = campaignMetricsMarkup(
       renderCampaignDetail('content_only')

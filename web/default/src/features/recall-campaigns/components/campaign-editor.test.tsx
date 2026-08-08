@@ -27,6 +27,7 @@ import {
 } from '@tanstack/react-query'
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -114,9 +115,20 @@ let latestSpecifiedUsersProps:
 let latestAudienceTemplateChange: ((value: string) => void) | undefined
 let latestCampaignTypeChange: ((value: string) => void) | undefined
 let latestExecutionScheduleModeChange: ((value: string) => void) | undefined
+let latestProcessingStartModeChange: ((value: string) => void) | undefined
+const latestSelectDisabled: Record<string, boolean> = {}
 const latestInputProps: Record<
   string,
   React.InputHTMLAttributes<HTMLInputElement>
+> = {}
+const latestDateTimePickerProps: Record<
+  string,
+  {
+    disabled?: boolean
+    id?: string
+    onChange?: (date: Date | undefined) => void
+    value?: Date
+  }
 > = {}
 const latestSwitchProps: Record<
   string,
@@ -127,6 +139,7 @@ const latestSwitchProps: Record<
   }
 > = {}
 const testQueryClients = new Set<QueryClient>()
+const testRoots = new Set<Root>()
 
 type TimeoutProvider = Parameters<typeof timeoutManager.setTimeoutProvider>[0]
 
@@ -202,7 +215,11 @@ mock.module('@/components/ui/select', () => ({
       ? 'audience_template'
       : props.items?.some((item) => item.value === 'content_only')
         ? 'campaign_type'
-        : undefined
+        : props.items?.some((item) => item.value === 'quota_low')
+          ? 'lifecycle_trigger'
+          : props.items?.some((item) => item.value === 'from_now')
+            ? 'processing_start_mode'
+            : undefined
     if (name === 'audience_template') {
       latestAudienceTemplateChange = props.onValueChange
     }
@@ -211,6 +228,12 @@ mock.module('@/components/ui/select', () => ({
     }
     if (props.items?.some((item) => item.value === 'once')) {
       latestExecutionScheduleModeChange = props.onValueChange
+    }
+    if (name === 'processing_start_mode') {
+      latestProcessingStartModeChange = props.onValueChange
+    }
+    if (name) {
+      latestSelectDisabled[name] = Boolean(props.disabled)
     }
     return (
       <>
@@ -259,6 +282,26 @@ mock.module('@/components/ui/input', () => ({
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => {
     if (props.id) latestInputProps[props.id] = props
     return <input {...props} />
+  },
+}))
+
+mock.module('@/components/datetime-picker', () => ({
+  DateTimePicker: (props: {
+    disabled?: boolean
+    id?: string
+    onChange?: (date: Date | undefined) => void
+    value?: Date
+  }) => {
+    if (props.id) latestDateTimePickerProps[props.id] = props
+    return (
+      <input
+        data-testid='datetime-picker'
+        disabled={props.disabled}
+        id={props.id}
+        readOnly
+        value={props.value?.toISOString() ?? ''}
+      />
+    )
   },
 }))
 
@@ -403,6 +446,63 @@ function makeDraft(template: RecallAudienceTemplate): RecallCampaignDraft {
     ],
     defer_localization: true,
   }
+}
+
+function makeContinuousDraft(): RecallCampaignDraft {
+  const draft = makeDraft('first_purchase') as RecallCampaignDraft & {
+    delivery_policy: string
+    lifecycle_trigger: string
+    lifecycle_trigger_config: Record<string, never>
+    processing_start_at: number
+  }
+  draft.campaign_type = 'content_only'
+  draft.execution_mode = 'continuous'
+  draft.audience_config = {
+    registration_age_days: 0,
+    min_request_count: 0,
+    max_quota: 0,
+    min_paid_amount: 0,
+    last_api_call_age_days: 0,
+    last_payment_age_days: 0,
+    subscription_expired_days: 0,
+    min_subscription_amount: 0,
+    min_subscription_count: 0,
+    payment_providers: [],
+    groups: [],
+    group_mode: '',
+    require_verified_email: false,
+    registration_start_at: 0,
+    registration_end_at: 0,
+    specified_user_ids: [],
+    specified_emails: [],
+  }
+  draft.schedule = {
+    scheduled_at: 0,
+    timezone: '',
+    frequency: '',
+    weekday: 0,
+    hour: 0,
+    minute: 0,
+  }
+  draft.discount_config = {
+    type: 'percent',
+    percent_off: 0,
+    amount_off: 0,
+    currency: '',
+    currency_options: {},
+    minimum_amount: 0,
+    minimum_amount_currency: '',
+  }
+  draft.product_scope = {
+    topup_price_ids: [],
+    subscription_price_ids: [],
+  }
+  draft.promotion_valid_seconds = 0
+  draft.delivery_policy = 'service'
+  draft.lifecycle_trigger = 'quota_low'
+  draft.lifecycle_trigger_config = {}
+  draft.processing_start_at = 0
+  return draft
 }
 
 const originalGlobalPropertyDescriptors = new Map<
@@ -697,6 +797,7 @@ function renderEditorDom(
     )
   })
 
+  testRoots.add(root)
   return { root, container, queryClient }
 }
 
@@ -751,9 +852,11 @@ function renderOfferValidityFieldsDom(draft: RecallCampaignDraft): {
 }
 
 function dispose(root: Root) {
+  if (!testRoots.has(root)) return
   React.act(() => {
     root.unmount()
   })
+  testRoots.delete(root)
 }
 
 async function submit(container: HTMLElement) {
@@ -860,8 +963,15 @@ beforeEach(() => {
   latestAudienceTemplateChange = undefined
   latestCampaignTypeChange = undefined
   latestExecutionScheduleModeChange = undefined
+  latestProcessingStartModeChange = undefined
+  for (const key of Object.keys(latestSelectDisabled)) {
+    delete latestSelectDisabled[key]
+  }
   for (const key of Object.keys(latestInputProps)) {
     delete latestInputProps[key]
+  }
+  for (const key of Object.keys(latestDateTimePickerProps)) {
+    delete latestDateTimePickerProps[key]
   }
   for (const key of Object.keys(latestSwitchProps)) {
     delete latestSwitchProps[key]
@@ -911,6 +1021,12 @@ beforeEach(() => {
     },
   }))
   operationOrder.length = 0
+})
+
+afterEach(() => {
+  for (const root of Array.from(testRoots)) {
+    dispose(root)
+  }
 })
 
 afterAll(async () => {
@@ -1379,15 +1495,91 @@ describe('CampaignEditor audience rules', () => {
 })
 
 describe('CampaignEditor schedule modes', () => {
-  test('presents Manual, Once, Daily, and Weekly as direct mutually exclusive modes', () => {
+  test('presents Manual, Once, Recurring, and Continuous as direct mutually exclusive modes', () => {
     const html = renderEditor('first_purchase')
 
     expect(html).toContain('value="manual"')
     expect(html).toContain('value="once"')
-    expect(html).toContain('value="daily"')
-    expect(html).toContain('value="weekly"')
-    expect(html).not.toContain('value="recurring"')
+    expect(html).toContain('value="recurring"')
+    expect(html).toContain('value="continuous"')
+    expect(html).not.toContain('value="daily"')
+    expect(html).not.toContain('value="weekly"')
     expect(html).not.toContain('Scheduled once')
+  })
+
+  test('renders Continuous lifecycle controls and replaces audience schedule and promotion controls', () => {
+    const html = renderEditor('first_purchase', makeContinuousDraft())
+
+    expect(html).toContain('Lifecycle Trigger')
+    for (const trigger of [
+      'user_registered',
+      'registration_unused',
+      'quota_low',
+      'quota_exhausted_unpaid',
+      'payment_failed',
+      'payment_pending',
+      'payment_succeeded',
+    ]) {
+      expect(html).toContain(`value="${trigger}"`)
+    }
+    expect(html).toContain('Delivery Policy')
+    expect(html).toContain('Service')
+    expect(html).toContain(
+      'Operational service mail ignores marketing opt-out and does not include unsubscribe controls.'
+    )
+    expect(html).toContain('Processing start')
+    expect(html).toContain('value="from_now"')
+    expect(html).toContain('value="custom"')
+    expect(html).toContain('Trigger variables')
+    expect(html).toContain('quota_scope')
+    expect(html).not.toContain('Audience template')
+    expect(html).not.toContain('Group mode')
+    expect(html).not.toContain('3. Stripe Coupon')
+    expect(html).not.toContain('Promotion expiry mode')
+    expect(html).not.toContain('Top-up products')
+    expect(html).not.toContain('Start date and time')
+    expect(html).not.toContain('IANA timezone')
+    expect(html).not.toContain('Add email stage')
+  })
+
+  test('uses From now by default and DateTimePicker for custom continuous starts', async () => {
+    const draft = makeContinuousDraft()
+    const { root, container } = renderEditorDom(draft)
+
+    expect(latestProcessingStartModeChange).toBeTruthy()
+    expect(latestDateTimePickerProps['recall-processing-start-at']).toBeFalsy()
+
+    React.act(() => {
+      latestProcessingStartModeChange?.('custom')
+    })
+    expect(latestDateTimePickerProps['recall-processing-start-at']).toBeTruthy()
+
+    React.act(() => {
+      latestDateTimePickerProps['recall-processing-start-at'].onChange?.(
+        new Date('2030-01-02T03:04:00.000Z')
+      )
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft & { processing_start_at: number }
+    expect(submitted.execution_mode).toBe('continuous')
+    expect(submitted.processing_start_at).toBe(1_893_553_440)
+    dispose(root)
+  })
+
+  test('keeps continuous trigger and processing start immutable after activation', () => {
+    const draft = makeContinuousDraft()
+    draft.processing_start_at = 1_900_000_000
+    const { root, container } = renderEditorDom(draft, {
+      status: 'running',
+    })
+
+    expect(container.textContent).toContain('Lifecycle Trigger')
+    expect(container.textContent).toContain('Processing start')
+    expect(latestSelectDisabled.lifecycle_trigger).toBe(true)
+    dispose(root)
   })
 
   test('hides start controls for Manual mode', () => {
@@ -1429,11 +1621,10 @@ describe('CampaignEditor schedule modes', () => {
     }
   )
 
-  test('maps Once, Daily, and Weekly selections to the backend wire contract on submit', async () => {
+  test('maps Once, Recurring, and Manual selections to the backend wire contract on submit', async () => {
     for (const [mode, executionMode, frequency] of [
       ['once', 'scheduled_once', 'daily'],
-      ['daily', 'recurring', 'daily'],
-      ['weekly', 'recurring', 'weekly'],
+      ['recurring', 'recurring', 'daily'],
       ['manual', 'manual', 'daily'],
     ] as const) {
       createMutation.mockClear()
@@ -1451,11 +1642,11 @@ describe('CampaignEditor schedule modes', () => {
       )?.[0] as RecallCampaignDraft
       expect(submitted.execution_mode).toBe(executionMode)
       expect(submitted.schedule.frequency).toBe(frequency)
-      if (mode === 'once' || mode === 'daily') {
+      if (mode === 'once' || mode === 'recurring') {
         expect(submitted.schedule.timezone).toBe('Asia/Shanghai')
         expect(submitted.schedule.scheduled_at).toBeGreaterThan(0)
       }
-      if (mode === 'daily') {
+      if (mode === 'recurring') {
         expect(submitted.schedule.weekday).toBe(1)
       }
       if (mode === 'manual') {
@@ -1473,7 +1664,7 @@ describe('CampaignEditor schedule modes', () => {
     const { root: utcRoot, container: utcContainer } = renderEditorDom(utcDraft)
 
     React.act(() => {
-      latestExecutionScheduleModeChange?.('daily')
+      latestExecutionScheduleModeChange?.('recurring')
     })
     await submit(utcContainer)
 
@@ -1492,7 +1683,7 @@ describe('CampaignEditor schedule modes', () => {
       renderEditorDom(blankDraft)
 
     React.act(() => {
-      latestExecutionScheduleModeChange?.('daily')
+      latestExecutionScheduleModeChange?.('recurring')
     })
     await submit(blankContainer)
 
