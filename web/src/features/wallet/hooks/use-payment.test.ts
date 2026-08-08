@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { PAYMENT_TYPES } from '../constants'
 import { requestPaymentAmount } from './use-payment'
@@ -44,7 +43,7 @@ describe('payment amount routing', () => {
       },
     })
 
-    assert.equal(amount, 18.75)
-    assert.deepEqual(calls, ['waffo:120'])
+    expect(amount).toBe(18.75)
+    expect(calls).toEqual(['waffo:120'])
   })
 })
