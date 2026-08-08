@@ -91,16 +91,16 @@ function makeContinuousSummary(): RecallCampaignSummary {
     campaign_type: 'content_only',
     name: 'Low quota lifecycle',
     status: 'running',
-    audience_template: 'first_purchase',
+    audience_template: '',
     execution_mode: 'continuous',
     lifecycle_trigger: 'quota_low',
     delivery_policy: 'service',
     processing_start_at: 1_900_000_000,
     scheduled_at: 0,
     next_run_at: 0,
-    coupon_source: 'automatic',
+    coupon_source: '',
     stripe_coupon_id: '',
-    promotion_expiry_mode: 'relative',
+    promotion_expiry_mode: '',
     promotion_expires_at: 0,
     promotion_valid_seconds: 0,
     enrollment_limit: 100,
@@ -147,5 +147,50 @@ describe('CampaignTable lifecycle columns', () => {
     expect(html).toContain('Low quota lifecycle')
     expect(html).toContain('continuous')
     expect(html).toContain('quota_low')
+  })
+
+  test('does not render audience labels for continuous lifecycle rows', () => {
+    const search = { p: 1, ps: 20 }
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          enabled: false,
+          retry: false,
+        },
+      },
+    })
+    queryClient.setQueryData(['recall-campaigns', 'list', search], {
+      success: true,
+      data: {
+        items: [
+          makeContinuousSummary(),
+          {
+            ...makeContinuousSummary(),
+            id: 43,
+            name: 'Stale legacy lifecycle',
+            audience_template: 'first_purchase',
+          },
+        ],
+        total: 2,
+        page: 1,
+        page_size: 20,
+      },
+    })
+
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={testI18n}>
+          <CampaignTable />
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+
+    expect(html).toContain('Low quota lifecycle')
+    expect(html).toContain('Stale legacy lifecycle')
+    expect(html).toContain('continuous')
+    expect(html).toContain('quota_low')
+    expect(html).toContain('<td>-</td>')
+    expect(html).not.toContain('first_purchase')
+    expect(html).not.toContain('First purchase')
   })
 })

@@ -66,7 +66,10 @@ export function CampaignTable() {
       {
         accessorKey: 'audience_template',
         header: t('Audience'),
-        cell: ({ row }) => t(row.original.audience_template),
+        cell: ({ row }) =>
+          row.original.execution_mode === 'continuous'
+            ? '-'
+            : t(row.original.audience_template),
       },
       {
         accessorKey: 'execution_mode',
