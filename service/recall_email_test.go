@@ -2675,6 +2675,43 @@ func setRecallEmailPacing(t *testing.T, limit int, tickSeconds int) {
 	})
 }
 
+func setRecallCampaignEmailHeaderSettings(t *testing.T, replyTo string, unsubscribeMailto string) {
+	t.Helper()
+	previous := operation_setting.GetRecallCampaignSetting()
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"recall_campaign_setting.enabled":               boolString(previous.Enabled),
+		"recall_campaign_setting.batch_size":            fmt.Sprintf("%d", previous.BatchSize),
+		"recall_campaign_setting.tick_seconds":          fmt.Sprintf("%d", previous.TickSeconds),
+		"recall_campaign_setting.email_hourly_limit":    fmt.Sprintf("%d", previous.EmailHourlyLimit),
+		"recall_campaign_setting.reply_to":              replyTo,
+		"recall_campaign_setting.unsubscribe_mailto":    unsubscribeMailto,
+		"recall_campaign_setting.smtp_server":           previous.SMTPServer,
+		"recall_campaign_setting.smtp_port":             fmt.Sprintf("%d", previous.SMTPPort),
+		"recall_campaign_setting.smtp_account":          previous.SMTPAccount,
+		"recall_campaign_setting.email_from":            previous.EmailFrom,
+		"recall_campaign_setting.smtp_token":            previous.SMTPToken,
+		"recall_campaign_setting.smtp_ssl_enabled":      boolString(previous.SMTPSSLEnabled),
+		"recall_campaign_setting.smtp_force_auth_login": boolString(previous.SMTPForceAuthLogin),
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+			"recall_campaign_setting.enabled":               boolString(previous.Enabled),
+			"recall_campaign_setting.batch_size":            fmt.Sprintf("%d", previous.BatchSize),
+			"recall_campaign_setting.tick_seconds":          fmt.Sprintf("%d", previous.TickSeconds),
+			"recall_campaign_setting.email_hourly_limit":    fmt.Sprintf("%d", previous.EmailHourlyLimit),
+			"recall_campaign_setting.reply_to":              previous.ReplyTo,
+			"recall_campaign_setting.unsubscribe_mailto":    previous.UnsubscribeMailto,
+			"recall_campaign_setting.smtp_server":           previous.SMTPServer,
+			"recall_campaign_setting.smtp_port":             fmt.Sprintf("%d", previous.SMTPPort),
+			"recall_campaign_setting.smtp_account":          previous.SMTPAccount,
+			"recall_campaign_setting.email_from":            previous.EmailFrom,
+			"recall_campaign_setting.smtp_token":            previous.SMTPToken,
+			"recall_campaign_setting.smtp_ssl_enabled":      boolString(previous.SMTPSSLEnabled),
+			"recall_campaign_setting.smtp_force_auth_login": boolString(previous.SMTPForceAuthLogin),
+		}))
+	})
+}
+
 func addRecallEmailBatchMessage(t *testing.T, fixture recallEmailFixture, suffix string, scheduledAt int64) (model.User, model.RecallRecipient, model.RecallMessage) {
 	t.Helper()
 	user := fixture.user

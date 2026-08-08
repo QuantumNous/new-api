@@ -294,11 +294,32 @@ func TestRecallLifecycleQuotaExhaustedRecoveryIsScopeAware(t *testing.T) {
 			wantReason: "quota_recovered",
 		},
 		{
+			name:      "wallet topup success at same second with higher id suppresses stale exhausted state",
+			scopeType: model.QuotaLifecycleScopeWallet,
+			scopeID:   "2",
+			seed: func(t *testing.T, fixture recallEmailFixture) {
+				event := loadRecallLifecycleEventForRecipient(t, fixture.recipient.Id)
+				seedRecallLifecycleTopUpPaymentSucceededEvent(t, fixture.user.Id, "related-wallet-topup-same-second", event.OccurredAt, 100)
+			},
+			wantReason: "quota_recovered",
+		},
+		{
 			name:      "wallet topup success after event suppresses stale exhausted state",
 			scopeType: model.QuotaLifecycleScopeWallet,
 			scopeID:   "2",
 			seed: func(t *testing.T, fixture recallEmailFixture) {
 				seedRecallLifecycleTopUpPaymentSucceededEvent(t, fixture.user.Id, "related-wallet-topup", recallEmailTestNow+5, 100)
+			},
+			wantReason: "quota_recovered",
+		},
+		{
+			name:      "subscription renewal success at same second with higher id suppresses stale exhausted state",
+			scopeType: model.QuotaLifecycleScopeSubscription,
+			scopeID:   "10",
+			seed: func(t *testing.T, fixture recallEmailFixture) {
+				event := loadRecallLifecycleEventForRecipient(t, fixture.recipient.Id)
+				seedRecallLifecycleSubscriptionScope(t, fixture.user.Id, 10, 901, "exhausted-grant")
+				seedRecallLifecycleSubscriptionRenewalSucceededEvent(t, fixture.user.Id, 10, "related-renewal-same-second", event.OccurredAt)
 			},
 			wantReason: "quota_recovered",
 		},
@@ -390,7 +411,62 @@ func TestRecallLifecycleQuotaExhaustedRecoveryIsScopeAware(t *testing.T) {
 	}
 }
 
+func TestRecallLifecycleQuotaExhaustedRecoveryIgnoresSameSecondLowerIDAndOlderSuccess(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		scopeType string
+		scopeID   string
+		seed      func(t *testing.T, fixture recallEmailFixture, event model.RecallLifecycleEvent)
+	}{
+		{
+			name:      "wallet",
+			scopeType: model.QuotaLifecycleScopeWallet,
+			scopeID:   "2",
+			seed: func(t *testing.T, fixture recallEmailFixture, event model.RecallLifecycleEvent) {
+				seedRecallLifecycleTopUpPaymentSucceededEventWithID(t, fixture.user.Id, "related-wallet-topup-lower-id", event.OccurredAt, 100, event.Id-1)
+				seedRecallLifecycleTopUpPaymentSucceededEvent(t, fixture.user.Id, "related-wallet-topup-older", event.OccurredAt-1, 100)
+			},
+		},
+		{
+			name:      "subscription",
+			scopeType: model.QuotaLifecycleScopeSubscription,
+			scopeID:   "10",
+			seed: func(t *testing.T, fixture recallEmailFixture, event model.RecallLifecycleEvent) {
+				seedRecallLifecycleSubscriptionScope(t, fixture.user.Id, 10, 901, "exhausted-grant")
+				seedRecallLifecycleSubscriptionRenewalSucceededEventWithID(t, fixture.user.Id, 10, "related-renewal-lower-id", event.OccurredAt, event.Id-1)
+				seedRecallLifecycleSubscriptionRenewalSucceededEvent(t, fixture.user.Id, 10, "related-renewal-older", event.OccurredAt-1)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data := map[string]any{
+				"scope_type":       tc.scopeType,
+				"scope_id":         tc.scopeID,
+				"cycle_key":        "exhausted-cycle",
+				"current_balance":  float64(0),
+				"previous_balance": float64(10),
+				"threshold":        float64(100),
+			}
+			fixture := newRecallLifecycleEmailFixture(t, model.RecallLifecycleTriggerQuotaExhaustedUnpaid, data)
+			event := loadRecallLifecycleEventForRecipient(t, fixture.recipient.Id)
+			const controlledEventID = int64(100)
+			require.NoError(t, model.DB.Model(&model.RecallLifecycleEvent{}).Where("id = ?", event.Id).Update("id", controlledEventID).Error)
+			require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", fixture.recipient.Id).Update("lifecycle_event_id", controlledEventID).Error)
+			event.Id = controlledEventID
+			require.NoError(t, model.DB.Delete(&model.RecallLifecycleEvent{}, event.Id-1).Error)
+			seedRecallLifecycleQuotaState(t, fixture.user.Id, tc.scopeType, tc.scopeID, "exhausted-cycle", 0, 100)
+			tc.seed(t, fixture, event)
+
+			require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+			require.Len(t, *fixture.sent, 1)
+			require.Equal(t, model.RecallMessageAccepted, loadRecallEmailMessageByID(t, fixture.message.Id).State)
+		})
+	}
+}
+
 func TestRecallLifecycleMIMEPolicy(t *testing.T) {
+	setRecallCampaignEmailHeaderSettings(t, "support@example.com", "mailto:unsubscribe@example.com")
 	serviceTriggers := []string{
 		model.RecallLifecycleTriggerUserRegistered,
 		model.RecallLifecycleTriggerQuotaLow,
@@ -411,7 +487,8 @@ func TestRecallLifecycleMIMEPolicy(t *testing.T) {
 			require.NotContains(t, sent.htmlBody, "/api/recall/unsubscribe")
 			require.Empty(t, sent.options.ListUnsubscribeURL)
 			require.Empty(t, sent.options.ListUnsubscribeMailto)
-			require.False(t, sent.options.Multipart)
+			require.Equal(t, "support@example.com", sent.options.ReplyTo)
+			require.True(t, sent.options.Multipart)
 		})
 	}
 
@@ -423,6 +500,8 @@ func TestRecallLifecycleMIMEPolicy(t *testing.T) {
 			require.Len(t, *fixture.sent, 1)
 			require.Contains(t, (*fixture.sent)[0].htmlBody, "/api/recall/unsubscribe")
 			require.NotEmpty(t, (*fixture.sent)[0].options.ListUnsubscribeURL)
+			require.Equal(t, "mailto:unsubscribe@example.com", (*fixture.sent)[0].options.ListUnsubscribeMailto)
+			require.Equal(t, "support@example.com", (*fixture.sent)[0].options.ReplyTo)
 			require.True(t, (*fixture.sent)[0].options.Multipart)
 
 			optedOut := newRecallLifecycleEmailFixture(t, trigger, validRecallLifecycleEventData(trigger))
@@ -607,6 +686,16 @@ func seedRecallLifecycleTopUpPaymentSucceededEvent(t *testing.T, userID int, tra
 
 func seedRecallLifecycleTopUpPaymentSucceededEventWithCompleteTime(t *testing.T, userID int, tradeNo string, occurredAt int64, completeTime int64, amount int64) {
 	t.Helper()
+	seedRecallLifecycleTopUpPaymentSucceededEventWithCompleteTimeAndID(t, userID, tradeNo, occurredAt, completeTime, amount, 0)
+}
+
+func seedRecallLifecycleTopUpPaymentSucceededEventWithID(t *testing.T, userID int, tradeNo string, occurredAt int64, amount int64, eventID int64) {
+	t.Helper()
+	seedRecallLifecycleTopUpPaymentSucceededEventWithCompleteTimeAndID(t, userID, tradeNo, occurredAt, occurredAt, amount, eventID)
+}
+
+func seedRecallLifecycleTopUpPaymentSucceededEventWithCompleteTimeAndID(t *testing.T, userID int, tradeNo string, occurredAt int64, completeTime int64, amount int64, eventID int64) {
+	t.Helper()
 	topUp := model.TopUp{UserId: userID, TradeNo: tradeNo, Status: common.TopUpStatusSuccess, Amount: amount, CreateTime: occurredAt - 20, CompleteTime: completeTime}
 	require.NoError(t, model.DB.Create(&topUp).Error)
 	payload, err := common.Marshal(map[string]any{
@@ -622,7 +711,8 @@ func seedRecallLifecycleTopUpPaymentSucceededEventWithCompleteTime(t *testing.T,
 	require.NoError(t, err)
 	occurrence, err := model.NewRecallLifecyclePurchaseOccurrence(model.RecallLifecycleTriggerPaymentSucceeded, model.PurchaseLifecycleKindTopUp, tradeNo, "top_ups", int64(topUp.Id), userID)
 	require.NoError(t, err)
-	inserted, err := model.TryInsertRecallLifecycleEventWithContext(context.Background(), &model.RecallLifecycleEvent{
+	successEvent := model.RecallLifecycleEvent{
+		Id:                eventID,
 		EventType:         model.RecallLifecycleTriggerPaymentSucceeded,
 		OccurrenceKeyHash: occurrence.Hash,
 		BusinessKey:       occurrence.Canonical,
@@ -634,7 +724,8 @@ func seedRecallLifecycleTopUpPaymentSucceededEventWithCompleteTime(t *testing.T,
 		OccurredAt:        occurredAt,
 		AvailableAt:       occurredAt,
 		SchemaVersion:     1,
-	})
+	}
+	inserted, err := model.TryInsertRecallLifecycleEventWithContext(context.Background(), &successEvent)
 	require.NoError(t, err)
 	require.True(t, inserted)
 }
@@ -659,6 +750,16 @@ func seedRecallLifecycleSubscriptionRenewalSucceededEvent(t *testing.T, userID i
 
 func seedRecallLifecycleSubscriptionRenewalSucceededEventWithCompleteTime(t *testing.T, userID int, subscriptionScopeID int64, renewalKey string, occurredAt int64, completeTime int64) {
 	t.Helper()
+	seedRecallLifecycleSubscriptionRenewalSucceededEventWithCompleteTimeAndID(t, userID, subscriptionScopeID, renewalKey, occurredAt, completeTime, 0)
+}
+
+func seedRecallLifecycleSubscriptionRenewalSucceededEventWithID(t *testing.T, userID int, subscriptionScopeID int64, renewalKey string, occurredAt int64, eventID int64) {
+	t.Helper()
+	seedRecallLifecycleSubscriptionRenewalSucceededEventWithCompleteTimeAndID(t, userID, subscriptionScopeID, renewalKey, occurredAt, occurredAt, eventID)
+}
+
+func seedRecallLifecycleSubscriptionRenewalSucceededEventWithCompleteTimeAndID(t *testing.T, userID int, subscriptionScopeID int64, renewalKey string, occurredAt int64, completeTime int64, eventID int64) {
+	t.Helper()
 	order := model.SubscriptionOrder{
 		UserId:        userID,
 		TradeNo:       renewalKey,
@@ -680,7 +781,8 @@ func seedRecallLifecycleSubscriptionRenewalSucceededEventWithCompleteTime(t *tes
 	require.NoError(t, err)
 	occurrence, err := model.NewRecallLifecyclePurchaseOccurrence(model.RecallLifecycleTriggerPaymentSucceeded, model.PurchaseLifecycleKindSubscription, renewalKey, "subscription_orders", int64(order.Id), userID)
 	require.NoError(t, err)
-	inserted, err := model.TryInsertRecallLifecycleEventWithContext(context.Background(), &model.RecallLifecycleEvent{
+	successEvent := model.RecallLifecycleEvent{
+		Id:                eventID,
 		EventType:         model.RecallLifecycleTriggerPaymentSucceeded,
 		OccurrenceKeyHash: occurrence.Hash,
 		BusinessKey:       occurrence.Canonical,
@@ -692,7 +794,8 @@ func seedRecallLifecycleSubscriptionRenewalSucceededEventWithCompleteTime(t *tes
 		OccurredAt:        occurredAt,
 		AvailableAt:       occurredAt,
 		SchemaVersion:     1,
-	})
+	}
+	inserted, err := model.TryInsertRecallLifecycleEventWithContext(context.Background(), &successEvent)
 	require.NoError(t, err)
 	require.True(t, inserted)
 }

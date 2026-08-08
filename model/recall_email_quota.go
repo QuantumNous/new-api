@@ -3,6 +3,8 @@ package model
 import (
 	"context"
 	"errors"
+	"reflect"
+	"sync"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -59,6 +61,7 @@ var (
 	errRecallEmailPacingWait   = errors.New("recall email pacing wait")
 	errRecallEmailQuotaWait    = errors.New("recall email quota exhausted")
 	errRecallEmailCASLost      = errors.New("recall email CAS lost")
+	errRecallLifecycleGateOpen = errors.New("recall lifecycle smtp gate is not registered")
 )
 
 type RecallLifecycleSMTPGateInput struct {
@@ -74,7 +77,32 @@ type RecallLifecycleSMTPGateResult struct {
 
 type RecallLifecycleSMTPGateFunc func(tx *gorm.DB, input RecallLifecycleSMTPGateInput) (RecallLifecycleSMTPGateResult, error)
 
-var RecallLifecycleSMTPGate RecallLifecycleSMTPGateFunc
+var (
+	recallLifecycleSMTPGateMu sync.RWMutex
+	recallLifecycleSMTPGate   RecallLifecycleSMTPGateFunc
+)
+
+func RegisterRecallLifecycleSMTPGate(gate RecallLifecycleSMTPGateFunc) error {
+	if gate == nil {
+		return errors.New("recall lifecycle smtp gate is nil")
+	}
+	recallLifecycleSMTPGateMu.Lock()
+	defer recallLifecycleSMTPGateMu.Unlock()
+	if recallLifecycleSMTPGate == nil {
+		recallLifecycleSMTPGate = gate
+		return nil
+	}
+	if reflect.ValueOf(recallLifecycleSMTPGate).Pointer() == reflect.ValueOf(gate).Pointer() {
+		return nil
+	}
+	return errors.New("recall lifecycle smtp gate is already registered")
+}
+
+func recallLifecycleSMTPGateForAttempt() (RecallLifecycleSMTPGateFunc, bool) {
+	recallLifecycleSMTPGateMu.RLock()
+	defer recallLifecycleSMTPGateMu.RUnlock()
+	return recallLifecycleSMTPGate, recallLifecycleSMTPGate != nil
+}
 
 func ReserveRecallEmailQuotaWithContext(ctx context.Context, limit int) (RecallEmailQuotaStatus, bool, error) {
 	return reserveRecallEmailQuota(DB.WithContext(ctx), limit)
@@ -124,8 +152,12 @@ func BeginRecallEmailSMTPAttemptWithContext(
 			}
 			return nil
 		}
-		if recipient.LifecycleEventId != nil && RecallLifecycleSMTPGate != nil {
-			gate, err := RecallLifecycleSMTPGate(tx, RecallLifecycleSMTPGateInput{
+		if recipient.LifecycleEventId != nil {
+			lifecycleGate, ok := recallLifecycleSMTPGateForAttempt()
+			if !ok {
+				return errRecallLifecycleGateOpen
+			}
+			gate, err := lifecycleGate(tx, RecallLifecycleSMTPGateInput{
 				Message:   message,
 				Recipient: recipient,
 			})

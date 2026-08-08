@@ -12,7 +12,9 @@ import (
 )
 
 func init() {
-	model.RecallLifecycleSMTPGate = recallLifecycleSMTPGate
+	if err := model.RegisterRecallLifecycleSMTPGate(recallLifecycleSMTPGate); err != nil {
+		panic(err)
+	}
 }
 
 type recallLifecycleQuotaGateData struct {
@@ -153,10 +155,18 @@ func recallLifecycleQuotaRecoveredByRelatedPaymentSuccess(tx *gorm.DB, event mod
 	}
 }
 
-func recallLifecycleNewerPaymentSucceededEvents(tx *gorm.DB, userID int, occurredAfter int64, purchaseKind string) ([]model.RecallLifecycleEvent, error) {
+func recallLifecycleNewerPaymentSucceededEvents(tx *gorm.DB, event model.RecallLifecycleEvent, purchaseKind string) ([]model.RecallLifecycleEvent, error) {
 	var events []model.RecallLifecycleEvent
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("user_id = ? AND event_type = ? AND scope_type = ? AND occurred_at > ?", userID, model.RecallLifecycleTriggerPaymentSucceeded, purchaseKind, occurredAfter).
+		Where(
+			"user_id = ? AND event_type = ? AND scope_type = ? AND (occurred_at > ? OR (occurred_at = ? AND id > ?))",
+			event.UserId,
+			model.RecallLifecycleTriggerPaymentSucceeded,
+			purchaseKind,
+			event.OccurredAt,
+			event.OccurredAt,
+			event.Id,
+		).
 		Order("occurred_at ASC, id ASC").
 		Find(&events).Error; err != nil {
 		return nil, err
@@ -168,7 +178,7 @@ func recallLifecycleWalletRecoveredByTopUpSuccess(tx *gorm.DB, event model.Recal
 	if strings.TrimSpace(scopeID) == "" {
 		return false, nil
 	}
-	events, err := recallLifecycleNewerPaymentSucceededEvents(tx, event.UserId, event.OccurredAt, model.PurchaseLifecycleKindTopUp)
+	events, err := recallLifecycleNewerPaymentSucceededEvents(tx, event, model.PurchaseLifecycleKindTopUp)
 	if err != nil {
 		return false, err
 	}
@@ -209,7 +219,7 @@ func recallLifecycleSubscriptionRecoveredByRenewalSuccess(tx *gorm.DB, event mod
 	if err != nil || subscriptionID <= 0 {
 		return false, nil
 	}
-	events, err := recallLifecycleNewerPaymentSucceededEvents(tx, event.UserId, event.OccurredAt, model.PurchaseLifecycleKindSubscription)
+	events, err := recallLifecycleNewerPaymentSucceededEvents(tx, event, model.PurchaseLifecycleKindSubscription)
 	if err != nil {
 		return false, err
 	}

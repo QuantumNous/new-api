@@ -458,7 +458,11 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	}
 	baseOrigin := strings.TrimRight(strings.TrimSpace(topUpBaseOrigin()), "/")
 	unsubscribeURL := ""
-	emailOptions := common.EmailOptions{}
+	recallCampaignSetting := operation_setting.GetRecallCampaignSetting()
+	emailOptions := common.EmailOptions{
+		ReplyTo:   strings.TrimSpace(recallCampaignSetting.ReplyTo),
+		Multipart: true,
+	}
 	if deliveryPolicy != model.RecallDeliveryPolicyService {
 		unsubscribeToken, err := w.createUnsubscribeToken(item)
 		if err != nil {
@@ -467,12 +471,8 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 		unsubscribeURL = baseOrigin + "/api/recall/unsubscribe?token=" + url.QueryEscape(unsubscribeToken)
 		// Gmail and Outlook read one-click unsubscribe from the List-Unsubscribe
 		// header, not from the body link, and downrank bulk mail that omits it.
-		emailOptions = common.EmailOptions{
-			ListUnsubscribeURL:    unsubscribeURL,
-			ListUnsubscribeMailto: strings.TrimSpace(operation_setting.GetRecallCampaignSetting().UnsubscribeMailto),
-			ReplyTo:               strings.TrimSpace(operation_setting.GetRecallCampaignSetting().ReplyTo),
-			Multipart:             true,
-		}
+		emailOptions.ListUnsubscribeURL = unsubscribeURL
+		emailOptions.ListUnsubscribeMailto = strings.TrimSpace(recallCampaignSetting.UnsubscribeMailto)
 	}
 	if campaignType == model.RecallCampaignTypePromotion && resolvedLanguage != item.Recipient.LanguageSnapshot {
 		productSummary, err = w.recallEmailProductSummary(ctx, item.Campaign.ProductScope, resolvedLanguage)
