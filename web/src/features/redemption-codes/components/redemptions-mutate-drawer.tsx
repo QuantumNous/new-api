@@ -300,7 +300,9 @@ export function RedemptionsMutateDrawer({
                           placeholder={quotaPlaceholder}
                           onChange={(e) =>
                             field.onChange(
-                              Number.parseFloat(e.target.value) || 0
+                              e.target.value === ''
+                                ? ''
+                                : Number.parseFloat(e.target.value)
                             )
                           }
                         />
