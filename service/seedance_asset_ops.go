@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
@@ -322,20 +323,25 @@ func CreateSeedanceRemoteAssetFor(userId int, provider, assetURL, assetType, nam
 		if aiccId == "" {
 			return nil, newSeedanceErr(http.StatusBadGateway, "upstream_error", "上游未返回 asset id")
 		}
+		st := fromOfficialStatus(pickString(mapGet(result, "Status", "status")))
 		a := &model.SeedanceAsset{
 			UserId:      userId,
 			GroupId:     gid,
 			AiccAssetId: aiccId,
-			Filename:    pickString(name),
+			Filename:    pickString(mapGet(result, "Name", "name"), name),
 			Type:        fromOfficialAssetType(toOfficialAssetType(assetType)),
-			Status:      model.SeedanceAssetStatusProcessing,
-			URL:         assetURL,
+			Status:      st,
+			URL:         pickString(mapGet(result, "URL", "url"), assetURL),
 			AssetURI:    "asset://" + aiccId,
 			Provider:    provider,
 			ChannelId:   gw.ChannelId,
 		}
 		if err := a.Insert(); err != nil {
 			return nil, err
+		}
+		// 创建响应常仍是 Processing，立刻回源一次，避免调试页一直看不到 Active
+		if a.Status != model.SeedanceAssetStatusActive && a.Status != model.SeedanceAssetStatusFailed {
+			_ = refreshOfficialAssetFromUpstream(a, gw)
 		}
 		return formatAsset(a), nil
 	}
@@ -418,6 +424,53 @@ func QuerySeedanceAssetsFor(userId int, provider string, q model.SeedanceAssetQu
 	}, nil
 }
 
+func refreshOfficialAssetFromUpstream(a *model.SeedanceAsset, gw *seedanceOfficialGateway) error {
+	if a == nil {
+		return newSeedanceErr(http.StatusNotFound, "asset_not_found", "素材不存在")
+	}
+	if gw == nil {
+		var err error
+		gw, err = resolveSeedanceOfficialGateway()
+		if err != nil {
+			return err
+		}
+	}
+	pathID := a.AiccAssetId
+	if pathID == "" {
+		pathID = strconv.Itoa(a.Id)
+	}
+	_, result, _, err := seedanceOfficialDo(gw, "GetAsset", map[string]any{
+		"Id":          pathID,
+		"ProjectName": operation_setting.GetSeedanceOfficialProjectName(),
+	})
+	if err != nil {
+		return err
+	}
+	if result == nil {
+		return newSeedanceErr(http.StatusBadGateway, "upstream_error", "GetAsset 无 Result")
+	}
+	if st := pickString(mapGet(result, "Status", "status")); st != "" {
+		a.Status = fromOfficialStatus(st)
+	}
+	if em := pickString(mapGet(result, "ErrorMessage", "error_message", "Message")); em != "" {
+		a.ErrorMessage = em
+	}
+	if u := pickString(mapGet(result, "URL", "url")); u != "" {
+		a.URL = u
+	}
+	if gid := pickString(mapGet(result, "GroupId", "group_id")); gid != "" {
+		a.GroupId = gid
+	}
+	if n := pickString(mapGet(result, "Name", "name")); n != "" {
+		a.Filename = n
+	}
+	if a.AiccAssetId != "" {
+		a.AssetURI = "asset://" + a.AiccAssetId
+	}
+	a.UpdatedAt = time.Now().Unix()
+	return a.Update()
+}
+
 func GetSeedanceAssetFor(userId int, provider, idOrAicc string) (map[string]any, error) {
 	provider = model.NormalizeSeedanceProvider(provider)
 	a, err := model.GetSeedanceAssetByUserAndIDOrAiccProvider(userId, idOrAicc, provider)
@@ -432,6 +485,10 @@ func GetSeedanceAssetFor(userId int, provider, idOrAicc string) (map[string]any,
 	if provider == model.SeedanceProviderOfficial {
 		cfg := operation_setting.GetSeedanceAssetOfficialSetting()
 		refresh = cfg != nil && cfg.RefreshOnGet
+		// processing 时强制回源，避免前端轮询一直读到本地旧状态
+		if a.Status == model.SeedanceAssetStatusProcessing || a.Status == model.SeedanceAssetStatusUploaded {
+			refresh = true
+		}
 	} else {
 		cfg := operation_setting.GetSeedanceAssetSetting()
 		refresh = cfg != nil && cfg.RefreshOnGet
@@ -440,31 +497,11 @@ func GetSeedanceAssetFor(userId int, provider, idOrAicc string) (map[string]any,
 	if refresh {
 		if provider == model.SeedanceProviderOfficial {
 			if gw, gErr := resolveSeedanceOfficialGateway(); gErr == nil {
-				pathID := a.AiccAssetId
-				if pathID == "" {
-					pathID = strconv.Itoa(a.Id)
+				if rErr := refreshOfficialAssetFromUpstream(a, gw); rErr != nil {
+					common.SysLog("seedance official GetAsset refresh failed: " + rErr.Error())
 				}
-				_, result, _, rErr := seedanceOfficialDo(gw, "GetAsset", map[string]any{"Id": pathID})
-				if rErr == nil && result != nil {
-					if st := pickString(mapGet(result, "Status", "status")); st != "" {
-						a.Status = fromOfficialStatus(st)
-					}
-					if em := pickString(mapGet(result, "ErrorMessage", "error_message", "Message")); em != "" {
-						a.ErrorMessage = em
-					}
-					if u := pickString(mapGet(result, "URL", "url")); u != "" {
-						a.URL = u
-					}
-					if gid := pickString(mapGet(result, "GroupId", "group_id")); gid != "" {
-						a.GroupId = gid
-					}
-					if n := pickString(mapGet(result, "Name", "name")); n != "" {
-						a.Filename = n
-					}
-					a.AssetURI = "asset://" + a.AiccAssetId
-					a.UpdatedAt = time.Now().Unix()
-					_ = a.Update()
-				}
+			} else {
+				common.SysLog("seedance official GetAsset refresh gateway: " + gErr.Error())
 			}
 		} else if gw, gErr := resolveSeedanceGateway(); gErr == nil {
 			pathID := a.AiccAssetId

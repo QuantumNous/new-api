@@ -1994,7 +1994,24 @@
       let assetUri = data.asset_uri || (pollId && !/^\d+$/.test(pollId) ? `asset://${pollId}` : "");
       if (!pollId) throw new Error("官方素材认证未返回 asset id");
 
-      const deadline = Date.now() + 120000;
+      const markReady = (row = {}) => {
+        asset.aiccAssetId = pollId;
+        asset.assetUri = row.asset_uri || assetUri || `asset://${row.aicc_asset_id || pollId}`;
+        asset.uploadStatus = "ready";
+        renderAssets();
+        return asset;
+      };
+      // 创建接口若已回 active，无需再轮询
+      if (String(data.status || "").toLowerCase() === "active") {
+        return markReady(data);
+      }
+      if (String(data.status || "").toLowerCase() === "failed") {
+        throw new Error(data.error_message || "官方素材认证失败");
+      }
+
+      // 海外素材处理常超过 2 分钟；超时不等于上游 failed
+      const deadline = Date.now() + 300000;
+      let lastStatus = String(data.status || "processing").toLowerCase();
       while (Date.now() < deadline) {
         const qRes = await fetch(`${apiBase()}/api/seedance/official/assets/${encodeURIComponent(pollId)}`, {
           headers: authHeaders({ Accept: "application/json" }),
@@ -2005,20 +2022,19 @@
         }
         const row = qData.data || {};
         const st = String(row.status || "").toLowerCase();
+        lastStatus = st || lastStatus;
         if (row.asset_uri) assetUri = row.asset_uri;
         if (st === "active") {
-          asset.aiccAssetId = pollId;
-          asset.assetUri = assetUri || `asset://${row.aicc_asset_id || pollId}`;
-          asset.uploadStatus = "ready";
-          renderAssets();
-          return asset;
+          return markReady(row);
         }
         if (st === "failed") {
           throw new Error(row.error_message || "官方素材认证失败");
         }
-        await sleep(3000);
+        await sleep(5000);
       }
-      throw new Error("官方素材认证超时（120s）");
+      throw new Error(
+        `官方素材仍在处理中（${lastStatus || "processing"}），前端等待超时 300s。可稍后 GET /api/seedance/official/assets/${pollId}，状态变 active 后再生成。asset_uri=${assetUri || ("asset://" + pollId)}`
+      );
     }
 
     async function ensureAssetsReady(list, preferMultipart) {
