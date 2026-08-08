@@ -34,6 +34,32 @@ type sunoFailurePollingAdaptor struct {
 	failReason string
 }
 
+type yikeSuccessPollingAdaptor struct {
+	fetchedKey string
+	outputURL  string
+}
+
+func (a *yikeSuccessPollingAdaptor) Init(_ *relaycommon.RelayInfo) {}
+
+func (a *yikeSuccessPollingAdaptor) FetchTask(_ string, key string, _ map[string]any, _ string) (*http.Response, error) {
+	a.fetchedKey = key
+	body := `{"RequestId":"req","VideoGenerationJob":{"JobId":"upstream-yike","Status":"Finished","Output":"{\"Medias\":[{\"OutputUrl\":\"` + a.outputURL + `\"}]}"}}`
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBufferString(body))}, nil
+}
+
+func (a *yikeSuccessPollingAdaptor) ParseTaskResult(_ []byte) (*relaycommon.TaskInfo, error) {
+	return &relaycommon.TaskInfo{
+		TaskID:   "upstream-yike",
+		Status:   model.TaskStatusSuccess,
+		Progress: "100%",
+		Url:      a.outputURL,
+	}, nil
+}
+
+func (a *yikeSuccessPollingAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
+	return 0
+}
+
 func (a *sunoFailurePollingAdaptor) Init(_ *relaycommon.RelayInfo) {}
 
 func (a *sunoFailurePollingAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
@@ -128,6 +154,67 @@ func (a *taskPollingFetchAdaptor) fetchedTaskIDs() []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return append([]string(nil), a.taskIDs...)
+}
+
+func TestRedactVideoResponseBodyKeepsYikeOutputAndRemovesRequestFields(t *testing.T) {
+	body := []byte(`{"RequestId":"req","VideoGenerationJob":{"JobId":"job","Status":"Finished","Input":"{\"Prompt\":\"private prompt\",\"Medias\":[{\"Url\":\"https://media.example.test/private.jpg\"}]}","UserData":"{\"tenant\":\"private\"}","JobParameters":"{\"private\":true}","Output":"{\"Medias\":[{\"OutputUrl\":\"https://oss.example.test/video.mp4?token=secret\"}]}"}}`)
+
+	redacted := redactVideoResponseBody(body, constant.ChannelTypeYike)
+
+	assert.Contains(t, string(redacted), "OutputUrl")
+	assert.Contains(t, string(redacted), "token=secret")
+	assert.NotContains(t, string(redacted), "private prompt")
+	assert.NotContains(t, string(redacted), "private.jpg")
+	assert.NotContains(t, string(redacted), "tenant")
+	assert.NotContains(t, string(redacted), "JobParameters")
+	assert.Contains(t, string(redacted), `"Status":"Finished"`)
+}
+
+func TestYikePollingUsesPersistedKeyAndKeepsProviderOutputData(t *testing.T) {
+	truncate(t)
+	const channelID = 611
+	baseURL := "https://yike.example.test"
+	channel := &model.Channel{
+		Id:      channelID,
+		Type:    constant.ChannelTypeYike,
+		Name:    "yike_polling",
+		Key:     "new-ak|new-sk\nother-ak|other-sk",
+		BaseURL: &baseURL,
+		Status:  common.ChannelStatusEnabled,
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+
+	task := &model.Task{
+		TaskID:    "task_yike_public",
+		Platform:  constant.TaskPlatform("61"),
+		UserId:    1,
+		ChannelId: channelID,
+		Action:    constant.TaskActionTextGenerate,
+		Status:    model.TaskStatusInProgress,
+		Progress:  "50%",
+		CreatedAt: time.Now().Unix(),
+		UpdatedAt: time.Now().Unix(),
+		PrivateData: model.TaskPrivateData{
+			Key:            "selected-ak|selected-sk",
+			UpstreamTaskID: "upstream-yike",
+		},
+	}
+	require.NoError(t, model.DB.Create(task).Error)
+
+	outputURL := "https://oss.example.test/video.mp4?token=secret"
+	adaptor := &yikeSuccessPollingAdaptor{outputURL: outputURL}
+	err := updateVideoSingleTask(context.Background(), adaptor, channel, task.GetUpstreamTaskID(), map[string]*model.Task{
+		task.GetUpstreamTaskID(): task,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "selected-ak|selected-sk", adaptor.fetchedKey)
+
+	var reloaded model.Task
+	require.NoError(t, model.DB.First(&reloaded, task.ID).Error)
+	assert.Equal(t, model.TaskStatus(model.TaskStatusSuccess), reloaded.Status)
+	assert.Equal(t, outputURL, reloaded.PrivateData.ResultURL)
+	assert.Contains(t, string(reloaded.Data), "OutputUrl")
+	assert.Contains(t, string(reloaded.Data), "token=secret")
 }
 
 func seedTaskPollingChannel(t *testing.T, id int, disableSleep bool) {

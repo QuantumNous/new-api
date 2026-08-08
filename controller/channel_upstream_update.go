@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	taskyike "github.com/QuantumNous/new-api/relay/channel/task/yike"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -336,6 +337,10 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
+	}
+	if channel.Type == constant.ChannelTypeYike {
+		// Yike exposes task RPCs but no OpenAI-compatible /v1/models endpoint.
+		return (&taskyike.TaskAdaptor{}).GetModelList(), nil
 	}
 
 	if channel.Type == constant.ChannelTypeOllama {

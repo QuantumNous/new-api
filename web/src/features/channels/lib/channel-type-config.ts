@@ -164,6 +164,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'Yike',
+    defaultBaseUrl: 'https://yike.cn-shanghai.aliyuncs.com',
+    hints: {
+      baseUrl:
+        'Shanghai: https://yike.cn-shanghai.aliyuncs.com; Singapore: https://yike.ap-southeast-1.aliyuncs.com; HTTPS only',
+      key: 'Format: AccessKeyId|AccessKeySecret; one complete pair per line for multi-key',
+      models: 'Wonder-Pro,Wonder-Standard,happyhorse-1.1,happyhorse-1.0,wan2.7',
+    },
+  },
 }
 
 /**

@@ -16,15 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// Re-export all library functions
-export * from './channel-actions'
-export * from './channel-field-update'
-export * from './advanced-custom'
-export * from './channel-form-errors'
-export * from './channel-form'
-export * from './channel-type-config'
-export * from './channel-utils'
-export * from './multi-key-utils'
-export * from './model-mapping-validation'
-export * from './model-categories'
-export * from './yike-balance'
+import assert from 'node:assert/strict'
+import { describe, test } from 'node:test'
+
+import {
+  formatYikeCredits,
+  isYikeChannel,
+  YIKE_CHANNEL_TYPE,
+} from '../yike-balance'
+
+describe('Yike credit balance', () => {
+  test('formats native credits without a currency symbol', () => {
+    assert.equal(formatYikeCredits(104, '积分', 'zh-CN'), '104 积分')
+  })
+
+  test('recognizes only the Yike channel type', () => {
+    assert.equal(isYikeChannel(YIKE_CHANNEL_TYPE), true)
+    assert.equal(isYikeChannel(1), false)
+  })
+})

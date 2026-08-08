@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	taskyike "github.com/QuantumNous/new-api/relay/channel/task/yike"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -356,6 +358,27 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	return availableBalanceUsd, nil
 }
 
+func updateChannelYikeBalance(channel *model.Channel) (float64, error) {
+	client, err := service.GetHttpClientWithProxy(channel.GetSetting().Proxy)
+	if err != nil {
+		return 0, err
+	}
+	credit, err := taskyike.FetchAccountCredit(context.Background(), channel.GetBaseURL(), channel.Key, client)
+	if err != nil {
+		return 0, err
+	}
+	balance := credit.Remaining.InexactFloat64()
+	channel.UpdateBalance(balance)
+	return balance, nil
+}
+
+func channelBalanceUnit(channelType int) string {
+	if channelType == constant.ChannelTypeYike {
+		return "credits"
+	}
+	return ""
+}
+
 func updateChannelBalance(channel *model.Channel) (float64, error) {
 	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() == "" {
@@ -386,6 +409,8 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 		return updateChannelOpenRouterBalance(channel)
 	case constant.ChannelTypeMoonshot:
 		return updateChannelMoonshotBalance(channel)
+	case constant.ChannelTypeYike:
+		return updateChannelYikeBalance(channel)
 	default:
 		return 0, errors.New("尚未实现")
 	}
@@ -444,11 +469,15 @@ func UpdateChannelBalance(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"success": true,
 		"message": "",
 		"balance": balance,
-	})
+	}
+	if unit := channelBalanceUnit(channel.Type); unit != "" {
+		response["unit"] = unit
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func updateAllChannelsBalance() error {

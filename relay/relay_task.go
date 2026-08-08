@@ -171,6 +171,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
 		return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
 	}
+	if validator, ok := adaptor.(channel.MappedModelValidator); ok {
+		if taskErr := validator.ValidateMappedModel(c, info); taskErr != nil {
+			return nil, taskErr
+		}
+	}
 
 	// 3. 预生成公开 task ID（仅首次）
 	if info.PublicTaskID == "" {
@@ -223,6 +228,14 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if info.ChannelType == constant.ChannelTypeYike {
+			return nil, service.TaskErrorWrapper(
+				fmt.Errorf("Yike submit returned HTTP %d", resp.StatusCode),
+				"fail_to_fetch_task",
+				resp.StatusCode,
+			)
+		}
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
 

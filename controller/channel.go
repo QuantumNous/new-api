@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	taskyike "github.com/QuantumNous/new-api/relay/channel/task/yike"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
@@ -483,6 +484,16 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 
 	if channel.Type == constant.ChannelTypeNewAPI && strings.TrimSpace(channel.GetBaseURL()) == "" {
 		return fmt.Errorf("New API channel base URL cannot be empty")
+	}
+	if channel.Type == constant.ChannelTypeYike {
+		if err := taskyike.ValidateChannelEndpoint(channel.GetBaseURL()); err != nil {
+			return err
+		}
+		if isAdd || strings.TrimSpace(channel.Key) != "" {
+			if err := taskyike.ValidateChannelCredentials(channel.Key); err != nil {
+				return err
+			}
+		}
 	}
 
 	// 如果是添加操作，检查 channel 和 key 是否为空

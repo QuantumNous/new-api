@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
+import { Coins, DollarSign, Loader2, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -29,7 +29,7 @@ import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 
 import { getCodexUsage, updateChannelBalance } from '../../api'
-import { channelsQueryKeys } from '../../lib'
+import { channelsQueryKeys, formatYikeCredits, isYikeChannel } from '../../lib'
 import { useChannels } from '../channels-provider'
 import {
   CodexUsageDialog,
@@ -57,6 +57,7 @@ export function BalanceQueryDialog({
     useState<CodexUsageDialogData | null>(null)
 
   const isCodex = currentRow?.type === 57
+  const isYike = isYikeChannel(currentRow?.type)
 
   const handleQueryCodexUsage = async () => {
     const row = currentRow
@@ -129,11 +130,13 @@ export function BalanceQueryDialog({
   }
 
   const formatBalance = (bal: number) =>
-    formatCurrencyFromUSD(bal, {
-      digitsLarge: 2,
-      digitsSmall: 4,
-      abbreviate: false,
-    })
+    isYike
+      ? formatYikeCredits(bal, t('Credits'))
+      : formatCurrencyFromUSD(bal, {
+          digitsLarge: 2,
+          digitsSmall: 4,
+          abbreviate: false,
+        })
 
   const formatDate = (timestamp: number) => {
     if (!timestamp) return 'Never'
@@ -180,7 +183,7 @@ export function BalanceQueryDialog({
         <div className='bg-muted/50 rounded-lg border p-4'>
           <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
             <IconBadge tone='success' size='xs'>
-              <DollarSign />
+              {isYike ? <Coins /> : <DollarSign />}
             </IconBadge>
             <span>{t('Current Balance')}</span>
           </div>

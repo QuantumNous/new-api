@@ -16,15 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// Re-export all library functions
-export * from './channel-actions'
-export * from './channel-field-update'
-export * from './advanced-custom'
-export * from './channel-form-errors'
-export * from './channel-form'
-export * from './channel-type-config'
-export * from './channel-utils'
-export * from './multi-key-utils'
-export * from './model-mapping-validation'
-export * from './model-categories'
-export * from './yike-balance'
+export const YIKE_CHANNEL_TYPE = 61
+
+export function isYikeChannel(channelType: number | null | undefined): boolean {
+  return channelType === YIKE_CHANNEL_TYPE
+}
+
+export function formatYikeCredits(
+  balance: number,
+  unitLabel: string,
+  locale?: string,
+  compact = false
+): string {
+  const amount = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 4,
+    notation: compact ? 'compact' : 'standard',
+  }).format(balance)
+  return `${amount} ${unitLabel}`
+}
