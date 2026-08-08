@@ -265,12 +265,19 @@ func TestBuildTestLogOtherInjectsTieredInfo(t *testing.T) {
 		},
 	}
 
+	requestRules := []billingexpr.RequestRuleTrace{{
+		Cond:       `param("service_tier") == "fast"`,
+		Multiplier: 2,
+		Matched:    true,
+	}}
 	other := buildTestLogOther(ctx, info, priceData, usage, &billingexpr.TieredResult{
-		MatchedTier: "base",
+		MatchedTier:  "base",
+		RequestRules: requestRules,
 	})
 
 	require.Equal(t, "tiered_expr", other["billing_mode"])
 	require.Equal(t, "base", other["matched_tier"])
+	require.Equal(t, requestRules, other["request_rules"])
 	require.NotEmpty(t, other["expr_b64"])
 }
 
