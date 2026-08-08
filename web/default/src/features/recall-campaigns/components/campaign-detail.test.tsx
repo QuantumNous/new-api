@@ -140,30 +140,35 @@ function makeContinuousMetrics(): RecallCampaignMetrics {
   return {
     ...makeMetrics(),
     lifecycle: {
-      processing_start_at: 1_900_000_000,
       collection_start_at: 1_899_900_000,
+      processing_start_at: 1_900_000_000,
+      event_total: 19,
       pending_not_due_count: 11,
-      due_count: 7,
+      due_backlog_count: 7,
       leased_count: 3,
       enrolled_count: 5,
       skipped_count: 2,
-      failed_event_count: 1,
-      queued_message_count: 4,
-      smtp_accepted_count: 6,
-      uncertain_message_count: 1,
-      failed_message_count: 2,
-      cancelled_message_count: 1,
-      ineligible_count: 2,
-      suppressed_count: 1,
-      no_email_count: 1,
-      engagement_opt_out_count: 1,
-      lease_recovery_count: 2,
-      retry_count: 3,
-      last_processed_event_at: 1_900_000_500,
-      processing_latency_seconds: 90,
-      error_codes: {
+      failed_count: 1,
+      messages_queued_count: 4,
+      messages_smtp_accepted_count: 6,
+      messages_uncertain_count: 1,
+      messages_failed_count: 2,
+      messages_cancelled_count: 1,
+      skip_reason_counts: {
+        ineligible: 2,
+        suppressed: 1,
+      },
+      send_blocked_reason_counts: {
+        no_email: 1,
+        engagement_opt_out: 1,
+      },
+      error_code_counts: {
         quota_recovered: 2,
       },
+      retried_event_count: 3,
+      lease_recovery_count: 2,
+      last_processed_at: 1_900_000_500,
+      max_processing_latency_seconds: 90,
     },
   } as RecallCampaignMetrics
 }
@@ -531,11 +536,16 @@ describe('CampaignDetail metric rendering', () => {
     expect(metricsHtml).toContain('>11</div>')
     expect(metricsHtml).toContain('Due now')
     expect(metricsHtml).toContain('>7</div>')
+    expect(metricsHtml).toContain('Lifecycle events')
+    expect(metricsHtml).toContain('>19</div>')
     expect(metricsHtml).toContain('Enrolled events')
     expect(metricsHtml).toContain('Queued messages')
     expect(metricsHtml).toContain('SMTP accepted')
     expect(metricsHtml).toContain('Uncertain messages')
-    expect(metricsHtml).toContain('Engagement opt-outs')
+    expect(metricsHtml).toContain('Send blocked breakdown')
+    expect(metricsHtml).toContain('engagement_opt_out')
+    expect(metricsHtml).toContain('Skip breakdown')
+    expect(metricsHtml).toContain('suppressed')
     expect(metricsHtml).toContain('Processing latency')
     expect(metricsHtml).toContain('quota_recovered')
     expect(metricsHtml).not.toContain('Accepted messages')

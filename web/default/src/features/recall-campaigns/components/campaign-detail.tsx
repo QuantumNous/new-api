@@ -125,24 +125,26 @@ function LifecycleMetricCards(props: {
 }): React.JSX.Element {
   const { t } = useTranslation()
   const cards = [
+    ['Lifecycle events', props.metrics.event_total],
     ['Pending not due', props.metrics.pending_not_due_count],
-    ['Due now', props.metrics.due_count],
+    ['Due now', props.metrics.due_backlog_count],
     ['Leased events', props.metrics.leased_count],
     ['Enrolled events', props.metrics.enrolled_count],
     ['Skipped events', props.metrics.skipped_count],
-    ['Failed events', props.metrics.failed_event_count],
-    ['Queued messages', props.metrics.queued_message_count],
-    ['SMTP accepted', props.metrics.smtp_accepted_count],
-    ['Uncertain messages', props.metrics.uncertain_message_count],
-    ['Failed messages', props.metrics.failed_message_count],
-    ['Cancelled messages', props.metrics.cancelled_message_count],
-    ['Ineligible at send time', props.metrics.ineligible_count],
-    ['Suppressed at send time', props.metrics.suppressed_count],
-    ['No account email', props.metrics.no_email_count],
-    ['Engagement opt-outs', props.metrics.engagement_opt_out_count],
+    ['Failed events', props.metrics.failed_count],
+    ['Queued messages', props.metrics.messages_queued_count],
+    ['SMTP accepted', props.metrics.messages_smtp_accepted_count],
+    ['Uncertain messages', props.metrics.messages_uncertain_count],
+    ['Failed messages', props.metrics.messages_failed_count],
+    ['Cancelled messages', props.metrics.messages_cancelled_count],
     ['Lease recoveries', props.metrics.lease_recovery_count],
-    ['Retries', props.metrics.retry_count],
-    ['Processing latency', props.metrics.processing_latency_seconds],
+    ['Retries', props.metrics.retried_event_count],
+    ['Processing latency', props.metrics.max_processing_latency_seconds],
+  ] as const
+  const breakdowns = [
+    ['Skip breakdown', props.metrics.skip_reason_counts],
+    ['Send blocked breakdown', props.metrics.send_blocked_reason_counts],
+    ['Safe error-code breakdown', props.metrics.error_code_counts],
   ] as const
 
   return (
@@ -155,19 +157,21 @@ function LifecycleMetricCards(props: {
           </div>
         ))}
       </div>
-      {Object.keys(props.metrics.error_codes).length > 0 ? (
-        <div className='rounded-lg border p-3 text-sm'>
-          <div className='font-medium'>{t('Safe error-code breakdown')}</div>
-          <dl className='mt-2 space-y-1'>
-            {Object.entries(props.metrics.error_codes).map(([code, count]) => (
-              <div className='flex justify-between gap-4' key={code}>
-                <dt>{code}</dt>
-                <dd>{count}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      ) : null}
+      {breakdowns.map(([label, counts]) =>
+        Object.keys(counts).length > 0 ? (
+          <div className='rounded-lg border p-3 text-sm' key={label}>
+            <div className='font-medium'>{t(label)}</div>
+            <dl className='mt-2 space-y-1'>
+              {Object.entries(counts).map(([code, count]) => (
+                <div className='flex justify-between gap-4' key={code}>
+                  <dt>{code}</dt>
+                  <dd>{count}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null
+      )}
     </div>
   )
 }

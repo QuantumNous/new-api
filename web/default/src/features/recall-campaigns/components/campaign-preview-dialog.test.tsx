@@ -54,12 +54,19 @@ describe('campaign preview dialog', () => {
         due_count: 5,
         samples: [
           {
-            event_id: 101,
+            id: 101,
+            event_type: 'quota_low',
+            user: 'user_***42',
+            scope_type: 'balance',
+            scope: 'global',
+            business_key: 'trade_***123',
+            recipient_identity: 'a***@example.com',
+            disposition: 'due',
+            disposition_reason_code: '',
             occurred_at: 1_899_960_000,
             available_at: 1_900_000_100,
-            user_id: 42,
-            email_masked: 'a***@example.com',
-            business_key: 'trade_***123',
+            attempt_count: 1,
+            last_error_code: '',
           },
         ],
       },
@@ -72,12 +79,18 @@ describe('campaign preview dialog', () => {
     )
 
     expect(html).toContain('Lifecycle event boundary')
+    expect(html).toContain('Collection start')
+    expect(html).toContain('Processing start')
+    expect(html).toContain('Earliest available')
     expect(html).toContain('Estimated events')
     expect(html).toContain('12')
     expect(html).toContain('Due now')
     expect(html).toContain('5')
+    expect(html).toContain('quota_low')
+    expect(html).toContain('user_***42')
     expect(html).toContain('a***@example.com')
     expect(html).toContain('trade_***123')
+    expect(html).toContain('Occurred at')
     expect(html).toContain(
       'Send-time rechecks can reduce the final recipient count.'
     )

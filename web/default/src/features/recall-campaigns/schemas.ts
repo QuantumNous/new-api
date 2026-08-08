@@ -556,22 +556,6 @@ const activatedUpdateFieldsSchema = z
     email_sequence: emailSequenceSchema,
   })
   .passthrough()
-  .superRefine((draft, context) => {
-    if ('lifecycle_trigger' in draft) {
-      context.addIssue({
-        code: 'custom',
-        path: ['lifecycle_trigger'],
-        message: 'Lifecycle trigger is immutable after activation',
-      })
-    }
-    if ('processing_start_at' in draft) {
-      context.addIssue({
-        code: 'custom',
-        path: ['processing_start_at'],
-        message: 'Processing start is immutable after activation',
-      })
-    }
-  })
 
 export const recallCampaignActivatedUpdateSchema =
   activatedUpdateFieldsSchema as unknown as z.ZodType<
@@ -583,14 +567,16 @@ export const recallCampaignDraftSchema = z
   .object({
     campaign_type: campaignTypeSchema,
     name: z.string().trim().min(1).max(128),
-    audience_template: z.enum([
-      'first_purchase',
-      'lapsed_payer',
-      'expired_subscription',
-      'registered_only',
-      'registration_time_range',
-      'specified_users',
-    ]),
+    audience_template: z
+      .enum([
+        'first_purchase',
+        'lapsed_payer',
+        'expired_subscription',
+        'registered_only',
+        'registration_time_range',
+        'specified_users',
+      ])
+      .or(z.literal('')),
     audience_config: audienceSchema,
     execution_mode: z.enum([
       'manual',
@@ -603,11 +589,14 @@ export const recallCampaignDraftSchema = z
     lifecycle_trigger_config: z.record(z.string(), z.never()).default({}),
     processing_start_at: nonNegativeInteger.default(0),
     schedule: scheduleSchema,
-    coupon_source: z.enum(['automatic', 'existing']),
+    coupon_source: z.enum(['automatic', 'existing']).or(z.literal('')),
     existing_coupon_id: z.string(),
     discount_config: discountSchema,
     product_scope: productScopeSchema,
-    promotion_expiry_mode: z.enum(['relative', 'fixed']).default('relative'),
+    promotion_expiry_mode: z
+      .enum(['relative', 'fixed'])
+      .or(z.literal(''))
+      .default('relative'),
     promotion_expires_at: nonNegativeInteger.default(0),
     promotion_valid_seconds: nonNegativeInteger,
     enrollment_limit: z.number().int().min(1).max(100_000),
@@ -623,6 +612,13 @@ export const recallCampaignDraftSchema = z
           code: 'custom',
           path: ['campaign_type'],
           message: 'Continuous activities must be content only',
+        })
+      }
+      if (draft.audience_template !== '') {
+        context.addIssue({
+          code: 'custom',
+          path: ['audience_template'],
+          message: 'Continuous audience fields must be empty',
         })
       }
       if (!draft.lifecycle_trigger) {
@@ -675,6 +671,13 @@ export const recallCampaignDraftSchema = z
           message: 'Continuous promotion fields must be empty',
         })
       }
+      if (draft.coupon_source !== '') {
+        context.addIssue({
+          code: 'custom',
+          path: ['coupon_source'],
+          message: 'Continuous promotion fields must be empty',
+        })
+      }
       for (const [field, value] of Object.entries(draft.discount_config)) {
         if (field === 'type' && value === 'percent') continue
         const empty =
@@ -703,6 +706,13 @@ export const recallCampaignDraftSchema = z
           message: 'Continuous promotion fields must be empty',
         })
       }
+      if (draft.promotion_expiry_mode !== '') {
+        context.addIssue({
+          code: 'custom',
+          path: ['promotion_expiry_mode'],
+          message: 'Continuous promotion fields must be empty',
+        })
+      }
       if (draft.promotion_valid_seconds !== 0) {
         context.addIssue({
           code: 'custom',
@@ -718,6 +728,27 @@ export const recallCampaignDraftSchema = z
         })
       }
       return
+    }
+    if (draft.audience_template === '') {
+      context.addIssue({
+        code: 'custom',
+        path: ['audience_template'],
+        message: 'Audience template is required',
+      })
+    }
+    if (draft.coupon_source === '') {
+      context.addIssue({
+        code: 'custom',
+        path: ['coupon_source'],
+        message: 'Coupon source is required',
+      })
+    }
+    if (draft.promotion_expiry_mode === '') {
+      context.addIssue({
+        code: 'custom',
+        path: ['promotion_expiry_mode'],
+        message: 'Promotion expiry mode is required',
+      })
     }
     if (
       draft.audience_template === 'first_purchase' ||

@@ -57,8 +57,10 @@ import {
 import {
   isRecallTranslationTaskActive,
   isRecallTranslationTaskTerminal,
+  type RecallAudienceTemplate,
   type RecallCampaignDraft,
   type RecallCampaignStatus,
+  type RecallCouponSource,
   type RecallDeliveryPolicy,
   type RecallDiscountConfig,
   type RecallEmailLocalizationBlocker,
@@ -217,6 +219,26 @@ function normalizeRecallScheduleForMode(
     return {
       ...draft,
       campaign_type: 'content_only',
+      audience_template: '',
+      audience_config: {
+        registration_age_days: 0,
+        min_request_count: 0,
+        max_quota: 0,
+        min_paid_amount: 0,
+        last_api_call_age_days: 0,
+        last_payment_age_days: 0,
+        subscription_expired_days: 0,
+        min_subscription_amount: 0,
+        min_subscription_count: 0,
+        payment_providers: [],
+        groups: [],
+        group_mode: '',
+        require_verified_email: false,
+        registration_start_at: 0,
+        registration_end_at: 0,
+        specified_user_ids: [],
+        specified_emails: [],
+      },
       execution_mode: 'continuous',
       delivery_policy: recallLifecycleDeliveryPolicyByTrigger[trigger],
       lifecycle_trigger: trigger,
@@ -229,6 +251,23 @@ function normalizeRecallScheduleForMode(
         hour: 0,
         minute: 0,
       },
+      coupon_source: '',
+      existing_coupon_id: '',
+      discount_config: {
+        type: 'percent',
+        percent_off: 0,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      },
+      product_scope: {
+        topup_price_ids: [],
+        subscription_price_ids: [],
+      },
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
       promotion_valid_seconds: 0,
     }
   }
@@ -305,14 +344,19 @@ export function createRecallCampaignFormDraft(
   draft: RecallCampaignDraft
 ): RecallCampaignDraft {
   const normalizedDraft =
-    draft.coupon_source === 'automatic' &&
-    draft.discount_config.type === 'fixed'
-      ? normalizeRecallDiscountType(draft, 'fixed')
-      : draft
+    draft.execution_mode === 'continuous'
+      ? normalizeRecallScheduleForMode(draft, 'continuous')
+      : draft.coupon_source === 'automatic' &&
+          draft.discount_config.type === 'fixed'
+        ? normalizeRecallDiscountType(draft, 'fixed')
+        : draft
   const preparedDraft = prepareRecallCampaignSubmitDraft(normalizedDraft)
   return {
     ...preparedDraft,
-    promotion_expiry_mode: preparedDraft.promotion_expiry_mode || 'relative',
+    promotion_expiry_mode:
+      preparedDraft.execution_mode === 'continuous'
+        ? ''
+        : preparedDraft.promotion_expiry_mode || 'relative',
     promotion_expires_at: preparedDraft.promotion_expires_at ?? 0,
     delivery_policy:
       preparedDraft.delivery_policy ??
@@ -332,7 +376,7 @@ export function createRecallCampaignFormDraft(
 }
 
 const audienceFields: Record<
-  RecallCampaignDraft['audience_template'],
+  RecallAudienceTemplate,
   { name: FieldPath<RecallCampaignDraft>; label: string; step?: string }[]
 > = {
   first_purchase: [
@@ -533,17 +577,19 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const terminal = props.status === 'cancelled' || props.status === 'completed'
   const isPromotionCampaign = campaignType === 'promotion'
   const isContinuous = executionMode === 'continuous'
+  const activeAudienceTemplate: RecallAudienceTemplate =
+    audienceTemplate || 'first_purchase'
   const isSaving = mutations.create.isPending || mutations.update.isPending
   const SpecifiedUsersSelector =
     props.specifiedUsersSelector ?? LazyCampaignSpecifiedUsersSelector
   const usesRegistrationRange =
-    audienceTemplate === 'registered_only' ||
-    audienceTemplate === 'registration_time_range'
-  const showGroupFilter = audienceTemplate !== 'specified_users'
+    activeAudienceTemplate === 'registered_only' ||
+    activeAudienceTemplate === 'registration_time_range'
+  const showGroupFilter = activeAudienceTemplate !== 'specified_users'
   const showGroupSelector = showGroupFilter && groupMode !== ''
   const showPaymentProviders =
-    audienceTemplate === 'lapsed_payer' ||
-    audienceTemplate === 'expired_subscription'
+    activeAudienceTemplate === 'lapsed_payer' ||
+    activeAudienceTemplate === 'expired_subscription'
   const registrationStartError = form.getFieldState(
     'audience_config.registration_start_at',
     form.formState
@@ -825,6 +871,46 @@ export function CampaignEditor(props: CampaignEditorProps) {
       shouldDirty: true,
       shouldValidate: true,
     })
+    form.setValue('audience_template', normalized.audience_template, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('audience_config', normalized.audience_config, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('coupon_source', normalized.coupon_source, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('existing_coupon_id', normalized.existing_coupon_id, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('discount_config', normalized.discount_config, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('product_scope', normalized.product_scope, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('promotion_expiry_mode', normalized.promotion_expiry_mode, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('promotion_expires_at', normalized.promotion_expires_at, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue(
+      'promotion_valid_seconds',
+      normalized.promotion_valid_seconds,
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      }
+    )
     form.setValue('delivery_policy', normalized.delivery_policy, {
       shouldDirty: true,
       shouldValidate: true,
@@ -848,9 +934,12 @@ export function CampaignEditor(props: CampaignEditorProps) {
         shouldValidate: true,
       })
     }
+    setFixedAmountInputs(
+      createRecallFixedAmountInputs(normalized.discount_config)
+    )
   }
 
-  const setCouponSource = (value: RecallCampaignDraft['coupon_source']) => {
+  const setCouponSource = (value: RecallCouponSource) => {
     const normalized = normalizeRecallCouponSource(form.getValues(), value)
     form.setValue('coupon_source', normalized.coupon_source, {
       shouldDirty: true,
@@ -1036,7 +1125,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
                 )}
               </p>
               <p aria-live='polite' className='text-foreground'>
-                {t(audienceTemplateDescriptionKeys[audienceTemplate])}
+                {t(audienceTemplateDescriptionKeys[activeAudienceTemplate])}
               </p>
             </div>
           ) : null}
@@ -1049,7 +1138,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
             <CardTitle>{t('2. Audience rules')}</CardTitle>
           </CardHeader>
           <CardContent className='grid gap-4 md:grid-cols-3'>
-            {audienceFields[audienceTemplate].map((field) => (
+            {audienceFields[activeAudienceTemplate].map((field) => (
               <div className='space-y-2' key={field.name}>
                 <Label>{t(field.label)}</Label>
                 <Input
@@ -1290,8 +1379,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
                 disabled={immutable}
                 value={couponSource}
                 onValueChange={(value) =>
-                  value &&
-                  setCouponSource(value as RecallCampaignDraft['coupon_source'])
+                  value && setCouponSource(value as RecallCouponSource)
                 }
                 items={[
                   { value: 'automatic', label: t('Automatic Coupon') },

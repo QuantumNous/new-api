@@ -102,7 +102,7 @@ function makeContinuousDraft(trigger = 'quota_low') {
     processing_start_at: number
   }
   draft.campaign_type = 'content_only'
-  draft.audience_template = 'first_purchase'
+  draft.audience_template = ''
   draft.audience_config = {
     registration_age_days: 0,
     min_request_count: 0,
@@ -127,7 +127,7 @@ function makeContinuousDraft(trigger = 'quota_low') {
     hour: 0,
     minute: 0,
   }
-  draft.coupon_source = 'automatic'
+  draft.coupon_source = ''
   draft.existing_coupon_id = ''
   draft.discount_config = {
     type: 'percent',
@@ -142,7 +142,7 @@ function makeContinuousDraft(trigger = 'quota_low') {
     topup_price_ids: [],
     subscription_price_ids: [],
   }
-  draft.promotion_expiry_mode = 'relative'
+  draft.promotion_expiry_mode = ''
   draft.promotion_expires_at = 0
   draft.promotion_valid_seconds = 0
   draft.delivery_policy =
@@ -221,6 +221,12 @@ describe('recallCampaignDraftSchema', () => {
     const cases = [
       {
         patch: (draft: ReturnType<typeof makeContinuousDraft>) => {
+          draft.audience_template = 'first_purchase'
+        },
+        path: ['audience_template'],
+      },
+      {
+        patch: (draft: ReturnType<typeof makeContinuousDraft>) => {
           draft.audience_config.registration_age_days = 7
         },
         path: ['audience_config', 'registration_age_days'],
@@ -248,6 +254,18 @@ describe('recallCampaignDraftSchema', () => {
           draft.promotion_valid_seconds = 604_800
         },
         path: ['promotion_valid_seconds'],
+      },
+      {
+        patch: (draft: ReturnType<typeof makeContinuousDraft>) => {
+          draft.coupon_source = 'automatic'
+        },
+        path: ['coupon_source'],
+      },
+      {
+        patch: (draft: ReturnType<typeof makeContinuousDraft>) => {
+          draft.promotion_expiry_mode = 'relative'
+        },
+        path: ['promotion_expiry_mode'],
       },
     ] as const
 
@@ -293,21 +311,16 @@ describe('recallCampaignDraftSchema', () => {
     }
   })
 
-  test('keeps trigger and processing start immutable after activation', () => {
+  test('allows hydrated continuous trigger and processing start through activated updates', () => {
     const update = makeContinuousDraft('payment_failed')
-    update.lifecycle_trigger = 'payment_succeeded'
     update.processing_start_at = 1_900_000_000
 
     const result = recallCampaignActivatedUpdateSchema.safeParse(update)
 
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(result.error.issues).toContainEqual(
-        expect.objectContaining({ path: ['lifecycle_trigger'] })
-      )
-      expect(result.error.issues).toContainEqual(
-        expect.objectContaining({ path: ['processing_start_at'] })
-      )
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.lifecycle_trigger).toBe('payment_failed')
+      expect(result.data.processing_start_at).toBe(1_900_000_000)
     }
   })
 

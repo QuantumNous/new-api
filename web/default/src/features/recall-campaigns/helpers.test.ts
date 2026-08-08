@@ -118,6 +118,69 @@ function makeValidDraft(): RecallCampaignDraft {
   }
 }
 
+function makeContinuousDraft(): RecallCampaignDraft {
+  const draft = makeValidDraft() as RecallCampaignDraft & {
+    lifecycle_trigger: 'quota_low'
+    lifecycle_trigger_config: Record<string, never>
+    processing_start_at: number
+  }
+  return {
+    ...draft,
+    campaign_type: 'content_only',
+    audience_template: '',
+    audience_config: {
+      registration_age_days: 0,
+      min_request_count: 0,
+      max_quota: 0,
+      min_paid_amount: 0,
+      last_api_call_age_days: 0,
+      last_payment_age_days: 0,
+      subscription_expired_days: 0,
+      min_subscription_amount: 0,
+      min_subscription_count: 0,
+      payment_providers: [],
+      groups: [],
+      group_mode: '',
+      require_verified_email: false,
+      registration_start_at: 0,
+      registration_end_at: 0,
+      specified_user_ids: [],
+      specified_emails: [],
+    },
+    execution_mode: 'continuous',
+    delivery_policy: 'service',
+    lifecycle_trigger: 'quota_low',
+    lifecycle_trigger_config: {},
+    processing_start_at: 0,
+    schedule: {
+      scheduled_at: 0,
+      timezone: '',
+      frequency: '',
+      weekday: 0,
+      hour: 0,
+      minute: 0,
+    },
+    coupon_source: '',
+    existing_coupon_id: '',
+    discount_config: {
+      type: 'percent',
+      percent_off: 0,
+      amount_off: 0,
+      currency: '',
+      currency_options: {},
+      minimum_amount: 0,
+      minimum_amount_currency: '',
+    },
+    product_scope: {
+      topup_price_ids: [],
+      subscription_price_ids: [],
+    },
+    promotion_expiry_mode: '',
+    promotion_expires_at: 0,
+    promotion_valid_seconds: 0,
+  } as RecallCampaignDraft
+}
+
 function makeStage(stageNo: number, delaySeconds: number): RecallEmailStage {
   return {
     stage_no: stageNo,
@@ -143,6 +206,72 @@ function makeRecipient(
 }
 
 describe('recall campaign editor normalization', () => {
+  test('submits editor-created continuous drafts with backend-compatible empty lifecycle-only fields', () => {
+    const normalized = prepareRecallCampaignSubmitDraft(makeContinuousDraft())
+
+    expect(normalized).toMatchObject({
+      campaign_type: 'content_only',
+      audience_template: '',
+      audience_config: {
+        registration_age_days: 0,
+        min_request_count: 0,
+        max_quota: 0,
+        min_paid_amount: 0,
+        last_api_call_age_days: 0,
+        last_payment_age_days: 0,
+        subscription_expired_days: 0,
+        min_subscription_amount: 0,
+        min_subscription_count: 0,
+        payment_providers: [],
+        groups: [],
+        group_mode: '',
+        require_verified_email: false,
+        registration_start_at: 0,
+        registration_end_at: 0,
+        specified_user_ids: [],
+        specified_emails: [],
+      },
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: '',
+        weekday: 0,
+        hour: 0,
+        minute: 0,
+      },
+      coupon_source: '',
+      existing_coupon_id: '',
+      discount_config: {
+        type: 'percent',
+        percent_off: 0,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      },
+      product_scope: {
+        topup_price_ids: [],
+        subscription_price_ids: [],
+      },
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+    })
+    expect(recallCampaignDraftSchema.safeParse(normalized).success).toBe(true)
+  })
+
+  test('rejects explicitly supplied non-empty continuous audience and promotion fields before canonicalization', () => {
+    const invalid = makeContinuousDraft()
+    invalid.audience_template = 'first_purchase'
+    invalid.coupon_source = 'automatic'
+    invalid.promotion_expiry_mode = 'relative'
+
+    expect(() => prepareRecallCampaignSubmitDraft(invalid)).toThrow(
+      'Continuous'
+    )
+  })
+
   test('canonicalizes manual schedule at the submit boundary without a mode switch', () => {
     const draft = makeValidDraft()
     draft.execution_mode = 'manual'

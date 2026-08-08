@@ -456,6 +456,7 @@ function makeContinuousDraft(): RecallCampaignDraft {
     processing_start_at: number
   }
   draft.campaign_type = 'content_only'
+  ;(draft as unknown as { audience_template: '' }).audience_template = ''
   draft.execution_mode = 'continuous'
   draft.audience_config = {
     registration_age_days: 0,
@@ -497,6 +498,9 @@ function makeContinuousDraft(): RecallCampaignDraft {
     topup_price_ids: [],
     subscription_price_ids: [],
   }
+  ;(draft as unknown as { coupon_source: '' }).coupon_source = ''
+  ;(draft as unknown as { promotion_expiry_mode: '' }).promotion_expiry_mode =
+    ''
   draft.promotion_valid_seconds = 0
   draft.delivery_policy = 'service'
   draft.lifecycle_trigger = 'quota_low'
@@ -1540,6 +1544,118 @@ describe('CampaignEditor schedule modes', () => {
     expect(html).not.toContain('Start date and time')
     expect(html).not.toContain('IANA timezone')
     expect(html).not.toContain('Add email stage')
+  })
+
+  test('switching to Continuous resets legacy audience schedule coupon discount product and promotion state before submit', async () => {
+    const draft = makeDraft('specified_users')
+    draft.audience_config = {
+      ...draft.audience_config,
+      registration_age_days: 45,
+      min_request_count: 3,
+      max_quota: 100,
+      min_paid_amount: 12,
+      last_api_call_age_days: 10,
+      last_payment_age_days: 20,
+      subscription_expired_days: 30,
+      min_subscription_amount: 50,
+      min_subscription_count: 2,
+      payment_providers: ['stripe'],
+      groups: ['paid'],
+      group_mode: 'allow',
+      require_verified_email: true,
+      registration_start_at: 1_800_000_000,
+      registration_end_at: 1_800_086_400,
+      specified_user_ids: [12, 34],
+      specified_emails: ['user@example.com'],
+    }
+    draft.execution_mode = 'recurring'
+    draft.schedule = {
+      scheduled_at: 2_000_100_000,
+      timezone: 'America/New_York',
+      frequency: 'weekly',
+      weekday: 5,
+      hour: 18,
+      minute: 45,
+    }
+    draft.coupon_source = 'existing'
+    draft.existing_coupon_id = 'coupon_existing'
+    draft.discount_config = {
+      type: 'fixed',
+      percent_off: 0,
+      amount_off: 500,
+      currency: 'USD',
+      currency_options: { inr: 45_000, brl: 2_500, jpy: 750 },
+      minimum_amount: 100,
+      minimum_amount_currency: 'USD',
+    }
+    draft.product_scope = {
+      topup_price_ids: ['price_topup_usd'],
+      subscription_price_ids: ['price_sub_usd'],
+    }
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_expires_at = 2_000_200_000
+    draft.promotion_valid_seconds = 0
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted).toMatchObject({
+      execution_mode: 'continuous',
+      campaign_type: 'content_only',
+      audience_template: '',
+      audience_config: {
+        registration_age_days: 0,
+        min_request_count: 0,
+        max_quota: 0,
+        min_paid_amount: 0,
+        last_api_call_age_days: 0,
+        last_payment_age_days: 0,
+        subscription_expired_days: 0,
+        min_subscription_amount: 0,
+        min_subscription_count: 0,
+        payment_providers: [],
+        groups: [],
+        group_mode: '',
+        require_verified_email: false,
+        registration_start_at: 0,
+        registration_end_at: 0,
+        specified_user_ids: [],
+        specified_emails: [],
+      },
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: '',
+        weekday: 0,
+        hour: 0,
+        minute: 0,
+      },
+      coupon_source: '',
+      existing_coupon_id: '',
+      discount_config: {
+        type: 'percent',
+        percent_off: 0,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      },
+      product_scope: {
+        topup_price_ids: [],
+        subscription_price_ids: [],
+      },
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+    })
+    dispose(root)
   })
 
   test('uses From now by default and DateTimePicker for custom continuous starts', async () => {

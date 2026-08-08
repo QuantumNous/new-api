@@ -262,6 +262,57 @@ export function setRecallCampaignGroups(
   return form.trigger('audience_config')
 }
 
+function isContinuousEmptyField(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length === 0
+  if (typeof value === 'boolean') return value === false
+  if (typeof value === 'number') return value === 0
+  if (typeof value === 'string') return value.trim() === ''
+  if (value && typeof value === 'object') return Object.keys(value).length === 0
+  return value === undefined || value === null
+}
+
+function assertContinuousDraftFieldsEmpty(draft: RecallCampaignDraft): void {
+  const invalidPaths: string[] = []
+  if (draft.audience_template !== '') invalidPaths.push('audience_template')
+  if (draft.coupon_source !== '') invalidPaths.push('coupon_source')
+  if (draft.existing_coupon_id.trim() !== '') {
+    invalidPaths.push('existing_coupon_id')
+  }
+  if (draft.promotion_expiry_mode !== '') {
+    invalidPaths.push('promotion_expiry_mode')
+  }
+  if (draft.promotion_expires_at !== 0) {
+    invalidPaths.push('promotion_expires_at')
+  }
+  if (draft.promotion_valid_seconds !== 0) {
+    invalidPaths.push('promotion_valid_seconds')
+  }
+  for (const [field, value] of Object.entries(draft.audience_config)) {
+    if (!isContinuousEmptyField(value)) {
+      invalidPaths.push(`audience_config.${field}`)
+    }
+  }
+  for (const [field, value] of Object.entries(draft.schedule)) {
+    if (!isContinuousEmptyField(value)) invalidPaths.push(`schedule.${field}`)
+  }
+  for (const [field, value] of Object.entries(draft.product_scope)) {
+    if (!isContinuousEmptyField(value)) {
+      invalidPaths.push(`product_scope.${field}`)
+    }
+  }
+  for (const [field, value] of Object.entries(draft.discount_config)) {
+    if (field === 'type' && value === 'percent') continue
+    if (!isContinuousEmptyField(value)) {
+      invalidPaths.push(`discount_config.${field}`)
+    }
+  }
+  if (invalidPaths.length > 0) {
+    throw new Error(
+      `Continuous drafts must clear audience, schedule, coupon, discount, product, and promotion fields before submit: ${invalidPaths.join(', ')}`
+    )
+  }
+}
+
 export function prepareRecallCampaignSubmitDraft(
   draft: RecallCampaignDraft
 ): RecallCampaignDraft {
@@ -275,9 +326,27 @@ export function prepareRecallCampaignSubmitDraft(
       : RECALL_EMAIL_STARTER_HTML
 
   const continuous = draft.execution_mode === 'continuous'
+  if (continuous) {
+    assertContinuousDraftFieldsEmpty(draft)
+  }
+  const normalizedDiscountConfig = continuous
+    ? {
+        type: 'percent' as const,
+        percent_off: 0,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      }
+    : {
+        ...discountConfig,
+        ...normalizeRecallMinimumSpendForSubmit(discountConfig),
+      }
   return {
     ...draft,
     campaign_type: continuous ? 'content_only' : draft.campaign_type,
+    audience_template: continuous ? '' : draft.audience_template,
     schedule:
       draft.execution_mode === 'manual' || continuous
         ? {
@@ -289,20 +358,7 @@ export function prepareRecallCampaignSubmitDraft(
             minute: 0,
           }
         : draft.schedule,
-    discount_config: {
-      ...discountConfig,
-      ...(continuous
-        ? {
-            type: 'percent',
-            percent_off: 0,
-            amount_off: 0,
-            currency: '',
-            currency_options: {},
-            minimum_amount: 0,
-            minimum_amount_currency: '',
-          }
-        : normalizeRecallMinimumSpendForSubmit(discountConfig)),
-    },
+    discount_config: normalizedDiscountConfig,
     audience_config: {
       ...(continuous
         ? {
@@ -332,10 +388,12 @@ export function prepareRecallCampaignSubmitDraft(
             ),
           }),
     },
+    coupon_source: continuous ? '' : draft.coupon_source,
     existing_coupon_id: continuous ? '' : draft.existing_coupon_id,
     product_scope: continuous
       ? { topup_price_ids: [], subscription_price_ids: [] }
       : draft.product_scope,
+    promotion_expiry_mode: continuous ? '' : draft.promotion_expiry_mode,
     promotion_expires_at: continuous ? 0 : draft.promotion_expires_at,
     promotion_valid_seconds: continuous ? 0 : draft.promotion_valid_seconds,
     email_sequence: draft.email_sequence.map((stage) => {

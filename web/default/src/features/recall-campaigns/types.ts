@@ -135,7 +135,7 @@ export type RecallEmailLocaleStatus = 'ready' | 'stale' | 'manual' | 'missing'
 export interface RecallCampaignDraft {
   campaign_type: RecallCampaignType
   name: string
-  audience_template: RecallAudienceTemplate
+  audience_template: RecallAudienceTemplate | ''
   audience_config: RecallAudienceConfig
   execution_mode: RecallExecutionMode
   delivery_policy?: RecallDeliveryPolicy
@@ -143,11 +143,11 @@ export interface RecallCampaignDraft {
   lifecycle_trigger_config?: Record<string, never>
   processing_start_at?: number
   schedule: RecallScheduleConfig
-  coupon_source: RecallCouponSource
+  coupon_source: RecallCouponSource | ''
   existing_coupon_id: string
   discount_config: RecallDiscountConfig
   product_scope: RecallProductScope
-  promotion_expiry_mode: RecallPromotionExpiryMode
+  promotion_expiry_mode: RecallPromotionExpiryMode | ''
   promotion_expires_at: number
   promotion_valid_seconds: number
   enrollment_limit: number
@@ -418,12 +418,19 @@ export interface RecallCampaignMetrics {
 }
 
 export interface RecallLifecyclePreviewSample {
-  event_id: number
+  id: number
+  event_type: string
+  user: string
+  scope_type: string
+  scope: string
+  business_key: string
+  recipient_identity: string
+  disposition: string
+  disposition_reason_code: string
   occurred_at: number
   available_at: number
-  user_id: number
-  email_masked: string
-  business_key: string
+  attempt_count: number
+  last_error_code: string
 }
 
 export interface RecallLifecyclePreview {
@@ -436,28 +443,27 @@ export interface RecallLifecyclePreview {
 }
 
 export interface RecallLifecycleMetrics {
-  processing_start_at: number
   collection_start_at: number
+  processing_start_at: number
+  event_total: number
   pending_not_due_count: number
-  due_count: number
+  due_backlog_count: number
   leased_count: number
   enrolled_count: number
   skipped_count: number
-  failed_event_count: number
-  queued_message_count: number
-  smtp_accepted_count: number
-  uncertain_message_count: number
-  failed_message_count: number
-  cancelled_message_count: number
-  ineligible_count: number
-  suppressed_count: number
-  no_email_count: number
-  engagement_opt_out_count: number
+  failed_count: number
+  messages_queued_count: number
+  messages_smtp_accepted_count: number
+  messages_uncertain_count: number
+  messages_failed_count: number
+  messages_cancelled_count: number
+  skip_reason_counts: Record<string, number>
+  send_blocked_reason_counts: Record<string, number>
+  error_code_counts: Record<string, number>
+  retried_event_count: number
   lease_recovery_count: number
-  retry_count: number
-  last_processed_event_at: number
-  processing_latency_seconds: number
-  error_codes: Record<string, number>
+  last_processed_at: number
+  max_processing_latency_seconds: number
 }
 
 export interface RecallMetricAmount {

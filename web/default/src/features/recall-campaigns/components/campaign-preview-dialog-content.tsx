@@ -29,6 +29,12 @@ export function CampaignPreviewDialogContent(props: {
             <dl className='mt-2 grid gap-2 text-sm md:grid-cols-2'>
               <div>
                 <dt className='text-muted-foreground'>
+                  {t('Collection start')}
+                </dt>
+                <dd>{formatTimestamp(data.lifecycle.collection_start_at)}</dd>
+              </div>
+              <div>
+                <dt className='text-muted-foreground'>
                   {t('Processing start')}
                 </dt>
                 <dd>{formatTimestamp(data.lifecycle.processing_start_at)}</dd>
@@ -60,26 +66,43 @@ export function CampaignPreviewDialogContent(props: {
               <table className='w-full text-left text-sm'>
                 <thead>
                   <tr className='border-b'>
-                    <th className='p-2'>{t('Event ID')}</th>
-                    <th className='p-2'>{t('User ID')}</th>
-                    <th className='p-2'>{t('Email')}</th>
+                    <th className='p-2'>{t('ID')}</th>
+                    <th className='p-2'>{t('Event type')}</th>
+                    <th className='p-2'>{t('User')}</th>
+                    <th className='p-2'>{t('Scope')}</th>
                     <th className='p-2'>{t('Business key')}</th>
+                    <th className='p-2'>{t('Recipient')}</th>
+                    <th className='p-2'>{t('Disposition')}</th>
+                    <th className='p-2'>{t('Occurred at')}</th>
                     <th className='p-2'>{t('Available at')}</th>
+                    <th className='p-2'>{t('Attempts')}</th>
+                    <th className='p-2'>{t('Last error')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.lifecycle.samples.map((sample) => (
-                    <tr
-                      className='border-b last:border-0'
-                      key={sample.event_id}
-                    >
-                      <td className='p-2'>{sample.event_id}</td>
-                      <td className='p-2'>{sample.user_id}</td>
-                      <td className='p-2'>{sample.email_masked}</td>
+                    <tr className='border-b last:border-0' key={sample.id}>
+                      <td className='p-2'>{sample.id}</td>
+                      <td className='p-2'>{sample.event_type}</td>
+                      <td className='p-2'>{sample.user}</td>
+                      <td className='p-2'>
+                        {sample.scope_type}: {sample.scope}
+                      </td>
                       <td className='p-2'>{sample.business_key}</td>
+                      <td className='p-2'>{sample.recipient_identity}</td>
+                      <td className='p-2'>
+                        {sample.disposition_reason_code
+                          ? `${sample.disposition} (${sample.disposition_reason_code})`
+                          : sample.disposition}
+                      </td>
+                      <td className='p-2'>
+                        {formatTimestamp(sample.occurred_at)}
+                      </td>
                       <td className='p-2'>
                         {formatTimestamp(sample.available_at)}
                       </td>
+                      <td className='p-2'>{sample.attempt_count}</td>
+                      <td className='p-2'>{sample.last_error_code || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
