@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,6 +13,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func validateModelTokenLimits(m *model.Model) error {
+	if m.ContextWindow < 0 {
+		return fmt.Errorf("context_window must be a non-negative integer")
+	}
+	if m.MaxOutputTokens < 0 {
+		return fmt.Errorf("max_output_tokens must be a non-negative integer")
+	}
+	return nil
+}
 
 // GetAllModelsMeta 获取模型列表（分页）
 func GetAllModelsMeta(c *gin.Context) {
@@ -93,6 +104,10 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if err := validateModelTokenLimits(&m); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
 	if m.ModelName == "" {
 		common.ApiErrorMsg(c, "模型名称不能为空")
 		return
@@ -122,6 +137,12 @@ func UpdateModelMeta(c *gin.Context) {
 	if err := c.ShouldBindJSON(&m); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if !statusOnly {
+		if err := validateModelTokenLimits(&m); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
 	}
 	if m.Id == 0 {
 		common.ApiErrorMsg(c, "缺少模型 ID")
