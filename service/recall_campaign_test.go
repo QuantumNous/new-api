@@ -54,6 +54,27 @@ type recallCampaignAwareFakeEmailTranslator struct {
 	campaignTypes []string
 }
 
+type recallDeliveryAwareFakeEmailTranslator struct {
+	campaignTypes     []string
+	deliveryPolicies  []string
+	lifecycleTriggers []string
+}
+
+func (f *recallDeliveryAwareFakeEmailTranslator) Translate(_ context.Context, _ []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+	return nil, errors.New("generic translation path must not be used")
+}
+
+func (f *recallDeliveryAwareFakeEmailTranslator) TranslateForCampaign(_ context.Context, _ string, _ []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+	return nil, errors.New("campaign-only translation path must not be used")
+}
+
+func (f *recallDeliveryAwareFakeEmailTranslator) TranslateForDelivery(_ context.Context, campaignType string, deliveryPolicy string, lifecycleTrigger string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+	f.campaignTypes = append(f.campaignTypes, campaignType)
+	f.deliveryPolicies = append(f.deliveryPolicies, deliveryPolicy)
+	f.lifecycleTriggers = append(f.lifecycleTriggers, lifecycleTrigger)
+	return recallCampaignHTMLTranslationsForDelivery(campaignType, deliveryPolicy, lifecycleTrigger, stages, "delivery"), nil
+}
+
 func (f *recallCampaignAwareFakeEmailTranslator) Translate(_ context.Context, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
 	f.mu.Lock()
 	f.genericCalls = append(f.genericCalls, cloneRecallCampaignTestStages(stages))
@@ -117,10 +138,14 @@ func recallCampaignHTMLTranslations(stages []RecallEmailStage, version string) m
 }
 
 func recallCampaignHTMLTranslationsForCampaign(campaignType string, stages []RecallEmailStage, version string) map[int]map[string]RecallEmailTemplate {
+	return recallCampaignHTMLTranslationsForDelivery(campaignType, model.RecallDeliveryPolicyEngagement, "", stages, version)
+}
+
+func recallCampaignHTMLTranslationsForDelivery(campaignType string, deliveryPolicy string, lifecycleTrigger string, stages []RecallEmailStage, version string) map[int]map[string]RecallEmailTemplate {
 	translations := make(map[int]map[string]RecallEmailTemplate, len(stages))
 	for _, stage := range stages {
 		english := stage.Templates["en"]
-		document, err := parseRecallEmailHTMLForCampaign(campaignType, english.BodyHTML)
+		document, err := parseRecallEmailHTMLForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, english.BodyHTML)
 		if err != nil {
 			panic(err)
 		}

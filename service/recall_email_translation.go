@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 )
@@ -47,6 +48,10 @@ type RecallEmailTranslator interface {
 
 type RecallEmailCampaignTranslator interface {
 	TranslateForCampaign(ctx context.Context, campaignType string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error)
+}
+
+type RecallEmailDeliveryTranslator interface {
+	TranslateForDelivery(ctx context.Context, campaignType string, deliveryPolicy string, lifecycleTrigger string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error)
 }
 
 type RecallEmailTranslatorOptions struct {
@@ -189,6 +194,10 @@ func (t *recallEmailTranslator) Translate(ctx context.Context, stages []RecallEm
 }
 
 func (t *recallEmailTranslator) TranslateForCampaign(ctx context.Context, campaignType string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+	return t.TranslateForDelivery(ctx, campaignType, model.RecallDeliveryPolicyEngagement, "", stages)
+}
+
+func (t *recallEmailTranslator) TranslateForDelivery(ctx context.Context, campaignType string, deliveryPolicy string, lifecycleTrigger string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -200,7 +209,7 @@ func (t *recallEmailTranslator) TranslateForCampaign(ctx context.Context, campai
 	if translationConfig.apiKey == "" {
 		return nil, errRecallEmailTranslationNotConfigured
 	}
-	protectedStages, err := protectRecallEmailTranslationStages(campaignType, stages)
+	protectedStages, err := protectRecallEmailTranslationStagesForDelivery(campaignType, deliveryPolicy, lifecycleTrigger, stages)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +255,7 @@ func (t *recallEmailTranslator) TranslateForCampaign(ctx context.Context, campai
 	if err != nil {
 		return nil, err
 	}
-	return validateAndRestoreRecallEmailTranslations(campaignType, result, protectedStages)
+	return validateAndRestoreRecallEmailTranslationsForDelivery(campaignType, deliveryPolicy, lifecycleTrigger, result, protectedStages)
 }
 
 func (t *recallEmailTranslator) currentConfig() recallEmailTranslationConfig {
@@ -302,6 +311,10 @@ func (t *recallEmailTranslator) request(ctx context.Context, client *http.Client
 }
 
 func protectRecallEmailTranslationStages(campaignType string, stages []RecallEmailStage) ([]recallEmailProtectedStage, error) {
+	return protectRecallEmailTranslationStagesForDelivery(campaignType, model.RecallDeliveryPolicyEngagement, "", stages)
+}
+
+func protectRecallEmailTranslationStagesForDelivery(campaignType string, deliveryPolicy string, lifecycleTrigger string, stages []RecallEmailStage) ([]recallEmailProtectedStage, error) {
 	campaignType, err := normalizeRecallCampaignType(campaignType)
 	if err != nil {
 		return nil, err
@@ -331,11 +344,11 @@ func protectRecallEmailTranslationStages(campaignType string, stages []RecallEma
 		if utf8.RuneCountInString(english.Subject) > recallEmailSubjectMaxRunes {
 			return nil, fmt.Errorf("recall email translation stage %d English subject exceeds %d characters", stage.StageNo, recallEmailSubjectMaxRunes)
 		}
-		english, err := normalizeRecallEmailTemplate(campaignType, stage.StageNo, "en", english)
+		english, err := normalizeRecallEmailTemplateForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, stage.StageNo, "en", english)
 		if err != nil {
 			return nil, err
 		}
-		segments, _, err := recallEmailTranslationSegmentsForTemplate(campaignType, english)
+		segments, _, err := recallEmailTranslationSegmentsForTemplateForDelivery(campaignType, deliveryPolicy, lifecycleTrigger, english)
 		if err != nil {
 			return nil, err
 		}
@@ -367,11 +380,11 @@ func protectRecallEmailTranslationStages(campaignType string, stages []RecallEma
 	protected := make([]recallEmailProtectedStage, 0, len(stages))
 	counter := 0
 	for _, stage := range stages {
-		english, err := normalizeRecallEmailTemplate(campaignType, stage.StageNo, "en", stage.Templates["en"])
+		english, err := normalizeRecallEmailTemplateForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, stage.StageNo, "en", stage.Templates["en"])
 		if err != nil {
 			return nil, err
 		}
-		segments, htmlDocument, err := recallEmailTranslationSegmentsForTemplate(campaignType, english)
+		segments, htmlDocument, err := recallEmailTranslationSegmentsForTemplateForDelivery(campaignType, deliveryPolicy, lifecycleTrigger, english)
 		if err != nil {
 			return nil, err
 		}
@@ -400,10 +413,14 @@ func recallEmailSegmentIdentityMarker(nonce string, stageNo int, segmentIndex in
 }
 
 func recallEmailTranslationSegmentsForTemplate(campaignType string, template RecallEmailTemplate) ([]string, *recallEmailHTMLDocument, error) {
+	return recallEmailTranslationSegmentsForTemplateForDelivery(campaignType, model.RecallDeliveryPolicyEngagement, "", template)
+}
+
+func recallEmailTranslationSegmentsForTemplateForDelivery(campaignType string, deliveryPolicy string, lifecycleTrigger string, template RecallEmailTemplate) ([]string, *recallEmailHTMLDocument, error) {
 	if template.BodyHTML == "" {
 		return []string{template.BodyText}, nil, nil
 	}
-	document, err := parseRecallEmailHTMLForCampaign(campaignType, template.BodyHTML)
+	document, err := parseRecallEmailHTMLForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, template.BodyHTML)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -600,6 +617,10 @@ func recallEmailTranslationHasExactKeys(object map[string]any, expected []string
 }
 
 func validateAndRestoreRecallEmailTranslations(campaignType string, result recallEmailTranslationResult, stages []recallEmailProtectedStage) (map[int]map[string]RecallEmailTemplate, error) {
+	return validateAndRestoreRecallEmailTranslationsForDelivery(campaignType, model.RecallDeliveryPolicyEngagement, "", result, stages)
+}
+
+func validateAndRestoreRecallEmailTranslationsForDelivery(campaignType string, deliveryPolicy string, lifecycleTrigger string, result recallEmailTranslationResult, stages []recallEmailProtectedStage) (map[int]map[string]RecallEmailTemplate, error) {
 	expected := make(map[int]recallEmailProtectedStage, len(stages))
 	for _, stage := range stages {
 		expected[stage.StageNo] = stage
@@ -667,7 +688,7 @@ func validateAndRestoreRecallEmailTranslations(campaignType string, result recal
 				}
 				template.BodyHTML = strings.TrimSpace(bodyHTML)
 			}
-			template, err = normalizeRecallEmailTemplate(campaignType, stage.StageNo, language, template)
+			template, err = normalizeRecallEmailTemplateForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, stage.StageNo, language, template)
 			if err != nil {
 				return nil, err
 			}

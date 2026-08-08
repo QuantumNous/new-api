@@ -145,6 +145,7 @@ const recallLifecycleVariablesByTrigger: Record<
     'console_url',
     'quota_scope',
     'balance_snapshot',
+    'effective_threshold',
     'top_up_url',
   ],
   payment_failed: [

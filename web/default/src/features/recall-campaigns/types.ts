@@ -112,6 +112,8 @@ export interface RecallEmailTemplate {
 
 export interface RecallEmailPreviewRequest {
   campaign_type?: RecallCampaignType
+  delivery_policy?: RecallDeliveryPolicy
+  lifecycle_trigger?: RecallLifecycleTrigger
   template: RecallEmailTemplate
 }
 

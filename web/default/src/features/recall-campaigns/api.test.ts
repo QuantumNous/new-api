@@ -751,6 +751,30 @@ describe('recall campaign API contracts', () => {
     })
   })
 
+  test('posts Continuous email preview context with delivery policy and lifecycle trigger', async () => {
+    respondWith({
+      success: true,
+      data: { subject: 'Subject', body_html: '<p>Trade preview-trade-no</p>' },
+    })
+
+    await previewRecallEmail({
+      campaign_type: 'content_only',
+      delivery_policy: 'service',
+      lifecycle_trigger: 'payment_succeeded',
+      template: {
+        subject: 'Subject',
+        body_html: '<p>{{.trade_no}}</p>',
+      },
+    })
+
+    expect(JSON.parse(String(capturedConfig?.data))).toEqual({
+      campaign_type: 'content_only',
+      delivery_policy: 'service',
+      lifecycle_trigger: 'payment_succeeded',
+      template: { subject: 'Subject', body_html: '<p>{{.trade_no}}</p>' },
+    })
+  })
+
   test('generates all email translations with the campaign revision', async () => {
     const request: RecallEmailGenerationRequest = {
       config_revision: 7,

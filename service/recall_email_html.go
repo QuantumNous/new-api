@@ -42,7 +42,7 @@ var recallLifecycleEmailFieldsByTrigger = map[string][]string{
 		"site_name", "user_display_name", "console_url", "quota_scope", "balance_snapshot", "effective_threshold", "top_up_url",
 	},
 	model.RecallLifecycleTriggerQuotaExhaustedUnpaid: {
-		"site_name", "user_display_name", "console_url", "quota_scope", "balance_snapshot", "top_up_url",
+		"site_name", "user_display_name", "console_url", "quota_scope", "balance_snapshot", "effective_threshold", "top_up_url",
 	},
 	model.RecallLifecycleTriggerPaymentFailed: {
 		"site_name", "user_display_name", "console_url", "purchase_kind", "trade_no", "amount", "currency", "payment_url",
@@ -56,11 +56,12 @@ var recallLifecycleEmailFieldsByTrigger = map[string][]string{
 }
 
 type recallEmailHTMLDocument struct {
-	campaignType   string
-	deliveryPolicy string
-	source         string
-	root           *html.Node
-	slots          []recallEmailHTMLSlot
+	campaignType     string
+	deliveryPolicy   string
+	lifecycleTrigger string
+	source           string
+	root             *html.Node
+	slots            []recallEmailHTMLSlot
 }
 
 type recallEmailHTMLSlot struct {
@@ -99,7 +100,7 @@ func parseRecallEmailHTMLForLifecycleTrigger(campaignType string, deliveryPolicy
 	if err != nil {
 		return nil, fmt.Errorf("parse recall email html: %w", err)
 	}
-	document := &recallEmailHTMLDocument{campaignType: policy.CampaignType, deliveryPolicy: policy.DeliveryPolicy, source: source, root: root}
+	document := &recallEmailHTMLDocument{campaignType: policy.CampaignType, deliveryPolicy: policy.DeliveryPolicy, lifecycleTrigger: strings.TrimSpace(lifecycleTrigger), source: source, root: root}
 	foundActions := make(map[string]struct{})
 	if err := walkRecallEmailHTML(root, false, false, document, foundActions); err != nil {
 		return nil, err
@@ -227,7 +228,7 @@ func (document *recallEmailHTMLDocument) Rebuild(translations []string) (string,
 		return "", fmt.Errorf("recall email html must contain at most %d bytes", recallEmailHTMLMaxBytes)
 	}
 	output := rendered.String()
-	if _, err := parseRecallEmailHTMLForDelivery(document.campaignType, document.deliveryPolicy, output); err != nil {
+	if _, err := parseRecallEmailHTMLForLifecycleTrigger(document.campaignType, document.deliveryPolicy, document.lifecycleTrigger, output); err != nil {
 		return "", err
 	}
 	return output, nil

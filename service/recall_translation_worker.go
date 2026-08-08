@@ -167,7 +167,7 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 	}
 	translateCtx, cancel := context.WithCancel(ctx)
 	heartbeat := w.startHeartbeat(translateCtx, cancel, task)
-	translated, err := translateRecallEmailStagesWithTranslator(translateCtx, w.translator, snapshot.CampaignType, snapshot.English)
+	translated, err := translateRecallEmailStagesWithTranslator(translateCtx, w.translator, snapshot.CampaignType, snapshot.DeliveryPolicy, snapshot.LifecycleTrigger, snapshot.English)
 	heartbeatErr := heartbeat()
 	cancel()
 	if heartbeatErr != nil {
@@ -358,10 +358,13 @@ func (w *RecallTranslationWorker) effectiveHeartbeatInterval() time.Duration {
 	return recallTranslationHeartbeatInterval
 }
 
-func translateRecallEmailStagesWithTranslator(ctx context.Context, translator RecallEmailTranslator, campaignType string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+func translateRecallEmailStagesWithTranslator(ctx context.Context, translator RecallEmailTranslator, campaignType string, deliveryPolicy string, lifecycleTrigger string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
 	campaignType, err := normalizeRecallCampaignType(campaignType)
 	if err != nil {
 		return nil, err
+	}
+	if deliveryTranslator, ok := translator.(RecallEmailDeliveryTranslator); ok {
+		return deliveryTranslator.TranslateForDelivery(ctx, campaignType, deliveryPolicy, lifecycleTrigger, stages)
 	}
 	if campaignTranslator, ok := translator.(RecallEmailCampaignTranslator); ok {
 		return campaignTranslator.TranslateForCampaign(ctx, campaignType, stages)

@@ -17,6 +17,7 @@ import type {
   RecallCampaignDraft,
   RecallCampaignType,
   RecallDeliveryPolicy,
+  RecallLifecycleTrigger,
 } from '../types'
 
 interface CampaignEmailHtmlEditorProps {
@@ -36,6 +37,7 @@ interface RecallEmailPreviewSnapshot {
   requestId: number
   campaignType: RecallCampaignType
   deliveryPolicy: RecallDeliveryPolicy
+  lifecycleTrigger?: RecallLifecycleTrigger
   subject: string
   bodyHTML: string
 }
@@ -47,6 +49,8 @@ interface RecallEmailPreviewState {
 
 interface RecallEmailPreviewPreparedRequest {
   campaign_type: RecallCampaignType
+  delivery_policy: RecallDeliveryPolicy
+  lifecycle_trigger?: RecallLifecycleTrigger
   snapshot: RecallEmailPreviewSnapshot
   template: { subject: string; body_html: string }
 }
@@ -72,6 +76,7 @@ export function createRecallEmailPreviewTemplate(props: {
 export async function prepareRecallEmailPreviewRequest(props: {
   campaignType: RecallCampaignType
   deliveryPolicy?: RecallDeliveryPolicy
+  lifecycleTrigger?: RecallLifecycleTrigger
   nextRequestId: () => number
   subject: string
   bodyHTML: string
@@ -83,11 +88,14 @@ export async function prepareRecallEmailPreviewRequest(props: {
     requestId: props.nextRequestId(),
     campaignType: props.campaignType,
     deliveryPolicy: props.deliveryPolicy ?? 'engagement',
+    lifecycleTrigger: props.lifecycleTrigger,
     subject: props.subject,
     bodyHTML: props.bodyHTML,
   }
   return {
     campaign_type: props.campaignType,
+    delivery_policy: snapshot.deliveryPolicy,
+    lifecycle_trigger: snapshot.lifecycleTrigger,
     snapshot,
     template: createRecallEmailPreviewTemplate({
       ...snapshot,
@@ -217,9 +225,11 @@ export function CampaignEmailHtmlEditor(
 
   const previewEmail = async () => {
     setPreviewState(clearRecallEmailPreviewError)
+    const lifecycleTrigger = props.form.getValues('lifecycle_trigger') || undefined
     const prepared = await prepareRecallEmailPreviewRequest({
       campaignType,
       deliveryPolicy,
+      lifecycleTrigger,
       nextRequestId: () => (previewRequestIdRef.current += 1),
       subject: String(props.form.getValues(subjectPath) ?? ''),
       bodyHTML: String(props.form.getValues(bodyPath) ?? ''),
@@ -231,6 +241,8 @@ export function CampaignEmailHtmlEditor(
     try {
       const response = await previewMutation.mutateAsync({
         campaign_type: prepared.campaign_type,
+        delivery_policy: prepared.delivery_policy,
+        lifecycle_trigger: prepared.lifecycle_trigger,
         template: prepared.template,
       })
       if (

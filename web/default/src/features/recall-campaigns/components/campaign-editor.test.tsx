@@ -1587,6 +1587,17 @@ describe('CampaignEditor schedule modes', () => {
     expect(html).not.toContain('raw')
   })
 
+  test('shows quota exhausted threshold placeholder for Continuous campaigns', () => {
+    const draft = makeContinuousDraft()
+    draft.lifecycle_trigger = 'quota_exhausted_unpaid'
+    draft.delivery_policy = 'service'
+    const html = renderEditor('first_purchase', draft)
+
+    expect(html).toContain('{{.balance_snapshot}}')
+    expect(html).toContain('{{.effective_threshold}}')
+    expect(html).toContain('{{.top_up_url}}')
+  })
+
   test('uses service-policy Continuous starter content without unsubscribe controls', () => {
     const draft = makeContinuousDraft()
     draft.email_sequence[0].templates.en = {

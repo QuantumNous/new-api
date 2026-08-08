@@ -302,6 +302,28 @@ describe('recall email preview race guard', () => {
     }
   })
 
+  test('prepares Continuous lifecycle preview with delivery policy and trigger', async () => {
+    const prepared = await prepareRecallEmailPreviewRequest({
+      campaignType: 'content_only',
+      deliveryPolicy: 'service',
+      lifecycleTrigger: 'payment_succeeded',
+      nextRequestId: () => 6,
+      subject: 'Payment complete',
+      bodyHTML:
+        '<p>Trade {{.trade_no}}</p><p>{{.amount}} {{.currency}}</p><p>{{.completed_at}}</p>',
+      validateBody: async () => true,
+    })
+
+    expect(prepared?.campaign_type).toBe('content_only')
+    expect(prepared?.delivery_policy).toBe('service')
+    expect(prepared?.lifecycle_trigger).toBe('payment_succeeded')
+    expect(prepared?.snapshot).toMatchObject({
+      campaignType: 'content_only',
+      deliveryPolicy: 'service',
+      lifecycleTrigger: 'payment_succeeded',
+    })
+  })
+
   test('assigns the preview request id only after body validation completes', async () => {
     let resolveValidation: ((valid: boolean) => void) | undefined
     let nextRequestId = 0
