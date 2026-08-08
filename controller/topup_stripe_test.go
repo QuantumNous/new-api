@@ -1136,6 +1136,60 @@ func TestFulfillOrderAcceptsDiscountedStripePaymentContract(t *testing.T) {
 	assert.Equal(t, int(200*common.QuotaPerUnit), stripeFulfillmentUserQuota(t, 902))
 }
 
+func TestValidateStripeTopUpPaymentContractAcceptsCorrectedFailureStatus(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
+	t.Cleanup(func() {
+		stripeCheckoutPaymentContractFromEvent = originalContractFromEvent
+	})
+
+	insertStripeFulfillmentUser(t, 909)
+	topUp := &model.TopUp{
+		UserId:             909,
+		Amount:             20,
+		Money:              20,
+		PaymentCurrency:    "USD",
+		PaymentPriceId:     "price_20",
+		PaymentAmountMinor: 2000,
+		TradeNo:            "ref_stripe_corrected_failed",
+		GatewayTradeNo:     "cs_corrected_failed",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusFailed,
+	}
+	require.NoError(t, model.DB.Create(topUp).Error)
+	stripeCheckoutPaymentContractFromEvent = func(event stripe.Event) (stripeCheckoutPaymentContract, error) {
+		return stripeCheckoutPaymentContract{
+			SessionId: "cs_corrected_failed",
+			PriceId:   "price_20",
+			Quantity:  1,
+			Currency:  "USD",
+		}, nil
+	}
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_corrected_failed",
+			"client_reference_id": "ref_stripe_corrected_failed",
+		}},
+	}
+	require.NoError(t, validateStripeTopUpPaymentContract(event, "ref_stripe_corrected_failed"))
+
+	stripeCheckoutPaymentContractFromEvent = func(event stripe.Event) (stripeCheckoutPaymentContract, error) {
+		return stripeCheckoutPaymentContract{
+			SessionId: "cs_corrected_failed",
+			PriceId:   "price_other",
+			Quantity:  1,
+			Currency:  "USD",
+		}, nil
+	}
+	err := validateStripeTopUpPaymentContract(event, "ref_stripe_corrected_failed")
+	require.Error(t, err)
+	require.False(t, isRetryableStripeWebhookProcessingError(err))
+}
+
 func TestSessionCompletedFulfillsNoPaymentRequiredTopUpOnce(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent

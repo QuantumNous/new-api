@@ -1928,7 +1928,7 @@ func validateStripeTopUpPaymentContract(event stripe.Event, referenceId string) 
 	if topUp.Status == common.TopUpStatusSuccess {
 		return nil
 	}
-	if topUp.Status != common.TopUpStatusPending {
+	if !modelPurchaseCanBeCorrectedToStripeSuccess(topUp.Status) {
 		return permanentStripeWebhookProcessingError(model.ErrTopUpStatusInvalid)
 	}
 
@@ -1961,6 +1961,15 @@ func validateStripeTopUpPaymentContract(event stripe.Event, referenceId string) 
 	// Stripe amounts independently from our local top-up package value. The trusted
 	// contract is the Checkout session's price id and quantity.
 	return nil
+}
+
+func modelPurchaseCanBeCorrectedToStripeSuccess(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case common.TopUpStatusPending, common.TopUpStatusFailed, common.TopUpStatusExpired, "cancelled", "canceled":
+		return true
+	default:
+		return false
+	}
 }
 
 func getStripeCheckoutPaymentContractFromEvent(event stripe.Event) (stripeCheckoutPaymentContract, error) {

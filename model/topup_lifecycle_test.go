@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -274,6 +275,44 @@ func TestTopUpLifecycleCASLoserDoesNotEmitEventOrCredit(t *testing.T) {
 
 	stored := GetTopUpByTradeNo(topUp.TradeNo)
 	require.Equal(t, common.TopUpStatusSuccess, stored.Status)
+	require.Equal(t, 0, walletQuotaForTest(t, user.Id))
+	requireTopUpLifecycleEventCount(t, topUp.TradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
+}
+
+func TestTopUpLifecycleWinnerHookRollbackRestoresStatusEventWalletAndMetadata(t *testing.T) {
+	setupTopUpLifecycleTestDB(t, 1)
+	user := createLifecycleQuotaTestUser(t, "topup-hook-rollback", 0, 100)
+	topUp := insertTopUpLifecycleOrder(t, user.Id, "topup-hook-rollback", PaymentProviderStripe, common.TopUpStatusPending, 1_700_006_500, 0)
+
+	hookErr := errors.New("winner hook failed")
+	var applied bool
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		applied, err = persistPurchaseLifecycleTransitionWithWinner(tx, PurchaseLifecycleTransition{
+			Kind:       "topup",
+			SourceID:   int64(topUp.Id),
+			TradeNo:    topUp.TradeNo,
+			UserID:     user.Id,
+			FromStatus: []string{common.TopUpStatusPending},
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: 1_700_006_600,
+			Credit:     100,
+			SourceRef:  "provider.hook_rollback",
+		}, func(tx *gorm.DB, locked *TopUp, transition *PurchaseLifecycleTransition) error {
+			locked.PaymentMethod = "card"
+			transition.Credit += 25
+			require.NoError(t, tx.Model(&TopUp{}).Where("id = ?", locked.Id).Update("payment_method", locked.PaymentMethod).Error)
+			return hookErr
+		})
+		return err
+	})
+	require.ErrorIs(t, err, hookErr)
+	require.False(t, applied)
+
+	stored := GetTopUpByTradeNo(topUp.TradeNo)
+	require.Equal(t, common.TopUpStatusPending, stored.Status)
+	require.Equal(t, PaymentProviderStripe, stored.PaymentMethod)
+	require.Zero(t, stored.CompleteTime)
 	require.Equal(t, 0, walletQuotaForTest(t, user.Id))
 	requireTopUpLifecycleEventCount(t, topUp.TradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
 }

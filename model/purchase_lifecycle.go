@@ -26,7 +26,13 @@ type PurchaseLifecycleTransition struct {
 	SourceRef  string
 }
 
+type purchaseLifecycleWinnerHook func(tx *gorm.DB, topUp *TopUp, transition *PurchaseLifecycleTransition) error
+
 func PersistPurchaseLifecycleTransition(tx *gorm.DB, transition PurchaseLifecycleTransition) (bool, error) {
+	return persistPurchaseLifecycleTransitionWithWinner(tx, transition, nil)
+}
+
+func persistPurchaseLifecycleTransitionWithWinner(tx *gorm.DB, transition PurchaseLifecycleTransition, winnerHook purchaseLifecycleWinnerHook) (bool, error) {
 	if tx == nil {
 		return false, errors.New("purchase lifecycle transition requires transaction")
 	}
@@ -79,9 +85,6 @@ func PersistPurchaseLifecycleTransition(tx *gorm.DB, transition PurchaseLifecycl
 	case common.TopUpStatusPending:
 		topUp.Status = common.TopUpStatusPending
 	case common.TopUpStatusSuccess:
-		if transition.Credit <= 0 {
-			return false, errors.New("purchase lifecycle success requires positive credit")
-		}
 		topUp.Status = common.TopUpStatusSuccess
 		topUp.CompleteTime = occurredAt
 	case common.TopUpStatusFailed, common.TopUpStatusExpired, "cancelled", "canceled":
@@ -108,6 +111,14 @@ func PersistPurchaseLifecycleTransition(tx *gorm.DB, transition PurchaseLifecycl
 			return false, nil
 		}
 		return false, ErrTopUpStatusInvalid
+	}
+	if winnerHook != nil {
+		if err := winnerHook(tx, topUp, &transition); err != nil {
+			return false, err
+		}
+	}
+	if toStatus == common.TopUpStatusSuccess && transition.Credit <= 0 {
+		return false, errors.New("purchase lifecycle success requires positive credit")
 	}
 
 	eventType := purchaseLifecycleEventType(toStatus)

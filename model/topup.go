@@ -284,11 +284,8 @@ func CompleteEpayTopUp(tradeNo string, actualPaymentMethod string, callerIp stri
 			return ErrTopUpStatusInvalid
 		}
 
-		if normalized := strings.TrimSpace(actualPaymentMethod); normalized != "" && topUp.PaymentMethod != normalized {
-			topUp.PaymentMethod = normalized
-		}
 		completeTime := common.GetTimestamp()
-		applied, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+		applied, err := persistPurchaseLifecycleTransitionWithWinner(tx, PurchaseLifecycleTransition{
 			Kind:       PurchaseLifecycleKindTopUp,
 			SourceID:   int64(topUp.Id),
 			TradeNo:    topUp.TradeNo,
@@ -298,18 +295,29 @@ func CompleteEpayTopUp(tradeNo string, actualPaymentMethod string, callerIp stri
 			OccurredAt: completeTime,
 			Credit:     int64(quotaToAdd),
 			SourceRef:  "CompleteEpayTopUp",
+		}, func(tx *gorm.DB, locked *TopUp, transition *PurchaseLifecycleTransition) error {
+			defer func() { *topUp = *locked }()
+			if normalized := strings.TrimSpace(actualPaymentMethod); normalized != "" && locked.PaymentMethod != normalized {
+				if err := tx.Model(&TopUp{}).Where("id = ?", locked.Id).Update("payment_method", normalized).Error; err != nil {
+					return err
+				}
+				locked.PaymentMethod = normalized
+			}
+			return nil
 		})
 		if err != nil {
 			return err
 		}
 		credited = applied
-		var rewardErr error
-		rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
-		if rewardErr != nil {
-			return rewardErr
+		if applied {
+			var rewardErr error
+			rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+			if rewardErr != nil {
+				return rewardErr
+			}
+			topUp.Status = common.TopUpStatusSuccess
+			topUp.CompleteTime = completeTime
 		}
-		topUp.Status = common.TopUpStatusSuccess
-		topUp.CompleteTime = completeTime
 		return nil
 	})
 	if err != nil {
@@ -347,7 +355,7 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 	}
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", referenceId).First(topUp).Error
+		err := lockQuery(tx).Where(refCol+" = ?", referenceId).First(topUp).Error
 		if err != nil {
 			return errors.New("充值订单不存在")
 		}
@@ -369,40 +377,7 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 			return errors.New("无效的充值额度")
 		}
 
-		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
-		if bonusErr != nil {
-			return bonusErr
-		}
-		quotaToAdd += int(bonusQuota)
-
-		if snapshot.Money > 0 || strings.TrimSpace(snapshot.Currency) != "" {
-			topUp.Money = snapshot.Money
-		}
-		if strings.TrimSpace(snapshot.Currency) != "" {
-			topUp.PaymentCurrency = strings.ToUpper(strings.TrimSpace(snapshot.Currency))
-		}
-		if snapshot.Money > 0 || strings.TrimSpace(snapshot.Currency) != "" {
-			if err := tx.Model(&TopUp{}).Where("id = ? AND status = ?", topUp.Id, common.TopUpStatusPending).Updates(map[string]any{
-				"money":            topUp.Money,
-				"payment_currency": topUp.PaymentCurrency,
-			}).Error; err != nil {
-				return err
-			}
-		}
-
-		if strings.TrimSpace(customerId) != "" {
-			// stripe_card_bound is deliberately NOT set here. SaveCard only means the Checkout
-			// was created with card-scoped setup_future_usage; since local payment methods
-			// (Alipay/Pix/UPI…) stay available on such sessions, the user may have completed
-			// this top-up without any card being saved. Marking card_bound on SaveCard alone
-			// would flag those users as offline-chargeable and break postpaid auto-charge.
-			// Binding happens in backfillCardFingerprintFromTopUp, which first verifies via
-			// the Stripe API that the customer actually has a saved card.
-			if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("stripe_customer", strings.TrimSpace(customerId)).Error; err != nil {
-				return err
-			}
-		}
-		applied, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+		applied, err := persistPurchaseLifecycleTransitionWithWinner(tx, PurchaseLifecycleTransition{
 			Kind:       PurchaseLifecycleKindTopUp,
 			SourceID:   int64(topUp.Id),
 			TradeNo:    topUp.TradeNo,
@@ -412,21 +387,52 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 			OccurredAt: common.GetTimestamp(),
 			Credit:     int64(quotaToAdd),
 			SourceRef:  "RechargeWithPaymentSnapshot",
+		}, func(tx *gorm.DB, locked *TopUp, transition *PurchaseLifecycleTransition) error {
+			defer func() { *topUp = *locked }()
+			bonusQuota, bonusErr := applyTopUpBonusInTx(tx, locked, topUpBonusLimitFor(locked.BonusTier))
+			if bonusErr != nil {
+				return bonusErr
+			}
+			quotaToAdd += int(bonusQuota)
+			transition.Credit += bonusQuota
+
+			updates := map[string]any{}
+			if snapshot.Money > 0 || strings.TrimSpace(snapshot.Currency) != "" {
+				locked.Money = snapshot.Money
+				updates["money"] = locked.Money
+			}
+			if strings.TrimSpace(snapshot.Currency) != "" {
+				locked.PaymentCurrency = strings.ToUpper(strings.TrimSpace(snapshot.Currency))
+				updates["payment_currency"] = locked.PaymentCurrency
+			}
+			if len(updates) > 0 {
+				if err := tx.Model(&TopUp{}).Where("id = ?", locked.Id).Updates(updates).Error; err != nil {
+					return err
+				}
+			}
+			if strings.TrimSpace(customerId) != "" {
+				if err := tx.Model(&User{}).Where("id = ?", locked.UserId).Update("stripe_customer", strings.TrimSpace(customerId)).Error; err != nil {
+					return err
+				}
+			}
+			return nil
 		})
 		if err != nil {
 			return err
 		}
 		credited = applied
-		topUp.Status = common.TopUpStatusSuccess
-		topUp.CompleteTime = common.GetTimestamp()
-		if err := EnqueueAdsPurchaseInTx(tx, topUp); err != nil {
-			return err
-		}
+		if applied {
+			topUp.Status = common.TopUpStatusSuccess
+			topUp.CompleteTime = common.GetTimestamp()
+			if err := EnqueueAdsPurchaseInTx(tx, topUp); err != nil {
+				return err
+			}
 
-		var rewardErr error
-		rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
-		if rewardErr != nil {
-			return rewardErr
+			var rewardErr error
+			rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+			if rewardErr != nil {
+				return rewardErr
+			}
 		}
 		return nil
 	})
@@ -629,7 +635,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
 		// 行级锁，避免并发补单
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+		if err := lockQuery(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
 			return errors.New("充值订单不存在")
 		}
 
@@ -654,13 +660,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return errors.New("无效的充值额度")
 		}
 
-		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
-		if bonusErr != nil {
-			return bonusErr
-		}
-		quotaToAdd += int(bonusQuota)
-
-		applied, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+		applied, err := persistPurchaseLifecycleTransitionWithWinner(tx, PurchaseLifecycleTransition{
 			Kind:       PurchaseLifecycleKindTopUp,
 			SourceID:   int64(topUp.Id),
 			TradeNo:    topUp.TradeNo,
@@ -670,18 +670,29 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			OccurredAt: common.GetTimestamp(),
 			Credit:     int64(quotaToAdd),
 			SourceRef:  "ManualCompleteTopUp",
+		}, func(tx *gorm.DB, locked *TopUp, transition *PurchaseLifecycleTransition) error {
+			defer func() { *topUp = *locked }()
+			bonusQuota, bonusErr := applyTopUpBonusInTx(tx, locked, topUpBonusLimitFor(locked.BonusTier))
+			if bonusErr != nil {
+				return bonusErr
+			}
+			quotaToAdd += int(bonusQuota)
+			transition.Credit += bonusQuota
+			return nil
 		})
 		if err != nil {
 			return err
 		}
 		completed = applied
-		topUp.Status = common.TopUpStatusSuccess
-		topUp.CompleteTime = common.GetTimestamp()
+		if applied {
+			topUp.Status = common.TopUpStatusSuccess
+			topUp.CompleteTime = common.GetTimestamp()
 
-		var rewardErr error
-		rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
-		if rewardErr != nil {
-			return rewardErr
+			var rewardErr error
+			rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+			if rewardErr != nil {
+				return rewardErr
+			}
 		}
 
 		return nil
@@ -715,7 +726,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", referenceId).First(topUp).Error
+		err := lockQuery(tx).Where(refCol+" = ?", referenceId).First(topUp).Error
 		if err != nil {
 			return errors.New("充值订单不存在")
 		}
@@ -735,31 +746,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		// Creem 直接使用 Amount 作为充值额度（整数）
 		quota = topUp.Amount
 
-		// 构建更新字段，优先使用邮箱，如果邮箱为空则使用用户名
-		updateFields := map[string]interface{}{}
-
-		// 如果有客户邮箱，尝试更新用户邮箱（仅当用户邮箱为空时）
-		if customerEmail != "" {
-			// 先检查用户当前邮箱是否为空
-			var user User
-			err = tx.Where("id = ?", topUp.UserId).First(&user).Error
-			if err != nil {
-				return err
-			}
-
-			// 如果用户邮箱为空，则更新为支付时使用的邮箱
-			if user.Email == "" {
-				updateFields["email"] = customerEmail
-			}
-		}
-
-		if len(updateFields) > 0 {
-			err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields).Error
-			if err != nil {
-				return err
-			}
-		}
-		applied, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+		applied, err := persistPurchaseLifecycleTransitionWithWinner(tx, PurchaseLifecycleTransition{
 			Kind:       PurchaseLifecycleKindTopUp,
 			SourceID:   int64(topUp.Id),
 			TradeNo:    topUp.TradeNo,
@@ -769,17 +756,32 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			OccurredAt: common.GetTimestamp(),
 			Credit:     quota,
 			SourceRef:  "RechargeCreem",
+		}, func(tx *gorm.DB, locked *TopUp, transition *PurchaseLifecycleTransition) error {
+			defer func() { *topUp = *locked }()
+			if customerEmail == "" {
+				return nil
+			}
+			var user User
+			if err := tx.Where("id = ?", locked.UserId).First(&user).Error; err != nil {
+				return err
+			}
+			if user.Email != "" {
+				return nil
+			}
+			return tx.Model(&User{}).Where("id = ?", locked.UserId).Update("email", customerEmail).Error
 		})
 		if err != nil {
 			return err
 		}
 		credited = applied
-		topUp.Status = common.TopUpStatusSuccess
-		topUp.CompleteTime = common.GetTimestamp()
+		if applied {
+			topUp.Status = common.TopUpStatusSuccess
+			topUp.CompleteTime = common.GetTimestamp()
 
-		rewardResult, err = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
-		if err != nil {
-			return err
+			rewardResult, err = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -818,7 +820,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 	}
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error
+		err := lockQuery(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error
 		if err != nil {
 			return errors.New("充值订单不存在")
 		}
@@ -842,13 +844,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 			return errors.New("无效的充值额度")
 		}
 
-		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
-		if bonusErr != nil {
-			return bonusErr
-		}
-		quotaToAdd += int(bonusQuota)
-
-		applied, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+		applied, err := persistPurchaseLifecycleTransitionWithWinner(tx, PurchaseLifecycleTransition{
 			Kind:       PurchaseLifecycleKindTopUp,
 			SourceID:   int64(topUp.Id),
 			TradeNo:    topUp.TradeNo,
@@ -858,17 +854,28 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 			OccurredAt: common.GetTimestamp(),
 			Credit:     int64(quotaToAdd),
 			SourceRef:  "RechargeWaffo",
+		}, func(tx *gorm.DB, locked *TopUp, transition *PurchaseLifecycleTransition) error {
+			defer func() { *topUp = *locked }()
+			bonusQuota, bonusErr := applyTopUpBonusInTx(tx, locked, topUpBonusLimitFor(locked.BonusTier))
+			if bonusErr != nil {
+				return bonusErr
+			}
+			quotaToAdd += int(bonusQuota)
+			transition.Credit += bonusQuota
+			return nil
 		})
 		if err != nil {
 			return err
 		}
 		credited = applied
-		topUp.Status = common.TopUpStatusSuccess
-		topUp.CompleteTime = common.GetTimestamp()
+		if applied {
+			topUp.Status = common.TopUpStatusSuccess
+			topUp.CompleteTime = common.GetTimestamp()
 
-		rewardResult, err = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
-		if err != nil {
-			return err
+			rewardResult, err = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -907,7 +914,7 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 	}
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error
+		err := lockQuery(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error
 		if err != nil {
 			return errors.New("充值订单不存在")
 		}
@@ -929,13 +936,7 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 			return errors.New("无效的充值额度")
 		}
 
-		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
-		if bonusErr != nil {
-			return bonusErr
-		}
-		quotaToAdd += int(bonusQuota)
-
-		applied, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+		applied, err := persistPurchaseLifecycleTransitionWithWinner(tx, PurchaseLifecycleTransition{
 			Kind:       PurchaseLifecycleKindTopUp,
 			SourceID:   int64(topUp.Id),
 			TradeNo:    topUp.TradeNo,
@@ -945,17 +946,28 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 			OccurredAt: common.GetTimestamp(),
 			Credit:     int64(quotaToAdd),
 			SourceRef:  "RechargeWaffoPancake",
+		}, func(tx *gorm.DB, locked *TopUp, transition *PurchaseLifecycleTransition) error {
+			defer func() { *topUp = *locked }()
+			bonusQuota, bonusErr := applyTopUpBonusInTx(tx, locked, topUpBonusLimitFor(locked.BonusTier))
+			if bonusErr != nil {
+				return bonusErr
+			}
+			quotaToAdd += int(bonusQuota)
+			transition.Credit += bonusQuota
+			return nil
 		})
 		if err != nil {
 			return err
 		}
 		credited = applied
-		topUp.Status = common.TopUpStatusSuccess
-		topUp.CompleteTime = common.GetTimestamp()
+		if applied {
+			topUp.Status = common.TopUpStatusSuccess
+			topUp.CompleteTime = common.GetTimestamp()
 
-		rewardResult, err = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
-		if err != nil {
-			return err
+			rewardResult, err = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -996,7 +1008,7 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 			refCol = `"trade_no"`
 		}
 
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+		if err := lockQuery(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
 			return errors.New("充值订单不存在")
 		}
 
@@ -1026,26 +1038,7 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 			return errors.New("无效的充值额度")
 		}
 
-		updates := map[string]interface{}{}
-		if expectedGatewayTradeNo != "" {
-			if storedGatewayTradeNo == "" {
-				updates["gateway_trade_no"] = expectedGatewayTradeNo
-			}
-		}
-		if len(updates) > 0 {
-			if err := tx.Model(&TopUp{}).Where("id = ? AND status = ?", topUp.Id, topUp.Status).Updates(updates).Error; err != nil {
-				return err
-			}
-			topUp.GatewayTradeNo = expectedGatewayTradeNo
-		}
-
-		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
-		if bonusErr != nil {
-			return bonusErr
-		}
-		quotaToAdd += int(bonusQuota)
-
-		applied, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+		applied, err := persistPurchaseLifecycleTransitionWithWinner(tx, PurchaseLifecycleTransition{
 			Kind:       PurchaseLifecycleKindTopUp,
 			SourceID:   int64(topUp.Id),
 			TradeNo:    topUp.TradeNo,
@@ -1055,22 +1048,39 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 			OccurredAt: completeTime,
 			Credit:     int64(quotaToAdd),
 			SourceRef:  "RechargePaddle",
+		}, func(tx *gorm.DB, locked *TopUp, transition *PurchaseLifecycleTransition) error {
+			defer func() { *topUp = *locked }()
+			if expectedGatewayTradeNo != "" && storedGatewayTradeNo == "" {
+				if err := tx.Model(&TopUp{}).Where("id = ?", locked.Id).Update("gateway_trade_no", expectedGatewayTradeNo).Error; err != nil {
+					return err
+				}
+				locked.GatewayTradeNo = expectedGatewayTradeNo
+			}
+			bonusQuota, bonusErr := applyTopUpBonusInTx(tx, locked, topUpBonusLimitFor(locked.BonusTier))
+			if bonusErr != nil {
+				return bonusErr
+			}
+			quotaToAdd += int(bonusQuota)
+			transition.Credit += bonusQuota
+			return nil
 		})
 		if err != nil {
 			return err
 		}
 		credited = applied
 
-		var rewardErr error
-		rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
-		if rewardErr != nil {
-			return rewardErr
-		}
+		if applied {
+			var rewardErr error
+			rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+			if rewardErr != nil {
+				return rewardErr
+			}
 
-		topUp.CompleteTime = completeTime
-		topUp.Status = common.TopUpStatusSuccess
-		if expectedGatewayTradeNo != "" && storedGatewayTradeNo == "" {
-			topUp.GatewayTradeNo = expectedGatewayTradeNo
+			topUp.CompleteTime = completeTime
+			topUp.Status = common.TopUpStatusSuccess
+			if expectedGatewayTradeNo != "" && storedGatewayTradeNo == "" {
+				topUp.GatewayTradeNo = expectedGatewayTradeNo
+			}
 		}
 
 		return nil
