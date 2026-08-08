@@ -332,27 +332,14 @@ func ClaimDueRecallLifecycleEvent(ctx context.Context, id int64, owner string, n
 	won := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var event RecallLifecycleEvent
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ? AND ((disposition = ? AND available_at <= ? AND (next_attempt_at = 0 OR next_attempt_at <= ?)) OR (disposition = ? AND lease_expires_at > 0 AND lease_expires_at < ?))",
-				id, RecallLifecycleEventPending, now, now, RecallLifecycleEventLeased, now).
-			First(&event).Error
+		err := claimDueRecallLifecycleEventSelectQuery(tx, id, now).First(&event).Error
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return nil
 			}
 			return err
 		}
-		result := tx.Model(&RecallLifecycleEvent{}).
-			Where("id = ? AND disposition = ? AND lease_epoch = ?", event.Id, event.Disposition, event.LeaseEpoch).
-			Updates(map[string]any{
-				"disposition":           RecallLifecycleEventLeased,
-				"lease_owner":           owner,
-				"lease_expires_at":      leaseUntil,
-				"lease_epoch":           gorm.Expr("lease_epoch + ?", 1),
-				"attempt_count":         gorm.Expr("attempt_count + ?", 1),
-				"processing_started_at": now,
-				"last_error_code":       "",
-			})
+		result := claimDueRecallLifecycleEventCASUpdateQuery(tx, event, owner, now, leaseUntil)
 		if result.Error != nil {
 			return result.Error
 		}
@@ -372,6 +359,26 @@ func ClaimDueRecallLifecycleEvent(ctx context.Context, id int64, owner string, n
 		return nil, false, nil
 	}
 	return &claimed, true, nil
+}
+
+func claimDueRecallLifecycleEventSelectQuery(tx *gorm.DB, id int64, now int64) *gorm.DB {
+	return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND ((disposition = ? AND available_at <= ? AND (next_attempt_at = 0 OR next_attempt_at <= ?)) OR (disposition = ? AND lease_expires_at > 0 AND lease_expires_at < ?))",
+			id, RecallLifecycleEventPending, now, now, RecallLifecycleEventLeased, now)
+}
+
+func claimDueRecallLifecycleEventCASUpdateQuery(tx *gorm.DB, event RecallLifecycleEvent, owner string, now int64, leaseUntil int64) *gorm.DB {
+	return tx.Model(&RecallLifecycleEvent{}).
+		Where("id = ? AND disposition = ? AND lease_epoch = ?", event.Id, event.Disposition, event.LeaseEpoch).
+		Updates(map[string]any{
+			"disposition":           RecallLifecycleEventLeased,
+			"lease_owner":           owner,
+			"lease_expires_at":      leaseUntil,
+			"lease_epoch":           gorm.Expr("lease_epoch + ?", 1),
+			"attempt_count":         gorm.Expr("attempt_count + ?", 1),
+			"processing_started_at": now,
+			"last_error_code":       "",
+		})
 }
 
 func ResolveRecallLifecycleEventEnrollment(ctx context.Context, resolution RecallLifecycleEventEnrollmentResolution) (bool, error) {
@@ -672,8 +679,7 @@ func ClaimRecallContinuousTriggerSlotOwnershipTx(tx *gorm.DB, trigger string, ca
 		return false, false, err
 	}
 	var slot RecallContinuousTriggerSlot
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		First(&slot, "trigger = ?", strings.TrimSpace(trigger)).Error; err != nil {
+	if err := recallContinuousTriggerSlotSelectQuery(tx, trigger).First(&slot).Error; err != nil {
 		return false, false, err
 	}
 	if slot.CampaignId == campaignID {
@@ -682,17 +688,14 @@ func ClaimRecallContinuousTriggerSlotOwnershipTx(tx *gorm.DB, trigger string, ca
 	if slot.CampaignId != 0 {
 		return false, false, nil
 	}
-	result := tx.Model(&RecallContinuousTriggerSlot{}).
-		Where("trigger = ? AND campaign_id = 0", slot.Trigger).
-		Update("campaign_id", campaignID)
+	result := claimRecallContinuousTriggerSlotUpdateQuery(tx, slot.Trigger, campaignID)
 	if result.Error != nil {
 		return false, false, result.Error
 	}
 	if result.RowsAffected == 1 {
 		return true, true, nil
 	}
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		First(&slot, "trigger = ?", strings.TrimSpace(trigger)).Error; err != nil {
+	if err := recallContinuousTriggerSlotSelectQuery(tx, trigger).First(&slot).Error; err != nil {
 		return false, false, err
 	}
 	return slot.CampaignId == campaignID, false, nil
@@ -705,7 +708,22 @@ func ReleaseRecallContinuousTriggerSlotTx(tx *gorm.DB, trigger string, campaignI
 	if campaignID <= 0 {
 		return fmt.Errorf("recall continuous trigger slot release requires a campaign")
 	}
+	return releaseRecallContinuousTriggerSlotUpdateQuery(tx, trigger, campaignID).Error
+}
+
+func recallContinuousTriggerSlotSelectQuery(tx *gorm.DB, trigger string) *gorm.DB {
+	return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("trigger = ?", strings.TrimSpace(trigger))
+}
+
+func claimRecallContinuousTriggerSlotUpdateQuery(tx *gorm.DB, trigger string, campaignID int64) *gorm.DB {
+	return tx.Model(&RecallContinuousTriggerSlot{}).
+		Where("trigger = ? AND campaign_id = 0", strings.TrimSpace(trigger)).
+		Update("campaign_id", campaignID)
+}
+
+func releaseRecallContinuousTriggerSlotUpdateQuery(tx *gorm.DB, trigger string, campaignID int64) *gorm.DB {
 	return tx.Model(&RecallContinuousTriggerSlot{}).
 		Where("trigger = ? AND campaign_id = ?", strings.TrimSpace(trigger), campaignID).
-		Update("campaign_id", int64(0)).Error
+		Update("campaign_id", int64(0))
 }

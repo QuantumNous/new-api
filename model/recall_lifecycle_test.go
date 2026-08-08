@@ -16,7 +16,6 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 )
@@ -673,10 +672,7 @@ func TestLifecycleClaimAndSlotLockSQLIsDialectSafe(t *testing.T) {
 		t.Run(name+"/event-claim-select", func(t *testing.T) {
 			var event RecallLifecycleEvent
 			sql := normalizeLifecycleSQL(db.ToSQL(func(tx *gorm.DB) *gorm.DB {
-				return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-					Where("id = ? AND ((disposition = ? AND available_at <= ? AND (next_attempt_at = 0 OR next_attempt_at <= ?)) OR (disposition = ? AND lease_expires_at > 0 AND lease_expires_at < ?))",
-						42, RecallLifecycleEventPending, 180, 180, RecallLifecycleEventLeased, 180).
-					First(&event)
+				return claimDueRecallLifecycleEventSelectQuery(tx, 42, 180).First(&event)
 			}))
 
 			require.Contains(t, sql, "recall_lifecycle_events")
@@ -689,18 +685,13 @@ func TestLifecycleClaimAndSlotLockSQLIsDialectSafe(t *testing.T) {
 		})
 
 		t.Run(name+"/event-claim-cas-update", func(t *testing.T) {
+			event := RecallLifecycleEvent{
+				Id:          42,
+				Disposition: RecallLifecycleEventPending,
+				LeaseEpoch:  7,
+			}
 			sql := normalizeLifecycleSQL(db.ToSQL(func(tx *gorm.DB) *gorm.DB {
-				return tx.Model(&RecallLifecycleEvent{}).
-					Where("id = ? AND disposition = ? AND lease_epoch = ?", 42, RecallLifecycleEventPending, 7).
-					Updates(map[string]any{
-						"disposition":           RecallLifecycleEventLeased,
-						"lease_owner":           "node-a",
-						"lease_expires_at":      int64(240),
-						"lease_epoch":           gorm.Expr("lease_epoch + ?", 1),
-						"attempt_count":         gorm.Expr("attempt_count + ?", 1),
-						"processing_started_at": int64(180),
-						"last_error_code":       "",
-					})
+				return claimDueRecallLifecycleEventCASUpdateQuery(tx, event, "node-a", 180, 240)
 			}))
 
 			require.Contains(t, sql, "update")
@@ -716,8 +707,7 @@ func TestLifecycleClaimAndSlotLockSQLIsDialectSafe(t *testing.T) {
 		t.Run(name+"/slot-claim-select", func(t *testing.T) {
 			var slot RecallContinuousTriggerSlot
 			sql := normalizeLifecycleSQL(db.ToSQL(func(tx *gorm.DB) *gorm.DB {
-				return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-					First(&slot, "trigger = ?", RecallLifecycleTriggerQuotaLow)
+				return recallContinuousTriggerSlotSelectQuery(tx, RecallLifecycleTriggerQuotaLow).First(&slot)
 			}))
 
 			require.Contains(t, sql, "recall_continuous_trigger_slots")
@@ -727,9 +717,7 @@ func TestLifecycleClaimAndSlotLockSQLIsDialectSafe(t *testing.T) {
 
 		t.Run(name+"/slot-claim-cas-update", func(t *testing.T) {
 			sql := normalizeLifecycleSQL(db.ToSQL(func(tx *gorm.DB) *gorm.DB {
-				return tx.Model(&RecallContinuousTriggerSlot{}).
-					Where("trigger = ? AND campaign_id = 0", RecallLifecycleTriggerQuotaLow).
-					Update("campaign_id", int64(101))
+				return claimRecallContinuousTriggerSlotUpdateQuery(tx, RecallLifecycleTriggerQuotaLow, 101)
 			}))
 
 			require.Contains(t, sql, "update")
@@ -742,9 +730,7 @@ func TestLifecycleClaimAndSlotLockSQLIsDialectSafe(t *testing.T) {
 
 		t.Run(name+"/slot-release-owned-update", func(t *testing.T) {
 			sql := normalizeLifecycleSQL(db.ToSQL(func(tx *gorm.DB) *gorm.DB {
-				return tx.Model(&RecallContinuousTriggerSlot{}).
-					Where("trigger = ? AND campaign_id = ?", RecallLifecycleTriggerQuotaLow, int64(101)).
-					Update("campaign_id", int64(0))
+				return releaseRecallContinuousTriggerSlotUpdateQuery(tx, RecallLifecycleTriggerQuotaLow, 101)
 			}))
 
 			require.Contains(t, sql, "update")
@@ -792,6 +778,54 @@ func TestLifecycleClaimFunctionsEmitDialectSafeLockSQL(t *testing.T) {
 			requireLifecycleForUpdateByDialect(t, name, selectSQL)
 		})
 	}
+}
+
+func TestLifecycleClaimFunctionsEmitSQLiteUpdatePredicates(t *testing.T) {
+	setupRecallLifecycleTestDB(t)
+	recorder := &recallLifecycleSQLRecorder{}
+	DB = DB.Session(&gorm.Session{Logger: recorder})
+
+	event := createRecallLifecycleModelEvent(t, RecallLifecycleTriggerQuotaLow, 401, 100, 100)
+	claimed, won, err := ClaimDueRecallLifecycleEvent(context.Background(), event.Id, "node-a", 180, 240)
+
+	require.NoError(t, err)
+	require.True(t, won)
+	require.NotNil(t, claimed)
+	eventSelect := recorder.firstContainingAll("select", "recall_lifecycle_events", "disposition =")
+	require.NotEmpty(t, eventSelect)
+	require.NotContains(t, eventSelect, "for update")
+	eventUpdate := recorder.firstContainingAll("update", "recall_lifecycle_events", "lease_epoch=lease_epoch +", "attempt_count=attempt_count +")
+	require.NotEmpty(t, eventUpdate)
+	require.Contains(t, eventUpdate, fmt.Sprintf("where id = %d", event.Id))
+	require.Contains(t, eventUpdate, "disposition = pending")
+	require.Contains(t, eventUpdate, "lease_epoch = 0")
+	require.NotContains(t, eventUpdate, "for update")
+
+	recorder.reset()
+	var slotWon, slotChanged bool
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		var claimErr error
+		slotWon, slotChanged, claimErr = ClaimRecallContinuousTriggerSlotOwnershipTx(tx, RecallLifecycleTriggerQuotaLow, 101)
+		return claimErr
+	}))
+	require.True(t, slotWon)
+	require.True(t, slotChanged)
+	slotSelect := recorder.firstContainingAll("select", "recall_continuous_trigger_slots", "trigger =")
+	require.NotEmpty(t, slotSelect)
+	require.NotContains(t, slotSelect, "for update")
+	slotUpdate := recorder.firstContainingAll("update", "recall_continuous_trigger_slots", "campaign_id=101")
+	require.NotEmpty(t, slotUpdate)
+	require.Contains(t, slotUpdate, "where trigger = quota_low and campaign_id = 0")
+	require.NotContains(t, slotUpdate, "for update")
+
+	recorder.reset()
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return ReleaseRecallContinuousTriggerSlotTx(tx, RecallLifecycleTriggerQuotaLow, 101)
+	}))
+	releaseUpdate := recorder.firstContainingAll("update", "recall_continuous_trigger_slots", "campaign_id=0")
+	require.NotEmpty(t, releaseUpdate)
+	require.Contains(t, releaseUpdate, "where trigger = quota_low and campaign_id = 101")
+	require.NotContains(t, releaseUpdate, "for update")
 }
 
 func TestLifecycleSchemaContractsAvoidJSONAndPartialIndexesAcrossDialects(t *testing.T) {
@@ -1050,6 +1084,26 @@ func (recorder *recallLifecycleSQLRecorder) firstContaining(fragment string) str
 		}
 	}
 	return ""
+}
+
+func (recorder *recallLifecycleSQLRecorder) firstContainingAll(fragments ...string) string {
+	for _, statement := range recorder.statements {
+		matched := true
+		for _, fragment := range fragments {
+			if !strings.Contains(statement, fragment) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return statement
+		}
+	}
+	return ""
+}
+
+func (recorder *recallLifecycleSQLRecorder) reset() {
+	recorder.statements = nil
 }
 
 func recallLifecycleDryRunDialects(t *testing.T) map[string]*gorm.DB {
