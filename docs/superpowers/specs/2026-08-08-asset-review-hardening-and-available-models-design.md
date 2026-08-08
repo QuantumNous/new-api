@@ -113,6 +113,7 @@ changed Go packages.
 ## Rollout
 
 Router and any process running the asset readiness worker must deploy together.
-Keep strict coverage disabled during mixed-version rollout, allow migrations and
-workers to converge, validate partial `available_models` in staging, then enable
-strict coverage.
+Keep strict task creation/reference enforcement disabled during mixed-version
+rollout, allow migrations and workers to converge, and validate partial
+`available_models` in staging. Canonical public asset status is always strict:
+the rollout flag does not permit source-only `Active` responses.

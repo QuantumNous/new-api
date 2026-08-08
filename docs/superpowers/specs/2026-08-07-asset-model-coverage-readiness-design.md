@@ -317,14 +317,14 @@ source URLs.
 
 1. Add the coverage-target and model-readiness tables with SQLite, MySQL, and
    PostgreSQL-compatible migrations.
-2. Deploy code with readiness projection disabled and backfill rows for recently
-   used assets.
+2. Deploy code with strict task creation/reference enforcement disabled and
+   backfill rows for recently used assets. Canonical public asset status remains
+   strict during this phase.
 3. Enable preparation and metrics in staging; test the production-equivalent
    multi-channel group with two fresh assets per model.
-4. Enable strict public projection in staging and verify that no source-only
-   asset reports `Active`.
-5. Deploy router nodes in production and enable strict projection behind a
-   runtime flag.
+4. Verify in staging that no source-only asset reports `Active`.
+5. Deploy router nodes in production and enable strict task creation/reference
+   enforcement behind a runtime flag.
 6. Monitor preparation latency, QPM retries, target rotations, and task
    preparation failures before removing the compatibility flag.
 

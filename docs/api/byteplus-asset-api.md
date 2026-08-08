@@ -52,6 +52,7 @@ Successful response:
   "object": "asset",
   "asset_type": "Image",
   "status": "Processing",
+  "available_models": [],
   "asset_url": "asset://ast_1234567890abcdef1234567890abcdef",
   "created_at": 1785292000
 }
@@ -72,6 +73,7 @@ Successful response:
   "object": "asset",
   "asset_type": "Image",
   "status": "Active",
+  "available_models": ["seedance-2.0-fast", "seedance-2.0"],
   "asset_url": "asset://ast_1234567890abcdef1234567890abcdef",
   "created_at": 1785292000
 }
@@ -130,16 +132,21 @@ Only the owner of an asset can query or use it. Missing assets and assets owned 
 
 Recommended rollout for model-coverage readiness:
 
-1. Deploy migrations, preparation workers, and metrics with strict projection disabled.
+1. Deploy migrations, preparation workers, and metrics with strict task creation/reference enforcement disabled.
 2. Enable preparation in staging and verify that assets reach per-model coverage.
-3. Enable strict projection in staging so public status reflects the authenticated key scope.
-4. Roll out strict projection gradually in production and monitor `Processing`, `Failed`, retry, and task-creation asset errors.
+3. Verify public status in staging; canonical asset responses always project status strictly from the authenticated key scope.
+4. Roll out strict task creation/reference enforcement gradually in production and monitor `Processing`, `Failed`, retry, and task-creation asset errors.
 
 Relevant environment flag:
 
 ```env
 ASSET_MODEL_COVERAGE_STRICT_ENABLED=false
 ```
+
+This flag is only a mixed-version rollout guard for task creation/reference
+strict enforcement. It does not relax canonical public asset status; public
+responses always report `Active` only when all required models in the current
+key scope are ready.
 
 ## Errors
 

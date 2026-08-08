@@ -87,11 +87,7 @@ func ReconcileAssetForScope(ctx context.Context, userID int, publicID string, sc
 	if err != nil {
 		return nil, err
 	}
-	if AssetModelCoverageStrictEnabled {
-		result.Status = strictStatus
-	} else {
-		result.Status = projectedAssetStatus(asset)
-	}
+	result.Status = strictStatus
 	result.AvailableModels, err = availableAssetModelsForScope(asset.Id, scope, rows, targets)
 	if err != nil {
 		return nil, err
