@@ -758,6 +758,21 @@
         showAudioWatermark: true,
         showMingizSend: false,
       },
+      "seedance2.0-nsfw": {
+        label: "seedance2.0-nsfw（海外官方素材）",
+        family: "doubao",
+        hint: "海外 Seedance NSFW · 图片自动走 /api/seedance/official 资产认证 · 生成时 content 使用 asset:// · POST /v1/video/generations。",
+        createPath: "/v1/video/generations",
+        queryPath: (id) => `/v1/video/generations/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        defaultDuration: 5,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: true,
+        showMingizSend: false,
+        requireOfficialAsset: true,
+      },
       "mingiz-sd2": {
         label: "mingiz-sd2（星河 2.0）",
         family: "mingiz",
@@ -1059,6 +1074,7 @@
       if (n.includes("sd2-431") || n === "videos_stable") {
         return "sd2-431";
       }
+      if (n.includes("nsfw") && n.includes("seedance")) return "seedance2.0-nsfw";
       if (n.includes("doubao") && n.includes("seedance")) return "doubao-seedance-2-0-260128";
       if (n.includes("wstar") || n.includes("vyro")) return "wstar-seedance-2-fast";
       if (n.includes("mingiz") || /(^|[^a-z])sd2([^a-z]|$)/i.test(n) || n.includes("sd2-fast") || n.includes("sd2fast")) {
@@ -1069,6 +1085,12 @@
       if (n.includes("sdvip") || n === "sdvip720") return "sdvip720";
       if (n.includes("seedance")) return "seedance2.0";
       return "seedance2.0";
+    }
+    function requiresOfficialAsset() {
+      return !!profile().requireOfficialAsset;
+    }
+    function sleep(ms) {
+      return new Promise((resolve) => window.setTimeout(resolve, ms));
     }
     function profile() {
       const key = resolveProfileKey(els.model.value || activeModelName());
@@ -1506,11 +1528,14 @@
         const st = String(asset.uploadStatus || "");
         status.className = "asset-status " + (st === "ready" ? "ok" : st === "failed" ? "bad" : "warn");
         status.textContent = st === "uploading" ? (asset.viaFacePass ? "人脸处理中…" : "上传中…")
-          : st === "ready" ? (asset.viaFacePass ? "已过人脸" : "已就绪")
+          : st === "certifying" ? "资产认证中…"
+          : st === "ready" ? (asset.assetUri ? "已认证" : (asset.viaFacePass ? "已过人脸" : "已就绪"))
           : st === "failed" ? ("失败")
           : st === "local" ? "本地"
           : "待处理";
-        status.title = st === "failed" ? ("失败: " + (asset.uploadError || "")) : status.textContent;
+        status.title = st === "failed"
+          ? ("失败: " + (asset.uploadError || ""))
+          : (asset.assetUri || status.textContent);
         tools.appendChild(mentionBtn);
         tools.appendChild(status);
         meta.appendChild(tagEl);
@@ -1937,8 +1962,72 @@
       return uploadToImageHost(asset);
     }
 
+    async function certifyOfficialAsset(asset) {
+      if (asset.kind !== "image") return asset;
+      if (asset.assetUri) {
+        asset.uploadStatus = "ready";
+        return asset;
+      }
+      if (!asset.publicUrl) {
+        if (asset.file) await uploadImageAsset(asset, false);
+        else throw new Error("需要公网图片 URL 才能做官方资产认证");
+      }
+      asset.uploadStatus = "certifying";
+      asset.uploadError = "";
+      renderAssets();
+
+      const createRes = await fetch(`${apiBase()}/api/seedance/official/assets`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+        body: JSON.stringify({
+          url: asset.publicUrl,
+          type: "image",
+          name: asset.name || asset.tag || "ref",
+        }),
+      });
+      const createData = await readJson(createRes);
+      if (!createRes.ok || createData.success === false) {
+        throw new Error(formatError(createData, createRes.status));
+      }
+      const data = createData.data || {};
+      const pollId = data.aicc_asset_id || String(data.id || "");
+      let assetUri = data.asset_uri || (pollId && !/^\d+$/.test(pollId) ? `asset://${pollId}` : "");
+      if (!pollId) throw new Error("官方素材认证未返回 asset id");
+
+      const deadline = Date.now() + 120000;
+      while (Date.now() < deadline) {
+        const qRes = await fetch(`${apiBase()}/api/seedance/official/assets/${encodeURIComponent(pollId)}`, {
+          headers: authHeaders({ Accept: "application/json" }),
+        });
+        const qData = await readJson(qRes);
+        if (!qRes.ok || qData.success === false) {
+          throw new Error(formatError(qData, qRes.status));
+        }
+        const row = qData.data || {};
+        const st = String(row.status || "").toLowerCase();
+        if (row.asset_uri) assetUri = row.asset_uri;
+        if (st === "active") {
+          asset.aiccAssetId = pollId;
+          asset.assetUri = assetUri || `asset://${row.aicc_asset_id || pollId}`;
+          asset.uploadStatus = "ready";
+          renderAssets();
+          return asset;
+        }
+        if (st === "failed") {
+          throw new Error(row.error_message || "官方素材认证失败");
+        }
+        await sleep(3000);
+      }
+      throw new Error("官方素材认证超时（120s）");
+    }
+
     async function ensureAssetsReady(list, preferMultipart) {
+      const needOfficial = requiresOfficialAsset();
       for (const asset of list) {
+        if (needOfficial && asset.kind === "image") {
+          await certifyOfficialAsset(asset);
+          continue;
+        }
         if (asset.publicUrl) {
           asset.uploadStatus = "ready";
           continue;
@@ -1993,7 +2082,7 @@
       }
       const content = [{ type: "text", text: promptText() }];
       for (const asset of submitAssets) {
-        const url = asset.publicUrl;
+        const url = (asset.kind === "image" && asset.assetUri) ? asset.assetUri : asset.publicUrl;
         if (!url) continue;
         if (asset.kind === "image") {
           content.push({ type: "image_url", image_url: { url }, role: "reference_image" });
@@ -2362,7 +2451,11 @@
           plan = buildRequestPlan();
         }
 
-        setStatus(plan.preferMultipart ? "准备 multipart 提交…" : "确认素材 / 上传图床…");
+        setStatus(
+          requiresOfficialAsset()
+            ? "确认素材 / 官方资产认证…"
+            : (plan.preferMultipart ? "准备 multipart 提交…" : "确认素材 / 上传图床…")
+        );
         await ensureAssetsReady(plan.assets, plan.preferMultipart);
         if (!plan.preferMultipart) {
           const fresh = buildRequestPlan();
@@ -2535,6 +2628,7 @@
           publicUrl: "",
           uploadError: "",
           viaFacePass: false,
+          assetUri: "",
         }];
       });
       els.assetFiles.value = "";
@@ -2547,15 +2641,17 @@
       const p = profile();
       const preferMultipart = (p.family === "mingiz" || p.family === "vyro") && els.mingizSend.value === "multipart";
       const useFacePass = facePassEnabled();
+      const needOfficial = requiresOfficialAsset();
       for (const asset of incoming) {
         try {
           if (useFacePass && asset.kind === "image" && asset.file) {
             await uploadImageAsset(asset, true);
-          } else if (preferMultipart && asset.file && asset.kind === "image") {
+          } else if (preferMultipart && asset.file && asset.kind === "image" && !needOfficial) {
             asset.uploadStatus = "local";
             renderAssets();
           } else if (asset.kind === "image") {
             await uploadImageAsset(asset, false);
+            if (needOfficial) await certifyOfficialAsset(asset);
           } else if (asset.kind === "audio" || asset.kind === "video") {
             await uploadToMediaHost(asset);
           } else {
@@ -2567,11 +2663,18 @@
           asset.uploadStatus = "failed";
           asset.uploadError = err.message;
           renderAssets();
-          setStatus(`素材 @${asset.tag || asset.name} 上传失败：${err.message}`, "bad");
+          setStatus(`素材 @${asset.tag || asset.name} 处理失败：${err.message}`, "bad");
         }
       }
-      const ok = incoming.filter((a) => a.publicUrl || a.uploadStatus === "local").length;
-      if (ok) setStatus(useFacePass ? `已过人脸处理 ${ok} 个素材。` : `已处理 ${ok} 个素材。`, "ok");
+      const ok = incoming.filter((a) => a.assetUri || a.publicUrl || a.uploadStatus === "local").length;
+      if (ok) {
+        setStatus(
+          needOfficial
+            ? `已官方资产认证 ${incoming.filter((a) => a.assetUri).length} 张图片。`
+            : (useFacePass ? `已过人脸处理 ${ok} 个素材。` : `已处理 ${ok} 个素材。`),
+          "ok"
+        );
+      }
       scheduleRebuild();
     }
 
@@ -2593,12 +2696,28 @@
         publicUrl: url,
         uploadError: "",
         viaFacePass: false,
+        assetUri: "",
       };
       assets.push(asset);
       els.manualUrl.value = "";
       hideUrlModal();
       renderAssets();
-      setStatus(`已添加素材：@${asset.tag}`, "ok");
+      if (requiresOfficialAsset() && kind === "image") {
+        certifyOfficialAsset(asset)
+          .then(() => {
+            setStatus(`已官方资产认证：@${asset.tag} → ${asset.assetUri}`, "ok");
+            scheduleRebuild();
+          })
+          .catch((err) => {
+            asset.uploadStatus = "failed";
+            asset.uploadError = err.message;
+            renderAssets();
+            setStatus(`官方资产认证失败：${err.message}`, "bad");
+          });
+        setStatus(`已添加素材，正在官方资产认证：@${asset.tag}`, "warn");
+      } else {
+        setStatus(`已添加素材：@${asset.tag}`, "ok");
+      }
     }
 
     function showUrlModal() {

@@ -306,6 +306,12 @@ func CreateSeedanceRemoteAssetFor(userId int, provider, assetURL, assetType, nam
 		if strings.TrimSpace(name) != "" {
 			body["Name"] = strings.TrimSpace(name)
 		}
+		// 海外 BytePlus：跳过素材库内容预审（需控制台同时关闭 secure mode）
+		if gw.Platform == operation_setting.SeedanceOfficialPlatformOverseas {
+			body["Moderation"] = map[string]any{
+				"Strategy": "Skip",
+			}
+		}
 		_, result, _, err := seedanceOfficialDo(gw, "CreateAsset", body)
 		if err != nil {
 			return nil, err
