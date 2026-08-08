@@ -183,6 +183,43 @@ func TestCompleteSubscriptionOrderWithProviderBindingIsIdempotentForSameOrder(t 
 	require.EqualValues(t, 1, subCount)
 }
 
+func TestCompleteSubscriptionOrderWithProviderBindingCASLoserDoesNotCreateProviderBinding(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+	insertUserForSubscriptionRecurringTest(t, 502)
+	insertPlanForSubscriptionRecurringTest(t, 602, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-cas-loser-binding", 502, 602)
+
+	var order SubscriptionOrder
+	require.NoError(t, DB.First(&order, "trade_no = ?", "recurring-order-cas-loser-binding").Error)
+
+	callbackName := "test:force_provider_binding_subscription_cas_loss"
+	fired := false
+	var callbackErr error
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if fired || tx.Statement == nil || tx.Statement.Table != "subscription_orders" {
+			return
+		}
+		fired = true
+		callbackErr = tx.Exec("UPDATE subscription_orders SET status = ?, complete_time = ? WHERE id = ?", common.TopUpStatusSuccess, int64(1_700_203_550), order.Id).Error
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Update().Remove(callbackName))
+	})
+
+	binding, err := CompleteSubscriptionOrderWithProviderBinding("recurring-order-cas-loser-binding", "{}", PaymentProviderStripe, PaymentMethodStripe, stripeSnapshotForSubscriptionRecurringTest("sub_cas_loser_binding"))
+
+	require.NoError(t, err)
+	require.NoError(t, callbackErr)
+	require.True(t, fired)
+	require.Nil(t, binding)
+
+	var bindingCount int64
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Count(&bindingCount).Error)
+	require.Zero(t, bindingCount)
+	requireSubscriptionLifecycleEventCount(t, order.TradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
+}
+
 func TestCompleteSubscriptionOrderWithProviderBindingGrantsInviteSubscriptionReward(t *testing.T) {
 	setupSubscriptionRecurringTestDB(t)
 	migrateSubscriptionRecurringTestDB(t)

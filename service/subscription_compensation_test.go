@@ -697,7 +697,7 @@ func TestStripeToBalanceRefundZeroRowTransitionDoesNotCreditQuota(t *testing.T) 
 	require.NoError(t, model.DB.Exec(`
 		CREATE TRIGGER block_subscription_compensation_refund
 		BEFORE UPDATE OF status ON subscription_orders
-		WHEN OLD.status = 'success' AND NEW.status = 'failed'
+		WHEN OLD.status IN ('success', 'initiated') AND NEW.status = 'failed'
 		BEGIN
 			SELECT RAISE(IGNORE);
 		END;
@@ -710,7 +710,7 @@ func TestStripeToBalanceRefundZeroRowTransitionDoesNotCreditQuota(t *testing.T) 
 	require.Equal(t, charged.Quota, after.Quota)
 	var order model.SubscriptionOrder
 	require.NoError(t, model.DB.Where("trade_no = ?", intent.WalletDebitTradeNo).First(&order).Error)
-	require.Equal(t, common.TopUpStatusSuccess, order.Status)
+	require.Equal(t, model.SubscriptionOrderStatusInitiated, order.Status)
 	require.NoError(t, model.DB.First(&intent, intent.Id).Error)
 	require.NotEqual(t, model.SubscriptionChangeIntentStatusApplied, intent.Status)
 }

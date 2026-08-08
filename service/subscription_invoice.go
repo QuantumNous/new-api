@@ -466,10 +466,7 @@ func reconcilePaidInvoice(ctx context.Context, invoiceID string, reservation *mo
 		if err := validateLocalInvoiceFacts(facts, order, intent, contract, plan, user, planSnapshot); err != nil {
 			return PermanentPaidInvoiceError(err)
 		}
-		binding, err := createOrLoadStripeInvoiceBindingTx(tx, order, contract.Id, providerSnapshotFromPaidInvoice(facts, invoiceID))
-		if err != nil {
-			return err
-		}
+		var binding *model.SubscriptionProviderBinding
 		var grant *model.GrantEntitlementResult
 		applied, err := model.PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, model.PurchaseLifecycleTransition{
 			SourceID:   int64(order.Id),
@@ -480,7 +477,10 @@ func reconcilePaidInvoice(ctx context.Context, invoiceID string, reservation *mo
 			OccurredAt: common.GetTimestamp(),
 			SourceRef:  "stripe.invoice." + invoiceID,
 		}, func(tx *gorm.DB, locked *model.SubscriptionOrder, transition *model.PurchaseLifecycleTransition) error {
-			var err error
+			binding, err = createOrLoadStripeInvoiceBindingTx(tx, locked, contract.Id, providerSnapshotFromPaidInvoice(facts, invoiceID))
+			if err != nil {
+				return err
+			}
 			grant, err = model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
 				ContractId:           contract.Id,
 				UserId:               locked.UserId,

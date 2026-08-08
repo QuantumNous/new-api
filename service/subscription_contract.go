@@ -1177,36 +1177,46 @@ func applyBalanceOnePeriodChangeTx(tx *gorm.DB, user *model.User, contract *mode
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodBalance,
 		PaymentProvider: model.PaymentProviderBalance,
-		Status:          common.TopUpStatusSuccess,
 		CreateTime:      now,
-		CompleteTime:    now,
 		ProviderPayload: fmt.Sprintf("charged_quota=%d;change_intent_id=%d", requiredQuota, intent.Id),
 	}
-	if err := tx.Create(order).Error; err != nil {
-		return nil, err
-	}
-
-	periodStart := common.GetTimestamp()
+	periodStart := now
 	periodEnd, err := subscriptionPlanPeriodEnd(periodStart, plan)
 	if err != nil {
 		return nil, err
 	}
-	grant, err := model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
-		ContractId:           contract.Id,
-		UserId:               user.Id,
-		PlanId:               plan.Id,
-		ProviderBindingId:    0,
-		GrantKey:             "balance:" + tradeNo,
-		PaymentMode:          model.SubscriptionPaymentModeBalanceOnePeriod,
-		AmountTotal:          plan.TotalAmount,
-		PeriodStart:          periodStart,
-		PeriodEnd:            periodEnd,
-		EndReasonForPrevious: previousEntitlementEndReason(intent.Kind),
-		Source:               model.PaymentMethodBalance,
+	var grant *model.GrantEntitlementResult
+	applied, err := model.CreateSubscriptionOrderWithSuccessPurchaseLifecycleTx(tx, order, "subscription_contract.balance_one_period", func(tx *gorm.DB, locked *model.SubscriptionOrder, transition *model.PurchaseLifecycleTransition) error {
+		var err error
+		grant, err = model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
+			ContractId:           contract.Id,
+			UserId:               user.Id,
+			PlanId:               plan.Id,
+			ProviderBindingId:    0,
+			GrantKey:             "balance:" + locked.TradeNo,
+			PaymentMode:          model.SubscriptionPaymentModeBalanceOnePeriod,
+			AmountTotal:          plan.TotalAmount,
+			PeriodStart:          periodStart,
+			PeriodEnd:            periodEnd,
+			EndReasonForPrevious: previousEntitlementEndReason(intent.Kind),
+			Source:               model.PaymentMethodBalance,
+		})
+		if err != nil {
+			return err
+		}
+		if grant != nil && grant.Entitlement != nil {
+			transition.SubscriptionScopeID = int64(grant.Entitlement.Id)
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+	if !applied {
+		return nil, errors.New("subscription contract balance lifecycle transition was not applied")
+	}
+	order.Status = common.TopUpStatusSuccess
+	order.CompleteTime = now
 
 	intent.Status = model.SubscriptionChangeIntentStatusApplied
 	intent.WalletDebitTradeNo = tradeNo
@@ -1425,7 +1435,6 @@ func prepareStripeSubscriptionCheckoutPaymentTx(tx *gorm.DB, user *model.User, c
 		PaymentProvider:           model.PaymentProviderStripe,
 		GAClientID:                NormalizeGAIdentifier(gaClientID),
 		GASessionID:               NormalizeGAIdentifier(gaSessionID),
-		Status:                    common.TopUpStatusPending,
 		CreateTime:                now,
 		PurchaseMonths:            1,
 		UnitPrice:                 quote.UnitPrice,
@@ -1441,7 +1450,7 @@ func prepareStripeSubscriptionCheckoutPaymentTx(tx *gorm.DB, user *model.User, c
 		ProviderPayload:           fmt.Sprintf("choice=%s;months=1;contract_id=%d;change_intent_id=%d", SubscriptionPaymentChoiceStripeRecurring, contract.Id, intent.Id),
 		ChangeIntentId:            intent.Id,
 	}
-	if err := tx.Create(order).Error; err != nil {
+	if err := model.CreateSubscriptionOrderWithPendingPurchaseLifecycleTx(tx, order, "subscription_contract.stripe_recurring_checkout"); err != nil {
 		return nil, err
 	}
 	discountFacts := subscriptionReservationDiscountFacts{

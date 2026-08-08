@@ -37,6 +37,81 @@ func TestSubscriptionPlanChangeSourceKeepsProviderBindingBeforeContractLocks(t *
 	)
 }
 
+func TestSubscriptionLifecycleSourceRoutesReviewedOrderTransitionsThroughLifecycle(t *testing.T) {
+	for _, tc := range []struct {
+		fileName     string
+		functionName string
+		forbidden    []string
+	}{
+		{
+			fileName:     "subscription_purchase.go",
+			functionName: "createPendingOneTimePurchaseOrderTx",
+			forbidden: []string{
+				"Status:                    common.TopUpStatusPending",
+				"tx.Create(order)",
+			},
+		},
+		{
+			fileName:     "subscription_purchase.go",
+			functionName: "applyBalancePrepaidPurchaseTx",
+			forbidden: []string{
+				"Status:                    common.TopUpStatusSuccess",
+				"tx.Create(order)",
+			},
+		},
+		{
+			fileName:     "subscription_contract.go",
+			functionName: "applyBalanceOnePeriodChangeTx",
+			forbidden: []string{
+				"Status:          common.TopUpStatusSuccess",
+				"tx.Create(order)",
+			},
+		},
+		{
+			fileName:     "subscription_contract.go",
+			functionName: "prepareStripeSubscriptionCheckoutPaymentTx",
+			forbidden: []string{
+				"Status:                    common.TopUpStatusPending",
+				"tx.Create(order)",
+			},
+		},
+		{
+			fileName:     "subscription_compensation.go",
+			functionName: "prepareStripeToBalanceCompensationTx",
+			forbidden: []string{
+				"Status:          common.TopUpStatusSuccess",
+				"tx.Create(order)",
+			},
+		},
+		{
+			fileName:     "subscription_compensation.go",
+			functionName: "refundSubscriptionCompensationWalletDebitDefault",
+			forbidden: []string{
+				`"status":           common.TopUpStatusFailed`,
+			},
+		},
+	} {
+		t.Run(tc.fileName+"/"+tc.functionName, func(t *testing.T) {
+			body := sourceFunctionBody(t, tc.fileName, tc.functionName)
+			require.Contains(t, body, "PurchaseLifecycle", "%s must use subscription purchase lifecycle primitive", tc.functionName)
+			for _, forbidden := range tc.forbidden {
+				require.NotContains(t, body, forbidden)
+			}
+		})
+	}
+}
+
+func TestSubscriptionInvoiceBindingSourceCreatesOrUpdatesOnlyInsideLifecycleWinner(t *testing.T) {
+	body := sourceFunctionBody(t, "subscription_invoice.go", "reconcilePaidInvoice")
+
+	requireSourceOrderInServiceFunction(t, readServiceSourceForLockOrder(t, "subscription_invoice.go"), "reconcilePaidInvoice",
+		"PersistSubscriptionPurchaseLifecycleTransitionWithWinner",
+		"createOrLoadStripeInvoiceBindingTx",
+	)
+	require.Contains(t, body, "createOrLoadStripeInvoiceBindingTx(tx, locked")
+	require.NotContains(t, body, "createOrLoadStripeInvoiceBindingTx(tx, order")
+}
+
 func TestSubscriptionPlanChangeRejectsPrelockedProviderBindingDrift(t *testing.T) {
 	binding := &model.SubscriptionProviderBinding{
 		Id:         7001,

@@ -848,7 +848,6 @@ func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract
 		PaymentProvider:           paymentProviderForPurchaseChoice(cmd.PaymentChoice),
 		GAClientID:                NormalizeGAIdentifier(cmd.GAClientID),
 		GASessionID:               NormalizeGAIdentifier(cmd.GASessionID),
-		Status:                    common.TopUpStatusPending,
 		CreateTime:                now,
 		PurchaseMonths:            cmd.Months,
 		UnitPrice:                 quote.UnitPrice,
@@ -863,7 +862,7 @@ func createPendingOneTimePurchaseOrderTx(tx *gorm.DB, user *model.User, contract
 		ProviderPayload:           fmt.Sprintf("choice=%s;method=%s;months=%d;contract_id=%d;change_intent_id=%d", cmd.PaymentChoice, subscriptionPurchaseOrderPaymentMethod(cmd), cmd.Months, contract.Id, intent.Id),
 		ChangeIntentId:            intent.Id,
 	}
-	if err := tx.Create(order).Error; err != nil {
+	if err := model.CreateSubscriptionOrderWithPendingPurchaseLifecycleTx(tx, order, "subscription_purchase.pending_order"); err != nil {
 		return nil, err
 	}
 	if err := reserveSubscriptionDiscountForOrderTx(tx, order, plan, cmd, quote, discountFacts, subscriptionPurchaseOrderExpiresAt(now)); err != nil {
@@ -922,9 +921,7 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 		TradeNo:                   subscriptionPurchaseTradeNo(user.Id, intent.Id),
 		PaymentMethod:             model.PaymentMethodBalance,
 		PaymentProvider:           model.PaymentProviderBalance,
-		Status:                    common.TopUpStatusSuccess,
 		CreateTime:                now,
-		CompleteTime:              now,
 		PurchaseMonths:            cmd.Months,
 		UnitPrice:                 quote.UnitPrice,
 		PaymentCurrency:           quote.Currency,
@@ -939,9 +936,49 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 		ProviderPayload:           fmt.Sprintf("charged_quota=%d;refunded_quota=%d;choice=%s;months=%d;contract_id=%d;change_intent_id=%d", requiredQuota, refundQuota, cmd.PaymentChoice, cmd.Months, contract.Id, intent.Id),
 		ChangeIntentId:            intent.Id,
 	}
-	if err := tx.Create(order).Error; err != nil {
+	var grant *model.GrantEntitlementResult
+	applied, err := model.CreateSubscriptionOrderWithSuccessPurchaseLifecycleTx(tx, order, "subscription_purchase.balance_prepaid", func(tx *gorm.DB, locked *model.SubscriptionOrder, transition *model.PurchaseLifecycleTransition) error {
+		periodStart := now
+		periodEnd := time.Unix(periodStart, 0).AddDate(0, cmd.Months, 0).Unix()
+		var err error
+		grant, err = model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
+			ContractId:           contract.Id,
+			UserId:               user.Id,
+			PlanId:               plan.Id,
+			ProviderBindingId:    0,
+			GrantKey:             "prepaid:" + locked.TradeNo,
+			PaymentMode:          model.SubscriptionPaymentModePrepaid,
+			AmountTotal:          plan.TotalAmount,
+			MediaCreditsTotal:    plan.MediaCreditsMonthly,
+			Window5hAmount:       common.GetPointer(plan.Window5hAmount),
+			WindowWeekAmount:     common.GetPointer(plan.WindowWeekAmount),
+			UpgradeGroup:         common.GetPointer(plan.UpgradeGroup),
+			PeriodStart:          periodStart,
+			PeriodEnd:            periodEnd,
+			EndReasonForPrevious: previousEntitlementEndReason(intent.Kind),
+			Source:               model.PaymentMethodBalance,
+		})
+		if err != nil {
+			return err
+		}
+		if grant != nil && grant.Entitlement != nil {
+			transition.SubscriptionScopeID = int64(grant.Entitlement.Id)
+		}
+		if err := createPrepaidTermSegmentsTx(tx, contract.Id, locked.Id, plan.Id, PrepaidTermAllocation{
+			CanonicalWalletUnitPrice: plan.PriceAmount,
+		}, periodStart, cmd.Months); err != nil {
+			return err
+		}
+		return markPrepaidPurchaseAppliedTx(tx, contract, intent, plan, periodStart, periodEnd, locked.TradeNo, locked.PaymentMethod)
+	})
+	if err != nil {
 		return nil, nil, err
 	}
+	if !applied {
+		return nil, nil, errors.New("subscription purchase lifecycle transition was not applied")
+	}
+	order.Status = common.TopUpStatusSuccess
+	order.CompleteTime = now
 	if err := reserveSubscriptionDiscountForOrderTx(tx, order, plan, cmd, quote, discountFacts, subscriptionPurchaseOrderExpiresAt(now)); err != nil {
 		return nil, nil, err
 	}
@@ -994,36 +1031,6 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 		}
 	}
 
-	periodStart := now
-	periodEnd := time.Unix(periodStart, 0).AddDate(0, cmd.Months, 0).Unix()
-	grant, err := model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
-		ContractId:           contract.Id,
-		UserId:               user.Id,
-		PlanId:               plan.Id,
-		ProviderBindingId:    0,
-		GrantKey:             "prepaid:" + order.TradeNo,
-		PaymentMode:          model.SubscriptionPaymentModePrepaid,
-		AmountTotal:          plan.TotalAmount,
-		MediaCreditsTotal:    plan.MediaCreditsMonthly,
-		Window5hAmount:       common.GetPointer(plan.Window5hAmount),
-		WindowWeekAmount:     common.GetPointer(plan.WindowWeekAmount),
-		UpgradeGroup:         common.GetPointer(plan.UpgradeGroup),
-		PeriodStart:          periodStart,
-		PeriodEnd:            periodEnd,
-		EndReasonForPrevious: previousEntitlementEndReason(intent.Kind),
-		Source:               model.PaymentMethodBalance,
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	if err := createPrepaidTermSegmentsTx(tx, contract.Id, order.Id, plan.Id, PrepaidTermAllocation{
-		CanonicalWalletUnitPrice: plan.PriceAmount,
-	}, periodStart, cmd.Months); err != nil {
-		return nil, nil, err
-	}
-	if err := markPrepaidPurchaseAppliedTx(tx, contract, intent, plan, periodStart, periodEnd, order.TradeNo, order.PaymentMethod); err != nil {
-		return nil, nil, err
-	}
 	if strings.TrimSpace(order.SubscriptionDiscountReservationKey) != "" {
 		if _, err := model.CommitSubscriptionDiscountTx(tx, order.SubscriptionDiscountReservationKey); err != nil {
 			return nil, nil, err

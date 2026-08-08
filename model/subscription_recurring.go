@@ -676,6 +676,26 @@ func createOrLoadProviderBindingTx(tx *gorm.DB, order *SubscriptionOrder, snapsh
 	return binding, nil
 }
 
+func loadProviderBindingForCompletedOrderTx(tx *gorm.DB, order *SubscriptionOrder, snapshot ProviderSubscriptionSnapshot) (*SubscriptionProviderBinding, error) {
+	if tx == nil || order == nil {
+		return nil, errors.New("invalid provider binding args")
+	}
+	if strings.TrimSpace(snapshot.ProviderSubscriptionId) == "" {
+		return nil, errors.New("provider subscription id is empty")
+	}
+	binding, err := findBindingByProviderSubscriptionIDTx(tx, PaymentProviderStripe, snapshot.ProviderSubscriptionId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if binding.UserId == order.UserId && binding.PlanId == order.PlanId && binding.InitialOrderId == order.Id {
+		return binding, nil
+	}
+	return nil, ErrSubscriptionProviderBindingConflict
+}
+
 func RecordPaymentWebhookEventProcessing(provider string, eventID string, eventType string, providerObjectID string, eventCreated int64, payloadHash string) (bool, error) {
 	provider = normalizeProvider(provider)
 	eventID = strings.TrimSpace(eventID)
@@ -889,13 +909,13 @@ func CompleteSubscriptionOrderWithProviderBinding(tradeNo string, providerPayloa
 		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
 			return ErrPaymentMethodMismatch
 		}
-		binding, err := createOrLoadProviderBindingTx(tx, &order, snapshot)
-		if err != nil {
-			return err
-		}
-		result = binding
 		rewardTradeNo = order.TradeNo
 		if order.Status == common.TopUpStatusSuccess {
+			binding, err := loadProviderBindingForCompletedOrderTx(tx, &order, snapshot)
+			if err != nil {
+				return err
+			}
+			result = binding
 			return nil
 		}
 		if !purchaseLifecycleStatusAllowed(normalizePurchaseLifecycleStatus(order.Status), subscriptionSuccessFromStatuses()) {
@@ -916,6 +936,11 @@ func CompleteSubscriptionOrderWithProviderBinding(tradeNo string, providerPayloa
 			OccurredAt: common.GetTimestamp(),
 			SourceRef:  "subscription_order.provider_binding_complete",
 		}, func(tx *gorm.DB, locked *SubscriptionOrder, transition *PurchaseLifecycleTransition) error {
+			binding, err := createOrLoadProviderBindingTx(tx, locked, snapshot)
+			if err != nil {
+				return err
+			}
+			result = binding
 			if providerPayload != "" {
 				locked.ProviderPayload = providerPayload
 			}

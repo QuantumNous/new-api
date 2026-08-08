@@ -14,6 +14,7 @@ const (
 	PurchaseLifecycleKindSubscription  = "subscription"
 	purchaseLifecycleTopUpTable        = "top_ups"
 	purchaseLifecycleSubscriptionTable = "subscription_orders"
+	SubscriptionOrderStatusInitiated   = "initiated"
 )
 
 type PurchaseLifecycleTransition struct {
@@ -40,6 +41,63 @@ func PersistPurchaseLifecycleTransition(tx *gorm.DB, transition PurchaseLifecycl
 func PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx *gorm.DB, transition PurchaseLifecycleTransition, winnerHook purchaseLifecycleSubscriptionWinnerHook) (bool, error) {
 	transition.Kind = PurchaseLifecycleKindSubscription
 	return persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx, transition, winnerHook)
+}
+
+func CreateSubscriptionOrderWithPendingPurchaseLifecycleTx(tx *gorm.DB, order *SubscriptionOrder, sourceRef string) error {
+	if tx == nil || order == nil {
+		return errors.New("subscription order pending lifecycle requires order")
+	}
+	if order.CreateTime == 0 {
+		order.CreateTime = common.GetTimestamp()
+	}
+	order.Status = common.TopUpStatusPending
+	if err := tx.Create(order).Error; err != nil {
+		return err
+	}
+	_, err := PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, PurchaseLifecycleTransition{
+		SourceID:   int64(order.Id),
+		TradeNo:    order.TradeNo,
+		UserID:     order.UserId,
+		ToStatus:   common.TopUpStatusPending,
+		OccurredAt: order.CreateTime,
+		SourceRef:  strings.TrimSpace(sourceRef),
+	}, nil)
+	return err
+}
+
+func CreateSubscriptionOrderWithSuccessPurchaseLifecycleTx(tx *gorm.DB, order *SubscriptionOrder, sourceRef string, winnerHook purchaseLifecycleSubscriptionWinnerHook) (bool, error) {
+	if tx == nil || order == nil {
+		return false, errors.New("subscription order success lifecycle requires order")
+	}
+	if order.CreateTime == 0 {
+		order.CreateTime = common.GetTimestamp()
+	}
+	order.Status = SubscriptionOrderStatusInitiated
+	order.CompleteTime = 0
+	if err := tx.Create(order).Error; err != nil {
+		return false, err
+	}
+	return PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, PurchaseLifecycleTransition{
+		SourceID:   int64(order.Id),
+		TradeNo:    order.TradeNo,
+		UserID:     order.UserId,
+		FromStatus: []string{SubscriptionOrderStatusInitiated},
+		ToStatus:   common.TopUpStatusSuccess,
+		OccurredAt: order.CreateTime,
+		SourceRef:  strings.TrimSpace(sourceRef),
+	}, winnerHook)
+}
+
+func CreateSubscriptionOrderWithInitiatedPurchaseLifecycleTx(tx *gorm.DB, order *SubscriptionOrder) error {
+	if tx == nil || order == nil {
+		return errors.New("subscription order initiated lifecycle requires order")
+	}
+	if order.CreateTime == 0 {
+		order.CreateTime = common.GetTimestamp()
+	}
+	order.Status = SubscriptionOrderStatusInitiated
+	order.CompleteTime = 0
+	return tx.Create(order).Error
 }
 
 func persistPurchaseLifecycleTransitionWithWinner(tx *gorm.DB, transition PurchaseLifecycleTransition, winnerHook purchaseLifecycleWinnerHook) (bool, error) {

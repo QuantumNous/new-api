@@ -100,13 +100,11 @@ func prepareStripeToBalanceCompensationTx(tx *gorm.DB, user *model.User, contrac
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodBalance,
 		PaymentProvider: model.PaymentProviderBalance,
-		Status:          common.TopUpStatusSuccess,
 		CreateTime:      now,
-		CompleteTime:    now,
 		ProviderPayload: fmt.Sprintf("charged_quota=%d;change_intent_id=%d;purpose=stripe_to_balance", requiredQuota, intent.Id),
 		ChangeIntentId:  intent.Id,
 	}
-	if err := tx.Create(order).Error; err != nil {
+	if err := model.CreateSubscriptionOrderWithInitiatedPurchaseLifecycleTx(tx, order); err != nil {
 		return err
 	}
 
@@ -330,20 +328,40 @@ func grantStripeToBalanceEntitlement(intentID int64) error {
 		if err != nil {
 			return err
 		}
-		if _, err := model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
-			ContractId:           contract.Id,
-			UserId:               intent.UserId,
-			PlanId:               target.Id,
-			ProviderBindingId:    0,
-			GrantKey:             "balance:" + strings.TrimSpace(intent.WalletDebitTradeNo),
-			PaymentMode:          model.SubscriptionPaymentModeBalanceOnePeriod,
-			AmountTotal:          target.TotalAmount,
-			PeriodStart:          periodStart,
-			PeriodEnd:            periodEnd,
-			EndReasonForPrevious: model.SubscriptionEntitlementEndReasonUpgraded,
-			Source:               model.PaymentMethodBalance,
-		}); err != nil {
+		applied, err := model.PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, model.PurchaseLifecycleTransition{
+			TradeNo:    intent.WalletDebitTradeNo,
+			UserID:     intent.UserId,
+			FromStatus: []string{model.SubscriptionOrderStatusInitiated},
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: periodStart,
+			SourceRef:  "subscription_compensation.stripe_to_balance",
+		}, func(tx *gorm.DB, locked *model.SubscriptionOrder, transition *model.PurchaseLifecycleTransition) error {
+			grant, err := model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
+				ContractId:           contract.Id,
+				UserId:               intent.UserId,
+				PlanId:               target.Id,
+				ProviderBindingId:    0,
+				GrantKey:             "balance:" + strings.TrimSpace(locked.TradeNo),
+				PaymentMode:          model.SubscriptionPaymentModeBalanceOnePeriod,
+				AmountTotal:          target.TotalAmount,
+				PeriodStart:          periodStart,
+				PeriodEnd:            periodEnd,
+				EndReasonForPrevious: model.SubscriptionEntitlementEndReasonUpgraded,
+				Source:               model.PaymentMethodBalance,
+			})
+			if err != nil {
+				return err
+			}
+			if grant != nil && grant.Entitlement != nil {
+				transition.SubscriptionScopeID = int64(grant.Entitlement.Id)
+			}
+			return nil
+		})
+		if err != nil {
 			return err
+		}
+		if !applied {
+			return nil
 		}
 		return tx.Model(&model.SubscriptionChangeIntent{}).Where("id = ?", intent.Id).Updates(map[string]interface{}{
 			"status":       model.SubscriptionChangeIntentStatusApplied,
@@ -387,22 +405,23 @@ func refundSubscriptionCompensationWalletDebitDefault(ctx context.Context, inten
 		if err != nil {
 			return err
 		}
-		if order.Status == common.TopUpStatusSuccess {
-			transition := tx.Model(&model.SubscriptionOrder{}).Where(
-				"id = ? AND trade_no = ? AND change_intent_id = ? AND user_id = ? AND plan_id = ? AND payment_provider = ? AND status = ?",
-				order.Id, intent.WalletDebitTradeNo, intent.Id, intent.UserId, intent.ToPlanId, model.PaymentProviderBalance, common.TopUpStatusSuccess,
-			).
-				Updates(map[string]interface{}{
-					"status":           common.TopUpStatusFailed,
-					"provider_payload": order.ProviderPayload + fmt.Sprintf(";refunded_quota=%d", chargedQuota),
-				})
-			if transition.Error != nil {
-				return transition.Error
-			}
-			if transition.RowsAffected != 1 {
-				return errors.New("Stripe-to-balance refund order transition failed")
-			}
-			if chargedQuota > 0 {
+		if order.Status == common.TopUpStatusSuccess || order.Status == model.SubscriptionOrderStatusInitiated {
+			applied, err := model.PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, model.PurchaseLifecycleTransition{
+				SourceID:   int64(order.Id),
+				TradeNo:    order.TradeNo,
+				UserID:     intent.UserId,
+				FromStatus: []string{common.TopUpStatusSuccess, model.SubscriptionOrderStatusInitiated},
+				ToStatus:   common.TopUpStatusFailed,
+				OccurredAt: common.GetTimestamp(),
+				SourceRef:  "subscription_compensation.stripe_to_balance_refund",
+			}, func(tx *gorm.DB, locked *model.SubscriptionOrder, transition *model.PurchaseLifecycleTransition) error {
+				locked.ProviderPayload = locked.ProviderPayload + fmt.Sprintf(";refunded_quota=%d", chargedQuota)
+				if err := tx.Model(locked).Where("id = ?", locked.Id).Update("provider_payload", locked.ProviderPayload).Error; err != nil {
+					return err
+				}
+				if chargedQuota <= 0 {
+					return nil
+				}
 				result, err := model.ApplyWalletQuotaMutationTx(tx, intent.UserId, int64(chargedQuota), 0, "subscription_balance_refund", intent.WalletDebitTradeNo)
 				if err != nil {
 					return err
@@ -410,6 +429,13 @@ func refundSubscriptionCompensationWalletDebitDefault(ctx context.Context, inten
 				if !result.Applied {
 					return errors.New("Stripe-to-balance refund quota credit failed")
 				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			if !applied {
+				return errors.New("Stripe-to-balance refund order transition failed")
 			}
 		} else if order.Status != common.TopUpStatusFailed || !strings.Contains(order.ProviderPayload, "refunded_quota=") {
 			return errors.New("Stripe-to-balance wallet debit state mismatch")
