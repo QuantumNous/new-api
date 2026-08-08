@@ -190,7 +190,7 @@ func ensureAssetModelCoverageTargetAt(scope AssetModelScope, modelName string, o
 		return nil, ErrAssetBindingUnavailable
 	}
 
-	leaseExpiresAt, claimed, err := claimAssetModelTargetSelectionLease(scope.ScopeKey, modelName, owner, nowUnix)
+	_, claimed, err := claimAssetModelTargetSelectionLease(scope.ScopeKey, modelName, owner, nowUnix)
 	if err != nil {
 		return nil, err
 	}
@@ -201,8 +201,24 @@ func ensureAssetModelCoverageTargetAt(scope AssetModelScope, modelName string, o
 	if err != nil {
 		return nil, err
 	}
+	eligible, err := AssetModelTargetIsEligible(scope, *current)
+	if err != nil {
+		return nil, err
+	}
+	if eligible {
+		released, err := model.ReleaseAssetModelTargetLeaseCAS(scope.ScopeKey, modelName, owner, current.Generation, current.LeaseExpiresAt, nowUnix)
+		if err != nil {
+			return nil, err
+		}
+		if !released {
+			return nil, ErrAssetBindingInitializing
+		}
+		current.LeaseOwner = ""
+		current.LeaseExpiresAt = 0
+		return current, nil
+	}
 	candidate := assetModelCoverageTargetFromCandidate(scope, modelName, candidates[0], 0)
-	published, err := model.PublishAssetModelTargetCAS(scope.ScopeKey, modelName, owner, current.Generation, leaseExpiresAt, candidate, nowUnix)
+	published, err := model.PublishAssetModelTargetCAS(scope.ScopeKey, modelName, owner, current.Generation, current.LeaseExpiresAt, candidate, nowUnix)
 	if err != nil {
 		return nil, err
 	}

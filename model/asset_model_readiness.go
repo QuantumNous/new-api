@@ -297,6 +297,29 @@ func PublishAssetModelTargetCAS(scopeKey, modelName, owner string, expectedGener
 	return result.RowsAffected == 1, nil
 }
 
+func ReleaseAssetModelTargetLeaseCAS(scopeKey, modelName, owner string, expectedGeneration int64, expectedLeaseExpiresAt int64, now int64) (bool, error) {
+	scopeKey = strings.TrimSpace(scopeKey)
+	modelName = strings.TrimSpace(modelName)
+	owner = strings.TrimSpace(owner)
+	if DB == nil || scopeKey == "" || modelName == "" || owner == "" {
+		return false, nil
+	}
+
+	result := DB.Model(&AssetModelCoverageTarget{}).
+		Where("scope_key = ? AND model_name = ?", scopeKey, modelName).
+		Where("status = ? AND generation = ?", AssetModelTargetStatusActive, expectedGeneration).
+		Where("lease_owner = ? AND lease_expires_at = ? AND lease_expires_at > ?", owner, expectedLeaseExpiresAt, now).
+		Updates(map[string]any{
+			"lease_owner":      "",
+			"lease_expires_at": int64(0),
+			"updated_at":       now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
 func RotateAssetModelTargetCAS(scopeKey, modelName string, expectedGeneration int64, _ string, now int64) (bool, error) {
 	scopeKey = strings.TrimSpace(scopeKey)
 	modelName = strings.TrimSpace(modelName)

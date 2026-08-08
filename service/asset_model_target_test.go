@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -187,6 +188,91 @@ func TestEnsureAssetModelCoverageTargetReusesEligibleTargetAndPersistsCandidate(
 	require.NoError(t, err)
 	require.Equal(t, first.Id, second.Id)
 	require.Equal(t, first.Generation, second.Generation)
+}
+
+func TestEnsureAssetModelCoverageTargetDoesNotRepublishConcurrentEligibleTarget(t *testing.T) {
+	newAssetReferenceDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.AssetModelCoverageTarget{}))
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &recordingAssetMaterializer{})
+	insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+		ID: 120, ChannelType: constant.ChannelTypeTechMobiVideo, Group: "default", ModelName: "seedance-2.0",
+		Priority: 80, Weight: 50, Key: "techmobi-key-a",
+		Mapping:     `{"seedance-2.0":"doubao/seedance-pro"}`,
+		ChannelInfo: model.ChannelInfo{IsMultiKey: false},
+	})
+	scope := AssetModelScope{ScopeKey: "scope-concurrent-target", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}
+	require.NoError(t, model.DB.Create(&model.AssetModelCoverageTarget{
+		ScopeKey:          scope.ScopeKey,
+		ModelName:         "seedance-2.0",
+		RoutingGroups:     "stale",
+		SpecificChannelId: 0,
+		Status:            model.AssetModelTargetStatusRotating,
+		Generation:        0,
+		CandidateIndex:    -1,
+		CredentialIndex:   -1,
+		CreatedAt:         100,
+		UpdatedAt:         100,
+	}).Error)
+
+	aRead := make(chan struct{})
+	releaseA := make(chan struct{})
+	var pausedA atomic.Bool
+	callbackName := "test:pause_concurrent_asset_model_target_read"
+	require.NoError(t, model.DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement == nil || tx.Statement.Table != "asset_model_coverage_targets" {
+			return
+		}
+		if pausedA.CompareAndSwap(false, true) {
+			close(aRead)
+			<-releaseA
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Query().Remove(callbackName))
+	})
+
+	type ensureResult struct {
+		target *model.AssetModelCoverageTarget
+		err    error
+	}
+	aResult := make(chan ensureResult, 1)
+	go func() {
+		target, err := ensureAssetModelCoverageTargetAt(scope, "seedance-2.0", "owner-a", 300)
+		aResult <- ensureResult{target: target, err: err}
+	}()
+
+	select {
+	case <-aRead:
+	case <-time.After(2 * time.Second):
+		t.Fatal("initializer A did not reach the first target read")
+	}
+
+	bTarget, err := ensureAssetModelCoverageTargetAt(scope, "seedance-2.0", "owner-b", 200)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), bTarget.Generation)
+	require.Equal(t, 120, bTarget.ChannelId)
+	require.Equal(t, "doubao/seedance-pro", bTarget.MappedModel)
+
+	close(releaseA)
+
+	var a ensureResult
+	select {
+	case a = <-aResult:
+	case <-time.After(2 * time.Second):
+		t.Fatal("initializer A did not finish after release")
+	}
+	require.NoError(t, a.err)
+	require.NotNil(t, a.target)
+
+	finalTarget, err := model.GetAssetModelCoverageTarget(scope.ScopeKey, "seedance-2.0")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), finalTarget.Generation)
+	require.Equal(t, bTarget.ChannelId, finalTarget.ChannelId)
+	require.Equal(t, bTarget.MappedModel, finalTarget.MappedModel)
+	require.Equal(t, bTarget.BindingScope, finalTarget.BindingScope)
+	require.Equal(t, bTarget.CredentialIndex, finalTarget.CredentialIndex)
+	require.Equal(t, "", finalTarget.LeaseOwner)
+	require.Equal(t, int64(0), finalTarget.LeaseExpiresAt)
 }
 
 func TestEnsureAssetModelCoverageTargetUsesDatabaseTimestampAtServiceBoundary(t *testing.T) {

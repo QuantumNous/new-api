@@ -366,6 +366,72 @@ func TestAssetModelTargetPublishSameOwnerReclaimRequiresCurrentLeaseExpiry(t *te
 	require.Equal(t, int64(1), target.Generation)
 }
 
+func TestAssetModelTargetReleaseLeaseCASRequiresCurrentOwnerExpiryAndGeneration(t *testing.T) {
+	openAssetModelReadinessTestDB(t)
+
+	require.NoError(t, DB.Create(&AssetModelCoverageTarget{
+		ScopeKey:       "scope",
+		ModelName:      "model",
+		Status:         AssetModelTargetStatusActive,
+		Generation:     3,
+		LeaseOwner:     "owner-a",
+		LeaseExpiresAt: 100,
+		ChannelId:      88,
+		UpdatedAt:      10,
+	}).Error)
+
+	released, err := ReleaseAssetModelTargetLeaseCAS("scope", "model", "owner-b", 3, 100, 20)
+	require.NoError(t, err)
+	require.False(t, released)
+	released, err = ReleaseAssetModelTargetLeaseCAS("scope", "model", "owner-a", 2, 100, 20)
+	require.NoError(t, err)
+	require.False(t, released)
+	released, err = ReleaseAssetModelTargetLeaseCAS("scope", "model", "owner-a", 3, 90, 20)
+	require.NoError(t, err)
+	require.False(t, released)
+	released, err = ReleaseAssetModelTargetLeaseCAS("scope", "model", "owner-a", 3, 100, 100)
+	require.NoError(t, err)
+	require.False(t, released)
+
+	target, err := GetAssetModelCoverageTarget("scope", "model")
+	require.NoError(t, err)
+	require.Equal(t, "owner-a", target.LeaseOwner)
+	require.Equal(t, int64(100), target.LeaseExpiresAt)
+
+	released, err = ReleaseAssetModelTargetLeaseCAS("scope", "model", "owner-a", 3, 100, 20)
+	require.NoError(t, err)
+	require.True(t, released)
+	target, err = GetAssetModelCoverageTarget("scope", "model")
+	require.NoError(t, err)
+	require.Equal(t, int64(3), target.Generation)
+	require.Equal(t, AssetModelTargetStatusActive, target.Status)
+	require.Equal(t, "", target.LeaseOwner)
+	require.Equal(t, int64(0), target.LeaseExpiresAt)
+	require.Equal(t, int64(20), target.UpdatedAt)
+}
+
+func TestAssetModelTargetReleaseLeaseCASRequiresActiveStatus(t *testing.T) {
+	openAssetModelReadinessTestDB(t)
+
+	require.NoError(t, DB.Create(&AssetModelCoverageTarget{
+		ScopeKey:       "scope",
+		ModelName:      "model",
+		Status:         AssetModelTargetStatusSelecting,
+		Generation:     3,
+		LeaseOwner:     "owner-a",
+		LeaseExpiresAt: 100,
+		UpdatedAt:      10,
+	}).Error)
+
+	released, err := ReleaseAssetModelTargetLeaseCAS("scope", "model", "owner-a", 3, 100, 20)
+	require.NoError(t, err)
+	require.False(t, released)
+	target, err := GetAssetModelCoverageTarget("scope", "model")
+	require.NoError(t, err)
+	require.Equal(t, "owner-a", target.LeaseOwner)
+	require.Equal(t, int64(100), target.LeaseExpiresAt)
+}
+
 func TestAssetModelTargetRotateDoesNotStealLiveLease(t *testing.T) {
 	openAssetModelReadinessTestDB(t)
 
