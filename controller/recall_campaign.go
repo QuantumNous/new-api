@@ -43,7 +43,8 @@ type recallCodedActionError interface {
 
 type recallPreviewResponse struct {
 	service.RecallAudiencePreview
-	Stripe *service.RecallStripePreview `json:"stripe"`
+	Stripe    *service.RecallStripePreview    `json:"stripe"`
+	Lifecycle *service.RecallLifecyclePreview `json:"lifecycle,omitempty"`
 }
 
 type recallAudienceUserOption struct {
@@ -241,7 +242,12 @@ func PreviewRecallCampaign(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, recallPreviewResponse{RecallAudiencePreview: audience, Stripe: stripePreview})
+	lifecyclePreview, err := runtime.Campaigns.PreviewLifecycle(c.Request.Context(), id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, recallPreviewResponse{RecallAudiencePreview: audience, Stripe: stripePreview, Lifecycle: lifecyclePreview})
 }
 
 func PreviewRecallEmailTemplate(c *gin.Context) {

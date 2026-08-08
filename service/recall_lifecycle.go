@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/mail"
@@ -16,8 +17,58 @@ import (
 )
 
 const recallLifecycleLeaseTTL = 5 * time.Minute
+const recallLifecyclePreviewSampleLimit = 5
 
 var errRecallLifecycleFenceLost = errors.New("recall lifecycle lease fence lost")
+
+type RecallLifecyclePreview struct {
+	ProcessingStartAt int64                   `json:"processing_start_at"`
+	CollectionStartAt int64                   `json:"collection_start_at"`
+	EarliestAvailable int64                   `json:"earliest_available_at"`
+	EstimatedCount    int64                   `json:"estimated_count"`
+	DueCount          int64                   `json:"due_count"`
+	Samples           []RecallLifecycleSample `json:"samples"`
+}
+
+type RecallLifecycleSample struct {
+	ID                    int64  `json:"id"`
+	EventType             string `json:"event_type"`
+	User                  string `json:"user"`
+	ScopeType             string `json:"scope_type"`
+	Scope                 string `json:"scope"`
+	BusinessKey           string `json:"business_key"`
+	RecipientIdentity     string `json:"recipient_identity"`
+	Disposition           string `json:"disposition"`
+	DispositionReasonCode string `json:"disposition_reason_code,omitempty"`
+	OccurredAt            int64  `json:"occurred_at"`
+	AvailableAt           int64  `json:"available_at"`
+	AttemptCount          int    `json:"attempt_count"`
+	LastErrorCode         string `json:"last_error_code,omitempty"`
+}
+
+type RecallLifecycleMetrics struct {
+	CollectionStartAt           int64            `json:"collection_start_at"`
+	ProcessingStartAt           int64            `json:"processing_start_at"`
+	EventTotal                  int64            `json:"event_total"`
+	PendingNotDueCount          int64            `json:"pending_not_due_count"`
+	DueBacklogCount             int64            `json:"due_backlog_count"`
+	LeasedCount                 int64            `json:"leased_count"`
+	EnrolledCount               int64            `json:"enrolled_count"`
+	SkippedCount                int64            `json:"skipped_count"`
+	FailedCount                 int64            `json:"failed_count"`
+	MessagesQueuedCount         int64            `json:"messages_queued_count"`
+	MessagesSMTPAcceptedCount   int64            `json:"messages_smtp_accepted_count"`
+	MessagesUncertainCount      int64            `json:"messages_uncertain_count"`
+	MessagesFailedCount         int64            `json:"messages_failed_count"`
+	MessagesCancelledCount      int64            `json:"messages_cancelled_count"`
+	SkipReasonCounts            map[string]int64 `json:"skip_reason_counts"`
+	SendBlockedReasonCounts     map[string]int64 `json:"send_blocked_reason_counts"`
+	ErrorCodeCounts             map[string]int64 `json:"error_code_counts"`
+	RetriedEventCount           int64            `json:"retried_event_count"`
+	LeaseRecoveryCount          int64            `json:"lease_recovery_count"`
+	LastProcessedAt             int64            `json:"last_processed_at"`
+	MaxProcessingLatencySeconds int64            `json:"max_processing_latency_seconds"`
+}
 
 type RecallLifecycleWorker struct {
 	owner string
@@ -33,6 +84,314 @@ func NewRecallLifecycleWorker(owner string) *RecallLifecycleWorker {
 		owner: owner,
 		now:   time.Now,
 	}
+}
+
+func (s *RecallCampaignService) PreviewLifecycle(ctx context.Context, id int64) (*RecallLifecyclePreview, error) {
+	if err := validateRecallCampaignContext(ctx); err != nil {
+		return nil, err
+	}
+	var preview *RecallLifecyclePreview
+	err := model.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		campaign, marker, dbNow, ok, err := recallLifecycleCampaignBoundaryDB(ctx, tx, id)
+		if err != nil || !ok {
+			return err
+		}
+		query := func() *gorm.DB {
+			return recallLifecycleBoundaryQueryDB(tx, campaign, marker)
+		}
+		var estimatedCount int64
+		if err := query().Count(&estimatedCount).Error; err != nil {
+			return err
+		}
+		var dueCount int64
+		if err := query().
+			Where("available_at <= ?", dbNow).
+			Where("(next_attempt_at = 0 OR next_attempt_at <= ?)", dbNow).
+			Where("(disposition = ? OR (disposition = ? AND lease_expires_at > 0 AND lease_expires_at < ?))",
+				model.RecallLifecycleEventPending, model.RecallLifecycleEventLeased, dbNow).
+			Count(&dueCount).Error; err != nil {
+			return err
+		}
+		var earliest struct {
+			Value int64
+		}
+		if err := query().Select("MIN(available_at) AS value").Scan(&earliest).Error; err != nil {
+			return err
+		}
+		events := make([]model.RecallLifecycleEvent, 0, recallLifecyclePreviewSampleLimit)
+		if err := query().
+			Order("available_at ASC").
+			Order("occurred_at ASC").
+			Order("id ASC").
+			Limit(recallLifecyclePreviewSampleLimit).
+			Find(&events).Error; err != nil {
+			return err
+		}
+		samples := make([]RecallLifecycleSample, 0, len(events))
+		for _, event := range events {
+			samples = append(samples, recallLifecycleSample(event))
+		}
+		preview = &RecallLifecyclePreview{
+			ProcessingStartAt: campaign.ProcessingStartAt,
+			CollectionStartAt: marker,
+			EarliestAvailable: earliest.Value,
+			EstimatedCount:    estimatedCount,
+			DueCount:          dueCount,
+			Samples:           samples,
+		}
+		return nil
+	})
+	return preview, err
+}
+
+func GetRecallLifecycleMetrics(ctx context.Context, campaignID int64) (*RecallLifecycleMetrics, error) {
+	campaign, marker, dbNow, ok, err := recallLifecycleCampaignBoundary(ctx, campaignID)
+	if err != nil || !ok {
+		return nil, err
+	}
+	metrics := &RecallLifecycleMetrics{
+		CollectionStartAt:       marker,
+		ProcessingStartAt:       campaign.ProcessingStartAt,
+		SkipReasonCounts:        map[string]int64{},
+		SendBlockedReasonCounts: map[string]int64{},
+		ErrorCodeCounts:         map[string]int64{},
+	}
+	base := func() *gorm.DB {
+		return recallLifecycleBoundaryQuery(ctx, campaign, marker)
+	}
+	if err := base().Count(&metrics.EventTotal).Error; err != nil {
+		return nil, err
+	}
+	if err := base().Where("disposition = ? AND (available_at > ? OR next_attempt_at > ?)", model.RecallLifecycleEventPending, dbNow, dbNow).Count(&metrics.PendingNotDueCount).Error; err != nil {
+		return nil, err
+	}
+	if err := base().Where("available_at <= ?", dbNow).
+		Where("(next_attempt_at = 0 OR next_attempt_at <= ?)", dbNow).
+		Where("(disposition = ? OR (disposition = ? AND lease_expires_at > 0 AND lease_expires_at < ?))",
+			model.RecallLifecycleEventPending, model.RecallLifecycleEventLeased, dbNow).
+		Count(&metrics.DueBacklogCount).Error; err != nil {
+		return nil, err
+	}
+	dispositionCounts, err := recallLifecycleCountBy(ctx, base(), "disposition")
+	if err != nil {
+		return nil, err
+	}
+	metrics.LeasedCount = dispositionCounts[model.RecallLifecycleEventLeased]
+	metrics.EnrolledCount = dispositionCounts[model.RecallLifecycleEventEnrolled]
+	metrics.SkippedCount = dispositionCounts[model.RecallLifecycleEventSkipped]
+	metrics.FailedCount = dispositionCounts[model.RecallLifecycleEventFailed]
+	metrics.SkipReasonCounts, err = recallLifecycleCountBy(ctx, base().Where("disposition = ?", model.RecallLifecycleEventSkipped), "disposition_reason_code")
+	if err != nil {
+		return nil, err
+	}
+	metrics.ErrorCodeCounts, err = recallLifecycleCountBy(ctx, base().Where("last_error_code <> ''"), "last_error_code")
+	if err != nil {
+		return nil, err
+	}
+	if err := base().Where("attempt_count > 1").Count(&metrics.RetriedEventCount).Error; err != nil {
+		return nil, err
+	}
+	if err := base().Where("disposition = ? AND lease_expires_at > 0 AND lease_expires_at < ?", model.RecallLifecycleEventLeased, dbNow).Count(&metrics.LeaseRecoveryCount).Error; err != nil {
+		return nil, err
+	}
+	processing := struct {
+		LastProcessedAt             int64
+		MaxProcessingLatencySeconds int64
+	}{}
+	if err := base().Select("MAX(CASE WHEN resolved_at > processed_at THEN resolved_at ELSE processed_at END) AS last_processed_at, MAX(CASE WHEN resolved_at > 0 AND available_at > 0 AND resolved_at >= available_at THEN resolved_at - available_at WHEN processed_at > 0 AND available_at > 0 AND processed_at >= available_at THEN processed_at - available_at ELSE 0 END) AS max_processing_latency_seconds").
+		Scan(&processing).Error; err != nil {
+		return nil, err
+	}
+	metrics.LastProcessedAt = processing.LastProcessedAt
+	metrics.MaxProcessingLatencySeconds = processing.MaxProcessingLatencySeconds
+	if err := recallLifecycleMessageMetrics(ctx, campaignID, metrics); err != nil {
+		return nil, err
+	}
+	return metrics, nil
+}
+
+func recallLifecycleBoundaryQuery(ctx context.Context, campaign *model.RecallCampaign, marker int64) *gorm.DB {
+	return recallLifecycleBoundaryQueryDB(model.DB.WithContext(ctx), campaign, marker)
+}
+
+func recallLifecycleBoundaryQueryDB(db *gorm.DB, campaign *model.RecallCampaign, marker int64) *gorm.DB {
+	return db.Model(&model.RecallLifecycleEvent{}).
+		Where("event_type = ?", campaign.LifecycleTrigger).
+		Where("occurred_at >= ?", marker).
+		Where("available_at >= ?", campaign.ProcessingStartAt)
+}
+
+func recallLifecycleCampaignBoundary(ctx context.Context, id int64) (*model.RecallCampaign, int64, int64, bool, error) {
+	if ctx == nil {
+		return nil, 0, 0, false, fmt.Errorf("context is nil")
+	}
+	if id <= 0 {
+		return nil, 0, 0, false, fmt.Errorf("recall campaign ID must be positive")
+	}
+	return recallLifecycleCampaignBoundaryDB(ctx, model.DB.WithContext(ctx), id)
+}
+
+func recallLifecycleCampaignBoundaryDB(ctx context.Context, db *gorm.DB, id int64) (*model.RecallCampaign, int64, int64, bool, error) {
+	if db == nil {
+		return nil, 0, 0, false, fmt.Errorf("database is not initialized")
+	}
+	var campaign model.RecallCampaign
+	err := db.First(&campaign, id).Error
+	if err != nil {
+		return nil, 0, 0, false, err
+	}
+	if campaign.ExecutionMode != "continuous" {
+		return &campaign, 0, 0, false, nil
+	}
+	var option model.Option
+	if err := db.First(&option, "key = ?", model.OptionKeyRecallLifecycleEventCollectionStartedAt).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, 0, 0, false, fmt.Errorf("recall lifecycle event collection marker: recall lifecycle event collection marker is missing")
+		}
+		return nil, 0, 0, false, err
+	}
+	marker, err := parseRecallLifecycleMarker(option.Value)
+	if err != nil {
+		return nil, 0, 0, false, fmt.Errorf("recall lifecycle event collection marker: %w", err)
+	}
+	dbNow, err := getDBTimestampForLifecycleTx(db)
+	if err != nil {
+		return nil, 0, 0, false, err
+	}
+	if campaign.ProcessingStartAt < marker || campaign.ProcessingStartAt > dbNow {
+		return nil, 0, 0, false, fmt.Errorf("continuous recall campaign processing start must be between lifecycle event collection marker and database time")
+	}
+	return &campaign, marker, dbNow, true, nil
+}
+
+func recallLifecycleSample(event model.RecallLifecycleEvent) RecallLifecycleSample {
+	return RecallLifecycleSample{
+		ID:                    event.Id,
+		EventType:             event.EventType,
+		User:                  maskedRecallLifecycleValue(fmt.Sprintf("user:%d", event.UserId)),
+		ScopeType:             event.ScopeType,
+		Scope:                 maskedRecallLifecycleValue(event.ScopeId),
+		BusinessKey:           maskedRecallLifecycleValue(event.BusinessKey),
+		RecipientIdentity:     maskedRecallLifecycleValue(event.RecipientIdentity),
+		Disposition:           event.Disposition,
+		DispositionReasonCode: event.DispositionReasonCode,
+		OccurredAt:            event.OccurredAt,
+		AvailableAt:           event.AvailableAt,
+		AttemptCount:          event.AttemptCount,
+		LastErrorCode:         safeRecallLifecycleErrorCode(event.LastErrorCode),
+	}
+}
+
+func maskedRecallLifecycleValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(value))
+	return fmt.Sprintf("sha256:%x", sum[:6])
+}
+
+func safeRecallLifecycleErrorCode(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+	var builder strings.Builder
+	for _, char := range value {
+		switch {
+		case char >= 'a' && char <= 'z':
+			builder.WriteRune(char)
+		case char >= '0' && char <= '9':
+			builder.WriteRune(char)
+		case char == '_' || char == '-':
+			builder.WriteRune(char)
+		}
+		if builder.Len() >= 64 {
+			break
+		}
+	}
+	return builder.String()
+}
+
+func recallLifecycleCountBy(ctx context.Context, base *gorm.DB, column string) (map[string]int64, error) {
+	rows := make([]struct {
+		Key   string
+		Count int64
+	}, 0)
+	if err := base.Session(&gorm.Session{}).
+		Select(column + " AS key, COUNT(*) AS count").
+		Where(column + " <> ''").
+		Group(column).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	counts := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		key := safeRecallLifecycleErrorCode(row.Key)
+		if key != "" {
+			counts[key] = row.Count
+		}
+	}
+	return counts, nil
+}
+
+func recallLifecycleMessageMetrics(ctx context.Context, campaignID int64, metrics *RecallLifecycleMetrics) error {
+	rows := make([]struct {
+		State string
+		Count int64
+	}, 0)
+	if err := model.DB.WithContext(ctx).Model(&model.RecallMessage{}).
+		Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
+		Where("recall_recipients.campaign_id = ?", campaignID).
+		Select("recall_messages.state AS state, COUNT(*) AS count").
+		Group("recall_messages.state").
+		Find(&rows).Error; err != nil {
+		return err
+	}
+	for _, row := range rows {
+		switch row.State {
+		case model.RecallMessageScheduled, model.RecallMessageRetryWait, model.RecallMessageLeased, model.RecallMessageSending:
+			metrics.MessagesQueuedCount += row.Count
+		case model.RecallMessageAccepted:
+			metrics.MessagesSMTPAcceptedCount += row.Count
+		case model.RecallMessageUncertain:
+			metrics.MessagesUncertainCount += row.Count
+		case model.RecallMessageFailed:
+			metrics.MessagesFailedCount += row.Count
+		case model.RecallMessageCancelled:
+			metrics.MessagesCancelledCount += row.Count
+		}
+	}
+	reasons, err := recallLifecycleMessageReasonCounts(ctx, campaignID)
+	if err != nil {
+		return err
+	}
+	metrics.SendBlockedReasonCounts = reasons
+	return nil
+}
+
+func recallLifecycleMessageReasonCounts(ctx context.Context, campaignID int64) (map[string]int64, error) {
+	rows := make([]struct {
+		Key   string
+		Count int64
+	}, 0)
+	if err := model.DB.WithContext(ctx).Model(&model.RecallMessage{}).
+		Joins("JOIN recall_recipients ON recall_recipients.id = recall_messages.recipient_id").
+		Where("recall_recipients.campaign_id = ?", campaignID).
+		Where("recall_messages.last_error_code <> ''").
+		Select("recall_messages.last_error_code AS key, COUNT(*) AS count").
+		Group("recall_messages.last_error_code").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	counts := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		key := safeRecallLifecycleErrorCode(row.Key)
+		if key != "" {
+			counts[key] = row.Count
+		}
+	}
+	return counts, nil
 }
 
 func (w *RecallLifecycleWorker) RunBatch(ctx context.Context, limit int) (int, error) {

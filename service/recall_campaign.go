@@ -55,6 +55,9 @@ type RecallCampaignService struct {
 type RecallCampaignSummary struct {
 	Id                    int64  `json:"id"`
 	CampaignType          string `json:"campaign_type"`
+	DeliveryPolicy        string `json:"delivery_policy"`
+	LifecycleTrigger      string `json:"lifecycle_trigger"`
+	ProcessingStartAt     int64  `json:"processing_start_at"`
 	Name                  string `json:"name"`
 	Status                string `json:"status"`
 	AudienceTemplate      string `json:"audience_template"`
@@ -427,6 +430,9 @@ func recallCampaignSummary(campaign model.RecallCampaign, recipientTotal int64) 
 	return RecallCampaignSummary{
 		Id:                    campaign.Id,
 		CampaignType:          campaignType,
+		DeliveryPolicy:        campaign.DeliveryPolicy,
+		LifecycleTrigger:      campaign.LifecycleTrigger,
+		ProcessingStartAt:     campaign.ProcessingStartAt,
 		Name:                  campaign.Name,
 		Status:                campaign.Status,
 		AudienceTemplate:      campaign.AudienceTemplate,

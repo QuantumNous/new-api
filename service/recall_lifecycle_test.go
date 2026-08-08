@@ -1,15 +1,19 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestRecallLifecycleEnrollmentCreatesOneOccurrenceRecipientAndStageOneMessage(t *testing.T) {
@@ -325,6 +329,91 @@ func TestRecallLifecycleEnrollmentLimitNonPositiveIsSafe(t *testing.T) {
 	enrolled, err := NewRecallLifecycleWorker("node-a").RunBatch(context.Background(), 0)
 	require.NoError(t, err)
 	require.Zero(t, enrolled)
+}
+
+func TestRecallLifecyclePreviewAndMetricsExposeMaskedOperationalData(t *testing.T) {
+	setupRecallLifecycleServiceTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	_, campaign := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignRunning, 100)
+	old := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 801, 99, 120, `{"secret":"old"}`)
+	due := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 802, 120, 120, `{"secret":"due"}`)
+	future := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 803, 121, time.Now().Add(time.Hour).Unix(), `{"secret":"future"}`)
+	skipped := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 804, 122, 122, `{}`)
+	require.NoError(t, model.DB.Model(&model.RecallLifecycleEvent{}).
+		Where("id = ?", due.Id).
+		Updates(map[string]any{
+			"scope_type":   "order",
+			"scope_id":     "raw-order-802",
+			"business_key": "order=802 email=user-802@example.com",
+			"recipient_identity": model.RecallLifecycleRecipientIdentity(
+				model.RecallLifecycleTriggerQuotaLow,
+				"user-802@example.com",
+			),
+		}).Error)
+	require.NoError(t, model.DB.Model(&model.RecallLifecycleEvent{}).
+		Where("id = ?", skipped.Id).
+		Updates(map[string]any{
+			"disposition":             model.RecallLifecycleEventSkipped,
+			"disposition_reason_code": "invalid_email",
+			"last_error_code":         "invalid_email",
+			"resolved_at":             int64(130),
+		}).Error)
+	require.NoError(t, model.DB.Model(&model.RecallLifecycleEvent{}).
+		Where("id = ?", future.Id).
+		Update("last_error_code", "lease_recovered").Error)
+	require.NoError(t, model.DB.Delete(&model.RecallLifecycleEvent{}, old.Id).Error)
+
+	recipient := model.RecallRecipient{
+		CampaignId:          campaign.Id,
+		LifecycleEventId:    &due.Id,
+		RecipientIdentity:   model.RecallLifecycleRecipientIdentity(model.RecallLifecycleTriggerQuotaLow, due.OccurrenceKeyHash),
+		UserId:              due.UserId,
+		EligibilitySnapshot: `{}`,
+		EmailSnapshot:       "masked-metrics@example.com",
+		LanguageSnapshot:    "en",
+		State:               model.RecallRecipientContacting,
+	}
+	require.NoError(t, model.DB.Create(&recipient).Error)
+	require.NoError(t, model.DB.Create(&model.RecallMessage{
+		RecipientId:      recipient.Id,
+		StageNo:          1,
+		TemplateVersion:  1,
+		TemplateSnapshot: "{}",
+		ScheduledAt:      120,
+		State:            model.RecallMessageCancelled,
+		StateVersion:     1,
+		LastErrorCode:    "no_account_email",
+	}).Error)
+
+	preview, err := service.PreviewLifecycle(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	require.EqualValues(t, 100, preview.CollectionStartAt)
+	require.EqualValues(t, 100, preview.ProcessingStartAt)
+	require.EqualValues(t, 120, preview.EarliestAvailable)
+	require.EqualValues(t, 3, preview.EstimatedCount)
+	require.GreaterOrEqual(t, preview.DueCount, int64(1))
+	require.NotEmpty(t, preview.Samples)
+	require.NotContains(t, fmt.Sprintf("%+v", preview.Samples), "user-802@example.com")
+	require.NotContains(t, fmt.Sprintf("%+v", preview.Samples), "raw-order-802")
+	require.NotContains(t, fmt.Sprintf("%+v", preview.Samples), "secret")
+
+	var dbLog bytes.Buffer
+	previousLogger := model.DB.Logger
+	model.DB.Logger = logger.New(log.New(&dbLog, "", 0), logger.Config{LogLevel: logger.Error})
+	t.Cleanup(func() { model.DB.Logger = previousLogger })
+
+	metrics, err := GetRecallLifecycleMetrics(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	require.NotContains(t, dbLog.String(), "unsupported data type")
+	require.EqualValues(t, 3, metrics.EventTotal)
+	require.EqualValues(t, 1, metrics.PendingNotDueCount)
+	require.GreaterOrEqual(t, metrics.DueBacklogCount, int64(1))
+	require.EqualValues(t, 1, metrics.SkippedCount)
+	require.EqualValues(t, 1, metrics.MessagesCancelledCount)
+	require.EqualValues(t, 1, metrics.SkipReasonCounts["invalid_email"])
+	require.EqualValues(t, 1, metrics.SendBlockedReasonCounts["no_account_email"])
+	require.EqualValues(t, 1, metrics.ErrorCodeCounts["lease_recovered"])
 }
 
 func setupRecallLifecycleServiceTestDB(t *testing.T) {
