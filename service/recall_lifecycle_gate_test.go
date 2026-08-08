@@ -33,6 +33,35 @@ func TestRecallLifecycleSendGateMutableEligibility(t *testing.T) {
 			wantReason: "no_account_email",
 		},
 		{
+			name:    "user registered ignores empty enrollment snapshot when current email is valid",
+			trigger: model.RecallLifecycleTriggerUserRegistered,
+			seed: func(t *testing.T, f recallEmailFixture, _ model.RecallLifecycleEvent) {
+				updateRecallLifecycleRecipientEmailSnapshot(t, f.recipient.Id, "")
+				updateRecallLifecycleUserEmail(t, f.user.Id, "current-empty-snapshot@example.com")
+			},
+			wantSend: true,
+			wantTo:   "current-empty-snapshot@example.com",
+		},
+		{
+			name:    "user registered ignores invalid enrollment snapshot when current email is valid",
+			trigger: model.RecallLifecycleTriggerUserRegistered,
+			seed: func(t *testing.T, f recallEmailFixture, _ model.RecallLifecycleEvent) {
+				updateRecallLifecycleRecipientEmailSnapshot(t, f.recipient.Id, "not an email")
+				updateRecallLifecycleUserEmail(t, f.user.Id, "current-invalid-snapshot@example.com")
+			},
+			wantSend: true,
+			wantTo:   "current-invalid-snapshot@example.com",
+		},
+		{
+			name:    "user registered blocks invalid current email at SMTP gate",
+			trigger: model.RecallLifecycleTriggerUserRegistered,
+			seed: func(t *testing.T, f recallEmailFixture, _ model.RecallLifecycleEvent) {
+				updateRecallLifecycleRecipientEmailSnapshot(t, f.recipient.Id, "stale@example.com")
+				updateRecallLifecycleUserEmail(t, f.user.Id, "not an email")
+			},
+			wantReason: "invalid_email",
+		},
+		{
 			name:    "registration unused stops after first request",
 			trigger: model.RecallLifecycleTriggerRegistrationUnused,
 			seed: func(t *testing.T, f recallEmailFixture, _ model.RecallLifecycleEvent) {
@@ -52,6 +81,7 @@ func TestRecallLifecycleSendGateMutableEligibility(t *testing.T) {
 				"previous_balance": float64(150),
 			},
 			seed: func(t *testing.T, f recallEmailFixture, _ model.RecallLifecycleEvent) {
+				setRecallLifecycleQuotaWarningThreshold(t, f.user.Id, 100)
 				seedRecallLifecycleQuotaState(t, f.user.Id, model.QuotaLifecycleScopeWallet, "2", "wallet-cycle-a", 150, 100)
 			},
 			wantReason: "quota_recovered",
@@ -165,6 +195,151 @@ func TestRecallLifecycleSendGateFenceLossDoesNotCancelOrConsume(t *testing.T) {
 	require.Equal(t, model.RecallMessageLeased, stored.State)
 	require.Equal(t, "other-owner", stored.LeaseOwner)
 	assertRecallLifecycleSMTPAdmissionDidNotConsume(t)
+}
+
+func TestRecallLifecycleQuotaLowUsesCurrentEffectiveThreshold(t *testing.T) {
+	tests := []struct {
+		name             string
+		eventThreshold   int64
+		currentThreshold float64
+		balance          int64
+		wantSend         bool
+	}{
+		{
+			name:             "sends when current threshold rises above current balance",
+			eventThreshold:   100,
+			currentThreshold: 200,
+			balance:          150,
+			wantSend:         true,
+		},
+		{
+			name:             "suppresses when current threshold drops below current balance",
+			eventThreshold:   200,
+			currentThreshold: 100,
+			balance:          150,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			data := map[string]any{
+				"scope_type":       model.QuotaLifecycleScopeWallet,
+				"scope_id":         "2",
+				"cycle_key":        "threshold-cycle",
+				"current_balance":  float64(50),
+				"threshold":        float64(tc.eventThreshold),
+				"previous_balance": float64(250),
+			}
+			fixture := newRecallLifecycleEmailFixture(t, model.RecallLifecycleTriggerQuotaLow, data)
+			setRecallLifecycleQuotaWarningThreshold(t, fixture.user.Id, tc.currentThreshold)
+			seedRecallLifecycleQuotaState(t, fixture.user.Id, model.QuotaLifecycleScopeWallet, "2", "threshold-cycle", tc.balance, tc.eventThreshold)
+
+			require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+			if tc.wantSend {
+				require.Len(t, *fixture.sent, 1)
+				require.Equal(t, model.RecallMessageAccepted, loadRecallEmailMessageByID(t, fixture.message.Id).State)
+				return
+			}
+			require.Empty(t, *fixture.sent)
+			require.Equal(t, "quota_recovered", loadRecallEmailMessageByID(t, fixture.message.Id).LastErrorCode)
+			assertRecallLifecycleSMTPAdmissionDidNotConsume(t)
+		})
+	}
+}
+
+func TestRecallLifecycleQuotaExhaustedRecoveryIsScopeAware(t *testing.T) {
+	tests := []struct {
+		name       string
+		scopeType  string
+		scopeID    string
+		seed       func(t *testing.T, fixture recallEmailFixture)
+		wantSend   bool
+		wantReason string
+	}{
+		{
+			name:      "wallet ignores unrelated subscription success",
+			scopeType: model.QuotaLifecycleScopeWallet,
+			scopeID:   "2",
+			seed: func(t *testing.T, fixture recallEmailFixture) {
+				seedRecallLifecycleSubscriptionOrder(t, fixture.user.Id, "unrelated-subscription-success", common.TopUpStatusSuccess)
+			},
+			wantSend: true,
+		},
+		{
+			name:      "subscription ignores unrelated wallet topup success",
+			scopeType: model.QuotaLifecycleScopeSubscription,
+			scopeID:   "10",
+			seed: func(t *testing.T, fixture recallEmailFixture) {
+				seedRecallLifecycleTopUp(t, fixture.user.Id, "unrelated-wallet-success", common.TopUpStatusSuccess)
+			},
+			wantSend: true,
+		},
+		{
+			name:      "subscription ignores a different subscription success",
+			scopeType: model.QuotaLifecycleScopeSubscription,
+			scopeID:   "10",
+			seed: func(t *testing.T, fixture recallEmailFixture) {
+				seedRecallLifecycleSubscriptionOrder(t, fixture.user.Id, "other-subscription-success", common.TopUpStatusSuccess)
+				seedRecallLifecycleQuotaState(t, fixture.user.Id, model.QuotaLifecycleScopeSubscription, "11", "other-sub-cycle", 100, 100)
+			},
+			wantSend: true,
+		},
+		{
+			name:      "wallet recovered balance suppresses",
+			scopeType: model.QuotaLifecycleScopeWallet,
+			scopeID:   "2",
+			seed: func(t *testing.T, fixture recallEmailFixture) {
+				updateRecallLifecycleQuotaState(t, fixture.user.Id, model.QuotaLifecycleScopeWallet, "2", "exhausted-cycle", 25, 100)
+			},
+			wantReason: "quota_recovered",
+		},
+		{
+			name:      "subscription recovered balance suppresses",
+			scopeType: model.QuotaLifecycleScopeSubscription,
+			scopeID:   "10",
+			seed: func(t *testing.T, fixture recallEmailFixture) {
+				updateRecallLifecycleQuotaState(t, fixture.user.Id, model.QuotaLifecycleScopeSubscription, "10", "exhausted-cycle", 25, 100)
+			},
+			wantReason: "quota_recovered",
+		},
+		{
+			name:      "subscription new cycle suppresses",
+			scopeType: model.QuotaLifecycleScopeSubscription,
+			scopeID:   "10",
+			seed: func(t *testing.T, fixture recallEmailFixture) {
+				updateRecallLifecycleQuotaState(t, fixture.user.Id, model.QuotaLifecycleScopeSubscription, "10", "renewed-cycle", 0, 100)
+			},
+			wantReason: "quota_cycle_changed",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			data := map[string]any{
+				"scope_type":       tc.scopeType,
+				"scope_id":         tc.scopeID,
+				"cycle_key":        "exhausted-cycle",
+				"current_balance":  float64(0),
+				"previous_balance": float64(10),
+				"threshold":        float64(100),
+			}
+			fixture := newRecallLifecycleEmailFixture(t, model.RecallLifecycleTriggerQuotaExhaustedUnpaid, data)
+			seedRecallLifecycleQuotaState(t, fixture.user.Id, tc.scopeType, tc.scopeID, "exhausted-cycle", 0, 100)
+			if tc.seed != nil {
+				tc.seed(t, fixture)
+			}
+
+			require.NoError(t, fixture.worker.ProcessLeased(context.Background(), fixture.message.Id))
+
+			if tc.wantSend {
+				require.Len(t, *fixture.sent, 1)
+				require.Equal(t, model.RecallMessageAccepted, loadRecallEmailMessageByID(t, fixture.message.Id).State)
+				return
+			}
+			require.Empty(t, *fixture.sent)
+			require.Equal(t, tc.wantReason, loadRecallEmailMessageByID(t, fixture.message.Id).LastErrorCode)
+			assertRecallLifecycleSMTPAdmissionDidNotConsume(t)
+		})
+	}
 }
 
 func TestRecallLifecycleMIMEPolicy(t *testing.T) {
@@ -341,11 +516,30 @@ func updateRecallLifecycleUserEmail(t *testing.T, userID int, email string) {
 	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", userID).Update("email", email).Error)
 }
 
+func updateRecallLifecycleRecipientEmailSnapshot(t *testing.T, recipientID int64, email string) {
+	t.Helper()
+	require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Where("id = ?", recipientID).Update("email_snapshot", email).Error)
+}
+
+func setRecallLifecycleQuotaWarningThreshold(t *testing.T, userID int, threshold float64) {
+	t.Helper()
+	settingJSON, err := common.Marshal(dto.UserSetting{QuotaWarningThreshold: threshold})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", userID).Update("setting", string(settingJSON)).Error)
+}
+
 func seedRecallLifecycleQuotaState(t *testing.T, userID int, scopeType string, scopeID string, cycle string, balance int64, threshold int64) {
 	t.Helper()
 	require.NoError(t, model.DB.Create(&model.QuotaLifecycleState{
 		UserId: userID, ScopeType: scopeType, ScopeId: scopeID, Cycle: cycle, Balance: balance, Threshold: threshold, Source: "test", SourceData: `{}`, StateVersion: 1,
 	}).Error)
+}
+
+func updateRecallLifecycleQuotaState(t *testing.T, userID int, scopeType string, scopeID string, cycle string, balance int64, threshold int64) {
+	t.Helper()
+	require.NoError(t, model.DB.Model(&model.QuotaLifecycleState{}).
+		Where("user_id = ? AND scope_type = ? AND scope_id = ?", userID, scopeType, scopeID).
+		Updates(map[string]any{"cycle": cycle, "balance": balance, "threshold": threshold}).Error)
 }
 
 func seedRecallLifecycleTopUp(t *testing.T, userID int, tradeNo string, status string) {
@@ -402,8 +596,12 @@ func TestRecallLifecyclePaymentGateAcceptsBothPurchaseKinds(t *testing.T) {
 		status  string
 		seed    func(t *testing.T, userID int, tradeNo string, status string)
 	}{
+		{"topup failed", model.RecallLifecycleTriggerPaymentFailed, model.PurchaseLifecycleKindTopUp, common.TopUpStatusFailed, seedRecallLifecycleTopUp},
+		{"topup pending", model.RecallLifecycleTriggerPaymentPending, model.PurchaseLifecycleKindTopUp, common.TopUpStatusPending, seedRecallLifecycleTopUp},
 		{"topup success", model.RecallLifecycleTriggerPaymentSucceeded, model.PurchaseLifecycleKindTopUp, common.TopUpStatusSuccess, seedRecallLifecycleTopUp},
+		{"subscription failed", model.RecallLifecycleTriggerPaymentFailed, model.PurchaseLifecycleKindSubscription, common.TopUpStatusFailed, seedRecallLifecycleSubscriptionOrder},
 		{"subscription pending", model.RecallLifecycleTriggerPaymentPending, model.PurchaseLifecycleKindSubscription, common.TopUpStatusPending, seedRecallLifecycleSubscriptionOrder},
+		{"subscription success", model.RecallLifecycleTriggerPaymentSucceeded, model.PurchaseLifecycleKindSubscription, common.TopUpStatusSuccess, seedRecallLifecycleSubscriptionOrder},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tradeNo := "gate-" + strings.ReplaceAll(tc.name, " ", "-")

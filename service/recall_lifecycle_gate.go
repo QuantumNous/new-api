@@ -70,11 +70,11 @@ func recallLifecycleSMTPGate(tx *gorm.DB, input model.RecallLifecycleSMTPGateInp
 			return recallLifecycleSMTPBlocked("registration_used"), nil
 		}
 	case model.RecallLifecycleTriggerQuotaLow:
-		if reason, err := recallLifecycleQuotaGateReason(tx, event, false); reason != "" || err != nil {
+		if reason, err := recallLifecycleQuotaGateReason(tx, event, user, false); reason != "" || err != nil {
 			return recallLifecycleSMTPBlocked(reason), err
 		}
 	case model.RecallLifecycleTriggerQuotaExhaustedUnpaid:
-		if reason, err := recallLifecycleQuotaGateReason(tx, event, true); reason != "" || err != nil {
+		if reason, err := recallLifecycleQuotaGateReason(tx, event, user, true); reason != "" || err != nil {
 			return recallLifecycleSMTPBlocked(reason), err
 		}
 	case model.RecallLifecycleTriggerPaymentFailed, model.RecallLifecycleTriggerPaymentPending, model.RecallLifecycleTriggerPaymentSucceeded:
@@ -94,7 +94,7 @@ func recallLifecycleSMTPBlocked(reason string) model.RecallLifecycleSMTPGateResu
 	return model.RecallLifecycleSMTPGateResult{Blocked: true, ReasonCode: reason}
 }
 
-func recallLifecycleQuotaGateReason(tx *gorm.DB, event model.RecallLifecycleEvent, exhausted bool) (string, error) {
+func recallLifecycleQuotaGateReason(tx *gorm.DB, event model.RecallLifecycleEvent, user model.User, exhausted bool) (string, error) {
 	data := recallLifecycleQuotaGateData{}
 	if err := common.Unmarshal([]byte(event.EventData), &data); err != nil {
 		return "quota_recovered", nil
@@ -117,45 +117,24 @@ func recallLifecycleQuotaGateReason(tx *gorm.DB, event model.RecallLifecycleEven
 	if strings.TrimSpace(state.Cycle) != cycle {
 		return "quota_cycle_changed", nil
 	}
-	threshold := data.Threshold
-	if threshold <= 0 {
-		threshold = state.Threshold
-	}
 	if exhausted {
 		if state.Balance > 0 {
 			return "quota_recovered", nil
 		}
-		recovered, err := recallLifecycleHasSuccessfulPurchaseAfter(tx, event.UserId, event.OccurredAt)
-		if err != nil || recovered {
-			if recovered {
-				return "quota_recovered", nil
-			}
-			return "", err
-		}
 		return "", nil
 	}
+	threshold := recallLifecycleCurrentQuotaThreshold(user)
 	if state.Balance <= 0 || (threshold > 0 && state.Balance >= threshold) {
 		return "quota_recovered", nil
 	}
 	return "", nil
 }
 
-func recallLifecycleHasSuccessfulPurchaseAfter(tx *gorm.DB, userID int, after int64) (bool, error) {
-	var count int64
-	if err := tx.Model(&model.TopUp{}).
-		Where("user_id = ? AND status = ? AND (complete_time > ? OR (complete_time = 0 AND create_time > ?))", userID, common.TopUpStatusSuccess, after, after).
-		Count(&count).Error; err != nil {
-		return false, err
+func recallLifecycleCurrentQuotaThreshold(user model.User) int64 {
+	if threshold := user.GetSetting().QuotaWarningThreshold; threshold > 0 {
+		return int64(threshold)
 	}
-	if count > 0 {
-		return true, nil
-	}
-	if err := tx.Model(&model.SubscriptionOrder{}).
-		Where("user_id = ? AND status = ? AND (complete_time > ? OR (complete_time = 0 AND create_time > ?))", userID, common.TopUpStatusSuccess, after, after).
-		Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
+	return int64(common.QuotaRemindThreshold)
 }
 
 func recallLifecyclePurchaseGateReason(tx *gorm.DB, event model.RecallLifecycleEvent) (string, error) {

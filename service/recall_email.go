@@ -748,9 +748,14 @@ func (w *RecallEmailWorker) recallEmailStopReason(ctx context.Context, item *mod
 	} else if item.Recipient.PromotionExpiresAt <= now {
 		return "activity_expired", nil
 	}
-	snapshotEmail, snapshotOK := recallAudienceEmail(item.Recipient.EmailSnapshot)
-	if !snapshotOK || snapshotEmail == "" {
-		return "email_unavailable", nil
+	isLifecycle := item.Recipient.LifecycleEventId != nil
+	snapshotEmail := ""
+	if !isLifecycle {
+		var snapshotOK bool
+		snapshotEmail, snapshotOK = recallAudienceEmail(item.Recipient.EmailSnapshot)
+		if !snapshotOK || snapshotEmail == "" {
+			return "email_unavailable", nil
+		}
 	}
 	if item.Recipient.UserId == 0 {
 		return "", nil
@@ -758,7 +763,6 @@ func (w *RecallEmailWorker) recallEmailStopReason(ctx context.Context, item *mod
 	if item.User.Status != common.UserStatusEnabled {
 		return "user_disabled", nil
 	}
-	isLifecycle := item.Recipient.LifecycleEventId != nil
 	currentEmail, currentOK := recallAudienceEmail(item.User.Email)
 	if !isLifecycle {
 		if !currentOK || !strings.EqualFold(snapshotEmail, currentEmail) {
@@ -1093,8 +1097,18 @@ func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody s
 	if strings.ContainsAny(input.Template.Subject, "\r\n") {
 		return "", "", fmt.Errorf("recall email subject must not contain CR or LF")
 	}
-	includeUnsubscribe := input.IncludeUnsubscribe || (input.DeliveryPolicy != model.RecallDeliveryPolicyService && strings.TrimSpace(input.UnsubscribeURL) != "")
+	isServiceDelivery := input.DeliveryPolicy == model.RecallDeliveryPolicyService
+	includeUnsubscribe := !isServiceDelivery && (input.IncludeUnsubscribe || strings.TrimSpace(input.UnsubscribeURL) != "")
 	if strings.TrimSpace(input.Template.BodyHTML) != "" {
+		if isServiceDelivery {
+			usesUnsubscribe, useErr := recallEmailHTMLTemplateUsesField(input.Template.BodyHTML, "UnsubscribeURL")
+			if useErr != nil {
+				return "", "", useErr
+			}
+			if usesUnsubscribe {
+				return "", "", fmt.Errorf("service recall email html must not render UnsubscribeURL")
+			}
+		}
 		body, renderErr := renderRecallEmailHTML(input.Template.BodyHTML, input)
 		if renderErr != nil {
 			return "", "", renderErr
@@ -1134,6 +1148,17 @@ func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody s
 	}
 	htmlBody += "</body></html>"
 	return input.Template.Subject, htmlBody, nil
+}
+
+func recallEmailHTMLTemplateUsesField(source string, fieldName string) (bool, error) {
+	compiled, err := htmltemplate.New("recall_email_html_field_check").Option("missingkey=error").Parse(source)
+	if err != nil {
+		return false, fmt.Errorf("parse recall email html template: %w", err)
+	}
+	if compiled.Tree == nil || compiled.Tree.Root == nil {
+		return false, nil
+	}
+	return recallEmailHTMLTemplateContainsField(compiled.Tree.Root, fieldName), nil
 }
 
 func renderRecallEmailHTML(source string, input RecallEmailRenderInput) (string, error) {

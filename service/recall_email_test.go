@@ -107,6 +107,48 @@ func TestRecallEmailRenderExecutesHTMLTemplateWithoutLegacyWrapper(t *testing.T)
 	require.NotContains(t, body, recallEmailCopyByLanguage["en"].GreetingPrefix+`&lt;Admin &amp; Co&gt;,`)
 }
 
+func TestRecallEmailRenderServicePolicyCannotRenderUnsubscribe(t *testing.T) {
+	_, body, err := RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:       model.RecallCampaignTypeContentOnly,
+		DeliveryPolicy:     model.RecallDeliveryPolicyService,
+		Language:           "en",
+		Template:           RecallEmailTemplate{Subject: "Service notice", BodyText: "Account notice"},
+		RecipientName:      "Ada",
+		UnsubscribeURL:     "https://console.example.com/api/recall/unsubscribe?token=service",
+		IncludeUnsubscribe: true,
+	})
+	require.NoError(t, err)
+	require.NotContains(t, body, "/api/recall/unsubscribe")
+	require.NotContains(t, body, "Unsubscribe</a>")
+
+	_, _, err = RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:   model.RecallCampaignTypeContentOnly,
+		DeliveryPolicy: model.RecallDeliveryPolicyService,
+		Language:       "en",
+		Template: RecallEmailTemplate{
+			Subject:  "Service HTML",
+			BodyHTML: `<!doctype html><html><body><p>Hello {{.RecipientName}}</p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></body></html>`,
+		},
+		RecipientName:  "Ada",
+		UnsubscribeURL: "https://console.example.com/api/recall/unsubscribe?token=service",
+	})
+	require.ErrorContains(t, err, "UnsubscribeURL")
+
+	_, body, err = RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:   model.RecallCampaignTypeContentOnly,
+		DeliveryPolicy: model.RecallDeliveryPolicyEngagement,
+		Language:       "en",
+		Template: RecallEmailTemplate{
+			Subject:  "Engagement HTML",
+			BodyHTML: `<!doctype html><html><body><p>Hello {{.RecipientName}}</p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></body></html>`,
+		},
+		RecipientName:  "Ada",
+		UnsubscribeURL: "https://console.example.com/api/recall/unsubscribe?token=engagement",
+	})
+	require.NoError(t, err)
+	require.Contains(t, body, "/api/recall/unsubscribe")
+}
+
 func TestRecallEmailRenderUsesLanguageSpecificWrapperAndProductSummary(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	tests := []struct {
