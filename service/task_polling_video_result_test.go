@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -71,9 +72,182 @@ func TestUpdateVideoSingleTaskArchivePersistsMetadataBeforeSuccessSettlement(t *
 	require.Equal(t, "100%", stored.Progress)
 	require.NotZero(t, stored.FinishTime)
 	require.Equal(t, expected, stored.PrivateData.VideoResult)
+	require.Equal(t, taskcommon.BuildProxyURL(task.TaskID), stored.PrivateData.ResultURL)
+	require.NotEqual(t, "https://secret.example/video.mp4?token=secret", stored.PrivateData.ResultURL)
 	require.Equal(t, 40, stored.PrivateData.TotalTokens)
 	require.NotContains(t, string(stored.Data), "secret.example")
 	require.NotContains(t, string(stored.Data), "video.mp4?token=secret")
+}
+
+func TestUpdateVideoSingleTaskReturnSourceURLSkipsArchive(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	ctx := context.Background()
+
+	seedUser(t, 906, 1000)
+	seedToken(t, 916, 906, "sk-techmobi-source-url", 500)
+	task := newTechMobiPollingTask(t, 906, 936, 100, 916)
+	ch := newTechMobiPollingChannelWithSourceURL(936)
+	sourceURL := "https://secret.example/video.mp4?token=secret"
+	adaptor := &fakeVideoPollingAdaptor{
+		responseBody: techMobiArchiveResponseBody(),
+		taskResult: &relaycommon.TaskInfo{
+			TaskID:      "upstream-techmobi-success",
+			Status:      model.TaskStatusSuccess,
+			Url:         sourceURL,
+			Progress:    "100%",
+			TotalTokens: 40,
+		},
+		actualQuota: 40,
+	}
+	archiveTechMobiVideoResult = func(context.Context, string, string, string) (*model.VideoResult, error) {
+		t.Fatal("archive hook must not be called when TechMobi source URL return is enabled")
+		return nil, nil
+	}
+
+	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), techMobiTaskMap(task))
+	require.NoError(t, err)
+	require.Equal(t, 1, adaptor.adjustCalls)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusSuccess, stored.Status)
+	require.Equal(t, sourceURL, stored.PrivateData.ResultURL)
+	require.Nil(t, stored.PrivateData.VideoResult)
+	require.Equal(t, 40, stored.PrivateData.TotalTokens)
+	require.NotContains(t, string(stored.Data), "secret.example")
+	require.NotContains(t, string(stored.Data), "token=secret")
+}
+
+func TestUpdateVideoSingleTaskReturnSourceURLSettingIgnoredForOtherWhitelabelChannels(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	ctx := context.Background()
+
+	seedUser(t, 908, 1000)
+	seedToken(t, 918, 908, "sk-techmobi-source-url-other-whitelabel", 500)
+	task := newTechMobiPollingTask(t, 908, 938, 100, 918)
+	ch := newTechMobiPollingChannelWithSourceURL(938)
+	ch.Type = constant.ChannelTypeKuaiziLizhen
+	sourceURL := "https://secret.example/video.mp4?token=secret"
+	adaptor := &fakeVideoPollingAdaptor{
+		responseBody: techMobiArchiveResponseBody(),
+		taskResult: &relaycommon.TaskInfo{
+			TaskID:      "upstream-techmobi-success",
+			Status:      model.TaskStatusSuccess,
+			Url:         sourceURL,
+			Progress:    "100%",
+			TotalTokens: 40,
+		},
+		actualQuota: 40,
+	}
+	archiveTechMobiVideoResult = func(context.Context, string, string, string) (*model.VideoResult, error) {
+		t.Fatal("TechMobi archive hook must not be called for other whitelabel channel types")
+		return nil, nil
+	}
+
+	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), techMobiTaskMap(task))
+	require.NoError(t, err)
+	require.Equal(t, 1, adaptor.adjustCalls)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusSuccess, stored.Status)
+	require.Equal(t, taskcommon.BuildProxyURL(task.TaskID), stored.PrivateData.ResultURL)
+	require.NotEqual(t, sourceURL, stored.PrivateData.ResultURL)
+	require.Nil(t, stored.PrivateData.VideoResult)
+	require.Equal(t, 40, stored.PrivateData.TotalTokens)
+}
+
+func TestUpdateVideoSingleTaskReturnSourceURLCASLoserDoesNotSettleTwice(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	ctx := context.Background()
+
+	seedUser(t, 909, 1000)
+	seedToken(t, 919, 909, "sk-techmobi-source-url-cas-loser", 500)
+	task := newTechMobiPollingTask(t, 909, 939, 100, 919)
+	var staleTask model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&staleTask).Error)
+
+	ch := newTechMobiPollingChannelWithSourceURL(939)
+	sourceURL := "https://secret.example/video.mp4?token=secret"
+	winnerAdaptor := &fakeVideoPollingAdaptor{
+		responseBody: techMobiArchiveResponseBody(),
+		taskResult: &relaycommon.TaskInfo{
+			TaskID:      "upstream-techmobi-success",
+			Status:      model.TaskStatusSuccess,
+			Url:         sourceURL,
+			Progress:    "100%",
+			TotalTokens: 40,
+		},
+		actualQuota: 40,
+	}
+	loserAdaptor := &fakeVideoPollingAdaptor{
+		responseBody: techMobiArchiveResponseBody(),
+		taskResult: &relaycommon.TaskInfo{
+			TaskID:      "upstream-techmobi-success",
+			Status:      model.TaskStatusSuccess,
+			Url:         sourceURL,
+			Progress:    "100%",
+			TotalTokens: 40,
+		},
+		actualQuota: 40,
+	}
+	archiveTechMobiVideoResult = func(context.Context, string, string, string) (*model.VideoResult, error) {
+		t.Fatal("archive hook must not be called when TechMobi source URL return is enabled")
+		return nil, nil
+	}
+
+	require.NoError(t, updateVideoSingleTask(ctx, winnerAdaptor, ch, task.GetUpstreamTaskID(), techMobiTaskMap(task)))
+	require.NoError(t, updateVideoSingleTask(ctx, loserAdaptor, ch, staleTask.GetUpstreamTaskID(), techMobiTaskMap(&staleTask)))
+	require.Equal(t, 1, winnerAdaptor.adjustCalls)
+	require.Equal(t, 0, loserAdaptor.adjustCalls)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusSuccess, stored.Status)
+	require.Equal(t, sourceURL, stored.PrivateData.ResultURL)
+	require.Equal(t, 40, stored.PrivateData.TotalTokens)
+}
+
+func TestUpdateVideoSingleTaskReturnSourceURLMissingDoesNotFinalizeOrSettle(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	ctx := context.Background()
+
+	seedUser(t, 907, 1000)
+	seedToken(t, 917, 907, "sk-techmobi-source-url-missing", 500)
+	task := newTechMobiPollingTask(t, 907, 937, 100, 917)
+	ch := newTechMobiPollingChannelWithSourceURL(937)
+	adaptor := &fakeVideoPollingAdaptor{
+		responseBody: techMobiArchiveResponseBody(),
+		taskResult: &relaycommon.TaskInfo{
+			TaskID:   "upstream-techmobi-success",
+			Status:   model.TaskStatusSuccess,
+			Url:      "   ",
+			Progress: "100%",
+		},
+		actualQuota: 40,
+	}
+	archiveTechMobiVideoResult = func(context.Context, string, string, string) (*model.VideoResult, error) {
+		t.Fatal("archive hook must not be called when TechMobi source URL return is enabled")
+		return nil, nil
+	}
+
+	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), techMobiTaskMap(task))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing source URL")
+	require.Equal(t, 0, adaptor.adjustCalls)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusInProgress, stored.Status)
+	require.Equal(t, "50%", stored.Progress)
+	require.Zero(t, stored.FinishTime)
+	require.Empty(t, stored.PrivateData.ResultURL)
+	require.Nil(t, stored.PrivateData.VideoResult)
+	require.Equal(t, 100, stored.Quota)
 }
 
 func TestUpdateVideoSingleTaskArchiveErrorDoesNotFinalizeOrSettle(t *testing.T) {
@@ -380,6 +554,15 @@ func newTechMobiPollingChannel(proxy string) *model.Channel {
 	if proxy != "" {
 		ch.SetSetting(dto.ChannelSettings{Proxy: proxy})
 	}
+	return ch
+}
+
+func newTechMobiPollingChannelWithSourceURL(id int) *model.Channel {
+	ch := newTechMobiPollingChannel("")
+	ch.Id = id
+	setting := ch.GetSetting()
+	setting.ReturnSourceURL = true
+	ch.SetSetting(setting)
 	return ch
 }
 

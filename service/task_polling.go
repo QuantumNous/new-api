@@ -370,7 +370,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if ch.GetBaseURL() != "" {
 		baseURL = ch.GetBaseURL()
 	}
-	proxy := ch.GetSetting().Proxy
+	channelSetting := ch.GetSetting()
+	proxy := channelSetting.Proxy
+	returnSourceURL := ch.Type == constant.ChannelTypeTechMobiVideo && channelSetting.ReturnSourceURL
 
 	task := taskM[taskId]
 	if task == nil {
@@ -459,9 +461,13 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		}
 	}
 
-	if ch.Type == constant.ChannelTypeTechMobiVideo && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
+	if returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess && strings.TrimSpace(taskResult.Url) == "" {
+		return fmt.Errorf("techmobi task %s missing source URL", task.TaskID)
+	}
+
+	if ch.Type == constant.ChannelTypeTechMobiVideo && !returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
 		if task.PrivateData.VideoResult == nil {
-			videoResult, archiveErr := archiveTechMobiVideoResult(ctx, task.TaskID, taskResult.Url, ch.GetSetting().Proxy)
+			videoResult, archiveErr := archiveTechMobiVideoResult(ctx, task.TaskID, taskResult.Url, proxy)
 			if archiveErr != nil {
 				perfmetrics.RecordVideoResultArchiveRetry("techmobi", "archive_failure")
 				return fmt.Errorf("archive techmobi video result failed for task %s: %s", task.TaskID, sanitizeVideoResultArchiveError(archiveErr))
@@ -499,6 +505,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		if strings.HasPrefix(taskResult.Url, "data:") {
 			// data: URI (e.g. Vertex base64 encoded video) — keep in Data, not in ResultURL
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+		} else if returnSourceURL {
+			task.PrivateData.ResultURL = strings.TrimSpace(taskResult.Url)
 		} else if taskcommon.ShouldWhitelabelChannelType(ch.Type) {
 			// Whitelabel channel: never expose upstream URL to customers. The
 			// real URL stays in task.Data (used by controller.VideoProxy).
