@@ -26,6 +26,7 @@ import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { SeedanceAssetSettingsSection } from './seedance-asset-settings-section'
+import { SeedanceOfficialAssetSettingsSection } from './seedance-official-asset-settings-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -156,6 +157,29 @@ const OPERATIONS_SECTIONS = [
           enabled: settings['seedance_asset.enabled'] ?? false,
           gatewayChannelId: settings['seedance_asset.gateway_channel_id'] ?? 0,
           refreshOnGet: settings['seedance_asset.refresh_on_get'] ?? true,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'seedance-official-asset',
+    titleKey: 'Seedance Official Asset Gateway',
+    descriptionKey:
+      'Direct Volcengine Ark private asset APIs with console AK/SK (parallel to 83zi)',
+    build: (settings: OperationsSettings) => (
+      <SeedanceOfficialAssetSettingsSection
+        defaultValues={{
+          enabled: settings['seedance_asset_official.enabled'] ?? false,
+          gatewayChannelId:
+            settings['seedance_asset_official.gateway_channel_id'] ?? 0,
+          refreshOnGet:
+            settings['seedance_asset_official.refresh_on_get'] ?? true,
+          defaultCallbackUrl:
+            settings['seedance_asset_official.default_callback_url'] ?? '',
+          platform:
+            settings['seedance_asset_official.platform'] === 'overseas'
+              ? 'overseas'
+              : 'cn',
         }}
       />
     ),

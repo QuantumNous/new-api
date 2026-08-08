@@ -324,6 +324,11 @@ export type OperationsSettings = {
   'seedance_asset.enabled': boolean
   'seedance_asset.gateway_channel_id': number
   'seedance_asset.refresh_on_get': boolean
+  'seedance_asset_official.enabled': boolean
+  'seedance_asset_official.gateway_channel_id': number
+  'seedance_asset_official.refresh_on_get': boolean
+  'seedance_asset_official.default_callback_url': string
+  'seedance_asset_official.platform': string
 }
 
 export type SecuritySettings = {

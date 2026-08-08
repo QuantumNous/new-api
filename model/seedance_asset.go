@@ -27,6 +27,7 @@ type SeedanceAsset struct {
 	URL          string `json:"url" gorm:"type:varchar(2048)"`
 	AssetURI     string `json:"asset_uri" gorm:"type:varchar(256)"`
 	ErrorMessage string `json:"error_message" gorm:"type:varchar(1024)"`
+	Provider     string `json:"provider" gorm:"type:varchar(32);index;default:'83zi'"`
 	ChannelId    int    `json:"channel_id" gorm:"index"`
 	CreatedAt    int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt    int64  `json:"updated_at" gorm:"bigint"`
@@ -40,6 +41,9 @@ func (a *SeedanceAsset) Insert() error {
 	a.UpdatedAt = now
 	if a.Status == "" {
 		a.Status = SeedanceAssetStatusProcessing
+	}
+	if a.Provider == "" {
+		a.Provider = SeedanceProvider83zi
 	}
 	if a.AssetURI == "" && a.AiccAssetId != "" {
 		a.AssetURI = "asset://" + a.AiccAssetId
@@ -56,17 +60,27 @@ func (a *SeedanceAsset) Update() error {
 }
 
 func SoftDeleteSeedanceAsset(userId int, id int) error {
-	return DB.Model(&SeedanceAsset{}).
-		Where("id = ? AND user_id = ? AND status <> ?", id, userId, SeedanceAssetStatusDeleted).
-		Updates(map[string]interface{}{
-			"status":     SeedanceAssetStatusDeleted,
-			"updated_at": time.Now().Unix(),
-		}).Error
+	return SoftDeleteSeedanceAssetByProvider(userId, id, "")
+}
+
+func SoftDeleteSeedanceAssetByProvider(userId int, id int, provider string) error {
+	q := DB.Model(&SeedanceAsset{}).
+		Where("id = ? AND user_id = ? AND status <> ?", id, userId, SeedanceAssetStatusDeleted)
+	q = applySeedanceProviderFilter(q, provider)
+	return q.Updates(map[string]interface{}{
+		"status":     SeedanceAssetStatusDeleted,
+		"updated_at": time.Now().Unix(),
+	}).Error
 }
 
 func GetSeedanceAssetByUserAndIDOrAicc(userId int, idOrAicc string) (*SeedanceAsset, error) {
+	return GetSeedanceAssetByUserAndIDOrAiccProvider(userId, idOrAicc, "")
+}
+
+func GetSeedanceAssetByUserAndIDOrAiccProvider(userId int, idOrAicc, provider string) (*SeedanceAsset, error) {
 	var a SeedanceAsset
 	q := DB.Where("user_id = ? AND status <> ?", userId, SeedanceAssetStatusDeleted)
+	q = applySeedanceProviderFilter(q, provider)
 	if localId, err := strconv.Atoi(idOrAicc); err == nil && localId > 0 {
 		q = q.Where("id = ? OR aicc_asset_id = ?", localId, idOrAicc)
 	} else {
@@ -88,6 +102,7 @@ type SeedanceAssetQuery struct {
 	Type     string
 	Status   string
 	Statuses []string
+	Provider string
 	PageNo   int
 	PageSize int
 }
@@ -107,6 +122,7 @@ func ListSeedanceAssetsByUser(userId int, q SeedanceAssetQuery) (items []*Seedan
 
 	query := DB.Model(&SeedanceAsset{}).
 		Where("user_id = ? AND status <> ?", userId, SeedanceAssetStatusDeleted)
+	query = applySeedanceProviderFilter(query, q.Provider)
 	if q.GroupId != "" {
 		query = query.Where("group_id = ?", q.GroupId)
 	}

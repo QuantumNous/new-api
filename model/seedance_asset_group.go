@@ -8,10 +8,13 @@ import (
 )
 
 const (
-	SeedanceGroupTypeAIGC          = "AIGC"
-	SeedanceGroupTypeLivenessFace  = "LivenessFace"
-	SeedanceGroupStatusActive      = "active"
-	SeedanceGroupStatusDeleted     = "deleted"
+	SeedanceGroupTypeAIGC         = "AIGC"
+	SeedanceGroupTypeLivenessFace = "LivenessFace"
+	SeedanceGroupStatusActive     = "active"
+	SeedanceGroupStatusDeleted    = "deleted"
+
+	SeedanceProvider83zi     = "83zi"
+	SeedanceProviderOfficial = "official"
 )
 
 type SeedanceAssetGroup struct {
@@ -22,6 +25,7 @@ type SeedanceAssetGroup struct {
 	GroupName   string `json:"group_name" gorm:"type:varchar(255)"`
 	Description string `json:"description" gorm:"type:varchar(512)"`
 	Status      string `json:"status" gorm:"type:varchar(32);index;default:'active'"`
+	Provider    string `json:"provider" gorm:"type:varchar(32);index;default:'83zi'"`
 	ChannelId   int    `json:"channel_id" gorm:"index"`
 	CreatedAt   int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt   int64  `json:"updated_at" gorm:"bigint"`
@@ -39,6 +43,9 @@ func (g *SeedanceAssetGroup) Insert() error {
 	if g.GroupType == "" {
 		g.GroupType = SeedanceGroupTypeAIGC
 	}
+	if g.Provider == "" {
+		g.Provider = SeedanceProvider83zi
+	}
 	return DB.Create(g).Error
 }
 
@@ -48,18 +55,28 @@ func (g *SeedanceAssetGroup) Update() error {
 }
 
 func SoftDeleteSeedanceAssetGroup(userId int, groupId string) error {
-	return DB.Model(&SeedanceAssetGroup{}).
-		Where("user_id = ? AND group_id = ? AND status = ?", userId, groupId, SeedanceGroupStatusActive).
-		Updates(map[string]interface{}{
-			"status":     SeedanceGroupStatusDeleted,
-			"updated_at": time.Now().Unix(),
-		}).Error
+	return SoftDeleteSeedanceAssetGroupByProvider(userId, groupId, "")
+}
+
+func SoftDeleteSeedanceAssetGroupByProvider(userId int, groupId, provider string) error {
+	q := DB.Model(&SeedanceAssetGroup{}).
+		Where("user_id = ? AND group_id = ? AND status = ?", userId, groupId, SeedanceGroupStatusActive)
+	q = applySeedanceProviderFilter(q, provider)
+	return q.Updates(map[string]interface{}{
+		"status":     SeedanceGroupStatusDeleted,
+		"updated_at": time.Now().Unix(),
+	}).Error
 }
 
 func GetSeedanceAssetGroupByUserAndGroupID(userId int, groupId string) (*SeedanceAssetGroup, error) {
+	return GetSeedanceAssetGroupByUserAndGroupIDProvider(userId, groupId, "")
+}
+
+func GetSeedanceAssetGroupByUserAndGroupIDProvider(userId int, groupId, provider string) (*SeedanceAssetGroup, error) {
 	var g SeedanceAssetGroup
-	err := DB.Where("user_id = ? AND group_id = ? AND status = ?", userId, groupId, SeedanceGroupStatusActive).
-		First(&g).Error
+	q := DB.Where("user_id = ? AND group_id = ? AND status = ?", userId, groupId, SeedanceGroupStatusActive)
+	q = applySeedanceProviderFilter(q, provider)
+	err := q.First(&g).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -72,6 +89,7 @@ func GetSeedanceAssetGroupByUserAndGroupID(userId int, groupId string) (*Seedanc
 type SeedanceAssetGroupQuery struct {
 	GroupType string
 	GroupIds  []string
+	Provider  string
 	PageNo    int
 	PageSize  int
 }
@@ -91,6 +109,7 @@ func ListSeedanceAssetGroupsByUser(userId int, q SeedanceAssetGroupQuery) (items
 
 	query := DB.Model(&SeedanceAssetGroup{}).
 		Where("user_id = ? AND status = ?", userId, SeedanceGroupStatusActive)
+	query = applySeedanceProviderFilter(query, q.Provider)
 	if q.GroupType != "" {
 		query = query.Where("group_type = ?", q.GroupType)
 	}
@@ -132,8 +151,30 @@ func UpsertSeedanceAssetGroup(g *SeedanceAssetGroup) error {
 	if g.ChannelId > 0 {
 		existing.ChannelId = g.ChannelId
 	}
+	if g.Provider != "" {
+		existing.Provider = g.Provider
+	}
 	existing.UpdatedAt = now
 	return existing.Update()
+}
+
+// applySeedanceProviderFilter scopes rows by provider.
+// Empty provider defaults to 83zi and also matches legacy NULL/empty rows.
+func applySeedanceProviderFilter(query *gorm.DB, provider string) *gorm.DB {
+	p := NormalizeSeedanceProvider(provider)
+	if p == SeedanceProviderOfficial {
+		return query.Where("provider = ?", SeedanceProviderOfficial)
+	}
+	return query.Where("(provider = ? OR provider = '' OR provider IS NULL)", SeedanceProvider83zi)
+}
+
+func NormalizeSeedanceProvider(provider string) string {
+	switch provider {
+	case SeedanceProviderOfficial:
+		return SeedanceProviderOfficial
+	default:
+		return SeedanceProvider83zi
+	}
 }
 
 func GetSeedanceAssetGroupByAnyGroupID(groupId string) (*SeedanceAssetGroup, error) {

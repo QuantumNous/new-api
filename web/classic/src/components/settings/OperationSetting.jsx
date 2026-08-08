@@ -28,6 +28,7 @@ import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsSeedanceAsset from '../../pages/Setting/Operation/SettingsSeedanceAsset';
+import SettingsSeedanceOfficialAsset from '../../pages/Setting/Operation/SettingsSeedanceOfficialAsset';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -85,6 +86,13 @@ const OperationSetting = () => {
     'seedance_asset.enabled': false,
     'seedance_asset.gateway_channel_id': 0,
     'seedance_asset.refresh_on_get': true,
+
+    /* Seedance 官方素材网关 */
+    'seedance_asset_official.enabled': false,
+    'seedance_asset_official.gateway_channel_id': 0,
+    'seedance_asset_official.refresh_on_get': true,
+    'seedance_asset_official.default_callback_url': '',
+    'seedance_asset_official.platform': 'cn',
 
     /* 令牌设置 */
     'token_setting.max_user_tokens': 1000,
@@ -164,6 +172,10 @@ const OperationSetting = () => {
         {/* Seedance 素材网关 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsSeedanceAsset options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* Seedance 官方素材网关 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsSeedanceOfficialAsset options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>

@@ -1,4 +1,4 @@
-{
+﻿{
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -3516,6 +3516,22 @@
     "Security Check": "セキュリティチェック",
     "Security verification": "セキュリティ確認",
     "Seedance Asset Gateway": "Seedance Asset Gateway",
+    "Seedance Official Asset Gateway": "Seedance Official Asset Gateway",
+    "Direct Volcengine Ark private asset APIs with console AK/SK (parallel to 83zi)": "Direct Volcengine Ark private asset APIs with console AK/SK (parallel to 83zi)",
+    "Enable Seedance official asset APIs": "Enable Seedance official asset APIs",
+    "Expose /api/seedance/official asset-group and real-person endpoints": "Expose /api/seedance/official asset-group and real-person endpoints",
+    "Official gateway channel ID": "Official gateway channel ID",
+    "Channel Key must be AK|SK or AK|SK|Region; Base URL optional (defaults to ark.cn-beijing.volcengineapi.com)": "Channel Key must be AK|SK or AK|SK|Region; Base URL optional (defaults to ark.cn-beijing.volcengineapi.com)",
+    "Default real-person CallbackURL": "Default real-person CallbackURL",
+    "Used by CreateVisualValidateSession when clients omit callback_url": "Used by CreateVisualValidateSession when clients omit callback_url",
+    "Refresh official asset status on GET": "Refresh official asset status on GET",
+    "When enabled, GET /api/seedance/official/assets/{id} refreshes status from Volcengine": "When enabled, GET /api/seedance/official/assets/{id} refreshes status from Volcengine",
+    "Save Seedance official asset settings": "Save Seedance official asset settings",
+    "Official asset platform": "Official asset platform",
+    "China Volcengine (cn-beijing)": "China Volcengine (cn-beijing)",
+    "Overseas BytePlus (ap-southeast-1)": "Overseas BytePlus (ap-southeast-1)",
+    "Choose China or overseas endpoint; does not replace the other. Channel Key still uses AK|SK.": "Choose China or overseas endpoint; does not replace the other. Channel Key still uses AK|SK.",
+    "Channel Key must be AK|SK or AK|SK|Region; Base URL optional (uses platform default host when empty)": "Channel Key must be AK|SK or AK|SK|Region; Base URL optional (uses platform default host when empty)",
     "Select": "選択",
     "Select a color": "色を選択",
     "Select a group": "グループを選択",

@@ -69,6 +69,11 @@ const defaultOperationsSettings: OperationsSettings = {
   'seedance_asset.enabled': false,
   'seedance_asset.gateway_channel_id': 0,
   'seedance_asset.refresh_on_get': true,
+  'seedance_asset_official.enabled': false,
+  'seedance_asset_official.gateway_channel_id': 0,
+  'seedance_asset_official.refresh_on_get': true,
+  'seedance_asset_official.default_callback_url': '',
+  'seedance_asset_official.platform': 'cn',
 }
 
 export function OperationsSettings() {
@@ -100,6 +105,7 @@ export function OperationsSettings() {
     | 'logs'
     | 'performance'
     | 'seedance-asset'
+    | 'seedance-official-asset'
     | 'update-checker'
   const sectionContent = getOperationsSectionContent(
     activeSection,
