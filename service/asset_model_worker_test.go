@@ -87,18 +87,17 @@ func TestAssetModelWorkerRefreshesDBTimeForEveryBatchRow(t *testing.T) {
 	}
 	t.Cleanup(func() { assetModelWorkerDBTimestamp = originalDBTimestamp })
 
-	errs := make(chan error, 1)
+	results := make(chan assetModelWorkerBatchResult, 1)
 	go func() {
 		processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
-		if err == nil {
-			require.Equal(t, 2, processed)
-		}
-		errs <- err
+		results <- assetModelWorkerBatchResult{processed: processed, err: err}
 	}()
 	waitForAssetModelCreateCalls(t, materializer, 1)
 	dbNow.Store(131)
 	close(materializer.blockFirstCreate)
-	require.NoError(t, <-errs)
+	result := receiveAssetModelWorkerBatchResult(t, results)
+	require.NoError(t, result.err)
+	require.Equal(t, 2, result.processed)
 
 	first := requireAssetModelReadinessRow(t, firstAsset.Id, scope, target.ModelName)
 	require.Equal(t, model.AssetModelReadinessStatusActive, first.Status)
@@ -272,13 +271,10 @@ func TestAssetModelWorkerBindingLeaseOutlivesReadinessLeaseDuringSlowProviderWri
 	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
 	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_slow_provider_aaaa", "techmobi-key-a")
 
-	errs := make(chan error, 1)
+	results := make(chan assetModelWorkerBatchResult, 1)
 	go func() {
 		processed, err := runAssetModelReadinessBatchAt(t, "node-a", 100)
-		if err == nil {
-			require.Equal(t, 1, processed)
-		}
-		errs <- err
+		results <- assetModelWorkerBatchResult{processed: processed, err: err}
 	}()
 	waitForAssetModelCreateCalls(t, materializer, 1)
 
@@ -288,7 +284,9 @@ func TestAssetModelWorkerBindingLeaseOutlivesReadinessLeaseDuringSlowProviderWri
 	require.EqualValues(t, 1, atomic.LoadInt64(&materializer.createCalls), "fresh binding lease must block duplicate provider writes after readiness lease takeover")
 
 	close(materializer.blockFirstCreate)
-	require.NoError(t, <-errs)
+	result := receiveAssetModelWorkerBatchResult(t, results)
+	require.NoError(t, result.err)
+	require.Equal(t, 1, result.processed)
 	require.EqualValues(t, 1, atomic.LoadInt64(&materializer.createCalls))
 
 	binding, err := model.GetAssetBindingForScope(asset.Id, target.ChannelId, target.BindingScope)
@@ -419,8 +417,8 @@ func TestAssetModelMultiNodeCreatesExactProviderAssetOnce(t *testing.T) {
 		}()
 	}
 	close(materializer.blockCreate)
-	require.NoError(t, <-errs)
-	require.NoError(t, <-errs)
+	require.NoError(t, receiveAssetModelWorkerError(t, errs))
+	require.NoError(t, receiveAssetModelWorkerError(t, errs))
 
 	row := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
 	require.Equal(t, model.AssetModelReadinessStatusActive, row.Status)
@@ -586,6 +584,33 @@ func runAssetModelReadinessBatchAt(t *testing.T, owner string, now int64) (int, 
 	t.Helper()
 	assetModelWorkerTestDBTime.Store(now)
 	return RunAssetModelReadinessBatch(context.Background(), owner, time.Unix(now, 0))
+}
+
+type assetModelWorkerBatchResult struct {
+	processed int
+	err       error
+}
+
+func receiveAssetModelWorkerBatchResult(t *testing.T, results <-chan assetModelWorkerBatchResult) assetModelWorkerBatchResult {
+	t.Helper()
+	select {
+	case result := <-results:
+		return result
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for asset model worker batch result")
+		return assetModelWorkerBatchResult{}
+	}
+}
+
+func receiveAssetModelWorkerError(t *testing.T, errs <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-errs:
+		return err
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for asset model worker error")
+		return nil
+	}
 }
 
 func seedAssetModelWorkerReadiness(t *testing.T, publicID string, keys string) (model.Asset, AssetModelScope, model.AssetModelCoverageTarget) {

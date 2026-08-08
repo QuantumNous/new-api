@@ -72,8 +72,7 @@ func (e assetModelBindingRetryError) Error() string {
 }
 
 type assetModelBindingDefinitiveError struct {
-	class     string
-	exhausted bool
+	class string
 }
 
 func (e assetModelBindingDefinitiveError) Error() string {
@@ -238,7 +237,7 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 			Attempt:       row.AttemptCount,
 			Elapsed:       time.Duration(nowUnix-row.AttemptStartedAt) * time.Second,
 		})
-		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix, false)
+		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix)
 	}
 
 	channel, err := loadAssetModelReadinessChannel(target.ChannelId)
@@ -250,11 +249,11 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 		return err
 	}
 	if !eligible {
-		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix, false)
+		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix)
 	}
 	options, _, err := ResolveAssetModelTargetOptions(*target, channel)
 	if err != nil {
-		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix, true)
+		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix)
 	}
 
 	binding, err := prepareAssetModelBinding(ctx, asset, *target, channel, options, owner, nowUnix)
@@ -279,7 +278,7 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 				Attempt:       row.AttemptCount,
 				Elapsed:       time.Duration(nowUnix-row.AttemptStartedAt) * time.Second,
 			})
-			return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix, false)
+			return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix)
 		}
 		class := retryErr.class
 		if class == "" {
@@ -289,7 +288,7 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 	}
 	var definitiveErr assetModelBindingDefinitiveError
 	if errors.As(err, &definitiveErr) {
-		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix, definitiveErr.exhausted)
+		return rotateAssetModelReadinessTarget(row, *target, owner, nowUnix)
 	}
 	return finishAssetModelReadinessFailed(row, owner, nowUnix, AssetMaterializeErrorInternal)
 }
@@ -341,7 +340,7 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 	materializer, ok := assetMaterializerForChannel(currentChannel.Type)
 	if !ok {
 		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, target.ChannelId, target.BindingScope, owner, bindingLeaseExpiresAt, "asset_channel_unavailable", nowUnix)
-		return nil, assetModelBindingDefinitiveError{class: "asset_channel_unavailable", exhausted: true}
+		return nil, assetModelBindingDefinitiveError{class: "asset_channel_unavailable"}
 	}
 	recordAssetModelWorkerEvent(ctx, assetModelWorkerEvent{
 		Name:          assetModelEventWrite,
@@ -367,11 +366,11 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 			return nil, assetModelBindingRetryError{class: class, retryAfter: assetModelRetryAfter(err)}
 		}
 		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, target.ChannelId, target.BindingScope, owner, bindingLeaseExpiresAt, class, nowUnix)
-		return nil, assetModelBindingDefinitiveError{class: class, exhausted: true}
+		return nil, assetModelBindingDefinitiveError{class: class}
 	}
 	if strings.TrimSpace(result.UpstreamAssetID) == "" || result.Status == model.AssetStatusFailed {
 		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, target.ChannelId, target.BindingScope, owner, bindingLeaseExpiresAt, AssetMaterializeErrorDefinitive, nowUnix)
-		return nil, assetModelBindingDefinitiveError{class: AssetMaterializeErrorDefinitive, exhausted: true}
+		return nil, assetModelBindingDefinitiveError{class: AssetMaterializeErrorDefinitive}
 	}
 	status := strings.TrimSpace(result.Status)
 	if status == "" {
@@ -468,7 +467,7 @@ func assetModelProviderCallContext(parent context.Context) (context.Context, con
 	return context.WithTimeout(parent, timeout)
 }
 
-func rotateAssetModelReadinessTarget(row model.AssetModelReadiness, target model.AssetModelCoverageTarget, owner string, nowUnix int64, exhausted bool) error {
+func rotateAssetModelReadinessTarget(row model.AssetModelReadiness, target model.AssetModelCoverageTarget, owner string, nowUnix int64) error {
 	scope := assetModelScopeFromTarget(target)
 	candidates, err := AssetModelTargetCandidates(scope, target.ModelName)
 	if err != nil {
