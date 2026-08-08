@@ -104,6 +104,17 @@ type RecallMessageView struct {
 	UpdatedAt         int64  `json:"updated_at"`
 }
 
+type RecallEventView struct {
+	Id            int64  `json:"id"`
+	CampaignId    int64  `json:"campaign_id"`
+	RecipientId   int64  `json:"recipient_id"`
+	EventType     string `json:"event_type"`
+	Source        string `json:"source"`
+	MessageId     int64  `json:"message_id"`
+	SourceEventId string `json:"source_event_id"`
+	CreatedAt     int64  `json:"created_at"`
+}
+
 type RecallRecipientView struct {
 	Id                  int64               `json:"id"`
 	CampaignId          int64               `json:"campaign_id"`
@@ -228,12 +239,20 @@ func (s *RecallCampaignService) ListRecipients(ctx context.Context, id int64, pa
 	return views, total, nil
 }
 
-func (s *RecallCampaignService) ListEvents(ctx context.Context, id int64, page *common.PageInfo) ([]model.RecallEvent, int64, error) {
+func (s *RecallCampaignService) ListEvents(ctx context.Context, id int64, page *common.PageInfo) ([]RecallEventView, int64, error) {
 	if id <= 0 || page == nil {
 		return nil, 0, fmt.Errorf("recall campaign ID and page are required")
 	}
 	normalizeRecallPage(page)
-	return model.ListRecallEventsWithContext(ctx, id, page.GetStartIdx(), page.GetPageSize())
+	events, total, err := model.ListRecallEventsWithContext(ctx, id, page.GetStartIdx(), page.GetPageSize())
+	if err != nil {
+		return nil, 0, err
+	}
+	views := make([]RecallEventView, 0, len(events))
+	for i := range events {
+		views = append(views, recallEventView(events[i]))
+	}
+	return views, total, nil
 }
 
 func normalizeRecallPage(page *common.PageInfo) {
@@ -507,6 +526,19 @@ func recallMessageView(message model.RecallMessage) RecallMessageView {
 	}
 }
 
+func recallEventView(event model.RecallEvent) RecallEventView {
+	return RecallEventView{
+		Id:            event.Id,
+		CampaignId:    event.CampaignId,
+		RecipientId:   event.RecipientId,
+		EventType:     event.EventType,
+		Source:        event.Source,
+		MessageId:     event.MessageId,
+		SourceEventId: event.SourceEventId,
+		CreatedAt:     event.CreatedAt,
+	}
+}
+
 func recallAdminEventData(actorID int, fields map[string]any) string {
 	data := make(map[string]any, len(fields)+1)
 	data["actor_id"] = actorID
@@ -527,6 +559,25 @@ func recallAdminSourceEventID(ctx context.Context, action string, fallbackIdenti
 	}
 	digest := sha256.Sum256([]byte(identity))
 	return fmt.Sprintf("admin:%s:%x", action, digest)
+}
+
+func recallCampaignAdminTransitionEvent(ctx context.Context, actorID int, id int64, campaign *model.RecallCampaign, action string, eventType string, now int64) (model.RecallEvent, error) {
+	campaignType, err := normalizedRecallCampaignTypeForOutput(campaign.CampaignType)
+	if err != nil {
+		return model.RecallEvent{}, err
+	}
+	return model.RecallEvent{
+		CampaignId:    id,
+		EventType:     eventType,
+		Source:        "admin",
+		SourceEventId: recallAdminSourceEventID(ctx, action, fmt.Sprintf("actor:%d:campaign:%d:state:%s:updated:%d", actorID, id, campaign.Status, campaign.UpdatedAt)),
+		EventData: recallAdminEventData(actorID, map[string]any{
+			"action":         action,
+			"campaign_type":  campaignType,
+			"previous_state": campaign.Status,
+		}),
+		CreatedAt: now,
+	}, nil
 }
 
 func (s *RecallCampaignService) SaveDraft(ctx context.Context, actorID int, draft RecallCampaignDraft) (*model.RecallCampaign, error) {
@@ -1207,10 +1258,36 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 }
 
 func (s *RecallCampaignService) Pause(ctx context.Context, actorID int, id int64) error {
-	return s.transitionCampaign(ctx, actorID, id, []string{
-		model.RecallCampaignScheduled,
-		model.RecallCampaignRunning,
-	}, model.RecallCampaignPaused, nil)
+	if err := recallCampaignGate(ctx); err != nil {
+		return err
+	}
+	if actorID <= 0 || id <= 0 {
+		return fmt.Errorf("recall campaign actor and campaign IDs must be positive")
+	}
+	campaign, err := model.GetRecallCampaignByIDWithContext(ctx, id)
+	if err != nil {
+		return err
+	}
+	if campaign.Status == model.RecallCampaignPaused {
+		return nil
+	}
+	from := []string{model.RecallCampaignScheduled, model.RecallCampaignRunning}
+	if !containsRecallCampaignStatus(from, campaign.Status) {
+		return fmt.Errorf("recall campaign %d cannot transition from %s to %s", id, campaign.Status, model.RecallCampaignPaused)
+	}
+	now := s.now().Unix()
+	event, err := recallCampaignAdminTransitionEvent(ctx, actorID, id, campaign, "pause", "campaign_paused", now)
+	if err != nil {
+		return err
+	}
+	won, err := model.TransitionRecallCampaignAndAdminEventWithContext(ctx, id, from, model.RecallCampaignPaused, nil, event)
+	if err != nil {
+		return err
+	}
+	if !won {
+		return s.acceptRecallCampaignTargetState(ctx, id, model.RecallCampaignPaused)
+	}
+	return nil
 }
 
 func (s *RecallCampaignService) Resume(ctx context.Context, actorID int, id int64) error {
@@ -1233,8 +1310,13 @@ func (s *RecallCampaignService) Resume(ctx context.Context, actorID int, id int6
 	if _, err := recallActivitySMTPPreflight(); err != nil {
 		return err
 	}
+	now := s.now().Unix()
+	event, err := recallCampaignAdminTransitionEvent(ctx, actorID, id, campaign, "resume", "campaign_resumed", now)
+	if err != nil {
+		return err
+	}
 	if campaign.ExecutionMode == "continuous" {
-		won, err := s.resumeContinuousCampaign(ctx, campaign)
+		won, err := s.resumeContinuousCampaign(ctx, campaign, event)
 		if err != nil {
 			return err
 		}
@@ -1243,7 +1325,7 @@ func (s *RecallCampaignService) Resume(ctx context.Context, actorID int, id int6
 		}
 		return nil
 	}
-	won, err := model.TransitionRecallCampaignWithContext(ctx, id, []string{model.RecallCampaignPaused}, model.RecallCampaignRunning, nil)
+	won, err := model.TransitionRecallCampaignAndAdminEventWithContext(ctx, id, []string{model.RecallCampaignPaused}, model.RecallCampaignRunning, nil, event)
 	if err != nil {
 		return err
 	}
@@ -1328,7 +1410,7 @@ func (s *RecallCampaignService) activateContinuousCampaign(ctx context.Context, 
 	return transitioned, err
 }
 
-func (s *RecallCampaignService) resumeContinuousCampaign(ctx context.Context, campaign *model.RecallCampaign) (bool, error) {
+func (s *RecallCampaignService) resumeContinuousCampaign(ctx context.Context, campaign *model.RecallCampaign, event model.RecallEvent) (bool, error) {
 	transitioned := false
 	err := model.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		claimed, acquired, err := model.ClaimRecallContinuousTriggerSlotOwnershipTx(tx, campaign.LifecycleTrigger, campaign.Id)
@@ -1344,6 +1426,11 @@ func (s *RecallCampaignService) resumeContinuousCampaign(ctx context.Context, ca
 		}
 		if !won && acquired {
 			if err := model.ReleaseRecallContinuousTriggerSlotTx(tx, campaign.LifecycleTrigger, campaign.Id); err != nil {
+				return err
+			}
+		}
+		if won {
+			if err := model.InsertRequiredRecallAdminEventTx(tx, &event); err != nil {
 				return err
 			}
 		}

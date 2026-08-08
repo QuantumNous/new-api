@@ -715,6 +715,41 @@ func TestRecallCampaignContinuousAPISurfacesLifecycleFieldsPreviewActionsAndConf
 	require.Zero(t, slot.CampaignId)
 }
 
+func TestRecallCampaignContinuousUpdatePreservesDraftLifecycleFieldsAndRejectsActivatedMutations(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	setRecallControllerSMTPOptions(t, "smtp.activity.example.com", "587", "activity@example.com", "campaigns@example.com", "secret", "true", "false")
+	seedRecallControllerLifecycleMarker(t, harness, recallControllerBoundary)
+	draft := recallControllerContinuousDraft()
+	draft.ProcessingStartAt = recallControllerBoundary + 10
+	create := invokeRecallHandler(t, CreateRecallCampaign, http.MethodPost, "/", recallControllerJSON(t, draft), 7, nil)
+	campaignID := int64(decodeRecallEnvelope(t, create)["data"].(map[string]any)["id"].(float64))
+
+	update := draft
+	update.Name = "Updated quota lifecycle notice"
+	update.ProcessingStartAt = recallControllerBoundary + 20
+	recorder := invokeRecallHandler(t, UpdateRecallCampaign, http.MethodPut, "/", recallControllerJSON(t, update), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaignID)}})
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"], payload["message"])
+	data := payload["data"].(map[string]any)
+	require.Equal(t, update.Name, data["name"])
+	require.Equal(t, model.RecallDeliveryPolicyService, data["delivery_policy"])
+	require.Equal(t, model.RecallLifecycleTriggerQuotaLow, data["lifecycle_trigger"])
+	require.EqualValues(t, recallControllerBoundary+20, data["processing_start_at"])
+
+	activate := invokeRecallHandler(t, ActivateRecallCampaign, http.MethodPost, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaignID)}})
+	require.Equal(t, true, decodeRecallEnvelope(t, activate)["success"])
+
+	mutateTrigger := update
+	mutateTrigger.Name = "Mutate trigger"
+	mutateTrigger.LifecycleTrigger = model.RecallLifecycleTriggerPaymentPending
+	requireRecallFailure(t, invokeRecallHandler(t, UpdateRecallCampaign, http.MethodPut, "/", recallControllerJSON(t, mutateTrigger), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaignID)}}), "immutable")
+
+	mutateProcessingStart := update
+	mutateProcessingStart.Name = "Mutate processing start"
+	mutateProcessingStart.ProcessingStartAt = recallControllerBoundary + 30
+	requireRecallFailure(t, invokeRecallHandler(t, UpdateRecallCampaign, http.MethodPut, "/", recallControllerJSON(t, mutateProcessingStart), 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaignID)}}), "immutable")
+}
+
 func TestRecallLifecyclePreviewUsesBoundaryCountsAndMaskedBoundedSamples(t *testing.T) {
 	harness := setupRecallControllerHarness(t)
 	seedRecallControllerLifecycleMarker(t, harness, recallControllerBoundary)
@@ -797,6 +832,35 @@ func TestRecallLifecycleMetricsExposeBacklogDispositionMessageAndSkipBreakdowns(
 	require.EqualValues(t, 1, lifecycle["skip_reason_counts"].(map[string]any)["invalid_email"])
 	require.EqualValues(t, 1, lifecycle["send_blocked_reason_counts"].(map[string]any)["no_account_email"])
 	require.EqualValues(t, 1, lifecycle["error_code_counts"].(map[string]any)["lease_recovered"])
+}
+
+func TestRecallEventsAPIOmitsRawEventData(t *testing.T) {
+	harness := setupRecallControllerHarness(t)
+	campaign := seedRecallControllerCampaign(t, harness, model.RecallCampaignRunning)
+	require.NoError(t, harness.db.Create(&model.RecallEvent{
+		CampaignId:    campaign.Id,
+		RecipientId:   42,
+		EventType:     "conversion",
+		Source:        "stripe",
+		MessageId:     9,
+		SourceEventId: "provider-event-raw",
+		EventData:     `{"email":"secret-person@example.com","provider_payload":{"token":"raw-secret"}}`,
+		CreatedAt:     recallControllerBoundary + 9,
+	}).Error)
+
+	recorder := invokeRecallHandler(t, ListRecallEvents, http.MethodGet, "/", nil, 7, gin.Params{{Key: "id", Value: fmt.Sprint(campaign.Id)}})
+	payload := decodeRecallEnvelope(t, recorder)
+	require.Equal(t, true, payload["success"], payload["message"])
+	items := payload["data"].(map[string]any)["items"].([]any)
+	require.Len(t, items, 1)
+	event := items[0].(map[string]any)
+	require.Equal(t, "conversion", event["event_type"])
+	require.EqualValues(t, 42, event["recipient_id"])
+	require.NotContains(t, event, "event_data")
+	body := recorder.Body.String()
+	require.NotContains(t, body, "event_data")
+	require.NotContains(t, body, "secret-person@example.com")
+	require.NotContains(t, body, "raw-secret")
 }
 
 func TestListRecallAudienceUsersSearchesByKeywordWithBounds(t *testing.T) {

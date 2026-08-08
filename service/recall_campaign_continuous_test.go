@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
 )
@@ -242,7 +243,7 @@ func TestRecallCampaignContinuousSlotClaimDoesNotSurviveLostTransition(t *testin
 		Where("id = ?", campaign.Id).
 		Update("status", model.RecallCampaignCancelled).Error)
 
-	won, err = service.resumeContinuousCampaign(context.Background(), &paused)
+	won, err = service.resumeContinuousCampaign(context.Background(), &paused, model.RecallEvent{})
 
 	require.NoError(t, err)
 	require.False(t, won)
@@ -275,6 +276,80 @@ func TestRecallCampaignContinuousPauseRetainsCancelReleasesAndResumeRepairsOwner
 	require.NoError(t, service.Cancel(context.Background(), 7, campaign.Id))
 	require.NoError(t, model.DB.First(&slot, "trigger = ?", model.RecallLifecycleTriggerQuotaLow).Error)
 	require.Zero(t, slot.CampaignId)
+}
+
+func TestRecallCampaignContinuousPauseResumeWriteDeterministicAdminEventsAndKeepSlot(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	setValidRecallActivitySMTP(t, common.SMTPConfig{Server: "smtp.activity.example.com", Port: 587, Account: "activity@example.com", From: "campaigns@example.com", Token: "secret"})
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	service.now = func() time.Time { return time.Unix(recallEmailTestNow, 0).UTC() }
+	campaign, err := service.SaveDraft(context.Background(), 7, validRecallContinuousDraft())
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+
+	pauseCtx := context.WithValue(context.Background(), common.RequestIdKey, "pause-request")
+	require.NoError(t, service.Pause(pauseCtx, 7, campaign.Id))
+	require.NoError(t, service.Pause(pauseCtx, 7, campaign.Id))
+	var slot model.RecallContinuousTriggerSlot
+	require.NoError(t, model.DB.First(&slot, "trigger = ?", model.RecallLifecycleTriggerQuotaLow).Error)
+	require.Equal(t, campaign.Id, slot.CampaignId)
+
+	resumeCtx := context.WithValue(context.Background(), common.RequestIdKey, "resume-request")
+	require.NoError(t, service.Resume(resumeCtx, 7, campaign.Id))
+	require.NoError(t, service.Resume(resumeCtx, 7, campaign.Id))
+	require.NoError(t, model.DB.First(&slot, "trigger = ?", model.RecallLifecycleTriggerQuotaLow).Error)
+	require.Equal(t, campaign.Id, slot.CampaignId)
+
+	var events []model.RecallEvent
+	require.NoError(t, model.DB.Where("campaign_id = ? AND source = ?", campaign.Id, "admin").Order("id ASC").Find(&events).Error)
+	require.Len(t, events, 2)
+	require.Equal(t, "campaign_paused", events[0].EventType)
+	require.Equal(t, recallAdminSourceEventID(pauseCtx, "pause", "unused"), events[0].SourceEventId)
+	require.Contains(t, events[0].EventData, `"actor_id":7`)
+	require.Contains(t, events[0].EventData, `"action":"pause"`)
+	require.Contains(t, events[0].EventData, `"previous_state":"running"`)
+	require.Equal(t, "campaign_resumed", events[1].EventType)
+	require.Equal(t, recallAdminSourceEventID(resumeCtx, "resume", "unused"), events[1].SourceEventId)
+	require.Contains(t, events[1].EventData, `"actor_id":7`)
+	require.Contains(t, events[1].EventData, `"action":"resume"`)
+	require.Contains(t, events[1].EventData, `"previous_state":"paused"`)
+}
+
+func TestRecallCampaignPauseResumeRollbackWhenAuditIdentityAlreadyExists(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	setValidRecallActivitySMTP(t, common.SMTPConfig{Server: "smtp.activity.example.com", Port: 587, Account: "activity@example.com", From: "campaigns@example.com", Token: "secret"})
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	campaign, err := service.SaveDraft(context.Background(), 7, validRecallContinuousDraft())
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, campaign.Id))
+
+	pauseCtx := context.WithValue(context.Background(), common.RequestIdKey, "pause-collision")
+	require.NoError(t, model.DB.Create(&model.RecallEvent{CampaignId: campaign.Id, EventType: "preexisting_admin_event", Source: "admin", SourceEventId: recallAdminSourceEventID(pauseCtx, "pause", "unused"), EventData: `{}`}).Error)
+	err = service.Pause(pauseCtx, 7, campaign.Id)
+	require.ErrorContains(t, err, "audit")
+	stored, err := model.GetRecallCampaignByIDWithContext(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignRunning, stored.Status)
+	var slot model.RecallContinuousTriggerSlot
+	require.NoError(t, model.DB.First(&slot, "trigger = ?", model.RecallLifecycleTriggerQuotaLow).Error)
+	require.Equal(t, campaign.Id, slot.CampaignId)
+
+	require.NoError(t, model.DB.Model(&model.RecallCampaign{}).Where("id = ?", campaign.Id).Update("status", model.RecallCampaignPaused).Error)
+	resumeCtx := context.WithValue(context.Background(), common.RequestIdKey, "resume-collision")
+	require.NoError(t, model.DB.Create(&model.RecallEvent{CampaignId: campaign.Id, EventType: "preexisting_admin_event", Source: "admin", SourceEventId: recallAdminSourceEventID(resumeCtx, "resume", "unused"), EventData: `{}`}).Error)
+	err = service.Resume(resumeCtx, 7, campaign.Id)
+	require.ErrorContains(t, err, "audit")
+	stored, err = model.GetRecallCampaignByIDWithContext(context.Background(), campaign.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignPaused, stored.Status)
+	require.NoError(t, model.DB.First(&slot, "trigger = ?", model.RecallLifecycleTriggerQuotaLow).Error)
+	require.Equal(t, campaign.Id, slot.CampaignId)
 }
 
 func TestRecallCampaignContinuousRejectsCompleteWithoutReleasingSlot(t *testing.T) {
