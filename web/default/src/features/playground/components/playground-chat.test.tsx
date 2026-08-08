@@ -42,7 +42,8 @@ beforeAll(async () => {
 
 describe('PlaygroundChat', () => {
   test('renders a download link directly after each completed generated image', () => {
-    const imageSrc = 'data:image/png;base64,QUJDRA=='
+    const pngSrc = 'data:image/png;base64,QUJDRA=='
+    const webpSrc = 'data:image/webp;base64,RUZHSA=='
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <PlaygroundChat
@@ -54,7 +55,7 @@ describe('PlaygroundChat', () => {
               versions: [
                 {
                   id: 'version-1',
-                  content: `![preview](${imageSrc})`,
+                  content: `![preview](${pngSrc})\n![second preview](${webpSrc})`,
                 },
               ],
             },
@@ -64,12 +65,21 @@ describe('PlaygroundChat', () => {
     )
 
     expect(html).toContain(`<img alt="preview"`)
-    expect(html).toContain(`src="${imageSrc}"`)
-    expect(html).toContain(`href="${imageSrc}"`)
+    expect(html).toContain(`<img alt="second preview"`)
+    expect(html).toContain(`src="${pngSrc}"`)
+    expect(html).toContain(`src="${webpSrc}"`)
+    expect(html).toContain(`href="${pngSrc}"`)
+    expect(html).toContain(`href="${webpSrc}"`)
     expect(html).toContain('download="generated-image-1.png"')
+    expect(html).toContain('download="generated-image-2.webp"')
+    expect(html.match(/<a\b/g)?.length ?? 0).toBe(2)
+    expect(html.match(/\bdownload=/g)?.length ?? 0).toBe(2)
     expect(html).toContain('Download')
     expect(html.indexOf('<img alt="preview"')).toBeLessThan(
       html.indexOf('download="generated-image-1.png"')
+    )
+    expect(html.indexOf('<img alt="second preview"')).toBeLessThan(
+      html.indexOf('download="generated-image-2.webp"')
     )
   })
 })
