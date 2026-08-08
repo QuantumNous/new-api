@@ -58,6 +58,8 @@ import {
   isFirstRunActive,
   markFirstRunDone,
   markFirstRunStarted,
+  resolvePlaygroundHandoff,
+  resolvePlaygroundHandoffModel,
 } from './lib'
 import type { Message as MessageType } from './types'
 
@@ -66,12 +68,10 @@ const PLG_GROUP = 'plg'
 
 export function Playground({
   firstRun: firstRunFromUrl = false,
-  initialGenerate,
   initialModel,
   initialPrompt,
 }: {
   firstRun?: boolean
-  initialGenerate?: 'image' | 'video'
   initialModel?: string
   initialPrompt?: string
 }) {
@@ -110,7 +110,7 @@ export function Playground({
     setModels,
     setGroups,
     updateConfig,
-  } = usePlaygroundState()
+  } = usePlaygroundState(initialModel)
 
   const {
     sendChat,
@@ -156,7 +156,10 @@ export function Playground({
   const clearedFirstRunMessagesRef = useRef(false)
   const getKeyCardShownRef = useRef(false)
   const topupPromptShownRef = useRef(false)
-  const initialPromptSubmittedRef = useRef(false)
+  const appliedInitialModelRef = useRef<string | undefined>(undefined)
+  const [retainedHandoffModel, setRetainedHandoffModel] = useState(() =>
+    resolvePlaygroundHandoffModel(initialModel)
+  )
   const [userPickedModel, setUserPickedModel] = useState(false)
   const isPtFirstCallExperiment = useMemo(
     () => isPtFirstCallTopupExperiment(getStoredAdsAttribution()),
@@ -214,6 +217,19 @@ export function Playground({
     enabled: canUseGroups,
   })
 
+  const handoff = useMemo(
+    () =>
+      resolvePlaygroundHandoff({
+        models: modelsData ?? [],
+        model: resolvePlaygroundHandoffModel(
+          initialModel,
+          retainedHandoffModel
+        ),
+        prompt: initialPrompt,
+      }),
+    [initialModel, initialPrompt, modelsData, retainedHandoffModel]
+  )
+
   const firstRunModel = useMemo(() => {
     if (!firstRun || !modelsData?.length) return undefined
     return pickFirstRunModel(modelsData, playgroundDefaultModel)
@@ -221,7 +237,7 @@ export function Playground({
 
   const isCurrentModelValid =
     !!config.model &&
-    !!modelsData?.some((model) => model.value === config.model)
+    handoff.models.some((model) => model.value === config.model)
   const isFirstRunModelApplied =
     !!firstRunModel &&
     isCurrentModelValid &&
@@ -247,9 +263,19 @@ export function Playground({
 
   // Update models when data changes
   useEffect(() => {
+    if (
+      handoff.model &&
+      appliedInitialModelRef.current !== handoff.model
+    ) {
+      appliedInitialModelRef.current = handoff.model
+      setUserPickedModel(true)
+      updateConfig('model', handoff.model)
+      return
+    }
+
     if (!modelsData) return
 
-    setModels(modelsData)
+    setModels(handoff.models)
 
     if (firstRun && !userPickedModel && !!firstRunModel) {
       if (config.model === firstRunModel) return
@@ -258,15 +284,19 @@ export function Playground({
     }
 
     // Set default model if current model is not available
-    const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
+    const isCurrentModelValid = handoff.models.some(
+      (model) => model.value === config.model
+    )
     if (!isCurrentModelValid) {
-      updateConfig('model', modelsData[0]?.value ?? '')
+      updateConfig('model', handoff.models[0]?.value ?? '')
     }
   }, [
     modelsData,
     config.model,
     firstRun,
     firstRunModel,
+    handoff.model,
+    handoff.models,
     userPickedModel,
     setModels,
     updateConfig,
@@ -418,9 +448,28 @@ export function Playground({
     window.localStorage.removeItem(MODEL_GENERATOR_DRAFT_CLEANUP_KEY)
   }, [])
 
+  const clearPlaygroundHandoffSearch = useCallback(() => {
+    if (!initialModel?.trim() && !initialPrompt?.trim()) return
+    setRetainedHandoffModel(handoff.model)
+    navigate({
+      to: '/playground',
+      search: firstRunFromUrl ? { first: 1 as const } : {},
+      replace: true,
+    })
+  }, [
+    firstRunFromUrl,
+    handoff.model,
+    initialModel,
+    initialPrompt,
+    navigate,
+    setRetainedHandoffModel,
+  ])
+
   const handleSendMessage = useCallback(
     (text: string, model?: string) => {
       if (!prepareFirstRunSend()) return
+      clearModelGeneratorDraft()
+      clearPlaygroundHandoffSearch()
       const userMessage = createUserMessage(text)
       // The effective model for THIS send: an example chip / override wins,
       // otherwise the currently selected model.
@@ -461,67 +510,19 @@ export function Playground({
       sendChat(newMessages, getFirstRunChatOverride())
     },
     [
+      clearModelGeneratorDraft,
+      clearPlaygroundHandoffSearch,
       config.model,
       generateVideo,
       getFirstRunChatOverride,
       messages,
       prepareFirstRunSend,
       sendChat,
+      setUserPickedModel,
       updateConfig,
       updateMessages,
     ]
   )
-
-  useEffect(() => {
-    if (initialPromptSubmittedRef.current) return
-    const trimmedPrompt = initialPrompt?.trim()
-    if (!trimmedPrompt) return
-    if (!modelsData?.length) return
-    if (isGenerating) return
-    if (!isFirstRunModelReady) return
-
-    const timeoutId = window.setTimeout(() => {
-      if (initialPromptSubmittedRef.current) return
-      initialPromptSubmittedRef.current = true
-
-      if (initialGenerate === 'video') {
-        const requestedVideoModel = modelsData.find(
-          (model) =>
-            model.value === initialModel && isVideoGenModelName(model.value)
-        )
-        const videoModel =
-          requestedVideoModel ??
-          modelsData.find((model) => isVideoGenModelName(model.value))
-        if (!videoModel) {
-          toast.error(i18next.t('No video generation model is available'))
-          return
-        }
-        handleSendMessage(trimmedPrompt, videoModel.value)
-        clearModelGeneratorDraft()
-        navigate({ to: '/playground', replace: true })
-        return
-      }
-
-      const requestedModel = modelsData.find(
-        (model) => model.value === initialModel
-      )
-      handleSendMessage(trimmedPrompt, requestedModel?.value)
-      clearModelGeneratorDraft()
-      navigate({ to: '/playground', replace: true })
-    }, 0)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [
-    clearModelGeneratorDraft,
-    handleSendMessage,
-    initialGenerate,
-    initialModel,
-    initialPrompt,
-    isFirstRunModelReady,
-    isGenerating,
-    modelsData,
-    navigate,
-  ])
 
   const handleCopyMessage = (message: MessageType) => {
     // Copy is handled in MessageActions component
@@ -651,7 +652,7 @@ export function Playground({
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
           disabled={isGenerating}
-          initialText={initialPrompt}
+          initialText={handoff.prompt}
           submitDisabled={!isFirstRunModelReady}
           showGroupSelector={canUseGroups}
           groups={groups}
