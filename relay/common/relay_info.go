@@ -46,9 +46,18 @@ type RerankerInfo struct {
 }
 
 type BuildInToolInfo struct {
-	ToolName          string
-	CallCount         int
-	SearchContextSize string
+	ToolName               string
+	CallCount              int
+	SearchContextSize      string
+	ImageGenerationQuality string
+	ImageGenerationSize    string
+	ImageGenerationTiers   map[ImageGenerationTier]int
+}
+
+// ImageGenerationTier identifies one billable image quality and size combination.
+type ImageGenerationTier struct {
+	Quality string
+	Size    string
 }
 
 type ResponsesUsageInfo struct {
@@ -409,6 +418,11 @@ func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) 
 					searchContextSize = "medium"
 				}
 				info.ResponsesUsageInfo.BuiltInTools[toolType].SearchContextSize = searchContextSize
+			case dto.BuildInToolImageGeneration:
+				info.ResponsesUsageInfo.BuiltInTools[toolType].ImageGenerationQuality =
+					common.Interface2String(tool["quality"])
+				info.ResponsesUsageInfo.BuiltInTools[toolType].ImageGenerationSize =
+					common.Interface2String(tool["size"])
 			}
 		}
 	}

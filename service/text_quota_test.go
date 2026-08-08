@@ -988,6 +988,43 @@ func TestCalculateTextToolCallSurchargeImageGenerationDefaultPrice(t *testing.T)
 	assert.Equal(t, 150.0, summary.ToolSurchargeItems[0].Price)
 }
 
+func TestCalculateTextToolCallSurchargeImageGenerationUsesTierAndModelOverrides(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	const squareTierKey = "image_generation/high/1024x1024:gpt-5.5*"
+	const portraitTierKey = "image_generation/high/1024x1536:gpt-5.5*"
+	operation_setting.SetToolPriceForTest(squareTierKey, 211)
+	operation_setting.SetToolPriceForTest(portraitTierKey, 165)
+	t.Cleanup(func() {
+		operation_setting.DeleteToolPriceForTest(squareTierKey)
+		operation_setting.DeleteToolPriceForTest(portraitTierKey)
+	})
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.5",
+		ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{
+			BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
+				dto.BuildInToolImageGeneration: {
+					CallCount: 2,
+					ImageGenerationTiers: map[relaycommon.ImageGenerationTier]int{
+						{Quality: "high", Size: "1024x1024"}: 1,
+						{Quality: "high", Size: "1024x1536"}: 1,
+					},
+				},
+			},
+		},
+	}
+	summary := &textQuotaSummary{ModelName: "gpt-5.5", GroupRatio: 1}
+
+	surcharge := calculateTextToolCallSurcharge(ctx, relayInfo, summary)
+	expected := decimal.NewFromFloat((211.0 + 165.0) / 1000).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	assert.True(t, expected.Equal(surcharge), "got %s want %s", surcharge, expected)
+	require.Len(t, summary.ToolSurchargeItems, 2)
+	assert.Equal(t, dto.BuildInToolImageGeneration, summary.ToolSurchargeItems[0].Name)
+	assert.Equal(t, 165.0, summary.ToolSurchargeItems[0].Price)
+	assert.Equal(t, 211.0, summary.ToolSurchargeItems[1].Price)
+}
+
 func TestCalculateTextToolCallSurchargeImageGenerationExplicitZeroDisables(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

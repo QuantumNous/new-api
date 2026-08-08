@@ -1,10 +1,15 @@
 package common
 
 import (
+	"context"
+	"encoding/json"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,6 +44,26 @@ func TestRelayInfoGetFinalRequestRelayFormatFallsBackToRelayFormat(t *testing.T)
 func TestRelayInfoGetFinalRequestRelayFormatNilReceiver(t *testing.T) {
 	var info *RelayInfo
 	require.Equal(t, types.RelayFormat(""), info.GetFinalRequestRelayFormat())
+}
+
+func TestGenRelayInfoResponsesCapturesImageGenerationOptions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequestWithContext(context.Background(), "POST", "/v1/responses", nil)
+
+	request := &dto.OpenAIResponsesRequest{
+		Model: "gpt-5.5",
+		Tools: json.RawMessage(`[
+			{"type":"image_generation","quality":"medium","size":"1024x1536"}
+		]`),
+	}
+
+	info := GenRelayInfoResponses(ctx, request)
+	tool := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration]
+
+	require.NotNil(t, tool)
+	assert.Equal(t, "medium", tool.ImageGenerationQuality)
+	assert.Equal(t, "1024x1536", tool.ImageGenerationSize)
 }
 
 func TestRelayInfoMetaTypedNilReceiver(t *testing.T) {
