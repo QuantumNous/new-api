@@ -73,10 +73,6 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			request.Prompt = v
 		}
 	}
-	if strings.TrimSpace(request.Prompt) == "" {
-		return nil, errors.New("replicate adaptor: prompt is required")
-	}
-
 	modelName := strings.TrimSpace(info.UpstreamModelName)
 	if modelName == "" {
 		modelName = strings.TrimSpace(request.Model)
@@ -87,6 +83,33 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	info.UpstreamModelName = modelName
 
 	info.RequestURLPath = fmt.Sprintf("/v1/models/%s/predictions", modelName)
+	nativeInputRaw, hasNativeInput := request.Extra["input"]
+	if hasNativeInput {
+		if common.GetJsonType(nativeInputRaw) != "object" {
+			return nil, errors.New("replicate adaptor: input must be a JSON object")
+		}
+		inputPayload := make(map[string]any)
+		if err := common.Unmarshal(nativeInputRaw, &inputPayload); err != nil {
+			return nil, fmt.Errorf("replicate adaptor: failed to decode input: %w", err)
+		}
+		if _, ok := inputPayload["prompt"]; !ok {
+			if strings.TrimSpace(request.Prompt) == "" {
+				return nil, errors.New("replicate adaptor: prompt is required")
+			}
+			inputPayload["prompt"] = request.Prompt
+		}
+		_, hasNumberOfImages := inputPayload["number_of_images"]
+		_, hasNumOutputs := inputPayload["num_outputs"]
+		if lo.FromPtrOr(request.N, uint(0)) > 1 && !hasNumberOfImages && !hasNumOutputs {
+			return nil, errors.New("replicate adaptor: n greater than 1 requires input.number_of_images or input.num_outputs")
+		}
+		return map[string]any{
+			"input": inputPayload,
+		}, nil
+	}
+	if strings.TrimSpace(request.Prompt) == "" {
+		return nil, errors.New("replicate adaptor: prompt is required")
+	}
 
 	inputPayload := make(map[string]any)
 	inputPayload["prompt"] = request.Prompt
@@ -146,16 +169,6 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	for key, raw := range request.Extra {
-		if strings.EqualFold(key, "input") {
-			var extraInput map[string]any
-			if err := common.Unmarshal(raw, &extraInput); err != nil {
-				return nil, fmt.Errorf("replicate adaptor: failed to decode extra input: %w", err)
-			}
-			for k, v := range extraInput {
-				inputPayload[k] = v
-			}
-			continue
-		}
 		if raw == nil {
 			continue
 		}
