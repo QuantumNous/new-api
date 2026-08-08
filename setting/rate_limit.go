@@ -1,7 +1,6 @@
 package setting
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sync"
@@ -20,7 +19,7 @@ func ModelRequestRateLimitGroup2JSONString() string {
 	ModelRequestRateLimitMutex.RLock()
 	defer ModelRequestRateLimitMutex.RUnlock()
 
-	jsonBytes, err := json.Marshal(ModelRequestRateLimitGroup)
+	jsonBytes, err := common.Marshal(ModelRequestRateLimitGroup)
 	if err != nil {
 		common.SysLog("error marshalling model ratio: " + err.Error())
 	}
@@ -28,11 +27,21 @@ func ModelRequestRateLimitGroup2JSONString() string {
 }
 
 func UpdateModelRequestRateLimitGroupByJSONString(jsonStr string) error {
-	ModelRequestRateLimitMutex.RLock()
-	defer ModelRequestRateLimitMutex.RUnlock()
+	// 先在锁外解析到局部 map：解析失败时正在生效的限流配置必须原样保留。
+	// 原先的写法是先清空全局 map 再反序列化，非法 JSON 会让限流配置被清空且不再恢复。
+	parsed := make(map[string][2]int)
+	if err := common.Unmarshal([]byte(jsonStr), &parsed); err != nil {
+		return err
+	}
 
-	ModelRequestRateLimitGroup = make(map[string][2]int)
-	return json.Unmarshal([]byte(jsonStr), &ModelRequestRateLimitGroup)
+	// 必须是写锁。这里原先取的是 RLock，而 RWMutex 允许多个读锁持有者同时进入，
+	// 因此这个写函数会与 GetGroupRateLimit 真正并发地访问同一个 map，
+	// 被 Go 运行时判定为并发读写并终止进程。
+	ModelRequestRateLimitMutex.Lock()
+	defer ModelRequestRateLimitMutex.Unlock()
+
+	ModelRequestRateLimitGroup = parsed
+	return nil
 }
 
 func GetGroupRateLimit(group string) (totalCount, successCount int, found bool) {
@@ -52,7 +61,7 @@ func GetGroupRateLimit(group string) (totalCount, successCount int, found bool) 
 
 func CheckModelRequestRateLimitGroup(jsonStr string) error {
 	checkModelRequestRateLimitGroup := make(map[string][2]int)
-	err := json.Unmarshal([]byte(jsonStr), &checkModelRequestRateLimitGroup)
+	err := common.Unmarshal([]byte(jsonStr), &checkModelRequestRateLimitGroup)
 	if err != nil {
 		return err
 	}
