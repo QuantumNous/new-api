@@ -1,7 +1,10 @@
 package relay
 
 import (
+	"io"
 	"math"
+	"net/http"
+	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -27,6 +30,106 @@ func TestIsResponsesEventStreamContentType(t *testing.T) {
 			assert.Equal(t, tt.want, isResponsesEventStreamContentType(tt.contentType))
 		})
 	}
+}
+
+func TestDetectResponsesEventStreamSniffsMissingContentTypeAndPreservesBody(t *testing.T) {
+	body := strings.Join([]string{
+		`event: response.created`,
+		`data: {"type":"response.created"}`,
+		``,
+	}, "\n")
+	resp := &http.Response{
+		Header: http.Header{},
+		Body:   io.NopCloser(strings.NewReader(body)),
+	}
+
+	require.True(t, detectResponsesEventStream(resp))
+
+	got, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, body, string(got))
+}
+
+func TestDetectResponsesEventStreamDoesNotWaitForFullBuffer(t *testing.T) {
+	reader := &livePrefixReader{
+		prefix:     "event: ping\n\n",
+		secondRead: make(chan struct{}),
+		release:    make(chan struct{}),
+	}
+	t.Cleanup(func() { close(reader.release) })
+	resp := &http.Response{
+		Header: http.Header{},
+		Body:   io.NopCloser(reader),
+	}
+
+	result := make(chan bool, 1)
+	go func() {
+		result <- detectResponsesEventStream(resp)
+	}()
+
+	select {
+	case got := <-result:
+		assert.True(t, got)
+	case <-reader.secondRead:
+		require.Fail(t, "stream detection waited for more bytes after receiving an SSE prefix")
+	}
+}
+
+type livePrefixReader struct {
+	prefix     string
+	sent       bool
+	secondRead chan struct{}
+	release    chan struct{}
+}
+
+func (r *livePrefixReader) Read(p []byte) (int, error) {
+	if !r.sent {
+		r.sent = true
+		return copy(p, r.prefix), nil
+	}
+
+	close(r.secondRead)
+	<-r.release
+	return 0, io.EOF
+}
+
+func TestDetectResponsesEventStreamSkipsLeadingWhitespaceAndBOM(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "leading whitespace", body: " event: response.created\n"},
+		{name: "UTF-8 BOM", body: "\ufeffevent: response.created\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := &http.Response{
+				Header: http.Header{},
+				Body:   io.NopCloser(strings.NewReader(tt.body)),
+			}
+
+			require.True(t, detectResponsesEventStream(resp))
+
+			got, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Equal(t, tt.body, string(got))
+		})
+	}
+}
+
+func TestDetectResponsesEventStreamLeavesJsonBodyAsNonStream(t *testing.T) {
+	body := `{"id":"resp_1","status":"completed"}`
+	resp := &http.Response{
+		Header: http.Header{},
+		Body:   io.NopCloser(strings.NewReader(body)),
+	}
+
+	require.False(t, detectResponsesEventStream(resp))
+
+	got, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, body, string(got))
 }
 
 func TestRecalcQuotaFromRatiosIgnoresInvalidMultipliers(t *testing.T) {
