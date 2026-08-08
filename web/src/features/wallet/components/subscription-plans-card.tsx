@@ -59,6 +59,7 @@ import type {
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { getDisplayedBillingPreference } from '../lib/billing-preference'
 import type { PaymentMethod, TopupInfo } from '../types'
 
 interface SubscriptionPlansCardProps {
@@ -191,11 +192,11 @@ export function SubscriptionPlansCard({
   const hasAny = allSubscriptions.length > 0
   const isAvailable = loading || plans.length > 0 || hasAny
   const disablePref = !hasActive
-  const isSubPref =
-    billingPreference === 'subscription_first' ||
-    billingPreference === 'subscription_only'
-  const displayPref =
-    disablePref && isSubPref ? 'wallet_first' : billingPreference
+  const displayPref = getDisplayedBillingPreference(
+    billingPreference,
+    hasActive
+  )
+  const shouldFallbackToWallet = displayPref !== billingPreference
 
   const planPurchaseCountMap = useMemo(() => {
     const map = new Map<number, number>()
@@ -379,15 +380,12 @@ export function SubscriptionPlansCard({
             </div>
           </div>
 
-          {disablePref && isSubPref && (
+          {shouldFallbackToWallet && (
             <p className='text-muted-foreground mt-2 text-xs'>
               {t(
                 'Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.',
                 {
-                  pref:
-                    billingPreference === 'subscription_only'
-                      ? t('Subscription Only')
-                      : t('Subscription First'),
+                  pref: t('Subscription First'),
                 }
               )}
             </p>
