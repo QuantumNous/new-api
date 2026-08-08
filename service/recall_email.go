@@ -70,6 +70,7 @@ type recallEmailProductSummaryCacheEntry struct {
 
 type RecallEmailRenderInput struct {
 	CampaignType        string
+	DeliveryPolicy      string
 	Language            string
 	Template            RecallEmailTemplate
 	RecipientName       string
@@ -78,6 +79,7 @@ type RecallEmailRenderInput struct {
 	ProductSummary      string
 	ClaimURL            string
 	UnsubscribeURL      string
+	IncludeUnsubscribe  bool
 }
 
 type recallEmailHTMLRenderData struct {
@@ -398,6 +400,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	if err != nil {
 		return w.finishPreAcceptError(ctx, item, "campaign_type_invalid", false)
 	}
+	deliveryPolicy := recallEmailDeliveryPolicy(item.Campaign)
 	stopReason, err := w.recallEmailStopReason(ctx, item, recentlyActive, now)
 	if err != nil {
 		return err
@@ -449,23 +452,27 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 			return w.finishPreAcceptError(ctx, item, "product_summary_lookup_failed", true)
 		}
 	}
-	unsubscribeToken, err := w.createUnsubscribeToken(item)
-	if err != nil {
-		return w.finishPreAcceptError(ctx, item, "unsubscribe_token_failed", true)
-	}
 	template, resolvedLanguage, err := recallEmailTemplateForLanguage(item.Message.TemplateSnapshot, item.Recipient.LanguageSnapshot)
 	if err != nil {
 		return w.finishPreAcceptError(ctx, item, "template_invalid", false)
 	}
 	baseOrigin := strings.TrimRight(strings.TrimSpace(topUpBaseOrigin()), "/")
-	unsubscribeURL := baseOrigin + "/api/recall/unsubscribe?token=" + url.QueryEscape(unsubscribeToken)
-	// Gmail and Outlook read one-click unsubscribe from the List-Unsubscribe
-	// header, not from the body link, and downrank bulk mail that omits it.
-	emailOptions := common.EmailOptions{
-		ListUnsubscribeURL:    unsubscribeURL,
-		ListUnsubscribeMailto: strings.TrimSpace(operation_setting.GetRecallCampaignSetting().UnsubscribeMailto),
-		ReplyTo:               strings.TrimSpace(operation_setting.GetRecallCampaignSetting().ReplyTo),
-		Multipart:             true,
+	unsubscribeURL := ""
+	emailOptions := common.EmailOptions{}
+	if deliveryPolicy != model.RecallDeliveryPolicyService {
+		unsubscribeToken, err := w.createUnsubscribeToken(item)
+		if err != nil {
+			return w.finishPreAcceptError(ctx, item, "unsubscribe_token_failed", true)
+		}
+		unsubscribeURL = baseOrigin + "/api/recall/unsubscribe?token=" + url.QueryEscape(unsubscribeToken)
+		// Gmail and Outlook read one-click unsubscribe from the List-Unsubscribe
+		// header, not from the body link, and downrank bulk mail that omits it.
+		emailOptions = common.EmailOptions{
+			ListUnsubscribeURL:    unsubscribeURL,
+			ListUnsubscribeMailto: strings.TrimSpace(operation_setting.GetRecallCampaignSetting().UnsubscribeMailto),
+			ReplyTo:               strings.TrimSpace(operation_setting.GetRecallCampaignSetting().ReplyTo),
+			Multipart:             true,
+		}
 	}
 	if campaignType == model.RecallCampaignTypePromotion && resolvedLanguage != item.Recipient.LanguageSnapshot {
 		productSummary, err = w.recallEmailProductSummary(ctx, item.Campaign.ProductScope, resolvedLanguage)
@@ -485,6 +492,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	}
 	subject, htmlBody, err := RenderRecallEmail(RecallEmailRenderInput{
 		CampaignType:        campaignType,
+		DeliveryPolicy:      deliveryPolicy,
 		Language:            resolvedLanguage,
 		Template:            template,
 		RecipientName:       recipientName,
@@ -493,6 +501,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 		ProductSummary:      productSummary,
 		ClaimURL:            claimURL,
 		UnsubscribeURL:      unsubscribeURL,
+		IncludeUnsubscribe:  deliveryPolicy != model.RecallDeliveryPolicyService,
 	})
 	if err != nil {
 		return w.finishPreAcceptError(ctx, item, "render_invalid", false)
@@ -585,6 +594,9 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	}
 	if attempt.Suppressed {
 		return nil
+	}
+	if attempt.Email != "" {
+		item.Recipient.EmailSnapshot = attempt.Email
 	}
 	if !attempt.Reserved {
 		var waitErr error
@@ -746,12 +758,22 @@ func (w *RecallEmailWorker) recallEmailStopReason(ctx context.Context, item *mod
 	if item.User.Status != common.UserStatusEnabled {
 		return "user_disabled", nil
 	}
+	isLifecycle := item.Recipient.LifecycleEventId != nil
 	currentEmail, currentOK := recallAudienceEmail(item.User.Email)
-	if !currentOK || !strings.EqualFold(snapshotEmail, currentEmail) {
-		return "email_unavailable", nil
+	if !isLifecycle {
+		if !currentOK || !strings.EqualFold(snapshotEmail, currentEmail) {
+			return "email_unavailable", nil
+		}
 	}
-	if item.User.GetSetting().RecallMarketingOptOut {
+	deliveryPolicy := recallEmailDeliveryPolicy(item.Campaign)
+	if item.User.GetSetting().RecallMarketingOptOut && deliveryPolicy != model.RecallDeliveryPolicyService {
+		if isLifecycle {
+			return "engagement_opted_out", nil
+		}
 		return "user_opted_out", nil
+	}
+	if isLifecycle {
+		return "", nil
 	}
 	paid, err := model.HasRecallPaymentAfterWithContext(ctx, item.Recipient.UserId, item.Recipient.CreatedAt)
 	if err != nil {
@@ -764,6 +786,13 @@ func (w *RecallEmailWorker) recallEmailStopReason(ctx context.Context, item *mod
 		return "api_activity_after_enrollment", nil
 	}
 	return "", nil
+}
+
+func recallEmailDeliveryPolicy(campaign model.RecallCampaign) string {
+	if strings.TrimSpace(campaign.DeliveryPolicy) == model.RecallDeliveryPolicyService {
+		return model.RecallDeliveryPolicyService
+	}
+	return model.RecallDeliveryPolicyEngagement
 }
 
 func (w *RecallEmailWorker) finishPreAcceptError(ctx context.Context, item *model.RecallEmailWorkItem, errorCode string, retryable bool) error {
@@ -1064,6 +1093,7 @@ func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody s
 	if strings.ContainsAny(input.Template.Subject, "\r\n") {
 		return "", "", fmt.Errorf("recall email subject must not contain CR or LF")
 	}
+	includeUnsubscribe := input.IncludeUnsubscribe || (input.DeliveryPolicy != model.RecallDeliveryPolicyService && strings.TrimSpace(input.UnsubscribeURL) != "")
 	if strings.TrimSpace(input.Template.BodyHTML) != "" {
 		body, renderErr := renderRecallEmailHTML(input.Template.BodyHTML, input)
 		if renderErr != nil {
@@ -1084,9 +1114,11 @@ func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody s
 	if input.CampaignType == model.RecallCampaignTypeContentOnly {
 		htmlBody = "<!doctype html><html><body>" +
 			"<p>" + copy.GreetingPrefix + html.EscapeString(input.RecipientName) + copy.GreetingSuffix + "</p>" +
-			strings.Join(paragraphs, "") +
-			"<p><a href=\"" + html.EscapeString(input.UnsubscribeURL) + "\">" + copy.UnsubscribeLabel + "</a></p>" +
-			"</body></html>"
+			strings.Join(paragraphs, "")
+		if includeUnsubscribe {
+			htmlBody += "<p><a href=\"" + html.EscapeString(input.UnsubscribeURL) + "\">" + copy.UnsubscribeLabel + "</a></p>"
+		}
+		htmlBody += "</body></html>"
 		return input.Template.Subject, htmlBody, nil
 	}
 	expires := time.Unix(input.ExpiresAt, 0).UTC().Format("2006-01-02 15:04 UTC")
@@ -1096,9 +1128,11 @@ func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody s
 		"<p>" + copy.OfferCodeLabel + copy.ValueSeparator + "<code>" + html.EscapeString(input.PromotionCodeMasked) + "</code></p>" +
 		"<p>" + copy.ValidForLabel + copy.ValueSeparator + html.EscapeString(input.ProductSummary) + "</p>" +
 		"<p>" + copy.ExpiresLabel + copy.ValueSeparator + html.EscapeString(expires) + "</p>" +
-		"<p><a href=\"" + html.EscapeString(input.ClaimURL) + "\">" + copy.ClaimLabel + "</a></p>" +
-		"<p><a href=\"" + html.EscapeString(input.UnsubscribeURL) + "\">" + copy.UnsubscribeLabel + "</a></p>" +
-		"</body></html>"
+		"<p><a href=\"" + html.EscapeString(input.ClaimURL) + "\">" + copy.ClaimLabel + "</a></p>"
+	if includeUnsubscribe {
+		htmlBody += "<p><a href=\"" + html.EscapeString(input.UnsubscribeURL) + "\">" + copy.UnsubscribeLabel + "</a></p>"
+	}
+	htmlBody += "</body></html>"
 	return input.Template.Subject, htmlBody, nil
 }
 

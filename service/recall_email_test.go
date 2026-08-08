@@ -41,6 +41,7 @@ type recallEmailSent struct {
 	receiver  string
 	htmlBody  string
 	messageID string
+	options   common.EmailOptions
 }
 
 type recallEmailFixture struct {
@@ -2562,8 +2563,8 @@ func newRecallEmailFixture(t *testing.T, stageCount int, sender RecallEmailSende
 	now := time.Unix(recallEmailTestNow, 0).UTC()
 	sent := make([]recallEmailSent, 0)
 	if sender == nil {
-		sender = func(config common.SMTPConfig, subject, receiver, content, messageID string, _ common.EmailOptions) error {
-			sent = append(sent, recallEmailSent{config: config, from: config.From, subject: subject, receiver: receiver, htmlBody: content, messageID: messageID})
+		sender = func(config common.SMTPConfig, subject, receiver, content, messageID string, options common.EmailOptions) error {
+			sent = append(sent, recallEmailSent{config: config, from: config.From, subject: subject, receiver: receiver, htmlBody: content, messageID: messageID, options: options})
 			return nil
 		}
 	}

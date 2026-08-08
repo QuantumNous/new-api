@@ -50,6 +50,7 @@ type RecallEmailSMTPAttempt struct {
 	Reserved   bool
 	LeaseOwned bool
 	Suppressed bool
+	Email      string
 }
 
 var (
@@ -59,6 +60,21 @@ var (
 	errRecallEmailQuotaWait    = errors.New("recall email quota exhausted")
 	errRecallEmailCASLost      = errors.New("recall email CAS lost")
 )
+
+type RecallLifecycleSMTPGateInput struct {
+	Message   RecallMessage
+	Recipient RecallRecipient
+}
+
+type RecallLifecycleSMTPGateResult struct {
+	Email      string
+	Blocked    bool
+	ReasonCode string
+}
+
+type RecallLifecycleSMTPGateFunc func(tx *gorm.DB, input RecallLifecycleSMTPGateInput) (RecallLifecycleSMTPGateResult, error)
+
+var RecallLifecycleSMTPGate RecallLifecycleSMTPGateFunc
 
 func ReserveRecallEmailQuotaWithContext(ctx context.Context, limit int) (RecallEmailQuotaStatus, bool, error) {
 	return reserveRecallEmailQuota(DB.WithContext(ctx), limit)
@@ -108,6 +124,39 @@ func BeginRecallEmailSMTPAttemptWithContext(
 			}
 			return nil
 		}
+		if recipient.LifecycleEventId != nil && RecallLifecycleSMTPGate != nil {
+			gate, err := RecallLifecycleSMTPGate(tx, RecallLifecycleSMTPGateInput{
+				Message:   message,
+				Recipient: recipient,
+			})
+			if err != nil {
+				return err
+			}
+			if gate.Blocked {
+				attempt.Suppressed = true
+				cancelled, err := cancelSuppressedRecallEmailFlowTx(tx, message.Id, recipient.Id, owner, expectedLeaseUntil, gate.ReasonCode)
+				if err != nil {
+					return err
+				}
+				if !cancelled {
+					return nil
+				}
+				return nil
+			}
+			if gate.Email != "" && gate.Email != recipient.EmailSnapshot {
+				result := tx.Model(&RecallRecipient{}).
+					Where("id = ?", recipient.Id).
+					Update("email_snapshot", gate.Email)
+				if result.Error != nil {
+					return result.Error
+				}
+				if result.RowsAffected != 1 {
+					return errRecallEmailCASLost
+				}
+				recipient.EmailSnapshot = gate.Email
+			}
+		}
+		attempt.Email = recipient.EmailSnapshot
 
 		nowMillis, err := recallEmailPacingNowMillis(tx)
 		if err != nil {
