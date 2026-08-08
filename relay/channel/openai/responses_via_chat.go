@@ -154,5 +154,7 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 	}
 
+	helper.Done(c)
+
 	return usage, nil
 }
