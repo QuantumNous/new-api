@@ -1025,7 +1025,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
 
   return (
     <form
-      className='space-y-4'
+      className='w-full min-w-0 space-y-4'
       noValidate
       onSubmit={form.handleSubmit(onSubmit)}
     >

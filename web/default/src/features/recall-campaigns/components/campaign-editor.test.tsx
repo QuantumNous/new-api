@@ -785,6 +785,20 @@ function renderEditor(
   )
 }
 
+function expectMarkupClassTokens(
+  html: string,
+  tagName: string,
+  tokens: string[]
+) {
+  const className = html.match(
+    new RegExp(`<${tagName}[^>]*class="([^"]+)"`)
+  )?.[1]
+  const classes = className?.split(/\s+/) ?? []
+  for (const token of tokens) {
+    expect(classes).toContain(token)
+  }
+}
+
 function renderEditorDom(
   draft: RecallCampaignDraft,
   props: Partial<React.ComponentProps<typeof CampaignEditor>> = {}
@@ -1053,6 +1067,12 @@ afterAll(async () => {
 })
 
 describe('CampaignEditor audience rules', () => {
+  test('keeps the root form shrinkable inside narrow dialogs', () => {
+    const html = renderEditor('first_purchase')
+
+    expectMarkupClassTokens(html, 'form', ['min-w-0', 'w-full', 'space-y-4'])
+  })
+
   test('offers promotion and content-only campaign types', () => {
     const html = renderEditor('first_purchase')
 
