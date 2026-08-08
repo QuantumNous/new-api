@@ -438,6 +438,8 @@ func migrateDBFast() error {
 		{&AdsAttributionOutbox{}, "AdsAttributionOutbox"},
 		{&PaymentAnalyticsOutbox{}, "PaymentAnalyticsOutbox"},
 		{&PaymentAnalyticsEventReceipt{}, "PaymentAnalyticsEventReceipt"},
+		{&StripeBonusClaim{}, "StripeBonusClaim"},
+		{&TopUpBonusClaim{}, "TopUpBonusClaim"},
 		{&UserInvoiceProfile{}, "UserInvoiceProfile"},
 		{&PaymentInvoice{}, "PaymentInvoice"},
 		{&QuotaData{}, "QuotaData"},

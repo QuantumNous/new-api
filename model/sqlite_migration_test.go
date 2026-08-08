@@ -43,4 +43,9 @@ func TestSQLiteMigrateDBCanRunTwiceOnSameDatabase(t *testing.T) {
 
 	require.NoError(t, migrateDB())
 	require.NoError(t, migrateDB())
+
+	require.True(t, db.Migrator().HasTable(&StripeBonusClaim{}))
+	require.True(t, db.Migrator().HasIndex(&StripeBonusClaim{}, "idx_stripe_bonus_claims_card_fingerprint"))
+	require.True(t, db.Migrator().HasTable(&TopUpBonusClaim{}))
+	require.True(t, db.Migrator().HasIndex(&TopUpBonusClaim{}, "idx_topup_bonus_user_tier_seq"))
 }
