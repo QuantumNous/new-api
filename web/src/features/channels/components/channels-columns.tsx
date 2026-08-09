@@ -87,24 +87,6 @@ import {
 } from './dialogs/codex-usage-dialog'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
-function parseIonetMeta(otherInfo: string | null | undefined): null | {
-  source?: string
-  deployment_id?: string
-} {
-  if (!otherInfo) {
-    return null
-  }
-  try {
-    const parsed = JSON.parse(otherInfo)
-    if (parsed && typeof parsed === 'object') {
-      return parsed
-    }
-  } catch {
-    return null
-  }
-  return null
-}
-
 /**
  * Upstream update tags (+N / -N) shown on channel name for model-fetchable channels
  */
@@ -753,13 +735,6 @@ export function useChannelsColumns(
               ? t('Multi-key: Random rotation')
               : t('Multi-key: Polling rotation')
 
-          const ionetMeta = parseIonetMeta(channel.other_info)
-          const isIonet = ionetMeta?.source === 'ionet'
-          const deploymentId =
-            typeof ionetMeta?.deployment_id === 'string'
-              ? ionetMeta?.deployment_id
-              : undefined
-
           return (
             <div className='flex max-w-full min-w-0 items-center gap-2 overflow-hidden'>
               {isMultiKey && (
@@ -798,50 +773,6 @@ export function useChannelsColumns(
                   <TooltipContent side='top'>{typeName}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              {isIonet && (
-                <TooltipProvider delay={100}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <span
-                          className='flex cursor-pointer items-center gap-1.5 text-xs font-medium'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (!deploymentId) {
-                              return
-                            }
-                            const targetUrl = `/models/deployments?dFilter=${encodeURIComponent(String(deploymentId))}`
-                            window.open(targetUrl, '_blank', 'noopener')
-                          }}
-                        />
-                      }
-                    >
-                      <StatusBadge
-                        label='IO.NET'
-                        variant='purple'
-                        size='sm'
-                        copyable={false}
-                        className='cursor-pointer'
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
-                      <div className='max-w-xs space-y-1'>
-                        <div className='text-xs'>
-                          {t('From IO.NET deployment')}
-                        </div>
-                        {deploymentId && (
-                          <div className='text-muted-foreground font-mono text-xs'>
-                            {t('Deployment ID')}: {deploymentId}
-                          </div>
-                        )}
-                        <div className='text-muted-foreground text-xs'>
-                          {t('Click to open deployment')}
-                        </div>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
             </div>
           )
         },

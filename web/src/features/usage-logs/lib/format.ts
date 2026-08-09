@@ -437,10 +437,6 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'model.update': 'Updated a model',
   'model.delete': 'Deleted a model',
   'model.sync_upstream': 'Synced upstream models',
-  // Deployments
-  'deployment.create': 'Created a deployment',
-  'deployment.update': 'Updated a deployment',
-  'deployment.delete': 'Deleted a deployment',
   // Subscriptions
   'subscription.plan_create': 'Created a subscription plan',
   'subscription.plan_update': 'Updated a subscription plan',
