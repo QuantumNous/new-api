@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -81,7 +82,30 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
-	defer service.CloseResponseBodyGracefully(resp)
+	var closeBodyOnce sync.Once
+	closeUpstream := func() {
+		closeBodyOnce.Do(func() { service.CloseResponseBodyGracefully(resp) })
+	}
+	defer closeUpstream()
+
+	cancelWatchDone := make(chan struct{})
+	cancelWatchExited := make(chan struct{})
+	var stopCancelWatchOnce sync.Once
+	stopCancelWatch := func() {
+		stopCancelWatchOnce.Do(func() {
+			close(cancelWatchDone)
+			<-cancelWatchExited
+		})
+	}
+	defer stopCancelWatch()
+	go func() {
+		defer close(cancelWatchExited)
+		select {
+		case <-c.Request.Context().Done():
+			closeUpstream()
+		case <-cancelWatchDone:
+		}
+	}()
 
 	accumulator := relayconvert.NewResponsesBufferedAccumulator()
 	var finalResponse *dto.OpenAIResponsesResponse
@@ -137,6 +161,9 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 	if streamErr != nil {
 		return nil, streamErr
 	}
+	if requestErr := c.Request.Context().Err(); requestErr != nil {
+		return nil, types.NewErrorWithStatusCode(requestErr, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+	}
 	if err := scanner.Err(); err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
@@ -181,6 +208,7 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
 	}
 
+	resp.Header.Set("Content-Type", "application/json")
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 	return usage, nil
 }

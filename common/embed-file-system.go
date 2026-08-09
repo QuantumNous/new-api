@@ -1,7 +1,6 @@
 package common
 
 import (
-	"embed"
 	"io/fs"
 	"net/http"
 	"os"
@@ -32,7 +31,7 @@ func (e *embedFileSystem) Open(name string) (http.File, error) {
 	return e.FileSystem.Open(name)
 }
 
-func EmbedFolder(fsEmbed embed.FS, targetPath string) static.ServeFileSystem {
+func EmbedFolder(fsEmbed fs.FS, targetPath string) static.ServeFileSystem {
 	efs, err := fs.Sub(fsEmbed, targetPath)
 	if err != nil {
 		panic(err)

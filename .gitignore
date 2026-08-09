@@ -9,6 +9,8 @@ build
 *.db-journal
 logs
 web/dist
+web/landing/out
+web/landing/node_modules
 web/node_modules
 .env
 one-api

@@ -1,11 +1,14 @@
 package openai
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -49,7 +52,9 @@ func TestOaiResponsesToChatStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
 
 	body := strings.Join([]string{
+		`event: response.created`,
 		`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test","created_at":1710000000}}`,
+		`event: response.output_text.delta`,
 		`data: {"type":"response.output_text.delta","delta":"hello"}`,
 		`data: {"type":"response.output_item.added","output_index":1,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"lookup"}}`,
 		`data: {"type":"response.function_call_arguments.delta","output_index":1,"delta":"{\"q\":\"x\"}"}`,
@@ -147,6 +152,7 @@ func TestOaiResponsesToChatBufferedStreamHandlerReturnsJSONFromSSE(t *testing.T)
 	t.Cleanup(func() { gin.SetMode(oldMode) })
 
 	body := strings.Join([]string{
+		`event: response.output_text.delta`,
 		`data: {"type":"response.output_text.delta","delta":"buffered text"}`,
 		`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"lookup"}}`,
 		`data: {"type":"response.function_call_arguments.delta","output_index":0,"delta":"{\"q\":\"x\"}"}`,
@@ -163,12 +169,72 @@ func TestOaiResponsesToChatBufferedStreamHandlerReturnsJSONFromSSE(t *testing.T)
 	require.Equal(t, 3, usage.TotalTokens)
 
 	got := recorder.Body.String()
+	require.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
 	require.NotContains(t, got, `data:`)
 	require.Contains(t, got, `"object":"chat.completion"`)
 	require.Contains(t, got, `"content":"buffered text"`)
 	require.Contains(t, got, `"name":"lookup"`)
 	require.Contains(t, got, `"arguments":"{\"q\":\"x\"}"`)
 	require.Contains(t, got, `"finish_reason":"tool_calls"`)
+}
+
+type blockingResponsesBody struct {
+	closed    chan struct{}
+	closeOnce sync.Once
+}
+
+func newBlockingResponsesBody() *blockingResponsesBody {
+	return &blockingResponsesBody{closed: make(chan struct{})}
+}
+
+func (b *blockingResponsesBody) Read(_ []byte) (int, error) {
+	<-b.closed
+	return 0, io.ErrClosedPipe
+}
+
+func (b *blockingResponsesBody) Close() error {
+	b.closeOnce.Do(func() { close(b.closed) })
+	return nil
+}
+
+func TestOaiResponsesToChatBufferedStreamHandlerStopsOnClientCancel(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	requestContext, cancel := context.WithCancel(context.Background())
+	c, recorder, _, info := newResponsesChatTestContext(t, "", false)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(requestContext)
+	body := newBlockingResponsesBody()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       body,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+
+	result := make(chan *types.NewAPIError, 1)
+	go func() {
+		_, err := OaiResponsesToChatBufferedStreamHandler(c, info, resp)
+		result <- err
+	}()
+
+	cancel()
+
+	select {
+	case err := <-result:
+		require.NotNil(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+		assert.True(t, types.IsSkipRetryError(err))
+		assert.Empty(t, recorder.Body.String())
+	case <-time.After(2 * time.Second):
+		t.Fatal("buffered responses handler did not stop after client cancellation")
+	}
+
+	select {
+	case <-body.closed:
+	default:
+		t.Fatal("upstream response body was not closed after client cancellation")
+	}
 }
 
 func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {

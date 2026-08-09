@@ -35,7 +35,18 @@ jobs:
             go.sum
             relaykit/go.sum
 
-      - name: Create frontend embed placeholder
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
+      - name: Build landing frontend
+        run: |
+          corepack prepare pnpm@10.33.0 --activate
+          corepack pnpm --dir web/landing install --frozen-lockfile
+          corepack pnpm --dir web/landing build
+
+      - name: Create dashboard embed placeholder
         run: |
           mkdir -p web/dist
           touch web/dist/index.html

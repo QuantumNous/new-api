@@ -37,6 +37,15 @@ jobs:
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Build Landing
+        run: |
+          corepack prepare pnpm@10.33.0 --activate
+          corepack pnpm --dir web/landing install --frozen-lockfile
+          corepack pnpm --dir web/landing build
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -87,6 +96,15 @@ jobs:
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Build Landing
+        run: |
+          corepack prepare pnpm@10.33.0 --activate
+          corepack pnpm --dir web/landing install --frozen-lockfile
+          corepack pnpm --dir web/landing build
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -134,6 +152,15 @@ jobs:
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Build Landing
+        run: |
+          corepack prepare pnpm@10.33.0 --activate
+          corepack pnpm --dir web/landing install --frozen-lockfile
+          corepack pnpm --dir web/landing build
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:

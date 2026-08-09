@@ -1,4 +1,5 @@
 WEB_DIR = ./web
+LANDING_DIR = ./web/landing
 API_DIR = .
 DEV_WEB_PORT ?= 5173
 DEV_COMPOSE_FILE = docker-compose.dev.yml
@@ -8,7 +9,7 @@ DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
 
-.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-web reset-setup test
+.PHONY: all build-web build-landing build-all-web start-api dev dev-api dev-api-rebuild dev-web reset-setup test
 
 all: build-all-web start-api
 
@@ -17,7 +18,13 @@ build-web:
 	@cd $(WEB_DIR) && bun install --frozen-lockfile
 	@cd $(WEB_DIR) && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$$(cat ../VERSION) bun run build
 
-build-all-web: build-web
+build-landing:
+	@echo "Building landing frontend..."
+	@corepack prepare pnpm@10.33.0 --activate
+	@corepack pnpm --dir $(LANDING_DIR) install --frozen-lockfile
+	@corepack pnpm --dir $(LANDING_DIR) build
+
+build-all-web: build-web build-landing
 
 start-api:
 	@echo "Starting api dev server..."

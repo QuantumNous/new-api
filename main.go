@@ -6,6 +6,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -44,6 +45,15 @@ var buildFS embed.FS
 
 //go:embed web/dist/index.html
 var indexPage []byte
+
+//go:embed all:web/landing/out
+var landingBuildFS embed.FS
+
+//go:embed web/landing/out/index.html
+var landingIndexPage []byte
+
+//go:embed web/landing/out/404.html
+var landingNotFoundPage []byte
 
 func main() {
 	startTime := time.Now()
@@ -194,10 +204,24 @@ func main() {
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
 
+	landingRoot, err := fs.Sub(landingBuildFS, "web/landing/out")
+	if err != nil {
+		common.FatalLog("failed to initialize landing frontend assets: " + err.Error())
+		return
+	}
+	frontendRoot, err := fs.Sub(buildFS, "web/dist")
+	if err != nil {
+		common.FatalLog("failed to initialize dashboard frontend assets: " + err.Error())
+		return
+	}
+
 	// 设置路由
 	router.SetRouter(server, router.WebAssets{
-		BuildFS:   buildFS,
-		IndexPage: indexPage,
+		BuildFS:             frontendRoot,
+		IndexPage:           indexPage,
+		LandingBuildFS:      landingRoot,
+		LandingIndexPage:    landingIndexPage,
+		LandingNotFoundPage: landingNotFoundPage,
 	})
 	var port = os.Getenv("PORT")
 	if port == "" {

@@ -1,0 +1,3 @@
+# Static landing site source
+
+This directory is populated with the statically exported `landing-page-new` site during the Docker build. The generated `out/` directory is embedded in the New API binary and served only for `/` and `/docs/**`; the default console continues to own all other frontend routes.

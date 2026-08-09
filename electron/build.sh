@@ -10,7 +10,14 @@ bun install --frozen-lockfile
 DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags --always) bun run build
 cd ../electron
 
-echo "Step 2: Building Go backend..."
+echo "Step 2: Building landing frontend..."
+cd landing
+corepack prepare pnpm@10.33.0 --activate
+corepack pnpm install --frozen-lockfile
+corepack pnpm build
+cd ../../electron
+
+echo "Step 3: Building Go backend..."
 cd ..
 
 if [[ "$OSTYPE" == "darwin"* ]]; then

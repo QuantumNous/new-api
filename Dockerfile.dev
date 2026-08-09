@@ -16,8 +16,11 @@ RUN go mod download
 
 COPY . .
 
-RUN mkdir -p web/dist && \
-    echo '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > web/dist/index.html
+RUN mkdir -p web/dist web/landing/out/docs && \
+    echo '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > web/dist/index.html && \
+    echo '<!doctype html><html><head><title>dev</title></head><body>use landing frontend dev server</body></html>' > web/landing/out/index.html && \
+    echo '<!doctype html><html><head><title>dev not found</title></head><body>use landing frontend dev server</body></html>' > web/landing/out/404.html && \
+    echo '<!doctype html><html><head><title>dev docs</title></head><body>use landing frontend dev server</body></html>' > web/landing/out/docs/index.html
 
 RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 

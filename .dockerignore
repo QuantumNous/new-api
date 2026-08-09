@@ -1,6 +1,7 @@
 .github
 .git
 *.md
+!web/landing/**/*.md
 .vscode
 .gitignore
 Makefile
@@ -9,4 +10,7 @@ docs
 .gocache
 /web/node_modules
 /web/dist
+/web/landing/node_modules
+/web/landing/out
+/web/landing/.next
 !THIRD-PARTY-LICENSES.md

@@ -248,34 +248,39 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			}
 
 			ticker.Reset(streamingTimeout)
-			data := scanner.Text()
-			logger.LogDebug(c, "stream scanner data: %s", data)
+			line := strings.TrimSpace(scanner.Text())
+			logger.LogDebug(c, "stream scanner data: %s", line)
 
-			if len(data) < 6 {
+			if line == "" {
 				continue
 			}
-			if data[:5] != "data:" && data[:6] != "[DONE]" {
+			if line == "[DONE]" {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+				logger.LogDebug(c, "received [DONE], stopping scanner")
+				return
+			}
+			if !strings.HasPrefix(line, "data:") {
 				continue
 			}
-			data = data[5:]
-			data = strings.TrimSpace(data)
+
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 			if data == "" {
 				continue
 			}
-			if !strings.HasPrefix(data, "[DONE]") {
-				info.SetFirstResponseTime()
-				info.ReceivedResponseCount++
-
-				select {
-				case dataChan <- data:
-				case <-ctx.Done():
-					return
-				case <-stopChan:
-					return
-				}
-			} else {
+			if strings.HasPrefix(data, "[DONE]") {
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 				logger.LogDebug(c, "received [DONE], stopping scanner")
+				return
+			}
+
+			info.SetFirstResponseTime()
+			info.ReceivedResponseCount++
+
+			select {
+			case dataChan <- data:
+			case <-ctx.Done():
+				return
+			case <-stopChan:
 				return
 			}
 		}
