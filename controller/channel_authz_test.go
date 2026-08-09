@@ -134,6 +134,29 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 	assert.Equal(t, "default", channel.Group)
 }
 
+func TestApplyChannelBalanceReset(t *testing.T) {
+	original := model.Channel{
+		Balance:            12.5,
+		BalanceUpdatedTime: 123,
+		BalanceInfo:        &model.ChannelBalanceInfo{Remaining: "12.5"},
+		UsedQuota:          456,
+	}
+
+	preserved := original
+	applyChannelBalanceReset(&preserved, false)
+	assert.Equal(t, original.Balance, preserved.Balance)
+	assert.Equal(t, original.BalanceUpdatedTime, preserved.BalanceUpdatedTime)
+	assert.Equal(t, original.BalanceInfo, preserved.BalanceInfo)
+	assert.Equal(t, original.UsedQuota, preserved.UsedQuota)
+
+	reset := original
+	applyChannelBalanceReset(&reset, true)
+	assert.Zero(t, reset.Balance)
+	assert.Zero(t, reset.BalanceUpdatedTime)
+	assert.Nil(t, reset.BalanceInfo)
+	assert.Zero(t, reset.UsedQuota)
+}
+
 func TestUpdateChannelRejectsStatusField(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()

@@ -94,6 +94,22 @@ func TestNormalizeNewAPIBalancePreservesUpstreamDisplay(t *testing.T) {
 	assert.Nil(t, legacy)
 }
 
+func TestNormalizeNewAPIBalanceClampsNegativeRemaining(t *testing.T) {
+	credits, legacy := normalizeNewAPIBalance(decimal.NewFromInt(-1), false, nil)
+	assert.Equal(t, "0", credits.Remaining)
+	assert.Nil(t, legacy)
+
+	quotaPerUnit := decimal.NewFromInt(500000)
+	usd, legacy := normalizeNewAPIBalance(decimal.NewFromInt(-500000), false, &newAPIStatusData{
+		QuotaPerUnit:     &quotaPerUnit,
+		QuotaDisplayType: "USD",
+	})
+	assert.Equal(t, "0", usd.Remaining)
+	require.NotNil(t, legacy)
+	assert.Zero(t, *legacy)
+	assert.True(t, newAPIBalanceExhausted(&usd))
+}
+
 func writeControllerBalanceJSON(t *testing.T, writer http.ResponseWriter, value any) {
 	t.Helper()
 	payload, err := common.Marshal(value)

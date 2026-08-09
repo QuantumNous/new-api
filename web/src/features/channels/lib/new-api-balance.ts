@@ -29,7 +29,7 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 
 export function formatNewAPIBalance(
   info: ChannelBalanceInfo,
-  unlimitedLabel = 'Unlimited'
+  unlimitedLabel: string
 ): string {
   if (info.unlimited) return unlimitedLabel
   const amount = info.remaining?.trim()

@@ -78,6 +78,9 @@ func getNewAPIChannelResponse(channel *model.Channel, path string) ([]byte, erro
 }
 
 func normalizeNewAPIBalance(remaining decimal.Decimal, unlimited bool, status *newAPIStatusData) (model.ChannelBalanceInfo, *float64) {
+	if !unlimited && remaining.IsNegative() {
+		remaining = decimal.Zero
+	}
 	info := model.ChannelBalanceInfo{
 		Remaining:   remaining.String(),
 		Unit:        model.ChannelBalanceUnitCredits,

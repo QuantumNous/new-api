@@ -375,11 +375,8 @@ export async function handleUpdateChannelBalance(
     const response = await updateChannelBalance(id)
     const hasPayload =
       response.data !== undefined || response.balance !== undefined
-    if (hasPayload) {
-      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
-    }
-
     if (response.success && hasPayload) {
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       let displayBalance = '-'
       if (response.data) {
         displayBalance = formatNewAPIBalance(

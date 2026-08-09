@@ -627,7 +627,7 @@ func AddChannel(c *gin.Context) {
 	}
 
 	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
-	addChannelRequest.Channel.BalanceInfo = nil
+	applyChannelBalanceReset(addChannelRequest.Channel, true)
 	keys := make([]string, 0)
 	switch addChannelRequest.Mode {
 	case "multi_to_single":
@@ -712,6 +712,16 @@ func AddChannel(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+func applyChannelBalanceReset(channel *model.Channel, reset bool) {
+	if channel == nil || !reset {
+		return
+	}
+	channel.Balance = 0
+	channel.BalanceUpdatedTime = 0
+	channel.BalanceInfo = nil
+	channel.UsedQuota = 0
 }
 
 func DeleteChannel(c *gin.Context) {
@@ -1433,13 +1443,7 @@ func CopyChannel(c *gin.Context) {
 	clone.Name = origin.Name + suffix
 	clone.TestTime = 0
 	clone.ResponseTime = 0
-	// New API balance snapshots belong to one channel and must not be copied.
-	clone.BalanceInfo = nil
-	if resetBalance {
-		clone.Balance = 0
-		clone.BalanceUpdatedTime = 0
-		clone.UsedQuota = 0
-	}
+	applyChannelBalanceReset(&clone, resetBalance)
 
 	if err := clone.ValidateSettings(); err != nil {
 		common.SysError("failed to validate cloned channel: " + err.Error())

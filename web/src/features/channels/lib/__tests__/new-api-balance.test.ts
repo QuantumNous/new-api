@@ -36,14 +36,15 @@ const balance = (
 
 describe('New API balance', () => {
   test('formats money, credits and unlimited quota', () => {
-    assert.equal(formatNewAPIBalance(balance()), '$123.45')
+    assert.equal(formatNewAPIBalance(balance(), 'Unlimited'), '$123.45')
     assert.equal(
       formatNewAPIBalance(
         balance({
           unit: 'credits',
           currency: undefined,
           display_unit: 'credits',
-        })
+        }),
+        'Unlimited'
       ),
       '123.45 credits'
     )

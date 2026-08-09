@@ -97,7 +97,7 @@ export function BalanceQueryDialog({
       const hasStructuredData = response.data !== undefined
       const hasPayload = hasBalance || hasStructuredData
 
-      if (hasPayload) {
+      if (response.success && hasPayload) {
         const now = Math.floor(Date.now() / 1000)
         if (hasBalance) {
           setBalance(response.balance ?? null)
@@ -118,9 +118,6 @@ export function BalanceQueryDialog({
         await queryClient.invalidateQueries({
           queryKey: channelsQueryKeys.lists(),
         })
-      }
-
-      if (response.success && hasPayload) {
         toast.success(t('Balance updated successfully'))
       } else {
         toast.error(response.message || t('Failed to query balance'))
