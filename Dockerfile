@@ -5,13 +5,10 @@ WORKDIR /build/web
 # 1. 复制依赖清单
 COPY web/package.json web/bun.lock ./
 
-# 2. 设置国内镜像源（提升下载稳定性）
-RUN bun config set registry https://registry.npmmirror.com
-
-# 3. 清理可能损坏的本地缓存
+# 2. 清理可能损坏的本地缓存（保留，与镜像源无关）
 RUN bun cache clear
 
-# 4. 带重试机制安装依赖（最多 3 次）
+# 3. 带重试机制安装依赖（最多 3 次）
 RUN for i in 1 2 3; do \
         bun install --frozen-lockfile && break || { \
             echo "Attempt $i failed, retrying in 5 seconds..."; \
@@ -19,11 +16,11 @@ RUN for i in 1 2 3; do \
         }; \
     done
 
-# 5. 复制前端源码
+# 4. 复制前端源码
 COPY ./web ./
-# 6. 复制版本文件
+# 5. 复制版本文件
 COPY ./VERSION /build/VERSION
-# 7. 构建前端
+# 6. 构建前端
 RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
 
 # ==================== 后端构建（不变） ====================
