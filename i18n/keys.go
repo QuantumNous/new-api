@@ -256,19 +256,6 @@ const (
 	MsgSettingSaved            = "setting.saved"
 )
 
-// Deployment related messages (io.net)
-const (
-	MsgDeploymentNotEnabled     = "deployment.not_enabled"
-	MsgDeploymentIdRequired     = "deployment.id_required"
-	MsgDeploymentContainerIdReq = "deployment.container_id_required"
-	MsgDeploymentNameEmpty      = "deployment.name_empty"
-	MsgDeploymentNameTaken      = "deployment.name_taken"
-	MsgDeploymentHardwareIdReq  = "deployment.hardware_id_required"
-	MsgDeploymentHardwareInvId  = "deployment.hardware_invalid_id"
-	MsgDeploymentApiKeyRequired = "deployment.api_key_required"
-	MsgDeploymentInvalidPayload = "deployment.invalid_payload"
-	MsgDeploymentNotFound       = "deployment.not_found"
-)
 
 // Performance related messages
 const (
