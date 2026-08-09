@@ -76,6 +76,15 @@ func ValidateUserRuntimeGroup(userId int, group string) error {
 	if err != nil {
 		return err
 	}
+	if group == "auto" {
+		// "auto" is a virtual token group. It is not itself a selectable
+		// concrete group; authorize it only when at least one current auto
+		// candidate remains visible to the user.
+		if len(getAutoGroupsFromUsableGroups(groups)) == 0 {
+			return errors.New("所选令牌自动分组当前不可用")
+		}
+		return nil
+	}
 	if _, ok := groups[group]; !ok {
 		return errors.New("所选令牌分组当前不可用")
 	}
