@@ -94,6 +94,9 @@ func image2Resolution(size string) (string, error) {
 	if wErr != nil || hErr != nil || w < 1 || h < 1 {
 		return "", fmt.Errorf("invalid Image2 size %q", size)
 	}
+	if w > 4096 || h > 4096 {
+		return "", fmt.Errorf("unsupported Image2 size %q: dimensions exceed 4096", size)
+	}
 	if w <= 1024 && h <= 1024 {
 		return "1024", nil
 	}

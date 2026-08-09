@@ -41,8 +41,8 @@ func TestImage2ResolutionTierBoundaries(t *testing.T) {
 		{size: "2049x2048", want: "uhd"},
 		{size: "2048x2049", want: "uhd"},
 		{size: "4096", want: "uhd"},
+		{size: "4096x4096", want: "uhd"},
 		{size: "uhd", want: "uhd"},
-		{size: "8192x8192", want: "uhd"},
 	}
 	for _, test := range accepted {
 		t.Run("accepts "+test.size, func(t *testing.T) {
@@ -55,7 +55,10 @@ func TestImage2ResolutionTierBoundaries(t *testing.T) {
 	// A size that cannot be understood must be an error, never a silent
 	// downgrade to the smallest tier: that would route an oversized request to
 	// a channel that cannot serve it.
-	rejected := []string{"abc", "1024x", "x1024", "1024x1024x1024", "0x0", "-1x-1", "1024*1024"}
+	rejected := []string{
+		"abc", "1024x", "x1024", "1024x1024x1024", "0x0", "-1x-1", "1024*1024",
+		"4097x4096", "4096x4097", "8192x8192",
+	}
 	for _, size := range rejected {
 		t.Run("rejects "+size, func(t *testing.T) {
 			_, err := ParseImage2RequestCapability(info, &dto.ImageRequest{Size: size})
