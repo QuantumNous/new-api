@@ -367,6 +367,14 @@ func GetHttpClientWithProxySettings(rawProxyURL string, settings dto.ChannelSett
 	policy := NormalizeHTTPTransportPolicy(settings)
 	trimmedProxyURL := strings.TrimSpace(rawProxyURL)
 
+	if settings.BypassProxy {
+		// BypassProxy bypasses the global proxy and connects directly.
+		trimmedProxyURL = ""
+	} else if trimmedProxyURL == "" {
+		// Empty channel proxy falls back to the global sing-box proxy.
+		trimmedProxyURL = strings.TrimSpace(getGlobalProxyURL())
+	}
+
 	if trimmedProxyURL == "" {
 		return getOrCreateDirectClient(policy)
 	}

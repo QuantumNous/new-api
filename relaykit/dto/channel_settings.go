@@ -11,8 +11,10 @@ import (
 )
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
+	ForceFormat       bool `json:"force_format,omitempty"`
+	ThinkingToContent bool `json:"thinking_to_content,omitempty"`
+	// BypassProxy bypasses the global proxy and connects directly.
+	BypassProxy            bool   `json:"bypass_proxy,omitempty"`
 	Proxy                  string `json:"proxy"`
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
