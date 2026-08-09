@@ -12,7 +12,11 @@ import { onClickOutside } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
-import { parseLogPage } from '@/api/liveContracts'
+import {
+  parseLogPage,
+  parseLogStat,
+  type LogStatContract,
+} from '@/api/liveContracts'
 import { ApiError, type PageResult } from '@/api/types'
 import type { LogItem, LogType } from '@/types/console'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
@@ -45,19 +49,12 @@ import { serializeSpreadsheet } from '@/utils/spreadsheetExport'
 const { t } = useI18n()
 const toast = useToast()
 
-interface LogStat {
-  total_requests: number
-  total_quota: number
-  today_requests: number
-  today_quota: number
-}
-
 const rows = ref<LogItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(true)
-const stat = ref<LogStat | null>(null)
+const stat = ref<LogStatContract | null>(null)
 
 const keyword = ref('')
 const type = ref('')
@@ -436,11 +433,12 @@ onMounted(async () => {
   )
   void load()
   const result = await statsRequest.run((signal) =>
-    api.get<LogStat>('/api/log/self/stat', undefined, { signal })
+    api.get<LogStatContract>('/api/log/self/stat', undefined, { signal })
   )
   if (result.stale) return
-  if (result.ok) stat.value = result.value
-  else
+  if (result.ok) {
+    stat.value = parseLogStat(result.value as unknown)
+  } else
     toast.error(
       result.error instanceof ApiError
         ? result.error.message

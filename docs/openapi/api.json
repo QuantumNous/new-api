@@ -4255,7 +4255,67 @@
         "responses": {
           "200": {
             "description": "成功",
-            "headers": {}
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "data"],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "total_requests",
+                        "total_quota",
+                        "today_requests",
+                        "today_quota"
+                      ],
+                      "properties": {
+                        "total_requests": {
+                          "type": "integer",
+                          "format": "int64",
+                          "minimum": 0
+                        },
+                        "total_quota": {
+                          "type": "integer",
+                          "format": "int64",
+                          "minimum": 0
+                        },
+                        "today_requests": {
+                          "type": "integer",
+                          "format": "int64",
+                          "minimum": 0
+                        },
+                        "today_quota": {
+                          "type": "integer",
+                          "format": "int64",
+                          "minimum": 0
+                        },
+                        "quota": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "rpm": {
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "tpm": {
+                          "type": "integer",
+                          "format": "int32"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [

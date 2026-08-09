@@ -372,6 +372,9 @@ func updatePricing() {
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
+			if vendor, exists := vendorMap[meta.VendorID]; exists {
+				pricing.OwnerBy = vendor.Name
+			}
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {
