@@ -143,6 +143,8 @@ func TestApplyChannelBalanceReset(t *testing.T) {
 	}
 
 	preserved := original
+	preservedInfo := *original.BalanceInfo
+	preserved.BalanceInfo = &preservedInfo
 	applyChannelBalanceReset(&preserved, false)
 	assert.Equal(t, original.Balance, preserved.Balance)
 	assert.Equal(t, original.BalanceUpdatedTime, preserved.BalanceUpdatedTime)

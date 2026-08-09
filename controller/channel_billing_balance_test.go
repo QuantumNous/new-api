@@ -34,7 +34,9 @@ func TestUpdateChannelBalanceRefreshesOnlyRequestedNewAPIChannel(t *testing.T) {
 				"data":    map[string]any{"quota_per_unit": 500000, "quota_display_type": "USD"},
 			})
 		default:
-			t.Fatalf("unexpected path %s", r.URL.Path)
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.Error(w, "unexpected path", http.StatusInternalServerError)
+			return
 		}
 	}))
 	defer upstream.Close()
