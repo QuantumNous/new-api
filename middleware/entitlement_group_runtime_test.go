@@ -39,24 +39,43 @@ func seedFixedGroupEntitlement(t *testing.T) *model.Token {
 	return token
 }
 
-func runPlaygroundEntitlementGroupRequest(t *testing.T, token *model.Token, group string) *httptest.ResponseRecorder {
+func runPlaygroundGroupRequest(t *testing.T, token *model.Token, group string) *httptest.ResponseRecorder {
 	t.Helper()
 	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(
+	router := gin.New()
+	router.POST("/pg/chat/completions", func(c *gin.Context) {
+		c.Set("id", token.UserId)
+		c.Set("token_id", token.Id)
+		common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
+		c.Next()
+	}, Distribute(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	req := httptest.NewRequest(
 		http.MethodPost,
 		"/pg/chat/completions",
 		strings.NewReader(`{"model":"fixed-group-model","group":"`+group+`"}`),
 	)
-	ctx.Request.Header.Set("Content-Type", "application/json")
-	ctx.Set("id", token.UserId)
-	ctx.Set("token_id", token.Id)
-	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
-	common.SetContextKey(ctx, constant.ContextKeyUsingGroup, "default")
-	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "default")
-
-	Distribute()(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, req)
 	return recorder
+}
+
+func seedPlainPlaygroundToken(t *testing.T) *model.Token {
+	t.Helper()
+	user := &model.User{
+		Id: 2, Username: "plain-playground-user", Password: "password",
+		Group: "default", AffCode: "plain-playground-aff", Status: common.UserStatusEnabled,
+	}
+	require.NoError(t, model.DB.Create(user).Error)
+	token := &model.Token{
+		Id: 2, UserId: user.Id, Key: "plain-playground-token",
+		Status: common.TokenStatusEnabled, UnlimitedQuota: true, ExpiredTime: -1, Group: "default",
+	}
+	require.NoError(t, model.DB.Create(token).Error)
+	return token
 }
 
 func TestPlaygroundEntitlementCannotRewriteFixedPackageGroup(t *testing.T) {
@@ -67,7 +86,7 @@ func TestPlaygroundEntitlementCannotRewriteFixedPackageGroup(t *testing.T) {
 	t.Cleanup(func() { common.EntitlementFeatureEnabled = oldEntitlementFeatureEnabled })
 	token := seedFixedGroupEntitlement(t)
 
-	recorder := runPlaygroundEntitlementGroupRequest(t, token, "default")
+	recorder := runPlaygroundGroupRequest(t, token, "default")
 	require.Equal(t, http.StatusForbidden, recorder.Code,
 		"a playground group override must not escape the entitlement package group")
 }
@@ -80,7 +99,20 @@ func TestPlaygroundEntitlementAllowsItsFixedPackageGroup(t *testing.T) {
 	t.Cleanup(func() { common.EntitlementFeatureEnabled = oldEntitlementFeatureEnabled })
 	token := seedFixedGroupEntitlement(t)
 
-	recorder := runPlaygroundEntitlementGroupRequest(t, token, "vip")
+	recorder := runPlaygroundGroupRequest(t, token, "vip")
 	require.Equal(t, http.StatusServiceUnavailable, recorder.Code,
 		"same-group request should pass entitlement authorization and fail only on missing test channel")
+}
+
+func TestPlaygroundWithoutEntitlementKeepsGroupOverride(t *testing.T) {
+	setupRuntimeVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "false")
+	oldEntitlementFeatureEnabled := common.EntitlementFeatureEnabled
+	common.EntitlementFeatureEnabled = true
+	t.Cleanup(func() { common.EntitlementFeatureEnabled = oldEntitlementFeatureEnabled })
+	token := seedPlainPlaygroundToken(t)
+
+	recorder := runPlaygroundGroupRequest(t, token, "vip")
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code,
+		"without a grant, the established playground group override must retain its legacy path")
 }
