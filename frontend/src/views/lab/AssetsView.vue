@@ -15,7 +15,7 @@ import type { AssetItem, AssetKind } from '@/types/lab'
 
 const { t } = useI18n()
 const toast = useToast()
-const { readOnly } = useFeatureAccess('lab', 'prototype')
+const { readOnly } = useFeatureAccess('lab', 'disabled')
 const { loading, items, storage, load } = useLabAssets()
 
 const safeCover = (value: string | undefined) => safeImageUrl(value)
@@ -82,11 +82,11 @@ watch(tab, reload)
 
 function upload() {
   if (readOnly.value) return
-  toast.info(t('lab.prototypeToast'))
+  toast.info(t('lab.unavailableToast'))
 }
 function rowAction(_item: AssetItem) {
   if (readOnly.value) return
-  toast.info(t('lab.prototypeToast'))
+  toast.info(t('lab.unavailableToast'))
 }
 </script>
 

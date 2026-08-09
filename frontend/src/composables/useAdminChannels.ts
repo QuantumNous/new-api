@@ -36,7 +36,7 @@ const CHANNEL_BATCH_SIZE = 5
 export function useAdminChannels() {
   const { t } = useI18n()
   const toast = useToast()
-  const { readOnly } = useFeatureAccess('admin', 'prototype')
+  const { readOnly } = useFeatureAccess('admin', 'disabled')
 
   const rows = ref<AdminChannel[]>([])
   const total = ref(0)
@@ -122,12 +122,6 @@ export function useAdminChannels() {
     busy.value = next
   }
 
-  function replaceChannel(channel: AdminChannel) {
-    const index = rows.value.findIndex((item) => item.id === channel.id)
-    if (index < 0) return
-    rows.value.splice(index, 1, channel)
-  }
-
   function currentParams() {
     return {
       p: page.value,
@@ -147,9 +141,7 @@ export function useAdminChannels() {
     else loading.value = true
     if (rows.value.length === 0) initialError.value = ''
 
-    const endpoint = keyword.value.trim()
-      ? '/api/channel/search'
-      : '/api/channel/'
+    const endpoint = '/api/next/admin/channels'
     const result = await listRequest.run((signal) =>
       api.get<AdminChannelPage>(endpoint, currentParams(), { signal })
     )
@@ -188,14 +180,14 @@ export function useAdminChannels() {
   async function runChannelAction(
     id: number,
     action: ChannelAction,
-    request: () => Promise<AdminChannel>,
+    request: () => Promise<unknown>,
     successKey: string
   ): Promise<boolean> {
     if (isRowBusy(id)) return false
     setBusy(id, action)
     try {
-      const channel = await request()
-      replaceChannel(channel)
+      await request()
+      await load({ background: true })
       toast.success(t(successKey))
       return true
     } catch (error) {
@@ -215,7 +207,7 @@ export function useAdminChannels() {
       channel.id,
       field,
       () =>
-        api.put<AdminChannel>('/api/channel/', {
+        api.put<unknown>('/api/next/admin/channels', {
           id: channel.id,
           [field]: value,
         }),
@@ -229,7 +221,7 @@ export function useAdminChannels() {
       channel.id,
       'status',
       () =>
-        api.post<AdminChannel>(`/api/channel/${channel.id}/status`, {
+        api.post<unknown>(`/api/next/admin/channels/${channel.id}/status`, {
           status: nextStatus,
         }),
       nextStatus === 1 ? 'channels.enabled' : 'channels.disabled'
@@ -240,7 +232,7 @@ export function useAdminChannels() {
     return runChannelAction(
       channel.id,
       'balance',
-      () => api.get<AdminChannel>(`/api/channel/update_balance/${channel.id}`),
+      () => api.get<unknown>(`/api/next/admin/channels/balance/${channel.id}`),
       'channels.balanceUpdated'
     )
   }
@@ -249,7 +241,7 @@ export function useAdminChannels() {
     return runChannelAction(
       channel.id,
       'test',
-      () => api.get<AdminChannel>(`/api/channel/test/${channel.id}`),
+      () => api.get<unknown>(`/api/next/admin/channels/test/${channel.id}`),
       'channels.testCompleted'
     )
   }
@@ -280,7 +272,7 @@ export function useAdminChannels() {
   function createChannel(input: AdminChannelCreateInput): Promise<boolean> {
     return runCrudAction('create', null, async (signal) => {
       await api.post<AdminChannel>(
-        '/api/channel/',
+        '/api/next/admin/channels',
         { mode: 'single', channel: input },
         { signal }
       )
@@ -295,12 +287,11 @@ export function useAdminChannels() {
     input: AdminChannelUpdateInput
   ): Promise<boolean> {
     return runCrudAction('edit', channel.id, async (signal) => {
-      const updated = await api.put<AdminChannel>(
-        '/api/channel/',
+      await api.put<unknown>(
+        '/api/next/admin/channels',
         { id: channel.id, ...input },
         { signal }
       )
-      replaceChannel(updated)
       toast.success(t('channels.updated'))
       await load({ background: true })
     })
@@ -381,7 +372,7 @@ export function useAdminChannels() {
 
     return runBulkAction(action, async (signal) => {
       const changed = await api.post<number>(
-        '/api/channel/status/batch',
+        '/api/next/admin/channels/status/batch',
         { ids: targets.map((channel) => channel.id), status },
         { signal }
       )
@@ -422,12 +413,12 @@ export function useAdminChannels() {
     action: ChannelBatchAction,
     channel: AdminChannel,
     signal: AbortSignal
-  ): Promise<AdminChannel> {
+  ): Promise<unknown> {
     const endpoint =
       action === 'balance'
-        ? `/api/channel/update_balance/${channel.id}`
-        : `/api/channel/test/${channel.id}`
-    return api.get<AdminChannel>(endpoint, undefined, { signal })
+        ? `/api/next/admin/channels/balance/${channel.id}`
+        : `/api/next/admin/channels/test/${channel.id}`
+    return api.get<unknown>(endpoint, undefined, { signal })
   }
 
   function batchActionLabelKey(action: ChannelBatchAction): string {
@@ -476,7 +467,6 @@ export function useAdminChannels() {
         results.forEach((result) => {
           if (result.status === 'fulfilled') {
             succeeded++
-            replaceChannel(result.value)
           } else {
             failed++
           }
@@ -518,6 +508,7 @@ export function useAdminChannels() {
           })
         )
       }
+      await load({ background: true })
     } finally {
       setBatchRowsBusy(targets, null)
       if (batchController === controller) batchController = null

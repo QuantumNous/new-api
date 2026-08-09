@@ -56,7 +56,10 @@ export function useDashboardStats() {
 
   async function load() {
     loading.value = true
-    const params: Record<string, string> = { range: range.value }
+    const params: Record<string, string> = {
+      range: range.value,
+      tz_offset: String(-new Date().getTimezoneOffset()),
+    }
     if (range.value === 'custom') {
       params.start = customStart.value
       params.end = customEnd.value
@@ -64,7 +67,7 @@ export function useDashboardStats() {
     // Serialized via useLatestRequest: rapid range switches abort the older
     // request, and a late response can never overwrite the newer period.
     const result = await statsRequest.run((signal) =>
-      api.get<StatsPeriod>('/api/data/stats', params, { signal })
+      api.get<StatsPeriod>('/api/next/dashboard/stats', params, { signal })
     )
     if (result.stale) return
     loading.value = false

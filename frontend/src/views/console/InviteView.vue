@@ -2,11 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { InviteRecordStatus } from '@/types/console'
 import InviteAffiliateCard from '@/components/console/invite/InviteAffiliateCard.vue'
 import InviteMonthChart from '@/components/console/invite/InviteMonthChart.vue'
-import InviteQualificationCard from '@/components/console/invite/InviteQualificationCard.vue'
-import InviteRebateCard from '@/components/console/invite/InviteRebateCard.vue'
+import InviteRewardCard from '@/components/console/invite/InviteRewardCard.vue'
 import PageHero from '@/components/console/PageHero.vue'
 import AmountInput from '@/components/common/AmountInput.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
@@ -20,8 +18,6 @@ const { t } = useI18n()
 const {
   info,
   inviteLink,
-  avgReward,
-  rebatePercent,
   transferOpen,
   transferDollars,
   transferring,
@@ -42,15 +38,6 @@ const sortedRecords = computed(() => {
   const rows = info.value?.records ?? []
   return sort.value === 'recent' ? rows : [...rows].reverse()
 })
-
-const statusTone: Record<
-  InviteRecordStatus,
-  'success' | 'warning' | 'neutral'
-> = {
-  valid: 'success',
-  pending: 'warning',
-  invalid: 'neutral',
-}
 
 /** Anonymize the invitee handle: user_1042 → u***2 (contract: no raw id). */
 function maskInvitee(handle: string): string {
@@ -85,7 +72,7 @@ onMounted(load)
     </PageHero>
 
     <!-- stat cards -->
-    <div class="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="mb-5 grid gap-4 sm:grid-cols-3">
       <ConsoleCard>
         <p class="text-xs text-[var(--text-tertiary)]">
           {{ t('invite.invitedCount') }}
@@ -123,25 +110,13 @@ onMounted(load)
 
       <ConsoleCard>
         <p class="text-xs text-[var(--text-tertiary)]">
-          {{ t('invite.rate') }}
+          {{ t('invite.rewardPerInvite') }}
         </p>
         <p class="mt-1.5 text-2xl font-bold text-[var(--accent-text)]">
-          {{ info ? `${rebatePercent}%` : '--' }}
+          {{ info ? formatQuota(info.reward_per_invite) : '--' }}
         </p>
         <p class="mt-1 text-xs text-[var(--text-tertiary)]">
-          {{ t('invite.rateHint') }}
-        </p>
-      </ConsoleCard>
-
-      <ConsoleCard>
-        <p class="text-xs text-[var(--text-tertiary)]">
-          {{ t('invite.avgReward') }}
-        </p>
-        <p class="mt-1.5 text-2xl font-bold text-[var(--text-primary)]">
-          {{ info ? formatQuota(avgReward) : '--' }}
-        </p>
-        <p class="mt-1 text-xs text-[var(--text-tertiary)]">
-          {{ t('invite.avgRewardHint') }}
+          {{ t('invite.rewardPerInviteHint') }}
         </p>
       </ConsoleCard>
     </div>
@@ -151,7 +126,7 @@ onMounted(load)
       <InviteAffiliateCard
         :code="info?.code ?? ''"
         :invite-link="inviteLink"
-        :rebate-percent="rebatePercent"
+        :reward-per-invite="info?.reward_per_invite ?? 0"
         @copy-code="copyCode"
         @copy-link="copyLink"
         @share-x="shareX"
@@ -214,16 +189,8 @@ onMounted(load)
                 >
                   {{ maskInvitee(record.invitee) }}
                 </span>
-                <StatusChip :tone="statusTone[record.status]">
-                  {{ t(`invite.status.${record.status}`) }}
-                </StatusChip>
               </div>
               <div class="text-right">
-                <p class="text-sm font-semibold text-[var(--text-primary)]">
-                  {{
-                    record.reward > 0 ? `+${formatQuota(record.reward)}` : '—'
-                  }}
-                </p>
                 <p class="text-xs text-[var(--text-tertiary)]">
                   {{ formatDate(record.created) }}
                 </p>
@@ -246,15 +213,7 @@ onMounted(load)
       </div>
     </div>
 
-    <!-- qualification -->
-    <div v-if="info" class="mt-5">
-      <InviteQualificationCard
-        :qualification="info.qualification"
-        :channels="info.unlock_channels"
-      />
-    </div>
-
-    <!-- chart + rebate -->
+    <!-- chart + reward balance -->
     <div class="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
       <InviteMonthChart v-if="info" :series="info.monthly_series" />
       <div
@@ -262,10 +221,9 @@ onMounted(load)
         class="h-72 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
       />
 
-      <InviteRebateCard
+      <InviteRewardCard
         v-if="info"
         :transferable="info.transferable"
-        :pending-reward="info.pending_reward"
         :reward-total="info.reward_total"
         :invited="info.invited"
         :readonly="readOnly"
@@ -295,7 +253,11 @@ onMounted(load)
             {{ t(`invite.howStep${n}Title`) }}
           </p>
           <p class="mt-1.5 text-xs leading-relaxed text-[var(--text-tertiary)]">
-            {{ t(`invite.howStep${n}Desc`, { rate: rebatePercent }) }}
+            {{
+              t(`invite.howStep${n}Desc`, {
+                reward: formatQuota(info?.reward_per_invite ?? 0),
+              })
+            }}
           </p>
         </div>
       </div>
@@ -330,7 +292,11 @@ onMounted(load)
             </svg>
           </summary>
           <p class="pb-4 text-sm leading-relaxed text-[var(--text-tertiary)]">
-            {{ t(`invite.faqA${n}`, { rate: rebatePercent }) }}
+            {{
+              t(`invite.faqA${n}`, {
+                reward: formatQuota(info?.reward_per_invite ?? 0),
+              })
+            }}
           </p>
         </details>
       </div>
@@ -348,7 +314,7 @@ onMounted(load)
         <AmountInput
           v-model="transferDollars"
           :placeholder="formatQuota(info?.transferable ?? 0)"
-          :min="0"
+          :min="1"
         />
         <p class="text-xs text-[var(--text-tertiary)]">
           {{ t('invite.transferable') }}:
@@ -363,6 +329,7 @@ onMounted(load)
           :disabled="
             readOnly ||
             !transferDollars ||
+            transferDollars < 1 ||
             (info?.transferable ?? 0) < transferDollars * QUOTA_PER_DOLLAR
           "
           @click="transfer"

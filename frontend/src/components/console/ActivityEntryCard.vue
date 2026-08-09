@@ -10,6 +10,7 @@ defineProps<{
   gradient: string
   emoji: string
   cta: string
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{ enter: [] }>()
@@ -20,8 +21,15 @@ const imageOk = ref(true)
 <template>
   <button
     type="button"
-    class="activity-entry pencil-surface group relative flex h-44 w-full overflow-hidden rounded-2xl border border-[var(--border-subtle)] text-left shadow-[var(--card-shadow)] transition-all hover:shadow-[var(--card-shadow-hover)] focus-ring"
+    class="activity-entry pencil-surface group relative flex h-44 w-full overflow-hidden rounded-2xl border border-[var(--border-subtle)] text-left shadow-[var(--card-shadow)] transition-all focus-ring"
+    :class="
+      disabled
+        ? 'cursor-not-allowed opacity-75'
+        : 'hover:shadow-[var(--card-shadow-hover)]'
+    "
     data-handdrawn="surface-clipped"
+    :disabled="disabled"
+    :title="disabled ? cta : undefined"
     @click="emit('enter')"
   >
     <!-- background gradient (always present as base layer) -->
@@ -32,7 +40,8 @@ const imageOk = ref(true)
       v-if="imageOk"
       :src="image"
       :alt="title"
-      class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+      class="absolute inset-0 h-full w-full object-cover transition-transform duration-500"
+      :class="disabled ? '' : 'group-hover:scale-105'"
       @error="imageOk = false"
     />
 

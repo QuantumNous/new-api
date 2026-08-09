@@ -13,7 +13,7 @@ import type { MarketPlugin, PluginCategory } from '@/types/lab'
 
 const { t } = useI18n()
 const toast = useToast()
-const { readOnly } = useFeatureAccess('lab', 'prototype')
+const { readOnly } = useFeatureAccess('lab', 'disabled')
 const { loading, plugins, mcp, skills, market, load } = useLabPlugins()
 
 const tab = ref('plugins')
@@ -83,7 +83,7 @@ const marketCategories = computed(() => {
 onMounted(() => void load())
 function stub() {
   if (readOnly.value) return
-  toast.info(t('lab.prototypeToast'))
+  toast.info(t('lab.unavailableToast'))
 }
 </script>
 

@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/service/authz"
 
 	// Import oauth package to register providers via init()
 	_ "github.com/QuantumNous/new-api/oauth"
@@ -150,6 +151,88 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
 			}
+		}
+
+		// Stable contracts for the Vue frontend. The legacy /api routes above
+		// remain unchanged for the production React admin frontend.
+		nextRoute := apiRouter.Group("/next")
+		nextRoute.Use(middleware.UserAuth())
+		{
+			dashboardRoute := nextRoute.Group("/dashboard")
+			{
+				dashboardRoute.GET("/stats", controller.NextGetDashboardStats)
+				dashboardRoute.GET("/distribution", controller.NextGetDashboardDistribution)
+			}
+			inviteRoute := nextRoute.Group("/invite")
+			{
+				inviteRoute.GET("/self", controller.NextGetInvite)
+				inviteRoute.POST("/transfer", controller.NextTransferInviteQuota)
+			}
+			activityRoute := nextRoute.Group("/activity")
+			{
+				activityRoute.GET("/self", controller.NextGetActivities)
+				activityRoute.POST("/checkin", middleware.CriticalRateLimit(), controller.NextCheckin)
+				activityRoute.POST("/claim", middleware.CriticalRateLimit(), controller.NextClaimActivity)
+			}
+			walletRoute := nextRoute.Group("/wallet")
+			{
+				walletRoute.GET("/config", controller.NextGetEpayTopUpConfig)
+				walletRoute.POST("/topup", middleware.CriticalRateLimit(), controller.NextCreateEpayTopUp)
+				walletRoute.GET("/topups", controller.NextListUserOrders)
+				walletRoute.GET("/topups/:order_no", controller.NextGetUserOrder)
+			}
+			orderRoute := nextRoute.Group("/orders")
+			{
+				orderRoute.GET("/self", controller.NextListUserOrders)
+				orderRoute.GET("/self/:order_no", controller.NextGetUserOrder)
+			}
+			ticketRoute := nextRoute.Group("/tickets")
+			{
+				ticketRoute.GET("", controller.NextListTickets)
+				ticketRoute.POST("", middleware.CriticalRateLimit(), controller.NextCreateTicket)
+				ticketRoute.GET("/attachments/:attachment_id", controller.NextDownloadTicketAttachment)
+				ticketRoute.GET("/:id", controller.NextGetTicket)
+				ticketRoute.POST("/:id/messages", middleware.CriticalRateLimit(), controller.NextAddTicketMessage)
+				ticketRoute.PATCH("/:id/status", controller.NextUpdateTicketStatus)
+			}
+		}
+		nextAdminRoute := apiRouter.Group("/next/admin")
+		nextAdminRoute.Use(middleware.AdminAuth())
+		{
+			adminDashboardRoute := nextAdminRoute.Group("/dashboard")
+			adminDashboardRoute.GET("/routes", middleware.RequirePermission(authz.ChannelRead), controller.NextGetAdminDashboardRoutes)
+
+			adminUserRoute := nextAdminRoute.Group("/users")
+			{
+				adminUserRoute.GET("", controller.NextListAdminUsers)
+				adminUserRoute.POST("", controller.NextCreateAdminUser)
+				adminUserRoute.PUT("", controller.NextUpdateAdminUser)
+				adminUserRoute.POST("/quota", controller.NextAdminUserQuota)
+				adminUserRoute.POST("/status/batch", controller.NextAdminUserStatusBatch)
+				adminUserRoute.POST("/delete/batch", controller.NextDeleteAdminUsersBatch)
+				adminUserRoute.POST("/:id/status", controller.NextAdminUserStatus)
+			}
+			adminChannelRoute := nextAdminRoute.Group("/channels")
+			{
+				adminChannelRoute.GET("", middleware.RequirePermission(authz.ChannelRead), controller.NextListAdminChannels)
+				adminChannelRoute.POST("", middleware.RequirePermission(authz.ChannelSensitiveWrite), controller.AddChannel)
+				adminChannelRoute.PUT("", middleware.RequirePermission(authz.ChannelWrite), controller.UpdateChannel)
+				adminChannelRoute.GET("/test/:id", middleware.RequirePermission(authz.ChannelOperate), controller.TestChannel)
+				adminChannelRoute.GET("/balance/:id", middleware.RequirePermission(authz.ChannelOperate), controller.UpdateChannelBalance)
+				adminChannelRoute.POST("/status/batch", middleware.RequirePermission(authz.ChannelOperate), controller.BatchUpdateChannelStatus)
+				adminChannelRoute.POST("/:id/status", middleware.RequirePermission(authz.ChannelOperate), controller.UpdateChannelStatus)
+			}
+			adminRedemptionRoute := nextAdminRoute.Group("/redemptions")
+			{
+				adminRedemptionRoute.GET("", controller.NextListAdminRedemptions)
+				adminRedemptionRoute.POST("", controller.NextCreateAdminRedemptions)
+				adminRedemptionRoute.POST("/delete/batch", controller.NextDeleteAdminRedemptionsBatch)
+				adminRedemptionRoute.POST("/:id/status", controller.NextAdminRedemptionStatus)
+			}
+			adminOrderRoute := nextAdminRoute.Group("/orders")
+			adminOrderRoute.GET("", controller.NextListAdminOrders)
+			adminOrderRoute.GET("/stats", controller.NextGetAdminOrderStats)
+			adminOrderRoute.GET("/:order_no", controller.NextGetAdminOrder)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

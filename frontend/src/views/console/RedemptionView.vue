@@ -33,7 +33,6 @@ import Breadcrumb from '@/components/console/Breadcrumb.vue'
 import RedemptionCodeCell from '@/components/console/redemption/RedemptionCodeCell.vue'
 import RedemptionGenerateModal from '@/components/console/redemption/RedemptionGenerateModal.vue'
 import RedemptionSuccessModal from '@/components/console/redemption/RedemptionSuccessModal.vue'
-import { api } from '@/api/console'
 import { useAdminRedemption } from '@/composables/useAdminRedemption'
 import {
   ADMIN_REDEMPTION_DEFAULT_VISIBLE_FIELDS,
@@ -43,8 +42,6 @@ import {
   type AdminRedemptionOptionalField,
   adminRedemptionStatusLabelKey,
   adminRedemptionStatusTone,
-  adminRedemptionTypeLabelKey,
-  adminRedemptionTypeTone,
   formatRedemptionValue,
   sanitizeAdminRedemptionVisibleFields,
 } from '@/constants/adminRedemption'
@@ -53,7 +50,6 @@ import type {
   AdminRedemptionCreateInput,
   AdminRedemptionSortBy,
   AdminRedemptionSortOrder,
-  Plan,
 } from '@/types/console'
 import { formatTime } from '@/utils/format'
 import { serializeSpreadsheet } from '@/utils/spreadsheetExport'
@@ -63,12 +59,10 @@ const { t } = useI18n()
 const {
   rows,
   total,
-  typeCounts,
   statusCounts,
   page,
   pageSize,
   keyword,
-  typeFilter,
   statusFilter,
   sortBy,
   sortOrder,
@@ -160,12 +154,6 @@ const allColumns = computed<
     width: '100px',
     optional: 'name',
   },
-  {
-    key: 'type',
-    label: t('redemption.colType'),
-    width: '100px',
-    optional: 'type',
-  },
   { key: 'value', label: t('redemption.colValue'), width: '88px' },
   { key: 'status', label: t('redemption.colStatus'), width: '100px' },
   { key: 'redeemer', label: t('redemption.colRedeemer'), width: '180px' },
@@ -205,27 +193,6 @@ const minTableWidth = computed(() => {
 })
 
 // Filter options
-const typeOptions = computed<SelectOption[]>(() => [
-  { value: '', label: t('redemption.allTypes') },
-  ...(['quota', 'concurrency', 'subscription', 'invite'] as const)
-    .filter((tp) => (typeCounts.value[tp] ?? 0) > 0)
-    .map((tp): SelectOption => {
-      const rawTone = adminRedemptionTypeTone(tp)
-      return {
-        value: tp,
-        label: `${t(adminRedemptionTypeLabelKey(tp))} (${typeCounts.value[tp] ?? 0})`,
-        tone:
-          rawTone === 'neutral'
-            ? undefined
-            : rawTone === 'info'
-              ? 'info'
-              : rawTone === 'accent'
-                ? 'accent'
-                : 'success',
-      }
-    }),
-])
-
 const statusOptions = computed<SelectOption[]>(() => [
   { value: '', label: t('redemption.allStatuses') },
   ...(['unused', 'used', 'expired', 'disabled'] as const)
@@ -263,7 +230,6 @@ function toggleSortOrder() {
 // Actions
 function openGenerate() {
   if (!canManage.value) return
-  void loadPlanOptions()
   generateOpen.value = true
 }
 
@@ -348,23 +314,6 @@ function exportCsv() {
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
-
-/**
- * Subscription codes bind to a real plan id, so the picker reads the live
- * catalogue rather than a hardcoded list that silently drifts once an admin
- * edits a plan. Loaded lazily — only the generate modal needs it.
- */
-const planOptions = ref<Array<{ id: number; name: string }>>([])
-
-async function loadPlanOptions(): Promise<void> {
-  if (planOptions.value.length > 0) return
-  try {
-    const list = await api.get<Plan[]>('/api/subscription/plans')
-    planOptions.value = list.map((plan) => ({ id: plan.id, name: plan.name }))
-  } catch {
-    // Non-fatal: the modal's other code types stay usable without plans.
-  }
-}
 </script>
 
 <template>
@@ -422,13 +371,7 @@ async function loadPlanOptions(): Promise<void> {
           name="admin-redemption-search"
           class="w-full xl:w-72"
         />
-        <div class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3 xl:flex-1">
-          <FilterSelect
-            v-model="typeFilter"
-            :options="typeOptions"
-            :label="t('redemption.allTypes')"
-            class="w-full"
-          />
+        <div class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:flex-1">
           <FilterSelect
             v-model="statusFilter"
             :options="statusOptions"
@@ -541,19 +484,6 @@ async function loadPlanOptions(): Promise<void> {
             <span class="text-xs text-[var(--text-secondary)]">
               {{ (row as AdminRedemptionCode).name || '—' }}
             </span>
-          </template>
-
-          <!-- type cell (optional) -->
-          <template #cell-type="{ row }">
-            <StatusChip
-              :tone="adminRedemptionTypeTone((row as AdminRedemptionCode).type)"
-            >
-              {{
-                t(
-                  adminRedemptionTypeLabelKey((row as AdminRedemptionCode).type)
-                )
-              }}
-            </StatusChip>
           </template>
 
           <!-- value cell -->
@@ -720,12 +650,6 @@ async function loadPlanOptions(): Promise<void> {
               <div class="min-w-0 flex-1">
                 <RedemptionCodeCell :code="code.code" />
                 <div class="mt-1 flex items-center gap-2">
-                  <StatusChip
-                    :tone="adminRedemptionTypeTone(code.type)"
-                    class="text-[10px]"
-                  >
-                    {{ t(adminRedemptionTypeLabelKey(code.type)) }}
-                  </StatusChip>
                   <span class="text-xs font-medium text-[var(--text-primary)]">
                     {{ formatRedemptionValue(code) }}
                   </span>
@@ -763,7 +687,6 @@ async function loadPlanOptions(): Promise<void> {
     <RedemptionGenerateModal
       :open="generateOpen"
       :loading="isCrudActionBusy('create')"
-      :plans="planOptions"
       @close="generateOpen = false"
       @submit="handleGenerate"
     />

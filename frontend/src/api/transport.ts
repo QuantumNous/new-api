@@ -15,4 +15,5 @@ export interface ApiTransport {
     url: string,
     options?: RequestOptions
   ): Promise<ApiResponse<T>>
+  getBlob?(url: string, options?: RequestOptions): Promise<Blob>
 }

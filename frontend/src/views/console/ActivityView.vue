@@ -13,14 +13,18 @@ import CheckinCard from '@/components/console/activity/CheckinCard.vue'
 import NewcomerCard from '@/components/console/activity/NewcomerCard.vue'
 import ActivityEntryCard from '@/components/console/ActivityEntryCard.vue'
 import { useActivity } from '@/composables/useActivity'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useThemedAsset } from '@/composables/useThemedAsset'
 import type { Activity } from '@/types/console'
+import { formatQuota } from '@/utils/format'
 
 const { t } = useI18n()
 const router = useRouter()
 const { activities, loading, claiming, load, checkin, claim } = useActivity()
 const farmBanner = useThemedAsset(farmDayBanner, farmNightBanner)
 const bigameBanner = useThemedAsset(bigameDayBanner, bigameNightBanner)
+const { disabled: farmDisabled } = useFeatureAccess('farm', 'disabled')
+const { disabled: bigameDisabled } = useFeatureAccess('bigame', 'disabled')
 
 const refreshing = ref(false)
 
@@ -77,7 +81,8 @@ onMounted(load)
           :image="farmBanner"
           gradient="linear-gradient(120deg, var(--signal-strong) 0%, var(--support-strong) 55%, var(--accent) 100%)"
           emoji="🌾"
-          :cta="$t('common.viewMore')"
+          :cta="farmDisabled ? $t('nav.comingSoon') : $t('common.viewMore')"
+          :disabled="farmDisabled"
           @enter="router.push({ name: 'farm' })"
         />
         <ActivityEntryCard
@@ -87,7 +92,8 @@ onMounted(load)
           :image="bigameBanner"
           gradient="linear-gradient(120deg, var(--signal-deep) 0%, var(--support-strong) 50%, var(--accent) 100%)"
           emoji="🎮"
-          :cta="$t('common.viewMore')"
+          :cta="bigameDisabled ? $t('nav.comingSoon') : $t('common.viewMore')"
+          :disabled="bigameDisabled"
           @enter="router.push({ name: 'bigame' })"
         />
       </div>
@@ -153,7 +159,7 @@ onMounted(load)
           @claim="(id) => claim(id)"
         />
 
-        <!-- 邀请返利：跨 2 列独占一行 -->
+        <!-- 邀请奖励：跨 2 列独占一行 -->
         <div v-if="inviteAct" class="lg:col-span-2">
           <ActivityCard
             :id="inviteAct.id"
@@ -183,21 +189,19 @@ onMounted(load)
                 <span class="text-sm text-[var(--text-secondary)]">{{
                   t('activity.invite.rewardTotal')
                 }}</span>
-                <span class="font-semibold text-[var(--accent-text)]"
-                  >+{{
-                    (inviteAct.invite.reward_total / 10000).toFixed(0)
-                  }}</span
-                >
+                <span class="font-semibold text-[var(--accent-text)]">{{
+                  formatQuota(inviteAct.invite.reward_total)
+                }}</span>
               </div>
               <div
                 class="flex flex-1 items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3"
               >
                 <span class="text-sm text-[var(--text-secondary)]">{{
-                  t('activity.invite.rate')
+                  t('activity.invite.rewardPerInvite')
                 }}</span>
-                <span class="font-semibold text-[var(--text-primary)]"
-                  >{{ (inviteAct.invite.rate * 100).toFixed(0) }}%</span
-                >
+                <span class="font-semibold text-[var(--text-primary)]">{{
+                  formatQuota(inviteAct.invite.reward_per_invite)
+                }}</span>
               </div>
             </div>
           </ActivityCard>

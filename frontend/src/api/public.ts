@@ -1,7 +1,5 @@
 import { createApiClient } from './createClient'
 import { publicHttpTransport } from './httpTransport'
-import { publicApiMode } from './mode'
-import { mockTransport } from './mock/transport'
 import { ApiError } from './types'
 
 export interface PublicStatus {
@@ -16,9 +14,32 @@ export interface PublicStatus {
   HeaderNavModules?: unknown
   frontend_capabilities?: FrontendCapabilities
   next_frontend_enabled?: boolean
+  start_time?: number
+  github_oauth?: boolean
+  github_client_id?: string
+  discord_oauth?: boolean
+  discord_client_id?: string
+  linuxdo_oauth?: boolean
+  linuxdo_client_id?: string
+  oidc_enabled?: boolean
+  oidc_client_id?: string
+  oidc_authorization_endpoint?: string
+  wechat_login?: boolean
+  telegram_oauth?: boolean
+  custom_oauth_providers?: CustomOAuthProviderInfo[]
 }
 
-export type FeatureStatus = 'live' | 'prototype' | 'disabled'
+export interface CustomOAuthProviderInfo {
+  id: number
+  name: string
+  slug: string
+  icon?: string
+  client_id: string
+  authorization_endpoint: string
+  scopes?: string
+}
+
+export type FeatureStatus = 'live' | 'disabled'
 export type FrontendCapabilities = Record<string, FeatureStatus>
 
 export interface PricingModel {
@@ -34,9 +55,7 @@ export interface UptimeGroup {
   monitors: UptimeMonitor[]
 }
 
-const publicClient = createApiClient(
-  publicApiMode === 'mock' ? mockTransport : publicHttpTransport
-)
+const publicClient = createApiClient(publicHttpTransport)
 
 function invalidResponse(endpoint: string): never {
   throw new ApiError(`Invalid public API response: ${endpoint}`, {
@@ -59,9 +78,37 @@ export function parsePublicStatus(value: unknown): PublicStatus {
     'privacy_policy_enabled',
     'uptime_kuma_enabled',
     'next_frontend_enabled',
+    'github_oauth',
+    'discord_oauth',
+    'linuxdo_oauth',
+    'oidc_enabled',
+    'wechat_login',
+    'telegram_oauth',
   ] as const
 
   for (const key of stringKeys) {
+    if (value[key] !== undefined && typeof value[key] !== 'string') {
+      invalidResponse('/api/status')
+    }
+    if (typeof value[key] === 'string') result[key] = value[key]
+  }
+  if (value.start_time !== undefined) {
+    if (
+      typeof value.start_time !== 'number' ||
+      !Number.isFinite(value.start_time)
+    ) {
+      invalidResponse('/api/status')
+    }
+    result.start_time = value.start_time
+  }
+  const oauthStringKeys = [
+    'github_client_id',
+    'discord_client_id',
+    'linuxdo_client_id',
+    'oidc_client_id',
+    'oidc_authorization_endpoint',
+  ] as const
+  for (const key of oauthStringKeys) {
     if (value[key] !== undefined && typeof value[key] !== 'string') {
       invalidResponse('/api/status')
     }
@@ -80,16 +127,47 @@ export function parsePublicStatus(value: unknown): PublicStatus {
     if (!isRecord(value.frontend_capabilities)) invalidResponse('/api/status')
     const capabilities: FrontendCapabilities = {}
     for (const [key, status] of Object.entries(value.frontend_capabilities)) {
-      if (
-        status !== 'live' &&
-        status !== 'prototype' &&
-        status !== 'disabled'
-      ) {
+      if (status !== 'live' && status !== 'disabled') {
         invalidResponse('/api/status')
       }
       capabilities[key] = status
     }
     result.frontend_capabilities = capabilities
+  }
+  if (value.custom_oauth_providers !== undefined) {
+    if (
+      !Array.isArray(value.custom_oauth_providers) ||
+      value.custom_oauth_providers.some(
+        (item) =>
+          !isRecord(item) ||
+          !Number.isInteger(item.id) ||
+          typeof item.name !== 'string' ||
+          typeof item.slug !== 'string' ||
+          typeof item.client_id !== 'string' ||
+          typeof item.authorization_endpoint !== 'string'
+      )
+    ) {
+      invalidResponse('/api/status')
+    }
+    result.custom_oauth_providers = value.custom_oauth_providers.map(
+      (item) => ({
+        id: Number((item as Record<string, unknown>).id),
+        name: String((item as Record<string, unknown>).name),
+        slug: String((item as Record<string, unknown>).slug),
+        icon:
+          typeof (item as Record<string, unknown>).icon === 'string'
+            ? String((item as Record<string, unknown>).icon)
+            : undefined,
+        client_id: String((item as Record<string, unknown>).client_id),
+        authorization_endpoint: String(
+          (item as Record<string, unknown>).authorization_endpoint
+        ),
+        scopes:
+          typeof (item as Record<string, unknown>).scopes === 'string'
+            ? String((item as Record<string, unknown>).scopes)
+            : undefined,
+      })
+    )
   }
   return result
 }

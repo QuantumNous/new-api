@@ -1,9 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { defineComponent } from 'vue'
+import { mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { buildVendorRouteList } from '@/composables/useAutoRoute'
+import { api } from '@/api/console'
+import { buildVendorRouteList, useAutoRoute } from '@/composables/useAutoRoute'
+import i18n from '@/i18n'
 import type { ChannelRoutingMetrics } from '@/utils/routeScore'
 
 const NOW = 7_500
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 function channel(
   id: number,
@@ -15,9 +23,6 @@ function channel(
     name: `${supplier}-${id}`,
     supplier,
     latency: 300,
-    health: status === 1 ? 95 : 0,
-    upstreamMult: 1,
-    channelMult: 1,
     quota: 100,
     weight: 10,
     priority: 1,
@@ -43,5 +48,28 @@ describe('buildVendorRouteList', () => {
     expect(unavailable.channels.every((item) => item.score === null)).toBe(true)
     expect(unavailable.monitor.state).toBe('down')
     expect(unavailable.monitor.availability).toBe(0)
+  })
+
+  it('loads the authenticated administrator routing contract', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
+    let state: ReturnType<typeof useAutoRoute> | null = null
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          state = useAutoRoute()
+          return () => null
+        },
+      }),
+      { global: { plugins: [i18n] } }
+    )
+
+    await (state as unknown as ReturnType<typeof useAutoRoute>).load()
+
+    expect(get).toHaveBeenCalledWith(
+      '/api/next/admin/dashboard/routes',
+      undefined,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    wrapper.unmount()
   })
 })

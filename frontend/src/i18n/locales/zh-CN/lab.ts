@@ -12,7 +12,7 @@ export default {
     groupExplore: '探索',
     upgradeTitle: '升级方案',
     upgradeHint: '解锁更多容量与高级功能',
-    prototypeToast: '原型阶段，功能待后端接入',
+    unavailableToast: '当前后端尚未启用此模块',
     toolbar: {
       private: '私密模式',
       privateHint: '对话不计入历史记录',
@@ -46,8 +46,6 @@ export default {
       startersTitle: '为你准备的起手式',
       shuffle: '换一批',
       tryModel: '用 {name} 帮我……',
-      stubReply:
-        '这是原型阶段的示例回复。接入后端后，这里会流式渲染真实的模型输出。',
     },
     studio: {
       title: 'AI 创作',

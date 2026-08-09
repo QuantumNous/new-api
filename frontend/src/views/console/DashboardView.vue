@@ -18,7 +18,6 @@ import ContactFloatBall from '@/components/console/ContactFloatBall.vue'
 import PageHero from '@/components/console/PageHero.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import { useDashboard } from '@/composables/useDashboard'
-import { isMockApi } from '@/api/client'
 import { useDashboardStats } from '@/composables/useDashboardStats'
 import { useUsageDistribution } from '@/composables/useUsageDistribution'
 import type { StatsRange } from '@/composables/useDashboardStats'
@@ -43,7 +42,7 @@ const distribution = useUsageDistribution()
 
 onMounted(() => {
   void load()
-  if (isMockApi) void distribution.load()
+  void distribution.load()
 })
 
 /**
@@ -62,15 +61,16 @@ const greeting = computed(() =>
   })
 )
 
-const tabs = computed(() =>
-  isMockApi
-    ? [
-        { key: 'overview', label: t('dashboard.tabOverview') },
-        { key: 'stats', label: t('dashboard.tabStats') },
-        { key: 'autoroute', label: t('dashboard.autoRoute.tabLabel') },
-      ]
-    : [{ key: 'overview', label: t('dashboard.tabOverview') }]
-)
+const tabs = computed(() => {
+  const items = [
+    { key: 'overview', label: t('dashboard.tabOverview') },
+    { key: 'stats', label: t('dashboard.tabStats') },
+  ]
+  if (auth.isAdmin) {
+    items.push({ key: 'autoroute', label: t('dashboard.autoRoute.tabLabel') })
+  }
+  return items
+})
 const activeTab = ref('overview')
 const dashboardPanelId = 'dashboard-tab-panel'
 
@@ -185,21 +185,15 @@ const rangeOptions = computed(() => [
           />
           <!-- Usage distribution -->
           <UsageDistributionCard
-            v-if="isMockApi"
             class="min-w-0 xl:col-span-2"
             :points="distribution.points.value"
             :loading="distribution.loading.value"
           />
 
           <!-- 系统状态 -->
-          <SystemStatusCard
-            v-if="isMockApi"
-            class="min-w-0"
-            :metrics="system"
-          />
+          <SystemStatusCard class="min-w-0" :metrics="system" />
           <!-- Token 使用趋势 -->
           <TokenTrendCard
-            v-if="isMockApi"
             class="min-w-0 xl:col-span-2"
             :points="tokenTrend"
             :loading="loading"
@@ -207,7 +201,6 @@ const rangeOptions = computed(() => [
 
           <!-- 折扣卡片 -->
           <DiscountCard
-            v-if="isMockApi"
             class="min-w-0"
             :discounts="discounts"
             :models="share"
@@ -288,7 +281,10 @@ const rangeOptions = computed(() => [
       <!-- ══════════════════════════════════════════
          Tab: Auto Route
     ══════════════════════════════════════════ -->
-      <div v-else-if="activeTab === 'autoroute'" class="min-w-0">
+      <div
+        v-else-if="activeTab === 'autoroute' && auth.isAdmin"
+        class="min-w-0"
+      >
         <AutoRoutePanel />
       </div>
     </div>

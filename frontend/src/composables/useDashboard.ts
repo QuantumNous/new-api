@@ -3,7 +3,6 @@ import { useLocalStorage } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
-import { isMockApi } from '@/api/client'
 import { parseUsageRows } from '@/api/liveContracts'
 import { ApiError } from '@/api/types'
 import { useToast } from '@/composables/useToast'
@@ -95,7 +94,7 @@ export function useDashboard() {
   async function load() {
     loading.value = true
     try {
-      if (!isMockApi) {
+      {
         const endTimestamp = Math.floor(Date.now() / 1000)
         const startTimestamp = endTimestamp - 29 * 86_400
         const usage = parseUsageRows(
@@ -187,26 +186,6 @@ export function useDashboard() {
         discounts.value = null
         return
       }
-      const [dataSelf, flowSelf, tokensSelf, systemSelf] = await Promise.all([
-        api.get<
-          DashboardStats & {
-            model_share: ModelShare[]
-            limits: UserLimits
-            discounts: UserDiscounts
-          }
-        >('/api/data/self'),
-        api.get<FlowPoint[]>('/api/data/flow/self'),
-        api.get<TokenTrendPoint[]>('/api/data/tokens'),
-        api.get<SystemMetrics>('/api/data/system'),
-      ])
-      const { model_share, limits: lim, discounts: disc, ...rest } = dataSelf
-      stats.value = rest
-      share.value = model_share
-      limits.value = lim
-      discounts.value = disc
-      flow.value = flowSelf
-      tokenTrend.value = tokensSelf
-      system.value = systemSelf
     } catch (error) {
       toast.error(
         error instanceof ApiError ? error.message : t('common.failed')

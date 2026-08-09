@@ -5,7 +5,6 @@ import {
   Pencil,
   Power,
   PowerOff,
-  SlidersHorizontal,
   Trash2,
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
@@ -15,23 +14,18 @@ import StatusChip from '@/components/common/StatusChip.vue'
 import type { TokenSummary } from '@/types/console'
 import { formatDate, formatQuota } from '@/utils/format'
 
-withDefaults(
-  defineProps<{
-    tokens: TokenSummary[]
-    selectedIds: Array<string | number>
-    allSelected: boolean
-    toggleAllSelected: () => void
-    toggleSelected: (token: TokenSummary) => void
-    isToggling: (token: TokenSummary) => boolean
-    toggleStatus: (token: TokenSummary) => void | Promise<void>
-    viewKey: (token: TokenSummary) => void
-    manageChannels: (token: TokenSummary) => void
-    showChannels?: boolean
-    editKey: (token: TokenSummary) => void
-    deleteKey: (token: TokenSummary) => void
-  }>(),
-  { showChannels: true }
-)
+defineProps<{
+  tokens: TokenSummary[]
+  selectedIds: Array<string | number>
+  allSelected: boolean
+  toggleAllSelected: () => void
+  toggleSelected: (token: TokenSummary) => void
+  isToggling: (token: TokenSummary) => boolean
+  toggleStatus: (token: TokenSummary) => void | Promise<void>
+  viewKey: (token: TokenSummary) => void
+  editKey: (token: TokenSummary) => void
+  deleteKey: (token: TokenSummary) => void
+}>()
 
 const { t } = useI18n()
 </script>
@@ -143,13 +137,6 @@ const { t } = useI18n()
         >
           <IconButton :label="t('keys.viewKey')" @click="viewKey(token)">
             <Eye :size="16" />
-          </IconButton>
-          <IconButton
-            v-if="showChannels"
-            :label="t('keys.manageChannels')"
-            @click="manageChannels(token)"
-          >
-            <SlidersHorizontal :size="16" />
           </IconButton>
           <IconButton :label="t('keys.editKey')" @click="editKey(token)">
             <Pencil :size="16" />

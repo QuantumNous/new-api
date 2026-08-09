@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
 import { api } from '@/api/console'
-import { isMockApi } from '@/api/client'
 import { parseUsageRows } from '@/api/liveContracts'
 import { ApiError } from '@/api/types'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
@@ -90,13 +89,6 @@ async function loadStats(): Promise<void> {
         ? result.error.message
         : String(result.error)
     )
-    return
-  }
-  if (isMockApi) {
-    const data = result.value as WalletStats & { model_share?: unknown }
-    const { model_share: _modelShare, ...walletStats } = data
-    stats.value = walletStats
-    flow.value = []
     return
   }
   const rows = parseUsageRows(result.value)

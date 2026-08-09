@@ -5,8 +5,8 @@ import { useI18n } from 'vue-i18n'
 import { useEChart } from '@/charts/useEChart'
 import { areaGradient, lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
+import { formatAdminOrderAmount } from '@/constants/adminOrders'
 import type { AdminOrderDailyPoint } from '@/types/console'
-import { formatMoney } from '@/utils/format'
 
 const props = withDefaults(
   defineProps<{
@@ -123,7 +123,9 @@ useEChart(
             borderColor: p.surfaceSolid,
             borderWidth: 2,
           },
-          tooltip: { valueFormatter: (v: number) => formatMoney(v) },
+          tooltip: {
+            valueFormatter: (v: number) => formatAdminOrderAmount(v, 'CNY'),
+          },
           areaStyle: {
             color: {
               type: 'linear',
@@ -194,7 +196,7 @@ useEChart(
       <tbody>
         <tr v-for="point in points" :key="point.date">
           <th scope="row">{{ point.date }}</th>
-          <td>{{ formatMoney(point.revenue) }}</td>
+          <td>{{ formatAdminOrderAmount(point.revenue, 'CNY') }}</td>
           <td>{{ point.orders }}</td>
         </tr>
       </tbody>

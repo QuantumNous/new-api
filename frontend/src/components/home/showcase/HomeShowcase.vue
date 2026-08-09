@@ -9,8 +9,9 @@ import { useAppStore } from '@/stores'
 import RuntimePulseBand from './RuntimePulseBand.vue'
 
 const root = ref<HTMLElement | null>(null)
-const { uptimeLabel } = storeToRefs(useAppStore())
-const showcase = useHomeShowcase()
+const app = useAppStore()
+const { uptimeLabel, startTime } = storeToRefs(app)
+const showcase = useHomeShowcase(startTime)
 
 if (typeof window !== 'undefined' && 'IntersectionObserver' in window) {
   showcase.setSectionVisible(false)
@@ -29,7 +30,6 @@ onBeforeUnmount(stop)
   <main ref="root" class="home-showcase no-handdrawn">
     <RuntimePulseBand
       :runtime="showcase.runtime.value"
-      :requests="showcase.demoRequests.value"
       :uptime-label="uptimeLabel"
     />
   </main>

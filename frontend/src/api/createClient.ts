@@ -6,50 +6,38 @@ export interface ApiClient {
   get<T>(
     url: string,
     params?: Record<string, unknown>,
-    options?: Pick<RequestOptions, 'signal'>
+    options?: Pick<RequestOptions, 'signal' | 'headers'>
   ): Promise<T>
   post<T>(
     url: string,
     data?: unknown,
-    options?: Pick<RequestOptions, 'signal'>
+    options?: Pick<RequestOptions, 'signal' | 'headers'>
   ): Promise<T>
   put<T>(
     url: string,
     data?: unknown,
-    options?: Pick<RequestOptions, 'signal'>
+    options?: Pick<RequestOptions, 'signal' | 'headers'>
   ): Promise<T>
   patch<T>(
     url: string,
     data?: unknown,
-    options?: Pick<RequestOptions, 'signal'>
+    options?: Pick<RequestOptions, 'signal' | 'headers'>
   ): Promise<T>
   delete<T>(
     url: string,
     params?: Record<string, unknown>,
-    options?: Pick<RequestOptions, 'signal'>
+    options?: Pick<RequestOptions, 'signal' | 'headers'>
   ): Promise<T>
+  getBlob(
+    url: string,
+    options?: Pick<RequestOptions, 'signal' | 'headers'>
+  ): Promise<Blob>
 }
 
 export interface ApiClientOptions {
   onUnauthorized?: () => void
   getRequestScope?: () => number
 }
-
-const LEGACY_PAYMENT_ENDPOINTS = new Set([
-  '/api/user/amount',
-  '/api/user/pay',
-  '/api/user/stripe/amount',
-  '/api/user/stripe/pay',
-  '/api/user/creem/pay',
-  '/api/user/waffo/amount',
-  '/api/user/waffo/pay',
-  '/api/user/waffo-pancake/amount',
-  '/api/user/waffo-pancake/pay',
-  '/api/subscription/epay/pay',
-  '/api/subscription/stripe/pay',
-  '/api/subscription/creem/pay',
-  '/api/subscription/waffo-pancake/pay',
-])
 
 export function createApiClient(
   transport: ApiTransport,
@@ -91,27 +79,17 @@ export function createApiClient(
             { status: 409, code: 'AUTH_SESSION_CHANGED' }
           )
         }
-        // A few legacy payment endpoints predate the common envelope and
-        // answer {message: "success"|"error", data: ...}. Keep that wire
-        // contract readable without weakening normal {success, data} checks.
-        const legacy = envelope as unknown as {
+        const payload = envelope as unknown as {
           success?: boolean
           message?: string
           data?: unknown
         }
-        if (legacy.success === undefined && LEGACY_PAYMENT_ENDPOINTS.has(url)) {
-          if (legacy.message === 'success') {
-            if ('url' in legacy) return legacy as unknown as T
-            return legacy.data as T
-          }
-          throw new ApiError(
-            typeof legacy.data === 'string'
-              ? legacy.data
-              : legacy.message || 'Request failed',
-            { status: 200, business: true }
-          )
-        }
-        if (legacy.success === undefined) {
+        if (
+          !payload ||
+          typeof payload !== 'object' ||
+          typeof payload.success !== 'boolean' ||
+          (payload.success && !Object.hasOwn(payload, 'data'))
+        ) {
           throw new ApiError('Invalid API response envelope', {
             status: 502,
             code: 'INVALID_RESPONSE',
@@ -158,5 +136,16 @@ export function createApiClient(
     patch: (url, data, options) => request('PATCH', url, { ...options, data }),
     delete: (url, params, options) =>
       request('DELETE', url, { ...options, params }),
+    getBlob: (url, options) => {
+      if (!transport.getBlob) {
+        return Promise.reject(
+          new ApiError('Binary downloads are not supported by this transport', {
+            status: 501,
+            code: 'BINARY_DOWNLOAD_UNSUPPORTED',
+          })
+        )
+      }
+      return transport.getBlob(url, options)
+    },
   }
 }

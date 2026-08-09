@@ -5,17 +5,14 @@ import {
   CreditCard,
   Download,
   Eye,
-  LoaderCircle,
   Receipt,
   RefreshCw,
-  RotateCcw,
   TrendingUp,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { ApiError } from '@/api/types'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import ConsoleModal from '@/components/common/ConsoleModal.vue'
@@ -48,15 +45,14 @@ import {
   ADMIN_ORDER_METHODS,
   ADMIN_ORDER_RANGES,
   ADMIN_ORDER_STATUSES,
-  ADMIN_ORDER_TYPES,
   adminOrderMethodLabelKey,
   adminOrderStatusLabelKey,
   adminOrderStatusTone,
-  adminOrderTypeLabelKey,
+  formatAdminOrderAmount,
   isAdminOrderRange,
 } from '@/constants/adminOrders'
 import type { AdminOrder, AdminOrderRange } from '@/types/console'
-import { formatMoney, formatTime } from '@/utils/format'
+import { formatTime } from '@/utils/format'
 import { serializeSpreadsheet } from '@/utils/spreadsheetExport'
 
 const { t } = useI18n()
@@ -66,14 +62,12 @@ const {
   total,
   statusCounts,
   methodCounts,
-  typeCounts,
-  filteredRevenue,
+  filteredEpayRevenue,
   page,
   pageSize,
   keyword,
   status,
   method,
-  type,
   loading,
   refreshing,
   initialError,
@@ -82,20 +76,15 @@ const {
   statsLoading,
   statsRefreshing,
   statsError,
-  isRefundBusy,
-  isRefunding,
-  canRefund,
   load,
   loadStats,
   fetchAllForExport,
-  refundOrder,
   refreshAll,
 } = useAdminOrders()
 
 const activeTab = ref('overview')
 const ordersPanelId = 'orders-tab-panel'
 const detailOrder = ref<AdminOrder | null>(null)
-const refundTarget = ref<AdminOrder | null>(null)
 const exportOpen = ref(false)
 const exportFormat = ref('csv')
 const exporting = ref(false)
@@ -166,7 +155,7 @@ const statusOptions = computed(() => [
     return {
       value,
       label: `${t(adminOrderStatusLabelKey(value))} (${statusCounts.value[value] ?? 0})`,
-      tone: tone === 'neutral' ? undefined : tone,
+      tone,
     }
   }),
 ])
@@ -179,33 +168,6 @@ const methodOptions = computed(() =>
     t('orders.allMethods')
   )
 )
-
-const typeOptions = computed(() =>
-  facetOptions(
-    ADMIN_ORDER_TYPES,
-    typeCounts.value,
-    adminOrderTypeLabelKey,
-    t('orders.allTypes')
-  )
-)
-
-function requestRefund(order: AdminOrder) {
-  if (!canRefund(order)) return
-  // Close the detail sheet first so the confirmation is not a second modal
-  // stacked on top of it.
-  detailOrder.value = null
-  refundTarget.value = order
-}
-
-async function confirmRefund() {
-  const target = refundTarget.value
-  if (!target) return
-  if (await refundOrder(target)) refundTarget.value = null
-}
-
-function cancelRefund() {
-  if (!isRefundBusy.value) refundTarget.value = null
-}
 
 /* ---------------- export ---------------- */
 
@@ -294,11 +256,14 @@ onBeforeUnmount(() => exportController?.abort())
             activeTab === 'list'
               ? t('orders.resultCount', {
                   count: total,
-                  revenue: formatMoney(filteredRevenue),
+                  revenue: formatAdminOrderAmount(filteredEpayRevenue, 'CNY'),
                 })
               : t('orders.rangeSummary', {
                   days: range,
-                  revenue: formatMoney(stats?.total_revenue ?? 0),
+                  revenue: formatAdminOrderAmount(
+                    stats?.total_revenue ?? 0,
+                    'CNY'
+                  ),
                 })
           }}
         </p>
@@ -317,7 +282,6 @@ onBeforeUnmount(() => exportController?.abort())
         <ConsoleButton
           variant="secondary"
           :loading="refreshing || statsRefreshing"
-          :disabled="isRefundBusy"
           @click="refreshAll"
         >
           <RefreshCw v-if="!refreshing && !statsRefreshing" :size="15" />
@@ -371,7 +335,7 @@ onBeforeUnmount(() => exportController?.abort())
           <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <OrderStatCard
               :label="t('orders.todayRevenue')"
-              :value="formatMoney(stats?.today_revenue ?? 0)"
+              :value="formatAdminOrderAmount(stats?.today_revenue ?? 0, 'CNY')"
               :hint="
                 t('orders.orderCount', { count: stats?.today_orders ?? 0 })
               "
@@ -382,7 +346,7 @@ onBeforeUnmount(() => exportController?.abort())
             </OrderStatCard>
             <OrderStatCard
               :label="t('orders.totalRevenue')"
-              :value="formatMoney(stats?.total_revenue ?? 0)"
+              :value="formatAdminOrderAmount(stats?.total_revenue ?? 0, 'CNY')"
               :hint="
                 t('orders.orderCount', { count: stats?.total_orders ?? 0 })
               "
@@ -402,7 +366,7 @@ onBeforeUnmount(() => exportController?.abort())
             </OrderStatCard>
             <OrderStatCard
               :label="t('orders.averageAmount')"
-              :value="formatMoney(stats?.average_amount ?? 0)"
+              :value="formatAdminOrderAmount(stats?.average_amount ?? 0, 'CNY')"
               :hint="t('orders.rangeDays', { days: range })"
               tone="warning"
               :loading="statsLoading"
@@ -442,7 +406,7 @@ onBeforeUnmount(() => exportController?.abort())
             name="admin-order-search"
             class="w-full xl:w-72"
           />
-          <div class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3 xl:flex-1">
+          <div class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:flex-1">
             <FilterSelect
               v-model="status"
               :options="statusOptions"
@@ -453,12 +417,6 @@ onBeforeUnmount(() => exportController?.abort())
               v-model="method"
               :options="methodOptions"
               :label="t('orders.methodFilter')"
-              class="w-full"
-            />
-            <FilterSelect
-              v-model="type"
-              :options="typeOptions"
-              :label="t('orders.typeFilter')"
               class="w-full"
             />
           </div>
@@ -487,10 +445,7 @@ onBeforeUnmount(() => exportController?.abort())
             <OrderMobileList
               :orders="rows"
               :loading="loading"
-              :can-refund="canRefund"
-              :is-refunding="isRefunding"
               :view-order="(order) => (detailOrder = order)"
-              :refund-order="requestRefund"
             />
           </div>
 
@@ -537,7 +492,12 @@ onBeforeUnmount(() => exportController?.abort())
 
               <template #cell-amount="{ row }">
                 <span class="font-semibold">
-                  {{ formatMoney((row as AdminOrder).amount) }}
+                  {{
+                    formatAdminOrderAmount(
+                      (row as AdminOrder).amount,
+                      (row as AdminOrder).currency
+                    )
+                  }}
                 </span>
               </template>
 
@@ -573,20 +533,6 @@ onBeforeUnmount(() => exportController?.abort())
                   >
                     <Eye :size="16" />
                   </IconButton>
-                  <IconButton
-                    v-if="canRefund(row as AdminOrder)"
-                    :label="t('orders.refundOrder')"
-                    tone="danger"
-                    :disabled="isRefundBusy"
-                    @click="requestRefund(row as AdminOrder)"
-                  >
-                    <LoaderCircle
-                      v-if="isRefunding((row as AdminOrder).id)"
-                      :size="16"
-                      class="animate-spin"
-                    />
-                    <RotateCcw v-else :size="16" />
-                  </IconButton>
                 </div>
               </template>
 
@@ -613,29 +559,7 @@ onBeforeUnmount(() => exportController?.abort())
       </ConsoleCard>
     </div>
 
-    <OrderDetailModal
-      :order="detailOrder"
-      :can-refund="detailOrder ? canRefund(detailOrder) : false"
-      @close="detailOrder = null"
-      @refund="requestRefund"
-    />
-
-    <ConfirmDialog
-      :open="refundTarget !== null"
-      :title="t('orders.refundTitle')"
-      :message="
-        refundTarget
-          ? t('orders.refundMessage', {
-              no: refundTarget.order_no,
-              amount: formatMoney(refundTarget.amount),
-            })
-          : ''
-      "
-      :confirm-text="t('orders.refundConfirm')"
-      :loading="isRefundBusy"
-      @confirm="confirmRefund"
-      @cancel="cancelRefund"
-    />
+    <OrderDetailModal :order="detailOrder" @close="detailOrder = null" />
 
     <ConsoleModal
       :open="exportOpen"

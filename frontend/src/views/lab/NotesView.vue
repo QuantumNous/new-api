@@ -10,7 +10,7 @@ import { relativeTime } from '@/utils/format'
 
 const { t } = useI18n()
 const toast = useToast()
-const { readOnly } = useFeatureAccess('lab', 'prototype')
+const { readOnly } = useFeatureAccess('lab', 'disabled')
 const { loading, items, load } = useLabNotes()
 
 const keyword = ref('')
@@ -56,7 +56,7 @@ onMounted(() => void load())
 
 function create() {
   if (readOnly.value) return
-  toast.info(t('lab.prototypeToast'))
+  toast.info(t('lab.unavailableToast'))
 }
 </script>
 

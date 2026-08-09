@@ -53,32 +53,13 @@ describe('KeyEndpointStrip', () => {
     wrapper.unmount()
   })
 
-  it('simulates endpoint latency without network access in mock mode', async () => {
-    vi.useFakeTimers()
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-    const wrapper = mountStrip()
-
-    await wrapper
-      .get(
-        `[aria-label="${i18n.global.t('keys.endpoints.test', { name: i18n.global.t('keys.endpoints.defaultName') })}"]`
-      )
-      .trigger('click')
-    await vi.advanceTimersByTimeAsync(100)
-    await flushPromises()
-
-    expect(wrapper.text()).toMatch(/\d+ ms/)
-    expect(fetchMock).not.toHaveBeenCalled()
-    wrapper.unmount()
-  })
-
-  it('uses a cancellable HEAD request only in explicit HTTP mode', async () => {
+  it('uses a cancellable HEAD request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response())
     vi.stubGlobal('fetch', fetchMock)
     const controller = new AbortController()
 
     await expect(
-      runEndpointProbe('default', 'https://renai.uno', controller.signal, false)
+      runEndpointProbe('https://renai.uno', controller.signal)
     ).resolves.toBeGreaterThan(0)
     expect(fetchMock).toHaveBeenCalledWith(
       'https://renai.uno',
@@ -98,12 +79,7 @@ describe('KeyEndpointStrip', () => {
       })
     )
     const controller = new AbortController()
-    const pending = runEndpointProbe(
-      'default',
-      'https://renai.uno',
-      controller.signal,
-      false
-    )
+    const pending = runEndpointProbe('https://renai.uno', controller.signal)
 
     controller.abort()
 

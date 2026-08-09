@@ -70,7 +70,7 @@ export default {
     traceInspectorLabel: '展开或收起模拟请求轨迹',
     a11yIdle: '网关状态正常，已准备接收请求。',
     a11yRoute: '正在路由至 {model}，响应延迟 {latency} 毫秒。',
-    live: 'ROUTING / DEMO',
+    live: 'GATEWAY / ONLINE',
     models: '多模型路由',
     uptime: '智能调度',
     region: 'ap-cn',
@@ -137,6 +137,5 @@ export default {
     copyright: '© 2026 DayFliggy. All rights reserved.',
     designBy: '设计与开发由',
     updated: '更新于 2026.07.17',
-    icp: '本站点用于演示用途',
   },
 }

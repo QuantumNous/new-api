@@ -25,7 +25,7 @@ export function useAdminUsers() {
   const { t } = useI18n()
   const toast = useToast()
   const auth = useAuthStore()
-  const { readOnly } = useFeatureAccess('admin', 'prototype')
+  const { readOnly } = useFeatureAccess('admin', 'disabled')
 
   const rows = ref<AdminUser[]>([])
   const total = ref(0)
@@ -61,7 +61,7 @@ export function useAdminUsers() {
 
   /**
    * Authority comes from the store's capability flags, never from
-   * `user.role` — `isDemoUser` pins the persisted demo role to 1 as an
+   * `user.role` - capabilities are the server-backed source of authority.
    * anti-escalation guard, so the role field is not an authority signal.
    */
   const operatorLevel = computed(() => adminOperatorLevel(auth))
@@ -124,7 +124,7 @@ export function useAdminUsers() {
     const trimmed = keyword.value.trim()
     const result = await listRequest.run((signal) =>
       api.get<AdminUserPage>(
-        trimmed ? '/api/user/search' : '/api/user/',
+        '/api/next/admin/users',
         {
           p: page.value,
           page_size: pageSize.value,
@@ -196,7 +196,7 @@ export function useAdminUsers() {
       user,
       'status',
       () =>
-        api.post<AdminUser>(`/api/user/${user.id}/status`, {
+        api.post<AdminUser>(`/api/next/admin/users/${user.id}/status`, {
           status: nextStatus,
         }),
       nextStatus === 1 ? 'users.enabled' : 'users.disabled'
@@ -207,7 +207,11 @@ export function useAdminUsers() {
     return runRowAction(
       user,
       'quota',
-      () => api.post<AdminUser>('/api/user/quota', { id: user.id, delta }),
+      () =>
+        api.post<AdminUser>('/api/next/admin/users/quota', {
+          id: user.id,
+          delta,
+        }),
       delta > 0 ? 'users.quotaGranted' : 'users.quotaDeducted'
     )
   }
@@ -236,7 +240,7 @@ export function useAdminUsers() {
 
   function createUser(input: AdminUserCreateInput): Promise<boolean> {
     return runCrudAction('create', null, async (signal) => {
-      await api.post<AdminUser>('/api/user/', input, { signal })
+      await api.post<AdminUser>('/api/next/admin/users', input, { signal })
       toast.success(t('users.created'))
       if (page.value !== 1) page.value = 1
       else await load({ background: true })
@@ -249,7 +253,7 @@ export function useAdminUsers() {
   ): Promise<boolean> {
     return runCrudAction('edit', user.id, async (signal) => {
       const updated = await api.put<AdminUser>(
-        '/api/user/',
+        '/api/next/admin/users',
         { id: user.id, ...input },
         { signal }
       )
@@ -261,9 +265,11 @@ export function useAdminUsers() {
 
   function deleteUser(user: AdminUser): Promise<boolean> {
     return runCrudAction('delete', user.id, async (signal) => {
-      await api.delete<{ id: number }>(`/api/user/${user.id}`, undefined, {
-        signal,
-      })
+      await api.post<number>(
+        '/api/next/admin/users/delete/batch',
+        { ids: [user.id] },
+        { signal }
+      )
       toast.success(t('users.deleted'))
       if (rows.value.length === 1 && page.value > 1) page.value -= 1
       else await load({ background: true })
@@ -309,7 +315,7 @@ export function useAdminUsers() {
 
     return runBulkAction(action, async (signal) => {
       const changed = await api.post<number>(
-        '/api/user/status/batch',
+        '/api/next/admin/users/status/batch',
         {
           ids: targets.map((user) => user.id),
           status: action === 'enable' ? 1 : 2,
@@ -331,7 +337,7 @@ export function useAdminUsers() {
 
     return runBulkAction('delete', async (signal) => {
       const deleted = await api.post<number>(
-        '/api/user/batch',
+        '/api/next/admin/users/delete/batch',
         { ids },
         { signal }
       )

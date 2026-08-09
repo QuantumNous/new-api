@@ -25,7 +25,7 @@ export function useAdminPlans() {
   const { t } = useI18n()
   const toast = useToast()
   const auth = useAuthStore()
-  const { readOnly } = useFeatureAccess('admin', 'prototype')
+  const { readOnly } = useFeatureAccess('subscription_balance', 'disabled')
 
   const rows = ref<AdminPlan[]>([])
   const total = ref(0)

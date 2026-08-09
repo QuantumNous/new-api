@@ -1,5 +1,3 @@
-/* Mock data for RT农家乐 (farm activity system). */
-
 // ── types ───────────────────────────────────────────────
 export type SeedType = '玉米' | '番茄' | '草莓' | '向日葵' | '胡萝卜'
 

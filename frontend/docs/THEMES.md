@@ -74,4 +74,4 @@
 
 - `bun run test:visual`
 
-该命令只审计当前实时页面，不读取、生成或比较历史截图。测试环境固定为 `Asia/Shanghai`、Mock 登录身份与公共 API、本地字体和 `reduced-motion`；固定时间由浏览器测试 fixture 负责。审计覆盖运行错误、DOM 状态、响应式布局、横向溢出、交互遮挡、主题与字体契约。
+该命令只审计当前实时页面，不读取、生成或比较历史截图。测试环境固定为 `Asia/Shanghai`、符合真实 wire contract 的认证与 API 夹具、本地字体和 `reduced-motion`；固定时间由浏览器测试 fixture 负责。审计覆盖运行错误、DOM 状态、响应式布局、横向溢出、交互遮挡、主题与字体契约。

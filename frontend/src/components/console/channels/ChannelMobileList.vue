@@ -12,7 +12,6 @@ import {
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
-import CapacityMeter from '@/components/common/CapacityMeter.vue'
 import IconButton from '@/components/common/IconButton.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import VendorLogo from '@/components/console/models/VendorLogo.vue'
@@ -308,56 +307,28 @@ const { t, locale } = useI18n()
                   </span>
                 </dd>
               </div>
-              <div
-                v-if="visibleFields.includes('capacity')"
-                class="col-span-2 min-w-0"
-              >
-                <dt class="text-[var(--text-tertiary)]">
-                  {{ t('channels.capacity') }}
-                </dt>
-                <dd class="mt-1.5">
-                  <CapacityMeter
-                    :used="channel.capacity_used"
-                    :total="channel.capacity_total"
-                  />
-                </dd>
-              </div>
               <div v-if="visibleFields.includes('usage')" class="min-w-0">
                 <dt class="text-[var(--text-tertiary)]">
-                  {{ t('channels.usageAndRatio') }}
+                  {{ t('channels.usage') }}
                 </dt>
-                <dd class="mt-1 space-y-0.5">
+                <dd class="mt-1">
                   <p
                     class="font-semibold tabular-nums text-[var(--text-primary)]"
                   >
                     {{ formatQuota(channel.used_quota) }}
                   </p>
-                  <p class="text-[11px] text-[var(--text-tertiary)]">
-                    {{
-                      t('channels.channelRatioValue', {
-                        ratio: channel.channel_ratio.toFixed(2),
-                      })
-                    }}
-                  </p>
                 </dd>
               </div>
               <div v-if="visibleFields.includes('upstream')" class="min-w-0">
                 <dt class="text-[var(--text-tertiary)]">
-                  {{ t('channels.upstreamAndRatio') }}
+                  {{ t('channels.upstreamBalance') }}
                 </dt>
                 <dd class="mt-1 flex items-center justify-between gap-1">
-                  <div class="min-w-0 space-y-0.5">
+                  <div class="min-w-0">
                     <p
                       class="font-semibold tabular-nums text-[var(--text-primary)]"
                     >
                       {{ formatMoney(channel.balance) }}
-                    </p>
-                    <p class="truncate text-[11px] text-[var(--text-tertiary)]">
-                      {{
-                        t('channels.upstreamRatioValue', {
-                          ratio: channel.upstream_ratio.toFixed(2),
-                        })
-                      }}
                     </p>
                   </div>
                   <IconButton

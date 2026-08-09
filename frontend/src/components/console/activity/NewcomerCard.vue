@@ -19,9 +19,7 @@ const { t } = useI18n()
 const confirmOpen = ref(false)
 
 const pendingReward = computed(() =>
-  props.activity.newcomer.tasks
-    .filter((t) => !t.done)
-    .reduce((s, t) => s + t.reward, 0)
+  props.activity.newcomer.tasks.reduce((s, t) => s + t.reward, 0)
 )
 
 const allDone = computed(() =>
@@ -120,7 +118,7 @@ function confirmClaim() {
       <ConsoleButton
         size="sm"
         :loading="claiming"
-        :disabled="allDone || activity.newcomer.claimed"
+        :disabled="!allDone || activity.newcomer.claimed"
         @click="confirmOpen = true"
       >
         {{

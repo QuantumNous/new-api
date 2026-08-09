@@ -20,9 +20,6 @@ function makeChannel(
     name: 'ch',
     supplier: 'OpenAI',
     latency: 300,
-    health: 90,
-    upstreamMult: 1,
-    channelMult: 1,
     quota: 100,
     weight: 10,
     priority: 1,
@@ -32,9 +29,9 @@ function makeChannel(
 }
 
 const channels: RouteChannelRow[] = scoreChannels([
-  makeChannel({ id: 1, latency: 900, health: 60, quota: 20 }),
-  makeChannel({ id: 2, latency: 120, health: 95, quota: 800 }),
-  makeChannel({ id: 3, latency: 400, health: 80, quota: 200 }),
+  makeChannel({ id: 1, latency: 900, quota: 20 }),
+  makeChannel({ id: 2, latency: 120, quota: 800 }),
+  makeChannel({ id: 3, latency: 400, quota: 200 }),
 ]).map((channel, index) => ({ ...channel, rank: index + 1 }))
 
 const monitor: RouteHealthSummary = {
@@ -99,13 +96,13 @@ describe('VendorRouteGroup', () => {
     expect(
       wrapper.find('button[aria-expanded]').attributes('aria-expanded')
     ).toBe('true')
-    expect(wrapper.findAll('[title*="≈"]')).toHaveLength(18)
+    expect(wrapper.findAll('[title*="≈"]')).toHaveLength(12)
     expect(wrapper.findAll('[data-route-health-cell]')).toHaveLength(6)
   })
 
   it('retains an unavailable group and labels disabled channels without scores', async () => {
     const inactive: RouteChannelRow = {
-      ...makeChannel({ status: 3, health: 0 }),
+      ...makeChannel({ status: 3 }),
       rank: null,
       score: null,
       breakdown: null,

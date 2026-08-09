@@ -90,10 +90,7 @@ describe('KeyFormModal', () => {
       document.querySelector<HTMLTextAreaElement>('[name="token-ip-limits"]')
         ?.value
     ).toBe('127.0.0.1')
-    expect(
-      document.querySelector<HTMLInputElement>('[name="token-rate-limit"]')
-        ?.value
-    ).toBe('60')
+    expect(document.querySelector('[name="token-rate-limit"]')).toBeNull()
     wrapper.unmount()
   })
 })

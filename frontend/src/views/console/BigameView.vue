@@ -12,7 +12,7 @@ import { useBigame } from '@/composables/useBigame'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
 
 const { t } = useI18n()
-const { readOnly } = useFeatureAccess('bigame', 'prototype')
+const { readOnly } = useFeatureAccess('bigame', 'disabled')
 const {
   loading,
   spinning,

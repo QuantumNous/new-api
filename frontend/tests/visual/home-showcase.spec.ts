@@ -69,14 +69,12 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
               display: 'Ren2HomeTime',
               stamp: 'Ren2HomeStamp',
               hand: 'Ren2HomeSketch',
-              request: 'Ren2HomeTime',
               loaded: ['Ren2HomeTime', 'Ren2HomeSketch', 'Ren2HomeStamp'],
             }
           : {
               display: 'Ren2NotoSerifSC',
               stamp: 'Ren2JetBrainsMono',
               hand: 'Ren2JetBrainsMono',
-              request: 'Ren2Inter',
               loaded: [
                 'Ren2NotoSerifSC',
                 'Ren2JetBrainsMono',
@@ -111,14 +109,8 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
           .first()
           .evaluate((element) => getComputedStyle(element).fontFamily)
       ).toContain(expectedFonts.hand)
-      expect(
-        await page
-          .locator('.runtime-request-total')
-          .evaluate((element) => getComputedStyle(element).fontFamily)
-      ).toContain(expectedFonts.request)
-
       if (theme === 'dark') {
-        await expect(page.locator('.runtime-ledger-panel')).toHaveCount(2)
+        await expect(page.locator('.runtime-ledger-panel')).toHaveCount(1)
         await expect(page.locator('.runtime-ledger-panel').first()).toHaveCSS(
           'border-radius',
           '16px'
@@ -148,9 +140,11 @@ test('home runtime workbench remains self-contained', async ({ page }) => {
   await waitForStablePage(page)
 
   await expect(page.locator('.runtime-clock-group')).toHaveCount(4)
-  await expect(page.locator('.runtime-request-total')).toContainText('32,132')
+  await expect(page.locator('.runtime-flap')).toHaveCount(9)
   await expect(page.locator('.runtime-availability-bar')).toHaveCount(7)
-  await expect(page.locator('.runtime-trend polyline')).toHaveCount(1)
+  await expect(page.locator('.runtime-availability strong')).toContainText(
+    '99.95%'
+  )
   await expect(page.locator('[data-home-channel-exchange]')).toHaveCount(0)
   await expect(page.locator('[data-home-token-routing]')).toHaveCount(0)
   await expect(page.getByText('渠道供应，也能自由买卖')).toHaveCount(0)

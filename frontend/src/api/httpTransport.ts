@@ -251,6 +251,48 @@ export function createHttpTransport(client: AxiosInstance): ApiTransport {
     ): Promise<ApiResponse<T>> {
       return requestOnce(method, url, options, true)
     },
+    async getBlob(url: string, options: RequestOptions = {}): Promise<Blob> {
+      async function download(retry: boolean): Promise<Blob> {
+        const snapshot = getAuthSessionSnapshot()
+        const bundle = snapshot.bundle
+        const headers = { ...options.headers }
+        if (bundle) {
+          headers.Authorization = `${bundle.token_type} ${bundle.access_token}`
+        }
+        try {
+          const response = await client.request<Blob>({
+            method: 'GET',
+            url,
+            signal: options.signal,
+            headers,
+            responseType: 'blob',
+          })
+          if (!isAuthSessionIdentityCurrent(snapshot)) throw staleSessionError()
+          return response.data
+        } catch (error) {
+          if (!isAuthSessionIdentityCurrent(snapshot)) {
+            throw staleSessionError(error)
+          }
+          const canRefresh = Boolean(
+            retry &&
+            bundle &&
+            axios.isAxiosError(error) &&
+            error.response?.status === 401
+          )
+          if (!canRefresh) return toApiError(error)
+          let outcome: RefreshOutcome
+          try {
+            outcome = await refreshAuthentication(snapshot)
+          } catch (refreshError) {
+            return toApiError(refreshError)
+          }
+          if (outcome === 'refreshed') return download(false)
+          if (outcome === 'stale') throw staleSessionError(error)
+          throw new AuthSessionInvalidatedError(error)
+        }
+      }
+      return download(true)
+    },
   }
 }
 
@@ -271,6 +313,20 @@ export function createPublicHttpTransport(client: AxiosInstance): ApiTransport {
           data: options.data,
           signal: options.signal,
           headers: options.headers,
+        })
+        return response.data
+      } catch (error) {
+        return toApiError(error)
+      }
+    },
+    async getBlob(url: string, options: RequestOptions = {}): Promise<Blob> {
+      try {
+        const response = await client.request<Blob>({
+          method: 'GET',
+          url,
+          signal: options.signal,
+          headers: options.headers,
+          responseType: 'blob',
         })
         return response.data
       } catch (error) {

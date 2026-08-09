@@ -27,7 +27,7 @@ import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
 const toast = useToast()
-const { readOnly } = useFeatureAccess('marketplace', 'prototype')
+const { readOnly } = useFeatureAccess('marketplace', 'disabled')
 
 const {
   loading,

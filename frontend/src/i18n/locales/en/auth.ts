@@ -45,6 +45,10 @@ export default {
     tickerVersion: 'Version',
     backHome: 'Back to home',
     cardMotto: 'The AI relay you can trust',
+    oauthCompleting: 'Completing OAuth binding...',
+    oauthUnavailable: 'This OAuth binding window is no longer available.',
+    oauthLinked: 'OAuth account linked.',
+    oauthFailed: 'OAuth binding failed.',
     relay: {
       prompt: 'Your prompt',
       passthrough: 'Byte relay',

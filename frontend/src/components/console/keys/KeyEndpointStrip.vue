@@ -75,7 +75,7 @@ async function probeEndpoint(id: string, url: string) {
   timers.set(id, timer)
 
   try {
-    const latency = await runEndpointProbe(id, url, controller.signal)
+    const latency = await runEndpointProbe(url, controller.signal)
     results[id] = {
       status: 'success',
       latency,

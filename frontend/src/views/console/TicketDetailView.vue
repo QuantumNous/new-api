@@ -26,7 +26,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { readOnly } = useFeatureAccess('tickets', 'prototype')
+const { readOnly } = useFeatureAccess('tickets', 'disabled')
 
 const ticket = ref<TicketMeta | null>(null)
 const messages = ref<TicketMessage[]>([])
@@ -62,7 +62,7 @@ async function load(id = ticketId.value) {
     api.get<{
       ticket: TicketMeta
       messages: TicketMessage[]
-    }>(`/api/ticket/${id}`, undefined, { signal })
+    }>(`/api/next/tickets/${id}`, undefined, { signal })
   )
   if (result.stale) return
   loading.value = false
@@ -83,15 +83,18 @@ async function load(id = ticketId.value) {
   messages.value = result.value.messages
 }
 
-async function sendReply(payload: { content: string; images: string[] }) {
+async function sendReply(payload: { content: string; attachments: File[] }) {
   if (readOnly.value || !ticket.value || submitting.value) return
   const id = ticket.value.id
   const sequence = ++mutationSequence
   submitting.value = true
   try {
+    const body = new FormData()
+    body.set('content', payload.content)
+    for (const file of payload.attachments) body.append('attachments', file)
     const data = await api.post<{ message: TicketMessage }>(
-      `/api/ticket/${id}/reply`,
-      payload
+      `/api/next/tickets/${id}/messages`,
+      body
     )
     if (sequence !== mutationSequence || ticket.value?.id !== id) return
     messages.value.push(data.message)
@@ -114,8 +117,8 @@ async function changeStatus(next: 'open' | 'closed') {
   const sequence = ++mutationSequence
   submitting.value = true
   try {
-    const data = await api.put<{ ticket: TicketMeta }>(
-      `/api/ticket/${id}/status`,
+    const data = await api.patch<{ ticket: TicketMeta }>(
+      `/api/next/tickets/${id}/status`,
       { status: next }
     )
     if (sequence !== mutationSequence || ticket.value?.id !== id) return

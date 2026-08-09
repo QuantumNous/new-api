@@ -47,7 +47,7 @@ watch(
     loading.value = true
     try {
       // Full-key read: rate-limited + cache-disabled on the real backend.
-      const data = await api.get<TokenSecretResponse>(
+      const data = await api.post<TokenSecretResponse>(
         `/api/token/${tokenId}/key`,
         undefined,
         { signal: requestController.signal }

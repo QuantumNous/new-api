@@ -16,9 +16,6 @@ function makeChannel(
     name: 'ch',
     supplier: 'OpenAI',
     latency: 300,
-    health: 90,
-    upstreamMult: 1,
-    channelMult: 1,
     quota: 100,
     weight: 10,
     priority: 1,
@@ -40,8 +37,8 @@ describe('scoreChannels', () => {
 
   it('sorts best-first and keeps scores within 0-100', () => {
     const scored = scoreChannels([
-      makeChannel({ id: 1, latency: 2000, health: 50, quota: 1, priority: 10 }),
-      makeChannel({ id: 2, latency: 100, health: 99, quota: 500, priority: 1 }),
+      makeChannel({ id: 1, latency: 2000, quota: 1, priority: 1 }),
+      makeChannel({ id: 2, latency: 100, quota: 500, priority: 10 }),
     ])
 
     expect(scored.map((c) => c.id)).toEqual([2, 1])
@@ -68,13 +65,11 @@ describe('scoreChannels', () => {
   })
 
   it('awards full marks on factors with no spread in the candidate set', () => {
-    const [only] = scoreChannels([makeChannel({ health: 80 })])
+    const [only] = scoreChannels([makeChannel()])
 
     expect(only!.breakdown.latency).toBe(1)
-    expect(only!.breakdown.cost).toBe(1)
     expect(only!.breakdown.priority).toBe(1)
-    // all factors at 1 except health 0.8 × 30% → 0.70 + 0.24 = 94
-    expect(only!.score).toBe(94)
+    expect(only!.score).toBe(100)
   })
 
   it('keeps the factor weights a complete partition of the score', () => {
@@ -83,30 +78,28 @@ describe('scoreChannels', () => {
     expect(total).toBeCloseTo(1, 10)
   })
 
-  it('keeps upstream quota as ten percent of the composite score', () => {
+  it('keeps upstream quota as fifteen percent of the composite score', () => {
     const scored = scoreChannels([
       makeChannel({ id: 1, quota: 50 }),
       makeChannel({ id: 2, quota: 100 }),
     ])
     const byId = new Map(scored.map((channel) => [channel.id, channel]))
 
-    expect(WEIGHTS.quota).toBe(0.1)
+    expect(WEIGHTS.quota).toBe(0.15)
     expect(byId.get(1)!.breakdown.quota).toBe(0)
     expect(byId.get(2)!.breakdown.quota).toBe(1)
-    expect(byId.get(2)!.score - byId.get(1)!.score).toBe(10)
+    expect(byId.get(2)!.score - byId.get(1)!.score).toBe(15)
   })
 
-  it('inverts cost and priority so the lower raw value wins the factor', () => {
+  it('ranks the higher persisted priority value first', () => {
     const scored = scoreChannels([
-      makeChannel({ id: 1, upstreamMult: 0.5, channelMult: 1, priority: 1 }),
-      makeChannel({ id: 2, upstreamMult: 1, channelMult: 1.5, priority: 5 }),
+      makeChannel({ id: 1, priority: 1 }),
+      makeChannel({ id: 2, priority: 5 }),
     ])
     const byId = new Map(scored.map((c) => [c.id, c]))
 
-    expect(byId.get(1)!.breakdown.cost).toBe(1)
-    expect(byId.get(2)!.breakdown.cost).toBe(0)
-    expect(byId.get(1)!.breakdown.priority).toBe(1)
-    expect(byId.get(2)!.breakdown.priority).toBe(0)
+    expect(byId.get(1)!.breakdown.priority).toBe(0)
+    expect(byId.get(2)!.breakdown.priority).toBe(1)
   })
 })
 

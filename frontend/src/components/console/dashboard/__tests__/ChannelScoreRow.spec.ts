@@ -19,9 +19,6 @@ function makeChannel(
     name: 'ch',
     supplier: 'OpenAI',
     latency: 300,
-    health: 90,
-    upstreamMult: 1,
-    channelMult: 1,
     quota: 100,
     weight: 10,
     priority: 1,
@@ -34,7 +31,6 @@ const scored = scoreChannels([
   makeChannel({
     id: 1,
     latency: 200,
-    health: 92,
     quota: 800,
     weight: 50,
     priority: 1,
@@ -42,9 +38,6 @@ const scored = scoreChannels([
   makeChannel({
     id: 2,
     latency: 1800,
-    health: 55,
-    upstreamMult: 1.2,
-    channelMult: 1.1,
     quota: 40,
     weight: 10,
     priority: 10,
@@ -60,11 +53,11 @@ function render(row: RouteChannelRow = entry) {
 }
 
 describe('ChannelScoreRow', () => {
-  it('keeps all six score factors while hiding the concrete quota amount', () => {
+  it('uses only the four persisted score factors and shows the real balance', () => {
     const wrapper = render()
     const segments = wrapper.findAll('[title*="≈"]')
 
-    expect(segments).toHaveLength(6)
+    expect(segments).toHaveLength(4)
     expect(
       Math.round(
         segments.reduce(
@@ -75,20 +68,8 @@ describe('ChannelScoreRow', () => {
         )
       )
     ).toBe(entry.score)
-    expect(wrapper.text()).not.toContain('$800')
-    expect(wrapper.text()).not.toContain('Upstream quota')
-  })
-
-  it('renders the local segmented health meter', () => {
-    const wrapper = render()
-    const meter = wrapper.find(`[aria-label="Health ${entry.health}%"]`)
-
-    expect(meter.exists()).toBe(true)
-    const segments = meter.findAll('[data-channel-health-segment]')
-    expect(segments).toHaveLength(10)
-    expect((segments[0]!.element as HTMLElement).style.background).toBe(
-      'var(--status-success)'
-    )
+    expect(wrapper.text()).toContain('800.00')
+    expect(wrapper.find('[data-route-balance]').exists()).toBe(true)
   })
 
   it('crowns and announces the top-ranked channel score', () => {
@@ -102,7 +83,7 @@ describe('ChannelScoreRow', () => {
 
   it('shows an inactive channel without a rank or score', () => {
     const inactive: RouteChannelRow = {
-      ...makeChannel({ status: 2, health: 0 }),
+      ...makeChannel({ status: 2 }),
       rank: null,
       score: null,
       breakdown: null,

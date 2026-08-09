@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import {
   groupByVendor,
@@ -69,6 +70,7 @@ export function useAutoRoute() {
   const lastUpdated = ref<Date | null>(null)
   const raw = ref<ChannelRoutingMetrics[]>([])
   const modelFilter = ref<string>('')
+  const routeRequest = useLatestRequest()
 
   /**
    * Routing picks a channel within a vendor, never across vendors, so
@@ -82,17 +84,25 @@ export function useAutoRoute() {
 
   async function load() {
     loading.value = true
-    try {
-      const data = await api.get<ChannelRoutingMetrics[]>('/api/data/route')
-      raw.value = data
-      lastUpdated.value = new Date()
-    } catch (error) {
-      toast.error(
-        error instanceof ApiError ? error.message : t('common.failed')
+    const result = await routeRequest.run((signal) =>
+      api.get<ChannelRoutingMetrics[]>(
+        '/api/next/admin/dashboard/routes',
+        undefined,
+        { signal }
       )
-    } finally {
-      loading.value = false
+    )
+    if (result.stale) return
+    loading.value = false
+    if (!result.ok) {
+      toast.error(
+        result.error instanceof ApiError
+          ? result.error.message
+          : t('common.failed')
+      )
+      return
     }
+    raw.value = result.value
+    lastUpdated.value = new Date()
   }
 
   return { loading, lastUpdated, vendorList, modelFilter, load }

@@ -18,6 +18,7 @@ export interface UserInfo {
     sidebar_settings?: boolean
     sidebar_modules?: Record<string, unknown>
   }
+  setting?: string
 }
 
 export type UserProfilePatch = Partial<Pick<UserInfo, 'display_name' | 'email'>>

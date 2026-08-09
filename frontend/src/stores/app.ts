@@ -78,6 +78,7 @@ export const useAppStore = defineStore('app', () => {
   )
   const docsLink = computed(() => safeExternalUrl(status.value.docs_link) || '')
   const version = computed(() => status.value.version?.trim() || '')
+  const startTime = computed(() => status.value.start_time ?? null)
   const headerModules = computed(() =>
     parseHeaderModules(status.value.HeaderNavModules)
   )
@@ -264,6 +265,7 @@ export const useAppStore = defineStore('app', () => {
     modelCountLabel,
     uptimeLabel,
     versionLabel,
+    startTime,
     featureStatus,
     isFeatureEnabled,
     initialize,

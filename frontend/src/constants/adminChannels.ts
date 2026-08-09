@@ -6,7 +6,6 @@ export const ADMIN_CHANNEL_OPTIONAL_FIELDS = [
   'status',
   'priority',
   'weight',
-  'capacity',
   'usage',
   'upstream',
   'response',

@@ -16,7 +16,7 @@ import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import type { LeaderPeriod } from '@/types/farm'
 
 const { t } = useI18n()
-const { readOnly } = useFeatureAccess('farm', 'prototype')
+const { readOnly } = useFeatureAccess('farm', 'disabled')
 const {
   loading,
   acting,

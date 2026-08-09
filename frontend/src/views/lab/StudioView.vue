@@ -17,7 +17,7 @@ import type { StudioKind } from '@/types/lab'
 
 const { t } = useI18n()
 const toast = useToast()
-const { readOnly } = useFeatureAccess('lab', 'prototype')
+const { readOnly } = useFeatureAccess('lab', 'disabled')
 const { loading, works, tools, load } = useLabStudio()
 
 const prompt = ref('')
@@ -74,11 +74,11 @@ watch(kind, reload)
 function generate() {
   if (readOnly.value) return
   if (!prompt.value.trim()) return
-  toast.info(t('lab.prototypeToast'))
+  toast.info(t('lab.unavailableToast'))
 }
 function runTool() {
   if (readOnly.value) return
-  toast.info(t('lab.prototypeToast'))
+  toast.info(t('lab.unavailableToast'))
 }
 </script>
 

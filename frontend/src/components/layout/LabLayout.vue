@@ -31,7 +31,7 @@ const soundEnabled = useStorage<boolean>('ren2hub_lab_sound', true)
           class="border-b border-[var(--status-warning)] bg-[var(--status-warning-soft)] px-4 py-2 text-center text-xs font-semibold text-[var(--status-warning-text)] sm:px-6"
           role="status"
         >
-          {{ t('nav.prototypeMode') }} · {{ t('nav.prototypeModeHint') }}
+          {{ t('nav.disabledMode') }} · {{ t('nav.disabledModeHint') }}
         </div>
         <div
           class="flex h-14 shrink-0 items-center justify-end gap-1.5 border-b border-[var(--border-subtle)] px-4"

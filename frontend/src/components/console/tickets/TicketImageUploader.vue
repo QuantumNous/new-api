@@ -18,7 +18,7 @@ const props = withDefaults(defineProps<{ maxCount?: number }>(), {
 })
 
 const { t } = useI18n()
-const { images, addFiles, remove, getUrls, reset, canAddMore } =
+const { images, addFiles, remove, getFiles, reset, canAddMore } =
   useTicketImages(props.maxCount)
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -26,7 +26,7 @@ const dragOver = ref(false)
 const safePreview = (value: string) => safeImageUrl(value)
 
 // Parent reads the uploaded URLs and resets the field via a template ref.
-defineExpose({ getUrls, reset })
+defineExpose({ getFiles, reset })
 
 function pickFiles() {
   fileInput.value?.click()

@@ -21,8 +21,6 @@ const { t } = useI18n()
 
 const defaultMethods = computed(() => [
   { value: 'epay', label: t('wallet.payEpay') },
-  { value: 'stripe', label: t('wallet.payStripe') },
-  { value: 'creem', label: t('wallet.payCreem') },
 ])
 const methods = computed(() => props.methods ?? defaultMethods.value)
 </script>

@@ -35,11 +35,12 @@ const form = reactive({
   username: '',
   displayName: '',
   email: '',
+  password: '',
   role: '1',
   status: 1 as 1 | 2,
 })
 
-const USERNAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$/
+const USERNAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{2,19}$/
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
@@ -70,7 +71,10 @@ const valid = computed(
   () =>
     usernameValid.value &&
     emailValid.value &&
-    form.displayName.trim().length <= 64 &&
+    (props.editing !== null ||
+      (form.password.length >= 8 && form.password.length <= 20)) &&
+    form.displayName.trim().length <= 20 &&
+    form.email.trim().length <= 50 &&
     ADMIN_USER_ASSIGNABLE_ROLES.includes(selectedRole.value) &&
     selectedRole.value < props.operatorLevel
 )
@@ -83,6 +87,7 @@ watch(
     form.username = user?.username ?? ''
     form.displayName = user?.display_name ?? ''
     form.email = user?.email ?? ''
+    form.password = ''
     form.role = String(user?.role ?? 1)
     form.status = user?.status === 2 ? 2 : 1
   },
@@ -104,7 +109,9 @@ async function submit() {
       role: selectedRole.value,
     }
     const input: AdminUserCreateInput | AdminUserUpdateInput =
-      props.editing === null ? { ...base, status: form.status } : base
+      props.editing === null
+        ? { ...base, password: form.password, status: form.status }
+        : base
     if (await props.save(input)) emit('close')
   } finally {
     saving.value = false
@@ -148,6 +155,16 @@ async function submit() {
           />
         </FormField>
       </div>
+
+      <FormField v-if="editing === null" :label="t('users.initialPassword')">
+        <TextInput
+          v-model="form.password"
+          type="password"
+          name="admin-user-password"
+          :placeholder="t('users.initialPasswordPlaceholder')"
+          autocomplete="new-password"
+        />
+      </FormField>
 
       <div>
         <p class="mb-1.5 text-sm font-medium text-[var(--text-secondary)]">

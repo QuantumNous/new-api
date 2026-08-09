@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { consoleEntryRoute } from '@/constants/navigation/consoleNav'
 import { labEntryRoute } from '@/constants/navigation/labNav'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 
 interface NavChild {
   name: string
@@ -25,8 +26,9 @@ interface NavGroup {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const { disabled: labDisabled } = useFeatureAccess('lab', 'disabled')
 
-const navGroups: NavGroup[] = [
+const navGroups = computed<NavGroup[]>(() => [
   { name: 'activities', labelKey: 'nav.activities', route: 'activity' },
   { name: 'dashboard', labelKey: 'nav.dashboard', route: 'dashboard' },
   {
@@ -37,24 +39,24 @@ const navGroups: NavGroup[] = [
     route: consoleEntryRoute,
   },
   {
-    // Plain link into the Lab layout — sub-nav lives in LabSidebar.
     name: 'alchemy',
     labelKey: 'nav.alchemy',
     route: labEntryRoute,
+    disabled: labDisabled.value,
   },
   {
     name: 'community',
     labelKey: 'nav.community',
     children: [{ name: 'docs', labelKey: 'nav.docs', disabled: true }],
   },
-]
+])
 
 const openGroup = ref<string | null>(null)
 const root = ref<HTMLElement | null>(null)
 
 const activeGroup = computed(() => {
   if (route.meta.topNav) return route.meta.topNav
-  for (const group of navGroups) {
+  for (const group of navGroups.value) {
     if (group.route && route.name === group.route) return group.name
     if (group.children?.some((c) => c.route && route.name === c.route))
       return group.name

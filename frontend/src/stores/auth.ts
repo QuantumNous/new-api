@@ -1,8 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { clearDemoUser, readDemoUser, writeDemoUser } from '@/api/demoStorage'
-import { isMockApi, setApiUnauthorizedHandler } from '@/api/client'
+import { setApiUnauthorizedHandler } from '@/api/client'
 import {
   applyAuthRotation,
   clearAuthBundle,
@@ -57,35 +56,22 @@ export async function applyAuthSessionSyncEvent(
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<UserInfo | null>(isMockApi ? readDemoUser() : null)
+  const user = ref<UserInfo | null>(null)
   const checked = ref(false)
 
   const isAuthenticated = computed(() => Boolean(user.value))
-  // The mock/demo transport intentionally surfaces the admin UI for the demo
-  // identity (whose persisted role stays pinned to 1 as an anti-escalation
-  // boundary, see demoStorage). Against the real backend these flags derive
-  // from the server-issued role and fail closed. Neither is a server-side
-  // authorization boundary.
-  const isAdmin = computed(() =>
-    isMockApi ? true : (user.value?.role ?? 0) >= 10
-  )
-  const isRoot = computed(() =>
-    isMockApi ? false : (user.value?.role ?? 0) >= 100
-  )
+  const isAdmin = computed(() => (user.value?.role ?? 0) >= 10)
+  const isRoot = computed(() => (user.value?.role ?? 0) >= 100)
   const adminPermissions = computed<Record<string, Record<string, boolean>>>(
     () => user.value?.permissions?.admin_permissions ?? {}
   )
 
   function persist(next: UserInfo | null): void {
-    if (isMockApi) {
-      if (next) writeDemoUser(next)
-      else clearDemoUser()
-    }
     user.value = next
   }
 
   function hasPermission(resource: string, action: string): boolean {
-    if (isMockApi || isRoot.value) return true
+    if (isRoot.value) return true
     return adminPermissions.value[resource]?.[action] === true
   }
 
@@ -93,7 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
     kind: 'authenticated' | 'signed_out',
     sid = getAuthBundle()?.session.sid
   ): void {
-    if (!isMockApi && sid) publishAuthSessionEvent(kind, sid)
+    if (sid) publishAuthSessionEvent(kind, sid)
   }
 
   async function login(
@@ -103,7 +89,7 @@ export const useAuthStore = defineStore('auth', () => {
     const api = await getAuthApi()
     const data = await api.login(username, password)
     if ('require_2fa' in data) return data
-    if (!isMockApi) setAuthBundle(data)
+    setAuthBundle(data)
     persist(data.user)
     checked.value = true
     publishCurrentSession('authenticated', data.session.sid)
@@ -116,7 +102,7 @@ export const useAuthStore = defineStore('auth', () => {
   ): Promise<void> {
     const api = await getAuthApi()
     const bundle = await api.verifyTwoFactor(flowToken, code)
-    if (!isMockApi) setAuthBundle(bundle)
+    setAuthBundle(bundle)
     persist(bundle.user)
     checked.value = true
     publishCurrentSession('authenticated', bundle.session.sid)
@@ -138,7 +124,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchSelf(publish = true): Promise<boolean> {
     const api = await getAuthApi()
     try {
-      if (!isMockApi && !getAuthBundle()) {
+      if (!getAuthBundle()) {
         const bundle = await api.refreshSession()
         setAuthBundle(bundle)
         persist(bundle.user)
@@ -173,10 +159,8 @@ export const useAuthStore = defineStore('auth', () => {
   ): Promise<void> {
     const api = await getAuthApi()
     const rotation = await api.changePassword(originalPassword, password)
-    if (!isMockApi) {
-      applyAuthRotation(rotation)
-      publishCurrentSession('authenticated', rotation.session.sid)
-    }
+    applyAuthRotation(rotation)
+    publishCurrentSession('authenticated', rotation.session.sid)
   }
 
   async function deleteAccount(): Promise<void> {
@@ -193,25 +177,23 @@ export const useAuthStore = defineStore('auth', () => {
     checked.value = true
   })
 
-  if (!isMockApi) {
-    subscribeAuthSessionEvents((event) => {
-      // Access tokens never cross tabs. The shared HttpOnly refresh cookie is
-      // the only source used to establish the peer's current session.
-      void applyAuthSessionSyncEvent(event, {
-        currentSid: () => getAuthBundle()?.session.sid,
-        clearBundle: clearAuthBundle,
-        setPending: () => {
-          persist(null)
-          checked.value = false
-        },
-        setAnonymous: () => {
-          persist(null)
-          checked.value = true
-        },
-        refreshFromCookie: () => fetchSelf(false),
-      })
+  subscribeAuthSessionEvents((event) => {
+    // Access tokens never cross tabs. The shared HttpOnly refresh cookie is
+    // the only source used to establish the peer's current session.
+    void applyAuthSessionSyncEvent(event, {
+      currentSid: () => getAuthBundle()?.session.sid,
+      clearBundle: clearAuthBundle,
+      setPending: () => {
+        persist(null)
+        checked.value = false
+      },
+      setAnonymous: () => {
+        persist(null)
+        checked.value = true
+      },
+      refreshFromCookie: () => fetchSelf(false),
     })
-  }
+  })
 
   return {
     user,

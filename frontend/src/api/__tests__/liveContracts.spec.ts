@@ -5,7 +5,6 @@ import {
   parseRedeemedQuota,
   parseTokenPage,
   parseTopupInfo,
-  parseTopupPage,
   parseUsageRows,
   parseUserModels,
 } from '@/api/liveContracts'
@@ -97,54 +96,37 @@ describe('live API contracts', () => {
   it('parses wallet capabilities, top-up records, and redeemed quota', () => {
     const info = parseTopupInfo({
       enable_online_topup: true,
-      enable_stripe_topup: true,
-      enable_creem_topup: false,
-      enable_waffo_topup: true,
-      enable_waffo_pancake_topup: false,
       enable_redemption: true,
       pay_methods: [
-        { name: 'Stripe', type: 'stripe', min_topup: '5' },
-        { name: 'Waffo', type: 'waffo', min_topup: 10 },
+        { name: 'Alipay', type: 'alipay', min_topup: '5' },
+        { name: 'WeChat Pay', type: 'wxpay', min_topup: 10 },
       ],
       min_topup: 1,
-      stripe_min_topup: 5,
-      waffo_min_topup: 10,
-      waffo_pancake_min_topup: 20,
       amount_options: [5, '10'],
     })
     expect(info.pay_methods).toEqual([
-      { name: 'Stripe', type: 'stripe', min_topup: 5, color: undefined },
-      { name: 'Waffo', type: 'waffo', min_topup: 10, color: undefined },
+      { name: 'Alipay', type: 'alipay', min_topup: 5, color: undefined },
+      { name: 'WeChat Pay', type: 'wxpay', min_topup: 10, color: undefined },
     ])
     expect(info.amount_options).toEqual([5, 10])
 
-    const page = parseTopupPage({
-      page: 1,
-      page_size: 20,
-      total: 1,
-      items: [
-        {
-          id: 9,
-          trade_no: 'trade-9',
-          amount: 500_000,
-          money: 5.25,
-          payment_method: 'card',
-          payment_provider: 'stripe',
-          status: 'success',
-          create_time: 1_700_000_000,
-        },
-      ],
-    })
-    expect(page.items[0]).toMatchObject({
-      amount: 5.25,
-      money: 500_000,
-      method: 'stripe',
-      provider: 'stripe',
-      created: 1_700_000_000,
-    })
     expect(parseRedeemedQuota(500_000)).toBe(500_000)
     expect(parseRedeemedQuota({ quota: 250_000 })).toBe(250_000)
     expectInvalidResponse(() => parseTopupInfo({}))
+    expectInvalidResponse(() =>
+      parseTopupInfo({
+        pay_methods: [],
+        min_topup: 0,
+        amount_options: [10],
+      })
+    )
+    expectInvalidResponse(() =>
+      parseTopupInfo({
+        pay_methods: [],
+        min_topup: 1,
+        amount_options: [-10],
+      })
+    )
     expectInvalidResponse(() => parseRedeemedQuota({ amount: 1 }))
   })
 

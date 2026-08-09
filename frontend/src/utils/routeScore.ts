@@ -1,19 +1,17 @@
 /**
  * Auto-routing score computation.
  *
- * Each channel is evaluated on six dimensions, each normalised to [0,1] within
+ * Each channel is evaluated on four persisted dimensions, each normalised to [0,1] within
  * the candidate set handed in by the caller, then combined into a single 0-100
  * score using fixed weights. The dashboard scores each vendor group separately,
- * so a score reads "how good is this channel among its vendor's pool" — routing
- * picks within a vendor, never across vendors.
+ * so the result is an operational comparison of persisted channel metrics. It
+ * does not attempt to reproduce the backend's group/model retry selector.
  *
  * Weights (must sum to 1):
- *   latency  0.25  — lower latency  → higher score
- *   health   0.30  — higher health  → higher score
- *   cost     0.20  — lower combined multiplier → higher score
- *   quota    0.10  — more upstream balance → higher score
- *   weight   0.10  — higher weight → higher score
- *   priority 0.05  — lower priority value → higher score (priority 1 beats priority 10)
+ *   latency  0.35  — lower last-test latency → higher score
+ *   quota    0.15  — more upstream balance → higher score
+ *   weight   0.25  — higher weight → more traffic inside a priority tier
+ *   priority 0.25  — higher value → earlier routing priority tier
  */
 
 import type { RouteHealthCheck } from '@/utils/routeHealth'
@@ -24,17 +22,11 @@ export interface ChannelRoutingMetrics {
   supplier: string
   /** Average response latency in ms. 0 means untested — treated as worst case. */
   latency: number
-  /** Health percentage 0-100. */
-  health: number
-  /** Upstream price multiplier (e.g. 0.75 = 75% of base price). */
-  upstreamMult: number
-  /** Channel price multiplier on top of upstream. */
-  channelMult: number
   /** Upstream remaining balance (USD). */
   quota: number
   /** Routing weight; higher = more traffic in load-balance mode. */
   weight: number
-  /** Routing priority; lower numeric value = higher priority. */
+  /** Routing priority; higher numeric value is selected first. */
   priority: number
   /** 1 = enabled, 2 = manually disabled, 3 = auto-disabled */
   status: 1 | 2 | 3
@@ -44,8 +36,6 @@ export interface ChannelRoutingMetrics {
 
 export interface ScoreBreakdown {
   latency: number // normalised 0-1
-  health: number
-  cost: number
   quota: number
   weight: number
   priority: number
@@ -58,12 +48,10 @@ export interface ScoredChannel extends ChannelRoutingMetrics {
 }
 
 export const WEIGHTS = {
-  latency: 0.25,
-  health: 0.3,
-  cost: 0.2,
-  quota: 0.1,
-  weight: 0.1,
-  priority: 0.05,
+  latency: 0.35,
+  quota: 0.15,
+  weight: 0.25,
+  priority: 0.25,
 } as const
 
 export type ScoreBand = 'success' | 'warning' | 'danger'
@@ -113,8 +101,6 @@ export function scoreChannels(
   )
 
   const { min: minLat, max: maxLat } = minmax(effectiveLatencies)
-  const costs = active.map((c) => (c.upstreamMult || 1) * (c.channelMult || 1))
-  const { min: minCost, max: maxCost } = minmax(costs)
   const quotas = active.map((c) => c.quota)
   const { min: minQuota, max: maxQuota } = minmax(quotas)
   const weights = active.map((c) => c.weight)
@@ -126,16 +112,12 @@ export function scoreChannels(
     .map((c, i) => {
       const bd: ScoreBreakdown = {
         latency: factorScore(effectiveLatencies[i], minLat, maxLat, true),
-        health: c.health / 100,
-        cost: factorScore(costs[i], minCost, maxCost, true),
         quota: factorScore(c.quota, minQuota, maxQuota),
         weight: factorScore(c.weight, minW, maxW),
-        priority: factorScore(c.priority, minP, maxP, true),
+        priority: factorScore(c.priority, minP, maxP),
       }
       const score =
         bd.latency * WEIGHTS.latency +
-        bd.health * WEIGHTS.health +
-        bd.cost * WEIGHTS.cost +
         bd.quota * WEIGHTS.quota +
         bd.weight * WEIGHTS.weight +
         bd.priority * WEIGHTS.priority

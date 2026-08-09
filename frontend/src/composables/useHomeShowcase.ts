@@ -1,13 +1,20 @@
-import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, type Ref } from 'vue'
 
-import { HOME_LAUNCHED_AT, HOME_REQUEST_SEED } from '@/constants/home/showcase'
 import type { HomeRuntime } from '@/types/homeShowcase'
 
 export function calculateRuntime(
   now: number,
-  launchedAt = HOME_LAUNCHED_AT
+  launchedAt?: string | number
 ): HomeRuntime {
-  const total = Math.max(0, Math.floor((now - Date.parse(launchedAt)) / 1000))
+  const timestamp =
+    typeof launchedAt === 'number'
+      ? launchedAt * 1000
+      : launchedAt
+        ? Date.parse(launchedAt)
+        : Number.NaN
+  const total = Number.isFinite(timestamp)
+    ? Math.max(0, Math.floor((now - timestamp) / 1000))
+    : 0
   return {
     days: Math.floor(total / 86_400),
     hours: Math.floor((total % 86_400) / 3_600),
@@ -16,14 +23,15 @@ export function calculateRuntime(
   }
 }
 
-export function useHomeShowcase() {
+export function useHomeShowcase(startTime?: Readonly<Ref<number | null>>) {
   const now = ref(Date.now())
-  const demoRequests = ref(HOME_REQUEST_SEED)
   const sectionVisible = ref(true)
   let intervalId: number | null = null
   let disposed = false
 
-  const runtime = computed(() => calculateRuntime(now.value))
+  const runtime = computed(() =>
+    calculateRuntime(now.value, startTime?.value ?? undefined)
+  )
 
   function stopClock() {
     if (intervalId !== null) window.clearInterval(intervalId)
@@ -50,7 +58,6 @@ export function useHomeShowcase() {
 
     intervalId = window.setInterval(() => {
       now.value = Date.now()
-      demoRequests.value += 5
     }, 1_000)
   }
 
@@ -81,7 +88,6 @@ export function useHomeShowcase() {
 
   return {
     runtime,
-    demoRequests,
     setSectionVisible,
     dispose,
   }

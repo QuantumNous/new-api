@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
@@ -9,12 +9,11 @@ import ChatComposer from '@/components/lab/ChatComposer.vue'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useLabChat, useLabConversation } from '@/composables/useLab'
 import { useAuthStore } from '@/stores/auth'
-import type { ChatMessage } from '@/types/lab'
 
 const { t } = useI18n()
 const route = useRoute()
 const auth = useAuthStore()
-const { readOnly } = useFeatureAccess('lab', 'prototype')
+const { readOnly } = useFeatureAccess('lab', 'disabled')
 
 // One view serves both the landing (no :id) and an open conversation.
 const sessionId = computed(() =>
@@ -34,9 +33,6 @@ const {
 } = useLabConversation()
 
 const draft = ref('')
-// Local echo appended after send so the shell feels alive (prototype only).
-const localMessages = ref<ChatMessage[]>([])
-const pendingReplyTimers = new Set<number>()
 
 const greeting = computed(() => {
   const name = auth.user?.display_name || auth.user?.username || ''
@@ -46,10 +42,7 @@ const greeting = computed(() => {
   return t(`lab.chat.greeting.${key}`, { name })
 })
 
-const messages = computed<ChatMessage[]>(() => [
-  ...(conversation.value?.messages ?? []),
-  ...localMessages.value,
-])
+const messages = computed(() => conversation.value?.messages ?? [])
 
 const STARTER_ICONS: Record<string, string> = {
   spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
@@ -63,9 +56,6 @@ const STARTER_ICONS: Record<string, string> = {
 }
 
 function sync() {
-  for (const timer of pendingReplyTimers) window.clearTimeout(timer)
-  pendingReplyTimers.clear()
-  localMessages.value = []
   if (sessionId.value) void loadConvo(sessionId.value)
   else void loadLanding()
 }
@@ -74,28 +64,7 @@ onMounted(sync)
 watch(sessionId, sync)
 
 function send() {
-  if (readOnly.value) return
-  const content = draft.value.trim()
-  if (!content) return
-  const base = Date.now()
-  localMessages.value.push({
-    id: base,
-    role: 'user',
-    content,
-    createdAt: Math.floor(base / 1000),
-  })
-  draft.value = ''
-  // Fixed assistant reply after a beat — no backend, just keeps the shell warm.
-  const timer = window.setTimeout(() => {
-    pendingReplyTimers.delete(timer)
-    localMessages.value.push({
-      id: base + 1,
-      role: 'assistant',
-      content: t('lab.chat.stubReply'),
-      createdAt: Math.floor(base / 1000) + 1,
-    })
-  }, 600)
-  pendingReplyTimers.add(timer)
+  if (readOnly.value || !draft.value.trim()) return
 }
 
 function useStarter(desc: string) {
@@ -105,11 +74,6 @@ function useStarter(desc: string) {
 function pickModel(name: string) {
   draft.value = draft.value ? draft.value : t('lab.chat.tryModel', { name })
 }
-
-onBeforeUnmount(() => {
-  for (const timer of pendingReplyTimers) window.clearTimeout(timer)
-  pendingReplyTimers.clear()
-})
 </script>
 
 <template>

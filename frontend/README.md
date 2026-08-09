@@ -4,7 +4,8 @@
 
 - `web/` 仍是当前生产前端，本轮不修改其构建和交付方式。
 - `frontend/` 独立开发、测试和构建，产物输出到 `frontend/dist/`。
-- 首页、认证、Console 与 Lab 默认统一使用本地 Mock，不代表已经接入真实认证或后台业务接口。
+- 首页、认证与已启用的 Console 模块统一调用同源真实后端 API。
+- 后端通过 `/api/status.frontend_capabilities` 声明模块状态；未启用模块必须保持禁用并由路由守卫 fail-closed。
 
 ## 本地开发
 
@@ -13,7 +14,7 @@ bun install
 bun run dev
 ```
 
-开发服务器默认监听 `5175`，可通过 `VITE_DEV_PORT` 修改。`VITE_API_MODE=http` 可显式切换到同源 HTTP 后端，`VITE_API_TARGET` 配置开发代理目标；`VITE_PUBLIC_API_MODE` 仅在需要单独覆盖公开接口传输时使用，默认继承主模式。外部文档、发票和图片默认只允许同源地址；确需使用可信外部资源时，通过逗号分隔的 `VITE_TRUSTED_EXTERNAL_ORIGINS` 显式声明来源。
+开发服务器默认监听 `5175`，可通过 `VITE_DEV_PORT` 修改。运行时不提供传输模式切换，所有 API 都使用同源 HTTP；本地开发由 `VITE_API_TARGET` 配置 Vite 代理目标，默认是 `http://localhost:3000`。外部文档和图片默认只允许同源地址；确需使用可信外部资源时，通过逗号分隔的 `VITE_TRUSTED_EXTERNAL_ORIGINS` 显式声明来源。
 
 ## 验证
 
@@ -28,9 +29,9 @@ bun run build
 ## 路由
 
 - `/`：公开首页
-- `/auth/*`：Demo 认证页面
-- `/console/*`：Mock 控制台
-- `/lab/*`：Mock Lab
+- `/auth/*`：真实注册、登录、OAuth 回调与会话恢复页面
+- `/console/*`：真实后端控制台；页面访问由 capability 与角色共同约束
+- `/lab/*`：炼金室预留路由；后端 capability 未启用时拒绝访问
 
 `/home`、`/sign-in`、`/sign-up`、`/dashboard` 和 `/pricing` 仅作为兼容重定向。受保护页面会将匿名访问者送到 `/auth/sign-in`，并只接受 `/console/*` 或 `/lab/*` 作为登录后跳转目标。
 
@@ -38,7 +39,7 @@ bun run build
 
 ```text
 src/
-  api/          transport、公开 API、Console/Lab Mock
+  api/          HTTP transport、公开 API 与 Console API contracts
   assets/       由构建器处理的资源
   canvas/       首页世界地图引擎
   charts/       ECharts 适配
@@ -47,7 +48,7 @@ src/
   constants/    首页数据与导航定义
   i18n/         en/zh-CN 分域消息
   router/       路由、守卫和兼容重定向
-  stores/       公开状态与 Demo 身份
+  stores/       公开状态、真实会话与用户身份
   styles/       tokens/base/home/console
   types/        领域 contracts
   utils/        格式化与 URL 安全
@@ -55,6 +56,6 @@ src/
   __tests__/    全局测试设置
 ```
 
-Demo 身份只写入 `ren2hub_demo_*` 命名空间。本地角色仅用于演示路由和界面，不具备真实权限语义。
+当前暂缓接入炼金室、Token 农场、小游戏、开票、市场和订阅/套餐管理。这些模块不得调用未完成接口，也不得通过直接输入路由绕过 capability 守卫。
 
 主题和样式约束见 [docs/THEMES.md](docs/THEMES.md)。

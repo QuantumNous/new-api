@@ -22,7 +22,8 @@ export function useUsageDistribution() {
     loading.value = true
     try {
       points.value = await api.get<UsageDistributionPoint[]>(
-        '/api/data/distribution/self'
+        '/api/next/dashboard/distribution',
+        { tz_offset: String(-new Date().getTimezoneOffset()) }
       )
     } catch (error) {
       points.value = []

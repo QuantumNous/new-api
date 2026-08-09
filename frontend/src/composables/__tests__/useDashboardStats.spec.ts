@@ -83,8 +83,13 @@ describe('useDashboardStats', () => {
     await stats.load()
 
     expect(get).toHaveBeenCalledWith(
-      '/api/data/stats',
-      { range: 'custom', start: '2026-07-01', end: '2026-07-14' },
+      '/api/next/dashboard/stats',
+      {
+        range: 'custom',
+        start: '2026-07-01',
+        end: '2026-07-14',
+        tz_offset: expect.any(String),
+      },
       expect.anything()
     )
   })

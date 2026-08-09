@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CircleOff, Crown, HeartPulse, Percent, Timer } from 'lucide-vue-next'
+import { CircleDollarSign, CircleOff, Crown, Timer } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 import MiniRing from '@/components/console/dashboard/MiniRing.vue'
 import type { RouteChannelRow } from '@/composables/useAutoRoute'
-import { routeHealthStateFromValue } from '@/utils/routeHealth'
 import { scoreBand, WEIGHTS } from '@/utils/routeScore'
 
 const props = defineProps<{
@@ -13,8 +12,6 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const HEALTH_SEGMENTS = 10
-
 function latencyLabel(ms: number): string {
   if (ms === 0) return t('dashboard.autoRoute.untested')
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`
@@ -26,27 +23,6 @@ const isRanked = computed(
     props.entry.rank !== null &&
     props.entry.score !== null &&
     props.entry.breakdown !== null
-)
-const healthBand = computed(() => routeHealthStateFromValue(props.entry.health))
-const healthTone = computed(() => {
-  if (healthBand.value === 'healthy') return 'success'
-  if (healthBand.value === 'degraded') return 'warning'
-  if (healthBand.value === 'down') return 'danger'
-  return 'info'
-})
-const healthColor = computed(() =>
-  healthBand.value === 'unknown'
-    ? 'var(--text-tertiary)'
-    : `var(--status-${healthTone.value})`
-)
-const healthFilled = computed(() =>
-  Math.max(
-    0,
-    Math.min(
-      HEALTH_SEGMENTS,
-      Math.round((props.entry.health / 100) * HEALTH_SEGMENTS)
-    )
-  )
 )
 const scoreColor = computed(() =>
   props.entry.score === null
@@ -61,11 +37,9 @@ const inactiveLabel = computed(() =>
 
 const FACTORS = [
   { key: 'latency', label: 'factorLatency', opacity: 1 },
-  { key: 'health', label: 'factorHealth', opacity: 0.85 },
-  { key: 'cost', label: 'factorCost', opacity: 0.7 },
-  { key: 'quota', label: 'factorQuota', opacity: 0.55 },
-  { key: 'weight', label: 'factorWeight', opacity: 0.4 },
-  { key: 'priority', label: 'factorPriority', opacity: 0.28 },
+  { key: 'quota', label: 'factorQuota', opacity: 0.75 },
+  { key: 'weight', label: 'factorWeight', opacity: 0.5 },
+  { key: 'priority', label: 'factorPriority', opacity: 0.3 },
 ] as const
 
 const segments = computed(() => {
@@ -133,42 +107,12 @@ const segments = computed(() => {
           </span>
           <span
             class="flex items-center gap-1 font-mono text-[11px] text-[var(--text-tertiary)] sm:text-xs"
-            :title="t('dashboard.autoRoute.cost')"
+            :title="t('dashboard.autoRoute.factorQuota')"
+            data-route-balance
           >
-            <Percent :size="12" aria-hidden="true" />
-            {{ (entry.upstreamMult * entry.channelMult).toFixed(2) }}×
+            <CircleDollarSign :size="12" aria-hidden="true" />
+            {{ entry.quota.toFixed(2) }}
           </span>
-        </span>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <HeartPulse
-          :size="12"
-          class="shrink-0 text-[var(--text-tertiary)]"
-          aria-hidden="true"
-        />
-        <div
-          class="grid min-w-24 max-w-64 flex-1 grid-cols-10 gap-0.5"
-          role="img"
-          :aria-label="`${t('dashboard.autoRoute.health')} ${entry.health}%`"
-          data-channel-health-meter
-        >
-          <span
-            v-for="index in HEALTH_SEGMENTS"
-            :key="index"
-            class="h-2 rounded-sm"
-            :style="{
-              background:
-                index <= healthFilled ? healthColor : 'var(--surface-muted)',
-            }"
-            data-channel-health-segment
-          />
-        </div>
-        <span
-          class="w-9 shrink-0 text-right text-[10px] font-semibold tabular-nums"
-          :style="{ color: healthColor }"
-        >
-          {{ entry.health }}%
         </span>
       </div>
 

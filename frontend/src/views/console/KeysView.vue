@@ -3,12 +3,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
-import { isMockApi } from '@/api/client'
 import { parseTokenPage, parseUserModels } from '@/api/liveContracts'
 import { ApiError, type PageResult } from '@/api/types'
 import type { TokenSummary } from '@/types/console'
-import KeyChannelsModal from '@/components/console/keys/KeyChannelsModal.vue'
-import KeyInlineChannels from '@/components/console/keys/KeyInlineChannels.vue'
 import KeyFormModal from '@/components/console/keys/KeyFormModal.vue'
 import KeyEndpointStrip from '@/components/console/keys/KeyEndpointStrip.vue'
 import KeyMobileList from '@/components/console/keys/KeyMobileList.vue'
@@ -24,17 +21,11 @@ import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
 import { useLatestRequest } from '@/composables/useLatestRequest'
-import { useSidebarCollapsed } from '@/composables/useSidebarCollapsed'
 import { useToast } from '@/composables/useToast'
 import { formatDate, formatQuota } from '@/utils/format'
 
 const { t } = useI18n()
 const toast = useToast()
-
-// Mirror the sidebar collapsed state so the overlay / drawer left-edge tracks
-// the actual sidebar width reactively.
-const sidebarCollapsed = useSidebarCollapsed()
-const sidebarLeft = computed(() => (sidebarCollapsed.value ? '64px' : '220px'))
 
 const rows = ref<TokenSummary[]>([])
 const total = ref(0)
@@ -51,16 +42,7 @@ const editing = ref<TokenSummary | null>(null)
 const deleting = ref<TokenSummary | null>(null)
 const batchDeleting = ref(false)
 const deleteLoading = ref(false)
-const channelsToken = ref<TokenSummary | null>(null)
-
-// Inline channel-routing panel (double-click a row). null = collapsed.
-const expandedToken = ref<TokenSummary | null>(null)
 const revealTokenId = ref<number | null>(null)
-
-const clickHint = ref<{ x: number; y: number } | null>(null)
-let clickTimer = 0
-let clickHintTimer = 0
-const lastClickPos = ref({ x: 0, y: 0 })
 
 const columns = computed<TableColumn[]>(() => [
   { key: 'name', label: t('keys.colName') },
@@ -121,9 +103,7 @@ async function load() {
     )
     return
   }
-  const pageResult = isMockApi
-    ? result.value
-    : parseTokenPage(result.value as unknown)
+  const pageResult = parseTokenPage(result.value as unknown)
   rows.value = pageResult.items
   total.value = pageResult.total
   selected.value = []
@@ -149,10 +129,10 @@ async function toggleStatus(row: TokenSummary) {
   if (togglingIds.value.has(row.id)) return // ignore double-clicks in flight
   togglingIds.value = new Set(togglingIds.value).add(row.id)
   try {
-    await api.put(
-      isMockApi ? `/api/token/${row.id}` : '/api/token/?status_only=true',
-      { id: row.id, status: row.status === 1 ? 2 : 1 }
-    )
+    await api.put('/api/token/?status_only=true', {
+      id: row.id,
+      status: row.status === 1 ? 2 : 1,
+    })
     toast.success(t('keys.updated'))
     load()
   } catch (error) {
@@ -172,30 +152,6 @@ function openCreate() {
 function openEdit(row: TokenSummary) {
   editing.value = row
   formOpen.value = true
-}
-
-function captureClick(event: MouseEvent) {
-  lastClickPos.value = { x: event.clientX, y: event.clientY }
-}
-
-function onRowClick() {
-  if (!isMockApi) return
-  window.clearTimeout(clickTimer)
-  clickTimer = window.setTimeout(() => {
-    window.clearTimeout(clickHintTimer)
-    clickHint.value = { ...lastClickPos.value }
-    clickHintTimer = window.setTimeout(() => {
-      clickHint.value = null
-    }, 1800)
-  }, 250)
-}
-
-function onRowDblclick(row: TokenSummary) {
-  if (!isMockApi) return
-  window.clearTimeout(clickTimer)
-  clickHint.value = null
-  // Toggle: double-click the same row again collapses the panel.
-  expandedToken.value = expandedToken.value?.id === row.id ? null : row
 }
 
 function copyKey(row: TokenSummary) {
@@ -230,12 +186,8 @@ async function confirmDelete() {
 onMounted(async () => {
   void load()
   try {
-    const meta = await api.get<unknown>(
-      isMockApi ? '/api/models/available' : '/api/user/models'
-    )
-    models.value = isMockApi
-      ? ((meta as { models?: string[] }).models ?? [])
-      : parseUserModels(meta)
+    const meta = await api.get<unknown>('/api/user/models')
+    models.value = parseUserModels(meta)
   } catch (error) {
     toast.error(error instanceof ApiError ? error.message : String(error))
   }
@@ -243,17 +195,11 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.clearTimeout(searchTimer)
-  window.clearTimeout(clickTimer)
-  window.clearTimeout(clickHintTimer)
 })
 </script>
 
 <template>
-  <div
-    data-key-page
-    class="mx-auto max-w-[1276px]"
-    @click.capture="captureClick"
-  >
+  <div data-key-page class="mx-auto max-w-[1276px]">
     <PageBreadcrumb :crumbs="[t('keys.breadcrumb.0'), t('keys.breadcrumb.1')]">
       <template #action>
         <KeyEndpointStrip />
@@ -307,13 +253,9 @@ onBeforeUnmount(() => {
         :scroll-region-label="t('keys.breadcrumb.1')"
         selectable
         checkbox-shape="round"
-        row-clickable
-        row-dblclickable
         :empty-title="t('keys.emptyTitle')"
         :empty-hint="t('keys.emptyHint')"
         empty-illustration="empty-keys"
-        @row-click="onRowClick"
-        @row-dblclick="onRowDblclick($event as TokenSummary)"
       >
         <template #cell-name="{ row }">
           <span class="font-medium">{{ (row as TokenSummary).name }}</span>
@@ -411,45 +353,6 @@ onBeforeUnmount(() => {
             @click.stop
             @dblclick.stop
           >
-            <IconButton
-              v-if="isMockApi"
-              :label="t('keys.manageChannels')"
-              @click="channelsToken = row as TokenSummary"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M3 6h18M3 12h18M3 18h18" />
-                <circle
-                  cx="20"
-                  cy="6"
-                  r="2"
-                  fill="currentColor"
-                  stroke="none"
-                />
-                <circle
-                  cx="4"
-                  cy="12"
-                  r="2"
-                  fill="currentColor"
-                  stroke="none"
-                />
-                <circle
-                  cx="20"
-                  cy="18"
-                  r="2"
-                  fill="currentColor"
-                  stroke="none"
-                />
-              </svg>
-            </IconButton>
             <IconButton
               :label="t('keys.editKey')"
               @click="openEdit(row as TokenSummary)"
@@ -552,8 +455,6 @@ onBeforeUnmount(() => {
           :is-toggling="(row) => togglingIds.has(row.id)"
           :toggle-status="toggleStatus"
           :view-key="copyKey"
-          :manage-channels="(row) => (channelsToken = row)"
-          :show-channels="isMockApi"
           :edit-key="openEdit"
           :delete-key="(row) => (deleting = row)"
         />
@@ -567,64 +468,12 @@ onBeforeUnmount(() => {
       </div>
     </ConsoleCard>
 
-    <!-- overlay backdrop + bottom-up drawer — teleported to body so fixed covers full viewport -->
-    <Teleport to="body">
-      <!-- overlay (click to dismiss) -->
-      <Transition
-        enter-active-class="transition-opacity duration-200 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition-opacity duration-150 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div
-          v-if="isMockApi && expandedToken"
-          class="fixed top-0 bottom-0 right-0 z-40 bg-black/40 backdrop-blur-[1px]"
-          :style="{ left: sidebarLeft }"
-          aria-hidden="true"
-          @click="expandedToken = null"
-        />
-      </Transition>
-
-      <!-- bottom-up channel routing drawer -->
-      <Transition
-        enter-active-class="transition-transform duration-250 ease-out"
-        enter-from-class="translate-y-full"
-        enter-to-class="translate-y-0"
-        leave-active-class="transition-transform duration-200 ease-in"
-        leave-from-class="translate-y-0"
-        leave-to-class="translate-y-full"
-      >
-        <div
-          v-if="isMockApi && expandedToken"
-          class="fixed bottom-0 right-0 z-50"
-          :style="{ left: sidebarLeft }"
-        >
-          <KeyInlineChannels
-            :token="expandedToken"
-            @close="expandedToken = null"
-            @saved="load"
-          />
-        </div>
-      </Transition>
-    </Teleport>
-
     <!-- create / edit -->
     <KeyFormModal
       :open="formOpen"
       :editing="editing"
       :models="models"
       @close="formOpen = false"
-      @saved="load"
-    />
-
-    <!-- channel management modal (action-column button) -->
-    <KeyChannelsModal
-      v-if="isMockApi"
-      :open="channelsToken !== null"
-      :token="channelsToken"
-      @close="channelsToken = null"
       @saved="load"
     />
 
@@ -649,23 +498,5 @@ onBeforeUnmount(() => {
       @confirm="confirmDelete"
       @cancel="closeDelete"
     />
-
-    <Transition
-      enter-active-class="transition-all duration-150 ease-out"
-      enter-from-class="opacity-0 scale-90"
-      enter-to-class="opacity-100 scale-100"
-      leave-active-class="transition-all duration-300 ease-in"
-      leave-from-class="opacity-100 scale-100"
-      leave-to-class="opacity-0 scale-90"
-    >
-      <div
-        v-if="clickHint"
-        class="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-lg bg-[var(--surface-muted)] px-3 py-1.5 text-xs text-[var(--text-secondary)] shadow-md ring-1 ring-[var(--border-subtle)]"
-        :style="{ left: `${clickHint.x}px`, top: `${clickHint.y - 10}px` }"
-        aria-hidden="true"
-      >
-        {{ t('keys.dblclickHint') }}
-      </div>
-    </Transition>
   </div>
 </template>

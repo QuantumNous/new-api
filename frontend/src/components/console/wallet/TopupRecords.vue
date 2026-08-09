@@ -3,15 +3,19 @@ import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
-import { isMockApi } from '@/api/client'
-import { parseTopupPage } from '@/api/liveContracts'
 import { ApiError, type PageResult } from '@/api/types'
-import type { TopupRecord } from '@/types/console'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
+import {
+  adminOrderMethodLabelKey,
+  adminOrderStatusLabelKey,
+  adminOrderStatusTone,
+  formatAdminOrderAmount,
+} from '@/constants/adminOrders'
+import type { AdminOrder } from '@/types/console'
 import { formatQuota, formatTime } from '@/utils/format'
 
 const refreshKey = defineModel<number>('refreshKey', { default: 0 })
@@ -19,34 +23,19 @@ const refreshKey = defineModel<number>('refreshKey', { default: 0 })
 const { t } = useI18n()
 const toast = useToast()
 
-const rows = ref<TopupRecord[]>([])
+const rows = ref<AdminOrder[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(6)
 const loading = ref(true)
 const listRequest = useLatestRequest()
 
-const methodLabel: Record<TopupRecord['method'], string> = {
-  epay: 'E-Pay',
-  stripe: 'Stripe',
-  creem: 'Creem',
-  redeem: '',
-}
-const statusTone = {
-  success: 'success',
-  pending: 'info',
-  failed: 'danger',
-} as const
-
 async function load() {
   loading.value = true
   const result = await listRequest.run((signal) =>
-    api.get<PageResult<TopupRecord>>(
-      '/api/user/topup/self',
-      {
-        p: page.value,
-        page_size: pageSize.value,
-      },
+    api.get<PageResult<AdminOrder>>(
+      '/api/next/wallet/topups',
+      { p: page.value, page_size: pageSize.value },
       { signal }
     )
   )
@@ -60,11 +49,8 @@ async function load() {
     )
     return
   }
-  const pageResult = isMockApi
-    ? result.value
-    : parseTopupPage(result.value as unknown)
-  rows.value = pageResult.items
-  total.value = pageResult.total
+  rows.value = result.value.items
+  total.value = result.value.total
 }
 
 function reloadFromFirstPage() {
@@ -88,23 +74,24 @@ onMounted(load)
       >
         <div class="min-w-0">
           <p class="truncate font-mono text-xs text-[var(--text-secondary)]">
-            {{ row.trade_no }}
+            {{ row.order_no }}
           </p>
           <p class="mt-0.5 text-xs text-[var(--text-tertiary)]">
-            {{ row.provider ?? methodLabel[row.method] }}
-            ·
+            {{ t(adminOrderMethodLabelKey(row.method)) }} ·
             {{ formatTime(row.created) }}
           </p>
         </div>
         <div class="shrink-0 text-right">
           <p class="text-sm font-bold text-[var(--text-primary)]">
-            +{{ row.amount.toFixed(2) }}
+            {{ formatAdminOrderAmount(row.amount, row.currency) }}
           </p>
           <p class="text-[11px] text-[var(--text-tertiary)]">
-            {{ formatQuota(row.money) }}
+            {{
+              row.quota > 0 ? formatQuota(row.quota) : t('orders.notCredited')
+            }}
           </p>
-          <StatusChip :tone="statusTone[row.status]" class="mt-1">
-            {{ t(`common.${row.status}`) }}
+          <StatusChip :tone="adminOrderStatusTone(row.status)" class="mt-1">
+            {{ t(adminOrderStatusLabelKey(row.status)) }}
           </StatusChip>
         </div>
       </li>

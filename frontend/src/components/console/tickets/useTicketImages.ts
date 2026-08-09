@@ -1,19 +1,15 @@
 import { onScopeDispose, ref } from 'vue'
 
-/**
- * Client-side image handling for the ticket prototype. There is no real upload
- * endpoint in the mock backend, so files are turned into object URLs that stay
- * valid for the session — mirroring the frontend mock's ObjectURL approach.
- * Returns i18n keys for errors so callers translate at the display layer.
- */
+/** Keeps selected files for multipart submission and object URLs for preview. */
 
 export interface TicketImage {
   id: string
   url: string
+  file: File | null
   error: string | null
 }
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 /** Rejected-file tiles are informational; they dismiss themselves. */
 const ERROR_DISMISS_MS = 4000
@@ -44,7 +40,7 @@ export function useTicketImages(maxCount = 4) {
         // skipped. Error tiles never consume an upload slot and auto-dismiss;
         // no object URL is created for invalid files.
         const id = nextId()
-        images.value.push({ id, url: '', error })
+        images.value.push({ id, url: '', file: null, error })
         const timer = window.setTimeout(() => {
           errorTimers.delete(timer)
           remove(id)
@@ -56,6 +52,7 @@ export function useTicketImages(maxCount = 4) {
       images.value.push({
         id: nextId(),
         url: URL.createObjectURL(file),
+        file,
         error: null,
       })
     }
@@ -68,10 +65,13 @@ export function useTicketImages(maxCount = 4) {
     if (removed.url) URL.revokeObjectURL(removed.url)
   }
 
-  function getUrls(): string[] {
+  function getFiles(): File[] {
     return images.value
-      .filter((img) => img.url && !img.error)
-      .map((img) => img.url)
+      .filter(
+        (img): img is TicketImage & { file: File } =>
+          Boolean(img.file) && !img.error
+      )
+      .map((img) => img.file)
   }
 
   function reset() {
@@ -89,5 +89,5 @@ export function useTicketImages(maxCount = 4) {
 
   onScopeDispose(reset)
 
-  return { images, addFiles, remove, getUrls, reset, canAddMore, maxCount }
+  return { images, addFiles, remove, getFiles, reset, canAddMore, maxCount }
 }

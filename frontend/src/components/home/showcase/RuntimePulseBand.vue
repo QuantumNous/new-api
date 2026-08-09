@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Activity, Zap } from 'lucide-vue-next'
+import { Activity } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 import type { HomeRuntime } from '@/types/homeShowcase'
 
 const props = defineProps<{
   runtime: HomeRuntime
-  requests: number
   uptimeLabel: string
 }>()
 
@@ -67,117 +66,30 @@ watch(
   { immediate: true }
 )
 
-// ===== 请求总数 count-up =====
-const displayRequests = ref(0)
-let countRafId: number | null = null
-let countStarted = false
-let countTarget = 0
-
-function startCountUp(target: number) {
-  if (countStarted) return
-  countStarted = true
-  countTarget = target
-  const start = Math.max(0, target - 1400)
-  const duration = 1800
-  const startTime = performance.now()
-
-  function tick(now: number) {
-    const elapsed = now - startTime
-    const progress = Math.min(elapsed / duration, 1)
-    // ease-out cubic
-    const eased = 1 - Math.pow(1 - progress, 3)
-    displayRequests.value = Math.round(start + (countTarget - start) * eased)
-    if (progress < 1) {
-      countRafId = requestAnimationFrame(tick)
-    } else {
-      displayRequests.value = countTarget
-      countRafId = null
-    }
-  }
-  countRafId = requestAnimationFrame(tick)
-}
-
-watch(
-  () => props.requests,
-  (target) => {
-    if (!countStarted) return
-    if (countRafId !== null) {
-      countTarget = target
-      return
-    }
-    displayRequests.value = target
-  }
-)
-
 function previousDigit(id: string, fallback: string) {
   return previousDigits.value[id] ?? fallback
 }
 
-// 监听 section 进入视口后触发 count-up
-const sectionRef = ref<HTMLElement | null>(null)
-let io: IntersectionObserver | null = null
+const barHeights = [14, 20, 16, 26, 12, 22, 18]
+const barsVisible = ref(false)
 
 onMounted(() => {
-  // 初始化 prevDigits
   clockGroups.value.forEach((group) => {
     group.value.split('').forEach((digit, idx) => {
       prevDigits.value[`${group.key}-${idx}`] = digit
     })
   })
-  displayRequests.value = 0
-
-  const reducedMotion = window.matchMedia(
-    '(prefers-reduced-motion: reduce)'
-  ).matches
-  if (reducedMotion) {
-    displayRequests.value = props.requests
-    countStarted = true
-    return
-  }
-
-  io = new IntersectionObserver(
-    ([entry]) => {
-      if (entry.isIntersecting) {
-        startCountUp(props.requests)
-        io?.disconnect()
-      }
-    },
-    { threshold: 0.15 }
-  )
-  if (sectionRef.value) io.observe(sectionRef.value)
+  barsVisible.value = true
 })
 
 onBeforeUnmount(() => {
-  io?.disconnect()
-  if (countRafId !== null) cancelAnimationFrame(countRafId)
   Object.values(flipTimers).forEach(clearTimeout)
-})
-
-// 可用率柱状图高度（固定 seed，每次相同）
-const barHeights = [14, 20, 16, 26, 12, 22, 18]
-
-// 柱状图入场：进入视口后依次弹入
-const barsVisible = ref(false)
-onMounted(() => {
-  const reducedMotion = window.matchMedia(
-    '(prefers-reduced-motion: reduce)'
-  ).matches
-  if (reducedMotion) {
-    barsVisible.value = true
-    return
-  }
-  // barsVisible 通过 watch(displayRequests) 在 count-up 启动后自动设为 true
-})
-
-watch(displayRequests, (v) => {
-  if (v > 0 && !barsVisible.value) barsVisible.value = true
 })
 </script>
 
 <template>
   <section
     id="home-runtime"
-    ref="sectionRef"
     class="home-band runtime-band"
     aria-labelledby="runtime-title"
   >
@@ -273,37 +185,6 @@ watch(displayRequests, (v) => {
           </span>
           <strong>{{ uptimeLabel }}</strong>
           <span>/ {{ t('showcase.runtime.recentAvailability') }}</span>
-        </div>
-      </div>
-
-      <!-- 右栏：请求总数 + sparkline -->
-      <div class="runtime-ledger-panel runtime-ledger-panel--requests">
-        <header class="runtime-ledger-heading">
-          <Zap :size="19" aria-hidden="true" />
-          <strong>{{ t('showcase.runtime.stableCalls') }}</strong>
-          <span aria-hidden="true">·</span>
-          <em>{{ t('showcase.runtime.servedTag') }}</em>
-        </header>
-
-        <strong class="runtime-request-total">
-          {{ displayRequests.toLocaleString('en-US') }}
-        </strong>
-        <p class="runtime-request-caption">
-          {{ t('showcase.runtime.todaySuccess') }} ·
-          {{ t('showcase.runtime.protectedBy') }}
-        </p>
-
-        <div class="runtime-trend">
-          <svg
-            viewBox="0 0 240 54"
-            role="img"
-            :aria-label="t('showcase.runtime.trend24h')"
-          >
-            <polyline
-              points="2,44 15,39 29,41 43,29 57,31 72,22 87,24 102,12 118,17 133,9 148,18 163,15 178,26 193,28 208,39 223,41 238,35"
-            />
-          </svg>
-          <span>{{ t('showcase.runtime.trend24h') }}</span>
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -811,6 +812,175 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 	return tx.First(user, user.Id).Error
 }
 
+// UpdateManagedWithTx applies the complete administrator-editable user
+// profile while preserving accounting fields and serializing email changes.
+func (user *User) UpdateManagedWithTx(tx *gorm.DB, updatePassword bool, operatorRole int) error {
+	if user.Id <= 0 {
+		return errors.New("invalid user id")
+	}
+	user.Email = NormalizeEmail(user.Email)
+	return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
+		if err := ensureEmailAvailableWithTx(tx, user.Email, user.Id); err != nil {
+			return err
+		}
+
+		var current User
+		if err := lockForUpdate(tx).First(&current, user.Id).Error; err != nil {
+			return err
+		}
+		if operatorRole <= 0 || current.Role >= operatorRole || user.Role >= operatorRole {
+			return ErrManagedUserForbidden
+		}
+		password := user.Password
+		if updatePassword {
+			var err error
+			password, err = common.Password2Hash(password)
+			if err != nil {
+				return err
+			}
+		}
+
+		updates := map[string]interface{}{
+			"username":     user.Username,
+			"display_name": user.DisplayName,
+			"email":        user.Email,
+			"role":         user.Role,
+			"status":       user.Status,
+		}
+		if updatePassword {
+			updates["password"] = password
+		}
+		authChanged := current.Role != user.Role || current.Status != user.Status ||
+			(updatePassword && current.Password != password)
+		if authChanged {
+			authVersion, err := IncrementUserAuthVersionWithTx(tx, user.Id)
+			if err != nil {
+				return err
+			}
+			user.AuthVersion = authVersion
+		}
+		if err := tx.Model(&current).Updates(updates).Error; err != nil {
+			return err
+		}
+		return tx.First(user, user.Id).Error
+	})
+}
+
+var (
+	ErrManagedUserNotFound        = errors.New("managed user not found")
+	ErrManagedUserForbidden       = errors.New("managed user permission denied")
+	ErrManagedUserQuotaOutOfRange = errors.New("managed user quota is out of range")
+)
+
+type ManagedUserStatusResult struct {
+	Users   []User
+	Changed int
+}
+
+// UpdateManagedUserStatuses validates and updates the complete target set in
+// one transaction. A missing or newly privileged target aborts the whole batch.
+func UpdateManagedUserStatuses(ids []int, status, operatorID, operatorRole int) (ManagedUserStatusResult, error) {
+	result := ManagedUserStatusResult{Users: make([]User, 0, len(ids))}
+	changedUsers := make([]User, 0, len(ids))
+	if len(ids) == 0 || operatorID <= 0 || operatorRole <= 0 {
+		return result, ErrManagedUserForbidden
+	}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).Where("id IN ?", ids).Order("id ASC").Find(&result.Users).Error; err != nil {
+			return err
+		}
+		if len(result.Users) != len(ids) {
+			return ErrManagedUserNotFound
+		}
+		for _, user := range result.Users {
+			if user.Id == operatorID || user.Role >= operatorRole {
+				return ErrManagedUserForbidden
+			}
+		}
+		for index := range result.Users {
+			user := &result.Users[index]
+			if user.Status == status {
+				continue
+			}
+			authVersion, err := IncrementUserAuthVersionWithTx(tx, user.Id)
+			if err != nil {
+				return err
+			}
+			update := tx.Model(&User{}).Where("id = ?", user.Id).Update("status", status)
+			if update.Error != nil {
+				return update.Error
+			}
+			if update.RowsAffected != 1 {
+				return ErrManagedUserNotFound
+			}
+			user.Status = status
+			user.AuthVersion = authVersion
+			changedUsers = append(changedUsers, *user)
+		}
+		return nil
+	})
+	if err != nil {
+		return ManagedUserStatusResult{}, err
+	}
+	for _, user := range changedUsers {
+		if err := PublishUserAuthCache(user.Id); err != nil {
+			return result, err
+		}
+		if _, err := RevokeAllUserSessions(user.Id, "admin_user_status_update"); err != nil {
+			return result, err
+		}
+	}
+	result.Changed = len(changedUsers)
+	return result, nil
+}
+
+func AdjustManagedUserQuota(userID, delta, operatorRole int) (*User, error) {
+	if userID <= 0 || delta == 0 || operatorRole <= 0 {
+		return nil, ErrManagedUserForbidden
+	}
+	var user User
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).First(&user, userID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrManagedUserNotFound
+			}
+			return err
+		}
+		if user.Role >= operatorRole {
+			return ErrManagedUserForbidden
+		}
+		current := int64(user.Quota)
+		change := int64(delta)
+		if current < math.MinInt32 || current > math.MaxInt32 ||
+			(change > 0 && change > math.MaxInt32-current) ||
+			(change < 0 && change < math.MinInt32-current) {
+			return ErrManagedUserQuotaOutOfRange
+		}
+		user.Quota = int(current + change)
+		update := tx.Model(&User{}).Where("id = ?", userID).Update("quota", user.Quota)
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected != 1 {
+			return ErrManagedUserNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	var cacheErr error
+	if delta > 0 {
+		cacheErr = cacheIncrUserQuota(userID, int64(delta))
+	} else {
+		cacheErr = cacheDecrUserQuota(userID, -int64(delta))
+	}
+	if cacheErr != nil {
+		common.SysError(fmt.Sprintf("failed to update user %d quota cache after managed adjustment: %v", userID, cacheErr))
+	}
+	return &user, nil
+}
+
 func (user *User) ClearBinding(bindingType string) error {
 	if user.Id == 0 {
 		return errors.New("user id is empty")
@@ -878,37 +1048,95 @@ func (user *User) HardDelete() error {
 	if user.Id == 0 {
 		return errors.New("id 为空！")
 	}
-	var tokens []Token
-	var deletedAuthVersion int64
+	var deleted []hardDeletedUserState
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
-		deletedAuthVersion, err = IncrementUserAuthVersionWithTx(tx, user.Id)
-		if err != nil {
-			return err
-		}
-		if common.RedisEnabled {
-			if err := tx.Unscoped().Select("id", commonKeyCol).Where("user_id = ?", user.Id).Find(&tokens).Error; err != nil {
-				return err
-			}
-		}
-		if err := deleteUserAuthenticationData(tx, user.Id); err != nil {
-			return err
-		}
-		return tx.Unscoped().Delete(user).Error
+		deleted, err = hardDeleteUsersWithTx(tx, []User{{Id: user.Id}})
+		return err
 	})
 	if err != nil {
 		return err
 	}
-	if err := publishCommittedUserAuthVersion(user.Id, deletedAuthVersion); err != nil {
-		common.SysError(fmt.Sprintf("failed to publish auth tombstone after hard deleting user %d: %v", user.Id, err))
-	}
-	if err := invalidateTokensCache(tokens); err != nil {
-		common.SysError(fmt.Sprintf("failed to invalidate token cache after hard deleting user %d: %v", user.Id, err))
-	}
-	if err := invalidateUserCache(user.Id); err != nil {
-		common.SysError(fmt.Sprintf("failed to invalidate user cache after hard deleting user %d: %v", user.Id, err))
-	}
+	finishHardDeletedUsers(deleted)
 	return nil
+}
+
+type hardDeletedUserState struct {
+	ID          int
+	AuthVersion int64
+	Tokens      []Token
+}
+
+func hardDeleteUsersWithTx(tx *gorm.DB, users []User) ([]hardDeletedUserState, error) {
+	deleted := make([]hardDeletedUserState, 0, len(users))
+	for _, user := range users {
+		state := hardDeletedUserState{ID: user.Id}
+		var err error
+		state.AuthVersion, err = IncrementUserAuthVersionWithTx(tx, user.Id)
+		if err != nil {
+			return nil, err
+		}
+		if common.RedisEnabled {
+			if err := tx.Unscoped().Select("id", commonKeyCol).Where("user_id = ?", user.Id).Find(&state.Tokens).Error; err != nil {
+				return nil, err
+			}
+		}
+		if err := deleteUserAuthenticationData(tx, user.Id); err != nil {
+			return nil, err
+		}
+		result := tx.Unscoped().Delete(&User{}, user.Id)
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		if result.RowsAffected != 1 {
+			return nil, ErrManagedUserNotFound
+		}
+		deleted = append(deleted, state)
+	}
+	return deleted, nil
+}
+
+func finishHardDeletedUsers(users []hardDeletedUserState) {
+	for _, user := range users {
+		if err := publishCommittedUserAuthVersion(user.ID, user.AuthVersion); err != nil {
+			common.SysError(fmt.Sprintf("failed to publish auth tombstone after hard deleting user %d: %v", user.ID, err))
+		}
+		if err := invalidateTokensCache(user.Tokens); err != nil {
+			common.SysError(fmt.Sprintf("failed to invalidate token cache after hard deleting user %d: %v", user.ID, err))
+		}
+		if err := invalidateUserCache(user.ID); err != nil {
+			common.SysError(fmt.Sprintf("failed to invalidate user cache after hard deleting user %d: %v", user.ID, err))
+		}
+	}
+}
+
+func HardDeleteManagedUsers(ids []int, operatorID, operatorRole int) (int, error) {
+	if len(ids) == 0 || operatorID <= 0 || operatorRole <= 0 {
+		return 0, ErrManagedUserForbidden
+	}
+	var deleted []hardDeletedUserState
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		users := make([]User, 0, len(ids))
+		if err := lockForUpdate(tx).Where("id IN ?", ids).Order("id ASC").Find(&users).Error; err != nil {
+			return err
+		}
+		if len(users) != len(ids) {
+			return ErrManagedUserNotFound
+		}
+		for _, user := range users {
+			if user.Id == operatorID || user.Role >= operatorRole {
+				return ErrManagedUserForbidden
+			}
+		}
+		var err error
+		deleted, err = hardDeleteUsersWithTx(tx, users)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	finishHardDeletedUsers(deleted)
+	return len(deleted), nil
 }
 
 func deleteUserAuthenticationData(tx *gorm.DB, userId int) error {

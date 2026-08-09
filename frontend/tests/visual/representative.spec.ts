@@ -6,6 +6,7 @@ import {
   assertNoHorizontalOverflow,
   configureStablePage,
   freezeAndInspectHomeCanvas,
+  isExpectedGuestRefreshConsoleMessage,
   waitForStablePage,
   type VisualTheme,
 } from './fixtures'
@@ -58,11 +59,6 @@ const darkScenarios: Scenario[] = [
     path: '/console/logs',
     openLogDetails: true,
   },
-  {
-    name: 'plan-form-modal',
-    path: '/console/plan-management',
-    openModalByButton: '新建套餐',
-  },
   { name: 'lab-chat', path: '/lab/chat' },
   { name: 'activity', path: '/console/activity' },
   { name: 'farm', path: '/console/farm' },
@@ -99,6 +95,7 @@ async function auditScenario(
   const runtimeErrors: string[] = []
   page.on('pageerror', (error) => runtimeErrors.push(error.message))
   page.on('console', (message) => {
+    if (isExpectedGuestRefreshConsoleMessage(page, message)) return
     if (message.type() === 'warning' || message.type() === 'error') {
       runtimeErrors.push(`${message.type()}: ${message.text()}`)
     }
@@ -136,7 +133,11 @@ async function auditScenario(
   if (scenario.openUsageDetails) {
     const trigger = page.locator('[data-log-usage-trigger]:visible').first()
     await expect(trigger).toBeVisible()
+    await trigger.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(100)
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
     await trigger.click()
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true')
     await expect(page.locator('[data-log-usage-popover]')).toBeVisible()
     await waitForStablePage(page)
   }

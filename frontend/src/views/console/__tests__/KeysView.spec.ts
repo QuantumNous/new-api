@@ -24,6 +24,22 @@ const tokens: TokenSummary[] = Array.from({ length: 10 }, (_, index) => ({
   created_time: 1_722_000_000,
 }))
 
+const backendTokens = tokens.map((token) => ({
+  id: token.id,
+  name: token.name,
+  key: token.key_preview,
+  group: token.type,
+  status: token.status,
+  used_quota: token.used_quota,
+  remain_quota: token.remain_quota,
+  unlimited_quota: token.unlimited,
+  model_limits_enabled: false,
+  model_limits: '',
+  allow_ips: '',
+  expired_time: token.expired_time,
+  created_time: token.created_time,
+}))
+
 let wrapper: VueWrapper | null = null
 
 beforeAll(async () => {
@@ -42,13 +58,18 @@ describe('KeysView mobile loading contract', () => {
     let tokenRequestCount = 0
     const pendingPage = new Promise<never>(() => {})
     vi.spyOn(api, 'get').mockImplementation((path: string) => {
-      if (path === '/api/models/available') {
+      if (path === '/api/user/models') {
         return Promise.resolve({ models: [] })
       }
       if (path === '/api/token/') {
         tokenRequestCount++
         if (tokenRequestCount > 1) return pendingPage
-        return Promise.resolve({ items: tokens, total: 25 })
+        return Promise.resolve({
+          items: backendTokens,
+          total: 25,
+          page: 1,
+          page_size: 10,
+        })
       }
       return Promise.reject(new Error(`Unexpected API request: ${path}`))
     })

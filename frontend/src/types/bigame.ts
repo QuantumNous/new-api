@@ -1,5 +1,3 @@
-/* Mock data for 无趣大游戏 (game welfare system). */
-
 // ── types ───────────────────────────────────────────────
 export interface GameWallet {
   balance: number // current game coins

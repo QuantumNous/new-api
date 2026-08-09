@@ -39,7 +39,7 @@ export function useActivity() {
       const data = await api.get<{
         activities: Activity[]
         summary: ActivitySummary
-      }>('/api/activity/self')
+      }>('/api/next/activity/self')
       activities.value = data.activities
       summary.value = data.summary
     } catch (error) {
@@ -55,7 +55,7 @@ export function useActivity() {
     claiming.value = true
     try {
       const res = await api.post<{ reward: number; streak: number }>(
-        '/api/activity/checkin',
+        '/api/next/activity/checkin',
         { activity_id: id }
       )
       toast.success(t('activity.checkin.success', { reward: res.reward }))
@@ -71,7 +71,7 @@ export function useActivity() {
     claiming.value = true
     try {
       const res = await api.post<{ message: string; reward: number }>(
-        '/api/activity/claim',
+        '/api/next/activity/claim',
         { activity_id: id, task_id: taskId }
       )
       toast.success(res.message || t('activity.claim.success'))

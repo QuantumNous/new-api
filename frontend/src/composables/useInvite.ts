@@ -1,25 +1,20 @@
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
-import type { InviteInfo } from '@/types/console'
 import { ApiError } from '@/api/types'
-import { useToast } from '@/composables/useToast'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
+import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
-import { QUOTA_PER_DOLLAR } from '@/utils/format'
+import type { InviteInfo } from '@/types/console'
+import { formatQuota, QUOTA_PER_DOLLAR } from '@/utils/format'
 import { safeExternalUrl } from '@/utils/safeUrl'
 
-/**
- * Invite / rebate page state + actions. Keeps InviteView.vue focused on
- * layout by owning data loading, clipboard, share intents and the transfer
- * flow. Failures keep the cached info (contract §4 convention).
- */
 export function useInvite() {
   const { t } = useI18n()
   const toast = useToast()
   const auth = useAuthStore()
-  const { readOnly } = useFeatureAccess('invites', 'prototype')
+  const { readOnly } = useFeatureAccess('invites', 'disabled')
 
   const info = ref<InviteInfo | null>(null)
   const loading = ref(true)
@@ -29,21 +24,10 @@ export function useInvite() {
   const transferDollars = ref<number | null>(null)
   const transferring = ref(false)
 
-  /** Average reward per invitee, in quota. */
-  const avgReward = computed(() => {
-    if (!info.value || info.value.invited === 0) return 0
-    return Math.round(info.value.reward_total / info.value.invited)
-  })
-
-  /** Rebate ratio as a whole-number percent for display (0.02 → 2). */
-  const rebatePercent = computed(() =>
-    info.value ? Math.round(info.value.rate * 100) : 0
-  )
-
   async function load() {
     loading.value = true
     try {
-      const data = await api.get<InviteInfo>('/api/invite/self')
+      const data = await api.get<InviteInfo>('/api/next/invite/self')
       info.value = data
       inviteLink.value = `${window.location.origin}/auth/sign-up?aff=${data.code}`
     } catch (error) {
@@ -60,23 +44,22 @@ export function useInvite() {
       await navigator.clipboard.writeText(text)
       toast.success(t('common.copied'))
     } catch {
-      // Insecure context / denied permission / lost focus — tell the user.
       toast.error(t('common.copyFailed'))
     }
   }
 
   async function copyCode() {
-    if (!info.value) return
-    await writeClipboard(info.value.code)
+    if (info.value) await writeClipboard(info.value.code)
   }
 
   async function copyLink() {
-    if (!inviteLink.value) return
-    await writeClipboard(inviteLink.value)
+    if (inviteLink.value) await writeClipboard(inviteLink.value)
   }
 
   function shareText() {
-    return t('invite.shareText', { rate: rebatePercent.value })
+    return t('invite.shareText', {
+      reward: formatQuota(info.value?.reward_per_invite ?? 0),
+    })
   }
 
   function openShare(url: string, origin: string) {
@@ -107,14 +90,16 @@ export function useInvite() {
   }
 
   async function transfer() {
-    if (readOnly.value || !transferDollars.value) return
-    const quota = Math.round(transferDollars.value * QUOTA_PER_DOLLAR)
+    const dollars = transferDollars.value
+    if (readOnly.value || dollars === null || dollars < 1) return
+    const quota = Math.round(dollars * QUOTA_PER_DOLLAR)
     transferring.value = true
     try {
-      const res = await api.post<{ message: string }>('/api/invite/transfer', {
-        amount: quota,
-      })
-      toast.success(res.message)
+      const response = await api.post<{ message: string }>(
+        '/api/next/invite/transfer',
+        { amount: quota }
+      )
+      toast.success(response.message)
       transferOpen.value = false
       transferDollars.value = null
       await Promise.all([auth.fetchSelf(), load()])
@@ -129,8 +114,6 @@ export function useInvite() {
     info,
     loading,
     inviteLink,
-    avgReward,
-    rebatePercent,
     transferOpen,
     transferDollars,
     transferring,

@@ -5,9 +5,11 @@ import { useI18n } from 'vue-i18n'
 import { SERIES_TOKENS } from '@/charts/palette'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import { adminOrderMethodLabelKey } from '@/constants/adminOrders'
+import {
+  adminOrderPaymentRailLabelKey,
+  formatAdminOrderAmount,
+} from '@/constants/adminOrders'
 import type { AdminOrderMethodShare } from '@/types/console'
-import { formatMoney } from '@/utils/format'
 
 const props = withDefaults(
   defineProps<{
@@ -50,12 +52,12 @@ function share(amount: number): number {
               aria-hidden="true"
             />
             <span class="truncate text-[var(--text-secondary)]">
-              {{ t(adminOrderMethodLabelKey(item.method)) }}
+              {{ t(adminOrderPaymentRailLabelKey(item.method)) }}
             </span>
           </span>
           <span class="shrink-0 tabular-nums">
             <span class="font-semibold text-[var(--text-primary)]">
-              {{ formatMoney(item.amount) }}
+              {{ formatAdminOrderAmount(item.amount, 'CNY') }}
             </span>
             <span class="ml-1.5 text-xs text-[var(--text-tertiary)]">
               ({{ item.count }})
@@ -77,7 +79,7 @@ function share(amount: number): number {
             aria-valuemax="100"
             :aria-label="
               t('orders.paymentShareOf', {
-                method: t(adminOrderMethodLabelKey(item.method)),
+                method: t(adminOrderPaymentRailLabelKey(item.method)),
                 percent: share(item.amount),
               })
             "

@@ -2,7 +2,6 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
-import { isMockApi } from '@/api/client'
 import { ApiError } from '@/api/types'
 import {
   invalidResponse,
@@ -184,6 +183,7 @@ export function parseBackendSubscription(value: unknown): BackendSubscription {
  * arrives here is buyable.
  */
 export function useSubscription() {
+  const subscriptionFeatureEnabled = false
   const { t } = useI18n()
   const toast = useToast()
 
@@ -230,7 +230,7 @@ export function useSubscription() {
       return
     }
     const [planList, summary] = result.value
-    if (!isMockApi) {
+    if (subscriptionFeatureEnabled) {
       if (!Array.isArray(planList) || !isRecord(summary)) {
         invalidResponse('/api/subscription/self')
       }
@@ -285,11 +285,12 @@ export function useSubscription() {
   }
 
   async function purchase(plan: Plan): Promise<boolean> {
+    if (!subscriptionFeatureEnabled) return false
     if (purchasingId.value !== null) return false
     purchasingId.value = plan.id
     try {
       await api.post(
-        isMockApi
+        subscriptionFeatureEnabled
           ? '/api/subscription/purchase'
           : '/api/subscription/balance/pay',
         { plan_id: plan.id }
@@ -305,7 +306,7 @@ export function useSubscription() {
   }
 
   async function setAutoRenew(enabled: boolean): Promise<boolean> {
-    if (!isMockApi) return false
+    if (!subscriptionFeatureEnabled) return false
     savingAutoRenew.value = true
     try {
       const summary = await api.put<{

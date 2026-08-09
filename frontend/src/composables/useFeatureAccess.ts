@@ -1,6 +1,5 @@
 import { computed, type ComputedRef } from 'vue'
 
-import { isMockApi } from '@/api/client'
 import type { FeatureStatus } from '@/api/public'
 import { useAppStore } from '@/stores'
 
@@ -20,8 +19,6 @@ export function useFeatureAccess(
   return {
     status,
     disabled: computed(() => status.value === 'disabled'),
-    // Stateful mock workflows remain available to tests and local design work.
-    // Production HTTP mode only permits writes after the backend marks live.
-    readOnly: computed(() => !isMockApi && status.value !== 'live'),
+    readOnly: computed(() => status.value !== 'live'),
   }
 }

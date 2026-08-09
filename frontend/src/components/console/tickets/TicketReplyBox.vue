@@ -8,7 +8,7 @@ import TicketImageUploader from './TicketImageUploader.vue'
 
 const props = defineProps<{ submitting?: boolean; readonly?: boolean }>()
 const emit = defineEmits<{
-  submit: [payload: { content: string; images: string[] }]
+  submit: [payload: { content: string; attachments: File[] }]
 }>()
 
 const { t } = useI18n()
@@ -19,7 +19,10 @@ const uploader = ref<InstanceType<typeof TicketImageUploader> | null>(null)
 function send() {
   const text = content.value.trim()
   if (!text || props.submitting || props.readonly) return
-  emit('submit', { content: text, images: uploader.value?.getUrls() ?? [] })
+  emit('submit', {
+    content: text,
+    attachments: uploader.value?.getFiles() ?? [],
+  })
   content.value = ''
   uploader.value?.reset()
   showUploader.value = false
@@ -39,7 +42,7 @@ function send() {
       @keydown.enter.exact.prevent="send"
     />
 
-    <TicketImageUploader v-if="showUploader" ref="uploader" :max-count="4" />
+    <TicketImageUploader v-if="showUploader" ref="uploader" :max-count="5" />
 
     <div class="flex items-center justify-between gap-3">
       <button

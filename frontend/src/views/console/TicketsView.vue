@@ -28,7 +28,7 @@ type TicketRow = Omit<TicketItem, 'messages'>
 const { t, locale } = useI18n()
 const router = useRouter()
 const toast = useToast()
-const { readOnly } = useFeatureAccess('tickets', 'prototype')
+const { readOnly } = useFeatureAccess('tickets', 'disabled')
 
 const rows = ref<TicketRow[]>([])
 const total = ref(0)
@@ -61,7 +61,7 @@ async function load() {
   loading.value = true
   const result = await listRequest.run((signal) =>
     api.get<PageResult<TicketRow>>(
-      '/api/ticket/',
+      '/api/next/tickets',
       {
         page: page.value,
         page_size: pageSize.value,

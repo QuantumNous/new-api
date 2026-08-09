@@ -12,7 +12,7 @@ export default {
     groupExplore: 'Explore',
     upgradeTitle: 'Upgrade plan',
     upgradeHint: 'Unlock more capacity and advanced features',
-    prototypeToast: 'Prototype stage — backend not wired up yet',
+    unavailableToast: 'This module is not enabled on the current backend',
     toolbar: {
       private: 'Private',
       privateHint: 'Conversation is not saved to history',
@@ -46,8 +46,6 @@ export default {
       startersTitle: 'Starters for you',
       shuffle: 'Shuffle',
       tryModel: 'Help me with {name}…',
-      stubReply:
-        'This is a sample reply for the prototype. Once the backend is wired up, real model output will stream here.',
     },
     studio: {
       title: 'AI Studio',

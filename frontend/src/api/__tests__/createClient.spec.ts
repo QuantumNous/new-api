@@ -23,16 +23,11 @@ describe('API client request scope', () => {
     )
   })
 
-  it('accepts legacy envelopes for every supported payment provider', async () => {
+  it('rejects nonstandard response envelopes for every endpoint', async () => {
     const endpoints = [
-      '/api/user/stripe/pay',
-      '/api/user/creem/pay',
-      '/api/user/waffo/pay',
-      '/api/user/waffo-pancake/pay',
+      '/api/next/wallet/topup',
+      '/api/user/pay',
       '/api/subscription/epay/pay',
-      '/api/subscription/stripe/pay',
-      '/api/subscription/creem/pay',
-      '/api/subscription/waffo-pancake/pay',
     ]
     for (const url of endpoints) {
       const client = createApiClient({
@@ -41,11 +36,25 @@ describe('API client request scope', () => {
           data: { checkout_url: `https://pay.test/${url.length}` },
         }),
       } as ApiTransport)
-      await expect(client.post(url)).resolves.toMatchObject({
-        checkout_url: expect.any(String),
+      await expect(client.post(url)).rejects.toMatchObject({
+        code: 'INVALID_RESPONSE',
       })
     }
   })
+
+  it.each([null, { success: 'true', data: {} }, { success: true }])(
+    'rejects malformed unified envelopes: %j',
+    async (envelope) => {
+      const client = createApiClient({
+        request: vi.fn().mockResolvedValue(envelope),
+      } as unknown as ApiTransport)
+
+      await expect(client.get('/api/user/self')).rejects.toMatchObject({
+        status: 502,
+        code: 'INVALID_RESPONSE',
+      })
+    }
+  )
 
   it('does not deduplicate GET requests across authentication sessions', async () => {
     let scope = 1

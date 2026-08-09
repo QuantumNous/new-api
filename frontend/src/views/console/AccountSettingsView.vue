@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
-import { isMockApi } from '@/api/client'
 import { ApiError } from '@/api/types'
 import PasswordStrengthMeter from '@/components/auth/PasswordStrengthMeter.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -16,7 +15,6 @@ import PageHero from '@/components/console/PageHero.vue'
 import PreferencesNotificationsPanel from '@/components/console/PreferencesNotificationsPanel.vue'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
-import { useSettingsPrototypeStore } from '@/stores/settingsPrototype'
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
   embedded: false,
@@ -26,7 +24,6 @@ const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToast()
-const prototype = isMockApi ? useSettingsPrototypeStore() : null
 
 const profileOpen = ref(false)
 const displayName = ref(auth.user?.display_name ?? '')
@@ -38,14 +35,6 @@ const savingPassword = ref(false)
 const deleteOpen = ref(false)
 const deleteConfirmText = ref('')
 const deleting = ref(false)
-
-watch(
-  () => auth.user,
-  (user) => {
-    prototype?.initialize(user)
-  },
-  { immediate: true }
-)
 
 function openProfile(): void {
   displayName.value = auth.user?.display_name ?? ''

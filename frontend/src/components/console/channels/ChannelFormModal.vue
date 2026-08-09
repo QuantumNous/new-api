@@ -34,12 +34,13 @@ const { t } = useI18n()
 const saving = ref(false)
 const form = reactive({
   name: '',
+  key: '',
+  baseUrl: '',
+  models: '',
   type: '1',
   status: 1 as 1 | 2,
   priority: 0,
   weight: 0,
-  capacityTotal: 20,
-  channelRatio: 1,
 })
 
 const typeOptions = computed(() =>
@@ -52,12 +53,11 @@ const selectedType = computed(() => Number(form.type))
 const supplier = computed(
   () => adminChannelTypeMeta(selectedType.value).supplier
 )
-const minimumCapacity = computed(() =>
-  Math.max(1, props.editing?.capacity_used ?? 1)
-)
 const valid = computed(
   () =>
     form.name.trim().length > 0 &&
+    (props.editing !== null || form.key.trim().length > 0) &&
+    (props.editing !== null || form.models.trim().length > 0) &&
     Number.isSafeInteger(selectedType.value) &&
     Object.hasOwn(ADMIN_CHANNEL_TYPE_META, selectedType.value) &&
     Number.isSafeInteger(form.priority) &&
@@ -65,12 +65,7 @@ const valid = computed(
     form.priority <= 1_000_000 &&
     Number.isSafeInteger(form.weight) &&
     form.weight >= 0 &&
-    form.weight <= 1_000_000 &&
-    Number.isSafeInteger(form.capacityTotal) &&
-    form.capacityTotal >= minimumCapacity.value &&
-    form.capacityTotal <= 1_000_000 &&
-    Number.isFinite(form.channelRatio) &&
-    form.channelRatio >= 0
+    form.weight <= 1_000_000
 )
 
 watch(
@@ -79,12 +74,13 @@ watch(
     if (!open) return
     const channel = props.editing
     form.name = channel?.name ?? ''
+    form.key = ''
+    form.baseUrl = channel?.base_url ?? ''
+    form.models = channel?.models ?? ''
     form.type = String(channel?.type ?? 1)
     form.status = channel?.status === 2 ? 2 : 1
     form.priority = channel?.priority ?? 0
     form.weight = channel?.weight ?? 0
-    form.capacityTotal = channel?.capacity_total ?? 20
-    form.channelRatio = channel?.channel_ratio ?? 1
   },
   { immediate: true }
 )
@@ -99,14 +95,16 @@ async function submit() {
   try {
     const base: AdminChannelUpdateInput = {
       name: form.name.trim(),
+      base_url: form.baseUrl.trim(),
+      models: form.models.trim(),
       type: selectedType.value,
       priority: Number(form.priority),
       weight: Number(form.weight),
-      capacity_total: Number(form.capacityTotal),
-      channel_ratio: Number(form.channelRatio),
     }
     const input: AdminChannelCreateInput | AdminChannelUpdateInput =
-      props.editing === null ? { ...base, status: form.status } : base
+      props.editing === null
+        ? { ...base, key: form.key.trim(), status: form.status }
+        : base
     if (await props.save(input)) emit('close')
   } finally {
     saving.value = false
@@ -130,6 +128,36 @@ async function submit() {
           autocomplete="off"
         />
       </FormField>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <FormField v-if="editing === null" :label="t('channels.upstreamKey')">
+          <TextInput
+            v-model="form.key"
+            type="password"
+            name="admin-channel-key"
+            :placeholder="t('channels.upstreamKeyPlaceholder')"
+            autocomplete="off"
+          />
+        </FormField>
+        <FormField :label="t('channels.baseUrl')">
+          <TextInput
+            v-model="form.baseUrl"
+            name="admin-channel-base-url"
+            :placeholder="t('channels.baseUrlPlaceholder')"
+            autocomplete="url"
+          />
+        </FormField>
+        <FormField
+          :label="t('channels.models')"
+          :class="editing === null ? '' : 'sm:col-span-2'"
+        >
+          <TextInput
+            v-model="form.models"
+            name="admin-channel-models"
+            :placeholder="t('channels.modelsPlaceholder')"
+          />
+        </FormField>
+      </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
@@ -218,36 +246,6 @@ async function submit() {
             :aria-label="t('channels.weight')"
             class="channel-form-number focus-ring"
           />
-        </FormField>
-        <FormField :label="t('channels.capacityTotal')">
-          <input
-            v-model.number="form.capacityTotal"
-            type="number"
-            :min="minimumCapacity"
-            max="1000000"
-            step="1"
-            name="admin-channel-capacity"
-            :aria-label="t('channels.capacityTotal')"
-            class="channel-form-number focus-ring"
-          />
-        </FormField>
-        <FormField :label="t('channels.channelRatio')">
-          <div class="relative">
-            <input
-              v-model.number="form.channelRatio"
-              type="number"
-              min="0"
-              step="0.01"
-              name="admin-channel-ratio"
-              :aria-label="t('channels.channelRatio')"
-              class="channel-form-number pr-10 focus-ring"
-            />
-            <span
-              class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[var(--text-tertiary)]"
-              aria-hidden="true"
-              >×</span
-            >
-          </div>
         </FormField>
       </div>
     </div>

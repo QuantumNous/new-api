@@ -16,10 +16,9 @@ import {
   Trash2,
   UserRound,
 } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { isMockApi } from '@/api/client'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
@@ -28,14 +27,15 @@ import FormField from '@/components/common/FormField.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TextInput from '@/components/common/TextInput.vue'
 import { useToast } from '@/composables/useToast'
-import { useSettingsPrototypeStore } from '@/stores/settingsPrototype'
-import type {
-  PrototypeBinding,
-  PrototypeBindingId,
-} from '@/stores/settingsPrototype'
+import { publicApi, type PublicStatus } from '@/api/public'
+import type { SettingsBinding, SettingsBindingId } from '@/types/settings'
 import type { UserInfo } from '@/types/auth'
 
 import SettingsSectionHeading from './SettingsSectionHeading.vue'
+import { api } from '@/api/console'
+import { ApiError } from '@/api/types'
+import { applyAuthRotation, parseAuthRotation } from '@/api/authSession'
+import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps<{ user: UserInfo | null }>()
 
@@ -47,199 +47,618 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
-const prototype = isMockApi ? useSettingsPrototypeStore() : null
+const auth = useAuthStore()
+const passkeyEnabled = ref(false)
+const passkeyLastUsedAt = ref<string | null>(null)
+const twoFAEnabled = ref(false)
+const backupCodesRemaining = ref(0)
+const setupQRCode = ref('')
+const setupBackupCodes = ref<string[]>([])
 
 const passkeyRegisterOpen = ref(false)
 const passkeyRemoveOpen = ref(false)
+const passkeyProofCode = ref('')
 const twoFASetupOpen = ref(false)
 const twoFACode = ref('')
 const twoFAAction = ref<'regenerate' | 'disable' | null>(null)
 const backupCodesOpen = ref(false)
 const visibleBackupCodes = ref<string[]>([])
-const bindTarget = ref<PrototypeBindingId | null>(null)
-const unbindTarget = ref<PrototypeBindingId | null>(null)
+const bindTarget = ref<SettingsBindingId | null>(null)
+const unbindTarget = ref<SettingsBindingId | null>(null)
 const bindingEmail = ref('')
 const bindingCode = ref('')
+const emailSending = ref(false)
+const customBindings = ref<SettingsBinding[]>([])
+const publicStatus = ref<PublicStatus | null>(null)
+const oauthPopup = ref<Window | null>(null)
+const oauthProvider = ref('')
+const oauthState = ref('')
 
-const qrCells = Array.from({ length: 49 }, (_, index) =>
-  [
-    0, 1, 2, 4, 5, 6, 7, 9, 11, 13, 14, 15, 16, 18, 19, 20, 24, 26, 28, 29, 30,
-    31, 33, 35, 37, 38, 40, 42, 43, 44, 46, 48,
-  ].includes(index)
-)
-
-const bindingMeta = {
+const bindingMeta: Record<
+  Exclude<SettingsBindingId, `custom:${number}`>,
+  { icon: typeof Mail; labelKey: string }
+> = {
   email: { icon: Mail, labelKey: 'settings.bindingEmail' },
   github: { icon: Github, labelKey: 'settings.bindingGithub' },
   linuxdo: { icon: Terminal, labelKey: 'settings.bindingLinuxDO' },
   discord: { icon: MessageCircle, labelKey: 'settings.bindingDiscord' },
+  oidc: { icon: ShieldCheck, labelKey: 'settings.bindingOIDC' },
   wechat: { icon: MessagesSquare, labelKey: 'settings.bindingWeChat' },
   telegram: { icon: Send, labelKey: 'settings.bindingTelegram' },
 } as const
 
-const readonlyBindings = computed<PrototypeBinding[]>(() => [
-  {
-    id: 'email',
-    bound: Boolean(props.user?.email),
-    account: props.user?.email?.trim() ?? '',
-  },
-  {
-    id: 'github',
-    bound: Boolean(props.user?.github_id),
-    account: props.user?.github_id?.trim() ?? '',
-  },
-  {
-    id: 'linuxdo',
-    bound: Boolean(props.user?.linux_do_id),
-    account: props.user?.linux_do_id?.trim() ?? '',
-  },
-  {
-    id: 'discord',
-    bound: Boolean(props.user?.discord_id),
-    account: props.user?.discord_id?.trim() ?? '',
-  },
-  {
-    id: 'wechat',
-    bound: Boolean(props.user?.wechat_id),
-    account: props.user?.wechat_id?.trim() ?? '',
-  },
-  {
-    id: 'telegram',
-    bound: Boolean(props.user?.telegram_id),
-    account: props.user?.telegram_id?.trim() ?? '',
-  },
+const builtinBindings = computed<SettingsBinding[]>(() =>
+  (
+    [
+      {
+        id: 'email',
+        bound: Boolean(props.user?.email),
+        account: props.user?.email?.trim() ?? '',
+      },
+      {
+        id: 'github',
+        bound: Boolean(props.user?.github_id),
+        account: props.user?.github_id?.trim() ?? '',
+      },
+      {
+        id: 'linuxdo',
+        bound: Boolean(props.user?.linux_do_id),
+        account: props.user?.linux_do_id?.trim() ?? '',
+      },
+      {
+        id: 'discord',
+        bound: Boolean(props.user?.discord_id),
+        account: props.user?.discord_id?.trim() ?? '',
+      },
+      {
+        id: 'oidc',
+        bound: Boolean(props.user?.oidc_id),
+        account: props.user?.oidc_id?.trim() ?? '',
+      },
+      {
+        id: 'wechat',
+        bound: Boolean(props.user?.wechat_id),
+        account: props.user?.wechat_id?.trim() ?? '',
+      },
+      {
+        id: 'telegram',
+        bound: Boolean(props.user?.telegram_id),
+        account: props.user?.telegram_id?.trim() ?? '',
+      },
+    ] as SettingsBinding[]
+  ).filter((binding) => {
+    if (binding.id === 'email') return true
+    const status = publicStatus.value
+    if (!status) return binding.bound
+    const enabled: Record<string, boolean | undefined> = {
+      github: status.github_oauth,
+      discord: status.discord_oauth,
+      linuxdo: status.linuxdo_oauth,
+      oidc: status.oidc_enabled,
+      wechat: status.wechat_login,
+      telegram: status.telegram_oauth,
+    }
+    return Boolean(enabled[binding.id] || binding.bound)
+  })
+)
+
+const bindings = computed<SettingsBinding[]>(() => [
+  ...builtinBindings.value,
+  ...customBindings.value,
 ])
 
-const bindings = computed(() => prototype?.bindings ?? readonlyBindings.value)
-const passkeyEnabled = computed(() => prototype?.passkeyEnabled ?? false)
-const passkeyLastUsedAt = computed(() => prototype?.passkeyLastUsedAt ?? null)
-const twoFAEnabled = computed(() => prototype?.twoFAEnabled ?? false)
-const backupCodesRemaining = computed(
-  () => prototype?.backupCodesRemaining ?? 0
-)
+function bindingMetaFor(binding: SettingsBinding) {
+  if (binding.id.startsWith('custom:')) {
+    return {
+      icon: Link2,
+      label:
+        binding.providerName ||
+        binding.providerSlug ||
+        t('settings.customOAuth'),
+    }
+  }
+  const meta =
+    bindingMeta[binding.id as Exclude<SettingsBindingId, `custom:${number}`>]
+  return { icon: meta.icon, label: t(meta.labelKey) }
+}
 
 const bindingItems = computed(() =>
   bindings.value.map((binding) => ({
     ...binding,
-    icon: bindingMeta[binding.id].icon,
-    label: t(bindingMeta[binding.id].labelKey),
+    ...bindingMetaFor(binding),
   }))
 )
 
 const currentBindLabel = computed(() =>
-  bindTarget.value ? t(bindingMeta[bindTarget.value].labelKey) : ''
+  bindTarget.value
+    ? bindingMetaFor(
+        bindings.value.find((item) => item.id === bindTarget.value) ?? {
+          id: bindTarget.value,
+          bound: false,
+          account: '',
+        }
+      ).label
+    : ''
 )
 
 const currentUnbindLabel = computed(() =>
-  unbindTarget.value ? t(bindingMeta[unbindTarget.value].labelKey) : ''
+  unbindTarget.value
+    ? bindingMetaFor(
+        bindings.value.find((item) => item.id === unbindTarget.value) ?? {
+          id: unbindTarget.value,
+          bound: true,
+          account: '',
+        }
+      ).label
+    : ''
 )
 
 const emailBinding = computed(() =>
   bindings.value.find((item) => item.id === 'email')!
 )
 
-function allowPrototypeAction(): boolean {
-  if (isMockApi) return true
-  toast.error(t('settings.prototypeSecurityNotice'))
-  return false
+function applyRotation(data: unknown): void {
+  const rotation = parseAuthRotation(data)
+  if (rotation) applyAuthRotation(rotation)
 }
 
-function registerPasskey(): void {
-  if (!allowPrototypeAction()) return
-  prototype?.registerPasskey()
-  passkeyRegisterOpen.value = false
-  toast.success(t('settings.prototypePasskeyEnabled'))
+type CredentialCreateOptions = NonNullable<
+  Parameters<typeof navigator.credentials.create>[0]
+>
+type PasskeyCreationOptions = NonNullable<CredentialCreateOptions['publicKey']>
+type PasskeyCredentialDescriptor = NonNullable<
+  PasskeyCreationOptions['excludeCredentials']
+>[number]
+type WireCredentialDescriptor = Omit<PasskeyCredentialDescriptor, 'id'> & {
+  id: string
+}
+type WirePasskeyCreationOptions = Omit<
+  PasskeyCreationOptions,
+  'challenge' | 'user' | 'excludeCredentials'
+> & {
+  challenge: string
+  user: Omit<PasskeyCreationOptions['user'], 'id'> & { id: string }
+  excludeCredentials?: WireCredentialDescriptor[]
 }
 
-function removePasskey(): void {
-  if (!allowPrototypeAction()) return
-  prototype?.removePasskey()
-  passkeyRemoveOpen.value = false
-  toast.success(t('settings.prototypePasskeyRemoved'))
+function base64urlBuffer(value: string): ArrayBuffer {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
+  const binary = atob(padded)
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0))
+    .buffer as ArrayBuffer
 }
 
-function openTwoFASetup(): void {
-  if (!allowPrototypeAction()) return
-  twoFACode.value = ''
-  twoFASetupOpen.value = true
+function credentialJSON(
+  credential: PublicKeyCredential
+): Record<string, unknown> {
+  const response = credential.response as AuthenticatorAttestationResponse
+  return {
+    id: credential.id,
+    rawId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, ''),
+    type: credential.type,
+    response: {
+      clientDataJSON: btoa(
+        String.fromCharCode(...new Uint8Array(response.clientDataJSON))
+      )
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, ''),
+      attestationObject: btoa(
+        String.fromCharCode(...new Uint8Array(response.attestationObject))
+      )
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, ''),
+    },
+  }
 }
 
-function confirmTwoFASetup(): void {
-  if (!allowPrototypeAction()) return
+async function loadSecurity(): Promise<void> {
+  try {
+    const [passkey, twoFA, status, oauth] = await Promise.all([
+      api.get<{ enabled: boolean; last_used_at?: string }>('/api/user/passkey'),
+      api.get<{ enabled: boolean; backup_codes_remaining?: number }>(
+        '/api/user/2fa/status'
+      ),
+      publicApi.status(),
+      api.get<
+        Array<{
+          provider_id: number
+          provider_name: string
+          provider_slug: string
+          provider_icon?: string
+          provider_user_id: string
+        }>
+      >('/api/user/oauth/bindings'),
+    ])
+    passkeyEnabled.value = passkey.enabled
+    passkeyLastUsedAt.value = passkey.last_used_at ?? null
+    twoFAEnabled.value = twoFA.enabled
+    backupCodesRemaining.value = twoFA.backup_codes_remaining ?? 0
+    publicStatus.value = status
+    customBindings.value = oauth.map((binding) => ({
+      id: `custom:${binding.provider_id}` as SettingsBindingId,
+      bound: true,
+      account: binding.provider_user_id,
+      providerId: binding.provider_id,
+      providerSlug: binding.provider_slug,
+      providerName: binding.provider_name,
+      providerIcon: binding.provider_icon,
+    }))
+  } catch (error) {
+    toast.error(error instanceof ApiError ? error.message : String(error))
+  }
+}
+
+function openOAuthPopup(provider: string): void {
+  const status = publicStatus.value
+  const config = status?.custom_oauth_providers?.find(
+    (item) => item.slug === provider
+  )
+  const clientId =
+    provider === 'github'
+      ? status?.github_client_id
+      : provider === 'discord'
+        ? status?.discord_client_id
+        : provider === 'linuxdo'
+          ? status?.linuxdo_client_id
+          : provider === 'oidc'
+            ? status?.oidc_client_id
+            : config?.client_id
+  const authorizationEndpoint =
+    provider === 'github'
+      ? 'https://github.com/login/oauth/authorize'
+      : provider === 'discord'
+        ? 'https://discord.com/api/oauth2/authorize'
+        : provider === 'linuxdo'
+          ? 'https://connect.linux.do/oauth2/authorize'
+          : provider === 'oidc'
+            ? status?.oidc_authorization_endpoint
+            : config?.authorization_endpoint
+  if (!clientId || !authorizationEndpoint) {
+    toast.error(t('settings.oauthUnavailable'))
+    return
+  }
+
+  const popup = window.open(
+    '',
+    'ren2hub-oauth-bind',
+    'popup,width=560,height=720'
+  )
+  if (!popup) {
+    toast.error(t('settings.oauthPopupBlocked'))
+    return
+  }
+  oauthPopup.value = popup
+  oauthProvider.value = provider
+  void api
+    .post<{ flow_token: string }>('/api/oauth/state', {
+      provider,
+      intent: 'bind',
+    })
+    .then((flow) => {
+      oauthState.value = flow.flow_token
+      const url = new URL(authorizationEndpoint)
+      url.searchParams.set('client_id', clientId)
+      url.searchParams.set(
+        'redirect_uri',
+        `${window.location.origin}/oauth/${provider}`
+      )
+      url.searchParams.set('response_type', 'code')
+      url.searchParams.set('state', flow.flow_token)
+      if (provider === 'github') url.searchParams.set('scope', 'user:email')
+      else if (config?.scopes) url.searchParams.set('scope', config.scopes)
+      popup.location.replace(url.toString())
+    })
+    .catch((error) => {
+      popup.close()
+      toast.error(error instanceof ApiError ? error.message : String(error))
+    })
+}
+
+async function sendEmailCode(): Promise<void> {
+  const email = bindingEmail.value.trim()
+  if (!email.includes('@')) {
+    toast.error(t('settings.emailBindingInvalid'))
+    return
+  }
+  emailSending.value = true
+  try {
+    await api.get('/api/verification', { email })
+    toast.success(t('settings.emailCodeSent'))
+  } catch (error) {
+    toast.error(error instanceof ApiError ? error.message : String(error))
+  } finally {
+    emailSending.value = false
+  }
+}
+
+async function registerPasskey(): Promise<void> {
+  try {
+    const proof = await securityProof(
+      'passkey.register',
+      passkeyProofCode.value
+    )
+    if (twoFAEnabled.value && !proof) return
+    const headers = proof ? { 'X-Security-Proof': proof } : undefined
+    const begin = await api.post<{
+      options: { publicKey: WirePasskeyCreationOptions }
+      flow_token: string
+    }>('/api/user/passkey/register/begin', undefined, { headers })
+    const wirePublicKey = begin.options.publicKey
+    const publicKey: PasskeyCreationOptions = {
+      ...wirePublicKey,
+      challenge: base64urlBuffer(wirePublicKey.challenge),
+      user: {
+        ...wirePublicKey.user,
+        id: base64urlBuffer(wirePublicKey.user.id),
+      },
+      excludeCredentials: wirePublicKey.excludeCredentials?.map(
+        (descriptor) => ({
+          ...descriptor,
+          id: base64urlBuffer(descriptor.id),
+        })
+      ),
+    }
+    const credential = await navigator.credentials.create({ publicKey })
+    if (!(credential instanceof PublicKeyCredential))
+      throw new Error('Passkey registration was cancelled')
+    const finish = await api.post<unknown>(
+      '/api/user/passkey/register/finish',
+      {
+        flow_token: begin.flow_token,
+        credential: credentialJSON(credential),
+      },
+      { headers }
+    )
+    applyRotation(finish)
+    passkeyRegisterOpen.value = false
+    passkeyProofCode.value = ''
+    toast.success(t('settings.passkeyEnabled'))
+    await loadSecurity()
+  } catch (error) {
+    toast.error(error instanceof ApiError ? error.message : String(error))
+  }
+}
+
+async function removePasskey(): Promise<void> {
+  try {
+    const proof = await securityProof('passkey.delete', passkeyProofCode.value)
+    if (twoFAEnabled.value && !proof) return
+    const result = await api.delete<unknown>('/api/user/passkey', undefined, {
+      headers: proof ? { 'X-Security-Proof': proof } : undefined,
+    })
+    applyRotation(result)
+    passkeyRemoveOpen.value = false
+    passkeyProofCode.value = ''
+    toast.success(t('settings.passkeyRemoved'))
+    await loadSecurity()
+  } catch (error) {
+    toast.error(error instanceof ApiError ? error.message : String(error))
+  }
+}
+
+async function securityProof(
+  scope: 'passkey.register' | 'passkey.delete',
+  code: string
+): Promise<string | undefined> {
+  if (!twoFAEnabled.value) return undefined
+  if (!/^\d{6}$/.test(code)) {
+    toast.error(t('settings.securityProofCodeRequired'))
+    return undefined
+  }
+  try {
+    const result = await api.post<{ proof_token: string }>('/api/verify', {
+      method: '2fa',
+      code,
+      scope,
+    })
+    return result.proof_token
+  } catch (error) {
+    toast.error(error instanceof ApiError ? error.message : String(error))
+    return undefined
+  }
+}
+
+async function openTwoFASetup(): Promise<void> {
+  try {
+    const result = await api.post<{
+      qr_code_data: string
+      backup_codes: string[]
+    }>('/api/user/2fa/setup')
+    setupQRCode.value = result.qr_code_data
+    setupBackupCodes.value = result.backup_codes
+    twoFACode.value = ''
+    twoFASetupOpen.value = true
+  } catch (error) {
+    toast.error(error instanceof ApiError ? error.message : String(error))
+  }
+}
+
+async function confirmTwoFASetup(): Promise<void> {
   if (!/^\d{6}$/.test(twoFACode.value)) return
-  visibleBackupCodes.value = prototype?.enableTwoFA() ?? []
-  twoFASetupOpen.value = false
-  backupCodesOpen.value = true
-  toast.success(t('settings.prototypeTwoFAEnabled'))
+  try {
+    const result = await api.post<unknown>('/api/user/2fa/enable', {
+      code: twoFACode.value,
+    })
+    applyRotation(result)
+    visibleBackupCodes.value = setupBackupCodes.value
+    twoFASetupOpen.value = false
+    backupCodesOpen.value = true
+    toast.success(t('settings.twoFAEnabled'))
+    await loadSecurity()
+  } catch (error) {
+    toast.error(error instanceof ApiError ? error.message : String(error))
+  }
 }
 
 function openTwoFAAction(action: 'regenerate' | 'disable'): void {
-  if (!allowPrototypeAction()) return
   twoFACode.value = ''
   twoFAAction.value = action
 }
 
-function confirmTwoFAAction(): void {
-  if (!allowPrototypeAction()) return
+async function confirmTwoFAAction(): Promise<void> {
   if (!/^\d{6}$/.test(twoFACode.value) || !twoFAAction.value) return
-  if (twoFAAction.value === 'regenerate') {
-    visibleBackupCodes.value = prototype?.regenerateBackupCodes() ?? []
-    backupCodesOpen.value = true
-    toast.success(t('settings.prototypeBackupCodesRegenerated'))
-  } else {
-    prototype?.disableTwoFA()
-    toast.success(t('settings.prototypeTwoFADisabled'))
+  const endpoint =
+    twoFAAction.value === 'regenerate'
+      ? '/api/user/2fa/backup_codes'
+      : '/api/user/2fa/disable'
+  try {
+    const result = await api.post<
+      { backup_codes?: string[] } & Record<string, unknown>
+    >(endpoint, { code: twoFACode.value })
+    applyRotation(result)
+    if (twoFAAction.value === 'regenerate') {
+      visibleBackupCodes.value = result.backup_codes ?? []
+      backupCodesOpen.value = true
+      toast.success(t('settings.backupCodesRegenerated'))
+    } else {
+      toast.success(t('settings.twoFADisabled'))
+    }
+    twoFAAction.value = null
+    await loadSecurity()
+  } catch (error) {
+    toast.error(error instanceof ApiError ? error.message : String(error))
   }
-  twoFAAction.value = null
 }
 
 async function copyBackupCodes(): Promise<void> {
   try {
     await navigator.clipboard.writeText(visibleBackupCodes.value.join('\n'))
-    toast.success(t('settings.prototypeBackupCodesCopied'))
+    toast.success(t('settings.backupCodesCopied'))
   } catch {
     toast.error(t('common.failed'))
   }
 }
 
-function openBinding(binding: PrototypeBinding): void {
-  if (!allowPrototypeAction()) return
-  if (binding.bound) {
+function openBinding(binding: SettingsBinding): void {
+  if (binding.bound && binding.id.startsWith('custom:')) {
     unbindTarget.value = binding.id
     return
   }
+  if (binding.bound && binding.id !== 'email') return
   bindTarget.value = binding.id
   bindingEmail.value = binding.id === 'email' ? (props.user?.email ?? '') : ''
   bindingCode.value = ''
 }
 
-function confirmBinding(): void {
-  if (!allowPrototypeAction()) return
+async function confirmBinding(): Promise<void> {
   if (!bindTarget.value) return
   if (bindTarget.value === 'email') {
     if (
       !bindingEmail.value.includes('@') ||
       !/^\d{6}$/.test(bindingCode.value)
     ) {
-      toast.error(t('settings.prototypeEmailBindingInvalid'))
+      toast.error(t('settings.emailBindingInvalid'))
       return
     }
-    prototype?.bindAccount('email', bindingEmail.value)
+    try {
+      await api.post('/api/oauth/email/bind', {
+        email: bindingEmail.value.trim(),
+        code: bindingCode.value,
+      })
+      await auth.fetchSelf(false)
+      toast.success(t('settings.bindingSaved'))
+      bindTarget.value = null
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : String(error))
+    }
+    return
   } else {
-    const username = props.user?.username || 'demo'
-    prototype?.bindAccount(bindTarget.value, `${bindTarget.value}-${username}`)
+    const provider = bindTarget.value
+    bindTarget.value = null
+    openOAuthPopup(provider)
   }
-  toast.success(t('settings.prototypeBindingSaved'))
-  bindTarget.value = null
 }
 
-function confirmUnbind(): void {
-  if (!allowPrototypeAction()) return
+async function confirmUnbind(): Promise<void> {
   if (!unbindTarget.value) return
-  prototype?.unbindAccount(unbindTarget.value)
-  toast.success(t('settings.prototypeBindingRemoved'))
-  unbindTarget.value = null
+  const binding = bindings.value.find((item) => item.id === unbindTarget.value)
+  if (!binding?.providerId) return
+  try {
+    await api.delete(`/api/user/oauth/bindings/${binding.providerId}`)
+    await loadSecurity()
+    toast.success(t('settings.bindingRemoved'))
+  } catch (error) {
+    toast.error(error instanceof ApiError ? error.message : String(error))
+  } finally {
+    unbindTarget.value = null
+  }
 }
+
+function handleOAuthMessage(event: MessageEvent<unknown>): void {
+  if (
+    event.origin !== window.location.origin ||
+    event.source !== oauthPopup.value
+  )
+    return
+  const message = event.data as {
+    type?: string
+    provider?: string
+    state?: string
+    code?: string
+    error?: string
+    error_description?: string
+  } | null
+  if (
+    !message ||
+    message.type !== 'ren2hub:oauth-bind-callback' ||
+    message.provider !== oauthProvider.value ||
+    message.state !== oauthState.value
+  )
+    return
+  const popup = oauthPopup.value
+  oauthPopup.value = null
+  if (!message.code && !message.error) return
+  void api
+    .get(`/api/oauth/${message.provider}`, {
+      state: message.state,
+      code: message.code,
+      error: message.error,
+      error_description: message.error_description,
+    })
+    .then(async () => {
+      await auth.fetchSelf(false)
+      await loadSecurity()
+      toast.success(t('settings.bindingSaved'))
+      popup?.postMessage(
+        {
+          type: 'ren2hub:oauth-bind-result',
+          provider: message.provider,
+          state: message.state,
+          success: true,
+        },
+        window.location.origin
+      )
+    })
+    .catch((error) => {
+      toast.error(error instanceof ApiError ? error.message : String(error))
+      popup?.postMessage(
+        {
+          type: 'ren2hub:oauth-bind-result',
+          provider: message.provider,
+          state: message.state,
+          success: false,
+          message: error instanceof Error ? error.message : String(error),
+        },
+        window.location.origin
+      )
+    })
+}
+
+onMounted(() => {
+  window.addEventListener('message', handleOAuthMessage)
+  void loadSecurity()
+})
+
+onMounted(() => {
+  // The popup callback route posts its result back to this settings page.
+  window.addEventListener('beforeunload', () => oauthPopup.value?.close())
+})
 </script>
 
 <template>
@@ -375,7 +794,6 @@ function confirmUnbind(): void {
             :variant="passkeyEnabled ? 'secondary' : 'primary'"
             size="sm"
             class="w-full sm:w-auto"
-            :disabled="!isMockApi"
             @click="
               passkeyEnabled
                 ? (passkeyRemoveOpen = true)
@@ -432,7 +850,6 @@ function confirmUnbind(): void {
             <ConsoleButton
               variant="secondary"
               size="sm"
-              :disabled="!isMockApi"
               @click="openTwoFAAction('regenerate')"
             >
               <RefreshCw :size="15" aria-hidden="true" />
@@ -441,7 +858,6 @@ function confirmUnbind(): void {
             <ConsoleButton
               variant="danger"
               size="sm"
-              :disabled="!isMockApi"
               @click="openTwoFAAction('disable')"
             >
               <AlertTriangle :size="15" aria-hidden="true" />
@@ -452,7 +868,6 @@ function confirmUnbind(): void {
             v-else
             size="sm"
             class="w-full sm:w-fit"
-            :disabled="!isMockApi"
             @click="openTwoFASetup"
           >
             {{ t('settings.enableTwoFA') }}
@@ -499,7 +914,11 @@ function confirmUnbind(): void {
           <ConsoleButton
             :variant="binding.bound ? 'ghost' : 'secondary'"
             size="sm"
-            :disabled="!isMockApi"
+            :disabled="
+              binding.bound &&
+              binding.id !== 'email' &&
+              !binding.id.startsWith('custom:')
+            "
             @click="openBinding(binding)"
           >
             {{ binding.bound ? t('settings.unbind') : t('settings.bind') }}
@@ -546,8 +965,21 @@ function confirmUnbind(): void {
   >
     <div class="settings-context-callout">
       <KeyRound :size="20" aria-hidden="true" />
-      <p>{{ t('settings.prototypePasskeyPrompt') }}</p>
+      <p>{{ t('settings.passkeyPrompt') }}</p>
     </div>
+    <FormField
+      v-if="twoFAEnabled"
+      :label="t('settings.twoFACode')"
+      :hint="t('settings.securityProofCodeHint')"
+      class="mt-4"
+    >
+      <TextInput
+        v-model="passkeyProofCode"
+        inputmode="numeric"
+        maxlength="6"
+        placeholder="000000"
+      />
+    </FormField>
     <template #footer>
       <div class="grid grid-cols-2 gap-3">
         <ConsoleButton
@@ -566,10 +998,24 @@ function confirmUnbind(): void {
   <ConfirmDialog
     :open="passkeyRemoveOpen"
     :title="t('settings.removePasskey')"
-    :message="t('settings.prototypeRemovePasskeyConfirm')"
+    :message="t('settings.removePasskeyConfirm')"
     @confirm="removePasskey"
     @cancel="passkeyRemoveOpen = false"
-  />
+  >
+    <FormField
+      v-if="twoFAEnabled"
+      :label="t('settings.twoFACode')"
+      :hint="t('settings.securityProofCodeHint')"
+      class="mt-4 w-full"
+    >
+      <TextInput
+        v-model="passkeyProofCode"
+        inputmode="numeric"
+        maxlength="6"
+        placeholder="000000"
+      />
+    </FormField>
+  </ConfirmDialog>
 
   <ConsoleModal
     :open="twoFASetupOpen"
@@ -578,25 +1024,20 @@ function confirmUnbind(): void {
     @close="twoFASetupOpen = false"
   >
     <div class="flex flex-col items-center gap-5">
-      <div
-        class="grid size-36 grid-cols-7 gap-1 rounded-lg border border-[var(--border-subtle)] bg-white p-3"
-        aria-hidden="true"
-      >
-        <span
-          v-for="(active, index) in qrCells"
-          :key="index"
-          class="rounded-[1px]"
-          :class="active ? 'bg-black' : 'bg-white'"
-        />
-      </div>
+      <img
+        v-if="setupQRCode"
+        :src="setupQRCode"
+        :alt="t('settings.twoFAQRCodeAlt')"
+        class="size-36 rounded-lg border border-[var(--border-subtle)] bg-white p-3"
+      />
       <div
         class="w-full rounded-lg bg-[var(--surface-muted)] px-4 py-3 text-center font-mono text-xs text-[var(--text-secondary)]"
       >
-        REN2-TOTP-SETUP
+        {{ t('settings.twoFASecretHint') }}
       </div>
       <FormField
         :label="t('settings.twoFACode')"
-        :hint="t('settings.prototypeSixDigitHint')"
+        :hint="t('settings.sixDigitHint')"
         class="w-full"
       >
         <TextInput
@@ -631,7 +1072,7 @@ function confirmUnbind(): void {
   >
     <FormField
       :label="t('settings.twoFACode')"
-      :hint="t('settings.prototypeSixDigitHint')"
+      :hint="t('settings.sixDigitHint')"
     >
       <TextInput
         v-model="twoFACode"
@@ -695,7 +1136,7 @@ function confirmUnbind(): void {
       </FormField>
       <FormField
         :label="t('settings.twoFACode')"
-        :hint="t('settings.prototypeEmailCodeHint')"
+        :hint="t('settings.emailCodeHint')"
       >
         <TextInput
           v-model="bindingCode"
@@ -703,12 +1144,20 @@ function confirmUnbind(): void {
           maxlength="6"
           placeholder="000000"
         />
+        <ConsoleButton
+          variant="secondary"
+          size="sm"
+          :disabled="emailSending"
+          @click="sendEmailCode"
+        >
+          {{ emailSending ? t('common.loading') : t('settings.sendEmailCode') }}
+        </ConsoleButton>
       </FormField>
     </div>
     <div v-else class="settings-context-callout">
       <AtSign :size="20" aria-hidden="true" />
       <p>
-        {{ t('settings.prototypeOAuthPrompt', { provider: currentBindLabel }) }}
+        {{ t('settings.oauthPrompt', { provider: currentBindLabel }) }}
       </p>
     </div>
     <template #footer>
@@ -721,7 +1170,7 @@ function confirmUnbind(): void {
   <ConfirmDialog
     :open="unbindTarget !== null"
     :title="t('settings.unbindProvider', { provider: currentUnbindLabel })"
-    :message="t('settings.prototypeUnbindConfirm')"
+    :message="t('settings.unbindConfirm')"
     @confirm="confirmUnbind"
     @cancel="unbindTarget = null"
   />

@@ -7,30 +7,43 @@ import LanguageSelector from '@/components/common/LanguageSelector.vue'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import { consoleEntryRoute } from '@/constants/navigation/consoleNav'
 import { labEntryRoute } from '@/constants/navigation/labNav'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useAppStore } from '@/stores'
 
 import CommandPaletteModal from './CommandPaletteModal.vue'
-import NotificationPanel from './NotificationPanel.vue'
 import TopNavMenu from './TopNavMenu.vue'
 import UserMenu from './UserMenu.vue'
 
 const { t } = useI18n()
 const route = useRoute()
 const app = useAppStore()
+const { disabled: labDisabled } = useFeatureAccess('lab', 'disabled')
 
 const searchOpen = ref(false)
+
+interface MobileItem {
+  name: string
+  labelKey: string
+  route: string
+  disabled?: boolean
+}
 
 const isApplePlatform = /Mac|iPhone|iPad|iPod/.test(
   window.navigator.platform || window.navigator.userAgent
 )
 const searchShortcut = isApplePlatform ? '⌘K' : 'Ctrl+K'
 
-const mobileItems = [
+const mobileItems = computed<MobileItem[]>(() => [
   { name: 'activities', labelKey: 'nav.activities', route: 'activity' },
   { name: 'dashboard', labelKey: 'nav.dashboard', route: 'dashboard' },
   { name: 'console', labelKey: 'nav.console', route: consoleEntryRoute },
-  { name: 'alchemy', labelKey: 'nav.alchemy', route: labEntryRoute },
-]
+  {
+    name: 'alchemy',
+    labelKey: 'nav.alchemy',
+    route: labEntryRoute,
+    disabled: labDisabled.value,
+  },
+])
 
 const activeName = computed(() => {
   if (route.meta.topNav) return route.meta.topNav
@@ -117,7 +130,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
         </button>
         <LanguageSelector variant="console" />
         <ThemeSwitcher variant="console" />
-        <NotificationPanel />
         <div
           class="hidden h-6 w-px bg-[var(--border-default)] sm:mx-1 sm:block"
         />
@@ -130,21 +142,32 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onGlobalKeydown))
       class="flex gap-1 overflow-x-auto border-t border-[var(--border-subtle)] px-3 py-2 lg:hidden"
       data-handdrawn="navigation-strip"
     >
-      <RouterLink
-        v-for="item in mobileItems"
-        :key="item.name"
-        :to="{ name: item.route }"
-        class="mobile-pill flex min-h-11 shrink-0 items-center px-3.5 text-xs font-medium transition-all"
-        :class="activeName === item.name ? 'active' : ''"
-        :style="
-          activeName === item.name
-            ? 'background:var(--accent);color:var(--accent-contrast)'
-            : 'color:var(--text-secondary)'
-        "
-        :aria-current="activeName === item.name ? 'page' : undefined"
-      >
-        {{ t(item.labelKey) }}
-      </RouterLink>
+      <template v-for="item in mobileItems" :key="item.name">
+        <button
+          v-if="item.disabled"
+          type="button"
+          class="mobile-pill flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 px-3.5 text-xs font-medium text-[var(--text-tertiary)] opacity-60"
+          :title="t('nav.comingSoon')"
+          disabled
+        >
+          {{ t(item.labelKey) }}
+          <span class="text-[10px]">{{ t('nav.comingSoon') }}</span>
+        </button>
+        <RouterLink
+          v-else
+          :to="{ name: item.route }"
+          class="mobile-pill flex min-h-11 shrink-0 items-center px-3.5 text-xs font-medium transition-all"
+          :class="activeName === item.name ? 'active' : ''"
+          :style="
+            activeName === item.name
+              ? 'background:var(--accent);color:var(--accent-contrast)'
+              : 'color:var(--text-secondary)'
+          "
+          :aria-current="activeName === item.name ? 'page' : undefined"
+        >
+          {{ t(item.labelKey) }}
+        </RouterLink>
+      </template>
     </div>
 
     <CommandPaletteModal :open="searchOpen" @close="searchOpen = false" />

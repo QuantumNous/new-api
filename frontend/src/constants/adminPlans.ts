@@ -44,7 +44,7 @@ export const ADMIN_PLAN_SORT_FIELDS: readonly AdminPlanSortBy[] = [
   'id',
 ]
 
-/** Shared ceilings for the form and the mock validator. */
+/** Shared ceilings for the form and backend request validation. */
 export const ADMIN_PLAN_LIMITS = {
   nameMaxLength: 32,
   priceMax: 100_000,

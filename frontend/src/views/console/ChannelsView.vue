@@ -20,7 +20,6 @@ import {
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import CapacityMeter from '@/components/common/CapacityMeter.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
@@ -210,8 +209,8 @@ function isFieldVisible(field: AdminChannelOptionalField): boolean {
 
 /** Field labels for the visibility menu; a few keys don't match 1:1. */
 function fieldLabel(field: AdminChannelOptionalField): string {
-  if (field === 'usage') return t('channels.usageAndRatio')
-  if (field === 'upstream') return t('channels.upstreamAndRatio')
+  if (field === 'usage') return t('channels.usage')
+  if (field === 'upstream') return t('channels.upstreamBalance')
   if (field === 'rowUpstreamAction') return t('channels.rowUpstreamAction')
   if (field === 'rowResponseAction') return t('channels.rowResponseAction')
   return t(`channels.${field}`)
@@ -247,21 +246,15 @@ const allColumns = computed<
     optional: 'weight',
   },
   {
-    key: 'capacity',
-    label: t('channels.capacity'),
-    width: '130px',
-    optional: 'capacity',
-  },
-  {
     key: 'usage',
-    label: t('channels.usageAndRatio'),
-    width: '158px',
+    label: t('channels.usage'),
+    width: '130px',
     optional: 'usage',
   },
   {
     key: 'upstream',
-    label: t('channels.upstreamAndRatio'),
-    width: '178px',
+    label: t('channels.upstreamBalance'),
+    width: '150px',
     optional: 'upstream',
   },
   {
@@ -1131,51 +1124,23 @@ async function runBulkStatus(
               {{ channelFromRow(row as AdminChannelTableRow).weight }}
             </span>
           </template>
-          <template #cell-capacity="{ row }">
-            <CapacityMeter
-              :used="channelFromRow(row as AdminChannelTableRow).capacity_used"
-              :total="
-                channelFromRow(row as AdminChannelTableRow).capacity_total
-              "
-            />
-          </template>
           <template #cell-usage="{ row }">
-            <div class="space-y-0.5 text-xs">
-              <p class="font-semibold tabular-nums">
-                {{
-                  formatQuota(
-                    channelFromRow(row as AdminChannelTableRow).used_quota
-                  )
-                }}
-              </p>
-              <p class="text-[11px] text-[var(--text-tertiary)]">
-                {{
-                  t('channels.channelRatioValue', {
-                    ratio: channelFromRow(
-                      row as AdminChannelTableRow
-                    ).channel_ratio.toFixed(2),
-                  })
-                }}
-              </p>
-            </div>
+            <span class="text-xs font-semibold tabular-nums">
+              {{
+                formatQuota(
+                  channelFromRow(row as AdminChannelTableRow).used_quota
+                )
+              }}
+            </span>
           </template>
           <template #cell-upstream="{ row }">
             <div class="flex items-center justify-between gap-1">
-              <div class="min-w-0 space-y-0.5 text-xs">
+              <div class="min-w-0 text-xs">
                 <p class="font-semibold tabular-nums">
                   {{
                     formatMoney(
                       channelFromRow(row as AdminChannelTableRow).balance
                     )
-                  }}
-                </p>
-                <p class="truncate text-[11px] text-[var(--text-tertiary)]">
-                  {{
-                    t('channels.upstreamRatioValue', {
-                      ratio: channelFromRow(
-                        row as AdminChannelTableRow
-                      ).upstream_ratio.toFixed(2),
-                    })
                   }}
                 </p>
               </div>

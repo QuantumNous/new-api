@@ -17,10 +17,10 @@ const noPageScroll = computed(() => Boolean(route.meta.noPageScroll))
 const featureStatus = computed(() =>
   app.featureStatus(
     route.meta.feature,
-    route.meta.prototype ? 'prototype' : 'live'
+    route.meta.protected ? 'disabled' : 'live'
   )
 )
-const isPrototype = computed(() => featureStatus.value === 'prototype')
+const isDisabled = computed(() => featureStatus.value === 'disabled')
 
 const isScrolling = ref(false)
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
@@ -55,11 +55,11 @@ onBeforeUnmount(() => {
       >
         <ConsoleNavStrip />
         <div
-          v-if="isPrototype"
+          v-if="isDisabled"
           class="border-b border-[var(--status-warning)] bg-[var(--status-warning-soft)] px-4 py-2 text-center text-xs font-semibold text-[var(--status-warning-text)] sm:px-6 lg:px-8"
           role="status"
         >
-          {{ $t('nav.prototypeMode') }} · {{ $t('nav.prototypeModeHint') }}
+          {{ $t('nav.disabledMode') }} · {{ $t('nav.disabledModeHint') }}
         </div>
         <main class="min-w-0 px-4 py-8 sm:px-6 lg:px-8">
           <div

@@ -48,27 +48,31 @@ export interface AdminChannel extends Record<string, unknown> {
   status: AdminChannelStatus
   priority: number
   weight: number
-  capacity_used: number
-  capacity_total: number
   used_quota: number
-  channel_ratio: number
   balance: number
-  upstream_ratio: number
   response_time: number
   test_time: number
+  base_url: string
+  models: string
 }
 
 export interface AdminChannelCreateInput {
   name: string
   type: number
   status: Extract<AdminChannelStatus, 1 | 2>
+  key: string
+  base_url: string
+  models: string
   priority: number
   weight: number
-  capacity_total: number
-  channel_ratio: number
 }
 
-export type AdminChannelUpdateInput = Omit<AdminChannelCreateInput, 'status'>
+export type AdminChannelUpdateInput = Omit<
+  AdminChannelCreateInput,
+  'status' | 'key'
+> & {
+  key?: string
+}
 
 export interface AdminChannelPage {
   items: AdminChannel[]
@@ -120,12 +124,18 @@ export interface AdminUserCreateInput {
   username: string
   display_name: string
   email: string
+  password: string
   role: AdminUserRole
   status: AdminUserStatus
 }
 
 /** Status is owned by the dedicated toggle route, not by the edit form. */
-export type AdminUserUpdateInput = Omit<AdminUserCreateInput, 'status'>
+export type AdminUserUpdateInput = Omit<
+  AdminUserCreateInput,
+  'status' | 'password'
+> & {
+  password?: string
+}
 
 export interface AdminUserPage {
   items: AdminUser[]
@@ -143,18 +153,20 @@ export interface AdminUserPage {
  * `cancelled` and `expired` are both terminal unpaid outcomes, distinguished
  * because one is a user action and the other a gateway timeout.
  */
-export type AdminOrderStatus =
-  'completed' | 'pending' | 'cancelled' | 'expired' | 'refunded'
+export type AdminOrderStatus = 'completed' | 'pending' | 'failed'
 
 /** The three sellable paths in this console: wallet, plan, marketplace. */
-export type AdminOrderType = 'topup' | 'subscription' | 'market'
+export type AdminOrderType = 'topup'
 
 /**
- * Alipay and WeChat are the two channels behind the wallet's `epay`
- * aggregator (see TopupRecord.method). Orders record the channel the payer
- * actually used, because that is what a revenue breakdown has to answer.
+ * Historical providers remain visible for read-only order reconciliation.
  */
-export type AdminOrderMethod = 'alipay' | 'wechat' | 'stripe' | 'creem'
+export type AdminOrderMethod =
+  'epay' | 'stripe' | 'creem' | 'waffo' | 'waffo_pancake' | 'balance' | 'other'
+
+export type AdminOrderPaymentRail = 'alipay' | 'wechat' | 'other'
+
+export type AdminOrderCurrency = 'CNY' | 'USD'
 
 export type AdminOrderSortBy = 'id' | 'amount' | 'created'
 
@@ -170,20 +182,18 @@ export interface AdminOrder extends Record<string, unknown> {
   user_id: number
   username: string
   email: string
-  /** Amount actually paid, in USD. */
+  /** Amount actually paid, denominated by `currency`. */
   amount: number
   /** Quota credited on completion. 0 for orders that never completed. */
   quota: number
   type: AdminOrderType
+  currency: AdminOrderCurrency
   method: AdminOrderMethod
+  payment_method: string
   status: AdminOrderStatus
-  /** Human-readable line item, e.g. `专业版 · 30 天`. */
-  subject: string
   created: number
   /** 0 = never paid. */
   paid_at: number
-  /** 0 = never refunded. */
-  refunded_at: number
 }
 
 export interface AdminOrderPage {
@@ -194,8 +204,8 @@ export interface AdminOrderPage {
   status_counts: Record<string, number>
   method_counts: Record<string, number>
   type_counts: Record<string, number>
-  /** Paid revenue across the whole filtered set, not just the page. */
-  filtered_revenue: number
+  /** Completed Epay revenue across the whole filtered set, in CNY. */
+  filtered_epay_revenue: number
 }
 
 export interface AdminOrderDailyPoint {
@@ -206,7 +216,7 @@ export interface AdminOrderDailyPoint {
 }
 
 export interface AdminOrderMethodShare {
-  method: AdminOrderMethod
+  method: AdminOrderPaymentRail
   amount: number
   count: number
 }
@@ -223,19 +233,14 @@ export interface AdminOrderStats {
   range: AdminOrderRange
   /** Server clock when the window was aggregated. */
   generated_at: number
+  currency: 'CNY'
   today_revenue: number
   today_orders: number
   /** Revenue over the requested window, not all-time. */
   total_revenue: number
   total_orders: number
-  /** Mean paid order value over the window; 0 when the window has no sales. */
+  /** Mean completed Epay order value over the window; 0 when empty. */
   average_amount: number
-  /**
-   * Money collected and then returned. Held separately rather than netted into
-   * `total_revenue`, so a refund never silently rewrites a past day's takings.
-   */
-  refunded_total: number
-  refunded_orders: number
   daily: AdminOrderDailyPoint[]
   payment_share: AdminOrderMethodShare[]
   top_spenders: AdminOrderSpender[]
@@ -273,18 +278,6 @@ export interface LogItem {
   request_mode: LogRequestMode | null // 非请求类日志为 null
   tps: number // tokens per second (0 表示不适用)
   content: string
-  created: number
-}
-
-export interface TopupRecord {
-  id: number
-  trade_no: string
-  amount: number // USD purchased
-  money: number // quota credited
-  method: 'epay' | 'stripe' | 'creem' | 'redeem'
-  provider?: string
-  payment_method?: string
-  status: 'success' | 'pending' | 'failed'
   created: number
 }
 
@@ -514,29 +507,10 @@ export interface MarketModel {
   channels: string[]
 }
 
-export type InviteRecordStatus = 'valid' | 'pending' | 'invalid'
-
 export interface InviteRecord {
   id: number
   invitee: string
-  reward: number
-  status: InviteRecordStatus
   created: number
-}
-
-export interface InviteQualification {
-  token_used: number
-  token_required: number
-  topup_total: number
-  topup_required: number
-  qualified: boolean
-}
-
-export interface InviteUnlockChannel {
-  id: string
-  name: string
-  detail: string
-  unlocked: boolean
 }
 
 export interface InviteMonthPoint {
@@ -548,12 +522,9 @@ export interface InviteMonthPoint {
 export interface InviteInfo {
   code: string
   invited: number
-  rate: number // rebate ratio, e.g. 0.02 = 2%
+  reward_per_invite: number
   reward_total: number // lifetime reward quota earned
   transferable: number // reward quota available to move into balance
-  pending_reward: number // reward quota awaiting settlement
-  qualification: InviteQualification
-  unlock_channels: InviteUnlockChannel[]
   monthly_series: InviteMonthPoint[]
   records: InviteRecord[]
 }
@@ -659,7 +630,7 @@ export interface NewcomerPayload {
 export interface InviteActivityPayload {
   invited: number
   reward_total: number
-  rate: number
+  reward_per_invite: number
 }
 
 export type Activity = ActivityBase &
@@ -832,12 +803,7 @@ export interface EntitlementSummary {
 /* admin redemption codes                                               */
 /* ------------------------------------------------------------------ */
 
-/** Code type mirrors the backend redeem_type enum. */
-export type AdminRedemptionType =
-  | 'quota' // credit user balance
-  | 'concurrency' // unlock extra concurrent request slots
-  | 'subscription' // activate a plan
-  | 'invite' // act as an invite code
+export type AdminRedemptionType = 'quota'
 
 /**
  * Four lifecycle states:
@@ -855,14 +821,11 @@ export type AdminRedemptionSortOrder = 'asc' | 'desc'
 export interface AdminRedemptionCode extends Record<string, unknown> {
   id: number
   name: string // display label (e.g. "$5.00", "claude", admin-set)
-  code: string // raw code string (32-char hex in mock)
+  code: string // raw 32-character redemption code
   type: AdminRedemptionType
   status: AdminRedemptionStatus
-  // face-value fields — populated by type; others are undefined
-  quota?: number // type=quota  : internal quota units
-  amount?: number // type=quota  : display USD value
-  concurrency?: number // type=concurrency : slot count
-  plan_id?: number // type=subscription : plan id
+  quota: number
+  amount: number
   // redemption record
   redeemer_id: number // 0 = not yet redeemed
   redeemer_email: string // '' = not yet redeemed
@@ -883,8 +846,6 @@ export interface AdminRedemptionPage {
 export interface AdminRedemptionCreateInput {
   type: AdminRedemptionType
   count: number // 1–100
-  amount?: number // type=quota (USD dollars)
-  concurrency?: number // type=concurrency
-  plan_id?: number // type=subscription
+  amount: number
   expired_time: number // -1 = never; future unix epoch = deadline
 }

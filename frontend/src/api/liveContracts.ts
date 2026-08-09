@@ -1,9 +1,4 @@
-import type {
-  LogItem,
-  LogType,
-  TokenSummary,
-  TopupRecord,
-} from '@/types/console'
+import type { LogItem, LogType, TokenSummary } from '@/types/console'
 
 import {
   invalidResponse,
@@ -33,16 +28,9 @@ export interface PaymentMethodInfo {
 
 export interface TopupInfo {
   enable_online_topup: boolean
-  enable_stripe_topup: boolean
-  enable_creem_topup: boolean
-  enable_waffo_topup: boolean
-  enable_waffo_pancake_topup: boolean
   enable_redemption: boolean
   pay_methods: PaymentMethodInfo[]
   min_topup: number
-  stripe_min_topup: number
-  waffo_min_topup: number
-  waffo_pancake_min_topup: number
   amount_options: number[]
 }
 
@@ -125,7 +113,7 @@ export function parseUsageRows(value: unknown): UsageRow[] {
 }
 
 export function parseTopupInfo(value: unknown): TopupInfo {
-  const endpoint = '/api/user/topup/info'
+  const endpoint = '/api/next/wallet/config'
   if (!isRecord(value) || !Array.isArray(value.pay_methods)) {
     invalidResponse(endpoint)
   }
@@ -133,7 +121,10 @@ export function parseTopupInfo(value: unknown): TopupInfo {
     if (!isRecord(item)) invalidResponse(endpoint)
     const minTopup =
       item.min_topup === undefined ? undefined : Number(item.min_topup)
-    if (minTopup !== undefined && !Number.isFinite(minTopup)) {
+    if (
+      minTopup !== undefined &&
+      (!Number.isFinite(minTopup) || minTopup <= 0)
+    ) {
       invalidResponse(endpoint)
     }
     return {
@@ -148,63 +139,16 @@ export function parseTopupInfo(value: unknown): TopupInfo {
   const parsedAmounts = amountOptions.map((item) =>
     requiredNumber(item, endpoint)
   )
+  if (parsedAmounts.some((amount) => amount <= 0)) invalidResponse(endpoint)
+  const minTopup = requiredNumber(value.min_topup ?? 1, endpoint)
+  if (minTopup <= 0) invalidResponse(endpoint)
   return {
     enable_online_topup: optionalBoolean(value.enable_online_topup, endpoint),
-    enable_stripe_topup: optionalBoolean(value.enable_stripe_topup, endpoint),
-    enable_creem_topup: optionalBoolean(value.enable_creem_topup, endpoint),
-    enable_waffo_topup: optionalBoolean(value.enable_waffo_topup, endpoint),
-    enable_waffo_pancake_topup: optionalBoolean(
-      value.enable_waffo_pancake_topup,
-      endpoint
-    ),
     enable_redemption: optionalBoolean(value.enable_redemption, endpoint),
     pay_methods: payMethods,
-    min_topup: requiredNumber(value.min_topup ?? 1, endpoint),
-    stripe_min_topup: requiredNumber(value.stripe_min_topup ?? 1, endpoint),
-    waffo_min_topup: requiredNumber(value.waffo_min_topup ?? 1, endpoint),
-    waffo_pancake_min_topup: requiredNumber(
-      value.waffo_pancake_min_topup ?? 1,
-      endpoint
-    ),
+    min_topup: minTopup,
     amount_options: parsedAmounts,
   }
-}
-
-function normalizeTopupStatus(value: string): TopupRecord['status'] {
-  if (value === 'success') return 'success'
-  if (value === 'pending') return 'pending'
-  return 'failed'
-}
-
-function parseTopup(value: unknown, endpoint: string): TopupRecord {
-  if (!isRecord(value)) invalidResponse(endpoint)
-  const provider = requiredString(
-    value.payment_provider ?? value.payment_method,
-    endpoint,
-    false
-  )
-  const method =
-    provider === 'stripe' || provider === 'creem'
-      ? provider
-      : provider === 'redeem'
-        ? 'redeem'
-        : 'epay'
-  return {
-    id: requiredInteger(value.id, endpoint),
-    trade_no: requiredString(value.trade_no, endpoint),
-    amount: requiredNumber(value.money, endpoint),
-    money: requiredInteger(value.amount, endpoint),
-    method,
-    provider,
-    payment_method: requiredString(value.payment_method ?? provider, endpoint),
-    status: normalizeTopupStatus(requiredString(value.status, endpoint)),
-    created: requiredInteger(value.create_time, endpoint),
-  }
-}
-
-export function parseTopupPage(value: unknown): PageResult<TopupRecord> {
-  const endpoint = '/api/user/topup/self'
-  return parsePage(value, endpoint, parseTopup)
 }
 
 export function parseRedeemedQuota(value: unknown): number {

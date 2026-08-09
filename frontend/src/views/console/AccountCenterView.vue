@@ -14,6 +14,7 @@ import PageHero from '@/components/console/PageHero.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { adminUserRoleTone } from '@/constants/adminUsers'
 import { useDashboard } from '@/composables/useDashboard'
+import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useAuthStore } from '@/stores/auth'
 import { formatCompact, formatDate, formatQuota } from '@/utils/format'
 import AccountSettingsView from '@/views/console/AccountSettingsView.vue'
@@ -22,6 +23,7 @@ const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const { stats, load: loadDashboard } = useDashboard()
+const { disabled: farmDisabled } = useFeatureAccess('farm', 'disabled')
 
 onMounted(() => {
   void loadDashboard()
@@ -244,11 +246,26 @@ const accountStats = computed(() => [
             </span>
             <button
               type="button"
-              class="inline-flex items-center gap-1 rounded-md px-1 text-[var(--accent-text)] transition-opacity hover:opacity-70 focus-ring"
+              class="inline-flex items-center gap-1 rounded-md px-1 text-[var(--accent-text)] transition-opacity focus-ring"
+              :class="
+                farmDisabled
+                  ? 'cursor-not-allowed opacity-50'
+                  : 'hover:opacity-70'
+              "
+              :disabled="farmDisabled"
+              :title="farmDisabled ? t('nav.comingSoon') : undefined"
               @click="router.push({ name: 'farm' })"
             >
-              {{ t('profile.viewTierBenefits') }}
-              <ArrowUpRight :size="13" aria-hidden="true" />
+              {{
+                farmDisabled
+                  ? t('nav.comingSoon')
+                  : t('profile.viewTierBenefits')
+              }}
+              <ArrowUpRight
+                v-if="!farmDisabled"
+                :size="13"
+                aria-hidden="true"
+              />
             </button>
           </div>
         </div>

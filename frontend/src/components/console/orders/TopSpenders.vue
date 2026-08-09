@@ -3,9 +3,11 @@ import { useI18n } from 'vue-i18n'
 
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import { adminOrderRankStyle } from '@/constants/adminOrders'
+import {
+  adminOrderRankStyle,
+  formatAdminOrderAmount,
+} from '@/constants/adminOrders'
 import type { AdminOrderSpender } from '@/types/console'
-import { formatMoney } from '@/utils/format'
 
 withDefaults(
   defineProps<{
@@ -56,7 +58,7 @@ const { t } = useI18n()
         <span
           class="shrink-0 font-semibold tabular-nums text-[var(--text-primary)]"
         >
-          {{ formatMoney(item.amount) }}
+          {{ formatAdminOrderAmount(item.amount, 'CNY') }}
         </span>
       </li>
     </ol>

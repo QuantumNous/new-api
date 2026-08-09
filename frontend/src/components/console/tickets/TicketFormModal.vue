@@ -84,15 +84,17 @@ async function save() {
   if (props.readonly || !validate() || saving.value) return
   saving.value = true
   try {
-    await api.post('/api/ticket/', {
-      title: form.title.trim(),
-      category: form.category,
-      priority: form.priority,
-      content: form.content.trim(),
-      images: uploader.value?.getUrls() ?? [],
-      model_id: form.model_id.trim() || undefined,
-      request_id: form.request_id.trim() || undefined,
-    })
+    const payload = new FormData()
+    payload.set('title', form.title.trim())
+    payload.set('category', form.category)
+    payload.set('priority', form.priority)
+    payload.set('content', form.content.trim())
+    payload.set('model_id', form.model_id.trim())
+    payload.set('request_id', form.request_id.trim())
+    for (const file of uploader.value?.getFiles() ?? []) {
+      payload.append('attachments', file)
+    }
+    await api.post('/api/next/tickets', payload)
     toast.success(t('tickets.created'))
     emit('saved')
     emit('close')
@@ -202,7 +204,7 @@ async function save() {
       </div>
 
       <FormField :label="t('tickets.create.imagesLabel')">
-        <TicketImageUploader ref="uploader" :max-count="4" />
+        <TicketImageUploader ref="uploader" :max-count="5" />
       </FormField>
     </div>
 

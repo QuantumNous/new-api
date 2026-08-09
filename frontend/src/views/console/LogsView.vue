@@ -12,7 +12,6 @@ import { onClickOutside } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
-import { isMockApi } from '@/api/client'
 import { parseLogPage } from '@/api/liveContracts'
 import { ApiError, type PageResult } from '@/api/types'
 import type { LogItem, LogType } from '@/types/console'
@@ -271,16 +270,6 @@ function currentParams() {
     requestedStart && endTimestamp
       ? Math.max(requestedStart, endTimestamp - 30 * 86_400)
       : requestedStart
-  if (isMockApi) {
-    return {
-      page: page.value,
-      page_size: pageSize.value,
-      keyword: keyword.value,
-      type: type.value,
-      start: startTimestamp,
-      end: endTimestamp,
-    }
-  }
   return {
     p: page.value,
     page_size: pageSize.value,
@@ -309,9 +298,7 @@ async function load() {
     )
     return
   }
-  const pageResult = isMockApi
-    ? result.value
-    : parseLogPage(result.value as unknown)
+  const pageResult = parseLogPage(result.value as unknown)
   rows.value = pageResult.items
   total.value = pageResult.total
 }
@@ -348,22 +335,15 @@ async function fetchAllLogs(
   signal: AbortSignal
 ): Promise<{ items: LogItem[]; truncated: boolean }> {
   // page/page_size come from the export loop, not from the table's paging.
-  const {
-    p: _p,
-    page: _page,
-    page_size: _pageSize,
-    ...filters
-  } = currentParams()
+  const { p: _p, page_size: _pageSize, ...filters } = currentParams()
 
   const firstRaw = await api.get<PageResult<LogItem>>(
     '/api/log/self',
-    isMockApi
-      ? { ...filters, page: 1, page_size: EXPORT_PAGE_SIZE }
-      : { ...filters, p: 1, page_size: EXPORT_PAGE_SIZE },
+    { ...filters, p: 1, page_size: EXPORT_PAGE_SIZE },
     { signal }
   )
 
-  const first = isMockApi ? firstRaw : parseLogPage(firstRaw as unknown)
+  const first = parseLogPage(firstRaw as unknown)
   const items = [...first.items]
   const reachable = Math.min(first.total, EXPORT_MAX_ROWS)
   const pages = Math.ceil(reachable / EXPORT_PAGE_SIZE)
@@ -371,12 +351,10 @@ async function fetchAllLogs(
   for (let p = 2; p <= pages; p++) {
     const nextRaw = await api.get<PageResult<LogItem>>(
       '/api/log/self',
-      isMockApi
-        ? { ...filters, page: p, page_size: EXPORT_PAGE_SIZE }
-        : { ...filters, p, page_size: EXPORT_PAGE_SIZE },
+      { ...filters, p, page_size: EXPORT_PAGE_SIZE },
       { signal }
     )
-    const next = isMockApi ? nextRaw : parseLogPage(nextRaw as unknown)
+    const next = parseLogPage(nextRaw as unknown)
     items.push(...next.items)
   }
 

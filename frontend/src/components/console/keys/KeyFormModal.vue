@@ -4,7 +4,6 @@ import { getActivePinia } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
-import { isMockApi } from '@/api/client'
 import { ApiError } from '@/api/types'
 import type { TokenSummary, TokenType } from '@/types/console'
 import AmountInput from '@/components/common/AmountInput.vue'
@@ -42,8 +41,6 @@ const form = reactive({
   quotaDollars: null as number | null,
   unlimited: false,
   ipText: '',
-  rateLimit: null as number | null,
-  maxRatio: null as number | null,
   expireDate: '',
 })
 const saving = ref(false)
@@ -52,7 +49,6 @@ const advancedSectionId = useId()
 
 /** Which optional sections are expanded (hidden by default). */
 const vis = reactive({
-  rateLimit: false,
   expiry: false,
 })
 
@@ -69,20 +65,14 @@ watch(
       e && !e.unlimited ? e.remain_quota / QUOTA_PER_DOLLAR : null
     form.unlimited = e?.unlimited ?? true
     form.ipText = e?.ip_limits?.join('\n') ?? ''
-    form.rateLimit = e && e.rate_limit > 0 ? e.rate_limit : null
-    form.maxRatio = e?.max_ratio ?? null
     form.expireDate =
       e && e.expired_time > 0
         ? new Date(e.expired_time * 1000).toISOString().slice(0, 10)
         : ''
 
-    vis.rateLimit = (form.rateLimit ?? 0) > 0
     vis.expiry = form.expireDate.length > 0
     advancedOpen.value = Boolean(
-      e &&
-      (form.model_limits.length > 0 ||
-        form.ipText.trim().length > 0 ||
-        vis.rateLimit)
+      e && (form.model_limits.length > 0 || form.ipText.trim().length > 0)
     )
   },
   { immediate: true }
@@ -105,30 +95,9 @@ const advancedConfiguredCount = computed(() => {
   let count = 0
   if (!props.editing && form.customKey.trim()) count++
   if (form.model_limits.length > 0) count++
-  if (vis.rateLimit) count++
   if (form.ipText.trim()) count++
   return count
 })
-
-/** Adaptive step size for the rate-limit stepper. */
-function rateLimitStepSize(value: number): number {
-  if (value <= 30) return 5
-  if (value <= 120) return 10
-  if (value <= 600) return 30
-  return 60
-}
-
-function adjustRateLimit(direction: 1 | -1) {
-  const cur = form.rateLimit ?? 60
-  const step = rateLimitStepSize(direction > 0 ? cur : Math.max(1, cur - 1))
-  form.rateLimit = Math.max(1, cur + direction * step)
-}
-
-function onRateLimitWheel(e: WheelEvent) {
-  adjustRateLimit(e.deltaY < 0 ? 1 : -1)
-}
-
-const RATE_PRESETS = [10, 30, 60, 120, 300, 600]
 
 async function save() {
   if (saving.value) return
@@ -145,14 +114,12 @@ async function save() {
         .split('\n')
         .map((s) => s.trim())
         .filter(Boolean),
-      rate_limit: vis.rateLimit ? (form.rateLimit ?? 0) : 0,
-      max_ratio: form.maxRatio ?? undefined,
       expired_time:
         vis.expiry && form.expireDate
           ? Math.floor(new Date(form.expireDate).getTime() / 1000)
           : -1,
     }
-    if (!isMockApi) {
+    {
       payload.unlimited_quota = payload.unlimited
       payload.model_limits_enabled = form.model_limits.length > 0
       payload.model_limits = form.model_limits.join(',')
@@ -163,16 +130,11 @@ async function save() {
           : (props.editing?.group ?? auth?.user?.group ?? 'default')
       delete payload.unlimited
       delete payload.ip_limits
-      delete payload.rate_limit
-      delete payload.max_ratio
       delete payload.type
     }
     if (props.editing) {
-      if (!isMockApi) payload.id = props.editing.id
-      await api.put(
-        isMockApi ? `/api/token/${props.editing.id}` : '/api/token/',
-        payload
-      )
+      payload.id = props.editing.id
+      await api.put('/api/token/', payload)
       toast.success(t('keys.updated'))
     } else {
       payload.type = form.type
@@ -297,20 +259,6 @@ async function save() {
         </div>
       </div>
 
-      <FormField
-        v-if="isMockApi"
-        :label="t('keys.maxRatio')"
-        :hint="t('keys.maxRatioHint')"
-      >
-        <AmountInput
-          v-model="form.maxRatio"
-          name="token-max-ratio"
-          :aria-label="t('keys.maxRatio')"
-          placeholder="2"
-          :min="0"
-        />
-      </FormField>
-
       <section
         class="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
       >
@@ -398,88 +346,6 @@ async function save() {
               :placeholder="t('keys.modelsPlaceholder')"
             />
           </FormField>
-
-          <div v-if="isMockApi" class="space-y-2">
-            <div
-              class="flex items-center justify-between gap-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3 py-2.5"
-            >
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-[var(--text-primary)]">
-                  {{ t('keys.rateLimit') }}
-                </p>
-                <p class="text-xs text-[var(--text-tertiary)]">
-                  {{ t('keys.rateLimitHint') }}
-                </p>
-              </div>
-              <ConsoleToggle
-                v-model="vis.rateLimit"
-                :label="t('keys.rateLimit')"
-              />
-            </div>
-            <div
-              v-if="vis.rateLimit"
-              class="overflow-hidden rounded-lg border border-[var(--accent)] bg-[var(--surface-solid)]"
-            >
-              <div
-                class="flex select-none items-center"
-                @wheel.prevent="onRateLimitWheel"
-              >
-                <button
-                  type="button"
-                  class="flex h-14 w-12 shrink-0 items-center justify-center text-xl font-light text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] active:bg-[var(--accent-soft)]"
-                  :aria-label="t('keys.rateLimit') + ' -'"
-                  @click="adjustRateLimit(-1)"
-                >
-                  −
-                </button>
-                <div class="flex flex-1 flex-col items-center py-2">
-                  <div class="flex items-baseline gap-1">
-                    <input
-                      v-model.number="form.rateLimit"
-                      type="number"
-                      min="1"
-                      name="token-rate-limit"
-                      :aria-label="t('keys.rateLimit')"
-                      class="w-20 bg-transparent text-center text-3xl font-bold text-[var(--accent-text)] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    />
-                    <span
-                      class="text-sm font-medium text-[var(--text-tertiary)]"
-                      >RPM</span
-                    >
-                  </div>
-                  <p class="mt-0.5 text-[10px] text-[var(--text-tertiary)]">
-                    {{ t('keys.rateLimitEditHint') }}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  class="flex h-14 w-12 shrink-0 items-center justify-center text-xl font-light text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] active:bg-[var(--accent-soft)]"
-                  :aria-label="t('keys.rateLimit') + ' +'"
-                  @click="adjustRateLimit(1)"
-                >
-                  +
-                </button>
-              </div>
-              <div
-                class="flex gap-1.5 border-t border-[var(--border-subtle)] px-3 py-2"
-              >
-                <button
-                  v-for="p in RATE_PRESETS"
-                  :key="p"
-                  type="button"
-                  class="flex-1 rounded-lg py-1 text-xs font-medium transition-colors focus-ring"
-                  :class="
-                    form.rateLimit === p
-                      ? 'bg-[var(--accent)] text-[var(--accent-contrast)]'
-                      : 'bg-[var(--surface-muted)] text-[var(--text-secondary)] hover:bg-[var(--surface-solid)] hover:text-[var(--text-primary)]'
-                  "
-                  @click="form.rateLimit = p"
-                >
-                  {{ p }}
-                </button>
-              </div>
-            </div>
-          </div>
 
           <FormField :label="t('keys.ipLabel')">
             <textarea

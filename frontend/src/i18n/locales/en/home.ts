@@ -74,7 +74,7 @@ export default {
     traceInspectorLabel: 'Toggle simulated request traces',
     a11yIdle: 'Gateway operational and ready to receive requests.',
     a11yRoute: 'Routing to {model}; response latency {latency} milliseconds.',
-    live: 'ROUTING / DEMO',
+    live: 'GATEWAY / ONLINE',
     models: 'Multi-model routing',
     uptime: 'Smart scheduling',
     region: 'ap-cn',
@@ -141,6 +141,5 @@ export default {
     copyright: '© 2026 DayFliggy. All rights reserved.',
     designBy: 'Designed and developed by',
     updated: 'Updated 2026.07.17',
-    icp: 'For demonstration purposes only',
   },
 }

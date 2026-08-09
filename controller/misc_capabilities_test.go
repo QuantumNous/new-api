@@ -21,10 +21,20 @@ func TestFrontendCapabilitiesAreFlatStatuses(t *testing.T) {
 	capabilities := getFrontendCapabilities(true)
 	require.Equal(t, "live", capabilities["next_frontend"])
 	require.Equal(t, "live", capabilities["legacy_token"])
-	require.Equal(t, "prototype", capabilities["marketplace"])
-	require.Equal(t, "prototype", capabilities["two_factor"])
+	require.Equal(t, "live", capabilities["two_factor"])
+	require.Equal(t, "disabled", capabilities["token_private_routing"])
+	for _, feature := range []string{
+		"subscription_balance",
+		"marketplace",
+		"invoices",
+		"lab",
+		"farm",
+		"bigame",
+	} {
+		require.Equal(t, "disabled", capabilities[feature], feature)
+	}
 	for feature, status := range capabilities {
-		require.Contains(t, []string{"live", "prototype", "disabled"}, status, feature)
+		require.Contains(t, []string{"live", "disabled"}, status, feature)
 	}
 }
 

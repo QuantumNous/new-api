@@ -62,6 +62,12 @@ const router = createRouter({
       meta: { public: true, guestOnly: true },
     },
     {
+      path: '/oauth/:provider',
+      name: 'oauth-callback',
+      component: () => import('@/views/auth/OAuthCallbackView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/sign-in',
       redirect: (to) => ({ name: 'sign-in', query: to.query }),
     },
@@ -89,7 +95,6 @@ const router = createRouter({
           component: () => import('@/views/console/ActivityView.vue'),
           meta: {
             topNav: 'activities',
-            prototype: true,
             feature: 'activity',
           },
         },
@@ -105,7 +110,7 @@ const router = createRouter({
           component: () => import('@/views/console/MarketplaceView.vue'),
           meta: {
             noPageScroll: true,
-            prototype: true,
+            protected: true,
             feature: 'marketplace',
           },
         },
@@ -132,7 +137,6 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
-            prototype: true,
             feature: 'admin',
             ...getConsoleRouteAccessMeta('channels'),
           },
@@ -144,7 +148,6 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
-            prototype: true,
             feature: 'admin',
             ...getConsoleRouteAccessMeta('users'),
           },
@@ -156,7 +159,6 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
-            prototype: true,
             feature: 'admin',
             ...getConsoleRouteAccessMeta('redemption'),
           },
@@ -168,8 +170,8 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
-            prototype: true,
-            feature: 'admin',
+            protected: true,
+            feature: 'subscription_balance',
             ...getConsoleRouteAccessMeta('plan-management'),
           },
         },
@@ -180,7 +182,6 @@ const router = createRouter({
           meta: {
             wide: true,
             noPageScroll: true,
-            prototype: true,
             feature: 'orders',
             ...getConsoleRouteAccessMeta('orders'),
           },
@@ -191,7 +192,6 @@ const router = createRouter({
           component: () => import('@/views/console/TicketsView.vue'),
           meta: {
             noPageScroll: true,
-            prototype: true,
             feature: 'tickets',
           },
         },
@@ -199,7 +199,7 @@ const router = createRouter({
           path: 'tickets/:id',
           name: 'ticket-detail',
           component: () => import('@/views/console/TicketDetailView.vue'),
-          meta: { nav: 'tickets', prototype: true, feature: 'tickets' },
+          meta: { nav: 'tickets', feature: 'tickets' },
         },
         {
           path: 'wallet',
@@ -211,31 +211,31 @@ const router = createRouter({
           path: 'subscription',
           name: 'subscription',
           component: () => import('@/views/console/SubscriptionView.vue'),
-          meta: { feature: 'subscription_balance' },
+          meta: { protected: true, feature: 'subscription_balance' },
         },
         {
           path: 'invite',
           name: 'invite',
           component: () => import('@/views/console/InviteView.vue'),
-          meta: { prototype: true, feature: 'invites' },
+          meta: { feature: 'invites' },
         },
         {
           path: 'invoice',
           name: 'invoice',
           component: () => import('@/views/console/InvoiceView.vue'),
-          meta: { prototype: true, feature: 'invoices' },
+          meta: { protected: true, feature: 'invoices' },
         },
         {
           path: 'settings',
           name: 'settings',
           component: () => import('@/views/console/AccountSettingsView.vue'),
-          meta: { prototype: true, feature: 'profile' },
+          meta: { feature: 'profile' },
         },
         {
           path: 'profile',
           name: 'profile',
           component: () => import('@/views/console/AccountCenterView.vue'),
-          meta: { prototype: true, feature: 'profile' },
+          meta: { feature: 'profile' },
         },
         {
           path: 'farm',
@@ -243,7 +243,7 @@ const router = createRouter({
           component: () => import('@/views/console/FarmView.vue'),
           meta: {
             topNav: 'activities',
-            prototype: true,
+            protected: true,
             feature: 'farm',
           },
         },
@@ -253,7 +253,7 @@ const router = createRouter({
           component: () => import('@/views/console/BigameView.vue'),
           meta: {
             topNav: 'activities',
-            prototype: true,
+            protected: true,
             feature: 'bigame',
           },
         },
@@ -265,7 +265,7 @@ const router = createRouter({
       meta: {
         requiresAuth: true,
         topNav: 'alchemy',
-        prototype: true,
+        protected: true,
         feature: 'lab',
       },
       children: [
@@ -327,14 +327,14 @@ router.beforeEach(async (to) => {
   if (to.meta.feature || to.name === 'sign-up') {
     const app = useAppStore()
     await app.initialize()
-    if (
-      app.statusReachable &&
+    const featureUnavailable =
       to.meta.feature &&
-      !app.isFeatureEnabled(
-        to.meta.feature,
-        to.meta.prototype ? 'prototype' : 'live'
-      )
-    ) {
+      ((to.meta.protected && !app.statusReachable) ||
+        !app.isFeatureEnabled(
+          to.meta.feature,
+          to.meta.protected ? 'disabled' : 'live'
+        ))
+    if (featureUnavailable) {
       return to.name === 'dashboard' ? { name: 'home' } : CONSOLE_ENTRY
     }
     if (to.name === 'sign-up' && app.statusReachable && !app.registerEnabled) {

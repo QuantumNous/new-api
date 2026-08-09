@@ -44,6 +44,10 @@ export default {
     tickerVersion: '版本',
     backHome: '返回首页',
     cardMotto: '最安心的大模型中转平台',
+    oauthCompleting: '正在完成 OAuth 绑定...',
+    oauthUnavailable: '当前 OAuth 绑定窗口已失效。',
+    oauthLinked: 'OAuth 账号绑定成功。',
+    oauthFailed: 'OAuth 绑定失败。',
     relay: {
       prompt: '提示词原文',
       passthrough: '字节级直通',

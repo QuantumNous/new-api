@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Eye, LoaderCircle, RotateCcw } from 'lucide-vue-next'
+import { Eye } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -9,19 +9,16 @@ import {
   adminOrderMethodLabelKey,
   adminOrderStatusLabelKey,
   adminOrderStatusTone,
-  adminOrderTypeLabelKey,
+  formatAdminOrderAmount,
 } from '@/constants/adminOrders'
 import type { AdminOrder } from '@/types/console'
-import { formatMoney, formatTime } from '@/utils/format'
+import { formatTime } from '@/utils/format'
 
 withDefaults(
   defineProps<{
     orders: AdminOrder[]
     loading?: boolean
-    canRefund: (order: AdminOrder) => boolean
-    isRefunding: (id: number) => boolean
     viewOrder: (order: AdminOrder) => void
-    refundOrder: (order: AdminOrder) => void
   }>(),
   { loading: false }
 )
@@ -59,12 +56,12 @@ const { t } = useI18n()
             {{ order.order_no }}
           </p>
           <p class="mt-1 truncate text-sm text-[var(--text-primary)]">
-            {{ order.email }}
+            {{ order.email || order.username || `#${order.user_id}` }}
           </p>
         </div>
         <div class="shrink-0 text-right">
           <p class="text-sm font-bold text-[var(--text-primary)]">
-            {{ formatMoney(order.amount) }}
+            {{ formatAdminOrderAmount(order.amount, order.currency) }}
           </p>
           <StatusChip :tone="adminOrderStatusTone(order.status)" class="mt-1">
             {{ t(adminOrderStatusLabelKey(order.status)) }}
@@ -81,19 +78,13 @@ const { t } = useI18n()
         </div>
         <div class="min-w-0">
           <dt class="text-[var(--text-tertiary)]">
-            {{ t('orders.colMethod') }}
+            {{ t('orders.colProvider') }}
           </dt>
           <dd class="mt-1 text-[var(--text-secondary)]">
             {{ t(adminOrderMethodLabelKey(order.method)) }}
           </dd>
         </div>
-        <div class="min-w-0">
-          <dt class="text-[var(--text-tertiary)]">{{ t('orders.colType') }}</dt>
-          <dd class="mt-1 text-[var(--text-secondary)]">
-            {{ t(adminOrderTypeLabelKey(order.type)) }}
-          </dd>
-        </div>
-        <div class="min-w-0">
+        <div class="min-w-0 col-span-2">
           <dt class="text-[var(--text-tertiary)]">
             {{ t('orders.colCreated') }}
           </dt>
@@ -104,24 +95,10 @@ const { t } = useI18n()
       </dl>
 
       <footer
-        class="mt-3 flex items-center justify-end gap-1 border-t border-[var(--border-subtle)] pt-3"
+        class="mt-3 flex items-center justify-end border-t border-[var(--border-subtle)] pt-3"
       >
         <IconButton :label="t('orders.viewOrder')" @click="viewOrder(order)">
           <Eye :size="16" />
-        </IconButton>
-        <IconButton
-          v-if="canRefund(order) || isRefunding(order.id)"
-          :label="t('orders.refundOrder')"
-          tone="danger"
-          :disabled="!canRefund(order)"
-          @click="refundOrder(order)"
-        >
-          <LoaderCircle
-            v-if="isRefunding(order.id)"
-            :size="16"
-            class="animate-spin"
-          />
-          <RotateCcw v-else :size="16" />
         </IconButton>
       </footer>
     </article>

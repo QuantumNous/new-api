@@ -159,11 +159,11 @@ describe('public application state', () => {
     expect(store.uptimeLabel).toBe('100.00%')
   })
 
-  it('resolves live, prototype, disabled, and missing capabilities', async () => {
+  it('resolves live, disabled, and missing capabilities', async () => {
     publicApi.status.mockResolvedValueOnce({
       frontend_capabilities: {
         wallet: 'live',
-        marketplace: 'prototype',
+        marketplace: 'disabled',
         passkey: 'disabled',
       },
     })
@@ -171,10 +171,10 @@ describe('public application state', () => {
 
     await store.initialize()
 
-    expect(store.featureStatus('wallet', 'prototype')).toBe('live')
-    expect(store.featureStatus('marketplace', 'live')).toBe('prototype')
+    expect(store.featureStatus('wallet', 'disabled')).toBe('live')
+    expect(store.featureStatus('marketplace', 'live')).toBe('disabled')
     expect(store.featureStatus('passkey', 'live')).toBe('disabled')
-    expect(store.featureStatus('unknown', 'prototype')).toBe('prototype')
+    expect(store.featureStatus('unknown', 'disabled')).toBe('disabled')
     expect(store.isFeatureEnabled('passkey')).toBe(false)
     expect(store.isFeatureEnabled('unknown')).toBe(true)
   })

@@ -138,11 +138,8 @@ export function adminUserRoleLabelKey(
 
 /**
  * The operator's authority level, which is deliberately NOT `user.role`.
- * `isDemoUser` pins the persisted demo identity to `role === 1` as an
- * anti-escalation boundary (see api/demoStorage.ts and its spec), so the level
- * has to come from the store's capability flags instead. When real
- * authorization lands, those flags start reflecting the server and this mapping
- * keeps working unchanged.
+ * The level comes from server-backed capability flags instead of trusting a
+ * mutable row value. The backend remains the authorization boundary.
  */
 export function adminOperatorLevel(capabilities: {
   isRoot?: boolean

@@ -23,16 +23,14 @@ export function useAdminRedemption() {
   const { t } = useI18n()
   const toast = useToast()
   const auth = useAuthStore()
-  const { readOnly } = useFeatureAccess('admin', 'prototype')
+  const { readOnly } = useFeatureAccess('admin', 'disabled')
 
   const rows = ref<AdminRedemptionCode[]>([])
   const total = ref(0)
-  const typeCounts = ref<Record<string, number>>({})
   const statusCounts = ref<Record<string, number>>({})
   const page = ref(1)
   const pageSize = ref(20)
   const keyword = ref('')
-  const typeFilter = ref('')
   const statusFilter = ref('')
   const sortBy = ref<AdminRedemptionSortBy>('id')
   const sortOrder = ref<AdminRedemptionSortOrder>('desc')
@@ -96,13 +94,12 @@ export function useAdminRedemption() {
     if (rows.value.length === 0) initialError.value = ''
 
     const trimmed = keyword.value.trim()
-    const url = trimmed ? '/api/redemption/search' : '/api/redemption/'
+    const url = '/api/next/admin/redemptions'
     const result = await listRequest.run((signal) =>
       api.get<AdminRedemptionPage>(
         url,
         {
           keyword: trimmed || undefined,
-          type: typeFilter.value || undefined,
           status: statusFilter.value || undefined,
           sort_by: sortBy.value,
           sort_order: sortOrder.value,
@@ -128,7 +125,6 @@ export function useAdminRedemption() {
 
     rows.value = result.value.items
     total.value = result.value.total
-    typeCounts.value = result.value.type_counts
     statusCounts.value = result.value.status_counts
     initialError.value = ''
   }
@@ -143,7 +139,7 @@ export function useAdminRedemption() {
     window.clearTimeout(searchTimer)
     searchTimer = window.setTimeout(reloadFromFirstPage, 300)
   })
-  watch([typeFilter, statusFilter, sortBy, sortOrder], reloadFromFirstPage)
+  watch([statusFilter, sortBy, sortOrder], reloadFromFirstPage)
   watch(pageSize, reloadFromFirstPage)
   watch(page, () => void load())
 
@@ -157,7 +153,7 @@ export function useAdminRedemption() {
     busy.value = next
     try {
       const updated = await api.post<AdminRedemptionCode>(
-        `/api/redemption/${code.id}/status`,
+        `/api/next/admin/redemptions/${code.id}/status`,
         {}
       )
       const index = rows.value.findIndex((c) => c.id === code.id)
@@ -185,7 +181,7 @@ export function useAdminRedemption() {
       const result = await api.post<{
         codes: string[]
         items: AdminRedemptionCode[]
-      }>('/api/redemption/', input)
+      }>('/api/next/admin/redemptions', input)
       toast.success(t('redemption.created'))
       await load({ background: true })
       return result
@@ -219,9 +215,10 @@ export function useAdminRedemption() {
     if (codes.length === 0) return false
     bulkAction.value = 'delete'
     try {
-      const deleted = await api.post<number>('/api/redemption/batch', {
-        ids: codes.map((c) => c.id),
-      })
+      const deleted = await api.post<number>(
+        '/api/next/admin/redemptions/delete/batch',
+        { ids: codes.map((c) => c.id) }
+      )
       toast.success(
         t('redemption.bulkDeleted', { count: deleted ?? codes.length })
       )
@@ -241,12 +238,10 @@ export function useAdminRedemption() {
   return {
     rows,
     total,
-    typeCounts,
     statusCounts,
     page,
     pageSize,
     keyword,
-    typeFilter,
     statusFilter,
     sortBy,
     sortOrder,

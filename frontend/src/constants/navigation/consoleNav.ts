@@ -23,7 +23,7 @@ export interface ConsoleNavGroup {
 export interface ConsoleNavAccessContext {
   isAdmin: boolean
   hasPermission?: (resource: string, action: string) => boolean
-  featureStatus?: (feature: string) => 'live' | 'prototype' | 'disabled'
+  featureStatus?: (feature: string) => 'live' | 'disabled'
 }
 
 export const consoleNavGroups: ConsoleNavGroup[] = [
@@ -139,7 +139,7 @@ export const consoleNavGroups: ConsoleNavGroup[] = [
         name: 'plan-management',
         labelKey: 'nav.planManagement',
         route: 'plan-management',
-        feature: 'admin',
+        feature: 'subscription_balance',
         // Lucide "layers": stacked tiers, the catalogue behind the storefront
         icon: 'm12 2 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 17l9 5 9-5',
       },

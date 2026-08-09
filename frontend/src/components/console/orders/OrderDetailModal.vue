@@ -6,27 +6,32 @@ import ConsoleModal from '@/components/common/ConsoleModal.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import {
   adminOrderMethodLabelKey,
+  adminOrderPaymentRailLabelKey,
   adminOrderStatusLabelKey,
   adminOrderStatusTone,
   adminOrderTypeLabelKey,
+  formatAdminOrderAmount,
+  isAdminOrderPaymentRail,
 } from '@/constants/adminOrders'
 import type { AdminOrder } from '@/types/console'
-import { formatMoney, formatQuota, formatTime } from '@/utils/format'
+import { formatQuota, formatTime } from '@/utils/format'
 
-const props = withDefaults(
-  defineProps<{
-    order: AdminOrder | null
-    canRefund?: boolean
-  }>(),
-  { canRefund: false }
-)
+const props = defineProps<{
+  order: AdminOrder | null
+}>()
 
 const emit = defineEmits<{
   close: []
-  refund: [order: AdminOrder]
 }>()
 
 const { t } = useI18n()
+
+function paymentRailLabel(method: string): string {
+  if (isAdminOrderPaymentRail(method)) {
+    return t(adminOrderPaymentRailLabelKey(method))
+  }
+  return method || t('orders.notRecorded')
+}
 </script>
 
 <template>
@@ -70,19 +75,17 @@ const { t } = useI18n()
         </dt>
         <dd class="mt-1 min-w-0 text-sm text-[var(--text-primary)]">
           <span class="block truncate" :title="props.order.email">
-            {{ props.order.email }}
+            {{
+              props.order.email ||
+              props.order.username ||
+              `#${props.order.user_id}`
+            }}
           </span>
           <span class="block truncate text-xs text-[var(--text-tertiary)]">
-            {{ props.order.username }} · #{{ props.order.user_id }}
+            {{ props.order.username || t('orders.notRecorded') }} · #{{
+              props.order.user_id
+            }}
           </span>
-        </dd>
-      </div>
-      <div class="min-w-0">
-        <dt class="text-xs text-[var(--text-tertiary)]">
-          {{ t('orders.colSubject') }}
-        </dt>
-        <dd class="mt-1 truncate text-sm text-[var(--text-primary)]">
-          {{ props.order.subject }}
         </dd>
       </div>
       <div class="min-w-0">
@@ -92,7 +95,7 @@ const { t } = useI18n()
         <dd
           class="mt-1 text-lg font-bold tabular-nums text-[var(--text-primary)]"
         >
-          {{ formatMoney(props.order.amount) }}
+          {{ formatAdminOrderAmount(props.order.amount, props.order.currency) }}
         </dd>
       </div>
       <div class="min-w-0">
@@ -100,7 +103,11 @@ const { t } = useI18n()
           {{ t('orders.colQuota') }}
         </dt>
         <dd class="mt-1 text-sm tabular-nums text-[var(--text-primary)]">
-          {{ props.order.quota > 0 ? formatQuota(props.order.quota) : '—' }}
+          {{
+            props.order.quota > 0
+              ? formatQuota(props.order.quota)
+              : t('orders.notCredited')
+          }}
         </dd>
       </div>
       <div class="min-w-0">
@@ -113,10 +120,18 @@ const { t } = useI18n()
       </div>
       <div class="min-w-0">
         <dt class="text-xs text-[var(--text-tertiary)]">
-          {{ t('orders.colMethod') }}
+          {{ t('orders.colProvider') }}
         </dt>
         <dd class="mt-1 text-sm text-[var(--text-primary)]">
           {{ t(adminOrderMethodLabelKey(props.order.method)) }}
+        </dd>
+      </div>
+      <div class="min-w-0">
+        <dt class="text-xs text-[var(--text-tertiary)]">
+          {{ t('orders.colPaymentMethod') }}
+        </dt>
+        <dd class="mt-1 text-sm text-[var(--text-primary)]">
+          {{ paymentRailLabel(props.order.payment_method) }}
         </dd>
       </div>
       <div class="min-w-0">
@@ -135,34 +150,16 @@ const { t } = useI18n()
           {{
             props.order.paid_at > 0
               ? formatTime(props.order.paid_at)
-              : t('orders.notPaid')
+              : t('orders.notRecorded')
           }}
-        </dd>
-      </div>
-      <div v-if="props.order.refunded_at > 0" class="min-w-0">
-        <dt class="text-xs text-[var(--text-tertiary)]">
-          {{ t('orders.colRefundedAt') }}
-        </dt>
-        <dd class="mt-1 text-sm tabular-nums text-[var(--text-secondary)]">
-          {{ formatTime(props.order.refunded_at) }}
         </dd>
       </div>
     </dl>
 
     <template #footer>
-      <div :class="canRefund ? 'grid grid-cols-2 gap-3' : ''">
-        <ConsoleButton variant="secondary" block @click="emit('close')">
-          {{ t('common.close') }}
-        </ConsoleButton>
-        <ConsoleButton
-          v-if="canRefund && props.order"
-          variant="danger"
-          block
-          @click="emit('refund', props.order)"
-        >
-          {{ t('orders.refundOrder') }}
-        </ConsoleButton>
-      </div>
+      <ConsoleButton variant="secondary" block @click="emit('close')">
+        {{ t('common.close') }}
+      </ConsoleButton>
     </template>
   </ConsoleModal>
 </template>

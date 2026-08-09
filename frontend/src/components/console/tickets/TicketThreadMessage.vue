@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { api } from '@/api/console'
 import type { TicketMessage } from '@/types/console'
 import { relativeTime } from '@/utils/format'
 import { safeImageUrl } from '@/utils/safeUrl'
@@ -10,11 +11,47 @@ const props = defineProps<{ message: TicketMessage }>()
 defineEmits<{ 'image-click': [url: string] }>()
 
 const { t, locale } = useI18n()
-const safeImages = computed(() =>
-  props.message.images
-    .map((image) => safeImageUrl(image))
-    .filter((image): image is string => Boolean(image))
+const safeImages = ref<string[]>([])
+let imageController: AbortController | null = null
+
+function clearImages() {
+  for (const image of safeImages.value) URL.revokeObjectURL(image)
+  safeImages.value = []
+}
+
+watch(
+  () => props.message.images,
+  async (images) => {
+    imageController?.abort()
+    clearImages()
+    if (!images.length) return
+    const controller = new AbortController()
+    imageController = controller
+    const loaded = await Promise.all(
+      images.map(async (image) => {
+        try {
+          const blob = await api.getBlob(image, { signal: controller.signal })
+          return URL.createObjectURL(blob)
+        } catch {
+          return null
+        }
+      })
+    )
+    if (controller.signal.aborted || imageController !== controller) {
+      for (const image of loaded) if (image) URL.revokeObjectURL(image)
+      return
+    }
+    safeImages.value = loaded
+      .map((image) => safeImageUrl(image))
+      .filter((image): image is string => Boolean(image))
+  },
+  { immediate: true }
 )
+
+onBeforeUnmount(() => {
+  imageController?.abort()
+  clearImages()
+})
 
 const isSupport = computed(() => props.message.role === 'support')
 
