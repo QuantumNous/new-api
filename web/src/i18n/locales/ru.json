@@ -280,6 +280,7 @@
     "AK/SK mode: use AccessKey|SecretAccessKey|Region": "Режим AK/SK: используйте AccessKey|SecretAccessKey|Region",
     "Ali": "Alibaba Байлянь",
     "Yike": "Yike (Wonder)",
+    "Yike API base URL hint": "Шанхай: https://yike.cn-shanghai.aliyuncs.com; Сингапур: https://yike.ap-southeast-1.aliyuncs.com; только HTTPS",
     "Alipay": "Alipay",
     "All": "Все",
     "All API tokens": "Все API-ключи",

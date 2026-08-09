@@ -23,11 +23,13 @@ export function isYikeChannel(channelType: number | null | undefined): boolean {
 }
 
 export function formatYikeCredits(
-  balance: number,
+  balance: number | null | undefined,
   unitLabel: string,
   locale?: string,
   compact = false
 ): string {
+  if (balance == null || !Number.isFinite(balance)) return '-'
+
   const amount = new Intl.NumberFormat(locale, {
     maximumFractionDigits: 4,
     notation: compact ? 'compact' : 'standard',

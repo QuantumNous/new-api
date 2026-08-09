@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 
@@ -45,9 +46,10 @@ export function BalanceQueryDialog({
   open,
   onOpenChange,
 }: BalanceQueryDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { currentRow, setCurrentRow } = useChannels()
   const queryClient = useQueryClient()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [isQuerying, setIsQuerying] = useState(false)
   const [balance, setBalance] = useState<number | null>(null)
   const [balanceUpdatedTime, setBalanceUpdatedTime] = useState<number | null>(
@@ -131,7 +133,7 @@ export function BalanceQueryDialog({
 
   const formatBalance = (bal: number) =>
     isYike
-      ? formatYikeCredits(bal, t('Credits'))
+      ? formatYikeCredits(bal, t('Credits'), locale)
       : formatCurrencyFromUSD(bal, {
           digitsLarge: 2,
           digitsSmall: 4,

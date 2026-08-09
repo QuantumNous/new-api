@@ -22,6 +22,8 @@ import {
   TYPE_TO_KEY_PROMPT,
 } from '../constants'
 
+const YIKE_BASE_URL_HINT = 'Yike API base URL hint'
+
 // ============================================================================
 // Channel Type Configuration
 // ============================================================================
@@ -174,8 +176,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     icon: 'Yike',
     defaultBaseUrl: 'https://yike.cn-shanghai.aliyuncs.com',
     hints: {
-      baseUrl:
-        'Shanghai: https://yike.cn-shanghai.aliyuncs.com; Singapore: https://yike.ap-southeast-1.aliyuncs.com; HTTPS only',
+      baseUrl: YIKE_BASE_URL_HINT,
       key: TYPE_TO_KEY_PROMPT[CHANNEL_TYPE_YIKE],
       models: 'Wonder-Pro,Wonder-Standard,happyhorse-1.1,happyhorse-1.0,wan2.7',
     },

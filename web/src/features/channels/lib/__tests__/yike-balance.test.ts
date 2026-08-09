@@ -27,6 +27,12 @@ describe('Yike credit balance', () => {
     assert.equal(formatYikeCredits(104, '积分', 'zh-CN'), '104 积分')
   })
 
+  test('falls back for missing or invalid balances', () => {
+    assert.equal(formatYikeCredits(null, 'Credits', 'en-US'), '-')
+    assert.equal(formatYikeCredits(undefined, 'Credits', 'en-US'), '-')
+    assert.equal(formatYikeCredits(Number.NaN, 'Credits', 'en-US'), '-')
+  })
+
   test('recognizes only the Yike channel type', () => {
     assert.equal(isYikeChannel(CHANNEL_TYPE_YIKE), true)
     assert.equal(isYikeChannel(1), false)

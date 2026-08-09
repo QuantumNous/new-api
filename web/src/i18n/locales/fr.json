@@ -280,6 +280,7 @@
     "AK/SK mode: use AccessKey|SecretAccessKey|Region": "Mode AK/SK : utiliser AccessKey|SecretAccessKey|Region",
     "Ali": "Alibaba Bailian",
     "Yike": "Yike (Wonder)",
+    "Yike API base URL hint": "Shanghai : https://yike.cn-shanghai.aliyuncs.com ; Singapour : https://yike.ap-southeast-1.aliyuncs.com ; HTTPS uniquement",
     "Alipay": "Alipay",
     "All": "Tout",
     "All API tokens": "Tous les jetons API",

@@ -280,6 +280,7 @@
     "AK/SK mode: use AccessKey|SecretAccessKey|Region": "AK/SK 模式：使用 AccessKey|SecretAccessKey|Region",
     "Ali": "阿里百炼",
     "Yike": "万镜一刻（Yike）",
+    "Yike API base URL hint": "上海：https://yike.cn-shanghai.aliyuncs.com；新加坡：https://yike.ap-southeast-1.aliyuncs.com；仅支持 HTTPS",
     "Alipay": "支付宝",
     "All": "全部",
     "All API tokens": "全部 API 密钥",
