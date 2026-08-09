@@ -26,6 +26,7 @@ import {
   LayoutDashboard,
   ListTodo,
   MessageSquare,
+  Network,
   Radio,
   ServerCog,
   Settings,
@@ -143,6 +144,12 @@ export function useSidebarData(): SidebarData {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Proxy Config'),
+            url: '/proxy',
+            icon: Network,
+            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('System Info'),

@@ -16,15 +16,32 @@ type ProxyConfig struct {
 // OutboundConfig describes the sing-box outbound parameters entered on the
 // admin proxy page. It is stored as JSON and rendered into singbox-config.json.
 type OutboundConfig struct {
-	Type          string `json:"type"`
-	Server        string `json:"server"`
-	ServerPort    int    `json:"server_port"`
-	UUID          string `json:"uuid,omitempty"`
-	Password      string `json:"password,omitempty"`
-	Flow          string `json:"flow,omitempty"`
-	Encryption    string `json:"encryption,omitempty"`
-	TLSEnabled    bool   `json:"tls_enabled,omitempty"`
-	TLSServerName string `json:"tls_server_name,omitempty"`
+	Type           string            `json:"type"`
+	Server         string            `json:"server"`
+	ServerPort     int               `json:"server_port"`
+	UUID           string            `json:"uuid,omitempty"`
+	Password       string            `json:"password,omitempty"`
+	Flow           string            `json:"flow,omitempty"`
+	Encryption     string            `json:"encryption,omitempty"`
+	Method         string            `json:"method,omitempty"`
+	Network        string            `json:"network,omitempty"`
+	PacketEncoding string            `json:"packet_encoding,omitempty"`
+	Masquerade     string            `json:"masquerade,omitempty"`
+	Obfs           string            `json:"obfs,omitempty"`
+	ObfsPassword   string            `json:"obfs_password,omitempty"`
+	HopPorts       string            `json:"hop_ports,omitempty"`
+	TLSEnabled     bool              `json:"tls_enabled,omitempty"`
+	TLSServerName  string            `json:"tls_server_name,omitempty"`
+	Transport      *transportOptions `json:"transport,omitempty"`
+}
+
+type transportOptions struct {
+	Type        string `json:"type,omitempty"`
+	Path        string `json:"path,omitempty"`
+	Host        string `json:"host,omitempty"`
+	ServiceName string `json:"service_name,omitempty"`
+	Security    string `json:"security,omitempty"`
+	Key         string `json:"key,omitempty"`
 }
 
 // getGlobalProxyURL returns the global proxy URL from the database, or "" when

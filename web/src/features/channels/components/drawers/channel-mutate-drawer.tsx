@@ -69,6 +69,7 @@ import { MultiSelect } from '@/components/multi-select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Combobox } from '@/components/ui/combobox'
 import {
   Form,
@@ -4190,6 +4191,31 @@ export function ChannelMutateDrawer({
                                     )}
                                   </FormDescription>
                                   <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name='bypass_proxy'
+                              render={({ field }) => (
+                                <FormItem className='flex flex-row items-start space-x-3 space-y-0'>
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                  <div className='space-y-1 leading-none'>
+                                    <FormLabel className='font-normal'>
+                                      {t('Direct connect (bypass proxy)')}
+                                    </FormLabel>
+                                    <FormDescription>
+                                      {t(
+                                        'When proxy address is empty, the global sing-box proxy is used by default; check this to connect directly'
+                                      )}
+                                    </FormDescription>
+                                  </div>
                                 </FormItem>
                               )}
                             />
