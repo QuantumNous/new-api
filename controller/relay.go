@@ -126,6 +126,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	var image2Router *service.Image2SmartRouter
 	if imageRequest, ok := request.(*dto.ImageRequest); ok {
+		if image2RequestErr := image2SmartRequestValidationError(relayInfo, imageRequest); image2RequestErr != nil {
+			// Capability parsing errors are deterministic client request errors. Do
+			// not let an invalid Image2 size fall through to the legacy selector.
+			newAPIError = image2RequestErr
+			return
+		}
 		var routerErr error
 		image2Router, routerErr = service.NewImage2SmartRouter(c, relayInfo, imageRequest)
 		if routerErr != nil {
@@ -281,6 +287,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+// image2SmartRequestValidationError separates deterministic request-shape
+// failures from optional smart-router lookup failures. The latter may still
+// use the legacy selector, but an enabled Image2 request that exceeds the
+// router's supported dimensions must fail closed before channel selection.
+func image2SmartRequestValidationError(info *relaycommon.RelayInfo, request *dto.ImageRequest) *types.NewAPIError {
+	if !service.Image2SmartRoutingEnabled() || !service.IsImage2SmartRoute(info) {
+		return nil
+	}
+	if _, err := service.ParseImage2RequestCapability(info, request); err != nil {
+		return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	return nil
 }
 
 func effectiveRelayRetryTimes() int {
