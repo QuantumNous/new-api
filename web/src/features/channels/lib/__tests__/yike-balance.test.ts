@@ -19,11 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
-import {
-  formatYikeCredits,
-  isYikeChannel,
-  YIKE_CHANNEL_TYPE,
-} from '../yike-balance'
+import { CHANNEL_TYPE_YIKE } from '../../constants'
+import { formatYikeCredits, isYikeChannel } from '../yike-balance'
 
 describe('Yike credit balance', () => {
   test('formats native credits without a currency symbol', () => {
@@ -31,7 +28,7 @@ describe('Yike credit balance', () => {
   })
 
   test('recognizes only the Yike channel type', () => {
-    assert.equal(isYikeChannel(YIKE_CHANNEL_TYPE), true)
+    assert.equal(isYikeChannel(CHANNEL_TYPE_YIKE), true)
     assert.equal(isYikeChannel(1), false)
   })
 })

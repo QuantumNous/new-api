@@ -16,10 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export const YIKE_CHANNEL_TYPE = 61
+import { CHANNEL_TYPE_YIKE } from '../constants'
 
 export function isYikeChannel(channelType: number | null | undefined): boolean {
-  return channelType === YIKE_CHANNEL_TYPE
+  return channelType === CHANNEL_TYPE_YIKE
 }
 
 export function formatYikeCredits(

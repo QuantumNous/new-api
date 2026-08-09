@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CHANNEL_TYPES } from '../constants'
+import {
+  CHANNEL_TYPES,
+  CHANNEL_TYPE_YIKE,
+  TYPE_TO_KEY_PROMPT,
+} from '../constants'
 
 // ============================================================================
 // Channel Type Configuration
@@ -164,15 +168,15 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
-  61: {
-    id: 61,
-    name: CHANNEL_TYPES[61],
+  [CHANNEL_TYPE_YIKE]: {
+    id: CHANNEL_TYPE_YIKE,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_YIKE],
     icon: 'Yike',
     defaultBaseUrl: 'https://yike.cn-shanghai.aliyuncs.com',
     hints: {
       baseUrl:
         'Shanghai: https://yike.cn-shanghai.aliyuncs.com; Singapore: https://yike.ap-southeast-1.aliyuncs.com; HTTPS only',
-      key: 'Format: AccessKeyId|AccessKeySecret; one complete pair per line for multi-key',
+      key: TYPE_TO_KEY_PROMPT[CHANNEL_TYPE_YIKE],
       models: 'Wonder-Pro,Wonder-Standard,happyhorse-1.1,happyhorse-1.0,wan2.7',
     },
   },

@@ -11,9 +11,21 @@
 | 密钥 | `AccessKeyId\|AccessKeySecret` |
 | 模型 | `Wonder-Pro,Wonder-Standard,happyhorse-1.1,happyhorse-1.0,wan2.7` |
 
-账号需开通万镜一刻、拥有可用点数及 Yike 调用权限。自定义地址必须使用 HTTPS；适配器始终请求 RPC 根路径 `/`。多 Key 渠道每行填写一组完整的 `AK|SK`，任务轮询会继续使用提交时选中的 Key。
+账号需开通万镜一刻、拥有可用点数及 Yike 调用权限。自定义地址必须使用 HTTPS；适配器始终请求 RPC 根路径 `/`。
 
-适配器负责阿里云 V3 签名、`SubmitVideoGenerationJob` 提交、`GetVideoGenerationJob` 轮询及状态和结果转换。后台“测试渠道”和“更新余额”都调用免费只读的 `GetYikeAccountCredit`；余额为会员计划、加油包和赠送积分三类可用积分之和，不会生成视频。余额刷新响应同时返回 `unit=credits`，渠道列表按“积分”展示，不把积分解释为美元。
+密钥必须把 ID 和 Secret 写在同一行，中间使用英文半角竖线 `|`，竖线两侧不要加空格：
+
+```text
+AccessKeyId|AccessKeySecret
+```
+
+- **单密钥**：填写一行，创建一个渠道；支持单独查询该账号积分。
+- **批量添加**：每行填写一组完整凭证；系统按行创建多个独立渠道，每个渠道都可单独查询积分。这是多个账号或多组凭证的推荐方式。
+- **多密钥模式**：每行填写一组完整凭证，但所有凭证保存在同一个渠道，按随机或轮询策略调用；该模式只用于请求轮换，不支持查询或合计多组凭证的积分。
+
+多 Key 渠道的任务轮询会继续使用提交时选中的 Key，不会在任务执行中切换凭证。
+
+适配器负责阿里云 V3 签名、`SubmitVideoGenerationJob` 提交、`GetVideoGenerationJob` 轮询及状态和结果转换。后台“测试渠道”使用选中的一组凭证调用免费只读的 `GetYikeAccountCredit`；单密钥渠道的“更新余额”也调用该接口，不会生成视频。余额为会员计划、加油包和赠送积分三类可用积分之和，刷新响应同时返回 `unit=credits`，渠道列表按“积分”展示，不把积分解释为美元。
 
 ## 用户调用
 
