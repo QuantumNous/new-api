@@ -56,6 +56,10 @@ import {
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../../context/Status';
+import {
+  loadTokenForEdit,
+  omitEntitlementPackageIdsWhenUnavailable,
+} from './tokenLoad';
 
 const { Text, Title } = Typography;
 
@@ -68,6 +72,8 @@ const EditTokenModal = (props) => {
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [entitlementPackages, setEntitlementPackages] = useState([]);
+  const [entitlementAssignmentsAvailable, setEntitlementAssignmentsAvailable] =
+    useState(true);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
   const isEdit = props.editingToken.id !== undefined;
 
@@ -175,12 +181,19 @@ const EditTokenModal = (props) => {
 
   const loadToken = async () => {
     setLoading(true);
-    const [res, entitlementRes] = await Promise.all([
-      API.get(`/api/token/${props.editingToken.id}`),
-      API.get(`/api/entitlement/self/token/${props.editingToken.id}`),
-    ]);
-    const { success, message, data } = res.data;
-    if (success) {
+    setEntitlementAssignmentsAvailable(false);
+    try {
+      const result = await loadTokenForEdit({
+        getToken: () => API.get(`/api/token/${props.editingToken.id}`),
+        getAssignments: () =>
+          API.get(`/api/entitlement/self/token/${props.editingToken.id}`),
+      });
+      if (!result.success) {
+        showError(result.message || t('令牌加载失败'));
+        return;
+      }
+
+      const { data } = result;
       if (data.expired_time !== -1) {
         data.expired_time = timestamp2string(data.expired_time);
       }
@@ -192,18 +205,17 @@ const EditTokenModal = (props) => {
       data.remain_amount = Number(
         quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
       );
-      data.entitlement_package_ids = entitlementRes.data.success
-        ? (entitlementRes.data.data || [])
-            .filter((item) => item.status === 1)
-            .map((item) => item.package_id)
-        : [];
       if (formApiRef.current) {
         formApiRef.current.setValues({ ...getInitValues(), ...data });
       }
-    } else {
-      showError(message);
+      setEntitlementAssignmentsAvailable(
+        result.entitlementAssignmentsAvailable,
+      );
+    } catch {
+      showError(t('令牌加载失败'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -222,6 +234,7 @@ const EditTokenModal = (props) => {
       if (isEdit) {
         loadToken();
       } else {
+        setEntitlementAssignmentsAvailable(true);
         formApiRef.current?.setValues(getInitValues());
       }
     } else {
@@ -264,6 +277,10 @@ const EditTokenModal = (props) => {
       }
       localInputs.model_limits = localInputs.model_limits.join(',');
       localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
+      localInputs = omitEntitlementPackageIdsWhenUnavailable(
+        localInputs,
+        entitlementAssignmentsAvailable,
+      );
       let res = await API.put(`/api/token/`, {
         ...localInputs,
         id: parseInt(props.editingToken.id),

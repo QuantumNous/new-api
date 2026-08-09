@@ -130,6 +130,10 @@ func Distribute() func(c *gin.Context) {
 						return
 					}
 					if playgroundRequest.Group != "" {
+						if entitlementGrant != nil && playgroundRequest.Group != entitlementGrant.Package.Group {
+							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
+							return
+						}
 						userId := c.GetInt("id")
 						if err := service.ValidateUserSelectableTokenGroup(userId, playgroundRequest.Group); err != nil ||
 							(!service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup) {
