@@ -26,7 +26,6 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { BundledLanguage } from 'shiki/bundle/web'
 
 import {
   CodeBlock,
@@ -67,7 +66,7 @@ const LANG_LABELS: Record<Lang, string> = {
   javascript: 'JavaScript',
 }
 
-const LANG_HIGHLIGHT: Record<Lang, BundledLanguage> = {
+const LANG_HIGHLIGHT: Record<Lang, string> = {
   curl: 'bash',
   python: 'python',
   typescript: 'typescript',
