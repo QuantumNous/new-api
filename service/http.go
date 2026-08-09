@@ -12,6 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// protectedResponseHeaders are locally authoritative and must not be
+// overwritten by a same-stack upstream response.
+var protectedResponseHeaders = map[string]struct{}{
+	http.CanonicalHeaderKey("Content-Length"):    {},
+	http.CanonicalHeaderKey(common.RequestIdKey): {},
+}
+
 func CloseResponseBodyGracefully(httpResponse *http.Response) {
 	if httpResponse == nil || httpResponse.Body == nil {
 		return
@@ -35,8 +42,7 @@ func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
 	// For example, Postman will report error, and we cannot check the response at all.
 	if src != nil {
 		for k, v := range src.Header {
-			// avoid setting Content-Length
-			if k == "Content-Length" {
+			if _, protected := protectedResponseHeaders[http.CanonicalHeaderKey(k)]; protected {
 				continue
 			}
 			c.Writer.Header().Set(k, v[0])

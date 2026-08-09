@@ -4,6 +4,8 @@
 package model_test
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,9 +13,52 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+// A same-stack upstream may return its own X-Oneapi-Request-Id. Response
+// passthrough must never replace the local ID already handed to billing.
+func TestUpstreamResponseCannotOverrideBillingRequestId(t *testing.T) {
+	truncateLogs(t)
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(middleware.RequestId())
+	engine.POST("/v1/images/generations", func(c *gin.Context) {
+		c.Set("username", "image2-caller")
+		upstream := &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"x-oneapi-request-id": []string{"upstream-new-api-request-id"},
+				"X-Upstream-Note":     []string{"keep-me"},
+				"Content-Length":      []string{"999"},
+			},
+			Body: io.NopCloser(bytes.NewReader([]byte(`{"ok":true}`))),
+		}
+		service.IOCopyBytesGracefully(c, upstream, []byte(`{"ok":true}`))
+		model.RecordConsumeLog(c, 4242, model.RecordConsumeLogParams{
+			ChannelId: 77,
+			ModelName: "gpt-image-2",
+			TokenName: "image-token",
+			Quota:     250000,
+			Group:     "gpt-image-2-4k",
+		})
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	engine.ServeHTTP(recorder, request)
+
+	var logs []model.Log
+	require.NoError(t, model.LOG_DB.Where("type = ?", model.LogTypeConsume).Find(&logs).Error)
+	require.Len(t, logs, 1)
+	require.Equal(t, logs[0].RequestId, recorder.Header().Get(common.RequestIdKey),
+		"upstream response headers must not break client-to-billing correlation")
+	require.Equal(t, "keep-me", recorder.Header().Get("X-Upstream-Note"))
+	require.Equal(t, "11", recorder.Header().Get("Content-Length"))
+}
 
 // A billing row is only auditable if the operator can get to it from something
 // the caller was given. That path is one string: middleware.RequestId mints an
