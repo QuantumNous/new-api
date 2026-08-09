@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 import type { NameRule, ModelStatus, SyncSource } from './types'
 
@@ -99,45 +99,6 @@ export function getSyncStatusOptions(t: TFunction) {
   ] as const
 }
 
-// ============================================================================
-// Deployment Status
-// ============================================================================
-
-export function getDeploymentStatusOptions(t: TFunction) {
-  return [
-    { label: t('All Status'), value: 'all' },
-    { label: t('Running'), value: 'running' },
-    { label: t('Completed'), value: 'completed' },
-    { label: t('Failed'), value: 'failed' },
-    { label: t('Deployment requested'), value: 'deployment requested' },
-    { label: t('Termination requested'), value: 'termination requested' },
-    { label: t('Destroyed'), value: 'destroyed' },
-  ] as const
-}
-
-export function getDeploymentStatusConfig(t: TFunction): Record<
-  string,
-  {
-    label: string
-    variant: 'success' | 'neutral' | 'warning' | 'danger'
-  }
-> {
-  return {
-    running: { label: t('Running'), variant: 'success' },
-    completed: { label: t('Completed'), variant: 'success' },
-    failed: { label: t('Failed'), variant: 'danger' },
-    error: { label: t('Failed'), variant: 'danger' },
-    destroyed: { label: t('Destroyed'), variant: 'danger' },
-    'deployment requested': {
-      label: t('Deployment requested'),
-      variant: 'warning',
-    },
-    'termination requested': {
-      label: t('Termination requested'),
-      variant: 'warning',
-    },
-  }
-}
 
 // ============================================================================
 // Quota Type
