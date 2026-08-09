@@ -403,6 +403,26 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
+	// ai-service 轮询路径 /v1/video/tasks/{task_id}：返回顶层扁平格式，
+	// status 用小写简单值（succeeded/failed/queued/processing），供轮询方直接解析。
+	if strings.HasPrefix(c.Request.RequestURI, "/v1/video/tasks/") {
+		out := map[string]any{
+			"status":   mapTaskStatusToSimple(originTask.Status),
+			"progress": progressPercentToNumber(originTask.Progress),
+			"url":      originTask.PrivateData.ResultURL,
+			"task_id":  originTask.TaskID,
+			"error":    nil,
+		}
+		if originTask.FailReason != "" {
+			out["error"] = map[string]any{"message": originTask.FailReason}
+		}
+		respBody, err = common.Marshal(out)
+		if err != nil {
+			taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+		}
+		return
+	}
+
 	// OpenAI Video API 格式: 走各 adaptor 的 ConvertToOpenAIVideo
 	if isOpenAIVideoAPI {
 		adaptor := GetTaskAdaptor(originTask.Platform)
@@ -555,6 +575,17 @@ func mapTaskStatusToSimple(status model.TaskStatus) string {
 	default:
 		return "processing"
 	}
+}
+
+// progressPercentToNumber 将 "50%" 形式的进度字符串转换为数字 50；
+// 空串或非法值返回 0。
+func progressPercentToNumber(progress string) int {
+	progress = strings.TrimSpace(strings.TrimSuffix(progress, "%"))
+	n, err := strconv.Atoi(progress)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 func TaskModel2Dto(task *model.Task) *dto.TaskDto {

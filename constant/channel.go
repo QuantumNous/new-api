@@ -53,10 +53,11 @@ const (
 	ChannelTypeSubmodel       = 53
 	ChannelTypeDoubaoVideo    = 54
 	ChannelTypeSora           = 55
-	ChannelTypeReplicate      = 56
-	ChannelTypeCodex          = 57
-	ChannelTypeAdvancedCustom = 58
-	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+	ChannelTypeReplicate       = 56
+	ChannelTypeCodex           = 57
+	ChannelTypeAdvancedCustom  = 58
+	ChannelTypeRunningHubVideo = 59
+	ChannelTypeDummy           // this one is only for count, do not add any channel after this
 
 )
 
@@ -120,6 +121,8 @@ var ChannelBaseURLs = []string{
 	"https://api.replicate.com",                 //56
 	"https://chatgpt.com",                       //57
 	"",                                          //58
+	"https://www.runninghub.cn",                 //59
+	"",                                          //60
 }
 
 var ChannelTypeNames = map[int]string{
@@ -178,6 +181,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeReplicate:      "Replicate",
 	ChannelTypeCodex:          "ChatGPT Subscription (Codex)",
 	ChannelTypeAdvancedCustom: "Advanced Custom",
+	ChannelTypeRunningHubVideo: "RunningHub",
 }
 
 func GetChannelTypeName(channelType int) string {

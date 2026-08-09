@@ -318,7 +318,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = getTaskOriginModelName(c)
 		}
 		c.Set("relay_mode", relayMode)
-	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
+	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") || strings.Contains(c.Request.URL.Path, "/v1/video/tasks") {
 		relayMode := relayconstant.RelayModeUnknown
 		if c.Request.Method == http.MethodPost {
 			req, err := getModelFromRequest(c)
@@ -328,6 +328,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = req.Model
 			relayMode = relayconstant.RelayModeVideoSubmit
 		} else if c.Request.Method == http.MethodGet {
+			// /v1/video/generations/{task_id} 与 /v1/video/tasks/{task_id}（ai-service 轮询路径）
 			relayMode = relayconstant.RelayModeVideoFetchByID
 			shouldSelectChannel = false
 			modelRequest.Model = getTaskOriginModelName(c)
