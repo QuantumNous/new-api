@@ -9,11 +9,11 @@
 | 文档 | 内容 |
 |---|---|
 | `k8s/README.md` | 角色划分、Secret 清单、部署顺序 |
-| `k8s/docs/runtime-constraints.md` | 多副本运行约束与环境变量矩阵 |
-| `k8s/docs/secrets-and-deploy.md` | 凭证盲部署与 runner 可达性 |
-| `k8s/docs/data-layer.md` | 数据层高可用、备份恢复 |
-| `k8s/docs/ingress-baremetal.md` | 裸金属入口层 |
-| `k8s/docs/cache-strategy.md` | 多副本缓存策略 |
+| `docs/k8s/runtime-constraints.md` | 多副本运行约束与环境变量矩阵 |
+| `docs/k8s/secrets-and-deploy.md` | 凭证盲部署与 runner 可达性 |
+| `docs/k8s/data-layer.md` | 数据层高可用、备份恢复 |
+| `docs/k8s/ingress-baremetal.md` | 裸金属入口层 |
+| `docs/k8s/cache-strategy.md` | 多副本缓存策略 |
 
 ## 1. 部署前检查
 
@@ -21,7 +21,7 @@
 - [ ] StorageClass 可用且支持所需访问模式：`kubectl get storageclass`
 - [ ] Nginx Ingress Controller 已安装且 Pod Running
 - [ ] 入口已有外部地址（MetalLB VIP 或 NodePort + 边缘转发）
-- [ ] 9 个 GitHub Actions Secrets 已配置（清单见 `k8s/docs/secrets-and-deploy.md`）
+- [ ] 9 个 GitHub Actions Secrets 已配置（清单见 `docs/k8s/secrets-and-deploy.md`）
 - [ ] `k8s/ingress.yaml` 的占位域名已替换为真实域名
 - [ ] `SQL_DSN` 指向 PostgreSQL/MySQL，不是 SQLite
 
@@ -153,7 +153,7 @@ kubectl get pods -l role=master -w
 kubectl delete pod -l app=redis --wait=false
 ```
 
-预期：Redis 重启期间会话校验回源数据库，功能可用但数据库压力上升、限流退化为各副本本地内存（依据：`k8s/docs/runtime-constraints.md` 第 1 节）。Redis 恢复后缓存冷启动。
+预期：Redis 重启期间会话校验回源数据库，功能可用但数据库压力上升、限流退化为各副本本地内存（依据：`docs/k8s/runtime-constraints.md` 第 1 节）。Redis 恢复后缓存冷启动。
 
 ### 4.4 PostgreSQL 故障
 
@@ -163,7 +163,7 @@ kubectl delete pod -l app=postgres --wait=false
 
 预期：**这是最严重的故障**。PG 不可用期间鉴权与计费无法完成，relay 请求失败。Pod 重新调度并挂载 PVC 后恢复。
 
-若使用本地存储 provisioner，节点宕机时 PVC 无法在其他节点挂载，必须等节点恢复——这正是 `k8s/docs/data-layer.md` 建议升级到 CloudNativePG 的原因。
+若使用本地存储 provisioner，节点宕机时 PVC 无法在其他节点挂载，必须等节点恢复——这正是 `docs/k8s/data-layer.md` 建议升级到 CloudNativePG 的原因。
 
 ### 4.5 节点故障
 
@@ -196,7 +196,7 @@ kubectl rollout undo deployment/new-api-worker
 
 ## 6. 备份恢复演练
 
-按 `k8s/docs/data-layer.md` 的备份与恢复流程，至少完整演练一次：
+按 `docs/k8s/data-layer.md` 的备份与恢复流程，至少完整演练一次：
 
 - [ ] 执行一次 `pg_dump` 备份并确认文件非空
 - [ ] 在非生产环境导入该备份，确认数据完整
@@ -217,5 +217,5 @@ kubectl rollout undo deployment/new-api-worker
 ## 8. 已知局限
 
 - 本 runbook 的命令未在真实集群执行过，属待执行清单而非已通过的验证记录。首次部署时应逐项执行并记录实际输出。
-- `/api/status` 返回站点配置，不代表数据库连通性（依据：`k8s/docs/runtime-constraints.md` 第 4 节），因此探针通过不等于数据层健康。
+- `/api/status` 返回站点配置，不代表数据库连通性（依据：`docs/k8s/runtime-constraints.md` 第 4 节），因此探针通过不等于数据层健康。
 - 单副本 PG/Redis 的故障恢复时间取决于存储与调度，未在本文档给出 SLA 数字。
