@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -190,6 +191,14 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIError {
 	effectiveQuota := quota
 	s.lang = i18n.GetLangFromContext(c)
+
+	hashes := RequestImageHashes(s.relayInfo.Request)
+	if err := CheckUsageAllowance(s.relayInfo.UserId, s.relayInfo.UserGroup, s.lang, nil, hashes, time.Now()); err != nil {
+		logger.LogError(c, fmt.Sprintf("usage allowance refused (userId=%d, group=%s, images=%d)",
+			s.relayInfo.UserId, s.relayInfo.UserGroup, len(hashes)))
+		return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+			types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+	}
 
 	// ---- 信任额度旁路 ----
 	if s.shouldTrust(c) {
