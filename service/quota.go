@@ -446,24 +446,6 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 		}
 	}
 
-	// Shadow accrual: Free and Plus run at GroupRatio 0, so `quota` above is
-	// always 0 for them and cannot be metered. Record what the request would
-	// have cost instead.
-	if relayInfo != nil && relayInfo.Usage != nil {
-		shadow := ShadowCost(
-			relayInfo.Usage.PromptTokens,
-			relayInfo.Usage.CompletionTokens,
-			relayInfo.Usage.PromptTokensDetails.CachedTokens,
-			relayInfo.PriceData.ModelRatio,
-			relayInfo.PriceData.CompletionRatio,
-			relayInfo.PriceData.CacheRatio,
-		)
-		cycleStart, _ := UsageCycle(CycleMonth, nil, time.Now())
-		if addErr := model.AddUsage(relayInfo.UserId, CycleMonth, cycleStart, shadow, 1); addErr != nil {
-			common.SysLog("usage accrual failed: " + addErr.Error())
-		}
-	}
-
 	return nil
 }
 

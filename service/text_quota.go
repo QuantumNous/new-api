@@ -309,6 +309,26 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	return summary
 }
 
+// accrueShadowUsage records what this request would have cost if the
+// caller's group were metered. Free and Plus run at GroupRatio 0, so the
+// billed quota is always 0 for them and cannot serve as a meter; this is
+// called from PostTextConsumeQuota with the authoritative *dto.Usage for
+// the request (never relayInfo.Usage, which panics on non-Claude traffic).
+func accrueShadowUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) {
+	shadow := ShadowCost(
+		usage.PromptTokens,
+		usage.CompletionTokens,
+		usage.PromptTokensDetails.CachedTokens,
+		relayInfo.PriceData.ModelRatio,
+		relayInfo.PriceData.CompletionRatio,
+		relayInfo.PriceData.CacheRatio,
+	)
+	cycleStart, _ := UsageCycle(CycleMonth, nil, time.Now())
+	if err := model.AddUsage(relayInfo.UserId, CycleMonth, cycleStart, shadow, 1); err != nil {
+		common.SysLog("usage accrual failed: " + err.Error())
+	}
+}
+
 func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) string {
 	if usage != nil && usage.UsageSemantic != "" {
 		return usage.UsageSemantic
@@ -372,6 +392,15 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
 		logger.LogError(ctx, "error settling billing: "+err.Error())
+	}
+
+	// Shadow accrual: Free and Plus run at GroupRatio 0, so summary.Quota above
+	// is always 0 for them and cannot be metered. Record what this request
+	// would have cost instead. usage (not relayInfo.Usage, which is promoted
+	// from a *ClaudeConvertInfo embedded pointer that is nil for every
+	// non-Claude relay format) is the authoritative usage for this call.
+	if usage != nil {
+		accrueShadowUsage(relayInfo, usage)
 	}
 
 	logModel := summary.ModelName
