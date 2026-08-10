@@ -54,6 +54,12 @@ spec:
                 secretKeyRef:
                   name: new-api-secrets
                   key: redis-password
+            # redis-cli 自动读取 REDISCLI_AUTH，避免把密码写进探针 argv（会暴露在 ps 里并每次告警）。
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: redis-password
           volumeMounts:
             - name: redis-data
               mountPath: /data
@@ -66,12 +72,12 @@ spec:
               memory: "1Gi"
           livenessProbe:
             exec:
-              command: ["sh", "-c", 'redis-cli -a "$REDIS_PASSWORD" ping']
+              command: ["redis-cli", "ping"]
             initialDelaySeconds: 20
             periodSeconds: 10
           readinessProbe:
             exec:
-              command: ["sh", "-c", 'redis-cli -a "$REDIS_PASSWORD" ping']
+              command: ["redis-cli", "ping"]
             initialDelaySeconds: 5
             periodSeconds: 5
   volumeClaimTemplates:
