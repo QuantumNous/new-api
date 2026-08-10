@@ -319,14 +319,14 @@ func taskNeedsUpdate(oldTask *model.Task, newTask dto.SunoDataResponse) bool {
 func UpdateVideoTasks(ctx context.Context, platform constant.TaskPlatform, taskChannelM map[int][]string, taskM map[string]*model.Task) error {
 	for channelId, taskIds := range taskChannelM {
 		if err := updateVideoTasks(ctx, platform, channelId, taskIds, taskM); err != nil {
-			logger.LogError(ctx, fmt.Sprintf("Channel #%d failed to update video async tasks: %s", channelId, err.Error()))
+			logger.LogError(ctx, fmt.Sprintf("Failed to update video async tasks: %s", err.Error()))
 		}
 	}
 	return nil
 }
 
 func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, channelId int, taskIds []string, taskM map[string]*model.Task) error {
-	logger.LogInfo(ctx, fmt.Sprintf("Channel #%d pending video tasks: %d", channelId, len(taskIds)))
+	logger.LogInfo(ctx, fmt.Sprintf("Pending video tasks: %d", len(taskIds)))
 	if len(taskIds) == 0 {
 		return nil
 	}
@@ -395,11 +395,17 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		"action":  task.Action,
 	}, proxy)
 	if err != nil {
+		if VideoResultChannelLabel(ch.Type) != "" {
+			return archivedVideoPollingPhaseError(task.TaskID, "fetch")
+		}
 		return fmt.Errorf("fetchTask failed for task %s: %w", task.TaskID, err)
 	}
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		if VideoResultChannelLabel(ch.Type) != "" {
+			return archivedVideoPollingPhaseError(task.TaskID, "read")
+		}
 		return fmt.Errorf("readAll failed for task %s: %w", task.TaskID, err)
 	}
 
@@ -416,7 +422,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	var responseItems dto.TaskResponse[model.Task]
 	if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
 		if VideoResultChannelLabel(ch.Type) != "" {
-			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: task_id=%s phase=parsed status=%s", task.TaskID, responseItems.Data.Status)
+			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: task_id=%s phase=parsed status=%s", task.TaskID, archivedVideoPollingStatus(string(responseItems.Data.Status)))
 		} else {
 			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: %+v", responseItems)
 		}
@@ -428,13 +434,16 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		taskResult.Reason = t.FailReason
 		task.Data = t.Data
 	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
+		if VideoResultChannelLabel(ch.Type) != "" {
+			return archivedVideoPollingPhaseError(task.TaskID, "parse")
+		}
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", task.TaskID, err)
 	}
 
 	task.Data = redactVideoResponseForChannel(ch.Type, responseBody)
 
 	if VideoResultChannelLabel(ch.Type) != "" {
-		logger.LogDebug(ctx, "updateVideoSingleTask task result parsed: task_id=%s phase=parsed status=%s progress=%s", task.TaskID, taskResult.Status, taskResult.Progress)
+		logger.LogDebug(ctx, "updateVideoSingleTask task result parsed: task_id=%s phase=parsed status=%s", task.TaskID, archivedVideoPollingStatus(taskResult.Status))
 	} else {
 		logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
 	}
@@ -580,6 +589,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			shouldRefund = true
 		}
 	default:
+		if VideoResultChannelLabel(ch.Type) != "" {
+			return fmt.Errorf("unknown task status for task %s: phase=status status=%s", task.TaskID, archivedVideoPollingStatus(taskResult.Status))
+		}
 		return fmt.Errorf("unknown task status %s for task %s", taskResult.Status, task.TaskID)
 	}
 	if taskResult.Progress != "" {
@@ -738,6 +750,19 @@ func sanitizeVideoResultArchiveError(err error) string {
 		return ErrVideoResultUnavailable.Error()
 	}
 	return "archive unavailable"
+}
+
+func archivedVideoPollingPhaseError(taskID, phase string) error {
+	return fmt.Errorf("task %s polling failed: phase=%s", taskID, phase)
+}
+
+func archivedVideoPollingStatus(status string) string {
+	switch model.TaskStatus(status) {
+	case model.TaskStatusSubmitted, model.TaskStatusQueued, model.TaskStatusInProgress, model.TaskStatusSuccess, model.TaskStatusFailure:
+		return status
+	default:
+		return "unknown"
+	}
 }
 
 func sanitizeArchivedVideoLogText(channelType int, text string) string {

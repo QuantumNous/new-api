@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -439,6 +440,167 @@ func TestUpdateVideoSingleTaskModelAPIArchiveFailureNoUpstreamLeaks(t *testing.T
 	require.NotContains(t, logText, "https://")
 	require.NotContains(t, logText, upstreamTaskID)
 	require.NotContains(t, logText, "secret.example")
+}
+
+func TestUpdateVideoSingleTaskModelAPIFetchErrorDoesNotLeakUpstreamDetails(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	logs := capturePollingLogs(t)
+	ctx := context.Background()
+
+	seedUser(t, 928, 1000)
+	seedToken(t, 928, 928, "sk-modelapi-fetch-leak", 500)
+	task := newModelAPIPollingTaskWithID(t, "task_fetch_error", 928, 948, 100, 928)
+	upstreamTaskID := task.GetUpstreamTaskID()
+	ch := newModelAPIPollingChannel("")
+	adaptor := &fakeVideoPollingAdaptor{
+		fetchErr: &url.Error{
+			Op:  "Get",
+			URL: "https://api.modelapi.co/v1/tasks/upstream-secret-id",
+			Err: errors.New("dial upstream-secret-id failed"),
+		},
+	}
+
+	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), modelAPITaskMap(task))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "task_fetch_error")
+	require.Contains(t, err.Error(), "phase=fetch")
+	require.NotContains(t, err.Error(), "https://")
+	require.NotContains(t, err.Error(), "api.modelapi.co")
+	require.NotContains(t, strings.ToLower(err.Error()), "modelapi")
+	require.NotContains(t, err.Error(), upstreamTaskID)
+	require.NotContains(t, err.Error(), "upstream-secret-id")
+	require.NotContains(t, logs.String(), "https://")
+	require.NotContains(t, logs.String(), "api.modelapi.co")
+	require.NotContains(t, strings.ToLower(logs.String()), "modelapi")
+	require.NotContains(t, logs.String(), upstreamTaskID)
+	require.NotContains(t, logs.String(), "upstream-secret-id")
+}
+
+func TestUpdateVideoSingleTaskModelAPIReadErrorDoesNotLeakUpstreamDetails(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	ctx := context.Background()
+
+	seedUser(t, 929, 1000)
+	seedToken(t, 929, 929, "sk-modelapi-read-leak", 500)
+	task := newModelAPIPollingTaskWithID(t, "task_read_error", 929, 949, 100, 929)
+	upstreamTaskID := task.GetUpstreamTaskID()
+	ch := newModelAPIPollingChannel("")
+	adaptor := &fakeVideoPollingAdaptor{
+		body: errReadCloser{err: errors.New("read https://api.modelapi.co/v1/tasks/upstream-secret-id failed")},
+	}
+
+	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), modelAPITaskMap(task))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "task_read_error")
+	require.Contains(t, err.Error(), "phase=read")
+	require.NotContains(t, err.Error(), "https://")
+	require.NotContains(t, err.Error(), "api.modelapi.co")
+	require.NotContains(t, strings.ToLower(err.Error()), "modelapi")
+	require.NotContains(t, err.Error(), upstreamTaskID)
+	require.NotContains(t, err.Error(), "upstream-secret-id")
+}
+
+func TestUpdateVideoSingleTaskModelAPIParseErrorDoesNotLeakUpstreamDetails(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	ctx := context.Background()
+
+	seedUser(t, 930, 1000)
+	seedToken(t, 930, 930, "sk-modelapi-parse-leak", 500)
+	task := newModelAPIPollingTaskWithID(t, "task_parse_error", 930, 950, 100, 930)
+	upstreamTaskID := task.GetUpstreamTaskID()
+	ch := newModelAPIPollingChannel("")
+	adaptor := &fakeVideoPollingAdaptor{
+		responseBody: []byte(`{"status":"not-new-api"}`),
+		parseErr:     errors.New("parse ModelAPI https://api.modelapi.co/v1/tasks/upstream-secret-id failed"),
+	}
+
+	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), modelAPITaskMap(task))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "task_parse_error")
+	require.Contains(t, err.Error(), "phase=parse")
+	require.NotContains(t, err.Error(), "https://")
+	require.NotContains(t, err.Error(), "api.modelapi.co")
+	require.NotContains(t, strings.ToLower(err.Error()), "modelapi")
+	require.NotContains(t, err.Error(), upstreamTaskID)
+	require.NotContains(t, err.Error(), "upstream-secret-id")
+}
+
+func TestUpdateVideoTasksModelAPIDoesNotLogChannelID(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	logs := capturePollingLogs(t)
+	ctx := context.Background()
+
+	seedUser(t, 931, 1000)
+	seedToken(t, 931, 931, "sk-modelapi-channel-log", 500)
+	task := newModelAPIPollingTaskWithID(t, "task_channel_log", 931, 951, 100, 931)
+	ch := newModelAPIPollingChannel("")
+	ch.Id = 951
+	require.NoError(t, model.DB.Create(ch).Error)
+	originalAdaptorFunc := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(platform constant.TaskPlatform) TaskPollingAdaptor {
+		require.Equal(t, constant.TaskPlatform("111"), platform)
+		return &fakeVideoPollingAdaptor{
+			fetchErr: errors.New("fetch failed from https://api.modelapi.co/v1/tasks/upstream-secret-id"),
+		}
+	}
+	t.Cleanup(func() {
+		GetTaskAdaptorFunc = originalAdaptorFunc
+	})
+
+	require.NoError(t, UpdateVideoTasks(ctx, constant.TaskPlatform("111"), map[int][]string{ch.Id: []string{task.GetUpstreamTaskID()}}, modelAPITaskMap(task)))
+
+	logText := logs.String()
+	require.NotContains(t, logText, "Channel #")
+	require.NotContains(t, logText, "951")
+	require.NotContains(t, logText, "https://")
+	require.NotContains(t, logText, "api.modelapi.co")
+	require.NotContains(t, strings.ToLower(logText), "modelapi")
+	require.NotContains(t, logText, task.GetUpstreamTaskID())
+	require.NotContains(t, logText, "upstream-secret-id")
+}
+
+func TestUpdateVideoSingleTaskModelAPIUnknownStatusDoesNotLeakUpstreamDetails(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	logs := capturePollingLogs(t)
+	ctx := context.Background()
+
+	seedUser(t, 932, 1000)
+	seedToken(t, 932, 932, "sk-modelapi-status-leak", 500)
+	task := newModelAPIPollingTaskWithID(t, "task_status_error", 932, 952, 100, 932)
+	upstreamTaskID := task.GetUpstreamTaskID()
+	ch := newModelAPIPollingChannel("")
+	adaptor := &fakeVideoPollingAdaptor{
+		responseBody: []byte(`{"status":"not-new-api"}`),
+		taskResult: &relaycommon.TaskInfo{
+			TaskID:   "upstream-modelapi-success",
+			Status:   "ModelAPI failed at https://api.modelapi.co/v1/tasks/upstream-secret-id",
+			Reason:   "reason from https://api.modelapi.co/v1/tasks/upstream-secret-id",
+			Progress: "100%",
+		},
+	}
+
+	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), modelAPITaskMap(task))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "task_status_error")
+	require.Contains(t, err.Error(), "phase=status")
+	require.Contains(t, err.Error(), "status=unknown")
+	require.NotContains(t, err.Error(), "https://")
+	require.NotContains(t, err.Error(), "api.modelapi.co")
+	require.NotContains(t, strings.ToLower(err.Error()), "modelapi")
+	require.NotContains(t, err.Error(), upstreamTaskID)
+	require.NotContains(t, err.Error(), "upstream-secret-id")
+
+	logText := logs.String()
+	require.NotContains(t, logText, "https://")
+	require.NotContains(t, logText, "api.modelapi.co")
+	require.NotContains(t, strings.ToLower(logText), "modelapi")
+	require.NotContains(t, logText, upstreamTaskID)
+	require.NotContains(t, logText, "upstream-secret-id")
 }
 
 func TestUpdateVideoSingleTaskModelAPIEmptySuccessURLDoesNotFinalizeOrSettle(t *testing.T) {
@@ -1035,22 +1197,47 @@ type fakeVideoPollingAdaptor struct {
 	taskResult   *relaycommon.TaskInfo
 	actualQuota  int
 	adjustCalls  int
+	fetchErr     error
+	parseErr     error
+	body         io.ReadCloser
 }
 
 func (a *fakeVideoPollingAdaptor) Init(*relaycommon.RelayInfo) {}
 
 func (a *fakeVideoPollingAdaptor) FetchTask(string, string, map[string]any, string) (*http.Response, error) {
+	if a.fetchErr != nil {
+		return nil, a.fetchErr
+	}
+	body := a.body
+	if body == nil {
+		body = io.NopCloser(bytes.NewReader(a.responseBody))
+	}
 	return &http.Response{
 		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(a.responseBody)),
+		Body:       body,
 	}, nil
 }
 
 func (a *fakeVideoPollingAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
+	if a.parseErr != nil {
+		return nil, a.parseErr
+	}
 	return a.taskResult, nil
 }
 
 func (a *fakeVideoPollingAdaptor) AdjustBillingOnComplete(*model.Task, *relaycommon.TaskInfo) int {
 	a.adjustCalls++
 	return a.actualQuota
+}
+
+type errReadCloser struct {
+	err error
+}
+
+func (r errReadCloser) Read([]byte) (int, error) {
+	return 0, r.err
+}
+
+func (r errReadCloser) Close() error {
+	return nil
 }
