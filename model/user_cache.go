@@ -143,16 +143,31 @@ func cacheGetUserBase(userId int) (*UserBase, error) {
 	return &userCache, nil
 }
 
-// Add atomic quota operations using hash fields
+// Add atomic quota operations using hash fields.
+// 通过守卫式 Lua 脚本执行：哈希不存在时直接跳过（下次读取会从数据库水合），
+// 不会像裸 HINCRBY 那样创建只含 Quota 字段的残缺哈希。
 func cacheIncrUserQuota(userId int, delta int64) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	return common.RedisHIncrBy(getUserCacheKey(userId), "Quota", delta)
+	_, err := cacheApplyUserQuotaDelta(userId, delta)
+	return err
 }
 
 func cacheDecrUserQuota(userId int, delta int64) error {
 	return cacheIncrUserQuota(userId, -delta)
+}
+
+// syncCreditUserQuotaCache 在授信事务（充值/兑换等）提交后同步把增量补进缓存
+// 余额。预扣以缓存值为准（存在期间），授信不能绕过它，否则新到账的额度在
+// 缓存过期前不可用；缓存未命中无需处理，下次读取会从已提交的数据库余额水合。
+func syncCreditUserQuotaCache(userId int, quota int, operation string) {
+	if quota <= 0 {
+		return
+	}
+	if err := cacheIncrUserQuota(userId, int64(quota)); err != nil {
+		common.SysLog(fmt.Sprintf("failed to sync %s credit to user quota cache: %s", operation, err.Error()))
+	}
 }
 
 // Helper functions to get individual fields if needed
