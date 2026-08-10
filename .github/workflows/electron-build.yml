@@ -46,22 +46,27 @@ jobs:
           CI: ""
           NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
-          cd web
+          cd app/web
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
-          cd ..
+          cd ../..
+          # 方案 A：go:embed 只能引用包内路径，产物需拷进 app/api。
+          mkdir -p app/api/web/dist
+          cp -r app/web/dist/. app/api/web/dist/
 
       # - name: Build Go binary (macos/Linux)
       #   if: runner.os != 'Windows'
+      #   working-directory: app/api
       #   run: |
       #     go mod download
-      #     go build -ldflags "-s -w -X 'new-api/common.Version=$(git describe --tags)' -extldflags '-static'" -o new-api
+      #     go build -ldflags "-s -w -X 'new-api/common.Version=$(git describe --tags)' -extldflags '-static'" -o ../../new-api
 
       - name: Build Go binary (Windows)
         if: runner.os == 'Windows'
+        working-directory: app/api
         run: |
           go mod download
-          go build -ldflags "-s -w -X 'new-api/common.Version=$(git describe --tags)'" -o new-api.exe
+          go build -ldflags "-s -w -X 'new-api/common.Version=$(git describe --tags)'" -o ../../new-api.exe
 
       - name: Update Electron version
         run: |

@@ -1,5 +1,7 @@
-WEB_DIR = ./web
-API_DIR = .
+WEB_DIR = ./app/web
+API_DIR = ./app/api
+# 方案 A：go:embed 只能引用包内路径，前端产物需拷进 api 包内。
+API_EMBED_DIR = ./app/api/web/dist
 DEV_WEB_PORT ?= 5173
 DEV_COMPOSE_FILE = docker-compose.dev.yml
 DEV_POSTGRES_SERVICE = postgres
@@ -15,7 +17,11 @@ all: build-all-web start-api
 build-web:
 	@echo "Building web frontend..."
 	@cd $(WEB_DIR) && bun install --frozen-lockfile
-	@cd $(WEB_DIR) && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$$(cat ../VERSION) bun run build
+	@cd $(WEB_DIR) && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$$(cat ../../VERSION) bun run build
+	@echo "Copying web dist into api package (embed 方案 A)..."
+	@rm -rf $(API_EMBED_DIR)
+	@mkdir -p $(API_EMBED_DIR)
+	@cp -r $(WEB_DIR)/dist/. $(API_EMBED_DIR)/
 
 build-all-web: build-web
 
@@ -39,10 +45,10 @@ dev-web:
 
 dev: dev-api dev-web
 
-# The main package embeds the ignored web/dist output and is covered after build-web.
+# The api package embeds the ignored app/api/web/dist output and is covered after build-web.
 test:
-	@echo "Testing root Go module..."
-	@root_module=$$(GOWORK=off go list -m); \
+	@echo "Testing api Go module..."
+	@cd $(API_DIR) && root_module=$$(GOWORK=off go list -m); \
 		root_packages=$$(GOWORK=off go list -e ./... | grep -vxF "$$root_module"); \
 		GOWORK=off go test $$root_packages
 	@echo "Testing relaykit Go module..."

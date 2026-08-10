@@ -33,23 +33,28 @@ jobs:
         env:
           CI: ""
         run: |
-          cd web
+          cd app/web
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ..
+          cd ../..
+          # 方案 A：go:embed 只能引用包内路径，产物需拷进 app/api。
+          mkdir -p app/api/web/dist
+          cp -r app/web/dist/. app/api/web/dist/
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
       - name: Build Backend (amd64)
+        working-directory: app/api
         run: |
           go mod download
-          go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-$VERSION
+          go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o ../../new-api-$VERSION
       - name: Build Backend (arm64)
+        working-directory: app/api
         run: |
           sudo apt-get update
           DEBIAN_FRONTEND=noninteractive sudo apt-get install -y gcc-aarch64-linux-gnu
-          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-arm64-$VERSION
+          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o ../../new-api-arm64-$VERSION
       - name: Generate checksums
         run: sha256sum new-api-* > checksums-linux.txt
 
@@ -83,18 +88,22 @@ jobs:
           CI: ""
           NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
-          cd web
+          cd app/web
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ..
+          cd ../..
+          # 方案 A：go:embed 只能引用包内路径，产物需拷进 app/api。
+          mkdir -p app/api/web/dist
+          cp -r app/web/dist/. app/api/web/dist/
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
       - name: Build Backend
+        working-directory: app/api
         run: |
           go mod download
-          go build -ldflags "-X 'new-api/common.Version=$VERSION'" -o new-api-macos-$VERSION
+          go build -ldflags "-X 'new-api/common.Version=$VERSION'" -o ../../new-api-macos-$VERSION
       - name: Generate checksums
         run: shasum -a 256 new-api-macos-* > checksums-macos.txt
 
@@ -130,18 +139,22 @@ jobs:
         env:
           CI: ""
         run: |
-          cd web
+          cd app/web
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ..
+          cd ../..
+          # 方案 A：go:embed 只能引用包内路径，产物需拷进 app/api。
+          mkdir -p app/api/web/dist
+          cp -r app/web/dist/. app/api/web/dist/
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
       - name: Build Backend
+        working-directory: app/api
         run: |
           go mod download
-          go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION'" -o new-api-$VERSION.exe
+          go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION'" -o ../../new-api-$VERSION.exe
       - name: Generate checksums
         run: sha256sum new-api-*.exe > checksums-windows.txt
 

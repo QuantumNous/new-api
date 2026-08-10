@@ -8,8 +8,9 @@ upload
 build
 *.db-journal
 logs
-web/dist
-web/node_modules
+app/web/dist
+app/api/web/dist
+app/web/node_modules
 .env
 one-api
 new-api
@@ -39,7 +40,8 @@ skills-lock.json
 .local-tests/
 service/relayconvert/chat_responses_live_local_test.go
 service/openaicompat/chat_responses_live_local_test.go
-go.work
+# go.work 定义 app/api 与 modules/relaykit 的 workspace，必须入库。
+# go.work.sum 是本地校验和缓存，继续忽略。
 go.work.sum
 todo/
 .codegraph/
