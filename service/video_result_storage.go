@@ -135,9 +135,13 @@ func CurrentVideoResultStorageConfig() VideoResultStorageConfig {
 }
 
 func ArchiveVideoResult(ctx context.Context, publicTaskID, upstreamURL, proxy string) (*model.VideoResult, error) {
+	return ArchiveVideoResultForChannel(ctx, "techmobi", publicTaskID, upstreamURL, proxy)
+}
+
+func ArchiveVideoResultForChannel(ctx context.Context, channel, publicTaskID, upstreamURL, proxy string) (*model.VideoResult, error) {
 	archiveStart := videoResultNow().UTC()
 	recordArchive := func(outcome string, bytes int64) {
-		perfmetrics.RecordVideoResultArchive("techmobi", outcome, bytes, videoResultNow().UTC().Sub(archiveStart))
+		perfmetrics.RecordVideoResultArchive(channel, outcome, bytes, videoResultNow().UTC().Sub(archiveStart))
 	}
 	cfg := CurrentVideoResultStorageConfig()
 	if strings.TrimSpace(cfg.Bucket) == "" {

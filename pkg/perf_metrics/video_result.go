@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	videoResultChannelCount               = 1
+	videoResultChannelCount               = 2
 	videoResultArchiveOutcomeCount        = 3
 	videoResultArchiveDurationBucketCount = 13
 	videoResultRedirectOutcomeCount       = 4
@@ -17,7 +17,7 @@ const (
 )
 
 var (
-	videoResultChannels                      = [videoResultChannelCount]string{"techmobi"}
+	videoResultChannels                      = [videoResultChannelCount]string{"techmobi", "modelapi"}
 	videoResultArchiveOutcomes               = [videoResultArchiveOutcomeCount]string{"success", "failure", "reuse"}
 	videoResultRedirectOutcomes              = [videoResultRedirectOutcomeCount]string{"success", "expired", "unavailable", "signing-or-other"}
 	videoResultArchiveRetryReasons           = [videoResultArchiveRetryReasonCount]string{"archive_failure"}

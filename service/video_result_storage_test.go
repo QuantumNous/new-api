@@ -135,6 +135,30 @@ func TestArchiveVideoResult(t *testing.T) {
 		require.Contains(t, text, `newapi_video_result_archive_bytes_total{channel="techmobi"} 16`)
 	})
 
+	t.Run("archives modelapi video with modelapi metric label", func(t *testing.T) {
+		resetVideoResultMetricsForServiceTest(t)
+		start := time.Date(2026, 8, 6, 1, 2, 3, 0, time.UTC)
+		store := newFakeVideoResultStore()
+		restore := installVideoResultArchiveTestHooks(t, store, start)
+		defer restore()
+		t.Setenv("VIDEO_RESULT_STORAGE_BUCKET", "video-bucket")
+		payload := minimalMP4Fixture()
+
+		server := newVideoResultTestServer(t, http.StatusOK, "video/mp4", string(payload))
+		defer server.Close()
+
+		result, err := ArchiveVideoResultForChannel(context.Background(), "modelapi", "task_modelapi_archive", server.URL, "")
+		require.NoError(t, err)
+		require.Equal(t, "video-results/20260806/task_modelapi_archive.mp4", result.Object)
+		require.Contains(t, store.created, "video-bucket/video-results/20260806/task_modelapi_archive.mp4")
+
+		text, err := perfmetrics.BuildPrometheusText(context.Background())
+		require.NoError(t, err)
+		require.Contains(t, text, `newapi_video_result_archive_total{channel="modelapi",outcome="success"} 1`)
+		require.Contains(t, text, `newapi_video_result_archive_bytes_total{channel="modelapi"} 16`)
+		require.Contains(t, text, `newapi_video_result_archive_total{channel="techmobi",outcome="success"} 0`)
+	})
+
 	for _, testCase := range []struct {
 		name        string
 		taskID      string
