@@ -198,3 +198,59 @@ func ModelRequestRateLimit() func(c *gin.Context) {
 		}
 	}
 }
+
+// rateLimitWindowStart converts a stored rate-limit entry into a unix
+// timestamp. recordRedisRequest stamps entries with a local clock under a
+// literal "Z", so an entry is only meaningful compared against a now formatted
+// the same way — the same trick checkRedisRateLimit uses.
+func rateLimitWindowStart(entry string, now time.Time) (int64, bool) {
+	oldest, err := time.Parse(timeFormat, entry)
+	if err != nil {
+		return 0, false
+	}
+	nowInSameFrame, err := time.Parse(timeFormat, now.Format(timeFormat))
+	if err != nil {
+		return 0, false
+	}
+	age := nowInSameFrame.Sub(oldest)
+	if age < 0 {
+		age = 0
+	}
+	return now.Add(-age).Unix(), true
+}
+
+// countRateLimitWindow reports how many of the stored entries still count
+// against the limit, and when the oldest of those was recorded. The list is
+// trimmed by length rather than by age, so entries older than the window are
+// present but spent.
+func countRateLimitWindow(entries []string, now time.Time, window time.Duration) (used int64, windowStart int64) {
+	cutoff := now.Add(-window).Unix()
+	for _, entry := range entries {
+		stamp, ok := rateLimitWindowStart(entry, now)
+		if !ok || stamp < cutoff {
+			continue
+		}
+		used++
+		if windowStart == 0 || stamp < windowStart {
+			windowStart = stamp
+		}
+	}
+	return used, windowStart
+}
+
+// ReadModelRequestSuccessWindow reports how many successful requests the user
+// has spent inside the current rate-limit window, and when that window started.
+// ok is false only when the counter cannot be read at all; an evicted or
+// never-created key is a legitimate zero.
+func ReadModelRequestSuccessWindow(ctx context.Context, userId int, window time.Duration) (used int64, windowStart int64, ok bool) {
+	if !common.RedisEnabled || common.RDB == nil {
+		return 0, 0, false
+	}
+	key := fmt.Sprintf("rateLimit:%s:%d", ModelRequestRateLimitSuccessCountMark, userId)
+	entries, err := common.RDB.LRange(ctx, key, 0, -1).Result()
+	if err != nil {
+		return 0, 0, false
+	}
+	used, windowStart = countRateLimitWindow(entries, time.Now(), window)
+	return used, windowStart, true
+}
