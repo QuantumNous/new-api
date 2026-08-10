@@ -401,6 +401,9 @@ export function createRecallCampaignFormDraft(
         ? normalizeRecallDiscountType(draft, 'fixed')
         : draft
   const preparedDraft = prepareRecallCampaignSubmitDraft(normalizedDraft)
+  const effectiveDeliveryPolicy =
+    preparedDraft.delivery_policy ??
+    getRecallLifecycleDeliveryPolicy(preparedDraft.lifecycle_trigger ?? '')
   return {
     ...preparedDraft,
     promotion_expiry_mode:
@@ -408,9 +411,7 @@ export function createRecallCampaignFormDraft(
         ? ''
         : preparedDraft.promotion_expiry_mode || 'relative',
     promotion_expires_at: preparedDraft.promotion_expires_at ?? 0,
-    delivery_policy:
-      preparedDraft.delivery_policy ??
-      getRecallLifecycleDeliveryPolicy(preparedDraft.lifecycle_trigger ?? ''),
+    delivery_policy: effectiveDeliveryPolicy,
     lifecycle_trigger: preparedDraft.lifecycle_trigger ?? '',
     lifecycle_trigger_config: preparedDraft.lifecycle_trigger_config ?? {},
     processing_start_at: preparedDraft.processing_start_at ?? 0,
@@ -420,7 +421,7 @@ export function createRecallCampaignFormDraft(
       templates: createRecallEmailTemplates(
         stage.templates,
         preparedDraft.campaign_type,
-        preparedDraft.delivery_policy
+        effectiveDeliveryPolicy
       ),
     })),
   }
