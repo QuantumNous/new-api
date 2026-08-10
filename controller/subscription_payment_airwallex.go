@@ -289,8 +289,29 @@ func SubscriptionCancelAirwallex(c *gin.Context) {
 		cancelled++
 	}
 	if cancelled == 0 {
+		// Airwallex has no ACTIVE subscription for this customer. Far and away
+		// the likeliest cause is that the caller already cancelled, so record
+		// that locally instead of only erroring: it self-heals a row whose
+		// cancellation webhook was missed, and stops the portal offering the
+		// button again on the next load.
+		if n, err := model.MarkUserSubscriptionsCancelled(userId, common.GetTimestamp()); err != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("取消订阅本地标记失败 user=%d: %s", userId, err.Error()))
+		} else if n > 0 {
+			logger.LogInfo(c.Request.Context(), fmt.Sprintf("取消订阅：Airwallex 无进行中订阅，本地补记 user=%d rows=%d", userId, n))
+			c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"cancelled": 0, "already_cancelled": true}})
+			return
+		}
 		common.ApiErrorMsg(c, "无进行中的订阅")
 		return
+	}
+	// Airwallex is the source of truth for whether a charge will happen, but it
+	// has flipped the subscription straight to CANCELLED while the local row
+	// stays active to term end — so the renewal fact only survives here.
+	if _, err := model.MarkUserSubscriptionsCancelled(userId, common.GetTimestamp()); err != nil {
+		// The money outcome is already correct; a failed local write is a
+		// display bug the reconcile pass will repair, not a reason to tell the
+		// customer their cancellation failed and invite a second attempt.
+		logger.LogError(c.Request.Context(), fmt.Sprintf("取消订阅本地标记失败 user=%d: %s", userId, err.Error()))
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"cancelled": cancelled}})
 }
@@ -496,7 +517,12 @@ func AirwallexWebhook(c *gin.Context) {
 		// version pinned on our endpoint; accept both so renewals route correctly.
 		handlerErr = handleAirwallexInvoicePaid(c, event)
 	case "subscription.cancelled", "subscription.unpaid":
-		logger.LogInfo(ctx, fmt.Sprintf("Airwallex webhook %s: subscription=%v (term-end downgrade is engine-native)", event.Name, event.Data.Object["id"]))
+		// The downgrade itself stays engine-native (ExpireDueSubscriptions at
+		// term end). What this records is the renewal fact, which nothing else
+		// can reconstruct — and unlike the cancel endpoint, this fires for
+		// cancellations made outside the portal: support acting in the
+		// Airwallex dashboard, or a subscription going unpaid through dunning.
+		handlerErr = handleAirwallexSubscriptionCancelled(c, event)
 	case "payment_intent.succeeded":
 		handlerErr = handleAirwallexIntentSucceeded(c, event, body)
 	default:
@@ -508,6 +534,43 @@ func AirwallexWebhook(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"received": true})
+}
+
+// handleAirwallexSubscriptionCancelled marks the customer's local rows as no
+// longer renewing.
+//
+// Resolution goes customer → user, because webhook payloads may be slim: if the
+// event object carries no billing_customer_id, the subscription is re-fetched
+// by id (the same defensive re-read GetBillingCheckout exists for).
+//
+// An unresolvable customer is logged and swallowed rather than returned as an
+// error. Returning one makes the endpoint reply 500, which asks Airwallex to
+// redeliver an event that will fail identically every time — a webhook for a
+// customer this deployment has never seen (a different environment sharing the
+// account, or a subscription created before the mapping existed) is not a
+// transient fault.
+func handleAirwallexSubscriptionCancelled(c *gin.Context, event airwallexEvent) error {
+	ctx := c.Request.Context()
+	subId := airwallexObjectString(event.Data.Object, "id")
+	customerId := airwallexObjectString(event.Data.Object, "billing_customer_id")
+	if customerId == "" && subId != "" {
+		sub, err := airwallex.GetBillingSubscription(subId)
+		if err != nil {
+			return fmt.Errorf("Airwallex 订阅取消回调重取失败 sub=%s: %w", subId, err)
+		}
+		customerId = sub.BillingCustomerId
+	}
+	userId := model.GetUserIdByAirwallexBillingCustomerId(customerId)
+	if userId == 0 {
+		logger.LogWarn(ctx, fmt.Sprintf("Airwallex webhook %s: 无法定位用户 sub=%s customer=%s，忽略", event.Name, subId, customerId))
+		return nil
+	}
+	n, err := model.MarkUserSubscriptionsCancelled(userId, common.GetTimestamp())
+	if err != nil {
+		return fmt.Errorf("Airwallex 订阅取消本地标记失败 user=%d: %w", userId, err)
+	}
+	logger.LogInfo(ctx, fmt.Sprintf("Airwallex webhook %s: user=%d sub=%s 标记停止续费 rows=%d（到期降级仍由引擎处理）", event.Name, userId, subId, n))
+	return nil
 }
 
 func airwallexObjectString(obj map[string]any, key string) string {

@@ -46,6 +46,7 @@ func TestMain(m *testing.M) {
 		&model.UserSubscription{},
 		&model.UserUsageCounter{},
 		&model.UserImageUpload{},
+		&model.AirwallexBillingCustomer{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}

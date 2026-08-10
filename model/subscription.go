@@ -269,6 +269,25 @@ type UserSubscription struct {
 	UpgradeGroup  string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 	PrevUserGroup string `json:"prev_user_group" gorm:"type:varchar(64);default:''"`
 
+	// CancelledAt records when auto-renewal was switched off, or 0 while the
+	// subscription still renews.
+	//
+	// This is deliberately NOT folded into Status. Access and renewal are two
+	// different facts: cancelling stops future charges but the plan runs to
+	// EndTime, and every active-set query in this file keys on
+	// Status == "active" (GetAllActiveUserSubscriptions,
+	// ExpireSupersededUserSubscriptions, the keep-current-group guard in
+	// ExpireDueSubscriptions). Writing Status = "cancelled" here would revoke
+	// the paid-for remainder immediately and can trip the group downgrade —
+	// the opposite of the stated policy.
+	//
+	// It also cannot be derived from Airwallex on demand: Airwallex Billing has
+	// no cancel_at_period_end, so its subscription flips straight to CANCELLED
+	// while this row must stay active until EndTime. Once those diverge, the
+	// processor's status can no longer answer "will this renew?" for this row,
+	// which is why the fact has to be recorded here.
+	CancelledAt int64 `json:"cancelled_at" gorm:"type:bigint;default:0;index"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -836,6 +855,69 @@ func ExpireSupersededUserSubscriptions(userId, oldPlanId, keepSubId int) (int64,
 		return 0, res.Error
 	}
 	return res.RowsAffected, nil
+}
+
+// MarkUserSubscriptionsCancelled records that auto-renewal is off for every
+// row the user still holds. Status and EndTime are untouched: the plan keeps
+// running to the end of the period the customer already paid for.
+//
+// Idempotent by construction — it only matches rows where CancelledAt is still
+// 0, so a duplicate webhook, a retry, or the reconcile pass arriving after the
+// endpoint already wrote all report 0 rows affected and change nothing. That
+// also preserves the *first* cancellation time, which is the one support needs.
+func MarkUserSubscriptionsCancelled(userId int, at int64) (int64, error) {
+	if userId <= 0 {
+		return 0, errors.New("invalid userId")
+	}
+	if at <= 0 {
+		at = common.GetTimestamp()
+	}
+	res := DB.Model(&UserSubscription{}).
+		Where("user_id = ? AND status = ? AND cancelled_at = ?", userId, "active", 0).
+		Updates(map[string]any{"cancelled_at": at, "updated_at": common.GetTimestamp()})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
+}
+
+// GetUserIdByAirwallexBillingCustomerId is the reverse of
+// GetAirwallexBillingCustomerId. Webhooks identify the customer, not the user,
+// so the cancellation handler needs this direction. Returns 0 when unknown.
+func GetUserIdByAirwallexBillingCustomerId(customerId string) int {
+	if customerId == "" {
+		return 0
+	}
+	var row AirwallexBillingCustomer
+	if err := DB.Where("customer_id = ?", customerId).First(&row).Error; err != nil {
+		return 0
+	}
+	return row.UserId
+}
+
+// ListRenewingUserSubscriptions returns the rows that still believe they will
+// renew: active, not yet at term end, and not already known to be cancelled.
+// This is the reconcile pass's candidate set — the only rows whose local state
+// a missed cancellation webhook could have left wrong.
+//
+// Restricted to source "order" because an admin-granted row has no Airwallex
+// subscription behind it at all. Such a row would look identical to a cancelled
+// one from the processor's side (no ACTIVE subscription found), so including it
+// would have the reconcile confidently mark every comped account as cancelled.
+func ListRenewingUserSubscriptions(limit int) ([]UserSubscription, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	now := common.GetTimestamp()
+	var subs []UserSubscription
+	err := DB.Where("status = ? AND end_time > ? AND cancelled_at = ? AND source = ?", "active", now, 0, "order").
+		Order("id asc").
+		Limit(limit).
+		Find(&subs).Error
+	if err != nil {
+		return nil, err
+	}
+	return subs, nil
 }
 
 // HasActiveUserSubscription returns whether the user has any active subscription.

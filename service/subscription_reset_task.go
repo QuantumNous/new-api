@@ -18,13 +18,21 @@ const (
 	subscriptionResetTickInterval = 1 * time.Minute
 	subscriptionResetBatchSize    = 300
 	subscriptionCleanupInterval   = 30 * time.Minute
+	// Cancellation reconcile costs one Airwallex round trip per renewing
+	// customer, so it runs far less often than the 1-minute maintenance tick.
+	// It is a backstop for dropped webhooks, not the primary path: the cancel
+	// endpoint and the webhook both write immediately, so a delay here is only
+	// visible when one of those has already failed.
+	subscriptionReconcileInterval  = 30 * time.Minute
+	subscriptionReconcileBatchSize = 200
 )
 
 var (
-	subscriptionResetOnce    sync.Once
-	subscriptionResetRunning atomic.Bool
-	subscriptionCleanupLast  atomic.Int64
-	recurringChargeLast      atomic.Int64
+	subscriptionResetOnce     sync.Once
+	subscriptionResetRunning  atomic.Bool
+	subscriptionCleanupLast   atomic.Int64
+	recurringChargeLast       atomic.Int64
+	subscriptionReconcileLast atomic.Int64
 )
 
 // Agreement-based rails (WeChat 委托代扣 / Alipay 周期扣款) are merchant-initiated:
@@ -96,6 +104,15 @@ func runSubscriptionQuotaResetOnce() {
 	if time.Since(lastRecurring) >= recurringChargeInterval {
 		ChargeDueAgreementSubscriptions()
 		recurringChargeLast.Store(time.Now().Unix())
+	}
+	lastReconcile := time.Unix(subscriptionReconcileLast.Load(), 0)
+	if time.Since(lastReconcile) >= subscriptionReconcileInterval {
+		if _, err := ReconcileAirwallexCancellations(subscriptionReconcileBatchSize); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("subscription cancellation reconcile failed: %v", err))
+		}
+		// Stamped regardless of outcome: a failing reconcile must not turn the
+		// 30-minute backstop into a once-a-minute retry storm against Airwallex.
+		subscriptionReconcileLast.Store(time.Now().Unix())
 	}
 	if common.DebugEnabled && (totalReset > 0 || totalExpired > 0) {
 		logger.LogDebug(ctx, "subscription maintenance: reset_count=%d, expired_count=%d", totalReset, totalExpired)

@@ -48,6 +48,7 @@ func TestMain(m *testing.M) {
 		&PerfMetric{},
 		&UserUsageCounter{},
 		&UserImageUpload{},
+		&AirwallexBillingCustomer{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -69,6 +70,7 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM user_subscriptions")
 		DB.Exec("DELETE FROM perf_metrics")
+		DB.Exec("DELETE FROM airwallex_billing_customers")
 	})
 }
 
