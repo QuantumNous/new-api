@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 15
     env:
       GOWORK: 'off'
+      SINGBOX_TAGS: 'with_gvisor,with_wireguard,with_utls'
 
     steps:
       - name: Checkout
@@ -41,21 +42,21 @@ jobs:
           touch web/dist/index.html
 
       - name: Vet root module
-        run: go vet ./...
+        run: go vet -tags "${SINGBOX_TAGS}" ./...
 
       - name: Vet relaykit independently
         working-directory: relaykit
         run: go vet ./...
 
       - name: Build root module
-        run: go build ./...
+        run: go build -tags "${SINGBOX_TAGS}" ./...
 
       - name: Build relaykit independently
         working-directory: relaykit
         run: go build ./...
 
       - name: Test root and relaykit modules
-        run: make test
+        run: GOWORK=off go test -tags "${SINGBOX_TAGS}" ./...
 
   frontend:
     name: Frontend typecheck and test

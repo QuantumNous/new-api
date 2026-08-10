@@ -36,6 +36,7 @@ require (
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.5.0
+	github.com/sagernet/sing-box v1.12.12
 	github.com/samber/hot v0.11.0
 	github.com/samber/lo v1.53.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
@@ -68,18 +69,64 @@ require (
 
 require (
 	github.com/ClickHouse/ch-go v0.65.0 // indirect
+	github.com/anytls/sing-anytls v0.0.11 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
+	github.com/caddyserver/certmagic v0.23.0 // indirect
+	github.com/caddyserver/zerossl v0.1.3 // indirect
 	github.com/casbin/govaluate v1.10.0 // indirect
+	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/go-chi/chi/v5 v5.2.2 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
+	github.com/gobwas/httphead v0.1.0 // indirect
+	github.com/gobwas/pool v0.2.1 // indirect
+	github.com/gofrs/uuid/v5 v5.3.2 // indirect
+	github.com/google/btree v1.1.3 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
+	github.com/hashicorp/yamux v0.1.2 // indirect
+	github.com/libdns/alidns v1.0.5-libdns.v1.beta1 // indirect
+	github.com/libdns/cloudflare v0.2.2-0.20250708034226-c574dccb31a6 // indirect
+	github.com/libdns/libdns v1.1.0 // indirect
+	github.com/logrusorgru/aurora v2.0.3+incompatible // indirect
+	github.com/mdlayher/netlink v1.7.3-0.20250113171957-fbb4dce95f42 // indirect
+	github.com/mdlayher/socket v0.5.1 // indirect
+	github.com/metacubex/tfo-go v0.0.0-20250921095601-b102db4216c0 // indirect
+	github.com/metacubex/utls v1.8.3 // indirect
+	github.com/mholt/acmez/v3 v3.1.2 // indirect
+	github.com/miekg/dns v1.1.67 // indirect
 	github.com/paulmach/orb v0.11.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
+	github.com/sagernet/bbolt v0.0.0-20231014093535-ea5cb2fe9f0a // indirect
+	github.com/sagernet/fswatch v0.1.1 // indirect
+	github.com/sagernet/gvisor v0.0.0-20250325023245-7a9c0f5725fb // indirect
+	github.com/sagernet/netlink v0.0.0-20240612041022-b9a21c07ac6a // indirect
+	github.com/sagernet/nftables v0.3.0-beta.4 // indirect
+	github.com/sagernet/sing v0.7.13 // indirect
+	github.com/sagernet/sing-mux v0.3.3 // indirect
+	github.com/sagernet/sing-shadowsocks v0.2.8 // indirect
+	github.com/sagernet/sing-shadowsocks2 v0.2.1 // indirect
+	github.com/sagernet/sing-shadowtls v0.2.1-0.20250503051639-fcd445d33c11 // indirect
+	github.com/sagernet/sing-tun v0.7.3 // indirect
+	github.com/sagernet/sing-vmess v0.2.7 // indirect
+	github.com/sagernet/smux v1.5.34-mod.2 // indirect
+	github.com/sagernet/wireguard-go v0.0.1-beta.7 // indirect
+	github.com/sagernet/ws v0.0.0-20231204124109-acfe8907c854 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
+	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
+	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.opentelemetry.io/otel v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
+	go.uber.org/zap/exp v0.3.0 // indirect
+	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
+	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/time v0.9.0 // indirect
+	golang.org/x/tools v0.44.0 // indirect
+	lukechampine.com/blake3 v1.3.0 // indirect
 )
 
 require (
@@ -110,7 +157,7 @@ require (
 	github.com/glebarez/go-sqlite v1.21.2
 	github.com/go-audio/audio v1.0.0 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
-	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-sql-driver/mysql v1.7.0
@@ -155,7 +202,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/arch v0.21.0 // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
-	google.golang.org/protobuf v1.36.5 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 	modernc.org/libc v1.66.10 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
