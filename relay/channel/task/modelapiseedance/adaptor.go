@@ -62,6 +62,13 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	return nil
 }
 
+func (a *TaskAdaptor) ValidateRequestAfterModelMapping(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	if c == nil || c.Request == nil || c.Request.URL == nil || c.Request.Method != http.MethodPost || c.Request.URL.Path != "/v1/videos" {
+		return taskError(fmt.Errorf("this channel type is only available on /v1/videos"), "invalid_request", http.StatusBadRequest)
+	}
+	return a.ValidateRequestAndSetAction(c, info)
+}
+
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
 	return a.baseURL + "/v1/tasks", nil
 }

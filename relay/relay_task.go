@@ -499,6 +499,10 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	isOpenAIVideoAPI := isOpenAIVideoFetchPath(c.Request.URL.Path)
 	isVideoToMusicAPI := isVideoToMusicFetchPath(c.Request.URL.Path)
 	isGenerationTasksAPI := isGenerationTasksFetchPath(c.Request.URL.Path)
+	if isModelAPISeedanceTask(originTask) && !isOpenAIVideoAPI {
+		taskResp = service.TaskErrorWrapperLocal(errors.New("task is not available on this endpoint"), "invalid_request", http.StatusBadRequest)
+		return
+	}
 
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
 	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI || isGenerationTasksAPI); len(realtimeResp) > 0 {
@@ -576,6 +580,13 @@ func isVideoToMusicFetchPath(path string) bool {
 
 func isGenerationTasksFetchPath(path string) bool {
 	return strings.HasPrefix(path, "/v1/generation/tasks/")
+}
+
+func isModelAPISeedanceTask(task *model.Task) bool {
+	if task == nil {
+		return false
+	}
+	return task.Platform == constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeModelAPISeedance))
 }
 
 type generationTaskVideoURL struct {

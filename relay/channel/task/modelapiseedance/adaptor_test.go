@@ -467,6 +467,53 @@ func TestValidateRequestAndSetActionAcceptsAudioOnlyAndSetsFixedUpstreamModel(t 
 	}
 }
 
+func TestValidateRequestAfterModelMappingRestrictsPublicSubmitEntrypoints(t *testing.T) {
+	type postMappingValidator interface {
+		ValidateRequestAfterModelMapping(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError
+	}
+	validator, ok := any(&TaskAdaptor{}).(postMappingValidator)
+	if !ok {
+		t.Fatal("TaskAdaptor must validate after model mapping")
+	}
+
+	validBody := `{"model":"client-model","content":[{"type":"text","text":"hello"}]}`
+	for _, path := range []string{"/v1/video/generations", "/v1/generation/tasks"} {
+		t.Run("rejects "+path, func(t *testing.T) {
+			c, _ := newModelAPITestContext(validBody)
+			c.Request.URL.Path = path
+			err := validator.ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", ""))
+			if err == nil {
+				t.Fatal("legacy submit path was accepted")
+			}
+			if err.StatusCode != http.StatusBadRequest || err.Code != "invalid_request" {
+				t.Fatalf("error = %+v, want invalid_request 400", err)
+			}
+		})
+	}
+
+	t.Run("rejects missing URL without panic", func(t *testing.T) {
+		c, _ := newModelAPITestContext(validBody)
+		c.Request.URL = nil
+		err := validator.ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", ""))
+		if err == nil || err.Code != "invalid_request" || err.StatusCode != http.StatusBadRequest {
+			t.Fatalf("error = %+v, want invalid_request 400", err)
+		}
+	})
+
+	t.Run("allows /v1/videos and preserves payload validation", func(t *testing.T) {
+		c, _ := newModelAPITestContext(validBody)
+		if err := validator.ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", "")); err != nil {
+			t.Fatalf("/v1/videos rejected: %+v", err)
+		}
+
+		c, _ = newModelAPITestContext(`{"model":"client-model","duration":31,"content":[{"type":"text","text":"hello"}]}`)
+		err := validator.ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", ""))
+		if err == nil || err.Code != "invalid_request" || !strings.Contains(err.Message, "duration") {
+			t.Fatalf("invalid payload error = %+v, want duration invalid_request", err)
+		}
+	})
+}
+
 func TestBuildAndFetchPathsHeadersAndEscaping(t *testing.T) {
 	service.InitHttpClient()
 	a := &TaskAdaptor{}
