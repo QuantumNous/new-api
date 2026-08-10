@@ -343,3 +343,10 @@ const (
 	MsgSubscriptionPaused      = "subscription.paused"
 	MsgSubscriptionNone        = "subscription.none"
 )
+
+// JINN usage allowance messages
+const (
+	MsgUsageMonthlyExhausted = "usage.monthly_exhausted"
+	MsgUsageImagesExhausted  = "usage.images_exhausted"
+	MsgUsageNoDate           = "usage.no_date"
+)

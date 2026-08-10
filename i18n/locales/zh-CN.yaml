@@ -289,3 +289,8 @@ custom_oauth.provider_id_field_invalid: "无法从提供商响应中提取用户
 subscription.paused_until: "JINN 已暂停：本周期包含的用量已用完，将于 {{.Date}} 恢复。"
 subscription.paused: "JINN 已暂停：本周期包含的用量已用完。"
 subscription.none: "此账户没有有效的 JINN 订阅。"
+
+# JINN 用量额度墙 —— 用户在此看到墙，必须写明恢复日期
+usage.monthly_exhausted: "本周期的 JINN 用量已用完，将于 {{.Date}} 恢复。"
+usage.images_exhausted: "本周期包含的图片额度已用完，将于 {{.Date}} 恢复。"
+usage.no_date: "下个周期"

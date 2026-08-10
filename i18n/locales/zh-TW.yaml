@@ -289,3 +289,8 @@ custom_oauth.provider_id_field_invalid: "無法從供應者響應中提取使用
 subscription.paused_until: "JINN 已暫停：本週期包含的用量已用完，將於 {{.Date}} 恢復。"
 subscription.paused: "JINN 已暫停：本週期包含的用量已用完。"
 subscription.none: "此帳戶沒有有效的 JINN 訂閱。"
+
+# JINN 用量額度牆 —— 使用者在此看到牆，必須寫明恢復日期
+usage.monthly_exhausted: "本週期的 JINN 用量已用完，將於 {{.Date}} 恢復。"
+usage.images_exhausted: "本週期包含的圖片額度已用完，將於 {{.Date}} 恢復。"
+usage.no_date: "下個週期"

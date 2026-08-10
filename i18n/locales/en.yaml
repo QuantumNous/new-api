@@ -288,3 +288,8 @@ custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider
 subscription.paused_until: "Your JINN plan is paused — you've used all the usage included in this cycle. It refills on {{.Date}}."
 subscription.paused: "Your JINN plan is paused — you've used all the usage included in this cycle."
 subscription.none: "No active JINN subscription on this account."
+
+# JINN usage allowance wall — shown at the wall, so it must carry the refill date
+usage.monthly_exhausted: "You've used your JINN usage for this cycle. It refills on {{.Date}}."
+usage.images_exhausted: "You've used all the images included in this cycle. It refills on {{.Date}}."
+usage.no_date: "the next cycle"
