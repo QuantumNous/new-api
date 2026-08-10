@@ -377,6 +377,46 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertRegex(validate, r"if \[\[ \"\$\{DISPATCH_MODE\}\" == \"cleanup-only\" \|\| \"\$\{DISPATCH_MODE\}\" == \"promotion-only\" \]\]; then[\s\S]*original_run_id")
         self.assertRegex(validate, r"if \[\[ ! \"\$\{DISPATCH_ORIGINAL_RUN_ID\}\" =~ \^\[0-9\]\+\$ \]\]; then")
 
+    def test_execution_ids_are_attempt_specific_and_cleanup_recovery_targets_original_attempt(self):
+        text = workflow_text()
+        self.assertRegex(
+            text,
+            r"(?ms)^  workflow_dispatch:\n    inputs:\n.*?      original_run_attempt:\n"
+            r"        description: .*cleanup-only.*attempt.*\n"
+            r"        required: false\n"
+            r"        type: string\b",
+        )
+        self.assertRegex(
+            text,
+            r"(?ms)^  workflow_call:\n    inputs:\n.*?      original_run_attempt:\n"
+            r"        description: .*cleanup-only.*attempt.*\n"
+            r"        required: false\n"
+            r"        type: string\b",
+        )
+        validate = step_block(workflow_text(), "Validate dispatch inputs")
+
+        self.assertRegex(
+            validate,
+            r"if \[\[ \"\$\{DISPATCH_MODE\}\" == \"cleanup-only\" \]\]; then[\s\S]*"
+            r"original_run_attempt[\s\S]*\^\[0-9\]\+\$",
+        )
+        self.assertIn(
+            'MAIN_EXECUTION_ID="main-${EFFECTIVE_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+            validate,
+        )
+        self.assertIn(
+            'CLEANUP_EXECUTION_ID="cleanup-${EFFECTIVE_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+            validate,
+        )
+        self.assertIn(
+            'MAIN_EXECUTION_ID="main-${EFFECTIVE_RUN_ID}-${DISPATCH_ORIGINAL_RUN_ATTEMPT}"',
+            validate,
+        )
+        self.assertIn(
+            'CLEANUP_EXECUTION_ID="cleanup-${EFFECTIVE_RUN_ID}-recovery-${TRUSTED_GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+            validate,
+        )
+
     def test_fail_on_findings_is_boolean_dispatch_and_call_input_validated_through_env(self):
         text = workflow_text()
         self.assertRegex(

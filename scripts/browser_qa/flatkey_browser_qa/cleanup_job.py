@@ -154,9 +154,14 @@ def _merge_root_manifest(root, cfg, cleanup_record, access_token):
             main_record = _missing_main_record(cfg)
             candidate_fields = {"candidates": []}
     records = _append_or_validate_record(records, main_record)
+    target_is_latest_main = _latest_by_kind(records)["main_execution_id"] == cfg.main_execution_id
+    if not target_is_latest_main:
+        candidate_fields = _candidate_root_fields_from_existing_root(root)
     records = _append_or_validate_record(records, cleanup_record)
-    status = _aggregate_status(records)
     latest = _latest_by_kind(records)
+    if not target_is_latest_main:
+        latest = copy.deepcopy(root["latest"])
+    status = _latest_status(records, latest)
     merged = {
         "schema_version": ROOT_MANIFEST_SCHEMA_VERSION,
         "run_id": cfg.run_id,
@@ -295,6 +300,15 @@ def _aggregate_status(records):
         if _STATUS_PRIORITY[candidate] > _STATUS_PRIORITY[status]:
             status = candidate
     return status
+
+
+def _latest_status(records, latest):
+    latest_records = [
+        record
+        for record in records
+        if record["execution_id"] == latest[f"{record['kind']}_execution_id"]
+    ]
+    return _aggregate_status(latest_records)
 
 
 def _latest_by_kind(records):

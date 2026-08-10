@@ -17,6 +17,10 @@ on:
         description: "Required cleanup-only or promotion-only original run id"
         required: false
         type: string
+      original_run_attempt:
+        description: "Required cleanup-only original run attempt"
+        required: false
+        type: string
       fail_on_findings:
         description: "Fail the workflow when browser QA reports sanitized exploratory findings"
         required: false
@@ -30,6 +34,10 @@ on:
         type: string
       original_run_id:
         description: "Required cleanup-only or promotion-only original run id"
+        required: false
+        type: string
+      original_run_attempt:
+        description: "Required cleanup-only original run attempt"
         required: false
         type: string
       fail_on_findings:
@@ -80,6 +88,7 @@ jobs:
         env:
           DISPATCH_MODE: ${{ inputs.mode }}
           DISPATCH_ORIGINAL_RUN_ID: ${{ inputs.original_run_id }}
+          DISPATCH_ORIGINAL_RUN_ATTEMPT: ${{ inputs.original_run_attempt }}
           DISPATCH_FAIL_ON_FINDINGS: ${{ inputs.fail_on_findings }}
           TRUSTED_GITHUB_RUN_ID: ${{ github.run_id }}
           QA_GMAIL_BASE: ${{ vars.GCP_BROWSER_QA_GMAIL_BASE }}
@@ -110,6 +119,16 @@ jobs:
               echo "original_run_id must contain only digits" >&2
               exit 2
             fi
+            if [[ "${DISPATCH_MODE}" == "cleanup-only" ]]; then
+              if [[ -z "${DISPATCH_ORIGINAL_RUN_ATTEMPT}" ]]; then
+                echo "cleanup-only requires original_run_attempt" >&2
+                exit 2
+              fi
+              if [[ ! "${DISPATCH_ORIGINAL_RUN_ATTEMPT}" =~ ^[0-9]+$ || "${DISPATCH_ORIGINAL_RUN_ATTEMPT}" == "0" ]]; then
+                echo "original_run_attempt must be a positive integer" >&2
+                exit 2
+              fi
+            fi
             EFFECTIVE_RUN_ID="${DISPATCH_ORIGINAL_RUN_ID}"
           else
             if [[ -z "${QA_GMAIL_BASE}" ]]; then
@@ -127,8 +146,13 @@ jobs:
             exit 2
           fi
           BROWSER_QA_MODE="${DISPATCH_MODE}"
-          MAIN_EXECUTION_ID="main-${EFFECTIVE_RUN_ID}"
-          CLEANUP_EXECUTION_ID="cleanup-${EFFECTIVE_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ "${DISPATCH_MODE}" == "cleanup-only" ]]; then
+            MAIN_EXECUTION_ID="main-${EFFECTIVE_RUN_ID}-${DISPATCH_ORIGINAL_RUN_ATTEMPT}"
+            CLEANUP_EXECUTION_ID="cleanup-${EFFECTIVE_RUN_ID}-recovery-${TRUSTED_GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          else
+            MAIN_EXECUTION_ID="main-${EFFECTIVE_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            CLEANUP_EXECUTION_ID="cleanup-${EFFECTIVE_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          fi
           echo "effective_run_id=${EFFECTIVE_RUN_ID}" >> "$GITHUB_OUTPUT"
           echo "main_execution_id=${MAIN_EXECUTION_ID}" >> "$GITHUB_OUTPUT"
           echo "cleanup_execution_id=${CLEANUP_EXECUTION_ID}" >> "$GITHUB_OUTPUT"

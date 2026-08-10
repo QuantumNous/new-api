@@ -1574,6 +1574,87 @@ class CleanupTests(unittest.TestCase):
 
         self.assertEqual(merged["latest"], {"main_execution_id": "main-099", "cleanup_execution_id": "cleanup-009"})
 
+    def test_merge_root_manifest_latest_attempt_status_supersedes_failed_history(self):
+        cfg = SimpleNamespace(
+            run_id=IDENTITY.run_id,
+            gcs_bucket="flatkey-browser-qa-reports",
+            main_execution_id="main-002",
+            cleanup_execution_id="cleanup-002",
+        )
+        existing = root_manifest(
+            status="infrastructure_failed",
+            latest={"main_execution_id": "main-001", "cleanup_execution_id": "cleanup-001"},
+            executions=[
+                execution_record(
+                    "main",
+                    "main-001",
+                    IDENTITY.run_id,
+                    status="infrastructure_failed",
+                    created_at=10,
+                ),
+                execution_record("cleanup", "cleanup-001", IDENTITY.run_id, created_at=20),
+            ],
+        )
+        cleanup_record = execution_record("cleanup", "cleanup-002", IDENTITY.run_id, created_at=40)
+        new_main = main_manifest(execution_id="main-002", created_at=30)
+
+        with mock.patch.object(cleanup_job, "read_gcs_json_object", lambda *_args: (new_main, 1)):
+            merged = cleanup_job._merge_root_manifest(existing, cfg, cleanup_record, "access-secret")
+
+        self.assertEqual(
+            merged["latest"],
+            {"main_execution_id": "main-002", "cleanup_execution_id": "cleanup-002"},
+        )
+        self.assertEqual(merged["status"], "passed")
+        self.assertEqual(len(merged["executions"]), 4)
+
+    def test_cleanup_recovery_for_older_main_preserves_latest_pair_and_candidates(self):
+        cfg = SimpleNamespace(
+            run_id=IDENTITY.run_id,
+            gcs_bucket="flatkey-browser-qa-reports",
+            main_execution_id="main-001",
+            cleanup_execution_id="cleanup-recovery-001",
+        )
+        target_url = "https://staging-console.flatkey.ai/register"
+        proposed = proposed_case()
+        candidate = promotion.build_candidate_bundle(
+            {
+                "kind": "coverage",
+                "fingerprint": promotion.canonical_fingerprint("coverage", target_url, proposed),
+                "target_url": target_url,
+                "proposed_case": proposed,
+            },
+            run_id=IDENTITY.run_id,
+            evidence_uri=(
+                f"gs://flatkey-browser-qa-reports/runs/{IDENTITY.run_id}/main/main-002/manifest.json"
+            ),
+        )
+        existing_latest = {"main_execution_id": "main-002", "cleanup_execution_id": "cleanup-002"}
+        existing = root_manifest(
+            latest=existing_latest,
+            executions=[
+                execution_record("main", "main-001", IDENTITY.run_id, created_at=10),
+                execution_record("main", "main-002", IDENTITY.run_id, created_at=30),
+                execution_record("cleanup", "cleanup-002", IDENTITY.run_id, created_at=40),
+            ],
+            candidates=[candidate],
+        )
+        recovery_cleanup = execution_record(
+            "cleanup",
+            "cleanup-recovery-001",
+            IDENTITY.run_id,
+            created_at=50,
+        )
+        old_main = main_manifest(execution_id="main-001", created_at=10)
+
+        with mock.patch.object(cleanup_job, "read_gcs_json_object", lambda *_args: (old_main, 1)):
+            merged = cleanup_job._merge_root_manifest(existing, cfg, recovery_cleanup, "access-secret")
+
+        self.assertEqual(merged["latest"], existing_latest)
+        self.assertEqual(merged["candidates"], [candidate])
+        self.assertEqual(merged["status"], "passed")
+        self.assertIn(recovery_cleanup, merged["executions"])
+
     def test_merge_root_manifest_tie_breaks_latest_by_execution_id(self):
         cfg = SimpleNamespace(
             run_id=IDENTITY.run_id,
