@@ -1,12 +1,15 @@
 package common
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
+	hostcommon "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -75,6 +78,49 @@ func TestValidateMultipartDirectNormalizesImageField(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"https://example.com/first.png"}, storedReq.Images)
 	require.Equal(t, constant.TaskActionGenerate, info.Action)
+}
+
+func TestTaskSubmitReqAcceptsKuocaiDocumentVideoFields(t *testing.T) {
+	var req TaskSubmitReq
+	err := hostcommon.Unmarshal([]byte(`{
+		"model":"seedance",
+		"prompt":"A sunset over the sea",
+		"seconds":8,
+		"count":2,
+		"resolution":"720P",
+		"reference_images":["https://cdn.example/one.jpg","https://cdn.example/two.jpg"]
+	}`), &req)
+	require.NoError(t, err)
+	require.Equal(t, "8", req.Seconds)
+	require.Equal(t, 2, req.Count)
+	require.Equal(t, "720P", req.Metadata["resolution"])
+	require.Equal(t, []interface{}{"https://cdn.example/one.jpg", "https://cdn.example/two.jpg"}, req.Metadata["reference_images"])
+}
+
+func TestValidateBasicTaskRequestAcceptsOpenAIVideoMultipartForm(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "seedance"))
+	require.NoError(t, writer.WriteField("prompt", "A sunset over the sea"))
+	require.NoError(t, writer.WriteField("seconds", "8"))
+	require.NoError(t, writer.WriteField("count", "2"))
+	require.NoError(t, writer.WriteField("resolution", "720P"))
+	require.NoError(t, writer.Close())
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/videos", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = request
+	info := &RelayInfo{TaskRelayInfo: &TaskRelayInfo{}}
+
+	taskErr := ValidateBasicTaskRequest(context, info, constant.TaskActionTextGenerate)
+	require.Nil(t, taskErr)
+	storedReq, err := GetTaskRequest(context)
+	require.NoError(t, err)
+	require.Equal(t, "8", storedReq.Seconds)
+	require.Equal(t, 2, storedReq.Count)
+	require.Equal(t, "720P", storedReq.Metadata["resolution"])
 }
 
 // TestTaskDurationBounds guards the billing invariant that user-supplied

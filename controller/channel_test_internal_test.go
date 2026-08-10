@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -128,6 +129,32 @@ func TestMultiprotocolGatewayEndpointTypes(t *testing.T) {
 
 	assert.Equal(t, want, common.GetEndpointTypesByChannelType(constant.ChannelTypeNewAPI, "gpt-5"))
 	assert.Equal(t, want, common.GetEndpointTypesByChannelType(constant.ChannelTypeSub2API, "gpt-5"))
+}
+
+func TestKuocaiChannelTestUsesCredentialCheckEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/api/v1/usage", r.URL.Path)
+		assert.Equal(t, "Bearer kc-test-key", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":200,"data":{"balance":1}}`))
+	}))
+	defer server.Close()
+
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeKuocai,
+		BaseURL: common.GetPointer(server.URL),
+		Key:     "kc-test-key",
+	}
+
+	result := testChannel(context.Background(), channel, 0, "seedance", "", false)
+	require.NoError(t, result.localErr)
+	assert.Equal(t, string(constant.EndpointTypeOpenAIVideo), normalizeChannelTestEndpoint(channel, "seedance", ""))
+
+	endpoint, ok := common.GetDefaultEndpointInfo(constant.EndpointTypeOpenAIVideo)
+	require.True(t, ok)
+	assert.Equal(t, "/v1/videos", endpoint.Path)
+	assert.Equal(t, http.MethodPost, endpoint.Method)
 }
 
 func TestCopyChannelRejectsInvalidLegacyProxySettings(t *testing.T) {

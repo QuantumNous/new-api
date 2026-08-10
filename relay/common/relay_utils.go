@@ -158,11 +158,17 @@ func validateTaskDurationBounds(req TaskSubmitReq) *dto.TaskError {
 
 func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string) (TaskSubmitReq, error) {
 	var req TaskSubmitReq
-	if _, err := c.MultipartForm(); err != nil {
+	form, err := common.ParseMultipartFormReusable(c)
+	if err != nil {
 		return req, err
 	}
 
-	formData := c.Request.PostForm
+	// Keep Gin's request state available to adaptors while reading all form
+	// fields from the reusable body cache. Calling c.MultipartForm() here
+	// consumes the original body and breaks the later task-request unmarshal.
+	c.Request.MultipartForm = form
+	c.Request.PostForm = form.Value
+	formData := url.Values(form.Value)
 	req = TaskSubmitReq{
 		Prompt:   formData.Get("prompt"),
 		Model:    formData.Get("model"),
@@ -275,7 +281,11 @@ func isKnownTaskField(field string) bool {
 		"images":          true,
 		"size":            true,
 		"duration":        true,
+		"seconds":         true,
+		"count":           true,
+		"n":               true,
 		"input_reference": true, // Sora 特有字段
+		"metadata":        true,
 	}
 	return knownFields[field]
 }
