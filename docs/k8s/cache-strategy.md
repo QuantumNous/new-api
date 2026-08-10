@@ -2,7 +2,7 @@
 
 本文档说明 new-api 多副本部署下本地磁盘缓存不跨 Pod 共享的事实、影响，以及三种应对策略与选择依据。
 
-对应 issue #75。基础清单见 PR #77（issue #73）；运行约束背景见 `k8s/docs/runtime-constraints.md` 第 6 节。
+对应 issue #75。基础清单见 PR #77（issue #73）；运行约束背景见 `docs/k8s/runtime-constraints.md` 第 6 节。
 
 ## 1. 缓存机制与默认状态
 
