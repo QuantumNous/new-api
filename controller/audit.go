@@ -48,6 +48,7 @@ var auditContentTemplates = map[string]string{
 	"redemption.create": "Created ${count} redemption codes named ${name} (${quota} each)",
 
 	"subscription.plan_reset":      "Reset active subscriptions for plan ${plan_id}",
+	"subscription.plan_sync":       "Synchronized ${updated_count} active subscriptions for plan ${plan_title}",
 	"subscription.user_plan_reset": "Reset active plan ${plan_id} subscriptions for user ${target_user_id}",
 }
 

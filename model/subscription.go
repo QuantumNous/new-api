@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -304,6 +305,31 @@ type SubscriptionResetResult struct {
 	AdvanceResetTime bool   `json:"advance_reset_time"`
 	PlanTitle        string `json:"-"`
 	AffectedUserIds  []int  `json:"-"`
+}
+
+type SubscriptionSyncOptions struct {
+	SyncQuota          bool `json:"sync_quota"`
+	SyncResetPeriod    bool `json:"sync_reset_period"`
+	SyncWalletOverflow bool `json:"sync_wallet_overflow"`
+	SyncGroups         bool `json:"sync_groups"`
+}
+
+type SubscriptionSyncResult struct {
+	PlanId                 int    `json:"plan_id"`
+	MatchedCount           int    `json:"matched_count"`
+	UpdatedCount           int    `json:"updated_count"`
+	UserCount              int    `json:"user_count"`
+	ExhaustedCount         int    `json:"exhausted_count"`
+	GroupUpdatedUserCount  int    `json:"group_updated_user_count"`
+	GroupConflictUserCount int    `json:"group_conflict_user_count"`
+	PlanTitle              string `json:"-"`
+	UpdatedUserIds         []int  `json:"-"`
+	GroupChangedUserIds    []int  `json:"-"`
+}
+
+type subscriptionGroupSyncResult struct {
+	Applied          bool
+	UserGroupChanged bool
 }
 
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
@@ -1118,6 +1144,218 @@ func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*Subscripti
 	return result, nil
 }
 
+func syncUserSubscriptionGroupsTx(tx *gorm.DB, plan *SubscriptionPlan, subscriptions []UserSubscription, now int64) (subscriptionGroupSyncResult, error) {
+	if tx == nil || plan == nil || len(subscriptions) == 0 {
+		return subscriptionGroupSyncResult{}, errors.New("invalid group sync args")
+	}
+	userId := subscriptions[0].UserId
+	currentGroup, err := getUserGroupByIdTx(tx, userId)
+	if err != nil {
+		return subscriptionGroupSyncResult{}, err
+	}
+
+	// The user row lock serializes group transitions. Avoid locking another plan's
+	// subscription here, which would invert lock order across concurrent plan syncs.
+	var otherSubscription UserSubscription
+	otherQuery := tx.
+		Where("user_id = ? AND plan_id <> ? AND status = ? AND end_time > ? AND upgrade_group <> ''", userId, plan.Id, "active", now).
+		Limit(1).
+		Find(&otherSubscription)
+	if otherQuery.Error != nil {
+		return subscriptionGroupSyncResult{}, otherQuery.Error
+	}
+	if otherQuery.RowsAffected > 0 {
+		return subscriptionGroupSyncResult{}, nil
+	}
+
+	newUpgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
+	newDowngradeGroup := strings.TrimSpace(plan.DowngradeGroup)
+	hadUpgradeGroup := false
+	currentMatchesOldUpgrade := false
+	previousGroup := ""
+	fallbackGroup := ""
+	for i := range subscriptions {
+		oldUpgradeGroup := strings.TrimSpace(subscriptions[i].UpgradeGroup)
+		if oldUpgradeGroup != "" {
+			hadUpgradeGroup = true
+			if currentGroup == oldUpgradeGroup {
+				currentMatchesOldUpgrade = true
+			}
+		}
+		if previousGroup == "" {
+			previousGroup = strings.TrimSpace(subscriptions[i].PrevUserGroup)
+		}
+		if fallbackGroup == "" {
+			fallbackGroup = strings.TrimSpace(subscriptions[i].DowngradeGroup)
+		}
+	}
+	if fallbackGroup == "" {
+		fallbackGroup = previousGroup
+	}
+	if hadUpgradeGroup && !currentMatchesOldUpgrade && currentGroup != newUpgradeGroup {
+		return subscriptionGroupSyncResult{}, nil
+	}
+	if !hadUpgradeGroup && previousGroup != "" && currentGroup != fallbackGroup && currentGroup != newUpgradeGroup {
+		return subscriptionGroupSyncResult{}, nil
+	}
+	if newUpgradeGroup != "" && previousGroup == "" && currentGroup != newUpgradeGroup {
+		previousGroup = currentGroup
+	}
+
+	for i := range subscriptions {
+		subscriptions[i].UpgradeGroup = newUpgradeGroup
+		subscriptions[i].DowngradeGroup = newDowngradeGroup
+		if newUpgradeGroup != "" && strings.TrimSpace(subscriptions[i].PrevUserGroup) == "" && previousGroup != "" {
+			subscriptions[i].PrevUserGroup = previousGroup
+		}
+	}
+
+	targetGroup := ""
+	if newUpgradeGroup != "" {
+		targetGroup = newUpgradeGroup
+	} else if hadUpgradeGroup {
+		targetGroup = newDowngradeGroup
+		if targetGroup == "" {
+			targetGroup = previousGroup
+		}
+	}
+	groupChanged := targetGroup != "" && targetGroup != currentGroup
+	if groupChanged {
+		if err := tx.Model(&User{}).Where("id = ?", userId).Update("group", targetGroup).Error; err != nil {
+			return subscriptionGroupSyncResult{}, err
+		}
+	}
+	return subscriptionGroupSyncResult{Applied: true, UserGroupChanged: groupChanged}, nil
+}
+
+func AdminSyncPlanSubscriptions(planId int, options SubscriptionSyncOptions) (*SubscriptionSyncResult, error) {
+	if planId <= 0 {
+		return nil, errors.New("invalid planId")
+	}
+	if !options.SyncQuota && !options.SyncResetPeriod && !options.SyncWalletOverflow && !options.SyncGroups {
+		return nil, errors.New("no subscription fields selected for sync")
+	}
+
+	now := GetDBTimestamp()
+	var result *SubscriptionSyncResult
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		plan := &SubscriptionPlan{}
+		if err := lockForUpdate(tx).Where("id = ?", planId).First(plan).Error; err != nil {
+			return err
+		}
+		plan.NormalizeDefaults()
+		var subscriptionIds []int
+		if err := tx.Model(&UserSubscription{}).
+			Where("plan_id = ? AND status = ? AND end_time > ?", plan.Id, "active", now).
+			Order("user_id asc, start_time asc, id asc").
+			Pluck("id", &subscriptionIds).Error; err != nil {
+			return err
+		}
+		var subscriptions []UserSubscription
+		if len(subscriptionIds) > 0 {
+			if err := lockForUpdate(tx).
+				Where("id IN ? AND plan_id = ? AND status = ? AND end_time > ?", subscriptionIds, plan.Id, "active", now).
+				Order("user_id asc, start_time asc, id asc").
+				Find(&subscriptions).Error; err != nil {
+				return err
+			}
+		}
+
+		result = &SubscriptionSyncResult{
+			PlanId:         plan.Id,
+			MatchedCount:   len(subscriptions),
+			PlanTitle:      plan.Title,
+			UpdatedUserIds: make([]int, 0, len(subscriptions)),
+		}
+		if len(subscriptions) == 0 {
+			return nil
+		}
+
+		subscriptionsToUpdate := make([]bool, len(subscriptions))
+		seenUsers := make(map[int]struct{}, len(subscriptions))
+		for i := range subscriptions {
+			subscription := &subscriptions[i]
+			if _, ok := seenUsers[subscription.UserId]; !ok {
+				seenUsers[subscription.UserId] = struct{}{}
+			}
+			if options.SyncQuota {
+				subscription.AmountTotal = plan.TotalAmount
+				subscriptionsToUpdate[i] = true
+				if plan.TotalAmount > 0 && subscription.AmountUsed >= plan.TotalAmount {
+					result.ExhaustedCount++
+				}
+			}
+			if options.SyncResetPeriod {
+				subscription.NextResetTime = calcNextResetTime(time.Unix(now, 0), plan, subscription.EndTime)
+				if NormalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetNever {
+					subscription.LastResetTime = 0
+				} else {
+					subscription.LastResetTime = now
+				}
+				subscriptionsToUpdate[i] = true
+			}
+			if options.SyncWalletOverflow {
+				allowWalletOverflow := true
+				if plan.AllowWalletOverflow != nil {
+					allowWalletOverflow = *plan.AllowWalletOverflow
+				}
+				subscription.AllowWalletOverflow = allowWalletOverflow
+				subscriptionsToUpdate[i] = true
+			}
+		}
+		result.UserCount = len(seenUsers)
+
+		if options.SyncGroups {
+			for start := 0; start < len(subscriptions); {
+				end := start + 1
+				for end < len(subscriptions) && subscriptions[end].UserId == subscriptions[start].UserId {
+					end++
+				}
+				groupSync, err := syncUserSubscriptionGroupsTx(tx, plan, subscriptions[start:end], now)
+				if err != nil {
+					return err
+				}
+				if !groupSync.Applied {
+					result.GroupConflictUserCount++
+					start = end
+					continue
+				}
+				result.GroupUpdatedUserCount++
+				if groupSync.UserGroupChanged {
+					result.GroupChangedUserIds = append(result.GroupChangedUserIds, subscriptions[start].UserId)
+				}
+				for i := start; i < end; i++ {
+					subscriptionsToUpdate[i] = true
+				}
+				start = end
+			}
+		}
+
+		updatedUsers := make(map[int]struct{}, len(seenUsers))
+		for i := range subscriptions {
+			if !subscriptionsToUpdate[i] {
+				continue
+			}
+			if err := tx.Save(&subscriptions[i]).Error; err != nil {
+				return err
+			}
+			result.UpdatedCount++
+			if _, ok := updatedUsers[subscriptions[i].UserId]; !ok {
+				updatedUsers[subscriptions[i].UserId] = struct{}{}
+				result.UpdatedUserIds = append(result.UpdatedUserIds, subscriptions[i].UserId)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, userId := range result.GroupChangedUserIds {
+		refreshSubscriptionUserGroupCache(userId, "subscription plan sync")
+	}
+	return result, nil
+}
+
 type SubscriptionPreConsumeResult struct {
 	UserSubscriptionId int
 	PreConsumed        int64
@@ -1497,6 +1735,8 @@ func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*Subsc
 }
 
 // Update subscription used amount by delta (positive consume more, negative refund).
+// Availability is enforced during pre-consume; settlement corrections remain valid
+// if an administrator lowers the subscription total while a request is in flight.
 func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error {
 	if userSubscriptionId <= 0 {
 		return errors.New("invalid userSubscriptionId")
@@ -1511,12 +1751,16 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 			First(&sub).Error; err != nil {
 			return err
 		}
-		newUsed := sub.AmountUsed + delta
-		if newUsed < 0 {
+		var newUsed int64
+		if delta > 0 {
+			if sub.AmountUsed > math.MaxInt64-delta {
+				return fmt.Errorf("subscription used amount overflow, used=%d delta=%d", sub.AmountUsed, delta)
+			}
+			newUsed = sub.AmountUsed + delta
+		} else if delta == math.MinInt64 || sub.AmountUsed <= -delta {
 			newUsed = 0
-		}
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+		} else {
+			newUsed = sub.AmountUsed + delta
 		}
 		sub.AmountUsed = newUsed
 		return tx.Save(&sub).Error
