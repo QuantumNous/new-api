@@ -526,6 +526,36 @@ func TestDoRequestRejectsProxyWithoutUpstreamRequest(t *testing.T) {
 	assertNoModelAPILeak(t, err.Error())
 }
 
+func TestDoRequestTreatsWhitespaceProxyAsEmpty(t *testing.T) {
+	service.InitHttpClient()
+	t.Cleanup(service.ResetProxyClientCache)
+
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		_, _ = w.Write([]byte(`{"task_id":"ok","status":"pending"}`))
+	}))
+	defer server.Close()
+
+	a := &TaskAdaptor{}
+	info := newModelAPIRelayInfo(server.URL, "secret")
+	info.ChannelSetting.Proxy = " \t\n "
+	a.Init(info)
+	c, _ := newModelAPITestContext(`{}`)
+
+	resp, err := a.DoRequest(c, info, strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatalf("DoRequest rejected whitespace proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+	if requestCount != 1 {
+		t.Fatalf("DoRequest reached upstream %d times, want 1", requestCount)
+	}
+	if info.ChannelSetting.Proxy != " \t\n " {
+		t.Fatalf("DoRequest mutated RelayInfo proxy to %q", info.ChannelSetting.Proxy)
+	}
+}
+
 func TestFetchTaskRejectsProxyWithoutUpstreamRequest(t *testing.T) {
 	a := &TaskAdaptor{}
 	var requestCount int
@@ -550,6 +580,28 @@ func TestFetchTaskRejectsProxyWithoutUpstreamRequest(t *testing.T) {
 		t.Fatalf("FetchTask reached upstream %d times", requestCount)
 	}
 	assertNoModelAPILeak(t, err.Error())
+}
+
+func TestFetchTaskWithContextTreatsWhitespaceProxyAsEmpty(t *testing.T) {
+	service.InitHttpClient()
+	t.Cleanup(service.ResetProxyClientCache)
+
+	a := &TaskAdaptor{}
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		_, _ = w.Write([]byte(`{"task_id":"ok","status":"running"}`))
+	}))
+	defer server.Close()
+
+	resp, err := a.FetchTaskWithContext(context.Background(), server.URL, "fetch-key", map[string]any{"task_id": "task-1"}, " \t\n ")
+	if err != nil {
+		t.Fatalf("FetchTaskWithContext rejected whitespace proxy: %v", err)
+	}
+	_ = resp.Body.Close()
+	if requestCount != 1 {
+		t.Fatalf("FetchTaskWithContext reached upstream %d times, want 1", requestCount)
+	}
 }
 
 func TestInitFallsBackToDefaultBaseURL(t *testing.T) {

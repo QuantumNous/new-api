@@ -90,8 +90,20 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo)
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	if info != nil && strings.TrimSpace(info.ChannelSetting.Proxy) != "" {
-		return nil, errModelAPISeedanceProxyUnsupported()
+	if info != nil {
+		proxy := strings.TrimSpace(info.ChannelSetting.Proxy)
+		if proxy != "" {
+			return nil, errModelAPISeedanceProxyUnsupported()
+		}
+		if info.ChannelSetting.Proxy != "" {
+			scopedInfo := *info
+			if info.ChannelMeta != nil {
+				scopedMeta := *info.ChannelMeta
+				scopedMeta.ChannelSetting.Proxy = ""
+				scopedInfo.ChannelMeta = &scopedMeta
+			}
+			return channel.DoTaskApiRequest(a, c, &scopedInfo, requestBody)
+		}
 	}
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
@@ -150,7 +162,8 @@ func (a *TaskAdaptor) FetchTaskWithContext(ctx context.Context, baseURL string, 
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if strings.TrimSpace(proxy) != "" {
+	proxy = strings.TrimSpace(proxy)
+	if proxy != "" {
 		return nil, errModelAPISeedanceProxyUnsupported()
 	}
 	taskID, ok := body["task_id"].(string)
