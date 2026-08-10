@@ -25,32 +25,36 @@ func effectiveBillingUsage(usage *dto.Usage) *dto.Usage {
 }
 
 func usageBillingPathForLog(isLocalCountTokens bool, usage *dto.Usage) string {
-	effectiveUsage, ok := usageFromBillingUsage(usage)
-	if !ok {
-		if isLocalCountTokens {
-			return usageBillingPathLocal
-		}
+	if isLocalCountTokens {
+		return usageBillingPathLocal
+	}
+	if usage == nil || usage.BillingUsage == nil {
 		return usageBillingPathUpstream
 	}
-
-	switch effectiveUsage.UsageSemantic {
-	case dto.BillingUsageSemanticOpenAI:
+	source := strings.TrimSpace(usage.BillingUsage.Source)
+	semantic := strings.TrimSpace(usage.BillingUsage.Semantic)
+	if strings.EqualFold(source, dto.BillingUsageSourceOAIChat) ||
+		strings.EqualFold(source, dto.BillingUsageSourceOAIResponses) ||
+		strings.EqualFold(semantic, dto.BillingUsageSemanticOpenAI) {
 		if usage.BillingUsage.Estimated {
 			return usageBillingPathOpenAIEstimated
 		}
 		return usageBillingPathOpenAI
-	case dto.BillingUsageSemanticAnthropic:
+	}
+	if strings.EqualFold(source, dto.BillingUsageSourceClaudeMessages) ||
+		strings.EqualFold(semantic, dto.BillingUsageSemanticAnthropic) {
 		if usage.BillingUsage.Estimated {
 			return usageBillingPathAnthropicEstimated
 		}
 		return usageBillingPathAnthropic
-	case dto.BillingUsageSemanticGemini:
+	}
+	if strings.EqualFold(source, dto.BillingUsageSourceGeminiChat) ||
+		strings.EqualFold(semantic, dto.BillingUsageSemanticGemini) {
 		if usage.BillingUsage.Estimated {
 			return usageBillingPathGeminiEstimated
 		}
 		return usageBillingPathGemini
 	}
-
 	return usageBillingPathUpstream
 }
 

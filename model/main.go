@@ -292,10 +292,25 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&MarketModel{},
+		// P2 平台化能力：企业团队空间 / SLA / 区域路由 / 分销商
+		&Team{},
+		&TeamMember{},
+		&TeamProject{},
+		&SlaIncident{},
+		&RegionRoute{},
+		&Distributor{},
+		&DistributorPrice{},
+		// MVP 营销站公开数据模型
+		&SalesLead{},
+		&PublicPricing{},
+		&PublicModelCategory{},
 	)
 	if err != nil {
 		return err
 	}
+	// 写入营销站默认定价与模型目录（仅在表为空时）
+	InitPublicSiteDefaults()
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err
 	}

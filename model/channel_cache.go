@@ -111,26 +111,39 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+// GetRandomSatisfiedChannel 选择一个满足条件的渠道。
+// routing 为区域路由解析结果：Active 时先按白名单收窄候选渠道，
+// 并用区域策略打分替代默认的渠道优先级；未命中时行为与无区域路由完全一致。
+func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string, routing RegionRouting) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry, requestPath)
+		return GetChannel(group, model, retry, requestPath, routing)
 	}
 
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
 
 	// First, try to find channels with the exact model name.
-	channels := filterChannelsByRequestPathAndModel(group2model2channels[group][model], requestPath, model)
+	channels := filterChannelsByRegion(
+		filterChannelsByRequestPathAndModel(group2model2channels[group][model], requestPath, model), routing)
 
 	// If no channels found, try to find channels with the normalized model name.
 	if len(channels) == 0 {
 		normalizedModel := ratio_setting.FormatMatchingModelName(model)
-		channels = filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, model)
+		channels = filterChannelsByRegion(
+			filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, model), routing)
 	}
 
 	if len(channels) == 0 {
 		return nil, nil
+	}
+
+	// 区域策略生效时用策略分数替代渠道优先级参与分层与筛选
+	scoreOf := func(channel *Channel) int64 {
+		if routing.Active && routing.Strategy != "" {
+			return regionStrategyScore(channel, routing.Strategy)
+		}
+		return channel.GetPriority()
 	}
 
 	if len(channels) == 1 {
@@ -143,7 +156,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	uniquePriorities := make(map[int]bool)
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
-			uniquePriorities[int(channel.GetPriority())] = true
+			uniquePriorities[int(scoreOf(channel))] = true
 		} else {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
@@ -164,7 +177,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
-			if channel.GetPriority() == targetPriority {
+			if scoreOf(channel) == targetPriority {
 				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
@@ -232,6 +245,28 @@ func filterChannelsByRequestPathAndModel(channels []int, requestPath string, mod
 		if config := channel2advancedCustomConfig[channelId]; config != nil && config.SupportsPathForModel(requestPath, model) {
 			filtered = append(filtered, channelId)
 		}
+	}
+	return filtered
+}
+
+// filterChannelsByRegion 按区域路由白名单收窄候选渠道，保持原有优先级顺序。
+// 交集为空时返回原候选集：宁可让区域策略降级失效，也不因配置错误让请求整体失败。
+func filterChannelsByRegion(channels []int, routing RegionRouting) []int {
+	if !routing.Active || len(channels) == 0 || len(routing.AllowedIds) == 0 {
+		return channels
+	}
+	allowed := make(map[int]bool, len(routing.AllowedIds))
+	for _, id := range routing.AllowedIds {
+		allowed[int(id)] = true
+	}
+	filtered := make([]int, 0, len(channels))
+	for _, channelId := range channels {
+		if allowed[channelId] {
+			filtered = append(filtered, channelId)
+		}
+	}
+	if len(filtered) == 0 {
+		return channels
 	}
 	return filtered
 }
