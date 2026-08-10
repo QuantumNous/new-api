@@ -60,17 +60,6 @@ body:
     validations:
       required: true
 
-  - type: dropdown
-    id: scope
-    attributes:
-      label: Scope
-      description: 这个 Issue 需要几个 PR 完成？
-      options:
-        - 单个 PR：一个 PR 关闭本 Issue
-        - 多个 PR：拆分子 Issue，每个子 Issue 由对应 PR 关闭
-      default: 0
-    validations:
-      required: true
 
   - type: markdown
     attributes:
