@@ -58,6 +58,46 @@ func TestAssetModelWorkerRetriesTransientScheduleAndPublishesActiveOnlyWhenExact
 	require.EqualValues(t, 4, atomic.LoadInt64(&materializer.createCalls))
 }
 
+func TestAssetModelWorkerRetriesUpstreamProcessingEveryFiveSeconds(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	materializer := &scriptedAssetModelMaterializer{create: []scriptedAssetModelCreate{
+		{err: &AssetMaterializeFailure{Class: AssetMaterializeErrorProcessing}},
+		{err: &AssetMaterializeFailure{Class: AssetMaterializeErrorProcessing}},
+		{err: &AssetMaterializeFailure{Class: AssetMaterializeErrorProcessing, RetryAfter: 45 * time.Second}},
+		{err: &AssetMaterializeFailure{Class: AssetMaterializeErrorProcessing}},
+		{result: AssetMaterializeResult{UpstreamAssetID: "upstream-active", Status: model.AssetStatusActive}},
+	}}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	asset, scope, target := seedAssetModelWorkerReadiness(t, "ast_worker_processing_retry", "techmobi-key-a")
+
+	for _, step := range []struct {
+		now      int64
+		wantNext int64
+	}{
+		{now: 100, wantNext: 105},
+		{now: 105, wantNext: 110},
+		{now: 110, wantNext: 155},
+		{now: 155, wantNext: 160},
+	} {
+		processed, err := runAssetModelReadinessBatchAt(t, "node-a", step.now)
+		require.NoError(t, err)
+		require.Equal(t, 1, processed)
+
+		row := requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
+		require.Equal(t, model.AssetModelReadinessStatusRetryWaiting, row.Status)
+		require.Equal(t, AssetMaterializeErrorProcessing, row.ErrorClass)
+		require.Equal(t, step.wantNext, row.NextRetryAt)
+	}
+
+	processed, err := runAssetModelReadinessBatchAt(t, "node-a", 160)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	row := requireAssetModelReadinessRow(t, asset.Id, scope, target.ModelName)
+	require.Equal(t, model.AssetModelReadinessStatusActive, row.Status)
+	require.EqualValues(t, 5, atomic.LoadInt64(&materializer.createCalls))
+}
+
 func TestAssetModelWorkerRefreshesDBTimeForEveryBatchRow(t *testing.T) {
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)

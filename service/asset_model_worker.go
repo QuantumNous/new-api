@@ -590,7 +590,7 @@ func finishAssetModelReadinessFailed(row model.AssetModelReadiness, owner string
 }
 
 func scheduleAssetModelReadinessRetry(row model.AssetModelReadiness, owner string, nowUnix int64, class string, retryAfter time.Duration) error {
-	delay := assetModelRetryDelay(row.AttemptCount, retryAfter)
+	delay := assetModelRetryDelay(class, row.AttemptCount, retryAfter)
 	nextRetryAt := nowUnix + int64(delay.Seconds())
 	eventName := assetModelEventRetry
 	if class == AssetMaterializeErrorThrottled {
@@ -648,15 +648,18 @@ func adoptAssetModelReadinessTarget(row model.AssetModelReadiness, target model.
 	return result.RowsAffected == 1, nil
 }
 
-func assetModelRetryDelay(attemptCount int, retryAfter time.Duration) time.Duration {
-	if attemptCount <= 0 {
-		attemptCount = 1
+func assetModelRetryDelay(class string, attemptCount int, retryAfter time.Duration) time.Duration {
+	delay := assetModelRetrySchedule[0]
+	if class != AssetMaterializeErrorProcessing {
+		if attemptCount <= 0 {
+			attemptCount = 1
+		}
+		index := attemptCount - 1
+		if index >= len(assetModelRetrySchedule) {
+			index = len(assetModelRetrySchedule) - 1
+		}
+		delay = assetModelRetrySchedule[index]
 	}
-	index := attemptCount - 1
-	if index >= len(assetModelRetrySchedule) {
-		index = len(assetModelRetrySchedule) - 1
-	}
-	delay := assetModelRetrySchedule[index]
 	if retryAfter > delay {
 		return retryAfter
 	}
