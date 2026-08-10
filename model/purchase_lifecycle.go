@@ -43,6 +43,65 @@ func PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx *gorm.DB, trans
 	return persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx, transition, winnerHook)
 }
 
+func RepairSubscriptionPurchaseSuccessLifecycleArtifactsTx(tx *gorm.DB, transition PurchaseLifecycleTransition) error {
+	if tx == nil {
+		return errors.New("subscription purchase success lifecycle repair requires transaction")
+	}
+	if transition.UserID <= 0 {
+		return errors.New("subscription purchase success lifecycle repair requires user id")
+	}
+	if transition.SubscriptionScopeID <= 0 {
+		return errors.New("subscription purchase success lifecycle repair requires subscription scope")
+	}
+	if normalizePurchaseLifecycleStatus(transition.ToStatus) != common.TopUpStatusSuccess {
+		return errors.New("subscription purchase success lifecycle repair requires success status")
+	}
+	order, err := lockPurchaseLifecycleSubscriptionOrder(tx, transition)
+	if err != nil {
+		return err
+	}
+	if order.UserId != transition.UserID {
+		return ErrSubscriptionOrderStatusInvalid
+	}
+	tradeNo := strings.TrimSpace(transition.TradeNo)
+	if tradeNo == "" {
+		tradeNo = strings.TrimSpace(order.TradeNo)
+	}
+	if tradeNo != "" && strings.TrimSpace(order.TradeNo) != "" && tradeNo != strings.TrimSpace(order.TradeNo) {
+		return ErrSubscriptionOrderStatusInvalid
+	}
+	if normalizePurchaseLifecycleStatus(order.Status) != common.TopUpStatusSuccess {
+		return ErrSubscriptionOrderStatusInvalid
+	}
+	if err := validateSubscriptionPurchaseSuccessScopeTx(tx, order, transition.SubscriptionScopeID); err != nil {
+		return err
+	}
+	if transition.OccurredAt <= 0 {
+		transition.OccurredAt = order.CompleteTime
+	}
+	if transition.OccurredAt <= 0 {
+		transition.OccurredAt = getDBTimestampTx(tx)
+	}
+
+	if _, err := insertPurchaseLifecycleEventForSubscriptionOrder(tx, order, transition, RecallLifecycleTriggerPaymentSucceeded); err != nil {
+		return err
+	}
+	cycleKey := subscriptionOrderLifecycleCycleKey(order.Id, order.TradeNo)
+	if _, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+		UserID:          order.UserId,
+		ScopeType:       QuotaLifecycleScopeSubscription,
+		ScopeID:         transition.SubscriptionScopeID,
+		Cause:           subscriptionOrderLifecycleSuccessCause(order),
+		SourceRef:       cycleKey,
+		NextCycleKey:    cycleKey,
+		NextCycleSource: cycleKey,
+		OccurredAt:      transition.OccurredAt,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func CreateSubscriptionOrderWithPendingPurchaseLifecycleTx(tx *gorm.DB, order *SubscriptionOrder, sourceRef string) error {
 	if tx == nil || order == nil {
 		return errors.New("subscription order pending lifecycle requires order")
@@ -479,6 +538,26 @@ func insertPurchaseLifecycleEventForSubscriptionOrder(tx *gorm.DB, order *Subscr
 		return false, result.Error
 	}
 	return result.RowsAffected == 1, nil
+}
+
+func validateSubscriptionPurchaseSuccessScopeTx(tx *gorm.DB, order *SubscriptionOrder, subscriptionScopeID int64) error {
+	if order == nil || subscriptionScopeID <= 0 {
+		return ErrSubscriptionOrderStatusInvalid
+	}
+	var entitlement UserSubscription
+	err := lockQuery(tx).
+		Where("id = ? AND user_id = ? AND plan_id = ?", subscriptionScopeID, order.UserId, order.PlanId).
+		First(&entitlement).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrSubscriptionOrderStatusInvalid
+		}
+		return err
+	}
+	if entitlement.Status != SubscriptionEntitlementStatusActive || entitlement.CurrentSlot == nil || *entitlement.CurrentSlot != 1 {
+		return ErrSubscriptionOrderStatusInvalid
+	}
+	return nil
 }
 
 func subscriptionOrderLifecycleCycleKey(orderID int, tradeNo string) string {

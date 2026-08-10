@@ -369,6 +369,18 @@ func grantStripeToBalanceEntitlement(intentID int64) error {
 			if grant == nil || grant.Entitlement == nil {
 				return errors.New("Stripe-to-balance historical success entitlement repair returned no entitlement")
 			}
+			if err := model.RepairSubscriptionPurchaseSuccessLifecycleArtifactsTx(tx, model.PurchaseLifecycleTransition{
+				SourceID:            int64(order.Id),
+				TradeNo:             order.TradeNo,
+				UserID:              intent.UserId,
+				FromStatus:          []string{model.SubscriptionOrderStatusInitiated},
+				ToStatus:            common.TopUpStatusSuccess,
+				OccurredAt:          periodStart,
+				SourceRef:           "subscription_compensation.stripe_to_balance",
+				SubscriptionScopeID: int64(grant.Entitlement.Id),
+			}); err != nil {
+				return fmt.Errorf("Stripe-to-balance historical success lifecycle artifact repair failed: %w", err)
+			}
 		}
 		return tx.Model(&model.SubscriptionChangeIntent{}).Where("id = ?", intent.Id).Updates(map[string]interface{}{
 			"status":       model.SubscriptionChangeIntentStatusApplied,

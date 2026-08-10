@@ -138,6 +138,40 @@ func TestSubscriptionLifecycleSuccessRequiresWinnerScopeAndRollsBack(t *testing.
 	require.Zero(t, subs)
 }
 
+func TestRepairSubscriptionPurchaseSuccessLifecycleArtifactsRejectsMismatchedScope(t *testing.T) {
+	setupSubscriptionLifecycleTestDB(t, 1)
+	plan := createSubscriptionLifecyclePlan(t, "sub-life-repair-scope")
+	otherPlan := createSubscriptionLifecyclePlan(t, "sub-life-repair-other-scope")
+	user := createLifecycleQuotaTestUser(t, "sub-life-repair-scope", 0, 100)
+	order := insertSubscriptionLifecycleOrder(t, user.Id, plan.Id, "sub-life-repair-scope-order", common.TopUpStatusSuccess, 1_700_104_500, 1_700_104_600)
+	currentSlot := 1
+	scope := &UserSubscription{
+		UserId:      user.Id,
+		PlanId:      otherPlan.Id,
+		CurrentSlot: &currentSlot,
+		AmountTotal: otherPlan.TotalAmount,
+		StartTime:   1_700_104_600,
+		EndTime:     1_700_104_700,
+		Status:      SubscriptionEntitlementStatusActive,
+	}
+	require.NoError(t, DB.Create(scope).Error)
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		return RepairSubscriptionPurchaseSuccessLifecycleArtifactsTx(tx, PurchaseLifecycleTransition{
+			SourceID:            int64(order.Id),
+			TradeNo:             order.TradeNo,
+			UserID:              user.Id,
+			ToStatus:            common.TopUpStatusSuccess,
+			OccurredAt:          1_700_104_600,
+			SourceRef:           "repair.scope_mismatch",
+			SubscriptionScopeID: int64(scope.Id),
+		})
+	})
+	require.Error(t, err)
+	requireSubscriptionLifecycleEventCount(t, order.TradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
+	requireSubscriptionLifecycleStateCount(t, user.Id, 0)
+}
+
 func TestSubscriptionLifecycleCASLoserDoesNotCreateEntitlementOrEvent(t *testing.T) {
 	setupSubscriptionLifecycleTestDB(t, 1)
 	plan := createSubscriptionLifecyclePlan(t, "sub-life-cas-loser")

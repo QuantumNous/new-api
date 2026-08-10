@@ -680,9 +680,6 @@ func TestStripeToBalanceReconciliationRepairsHistoricalSuccessfulOrderExactlyOnc
 	processed, err := ReconcileSubscriptionCompensationRequired(context.Background(), 100)
 	require.NoError(t, err)
 	require.Equal(t, 1, processed)
-	processed, err = ReconcileSubscriptionCompensationRequired(context.Background(), 100)
-	require.NoError(t, err)
-	require.Zero(t, processed)
 
 	require.Equal(t, 1, cancels)
 	require.Zero(t, refunds)
@@ -694,6 +691,17 @@ func TestStripeToBalanceReconciliationRepairsHistoricalSuccessfulOrderExactlyOnc
 	require.NoError(t, model.DB.Where("contract_id = ? AND plan_id = ? AND grant_key = ?", fx.contract.Id, fx.target.Id, grantKey).Find(&entitlements).Error)
 	require.Len(t, entitlements, 1)
 	require.Equal(t, model.SubscriptionEntitlementStatusActive, entitlements[0].Status)
+	requireStripeToBalanceSuccessArtifacts(t, fx.user.Id, intent.WalletDebitTradeNo, entitlements[0])
+
+	processed, err = ReconcileSubscriptionCompensationRequired(context.Background(), 100)
+	require.NoError(t, err)
+	require.Zero(t, processed)
+	require.Equal(t, 1, cancels)
+	require.Zero(t, refunds)
+	require.NoError(t, model.DB.First(&user, fx.user.Id).Error)
+	require.Equal(t, fx.user.Quota-int(fx.target.PriceAmount*common.QuotaPerUnit), user.Quota)
+	requireStripeToBalanceSuccessArtifacts(t, fx.user.Id, intent.WalletDebitTradeNo, entitlements[0])
+
 	var contract model.UserSubscriptionContract
 	require.NoError(t, model.DB.First(&contract, fx.contract.Id).Error)
 	require.Equal(t, entitlements[0].Id, contract.CurrentEntitlementId)
@@ -815,6 +823,28 @@ func assertStripeToBalanceNoRefundOrGrant(t *testing.T, fx stripeToBalanceFixtur
 	var current model.UserSubscription
 	require.NoError(t, model.DB.First(&current, fx.currentEntitlement.Id).Error)
 	require.Equal(t, model.SubscriptionEntitlementStatusActive, current.Status)
+}
+
+func requireStripeToBalanceSuccessArtifacts(t *testing.T, userID int, tradeNo string, entitlement model.UserSubscription) {
+	t.Helper()
+	businessKey := fmt.Sprintf("v1|%s|subscription|trade:%s", model.RecallLifecycleTriggerPaymentSucceeded, tradeNo)
+	var events []model.RecallLifecycleEvent
+	require.NoError(t, model.DB.Where("user_id = ? AND event_type = ? AND business_key = ?", userID, model.RecallLifecycleTriggerPaymentSucceeded, businessKey).Find(&events).Error)
+	require.Len(t, events, 1)
+	var payload struct {
+		SubscriptionScopeID int64  `json:"subscription_scope_id"`
+		ToStatus            string `json:"to_status"`
+	}
+	require.NoError(t, common.Unmarshal([]byte(events[0].EventData), &payload))
+	require.EqualValues(t, entitlement.Id, payload.SubscriptionScopeID)
+	require.Equal(t, common.TopUpStatusSuccess, payload.ToStatus)
+
+	var states []model.QuotaLifecycleState
+	require.NoError(t, model.DB.Where("user_id = ? AND scope_type = ? AND scope_id = ?", userID, model.QuotaLifecycleScopeSubscription, fmt.Sprint(entitlement.Id)).Find(&states).Error)
+	require.Len(t, states, 1)
+	require.Equal(t, "subscription_order:"+tradeNo, states[0].Cycle)
+	require.Equal(t, "subscription_order:"+tradeNo, states[0].Source)
+	require.EqualValues(t, entitlement.AmountTotal, states[0].Balance)
 }
 
 func expectedStripeToBalanceCompensationCancelReservationToken(intent model.SubscriptionChangeIntent) string {
