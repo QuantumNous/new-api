@@ -2,6 +2,7 @@ package modelapiseedance
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -89,15 +90,21 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo)
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	if info != nil && strings.TrimSpace(info.ChannelSetting.Proxy) != "" {
+		return nil, errModelAPISeedanceProxyUnsupported()
+	}
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
 
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
-	responseBody, err := io.ReadAll(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxModelAPISubmitResponseBytes+1))
 	if err != nil {
-		return "", nil, taskError(err, "read_response_body_failed", http.StatusInternalServerError)
+		return "", nil, taskError(fmt.Errorf("failed to read upstream response"), "read_response_body_failed", http.StatusInternalServerError)
 	}
-	_ = resp.Body.Close()
+	if len(responseBody) > maxModelAPISubmitResponseBytes {
+		return "", nil, taskError(fmt.Errorf("invalid upstream response"), "invalid_response", http.StatusBadGateway)
+	}
 
 	var submit modelAPISubmitResponse
 	if err := common.Unmarshal(responseBody, &submit); err != nil {
@@ -136,6 +143,16 @@ func (a *TaskAdaptor) GetChannelName() string {
 }
 
 func (a *TaskAdaptor) FetchTask(baseURL string, key string, body map[string]any, proxy string) (*http.Response, error) {
+	return a.FetchTaskWithContext(context.Background(), baseURL, key, body, proxy)
+}
+
+func (a *TaskAdaptor) FetchTaskWithContext(ctx context.Context, baseURL string, key string, body map[string]any, proxy string) (*http.Response, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if strings.TrimSpace(proxy) != "" {
+		return nil, errModelAPISeedanceProxyUnsupported()
+	}
 	taskID, ok := body["task_id"].(string)
 	if !ok || strings.TrimSpace(taskID) == "" {
 		return nil, fmt.Errorf("invalid task_id")
@@ -144,7 +161,7 @@ func (a *TaskAdaptor) FetchTask(baseURL string, key string, body map[string]any,
 	if baseURL == "" {
 		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeModelAPISeedance]
 	}
-	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/tasks/"+url.PathEscape(taskID), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v1/tasks/"+url.PathEscape(taskID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -155,6 +172,10 @@ func (a *TaskAdaptor) FetchTask(baseURL string, key string, body map[string]any,
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 	return client.Do(req)
+}
+
+func errModelAPISeedanceProxyUnsupported() error {
+	return fmt.Errorf("this channel type does not support proxy")
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
@@ -383,6 +404,9 @@ func validateModelAPISeedanceRequest(seedReq *dto.SeedanceVideoRequest) error {
 	imageCount, videoCount, audioCount := 0, 0, 0
 	firstFrameCount, lastFrameCount := 0, 0
 	for _, m := range seedReq.Images() {
+		if err := validateModelAPIMediaURL(m.URL); err != nil {
+			return err
+		}
 		imageCount++
 		switch m.Role {
 		case "", dto.SeedanceRoleReferenceImage:
@@ -395,12 +419,18 @@ func validateModelAPISeedanceRequest(seedReq *dto.SeedanceVideoRequest) error {
 		}
 	}
 	for _, m := range seedReq.Videos() {
+		if err := validateModelAPIMediaURL(m.URL); err != nil {
+			return err
+		}
 		videoCount++
 		if m.Role != "" && m.Role != dto.SeedanceRoleReferenceVideo {
 			return fmt.Errorf("unsupported video role")
 		}
 	}
 	for _, m := range seedReq.Audios() {
+		if err := validateModelAPIMediaURL(m.URL); err != nil {
+			return err
+		}
 		audioCount++
 		if m.Role != "" && m.Role != dto.SeedanceRoleReferenceAudio {
 			return fmt.Errorf("unsupported audio role")
@@ -427,6 +457,13 @@ func validateModelAPISeedanceRequest(seedReq *dto.SeedanceVideoRequest) error {
 	}
 	if lastFrameCount > 0 && firstFrameCount == 0 {
 		return fmt.Errorf("last_frame requires first_frame")
+	}
+	return nil
+}
+
+func validateModelAPIMediaURL(raw string) error {
+	if err := taskcommon.ValidateRemoteMediaURL(raw); err != nil {
+		return fmt.Errorf("media url is not allowed")
 	}
 	return nil
 }

@@ -58,6 +58,11 @@ var archiveModelAPIVideoResult = func(ctx context.Context, publicTaskID, upstrea
 	return archiveVideoResultForChannel(ctx, "modelapi", publicTaskID, upstreamURL, proxy)
 }
 
+const (
+	modelAPIPollingRequestTimeout   = 30 * time.Second
+	modelAPIPollingResponseMaxBytes = 1 << 20
+)
+
 var archivedVideoLogURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+`)
 
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
@@ -383,6 +388,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		logger.LogError(ctx, "Task not found in taskM")
 		return errors.New("task not found")
 	}
+	if ch.Type == constant.ChannelTypeModelAPISeedance && strings.TrimSpace(proxy) != "" {
+		return archivedVideoPollingPhaseError(task.TaskID, "fetch")
+	}
 	key := ch.Key
 
 	privateData := task.PrivateData
@@ -390,7 +398,13 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		key = privateData.Key
 	}
 	upstreamTaskID := task.GetUpstreamTaskID()
-	resp, err := FetchTaskWithContext(ctx, adaptor, baseURL, key, map[string]any{
+	pollingCtx := ctx
+	var cancelPolling context.CancelFunc
+	if ch.Type == constant.ChannelTypeModelAPISeedance {
+		pollingCtx, cancelPolling = context.WithTimeout(ctx, modelAPIPollingRequestTimeout)
+		defer cancelPolling()
+	}
+	resp, err := FetchTaskWithContext(pollingCtx, adaptor, baseURL, key, map[string]any{
 		"task_id": upstreamTaskID,
 		"action":  task.Action,
 	}, proxy)
@@ -401,7 +415,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("fetchTask failed for task %s: %w", task.TaskID, err)
 	}
 	defer resp.Body.Close()
-	responseBody, err := io.ReadAll(resp.Body)
+	responseBody, err := readVideoPollingResponseBody(pollingCtx, ch.Type, resp.Body)
 	if err != nil {
 		if VideoResultChannelLabel(ch.Type) != "" {
 			return archivedVideoPollingPhaseError(task.TaskID, "read")
@@ -420,7 +434,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	taskResult := &relaycommon.TaskInfo{}
 	// try parse as New API response format
 	var responseItems dto.TaskResponse[model.Task]
-	if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
+	if ch.Type != constant.ChannelTypeModelAPISeedance && common.Unmarshal(responseBody, &responseItems) == nil && responseItems.IsSuccess() {
 		if VideoResultChannelLabel(ch.Type) != "" {
 			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: task_id=%s phase=parsed status=%s", task.TaskID, archivedVideoPollingStatus(string(responseItems.Data.Status)))
 		} else {
@@ -752,6 +766,30 @@ func archivedVideoPollingStatus(status string) string {
 	default:
 		return "unknown"
 	}
+}
+
+func readVideoPollingResponseBody(ctx context.Context, channelType int, body io.Reader) ([]byte, error) {
+	if channelType != constant.ChannelTypeModelAPISeedance {
+		return io.ReadAll(body)
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	responseBody, err := io.ReadAll(io.LimitReader(body, modelAPIPollingResponseMaxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	if len(responseBody) > modelAPIPollingResponseMaxBytes {
+		return nil, errors.New("polling response too large")
+	}
+	return responseBody, nil
 }
 
 func sanitizeArchivedVideoLogText(channelType int, text string) string {

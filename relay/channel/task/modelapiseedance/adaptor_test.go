@@ -1,11 +1,14 @@
 package modelapiseedance
 
 import (
+	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -14,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -127,11 +131,11 @@ func TestBuildRequestBodyUsesModelAPIGroupedInputWireShape(t *testing.T) {
 		"model":"client-model",
 		"content":[
 			{"type":"text","text":"make it cinematic"},
-			{"type":"image_url","image_url":{"url":"https://cdn.example/ref.png"},"role":"reference_image"},
-			{"type":"image_url","image_url":{"url":"https://cdn.example/first.png"},"role":"first_frame"},
-			{"type":"image_url","image_url":{"url":"https://cdn.example/last.png"},"role":"last_frame"},
-			{"type":"video_url","video_url":{"url":"https://cdn.example/ref.mp4"}},
-			{"type":"audio_url","audio_url":{"url":"https://cdn.example/ref.mp3"}}
+			{"type":"image_url","image_url":{"url":"https://example.com/ref.png"},"role":"reference_image"},
+			{"type":"image_url","image_url":{"url":"https://example.com/first.png"},"role":"first_frame"},
+			{"type":"image_url","image_url":{"url":"https://example.com/last.png"},"role":"last_frame"},
+			{"type":"video_url","video_url":{"url":"https://example.com/ref.mp4"}},
+			{"type":"audio_url","audio_url":{"url":"https://example.com/ref.mp3"}}
 		]
 	}`)
 	reader, err := (&TaskAdaptor{}).BuildRequestBody(c, newModelAPIRelayInfo("", ""))
@@ -158,15 +162,15 @@ func TestBuildRequestBodyUsesModelAPIGroupedInputWireShape(t *testing.T) {
 		{"role": "prompt", "content": "make it cinematic"},
 	})
 	assertModelAPIWireItems(t, input, "image", []map[string]string{
-		{"role": "reference", "url": "https://cdn.example/ref.png"},
-		{"role": "first_frame", "url": "https://cdn.example/first.png"},
-		{"role": "last_frame", "url": "https://cdn.example/last.png"},
+		{"role": "reference", "url": "https://example.com/ref.png"},
+		{"role": "first_frame", "url": "https://example.com/first.png"},
+		{"role": "last_frame", "url": "https://example.com/last.png"},
 	})
 	assertModelAPIWireItems(t, input, "video", []map[string]string{
-		{"role": "reference", "url": "https://cdn.example/ref.mp4"},
+		{"role": "reference", "url": "https://example.com/ref.mp4"},
 	})
 	assertModelAPIWireItems(t, input, "audio", []map[string]string{
-		{"role": "reference", "url": "https://cdn.example/ref.mp3"},
+		{"role": "reference", "url": "https://example.com/ref.mp3"},
 	})
 }
 
@@ -208,7 +212,7 @@ func TestBuildRequestBodyOmitsEmptyModelAPIInputGroups(t *testing.T) {
 func TestBuildRequestBodyPreservesExplicitZeroFalseAndOmitsAbsentParams(t *testing.T) {
 	c, _ := newModelAPITestContext(`{
 		"model":"client-model",
-		"content":[{"type":"text","text":"x"},{"type":"image_url","image_url":{"url":"https://x/i.png?a=1&b=2"}}],
+		"content":[{"type":"text","text":"x"},{"type":"image_url","image_url":{"url":"https://example.com/i.png?a=1&b=2"}}],
 		"seed":0,
 		"generate_audio":false,
 		"watermark":false,
@@ -277,9 +281,9 @@ func TestValidateModelAPISeedanceValues(t *testing.T) {
 	valid := dto.SeedanceVideoRequest{
 		Content: []dto.SeedanceContentItem{
 			{Type: dto.SeedanceContentText, Text: "x"},
-			{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://x/ref.png"}},
-			{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "https://x/ref.mp4"}},
-			{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "https://x/ref.mp3"}},
+			{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/ref.png"}},
+			{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "https://example.com/ref.mp4"}},
+			{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "https://example.com/ref.mp3"}},
 		},
 		Duration:   modelAPIPtrInt(4),
 		Resolution: "480p",
@@ -297,10 +301,10 @@ func TestValidateModelAPISeedanceValues(t *testing.T) {
 		{name: "duration high", req: dto.SeedanceVideoRequest{Duration: modelAPIPtrInt(31)}},
 		{name: "resolution", req: dto.SeedanceVideoRequest{Resolution: "1080p"}},
 		{name: "aspect", req: dto.SeedanceVideoRequest{Ratio: "3:2"}},
-		{name: "image role", req: dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://x/i.png"}, Role: "cover"}}}},
-		{name: "video role", req: dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "https://x/v.mp4"}, Role: "first_frame"}}}},
-		{name: "audio role", req: dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "https://x/a.mp3"}, Role: "narration"}}}},
-		{name: "last without first", req: dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://x/last.png"}, Role: dto.SeedanceRoleLastFrame}}}},
+		{name: "image role", req: dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/i.png"}, Role: "cover"}}}},
+		{name: "video role", req: dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "https://example.com/v.mp4"}, Role: "first_frame"}}}},
+		{name: "audio role", req: dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "https://example.com/a.mp3"}, Role: "narration"}}}},
+		{name: "last without first", req: dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/last.png"}, Role: dto.SeedanceRoleLastFrame}}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -312,7 +316,7 @@ func TestValidateModelAPISeedanceValues(t *testing.T) {
 
 	countReq := dto.SeedanceVideoRequest{}
 	for i := 0; i < 31; i++ {
-		countReq.Content = append(countReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://x/i.png"}})
+		countReq.Content = append(countReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/i.png"}})
 	}
 	if err := validateModelAPISeedanceRequest(&countReq); err == nil {
 		t.Fatal("expected image count error")
@@ -320,7 +324,7 @@ func TestValidateModelAPISeedanceValues(t *testing.T) {
 
 	videoCountReq := dto.SeedanceVideoRequest{}
 	for i := 0; i < 11; i++ {
-		videoCountReq.Content = append(videoCountReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "https://x/v.mp4"}})
+		videoCountReq.Content = append(videoCountReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "https://example.com/v.mp4"}})
 	}
 	if err := validateModelAPISeedanceRequest(&videoCountReq); err == nil {
 		t.Fatal("expected video count error")
@@ -328,7 +332,7 @@ func TestValidateModelAPISeedanceValues(t *testing.T) {
 
 	audioCountReq := dto.SeedanceVideoRequest{}
 	for i := 0; i < 11; i++ {
-		audioCountReq.Content = append(audioCountReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "https://x/a.mp3"}})
+		audioCountReq.Content = append(audioCountReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "https://example.com/a.mp3"}})
 	}
 	if err := validateModelAPISeedanceRequest(&audioCountReq); err == nil {
 		t.Fatal("expected audio count error")
@@ -336,38 +340,120 @@ func TestValidateModelAPISeedanceValues(t *testing.T) {
 
 	totalCountReq := dto.SeedanceVideoRequest{}
 	for i := 0; i < 30; i++ {
-		totalCountReq.Content = append(totalCountReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://x/i.png"}})
+		totalCountReq.Content = append(totalCountReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/i.png"}})
 	}
 	for i := 0; i < 10; i++ {
-		totalCountReq.Content = append(totalCountReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "https://x/v.mp4"}})
+		totalCountReq.Content = append(totalCountReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "https://example.com/v.mp4"}})
 	}
 	for i := 0; i < 11; i++ {
-		totalCountReq.Content = append(totalCountReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "https://x/a.mp3"}})
+		totalCountReq.Content = append(totalCountReq.Content, dto.SeedanceContentItem{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "https://example.com/a.mp3"}})
 	}
 	if err := validateModelAPISeedanceRequest(&totalCountReq); err == nil {
 		t.Fatal("expected total media count error")
 	}
 
 	firstFrameReq := dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{
-		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://x/first-a.png"}, Role: dto.SeedanceRoleFirstFrame},
-		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://x/first-b.png"}, Role: dto.SeedanceRoleFirstFrame},
+		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/first-a.png"}, Role: dto.SeedanceRoleFirstFrame},
+		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/first-b.png"}, Role: dto.SeedanceRoleFirstFrame},
 	}}
 	if err := validateModelAPISeedanceRequest(&firstFrameReq); err == nil {
 		t.Fatal("expected first_frame max-one error")
 	}
 
 	lastFrameReq := dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{
-		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://x/first.png"}, Role: dto.SeedanceRoleFirstFrame},
-		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://x/last-a.png"}, Role: dto.SeedanceRoleLastFrame},
-		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://x/last-b.png"}, Role: dto.SeedanceRoleLastFrame},
+		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/first.png"}, Role: dto.SeedanceRoleFirstFrame},
+		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/last-a.png"}, Role: dto.SeedanceRoleLastFrame},
+		{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/last-b.png"}, Role: dto.SeedanceRoleLastFrame},
 	}}
 	if err := validateModelAPISeedanceRequest(&lastFrameReq); err == nil {
 		t.Fatal("expected last_frame max-one error")
 	}
 }
 
+func TestValidateModelAPISeedanceRequestValidatesRemoteMediaURLs(t *testing.T) {
+	original := *system_setting.GetFetchSetting()
+	t.Cleanup(func() { *system_setting.GetFetchSetting() = original })
+	system_setting.GetFetchSetting().EnableSSRFProtection = true
+	system_setting.GetFetchSetting().AllowPrivateIp = false
+	system_setting.GetFetchSetting().DomainFilterMode = false
+	system_setting.GetFetchSetting().IpFilterMode = false
+	system_setting.GetFetchSetting().AllowedPorts = []string{"80", "443"}
+	system_setting.GetFetchSetting().ApplyIPFilterForDomain = false
+
+	tests := []struct {
+		name    string
+		content dto.SeedanceContentItem
+		wantErr bool
+	}{
+		{
+			name:    "rejects private image url",
+			content: dto.SeedanceContentItem{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "http://127.0.0.1/private.png"}},
+			wantErr: true,
+		},
+		{
+			name:    "rejects file image url",
+			content: dto.SeedanceContentItem{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "file:///tmp/private.png"}},
+			wantErr: true,
+		},
+		{
+			name:    "allows public image url",
+			content: dto.SeedanceContentItem{Type: dto.SeedanceContentImage, ImageURL: &dto.SeedanceURLObject{URL: "https://example.com/ref.png"}},
+		},
+		{
+			name:    "rejects private video url",
+			content: dto.SeedanceContentItem{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "http://127.0.0.1/private.mp4"}},
+			wantErr: true,
+		},
+		{
+			name:    "rejects file video url",
+			content: dto.SeedanceContentItem{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "file:///tmp/private.mp4"}},
+			wantErr: true,
+		},
+		{
+			name:    "allows public video url",
+			content: dto.SeedanceContentItem{Type: dto.SeedanceContentVideo, VideoURL: &dto.SeedanceURLObject{URL: "https://example.com/ref.mp4"}},
+		},
+		{
+			name:    "rejects private audio url",
+			content: dto.SeedanceContentItem{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "http://127.0.0.1/private.mp3"}},
+			wantErr: true,
+		},
+		{
+			name:    "rejects file audio url",
+			content: dto.SeedanceContentItem{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "file:///tmp/private.mp3"}},
+			wantErr: true,
+		},
+		{
+			name:    "allows public audio url",
+			content: dto.SeedanceContentItem{Type: dto.SeedanceContentAudio, AudioURL: &dto.SeedanceURLObject{URL: "https://example.com/ref.mp3"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{tt.content}}
+			err := validateModelAPISeedanceRequest(&req)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected validation error")
+				}
+				msg := err.Error()
+				for _, leaked := range []string{"127.0.0.1", "file:///tmp/private"} {
+					if strings.Contains(msg, leaked) {
+						t.Fatalf("validation error leaked media URL details: %q", msg)
+					}
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("valid public URL rejected: %v", err)
+			}
+		})
+	}
+}
+
 func TestValidateRequestAndSetActionAcceptsAudioOnlyAndSetsFixedUpstreamModel(t *testing.T) {
-	c, _ := newModelAPITestContext(`{"model":"client-model","content":[{"type":"audio_url","audio_url":{"url":"https://x/a.mp3"}}]}`)
+	c, _ := newModelAPITestContext(`{"model":"client-model","content":[{"type":"audio_url","audio_url":{"url":"https://example.com/a.mp3"}}]}`)
 	info := newModelAPIRelayInfo("", "")
 	a := &TaskAdaptor{}
 	if taskErr := a.ValidateRequestAndSetAction(c, info); taskErr != nil {
@@ -418,6 +504,52 @@ func TestBuildAndFetchPathsHeadersAndEscaping(t *testing.T) {
 	if gotAuth != "Bearer fetch-key" {
 		t.Fatalf("fetch auth = %q", gotAuth)
 	}
+}
+
+func TestDoRequestRejectsProxyWithoutUpstreamRequest(t *testing.T) {
+	a := &TaskAdaptor{}
+	c, _ := newModelAPITestContext(`{}`)
+	info := newModelAPIRelayInfo("", "secret")
+	info.ChannelSetting.Proxy = "http://proxy.internal:8080"
+
+	resp, err := a.DoRequest(c, info, strings.NewReader(`{}`))
+	if resp != nil {
+		_ = resp.Body.Close()
+		t.Fatalf("DoRequest returned response with proxy configured")
+	}
+	if err == nil {
+		t.Fatal("expected proxy rejection")
+	}
+	if err.Error() != "this channel type does not support proxy" {
+		t.Fatalf("error = %q", err.Error())
+	}
+	assertNoModelAPILeak(t, err.Error())
+}
+
+func TestFetchTaskRejectsProxyWithoutUpstreamRequest(t *testing.T) {
+	a := &TaskAdaptor{}
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		_, _ = w.Write([]byte(`{"task_id":"ok","status":"running"}`))
+	}))
+	defer server.Close()
+
+	resp, err := a.FetchTask(server.URL, "fetch-key", map[string]any{"task_id": "task-1"}, "http://proxy.internal:8080")
+	if resp != nil {
+		_ = resp.Body.Close()
+		t.Fatalf("FetchTask returned response with proxy configured")
+	}
+	if err == nil {
+		t.Fatal("expected proxy rejection")
+	}
+	if err.Error() != "this channel type does not support proxy" {
+		t.Fatalf("error = %q", err.Error())
+	}
+	if requestCount != 0 {
+		t.Fatalf("FetchTask reached upstream %d times", requestCount)
+	}
+	assertNoModelAPILeak(t, err.Error())
 }
 
 func TestInitFallsBackToDefaultBaseURL(t *testing.T) {
@@ -474,6 +606,77 @@ func TestDoResponseParsesExactTaskIDAndRejectsIDOnly(t *testing.T) {
 	}
 }
 
+func TestDoResponseRejectsOversizedSubmitBodyWithoutReadingPastLimitOrLeaking(t *testing.T) {
+	a := &TaskAdaptor{}
+	c, _ := newModelAPITestContext(`{}`)
+	body := &countingReadCloser{Reader: strings.NewReader(strings.Repeat("x", (1<<20)+128) + " ModelAPI api.modelapi.co upstream-secret-id")}
+	resp := &http.Response{StatusCode: http.StatusOK, Body: body}
+
+	taskID, taskData, taskErr := a.DoResponse(c, resp, newModelAPIRelayInfo("", ""))
+	if taskErr == nil {
+		t.Fatal("expected oversized submit response to be rejected")
+	}
+	if taskID != "" || taskData != nil {
+		t.Fatalf("oversized response returned taskID=%q taskData=%s", taskID, taskData)
+	}
+	if taskErr.Code != "invalid_response" || taskErr.StatusCode != http.StatusBadGateway {
+		t.Fatalf("taskErr = %+v, want invalid_response/502", taskErr)
+	}
+	if body.n > (1<<20)+1 {
+		t.Fatalf("DoResponse read %d bytes, want at most max+1", body.n)
+	}
+	assertNoModelAPILeak(t, taskErr.Message)
+}
+
+func TestDoResponseClosesSubmitBodyOnReadError(t *testing.T) {
+	a := &TaskAdaptor{}
+	c, _ := newModelAPITestContext(`{}`)
+	body := &submitReadErrorCloser{err: errors.New("read ModelAPI api.modelapi.co upstream-secret-id failed")}
+	resp := &http.Response{StatusCode: http.StatusOK, Body: body}
+
+	taskID, taskData, taskErr := a.DoResponse(c, resp, newModelAPIRelayInfo("", ""))
+	if taskErr == nil {
+		t.Fatal("expected read error")
+	}
+	if taskID != "" || taskData != nil {
+		t.Fatalf("read error returned taskID=%q taskData=%s", taskID, taskData)
+	}
+	if !body.closed {
+		t.Fatal("DoResponse did not close submit response body on read error")
+	}
+	if taskErr.Code != "read_response_body_failed" || taskErr.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("taskErr = %+v, want read_response_body_failed/500", taskErr)
+	}
+	assertNoModelAPILeak(t, taskErr.Message)
+}
+
+type countingReadCloser struct {
+	*strings.Reader
+	n int
+}
+
+func (c *countingReadCloser) Read(p []byte) (int, error) {
+	n, err := c.Reader.Read(p)
+	c.n += n
+	return n, err
+}
+
+func (c *countingReadCloser) Close() error { return nil }
+
+type submitReadErrorCloser struct {
+	err    error
+	closed bool
+}
+
+func (c *submitReadErrorCloser) Read([]byte) (int, error) {
+	return 0, c.err
+}
+
+func (c *submitReadErrorCloser) Close() error {
+	c.closed = true
+	return nil
+}
+
 func TestDoResponseReturnsFailedStatusBeforeMissingTaskIDAndUsesErrorCodeFallback(t *testing.T) {
 	a := &TaskAdaptor{}
 	info := newModelAPIRelayInfo("", "")
@@ -515,6 +718,41 @@ func TestDoResponseReturnsFailedStatusBeforeMissingTaskIDAndUsesErrorCodeFallbac
 		t.Fatalf("unbranded failed create message = %q", taskErr.Message)
 	}
 	assertNoModelAPILeak(t, taskErr.Message)
+}
+
+func TestFetchTaskWithContextHonorsCanceledContext(t *testing.T) {
+	type contextTaskFetcher interface {
+		FetchTaskWithContext(context.Context, string, string, map[string]any, string) (*http.Response, error)
+	}
+	fetcher, ok := any(&TaskAdaptor{}).(contextTaskFetcher)
+	if !ok {
+		t.Fatal("ModelAPI Seedance adaptor does not support context-aware task polling")
+	}
+
+	service.InitHttpClient()
+	requestStarted := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	t.Cleanup(service.ResetProxyClientCache)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	resp, err := fetcher.FetchTaskWithContext(ctx, server.URL, "fetch-key", map[string]any{"task_id": "task-1"}, "")
+	if resp != nil {
+		_ = resp.Body.Close()
+		t.Fatalf("FetchTaskWithContext returned response for canceled context")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("FetchTaskWithContext error = %v, want context.Canceled", err)
+	}
+	select {
+	case <-requestStarted:
+		t.Fatal("canceled context still reached upstream server")
+	case <-time.After(50 * time.Millisecond):
+	}
 }
 
 func TestParseTaskResultStatusMappingsAndFailureScrub(t *testing.T) {

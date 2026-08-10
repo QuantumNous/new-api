@@ -44,4 +44,22 @@ describe('ModelAPISeedance classic channel metadata', () => {
       /case 111:[\s\S]*?return <Doubao\.Color size=\{iconSize\} \/>;/,
     );
   });
+
+  test('clears proxy in type 111 submit payloads', () => {
+    expect(editChannelModalSource).toContain(
+      "proxy: localInputs.type === 111 ? '' : localInputs.proxy || '',",
+    );
+  });
+
+  test('hides proxy input for type 111 channels', () => {
+    const guardIndex = editChannelModalSource.indexOf(
+      '{inputs.type !== 111 && (',
+    );
+    const proxyFieldIndex = editChannelModalSource.indexOf(
+      "field='proxy'",
+      guardIndex,
+    );
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(proxyFieldIndex).toBeGreaterThan(guardIndex);
+  });
 });

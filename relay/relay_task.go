@@ -348,16 +348,29 @@ func applyTaskOtherRatios(priceData *types.PriceData) {
 	}
 }
 
+const (
+	taskSubmitErrorResponseMaxBytes = 1 << 20
+	taskSubmitErrorFallbackMessage  = "upstream task submit failed"
+)
+
 func taskSubmitStatusError(platform constant.TaskPlatform, resp *http.Response) *dto.TaskError {
 	statusCode := http.StatusInternalServerError
 	if resp != nil {
 		statusCode = resp.StatusCode
 	}
 	var responseBody []byte
+	var readErr error
 	if resp != nil && resp.Body != nil {
-		responseBody, _ = io.ReadAll(resp.Body)
+		defer func() { _ = resp.Body.Close() }()
+		responseBody, readErr = io.ReadAll(io.LimitReader(resp.Body, taskSubmitErrorResponseMaxBytes+1))
+		if len(responseBody) > taskSubmitErrorResponseMaxBytes {
+			responseBody = responseBody[:taskSubmitErrorResponseMaxBytes]
+		}
 	}
 	message := string(responseBody)
+	if readErr != nil || strings.TrimSpace(message) == "" {
+		message = taskSubmitErrorFallbackMessage
+	}
 	if channelType, err := strconv.Atoi(string(platform)); err == nil && taskcommon.ShouldWhitelabelChannelType(channelType) {
 		message = "task failed at upstream provider"
 	}
