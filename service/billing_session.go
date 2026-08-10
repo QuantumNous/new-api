@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -32,7 +33,10 @@ type BillingSession struct {
 	fundingSettled   bool // funding.Settle 已成功，资金来源已提交
 	settled          bool // Settle 全部完成（资金 + 令牌）
 	refunded         bool // Refund 已调用
-	mu               sync.Mutex
+	// 用户语言，preConsume 时从请求上下文解析。Reserve 在流式过程中触发，
+	// 那里已经没有 gin.Context，但订阅暂停文案仍需按用户语言呈现。
+	lang string
+	mu   sync.Mutex
 }
 
 // Settle 根据实际消耗额度进行结算。
@@ -185,6 +189,7 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 // 任一步骤失败时原子回滚已完成的步骤。
 func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIError {
 	effectiveQuota := quota
+	s.lang = i18n.GetLangFromContext(c)
 
 	// ---- 信任额度旁路 ----
 	if s.shouldTrust(c) {
@@ -216,7 +221,15 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "no active subscription") || strings.Contains(errMsg, "subscription quota insufficient") {
-			return types.NewErrorWithStatusCode(fmt.Errorf("订阅额度不足或未配置订阅: %s", errMsg), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			// 原因只进日志：它带着内部额度单位和未翻译的内部字符串。
+			logger.LogError(c, fmt.Sprintf("subscription funding refused (userId=%d): %s", s.relayInfo.UserId, errMsg))
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("%s", SubscriptionPauseMessage(s.lang, s.relayInfo.UserId, err)),
+				types.ErrorCodeInsufficientUserQuota,
+				http.StatusForbidden,
+				types.ErrOptionWithSkipRetry(),
+				types.ErrOptionWithNoRecordErrorLog(),
+			)
 		}
 		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 	}
@@ -239,8 +252,10 @@ func (s *BillingSession) reserveFunding(delta int) error {
 		return nil
 	case *SubscriptionFunding:
 		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, int64(delta)); err != nil {
+			common.SysLog(fmt.Sprintf("subscription reserve refused (userId=%d, subscriptionId=%d): %s",
+				funding.userId, funding.subscriptionId, err.Error()))
 			return types.NewErrorWithStatusCode(
-				fmt.Errorf("订阅额度不足或未配置订阅: %s", err.Error()),
+				fmt.Errorf("%s", SubscriptionPauseMessage(s.lang, funding.userId, err)),
 				types.ErrorCodeInsufficientUserQuota,
 				http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(),

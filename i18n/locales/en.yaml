@@ -283,3 +283,8 @@ custom_oauth.name_empty: "Provider name cannot be empty"
 custom_oauth.has_bindings: "Cannot delete provider with existing user bindings"
 custom_oauth.binding_not_found: "OAuth binding not found"
 custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider response"
+
+# JINN subscription pause — shown at the wall, so it must carry the refill date
+subscription.paused_until: "Your JINN plan is paused — you've used all the usage included in this cycle. It refills on {{.Date}}."
+subscription.paused: "Your JINN plan is paused — you've used all the usage included in this cycle."
+subscription.none: "No active JINN subscription on this account."

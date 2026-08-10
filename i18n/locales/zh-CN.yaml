@@ -284,3 +284,8 @@ custom_oauth.name_empty: "提供商名称不能为空"
 custom_oauth.has_bindings: "无法删除已有用户绑定的提供商"
 custom_oauth.binding_not_found: "OAuth 绑定不存在"
 custom_oauth.provider_id_field_invalid: "无法从提供商响应中提取用户 ID"
+
+# JINN 订阅暂停 —— 用户在此看到墙，必须写明恢复日期
+subscription.paused_until: "JINN 已暂停：本周期包含的用量已用完，将于 {{.Date}} 恢复。"
+subscription.paused: "JINN 已暂停：本周期包含的用量已用完。"
+subscription.none: "此账户没有有效的 JINN 订阅。"
