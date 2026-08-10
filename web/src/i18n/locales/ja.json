@@ -5227,6 +5227,26 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Add Auto group": "Auto グループを追加",
+    "Auto group order": "Auto グループの順序",
+    "Auto groups must not contain duplicates": "Auto グループを重複させることはできません",
+    "Choose and order the groups this API key will try.": "この API キーが試行するグループを選択して並べ替えます。",
+    "Drag {{group}} to reorder": "{{group}} をドラッグして並べ替え",
+    "Enter a positive integer": "正の整数を入力してください",
+    "Inherit global Auto order": "グローバル Auto 順序を継承",
+    "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.": "トークン固有の Auto スナップショットだけを制限します。グローバル Auto の継承には上限がありません。",
+    "Maximum custom groups per token": "トークンごとのカスタムグループ上限",
+    "Maximum {{max}} groups selected": "最大 {{max}} グループを選択済み",
+    "Move {{group}} down": "{{group}} を下に移動",
+    "Move {{group}} up": "{{group}} を上に移動",
+    "No available groups in the global Auto order.": "グローバル Auto 順序に利用可能なグループがありません。",
+    "No valid custom Auto groups remain. Add a group or restore global Auto.": "有効なカスタム Auto グループがありません。グループを追加するか、グローバル Auto に戻してください。",
+    "Remove {{group}}": "{{group}} を削除",
+    "Restore global Auto": "グローバル Auto に戻す",
+    "Select at least one Auto group or restore global Auto.": "Auto グループを1つ以上選択するか、グローバル Auto に戻してください。",
+    "Select at most {{max}} Auto groups": "Auto グループは最大 {{max}} 個まで選択できます",
+    "Using the complete global Auto order ({{count}} groups)": "グローバル Auto の全順序を使用中（{{count}} グループ）",
+    "{{count}} / {{max}} groups selected": "{{count}} / {{max}} グループを選択済み"
   }
 }

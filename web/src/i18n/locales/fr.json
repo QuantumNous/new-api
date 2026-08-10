@@ -5227,6 +5227,26 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Add Auto group": "Ajouter un groupe Auto",
+    "Auto group order": "Ordre des groupes Auto",
+    "Auto groups must not contain duplicates": "Les groupes Auto ne doivent pas contenir de doublons",
+    "Choose and order the groups this API key will try.": "Sélectionnez et ordonnez les groupes que cette clé API essaiera.",
+    "Drag {{group}} to reorder": "Faites glisser {{group}} pour réorganiser",
+    "Enter a positive integer": "Saisissez un entier positif",
+    "Inherit global Auto order": "Hériter de l’ordre Auto global",
+    "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.": "Limite uniquement les instantanés Auto propres aux jetons. L’héritage Auto global reste illimité.",
+    "Maximum custom groups per token": "Nombre maximal de groupes personnalisés par jeton",
+    "Maximum {{max}} groups selected": "Maximum de {{max}} groupes atteint",
+    "Move {{group}} down": "Déplacer {{group}} vers le bas",
+    "Move {{group}} up": "Déplacer {{group}} vers le haut",
+    "No available groups in the global Auto order.": "Aucun groupe disponible dans l’ordre Auto global.",
+    "No valid custom Auto groups remain. Add a group or restore global Auto.": "Aucun groupe Auto personnalisé valide ne subsiste. Ajoutez un groupe ou restaurez l’Auto global.",
+    "Remove {{group}}": "Supprimer {{group}}",
+    "Restore global Auto": "Restaurer l’Auto global",
+    "Select at least one Auto group or restore global Auto.": "Sélectionnez au moins un groupe Auto ou restaurez l’Auto global.",
+    "Select at most {{max}} Auto groups": "Sélectionnez au maximum {{max}} groupes Auto",
+    "Using the complete global Auto order ({{count}} groups)": "Utilisation de l’ordre Auto global complet ({{count}} groupes)",
+    "{{count}} / {{max}} groups selected": "{{count}} groupes sélectionnés sur {{max}}"
   }
 }

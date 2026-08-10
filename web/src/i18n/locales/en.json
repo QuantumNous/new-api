@@ -5241,6 +5241,26 @@
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
-    "Model Market": "Model Market"
+    "Model Market": "Model Market",
+    "Add Auto group": "Add Auto group",
+    "Auto group order": "Auto group order",
+    "Auto groups must not contain duplicates": "Auto groups must not contain duplicates",
+    "Choose and order the groups this API key will try.": "Choose and order the groups this API key will try.",
+    "Drag {{group}} to reorder": "Drag {{group}} to reorder",
+    "Enter a positive integer": "Enter a positive integer",
+    "Inherit global Auto order": "Inherit global Auto order",
+    "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.": "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.",
+    "Maximum custom groups per token": "Maximum custom groups per token",
+    "Maximum {{max}} groups selected": "Maximum {{max}} groups selected",
+    "Move {{group}} down": "Move {{group}} down",
+    "Move {{group}} up": "Move {{group}} up",
+    "No available groups in the global Auto order.": "No available groups in the global Auto order.",
+    "No valid custom Auto groups remain. Add a group or restore global Auto.": "No valid custom Auto groups remain. Add a group or restore global Auto.",
+    "Remove {{group}}": "Remove {{group}}",
+    "Restore global Auto": "Restore global Auto",
+    "Select at least one Auto group or restore global Auto.": "Select at least one Auto group or restore global Auto.",
+    "Select at most {{max}} Auto groups": "Select at most {{max}} Auto groups",
+    "Using the complete global Auto order ({{count}} groups)": "Using the complete global Auto order ({{count}} groups)",
+    "{{count}} / {{max}} groups selected": "{{count}} / {{max}} groups selected"
   }
 }

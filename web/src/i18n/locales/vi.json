@@ -5227,6 +5227,26 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Add Auto group": "Thêm nhóm Auto",
+    "Auto group order": "Thứ tự nhóm Auto",
+    "Auto groups must not contain duplicates": "Các nhóm Auto không được trùng lặp",
+    "Choose and order the groups this API key will try.": "Chọn và sắp xếp các nhóm mà khóa API này sẽ thử.",
+    "Drag {{group}} to reorder": "Kéo {{group}} để sắp xếp lại",
+    "Enter a positive integer": "Nhập một số nguyên dương",
+    "Inherit global Auto order": "Kế thừa thứ tự Auto toàn cục",
+    "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.": "Chỉ giới hạn cấu hình Auto riêng của token. Việc kế thừa Auto toàn cục không bị giới hạn.",
+    "Maximum custom groups per token": "Số nhóm tùy chỉnh tối đa cho mỗi token",
+    "Maximum {{max}} groups selected": "Đã chọn tối đa {{max}} nhóm",
+    "Move {{group}} down": "Di chuyển {{group}} xuống",
+    "Move {{group}} up": "Di chuyển {{group}} lên",
+    "No available groups in the global Auto order.": "Không có nhóm khả dụng trong thứ tự Auto toàn cục.",
+    "No valid custom Auto groups remain. Add a group or restore global Auto.": "Không còn nhóm Auto tùy chỉnh hợp lệ. Hãy thêm nhóm hoặc khôi phục Auto toàn cục.",
+    "Remove {{group}}": "Xóa {{group}}",
+    "Restore global Auto": "Khôi phục Auto toàn cục",
+    "Select at least one Auto group or restore global Auto.": "Chọn ít nhất một nhóm Auto hoặc khôi phục Auto toàn cục.",
+    "Select at most {{max}} Auto groups": "Chọn tối đa {{max}} nhóm Auto",
+    "Using the complete global Auto order ({{count}} groups)": "Đang dùng thứ tự Auto toàn cục đầy đủ ({{count}} nhóm)",
+    "{{count}} / {{max}} groups selected": "Đã chọn {{count}} / {{max}} nhóm"
   }
 }

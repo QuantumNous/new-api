@@ -5227,6 +5227,26 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Add Auto group": "Добавить группу Auto",
+    "Auto group order": "Порядок групп Auto",
+    "Auto groups must not contain duplicates": "Группы Auto не должны повторяться",
+    "Choose and order the groups this API key will try.": "Выберите и упорядочьте группы, которые будет использовать этот API-ключ.",
+    "Drag {{group}} to reorder": "Перетащите {{group}}, чтобы изменить порядок",
+    "Enter a positive integer": "Введите положительное целое число",
+    "Inherit global Auto order": "Наследовать глобальный порядок Auto",
+    "Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.": "Ограничивает только снимки Auto для отдельных токенов. Глобальное наследование Auto не ограничено.",
+    "Maximum custom groups per token": "Максимум пользовательских групп на токен",
+    "Maximum {{max}} groups selected": "Выбрано максимально допустимое число групп: {{max}}",
+    "Move {{group}} down": "Переместить {{group}} вниз",
+    "Move {{group}} up": "Переместить {{group}} вверх",
+    "No available groups in the global Auto order.": "В глобальном порядке Auto нет доступных групп.",
+    "No valid custom Auto groups remain. Add a group or restore global Auto.": "Доступных пользовательских групп Auto не осталось. Добавьте группу или восстановите глобальный порядок Auto.",
+    "Remove {{group}}": "Удалить {{group}}",
+    "Restore global Auto": "Восстановить глобальный Auto",
+    "Select at least one Auto group or restore global Auto.": "Выберите хотя бы одну группу Auto или восстановите глобальный порядок Auto.",
+    "Select at most {{max}} Auto groups": "Выберите не более {{max}} групп Auto",
+    "Using the complete global Auto order ({{count}} groups)": "Используется полный глобальный порядок Auto (групп: {{count}})",
+    "{{count}} / {{max}} groups selected": "Выбрано групп: {{count}} из {{max}}"
   }
 }
