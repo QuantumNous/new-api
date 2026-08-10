@@ -17,7 +17,7 @@
 
 - **PostgreSQL 单点**：Pod 或所在节点故障期间，所有 new-api 副本都无法读写数据库，relay 请求会因鉴权和计费无法完成而失败。恢复时间取决于 Pod 重新调度与 PVC 重新挂载。
 - **PVC 绑定节点**：`ReadWriteOnce` 的 PVC 通常只能被同一节点挂载。若使用 local-path 一类的本地存储 provisioner，节点宕机后 Pod 无法在其他节点启动，必须等节点恢复。
-- **Redis 单点**：Redis 是缓存而非权威数据源（依据：`k8s/docs/runtime-constraints.md` 第 1 节，数据库为唯一权威）。Redis 不可用时会话校验回源数据库，功能可用但数据库压力上升、限流退化为各副本本地内存。
+- **Redis 单点**：Redis 是缓存而非权威数据源（依据：`docs/k8s/runtime-constraints.md` 第 1 节，数据库为唯一权威）。Redis 不可用时会话校验回源数据库，功能可用但数据库压力上升、限流退化为各副本本地内存。
 - **不做多副本 Redis**：new-api 只识别单个 Redis 端点，不解析 Cluster/Sentinel 节点列表，因此不能简单把 Redis 扩成多副本来提高可用性。
 
 结论：Redis 单点可以接受；PostgreSQL 单点是整个部署最关键的可用性瓶颈。
