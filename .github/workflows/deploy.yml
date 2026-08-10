@@ -62,18 +62,18 @@ jobs:
 
       - name: Apply data layer
         run: |
-          kubectl apply -f k8s/postgres.yaml
-          kubectl apply -f k8s/redis.yaml
+          kubectl apply -f deploy/k8s/postgres.yaml
+          kubectl apply -f deploy/k8s/redis.yaml
           kubectl rollout status statefulset/postgres --timeout=180s
           kubectl rollout status statefulset/redis --timeout=120s
 
       - name: Apply new-api master and worker
         run: |
-          kubectl apply -f k8s/new-api-master.yaml
-          kubectl apply -f k8s/new-api-worker.yaml
+          kubectl apply -f deploy/k8s/new-api-master.yaml
+          kubectl apply -f deploy/k8s/new-api-worker.yaml
           kubectl scale deployment/new-api-worker --replicas="${{ github.event.inputs.worker_replicas }}"
-          kubectl apply -f k8s/service.yaml
-          kubectl apply -f k8s/ingress.yaml
+          kubectl apply -f deploy/k8s/service.yaml
+          kubectl apply -f deploy/k8s/ingress.yaml
 
       - name: Wait for rollout
         run: |

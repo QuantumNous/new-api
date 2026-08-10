@@ -3,7 +3,7 @@ API_DIR = ./app/api
 # 方案 A：go:embed 只能引用包内路径，前端产物需拷进 api 包内。
 API_EMBED_DIR = ./app/api/web/dist
 DEV_WEB_PORT ?= 5173
-DEV_COMPOSE_FILE = docker-compose.dev.yml
+DEV_COMPOSE_FILE = deploy/docker-compose.dev.yml
 DEV_POSTGRES_SERVICE = postgres
 DEV_API_SERVICE = new-api
 DEV_POSTGRES_DB = new-api

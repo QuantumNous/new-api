@@ -2,11 +2,11 @@
 
 本文档说明在**没有云负载均衡器**的自建集群里，如何把外部流量引到 new-api worker，并正确支持流式（SSE）与 WebSocket。
 
-对应 issue #74。基础 `k8s/ingress.yaml` 已由 PR #77（issue #73）交付，本文档只做入口层深化，不重写基础 Ingress 清单。
+对应 issue #74。基础 `deploy/k8s/ingress.yaml` 已由 PR #77（issue #73）交付，本文档只做入口层深化，不重写基础 Ingress 清单。
 
 ## 1. 问题：自建集群没有 LoadBalancer
 
-`k8s/ingress.yaml` 声明了一个 `ingressClassName: nginx` 的 Ingress，但 Ingress 本身只是路由规则，需要两样东西才能真正对外服务：
+`deploy/k8s/ingress.yaml` 声明了一个 `ingressClassName: nginx` 的 Ingress，但 Ingress 本身只是路由规则，需要两样东西才能真正对外服务：
 
 1. **Ingress Controller**：实际执行转发的组件（本方案用 Nginx Ingress Controller）
 2. **让 Controller 可从集群外访问的入口**：云环境靠 `type: LoadBalancer` 自动拿到公网 IP；自建集群没有云 LB，`type: LoadBalancer` 会一直 `<pending>`
@@ -99,7 +99,7 @@ NodePort 端口默认在 30000–32767，不能直接用 80/443，因此对外�
 
 ## 4. 流式与 WebSocket
 
-`k8s/ingress.yaml` 已带以下 annotation（由 #77 交付），确保 SSE 流式与 realtime WebSocket 正常：
+`deploy/k8s/ingress.yaml` 已带以下 annotation（由 #77 交付），确保 SSE 流式与 realtime WebSocket 正常：
 
 ```yaml
 nginx.ingress.kubernetes.io/proxy-buffering: "off"
@@ -126,7 +126,7 @@ helm upgrade --install cert-manager cert-manager \
   --set crds.enabled=true
 ```
 
-再给 `k8s/ingress.yaml` 加 `tls` 段与 `cert-manager.io/cluster-issuer` annotation（本 PR 不改基础清单，仅说明路径）。
+再给 `deploy/k8s/ingress.yaml` 加 `tls` 段与 `cert-manager.io/cluster-issuer` annotation（本 PR 不改基础清单，仅说明路径）。
 
 ## 6. 验证
 
@@ -150,6 +150,6 @@ curl -N -H "Authorization: Bearer <token>" \
 - [ ] Nginx Ingress Controller 已安装且 Pod Running
 - [ ] MetalLB 地址池在可用网段内，或 NodePort + 边缘转发已配置
 - [ ] Controller Service 的 EXTERNAL-IP 不为 `<pending>`
-- [ ] `k8s/ingress.yaml` 的占位域名已替换为真实域名
+- [ ] `deploy/k8s/ingress.yaml` 的占位域名已替换为真实域名
 - [ ] `proxy-buffering: off` 生效，流式响应逐块返回
 - [ ] WebSocket（realtime）可建立连接

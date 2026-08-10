@@ -41,7 +41,7 @@ new-api 在处理大体积文件（图片/音频/视频的 base64 数据）时�
 
 - 配置：`DiskCacheEnabled: false`（默认），或 `DiskCacheThresholdMB` 设为一个很少触发的大值
 - 优点：无跨 Pod 一致性问题，无额外存储依赖，行为最简单
-- 代价：大文件常驻内存，worker 需要更高内存 limit；`k8s/new-api-worker.yaml` 中 worker 内存 limit 应据此评估
+- 代价：大文件常驻内存，worker 需要更高内存 limit；`deploy/k8s/new-api-worker.yaml` 中 worker 内存 limit 应据此评估
 - 适用：图片/音频/视频请求量不大，或单文件不极端的部署
 
 ### 策略 B：共享缓存卷（ReadWriteMany）
@@ -51,12 +51,12 @@ new-api 在处理大体积文件（图片/音频/视频的 base64 数据）时�
 - 配置要点：
   - 需要支持 RWX 的存储（如 NFS、CephFS；`ReadWriteOnce` 的本地卷不行）
   - worker 的 `DiskCachePath` 指向挂载点，并 `DiskCacheEnabled: true`
-  - 在 `k8s/new-api-worker.yaml` 增加 `volumeMounts` + `volumes`（PVC 引用 RWX 卷）
+  - 在 `deploy/k8s/new-api-worker.yaml` 增加 `volumeMounts` + `volumes`（PVC 引用 RWX 卷）
 - 优点：缓存跨副本复用，命中率与单实例相当，磁盘占用不随副本翻倍
 - 代价：引入网络文件系统的 I/O 延迟与单点/性能瓶颈；并发写同名缓存文件需存储层保证一致性
 - 适用：大文件多、内存吃紧、且已有可靠 RWX 存储
 
-> 注意：本 PR 不修改 `k8s/new-api-worker.yaml`。若采用策略 B，卷挂载改动应作为独立变更提交，并复核 `common/disk_cache.go` 的并发写行为。
+> 注意：本 PR 不修改 `deploy/k8s/new-api-worker.yaml`。若采用策略 B，卷挂载改动应作为独立变更提交，并复核 `common/disk_cache.go` 的并发写行为。
 
 ### 策略 C：接受各 Pod 独立缓存
 
@@ -79,7 +79,7 @@ new-api 在处理大体积文件（图片/音频/视频的 base64 数据）时�
 
 ## 5. 与 worker 资源配置的关系
 
-- 选 A：worker 内存 limit 要能容纳峰值大文件缓冲，参考 `k8s/new-api-worker.yaml` 的 `resources.limits.memory`，必要时上调。
+- 选 A：worker 内存 limit 要能容纳峰值大文件缓冲，参考 `deploy/k8s/new-api-worker.yaml` 的 `resources.limits.memory`，必要时上调。
 - 选 B/C：可下调内存 limit，但要相应规划磁盘容量（B 规划 RWX 卷容量，C 规划每 Pod 本地卷容量）。
 - 无论哪种，`DiskCacheMaxSizeMB` 都应小于所在卷/内存的可用量，避免写满。
 

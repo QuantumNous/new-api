@@ -2,13 +2,13 @@
 
 本文档是 Kubernetes 部署的端到端验证清单与故障演练手册，把前置各文档的产物串成一条可复现流程。
 
-对应 issue #76。部署步骤见 `k8s/README.md`（由 PR #77 交付），本文档只做验证与演练深化，不重复部署步骤。
+对应 issue #76。部署步骤见 `deploy/k8s/README.md`（由 PR #77 交付），本文档只做验证与演练深化，不重复部署步骤。
 
 前置文档：
 
 | 文档 | 内容 |
 |---|---|
-| `k8s/README.md` | 角色划分、Secret 清单、部署顺序 |
+| `deploy/k8s/README.md` | 角色划分、Secret 清单、部署顺序 |
 | `docs/k8s/runtime-constraints.md` | 多副本运行约束与环境变量矩阵 |
 | `docs/k8s/secrets-and-deploy.md` | 凭证盲部署与 runner 可达性 |
 | `docs/k8s/data-layer.md` | 数据层高可用、备份恢复 |
@@ -22,7 +22,7 @@
 - [ ] Nginx Ingress Controller 已安装且 Pod Running
 - [ ] 入口已有外部地址（MetalLB VIP 或 NodePort + 边缘转发）
 - [ ] 9 个 GitHub Actions Secrets 已配置（清单见 `docs/k8s/secrets-and-deploy.md`）
-- [ ] `k8s/ingress.yaml` 的占位域名已替换为真实域名
+- [ ] `deploy/k8s/ingress.yaml` 的占位域名已替换为真实域名
 - [ ] `SQL_DSN` 指向 PostgreSQL/MySQL，不是 SQLite
 
 ## 2. 部署后逐层验证

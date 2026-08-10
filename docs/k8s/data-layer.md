@@ -1,12 +1,12 @@
 # 自建数据层：高可用、备份与恢复
 
-本文档补充 `k8s/postgres.yaml` 与 `k8s/redis.yaml` 之外的运维内容：单点风险评估、高可用升级路径、备份与恢复流程、容量与参数建议。
+本文档补充 `deploy/k8s/postgres.yaml` 与 `deploy/k8s/redis.yaml` 之外的运维内容：单点风险评估、高可用升级路径、备份与恢复流程、容量与参数建议。
 
 对应 issue #71。基础 StatefulSet 清单已由 PR #77（issue #73）交付，本文档只做深化，不重写基础清单。
 
 ## 1. 当前拓扑与单点风险
 
-`k8s/postgres.yaml` 与 `k8s/redis.yaml` 交付的是**单副本 StatefulSet + PVC**：
+`deploy/k8s/postgres.yaml` 与 `deploy/k8s/redis.yaml` 交付的是**单副本 StatefulSet + PVC**：
 
 | 组件 | 副本 | 存储 | 对外端点 |
 |---|---|---|---|
@@ -68,7 +68,7 @@ spec:
 | CloudNativePG | 有 | 中 | 多节点集群，希望声明式管理 |
 | Patroni + HAProxy | 有 | 高 | 已有 Patroni 运维经验 |
 
-升级到 A 或 B 时，`k8s/postgres.yaml` 的单副本 StatefulSet 应停用，避免两套 PG 同时写同一份数据。
+升级到 A 或 B 时，`deploy/k8s/postgres.yaml` 的单副本 StatefulSet 应停用，避免两套 PG 同时写同一份数据。
 
 ## 3. 备份与恢复
 
@@ -147,7 +147,7 @@ kubectl scale deployment/new-api-worker --replicas=0
 
 ### Redis 数据
 
-Redis 只是缓存，无需备份。`appendonly yes` 已在 `k8s/redis.yaml` 中开启，用于 Pod 重启后快速恢复缓存，不构成数据安全依赖。丢失 Redis 数据的后果是缓存冷启动，不丢业务数据。
+Redis 只是缓存，无需备份。`appendonly yes` 已在 `deploy/k8s/redis.yaml` 中开启，用于 Pod 重启后快速恢复缓存，不构成数据安全依赖。丢失 Redis 数据的后果是缓存冷启动，不丢业务数据。
 
 ## 4. 容量与参数建议
 
