@@ -1,0 +1,106 @@
+# new-api worker 节点：承担所有外部 relay 请求。
+#
+# 角色说明：
+#   - NODE_TYPE=slave，common/init.go 中 IsMasterNode 为 false
+#   - service/system_task.go 的系统任务 Runner 不在 worker 上启动
+#   - 每个 worker Pod 用所在集群节点的出口直接连上游、返回响应
+#   - 这是均摊模型连接和上下行带宽的核心：横向扩容 worker 即可分散压力
+#
+# 副本数可自由伸缩：kubectl scale deployment new-api-worker --replicas=N
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: new-api-worker
+  labels:
+    app: new-api
+    role: worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: new-api
+      role: worker
+  strategy:
+    # relay 请求需要不中断，滚动更新逐个替换 Pod。
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: new-api
+        role: worker
+    spec:
+      # 尽量把 worker 分散到不同节点，均摊各服务器的出口带宽。
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: new-api
+                    role: worker
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: new-api
+          image: calciumion/new-api:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            # NODE_TYPE=slave：不启动后台任务 Runner，只处理 API 请求。
+            - name: NODE_TYPE
+              value: "slave"
+            # 节点身份：用 Pod 名称作为稳定唯一 NODE_NAME。
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TZ
+              value: "Asia/Shanghai"
+            # 所有凭证只通过 secretKeyRef 引用集群内 Secret，清单中不含任何明文。
+            # SESSION_SECRET / CRYPTO_SECRET 必须与 master 完全一致，否则会话与缓存键不通用。
+            - name: SQL_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: sql-dsn
+            - name: REDIS_CONN_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: redis-conn
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: session-secret
+            - name: CRYPTO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: crypto-secret
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
