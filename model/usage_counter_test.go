@@ -74,6 +74,26 @@ func TestReserveImagesWithZeroLimitRefusesEverything(t *testing.T) {
 	require.ErrorIs(t, err, ErrImageLimitReached)
 }
 
+func TestReserveImagesDeduplicatesRepeatedHashWithinTheSameBatch(t *testing.T) {
+	resetUsageTables(t)
+
+	n, err := ReserveImages(7, 1786000000, []string{"a", "a"}, 100)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	_, _, images, err := GetUsage(7, "month", 1786000000)
+	require.NoError(t, err)
+	require.Equal(t, 1, images)
+}
+
+func TestReserveImagesRepeatedHashWithinBatchCountsOnceAgainstTheLimit(t *testing.T) {
+	resetUsageTables(t)
+
+	n, err := ReserveImages(7, 1786000000, []string{"a", "a"}, 1)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+}
+
 func resetUsageTables(t *testing.T) {
 	t.Helper()
 	require.NoError(t, DB.Exec("DELETE FROM user_usage_counters").Error)

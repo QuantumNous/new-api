@@ -80,7 +80,11 @@ func ReserveImages(userId int, cycleStart int64, hashes []string, limit int) (in
 			return err
 		}
 		var fresh []string
+		seenInBatch := make(map[string]bool, len(hashes))
 		for _, h := range hashes {
+			if seenInBatch[h] {
+				continue
+			}
 			var existing UserImageUpload
 			q := tx.Where("user_id = ? AND cycle_start = ? AND image_hash = ?", userId, cycleStart, h).Limit(1).Find(&existing)
 			if q.Error != nil {
@@ -88,6 +92,7 @@ func ReserveImages(userId int, cycleStart int64, hashes []string, limit int) (in
 			}
 			if q.RowsAffected == 0 {
 				fresh = append(fresh, h)
+				seenInBatch[h] = true
 			}
 		}
 		if len(fresh) == 0 {
