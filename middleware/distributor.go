@@ -3,7 +3,9 @@ package middleware
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,11 +30,123 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+const (
+	image2TestPinEnabledEnv = "IMAGE2_TEST_PIN_ENABLED"
+	image2TestPinTokenIDEnv = "IMAGE2_TEST_PIN_TOKEN_ID"
+	image2TestPinUntilEnv   = "IMAGE2_TEST_PIN_UNTIL"
+
+	image2TestPinChannelID = "32"
+	image2TestPinUserID    = 26
+	image2TestPinModel     = "gpt-image-2"
+	image2TestPinGroup     = "gpt-image-2-4k"
+	image2TestPinMaxWindow = 2 * time.Hour
+)
+
+type image2TestPinConfig struct {
+	tokenID int
+	until   time.Time
+}
+
+// image2TestPinConfigFromEnv deliberately has no defaults. A test pin is
+// fail-closed unless the operator explicitly supplies one enabled switch, one
+// positive token ID, and one absolute CST deadline.
+func image2TestPinConfigFromEnv(now time.Time) (image2TestPinConfig, bool) {
+	if os.Getenv(image2TestPinEnabledEnv) != "true" {
+		return image2TestPinConfig{}, false
+	}
+
+	tokenIDValue := strings.TrimSpace(os.Getenv(image2TestPinTokenIDEnv))
+	if tokenIDValue == "" || !allASCIIDigits(tokenIDValue) {
+		return image2TestPinConfig{}, false
+	}
+	tokenID64, err := strconv.ParseInt(tokenIDValue, 10, 0)
+	if err != nil || tokenID64 <= 0 {
+		return image2TestPinConfig{}, false
+	}
+
+	untilValue := strings.TrimSpace(os.Getenv(image2TestPinUntilEnv))
+	until, err := time.Parse(time.RFC3339, untilValue)
+	if err != nil || until.IsZero() {
+		return image2TestPinConfig{}, false
+	}
+	_, offset := until.Zone()
+	if offset != 8*60*60 {
+		return image2TestPinConfig{}, false
+	}
+	if !until.After(now) || until.Sub(now) > image2TestPinMaxWindow {
+		return image2TestPinConfig{}, false
+	}
+
+	return image2TestPinConfig{tokenID: int(tokenID64), until: until}, true
+}
+
+func allASCIIDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// maybeSetImage2TestPin is intentionally called only after token auth and
+// entitlement/group resolution. It never reads client headers, query values,
+// or body fields other than the already-resolved model.
+func maybeSetImage2TestPin(c *gin.Context, modelRequest *ModelRequest, now time.Time) bool {
+	if c == nil || c.Request == nil || modelRequest == nil {
+		return false
+	}
+	// This candidate is for the slave-only, loopback test surface. Keep the
+	// gate explicit so a misconfigured master cannot pin even if it receives a
+	// loopback request and the other runtime inputs happen to match.
+	if common.IsMasterNode {
+		return false
+	}
+	if _, alreadyPinned := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId); alreadyPinned {
+		return false
+	}
+	if !image2TestPinRemoteIsLoopback(c.Request.RemoteAddr) {
+		return false
+	}
+	if c.Request.Method != http.MethodPost || c.Request.URL.Path != "/v1/images/generations" {
+		return false
+	}
+	if c.GetInt("id") != image2TestPinUserID || modelRequest.Model != image2TestPinModel {
+		return false
+	}
+	if common.GetContextKeyString(c, constant.ContextKeyUsingGroup) != image2TestPinGroup {
+		return false
+	}
+
+	config, configured := image2TestPinConfigFromEnv(now)
+	if !configured || c.GetInt("token_id") != config.tokenID {
+		return false
+	}
+
+	common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, image2TestPinChannelID)
+	return true
+}
+
+func image2TestPinRemoteIsLoopback(remoteAddr string) bool {
+	host, port, err := net.SplitHostPort(strings.TrimSpace(remoteAddr))
+	if err != nil || port == "" {
+		return false
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
 		var entitlementGrant *model.EntitlementGrant
-		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
@@ -76,6 +190,8 @@ func Distribute() func(c *gin.Context) {
 				c.Set("entitlement_total_quota", entitlementGrant.TotalQuota)
 			}
 		}
+		maybeSetImage2TestPin(c, modelRequest, time.Now())
+		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
