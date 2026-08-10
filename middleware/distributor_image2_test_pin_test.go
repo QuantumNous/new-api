@@ -102,9 +102,9 @@ func TestImage2TestPinFailureFirstAndLoopbackPositive(t *testing.T) {
 			name:       "body-header-query-channel-spoof-does-not-pin",
 			requestURL: "/v1/images/generations?model=gpt-image-2&channel_id=32",
 			remoteAddr: "127.0.0.1:3001",
-			body:       `{"model":"gpt-image-1","group":"gpt-image-2-4k","channel_id":32}`,
+			body:       `{"model":"gpt-image-2","group":"gpt-image-2-4k","channel_id":32}`,
 			tokenID:    730001,
-			group:      image2TestPinGroup,
+			group:      "default",
 		},
 		{
 			name:       "expired-hard-deadline-does-not-pin",
