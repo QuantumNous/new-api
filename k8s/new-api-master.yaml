@@ -1,0 +1,90 @@
+# new-api master 节点：只运行后台定时任务，不接收外部 relay 请求。
+#
+# 角色说明：
+#   - 不设置 NODE_TYPE，common/init.go 中 IsMasterNode 为 true
+#   - service/system_task.go 的系统任务 Runner 只在 master 上启动
+#   - 负责异步任务轮询、渠道上游模型同步、订阅配额重置、凭证刷新
+#   - 因为不承担 relay 上游连接和响应带宽，资源需求很小，可调度到任意节点
+#
+# 副本数固定为 1：多个 master 会重复执行后台任务。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: new-api-master
+  labels:
+    app: new-api
+    role: master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: new-api
+      role: master
+  strategy:
+    # 后台任务不需要多副本共存，先停旧 Pod 再起新 Pod，避免定时任务短暂重复。
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: new-api
+        role: master
+    spec:
+      containers:
+        - name: new-api
+          image: calciumion/new-api:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            # 节点身份：用 Pod 名称作为稳定唯一的 NODE_NAME，
+            # 供 service/system_instance.go 上报和审计日志区分实例。
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TZ
+              value: "Asia/Shanghai"
+            # 所有凭证只通过 secretKeyRef 引用集群内 Secret，清单中不含任何明文。
+            # Secret 由 .github/workflows/deploy.yml 从 GitHub Actions Secrets 生成。
+            - name: SQL_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: sql-dsn
+            - name: REDIS_CONN_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: redis-conn
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: session-secret
+            - name: CRYPTO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: crypto-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3

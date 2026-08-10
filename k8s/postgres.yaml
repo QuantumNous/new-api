@@ -1,0 +1,95 @@
+# 集群内自建 PostgreSQL：作为所有 new-api Pod 的唯一权威数据源。
+#
+# 说明：
+#   - new-api 多副本部署不能使用 SQLite（文件无法跨 Pod 共享），必须 PostgreSQL 或 MySQL
+#   - 本清单只暴露一个可写 ClusterIP 端点，SQL_DSN 指向 postgres:5432
+#   - 凭证来自 new-api-secrets，清单中不含任何明文
+#   - 单实例部署存在单点风险；需要高可用时改用 CloudNativePG 或 Patroni，
+#     但对外仍必须只暴露一个稳定可写端点给 SQL_DSN
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: postgres-db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: postgres-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: postgres-password
+            # 官方镜像默认把数据放在 /var/lib/postgresql/data，
+            # 挂载点下会有 lost+found，用子目录避免初始化失败。
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi

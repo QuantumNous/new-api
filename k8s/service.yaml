@@ -1,0 +1,21 @@
+# new-api Service：只把流量转发到 worker Pod。
+#
+# selector 同时匹配 app=new-api 且 role=worker，
+# 因此 master Pod 不会收到任何外部 relay 请求，只专注后台任务。
+# 入口层（Ingress）指向本 Service。
+apiVersion: v1
+kind: Service
+metadata:
+  name: new-api
+  labels:
+    app: new-api
+spec:
+  type: ClusterIP
+  selector:
+    app: new-api
+    role: worker
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http

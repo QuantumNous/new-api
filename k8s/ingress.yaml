@@ -1,0 +1,36 @@
+# new-api 入口：Nginx Ingress，把外部流量分发到 worker Service。
+#
+# 说明：
+#   - 需要集群已安装 Nginx Ingress Controller（ingressClassName: nginx）
+#   - 自建集群无云负载均衡器时，Ingress Controller 通过 MetalLB 或 NodePort 暴露，
+#     详见 k8s/README.md 的入口层章节
+#   - 流式（SSE）响应必须关闭缓冲，否则客户端收不到增量输出
+#   - WebSocket（/v1/realtime）升级头由 Nginx Ingress 自动处理
+#
+# 域名 api.example.com 为占位符，部署时替换为你自己的域名。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: new-api
+  annotations:
+    # 关闭响应/请求缓冲，支持 SSE 流式与大请求体。
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    # 长超时，适配长流式响应与异步任务提交。
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # 请求体上限跟随应用 MAX_REQUEST_BODY_MB，0 表示不在入口层限制。
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: new-api
+                port:
+                  number: 80
