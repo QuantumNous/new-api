@@ -18,7 +18,7 @@
 - Cached HTTP clients may outlive a dialer replacement — publish a new started Box before closing the old Box and keep the old entry when replacement construction fails.
 
 **Irreversible / risky steps:**
-- Adding sing-box expands the root dependency graph and final binary — revert the PR commit to roll back; do not modify `relaykit/go.mod`, `relaykit/go.sum`, or vendor files.
+- Adding sing-box expands the root dependency graph and final binary — revert the PR commit to roll back; do not modify `modules/relaykit/go.mod`, `modules/relaykit/go.sum`, or vendor files.
 - Changing encrypted transport behavior affects all channels — preserve HTTP/SOCKS paths and verify bypass/channel/global precedence before PR review.
 - In-process Box instances own network resources — make close idempotent and run focused race tests.
 
@@ -67,7 +67,7 @@ Modified in PR #57:
 - [ ] Run:
 
 ```bash
-git diff -- go.mod go.sum relaykit/go.mod relaykit/go.sum
+git diff -- app/api/go.mod app/api/go.sum modules/relaykit/go.mod modules/relaykit/go.sum
 go list -m github.com/sagernet/sing-box
 ```
 
@@ -75,7 +75,7 @@ Expected: only root module files differ; output contains `github.com/sagernet/si
 - [ ] Commit:
 
 ```bash
-git add go.mod go.sum && git commit -m "build: add sing-box dependency"
+git add app/api/go.mod app/api/go.sum && git commit -m "build: add sing-box dependency"
 ```
 
 ### Task 2: Register baseline protocols → verify: minimal direct Box construction passes under default and baseline tags
