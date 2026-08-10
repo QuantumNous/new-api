@@ -96,7 +96,7 @@ func allASCIIDigits(value string) bool {
 // entitlement/group resolution. It never reads client headers, query values,
 // or body fields other than the already-resolved model.
 func maybeSetImage2TestPin(c *gin.Context, modelRequest *ModelRequest, now time.Time) bool {
-	if c == nil || c.Request == nil || modelRequest == nil {
+	if c == nil || c.Request == nil || c.Request.URL == nil || modelRequest == nil {
 		return false
 	}
 	// This candidate is for the slave-only, loopback test surface. Keep the
