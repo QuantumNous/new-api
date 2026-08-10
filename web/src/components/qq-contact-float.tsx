@@ -8,6 +8,8 @@ export function QqContactFloat() {
   const containerRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  // Skip the initial mount so focus is not stolen on page load
+  const mountedRef = useRef(false)
 
   // Close when clicking / tapping outside the widget
   // pointerdown unifies mouse + touch, avoiding the mousedown+touchstart double-fire on touch devices
@@ -32,8 +34,13 @@ export function QqContactFloat() {
     return () => document.removeEventListener('keydown', handleEsc)
   }, [open])
 
-  // Move focus into dialog when opened; return focus to trigger button when closed
+  // Move focus into dialog when opened; return focus to trigger button when closed.
+  // mountedRef guards against stealing page focus on initial render.
   useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true
+      return
+    }
     if (open) {
       dialogRef.current?.focus()
     } else {
