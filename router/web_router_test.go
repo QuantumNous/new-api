@@ -52,6 +52,27 @@ func TestNextFrontendRoutesAndAssets(t *testing.T) {
 	require.Equal(t, "public, max-age=31536000, immutable", asset.Header().Get("Cache-Control"))
 }
 
+func TestNextFrontendIsTheDefaultWebFrontend(t *testing.T) {
+	t.Setenv("NEXT_FRONTEND_ENABLED", "true")
+	assets := testWebAssets("next-index")
+
+	tests := []struct {
+		requestPath string
+		location    string
+	}{
+		{requestPath: "/", location: "/next/"},
+		{requestPath: "/setup", location: "/next/setup"},
+		{requestPath: "/console/keys?tab=active", location: "/next/console/keys?tab=active"},
+	}
+
+	for _, test := range tests {
+		recorder := serveWebRequest(t, assets, test.requestPath)
+		require.Equal(t, http.StatusTemporaryRedirect, recorder.Code)
+		require.Equal(t, test.location, recorder.Header().Get("Location"))
+		require.Equal(t, "no-cache", recorder.Header().Get("Cache-Control"))
+	}
+}
+
 func TestNextFrontendDoesNotFallbackForMissingAssets(t *testing.T) {
 	t.Setenv("NEXT_FRONTEND_ENABLED", "true")
 	recorder := serveWebRequest(t, testWebAssets("next-index"), "/next/assets/missing.js")
@@ -71,9 +92,14 @@ func TestNextFrontendPlaceholderReturnsServiceUnavailable(t *testing.T) {
 
 func TestNextFrontendCanBeDisabled(t *testing.T) {
 	t.Setenv("NEXT_FRONTEND_ENABLED", "false")
-	recorder := serveWebRequest(t, testWebAssets("next-index"), "/next/")
+	assets := testWebAssets("next-index")
+	recorder := serveWebRequest(t, assets, "/next/")
 
 	require.Equal(t, http.StatusNotFound, recorder.Code)
+
+	legacy := serveWebRequest(t, assets, "/console/keys")
+	require.Equal(t, http.StatusOK, legacy.Code)
+	require.Equal(t, "legacy-index", legacy.Body.String())
 }
 
 func TestBackendPrefixesNeverFallbackToSpa(t *testing.T) {

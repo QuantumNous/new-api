@@ -85,6 +85,12 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.NextIndexPage)
 			return
 		}
+		if nextEnabled && (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead) {
+			c.Header("Cache-Control", "no-cache")
+			target := "/next" + c.Request.URL.RequestURI()
+			c.Redirect(http.StatusTemporaryRedirect, target)
+			return
+		}
 		c.Header("Cache-Control", "no-cache")
 		c.Data(http.StatusOK, "text/html; charset=utf-8", assets.IndexPage)
 	})

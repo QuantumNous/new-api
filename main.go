@@ -45,8 +45,9 @@ var buildFS embed.FS
 //go:embed web/dist/index.html
 var indexPage []byte
 
-// frontend/embed-dist is the independently built Vue application served below
-// /next/. Docker replaces the checked-in placeholder with the Vite output.
+// frontend/embed-dist is the primary Vue application served below /next/.
+// Web routes default to this application while it is enabled. Docker replaces
+// the checked-in placeholder with the Vite output.
 //
 //go:embed frontend/embed-dist
 var nextBuildFS embed.FS
