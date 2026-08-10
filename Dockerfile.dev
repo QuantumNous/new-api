@@ -15,7 +15,7 @@ WORKDIR /build
 ADD app/api/go.mod app/api/go.sum ./app/api/
 # relaykit is referenced via replace; its go.mod must be present to resolve
 # the module graph before the full source copy.
-ADD relaykit/go.mod ./relaykit/go.mod
+ADD modules/relaykit/go.mod ./modules/relaykit/go.mod
 RUN cd app/api && go mod download
 
 COPY . .

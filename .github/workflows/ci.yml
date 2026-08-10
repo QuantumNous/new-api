@@ -34,7 +34,7 @@ jobs:
           go-version-file: app/api/go.mod
           cache-dependency-path: |
             app/api/go.sum
-            relaykit/go.sum
+            modules/relaykit/go.sum
 
       - name: Create frontend embed placeholder
         run: |
@@ -46,7 +46,7 @@ jobs:
         run: go vet -tags "${SINGBOX_TAGS}" ./...
 
       - name: Vet relaykit independently
-        working-directory: relaykit
+        working-directory: modules/relaykit
         run: go vet ./...
 
       - name: Build api module
@@ -54,7 +54,7 @@ jobs:
         run: go build -tags "${SINGBOX_TAGS}" ./...
 
       - name: Build relaykit independently
-        working-directory: relaykit
+        working-directory: modules/relaykit
         run: go build ./...
 
       - name: Test api module
@@ -62,7 +62,7 @@ jobs:
         run: GOWORK=off go test -tags "${SINGBOX_TAGS}" ./...
 
       - name: Test relaykit module
-        working-directory: relaykit
+        working-directory: modules/relaykit
         run: GOWORK=off go test ./...
 
   frontend:

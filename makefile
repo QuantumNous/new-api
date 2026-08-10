@@ -52,7 +52,7 @@ test:
 		root_packages=$$(GOWORK=off go list -e ./... | grep -vxF "$$root_module"); \
 		GOWORK=off go test $$root_packages
 	@echo "Testing relaykit Go module..."
-	@cd relaykit && GOWORK=off go test ./...
+	@cd modules/relaykit && GOWORK=off go test ./...
 
 reset-setup:
 	@echo "Resetting local setup wizard state..."
