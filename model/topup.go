@@ -275,7 +275,7 @@ func CompleteEpayTopUp(tradeNo string, actualPaymentMethod string, callerIp stri
 		if topUp.Status == common.TopUpStatusSuccess {
 			return nil
 		}
-		if !purchaseLifecycleStatusAllowed(normalizePurchaseLifecycleStatus(topUp.Status), topUpSuccessFromStatuses()) {
+		if !purchaseLifecycleStatusAllowed(normalizePurchaseLifecycleStatus(topUp.Status), topUpPendingSuccessFromStatuses()) {
 			return ErrTopUpStatusInvalid
 		}
 
@@ -290,7 +290,7 @@ func CompleteEpayTopUp(tradeNo string, actualPaymentMethod string, callerIp stri
 			SourceID:   int64(topUp.Id),
 			TradeNo:    topUp.TradeNo,
 			UserID:     topUp.UserId,
-			FromStatus: topUpSuccessFromStatuses(),
+			FromStatus: topUpPendingSuccessFromStatuses(),
 			ToStatus:   common.TopUpStatusSuccess,
 			OccurredAt: completeTime,
 			Credit:     int64(quotaToAdd),
@@ -648,7 +648,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return nil
 		}
 
-		if !purchaseLifecycleStatusAllowed(normalizePurchaseLifecycleStatus(topUp.Status), topUpSuccessFromStatuses()) {
+		if !purchaseLifecycleStatusAllowed(normalizePurchaseLifecycleStatus(topUp.Status), topUpPendingSuccessFromStatuses()) {
 			return errors.New("订单状态不是待支付，无法补单")
 		}
 
@@ -665,7 +665,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			SourceID:   int64(topUp.Id),
 			TradeNo:    topUp.TradeNo,
 			UserID:     topUp.UserId,
-			FromStatus: topUpSuccessFromStatuses(),
+			FromStatus: topUpPendingSuccessFromStatuses(),
 			ToStatus:   common.TopUpStatusSuccess,
 			OccurredAt: common.GetTimestamp(),
 			Credit:     int64(quotaToAdd),

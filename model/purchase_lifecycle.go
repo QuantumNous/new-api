@@ -603,6 +603,10 @@ func purchaseLifecycleStatusAllowed(current string, allowed []string) bool {
 	return false
 }
 
+func topUpPendingSuccessFromStatuses() []string {
+	return []string{common.TopUpStatusPending}
+}
+
 func topUpSuccessFromStatuses() []string {
 	return []string{common.TopUpStatusPending, common.TopUpStatusFailed, common.TopUpStatusExpired, "cancelled", "canceled"}
 }

@@ -297,6 +297,42 @@ func TestCompleteEpayTopUpReplayDoesNotRepeatOneTimeCreditEffects(t *testing.T) 
 	require.EqualValues(t, 1, outboxCount)
 }
 
+func TestCompleteEpayTopUpRejectsTerminalTopUpStatuses(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status string
+	}{
+		{name: "failed", status: common.TopUpStatusFailed},
+		{name: "expired", status: common.TopUpStatusExpired},
+		{name: "cancelled", status: "cancelled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+
+			userID := 1820 + len(tc.name)
+			tradeNo := "epay-terminal-" + tc.name
+			insertUserForPaymentGuardTest(t, userID, 0)
+			insertTopUpForPaymentGuardTest(t, tradeNo, userID, PaymentProviderEpay)
+			require.NoError(t, DB.Model(&TopUp{}).Where("trade_no = ?", tradeNo).Update("status", tc.status).Error)
+
+			credited, topUp, err := CompleteEpayTopUp(tradeNo, "alipay", "127.0.0.1")
+			require.ErrorIs(t, err, ErrTopUpStatusInvalid)
+			require.False(t, credited)
+			require.Nil(t, topUp)
+
+			stored := GetTopUpByTradeNo(tradeNo)
+			require.NotNil(t, stored)
+			require.Equal(t, tc.status, stored.Status)
+			require.Zero(t, stored.CompleteTime)
+			require.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, userID))
+			requireTopUpLifecycleEventCount(t, tradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
+			requireTopUpLifecycleStateCount(t, userID, 0)
+			var logCount int64
+			require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", userID, LogTypeTopup).Count(&logCount).Error)
+			require.EqualValues(t, 0, logCount)
+		})
+	}
+}
 func TestCompleteEpayTopUpRollsBackOnProviderMismatch(t *testing.T) {
 	truncateTables(t)
 
@@ -433,6 +469,40 @@ func TestRechargeWaffoPancakeReportsOnlyActualPendingTransition(t *testing.T) {
 	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 103))
 }
 
+func TestManualCompleteTopUpRejectsTerminalTopUpStatuses(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status string
+	}{
+		{name: "failed", status: common.TopUpStatusFailed},
+		{name: "expired", status: common.TopUpStatusExpired},
+		{name: "cancelled", status: "cancelled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+
+			userID := 1830 + len(tc.name)
+			tradeNo := "manual-terminal-" + tc.name
+			insertUserForPaymentGuardTest(t, userID, 0)
+			insertTopUpForPaymentGuardTest(t, tradeNo, userID, PaymentProviderStripe)
+			require.NoError(t, DB.Model(&TopUp{}).Where("trade_no = ?", tradeNo).Update("status", tc.status).Error)
+
+			err := ManualCompleteTopUp(tradeNo, "127.0.0.1")
+			require.Error(t, err)
+
+			stored := GetTopUpByTradeNo(tradeNo)
+			require.NotNil(t, stored)
+			require.Equal(t, tc.status, stored.Status)
+			require.Zero(t, stored.CompleteTime)
+			require.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, userID))
+			requireTopUpLifecycleEventCount(t, tradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
+			requireTopUpLifecycleStateCount(t, userID, 0)
+			var logCount int64
+			require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", userID, LogTypeTopup).Count(&logCount).Error)
+			require.EqualValues(t, 0, logCount)
+		})
+	}
+}
 func TestRechargePaddle_DuplicateWebhookAddsQuotaOnce(t *testing.T) {
 	truncateTables(t)
 
