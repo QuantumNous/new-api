@@ -216,6 +216,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'TechMobiVideo',
   },
+  {
+    value: 111,
+    color: 'blue',
+    label: 'ModelAPISeedance',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.

@@ -10,6 +10,7 @@ import {
   getChannelTypeHints,
   getDefaultBaseUrl,
 } from './lib/channel-type-config'
+import { getChannelTypeIcon, getKeyPromptForType } from './lib/channel-utils'
 
 test('Jimeng zhizinan channel is selectable and model-fetchable', () => {
   expect(CHANNEL_TYPES[104]).toBe('JimengZhizinan')
@@ -57,4 +58,23 @@ test('Sonilo channel is selectable with video-to-music defaults', () => {
 test('MiniMax H3 channel has a visible channel type label', () => {
   expect(CHANNEL_TYPES[110]).toBe('MiniMax H3')
   expect(CHANNEL_TYPE_OPTIONS.some((option) => option.value === 110)).toBe(true)
+})
+
+test('ModelAPISeedance channel is selectable with internal video-channel metadata only', () => {
+  expect(CHANNEL_TYPES[111]).toBe('ModelAPISeedance')
+  expect(CHANNEL_TYPE_OPTIONS.some((option) => option.value === 111)).toBe(true)
+  expect(MODEL_FETCHABLE_TYPES.has(111)).toBe(false)
+  expect(CREATE_MODEL_FETCHABLE_TYPES.has(111)).toBe(false)
+  expect(getDefaultBaseUrl(111)).toBe('https://api.modelapi.co')
+  expect(getChannelTypeIcon(111)).toBe('Doubao')
+  expect(getKeyPromptForType(111)).toBe('API key from the provider')
+
+  const config = getChannelTypeConfig(111)
+  const hints = getChannelTypeHints(111)
+
+  expect(config.icon).toBe('doubao')
+  expect(config.supportedModels).toEqual(['doubao-seedance-2-5-260628'])
+  expect(hints.key).toBe('API key from the provider')
+  expect(hints.models).toBe('doubao-seedance-2-5-260628')
+  expect(hints.other).toBeUndefined()
 })

@@ -206,6 +206,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Async video-to-music channel. The gateway reserves by declared duration and serves completed audio through a Flatkey proxy.',
     },
   },
+  111: {
+    id: 111,
+    name: CHANNEL_TYPES[111],
+    icon: 'doubao',
+    defaultBaseUrl: 'https://api.modelapi.co',
+    supportedModels: ['doubao-seedance-2-5-260628'],
+    hints: {
+      baseUrl: 'Default: https://api.modelapi.co',
+      key: 'API key from the provider',
+      models: 'doubao-seedance-2-5-260628',
+    },
+  },
 }
 
 /**
