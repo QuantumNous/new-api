@@ -328,6 +328,9 @@ func grantStripeToBalanceEntitlement(intentID int64) error {
 		if err != nil {
 			return err
 		}
+		grantInput := func(tradeNo string) model.GrantEntitlementInput {
+			return stripeToBalanceCompensationGrantInput(intent, contract, target, strings.TrimSpace(tradeNo), periodStart, periodEnd)
+		}
 		applied, err := model.PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, model.PurchaseLifecycleTransition{
 			TradeNo:    intent.WalletDebitTradeNo,
 			UserID:     intent.UserId,
@@ -336,19 +339,7 @@ func grantStripeToBalanceEntitlement(intentID int64) error {
 			OccurredAt: periodStart,
 			SourceRef:  "subscription_compensation.stripe_to_balance",
 		}, func(tx *gorm.DB, locked *model.SubscriptionOrder, transition *model.PurchaseLifecycleTransition) error {
-			grant, err := model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
-				ContractId:           contract.Id,
-				UserId:               intent.UserId,
-				PlanId:               target.Id,
-				ProviderBindingId:    0,
-				GrantKey:             "balance:" + strings.TrimSpace(locked.TradeNo),
-				PaymentMode:          model.SubscriptionPaymentModeBalanceOnePeriod,
-				AmountTotal:          target.TotalAmount,
-				PeriodStart:          periodStart,
-				PeriodEnd:            periodEnd,
-				EndReasonForPrevious: model.SubscriptionEntitlementEndReasonUpgraded,
-				Source:               model.PaymentMethodBalance,
-			})
+			grant, err := model.RotateCurrentEntitlementTx(tx, grantInput(locked.TradeNo))
 			if err != nil {
 				return err
 			}
@@ -361,7 +352,23 @@ func grantStripeToBalanceEntitlement(intentID int64) error {
 			return err
 		}
 		if !applied {
-			return nil
+			var order model.SubscriptionOrder
+			if err := subscriptionCommandLock(tx).Where(
+				"trade_no = ? AND change_intent_id = ? AND user_id = ? AND plan_id = ? AND payment_provider = ?",
+				intent.WalletDebitTradeNo, intent.Id, intent.UserId, intent.ToPlanId, model.PaymentProviderBalance,
+			).First(&order).Error; err != nil {
+				return fmt.Errorf("Stripe-to-balance historical success order lookup failed: %w", err)
+			}
+			if strings.TrimSpace(order.Status) != common.TopUpStatusSuccess {
+				return fmt.Errorf("Stripe-to-balance lifecycle transition was not applied for order status %q", order.Status)
+			}
+			grant, err := model.RotateCurrentEntitlementTx(tx, grantInput(order.TradeNo))
+			if err != nil {
+				return fmt.Errorf("Stripe-to-balance historical success entitlement repair failed: %w", err)
+			}
+			if grant == nil || grant.Entitlement == nil {
+				return errors.New("Stripe-to-balance historical success entitlement repair returned no entitlement")
+			}
 		}
 		return tx.Model(&model.SubscriptionChangeIntent{}).Where("id = ?", intent.Id).Updates(map[string]interface{}{
 			"status":       model.SubscriptionChangeIntentStatusApplied,
@@ -370,6 +377,22 @@ func grantStripeToBalanceEntitlement(intentID int64) error {
 			"updated_at":   common.GetTimestamp(),
 		}).Error
 	})
+}
+
+func stripeToBalanceCompensationGrantInput(intent model.SubscriptionChangeIntent, contract model.UserSubscriptionContract, target model.SubscriptionPlan, tradeNo string, periodStart int64, periodEnd int64) model.GrantEntitlementInput {
+	return model.GrantEntitlementInput{
+		ContractId:           contract.Id,
+		UserId:               intent.UserId,
+		PlanId:               target.Id,
+		ProviderBindingId:    0,
+		GrantKey:             "balance:" + strings.TrimSpace(tradeNo),
+		PaymentMode:          model.SubscriptionPaymentModeBalanceOnePeriod,
+		AmountTotal:          target.TotalAmount,
+		PeriodStart:          periodStart,
+		PeriodEnd:            periodEnd,
+		EndReasonForPrevious: model.SubscriptionEntitlementEndReasonUpgraded,
+		Source:               model.PaymentMethodBalance,
+	}
 }
 
 func lockStripeToBalanceCompensationBinding(tx *gorm.DB, intent *model.SubscriptionChangeIntent) (model.SubscriptionProviderBinding, error) {
