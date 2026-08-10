@@ -44,6 +44,7 @@ import { recallLocalDateTimeToUnix } from '../audience-inputs'
 import {
   RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   RECALL_EMAIL_STARTER_HTML,
+  getRecallEmailStarterHtml,
 } from '../helpers'
 import type {
   RecallAudienceTemplate,
@@ -1616,6 +1617,15 @@ describe('CampaignEditor schedule modes', () => {
     )
   })
 
+  test('keeps the stable English-template validation error for empty Continuous sequences', () => {
+    const draft = makeContinuousDraft()
+    draft.email_sequence = []
+
+    expect(() => createRecallCampaignFormDraft(draft)).toThrow(
+      'English template is required'
+    )
+  })
+
   test('keeps unsubscribe controls for engagement-policy Continuous content', () => {
     const draft = makeContinuousDraft()
     draft.lifecycle_trigger = 'payment_pending'
@@ -1982,6 +1992,85 @@ describe('CampaignEditor schedule modes', () => {
     ]) {
       expect(html).not.toContain(forbidden)
     }
+    dispose(root)
+  })
+
+  test('switching a manual promotion draft to Continuous refreshes the visible editor template and restores the manual draft', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates.en.body_text = ''
+    draft.email_sequence[0].templates.en.body_html = RECALL_EMAIL_STARTER_HTML
+    const { root, container } = renderEditorDom(draft)
+    const getBodyEditor = () =>
+      container.querySelector(
+        '#recall-email-0-en-body-html'
+      ) as HTMLTextAreaElement | null
+
+    expect(getBodyEditor()?.value).toContain('{{.ClaimURL}}')
+    expect(getBodyEditor()?.value).toContain('{{.UnsubscribeURL}}')
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    await flushReactWork()
+
+    expect(getBodyEditor()?.value).toBe(
+      getRecallEmailStarterHtml('content_only', 'service')
+    )
+    expect(getBodyEditor()?.value).not.toContain('{{.ClaimURL}}')
+    expect(getBodyEditor()?.value).not.toContain('{{.UnsubscribeURL}}')
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('manual')
+    })
+    await flushReactWork()
+
+    expect(getBodyEditor()?.value).toBe(RECALL_EMAIL_STARTER_HTML)
+    dispose(root)
+  })
+
+  test('switching custom manual promotion HTML to service Continuous normalizes the visible editor and restores the manual draft', async () => {
+    const customHtml = [
+      '<main>',
+      '<p>Keep this operational note for {{.RecipientName}}.</p>',
+      '<p>Use {{.ProductSummary}} and {{.PromotionCodeMasked}} before {{.ExpiresAt}}.</p>',
+      '<p><a href="{{.ClaimURL}}">Claim</a></p>',
+      '<p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>',
+      '</main>',
+    ].join('')
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates.en.body_text = ''
+    draft.email_sequence[0].templates.en.body_html = customHtml
+    const { root, container } = renderEditorDom(draft)
+    const getBodyEditor = () =>
+      container.querySelector(
+        '#recall-email-0-en-body-html'
+      ) as HTMLTextAreaElement | null
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    await flushReactWork()
+
+    const continuousHtml = getBodyEditor()?.value ?? ''
+    expect(continuousHtml).toContain(
+      'Keep this operational note for {{.RecipientName}}.'
+    )
+    for (const forbidden of [
+      '{{.ProductSummary}}',
+      '{{.PromotionCodeMasked}}',
+      '{{.ExpiresAt}}',
+      '{{.ClaimURL}}',
+      '{{.UnsubscribeURL}}',
+    ]) {
+      expect(continuousHtml).not.toContain(forbidden)
+    }
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('manual')
+    })
+    await flushReactWork()
+
+    expect(getBodyEditor()?.value).toBe(customHtml)
     dispose(root)
   })
 

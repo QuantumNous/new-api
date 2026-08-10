@@ -39,6 +39,7 @@ import { audienceTemplateDescriptionKeys } from '../copy'
 import {
   formatRecallMinorAmount,
   getRecallEmailStarterHtml,
+  normalizeRecallBodyInputToHtml,
   normalizeRecallCouponSource,
   normalizeRecallDiscountType,
   parseRecallMajorAmount,
@@ -254,6 +255,11 @@ function normalizeRecallScheduleForMode(
     )
       ? (draft.lifecycle_trigger as RecallLifecycleTrigger)
       : 'user_registered'
+    const deliveryPolicy =
+      draft.execution_mode === 'continuous' && draft.delivery_policy
+        ? draft.delivery_policy
+        : recallLifecycleDeliveryPolicyByTrigger[trigger]
+    const firstEmailStage = draft.email_sequence[0]
     return {
       ...draft,
       campaign_type: 'content_only',
@@ -278,10 +284,7 @@ function normalizeRecallScheduleForMode(
         specified_emails: [],
       },
       execution_mode: 'continuous',
-      delivery_policy:
-        draft.execution_mode === 'continuous' && draft.delivery_policy
-          ? draft.delivery_policy
-          : recallLifecycleDeliveryPolicyByTrigger[trigger],
+      delivery_policy: deliveryPolicy,
       lifecycle_trigger: trigger,
       lifecycle_trigger_config: {},
       schedule: {
@@ -312,9 +315,14 @@ function normalizeRecallScheduleForMode(
       promotion_valid_seconds: 0,
       email_sequence: [
         {
-          ...draft.email_sequence[0],
+          ...firstEmailStage,
           stage_no: 1,
           delay_seconds: 0,
+          templates: normalizeRecallEmailTemplatesForMode(
+            firstEmailStage?.templates,
+            'content_only',
+            deliveryPolicy
+          ),
         },
       ],
     }
@@ -355,6 +363,58 @@ function createRecallEmailTemplates(
     body_html: starterHtml,
   }
   return { ...templates, en: { ...englishTemplate } }
+}
+
+function getRecallEmailStarterTemplateSet(): Set<string> {
+  return new Set([
+    getRecallEmailStarterHtml('promotion'),
+    getRecallEmailStarterHtml('content_only', 'engagement'),
+    getRecallEmailStarterHtml('content_only', 'service'),
+  ])
+}
+
+function normalizeRecallEmailTemplatesForMode(
+  templates: Record<string, RecallEmailTemplate> = {},
+  campaignType: RecallCampaignDraft['campaign_type'],
+  deliveryPolicy: RecallDeliveryPolicy
+): Record<string, RecallEmailTemplate> {
+  const starterTemplates = getRecallEmailStarterTemplateSet()
+  const nextStarter = getRecallEmailStarterHtml(campaignType, deliveryPolicy)
+
+  return Object.fromEntries(
+    Object.entries(templates).map(([locale, template]) => {
+      const bodyHtml = template.body_html ?? ''
+      const bodyText = template.body_text ?? ''
+      let nextBodyHtml = bodyHtml
+      let nextBodyText = bodyText
+
+      if (starterTemplates.has(bodyHtml)) {
+        nextBodyHtml = nextStarter
+      } else if (bodyHtml.trim()) {
+        nextBodyHtml = normalizeRecallBodyInputToHtml(
+          bodyHtml,
+          campaignType,
+          deliveryPolicy
+        )
+      } else if (bodyText.trim()) {
+        nextBodyHtml = normalizeRecallBodyInputToHtml(
+          bodyText,
+          campaignType,
+          deliveryPolicy
+        )
+        nextBodyText = ''
+      }
+
+      return [
+        locale,
+        {
+          ...template,
+          body_text: nextBodyText,
+          body_html: nextBodyHtml,
+        },
+      ]
+    })
+  )
 }
 
 const recallFixedAmountPaths: Record<
@@ -1020,6 +1080,25 @@ export function CampaignEditor(props: CampaignEditorProps) {
       shouldDirty: true,
       shouldValidate: true,
     })
+    normalized.email_sequence.forEach((stage, stageIndex) => {
+      Object.entries(stage.templates).forEach(([locale, template]) => {
+        form.setValue(
+          `email_sequence.${stageIndex}.templates.${locale}.subject` as FieldPath<RecallCampaignDraft>,
+          template.subject,
+          { shouldDirty: true, shouldValidate: true }
+        )
+        form.setValue(
+          `email_sequence.${stageIndex}.templates.${locale}.body_text` as FieldPath<RecallCampaignDraft>,
+          template.body_text ?? '',
+          { shouldDirty: true, shouldValidate: true }
+        )
+        form.setValue(
+          `email_sequence.${stageIndex}.templates.${locale}.body_html` as FieldPath<RecallCampaignDraft>,
+          template.body_html ?? '',
+          { shouldDirty: true, shouldValidate: true }
+        )
+      })
+    })
     setFixedAmountInputs(
       createRecallFixedAmountInputs(normalized.discount_config)
     )
@@ -1075,11 +1154,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
     const nextDeliveryPolicy =
       executionMode === 'continuous' ? deliveryPolicy : 'engagement'
     const nextStarter = getRecallEmailStarterHtml(value, nextDeliveryPolicy)
-    const starterTemplates = new Set([
-      getRecallEmailStarterHtml('promotion'),
-      getRecallEmailStarterHtml('content_only', 'engagement'),
-      getRecallEmailStarterHtml('content_only', 'service'),
-    ])
+    const starterTemplates = getRecallEmailStarterTemplateSet()
     current.email_sequence.forEach((stage, index) => {
       Object.keys(stage.templates).forEach((locale) => {
         const path =
