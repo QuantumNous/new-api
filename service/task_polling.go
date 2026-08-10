@@ -478,27 +478,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	archiveChannelLabel := VideoResultChannelLabel(ch.Type)
 	if (returnSourceURL || (archiveChannelLabel != "" && !returnSourceURL)) &&
 		taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess && strings.TrimSpace(taskResult.Url) == "" {
-		phase := task.Progress
-		if phase == "" {
-			phase = "unknown"
-		}
-		status := taskResult.Status
-		if status == "" {
-			status = "unknown"
-		}
-		if archiveChannelLabel != "" {
-			return fmt.Errorf("task %s missing source URL: phase=%s status=%s", task.TaskID, phase, status)
-		}
-		return fmt.Errorf("task %s missing source URL: phase=%s status=%s", task.TaskID, phase, status)
-	}
-
-	phase := task.Progress
-	if phase == "" {
-		phase = "unknown"
-	}
-	status := taskResult.Status
-	if status == "" {
-		status = "unknown"
+		return fmt.Errorf("task %s missing source URL: phase=source status=%s", task.TaskID, archivedVideoPollingStatus(taskResult.Status))
 	}
 
 	if archiveChannelLabel != "" && !returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
@@ -517,7 +497,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			}
 			if archiveErr != nil {
 				perfmetrics.RecordVideoResultArchiveRetry(archiveChannelLabel, "archive_failure")
-				return fmt.Errorf("video archive failed for task %s: phase=%s status=%s: %s", task.TaskID, phase, status, sanitizeVideoResultArchiveError(archiveErr))
+				return fmt.Errorf("video archive failed for task %s: phase=archive status=%s: %s", task.TaskID, archivedVideoPollingStatus(taskResult.Status), sanitizeVideoResultArchiveError(archiveErr))
 			}
 			task.PrivateData.VideoResult = videoResult
 		}
