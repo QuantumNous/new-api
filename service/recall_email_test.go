@@ -689,6 +689,7 @@ func TestRecallEmailTypedSMTPPreDataFailureRetriesWithNewClaimHash(t *testing.T)
 	})
 
 	*fixture.now = time.Unix(first.NextAttemptAt, 0).UTC()
+	clearRecallEmailPacingForTest(t)
 	won, err := model.LeaseRecallMessage(first.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
 	require.NoError(t, err)
 	require.True(t, won)
@@ -812,6 +813,7 @@ func TestRecallEmailRetryableSMTPFailureSchedulesExactDelaySlotsThenStops(t *tes
 		require.Equal(t, model.RecallMessageRetryWait, stored.State)
 		require.Equal(t, attemptStartedAt+int64(recallSMTPRetryDelays[attempt-1]/time.Second), stored.NextAttemptAt)
 		*fixture.now = time.Unix(stored.NextAttemptAt, 0).UTC()
+		clearRecallEmailPacingForTest(t)
 		won, err := model.LeaseRecallMessage(stored.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
 		require.NoError(t, err)
 		require.True(t, won)
@@ -1130,6 +1132,11 @@ func TestRecallEmailRunBatchLeasesOnlyDueMessages(t *testing.T) {
 
 func TestRecallEmailRunBatchBatchesInitialAPIActivityLookup(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
+	fixture.worker.sender = func(config common.SMTPConfig, subject, receiver, content, messageID string, options common.EmailOptions) error {
+		*fixture.sent = append(*fixture.sent, recallEmailSent{config: config, from: config.From, subject: subject, receiver: receiver, htmlBody: content, messageID: messageID, options: options})
+		clearRecallEmailPacingForTest(t)
+		return nil
+	}
 	fixture.worker.audience.LogBatchSize = 10
 	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
 		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
@@ -1859,6 +1866,7 @@ func TestRecallEmailRunBatchRefreshesActivitySMTPBeforeEachSend(t *testing.T) {
 		sent = append(sent, recallEmailSent{config: config, from: config.From, subject: subject, receiver: receiver, htmlBody: content, messageID: messageID})
 		if len(sent) == 1 {
 			setValidRecallActivitySMTP(t, secondConfig)
+			clearRecallEmailPacingForTest(t)
 		}
 		return nil
 	})
@@ -2106,6 +2114,7 @@ func TestRecallEmailWorkerRetryAndUncertainSendReserveNewSlots(t *testing.T) {
 	first := loadRecallEmailMessageByID(t, fixture.message.Id)
 	require.Equal(t, model.RecallMessageRetryWait, first.State)
 	*fixture.now = time.Unix(first.NextAttemptAt, 0).UTC()
+	clearRecallEmailPacingForTest(t)
 	won, err := model.LeaseRecallMessage(first.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
 	require.NoError(t, err)
 	require.True(t, won)
@@ -2673,6 +2682,11 @@ func setRecallEmailPacing(t *testing.T, limit int, tickSeconds int) {
 			"recall_campaign_setting.email_hourly_limit": fmt.Sprintf("%d", previous.EmailHourlyLimit),
 		}))
 	})
+}
+
+func clearRecallEmailPacingForTest(t *testing.T) {
+	t.Helper()
+	require.NoError(t, model.DB.Where("scope = ?", "activity_email").Delete(&model.RecallEmailPacingState{}).Error)
 }
 
 func setRecallCampaignEmailHeaderSettings(t *testing.T, replyTo string, unsubscribeMailto string) {
