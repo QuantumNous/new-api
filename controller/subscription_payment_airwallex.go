@@ -144,6 +144,20 @@ func SubscriptionRequestAirwallexPay(c *gin.Context) {
 		return
 	}
 
+	// Nothing in this path supersedes an existing subscription, so a second
+	// checkout produces a second live Airwallex subscription and BOTH bill.
+	// Refuse here rather than in the portal: the button is UX, this is the
+	// thing that actually protects the customer's card.
+	renewing, err := model.HasRenewingUserSubscription(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if renewing {
+		common.ApiErrorMsg(c, "你已有生效中的订阅。如需更换套餐，请联系我们。")
+		return
+	}
+
 	if plan.MaxPurchasePerUser > 0 {
 		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
 		if err != nil {

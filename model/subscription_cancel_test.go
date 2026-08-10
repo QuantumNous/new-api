@@ -147,3 +147,42 @@ func TestGetUserIdByAirwallexBillingCustomerId(t *testing.T) {
 		t.Fatalf("empty customer returned user %d, want 0", got)
 	}
 }
+
+func TestHasRenewingUserSubscription(t *testing.T) {
+	truncateTables(t)
+	now := common.GetTimestamp()
+
+	mk := func(userId int, over func(*UserSubscription)) {
+		s := &UserSubscription{UserId: userId, PlanId: 1, Status: "active", Source: "order",
+			StartTime: now - 100, EndTime: now + 86400, UpgradeGroup: "plus"}
+		if over != nil {
+			over(s)
+		}
+		if err := DB.Create(s).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	mk(7, nil)                                                        // renewing
+	mk(8, func(s *UserSubscription) { s.CancelledAt = now })          // cancelled, still running
+	mk(9, func(s *UserSubscription) { s.Status = "expired"; s.EndTime = now - 1 }) // lapsed
+
+	for _, tc := range []struct {
+		userId int
+		want   bool
+		why    string
+	}{
+		{7, true, "a renewing subscription must block a second checkout — both would bill"},
+		{8, false, "cancelled means it will never bill again, so resubscribing is safe and must stay open"},
+		{9, false, "a lapsed subscription must not block a new purchase"},
+		{99, false, "a user with no subscription must be able to buy"},
+	} {
+		got, err := HasRenewingUserSubscription(tc.userId)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != tc.want {
+			t.Errorf("user %d: got %v want %v — %s", tc.userId, got, tc.want, tc.why)
+		}
+	}
+}

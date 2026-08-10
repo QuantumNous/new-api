@@ -920,6 +920,33 @@ func ListRenewingUserSubscriptions(limit int) ([]UserSubscription, error) {
 	return subs, nil
 }
 
+// HasRenewingUserSubscription reports whether the user holds a subscription
+// that will bill again.
+//
+// This is the gate on starting a NEW checkout. Buying while one is already
+// renewing creates a SECOND Airwallex subscription alongside the first and both
+// charge — ¥20 and ¥100 together — because nothing in the purchase path
+// supersedes an existing subscription.
+//
+// Cancelled-but-still-running deliberately does NOT count: that subscription
+// will never bill again, so a fresh purchase leaves exactly one live
+// subscription. That is the resubscribe path, and blocking it would strand a
+// customer who cancelled and changed their mind until their period ran out.
+func HasRenewingUserSubscription(userId int) (bool, error) {
+	if userId <= 0 {
+		return false, errors.New("invalid userId")
+	}
+	var count int64
+	err := DB.Model(&UserSubscription{}).
+		Where("user_id = ? AND status = ? AND end_time > ? AND cancelled_at = ?",
+			userId, "active", common.GetTimestamp(), 0).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // HasActiveUserSubscription returns whether the user has any active subscription.
 // This is a lightweight existence check to avoid heavy pre-consume transactions.
 func HasActiveUserSubscription(userId int) (bool, error) {
