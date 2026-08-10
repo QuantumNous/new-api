@@ -46,6 +46,8 @@ func TestMain(m *testing.M) {
 		&SubscriptionOrder{},
 		&UserSubscription{},
 		&PerfMetric{},
+		&UserUsageCounter{},
+		&UserImageUpload{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
