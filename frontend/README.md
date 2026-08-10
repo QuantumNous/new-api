@@ -1,9 +1,10 @@
 # Ren2Hub 新前端
 
-该目录是 Ren2Hub 正在重构的 Vue 3 前端，与仓库中的 `web/` 旧前端并行存在。
+该目录是 Ren2Hub 当前默认的 Vue 3 前端，与仓库中的 React `web/` 兼容前端并行交付。
 
-- `web/` 仍是当前生产前端，本轮不修改其构建和交付方式。
-- `frontend/` 独立开发、测试和构建，产物输出到 `frontend/dist/`。
+- Vue 应用挂载在 `/next/`；启用时，根路径和其他普通 Web 路由会以 `307` 重定向到对应的 `/next/*` 路径。
+- `web/` 继续嵌入 Go 二进制，作为 `NEXT_FRONTEND_ENABLED=false` 时的兼容回退。
+- 本地构建产物输出到 `frontend/dist/`；Docker 构建会把它复制到 `frontend/embed-dist/`，再由 Go `embed` 打入最终二进制。
 - 首页、认证与已启用的 Console 模块统一调用同源真实后端 API。
 - 后端通过 `/api/status.frontend_capabilities` 声明模块状态；未启用模块必须保持禁用并由路由守卫 fail-closed。
 
@@ -27,6 +28,8 @@ bun run build
 ```
 
 ## 路由
+
+生产访问前缀为 `/next/`，下列路径是 Vue Router 内部路径：
 
 - `/`：公开首页
 - `/auth/*`：真实注册、登录、OAuth 回调与会话恢复页面

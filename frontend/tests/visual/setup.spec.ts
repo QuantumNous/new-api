@@ -10,68 +10,80 @@ import {
 test.describe('setup wizard', () => {
   const setupApiPattern = /\/api\/setup(?:\?.*)?$/
 
-  for (const viewport of [
-    { name: 'desktop', width: 1440, height: 900 },
-    { name: 'mobile', width: 390, height: 844 },
-  ]) {
-    test(`${viewport.name} completes the four-step flow`, async ({ page }) => {
-      await page.setViewportSize(viewport)
-      await configureStablePage(page, {
-        theme: 'light',
-        authenticated: false,
-        setupInitialized: false,
-      })
+  for (const theme of ['light', 'dark'] as const) {
+    for (const viewport of [
+      { name: 'desktop', width: 1440, height: 900 },
+      { name: 'mobile', width: 390, height: 844 },
+    ]) {
+      test(`${theme} ${viewport.name} completes the four-step flow`, async ({
+        page,
+      }, testInfo) => {
+        await page.setViewportSize(viewport)
+        await configureStablePage(page, {
+          theme,
+          authenticated: false,
+          setupInitialized: false,
+        })
 
-      let initialized = false
-      await page.route(setupApiPattern, async (route) => {
-        if (route.request().method() === 'POST') {
-          initialized = true
+        let initialized = false
+        await page.route(setupApiPattern, async (route) => {
+          if (route.request().method() === 'POST') {
+            initialized = true
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ success: true, message: 'ok' }),
+            })
+            return
+          }
           await route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify({ success: true, message: 'ok' }),
+            body: JSON.stringify({
+              success: true,
+              message: '',
+              data: {
+                status: initialized,
+                root_init: false,
+                database_type: 'postgres',
+              },
+            }),
           })
-          return
-        }
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            success: true,
-            message: '',
-            data: {
-              status: initialized,
-              root_init: false,
-              database_type: 'postgres',
-            },
-          }),
         })
+
+        await page.goto('/setup', { waitUntil: 'domcontentloaded' })
+        await waitForStablePage(page)
+        await expect(
+          page.getByText('数据库检查', { exact: true })
+        ).toBeVisible()
+        await page.getByRole('button', { name: '继续' }).click()
+
+        await page.getByLabel('管理员用户名').fill('admin')
+        await page.getByLabel('密码', { exact: true }).fill('password123')
+        await page.getByLabel('确认密码', { exact: true }).fill('password123')
+        await page.getByRole('button', { name: '继续' }).click()
+        const externalMode = page.getByRole('radio', { name: /对外运营/ })
+        const personalMode = page.getByRole('radio', { name: /个人使用/ })
+        await externalMode.focus()
+        await externalMode.press('ArrowRight')
+        await expect(personalMode).toBeFocused()
+        await expect(personalMode).toHaveAttribute('aria-checked', 'true')
+        await page.getByRole('button', { name: '继续' }).click()
+        await expect(
+          page.getByRole('heading', { name: '复核并初始化', exact: true })
+        ).toBeVisible()
+        await page.screenshot({
+          path: testInfo.outputPath(
+            `setup-review-${theme}-${viewport.name}.png`
+          ),
+          fullPage: true,
+        })
+        await page.getByRole('button', { name: '初始化系统' }).click()
+        await expect(page).toHaveURL(/\/$/)
+        await assertNoHorizontalOverflow(page)
+        await assertInteractiveCentersVisible(page)
       })
-
-      await page.goto('/setup', { waitUntil: 'domcontentloaded' })
-      await waitForStablePage(page)
-      await expect(page.getByText('数据库检查', { exact: true })).toBeVisible()
-      await page.getByRole('button', { name: '继续' }).click()
-
-      await page.getByLabel('管理员用户名').fill('admin')
-      await page.getByLabel('密码', { exact: true }).fill('password123')
-      await page.getByLabel('确认密码', { exact: true }).fill('password123')
-      await page.getByRole('button', { name: '继续' }).click()
-      const externalMode = page.getByRole('radio', { name: /对外运营/ })
-      const personalMode = page.getByRole('radio', { name: /个人使用/ })
-      await externalMode.focus()
-      await externalMode.press('ArrowRight')
-      await expect(personalMode).toBeFocused()
-      await expect(personalMode).toHaveAttribute('aria-checked', 'true')
-      await page.getByRole('button', { name: '继续' }).click()
-      await expect(
-        page.getByRole('heading', { name: '复核并初始化', exact: true })
-      ).toBeVisible()
-      await page.getByRole('button', { name: '初始化系统' }).click()
-      await expect(page).toHaveURL(/\/$/)
-      await assertNoHorizontalOverflow(page)
-      await assertInteractiveCentersVisible(page)
-    })
+    }
   }
 
   test('shows a retryable error when setup status is unavailable', async ({

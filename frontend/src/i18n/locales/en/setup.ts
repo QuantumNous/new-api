@@ -17,6 +17,7 @@ export default {
       'Create the first root account or reuse the existing one.',
     usage: 'Usage mode',
     usageDescription: 'Choose the operating posture for this installation.',
+    progress: 'Setup progress',
     review: 'Review & initialize',
     reviewDescription: 'Confirm the choices and finish the first-run setup.',
     detectedDatabase: 'Detected database',

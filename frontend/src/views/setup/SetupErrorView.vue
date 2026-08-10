@@ -8,15 +8,14 @@ import BrandMark from '@/components/console/BrandMark.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import LanguageSelector from '@/components/common/LanguageSelector.vue'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
+import { BRAND_NAME } from '@/constants/branding'
 import { useSetupStore } from '@/stores/setup'
-import { useAppStore } from '@/stores'
 import { sanitizeSetupRedirect } from '@/router'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const setup = useSetupStore()
-const app = useAppStore()
 const retrying = ref(false)
 const redirect = computed(() => sanitizeSetupRedirect(route.query.redirect))
 
@@ -43,11 +42,16 @@ async function retry() {
     class="setup-shell texture-paper draft-grid night-page-texture min-h-screen bg-[var(--page-background)] px-5 py-6 text-[var(--text-primary)] sm:px-8"
   >
     <header
-      class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4"
+      class="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4"
+      data-handdrawn="navigation-top"
     >
       <div class="flex min-w-0 items-center gap-3">
-        <BrandMark :src="app.logo" class="h-9 w-9 rounded-lg" />
-        <span class="truncate text-lg font-bold">{{ app.systemName }}</span>
+        <!-- Local brand asset: the status endpoint is unreachable on this page. -->
+        <BrandMark class="h-9 w-9 sketch-sm" />
+        <span
+          class="display-title truncate text-lg font-bold tracking-tight text-[var(--text-primary)]"
+          >{{ BRAND_NAME }}</span
+        >
       </div>
       <div class="flex items-center gap-2">
         <ThemeSwitcher variant="console" />
@@ -59,7 +63,7 @@ async function retry() {
     >
       <div class="w-full">
         <div
-          class="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[var(--status-danger)]/40 bg-[var(--status-danger)]/10 text-[var(--status-danger-text)]"
+          class="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[var(--status-danger)] bg-[var(--status-danger-soft)] text-[var(--status-danger-text)]"
         >
           <AlertTriangle :size="28" aria-hidden="true" />
         </div>

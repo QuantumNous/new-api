@@ -153,8 +153,8 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
-		// Stable contracts for the Vue frontend. The legacy /api routes above
-		// remain unchanged for the production React admin frontend.
+		// Stable contracts for the primary Vue frontend. The existing /api
+		// routes above remain compatible with the embedded React fallback.
 		nextRoute := apiRouter.Group("/next")
 		nextRoute.Use(middleware.UserAuth())
 		{

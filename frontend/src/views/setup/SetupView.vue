@@ -19,9 +19,11 @@ import { useRouter } from 'vue-router'
 
 import BrandMark from '@/components/console/BrandMark.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
+import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import LanguageSelector from '@/components/common/LanguageSelector.vue'
 import ThemeSwitcher from '@/components/common/ThemeSwitcher.vue'
 import TextInput from '@/components/common/TextInput.vue'
+import { BRAND_NAME } from '@/constants/branding'
 import { useSetupStore } from '@/stores/setup'
 import { useAppStore } from '@/stores'
 import { useToast } from '@/composables/useToast'
@@ -232,12 +234,18 @@ onMounted(async () => {
     class="setup-shell texture-paper draft-grid night-page-texture min-h-screen overflow-x-hidden bg-[var(--page-background)] text-[var(--text-primary)]"
   >
     <header
-      class="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8 lg:px-10"
+      class="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8"
+      data-handdrawn="navigation-top"
     >
       <div class="flex min-w-0 items-center gap-3">
-        <BrandMark :src="app.logo" class="h-9 w-9 rounded-lg" />
+        <!-- Local brand asset: setup runs before /api/status is meaningful. -->
+        <BrandMark class="h-9 w-9 sketch-sm" />
         <div class="min-w-0">
-          <p class="truncate text-lg font-bold">{{ app.systemName }}</p>
+          <p
+            class="display-title truncate text-lg font-bold tracking-tight text-[var(--text-primary)]"
+          >
+            {{ BRAND_NAME }}
+          </p>
           <p
             class="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--text-tertiary)] sm:block"
           >
@@ -252,45 +260,54 @@ onMounted(async () => {
     </header>
 
     <section
-      class="mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8 lg:px-10 lg:pb-20"
+      class="mx-auto w-full max-w-[1200px] px-4 pb-12 sm:px-6 lg:px-8 lg:pb-20"
     >
-      <div class="mx-auto max-w-3xl pt-8 text-center sm:pt-12">
+      <div class="mx-auto max-w-[760px] pt-8 text-center sm:pt-12">
         <p
           class="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-text)]"
         >
           {{ t('setup.eyebrow') }}
         </p>
-        <h1 class="display-title mt-3 text-3xl font-bold sm:text-5xl">
+        <h1
+          class="gesture-mark display-title mt-3 text-3xl font-bold leading-tight text-[var(--text-primary)] sm:text-5xl"
+        >
           {{ t('setup.title') }}
         </h1>
         <p
-          class="mx-auto mt-4 max-w-xl text-sm leading-6 text-[var(--text-secondary)] sm:text-base"
+          class="mx-auto mt-4 max-w-[560px] text-sm leading-6 text-[var(--text-secondary)] sm:text-base"
         >
           {{ t('setup.intro') }}
         </p>
+        <div
+          class="ink-divider mx-auto mt-6 max-w-[320px]"
+          aria-hidden="true"
+        />
       </div>
 
-      <div
+      <ConsoleCard
         v-if="setup.loading || !isReady"
-        class="mx-auto mt-12 max-w-3xl pencil-surface-strong border border-[var(--border-subtle)] p-8 text-center"
-        data-handdrawn="surface-strong"
+        variant="sketch"
+        class="mx-auto mt-12 max-w-[760px] text-center"
       >
         <div
           class="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-subtle)] border-t-[var(--accent)]"
           aria-hidden="true"
         />
-        <p class="mt-4 text-sm font-semibold">{{ t('setup.loading') }}</p>
+        <p class="mt-4 text-sm font-semibold text-[var(--text-primary)]">
+          {{ t('setup.loading') }}
+        </p>
         <p class="mt-1 text-xs text-[var(--text-tertiary)]">
           {{ t('setup.loadingDescription') }}
         </p>
-      </div>
+      </ConsoleCard>
 
-      <div v-else class="mx-auto mt-10 max-w-6xl">
-        <ol class="grid gap-3 md:grid-cols-4" aria-label="Setup progress">
+      <div v-else class="mx-auto mt-10 max-w-[1100px]">
+        <ol class="grid gap-3 md:grid-cols-4" :aria-label="t('setup.progress')">
           <li
             v-for="(step, index) in steps"
             :key="step.title"
-            class="setup-step pencil-surface border border-[var(--border-subtle)] p-3"
+            class="setup-step pencil-control border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-3"
+            :aria-current="index === currentStep ? 'step' : undefined"
             :class="
               index === currentStep
                 ? 'setup-step--active'
@@ -314,10 +331,12 @@ onMounted(async () => {
                   :size="15"
                   aria-hidden="true"
                 />
-                <span v-else>{{ index + 1 }}</span>
+                <span v-else class="display-number">{{ index + 1 }}</span>
               </span>
               <div class="min-w-0">
-                <p class="text-sm font-semibold">{{ step.title }}</p>
+                <p class="text-sm font-semibold text-[var(--text-primary)]">
+                  {{ step.title }}
+                </p>
                 <p class="mt-1 text-xs leading-5 text-[var(--text-tertiary)]">
                   {{ step.description }}
                 </p>
@@ -342,260 +361,263 @@ onMounted(async () => {
           />
         </div>
 
-        <section
-          class="pencil-surface-strong mt-8 border border-[var(--border-subtle)] p-5 sm:p-8"
-          data-handdrawn="surface-strong"
-        >
-          <template v-if="currentStep === 0">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p class="section-heading">{{ t('setup.detectedDatabase') }}</p>
-                <h2 class="mt-3 text-2xl font-bold">{{ databaseLabel }}</h2>
-              </div>
-              <component
-                :is="databaseIcon"
-                :size="32"
-                class="text-[var(--accent)]"
-                aria-hidden="true"
-              />
-            </div>
-            <p
-              class="mt-5 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]"
-            >
-              {{ databaseHint }}
-            </p>
-          </template>
-
-          <template v-else-if="currentStep === 1">
-            <div class="flex items-start gap-3">
-              <ShieldCheck
-                :size="24"
-                class="mt-0.5 text-[var(--accent)]"
-                aria-hidden="true"
-              />
-              <div>
-                <h2 class="text-2xl font-bold">
-                  {{ t('setup.administrator') }}
-                </h2>
-                <p class="mt-2 text-sm text-[var(--text-secondary)]">
-                  {{
-                    setup.status?.root_init
-                      ? t('setup.rootExists')
-                      : t('setup.administratorDescription')
-                  }}
-                </p>
-              </div>
-            </div>
-            <div
-              v-if="!setup.status?.root_init"
-              class="mt-7 grid gap-5 sm:grid-cols-2"
-            >
-              <div>
-                <label
-                  for="setup-username"
-                  class="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]"
-                >
-                  {{ t('setup.username') }}
-                </label>
-                <TextInput
-                  id="setup-username"
-                  v-model="setup.values.username"
-                  autocomplete="username"
-                  :aria-invalid="Boolean(fieldError)"
-                  :aria-describedby="
-                    fieldError ? 'setup-account-error' : undefined
-                  "
-                  :placeholder="t('setup.usernamePlaceholder')"
-                />
-              </div>
-              <div>
-                <label
-                  for="setup-password"
-                  class="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]"
-                >
-                  {{ t('setup.password') }}
-                </label>
-                <div class="relative">
-                  <TextInput
-                    id="setup-password"
-                    v-model="setup.values.password"
-                    :type="showPassword ? 'text' : 'password'"
-                    autocomplete="new-password"
-                    :aria-invalid="Boolean(fieldError)"
-                    :aria-describedby="
-                      fieldError ? 'setup-account-error' : undefined
-                    "
-                    :placeholder="t('setup.passwordPlaceholder')"
-                    class="[&_input]:pr-12"
-                  />
-                  <button
-                    type="button"
-                    class="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] focus-ring"
-                    :aria-label="
-                      showPassword
-                        ? t('setup.hidePassword')
-                        : t('setup.showPassword')
-                    "
-                    @click="showPassword = !showPassword"
-                  >
-                    <EyeOff v-if="showPassword" :size="17" /><Eye
-                      v-else
-                      :size="17"
-                    />
-                  </button>
+        <ConsoleCard variant="sketch" :padded="false" class="mt-8">
+          <div class="p-5 sm:p-8">
+            <template v-if="currentStep === 0">
+              <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p class="section-heading">
+                    {{ t('setup.detectedDatabase') }}
+                  </p>
+                  <h2 class="mt-3 text-2xl font-bold">{{ databaseLabel }}</h2>
                 </div>
-              </div>
-              <div class="sm:col-span-2">
-                <label
-                  for="setup-confirm-password"
-                  class="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]"
-                >
-                  {{ t('setup.confirmPassword') }}
-                </label>
-                <div class="relative">
-                  <TextInput
-                    id="setup-confirm-password"
-                    v-model="setup.values.confirmPassword"
-                    :type="showConfirmPassword ? 'text' : 'password'"
-                    autocomplete="new-password"
-                    :aria-invalid="Boolean(fieldError)"
-                    :aria-describedby="
-                      fieldError ? 'setup-account-error' : undefined
-                    "
-                    :placeholder="t('setup.confirmPasswordPlaceholder')"
-                    class="[&_input]:pr-12"
-                  />
-                  <button
-                    type="button"
-                    class="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)] focus-ring"
-                    :aria-label="
-                      showConfirmPassword
-                        ? t('setup.hidePassword')
-                        : t('setup.showPassword')
-                    "
-                    @click="showConfirmPassword = !showConfirmPassword"
-                  >
-                    <EyeOff v-if="showConfirmPassword" :size="17" /><Eye
-                      v-else
-                      :size="17"
-                    />
-                  </button>
-                </div>
-              </div>
-            </div>
-            <p
-              v-if="fieldError"
-              id="setup-account-error"
-              class="mt-4 text-sm text-[var(--status-danger-text)]"
-              role="alert"
-            >
-              {{ fieldError }}
-            </p>
-          </template>
-
-          <template v-else-if="currentStep === 2">
-            <h2 class="text-2xl font-bold">{{ t('setup.chooseMode') }}</h2>
-            <div
-              ref="modeGroup"
-              class="mt-6 grid gap-4 md:grid-cols-3"
-              role="radiogroup"
-              :aria-label="t('setup.chooseMode')"
-            >
-              <button
-                v-for="(option, index) in modeOptions"
-                :key="option.value"
-                type="button"
-                role="radio"
-                :aria-checked="setup.values.usageMode === option.value"
-                :tabindex="setup.values.usageMode === option.value ? 0 : -1"
-                data-setup-mode
-                class="setup-mode pencil-surface min-h-[150px] border p-5 text-left transition-all focus-ring"
-                :class="
-                  setup.values.usageMode === option.value
-                    ? 'setup-mode--selected'
-                    : 'border-[var(--border-subtle)]'
-                "
-                @click="selectMode(option.value)"
-                @keydown="handleModeKeydown($event, index)"
-              >
                 <component
-                  :is="option.icon"
-                  :size="24"
-                  :style="{ color: option.color }"
+                  :is="databaseIcon"
+                  :size="32"
+                  class="text-[var(--accent)]"
                   aria-hidden="true"
                 />
-                <span class="mt-4 block text-base font-semibold">{{
-                  option.title
-                }}</span>
-                <span
-                  class="mt-2 block text-sm leading-6 text-[var(--text-secondary)]"
-                  >{{ option.description }}</span
-                >
-              </button>
-            </div>
-          </template>
+              </div>
+              <p
+                class="mt-5 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]"
+              >
+                {{ databaseHint }}
+              </p>
+            </template>
 
-          <template v-else>
-            <div class="flex items-start gap-3">
-              <CheckCircle2
-                :size="28"
-                class="mt-0.5 text-[var(--status-success-text)]"
-                aria-hidden="true"
-              />
-              <div>
-                <h2 class="text-2xl font-bold">{{ t('setup.review') }}</h2>
-                <p class="mt-2 text-sm text-[var(--text-secondary)]">
-                  {{ t('setup.reviewIntro') }}
-                </p>
+            <template v-else-if="currentStep === 1">
+              <div class="flex items-start gap-3">
+                <ShieldCheck
+                  :size="24"
+                  class="mt-0.5 text-[var(--accent)]"
+                  aria-hidden="true"
+                />
+                <div>
+                  <h2 class="text-2xl font-bold">
+                    {{ t('setup.administrator') }}
+                  </h2>
+                  <p class="mt-2 text-sm text-[var(--text-secondary)]">
+                    {{
+                      setup.status?.root_init
+                        ? t('setup.rootExists')
+                        : t('setup.administratorDescription')
+                    }}
+                  </p>
+                </div>
               </div>
-            </div>
-            <dl
-              class="mt-7 divide-y divide-[var(--border-subtle)] border-y border-[var(--border-subtle)]"
-            >
-              <div class="grid gap-1 py-4 sm:grid-cols-[180px_1fr] sm:gap-4">
-                <dt
-                  class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]"
+              <div
+                v-if="!setup.status?.root_init"
+                class="mt-7 grid gap-5 sm:grid-cols-2"
+              >
+                <div>
+                  <label
+                    for="setup-username"
+                    class="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]"
+                  >
+                    {{ t('setup.username') }}
+                  </label>
+                  <TextInput
+                    id="setup-username"
+                    v-model="setup.values.username"
+                    autocomplete="username"
+                    :aria-invalid="Boolean(fieldError)"
+                    :aria-describedby="
+                      fieldError ? 'setup-account-error' : undefined
+                    "
+                    :placeholder="t('setup.usernamePlaceholder')"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="setup-password"
+                    class="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]"
+                  >
+                    {{ t('setup.password') }}
+                  </label>
+                  <div class="relative">
+                    <TextInput
+                      id="setup-password"
+                      v-model="setup.values.password"
+                      :type="showPassword ? 'text' : 'password'"
+                      autocomplete="new-password"
+                      :aria-invalid="Boolean(fieldError)"
+                      :aria-describedby="
+                        fieldError ? 'setup-account-error' : undefined
+                      "
+                      :placeholder="t('setup.passwordPlaceholder')"
+                      class="[&_input]:pr-12"
+                    />
+                    <button
+                      type="button"
+                      class="sketch-sm absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[var(--text-tertiary)] transition-colors hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-secondary)] focus-ring"
+                      :aria-label="
+                        showPassword
+                          ? t('setup.hidePassword')
+                          : t('setup.showPassword')
+                      "
+                      @click="showPassword = !showPassword"
+                    >
+                      <EyeOff v-if="showPassword" :size="17" /><Eye
+                        v-else
+                        :size="17"
+                      />
+                    </button>
+                  </div>
+                </div>
+                <div class="sm:col-span-2">
+                  <label
+                    for="setup-confirm-password"
+                    class="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]"
+                  >
+                    {{ t('setup.confirmPassword') }}
+                  </label>
+                  <div class="relative">
+                    <TextInput
+                      id="setup-confirm-password"
+                      v-model="setup.values.confirmPassword"
+                      :type="showConfirmPassword ? 'text' : 'password'"
+                      autocomplete="new-password"
+                      :aria-invalid="Boolean(fieldError)"
+                      :aria-describedby="
+                        fieldError ? 'setup-account-error' : undefined
+                      "
+                      :placeholder="t('setup.confirmPasswordPlaceholder')"
+                      class="[&_input]:pr-12"
+                    />
+                    <button
+                      type="button"
+                      class="sketch-sm absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[var(--text-tertiary)] transition-colors hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-secondary)] focus-ring"
+                      :aria-label="
+                        showConfirmPassword
+                          ? t('setup.hidePassword')
+                          : t('setup.showPassword')
+                      "
+                      @click="showConfirmPassword = !showConfirmPassword"
+                    >
+                      <EyeOff v-if="showConfirmPassword" :size="17" /><Eye
+                        v-else
+                        :size="17"
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p
+                v-if="fieldError"
+                id="setup-account-error"
+                class="mt-4 text-sm text-[var(--status-danger-text)]"
+                role="alert"
+              >
+                {{ fieldError }}
+              </p>
+            </template>
+
+            <template v-else-if="currentStep === 2">
+              <h2 class="text-2xl font-bold">{{ t('setup.chooseMode') }}</h2>
+              <div
+                ref="modeGroup"
+                class="mt-6 grid gap-4 md:grid-cols-3"
+                role="radiogroup"
+                :aria-label="t('setup.chooseMode')"
+              >
+                <button
+                  v-for="(option, index) in modeOptions"
+                  :key="option.value"
+                  type="button"
+                  role="radio"
+                  :aria-checked="setup.values.usageMode === option.value"
+                  :tabindex="setup.values.usageMode === option.value ? 0 : -1"
+                  data-setup-mode
+                  class="setup-mode pencil-control min-h-[150px] border bg-[var(--surface-solid)] p-5 text-left transition-all focus-ring"
+                  data-handdrawn="control"
+                  :class="
+                    setup.values.usageMode === option.value
+                      ? 'setup-mode--selected'
+                      : 'border-[var(--border-subtle)]'
+                  "
+                  @click="selectMode(option.value)"
+                  @keydown="handleModeKeydown($event, index)"
                 >
-                  {{ t('setup.detectedDatabase') }}
-                </dt>
-                <dd class="font-semibold">{{ databaseLabel }}</dd>
+                  <component
+                    :is="option.icon"
+                    :size="24"
+                    :style="{ color: option.color }"
+                    aria-hidden="true"
+                  />
+                  <span class="mt-4 block text-base font-semibold">{{
+                    option.title
+                  }}</span>
+                  <span
+                    class="mt-2 block text-sm leading-6 text-[var(--text-secondary)]"
+                    >{{ option.description }}</span
+                  >
+                </button>
               </div>
-              <div class="grid gap-1 py-4 sm:grid-cols-[180px_1fr] sm:gap-4">
-                <dt
-                  class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]"
+            </template>
+
+            <template v-else>
+              <div class="flex items-start gap-3">
+                <CheckCircle2
+                  :size="28"
+                  class="mt-0.5 text-[var(--status-success-text)]"
+                  aria-hidden="true"
+                />
+                <div>
+                  <h2 class="text-2xl font-bold">{{ t('setup.review') }}</h2>
+                  <p class="mt-2 text-sm text-[var(--text-secondary)]">
+                    {{ t('setup.reviewIntro') }}
+                  </p>
+                </div>
+              </div>
+              <dl
+                class="setup-review mt-7 border-b border-[var(--border-subtle)]"
+                data-handdrawn="ledger-rows"
+              >
+                <div
+                  class="grid gap-1 border-t border-[var(--border-subtle)] py-4 sm:grid-cols-[180px_1fr] sm:gap-4"
                 >
-                  {{ t('setup.administrator') }}
-                </dt>
-                <dd class="font-semibold">
-                  {{
-                    setup.status?.root_init
-                      ? t('setup.administratorReuse')
-                      : t('setup.administratorCreate', {
-                          username:
-                            setup.values.username.trim() || t('setup.notSet'),
-                        })
-                  }}
-                </dd>
-              </div>
-              <div class="grid gap-1 py-4 sm:grid-cols-[180px_1fr] sm:gap-4">
-                <dt
-                  class="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]"
+                  <dt class="setup-review__key">
+                    {{ t('setup.detectedDatabase') }}
+                  </dt>
+                  <dd class="font-semibold text-[var(--text-primary)]">
+                    {{ databaseLabel }}
+                  </dd>
+                </div>
+                <div
+                  class="grid gap-1 border-t border-[var(--border-subtle)] py-4 sm:grid-cols-[180px_1fr] sm:gap-4"
                 >
-                  {{ t('setup.mode') }}
-                </dt>
-                <dd class="font-semibold">
-                  {{
-                    modeOptions.find(
-                      (option) => option.value === setup.values.usageMode
-                    )?.title
-                  }}
-                </dd>
-              </div>
-            </dl>
-          </template>
+                  <dt class="setup-review__key">
+                    {{ t('setup.administrator') }}
+                  </dt>
+                  <dd class="font-semibold text-[var(--text-primary)]">
+                    {{
+                      setup.status?.root_init
+                        ? t('setup.administratorReuse')
+                        : t('setup.administratorCreate', {
+                            username:
+                              setup.values.username.trim() || t('setup.notSet'),
+                          })
+                    }}
+                  </dd>
+                </div>
+                <div
+                  class="grid gap-1 border-t border-[var(--border-subtle)] py-4 sm:grid-cols-[180px_1fr] sm:gap-4"
+                >
+                  <dt class="setup-review__key">{{ t('setup.mode') }}</dt>
+                  <dd class="font-semibold text-[var(--text-primary)]">
+                    {{
+                      modeOptions.find(
+                        (option) => option.value === setup.values.usageMode
+                      )?.title
+                    }}
+                  </dd>
+                </div>
+              </dl>
+            </template>
+          </div>
 
           <div
-            class="mt-8 flex flex-col-reverse gap-3 border-t border-[var(--border-subtle)] pt-5 sm:flex-row sm:items-center sm:justify-between"
+            class="flex flex-col-reverse gap-3 border-t border-[var(--border-subtle)] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-8"
           >
             <ConsoleButton
               v-if="currentStep > 0"
@@ -625,7 +647,7 @@ onMounted(async () => {
               >{{ t('setup.initialize') }}</ConsoleButton
             >
           </div>
-        </section>
+        </ConsoleCard>
       </div>
     </section>
   </main>
@@ -647,6 +669,16 @@ onMounted(async () => {
 
 .setup-step--done {
   border-color: color-mix(in srgb, var(--accent) 48%, var(--border-subtle));
+}
+
+/* Ledger key column: display serif + wide tracking, matching console table heads. */
+.setup-review__key {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
 }
 
 .setup-mode {

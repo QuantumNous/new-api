@@ -2,7 +2,7 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 
 import { publicApi, type FeatureStatus, type PublicStatus } from '@/api/public'
-import { BRAND_LOGO_PATH } from '@/constants/branding'
+import { BRAND_LOGO_PATH, BRAND_NAME } from '@/constants/branding'
 import { useAuthStore } from '@/stores/auth'
 import { safeExternalUrl, safeImageUrl } from '@/utils/safeUrl'
 
@@ -13,8 +13,6 @@ export interface ModuleAccess {
   enabled: boolean
   requireAuth: boolean
 }
-
-const DEFAULT_SYSTEM_NAME = 'RenRen AI'
 
 function parseBoolean(value: unknown, fallback: boolean): boolean {
   if (typeof value === 'boolean') return value
@@ -71,7 +69,7 @@ export const useAppStore = defineStore('app', () => {
   const loading = computed(() => phase.value === 'loading')
   const online = computed(() => phase.value === 'ready')
   const systemName = computed(
-    () => status.value.system_name?.trim() || DEFAULT_SYSTEM_NAME
+    () => status.value.system_name?.trim() || BRAND_NAME
   )
   const logo = computed(
     () => safeImageUrl(status.value.logo) || BRAND_LOGO_PATH

@@ -9,8 +9,8 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 ## Tech Stack
 
 - **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
-- **Production frontend (`web/`)**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
-- **Vue frontend rewrite (`frontend/`)**: Vue 3.5, Vite 8, TypeScript, Pinia, Vue Router, Vue I18n, Tailwind CSS, ECharts, Axios, Vitest
+- **React compatibility frontend (`web/`)**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
+- **Primary Vue frontend (`frontend/`)**: Vue 3.5, Vite 8, TypeScript, Pinia, Vue Router, Vue I18n, Tailwind CSS, ECharts, Axios, Vitest
 - **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
 - **Cache**: Redis (go-redis) + in-memory cache
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
@@ -36,9 +36,9 @@ types/         — Type definitions (relay formats, file sources, errors)
 i18n/          — Backend internationalization (go-i18n, en/zh)
 oauth/         — OAuth provider implementations
 pkg/           — Internal packages (cachex, ionet)
-web/           — Production frontend (React 19, Rsbuild, Base UI, Tailwind)
+web/           — React compatibility frontend embedded as the Vue-disabled fallback
   src/i18n/    — Frontend internationalization (i18next, en/zh/zh-TW/fr/ru/ja/vi)
-frontend/      — Vue rewrite under active development; not yet wired into the production Docker/Go embed path
+frontend/      — Primary Vue application served under `/next/`; Docker builds it and Go embeds `frontend/embed-dist`
   src/api/         — Real public HTTP client plus stateful mock Console/Lab transport
   src/canvas/      — Landing-page routing scene and animation engine
   src/charts/      — ECharts adapters
@@ -164,7 +164,9 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
   - Use Vue SFCs with `<script setup lang="ts">`, Composition API, and typed props/emits.
   - Keep navigation definitions, API contracts, validation, and cross-route state single-sourced. Do not duplicate route menus or permission rules in components.
   - All user-facing text must use Vue I18n. Keep `common` and `home` suitable for the initial bundle and add domain text to the matching lazy locale module.
-  - Public landing data uses real same-origin HTTP endpoints. Auth, Console, and Lab currently use the stateful mock transport and demo local storage; neither is proof of server-side authorization. Do not present mock guards or role flags as production security.
+  - All enabled routes use real same-origin HTTP endpoints. Browser auth uses a short-lived Bearer access token plus the HttpOnly refresh cookie; server authorization remains authoritative.
+  - `/api/status.frontend_capabilities` is the source of truth for Vue module availability. Disabled modules must remain fail-closed in navigation and route guards; do not call placeholder endpoints for them.
+  - `frontend/` is mounted at `/next/`. Keep Vite `base`, router history, Go SPA fallback, immutable asset caching, and root-to-`/next` redirects aligned.
   - Use semantic CSS tokens from `src/styles/tokens.css`; preserve light/dark parity and reduced-motion behavior.
   - Abort or sequence-guard route/filter requests that can overlap, and clear timers/listeners on scope disposal.
   - Validate in this order when applicable: `bun run test:run`, `bun run typecheck`, `bun run lint`, `bun run format:check`, then `bun run build`.

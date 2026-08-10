@@ -325,7 +325,7 @@ async function save() {
         <div
           v-if="advancedOpen"
           :id="advancedSectionId"
-          class="space-y-4 border-t border-[var(--border-subtle)] bg-[var(--surface-muted)]/40 px-4 py-4"
+          class="space-y-4 border-t border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 py-4"
         >
           <FormField
             v-if="!editing"

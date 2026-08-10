@@ -15,6 +15,7 @@ export default {
     administratorDescription: '创建首个 Root 账户，或复用已有账户。',
     usage: '使用模式',
     usageDescription: '选择本次部署的运行方式。',
+    progress: '初始化进度',
     review: '复核并初始化',
     reviewDescription: '确认配置并完成首次运行设置。',
     detectedDatabase: '检测到的数据库',

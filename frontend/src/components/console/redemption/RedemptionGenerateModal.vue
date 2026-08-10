@@ -137,7 +137,7 @@ function submit() {
           v-if="expiryOption === 'custom'"
           v-model="customDate"
           type="date"
-          class="mt-2 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
+          class="mt-2 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
           :min="new Date().toISOString().slice(0, 10)"
         />
       </FormField>
