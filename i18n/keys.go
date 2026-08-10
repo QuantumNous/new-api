@@ -102,6 +102,8 @@ const (
 	MsgUserAlreadyAdmin              = "user.already_admin"
 	MsgUserAlreadyCommon             = "user.already_common"
 	MsgUserAdminCannotPromote        = "user.admin_cannot_promote"
+	MsgUserAlreadyRoot               = "user.already_root"
+	MsgUserCannotDemoteSelf          = "user.cannot_demote_self"
 	MsgUserOriginalPasswordError     = "user.original_password_error"
 	MsgUserInviteQuotaInsufficient   = "user.invite_quota_insufficient"
 	MsgUserTransferQuotaMinimum      = "user.transfer_quota_minimum"

@@ -47,6 +47,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { UserSubscriptionsDialog } from '@/features/subscriptions/components/dialogs/user-subscriptions-dialog'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { manageUser, resetUserPasskey, resetUserTwoFA } from '../api'
 import {
@@ -66,6 +67,7 @@ interface DataTableRowActionsProps {
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
+  const currentUser = useAuthStore((s) => s.auth.user)
   const user = row.original
   const { setOpen, setCurrentRow, triggerRefresh } = useUsers()
   const [resetPasskeyOpen, setResetPasskeyOpen] = useState(false)
@@ -134,6 +136,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const isDisabled = user.status === USER_STATUS.DISABLED
   const isAdmin = user.role >= USER_ROLE.ADMIN
   const isRoot = user.role === USER_ROLE.ROOT
+  const isSelf = currentUser?.id === user.id
 
   if (isUserDeleted(user)) {
     return null
@@ -179,21 +182,35 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
-
-        {isAdmin && !isRoot && (
-          <DropdownMenuItem onClick={() => handleManage('demote')}>
-            {t('Demote')}
+        {!isAdmin && (
+          <DropdownMenuItem onClick={() => handleManage('promote')}>
+            {t('Promote to Admin')}
             <DropdownMenuShortcut>
-              <ArrowDown size={16} />
+              <ArrowUp size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
-
-        {!isAdmin && (
-          <DropdownMenuItem onClick={() => handleManage('promote')}>
-            {t('Promote')}
+        {isAdmin && !isRoot && (
+          <>
+            <DropdownMenuItem onClick={() => handleManage('promote')}>
+              {t('Promote to Super Admin')}
+              <DropdownMenuShortcut>
+                <ArrowUp size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleManage('demote')}>
+              {t('Demote to User')}
+              <DropdownMenuShortcut>
+                <ArrowDown size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </>
+        )}
+        {isRoot && !isSelf && (
+          <DropdownMenuItem onClick={() => handleManage('demote')}>
+            {t('Demote to Admin')}
             <DropdownMenuShortcut>
-              <ArrowUp size={16} />
+              <ArrowDown size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}
