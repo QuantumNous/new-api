@@ -21,9 +21,14 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { MODELS_DEFAULT_SECTION } from '@/features/models/section-registry'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
+import { MarketingModels } from '@/features/marketing/pages/Models'
+import { isMarketingMode } from '@/lib/marketing-mode'
 
 export const Route = createFileRoute('/_authenticated/models/')({
   beforeLoad: () => {
+    // 营销模式下 /models 作为公开模型目录，不要求管理员权限、不重定向
+    if (isMarketingMode()) return
+
     const { auth } = useAuthStore.getState()
 
     if (!auth.user || auth.user.role < ROLE.ADMIN) {
@@ -37,4 +42,5 @@ export const Route = createFileRoute('/_authenticated/models/')({
       params: { section: MODELS_DEFAULT_SECTION },
     })
   },
+  component: MarketingModels,
 })

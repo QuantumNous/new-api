@@ -20,9 +20,14 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { AuthenticatedLayout } from '@/components/layout'
 import { useAuthStore } from '@/stores/auth-store'
+import { isMarketingMode } from '@/lib/marketing-mode'
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: ({ location }) => {
+    // 营销域名（或本地 ?marketing=1）下，控制台布局不强制登录，
+    // 让 /models 等可渲染为公开营销页
+    if (isMarketingMode()) return
+
     const { auth } = useAuthStore.getState()
 
     if (!auth.user || !auth.accessToken) {
