@@ -26,11 +26,12 @@ const (
 )
 
 type Adaptor struct {
-	ClientMode ClientMode
-	AwsClient  *bedrockruntime.Client
-	AwsModelId string
-	AwsReq     any
-	IsNova     bool
+	ClientMode           ClientMode
+	AwsClient            *bedrockruntime.Client
+	AwsModelId           string
+	AwsReq               any
+	anthropicWorkspaceID string
+	IsNova               bool
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
@@ -105,6 +106,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	claude.CommonClaudeHeadersOperation(c, req, info)
+	claude.ForwardAnthropicWorkspaceIDHeader(c, req, info)
 	if a.ClientMode == ClientModeApiKey {
 		req.Set("Authorization", "Bearer "+info.ApiKey)
 	}
