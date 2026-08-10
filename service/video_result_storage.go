@@ -161,7 +161,7 @@ func ArchiveVideoResultForChannel(ctx context.Context, channel, publicTaskID, up
 		recordArchive("failure", 0)
 		return nil, ErrVideoResultInvalidContent
 	}
-	client, err := newVideoResultFetchHTTPClient(cfg, proxy, videoResultDirectFetchResolver, videoResultDirectFetchDialContext)
+	client, err := newVideoResultFetchHTTPClient(cfg, videoResultDirectFetchResolver, videoResultDirectFetchDialContext)
 	if err != nil {
 		recordArchive("failure", 0)
 		return nil, ErrVideoResultInvalidContent
@@ -298,23 +298,12 @@ func completeVideoResultMetadata(result *model.VideoResult) bool {
 		result.ExpiresAt > 0
 }
 
-func newVideoResultFetchHTTPClient(cfg VideoResultStorageConfig, proxy string, resolver assetFetchResolver, dialContext func(context.Context, string, string) (net.Conn, error)) (*http.Client, error) {
-	var client *http.Client
-	if strings.TrimSpace(proxy) == "" {
-		client = newAssetFetchHTTPClient(assetFetchHTTPClientConfig{
-			Timeout:     cfg.FetchTimeout,
-			Resolver:    resolver,
-			DialContext: dialContext,
-		})
-	} else {
-		baseClient, err := GetHttpClientWithProxy(proxy)
-		if err != nil {
-			return nil, err
-		}
-		cloned := *baseClient
-		cloned.Timeout = cfg.FetchTimeout
-		client = &cloned
-	}
+func newVideoResultFetchHTTPClient(cfg VideoResultStorageConfig, resolver assetFetchResolver, dialContext func(context.Context, string, string) (net.Conn, error)) (*http.Client, error) {
+	client := newAssetFetchHTTPClient(assetFetchHTTPClientConfig{
+		Timeout:     cfg.FetchTimeout,
+		Resolver:    resolver,
+		DialContext: dialContext,
+	})
 	client.CheckRedirect = videoResultCheckRedirect
 	return client, nil
 }
