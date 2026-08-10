@@ -23,6 +23,8 @@ func setupDataToolCallTestDB(t *testing.T) {
 
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &DataToolCall{}, &RecallLifecycleEvent{}, &QuotaLifecycleState{}))
 	DB = db
 	common.UsingSQLite = true
@@ -34,6 +36,7 @@ func setupDataToolCallTestDB(t *testing.T) {
 		common.UsingSQLite = originalUsingSQLite
 		common.UsingMySQL = originalUsingMySQL
 		common.UsingPostgreSQL = originalUsingPostgreSQL
+		require.NoError(t, sqlDB.Close())
 	})
 }
 
