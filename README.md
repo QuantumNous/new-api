@@ -112,11 +112,11 @@
 git clone https://github.com/QuantumNous/new-api.git
 cd new-api
 
-# Edit docker-compose.yml configuration
-nano docker-compose.yml
+# Edit deploy/docker-compose.yml configuration
+nano deploy/docker-compose.yml
 
 # Start the service
-docker-compose up -d
+docker compose -f deploy/docker-compose.yml up -d
 ```
 
 <details>
@@ -352,10 +352,10 @@ git clone https://github.com/QuantumNous/new-api.git
 cd new-api
 
 # Edit configuration
-nano docker-compose.yml
+nano deploy/docker-compose.yml
 
 # Start service
-docker-compose up -d
+docker compose -f deploy/docker-compose.yml up -d
 ```
 
 </details>

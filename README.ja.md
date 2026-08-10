@@ -113,10 +113,10 @@ git clone https://github.com/QuantumNous/new-api.git
 cd new-api
 
 # docker-compose.yml 設定を編集
-nano docker-compose.yml
+nano deploy/docker-compose.yml
 
 # サービスを起動
-docker-compose up -d
+docker compose -f deploy/docker-compose.yml up -d
 ```
 
 <details>
@@ -353,10 +353,10 @@ git clone https://github.com/QuantumNous/new-api.git
 cd new-api
 
 # 設定を編集
-nano docker-compose.yml
+nano deploy/docker-compose.yml
 
 # サービスを起動
-docker-compose up -d
+docker compose -f deploy/docker-compose.yml up -d
 ```
 
 </details>
