@@ -447,6 +447,7 @@ func BatchInsertChannels(channels []Channel) error {
 				tx.Rollback()
 				return err
 			}
+			_ = EnsureChannelVendorAndModels(&channel_, tx)
 		}
 	}
 	return tx.Commit().Error
@@ -526,6 +527,9 @@ func (channel *Channel) Insert() error {
 		return err
 	}
 	err = channel.AddAbilities(nil)
+	if err == nil {
+		_ = EnsureChannelVendorAndModels(channel, nil)
+	}
 	return err
 }
 
@@ -575,6 +579,9 @@ func (channel *Channel) Update() error {
 	}
 	DB.Model(channel).First(channel, "id = ?", channel.Id)
 	err = channel.UpdateAbilities(nil)
+	if err == nil {
+		_ = EnsureChannelVendorAndModels(channel, nil)
+	}
 	return err
 }
 

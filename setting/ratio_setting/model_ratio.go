@@ -190,6 +190,10 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.5-flash-lite-preview-thinking-*":  0.05,
 	"gemini-2.5-flash-lite-preview-06-17":       0.05,
 	"gemini-2.5-flash":                          0.15,
+	"gemini-3.1-flash-lite":                     0.125,
+	"gemini-3.5-flash-lite":                     0.15,
+	"gemini-3.6":                                 0.75,
+	"gemini-3.6-flash":                          0.75,
 	"gemini-robotics-er-1.5-preview":            0.15,
 	"gemini-embedding-001":                      0.075,
 	"text-embedding-004":                        0.001,
@@ -326,10 +330,14 @@ var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
 var defaultCompletionRatio = map[string]float64{
-	"gpt-4-gizmo-*":  2,
-	"gpt-4o-gizmo-*": 3,
-	"gpt-4-all":      2,
-	"gpt-image-1":    8,
+	"gpt-4-gizmo-*":         2,
+	"gpt-4o-gizmo-*":        3,
+	"gpt-4-all":             2,
+	"gpt-image-1":           8,
+	"gemini-3.1-flash-lite": 6,
+	"gemini-3.5-flash-lite": 2.5 / 0.3,
+	"gemini-3.6":            5,
+	"gemini-3.6-flash":      5,
 }
 
 // InitRatioSettings initializes all model related settings maps
@@ -577,6 +585,12 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			return 2.5 / 0.3, false
 		} else if strings.HasPrefix(name, "gemini-robotics-er-1.5") {
 			return 2.5 / 0.3, false
+		} else if strings.HasPrefix(name, "gemini-3.1-flash-lite") {
+			return 6, false
+		} else if strings.HasPrefix(name, "gemini-3.5-flash-lite") {
+			return 2.5 / 0.3, false
+		} else if strings.HasPrefix(name, "gemini-3.6") {
+			return 5, false
 		} else if strings.HasPrefix(name, "gemini-3-pro") {
 			if strings.HasPrefix(name, "gemini-3-pro-image") {
 				return 60, false

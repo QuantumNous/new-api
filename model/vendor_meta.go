@@ -1,7 +1,12 @@
 package model
 
 import (
+	"errors"
+	"fmt"
+	"strings"
+
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"gorm.io/gorm"
 )
@@ -86,3 +91,123 @@ func SearchVendors(keyword string, offset int, limit int) ([]*Vendor, int64, err
 	}
 	return vendors, total, nil
 }
+
+func resolveVendorNameAndIcon(channel *Channel) (string, string) {
+	if channel == nil {
+		return "Custom", "Globe"
+	}
+
+	name := strings.TrimSpace(channel.Name)
+	switch channel.Type {
+	case constant.ChannelTypeAdvancedCustom, constant.ChannelTypeNewAPI, constant.ChannelTypeSub2API, constant.ChannelTypeCustom:
+		if name != "" {
+			return name, "Globe"
+		}
+		return constant.GetChannelTypeName(channel.Type), "Globe"
+	default:
+		typeName := constant.GetChannelTypeName(channel.Type)
+		if typeName != "" && typeName != "Unknown" {
+			return typeName, "Globe"
+		}
+		if name != "" {
+			return name, "Globe"
+		}
+		return "Custom", "Globe"
+	}
+}
+
+// EnsureVendorForChannel 检查并自动创建渠道对应的供应商记录，返回 Vendor ID
+func EnsureVendorForChannel(channel *Channel, tx *gorm.DB) (int, error) {
+	if channel == nil {
+		return 0, nil
+	}
+
+	name, icon := resolveVendorNameAndIcon(channel)
+	if name == "" {
+		return 0, nil
+	}
+
+	useDB := DB
+	if tx != nil {
+		useDB = tx
+	}
+
+	var vendor Vendor
+	err := useDB.Where("name = ? AND deleted_at IS NULL", name).First(&vendor).Error
+	if err == nil {
+		return vendor.Id, nil
+	}
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		newVendor := Vendor{
+			Name:        name,
+			Description: fmt.Sprintf("%s 渠道自动创建供应商", name),
+			Icon:        icon,
+			Status:      1,
+			CreatedTime: common.GetTimestamp(),
+			UpdatedTime: common.GetTimestamp(),
+		}
+		if err := useDB.Create(&newVendor).Error; err != nil {
+			return 0, err
+		}
+		return newVendor.Id, nil
+	}
+
+	return 0, err
+}
+
+// AutoBindChannelModelsToVendor 为渠道拥有的模型自动补充元数据并绑定 Vendor ID
+func AutoBindChannelModelsToVendor(channel *Channel, vendorID int, tx *gorm.DB) error {
+	if channel == nil || channel.Models == "" || vendorID <= 0 {
+		return nil
+	}
+
+	useDB := DB
+	if tx != nil {
+		useDB = tx
+	}
+
+	models := strings.Split(channel.Models, ",")
+	now := common.GetTimestamp()
+
+	for _, modelName := range models {
+		modelName = strings.TrimSpace(modelName)
+		if modelName == "" {
+			continue
+		}
+
+		var existing Model
+		err := useDB.Where("model_name = ? AND deleted_at IS NULL", modelName).First(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			newModel := Model{
+				ModelName:    modelName,
+				VendorID:     vendorID,
+				Status:       1,
+				SyncOfficial: 0,
+				Endpoints:    `["openai"]`,
+				CreatedTime:  now,
+				UpdatedTime:  now,
+			}
+			if err := useDB.Create(&newModel).Error; err != nil {
+				common.SysError(fmt.Sprintf("auto bind model failed: %s, err: %v", modelName, err))
+			}
+		} else if err == nil && existing.VendorID == 0 {
+			useDB.Model(&existing).Update("vendor_id", vendorID)
+		}
+	}
+	return nil
+}
+
+// EnsureChannelVendorAndModels 自动确保渠道对应的供应商和模型元数据已关联
+func EnsureChannelVendorAndModels(channel *Channel, tx *gorm.DB) error {
+	if channel == nil {
+		return nil
+	}
+	vendorID, err := EnsureVendorForChannel(channel, tx)
+	if err != nil {
+		common.SysError(fmt.Sprintf("EnsureVendorForChannel failed for channel %d (%s): %v", channel.Id, channel.Name, err))
+		return err
+	}
+	return AutoBindChannelModelsToVendor(channel, vendorID, tx)
+}
+
