@@ -16,28 +16,53 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
+
 import { api } from '@/lib/api'
 
-import type { PerformanceMetricsData, PerfSummaryAllData } from './types'
+import type {
+  PerformanceMetricsData,
+  PerfSummaryAllData,
+  SuccessfulPerformanceMetricsData,
+  SuccessfulPerfSummaryData,
+} from './types'
+
+export function requirePerformanceSummaryResponse(
+  response: PerfSummaryAllData
+): SuccessfulPerfSummaryData {
+  if (!response.success || !Array.isArray(response.data?.models)) {
+    throw new Error(response.message || t('Request failed') || 'Request failed')
+  }
+  return response as SuccessfulPerfSummaryData
+}
+
+export function requirePerformanceMetricsResponse(
+  response: PerformanceMetricsData
+): SuccessfulPerformanceMetricsData {
+  if (!response.success || !Array.isArray(response.data?.groups)) {
+    throw new Error(response.message || t('Request failed') || 'Request failed')
+  }
+  return response as SuccessfulPerformanceMetricsData
+}
 
 export async function getPerfMetricsSummary(
   hours = 24
-): Promise<PerfSummaryAllData> {
+): Promise<SuccessfulPerfSummaryData> {
   const res = await api.get<PerfSummaryAllData>('/api/perf-metrics/summary', {
     params: { hours },
   })
-  return res.data
+  return requirePerformanceSummaryResponse(res.data)
 }
 
 export async function getPerfMetrics(
   modelName: string,
   hours = 24
-): Promise<PerformanceMetricsData> {
+): Promise<SuccessfulPerformanceMetricsData> {
   const res = await api.get<PerformanceMetricsData>('/api/perf-metrics', {
     params: {
       model: modelName,
       hours,
     },
   })
-  return res.data
+  return requirePerformanceMetricsResponse(res.data)
 }

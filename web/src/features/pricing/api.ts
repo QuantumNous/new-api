@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
+
 import { api } from '@/lib/api'
 
 import type { PricingData } from './types'
@@ -26,6 +28,13 @@ import type { PricingData } from './types'
 
 // Get model pricing data
 export async function getPricing(): Promise<PricingData> {
-  const res = await api.get('/api/pricing')
+  const res = await api.get<PricingData>('/api/pricing')
+  if (
+    !res.data.success ||
+    !Array.isArray(res.data.data) ||
+    !Array.isArray(res.data.vendors)
+  ) {
+    throw new Error(res.data.message || t('Request failed') || 'Request failed')
+  }
   return res.data
 }

@@ -25,6 +25,7 @@ import {
   StaticDataTable,
   staticDataTableClassNames as tableStyles,
 } from '@/components/data-table'
+import { ErrorState } from '@/components/error-state'
 import { GroupBadge } from '@/components/group-badge'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
@@ -36,7 +37,7 @@ import {
 import type { PerformanceGroup } from '@/features/performance-metrics/types'
 import { cn } from '@/lib/utils'
 
-import { type UptimeDayPoint } from '../lib/mock-stats'
+import type { UptimeDayPoint } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 import { UptimeSparkline } from './model-details-uptime-sparkline'
@@ -97,7 +98,7 @@ function toLatencySeries(groups: PerformanceGroup[]) {
     }
   }
 
-  return Array.from(byTs.entries())
+  return [...byTs.entries()]
     .sort(([a], [b]) => a - b)
     .map(([ts, values]) => ({
       timestamp: new Date(ts * 1000).toISOString(),
@@ -121,7 +122,7 @@ function toUptimeSeries(groups: PerformanceGroup[]): UptimeDayPoint[] {
       byTs.set(point.ts, current)
     }
   }
-  return Array.from(byTs.entries())
+  return [...byTs.entries()]
     .sort(([a], [b]) => a - b)
     .map(([ts, value]) => {
       const uptime =
@@ -169,7 +170,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     staleTime: 60 * 1000,
   })
   const groups = useMemo(
-    () => metricsQuery.data?.data.groups ?? [],
+    () => metricsQuery.data?.data?.groups ?? [],
     [metricsQuery.data]
   )
   const performances = useMemo<PerformanceRow[]>(
@@ -192,6 +193,17 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     }
     return map
   }, [groups])
+
+  if (metricsQuery.isError && metricsQuery.data === undefined) {
+    return (
+      <ErrorState
+        error={metricsQuery.error}
+        description={t('Please try again later.')}
+        onRetry={() => void metricsQuery.refetch()}
+        className='min-h-[220px]'
+      />
+    )
+  }
 
   if (metricsQuery.isLoading || performances.length === 0) {
     return (

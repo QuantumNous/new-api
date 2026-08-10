@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -62,6 +63,7 @@ interface WalletProps {
 export function Wallet(props: WalletProps) {
   const { t } = useTranslation()
   const [user, setUser] = useState<UserWalletData | null>(null)
+  const [userError, setUserError] = useState<unknown>(null)
   const [userLoading, setUserLoading] = useState(true)
   const [topupAmount, setTopupAmount] = useState(0)
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null)
@@ -82,7 +84,13 @@ export function Wallet(props: WalletProps) {
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
-  const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+  const {
+    topupInfo,
+    presetAmounts,
+    error: topupError,
+    loading: topupLoading,
+    refetch: refetchTopupInfo,
+  } = useTopupInfo()
 
   // Calculate effective exchange rate - when display type is USD, use rate of 1
   const effectiveUsdExchangeRate = useMemo(() => {
@@ -114,16 +122,19 @@ export function Wallet(props: WalletProps) {
     try {
       setUserLoading(true)
       const response = await getSelf()
-      if (response.success && response.data) {
-        setUser(response.data as UserWalletData)
+      if (!response.success || !response.data) {
+        throw new Error(response.message || t('Request failed'))
       }
-    } catch (error) {
+      setUser(response.data as UserWalletData)
+      setUserError(null)
+    } catch (fetchError) {
       // eslint-disable-next-line no-console
-      console.error('Failed to fetch user data:', error)
+      console.error('Failed to fetch user data:', fetchError)
+      setUserError(fetchError)
     } finally {
       setUserLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     fetchUser()
@@ -281,6 +292,30 @@ export function Wallet(props: WalletProps) {
     },
     []
   )
+
+  const initialLoadError = userError ?? topupError
+  if (
+    initialLoadError &&
+    !userLoading &&
+    !topupLoading &&
+    (!user || !topupInfo)
+  ) {
+    return (
+      <SectionPageLayout>
+        <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
+        <SectionPageLayout.Content>
+          <ErrorState
+            error={initialLoadError}
+            onRetry={() => {
+              void fetchUser()
+              void refetchTopupInfo()
+            }}
+            className='min-h-0 flex-1'
+          />
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
+    )
+  }
 
   return (
     <>

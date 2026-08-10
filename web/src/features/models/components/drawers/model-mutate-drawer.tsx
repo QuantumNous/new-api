@@ -33,7 +33,9 @@ import {
   sideDrawerHeaderClassName,
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
+import { ErrorState } from '@/components/error-state'
 import { JsonEditor } from '@/components/json-editor'
+import { LoadingState } from '@/components/loading-state'
 import { TagInput } from '@/components/tag-input'
 import { Button } from '@/components/ui/button'
 import {
@@ -80,6 +82,7 @@ import { useUpdateOption } from '@/features/system-settings/hooks/use-update-opt
 import { normalizeJsonString } from '@/features/system-settings/models/utils'
 import type { ModelSettings } from '@/features/system-settings/types'
 import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
+import { cn } from '@/lib/utils'
 
 import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
@@ -267,16 +270,23 @@ export function ModelMutateDrawer({
   const vendors = vendorsData?.data?.items || []
 
   // Fetch model detail if editing
-  const { data: modelData } = useQuery({
+  const modelQuery = useQuery({
     queryKey: modelsQueryKeys.detail(currentModelId || 0),
-    queryFn: () => {
+    queryFn: async () => {
       if (!currentModelId) {
         throw new Error('Model ID is required')
       }
-      return getModel(currentModelId)
+      const response = await getModel(currentModelId)
+      if (!response.success || !response.data) {
+        throw new Error(response.message || t('Request failed'))
+      }
+      return response
     },
     enabled: open && isEditing,
   })
+  const modelData = modelQuery.data
+  const isModelDetailLoading = isEditing && modelQuery.isLoading
+  const isModelDetailError = isEditing && modelQuery.isError
 
   // Fetch system options for ratio configuration
   const { data: systemOptionsData } = useSystemOptions()
@@ -741,13 +751,25 @@ export function ModelMutateDrawer({
           </SheetDescription>
         </SheetHeader>
 
+        {isModelDetailLoading && <LoadingState className='min-h-[320px]' />}
+        {isModelDetailError && (
+          <ErrorState
+            error={modelQuery.error}
+            onRetry={() => void modelQuery.refetch()}
+            className='min-h-[320px]'
+          />
+        )}
+
         <Form {...form}>
           <form
             id='model-form'
             onSubmit={form.handleSubmit(
               onSubmit as Parameters<typeof form.handleSubmit>[0]
             )}
-            className={sideDrawerFormClassName()}
+            className={cn(
+              sideDrawerFormClassName(),
+              (isModelDetailLoading || isModelDetailError) && 'hidden'
+            )}
           >
             {/* Basic Information */}
             <SideDrawerSection>
@@ -1381,7 +1403,13 @@ export function ModelMutateDrawer({
           >
             {t('Cancel')}
           </SheetClose>
-          <Button form='model-form' type='submit' disabled={isSubmitting}>
+          <Button
+            form='model-form'
+            type='submit'
+            disabled={
+              isSubmitting || isModelDetailLoading || isModelDetailError
+            }
+          >
             {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {isEditing ? t('Update Model') : t('Save changes')}
           </Button>

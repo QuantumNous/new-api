@@ -31,6 +31,8 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { ErrorState } from '@/components/error-state'
+import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -89,7 +91,7 @@ import {
   transformFormDataToPayload,
   transformUserToFormDefaults,
 } from '../lib'
-import { type User } from '../types'
+import type { User } from '../types'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
 
@@ -112,19 +114,44 @@ export function UsersMutateDrawer({
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
 
   // Fetch groups
-  const { data: groupsData } = useQuery({
+  const groupsQuery = useQuery({
     queryKey: ['groups'],
-    queryFn: getGroups,
+    queryFn: async () => {
+      const result = await getGroups()
+      if (!result.success || !Array.isArray(result.data)) {
+        throw new Error(result.message || t(ERROR_MESSAGES.LOAD_FAILED))
+      }
+      return result.data
+    },
     staleTime: 5 * 60 * 1000,
   })
 
-  const groups = groupsData?.data || []
+  const groups = groupsQuery.data ?? []
 
   // Permission catalog is owned by the backend; fetched once and reused.
-  const { data: permissionCatalog = EMPTY_PERMISSION_CATALOG } = useQuery({
+  const permissionCatalogQuery = useQuery({
     queryKey: ['admin-permission-catalog'],
     queryFn: getPermissionCatalog,
     staleTime: 5 * 60 * 1000,
+  })
+  const permissionCatalog =
+    permissionCatalogQuery.data ?? EMPTY_PERMISSION_CATALOG
+
+  const userDetailId = open && isUpdate ? currentRow?.id : undefined
+  const userDetailQuery = useQuery({
+    queryKey: ['admin-user-detail', userDetailId],
+    queryFn: async () => {
+      if (userDetailId === undefined) {
+        throw new Error(t(ERROR_MESSAGES.NO_USER))
+      }
+      const result = await getUser(userDetailId)
+      if (!result.success || !result.data) {
+        throw new Error(result.message || t(ERROR_MESSAGES.LOAD_FAILED))
+      }
+      return result.data
+    },
+    enabled: userDetailId !== undefined,
+    staleTime: 0,
   })
 
   const form = useForm<UserFormValues>({
@@ -132,20 +159,33 @@ export function UsersMutateDrawer({
     defaultValues: USER_FORM_DEFAULT_VALUES,
   })
 
-  // Load existing data when updating
   useEffect(() => {
-    if (open && isUpdate && currentRow) {
-      // For update, fetch fresh data
-      getUser(currentRow.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformUserToFormDefaults(result.data))
-        }
-      })
-    } else if (open && !isUpdate) {
-      // For create, reset to defaults
-      form.reset(USER_FORM_DEFAULT_VALUES)
+    if (!open) return
+    form.reset(USER_FORM_DEFAULT_VALUES)
+  }, [currentRow?.id, form, open])
+
+  useEffect(() => {
+    if (
+      !open ||
+      !isUpdate ||
+      !userDetailQuery.data ||
+      userDetailQuery.data.id !== currentRow?.id
+    ) {
+      return
     }
-  }, [open, isUpdate, currentRow, form])
+    form.reset(transformUserToFormDefaults(userDetailQuery.data))
+  }, [currentRow?.id, form, isUpdate, open, userDetailQuery.data])
+
+  const drawerLoading =
+    groupsQuery.isLoading ||
+    permissionCatalogQuery.isLoading ||
+    (isUpdate && userDetailQuery.isLoading)
+  const drawerError =
+    groupsQuery.isError ||
+    permissionCatalogQuery.isError ||
+    (isUpdate && userDetailQuery.isError)
+  const drawerErrorValue =
+    groupsQuery.error ?? permissionCatalogQuery.error ?? userDetailQuery.error
 
   const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
@@ -157,6 +197,8 @@ export function UsersMutateDrawer({
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
 
   const onSubmit = async (data: UserFormValues) => {
+    if (isUpdate && (!userDetailQuery.data || userDetailQuery.isError)) return
+
     if (!isUpdate) {
       const passwordLength = data.password?.length || 0
       if (passwordLength < 8 || passwordLength > 20) {
@@ -195,7 +237,7 @@ export function UsersMutateDrawer({
               : t(ERROR_MESSAGES.CREATE_FAILED))
         )
       }
-    } catch (_error) {
+    } catch {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsSubmitting(false)
@@ -204,10 +246,7 @@ export function UsersMutateDrawer({
 
   const refreshUserData = async () => {
     if (!currentRow) return
-    const result = await getUser(currentRow.id)
-    if (result.success && result.data) {
-      form.reset(transformUserToFormDefaults(result.data))
-    }
+    await userDetailQuery.refetch()
     triggerRefresh()
   }
 
@@ -235,11 +274,27 @@ export function UsersMutateDrawer({
                 : t('Add a new user by providing necessary info.')}
             </SheetDescription>
           </SheetHeader>
+          {drawerLoading && (
+            <LoadingState message={t('Loading...')} className='flex-1' />
+          )}
+          {drawerError && !drawerLoading && (
+            <ErrorState
+              error={drawerErrorValue}
+              title={t('Failed to load')}
+              description={t('Please try again later.')}
+              onRetry={() => {
+                void groupsQuery.refetch()
+                void permissionCatalogQuery.refetch()
+                if (isUpdate) void userDetailQuery.refetch()
+              }}
+              className='min-h-0 flex-1'
+            />
+          )}
           <Form {...form}>
             <form
               id='user-form'
               onSubmit={form.handleSubmit(onSubmit)}
-              className={sideDrawerFormClassName()}
+              className={`${sideDrawerFormClassName()} ${drawerLoading || drawerError ? 'hidden' : ''}`}
             >
               {/* Basic Information */}
               <SideDrawerSection>
@@ -278,7 +333,8 @@ export function UsersMutateDrawer({
                             { value: '10', label: t('Admin') },
                           ]}
                           onValueChange={(value) =>
-                            value !== null && field.onChange(parseInt(value))
+                            value !== null &&
+                            field.onChange(Number.parseInt(value))
                           }
                           value={String(field.value)}
                         >
@@ -360,12 +416,10 @@ export function UsersMutateDrawer({
                       <FormItem>
                         <FormLabel>{t('Group')}</FormLabel>
                         <Select
-                          items={[
-                            ...groups.map((group) => ({
-                              value: group,
-                              label: group,
-                            })),
-                          ]}
+                          items={groups.map((group) => ({
+                            value: group,
+                            label: group,
+                          }))}
                           onValueChange={field.onChange}
                           value={field.value}
                         >
@@ -577,7 +631,16 @@ export function UsersMutateDrawer({
             <SheetClose render={<Button variant='outline' />}>
               {t('Close')}
             </SheetClose>
-            <Button form='user-form' type='submit' disabled={isSubmitting}>
+            <Button
+              form='user-form'
+              type='submit'
+              disabled={
+                isSubmitting ||
+                drawerLoading ||
+                drawerError ||
+                (isUpdate && !userDetailQuery.data)
+              }
+            >
               {isSubmitting ? t('Saving...') : t('Save changes')}
             </Button>
           </SheetFooter>

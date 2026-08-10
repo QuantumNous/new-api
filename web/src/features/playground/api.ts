@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
+
 import { api } from '@/lib/api'
 
 import { API_ENDPOINTS } from './constants'
@@ -50,7 +52,7 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
   const { data } = res
 
   if (!data.success || !Array.isArray(data.data)) {
-    return []
+    throw new Error(data.message || t('Request failed') || 'Request failed')
   }
 
   return data.data.map((model: string) => ({
@@ -66,8 +68,13 @@ export async function getUserGroups(): Promise<GroupOption[]> {
   const res = await api.get(API_ENDPOINTS.USER_GROUPS)
   const { data } = res
 
-  if (!data.success || !data.data) {
-    return []
+  if (
+    !data.success ||
+    !data.data ||
+    typeof data.data !== 'object' ||
+    Array.isArray(data.data)
+  ) {
+    throw new Error(data.message || t('Request failed') || 'Request failed')
   }
 
   const groupData = data.data as Record<string, { desc: string; ratio: number }>

@@ -21,6 +21,7 @@ import { Gauge, HeartPulse, Timer } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ErrorState } from '@/components/error-state'
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
@@ -65,7 +66,7 @@ export function PerformanceHealthPanel() {
   })
 
   const models = useMemo(
-    () => metricsQuery.data?.data.models ?? [],
+    () => metricsQuery.data?.data?.models ?? [],
     [metricsQuery.data]
   )
 
@@ -90,6 +91,19 @@ export function PerformanceHealthPanel() {
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
   const loading = metricsQuery.isLoading
   const hasData = models.length > 0
+
+  if (metricsQuery.isError && metricsQuery.data === undefined) {
+    return (
+      <section className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>
+        <ErrorState
+          error={metricsQuery.error}
+          description={t('Please try again later.')}
+          onRetry={() => void metricsQuery.refetch()}
+          className='min-h-[220px]'
+        />
+      </section>
+    )
+  }
 
   return (
     <section className='bg-card h-full overflow-hidden rounded-2xl border shadow-xs'>

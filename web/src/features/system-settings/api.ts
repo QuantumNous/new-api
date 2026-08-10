@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
+
 import { api } from '@/lib/api'
 
 import type {
@@ -33,6 +35,9 @@ import type {
 
 export async function getSystemOptions() {
   const res = await api.get<SystemOptionsResponse>('/api/option/')
+  if (!res.data.success || !Array.isArray(res.data.data)) {
+    throw new Error(res.data.message || t('Request failed') || 'Request failed')
+  }
   return res.data
 }
 

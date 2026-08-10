@@ -20,7 +20,6 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import {
   DISABLED_ROW_DESKTOP,
@@ -81,7 +80,7 @@ export function RedemptionsTable() {
   const statusFilterValue = statusFilter[0] ?? ''
 
   // Fetch data with React Query
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, error, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: [
       'redemptions',
       pagination.pageIndex + 1,
@@ -108,7 +107,7 @@ export function RedemptionsTable() {
           : await getRedemptions(params)
 
       if (!result.success) {
-        toast.error(
+        throw new Error(
           result.message ||
             t(
               hasFilter || hasStatusFilter
@@ -116,7 +115,6 @@ export function RedemptionsTable() {
                 : ERROR_MESSAGES.LOAD_FAILED
             )
         )
-        return { items: [], total: 0 }
       }
 
       return {
@@ -163,6 +161,8 @@ export function RedemptionsTable() {
       columns={columns}
       isLoading={isLoading}
       isFetching={isFetching}
+      error={isError && data === undefined ? error : undefined}
+      onRetry={() => void refetch()}
       emptyTitle={t('No Redemption Codes Found')}
       emptyDescription={t(
         'No redemption codes available. Create your first redemption code to get started.'

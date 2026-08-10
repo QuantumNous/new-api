@@ -16,16 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { t } from 'i18next'
+export function getHttpStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null) return undefined
+  const response = (error as Record<string, unknown>).response
+  if (typeof response !== 'object' || response === null) return undefined
+  const status = (response as Record<string, unknown>).status
+  return typeof status === 'number' ? status : undefined
+}
 
-import { api } from '@/lib/api'
-
-import type { AboutResponse } from './types'
-
-export async function getAboutContent() {
-  const res = await api.get<AboutResponse>('/api/about')
-  if (!res.data.success) {
-    throw new Error(res.data.message || t('Request failed') || 'Request failed')
-  }
-  return res.data
+export function getErrorDisplayStatus(error: unknown): number | undefined {
+  return getHttpStatus(error) ?? (error === undefined ? 500 : undefined)
 }

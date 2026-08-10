@@ -30,10 +30,12 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import { getHttpStatus } from '@/features/errors/general-error-status'
 import { cn } from '@/lib/utils'
 
 interface ErrorStateProps {
   icon?: LucideIcon
+  error?: unknown
   title?: string
   description?: string
   onRetry?: () => void
@@ -44,6 +46,13 @@ interface ErrorStateProps {
 export function ErrorState(props: ErrorStateProps) {
   const { t } = useTranslation()
   const Icon = props.icon ?? AlertTriangle
+  const isRateLimited = getHttpStatus(props.error) === 429
+  const title = isRateLimited
+    ? t('Too many requests')
+    : (props.title ?? t('Oops! Something went wrong'))
+  const description = isRateLimited
+    ? t('Please wait a moment before trying again.')
+    : (props.description ?? t('Please try again later.'))
 
   return (
     <FadeIn>
@@ -52,12 +61,8 @@ export function ErrorState(props: ErrorStateProps) {
           <EmptyMedia variant='icon'>
             <Icon className='text-destructive size-6' />
           </EmptyMedia>
-          <EmptyTitle>
-            {props.title ?? t('Oops! Something went wrong')}
-          </EmptyTitle>
-          {props.description != null && (
-            <EmptyDescription>{props.description}</EmptyDescription>
-          )}
+          <EmptyTitle>{title}</EmptyTitle>
+          <EmptyDescription>{description}</EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           {props.onRetry != null && (

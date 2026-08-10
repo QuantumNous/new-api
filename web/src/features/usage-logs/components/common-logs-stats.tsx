@@ -20,6 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatLogQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -53,7 +54,7 @@ export function CommonLogsStats() {
   const searchParams = route.useSearch()
   const { sensitiveVisible } = useUsageLogsContext()
 
-  const { data: stats, isLoading } = useQuery({
+  const statsQuery = useQuery({
     queryKey: ['usage-logs-stats', isAdmin, searchParams],
     queryFn: async () => {
       const params = buildApiParams({
@@ -68,12 +69,16 @@ export function CommonLogsStats() {
         ? await getLogStats(params)
         : await getUserLogStats(params)
 
-      return result.success
-        ? result.data || DEFAULT_LOG_STATS
-        : DEFAULT_LOG_STATS
+      if (!result.success) {
+        throw new Error(result.message || t('Failed to load logs'))
+      }
+      return result.data || DEFAULT_LOG_STATS
     },
     placeholderData: (previousData) => previousData,
   })
+
+  const stats = statsQuery.data
+  const isLoading = statsQuery.isLoading
 
   if (isLoading) {
     return (
@@ -81,6 +86,22 @@ export function CommonLogsStats() {
         <Skeleton className='h-7 w-[150px] rounded-md' />
         <Skeleton className='h-7 w-[100px] rounded-md' />
         <Skeleton className='h-7 w-[120px] rounded-md' />
+      </div>
+    )
+  }
+
+  if (statsQuery.isError && stats === undefined) {
+    return (
+      <div className='text-muted-foreground flex items-center gap-2 text-xs'>
+        <span>{t('Please try again later.')}</span>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          onClick={() => void statsQuery.refetch()}
+        >
+          {t('Retry')}
+        </Button>
       </div>
     )
   }
