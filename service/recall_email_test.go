@@ -490,6 +490,7 @@ func TestRecallEmailAcceptedSchedulesVersionedStagesRelativeToFirstAcceptance(t 
 	require.Nil(t, stageTwo.ClaimTokenHash)
 
 	*fixture.now = time.Unix(recallEmailTestNow+700, 0).UTC()
+	clearRecallEmailPacingForTest(t)
 	won, err := model.LeaseRecallMessage(stageTwo.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
 	require.NoError(t, err)
 	require.True(t, won)
