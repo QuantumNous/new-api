@@ -35,6 +35,7 @@ import type {
   GetChannelsResponse,
   MultiKeyManageParams,
   MultiKeyStatusResponse,
+  RenameChannelGroupParams,
   SearchChannelsParams,
   SearchChannelsResponse,
   TagOperationParams,
@@ -197,6 +198,20 @@ export async function batchSetChannelTag(
 ): Promise<{ success: boolean; message?: string; data?: number }> {
   const res = await api.post(
     '/api/channel/batch/tag',
+    data,
+    channelActionConfig()
+  )
+  return res.data
+}
+
+/**
+ * Replace an old group with a new group on every channel that contains it.
+ */
+export async function renameChannelGroup(
+  data: RenameChannelGroupParams
+): Promise<{ success: boolean; message?: string; data?: number }> {
+  const res = await api.post(
+    '/api/channel/rename_group',
     data,
     channelActionConfig()
   )

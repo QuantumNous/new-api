@@ -335,6 +335,11 @@ export interface TagOperationParams {
   groups?: string
 }
 
+export interface RenameChannelGroupParams {
+  old_group: string
+  new_group: string
+}
+
 // ============================================================================
 // Form Data Types
 // ============================================================================
