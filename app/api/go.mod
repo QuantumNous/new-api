@@ -214,4 +214,4 @@ require (
 	github.com/QuantumNous/new-api/relaykit v0.0.0
 )
 
-replace github.com/QuantumNous/new-api/relaykit => ../../relaykit
+replace github.com/QuantumNous/new-api/relaykit => ../../modules/relaykit

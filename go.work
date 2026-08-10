@@ -2,5 +2,5 @@ go 1.25.1
 
 use (
 	./app/api
-	./relaykit
+	./modules/relaykit
 )
