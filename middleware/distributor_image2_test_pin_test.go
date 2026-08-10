@@ -61,6 +61,7 @@ func TestImage2TestPinFailureFirstAndLoopbackPositive(t *testing.T) {
 		remoteAddr    string
 		body          string
 		tokenID       int
+		userID        int
 		group         string
 		preexistingID any
 		enabled       string
@@ -73,6 +74,14 @@ func TestImage2TestPinFailureFirstAndLoopbackPositive(t *testing.T) {
 			remoteAddr: "127.0.0.1:3001",
 			body:       `{"model":"gpt-image-2"}`,
 			tokenID:    730002,
+			group:      image2TestPinGroup,
+		},
+		{
+			name:       "non-target-user-does-not-pin",
+			remoteAddr: "127.0.0.1:3001",
+			body:       `{"model":"gpt-image-2"}`,
+			tokenID:    730001,
+			userID:     25,
 			group:      image2TestPinGroup,
 		},
 		{
@@ -181,6 +190,9 @@ func TestImage2TestPinFailureFirstAndLoopbackPositive(t *testing.T) {
 			}
 			ctx := newImage2TestPinContext(t, requestURL, test.remoteAddr, test.body)
 			ctx.Set("token_id", test.tokenID)
+			if test.userID != 0 {
+				ctx.Set("id", test.userID)
+			}
 			common.SetContextKey(ctx, constant.ContextKeyUsingGroup, test.group)
 			if test.preexistingID != nil {
 				common.SetContextKey(ctx, constant.ContextKeyTokenSpecificChannelId, test.preexistingID)
