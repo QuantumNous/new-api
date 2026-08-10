@@ -777,7 +777,7 @@ const EditChannelModal = (props) => {
             base_url: 'https://sora2u.com',
           }));
           break;
-        case 67: // ZiZiDongHua
+        case 67: // zz
           localModels = [
             'zzdh-Minimax-h3-480p',
             'zzdh-Minimax-h3-720p',
@@ -2885,7 +2885,7 @@ const EditChannelModal = (props) => {
                                     : inputs.type === 66
                                       ? 'Sora2U 渠道说明'
                                       : inputs.type === 67
-                                        ? 'ZiZiDongHua 渠道说明'
+                                        ? 'zz 渠道说明'
                                         : '异步视频渠道通用说明',
                         )}
                       />

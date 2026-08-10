@@ -1,7 +1,7 @@
 package zzdh
 
 const (
-	ChannelName   = "ZiZiDongHua"
+	ChannelName   = "zz"
 	createPath    = "/v8/videos/generations"
 	queryPathPref = "/v8/videos/generations/"
 	defaultBase   = "https://www.zizidonghua.com"

@@ -3861,6 +3861,7 @@
     "Sonnet 模型": "Modèle Sonnet",
     "Sora2U 渠道说明": "",
     "ZiZiDongHua 渠道说明": "",
+    "zz 渠道说明": "",
     "speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式": "Le champ speed contrôle le mode de vitesse d'inférence de Claude. Désactivé par défaut pour éviter un passage involontaire au mode fast",
     "SSE 事件": "Événement SSE",
     "SSE数据流": "Flux de données SSE",

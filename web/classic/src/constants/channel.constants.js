@@ -237,7 +237,7 @@ export const CHANNEL_OPTIONS = [
   {
     value: 67,
     color: 'green',
-    label: 'ZiZiDongHua',
+    label: 'zz',
   },
 ];
 

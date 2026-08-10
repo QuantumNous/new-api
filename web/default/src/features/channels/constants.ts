@@ -85,7 +85,7 @@ export const CHANNEL_TYPES = {
   64: 'th12345ai',
   65: 'megabyai',
   66: 'Sora2U',
-  67: 'ZiZiDongHua',
+  67: 'zz',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
@@ -411,7 +411,7 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   64: 'Format: Bearer token (th12345ai / TH API License Key, LD-...)',
   65: 'Format: Bearer token (MegaByAI API Key)',
   66: 'Format: Bearer token (Sora2U API Key, sk_sora_...)',
-  67: 'Format: Bearer token (ZiZiDongHua / 自自动画 API Key)',
+  67: 'Format: Bearer token (zz API Key)',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {

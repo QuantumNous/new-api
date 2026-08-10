@@ -137,7 +137,7 @@ var ChannelBaseURLs = []string{
 	"https://sd.12345ai.net",                    //64 th12345ai (TH API) video
 	"https://newapi.megabyai.cc",                //65 megabyai video
 	"https://sora2u.com",                        //66 sora2u Seedance video
-	"https://www.zizidonghua.com",               //67 ZiZiDongHua MiniMax-H3 video
+	"https://www.zizidonghua.com",               //67 zz (ZiZiDongHua) MiniMax-H3 video
 }
 
 var ChannelTypeNames = map[int]string{
@@ -204,7 +204,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeTh12345ai:     "th12345ai",
 	ChannelTypeMegabyai:      "megabyai",
 	ChannelTypeSora2U:        "sora2u",
-	ChannelTypeZiZiDongHua:   "ZiZiDongHua",
+	ChannelTypeZiZiDongHua:   "zz",
 }
 
 func GetChannelTypeName(channelType int) string {

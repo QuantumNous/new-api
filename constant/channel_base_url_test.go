@@ -16,7 +16,7 @@ func TestGetChannelDefaultBaseURL(t *testing.T) {
 		t.Fatalf("sora2u default base URL = %q", got)
 	}
 	if got := GetChannelDefaultBaseURL(ChannelTypeZiZiDongHua); got != "https://www.zizidonghua.com" {
-		t.Fatalf("ZiZiDongHua default base URL = %q", got)
+		t.Fatalf("zz default base URL = %q", got)
 	}
 	if got := GetChannelDefaultBaseURL(len(ChannelBaseURLs)); got != "" {
 		t.Fatalf("out of range should return empty, got %q", got)

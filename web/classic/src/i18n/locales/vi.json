@@ -4389,6 +4389,7 @@
     "Sonnet 模型": "Model Sonnet",
     "Sora2U 渠道说明": "",
     "ZiZiDongHua 渠道说明": "",
+    "zz 渠道说明": "",
     "speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式": "Trường speed kiểm soát chế độ tốc độ suy luận Claude. Mặc định tắt để tránh vô tình chuyển sang chế độ fast",
     "SSE 事件": "Sự kiện SSE",
     "SSE数据流": "Luồng dữ liệu SSE",

@@ -36,7 +36,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
 	if info.Action == constant.TaskActionRemix {
-		return service.TaskErrorWrapperLocal(fmt.Errorf("remix is not supported for ZiZiDongHua"), "not_supported", http.StatusBadRequest)
+		return service.TaskErrorWrapperLocal(fmt.Errorf("remix is not supported for zz"), "not_supported", http.StatusBadRequest)
 	}
 	return relaycommon.ValidateMultipartDirect(c, info)
 }

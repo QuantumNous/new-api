@@ -273,12 +273,12 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       'zzdh-Minimax-h3-2k',
     ],
     hints: {
-      key: 'Bearer token (ZiZiDongHua / 自自动画 API Key)',
+      key: 'Bearer token (zz API Key)',
       models:
         'zzdh-Minimax-h3-480p, zzdh-Minimax-h3-720p, zzdh-Minimax-h3-1080p, zzdh-Minimax-h3-2k',
       baseUrl: 'Default: https://www.zizidonghua.com',
       other:
-        'Async MiniMax-H3 video: POST /v8/videos/generations, poll GET /v8/videos/generations/{id}, download GET /v1/videos/{id}/content. Resolution locked by model name. Maps image_with_roles→reference_images. Supports first/last frame and multimodal refs (images/videos/audios).',
+        'zz async MiniMax-H3 video: POST /v8/videos/generations, poll GET /v8/videos/generations/{id}, download GET /v1/videos/{id}/content. Resolution locked by model name. Maps image_with_roles→reference_images. Supports first/last frame and multimodal refs (images/videos/audios).',
     },
   },
 }
