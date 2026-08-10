@@ -113,6 +113,18 @@ export interface ToolSurchargeItem {
   price: number
 }
 
+export interface RequestTimingData {
+  total_ms?: number
+  gateway_ms?: number
+  upstream_first_data_ms?: number
+  first_data_to_client_ms?: number
+  client_stream_ms?: number
+  upstream_response_ms?: number
+  response_write_ms?: number
+  upstream_error_ms?: number
+  finalize_ms?: number
+}
+
 export interface LogOtherData {
   admin_info?: {
     is_multi_key?: boolean
@@ -188,6 +200,7 @@ export interface LogOtherData {
   audio_ratio?: number
   audio_completion_ratio?: number
   frt?: number
+  request_timing?: RequestTimingData
   // Tiered (expression-based) billing fields, set by backend when
   // billing_mode === 'tiered_expr'. expr_b64 is the base64-encoded billing
   // expression; the matched tier and request-rule traces come from the actual

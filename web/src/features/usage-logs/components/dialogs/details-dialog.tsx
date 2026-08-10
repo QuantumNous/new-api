@@ -77,12 +77,14 @@ import {
   getReasoningEffortVariant,
   renderAuditContent,
 } from '../../lib/format'
+import { buildTimingPresentation } from '../../lib/request-timing'
 import {
   getLogTypeConfig,
   isPerCallBilling,
   isTimingLogType,
 } from '../../lib/utils'
 import { USAGE_BILLING_PATH, type LogOtherData } from '../../types'
+import { RequestTimingBreakdown } from '../request-timing-breakdown'
 
 // Maps a channel-update changed-field token (as recorded by the backend audit)
 // to its i18n label key for display in the audit details.
@@ -482,6 +484,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const details = props.log.content ?? ''
   const other = parseLogOther(props.log.other)
+  const timing = buildTimingPresentation(
+    props.log.use_time,
+    other?.frt,
+    other?.request_timing
+  )
   const typeConfig = getLogTypeConfig(props.log.type)
 
   const isViolation = isViolationFeeLog(other)
@@ -701,41 +708,50 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           )}
 
-          {showTiming && props.log.use_time > 0 && (
-            <DetailRow
-              label={t('Response Time')}
-              value={
-                <span
-                  className={cn(
-                    'font-medium',
-                    timingTextColorClass(
-                      getResponseTimeColor(
-                        props.log.use_time,
-                        props.log.completion_tokens
-                      )
-                    )
-                  )}
-                >
-                  {formatUseTime(props.log.use_time)}
-                  {props.log.is_stream &&
-                    other?.frt != null &&
-                    other.frt > 0 && (
-                      <span
-                        className={cn(
-                          'font-normal',
-                          timingTextColorClass(
-                            getFirstResponseTimeColor(other.frt / 1000)
+          {showTiming &&
+            (props.log.use_time > 0 || other?.request_timing != null) && (
+              <DetailRow
+                label={t('Response Time')}
+                value={
+                  <div className='space-y-2'>
+                    <span
+                      className={cn(
+                        'font-medium',
+                        timingTextColorClass(
+                          getResponseTimeColor(
+                            timing.totalSeconds,
+                            props.log.completion_tokens
                           )
+                        )
+                      )}
+                    >
+                      {formatUseTime(timing.totalSeconds)}
+                      {props.log.is_stream &&
+                        timing.firstTokenSeconds != null && (
+                          <span
+                            className={cn(
+                              'font-normal',
+                              timingTextColorClass(
+                                getFirstResponseTimeColor(
+                                  timing.firstTokenSeconds
+                                )
+                              )
+                            )}
+                          >
+                            {' '}
+                            ({t('First token')}:{' '}
+                            {formatUseTime(timing.firstTokenSeconds)})
+                          </span>
                         )}
-                      >
-                        {' '}
-                        (FRT: {formatUseTime(other.frt / 1000)})
-                      </span>
-                    )}
-                </span>
-              }
-            />
-          )}
+                    </span>
+                    <RequestTimingBreakdown
+                      phases={timing.phases}
+                      className='border-border border-t pt-2'
+                    />
+                  </div>
+                }
+              />
+            )}
         </div>
 
         {/* Request conversion (admin only, not for refund) */}

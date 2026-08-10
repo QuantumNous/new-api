@@ -34,7 +34,9 @@ import { formatUseTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { getFirstResponseTimeColor, getResponseTimeColor } from '../lib/format'
+import { buildTimingPresentation } from '../lib/request-timing'
 import type { LogOtherData } from '../types'
+import { RequestTimingBreakdown } from './request-timing-breakdown'
 
 /**
  * Softened fills for the full-height timing bar. The bar sits directly beside
@@ -54,6 +56,7 @@ interface TimingMetricsCellProps {
   useTimeSec: number
   completionTokens: number
   frtMs?: number
+  requestTiming?: LogOtherData['request_timing']
   isStream: boolean
   className?: string
   /**
@@ -69,19 +72,23 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
   const { t } = useTranslation()
   const indicator = props.indicator ?? 'bar'
   const showFirstToken = props.isStream
-  const firstTokenSeconds =
-    props.frtMs != null && props.frtMs > 0 ? props.frtMs / 1000 : null
+  const timing = buildTimingPresentation(
+    props.useTimeSec,
+    props.frtMs,
+    props.requestTiming
+  )
+  const firstTokenSeconds = timing.firstTokenSeconds
   const firstTokenVariant: StatusVariant =
     firstTokenSeconds == null
       ? 'neutral'
       : getFirstResponseTimeColor(firstTokenSeconds)
   const totalTimeVariant = getResponseTimeColor(
-    props.useTimeSec,
+    timing.totalSeconds,
     props.completionTokens
   )
   const firstTokenLabel =
     firstTokenSeconds == null ? t('N/A') : formatUseTime(firstTokenSeconds)
-  const totalTimeLabel = formatUseTime(props.useTimeSec)
+  const totalTimeLabel = formatUseTime(timing.totalSeconds)
 
   const labels = (
     <div className='flex min-h-8 min-w-0 flex-col justify-center gap-0.5 text-xs leading-tight'>
@@ -122,30 +129,49 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
     </div>
   )
 
+  let content
   if (indicator === 'dot') {
-    return (
+    content = (
       <div className={cn('flex items-stretch', props.className)}>{labels}</div>
+    )
+  } else {
+    content = (
+      <div className={cn('flex items-stretch gap-2', props.className)}>
+        <span
+          aria-hidden
+          className={cn(
+            'flex w-1 shrink-0 flex-col overflow-hidden rounded-full',
+            !showFirstToken && barColorMap[totalTimeVariant]
+          )}
+        >
+          {showFirstToken && (
+            <>
+              <span className={cn('flex-1', barColorMap[firstTokenVariant])} />
+              <span className={cn('flex-1', barColorMap[totalTimeVariant])} />
+            </>
+          )}
+        </span>
+        {labels}
+      </div>
     )
   }
 
+  if (timing.phases.length === 0) return content
+
   return (
-    <div className={cn('flex items-stretch gap-2', props.className)}>
-      <span
-        aria-hidden
-        className={cn(
-          'flex w-1 shrink-0 flex-col overflow-hidden rounded-full',
-          !showFirstToken && barColorMap[totalTimeVariant]
-        )}
-      >
-        {showFirstToken && (
-          <>
-            <span className={cn('flex-1', barColorMap[firstTokenVariant])} />
-            <span className={cn('flex-1', barColorMap[totalTimeVariant])} />
-          </>
-        )}
-      </span>
-      {labels}
-    </div>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          aria-label={t('Timing breakdown')}
+          className='block rounded-sm text-left focus-visible:ring-2 focus-visible:outline-none'
+        >
+          {content}
+        </TooltipTrigger>
+        <TooltipContent className='block max-w-80'>
+          <RequestTimingBreakdown phases={timing.phases} />
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }
 
