@@ -11,12 +11,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func init() {
-	if err := model.RegisterRecallLifecycleSMTPGate(recallLifecycleSMTPGate); err != nil {
-		panic(err)
-	}
-}
-
 type recallLifecycleQuotaGateData struct {
 	ScopeType      string `json:"scope_type"`
 	ScopeID        string `json:"scope_id"`

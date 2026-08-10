@@ -228,16 +228,6 @@ func TestBeginRecallEmailSMTPAttemptFailsClosedWhenLifecycleGateMissing(t *testi
 	setupRecallEmailQuotaTestDB(t)
 	restoreRecallEmailTimeHooksForTest(t)
 
-	recallLifecycleSMTPGateMu.Lock()
-	originalGate := recallLifecycleSMTPGate
-	recallLifecycleSMTPGate = nil
-	recallLifecycleSMTPGateMu.Unlock()
-	t.Cleanup(func() {
-		recallLifecycleSMTPGateMu.Lock()
-		recallLifecycleSMTPGate = originalGate
-		recallLifecycleSMTPGateMu.Unlock()
-	})
-
 	lifecycleEventID := int64(42)
 	recipient := createRecallEmailQuotaTestRecipient(t, 4, 2004, "lifecycle-gate-missing@example.com")
 	require.NoError(t, DB.Model(&RecallRecipient{}).Where("id = ?", recipient.Id).Update("lifecycle_event_id", lifecycleEventID).Error)
@@ -260,6 +250,7 @@ func TestBeginRecallEmailSMTPAttemptFailsClosedWhenLifecycleGateMissing(t *testi
 	)
 
 	require.ErrorIs(t, err, errRecallLifecycleGateOpen)
+	require.ErrorContains(t, err, "recall lifecycle smtp gate decision is required")
 	require.False(t, attempt.Reserved)
 	require.False(t, attempt.Suppressed)
 	require.Equal(t, RecallMessageLeased, loadRecallMessageForQuotaTest(t, message.Id).State)
@@ -268,27 +259,37 @@ func TestBeginRecallEmailSMTPAttemptFailsClosedWhenLifecycleGateMissing(t *testi
 	require.ErrorIs(t, DB.Where("scope = ?", recallEmailPacingScope).First(&pacing).Error, gorm.ErrRecordNotFound)
 }
 
-func TestRegisterRecallLifecycleSMTPGateIsIdempotentAndRejectsDifferentGate(t *testing.T) {
-	recallLifecycleSMTPGateMu.Lock()
-	originalGate := recallLifecycleSMTPGate
-	recallLifecycleSMTPGate = nil
-	recallLifecycleSMTPGateMu.Unlock()
-	t.Cleanup(func() {
-		recallLifecycleSMTPGateMu.Lock()
-		recallLifecycleSMTPGate = originalGate
-		recallLifecycleSMTPGateMu.Unlock()
-	})
+func TestBeginRecallEmailSMTPAttemptCompatibilityWrapperAdmitsNonLifecycleRecipient(t *testing.T) {
+	setupRecallEmailQuotaTestDB(t)
+	restoreRecallEmailTimeHooksForTest(t)
+	setRecallEmailPacingTestNowMillis(t, 1_800_000_000_000)
 
-	first := func(tx *gorm.DB, input RecallLifecycleSMTPGateInput) (RecallLifecycleSMTPGateResult, error) {
-		return RecallLifecycleSMTPGateResult{Email: input.Recipient.EmailSnapshot}, nil
+	recipient := createRecallEmailQuotaTestRecipient(t, 4, 2004, "ordinary-recipient@example.com")
+	message := RecallMessage{
+		RecipientId:      recipient.Id,
+		StageNo:          1,
+		TemplateSnapshot: `{}`,
+		State:            RecallMessageLeased,
+		LeaseOwner:       "email-owner",
+		LeaseExpiresAt:   1_800_000_600,
 	}
-	second := func(tx *gorm.DB, input RecallLifecycleSMTPGateInput) (RecallLifecycleSMTPGateResult, error) {
-		return RecallLifecycleSMTPGateResult{Blocked: true, ReasonCode: "duplicate"}, nil
-	}
+	require.NoError(t, DB.Create(&message).Error)
 
-	require.NoError(t, RegisterRecallLifecycleSMTPGate(first))
-	require.NoError(t, RegisterRecallLifecycleSMTPGate(first))
-	require.ErrorContains(t, RegisterRecallLifecycleSMTPGate(second), "already registered")
+	attempt, err := BeginRecallEmailSMTPAttemptWithContext(
+		context.Background(),
+		message.Id,
+		message.LeaseOwner,
+		message.LeaseExpiresAt,
+		5,
+	)
+
+	require.NoError(t, err)
+	require.True(t, attempt.LeaseOwned)
+	require.True(t, attempt.Reserved)
+	require.False(t, attempt.Suppressed)
+	require.Equal(t, "ordinary-recipient@example.com", attempt.Email)
+	require.Equal(t, RecallMessageSending, loadRecallMessageForQuotaTest(t, message.Id).State)
+	assertRecallEmailQuotaStatusUsed(t, 5, 1_800_000_000_000, 1)
 }
 
 func loadRecallMessageForQuotaTest(t *testing.T, id int64) RecallMessage {

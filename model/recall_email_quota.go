@@ -3,8 +3,6 @@ package model
 import (
 	"context"
 	"errors"
-	"reflect"
-	"sync"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -61,7 +59,7 @@ var (
 	errRecallEmailPacingWait   = errors.New("recall email pacing wait")
 	errRecallEmailQuotaWait    = errors.New("recall email quota exhausted")
 	errRecallEmailCASLost      = errors.New("recall email CAS lost")
-	errRecallLifecycleGateOpen = errors.New("recall lifecycle smtp gate is not registered")
+	errRecallLifecycleGateOpen = errors.New("recall lifecycle smtp gate decision is required")
 )
 
 type RecallLifecycleSMTPGateInput struct {
@@ -73,35 +71,6 @@ type RecallLifecycleSMTPGateResult struct {
 	Email      string
 	Blocked    bool
 	ReasonCode string
-}
-
-type RecallLifecycleSMTPGateFunc func(tx *gorm.DB, input RecallLifecycleSMTPGateInput) (RecallLifecycleSMTPGateResult, error)
-
-var (
-	recallLifecycleSMTPGateMu sync.RWMutex
-	recallLifecycleSMTPGate   RecallLifecycleSMTPGateFunc
-)
-
-func RegisterRecallLifecycleSMTPGate(gate RecallLifecycleSMTPGateFunc) error {
-	if gate == nil {
-		return errors.New("recall lifecycle smtp gate is nil")
-	}
-	recallLifecycleSMTPGateMu.Lock()
-	defer recallLifecycleSMTPGateMu.Unlock()
-	if recallLifecycleSMTPGate == nil {
-		recallLifecycleSMTPGate = gate
-		return nil
-	}
-	if reflect.ValueOf(recallLifecycleSMTPGate).Pointer() == reflect.ValueOf(gate).Pointer() {
-		return nil
-	}
-	return errors.New("recall lifecycle smtp gate is already registered")
-}
-
-func recallLifecycleSMTPGateForAttempt() (RecallLifecycleSMTPGateFunc, bool) {
-	recallLifecycleSMTPGateMu.RLock()
-	defer recallLifecycleSMTPGateMu.RUnlock()
-	return recallLifecycleSMTPGate, recallLifecycleSMTPGate != nil
 }
 
 func ReserveRecallEmailQuotaWithContext(ctx context.Context, limit int) (RecallEmailQuotaStatus, bool, error) {
