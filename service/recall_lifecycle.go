@@ -19,7 +19,11 @@ import (
 const recallLifecycleLeaseTTL = 5 * time.Minute
 const recallLifecyclePreviewSampleLimit = 5
 
-var errRecallLifecycleFenceLost = errors.New("recall lifecycle lease fence lost")
+var (
+	errRecallLifecycleFenceLost                 = errors.New("recall lifecycle lease fence lost")
+	errRecallLifecycleCollectionMarkerMissing   = errors.New("recall lifecycle event collection marker is missing")
+	errRecallLifecycleCollectionMarkerMalformed = errors.New("malformed_collection_marker")
+)
 
 type RecallLifecyclePreview struct {
 	ProcessingStartAt int64                   `json:"processing_start_at"`
@@ -246,7 +250,7 @@ func recallLifecycleCampaignBoundaryDB(ctx context.Context, db *gorm.DB, id int6
 	var option model.Option
 	if err := db.First(&option, "key = ?", model.OptionKeyRecallLifecycleEventCollectionStartedAt).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, 0, 0, false, fmt.Errorf("recall lifecycle event collection marker: recall lifecycle event collection marker is missing")
+			return nil, 0, 0, false, fmt.Errorf("recall lifecycle event collection marker: %w", errRecallLifecycleCollectionMarkerMissing)
 		}
 		return nil, 0, 0, false, err
 	}
@@ -731,7 +735,7 @@ func normalizeRecallLifecycleEmail(value string) (string, bool) {
 func parseRecallLifecycleMarker(value string) (int64, error) {
 	marker, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 	if err != nil || marker <= 0 {
-		return 0, fmt.Errorf("malformed_collection_marker")
+		return 0, errRecallLifecycleCollectionMarkerMalformed
 	}
 	return marker, nil
 }

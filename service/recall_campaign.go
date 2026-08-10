@@ -1193,7 +1193,11 @@ func (s *RecallCampaignService) Activate(ctx context.Context, actorID int, id in
 			draft.ProcessingStartAt = dbNow
 			fields["processing_start_at"] = dbNow
 		}
-		won, err := s.activateContinuousCampaign(ctx, campaign, draft, fields)
+		event, err := recallCampaignAdminTransitionEvent(ctx, actorID, id, campaign, "activate", "campaign_activated", s.now().Unix())
+		if err != nil {
+			return err
+		}
+		won, err := s.activateContinuousCampaign(ctx, campaign, draft, fields, event)
 		if err != nil {
 			return err
 		}
@@ -1388,26 +1392,27 @@ func (s *RecallCampaignService) Cancel(ctx context.Context, actorID int, id int6
 	return nil
 }
 
-func (s *RecallCampaignService) activateContinuousCampaign(ctx context.Context, campaign *model.RecallCampaign, draft RecallCampaignDraft, fields map[string]any) (bool, error) {
+func (s *RecallCampaignService) activateContinuousCampaign(ctx context.Context, campaign *model.RecallCampaign, draft RecallCampaignDraft, fields map[string]any, event model.RecallEvent) (bool, error) {
 	transitioned := false
 	err := model.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		claimed, acquired, err := model.ClaimRecallContinuousTriggerSlotOwnershipTx(tx, draft.LifecycleTrigger, campaign.Id)
+		won, err := model.TransitionRecallCampaignRevisionTx(tx, campaign.Id, []string{model.RecallCampaignDraft}, model.RecallCampaignRunning, campaign.ConfigRevision, fields)
+		if err != nil {
+			return err
+		}
+		if !won {
+			return nil
+		}
+		claimed, _, err := model.ClaimRecallContinuousTriggerSlotOwnershipTx(tx, draft.LifecycleTrigger, campaign.Id)
 		if err != nil {
 			return err
 		}
 		if !claimed {
 			return fmt.Errorf("recall continuous trigger %q is already owned", draft.LifecycleTrigger)
 		}
-		won, err := model.TransitionRecallCampaignRevisionTx(tx, campaign.Id, []string{model.RecallCampaignDraft}, model.RecallCampaignRunning, campaign.ConfigRevision, fields)
-		if err != nil {
+		if err := model.InsertRequiredRecallAdminEventTx(tx, &event); err != nil {
 			return err
 		}
-		if !won && acquired {
-			if err := model.ReleaseRecallContinuousTriggerSlotTx(tx, draft.LifecycleTrigger, campaign.Id); err != nil {
-				return err
-			}
-		}
-		transitioned = won
+		transitioned = true
 		return nil
 	})
 	return transitioned, err
@@ -1416,28 +1421,24 @@ func (s *RecallCampaignService) activateContinuousCampaign(ctx context.Context, 
 func (s *RecallCampaignService) resumeContinuousCampaign(ctx context.Context, campaign *model.RecallCampaign, event model.RecallEvent) (bool, error) {
 	transitioned := false
 	err := model.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		claimed, acquired, err := model.ClaimRecallContinuousTriggerSlotOwnershipTx(tx, campaign.LifecycleTrigger, campaign.Id)
+		won, err := model.TransitionRecallCampaignTx(tx, campaign.Id, []string{model.RecallCampaignPaused}, model.RecallCampaignRunning, nil)
+		if err != nil {
+			return err
+		}
+		if !won {
+			return nil
+		}
+		claimed, _, err := model.ClaimRecallContinuousTriggerSlotOwnershipTx(tx, campaign.LifecycleTrigger, campaign.Id)
 		if err != nil {
 			return err
 		}
 		if !claimed {
 			return fmt.Errorf("recall continuous trigger %q is already owned", campaign.LifecycleTrigger)
 		}
-		won, err := model.TransitionRecallCampaignTx(tx, campaign.Id, []string{model.RecallCampaignPaused}, model.RecallCampaignRunning, nil)
-		if err != nil {
+		if err := model.InsertRequiredRecallAdminEventTx(tx, &event); err != nil {
 			return err
 		}
-		if !won && acquired {
-			if err := model.ReleaseRecallContinuousTriggerSlotTx(tx, campaign.LifecycleTrigger, campaign.Id); err != nil {
-				return err
-			}
-		}
-		if won {
-			if err := model.InsertRequiredRecallAdminEventTx(tx, &event); err != nil {
-				return err
-			}
-		}
-		transitioned = won
+		transitioned = true
 		return nil
 	})
 	return transitioned, err

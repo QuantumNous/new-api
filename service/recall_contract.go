@@ -195,8 +195,21 @@ func PreviewRecallEmail(request RecallEmailPreviewRequest) (RecallEmailPreviewRe
 	if err != nil {
 		return RecallEmailPreviewResponse{}, err
 	}
-	deliveryPolicy := recallEmailHTMLDeliveryPolicy(request.DeliveryPolicy)
 	lifecycleTrigger := strings.TrimSpace(request.LifecycleTrigger)
+	deliveryPolicy := strings.TrimSpace(request.DeliveryPolicy)
+	if lifecycleTrigger != "" {
+		triggerPolicy, err := model.RecallLifecycleTriggerDeliveryPolicy(lifecycleTrigger)
+		if err != nil {
+			return RecallEmailPreviewResponse{}, err
+		}
+		if deliveryPolicy == "" {
+			deliveryPolicy = triggerPolicy
+		}
+		if deliveryPolicy != triggerPolicy {
+			return RecallEmailPreviewResponse{}, fmt.Errorf("lifecycle trigger %q requires delivery policy %q", lifecycleTrigger, triggerPolicy)
+		}
+	}
+	deliveryPolicy = recallEmailHTMLDeliveryPolicy(deliveryPolicy)
 	stages, err := normalizeRecallEmailStagesForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, []RecallEmailStage{{
 		StageNo:      1,
 		DelaySeconds: 0,
