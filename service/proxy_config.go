@@ -49,6 +49,9 @@ type transportOptions struct {
 // directly (bypassing the in-memory OptionMap cache) so every new-api instance
 // observes configuration changes on the next request.
 func getGlobalProxyURL() string {
+	if model.DB == nil {
+		return ""
+	}
 	var option model.Option
 	if err := model.DB.Where("key = ?", "proxy_config").First(&option).Error; err != nil {
 		return ""
