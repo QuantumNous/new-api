@@ -52,9 +52,13 @@ type perCallTaskBillingAdjuster interface {
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
 
+var archiveVideoResultForChannel = ArchiveVideoResultForChannel
 var archiveTechMobiVideoResult = ArchiveVideoResult
+var archiveModelAPIVideoResult = func(ctx context.Context, publicTaskID, upstreamURL, proxy string) (*model.VideoResult, error) {
+	return archiveVideoResultForChannel(ctx, "modelapi", publicTaskID, upstreamURL, proxy)
+}
 
-var techMobiLogURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+`)
+var archivedVideoLogURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+`)
 
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
 // 每次最多处理 100 条，剩余的下个周期继续处理。
@@ -398,7 +402,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
 	}
 
-	if ch.Type == constant.ChannelTypeTechMobiVideo {
+	if VideoResultChannelLabel(ch.Type) != "" {
 		logger.LogDebug(ctx, "updateVideoSingleTask response received: task_id=%s upstream_task_id=%s phase=fetched bytes=%d", task.TaskID, task.GetUpstreamTaskID(), len(responseBody))
 	} else {
 		logger.LogDebug(ctx, "updateVideoSingleTask response: %s", responseBody)
@@ -410,7 +414,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	// try parse as New API response format
 	var responseItems dto.TaskResponse[model.Task]
 	if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
-		if ch.Type == constant.ChannelTypeTechMobiVideo {
+		if VideoResultChannelLabel(ch.Type) != "" {
 			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: task_id=%s upstream_task_id=%s phase=parsed status=%s", task.TaskID, task.GetUpstreamTaskID(), responseItems.Data.Status)
 		} else {
 			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: %+v", responseItems)
@@ -428,7 +432,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	task.Data = redactVideoResponseForChannel(ch.Type, responseBody)
 
-	if ch.Type == constant.ChannelTypeTechMobiVideo {
+	if VideoResultChannelLabel(ch.Type) != "" {
 		logger.LogDebug(ctx, "updateVideoSingleTask task result parsed: task_id=%s upstream_task_id=%s phase=parsed status=%s progress=%s", task.TaskID, task.GetUpstreamTaskID(), taskResult.Status, taskResult.Progress)
 	} else {
 		logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
@@ -451,7 +455,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
 				// unknown error format, log original response
-				if ch.Type == constant.ChannelTypeTechMobiVideo {
+				if VideoResultChannelLabel(ch.Type) != "" {
 					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format", taskId))
 				} else {
 					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
@@ -461,16 +465,32 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		}
 	}
 
-	if returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess && strings.TrimSpace(taskResult.Url) == "" {
+	archiveChannelLabel := VideoResultChannelLabel(ch.Type)
+	if (returnSourceURL || (archiveChannelLabel != "" && !returnSourceURL)) &&
+		taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess && strings.TrimSpace(taskResult.Url) == "" {
+		if archiveChannelLabel != "" {
+			return fmt.Errorf("%s task %s missing source URL", archiveChannelLabel, task.TaskID)
+		}
 		return fmt.Errorf("techmobi task %s missing source URL", task.TaskID)
 	}
 
-	if ch.Type == constant.ChannelTypeTechMobiVideo && !returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
+	if archiveChannelLabel != "" && !returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
 		if task.PrivateData.VideoResult == nil {
-			videoResult, archiveErr := archiveTechMobiVideoResult(ctx, task.TaskID, taskResult.Url, proxy)
+			var (
+				videoResult *model.VideoResult
+				archiveErr  error
+			)
+			switch ch.Type {
+			case constant.ChannelTypeTechMobiVideo:
+				videoResult, archiveErr = archiveTechMobiVideoResult(ctx, task.TaskID, taskResult.Url, proxy)
+			case constant.ChannelTypeModelAPISeedance:
+				videoResult, archiveErr = archiveModelAPIVideoResult(ctx, task.TaskID, taskResult.Url, proxy)
+			default:
+				videoResult, archiveErr = archiveVideoResultForChannel(ctx, archiveChannelLabel, task.TaskID, taskResult.Url, proxy)
+			}
 			if archiveErr != nil {
-				perfmetrics.RecordVideoResultArchiveRetry("techmobi", "archive_failure")
-				return fmt.Errorf("archive techmobi video result failed for task %s: %s", task.TaskID, sanitizeVideoResultArchiveError(archiveErr))
+				perfmetrics.RecordVideoResultArchiveRetry(archiveChannelLabel, "archive_failure")
+				return fmt.Errorf("archive %s video result failed for task %s: %s", archiveChannelLabel, task.TaskID, sanitizeVideoResultArchiveError(archiveErr))
 			}
 			task.PrivateData.VideoResult = videoResult
 		}
@@ -520,8 +540,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
-		if ch.Type == constant.ChannelTypeTechMobiVideo {
-			logger.LogInfo(ctx, fmt.Sprintf("TechMobi task failed: task_id=%s channel_id=%d status=%s reason=%s", task.TaskID, ch.Id, taskResult.Status, sanitizeTechMobiLogText(taskResult.Reason)))
+		if VideoResultChannelLabel(ch.Type) != "" {
+			logger.LogInfo(ctx, fmt.Sprintf("Archived video task failed: task_id=%s channel_id=%d status=%s reason=%s", task.TaskID, ch.Id, taskResult.Status, sanitizeArchivedVideoLogText(ch.Type, taskResult.Reason)))
 		} else {
 			logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
 		}
@@ -531,8 +551,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			task.FinishTime = now
 		}
 		task.FailReason = taskResult.Reason
-		if ch.Type == constant.ChannelTypeTechMobiVideo {
-			task.FailReason = sanitizeTechMobiLogText(task.FailReason)
+		if VideoResultChannelLabel(ch.Type) != "" {
+			task.FailReason = sanitizeArchivedVideoLogText(ch.Type, task.FailReason)
 		}
 		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		taskResult.Progress = taskcommon.ProgressComplete
@@ -609,17 +629,24 @@ func redactVideoResponseBody(body []byte) []byte {
 func redactVideoResponseForChannel(channelType int, body []byte) []byte {
 	redacted := redactVideoResponseBody(body)
 	if channelType == constant.ChannelTypeTechMobiVideo {
-		return redactTechMobiVideoResponseBody(redacted)
+		return redactArchivedVideoResponseBody(redacted, false)
+	}
+	if channelType == constant.ChannelTypeModelAPISeedance {
+		return redactArchivedVideoResponseBody(redacted, true)
 	}
 	return redacted
 }
 
 func redactTechMobiVideoResponseBody(body []byte) []byte {
+	return redactArchivedVideoResponseBody(body, false)
+}
+
+func redactArchivedVideoResponseBody(body []byte, scrubBrand bool) []byte {
 	var value any
 	if err := common.Unmarshal(body, &value); err != nil {
 		return body
 	}
-	redacted := redactTechMobiVideoValue(value)
+	redacted := redactArchivedVideoValue(value, scrubBrand)
 	b, err := common.Marshal(redacted)
 	if err != nil {
 		return body
@@ -627,34 +654,38 @@ func redactTechMobiVideoResponseBody(body []byte) []byte {
 	return b
 }
 
-func redactTechMobiVideoValue(v any) any {
+func redactArchivedVideoValue(v any, scrubBrand bool) any {
 	switch value := v.(type) {
 	case map[string]any:
 		for key, child := range value {
-			if isTechMobiVideoURLKey(key) {
-				value[key] = redactTechMobiVideoURLValue(child)
+			if isArchivedVideoURLKey(key) {
+				value[key] = redactArchivedVideoURLValue(child, scrubBrand)
 				continue
 			}
-			value[key] = redactTechMobiVideoValue(child)
+			value[key] = redactArchivedVideoValue(child, scrubBrand)
 		}
 		return value
 	case []any:
 		for i, child := range value {
-			value[i] = redactTechMobiVideoValue(child)
+			value[i] = redactArchivedVideoValue(child, scrubBrand)
 		}
 		return value
 	case string:
-		return redactTechMobiURLs(value)
+		return sanitizeArchivedVideoString(value, scrubBrand)
 	default:
 		return value
 	}
 }
 
-func redactTechMobiVideoURLValue(v any) any {
-	return redactTechMobiVideoValue(v)
+func redactArchivedVideoURLValue(v any, scrubBrand bool) any {
+	return redactArchivedVideoValue(v, scrubBrand)
 }
 
 func isTechMobiVideoURLKey(key string) bool {
+	return isArchivedVideoURLKey(key)
+}
+
+func isArchivedVideoURLKey(key string) bool {
 	normalized := strings.ToLower(strings.ReplaceAll(key, "_", ""))
 	switch normalized {
 	case "url", "videourl", "downloadurl", "fileurl", "objecturl", "remoteurl":
@@ -689,15 +720,32 @@ func sanitizeVideoResultArchiveError(err error) string {
 	return "archive unavailable"
 }
 
-func sanitizeTechMobiLogText(text string) string {
+func sanitizeArchivedVideoLogText(channelType int, text string) string {
 	if strings.TrimSpace(text) == "" {
 		return ""
 	}
-	return taskcommon.ScrubBrandedText(redactTechMobiURLs(text))
+	scrubBrand := channelType == constant.ChannelTypeModelAPISeedance
+	return sanitizeArchivedVideoString(text, scrubBrand)
+}
+
+func sanitizeTechMobiLogText(text string) string {
+	return sanitizeArchivedVideoLogText(constant.ChannelTypeTechMobiVideo, text)
+}
+
+func sanitizeArchivedVideoString(text string, scrubBrand bool) string {
+	redacted := redactArchivedVideoURLs(text)
+	if scrubBrand {
+		return taskcommon.ScrubBrandedText(redacted)
+	}
+	return redacted
 }
 
 func redactTechMobiURLs(text string) string {
-	return techMobiLogURLPattern.ReplaceAllStringFunc(text, func(match string) string {
+	return redactArchivedVideoURLs(text)
+}
+
+func redactArchivedVideoURLs(text string) string {
+	return archivedVideoLogURLPattern.ReplaceAllStringFunc(text, func(match string) string {
 		trimmed := strings.TrimRight(match, ",.;:)")
 		return "[redacted]" + match[len(trimmed):]
 	})
