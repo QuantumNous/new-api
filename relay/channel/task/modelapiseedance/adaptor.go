@@ -224,10 +224,10 @@ type modelAPIInputItem struct {
 }
 
 type modelAPIInput struct {
-	Text  []modelAPIInputItem `json:"text"`
-	Image []modelAPIInputItem `json:"image"`
-	Video []modelAPIInputItem `json:"video"`
-	Audio []modelAPIInputItem `json:"audio"`
+	Text  []modelAPIInputItem `json:"text,omitempty"`
+	Image []modelAPIInputItem `json:"image,omitempty"`
+	Video []modelAPIInputItem `json:"video,omitempty"`
+	Audio []modelAPIInputItem `json:"audio,omitempty"`
 }
 
 type modelAPIParams struct {

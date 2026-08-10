@@ -170,6 +170,41 @@ func TestBuildRequestBodyUsesModelAPIGroupedInputWireShape(t *testing.T) {
 	})
 }
 
+func TestBuildRequestBodyOmitsEmptyModelAPIInputGroups(t *testing.T) {
+	c, _ := newModelAPITestContext(`{
+		"model":"client-model",
+		"content":[{"type":"text","text":"make it cinematic"}]
+	}`)
+	reader, err := (&TaskAdaptor{}).BuildRequestBody(c, newModelAPIRelayInfo("", ""))
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read BuildRequestBody: %v", err)
+	}
+
+	var wire map[string]any
+	if err := common.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal wire body: %v", err)
+	}
+	input, ok := wire["input"].(map[string]any)
+	if !ok {
+		t.Fatalf("input wire type = %T, want object: %s", wire["input"], raw)
+	}
+	if len(input) != 1 {
+		t.Fatalf("input keys = %v, want only text: %s", input, raw)
+	}
+	assertModelAPIWireItems(t, input, "text", []map[string]string{
+		{"role": "prompt", "content": "make it cinematic"},
+	})
+	for _, emptyGroup := range []string{"image", "video", "audio"} {
+		if _, ok := input[emptyGroup]; ok {
+			t.Fatalf("input.%s should be omitted for text-only request: %s", emptyGroup, raw)
+		}
+	}
+}
+
 func TestBuildRequestBodyPreservesExplicitZeroFalseAndOmitsAbsentParams(t *testing.T) {
 	c, _ := newModelAPITestContext(`{
 		"model":"client-model",
