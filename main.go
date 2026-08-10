@@ -74,6 +74,8 @@ func main() {
 			common.FatalLog("failed to close database: " + err.Error())
 		}
 	}()
+	// Close the in-process sing-box dialer on shutdown (Issue #57).
+	defer service.CloseSingBoxDialer()
 
 	if common.RedisEnabled {
 		// for compatibility with old versions

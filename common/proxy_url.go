@@ -33,8 +33,11 @@ func parseProxyURL(rawProxyURL string, allowLegacySuffix bool) (*url.URL, bool, 
 	parsedURL.Scheme = strings.ToLower(parsedURL.Scheme)
 	switch parsedURL.Scheme {
 	case "http", "https", "socks5", "socks5h":
+	case singBoxProxyScheme:
+		// sing-box schemes carry the outbound details in the persisted
+		// proxy_config Option; the URL itself only selects the path.
 	default:
-		return nil, false, fmt.Errorf("proxy URL must use http, https, socks5, or socks5h")
+		return nil, false, fmt.Errorf("proxy URL must use http, https, socks5, socks5h, or a sing-box scheme")
 	}
 	if parsedURL.Hostname() == "" {
 		return nil, false, fmt.Errorf("proxy URL must include a host")
@@ -74,4 +77,12 @@ func parseProxyURL(rawProxyURL string, allowLegacySuffix bool) (*url.URL, bool, 
 	}
 
 	return parsedURL, legacySuffixStripped, nil
+}
+
+// singBoxProxyScheme selects the in-process sing-box dialer transport path.
+const singBoxProxyScheme = "sing-box"
+
+// IsSingBoxScheme reports whether the scheme selects the sing-box transport path.
+func IsSingBoxScheme(scheme string) bool {
+	return strings.ToLower(scheme) == singBoxProxyScheme
 }

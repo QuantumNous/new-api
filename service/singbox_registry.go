@@ -28,6 +28,7 @@ import (
 )
 
 func newProxyBoxContext(ctx context.Context) context.Context {
+
 	return box.Context(
 		ctx,
 		inbound.NewRegistry(),

@@ -283,12 +283,23 @@ func configureProxyTransport(transport *http.Transport, proxyURL *url.URL) error
 		transport.DialContext = contextDialer.DialContext
 		return nil
 	default:
-		return fmt.Errorf("unsupported proxy scheme")
+		if common.IsSingBoxScheme(proxyURL.Scheme) {
+			transport.Proxy = nil
+			sbDialer, err := getSingBoxDialer()
+			if err != nil {
+				return fmt.Errorf("sing-box dialer: %w", err)
+			}
+			if sbDialer == nil {
+				return fmt.Errorf("sing-box proxy not configured")
+			}
+			transport.DialContext = sbDialer.DialContext
+			return nil
+		}
+		return fmt.Errorf("unsupported proxy scheme: %s", proxyURL.Scheme)
 	}
 }
 
 func newTransportFactory(proxyURL *url.URL, tlsConfig *tls.Config) (func() *http.Transport, error) {
-	// Validate proxy configuration once before creating shard transports.
 	if proxyURL != nil {
 		probe := newRelayHTTPTransport()
 		if err := configureProxyTransport(probe, proxyURL); err != nil {
