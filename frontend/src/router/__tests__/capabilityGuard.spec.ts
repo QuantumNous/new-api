@@ -8,14 +8,27 @@ const publicApi = vi.hoisted(() => ({
   uptime: vi.fn(),
 }))
 
+const setupApi = vi.hoisted(() => ({
+  status: vi.fn(),
+  submit: vi.fn(),
+}))
+
 vi.mock('@/api/public', () => ({ publicApi }))
+vi.mock('@/api/setup', () => ({ setupApi }))
 
 import router from '@/router'
+import { sanitizeSetupRedirect } from '@/router'
 import { useAuthStore } from '@/stores/auth'
+import { useSetupStore } from '@/stores/setup'
 
 beforeEach(async () => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
+  setupApi.status.mockResolvedValue({
+    status: true,
+    root_init: true,
+    database_type: 'postgres',
+  })
   publicApi.notice.mockResolvedValue('')
   publicApi.pricing.mockResolvedValue([])
   publicApi.uptime.mockResolvedValue([])
@@ -36,6 +49,49 @@ beforeEach(async () => {
 })
 
 describe('capability route guard', () => {
+  it('redirects uninitialized routes to setup before auth checks', async () => {
+    const setup = useSetupStore()
+    setup.phase = 'idle'
+    setup.status = null
+    setupApi.status.mockResolvedValue({
+      status: false,
+      root_init: false,
+      database_type: 'sqlite',
+    })
+
+    await router.push('/console/models')
+
+    expect(router.currentRoute.value.name).toBe('setup')
+  })
+
+  it('redirects setup status failures to the global setup error page', async () => {
+    const setup = useSetupStore()
+    setup.phase = 'idle'
+    setup.status = null
+    setupApi.status.mockRejectedValue(new Error('setup unavailable'))
+
+    await router.push('/console/models')
+
+    expect(router.currentRoute.value.name).toBe('setup-error')
+    expect(router.currentRoute.value.query.redirect).toBe('/console/models')
+  })
+
+  it('redirects initialized setup visits to the Vue home page', async () => {
+    await router.push('/setup')
+
+    expect(router.currentRoute.value.name).toBe('home')
+  })
+
+  it('rejects unsafe setup redirect targets', () => {
+    expect(sanitizeSetupRedirect('https://evil.example/')).toBeNull()
+    expect(sanitizeSetupRedirect('//evil.example/')).toBeNull()
+    expect(sanitizeSetupRedirect('/setup/error')).toBeNull()
+    expect(sanitizeSetupRedirect('/auth/sign-in')).toBe('/auth/sign-in')
+    expect(sanitizeSetupRedirect('/next/console/dashboard?tab=1')).toBe(
+      '/console/dashboard?tab=1'
+    )
+  })
+
   it('fails closed for protected routes when status is unreachable', async () => {
     publicApi.status.mockRejectedValue(new Error('status unavailable'))
 

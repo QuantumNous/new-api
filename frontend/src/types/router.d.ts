@@ -14,5 +14,7 @@ declare module 'vue-router' {
     feature?: string
     nav?: string
     topNav?: 'activities' | 'dashboard' | 'console' | 'alchemy'
+    setupRoute?: boolean
+    setupError?: boolean
   }
 }

@@ -6,6 +6,7 @@ export interface VisualRoute {
 
 export const VISUAL_ROUTES: VisualRoute[] = [
   { name: 'home', path: '/' },
+  { name: 'setup', path: '/setup' },
   { name: 'sign-in', path: '/auth/sign-in', guestOnly: true },
   { name: 'sign-up', path: '/auth/sign-up', guestOnly: true },
   { name: 'reset', path: '/auth/reset', guestOnly: true },

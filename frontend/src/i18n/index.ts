@@ -10,7 +10,7 @@ export type LocaleCode = 'zh-CN' | 'en'
 export const LOCALE_STORAGE_KEY = 'ren2hub_locale'
 export const LEGACY_LOCALE_STORAGE_KEY = 'renren_locale'
 const DEFAULT_LOCALE: LocaleCode = 'zh-CN'
-export type MessageDomain = 'auth' | 'console' | 'lab'
+export type MessageDomain = 'auth' | 'console' | 'lab' | 'setup'
 
 export const availableLocales = [
   { code: 'zh-CN', name: '简体中文', flag: '中' },
@@ -91,6 +91,10 @@ const domainLoaders: Record<
   lab: {
     en: () => import('./locales/en/lab'),
     'zh-CN': () => import('./locales/zh-CN/lab'),
+  },
+  setup: {
+    en: () => import('./locales/en/setup'),
+    'zh-CN': () => import('./locales/zh-CN/setup'),
   },
 }
 

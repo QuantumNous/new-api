@@ -9,9 +9,29 @@ import { getConsoleRouteAccessMeta } from '@/constants/navigation/consoleNav'
 import { loadMessageDomain } from '@/i18n'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
+import { useSetupStore } from '@/stores/setup'
 
 const CONSOLE_ENTRY: RouteLocationRaw = { name: 'dashboard' }
 const CHUNK_RELOAD_KEY = 'ren2hub_chunk_reload'
+
+export function sanitizeSetupRedirect(value: unknown): string | null {
+  if (
+    typeof value !== 'string' ||
+    !value.startsWith('/') ||
+    value.startsWith('//')
+  ) {
+    return null
+  }
+  try {
+    const url = new URL(value, window.location.origin)
+    if (url.origin !== window.location.origin) return null
+    const pathname = url.pathname.replace(/^\/next(?=\/|$)/, '') || '/'
+    if (pathname === '/setup/error') return null
+    return `${pathname}${url.search}${url.hash}`
+  } catch {
+    return null
+  }
+}
 
 export function sanitizeRedirect(value: unknown): string | null {
   if (
@@ -66,6 +86,18 @@ const router = createRouter({
       name: 'oauth-callback',
       component: () => import('@/views/auth/OAuthCallbackView.vue'),
       meta: { public: true },
+    },
+    {
+      path: '/setup',
+      name: 'setup',
+      component: () => import('@/views/setup/SetupView.vue'),
+      meta: { public: true, setupRoute: true },
+    },
+    {
+      path: '/setup/error',
+      name: 'setup-error',
+      component: () => import('@/views/setup/SetupErrorView.vue'),
+      meta: { public: true, setupError: true },
     },
     {
       path: '/sign-in',
@@ -316,6 +348,28 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  if (to.meta.setupError) {
+    await loadMessageDomain('setup')
+    return true
+  }
+
+  if (to.meta.setupRoute) await loadMessageDomain('setup')
+  const setup = useSetupStore()
+  try {
+    const setupStatus = await setup.load()
+    if (!setupStatus.status && !to.meta.setupRoute) {
+      return { name: 'setup' }
+    }
+    if (setupStatus.status && to.meta.setupRoute) {
+      return { name: 'home' }
+    }
+  } catch {
+    return {
+      name: 'setup-error',
+      query: { redirect: to.fullPath },
+    }
+  }
+
   if (to.path.startsWith('/auth/')) {
     await loadMessageDomain('auth')
   } else if (to.path.startsWith('/console')) {

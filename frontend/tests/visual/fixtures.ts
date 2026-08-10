@@ -137,6 +137,7 @@ interface StablePageOptions {
   theme: VisualTheme
   authenticated?: boolean
   routeAwareAuth?: boolean
+  setupInitialized?: boolean
   clockStepMs?: number
 }
 
@@ -146,6 +147,7 @@ export async function configureStablePage(
     theme,
     authenticated = true,
     routeAwareAuth = false,
+    setupInitialized = true,
     clockStepMs = 1,
   }: StablePageOptions
 ): Promise<void> {
@@ -208,6 +210,14 @@ export async function configureStablePage(
   )
 
   const responses = new Map<string, unknown>([
+    [
+      '/api/setup',
+      {
+        status: setupInitialized,
+        root_init: setupInitialized,
+        database_type: 'postgres',
+      },
+    ],
     [
       '/api/status',
       {
@@ -697,7 +707,8 @@ export async function configureStablePage(
   })
 
   for (const [path, data] of responses) {
-    await page.route(`**${path}*`, (route) =>
+    const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    await page.route(new RegExp(`${escapedPath}(?:\\?.*)?$`), (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
