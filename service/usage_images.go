@@ -19,11 +19,11 @@ func ImageHashes(messages []dto.Message) []string {
 			if part.Type != dto.ContentTypeImageURL {
 				continue
 			}
-			url := imageURLOf(part.ImageUrl)
-			if url == "" {
+			img := part.GetImageMedia()
+			if img == nil || img.Url == "" {
 				continue
 			}
-			sum := sha256.Sum256([]byte(url))
+			sum := sha256.Sum256([]byte(img.Url))
 			h := hex.EncodeToString(sum[:])
 			if _, dup := seen[h]; dup {
 				continue
@@ -33,23 +33,4 @@ func ImageHashes(messages []dto.Message) []string {
 		}
 	}
 	return hashes
-}
-
-func imageURLOf(raw any) string {
-	switch v := raw.(type) {
-	case dto.MessageImageUrl:
-		return v.Url
-	case *dto.MessageImageUrl:
-		if v == nil {
-			return ""
-		}
-		return v.Url
-	case map[string]any:
-		if s, ok := v["url"].(string); ok {
-			return s
-		}
-	case string:
-		return v
-	}
-	return ""
 }
