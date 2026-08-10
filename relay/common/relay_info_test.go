@@ -34,6 +34,27 @@ func TestSetFirstResponseTimeMarksRequestTiming(t *testing.T) {
 	assert.True(t, info.HasSendResponse())
 }
 
+func TestMarkFirstUpstreamDataDoesNotChangeLegacyFirstResponseTime(t *testing.T) {
+	start := time.Now().Add(-time.Second)
+	timing := rootcommon.NewRequestTimingSession(start)
+	timing.MarkUpstreamAttempt(start.Add(10*time.Millisecond), true)
+	original := start.Add(-time.Second)
+	info := &RelayInfo{
+		StartTime:         start,
+		FirstResponseTime: original,
+		RequestTiming:     timing,
+		isFirstResponse:   true,
+	}
+
+	info.MarkFirstUpstreamData()
+
+	snapshot := timing.Snapshot(time.Now(), false)
+	require.NotNil(t, snapshot)
+	require.NotNil(t, snapshot.UpstreamFirstDataMs)
+	assert.Equal(t, original, info.FirstResponseTime)
+	assert.False(t, info.HasSendResponse())
+}
+
 func TestMarkUpstreamAttemptMarksRequestTiming(t *testing.T) {
 	start := time.Now().Add(-time.Second)
 	timing := rootcommon.NewRequestTimingSession(start)

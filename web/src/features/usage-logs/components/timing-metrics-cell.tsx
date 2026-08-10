@@ -89,6 +89,13 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
   const firstTokenLabel =
     firstTokenSeconds == null ? t('N/A') : formatUseTime(firstTokenSeconds)
   const totalTimeLabel = formatUseTime(timing.totalSeconds)
+  const timingBreakdownLabel = [
+    showFirstToken ? `${t('First token')} ${firstTokenLabel}` : null,
+    `${t('Duration')} ${totalTimeLabel}`,
+    t('Timing breakdown'),
+  ]
+    .filter(Boolean)
+    .join(', ')
 
   const labels = (
     <div className='flex min-h-8 min-w-0 flex-col justify-center gap-0.5 text-xs leading-tight'>
@@ -162,7 +169,7 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger
-          aria-label={t('Timing breakdown')}
+          aria-label={timingBreakdownLabel}
           className='block rounded-sm text-left focus-visible:ring-2 focus-visible:outline-none'
         >
           {content}

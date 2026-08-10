@@ -113,7 +113,7 @@ describe('request timing display', () => {
     await unmountComponent(rendered)
   })
 
-  test('uses request timing headlines and exposes a focusable breakdown trigger', async () => {
+  test('retains timing values in the breakdown trigger accessible name', async () => {
     const rendered = await renderComponent(
       <TimingMetricsCell
         useTimeSec={9}
@@ -134,11 +134,14 @@ describe('request timing display', () => {
     const text = rendered.container.textContent ?? ''
     assert.equal(text.includes('0.5s'), true)
     assert.equal(text.includes('1.5s'), true)
-    const trigger = rendered.container.querySelector(
-      '[aria-label="Timing breakdown"]'
-    )
+    const trigger = rendered.container.querySelector('button')
     assert.ok(trigger)
-    assert.equal(trigger.tagName, 'BUTTON')
+    const accessibleName = trigger.getAttribute('aria-label') ?? ''
+    assert.equal(accessibleName.includes('First token'), true)
+    assert.equal(accessibleName.includes('0.5s'), true)
+    assert.equal(accessibleName.includes('Duration'), true)
+    assert.equal(accessibleName.includes('1.5s'), true)
+    assert.equal(accessibleName.includes('Timing breakdown'), true)
 
     await unmountComponent(rendered)
   })

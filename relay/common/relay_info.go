@@ -850,6 +850,13 @@ func (info *RelayInfo) SetFirstResponseTime() {
 	}
 }
 
+func (info *RelayInfo) MarkFirstUpstreamData() {
+	if info == nil {
+		return
+	}
+	info.RequestTiming.MarkFirstUpstreamData(time.Now())
+}
+
 func (info *RelayInfo) MarkUpstreamAttempt() {
 	if info == nil {
 		return

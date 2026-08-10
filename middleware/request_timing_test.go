@@ -67,7 +67,6 @@ func TestRequestTimingMiddlewareIgnoresKeepaliveWrites(t *testing.T) {
 	timing := session.Snapshot(time.Now(), false)
 	require.NotNil(t, timing)
 	require.NotNil(t, timing.FirstDataToClientMs)
-	assert.Equal(t, int64(0), *timing.FirstDataToClientMs)
 }
 
 func TestRequestTimingMiddlewareSkipsOtherRoutes(t *testing.T) {

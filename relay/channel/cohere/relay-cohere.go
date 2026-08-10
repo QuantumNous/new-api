@@ -114,6 +114,10 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case data := <-dataChan:
+			if isFirst {
+				isFirst = false
+				info.SetFirstResponseTime()
+			}
 			data = strings.TrimSuffix(data, "\r")
 			var cohereResp CohereResponse
 			err := json.Unmarshal([]byte(data), &cohereResp)
@@ -155,10 +159,6 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			if err != nil {
 				common.SysLog("error marshalling stream response: " + err.Error())
 				return true
-			}
-			if isFirst {
-				isFirst = false
-				info.SetFirstResponseTime()
 			}
 			c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonStr)})
 			return true
