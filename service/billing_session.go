@@ -193,7 +193,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	s.lang = i18n.GetLangFromContext(c)
 
 	hashes := RequestImageHashes(s.relayInfo.Request)
-	if err := CheckUsageAllowance(s.relayInfo.UserId, s.relayInfo.UserGroup, s.lang, nil, hashes, time.Now()); err != nil {
+	if err := CheckUsageAllowance(s.relayInfo.UserId, s.relayInfo.UserGroup, s.lang, CycleSubscriptionFor(s.relayInfo.UserId), hashes, time.Now()); err != nil {
 		logger.LogError(c, fmt.Sprintf("usage allowance refused (userId=%d, group=%s, images=%d)",
 			s.relayInfo.UserId, s.relayInfo.UserGroup, len(hashes)))
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,

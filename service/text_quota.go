@@ -323,7 +323,7 @@ func accrueShadowUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) {
 		relayInfo.PriceData.CompletionRatio,
 		relayInfo.PriceData.CacheRatio,
 	)
-	cycleStart, _ := UsageCycle(CycleMonth, nil, time.Now())
+	cycleStart, _ := UsageCycle(CycleMonth, CycleSubscriptionFor(relayInfo.UserId), time.Now())
 	if err := model.AddUsage(relayInfo.UserId, CycleMonth, cycleStart, shadow, 1); err != nil {
 		common.SysLog("usage accrual failed: " + err.Error())
 	}

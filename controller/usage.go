@@ -154,6 +154,7 @@ func GetUserUsage(c *gin.Context) {
 
 	// A missing or unreadable subscription is a user with no pool, not an error
 	// worth failing the whole page over.
+	var cycleSubs []model.UserSubscription
 	if summaries, err := model.GetAllActiveUserSubscriptions(userId); err == nil {
 		subs := make([]model.UserSubscription, 0, len(summaries))
 		for _, summary := range summaries {
@@ -162,9 +163,10 @@ func GetUserUsage(c *gin.Context) {
 			}
 		}
 		in.IncludedTotal, in.IncludedUsed, in.IncludedResetAt = service.SumIncludedPools(subs)
+		cycleSubs = subs
 	}
 
-	cycleStart, resetAt := service.UsageCycle(service.CycleMonth, nil, time.Now())
+	cycleStart, resetAt := service.UsageCycle(service.CycleMonth, service.CycleSubscription(cycleSubs), time.Now())
 	if cost, _, images, err := model.GetUsage(userId, service.CycleMonth, cycleStart); err == nil {
 		in.MonthlyCostUsed = cost
 		in.MonthlyCostLimit = setting.GetMonthlyCostLimit(group)

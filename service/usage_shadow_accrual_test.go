@@ -116,3 +116,61 @@ func TestPostTextConsumeQuotaDoesNotAccrueWithoutUsage(t *testing.T) {
 	require.Equal(t, int64(0), afterCost)
 	require.Equal(t, 0, afterRequests)
 }
+
+// TestAccrualAndReadShareTheBillingAnchoredCycle pins the property that broke
+// twice in this feature's history: the writer and the reader must resolve the
+// same cycle. Now that a paying tier anchors its cycle to its billing date
+// rather than the calendar month, a caller that forgets to pass the anchor
+// would write to one row and read from another — the counter would look empty
+// while usage accrued invisibly beside it.
+func TestAccrualAndReadShareTheBillingAnchoredCycle(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	truncate(t)
+
+	userId := 4003
+	seedUser(t, userId, 0)
+
+	// A Plus-shaped row: paying, no metered pool, billed on the 8th.
+	anchor := time.Now().AddDate(0, 0, -3)
+	require.NoError(t, model.DB.Create(&model.UserSubscription{
+		UserId: userId, PlanId: 1,
+		AmountTotal: 0, AmountUsed: 0,
+		StartTime: anchor.Unix(), EndTime: anchor.AddDate(0, 1, 0).Unix(),
+		Status: "active", Source: "order",
+	}).Error)
+
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:                  userId,
+		RelayFormat:             types.RelayFormatOpenAI,
+		FinalRequestRelayFormat: types.RelayFormatOpenAI,
+		OriginModelName:         "gpt-4o-mini",
+		StartTime:               time.Now(),
+		ChannelMeta:             &relaycommon.ChannelMeta{},
+		PriceData: types.PriceData{
+			ModelRatio: 2, CompletionRatio: 1, CacheRatio: 1,
+			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0},
+		},
+	}
+	usage := &dto.Usage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150}
+
+	PostTextConsumeQuota(ctx, relayInfo, usage, nil)
+
+	// Read the way the gate and the portal endpoint do: through the anchor.
+	anchoredStart, _ := UsageCycle(CycleMonth, CycleSubscriptionFor(userId), time.Now())
+	cost, requests, _, err := model.GetUsage(userId, CycleMonth, anchoredStart)
+	require.NoError(t, err)
+	require.Equal(t, int64(300), cost, "the reader must find what the writer accrued")
+	require.Equal(t, 1, requests)
+
+	// And prove the anchor genuinely moved the cycle off the calendar month —
+	// otherwise this test would pass even if the anchor were being ignored.
+	calendarStart, _ := UsageCycle(CycleMonth, nil, time.Now())
+	require.NotEqual(t, calendarStart, anchoredStart, "a mid-month billing date must not resolve to the 1st")
+	calendarCost, _, _, err := model.GetUsage(userId, CycleMonth, calendarStart)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), calendarCost, "nothing should have landed in the calendar-month row")
+}
