@@ -614,13 +614,15 @@ func TestLifecycleInsertConflictSQLIsTargetedByDialect(t *testing.T) {
 				UserId:            77,
 				EventData:         `{}`,
 			}
-			sql := strings.ToLower(db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+			sql := normalizeLifecycleSQL(db.ToSQL(func(tx *gorm.DB) *gorm.DB {
 				return insertRecallLifecycleEvent(tx, &event)
 			}))
-			require.NotContains(t, sql, "insert ignore")
 			if name == "mysql" {
-				require.Contains(t, sql, "on duplicate key update")
+				require.Contains(t, sql, "insert ignore")
+				require.NotContains(t, sql, "on duplicate key update")
+				require.NotContains(t, sql, "on conflict")
 			} else {
+				require.NotContains(t, sql, "insert ignore")
 				require.Contains(t, sql, "on conflict")
 			}
 		})

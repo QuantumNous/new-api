@@ -520,11 +520,7 @@ func recallLifecycleRetryBackoffSeconds(attemptCount int) int64 {
 
 func insertRecallLifecycleEvent(tx *gorm.DB, event *RecallLifecycleEvent) *gorm.DB {
 	if tx.Dialector.Name() == "mysql" {
-		return tx.Clauses(clause.OnConflict{
-			DoUpdates: clause.Assignments(map[string]any{
-				"id": gorm.Expr("id"),
-			}),
-		}).Create(event)
+		return tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(event)
 	}
 	return tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "event_type"}, {Name: "occurrence_key_hash"}},
