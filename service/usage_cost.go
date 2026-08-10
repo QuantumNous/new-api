@@ -15,6 +15,9 @@ func ShadowCost(promptTokens, completionTokens, cachedTokens int, modelRatio, co
 	if cachedTokens < 0 {
 		cachedTokens = 0
 	}
+	if completionTokens < 0 {
+		completionTokens = 0
+	}
 	if cachedTokens > promptTokens {
 		cachedTokens = promptTokens
 	}

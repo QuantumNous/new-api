@@ -170,7 +170,11 @@ func GetUserUsage(c *gin.Context) {
 		in.MonthlyCostLimit = setting.GetMonthlyCostLimit(group)
 		in.MonthlyResetAt = resetAt
 		in.ImagesUsed = images
-		in.ImageLimit = setting.GetMonthlyImageLimit(group)
+		// An unconfigured group reports limit 0 here too, same as an explicit
+		// 0: BuildUsageMeters already omits the images meter whenever the
+		// limit is <= 0, so the two cases render identically (no bar), which
+		// is correct — there is nothing to show a meter against either way.
+		in.ImageLimit, _ = setting.GetMonthlyImageLimit(group)
 	}
 
 	common.ApiSuccess(c, gin.H{"meters": BuildUsageMeters(in)})

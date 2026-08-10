@@ -44,13 +44,20 @@ func AddUsage(userId int, kind string, cycleStart int64, cost int64, requests in
 		return errors.New("invalid userId")
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		row, err := lockUsageRow(tx, userId, kind, cycleStart)
-		if err != nil {
+		if err := ensureUsageRow(tx, userId, kind, cycleStart); err != nil {
 			return err
 		}
-		row.CostUsed += cost
-		row.RequestsUsed += requests
-		return tx.Save(row).Error
+		// SQL-side arithmetic, not a read-then-Save of a struct fetched
+		// earlier: a Save would write back every column on the struct,
+		// including images_used at whatever value it happened to have at
+		// read time, silently erasing a concurrent ReserveImages write.
+		// Only the two columns this call actually changes are touched.
+		return tx.Model(&UserUsageCounter{}).
+			Where("user_id = ? AND cycle_kind = ? AND cycle_start = ?", userId, kind, cycleStart).
+			Updates(map[string]any{
+				"cost_used":     gorm.Expr("cost_used + ?", cost),
+				"requests_used": gorm.Expr("requests_used + ?", requests),
+			}).Error
 	})
 }
 
@@ -73,43 +80,53 @@ func ReserveImages(userId int, cycleStart int64, hashes []string, limit int) (in
 	if len(hashes) == 0 {
 		return 0, nil
 	}
+	seenInBatch := make(map[string]bool, len(hashes))
+	unique := make([]UserImageUpload, 0, len(hashes))
+	now := common.GetTimestamp()
+	for _, h := range hashes {
+		if seenInBatch[h] {
+			continue
+		}
+		seenInBatch[h] = true
+		unique = append(unique, UserImageUpload{UserId: userId, CycleStart: cycleStart, ImageHash: h, CreatedAt: now})
+	}
+
 	accepted := 0
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		row, err := lockUsageRow(tx, userId, CycleKindMonth, cycleStart)
-		if err != nil {
+		if err := ensureUsageRow(tx, userId, CycleKindMonth, cycleStart); err != nil {
 			return err
 		}
-		var fresh []string
-		seenInBatch := make(map[string]bool, len(hashes))
-		for _, h := range hashes {
-			if seenInBatch[h] {
-				continue
-			}
-			var existing UserImageUpload
-			q := tx.Where("user_id = ? AND cycle_start = ? AND image_hash = ?", userId, cycleStart, h).Limit(1).Find(&existing)
-			if q.Error != nil {
-				return q.Error
-			}
-			if q.RowsAffected == 0 {
-				fresh = append(fresh, h)
-				seenInBatch[h] = true
-			}
+
+		// Insert the fresh hashes; the unique index (idx_image_cycle) is the
+		// real guard against double-insert, so a batch that collides with an
+		// already-spent hash simply inserts nothing for it — RowsAffected
+		// tells us exactly how many were actually new.
+		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&unique)
+		if res.Error != nil {
+			return res.Error
 		}
-		if len(fresh) == 0 {
+		fresh := int(res.RowsAffected)
+		if fresh == 0 {
 			return nil
 		}
-		if row.ImagesUsed+len(fresh) > limit {
+
+		// Conditional increment: this UPDATE only applies if the result stays
+		// within limit, checked entirely in SQL so there is no read-then-write
+		// gap between deciding "there's room" and writing it. If it doesn't
+		// apply, RowsAffected is 0 and the whole transaction (including the
+		// inserts above) rolls back, so nothing is reserved.
+		upd := tx.Model(&UserUsageCounter{}).
+			Where("user_id = ? AND cycle_kind = ? AND cycle_start = ? AND images_used + ? <= ?",
+				userId, CycleKindMonth, cycleStart, fresh, limit).
+			Update("images_used", gorm.Expr("images_used + ?", fresh))
+		if upd.Error != nil {
+			return upd.Error
+		}
+		if upd.RowsAffected == 0 {
 			return ErrImageLimitReached
 		}
-		now := common.GetTimestamp()
-		for _, h := range fresh {
-			if err := tx.Create(&UserImageUpload{UserId: userId, CycleStart: cycleStart, ImageHash: h, CreatedAt: now}).Error; err != nil {
-				return err
-			}
-		}
-		row.ImagesUsed += len(fresh)
-		accepted = len(fresh)
-		return tx.Save(row).Error
+		accepted = fresh
+		return nil
 	})
 	if err != nil {
 		return 0, err
@@ -117,27 +134,14 @@ func ReserveImages(userId int, cycleStart int64, hashes []string, limit int) (in
 	return accepted, nil
 }
 
-// lockUsageRow ensures the counter row for (userId, kind, cycleStart) exists
-// and returns it locked FOR UPDATE within tx, so concurrent AddUsage/ReserveImages
-// calls for the same cycle serialize instead of racing on a read-modify-write.
-//
-// This uses the same `tx.Set("gorm:query_option", "FOR UPDATE")` pattern as the
-// rest of the codebase (see model/subscription.go, model/topup.go, model/user.go,
-// model/redemption.go) rather than gorm's `clause.Locking{Strength: "UPDATE"}`.
-// Both were verified to run without error against the glebarez/sqlite driver used
-// in tests (SQLite has no real row-level FOR UPDATE, so it is accepted as a no-op
-// there), but the query_option form is what every other locked-row path in this
-// codebase already uses, so it is followed here for consistency.
-func lockUsageRow(tx *gorm.DB, userId int, kind string, cycleStart int64) (*UserUsageCounter, error) {
+// ensureUsageRow makes sure the counter row for (userId, kind, cycleStart)
+// exists so AddUsage/ReserveImages have something to apply their atomic SQL
+// updates to. It does not read or lock the row — see the Updates/Update calls
+// in AddUsage and ReserveImages, which do the actual counting via SQL-side
+// arithmetic (gorm.Expr and a conditional WHERE) rather than a Go-side
+// read-modify-write, so they are correct under concurrent callers on SQLite,
+// MySQL >= 5.7.8 and PostgreSQL without needing a portable row lock.
+func ensureUsageRow(tx *gorm.DB, userId int, kind string, cycleStart int64) error {
 	row := UserUsageCounter{UserId: userId, CycleKind: kind, CycleStart: cycleStart}
-	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error; err != nil {
-		return nil, err
-	}
-	var locked UserUsageCounter
-	if err := tx.Set("gorm:query_option", "FOR UPDATE").
-		Where("user_id = ? AND cycle_kind = ? AND cycle_start = ?", userId, kind, cycleStart).
-		First(&locked).Error; err != nil {
-		return nil, err
-	}
-	return &locked, nil
+	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error
 }

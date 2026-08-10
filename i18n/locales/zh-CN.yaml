@@ -295,3 +295,4 @@ usage.monthly_exhausted: "本周期的 JINN 用量已用完，将于 {{.Date}} �
 usage.images_exhausted: "本周期包含的图片额度已用完，将于 {{.Date}} 恢复。"
 usage.monthly_exhausted_no_date: "本周期的 JINN 用量已用完。"
 usage.images_exhausted_no_date: "本周期包含的图片额度已用完。"
+usage.images_not_included: "图片功能为 JINN Pro 专享。"

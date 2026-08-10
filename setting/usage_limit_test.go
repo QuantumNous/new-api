@@ -28,8 +28,25 @@ func TestMonthlyImageLimits(t *testing.T) {
 	require.NoError(t, UpdateMonthlyImageLimitGroupByJSONString(`{"free":0,"plus":0,"pro":100}`))
 	t.Cleanup(func() { _ = UpdateMonthlyImageLimitGroupByJSONString(`{}`) })
 
-	require.Equal(t, 100, GetMonthlyImageLimit("pro"))
-	require.Equal(t, 0, GetMonthlyImageLimit("plus"), "0 means no images allowed")
+	limit, found := GetMonthlyImageLimit("pro")
+	require.True(t, found)
+	require.Equal(t, 100, limit)
+
+	limit, found = GetMonthlyImageLimit("plus")
+	require.True(t, found, "plus is explicitly configured at 0: no images allowed")
+	require.Equal(t, 0, limit)
+}
+
+// A group absent from the map has no configured entitlement at all — distinct
+// from a group explicitly configured at 0. The caller must be able to tell
+// these apart, or an unconfigured group gets refused like a zero-entitlement one.
+func TestMonthlyImageLimitForAnUnconfiguredGroupIsNotFound(t *testing.T) {
+	require.NoError(t, UpdateMonthlyImageLimitGroupByJSONString(`{"pro":100}`))
+	t.Cleanup(func() { _ = UpdateMonthlyImageLimitGroupByJSONString(`{}`) })
+
+	limit, found := GetMonthlyImageLimit("free")
+	require.False(t, found)
+	require.Equal(t, 0, limit)
 }
 
 func TestMonthlyLimitValidationRejectsNegativesAndGarbage(t *testing.T) {

@@ -117,6 +117,51 @@ func TestCheckUsageRefusesImagesForATierWithoutTheEntitlement(t *testing.T) {
 	require.Error(t, err)
 }
 
+// FINDING 1: a group entirely absent from the image-limit map (the option
+// defaults to {}) must be uncapped, exactly like an absent cost-limit group —
+// not refused. Refusing here is the "every vision request 403s until someone
+// fills in the config" bug.
+func TestCheckUsageWithNoImageLimitConfiguredAtAllNeverRefusesImages(t *testing.T) {
+	truncate(t)
+	withLimits(t, `{}`, `{}`)
+
+	err := CheckUsageAllowance(50, "pro", i18n.LangEn, nil, []string{"hash-unconfigured"}, time.Now())
+
+	require.NoError(t, err, "an unconfigured group must not refuse images the way an explicit 0 does")
+}
+
+// An explicit 0 is a deliberate "this tier gets no images" setting and must
+// still refuse — this is the control proving the fix didn't just always allow.
+func TestCheckUsageWithExplicitZeroImageLimitStillRefuses(t *testing.T) {
+	truncate(t)
+	withLimits(t, `{}`, `{"free":0}`)
+
+	err := CheckUsageAllowance(51, "free", i18n.LangEn, nil, []string{"hash-a"}, time.Now())
+
+	require.Error(t, err)
+}
+
+// FINDING 6: a group with an explicit 0 image entitlement has never had any
+// images to spend, so the "it refills on {Date}" wall is a lie. It must read
+// differently from the real exhausted-a-real-allowance message and name no date.
+func TestCheckUsageNoEntitlementMessageDiffersFromExhaustedMessage(t *testing.T) {
+	truncate(t)
+	withLimits(t, `{}`, `{"free":0}`)
+	noEntitlement := CheckUsageAllowance(52, "free", i18n.LangEn, nil, []string{"hash-a"}, time.Now())
+	require.Error(t, noEntitlement)
+
+	withLimits(t, `{}`, `{"pro":1}`)
+	start, _ := UsageCycle(CycleMonth, nil, time.Now())
+	require.NoError(t, CheckUsageAllowance(53, "pro", i18n.LangEn, nil, []string{"hash-x"}, time.Now()))
+	_ = start
+	exhausted := CheckUsageAllowance(53, "pro", i18n.LangEn, nil, []string{"hash-y"}, time.Now())
+	require.Error(t, exhausted)
+
+	require.NotEqual(t, noEntitlement.Error(), exhausted.Error())
+	require.NotContains(t, noEntitlement.Error(), "refills on", "no entitlement was ever granted, so nothing refills")
+	require.Contains(t, exhausted.Error(), "refills on")
+}
+
 func TestCheckUsageChargesAnImageOnlyOncePerCycle(t *testing.T) {
 	truncate(t)
 	withLimits(t, `{"pro":0}`, `{"pro":1}`)

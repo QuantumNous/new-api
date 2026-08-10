@@ -68,16 +68,28 @@ func CheckUsageAllowance(userId int, group string, lang string, sub *model.UserS
 		}
 	}
 
+	// A group absent from the map has no configured image entitlement at all
+	// and is uncapped, exactly like an absent cost-limit group (see the check
+	// above): the option defaults to {}, and enforcing against a limit that
+	// was never configured would 403 every image request for every group
+	// until an operator fills the map in. Only a group actually present in
+	// the map — including an explicit 0 — is enforced.
 	if len(imageHashes) > 0 {
-		limit := setting.GetMonthlyImageLimit(group)
-		if _, err := model.ReserveImages(userId, cycleStart, imageHashes, limit); err != nil {
-			if errors.Is(err, model.ErrImageLimitReached) {
-				return errors.New(UsageLimitMessage(lang, UsageLimitImages, resetAt))
+		if limit, found := setting.GetMonthlyImageLimit(group); found {
+			if _, err := model.ReserveImages(userId, cycleStart, imageHashes, limit); err != nil {
+				if errors.Is(err, model.ErrImageLimitReached) {
+					if limit == 0 {
+						// Explicitly configured at 0: this plan never had any
+						// images to spend, so there is nothing to "refill".
+						return errors.New(i18n.Translate(lang, i18n.MsgUsageImagesNotIncluded))
+					}
+					return errors.New(UsageLimitMessage(lang, UsageLimitImages, resetAt))
+				}
+				logger.LogWarn(context.Background(), fmt.Sprintf(
+					"usage allowance check failed to reserve images, allowing request (userId=%d, group=%s, op=ReserveImages): %s",
+					userId, group, err.Error()))
+				return nil // a storage failure must not block the request
 			}
-			logger.LogWarn(context.Background(), fmt.Sprintf(
-				"usage allowance check failed to reserve images, allowing request (userId=%d, group=%s, op=ReserveImages): %s",
-				userId, group, err.Error()))
-			return nil // a storage failure must not block the request
 		}
 	}
 	return nil

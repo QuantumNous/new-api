@@ -70,10 +70,16 @@ func UpdateMonthlyImageLimitGroupByJSONString(jsonStr string) error {
 	return common.Unmarshal([]byte(jsonStr), &MonthlyImageLimitGroup)
 }
 
-func GetMonthlyImageLimit(group string) int {
+// GetMonthlyImageLimit reports the group's configured image limit and whether
+// the group is present in the map at all. A group configured at 0 (found=true)
+// deliberately gets no images; a group absent from the map (found=false) has
+// no entitlement configured yet and must not be treated the same way — see
+// service.CheckUsageAllowance, which only enforces the limit when found.
+func GetMonthlyImageLimit(group string) (int, bool) {
 	monthlyLimitMu.RLock()
 	defer monthlyLimitMu.RUnlock()
-	return MonthlyImageLimitGroup[group]
+	limit, found := MonthlyImageLimitGroup[group]
+	return limit, found
 }
 
 func CheckMonthlyImageLimitGroup(jsonStr string) error {

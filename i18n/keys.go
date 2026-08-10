@@ -350,4 +350,8 @@ const (
 	MsgUsageImagesExhausted        = "usage.images_exhausted"
 	MsgUsageMonthlyExhaustedNoDate = "usage.monthly_exhausted_no_date"
 	MsgUsageImagesExhaustedNoDate  = "usage.images_exhausted_no_date"
+	// MsgUsageImagesNotIncluded is for a group whose image limit is explicitly
+	// 0: it has never had any images to spend, so unlike ImagesExhausted this
+	// carries no refill date.
+	MsgUsageImagesNotIncluded = "usage.images_not_included"
 )

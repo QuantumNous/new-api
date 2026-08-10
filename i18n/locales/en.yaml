@@ -294,3 +294,4 @@ usage.monthly_exhausted: "You've used your JINN usage for this cycle. It refills
 usage.images_exhausted: "You've used all the images included in this cycle. It refills on {{.Date}}."
 usage.monthly_exhausted_no_date: "You've used your JINN usage for this cycle."
 usage.images_exhausted_no_date: "You've used all the images included in this cycle."
+usage.images_not_included: "Images are available on JINN Pro."

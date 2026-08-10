@@ -34,6 +34,13 @@ func TestShadowCostClampsNegativeAndOversizedCachedCounts(t *testing.T) {
 	require.Equal(t, int64(80), ShadowCost(1000, 0, 5000, 0.4, 4.0, 0.2))
 }
 
+// A broken upstream can hand back a negative completion count; treated
+// literally that would *decrement* the cumulative shadow-cost counter, so it
+// is clamped to 0 the same way cachedTokens already is.
+func TestShadowCostClampsNegativeCompletionTokens(t *testing.T) {
+	require.Equal(t, int64(400), ShadowCost(1000, -50, 0, 0.4, 4.0, 0.2))
+}
+
 func TestShadowCostRoundsRatherThanTruncates(t *testing.T) {
 	// (3 + 0) × 0.4 = 1.2 → 1
 	require.Equal(t, int64(1), ShadowCost(3, 0, 0, 0.4, 4.0, 0.2))
