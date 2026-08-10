@@ -277,7 +277,10 @@ func TestUpdateVideoSingleTaskArchiveErrorDoesNotFinalizeOrSettle(t *testing.T) 
 
 	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), techMobiTaskMap(task))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "archive techmobi video result failed")
+	require.Contains(t, err.Error(), "video archive failed for task")
+	require.Contains(t, err.Error(), "phase=50%")
+	require.Contains(t, err.Error(), "status=SUCCESS")
+	require.Contains(t, err.Error(), "archive unavailable")
 	require.NotContains(t, err.Error(), "secret.example")
 	require.Equal(t, 0, adaptor.adjustCalls)
 
@@ -328,6 +331,8 @@ func TestUpdateVideoSingleTaskModelAPIArchivesAndSetsProxyURL(t *testing.T) {
 		require.Equal(t, "task_modelapi_success", publicTaskID)
 		require.Equal(t, "https://secret.example/video.mp4?token=secret", upstreamURL)
 		require.Equal(t, "http://proxy.internal:8080", proxy)
+		require.EqualValues(t, model.TaskStatusInProgress, task.Status, "archive must run before final success status mutation")
+		require.Zero(t, task.FinishTime, "archive must run before final finish time mutation")
 		return expected, nil
 	}
 
@@ -374,7 +379,10 @@ func TestUpdateVideoSingleTaskModelAPIArchiveErrorDoesNotFinalizeOrSettle(t *tes
 
 	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), modelAPITaskMap(task))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "archive modelapi video result failed")
+	require.Contains(t, err.Error(), "video archive failed for task")
+	require.Contains(t, err.Error(), "phase=50%")
+	require.Contains(t, err.Error(), "status=SUCCESS")
+	require.Contains(t, err.Error(), "archive unavailable")
 	require.NotContains(t, err.Error(), "secret.example")
 	require.Equal(t, 0, adaptor.adjustCalls)
 
@@ -390,6 +398,47 @@ func TestUpdateVideoSingleTaskModelAPIArchiveErrorDoesNotFinalizeOrSettle(t *tes
 	text, err := perfmetrics.BuildPrometheusText(context.Background())
 	require.NoError(t, err)
 	require.Contains(t, text, `newapi_video_result_archive_retry_total{channel="modelapi",reason="archive_failure"} 1`)
+}
+
+func TestUpdateVideoSingleTaskModelAPIArchiveFailureNoUpstreamLeaks(t *testing.T) {
+	truncate(t)
+	restoreArchiveHookForPollingTest(t)
+	logs := capturePollingLogs(t)
+	ctx := context.Background()
+
+	seedUser(t, 927, 1000)
+	seedToken(t, 927, 927, "sk-modelapi-archive-leak", 500)
+	task := newModelAPIPollingTaskWithID(t, "task_archive_leak", 927, 947, 100, 927)
+	upstreamTaskID := task.GetUpstreamTaskID()
+	ch := newModelAPIPollingChannel("")
+	archiveError := errors.New("download failed from https://secret.example/video.mp4?token=secret")
+	adaptor := &fakeVideoPollingAdaptor{
+		responseBody: modelAPIArchiveResponseBody(),
+		taskResult: &relaycommon.TaskInfo{
+			TaskID:   "upstream-modelapi-success",
+			Status:   model.TaskStatusSuccess,
+			Url:      "https://secret.example/video.mp4?token=secret",
+			Progress: "100%",
+		},
+	}
+	archiveModelAPIVideoResult = func(context.Context, string, string, string) (*model.VideoResult, error) {
+		return nil, archiveError
+	}
+
+	err := updateVideoSingleTask(ctx, adaptor, ch, task.GetUpstreamTaskID(), modelAPITaskMap(task))
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "https://")
+	require.NotContains(t, err.Error(), "api.modelapi.co")
+	require.NotContains(t, err.Error(), "modelapi")
+	require.NotContains(t, err.Error(), upstreamTaskID)
+	require.NotContains(t, err.Error(), "secret.example")
+
+	logText := logs.String()
+	require.NotContains(t, logText, "modelapi")
+	require.NotContains(t, logText, "api.modelapi.co")
+	require.NotContains(t, logText, "https://")
+	require.NotContains(t, logText, upstreamTaskID)
+	require.NotContains(t, logText, "secret.example")
 }
 
 func TestUpdateVideoSingleTaskModelAPIEmptySuccessURLDoesNotFinalizeOrSettle(t *testing.T) {
@@ -472,9 +521,13 @@ func TestUpdateVideoSingleTaskModelAPIRedactsStoredDataAndLogs(t *testing.T) {
 	require.NotContains(t, strings.ToLower(storedData), "modelapi")
 
 	logText := logs.String()
+	upstreamTaskID := "upstream-modelapi-success"
+	require.NotContains(t, logText, upstreamTaskID)
 	require.NotContains(t, logText, upstreamURL)
 	require.NotContains(t, logText, "https://")
 	require.NotContains(t, logText, "api.modelapi.co")
+	require.NotContains(t, logText, "channel_id=")
+	require.NotContains(t, logText, "reason=")
 	require.NotContains(t, strings.ToLower(logText), "modelapi")
 }
 
@@ -512,6 +565,10 @@ func TestUpdateVideoSingleTaskModelAPIFailureRedactsDBAndLogs(t *testing.T) {
 	require.NotContains(t, strings.ToLower(logs.String()), "modelapi")
 	require.NotContains(t, logs.String(), "https://")
 	require.NotContains(t, logs.String(), "api.modelapi.co")
+	require.NotContains(t, logs.String(), "channel_id=")
+	require.NotContains(t, logs.String(), "reason=")
+	require.NotContains(t, logs.String(), "render failed")
+	require.NotContains(t, logs.String(), "upstream-modelapi-success")
 }
 
 func TestUpdateVideoSingleTaskModelAPIUnknownErrorFormatDoesNotLogRawResponse(t *testing.T) {
@@ -534,6 +591,7 @@ func TestUpdateVideoSingleTaskModelAPIUnknownErrorFormatDoesNotLogRawResponse(t 
 	require.NotContains(t, strings.ToLower(logs.String()), "modelapi")
 	require.NotContains(t, logs.String(), "https://")
 	require.NotContains(t, logs.String(), "api.modelapi.co")
+	require.NotContains(t, logs.String(), "upstream-modelapi-success")
 }
 
 func TestUpdateVideoSingleTaskModelAPICASLoserDoesNotSettleTwice(t *testing.T) {
@@ -714,7 +772,7 @@ func TestUpdateVideoSingleTaskArchiveFailurePayloadRedactsDBAndLogs(t *testing.T
 	require.NotContains(t, logs.String(), "secret.example")
 	require.NotContains(t, logs.String(), "token=secret")
 	require.Contains(t, logs.String(), "task_archive_success")
-	require.Contains(t, logs.String(), "render failed")
+	require.NotContains(t, logs.String(), "render failed")
 }
 
 func TestRedactTechMobiVideoResponseBodyRemovesUpstreamURLsAndKeepsPublicFields(t *testing.T) {

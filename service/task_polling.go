@@ -361,7 +361,7 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	adaptor.Init(info)
 	for _, taskId := range taskIds {
 		if err := updateVideoSingleTask(ctx, adaptor, cacheGetChannel, taskId, taskM); err != nil {
-			logger.LogError(ctx, fmt.Sprintf("Failed to update video task %s: %s", taskId, err.Error()))
+			logger.LogError(ctx, fmt.Sprintf("Failed to update video task: %s", err.Error()))
 		}
 		// sleep 1 second between each task to avoid hitting rate limits of upstream platforms
 		time.Sleep(1 * time.Second)
@@ -380,8 +380,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	task := taskM[taskId]
 	if task == nil {
-		logger.LogError(ctx, fmt.Sprintf("Task %s not found in taskM", taskId))
-		return fmt.Errorf("task %s not found", taskId)
+		logger.LogError(ctx, "Task not found in taskM")
+		return errors.New("task not found")
 	}
 	key := ch.Key
 
@@ -389,21 +389,22 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
+	upstreamTaskID := task.GetUpstreamTaskID()
 	resp, err := FetchTaskWithContext(ctx, adaptor, baseURL, key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
+		"task_id": upstreamTaskID,
 		"action":  task.Action,
 	}, proxy)
 	if err != nil {
-		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
+		return fmt.Errorf("fetchTask failed for task %s: %w", task.TaskID, err)
 	}
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
+		return fmt.Errorf("readAll failed for task %s: %w", task.TaskID, err)
 	}
 
 	if VideoResultChannelLabel(ch.Type) != "" {
-		logger.LogDebug(ctx, "updateVideoSingleTask response received: task_id=%s upstream_task_id=%s phase=fetched bytes=%d", task.TaskID, task.GetUpstreamTaskID(), len(responseBody))
+		logger.LogDebug(ctx, "updateVideoSingleTask response received: task_id=%s phase=fetched bytes=%d", task.TaskID, len(responseBody))
 	} else {
 		logger.LogDebug(ctx, "updateVideoSingleTask response: %s", responseBody)
 	}
@@ -415,7 +416,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	var responseItems dto.TaskResponse[model.Task]
 	if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
 		if VideoResultChannelLabel(ch.Type) != "" {
-			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: task_id=%s upstream_task_id=%s phase=parsed status=%s", task.TaskID, task.GetUpstreamTaskID(), responseItems.Data.Status)
+			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: task_id=%s phase=parsed status=%s", task.TaskID, responseItems.Data.Status)
 		} else {
 			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: %+v", responseItems)
 		}
@@ -427,13 +428,13 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		taskResult.Reason = t.FailReason
 		task.Data = t.Data
 	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
-		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
+		return fmt.Errorf("parseTaskResult failed for task %s: %w", task.TaskID, err)
 	}
 
 	task.Data = redactVideoResponseForChannel(ch.Type, responseBody)
 
 	if VideoResultChannelLabel(ch.Type) != "" {
-		logger.LogDebug(ctx, "updateVideoSingleTask task result parsed: task_id=%s upstream_task_id=%s phase=parsed status=%s progress=%s", task.TaskID, task.GetUpstreamTaskID(), taskResult.Status, taskResult.Progress)
+		logger.LogDebug(ctx, "updateVideoSingleTask task result parsed: task_id=%s phase=parsed status=%s progress=%s", task.TaskID, taskResult.Status, taskResult.Progress)
 	} else {
 		logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
 	}
@@ -456,9 +457,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			} else {
 				// unknown error format, log original response
 				if VideoResultChannelLabel(ch.Type) != "" {
-					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format", taskId))
+					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format", task.TaskID))
 				} else {
-					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
+					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", task.TaskID, string(responseBody)))
 				}
 				taskResult = relaycommon.FailTaskInfo("upstream returned unrecognized message")
 			}
@@ -468,10 +469,27 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	archiveChannelLabel := VideoResultChannelLabel(ch.Type)
 	if (returnSourceURL || (archiveChannelLabel != "" && !returnSourceURL)) &&
 		taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess && strings.TrimSpace(taskResult.Url) == "" {
-		if archiveChannelLabel != "" {
-			return fmt.Errorf("%s task %s missing source URL", archiveChannelLabel, task.TaskID)
+		phase := task.Progress
+		if phase == "" {
+			phase = "unknown"
 		}
-		return fmt.Errorf("techmobi task %s missing source URL", task.TaskID)
+		status := taskResult.Status
+		if status == "" {
+			status = "unknown"
+		}
+		if archiveChannelLabel != "" {
+			return fmt.Errorf("task %s missing source URL: phase=%s status=%s", task.TaskID, phase, status)
+		}
+		return fmt.Errorf("task %s missing source URL: phase=%s status=%s", task.TaskID, phase, status)
+	}
+
+	phase := task.Progress
+	if phase == "" {
+		phase = "unknown"
+	}
+	status := taskResult.Status
+	if status == "" {
+		status = "unknown"
 	}
 
 	if archiveChannelLabel != "" && !returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
@@ -490,7 +508,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			}
 			if archiveErr != nil {
 				perfmetrics.RecordVideoResultArchiveRetry(archiveChannelLabel, "archive_failure")
-				return fmt.Errorf("archive %s video result failed for task %s: %s", archiveChannelLabel, task.TaskID, sanitizeVideoResultArchiveError(archiveErr))
+				return fmt.Errorf("video archive failed for task %s: phase=%s status=%s: %s", task.TaskID, phase, status, sanitizeVideoResultArchiveError(archiveErr))
 			}
 			task.PrivateData.VideoResult = videoResult
 		}
@@ -541,7 +559,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		shouldSettle = true
 	case model.TaskStatusFailure:
 		if VideoResultChannelLabel(ch.Type) != "" {
-			logger.LogInfo(ctx, fmt.Sprintf("Archived video task failed: task_id=%s channel_id=%d status=%s reason=%s", task.TaskID, ch.Id, taskResult.Status, sanitizeArchivedVideoLogText(ch.Type, taskResult.Reason)))
+			logger.LogInfo(ctx, fmt.Sprintf("Archived video task failed: task_id=%s status=%s", task.TaskID, taskResult.Status))
 		} else {
 			logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
 		}
@@ -553,8 +571,10 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		task.FailReason = taskResult.Reason
 		if VideoResultChannelLabel(ch.Type) != "" {
 			task.FailReason = sanitizeArchivedVideoLogText(ch.Type, task.FailReason)
+			logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: status=%s", task.TaskID, task.Status))
+		} else {
+			logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		}
-		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		taskResult.Progress = taskcommon.ProgressComplete
 		if quota != 0 {
 			shouldRefund = true
