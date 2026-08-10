@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -2301,4 +2302,114 @@ func assertJSONEqual(t *testing.T, want, got string) {
 	if !reflect.DeepEqual(wantObj, gotObj) {
 		t.Fatalf("json not equal\nwant: %s\ngot:  %s", want, got)
 	}
+}
+
+func TestApplyParamOverrideWithRelayInfoSynchronizesReasoningEffort(t *testing.T) {
+	originalDebugEnabled := common2.DebugEnabled
+	common2.DebugEnabled = false
+	t.Cleanup(func() {
+		common2.DebugEnabled = originalDebugEnabled
+	})
+
+	tests := []struct {
+		name          string
+		relayFormat   types.RelayFormat
+		initialEffort string
+		input         string
+		operation     map[string]interface{}
+		expected      string
+	}{
+		{
+			name:          "Responses set",
+			relayFormat:   types.RelayFormatOpenAIResponses,
+			initialEffort: "high",
+			input:         `{"reasoning":{"effort":"high"}}`,
+			operation:     map[string]interface{}{"mode": "set", "path": "reasoning.effort", "value": "max"},
+			expected:      "max",
+		},
+		{
+			name:          "chat delete",
+			relayFormat:   types.RelayFormatOpenAI,
+			initialEffort: "high",
+			input:         `{"reasoning_effort":"high"}`,
+			operation:     map[string]interface{}{"mode": "delete", "path": "reasoning_effort"},
+			expected:      "",
+		},
+		{
+			name:          "OpenRouter nested set",
+			relayFormat:   types.RelayFormatOpenAI,
+			initialEffort: "medium",
+			input:         `{"reasoning":{"effort":"medium"}}`,
+			operation:     map[string]interface{}{"mode": "set", "path": "reasoning.effort", "value": "xhigh"},
+			expected:      "xhigh",
+		},
+		{
+			name:          "Claude output config set",
+			relayFormat:   types.RelayFormatClaude,
+			initialEffort: "high",
+			input:         `{"output_config":{"effort":"high"}}`,
+			operation:     map[string]interface{}{"mode": "set", "path": "output_config.effort", "value": "max"},
+			expected:      "max",
+		},
+		{
+			name:          "Gemini thinking level set",
+			relayFormat:   types.RelayFormatGemini,
+			initialEffort: "medium",
+			input:         `{"generationConfig":{"thinkingConfig":{"thinkingLevel":"medium"}}}`,
+			operation:     map[string]interface{}{"mode": "set", "path": "generationConfig.thinkingConfig.thinkingLevel", "value": "high"},
+			expected:      "high",
+		},
+		{
+			name:          "non-string value clears effort",
+			relayFormat:   types.RelayFormatOpenAIResponses,
+			initialEffort: "high",
+			input:         `{"reasoning":{"effort":"high"}}`,
+			operation:     map[string]interface{}{"mode": "set", "path": "reasoning.effort", "value": 42},
+			expected:      "",
+		},
+		{
+			name:          "unrelated override preserves converter-derived effort",
+			relayFormat:   types.RelayFormatClaude,
+			initialEffort: "high",
+			input:         `{"thinking":{"type":"adaptive"},"max_tokens":4096}`,
+			operation:     map[string]interface{}{"mode": "set", "path": "max_tokens", "value": 8192},
+			expected:      "high",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &RelayInfo{
+				RelayFormat:     tt.relayFormat,
+				ReasoningEffort: tt.initialEffort,
+				ChannelMeta: &ChannelMeta{ParamOverride: map[string]interface{}{
+					"operations": []interface{}{tt.operation},
+				}},
+			}
+
+			_, err := ApplyParamOverrideWithRelayInfo([]byte(tt.input), info)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, info.ReasoningEffort)
+		})
+	}
+}
+
+func TestReasoningEffortOverrideIsAuditedWithoutDebugMode(t *testing.T) {
+	originalDebugEnabled := common2.DebugEnabled
+	common2.DebugEnabled = false
+	t.Cleanup(func() {
+		common2.DebugEnabled = originalDebugEnabled
+	})
+	info := &RelayInfo{
+		RelayFormat: types.RelayFormatOpenAIResponses,
+		ChannelMeta: &ChannelMeta{ParamOverride: map[string]interface{}{
+			"operations": []interface{}{
+				map[string]interface{}{"mode": "set", "path": "reasoning.effort", "value": "max"},
+			},
+		}},
+	}
+
+	_, err := ApplyParamOverrideWithRelayInfo([]byte(`{"reasoning":{"effort":"high"}}`), info)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"set reasoning.effort = max"}, info.ParamOverrideAudit)
 }
