@@ -2,7 +2,7 @@
 
 本文档说明 new-api 的 Kubernetes 部署如何在**仓库不持有任何明文凭证**的前提下完成：凭证只存在于 GitHub Actions Secrets 中，由 publish workflow 在部署时注入集群，生成集群内 Kubernetes Secret；manifests 只通过 `secretKeyRef` 引用 Secret 名称。
 
-对应 issue #70。基础 workflow 与 Secret 引用骨架已由 PR #77（issue #73）交付，见 `.github/workflows/deploy.yml` 与 `k8s/README.md`。本文档做原理说明与运维深化，不重写基础 workflow。
+对应 issue #70。基础 workflow 与 Secret 引用骨架已由 PR #77（issue #73）交付，见 `.github/workflows/deploy.yml` 与 `deploy/k8s/README.md`。本文档做原理说明与运维深化，不重写基础 workflow。
 
 ## 1. 需要在 GitHub 配置的 Secret
 
@@ -47,10 +47,10 @@ Pod 环境变量
 
 三条保证：
 
-1. **仓库零明文**：`k8s/*.yaml` 只写 `secretKeyRef.name: new-api-secrets` 与 `key: <字段名>`，从不写值。可用如下命令验证仓库无明文连接串：
+1. **仓库零明文**：`deploy/k8s/*.yaml` 只写 `secretKeyRef.name: new-api-secrets` 与 `key: <字段名>`，从不写值。可用如下命令验证仓库无明文连接串：
 
    ```bash
-   grep -rnE "postgres(ql)?://[^ ]*:[^ @]+@|redis://[^ ]*:[^ @]+@" k8s/ .github/
+   grep -rnE "postgres(ql)?://[^ ]*:[^ @]+@|redis://[^ ]*:[^ @]+@" deploy/k8s/ .github/
    ```
 
    预期无输出。

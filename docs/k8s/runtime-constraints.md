@@ -1,8 +1,8 @@
 # 多副本运行约束审计
 
-本文档记录 new-api 作为 Kubernetes 多副本运行时的前置约束，所有结论均标注代码依据，供 `k8s/` 下的部署清单与后续部署文档引用。
+本文档记录 new-api 作为 Kubernetes 多副本运行时的前置约束，所有结论均标注代码依据，供 `deploy/k8s/` 下的部署清单与后续部署文档引用。
 
-对应 issue #69。清单骨架见 `k8s/README.md`（由 issue #73 交付）。
+对应 issue #69。清单骨架见 `deploy/k8s/README.md`（由 issue #73 交付）。
 
 ## 1. 必须跨 Pod 共享的资源
 
@@ -83,9 +83,9 @@ apiRouter.GET("/status", controller.GetStatus)
 
 该路由在 `apiRouter` 分组内且未挂任何鉴权中间件（对比同文件第 27 行的 `/status/test` 带 `middleware.AdminAuth()`），因此 kubelet 可以直接探测。
 
-仓库自带的容器健康检查也使用同一端点，可作为可用性佐证：`docker-compose.yml:63` 通过 `wget -q -O - http://localhost:3000/api/status` 判活。
+仓库自带的容器健康检查也使用同一端点，可作为可用性佐证：`deploy/docker-compose.yml:63` 通过 `wget -q -O - http://localhost:3000/api/status` 判活。
 
-清单中的用法（`k8s/new-api-master.yaml`、`k8s/new-api-worker.yaml`）：
+清单中的用法（`deploy/k8s/new-api-master.yaml`、`deploy/k8s/new-api-worker.yaml`）：
 
 - `livenessProbe`：`initialDelaySeconds: 30`、`periodSeconds: 10`
 - `readinessProbe`：`initialDelaySeconds: 10`、`periodSeconds: 5`
