@@ -292,4 +292,5 @@ subscription.none: "No active JINN subscription on this account."
 # JINN usage allowance wall — shown at the wall, so it must carry the refill date
 usage.monthly_exhausted: "You've used your JINN usage for this cycle. It refills on {{.Date}}."
 usage.images_exhausted: "You've used all the images included in this cycle. It refills on {{.Date}}."
-usage.no_date: "the next cycle"
+usage.monthly_exhausted_no_date: "You've used your JINN usage for this cycle."
+usage.images_exhausted_no_date: "You've used all the images included in this cycle."

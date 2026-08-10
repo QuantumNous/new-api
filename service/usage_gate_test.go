@@ -37,10 +37,21 @@ func TestUsageLimitMessageInEveryLocale(t *testing.T) {
 }
 
 func TestUsageLimitMessageWithoutADateStillReads(t *testing.T) {
-	msg := UsageLimitMessage(i18n.LangEn, UsageLimitMonthly, 0)
+	dated := UsageLimitMessage(i18n.LangEn, UsageLimitMonthly, pauseResumeAt)
 
-	require.NotEmpty(t, msg)
-	require.NotContains(t, msg, "1970", "no date is better than the epoch")
+	for _, lang := range []string{i18n.LangEn, i18n.LangZhCN, i18n.LangZhTW} {
+		msg := UsageLimitMessage(lang, UsageLimitMonthly, 0)
+
+		require.NotEmpty(t, msg)
+		require.NotContains(t, msg, "{{", "unfilled template in "+lang)
+		require.NotContains(t, msg, "1970", "no date is better than the epoch")
+		require.NotContains(t, msg, "next cycle", "the rule is the exact date or nothing, never a stand-in")
+		require.NotContains(t, msg, "下个周期", "the rule is the exact date or nothing, never a stand-in")
+		require.NotContains(t, msg, "下個週期", "the rule is the exact date or nothing, never a stand-in")
+	}
+
+	require.NotEqual(t, dated, UsageLimitMessage(i18n.LangEn, UsageLimitMonthly, 0),
+		"the dateless message must not read the same as the dated one")
 }
 
 func withLimits(t *testing.T, cost string, images string) {

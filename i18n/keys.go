@@ -346,7 +346,8 @@ const (
 
 // JINN usage allowance messages
 const (
-	MsgUsageMonthlyExhausted = "usage.monthly_exhausted"
-	MsgUsageImagesExhausted  = "usage.images_exhausted"
-	MsgUsageNoDate           = "usage.no_date"
+	MsgUsageMonthlyExhausted       = "usage.monthly_exhausted"
+	MsgUsageImagesExhausted        = "usage.images_exhausted"
+	MsgUsageMonthlyExhaustedNoDate = "usage.monthly_exhausted_no_date"
+	MsgUsageImagesExhaustedNoDate  = "usage.images_exhausted_no_date"
 )

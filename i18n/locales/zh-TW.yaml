@@ -293,4 +293,5 @@ subscription.none: "此帳戶沒有有效的 JINN 訂閱。"
 # JINN 用量額度牆 —— 使用者在此看到牆，必須寫明恢復日期
 usage.monthly_exhausted: "本週期的 JINN 用量已用完，將於 {{.Date}} 恢復。"
 usage.images_exhausted: "本週期包含的圖片額度已用完，將於 {{.Date}} 恢復。"
-usage.no_date: "下個週期"
+usage.monthly_exhausted_no_date: "本週期的 JINN 用量已用完。"
+usage.images_exhausted_no_date: "本週期包含的圖片額度已用完。"

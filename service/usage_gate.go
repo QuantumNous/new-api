@@ -1,11 +1,14 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 )
@@ -17,15 +20,20 @@ const (
 
 // UsageLimitMessage is the wall a user meets when an allowance runs out. Same
 // contract as subscriptionPauseMessage: branded, translated, and carrying the
-// exact refill date rather than "next cycle".
+// exact refill date rather than "next cycle". When there is no date to name,
+// a separate dateless message is used instead of substituting a phrase like
+// "the next cycle" into the dated template — the rule is the exact date or
+// nothing, never a stand-in.
 func UsageLimitMessage(lang string, kind string, resetAt int64) string {
 	key := i18n.MsgUsageMonthlyExhausted
+	noDateKey := i18n.MsgUsageMonthlyExhaustedNoDate
 	if kind == UsageLimitImages {
 		key = i18n.MsgUsageImagesExhausted
+		noDateKey = i18n.MsgUsageImagesExhaustedNoDate
 	}
 	date := formatPauseDate(resetAt, lang, time.Local)
 	if date == "" {
-		date = i18n.Translate(lang, i18n.MsgUsageNoDate)
+		return i18n.Translate(lang, noDateKey)
 	}
 	return i18n.Translate(lang, key, map[string]any{"Date": date})
 }
@@ -50,6 +58,9 @@ func CheckUsageAllowance(userId int, group string, lang string, sub *model.UserS
 	if limit := setting.GetMonthlyCostLimit(group); limit > 0 {
 		used, _, _, err := model.GetUsage(userId, CycleMonth, cycleStart)
 		if err != nil {
+			logger.LogWarn(context.Background(), fmt.Sprintf(
+				"usage allowance check failed to read cost counter, allowing request (userId=%d, group=%s, op=GetUsage): %s",
+				userId, group, err.Error()))
 			return nil // a counter we cannot read must not block a paying request
 		}
 		if used >= limit {
@@ -63,6 +74,9 @@ func CheckUsageAllowance(userId int, group string, lang string, sub *model.UserS
 			if errors.Is(err, model.ErrImageLimitReached) {
 				return errors.New(UsageLimitMessage(lang, UsageLimitImages, resetAt))
 			}
+			logger.LogWarn(context.Background(), fmt.Sprintf(
+				"usage allowance check failed to reserve images, allowing request (userId=%d, group=%s, op=ReserveImages): %s",
+				userId, group, err.Error()))
 			return nil // a storage failure must not block the request
 		}
 	}
