@@ -284,9 +284,6 @@ func TryInsertRecallLifecycleEventWithContext(ctx context.Context, event *Recall
 	}
 	result := insertRecallLifecycleEvent(DB.WithContext(ctx), event)
 	if result.Error != nil {
-		if isRecallLifecycleMySQLDuplicateOccurrenceError(result.Error) {
-			return false, nil
-		}
 		return false, result.Error
 	}
 	return result.RowsAffected == 1, nil
@@ -544,7 +541,12 @@ func recallLifecycleRetryBackoffSeconds(attemptCount int) int64 {
 
 func insertRecallLifecycleEvent(tx *gorm.DB, event *RecallLifecycleEvent) *gorm.DB {
 	if tx.Dialector.Name() == "mysql" {
-		return tx.Create(event)
+		result := tx.Create(event)
+		if isRecallLifecycleMySQLDuplicateOccurrenceError(result.Error) {
+			result.Error = nil
+			result.RowsAffected = 0
+		}
+		return result
 	}
 	return tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "event_type"}, {Name: "occurrence_key_hash"}},

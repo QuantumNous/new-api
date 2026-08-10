@@ -702,6 +702,46 @@ func TestLifecycleInsertMySQLDuplicateClassifierIsExact(t *testing.T) {
 	}
 }
 
+func TestLifecycleInsertMySQLDuplicateHandlingAppliesToDirectCallers(t *testing.T) {
+	dialects := recallLifecycleDryRunDialects(t)
+	mysqlDB := dialects["mysql"]
+	newEvent := func() RecallLifecycleEvent {
+		occurrence, err := NewRecallLifecycleQuotaOccurrence(RecallLifecycleTriggerQuotaLow, QuotaLifecycleScopeUser, "77", "2026-08", 77)
+		require.NoError(t, err)
+		return RecallLifecycleEvent{
+			EventType:         RecallLifecycleTriggerQuotaLow,
+			OccurrenceKeyHash: occurrence.Hash,
+			BusinessKey:       "quota:77:2026-08",
+			UserId:            77,
+			EventData:         `{}`,
+		}
+	}
+	runInsertWithInjectedError := func(name string, injected error) *gorm.DB {
+		db := mysqlDB.Session(&gorm.Session{NewDB: true})
+		callbackName := "test:" + name
+		require.NoError(t, db.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+			tx.AddError(injected)
+		}))
+		t.Cleanup(func() { require.NoError(t, db.Callback().Create().Remove(callbackName)) })
+		event := newEvent()
+		return insertRecallLifecycleEvent(db, &event)
+	}
+
+	duplicate := &driverMysql.MySQLError{Number: 1062, Message: "Duplicate entry"}
+	result := runInsertWithInjectedError("recall_lifecycle_direct_duplicate", duplicate)
+	require.NoError(t, result.Error)
+	require.Zero(t, result.RowsAffected)
+
+	for _, errCase := range []error{
+		&driverMysql.MySQLError{Number: 1406, Message: "Data too long"},
+		&driverMysql.MySQLError{Number: 1364, Message: "Field does not have a default value"},
+		errors.New("plain insert failure"),
+	} {
+		result = runInsertWithInjectedError(fmt.Sprintf("recall_lifecycle_direct_error_%T_%v", errCase, errCase), errCase)
+		require.ErrorIs(t, result.Error, errCase)
+	}
+}
+
 func TestLifecycleCollectionMarkerInsertConflictSQLIsTargetedByDialect(t *testing.T) {
 	for name, db := range recallLifecycleDryRunDialects(t) {
 		t.Run(name, func(t *testing.T) {
