@@ -892,6 +892,40 @@ func EditTagChannels(c *gin.Context) {
 	return
 }
 
+type RenameChannelGroupRequest struct {
+	OldGroup string `json:"old_group"`
+	NewGroup string `json:"new_group"`
+}
+
+func RenameChannelGroup(c *gin.Context) {
+	req := RenameChannelGroupRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	oldGroup := strings.TrimSpace(req.OldGroup)
+	newGroup := strings.TrimSpace(req.NewGroup)
+	if oldGroup == "" || newGroup == "" || oldGroup == newGroup {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	count, err := model.RenameChannelGroup(oldGroup, newGroup)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.InitChannelCache()
+	recordManageAudit(c, "channel.group_rename", map[string]interface{}{
+		"old_group": oldGroup,
+		"new_group": newGroup,
+		"count":     count,
+	})
+	common.ApiSuccess(c, gin.H{
+		"count": count,
+	})
+}
+
 type ChannelBatch struct {
 	Ids []int   `json:"ids"`
 	Tag *string `json:"tag"`

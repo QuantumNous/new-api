@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ChevronDown,
@@ -29,10 +30,12 @@ import {
   useMemo,
   useEffect,
   useCallback,
+  useRef,
   memo,
   type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { StaticDataTable } from '@/components/data-table/static/static-data-table'
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
@@ -74,6 +77,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { renameChannelGroup } from '@/features/channels/api'
+import { channelsQueryKeys } from '@/features/channels/lib/channel-actions'
 
 import { safeJsonParse } from '../utils/json-parser'
 
@@ -100,6 +105,11 @@ type GroupPricingRow = {
 type RegistryEntry = {
   name: string
   ratio: number
+}
+
+type GroupNameDraft = {
+  rowId: string
+  value: string
 }
 
 const sectionCardClassName =
@@ -442,9 +452,14 @@ function GroupPricingTable({
   onShowDetail,
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
     buildGroupPricingRows(groupRatio, userUsableGroups, topupGroupRatio)
   )
+  const rowsRef = useRef(rows)
+  const [nameDraft, setNameDraft] = useState<GroupNameDraft | null>(null)
+  const [syncChannels, setSyncChannels] = useState(true)
+  const [syncingRowId, setSyncingRowId] = useState<string | null>(null)
 
   useEffect(() => {
     const incomingSignature = sourceGroupPricingSignature(
@@ -464,6 +479,10 @@ function GroupPricingTable({
     })
   }, [groupRatio, userUsableGroups, topupGroupRatio])
 
+  useEffect(() => {
+    rowsRef.current = rows
+  }, [rows])
+
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
       setRows(nextRows)
@@ -482,14 +501,58 @@ function GroupPricingTable({
       value: string | number | boolean
     ) => {
       emitRows(
-        rows.map((row) => (row._id === id ? { ...row, [field]: value } : row))
+        rowsRef.current.map((row) =>
+          row._id === id ? { ...row, [field]: value } : row
+        )
       )
     },
-    [emitRows, rows]
+    [emitRows]
+  )
+
+  const handleGroupNameBlur = useCallback(
+    async (id: string, rawValue: string) => {
+      const newName = rawValue.trim()
+      const currentRow = rows.find((row) => row._id === id)
+      setNameDraft(null)
+      if (!currentRow || !newName || newName === currentRow.name.trim()) return
+
+      const oldName = currentRow.name.trim()
+      if (syncChannels) {
+        setSyncingRowId(id)
+        try {
+          const response = await renameChannelGroup({
+            old_group: oldName,
+            new_group: newName,
+          })
+          if (!response.success) {
+            toast.error(response.message || t('Failed to sync channels'))
+            return
+          }
+          toast.success(t('Channels updated successfully'))
+          queryClient.invalidateQueries({ queryKey: channelsQueryKeys.all })
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : t('Failed to sync channels')
+          )
+          return
+        } finally {
+          setSyncingRowId(null)
+        }
+      }
+
+      emitRows(
+        rowsRef.current.map((row) =>
+          row._id === id ? { ...row, name: newName } : row
+        )
+      )
+    },
+    [emitRows, queryClient, rows, syncChannels, t]
   )
 
   const addRow = useCallback(() => {
-    const existingNames = new Set(rows.map((row) => row.name))
+    const existingNames = new Set(rowsRef.current.map((row) => row.name))
     let index = 1
     let name = `group_${index}`
     while (existingNames.has(name)) {
@@ -497,7 +560,7 @@ function GroupPricingTable({
       name = `group_${index}`
     }
     emitRows([
-      ...rows,
+      ...rowsRef.current,
       {
         _id: createGroupPricingId(),
         name,
@@ -507,13 +570,13 @@ function GroupPricingTable({
         description: '',
       },
     ])
-  }, [emitRows, rows])
+  }, [emitRows])
 
   const removeRow = useCallback(
     (id: string) => {
-      emitRows(rows.filter((row) => row._id !== id))
+      emitRows(rowsRef.current.filter((row) => row._id !== id))
     },
-    [emitRows, rows]
+    [emitRows]
   )
 
   const duplicateNames = useMemo(() => {
@@ -540,10 +603,26 @@ function GroupPricingTable({
               )}
             </CardDescription>
           </div>
-          <Button onClick={addRow} size='sm' className='sm:self-start'>
-            <Plus className='mr-2 h-4 w-4' />
-            {t('Add group')}
-          </Button>
+          <div className='flex flex-wrap items-center gap-3 sm:self-start'>
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='sync-channels-on-group-rename'
+                checked={syncChannels}
+                onCheckedChange={(checked) => setSyncChannels(checked === true)}
+                aria-label={t('Sync channels')}
+              />
+              <Label
+                htmlFor='sync-channels-on-group-rename'
+                className='cursor-pointer text-sm font-normal'
+              >
+                {t('Sync channels')}
+              </Label>
+            </div>
+            <Button onClick={addRow} size='sm'>
+              <Plus className='mr-2 h-4 w-4' />
+              {t('Add group')}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -560,10 +639,28 @@ function GroupPricingTable({
                 className: 'min-w-40',
                 cell: (row) => (
                   <Input
-                    value={row.name}
-                    onChange={(event) =>
-                      updateRow(row._id, 'name', event.target.value)
+                    value={
+                      nameDraft?.rowId === row._id ? nameDraft.value : row.name
                     }
+                    disabled={syncingRowId === row._id}
+                    onChange={(event) =>
+                      setNameDraft({
+                        rowId: row._id,
+                        value: event.target.value,
+                      })
+                    }
+                    onBlur={(event) =>
+                      handleGroupNameBlur(row._id, event.target.value)
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.currentTarget.blur()
+                      } else if (event.key === 'Escape') {
+                        setNameDraft(null)
+                        event.currentTarget.value = row.name
+                        event.currentTarget.blur()
+                      }
+                    }}
                     aria-invalid={duplicateNames.includes(row.name.trim())}
                   />
                 ),

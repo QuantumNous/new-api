@@ -858,6 +858,67 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 	return nil
 }
 
+func RenameChannelGroup(oldGroup string, newGroup string) (int64, error) {
+	oldGroup = strings.TrimSpace(oldGroup)
+	newGroup = strings.TrimSpace(newGroup)
+	if oldGroup == "" || newGroup == "" || oldGroup == newGroup {
+		return 0, nil
+	}
+
+	var channels []*Channel
+	if err := ApplyChannelGroupFilter(DB.Model(&Channel{}), oldGroup).Find(&channels).Error; err != nil {
+		return 0, err
+	}
+
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return 0, tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var updatedCount int64
+	for _, channel := range channels {
+		groups := channel.GetGroups()
+		replaced := false
+		seen := make(map[string]struct{}, len(groups))
+		nextGroups := make([]string, 0, len(groups))
+		for _, group := range groups {
+			if group == oldGroup {
+				group = newGroup
+				replaced = true
+			}
+			if _, exists := seen[group]; exists {
+				continue
+			}
+			seen[group] = struct{}{}
+			nextGroups = append(nextGroups, group)
+		}
+		if !replaced {
+			continue
+		}
+
+		channel.Group = strings.Join(nextGroups, ",")
+		if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).Update("group", channel.Group).Error; err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+		if err := channel.UpdateAbilities(tx); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+		updatedCount++
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+	return updatedCount, nil
+}
+
 func UpdateChannelUsedQuota(id int, quota int) {
 	if common.BatchUpdateEnabled {
 		addNewRecord(BatchUpdateTypeChannelUsedQuota, id, quota)
