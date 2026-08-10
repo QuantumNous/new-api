@@ -670,6 +670,10 @@ func redactArchivedVideoValue(v any, scrubBrand bool) any {
 	switch value := v.(type) {
 	case map[string]any:
 		for key, child := range value {
+			if scrubBrand && isArchivedVideoPrivateIdentifierKey(key) {
+				delete(value, key)
+				continue
+			}
 			if isArchivedVideoURLKey(key) {
 				value[key] = redactArchivedVideoURLValue(child, scrubBrand)
 				continue
@@ -687,6 +691,11 @@ func redactArchivedVideoValue(v any, scrubBrand bool) any {
 	default:
 		return value
 	}
+}
+
+func isArchivedVideoPrivateIdentifierKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(key, "_", ""))
+	return normalized == "id" || normalized == "taskid"
 }
 
 func redactArchivedVideoURLValue(v any, scrubBrand bool) any {

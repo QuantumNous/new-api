@@ -440,8 +440,11 @@ func TestDoResponseParsesExactTaskIDAndRejectsIDOnly(t *testing.T) {
 	if taskID != "upstream-task" {
 		t.Fatalf("taskID = %q", taskID)
 	}
-	if !strings.Contains(string(taskData), `"task_id":"upstream-task"`) {
-		t.Fatalf("taskData = %s", taskData)
+	if strings.Contains(string(taskData), "upstream-task") || strings.Contains(string(taskData), "task_id") {
+		t.Fatalf("persisted taskData leaked upstream task id: %s", taskData)
+	}
+	if !strings.Contains(string(taskData), `"status":"pending"`) {
+		t.Fatalf("persisted taskData missed safe submit status: %s", taskData)
 	}
 	if strings.Contains(w.Body.String(), "upstream-task") || !strings.Contains(w.Body.String(), `"id":"task_public"`) {
 		t.Fatalf("client response leaked upstream or missed public id: %s", w.Body.String())

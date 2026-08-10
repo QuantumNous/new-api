@@ -698,6 +698,8 @@ func TestUpdateVideoSingleTaskModelAPIRedactsStoredDataAndLogs(t *testing.T) {
 	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
 	storedData := string(stored.Data)
 	require.NotContains(t, storedData, upstreamURL)
+	require.NotContains(t, storedData, "opaque-upstream-task-123")
+	require.NotContains(t, storedData, "task_id")
 	require.NotContains(t, storedData, "https://")
 	require.NotContains(t, storedData, "api.modelapi.co")
 	require.NotContains(t, strings.ToLower(storedData), "modelapi")
@@ -1144,6 +1146,7 @@ func modelAPIArchiveResponseBody() []byte {
 func modelAPIRedactionResponseBody() []byte {
 	return []byte(`{
 		"id":"upstream-modelapi-success",
+		"task_id":"opaque-upstream-task-123",
 		"status":"succeeded",
 		"result":{
 			"assets":[

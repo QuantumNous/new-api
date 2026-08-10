@@ -118,7 +118,13 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 	ov.CreatedAt = time.Now().Unix()
 	c.JSON(http.StatusOK, ov)
-	return submit.TaskID, responseBody, nil
+	taskData, err = common.Marshal(struct {
+		Status string `json:"status,omitempty"`
+	}{Status: submit.Status})
+	if err != nil {
+		return "", nil, taskError(fmt.Errorf("failed to persist submit status"), "invalid_response", http.StatusBadGateway)
+	}
+	return submit.TaskID, taskData, nil
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
