@@ -399,11 +399,6 @@ func GetUser(c *gin.Context) {
 
 func GenerateAccessToken(c *gin.Context) {
 	id := c.GetInt("id")
-	user, err := model.GetUserById(id, true)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
 	// get rand int 28-32
 	randI := common.GetRandomInt(4)
 	key, err := common.GenerateRandomKey(29 + randI)
@@ -412,14 +407,12 @@ func GenerateAccessToken(c *gin.Context) {
 		common.SysLog("failed to generate key: " + err.Error())
 		return
 	}
-	user.SetAccessToken(key)
-
-	if model.DB.Where("access_token = ?", user.AccessToken).First(user).RowsAffected != 0 {
+	if model.DB.Where("access_token = ?", key).First(&model.User{}).RowsAffected != 0 {
 		common.ApiErrorI18n(c, i18n.MsgUuidDuplicate)
 		return
 	}
 
-	if err := user.Update(false); err != nil {
+	if err := model.UpdateUserAccessToken(id, key); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -427,7 +420,7 @@ func GenerateAccessToken(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    user.AccessToken,
+		"data":    key,
 	})
 	return
 }

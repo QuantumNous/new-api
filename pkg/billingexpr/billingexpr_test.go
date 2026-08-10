@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -228,10 +230,11 @@ func TestRequestProbeMissingFieldReturnsNil(t *testing.T) {
 	}
 }
 
-func TestRequestProbeMultipleRulesMultiply(t *testing.T) {
-	cost, _, err := billingexpr.RunExprWithRequest(
-		`(param("service_tier") == "fast" ? 2 : 1) * (has(header("anthropic-beta"), "fast-mode-2026-02-01") ? 2.5 : 1)`,
-		billingexpr.TokenParams{},
+func TestRequestProbeMultipleRulesTraceAllFactors(t *testing.T) {
+	exprStr := `(tier("base", p * 2)) * (param("service_tier") == "fast" ? 2 : 1) * (has(header("anthropic-beta"), "fast-mode-2026-02-01") ? 2.5 : 1)`
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		exprStr,
+		billingexpr.TokenParams{P: 10},
 		billingexpr.RequestInput{
 			Headers: map[string]string{
 				"Anthropic-Beta": "fast-mode-2026-02-01",
@@ -239,12 +242,62 @@ func TestRequestProbeMultipleRulesMultiply(t *testing.T) {
 			Body: []byte(`{"service_tier":"fast"}`),
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if math.Abs(cost-5) > 1e-6 {
-		t.Errorf("cost = %f, want 5", cost)
-	}
+
+	require.NoError(t, err)
+	assert.InDelta(t, 100, cost, 1e-6)
+	assert.Equal(t, "base", trace.MatchedTier)
+	assert.Equal(t, []billingexpr.RequestRuleTrace{
+		{Cond: `param("service_tier") == "fast"`, Multiplier: 2, Matched: true},
+		{Cond: `has(header("anthropic-beta"), "fast-mode-2026-02-01")`, Multiplier: 2.5, Matched: true},
+	}, trace.RequestRules)
+}
+
+func TestRequestProbeTraceIncludesUnmatchedFactors(t *testing.T) {
+	exprStr := `(tier("base", p * 2)) * (param("service_tier") == "fast" ? 2 : 1) * (has(header("anthropic-beta"), "fast-mode") ? 2.5 : 1)`
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		exprStr,
+		billingexpr.TokenParams{P: 10},
+		billingexpr.RequestInput{Body: []byte(`{"service_tier":"fast"}`)},
+	)
+
+	require.NoError(t, err)
+	assert.InDelta(t, 40, cost, 1e-6)
+	assert.Equal(t, []billingexpr.RequestRuleTrace{
+		{Cond: `param("service_tier") == "fast"`, Multiplier: 2, Matched: true},
+		{Cond: `has(header("anthropic-beta"), "fast-mode")`, Multiplier: 2.5, Matched: false},
+	}, trace.RequestRules)
+}
+
+func TestRequestProbeTracePreservesIntegerConditionalType(t *testing.T) {
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		`5 % (param("service_tier") == "fast" ? 2 : 1)`,
+		billingexpr.TokenParams{},
+		billingexpr.RequestInput{Body: []byte(`{"service_tier":"fast"}`)},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, float64(1), cost)
+	assert.Equal(t, []billingexpr.RequestRuleTrace{
+		{Cond: `param("service_tier") == "fast"`, Multiplier: 2, Matched: true},
+	}, trace.RequestRules)
+}
+
+func TestRequestProbeNonUnitFallbackIsNotTraced(t *testing.T) {
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		`10 * (param("service_tier") == "fast" ? 2 : 1.5)`,
+		billingexpr.TokenParams{},
+		billingexpr.RequestInput{Body: []byte(`{"service_tier":"standard"}`)},
+	)
+
+	require.NoError(t, err)
+	assert.InDelta(t, 15, cost, 1e-6)
+	assert.Empty(t, trace.RequestRules)
+}
+
+func TestRequestProbeInternalTraceFunctionIsReserved(t *testing.T) {
+	_, err := billingexpr.CompileFromCache(`_trace(0, true, 5.0)`)
+
+	require.ErrorContains(t, err, `identifier "_trace" is reserved for internal use`)
 }
 
 func TestCeilFloor(t *testing.T) {
