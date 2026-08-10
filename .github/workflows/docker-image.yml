@@ -1,10 +1,10 @@
 name: Docker Image CI
 
-于:
+on:
   push:
-    分支: [ "main" ]
+    branches: [ "main" ]
   pull_request:
-    分支: [ "main" ]
+    branches: [ "main" ]
 
 jobs:
 
