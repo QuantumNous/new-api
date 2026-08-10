@@ -74,6 +74,42 @@ func TestUserUpdateDoesNotOverwriteConcurrentAccountingOrTokenChanges(t *testing
 	assert.Equal(t, "rotated-token", got.GetAccessToken())
 }
 
+func TestUsageQuotaAdjustmentsSupportSignedBatchDeltas(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	user := User{
+		Id:           10,
+		Username:     "usage-adjustment-user",
+		Password:     "password",
+		Status:       common.UserStatusEnabled,
+		UsedQuota:    1000,
+		RequestCount: 3,
+	}
+	channel := Channel{
+		Id:        10,
+		Name:      "usage-adjustment-channel",
+		Key:       "sk-test",
+		Status:    common.ChannelStatusEnabled,
+		UsedQuota: 1000,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, DB.Create(&channel).Error)
+
+	common.BatchUpdateEnabled = true
+	UpdateUserUsedQuota(user.Id, -400)
+	UpdateChannelUsedQuota(channel.Id, -400)
+	batchUpdate()
+
+	var gotUser User
+	require.NoError(t, DB.Select("used_quota", "request_count").First(&gotUser, user.Id).Error)
+	assert.Equal(t, 600, gotUser.UsedQuota)
+	assert.Equal(t, 3, gotUser.RequestCount)
+
+	var gotChannel Channel
+	require.NoError(t, DB.Select("used_quota").First(&gotChannel, channel.Id).Error)
+	assert.Equal(t, int64(600), gotChannel.UsedQuota)
+}
+
 func TestUpdateUserAccessTokenOnlyUpdatesAccessToken(t *testing.T) {
 	setupUserUpdateTestState(t)
 
