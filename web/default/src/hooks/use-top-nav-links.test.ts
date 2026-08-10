@@ -46,12 +46,15 @@ describe('top navigation links', () => {
         ['Blog', '/blog'],
         ['Models', '/models'],
         ['Docs', 'https://docs.flatkey.ai/'],
-        ['Playground', '/playground'],
         ['Rankings', '/models#leaderboard'],
         ['Pricing', '/pricing'],
         ['Compute', '/compute'],
         ['Use cases', '/usecases'],
       ]
+    )
+    assert.equal(
+      links.some((link) => link.title === 'Playground'),
+      false
     )
   })
 
