@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -62,11 +61,11 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 		}
 		response.Id = id
 		response.Model = info.UpstreamModelName
-		err = helper.ObjectData(c, response)
 		if isFirst {
 			isFirst = false
-			info.FirstResponseTime = time.Now()
+			info.SetFirstResponseTime()
 		}
+		err = helper.ObjectData(c, response)
 		if err != nil {
 			logger.LogError(c, "error_rendering_stream_response: "+err.Error())
 		}

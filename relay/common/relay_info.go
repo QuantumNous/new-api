@@ -90,6 +90,7 @@ type RelayInfo struct {
 	TokenUnlimited    bool
 	StartTime         time.Time
 	FirstResponseTime time.Time
+	RequestTiming     *common.RequestTimingSession
 	isFirstResponse   bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
@@ -527,6 +528,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 
 		StartTime:         startTime,
 		FirstResponseTime: startTime.Add(-time.Second),
+		RequestTiming:     common.GetRequestTimingSession(c),
 		ThinkingContentInfo: ThinkingContentInfo{
 			IsFirstThinkingContent:  true,
 			SendLastThinkingContent: false,
@@ -841,9 +843,28 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 
 func (info *RelayInfo) SetFirstResponseTime() {
 	if info.isFirstResponse {
-		info.FirstResponseTime = time.Now()
+		now := time.Now()
+		info.FirstResponseTime = now
+		info.RequestTiming.MarkFirstUpstreamData(now)
 		info.isFirstResponse = false
 	}
+}
+
+func (info *RelayInfo) MarkUpstreamAttempt() {
+	if info == nil {
+		return
+	}
+	if info.RequestTiming.MarkUpstreamAttempt(time.Now(), info.IsStream) {
+		info.isFirstResponse = true
+	}
+}
+
+func (info *RelayInfo) SetStream(stream bool) {
+	if info == nil {
+		return
+	}
+	info.IsStream = stream
+	info.RequestTiming.SetStream(stream)
 }
 
 func (info *RelayInfo) HasSendResponse() bool {

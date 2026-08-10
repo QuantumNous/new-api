@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	rootcommon "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -12,6 +14,53 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSetFirstResponseTimeMarksRequestTiming(t *testing.T) {
+	start := time.Now().Add(-20 * time.Millisecond)
+	timing := rootcommon.NewRequestTimingSession(start)
+	timing.MarkUpstreamAttempt(start.Add(5*time.Millisecond), true)
+	info := &RelayInfo{
+		StartTime:       start,
+		isFirstResponse: true,
+		RequestTiming:   timing,
+	}
+
+	info.SetFirstResponseTime()
+	info.SetFirstResponseTime()
+
+	snapshot := timing.Snapshot(time.Now(), false)
+	require.NotNil(t, snapshot)
+	require.NotNil(t, snapshot.UpstreamFirstDataMs)
+	assert.True(t, info.HasSendResponse())
+}
+
+func TestMarkUpstreamAttemptMarksRequestTiming(t *testing.T) {
+	start := time.Now().Add(-time.Second)
+	timing := rootcommon.NewRequestTimingSession(start)
+	info := &RelayInfo{IsStream: true, RequestTiming: timing}
+
+	info.MarkUpstreamAttempt()
+	timingSnapshot := timing.Snapshot(time.Now(), true)
+
+	require.NotNil(t, timingSnapshot)
+	require.NotNil(t, timingSnapshot.GatewayMs)
+	require.NotNil(t, timingSnapshot.UpstreamErrorMs)
+}
+
+func TestMarkUpstreamAttemptResetsFirstResponseAfterRetry(t *testing.T) {
+	start := time.Now().Add(-time.Second)
+	timing := rootcommon.NewRequestTimingSession(start)
+	info := &RelayInfo{IsStream: true, RequestTiming: timing, isFirstResponse: true}
+
+	info.MarkUpstreamAttempt()
+	info.SetFirstResponseTime()
+	info.MarkUpstreamAttempt()
+	info.SetFirstResponseTime()
+	timingSnapshot := timing.Snapshot(time.Now(), false)
+
+	require.NotNil(t, timingSnapshot)
+	require.NotNil(t, timingSnapshot.UpstreamFirstDataMs)
+}
 
 func TestRelayInfoGetFinalRequestRelayFormatPrefersExplicitFinal(t *testing.T) {
 	info := &RelayInfo{
