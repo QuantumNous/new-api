@@ -8,10 +8,12 @@ import type {
   RecallCampaignDraft,
   RecallCampaignType,
   RecallCouponSource,
+  RecallDeliveryPolicy,
   RecallDiscountType,
   RecallEmailStage,
   RecallEmailLocaleStatus,
   RecallFixedCurrency,
+  RecallLifecycleTrigger,
   RecallMinimumSpendConfig,
   RecallMinimumSpendCurrency,
   RecallRecipient,
@@ -32,6 +34,27 @@ export {
 } from './email-html'
 
 export const recallFixedCurrencies = ['USD', 'INR', 'BRL', 'JPY'] as const
+
+const recallLifecycleDeliveryPolicyByTrigger: Record<
+  RecallLifecycleTrigger,
+  RecallDeliveryPolicy
+> = {
+  user_registered: 'service',
+  registration_unused: 'engagement',
+  quota_low: 'service',
+  quota_exhausted_unpaid: 'service',
+  payment_failed: 'service',
+  payment_pending: 'engagement',
+  payment_succeeded: 'service',
+}
+
+function getRecallLifecycleDeliveryPolicy(
+  trigger?: RecallLifecycleTrigger | ''
+): RecallDeliveryPolicy {
+  return trigger
+    ? recallLifecycleDeliveryPolicyByTrigger[trigger]
+    : 'engagement'
+}
 
 const legacyMinimumSpendCurrencyMap: Record<
   RecallFixedCurrency,
@@ -322,6 +345,9 @@ export function prepareRecallCampaignSubmitDraft(
       coupon_redeem_by?: number
     }
   const continuous = draft.execution_mode === 'continuous'
+  if (continuous && !draft.email_sequence[0]?.templates?.en) {
+    throw new Error('English template is required')
+  }
   if (continuous) {
     assertContinuousDraftFieldsEmpty(draft)
   }
@@ -329,7 +355,8 @@ export function prepareRecallCampaignSubmitDraft(
     ? 'content_only'
     : draft.campaign_type
   const effectiveDeliveryPolicy = continuous
-    ? (draft.delivery_policy ?? 'engagement')
+    ? (draft.delivery_policy ??
+      getRecallLifecycleDeliveryPolicy(draft.lifecycle_trigger ?? ''))
     : 'engagement'
   const starterHtml = getRecallEmailStarterHtml(
     effectiveCampaignType,

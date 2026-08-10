@@ -144,6 +144,7 @@ describe('recall email preview race guard', () => {
         candidate: latest,
         latest,
         currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: latest.deliveryPolicy,
         currentSubject: 'Edited subject',
         currentBodyHTML: latest.bodyHTML,
       })
@@ -153,6 +154,7 @@ describe('recall email preview race guard', () => {
         candidate: latest,
         latest,
         currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: latest.deliveryPolicy,
         currentSubject: latest.subject,
         currentBodyHTML: '<p>Edited body</p>',
       })
@@ -171,6 +173,7 @@ describe('recall email preview race guard', () => {
         },
         latest,
         currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: latest.deliveryPolicy,
         currentSubject: latest.subject,
         currentBodyHTML: latest.bodyHTML,
       })
@@ -183,6 +186,7 @@ describe('recall email preview race guard', () => {
         candidate: latest,
         latest,
         currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: latest.deliveryPolicy,
         currentSubject: latest.subject,
         currentBodyHTML: latest.bodyHTML,
       })
@@ -195,8 +199,41 @@ describe('recall email preview race guard', () => {
         candidate: { ...latest, campaignType: 'promotion' },
         latest: { ...latest, campaignType: 'promotion' },
         currentCampaignType: 'content_only',
+        currentDeliveryPolicy: latest.deliveryPolicy,
         currentSubject: latest.subject,
         currentBodyHTML: latest.bodyHTML,
+      })
+    ).toBe(false)
+  })
+
+  test('ignores a preview result after the delivery policy changes', () => {
+    expect(
+      shouldApplyRecallEmailPreviewResult({
+        candidate: { ...latest, deliveryPolicy: 'engagement' },
+        latest: { ...latest, deliveryPolicy: 'engagement' },
+        currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: 'service',
+        currentSubject: latest.subject,
+        currentBodyHTML: latest.bodyHTML,
+      } as Parameters<typeof shouldApplyRecallEmailPreviewResult>[0] & {
+        currentDeliveryPolicy: 'service'
+      })
+    ).toBe(false)
+  })
+
+  test('ignores a preview result after the lifecycle trigger changes', () => {
+    expect(
+      shouldApplyRecallEmailPreviewResult({
+        candidate: { ...latest, lifecycleTrigger: 'payment_succeeded' },
+        latest: { ...latest, lifecycleTrigger: 'payment_succeeded' },
+        currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: latest.deliveryPolicy,
+        currentLifecycleTrigger: '',
+        currentSubject: latest.subject,
+        currentBodyHTML: latest.bodyHTML,
+      } as Parameters<typeof shouldApplyRecallEmailPreviewResult>[0] & {
+        currentDeliveryPolicy: 'engagement'
+        currentLifecycleTrigger: ''
       })
     ).toBe(false)
   })

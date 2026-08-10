@@ -261,6 +261,50 @@ describe('recall campaign editor normalization', () => {
     expect(recallCampaignDraftSchema.safeParse(normalized).success).toBe(true)
   })
 
+  test('hydrates missing continuous delivery policy from the lifecycle trigger', () => {
+    const draft = makeContinuousDraft()
+    draft.lifecycle_trigger = 'payment_succeeded'
+    draft.delivery_policy = undefined
+    draft.email_sequence[0].templates.en.body_html = ''
+
+    const hydrated = createRecallCampaignFormDraft(draft)
+
+    expect(hydrated.delivery_policy).toBe('service')
+    expect(hydrated.email_sequence[0].templates.en.body_html).not.toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
+  test('preserves explicit continuous delivery policy when hydrating templates', () => {
+    const draft = makeContinuousDraft()
+    draft.lifecycle_trigger = 'payment_succeeded'
+    draft.delivery_policy = 'engagement'
+    draft.email_sequence[0].templates.en.body_html = ''
+
+    const hydrated = createRecallCampaignFormDraft(draft)
+
+    expect(hydrated.delivery_policy).toBe('engagement')
+    expect(hydrated.email_sequence[0].templates.en.body_html).toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
+  test('rejects continuous submit drafts without an English first-stage template', () => {
+    const emptySequence = makeContinuousDraft()
+    emptySequence.email_sequence = []
+    expect(() => prepareRecallCampaignSubmitDraft(emptySequence)).toThrow(
+      'English template is required'
+    )
+
+    const missingEnglish = makeContinuousDraft()
+    missingEnglish.email_sequence[0].templates = {
+      fr: { subject: 'Sujet', body_html: '<p>Bonjour</p>' },
+    }
+    expect(() => prepareRecallCampaignSubmitDraft(missingEnglish)).toThrow(
+      'English template is required'
+    )
+  })
+
   test('rejects explicitly supplied non-empty continuous audience and promotion fields before canonicalization', () => {
     const invalid = makeContinuousDraft()
     invalid.audience_template = 'first_purchase'

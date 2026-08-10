@@ -1690,7 +1690,6 @@ describe('CampaignEditor schedule modes', () => {
       latestExecutionScheduleModeChange?.('continuous')
     })
     await submit(container)
-
     const submitted = createMutation.mock.calls.at(
       -1
     )?.[0] as RecallCampaignDraft
@@ -1744,6 +1743,161 @@ describe('CampaignEditor schedule modes', () => {
       promotion_expires_at: 0,
       promotion_valid_seconds: 0,
     })
+    dispose(root)
+  })
+
+  test('restores a populated recurring draft after switching to Continuous and back', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.campaign_type = 'promotion'
+    draft.audience_template = 'first_purchase'
+    draft.audience_config = {
+      ...draft.audience_config,
+      last_api_call_age_days: 10,
+      groups: ['paid'],
+      group_mode: 'allow',
+    }
+    draft.execution_mode = 'recurring'
+    draft.schedule = {
+      scheduled_at: 2_000_100_000,
+      timezone: 'America/New_York',
+      frequency: 'weekly',
+      weekday: 5,
+      hour: 18,
+      minute: 45,
+    }
+    draft.coupon_source = 'existing'
+    draft.existing_coupon_id = 'coupon_existing'
+    draft.discount_config = {
+      type: 'fixed',
+      percent_off: 0,
+      amount_off: 500,
+      currency: 'USD',
+      currency_options: {},
+      minimum_amount: 0,
+      minimum_amount_currency: '',
+    }
+    draft.product_scope = {
+      topup_price_ids: ['price_topup_usd'],
+      subscription_price_ids: ['price_sub_usd'],
+    }
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_expires_at = 2_000_200_000
+    draft.promotion_valid_seconds = 0
+    draft.email_sequence.push({
+      stage_no: 2,
+      delay_seconds: 86_400,
+      template_version: 1,
+      templates: {
+        en: {
+          subject: 'Second subject',
+          body_text: '',
+          body_html: '<p>Second body</p>',
+        },
+      },
+    })
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    await flushReactWork()
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('recurring')
+    })
+    await flushReactWork()
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted).toMatchObject({
+      campaign_type: 'promotion',
+      audience_template: 'first_purchase',
+      audience_config: draft.audience_config,
+      execution_mode: 'recurring',
+      schedule: draft.schedule,
+      coupon_source: 'existing',
+      existing_coupon_id: 'coupon_existing',
+      discount_config: draft.discount_config,
+      product_scope: draft.product_scope,
+      promotion_expiry_mode: 'fixed',
+      promotion_expires_at: 2_000_200_000,
+      promotion_valid_seconds: 0,
+      delivery_policy: 'engagement',
+      lifecycle_trigger: '',
+      lifecycle_trigger_config: {},
+      processing_start_at: 0,
+    })
+    expect(submitted.email_sequence).toHaveLength(2)
+    expect(submitted.email_sequence[1].templates.en.subject).toBe(
+      'Second subject'
+    )
+    dispose(root)
+  })
+
+  test('leaves an initially Continuous draft with legal manual defaults when switching out without a snapshot', async () => {
+    const draft = makeContinuousDraft()
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('manual')
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted).toMatchObject({
+      execution_mode: 'manual',
+      campaign_type: 'promotion',
+      audience_template: 'first_purchase',
+      coupon_source: 'automatic',
+      promotion_expiry_mode: 'relative',
+      promotion_valid_seconds: 604800,
+      delivery_policy: 'engagement',
+      lifecycle_trigger: '',
+      lifecycle_trigger_config: {},
+      processing_start_at: 0,
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: 'daily',
+        weekday: 1,
+        hour: 0,
+        minute: 0,
+      },
+    })
+    expect(submitted.discount_config.percent_off).toBeGreaterThan(0)
+    dispose(root)
+  })
+
+  test('leaves an initially Continuous draft with legal once defaults when switching out without a snapshot', async () => {
+    const draft = makeContinuousDraft()
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('once')
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted).toMatchObject({
+      execution_mode: 'scheduled_once',
+      campaign_type: 'promotion',
+      audience_template: 'first_purchase',
+      coupon_source: 'automatic',
+      promotion_expiry_mode: 'relative',
+      promotion_valid_seconds: 604800,
+      delivery_policy: 'engagement',
+      lifecycle_trigger: '',
+      lifecycle_trigger_config: {},
+      processing_start_at: 0,
+    })
+    expect(submitted.schedule.scheduled_at).toBeGreaterThan(0)
+    expect(submitted.schedule.timezone).toBeTruthy()
+    expect(submitted.discount_config.percent_off).toBeGreaterThan(0)
     dispose(root)
   })
 

@@ -135,6 +135,48 @@ describe('recall campaign API contracts', () => {
     return draft
   }
 
+  function makeContinuousDraftWithStaleCanonicalFields(): RecallCampaignDraft {
+    const draft = makeRecallDraft()
+    return {
+      ...draft,
+      audience_template: 'first_purchase',
+      audience_config: {
+        ...makeZeroAudienceConfig(),
+        registration_age_days: 30,
+        groups: ['paid'],
+        group_mode: 'allow',
+        require_verified_email: true,
+      },
+      schedule: {
+        scheduled_at: 2_000_100_000,
+        timezone: 'America/New_York',
+        frequency: 'weekly',
+        weekday: 5,
+        hour: 18,
+        minute: 45,
+      },
+      coupon_source: 'existing',
+      existing_coupon_id: 'coupon_existing',
+      discount_config: {
+        type: 'fixed',
+        percent_off: 0,
+        amount_off: 500,
+        currency: 'USD',
+        currency_options: { eur: 450 },
+        minimum_amount: 1000,
+        minimum_amount_currency: 'USD',
+      },
+      product_scope: {
+        topup_price_ids: ['price_topup_usd'],
+        subscription_price_ids: ['price_sub_usd'],
+      },
+      promotion_expiry_mode: 'fixed',
+      promotion_expires_at: 2_000_200_000,
+      promotion_valid_seconds: 604_800,
+      lifecycle_trigger_config: { stale: true } as Record<string, never>,
+    }
+  }
+
   function parseCapturedPayload(): Record<string, unknown> {
     return JSON.parse(String(capturedConfig?.data)) as Record<string, unknown>
   }
@@ -228,6 +270,33 @@ describe('recall campaign API contracts', () => {
       expect(payload.discount_config).toEqual({})
     }
   )
+
+  test('serializes continuous drafts with a complete canonical wire shape', async () => {
+    respondWith({ success: true, data: {} })
+
+    await createRecallCampaign(makeContinuousDraftWithStaleCanonicalFields())
+
+    expect(parseCapturedPayload()).toMatchObject({
+      audience_template: '',
+      audience_config: {},
+      discount_config: {},
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: '',
+        weekday: 0,
+        hour: 0,
+        minute: 0,
+      },
+      coupon_source: '',
+      existing_coupon_id: '',
+      product_scope: { topup_price_ids: [], subscription_price_ids: [] },
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+      lifecycle_trigger_config: '{}',
+    })
+  })
 
   test('preserves legacy audience and discount config while adapting a draft for the wire API', async () => {
     const draft = makeRecallDraft()

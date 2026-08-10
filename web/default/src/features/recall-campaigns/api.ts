@@ -144,14 +144,35 @@ type RecallCampaignDetailWire = Omit<RecallCampaignDetail, 'draft'> & {
 function encodeRecallCampaignDraft(
   draft: RecallCampaignDraft
 ): RecallCampaignDraftWire {
+  if (draft.execution_mode === 'continuous') {
+    return {
+      ...draft,
+      audience_template: '',
+      audience_config: {},
+      discount_config: {},
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: '',
+        weekday: 0,
+        hour: 0,
+        minute: 0,
+      },
+      coupon_source: '',
+      existing_coupon_id: '',
+      product_scope: { topup_price_ids: [], subscription_price_ids: [] },
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+      lifecycle_trigger_config: '{}',
+    }
+  }
+
   return {
     ...draft,
-    audience_template:
-      draft.execution_mode === 'continuous' ? '' : draft.audience_template,
-    audience_config:
-      draft.execution_mode === 'continuous' ? {} : draft.audience_config,
-    discount_config:
-      draft.execution_mode === 'continuous' ? {} : draft.discount_config,
+    audience_template: draft.audience_template,
+    audience_config: draft.audience_config,
+    discount_config: draft.discount_config,
     lifecycle_trigger_config: JSON.stringify(
       draft.lifecycle_trigger_config ?? {}
     ),

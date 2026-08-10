@@ -327,7 +327,11 @@ export function normalizeRecallBodyInputToHtml(
       deliveryPolicy
     )
   }
-  return convertRecallBodyTextToHtml(bodyInput, campaignType, deliveryPolicy)
+  return stripRecallDisallowedTemplateActions(
+    convertRecallBodyTextToHtml(bodyInput, campaignType, deliveryPolicy),
+    campaignType,
+    deliveryPolicy
+  )
 }
 
 export function insertRecallEmailAction(

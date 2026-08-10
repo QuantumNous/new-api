@@ -185,6 +185,31 @@ describe('recall email HTML helpers', () => {
     expect(html).not.toContain('Unsubscribe')
   })
 
+  test('normalizes service-policy content plain text by stripping forbidden actions', () => {
+    const html = normalizeRecallBodyInputToHtml(
+      [
+        'Hello {{.RecipientName}}',
+        'Product {{.ProductSummary}}',
+        'Use {{.PromotionCodeMasked}} before {{.ExpiresAt}}',
+        'Claim {{.ClaimURL}}',
+        'Unsubscribe {{.UnsubscribeURL}}',
+      ].join('\n'),
+      'content_only',
+      'service'
+    )
+
+    expect(html).toContain('Hello {{.RecipientName}}')
+    for (const forbidden of [
+      '{{.ProductSummary}}',
+      '{{.PromotionCodeMasked}}',
+      '{{.ExpiresAt}}',
+      '{{.ClaimURL}}',
+      '{{.UnsubscribeURL}}',
+    ]) {
+      expect(html).not.toContain(forbidden)
+    }
+  })
+
   test('preserves real HTML body input for existing backend validation', () => {
     const source =
       '<p>Hello</p><p><a href="{{.ClaimURL}}">Claim</a></p><p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>'

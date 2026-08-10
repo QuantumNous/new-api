@@ -108,16 +108,25 @@ export function shouldApplyRecallEmailPreviewResult(props: {
   candidate: RecallEmailPreviewSnapshot
   latest: RecallEmailPreviewSnapshot | null
   currentCampaignType: RecallCampaignType
+  currentDeliveryPolicy: RecallDeliveryPolicy
+  currentLifecycleTrigger?: RecallLifecycleTrigger | ''
   currentSubject: string
   currentBodyHTML: string
 }): boolean {
+  const candidateTrigger = props.candidate.lifecycleTrigger ?? ''
+  const latestTrigger = props.latest?.lifecycleTrigger ?? ''
+  const currentTrigger = props.currentLifecycleTrigger ?? ''
   return (
     props.latest !== null &&
     props.candidate.requestId === props.latest.requestId &&
     props.candidate.campaignType === props.latest.campaignType &&
+    props.candidate.deliveryPolicy === props.latest.deliveryPolicy &&
+    candidateTrigger === latestTrigger &&
     props.candidate.subject === props.latest.subject &&
     props.candidate.bodyHTML === props.latest.bodyHTML &&
     props.currentCampaignType === props.candidate.campaignType &&
+    props.currentDeliveryPolicy === props.candidate.deliveryPolicy &&
+    currentTrigger === candidateTrigger &&
     props.currentSubject === props.candidate.subject &&
     props.currentBodyHTML === props.candidate.bodyHTML
   )
@@ -225,7 +234,8 @@ export function CampaignEmailHtmlEditor(
 
   const previewEmail = async () => {
     setPreviewState(clearRecallEmailPreviewError)
-    const lifecycleTrigger = props.form.getValues('lifecycle_trigger') || undefined
+    const lifecycleTrigger =
+      props.form.getValues('lifecycle_trigger') || undefined
     const prepared = await prepareRecallEmailPreviewRequest({
       campaignType,
       deliveryPolicy,
@@ -250,6 +260,10 @@ export function CampaignEmailHtmlEditor(
           candidate: snapshot,
           latest: latestPreviewRequestRef.current,
           currentCampaignType: props.form.getValues('campaign_type'),
+          currentDeliveryPolicy:
+            props.form.getValues('delivery_policy') ?? 'engagement',
+          currentLifecycleTrigger:
+            props.form.getValues('lifecycle_trigger') || undefined,
           currentSubject: String(props.form.getValues(subjectPath) ?? ''),
           currentBodyHTML: String(props.form.getValues(bodyPath) ?? ''),
         })
@@ -265,6 +279,10 @@ export function CampaignEmailHtmlEditor(
           candidate: snapshot,
           latest: latestPreviewRequestRef.current,
           currentCampaignType: props.form.getValues('campaign_type'),
+          currentDeliveryPolicy:
+            props.form.getValues('delivery_policy') ?? 'engagement',
+          currentLifecycleTrigger:
+            props.form.getValues('lifecycle_trigger') || undefined,
           currentSubject: String(props.form.getValues(subjectPath) ?? ''),
           currentBodyHTML: String(props.form.getValues(bodyPath) ?? ''),
         })

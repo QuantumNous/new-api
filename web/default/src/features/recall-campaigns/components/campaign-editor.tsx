@@ -191,6 +191,12 @@ function getDefaultFutureStartSeconds(): number {
   return Math.floor(Date.now() / 1000) + 86_400
 }
 
+function cloneRecallCampaignDraft(
+  draft: RecallCampaignDraft
+): RecallCampaignDraft {
+  return structuredClone(draft)
+}
+
 function normalizeRecallScheduleForMode(
   draft: RecallCampaignDraft,
   mode: RecallScheduleMode
@@ -208,6 +214,10 @@ function normalizeRecallScheduleForMode(
     return {
       ...draft,
       execution_mode: 'manual',
+      delivery_policy: 'engagement',
+      lifecycle_trigger: '',
+      lifecycle_trigger_config: {},
+      processing_start_at: 0,
       schedule: {
         scheduled_at: 0,
         timezone: '',
@@ -226,6 +236,10 @@ function normalizeRecallScheduleForMode(
     return {
       ...draft,
       execution_mode: 'scheduled_once',
+      delivery_policy: 'engagement',
+      lifecycle_trigger: '',
+      lifecycle_trigger_config: {},
+      processing_start_at: 0,
       schedule: {
         ...schedule,
         scheduled_at: scheduledAt,
@@ -264,7 +278,10 @@ function normalizeRecallScheduleForMode(
         specified_emails: [],
       },
       execution_mode: 'continuous',
-      delivery_policy: recallLifecycleDeliveryPolicyByTrigger[trigger],
+      delivery_policy:
+        draft.execution_mode === 'continuous' && draft.delivery_policy
+          ? draft.delivery_policy
+          : recallLifecycleDeliveryPolicyByTrigger[trigger],
       lifecycle_trigger: trigger,
       lifecycle_trigger_config: {},
       schedule: {
@@ -305,6 +322,10 @@ function normalizeRecallScheduleForMode(
   return {
     ...draft,
     execution_mode: 'recurring',
+    delivery_policy: 'engagement',
+    lifecycle_trigger: '',
+    lifecycle_trigger_config: {},
+    processing_start_at: 0,
     schedule: {
       ...schedule,
       scheduled_at: scheduledAt,
@@ -573,6 +594,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
   )
   const previousInitialDraftCampaignID = useRef(props.campaignId ?? 0)
   const previousCampaignID = useRef(props.campaignId ?? 0)
+  const nonContinuousDraftSnapshotRef = useRef<RecallCampaignDraft | null>(null)
   const [fixedAmountInputs, setFixedAmountInputs] =
     useState<RecallFixedAmountInputs>(() =>
       createRecallFixedAmountInputs(defaultValues.discount_config)
@@ -666,6 +688,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
       form.reset(draft)
       setPendingServerDraft(null)
       setFixedAmountInputs(createRecallFixedAmountInputs(draft.discount_config))
+      nonContinuousDraftSnapshotRef.current = null
     }
   }, [form, props.campaignId, props.initialDraft])
 
@@ -894,7 +917,32 @@ export function CampaignEditor(props: CampaignEditorProps) {
   }
 
   const setScheduleMode = (mode: RecallScheduleMode) => {
-    const normalized = normalizeRecallScheduleForMode(form.getValues(), mode)
+    const currentDraft = form.getValues()
+    if (
+      mode === 'continuous' &&
+      currentDraft.execution_mode !== 'continuous' &&
+      nonContinuousDraftSnapshotRef.current === null
+    ) {
+      nonContinuousDraftSnapshotRef.current =
+        cloneRecallCampaignDraft(currentDraft)
+    }
+    const baseDraft =
+      mode !== 'continuous' && currentDraft.execution_mode === 'continuous'
+        ? (nonContinuousDraftSnapshotRef.current ?? {
+            ...createRecallCampaignDefaults(),
+            name: currentDraft.name,
+            enrollment_limit: currentDraft.enrollment_limit,
+            worker_concurrency: currentDraft.worker_concurrency,
+            defer_localization: currentDraft.defer_localization,
+            email_sequence: currentDraft.email_sequence.length
+              ? currentDraft.email_sequence
+              : createRecallCampaignDefaults().email_sequence,
+          })
+        : currentDraft
+    const normalized = normalizeRecallScheduleForMode(baseDraft, mode)
+    if (mode !== 'continuous') {
+      nonContinuousDraftSnapshotRef.current = null
+    }
     form.setValue('execution_mode', normalized.execution_mode, {
       shouldDirty: true,
       shouldValidate: true,
@@ -963,16 +1011,14 @@ export function CampaignEditor(props: CampaignEditorProps) {
         shouldValidate: true,
       }
     )
+    form.setValue('processing_start_at', normalized.processing_start_at ?? 0, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
     form.setValue('email_sequence', normalized.email_sequence, {
       shouldDirty: true,
       shouldValidate: true,
     })
-    if (normalized.execution_mode !== 'continuous') {
-      form.setValue('processing_start_at', 0, {
-        shouldDirty: true,
-        shouldValidate: true,
-      })
-    }
     setFixedAmountInputs(
       createRecallFixedAmountInputs(normalized.discount_config)
     )
