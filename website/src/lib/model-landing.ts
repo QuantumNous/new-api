@@ -9,11 +9,30 @@ export type ModelPriceRow = {
   value?: string;
 };
 
+export type ModelGeneratorField = {
+  name: string;
+  label: string;
+  type: "select" | "number" | "text" | "boolean";
+  defaultValue: string | number | boolean;
+  options?: string[];
+  min?: number;
+  max?: number;
+  help?: string;
+};
+
+export type ModelGeneratorConfig = {
+  kind: "image" | "video" | "audio";
+  endpoint: string;
+  storageKey: string;
+  fields: ModelGeneratorField[];
+};
+
 export type ModelConfig = {
   slug: string;
   modelIds: string[];
   displayName: string;
   modelId: string;
+  generator?: ModelGeneratorConfig;
   officialName: string;
   officialPrice: string;
   flatkeyPrice: string;
@@ -73,7 +92,7 @@ export const CLAUDE_CONFIG: ModelConfig = {
 
 export const GPT_CONFIG: ModelConfig = {
   slug: "gpt-api",
-  modelIds: ["gpt-5", "gpt-5-mini", "gpt-4o", "gpt-4.1"],
+  modelIds: ["gpt-5.5", "gpt-5", "gpt-5-mini", "gpt-4o", "gpt-4.1"],
   displayName: "GPT-5",
   modelId: "gpt-5",
   officialName: "OpenAI",
@@ -231,6 +250,21 @@ export const SEEDANCE_CONFIG: ModelConfig = {
   modelIds: ["seedance-2-0", "seedance-2.0", "seedance"],
   displayName: "Seedance 2.0",
   modelId: "seedance-2-0",
+  generator: {
+    kind: "video",
+    endpoint: "/v1/videos",
+    storageKey: "flatkey:model-generator-draft:seedance-2-0",
+    fields: [
+      { name: "resolution", label: "Resolution", type: "select", defaultValue: "1080p", options: ["720p", "1080p"] },
+      { name: "ratio", label: "Aspect ratio", type: "select", defaultValue: "16:9", options: ["16:9", "9:16", "1:1", "4:3", "3:4"] },
+      { name: "duration", label: "Duration", type: "select", defaultValue: 5, options: ["5", "10"] },
+      { name: "frames", label: "Frames", type: "number", defaultValue: 0, min: 0, max: 240, help: "Optional frame count override" },
+      { name: "camera_fixed", label: "Camera fixed", type: "boolean", defaultValue: false },
+      { name: "generate_audio", label: "Generate audio", type: "boolean", defaultValue: false },
+      { name: "return_last_frame", label: "Return last frame", type: "boolean", defaultValue: false },
+      { name: "seed", label: "Seed", type: "number", defaultValue: 0, min: 0, max: 2147483647, help: "0 means random" },
+    ],
+  },
   officialName: "fal.ai",
   officialPrice: "$0.07",
   flatkeyPrice: "$0.047",
@@ -263,24 +297,164 @@ export const SEEDANCE_CONFIG: ModelConfig = {
   ],
 };
 
+export const GPT_IMAGE_2_CONFIG: ModelConfig = {
+  slug: "gpt-image-2",
+  modelIds: ["gpt-image-2"],
+  displayName: "GPT-image-2",
+  modelId: "gpt-image-2",
+  generator: {
+    kind: "image",
+    endpoint: "/v1/images/generations",
+    storageKey: "flatkey:model-generator-draft:gpt-image-2",
+    fields: [
+      { name: "n", label: "Images", type: "number", defaultValue: 1, min: 1, max: 10 },
+      { name: "size", label: "Size", type: "select", defaultValue: "1024x1024", options: ["1024x1024", "1536x1024", "1024x1536", "auto"] },
+      { name: "quality", label: "Quality", type: "select", defaultValue: "high", options: ["auto", "high", "medium", "low"] },
+      { name: "output_format", label: "Output format", type: "select", defaultValue: "png", options: ["png", "jpeg", "webp"] },
+      { name: "background", label: "Background", type: "select", defaultValue: "opaque", options: ["opaque", "auto"] },
+      { name: "moderation", label: "Moderation", type: "select", defaultValue: "auto", options: ["auto", "low"] },
+    ],
+  },
+  officialName: "OpenAI",
+  officialPrice: "$0.06",
+  flatkeyPrice: "$0.04",
+  estFlatkey: "$0.04",
+  estOfficial: "$0.06",
+  examplePrompt:
+    "A complex AI image generation mood wall photographed as one premium studio scene: a large violet-and-gold abstract floral artwork surrounded by pinned botanical sketches, macro insect study, translucent vellum flower sheets, black-and-white portrait, crystal minerals, perfume product render, architectural arch and staircase studies, film strips, fabric swatches, tape, brass pins, graphite notes, and warm spotlights on a charcoal wall.",
+  priceUnit: "/ image",
+  rows: [
+    { label: "GPT-image-2 image", flatkey: "$0.04", official: "$0.06" },
+    { label: "Square output", flatkey: "", value: "1024 × 1024" },
+    { label: "Fast product mockups", flatkey: "", value: "image, ads, ecommerce" },
+    { label: "Coverage", flatkey: "", value: "GPT-image-2 · Nano Banana Pro · Imagen · Qwen Image" },
+  ],
+  seo: {
+    title: "GPT-image-2 image generator — configure prompts before signup",
+    description:
+      "Try a GPT-image-2 style image generator landing page, save your prompt settings locally, then continue to Flatkey signup or the console.",
+  },
+  positioning: "Best for product images, ad creatives, and ecommerce visual variants",
+  useCases: ["Product mockups", "Ad creatives", "Ecommerce images"],
+  faq: [
+    {
+      question: "Does this start a real generation?",
+      answer: "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.",
+    },
+    {
+      question: "Where are my edited prompt settings stored?",
+      answer: "They are stored in this browser's localStorage so the draft survives the signup handoff.",
+    },
+  ],
+};
+
+export const MINIMAX_H3_CONFIG: ModelConfig = {
+  slug: "minimax-h3",
+  modelIds: ["MiniMax-H3"],
+  displayName: "MiniMax-H3",
+  modelId: "MiniMax-H3",
+  generator: {
+    kind: "video",
+    endpoint: "/v1/videos",
+    storageKey: "flatkey:model-generator-draft:minimax-h3",
+    fields: [
+      { name: "resolution", label: "Resolution", type: "select", defaultValue: "768P", options: ["768P", "2K"] },
+      { name: "duration", label: "Duration", type: "number", defaultValue: 6, min: 4, max: 15 },
+      { name: "ratio", label: "Aspect ratio", type: "select", defaultValue: "16:9", options: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "adaptive"] },
+      { name: "aigc_watermark", label: "AIGC watermark", type: "boolean", defaultValue: false },
+    ],
+  },
+  officialName: "MiniMax",
+  officialPrice: "$0.08",
+  flatkeyPrice: "$0.053333",
+  estFlatkey: "$0.32",
+  estOfficial: "$0.48",
+  examplePrompt:
+    "A paper boat crosses a rain puddle at street level, cinematic macro shot, soft reflections, 6 seconds.",
+  priceUnit: "/ second",
+  rows: [
+    { label: "MiniMax-H3 768P / sec", flatkey: "$0.053", official: "$0.08" },
+    { label: "MiniMax-H3 2K / sec", flatkey: "$0.087", official: "$0.13" },
+    { label: "Reference video input", flatkey: "", value: "same per-second rate" },
+    { label: "Input image after free tier", flatkey: "$0.027", official: "$0.04" },
+  ],
+  seo: {
+    title: "MiniMax-H3 video generator — configure prompts before signup",
+    description:
+      "Configure MiniMax-H3 video requests on flatkey.ai, save prompt settings locally, then continue to signup or the console.",
+  },
+  positioning: "Best for product videos, ad creative, and image-to-video production",
+  useCases: ["UGC ad clips", "Product motion", "Social video variants"],
+  faq: [
+    {
+      question: "Which MiniMax-H3 fields can I configure here?",
+      answer: "Configure resolution, duration, ratio, and AIGC watermark before opening the console.",
+    },
+    {
+      question: "Does this start a real generation?",
+      answer: "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.",
+    },
+  ],
+};
+
 export const MODEL_CONFIGS: Record<string, ModelConfig> = {
   [CLAUDE_CONFIG.slug]: CLAUDE_CONFIG,
   [DEEPSEEK_CONFIG.slug]: DEEPSEEK_CONFIG,
   [GEMINI_CONFIG.slug]: GEMINI_CONFIG,
+  [GPT_IMAGE_2_CONFIG.slug]: GPT_IMAGE_2_CONFIG,
   [GLM_API_CONFIG.slug]: GLM_API_CONFIG,
   [GPT_CONFIG.slug]: GPT_CONFIG,
+  [MINIMAX_H3_CONFIG.slug]: MINIMAX_H3_CONFIG,
   [QWEN_CONFIG.slug]: QWEN_CONFIG,
   [SEEDANCE_CONFIG.slug]: SEEDANCE_CONFIG,
+};
+
+const GENERIC_MEDIA_PRICE_BY_KIND: Record<ModelGeneratorConfig["kind"], { priceUnit: ModelLandingKey; flatkey: string; official: string }> = {
+  image: { priceUnit: "/ image", flatkey: "$0.04", official: "$0.06" },
+  video: { priceUnit: "/ second", flatkey: "$0.047", official: "$0.07" },
+  audio: { priceUnit: "/ request", flatkey: "$0.0048", official: "$0.009" },
+};
+
+const GENERIC_MEDIA_FIELDS: Record<ModelGeneratorConfig["kind"], ModelGeneratorField[]> = {
+  image: [
+    { name: "n", label: "Images", type: "number", defaultValue: 1, min: 1, max: 10 },
+    { name: "size", label: "Size", type: "select", defaultValue: "1024x1024", options: ["1024x1024", "1536x1024", "1024x1536", "auto"] },
+    { name: "quality", label: "Quality", type: "select", defaultValue: "high", options: ["auto", "high", "medium", "low"] },
+    { name: "output_format", label: "Output format", type: "select", defaultValue: "png", options: ["png", "jpeg", "webp"] },
+  ],
+  video: [
+    { name: "resolution", label: "Resolution", type: "select", defaultValue: "1080p", options: ["720p", "1080p"] },
+    { name: "ratio", label: "Aspect ratio", type: "select", defaultValue: "16:9", options: ["16:9", "9:16", "1:1", "4:3", "3:4"] },
+    { name: "duration", label: "Duration", type: "number", defaultValue: 5, min: 1, max: 30 },
+    { name: "generate_audio", label: "Generate audio", type: "boolean", defaultValue: false },
+  ],
+  audio: [
+    { name: "input_video_url", label: "Video URL", type: "text", defaultValue: "" },
+    { name: "duration", label: "Duration", type: "number", defaultValue: 30, min: 5, max: 300 },
+    { name: "output_format", label: "Output format", type: "select", defaultValue: "mp3", options: ["mp3", "m4a", "wav"] },
+    { name: "variants", label: "Outputs", type: "number", defaultValue: 1, min: 1, max: 10 },
+    { name: "preserve_speech", label: "Preserve speech", type: "boolean", defaultValue: true },
+  ],
 };
 
 export type ModelLandingKey =
   | "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price"
   | "▶ Sign in to run"
+  | "Start generating"
+  | "Generator setup"
+  | "Saved before signup"
+  | "Public demo"
+  | "Size"
+  | "Quality"
+  | "Outputs"
+  | "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup."
   | "(flatkey · official ≈ {{price}})"
   | "{{model}} · OpenAI-compatible · one key, all models"
   | "* Illustrative pricing — see flatkey pricing page"
   | "/ million output tokens"
+  | "/ image"
   | "/ second"
+  | "/ request"
   | "# Your existing OpenAI code:"
   | "up to 50% off"
   | "covers every model"
@@ -311,12 +485,21 @@ export type ModelLandingKey =
   | "GPT-5 output"
   | "GPT-5 mini output"
   | "GPT-5 input"
+  | "GPT-image-2 image"
+  | "Square output"
+  | "Fast product mockups"
   | "Gemini 2.5 Pro output"
   | "Gemini 2.5 Flash output"
   | "Gemini 2.5 Pro input"
   | "Seedance video / sec"
   | "Image-to-video / sec"
   | "1080p / sec"
+  | "MiniMax-H3 768P / sec"
+  | "MiniMax-H3 2K / sec"
+  | "Reference video input"
+  | "Input image after free tier"
+  | "same per-second rate"
+  | "AIGC watermark"
   | "Cache reads"
   | "Coverage"
   | "AI app backends"
@@ -327,6 +510,16 @@ export type ModelLandingKey =
   | "Best for product videos, ad creative, and image-to-video production"
   | "Can I control usage before scaling?"
   | "Coding agents"
+  | "Product mockups"
+  | "Ad creatives"
+  | "Ecommerce images"
+  | "Best for product images, ad creatives, and ecommerce visual variants"
+  | "Does this start a real generation?"
+  | "The public page saves your draft settings first. Sign up or open the console to run the request with an API key."
+  | "Which MiniMax-H3 fields can I configure here?"
+  | "Configure resolution, duration, ratio, and AIGC watermark before opening the console."
+  | "Where are my edited prompt settings stored?"
+  | "They are stored in this browser's localStorage so the draft survives the signup handoff."
   | "Does this use the same model id in my SDK?"
   | "Live flatkey pricing"
   | "Live model data from pricing API"
@@ -349,6 +542,23 @@ export function getModelLandingConfigForModel(modelId: string): ModelConfig | nu
   return getModelLandingConfigs().find((config) =>
     config.modelIds.some((configuredId) => matchesModelId(normalized, configuredId))
   ) ?? null;
+}
+
+export function getModelLandingConfigForPricingModel(model: PricingModel): ModelConfig | null {
+  const explicitConfig = getModelLandingConfigForModel(model.model_name);
+  if (explicitConfig) return modelLandingConfigForModel(explicitConfig, model);
+  return buildGenericMediaLandingConfig(model);
+}
+
+export function modelLandingConfigForModel(config: ModelConfig, model: PricingModel): ModelConfig {
+  return {
+    ...config,
+    slug: encodeURIComponent(model.model_name),
+    modelIds: [model.model_name, ...config.modelIds],
+    displayName: model.model_name,
+    modelId: model.model_name,
+    officialName: model.vendor_name ?? config.officialName,
+  };
 }
 
 export function getModelLandingConfigs(): ModelConfig[] {
@@ -378,16 +588,126 @@ function matchesModelId(normalizedModelId: string, configuredId: string): boolea
   );
 }
 
+function buildGenericMediaLandingConfig(model: PricingModel): ModelConfig | null {
+  const kind = inferMediaKind(model);
+  if (!kind) return null;
+  const price = GENERIC_MEDIA_PRICE_BY_KIND[kind];
+  const displayName = model.model_name;
+  const officialName = model.vendor_name ?? "Provider";
+  return {
+    slug: encodeURIComponent(model.model_name),
+    modelIds: [model.model_name],
+    displayName,
+    modelId: model.model_name,
+    generator: {
+      kind,
+      endpoint: mediaEndpointForModel(kind, model),
+      storageKey: `flatkey:model-generator-draft:${normalizeModelId(model.model_name)}`,
+      fields: GENERIC_MEDIA_FIELDS[kind],
+    },
+    officialName,
+    officialPrice: model.model_price ? formatPriceLiteral(model.model_price) : price.official,
+    flatkeyPrice: model.model_price ? formatPriceLiteral(model.model_price * 0.53) : price.flatkey,
+    estFlatkey: model.model_price ? formatPriceLiteral(model.model_price * 0.53) : price.flatkey,
+    estOfficial: model.model_price ? formatPriceLiteral(model.model_price) : price.official,
+    examplePrompt: examplePromptForMediaKind(kind, displayName),
+    priceUnit: price.priceUnit,
+    rows: [
+      { label: "Live flatkey pricing", flatkey: model.model_price ? formatPriceLiteral(model.model_price * 0.53) : price.flatkey, official: model.model_price ? formatPriceLiteral(model.model_price) : price.official },
+      { label: "Live model data from pricing API", flatkey: "", value: officialName },
+      { label: "Coverage", flatkey: "", value: "Text · image · video · audio" },
+    ],
+    seo: {
+      title: `${displayName} generator — configure prompts before signup`,
+      description: `Configure ${displayName} requests on flatkey.ai, save prompt settings locally, then continue to signup or the console.`,
+    },
+    positioning: kind === "image"
+      ? "Best for product images, ad creatives, and ecommerce visual variants"
+      : "Best for product videos, ad creative, and image-to-video production",
+    useCases: kind === "image" ? ["Product mockups", "Ad creatives", "Ecommerce images"] : ["UGC ad clips", "Product motion", "Social video variants"],
+    faq: [
+      {
+        question: "Does this start a real generation?",
+        answer: "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.",
+      },
+      {
+        question: "Where are my edited prompt settings stored?",
+        answer: "They are stored in this browser's localStorage so the draft survives the signup handoff.",
+      },
+    ],
+  };
+}
+
+function inferMediaKind(model: PricingModel): ModelGeneratorConfig["kind"] | null {
+  const name = normalizeModelId(model.model_name);
+  const endpoints = (model.supported_endpoint_types ?? []).map((endpoint) => normalizeModelId(endpoint));
+  const endpointText = endpoints.join("-");
+  if (
+    endpointText.includes("video-to-music") ||
+    endpointText.includes("audio") ||
+    endpointText.includes("music") ||
+    endpointText.includes("sound") ||
+    /(^|-)(audio|music|voice|tts|sfx|sound|sonilo|suno|lyrics)(-|$)/.test(name)
+  ) {
+    return "audio";
+  }
+  if (
+    endpointText.includes("image-generation") ||
+    /(^|-)(image|imagen|banana|flux|ideogram)(-|$)/.test(name)
+  ) {
+    return "image";
+  }
+  if (
+    endpointText.includes("video") ||
+    /(^|-)(video|sora|veo|kling|seedance|hailuo|runway|wan)(-|$)/.test(name)
+  ) {
+    return "video";
+  }
+  return null;
+}
+
+function mediaEndpointForModel(kind: ModelGeneratorConfig["kind"], model: PricingModel): string {
+  const endpoints = (model.supported_endpoint_types ?? []).map((endpoint) => normalizeModelId(endpoint));
+  if (endpoints.some((endpoint) => endpoint.includes("video-to-music"))) return "/v1/video-to-music";
+  if (endpoints.some((endpoint) => endpoint.includes("sound"))) return "/v1/sound-generation";
+  if (endpoints.some((endpoint) => endpoint.includes("music"))) return "/v1/music";
+  if (kind === "image") return "/v1/images/generations";
+  if (kind === "video") return "/v1/videos";
+  return "/v1/music";
+}
+
+function examplePromptForMediaKind(kind: ModelGeneratorConfig["kind"], modelName: string): string {
+  if (kind === "audio") {
+    return `Create a polished music bed for ${modelName}: keep the video timing, preserve important speech, use a warm electronic style, and deliver a clean loopable ending.`;
+  }
+  if (kind === "video") {
+    return `Create a short product video with ${modelName}: clear subject motion, realistic lighting, stable camera, and production-ready framing.`;
+  }
+  return `Create a high-quality product image with ${modelName}: clean composition, precise lighting, strong subject focus, and realistic detail.`;
+}
+
+function formatPriceLiteral(value: number): string {
+  return `$${Number(value.toFixed(6)).toString()}`;
+}
+
 const en: Record<ModelLandingKey, string> = {
   "You pay": "You pay",
   "per month on the Go plan": "per month on the Go plan",
   "You get": "You get",
   "of monthly model usage — 4.5× the price": "of monthly model usage — 4.5× the price",
-    "from $10/month": "from $10/month",
-    "Pro — $30/mo, up to $90 usage": "Pro — $30/mo, up to $90 usage",
-    "Most popular": "Most popular",
+  "from $10/month": "from $10/month",
+  "Pro — $30/mo, up to $90 usage": "Pro — $30/mo, up to $90 usage",
+  "Most popular": "Most popular",
   "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price": "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price",
   "▶ Sign in to run": "▶ Sign in to run",
+  "Start generating": "Start generating",
+  "Generator setup": "Generator setup",
+  "Saved before signup": "Saved before signup",
+  "Public demo": "Public demo",
+  Size: "Size",
+  Quality: "Quality",
+  Outputs: "Outputs",
+  "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup.": "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup.",
   "(flatkey · official ≈ {{price}})": "(flatkey · official ≈ {{price}})",
   "{{model}} · OpenAI-compatible · one key, all models": "{{model}} · OpenAI-compatible · one key, all models",
   "* Illustrative pricing — see flatkey pricing page": "* Illustrative pricing — see flatkey pricing page",
@@ -410,18 +730,29 @@ const en: Record<ModelLandingKey, string> = {
   "The same {{model}},": "The same {{model}},",
   "Go — $10/mo, up to $45 usage": "Go — $10/mo, up to $45 usage",
   "Max — $100/mo, up to $300 usage": "Max — $100/mo, up to $300 usage",
+  "/ image": "/ image",
+  "/ request": "/ request",
   "Opus 4 output": "Opus 4 output",
   "Sonnet 4 output": "Sonnet 4 output",
   "Haiku output": "Haiku output",
   "GPT-5 output": "GPT-5 output",
   "GPT-5 mini output": "GPT-5 mini output",
   "GPT-5 input": "GPT-5 input",
+  "GPT-image-2 image": "GPT-image-2 image",
+  "Square output": "Square output",
+  "Fast product mockups": "Fast product mockups",
   "Gemini 2.5 Pro output": "Gemini 2.5 Pro output",
   "Gemini 2.5 Flash output": "Gemini 2.5 Flash output",
   "Gemini 2.5 Pro input": "Gemini 2.5 Pro input",
   "Seedance video / sec": "Seedance video / sec",
   "Image-to-video / sec": "Image-to-video / sec",
   "1080p / sec": "1080p / sec",
+  "MiniMax-H3 768P / sec": "MiniMax-H3 768P / sec",
+  "MiniMax-H3 2K / sec": "MiniMax-H3 2K / sec",
+  "Reference video input": "Reference video input",
+  "Input image after free tier": "Input image after free tier",
+  "same per-second rate": "same per-second rate",
+  "AIGC watermark": "AIGC watermark",
   "Cache reads": "Cache reads",
   Coverage: "Coverage",
   "AI app backends": "AI app backends",
@@ -432,6 +763,16 @@ const en: Record<ModelLandingKey, string> = {
   "Best for product videos, ad creative, and image-to-video production": "Best for product videos, ad creative, and image-to-video production",
   "Can I control usage before scaling?": "Can I control usage before scaling?",
   "Coding agents": "Coding agents",
+  "Product mockups": "Product mockups",
+  "Ad creatives": "Ad creatives",
+  "Ecommerce images": "Ecommerce images",
+  "Best for product images, ad creatives, and ecommerce visual variants": "Best for product images, ad creatives, and ecommerce visual variants",
+  "Does this start a real generation?": "Does this start a real generation?",
+  "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.": "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.",
+  "Which MiniMax-H3 fields can I configure here?": "Which MiniMax-H3 fields can I configure here?",
+  "Configure resolution, duration, ratio, and AIGC watermark before opening the console.": "Configure resolution, duration, ratio, and AIGC watermark before opening the console.",
+  "Where are my edited prompt settings stored?": "Where are my edited prompt settings stored?",
+  "They are stored in this browser's localStorage so the draft survives the signup handoff.": "They are stored in this browser's localStorage so the draft survives the signup handoff.",
   "Does this use the same model id in my SDK?": "Does this use the same model id in my SDK?",
   "Live flatkey pricing": "Live flatkey pricing",
   "Live model data from pricing API": "Live model data from pricing API",
@@ -446,14 +787,145 @@ const en: Record<ModelLandingKey, string> = {
   "50% off": "50% off",
 };
 
-// Non-English dictionaries may lag behind the union: modelLandingCopy falls
-// back to the English entry (then the key itself), so new keys only require
-// an English translation. `id` falls back to English via withIdFallback.
-const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = withIdFallback<
-  Partial<Record<ModelLandingKey, string>>
->({
+const translations: Record<Locale, Record<string, string>> = withIdFallback<Record<string, string>>({
   en,
   zh: {
+    "Back to Market": "返回模型市场",
+    "Copy page": "复制页面",
+    "Copy model id": "复制模型 ID",
+    "Flatkey Router": "Flatkey Router",
+    "Configure a {{model}} request on the public page. Flatkey saves the draft locally, then opens the console so you can run it with your account and API key.": "在公开页配置 {{model}} 请求。Flatkey 会先把草稿保存到本地，然后打开控制台，让你用自己的账号和 API Key 运行。",
+    "Model Type": "模型类型",
+    "Text to Video": "文生视频",
+    Audio: "音频",
+    "Image to Image": "图像生成",
+    API: "API",
+    Pricing: "价格",
+    "Model ID": "模型 ID",
+    Playground: "Playground",
+    Examples: "示例",
+    Similar: "相似模型",
+    README: "README",
+    Input: "输入",
+    Form: "表单",
+    "Join and run": "注册后运行",
+    Output: "输出",
+    Preview: "预览",
+    "View API Docs": "查看 API 文档",
+    "Get API Key": "获取 API Key",
+    "Images generated": "已生成图片",
+    "Videos generated": "已生成视频",
+    "Avg. response time": "平均响应时间",
+    Uptime: "可用性",
+    "Ready for production": "可用于生产",
+    "Generated Examples": "生成示例",
+    "Explore what {{model}} can create": "看看 {{model}} 可以生成什么",
+    "Create with this model": "用这个模型创建",
+    "Generated with {{model}}": "使用 {{model}} 生成",
+    "Transparent Pricing": "透明价格",
+    "Flatkey {{model}} usage pricing": "Flatkey {{model}} 用量价格",
+    "Use the same Flatkey balance and API key across image, video, audio, and text models.": "图像、视频、音频和文本模型共用同一个 Flatkey 余额和 API Key。",
+    "Open wallet": "打开钱包",
+    "Flatkey price": "Flatkey 价格",
+    "Reference price": "官方价格",
+    "Shared balance": "共用余额",
+    "Why Flatkey": "为什么选择 Flatkey",
+    "Why use Flatkey for {{model}}?": "为什么用 Flatkey 调用 {{model}}？",
+    "Lower generation pricing": "更低的生成成本",
+    "Route media workloads through Flatkey and keep prompt tests cheaper before scaling.": "媒体生成任务走 Flatkey，扩量前的 prompt 测试成本更可控。",
+    "Draft handoff": "草稿接力",
+    "The public page stores prompt settings locally before sending the user into Flatkey.": "公开页会先在本地保存 prompt 和参数，再把用户带到 Flatkey。",
+    "Unified API access": "统一 API 入口",
+    "Use one account and API key across image, video, audio, and language models.": "一个账号和 API Key 覆盖图像、视频、音频和语言模型。",
+    "Start generating in three steps": "三步开始生成",
+    "Try a prompt": "先试 prompt",
+    "Use the playground to validate quality and style fit.": "在 playground 中验证质量、风格和参数是否合适。",
+    "Create an API key": "创建 API Key",
+    "Sign up, open Dashboard, and create a token for this model.": "注册后进入控制台，为这个模型创建 token。",
+    "Ship your workflow": "接入你的工作流",
+    "Call the same endpoint, then top up credits as usage grows.": "调用同一个 endpoint，并随用量增长充值额度。",
+    "Built for generation teams": "为生成团队准备",
+    "Ads and social creative": "广告与社媒创意",
+    "Produce campaign concepts, thumbnails, posters, and localized variants.": "生成活动概念图、缩略图、海报和本地化版本。",
+    "Product visuals": "产品视觉",
+    "Generate product-style shots, merchandising scenes, and reference-guided variations.": "生成产品图、陈列场景和参考图引导的变体。",
+    "Developer pipelines": "开发者流水线",
+    "Add async generation for agents, CMS tools, and batch creative systems.": "为 Agent、CMS 工具和批量创意系统接入异步生成。",
+    "{{model}} pricing FAQ": "{{model}} 价格 FAQ",
+    "Generate your first {{model}} on Flatkey": "在 Flatkey 生成第一个 {{model}} 请求",
+    "Save the draft, continue to signup if needed, or open the console directly when already logged in.": "先保存草稿；未登录会进入注册，已登录则直接打开控制台继续。",
+    "Model Guide": "模型指南",
+    "{{model}} is a production text model for chat, coding, long-context reasoning, and tool-enabled workflows through Flatkey-compatible API access.": "{{model}} 是适合聊天、代码、长上下文推理和工具工作流的生产级文本模型，可通过 Flatkey 兼容 API 访问。",
+    Vendor: "供应商",
+    Modalities: "模态",
+    Text: "文本",
+    Price: "价格",
+    Updated: "更新日期",
+    "Open in Playground": "在 Playground 打开",
+    Docs: "文档",
+    "Model Overview": "模型概览",
+    "Quick Answer": "快速结论",
+    "Best for chat, code generation, agent workflows, and production assistants.": "适合聊天、代码生成、Agent 工作流和生产级助手。",
+    "Use Flatkey when you want OpenAI-compatible routing, unified billing, and reusable API keys.": "当你需要兼容 OpenAI 的路由、统一账单和可复用 API Key 时，可以使用 Flatkey。",
+    "Start with the default parameters, then tune max tokens and temperature for your workload.": "先使用默认参数，再按任务调整 max_tokens 和 temperature。",
+    "{{model}} Model Features": "{{model}} 模型能力",
+    "Core capabilities and practical engineering value": "核心能力与工程价值",
+    "How to Use {{model}} API": "如何使用 {{model}} API",
+    "Create an API key and set Authorization: Bearer <YOUR_API_KEY>.": "创建 API Key，并设置 Authorization: Bearer <YOUR_API_KEY>。",
+    "POST to /v1/chat/completions with at least model and messages.": "向 /v1/chat/completions 发起 POST 请求，至少包含 model 和 messages。",
+    "Tune max_tokens, temperature, and top_p based on task complexity.": "根据任务复杂度调整 max_tokens、temperature 和 top_p。",
+    "Enable streaming for chat UIs, terminal assistants, and agent workflows.": "聊天 UI、终端助手和 Agent 工作流可以启用 streaming。",
+    "Use logs and retries to refine prompts before broader rollout.": "扩量前通过日志和重试优化 prompt。",
+    "Common Errors": "常见错误",
+    "Missing required fields, malformed messages, or unsupported parameter values.": "缺少必填字段、messages 格式错误，或参数值不支持。",
+    "Missing Authorization header, malformed bearer token, or invalid API key.": "缺少 Authorization 头、Bearer token 格式错误，或 API Key 无效。",
+    "Request rate, concurrency, or quota is above current account limits.": "请求速率、并发或额度超过当前账号限制。",
+    "Transient upstream instability, tool execution failure, or processing issue.": "上游短暂不稳定、工具执行失败或处理异常。",
+    "Ready to unify your AI model access?": "准备统一你的 AI 模型访问了吗？",
+    "Use one Flatkey account to test prompts, compare models, and move the saved request into the console.": "用一个 Flatkey 账号测试 prompt、比较模型，并把保存的请求带入控制台。",
+    "View Pricing": "查看价格",
+    Prompt: "Prompt",
+    "Quick Prompts": "快捷 Prompt",
+    "Product Reveal": "产品展示",
+    "UGC Ad": "UGC 广告",
+    "Cinematic Scene": "电影感场景",
+    "Social Clip": "社媒短片",
+    "Product Photo": "产品摄影",
+    "Anime Portrait": "动漫头像",
+    "Realistic Human": "真人写实",
+    "YouTube Thumbnail": "YouTube 缩略图",
+    "Fantasy Landscape": "奇幻风景",
+    "Advanced Options": "高级选项",
+    "Reference Images": "参考图片",
+    "Upload reference": "上传参考",
+    "Example output": "示例输出",
+    "Request preview": "请求预览",
+    "Copy request": "复制请求",
+    "Output format": "输出格式",
+    Background: "背景",
+    Moderation: "审核强度",
+    Resolution: "分辨率",
+    "Aspect ratio": "画面比例",
+    Duration: "时长",
+    Frames: "帧数",
+    "Optional frame count override": "可选的帧数覆盖",
+    "Camera fixed": "固定镜头",
+    "Generate audio": "生成音频",
+    "Return last frame": "返回尾帧",
+    Seed: "随机种子",
+    "0 means random": "0 表示随机",
+    "OpenAI-compatible migration path": "兼容 OpenAI 的迁移路径",
+    "Chat Completions-style payloads reduce switching friction from existing model stacks.": "Chat Completions 风格请求体能降低从现有模型栈迁移的成本。",
+    "Structured and tool-based output": "结构化与工具输出",
+    "Use structured JSON, tools, and code-generation flows for agentic workflows.": "可在 Agent 工作流中使用结构化 JSON、工具和代码生成流程。",
+    "Streaming interaction": "流式交互",
+    "Streaming supports chat UIs, terminal assistants, and progressive rendering.": "流式输出适合聊天 UI、终端助手和渐进式渲染。",
+    "Production routing": "生产路由",
+    "Keep usage, keys, quotas, and model routing in one Flatkey account.": "在一个 Flatkey 账号中管理用量、Key、额度和模型路由。",
+    "Long-context work": "长上下文任务",
+    "Useful for document summarization, codebase analysis, and knowledge workflows.": "适合文档总结、代码库分析和知识工作流。",
+    "Coding and technical generation": "代码与技术生成",
+    "Useful for code explanation, tests, refactors, SDK wrappers, and technical drafts.": "适合代码解释、测试、重构、SDK 封装和技术草稿。",
     "You pay": "你只付",
     "per month on the Go plan": "每月 · Go 套餐",
     "You get": "你获得",
@@ -463,6 +935,14 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Most popular": "最受欢迎",
     "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price": "↓ Go $10 · Pro $30 · Max $100 每月 —— 可用量最高达套餐价 4.5 倍",
     "▶ Sign in to run": "▶ 登录即可运行",
+    "Start generating": "开始生成",
+    "Generator setup": "生成器配置",
+    "Saved before signup": "注册前保存",
+    "Public demo": "公开演示",
+    Size: "尺寸",
+    Quality: "质量",
+    Outputs: "输出数量",
+    "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup.": "在这里编辑 prompt 和参数。我们会先在本地保存草稿，然后打开 Flatkey，注册后即可运行。",
     "(flatkey · official ≈ {{price}})": "(flatkey · 官方 ≈ {{price}})",
     "{{model}} · OpenAI-compatible · one key, all models": "{{model}} · 兼容 OpenAI · 一个密钥，全部模型",
     "* Illustrative pricing — see flatkey pricing page": "* 示例价格 — 详见 flatkey 定价页",
@@ -485,15 +965,28 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "The same {{model}},": "同样的 {{model}}，",
     "Go — $10/mo, up to $45 usage": "Go —— $10/月，可用 $45",
     "Max — $100/mo, up to $300 usage": "Max —— $100/月，可用 $300",
+    "/ image": "/ 张图片",
     "Opus 4 output": "Opus 4 输出",
     "Sonnet 4 output": "Sonnet 4 输出",
     "Haiku output": "Haiku 输出",
     "GPT-5 output": "GPT-5 输出",
     "GPT-5 mini output": "GPT-5 mini 输出",
     "GPT-5 input": "GPT-5 输入",
+    "Gemini 2.5 Pro output": "Gemini 2.5 Pro 输出",
+    "Gemini 2.5 Flash output": "Gemini 2.5 Flash 输出",
+    "Gemini 2.5 Pro input": "Gemini 2.5 Pro 输入",
+    "GPT-image-2 image": "GPT-image-2 图片",
+    "Square output": "方图输出",
+    "Fast product mockups": "快速产品样机",
     "Seedance video / sec": "Seedance 视频/秒",
     "Image-to-video / sec": "图生视频/秒",
     "1080p / sec": "1080p/秒",
+    "MiniMax-H3 768P / sec": "MiniMax-H3 768P/秒",
+    "MiniMax-H3 2K / sec": "MiniMax-H3 2K/秒",
+    "Reference video input": "参考视频输入",
+    "Input image after free tier": "超出免费档的输入图片",
+    "same per-second rate": "同输出秒价",
+    "AIGC watermark": "AIGC 水印",
     "Cache reads": "缓存读取",
     Coverage: "覆盖范围",
     "AI app backends": "AI 应用后端",
@@ -504,6 +997,16 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Best for product videos, ad creative, and image-to-video production": "适合产品视频、广告创意和图生视频生产",
     "Can I control usage before scaling?": "扩量前可以控制用量吗？",
     "Coding agents": "编程 Agent",
+    "Product mockups": "产品样机",
+    "Ad creatives": "广告素材",
+    "Ecommerce images": "电商图片",
+    "Best for product images, ad creatives, and ecommerce visual variants": "适合产品图、广告素材和电商视觉变体",
+    "Does this start a real generation?": "这里会真的开始生成吗？",
+    "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.": "公开页面会先保存你的草稿配置。注册或进入控制台后，再用 API 密钥真正运行请求。",
+    "Which MiniMax-H3 fields can I configure here?": "这里可以配置哪些 MiniMax-H3 字段？",
+    "Configure resolution, duration, ratio, and AIGC watermark before opening the console.": "进入控制台前可以先配置分辨率、时长、画面比例和 AIGC 水印。",
+    "Where are my edited prompt settings stored?": "我编辑过的 prompt 配置存在哪里？",
+    "They are stored in this browser's localStorage so the draft survives the signup handoff.": "会保存在当前浏览器的 localStorage 中，因此注册跳转后草稿仍可保留。",
     "Does this use the same model id in my SDK?": "我的 SDK 里还能用同一个模型 ID 吗？",
     "Live flatkey pricing": "flatkey 实时价格",
     "Live model data from pricing API": "来自定价 API 的实时模型数据",
@@ -527,10 +1030,19 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Most popular": "Más popular",
     "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price": "↓ Go $10 · Pro $30 · Max $100 al mes — uso de hasta 4.5× el precio",
     "▶ Sign in to run": "▶ Inicia sesión para ejecutar",
+    "Start generating": "Empezar a generar",
+    "Generator setup": "Configuración del generador",
+    "Saved before signup": "Guardado antes del registro",
+    "Public demo": "Demo pública",
+    Size: "Tamaño",
+    Quality: "Calidad",
+    Outputs: "Salidas",
+    "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup.": "Edita el prompt y los ajustes aquí. Guardamos el borrador localmente y luego abrimos Flatkey para que puedas ejecutarlo tras registrarte.",
     "(flatkey · official ≈ {{price}})": "(flatkey · oficial ≈ {{price}})",
     "{{model}} · OpenAI-compatible · one key, all models": "{{model}} · compatible con OpenAI · una clave, todos los modelos",
     "* Illustrative pricing — see flatkey pricing page": "* Precios ilustrativos — consulta la página de precios de flatkey",
     "/ million output tokens": "/ millón de tokens de salida",
+    "/ image": "/ imagen",
     "/ second": "/ segundo",
     "# Your existing OpenAI code:": "# Tu código OpenAI actual:",
     "up to 50% off": "hasta 50% menos",
@@ -555,9 +1067,21 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "GPT-5 output": "Salida de GPT-5",
     "GPT-5 mini output": "Salida de GPT-5 mini",
     "GPT-5 input": "Entrada de GPT-5",
+    "GPT-image-2 image": "Imagen GPT-image-2",
+    "Square output": "Salida cuadrada",
+    "Fast product mockups": "Mockups de producto rápidos",
+    "Gemini 2.5 Pro output": "Salida de Gemini 2.5 Pro",
+    "Gemini 2.5 Flash output": "Salida de Gemini 2.5 Flash",
+    "Gemini 2.5 Pro input": "Entrada de Gemini 2.5 Pro",
     "Seedance video / sec": "Vídeo Seedance/seg",
     "Image-to-video / sec": "Imagen a vídeo/seg",
     "1080p / sec": "1080p/seg",
+    "MiniMax-H3 768P / sec": "MiniMax-H3 768P/seg",
+    "MiniMax-H3 2K / sec": "MiniMax-H3 2K/seg",
+    "Reference video input": "Vídeo de referencia",
+    "Input image after free tier": "Imagen de entrada tras el tramo gratis",
+    "same per-second rate": "misma tarifa por segundo",
+    "AIGC watermark": "Marca de agua AIGC",
     "Cache reads": "Lecturas de caché",
     Coverage: "Cobertura",
     "AI app backends": "Backends de apps de IA",
@@ -568,6 +1092,16 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Best for product videos, ad creative, and image-to-video production": "Ideal para videos de producto, creatividades publicitarias y producción imagen-a-video",
     "Can I control usage before scaling?": "¿Puedo controlar el uso antes de escalar?",
     "Coding agents": "Agentes de código",
+    "Product mockups": "Mockups de producto",
+    "Ad creatives": "Creatividades publicitarias",
+    "Ecommerce images": "Imágenes de ecommerce",
+    "Best for product images, ad creatives, and ecommerce visual variants": "Ideal para imágenes de producto, creatividades publicitarias y variantes visuales de ecommerce",
+    "Does this start a real generation?": "¿Esto inicia una generación real?",
+    "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.": "La página pública primero guarda tus ajustes de borrador. Regístrate o abre la consola para ejecutar la solicitud con una clave API.",
+    "Which MiniMax-H3 fields can I configure here?": "¿Qué campos de MiniMax-H3 puedo configurar aquí?",
+    "Configure resolution, duration, ratio, and AIGC watermark before opening the console.": "Configura resolución, duración, relación de aspecto y marca de agua AIGC antes de abrir la consola.",
+    "Where are my edited prompt settings stored?": "¿Dónde se guardan mis ajustes editados del prompt?",
+    "They are stored in this browser's localStorage so the draft survives the signup handoff.": "Se guardan en el localStorage de este navegador para que el borrador sobreviva al paso de registro.",
     "Does this use the same model id in my SDK?": "¿Uso el mismo id de modelo en mi SDK?",
     "Live flatkey pricing": "Precio en vivo de flatkey",
     "Live model data from pricing API": "Datos del modelo en vivo desde la API de precios",
@@ -591,10 +1125,19 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Most popular": "Le plus populaire",
     "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price": "↓ Go $10 · Pro $30 · Max $100 par mois — usage jusqu'à 4,5× le prix",
     "▶ Sign in to run": "▶ Connectez-vous pour exécuter",
+    "Start generating": "Commencer la génération",
+    "Generator setup": "Configuration du générateur",
+    "Saved before signup": "Enregistré avant l'inscription",
+    "Public demo": "Démo publique",
+    Size: "Taille",
+    Quality: "Qualité",
+    Outputs: "Sorties",
+    "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup.": "Modifiez le prompt et les paramètres ici. Nous enregistrons le brouillon localement, puis ouvrons Flatkey pour que vous puissiez l'exécuter après inscription.",
     "(flatkey · official ≈ {{price}})": "(flatkey · officiel ≈ {{price}})",
     "{{model}} · OpenAI-compatible · one key, all models": "{{model}} · compatible OpenAI · une clé, tous les modèles",
     "* Illustrative pricing — see flatkey pricing page": "* Tarifs indicatifs — voir la page tarifs de flatkey",
     "/ million output tokens": "/ million de tokens de sortie",
+    "/ image": "/ image",
     "/ second": "/ seconde",
     "# Your existing OpenAI code:": "# Votre code OpenAI actuel :",
     "up to 50% off": "jusqu'à -50 %",
@@ -619,9 +1162,21 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "GPT-5 output": "Sortie GPT-5",
     "GPT-5 mini output": "Sortie GPT-5 mini",
     "GPT-5 input": "Entrée GPT-5",
+    "GPT-image-2 image": "Image GPT-image-2",
+    "Square output": "Sortie carrée",
+    "Fast product mockups": "Mockups produit rapides",
+    "Gemini 2.5 Pro output": "Sortie Gemini 2.5 Pro",
+    "Gemini 2.5 Flash output": "Sortie Gemini 2.5 Flash",
+    "Gemini 2.5 Pro input": "Entrée Gemini 2.5 Pro",
     "Seedance video / sec": "Vidéo Seedance/s",
     "Image-to-video / sec": "Image vers vidéo/s",
     "1080p / sec": "1080p/s",
+    "MiniMax-H3 768P / sec": "MiniMax-H3 768P/s",
+    "MiniMax-H3 2K / sec": "MiniMax-H3 2K/s",
+    "Reference video input": "Vidéo de référence",
+    "Input image after free tier": "Image d'entrée après le palier gratuit",
+    "same per-second rate": "même tarif par seconde",
+    "AIGC watermark": "Filigrane AIGC",
     "Cache reads": "Lectures de cache",
     Coverage: "Couverture",
     "AI app backends": "Backends d'apps IA",
@@ -632,6 +1187,16 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Best for product videos, ad creative, and image-to-video production": "Idéal pour vidéos produit, créations publicitaires et production image-vers-vidéo",
     "Can I control usage before scaling?": "Puis-je contrôler l'usage avant de passer à l'échelle ?",
     "Coding agents": "Agents de code",
+    "Product mockups": "Mockups produit",
+    "Ad creatives": "Créations publicitaires",
+    "Ecommerce images": "Images e-commerce",
+    "Best for product images, ad creatives, and ecommerce visual variants": "Idéal pour les images produit, les créations publicitaires et les variantes visuelles e-commerce",
+    "Does this start a real generation?": "Cela lance-t-il une vraie génération ?",
+    "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.": "La page publique enregistre d'abord vos paramètres de brouillon. Inscrivez-vous ou ouvrez la console pour exécuter la requête avec une clé API.",
+    "Which MiniMax-H3 fields can I configure here?": "Quels champs MiniMax-H3 puis-je configurer ici ?",
+    "Configure resolution, duration, ratio, and AIGC watermark before opening the console.": "Configurez la résolution, la durée, le ratio et le filigrane AIGC avant d'ouvrir la console.",
+    "Where are my edited prompt settings stored?": "Où sont stockés mes paramètres de prompt modifiés ?",
+    "They are stored in this browser's localStorage so the draft survives the signup handoff.": "Ils sont stockés dans le localStorage de ce navigateur afin que le brouillon survive au passage par l'inscription.",
     "Does this use the same model id in my SDK?": "Puis-je garder le même id de modèle dans mon SDK ?",
     "Live flatkey pricing": "Tarifs flatkey en direct",
     "Live model data from pricing API": "Données modèle en direct depuis l'API tarifs",
@@ -655,10 +1220,19 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Most popular": "Mais popular",
     "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price": "↓ Go $10 · Pro $30 · Max $100 por mês — uso de até 4,5× o preço",
     "▶ Sign in to run": "▶ Entrar para executar",
+    "Start generating": "Começar a gerar",
+    "Generator setup": "Configuração do gerador",
+    "Saved before signup": "Salvo antes do cadastro",
+    "Public demo": "Demo pública",
+    Size: "Tamanho",
+    Quality: "Qualidade",
+    Outputs: "Saídas",
+    "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup.": "Edite o prompt e as configurações aqui. Salvamos o rascunho localmente e depois abrimos o Flatkey para você executar após cadastrar.",
     "(flatkey · official ≈ {{price}})": "(flatkey · oficial ≈ {{price}})",
     "{{model}} · OpenAI-compatible · one key, all models": "{{model}} · compatível com OpenAI · uma chave, todos os modelos",
     "* Illustrative pricing — see flatkey pricing page": "* Preços ilustrativos — veja a página de preços do flatkey",
     "/ million output tokens": "/ milhão de tokens de saída",
+    "/ image": "/ imagem",
     "/ second": "/ segundo",
     "# Your existing OpenAI code:": "# Seu código OpenAI atual:",
     "up to 50% off": "até 50% de desconto",
@@ -683,9 +1257,21 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "GPT-5 output": "Saída do GPT-5",
     "GPT-5 mini output": "Saída do GPT-5 mini",
     "GPT-5 input": "Entrada do GPT-5",
+    "GPT-image-2 image": "Imagem GPT-image-2",
+    "Square output": "Saída quadrada",
+    "Fast product mockups": "Mockups de produto rápidos",
+    "Gemini 2.5 Pro output": "Saída do Gemini 2.5 Pro",
+    "Gemini 2.5 Flash output": "Saída do Gemini 2.5 Flash",
+    "Gemini 2.5 Pro input": "Entrada do Gemini 2.5 Pro",
     "Seedance video / sec": "Vídeo Seedance/seg",
     "Image-to-video / sec": "Imagem-para-vídeo/seg",
     "1080p / sec": "1080p/seg",
+    "MiniMax-H3 768P / sec": "MiniMax-H3 768P/seg",
+    "MiniMax-H3 2K / sec": "MiniMax-H3 2K/seg",
+    "Reference video input": "Vídeo de referência",
+    "Input image after free tier": "Imagem de entrada após a faixa grátis",
+    "same per-second rate": "mesma tarifa por segundo",
+    "AIGC watermark": "Marca d'água AIGC",
     "Cache reads": "Leituras de cache",
     Coverage: "Cobertura",
     "AI app backends": "Backends de apps de IA",
@@ -696,6 +1282,16 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Best for product videos, ad creative, and image-to-video production": "Ideal para vídeos de produto, criativos de anúncio e produção imagem-para-vídeo",
     "Can I control usage before scaling?": "Posso controlar o uso antes de escalar?",
     "Coding agents": "Agentes de código",
+    "Product mockups": "Mockups de produto",
+    "Ad creatives": "Criativos de anúncio",
+    "Ecommerce images": "Imagens de ecommerce",
+    "Best for product images, ad creatives, and ecommerce visual variants": "Ideal para imagens de produto, criativos de anúncio e variações visuais de ecommerce",
+    "Does this start a real generation?": "Isso inicia uma geração real?",
+    "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.": "A página pública salva primeiro suas configurações de rascunho. Cadastre-se ou abra o console para executar a solicitação com uma chave API.",
+    "Which MiniMax-H3 fields can I configure here?": "Quais campos do MiniMax-H3 posso configurar aqui?",
+    "Configure resolution, duration, ratio, and AIGC watermark before opening the console.": "Configure resolução, duração, proporção e marca d'água AIGC antes de abrir o console.",
+    "Where are my edited prompt settings stored?": "Onde meus ajustes editados do prompt são armazenados?",
+    "They are stored in this browser's localStorage so the draft survives the signup handoff.": "Eles ficam no localStorage deste navegador para que o rascunho sobreviva ao fluxo de cadastro.",
     "Does this use the same model id in my SDK?": "Uso o mesmo id de modelo no meu SDK?",
     "Live flatkey pricing": "Preço em tempo real da flatkey",
     "Live model data from pricing API": "Dados do modelo em tempo real da API de preços",
@@ -719,10 +1315,19 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Most popular": "Самый популярный",
     "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price": "↓ Go $10 · Pro $30 · Max $100 в месяц — использование до 4,5× цены",
     "▶ Sign in to run": "▶ Войдите, чтобы запустить",
+    "Start generating": "Начать генерацию",
+    "Generator setup": "Настройки генератора",
+    "Saved before signup": "Сохранено до регистрации",
+    "Public demo": "Публичная демо-страница",
+    Size: "Размер",
+    Quality: "Качество",
+    Outputs: "Выходы",
+    "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup.": "Редактируйте prompt и параметры здесь. Мы сохраним черновик локально, затем откроем Flatkey, чтобы вы могли запустить его после регистрации.",
     "(flatkey · official ≈ {{price}})": "(flatkey · официальный ≈ {{price}})",
     "{{model}} · OpenAI-compatible · one key, all models": "{{model}} · совместим с OpenAI · один ключ, все модели",
     "* Illustrative pricing — see flatkey pricing page": "* Ориентировочные цены — см. страницу тарифов flatkey",
     "/ million output tokens": "/ млн выходных токенов",
+    "/ image": "/ изображение",
     "/ second": "/ секунду",
     "# Your existing OpenAI code:": "# Ваш текущий код OpenAI:",
     "up to 50% off": "до 50% дешевле",
@@ -747,9 +1352,21 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "GPT-5 output": "Вывод GPT-5",
     "GPT-5 mini output": "Вывод GPT-5 mini",
     "GPT-5 input": "Ввод GPT-5",
+    "GPT-image-2 image": "Изображение GPT-image-2",
+    "Square output": "Квадратный вывод",
+    "Fast product mockups": "Быстрые продуктовые макеты",
+    "Gemini 2.5 Pro output": "Вывод Gemini 2.5 Pro",
+    "Gemini 2.5 Flash output": "Вывод Gemini 2.5 Flash",
+    "Gemini 2.5 Pro input": "Ввод Gemini 2.5 Pro",
     "Seedance video / sec": "Видео Seedance/сек",
     "Image-to-video / sec": "Изображение в видео/сек",
     "1080p / sec": "1080p/сек",
+    "MiniMax-H3 768P / sec": "MiniMax-H3 768P/сек",
+    "MiniMax-H3 2K / sec": "MiniMax-H3 2K/сек",
+    "Reference video input": "Входное референс-видео",
+    "Input image after free tier": "Входное изображение после бесплатного лимита",
+    "same per-second rate": "та же посекундная ставка",
+    "AIGC watermark": "Водяной знак AIGC",
     "Cache reads": "Чтения из кэша",
     Coverage: "Покрытие",
     "AI app backends": "Бэкенды AI-приложений",
@@ -760,6 +1377,16 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Best for product videos, ad creative, and image-to-video production": "Подходит для продуктовых видео, рекламы и image-to-video производства",
     "Can I control usage before scaling?": "Можно ли контролировать расход до масштабирования?",
     "Coding agents": "Кодовые агенты",
+    "Product mockups": "Продуктовые макеты",
+    "Ad creatives": "Рекламные креативы",
+    "Ecommerce images": "Изображения для e-commerce",
+    "Best for product images, ad creatives, and ecommerce visual variants": "Подходит для продуктовых изображений, рекламных креативов и визуальных вариантов для e-commerce",
+    "Does this start a real generation?": "Это запускает реальную генерацию?",
+    "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.": "Публичная страница сначала сохраняет настройки черновика. Зарегистрируйтесь или откройте консоль, чтобы запустить запрос с API-ключом.",
+    "Which MiniMax-H3 fields can I configure here?": "Какие поля MiniMax-H3 можно настроить здесь?",
+    "Configure resolution, duration, ratio, and AIGC watermark before opening the console.": "Настройте разрешение, длительность, соотношение сторон и водяной знак AIGC перед открытием консоли.",
+    "Where are my edited prompt settings stored?": "Где хранятся отредактированные настройки prompt?",
+    "They are stored in this browser's localStorage so the draft survives the signup handoff.": "Они хранятся в localStorage этого браузера, чтобы черновик сохранился при переходе к регистрации.",
     "Does this use the same model id in my SDK?": "Можно ли использовать тот же model id в SDK?",
     "Live flatkey pricing": "Актуальные цены flatkey",
     "Live model data from pricing API": "Живые данные модели из pricing API",
@@ -783,10 +1410,19 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Most popular": "一番人気",
     "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price": "↓ Go $10 · Pro $30 · Max $100 /月——利用枠は料金の最大 4.5 倍",
     "▶ Sign in to run": "▶ サインインして実行",
+    "Start generating": "生成を開始",
+    "Generator setup": "生成設定",
+    "Saved before signup": "登録前に保存",
+    "Public demo": "公開デモ",
+    Size: "サイズ",
+    Quality: "品質",
+    Outputs: "出力数",
+    "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup.": "ここでプロンプトと設定を編集します。下書きはローカルに保存され、その後 Flatkey を開いて登録後に実行できます。",
     "(flatkey · official ≈ {{price}})": "(flatkey · 公式 ≈ {{price}})",
     "{{model}} · OpenAI-compatible · one key, all models": "{{model}} · OpenAI 互換 · 1つのキーで全モデル",
     "* Illustrative pricing — see flatkey pricing page": "* 参考価格 — flatkey の料金ページをご覧ください",
     "/ million output tokens": "/ 出力トークン100万あたり",
+    "/ image": "/ 画像",
     "/ second": "/ 秒",
     "# Your existing OpenAI code:": "# 既存の OpenAI コード:",
     "up to 50% off": "最大 50% オフ",
@@ -811,9 +1447,21 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "GPT-5 output": "GPT-5 出力",
     "GPT-5 mini output": "GPT-5 mini 出力",
     "GPT-5 input": "GPT-5 入力",
+    "GPT-image-2 image": "GPT-image-2 画像",
+    "Square output": "正方形出力",
+    "Fast product mockups": "高速な商品モックアップ",
+    "Gemini 2.5 Pro output": "Gemini 2.5 Pro 出力",
+    "Gemini 2.5 Flash output": "Gemini 2.5 Flash 出力",
+    "Gemini 2.5 Pro input": "Gemini 2.5 Pro 入力",
     "Seedance video / sec": "Seedance 動画/秒",
     "Image-to-video / sec": "画像から動画/秒",
     "1080p / sec": "1080p/秒",
+    "MiniMax-H3 768P / sec": "MiniMax-H3 768P/秒",
+    "MiniMax-H3 2K / sec": "MiniMax-H3 2K/秒",
+    "Reference video input": "参照動画入力",
+    "Input image after free tier": "無料枠後の入力画像",
+    "same per-second rate": "同じ秒単価",
+    "AIGC watermark": "AIGC ウォーターマーク",
     "Cache reads": "キャッシュ読み取り",
     Coverage: "対応モデル",
     "AI app backends": "AI アプリのバックエンド",
@@ -824,6 +1472,16 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Best for product videos, ad creative, and image-to-video production": "商品動画、広告クリエイティブ、画像から動画制作に最適",
     "Can I control usage before scaling?": "拡張前に使用量を管理できますか？",
     "Coding agents": "コーディング Agent",
+    "Product mockups": "商品モックアップ",
+    "Ad creatives": "広告クリエイティブ",
+    "Ecommerce images": "EC 画像",
+    "Best for product images, ad creatives, and ecommerce visual variants": "商品画像、広告クリエイティブ、EC 向けビジュアルバリエーションに最適",
+    "Does this start a real generation?": "ここで実際に生成が始まりますか？",
+    "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.": "公開ページではまず下書き設定を保存します。登録するかコンソールを開き、API キーでリクエストを実行してください。",
+    "Which MiniMax-H3 fields can I configure here?": "ここで設定できる MiniMax-H3 の項目は何ですか？",
+    "Configure resolution, duration, ratio, and AIGC watermark before opening the console.": "コンソールを開く前に、解像度、長さ、アスペクト比、AIGC ウォーターマークを設定できます。",
+    "Where are my edited prompt settings stored?": "編集したプロンプト設定はどこに保存されますか？",
+    "They are stored in this browser's localStorage so the draft survives the signup handoff.": "このブラウザの localStorage に保存されるため、登録への受け渡し後も下書きが残ります。",
     "Does this use the same model id in my SDK?": "SDK で同じモデル ID を使えますか？",
     "Live flatkey pricing": "flatkey のライブ料金",
     "Live model data from pricing API": "料金 API からのライブモデルデータ",
@@ -847,10 +1505,19 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Most popular": "Phổ biến nhất",
     "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price": "↓ Go $10 · Pro $30 · Max $100 mỗi tháng — mức dùng tới 4,5× giá",
     "▶ Sign in to run": "▶ Đăng nhập để chạy",
+    "Start generating": "Bắt đầu tạo",
+    "Generator setup": "Thiết lập trình tạo",
+    "Saved before signup": "Đã lưu trước khi đăng ký",
+    "Public demo": "Demo công khai",
+    Size: "Kích thước",
+    Quality: "Chất lượng",
+    Outputs: "Số đầu ra",
+    "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup.": "Chỉnh prompt và cài đặt tại đây. Chúng tôi lưu bản nháp cục bộ rồi mở Flatkey để bạn chạy sau khi đăng ký.",
     "(flatkey · official ≈ {{price}})": "(flatkey · chính thức ≈ {{price}})",
     "{{model}} · OpenAI-compatible · one key, all models": "{{model}} · tương thích OpenAI · một khóa, mọi mô hình",
     "* Illustrative pricing — see flatkey pricing page": "* Giá minh họa — xem trang giá của flatkey",
     "/ million output tokens": "/ triệu token đầu ra",
+    "/ image": "/ ảnh",
     "/ second": "/ giây",
     "# Your existing OpenAI code:": "# Mã OpenAI hiện có của bạn:",
     "up to 50% off": "rẻ hơn tới 50%",
@@ -875,9 +1542,21 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "GPT-5 output": "Đầu ra GPT-5",
     "GPT-5 mini output": "Đầu ra GPT-5 mini",
     "GPT-5 input": "Đầu vào GPT-5",
+    "GPT-image-2 image": "Ảnh GPT-image-2",
+    "Square output": "Đầu ra vuông",
+    "Fast product mockups": "Mockup sản phẩm nhanh",
+    "Gemini 2.5 Pro output": "Đầu ra Gemini 2.5 Pro",
+    "Gemini 2.5 Flash output": "Đầu ra Gemini 2.5 Flash",
+    "Gemini 2.5 Pro input": "Đầu vào Gemini 2.5 Pro",
     "Seedance video / sec": "Video Seedance/giây",
     "Image-to-video / sec": "Ảnh thành video/giây",
     "1080p / sec": "1080p/giây",
+    "MiniMax-H3 768P / sec": "MiniMax-H3 768P/giây",
+    "MiniMax-H3 2K / sec": "MiniMax-H3 2K/giây",
+    "Reference video input": "Video tham chiếu đầu vào",
+    "Input image after free tier": "Ảnh đầu vào sau mức miễn phí",
+    "same per-second rate": "cùng đơn giá mỗi giây",
+    "AIGC watermark": "Watermark AIGC",
     "Cache reads": "Đọc bộ nhớ đệm",
     Coverage: "Phạm vi hỗ trợ",
     "AI app backends": "Backend ứng dụng AI",
@@ -888,6 +1567,16 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Best for product videos, ad creative, and image-to-video production": "Phù hợp cho video sản phẩm, quảng cáo và sản xuất ảnh-thành-video",
     "Can I control usage before scaling?": "Tôi có thể kiểm soát mức dùng trước khi mở rộng không?",
     "Coding agents": "Agent lập trình",
+    "Product mockups": "Mockup sản phẩm",
+    "Ad creatives": "Creative quảng cáo",
+    "Ecommerce images": "Ảnh thương mại điện tử",
+    "Best for product images, ad creatives, and ecommerce visual variants": "Phù hợp cho ảnh sản phẩm, creative quảng cáo và biến thể hình ảnh thương mại điện tử",
+    "Does this start a real generation?": "Thao tác này có bắt đầu tạo thật không?",
+    "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.": "Trang công khai trước hết lưu cấu hình bản nháp. Đăng ký hoặc mở console để chạy request bằng API key.",
+    "Which MiniMax-H3 fields can I configure here?": "Tôi có thể cấu hình trường MiniMax-H3 nào ở đây?",
+    "Configure resolution, duration, ratio, and AIGC watermark before opening the console.": "Cấu hình độ phân giải, thời lượng, tỷ lệ khung hình và watermark AIGC trước khi mở console.",
+    "Where are my edited prompt settings stored?": "Cài đặt prompt đã chỉnh sửa được lưu ở đâu?",
+    "They are stored in this browser's localStorage so the draft survives the signup handoff.": "Chúng được lưu trong localStorage của trình duyệt này để bản nháp vẫn còn sau bước đăng ký.",
     "Does this use the same model id in my SDK?": "SDK của tôi có dùng cùng model id không?",
     "Live flatkey pricing": "Giá flatkey trực tiếp",
     "Live model data from pricing API": "Dữ liệu mô hình trực tiếp từ API giá",
@@ -911,10 +1600,19 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Most popular": "Am beliebtesten",
     "↓ Go $10 · Pro $30 · Max $100 per month — usage worth up to 4.5× the price": "↓ Go $10 · Pro $30 · Max $100 pro Monat — Nutzung bis zum 4,5-Fachen des Preises",
     "▶ Sign in to run": "▶ Zum Ausführen anmelden",
+    "Start generating": "Generierung starten",
+    "Generator setup": "Generator-Einstellungen",
+    "Saved before signup": "Vor der Anmeldung gespeichert",
+    "Public demo": "Öffentliche Demo",
+    Size: "Größe",
+    Quality: "Qualität",
+    Outputs: "Ausgaben",
+    "Edit the prompt and settings here. We save the draft locally, then open Flatkey so you can run it after signup.": "Bearbeiten Sie Prompt und Einstellungen hier. Wir speichern den Entwurf lokal und öffnen dann Flatkey, damit Sie ihn nach der Anmeldung ausführen können.",
     "(flatkey · official ≈ {{price}})": "(flatkey · offiziell ≈ {{price}})",
     "{{model}} · OpenAI-compatible · one key, all models": "{{model}} · OpenAI-kompatibel · ein Schlüssel, alle Modelle",
     "* Illustrative pricing — see flatkey pricing page": "* Beispielpreise — siehe flatkey-Preisseite",
     "/ million output tokens": "/ Million Output-Tokens",
+    "/ image": "/ Bild",
     "/ second": "/ Sekunde",
     "# Your existing OpenAI code:": "# Dein vorhandener OpenAI-Code:",
     "up to 50% off": "bis zu 50% günstiger",
@@ -939,9 +1637,21 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "GPT-5 output": "GPT-5 Output",
     "GPT-5 mini output": "GPT-5 mini Output",
     "GPT-5 input": "GPT-5 Input",
+    "GPT-image-2 image": "GPT-image-2-Bild",
+    "Square output": "Quadratische Ausgabe",
+    "Fast product mockups": "Schnelle Produkt-Mockups",
+    "Gemini 2.5 Pro output": "Gemini 2.5 Pro Output",
+    "Gemini 2.5 Flash output": "Gemini 2.5 Flash Output",
+    "Gemini 2.5 Pro input": "Gemini 2.5 Pro Input",
     "Seedance video / sec": "Seedance-Video/Sek.",
     "Image-to-video / sec": "Bild-zu-Video/Sek.",
     "1080p / sec": "1080p/Sek.",
+    "MiniMax-H3 768P / sec": "MiniMax-H3 768P/Sek.",
+    "MiniMax-H3 2K / sec": "MiniMax-H3 2K/Sek.",
+    "Reference video input": "Referenzvideo-Eingabe",
+    "Input image after free tier": "Eingabebild nach dem kostenlosen Kontingent",
+    "same per-second rate": "gleicher Sekundenpreis",
+    "AIGC watermark": "AIGC-Wasserzeichen",
     "Cache reads": "Cache-Lesevorgänge",
     Coverage: "Abdeckung",
     "AI app backends": "Backends für AI-Apps",
@@ -952,6 +1662,16 @@ const translations: Record<Locale, Partial<Record<ModelLandingKey, string>>> = w
     "Best for product videos, ad creative, and image-to-video production": "Ideal für Produktvideos, Anzeigen-Creatives und Bild-zu-Video-Produktion",
     "Can I control usage before scaling?": "Kann ich die Nutzung vor dem Skalieren kontrollieren?",
     "Coding agents": "Coding-Agents",
+    "Product mockups": "Produkt-Mockups",
+    "Ad creatives": "Anzeigen-Creatives",
+    "Ecommerce images": "E-Commerce-Bilder",
+    "Best for product images, ad creatives, and ecommerce visual variants": "Ideal für Produktbilder, Anzeigen-Creatives und visuelle Varianten für E-Commerce",
+    "Does this start a real generation?": "Startet das eine echte Generierung?",
+    "The public page saves your draft settings first. Sign up or open the console to run the request with an API key.": "Die öffentliche Seite speichert zuerst Ihre Entwurfseinstellungen. Registrieren Sie sich oder öffnen Sie die Konsole, um die Anfrage mit einem API-Schlüssel auszuführen.",
+    "Which MiniMax-H3 fields can I configure here?": "Welche MiniMax-H3-Felder kann ich hier konfigurieren?",
+    "Configure resolution, duration, ratio, and AIGC watermark before opening the console.": "Konfigurieren Sie Auflösung, Dauer, Seitenverhältnis und AIGC-Wasserzeichen, bevor Sie die Konsole öffnen.",
+    "Where are my edited prompt settings stored?": "Wo werden meine bearbeiteten Prompt-Einstellungen gespeichert?",
+    "They are stored in this browser's localStorage so the draft survives the signup handoff.": "Sie werden im localStorage dieses Browsers gespeichert, damit der Entwurf die Anmeldung übersteht.",
     "Does this use the same model id in my SDK?": "Nutze ich dieselbe Modell-ID in meinem SDK?",
     "Live flatkey pricing": "Live-Preise von flatkey",
     "Live model data from pricing API": "Live-Modelldaten aus der Pricing API",

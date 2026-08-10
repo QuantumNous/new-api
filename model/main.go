@@ -271,6 +271,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := migrateAssetBindingScopeIndex(); err != nil {
+		return err
+	}
 	if err := MigrateLegacyBytePlusAssets(); err != nil {
 		return err
 	}
@@ -334,6 +337,7 @@ func orderedMigrationModels() []migrationModel {
 		{&Redemption{}, "Redemption"},
 		{&Ability{}, "Ability"},
 		{&Log{}, "Log"},
+		{&CompanyLogSchema{}, "CompanyLogSchema"},
 		{&LogRequestSample{}, "LogRequestSample"},
 		{&Midjourney{}, "Midjourney"},
 		{&TopUp{}, "TopUp"},
@@ -352,6 +356,8 @@ func orderedMigrationModels() []migrationModel {
 		{&Asset{}, "Asset"},
 		{&AssetBinding{}, "AssetBinding"},
 		{&AssetUpload{}, "AssetUpload"},
+		{&AssetModelCoverageTarget{}, "AssetModelCoverageTarget"},
+		{&AssetModelReadiness{}, "AssetModelReadiness"},
 		{&Model{}, "Model"},
 		{&Vendor{}, "Vendor"},
 		{&PrefillGroup{}, "PrefillGroup"},
@@ -429,6 +435,9 @@ func migrateDBFast() error {
 		if err != nil {
 			return fmt.Errorf("failed to migrate %s: %v", m.name, err)
 		}
+	}
+	if err := migrateAssetBindingScopeIndex(); err != nil {
+		return err
 	}
 	if err := MigrateLegacyBytePlusAssets(); err != nil {
 		return err
@@ -873,7 +882,7 @@ func hasActiveRecallMigrationLeases(nowUnix int64) (bool, error) {
 
 func migrateLOGDB() error {
 	var err error
-	if err = LOG_DB.AutoMigrate(&Log{}, &LogRequestSample{}, &TaskAcceptedAccountingLogLedger{}); err != nil {
+	if err = LOG_DB.AutoMigrate(&Log{}, &CompanyLogSchema{}, &LogRequestSample{}, &TaskAcceptedAccountingLogLedger{}); err != nil {
 		return err
 	}
 	return nil

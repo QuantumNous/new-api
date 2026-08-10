@@ -38,7 +38,23 @@ func parseOptionalLogUserId(c *gin.Context) (int, bool) {
 	return userId, true
 }
 
+func companyLogQuery(c *gin.Context) (bool, bool) {
+	company := c.Query("company") == "true"
+	if company && c.GetInt("id") != 1 {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": http.StatusText(http.StatusForbidden),
+		})
+		return false, false
+	}
+	return company, true
+}
+
 func GetAllLogs(c *gin.Context) {
+	company, ok := companyLogQuery(c)
+	if !ok {
+		return
+	}
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
@@ -55,8 +71,11 @@ func GetAllLogs(c *gin.Context) {
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
 	// non_admin=true（仅 root 可用）：仅查看普通用户日志，排除 root 自己的记录
-	excludeUserId := excludeUserIdForNonAdmin(c)
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, searchUserId, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, excludeUserId)
+	excludeUserId := 0
+	if !company {
+		excludeUserId = excludeUserIdForNonAdmin(c)
+	}
+	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, searchUserId, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, excludeUserId, company)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -68,6 +87,10 @@ func GetAllLogs(c *gin.Context) {
 }
 
 func GetUserLogs(c *gin.Context) {
+	company, ok := companyLogQuery(c)
+	if !ok {
+		return
+	}
 	pageInfo := common.GetPageQuery(c)
 	userId := c.GetInt("id")
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -78,7 +101,7 @@ func GetUserLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId)
+	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId, company)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -158,6 +181,10 @@ func GetLogByKey(c *gin.Context) {
 }
 
 func GetLogsStat(c *gin.Context) {
+	company, ok := companyLogQuery(c)
+	if !ok {
+		return
+	}
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -170,8 +197,11 @@ func GetLogsStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	excludeUserId := excludeUserIdForNonAdmin(c)
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, searchUserId, tokenName, channel, group, excludeUserId, 0)
+	excludeUserId := 0
+	if !company {
+		excludeUserId = excludeUserIdForNonAdmin(c)
+	}
+	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, searchUserId, tokenName, channel, group, excludeUserId, 0, company)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -190,6 +220,10 @@ func GetLogsStat(c *gin.Context) {
 }
 
 func GetLogsSelfStat(c *gin.Context) {
+	company, ok := companyLogQuery(c)
+	if !ok {
+		return
+	}
 	userId := c.GetInt("id")
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
@@ -200,7 +234,7 @@ func GetLogsSelfStat(c *gin.Context) {
 	group := c.Query("group")
 	// 身份约束按 user_id 精确（最后一个参数），username 传空：self 路径绝不能用
 	// username 模糊匹配，否则 alice 会把 alice2/malice 的用量统计算进来（越权）。
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, "", 0, tokenName, channel, group, 0, userId)
+	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, "", 0, tokenName, channel, group, 0, userId, company)
 	if err != nil {
 		common.ApiError(c, err)
 		return

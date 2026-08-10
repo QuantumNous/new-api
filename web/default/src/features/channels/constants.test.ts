@@ -5,7 +5,11 @@ import {
   CREATE_MODEL_FETCHABLE_TYPES,
   MODEL_FETCHABLE_TYPES,
 } from './constants'
-import { getDefaultBaseUrl } from './lib/channel-type-config'
+import {
+  getChannelTypeConfig,
+  getChannelTypeHints,
+  getDefaultBaseUrl,
+} from './lib/channel-type-config'
 
 test('Jimeng zhizinan channel is selectable and model-fetchable', () => {
   expect(CHANNEL_TYPES[104]).toBe('JimengZhizinan')
@@ -31,6 +35,16 @@ test('BytePlus channel is selectable with its regional Ark base URL', () => {
   expect(CHANNEL_TYPE_OPTIONS.some((option) => option.value === 107)).toBe(true)
   expect(MODEL_FETCHABLE_TYPES.has(107)).toBe(false)
   expect(getDefaultBaseUrl(107)).toBe('https://ark.ap-southeast.bytepluses.com')
+})
+
+test('BytePlus default public models include canonical pro but not legacy case alias', () => {
+  const config = getChannelTypeConfig(107)
+  const hints = getChannelTypeHints(107)
+
+  expect(config.supportedModels).toContain('seedance2.0-pro')
+  expect(config.supportedModels).not.toContain('Seedance2.0-pro')
+  expect(hints.models).toContain('seedance2.0-pro')
+  expect(hints.models).not.toContain('Seedance2.0-pro')
 })
 
 test('Sonilo channel is selectable with video-to-music defaults', () => {

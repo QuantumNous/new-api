@@ -157,6 +157,17 @@ variable "asset_storage_bucket" {
   default     = ""
 }
 
+variable "video_result_storage_bucket" {
+  type        = string
+  description = "Private GCS bucket used for generated video result storage. Empty string disables the env injection."
+  default     = ""
+
+  validation {
+    condition     = var.video_result_storage_bucket == "" || can(regex("^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$", var.video_result_storage_bucket))
+    error_message = "video_result_storage_bucket must be empty or a valid GCS bucket name."
+  }
+}
+
 variable "frontend_base_url" {
   type        = string
   description = "Primary frontend URL used for OAuth callbacks and emails"

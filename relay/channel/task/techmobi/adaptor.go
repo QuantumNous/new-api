@@ -76,11 +76,49 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	} else {
 		info.UpstreamModelName = payload.Model
 	}
+	rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+	if err := rewriteTechMobiAssetReferences(&payload, rewriteMap); err != nil {
+		return nil, err
+	}
 	data, err := common.MarshalNoHTMLEscape(payload)
 	if err != nil {
 		return nil, err
 	}
 	return bytes.NewReader(data), nil
+}
+
+func rewriteTechMobiAssetReferences(payload *dto.SeedanceVideoRequest, rewriteMap map[string]string) error {
+	if payload == nil {
+		return nil
+	}
+	for index := range payload.Content {
+		item := &payload.Content[index]
+		for _, media := range []*dto.SeedanceURLObject{item.ImageURL, item.VideoURL, item.AudioURL} {
+			if media == nil {
+				continue
+			}
+			rawURL := media.URL
+			if !service.IsStrictBytePlusAssetURI(rawURL) {
+				if strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "asset://ast_") {
+					return fmt.Errorf("invalid asset reference")
+				}
+				continue
+			}
+			upstreamURL, ok := rewriteMap[rawURL]
+			if !ok || !isValidTechMobiRewriteURI(upstreamURL) {
+				return fmt.Errorf("invalid asset reference")
+			}
+			media.URL = upstreamURL
+		}
+	}
+	return nil
+}
+
+func isValidTechMobiRewriteURI(raw string) bool {
+	return raw == strings.TrimSpace(raw) &&
+		strings.HasPrefix(raw, "asset://") &&
+		len(raw) > len("asset://") &&
+		!strings.ContainsAny(raw, " \t\r\n")
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {

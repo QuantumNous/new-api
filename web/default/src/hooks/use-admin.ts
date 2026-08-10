@@ -31,9 +31,9 @@ export function useIsAdmin(): boolean {
 }
 
 /**
- * Check if current user is the root (super admin) user
+ * Check if current user is the fixed root account
  */
 export function useIsRoot(): boolean {
   const { user } = useAuthStore((state) => state.auth)
-  return (user?.role ?? 0) >= ROLE.SUPER_ADMIN
+  return user?.id === 1
 }

@@ -208,18 +208,6 @@ export function sortPricingModelsBySeries(models: PricingModel[]): PricingModel[
   });
 }
 
-export function sortPricingModelsNewestFirst(models: PricingModel[]): PricingModel[] {
-  return [...models].sort((a, b) => {
-    const versionCompare = getModelMajorVersionSortValue(b.model_name) - getModelMajorVersionSortValue(a.model_name);
-    if (versionCompare !== 0) return versionCompare;
-
-    const dateCompare = getModelDateSortValue(b.model_name) - getModelDateSortValue(a.model_name);
-    if (dateCompare !== 0) return dateCompare;
-
-    return a.model_name.localeCompare(b.model_name, "en", { numeric: true });
-  });
-}
-
 export function getVendorName(model: PricingModel, vendors: PricingVendor[]): string {
   return model.vendor_name ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.name ?? "AI";
 }
@@ -430,41 +418,6 @@ function getModelVersionSortKey(modelName: string): string {
     /opus|ultra|large|max/.test(name) ? "0" :
     "1";
   return `${tier}:${name}`;
-}
-
-function getModelDateSortValue(modelName: string): number {
-  const name = modelName.toLowerCase();
-  const compactDate = name.match(/\b(20\d{2})(\d{2})(\d{2})\b/);
-  if (compactDate) return Number(`${compactDate[1]}${compactDate[2]}${compactDate[3]}`);
-
-  const dashedDate = name.match(/\b(20\d{2})[-_](\d{2})[-_](\d{2})\b/);
-  if (dashedDate) return Number(`${dashedDate[1]}${dashedDate[2]}${dashedDate[3]}`);
-
-  const shortDate = name.match(/(?:^|[-_])((?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))(?:[-_]|$)/);
-  if (shortDate) return Number(`2099${shortDate[1]}`);
-
-  return 0;
-}
-
-function getModelMajorVersionSortValue(modelName: string): number {
-  const name = modelName.toLowerCase();
-  const patterns = [
-    /^gpt[-_](\d+(?:\.\d+)?)/,
-    /^claude[-_](?:opus|sonnet|haiku|fable)[-_](\d+(?:\.\d+)?)/,
-    /^gemini[-_](\d+(?:\.\d+)?)/,
-    /^glm[-_](\d+(?:\.\d+)?)/,
-    /^deepseek[-_]?v?(\d+(?:\.\d+)?)/,
-    /^kimi[-_]k?(\d+(?:\.\d+)?)/,
-    /^qwen[-_]?(\d+(?:\.\d+)?)/,
-    /^seedance[-_](\d+(?:\.\d+)?)/,
-    /^veo[-_](\d+(?:\.\d+)?)/,
-    /^imagen[-_](\d+(?:\.\d+)?)/,
-    /(?:^|[-_])v(\d+(?:\.\d+)?)(?:[-_]|$)/,
-  ];
-  const version = patterns.map((pattern) => name.match(pattern)).find(Boolean);
-  if (!version) return 0;
-  const value = Number(version[1]);
-  return Number.isFinite(value) ? value : 0;
 }
 
 function calculateTokenPrice(

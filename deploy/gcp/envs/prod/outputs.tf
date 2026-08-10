@@ -41,6 +41,16 @@ output "flatkey_asset_staging_bucket" {
   value       = var.enable_staging ? google_storage_bucket.flatkey_assets_staging[0].name : ""
 }
 
+output "video_result_bucket" {
+  description = "Private production GCS bucket for generated video results."
+  value       = google_storage_bucket.video_results.name
+}
+
+output "video_result_staging_bucket" {
+  description = "Private staging GCS bucket for generated video results. Empty unless enable_staging=true."
+  value       = var.enable_staging ? google_storage_bucket.video_results_staging[0].name : ""
+}
+
 output "lb_ip" {
   description = "Static IPv4 to A-record in Cloudflare for every domain in lb_domains. Null if LB disabled."
   value       = var.enable_load_balancer ? module.cloud_lb[0].ip_address : null

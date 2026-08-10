@@ -155,6 +155,380 @@ func TestAssetReferenceSetMixesRecoverableGeneralizedSourceWithLegacyBinding(t *
 	require.Nil(t, refs.RewriteMapForChannel(132))
 }
 
+func TestAssetReferenceRewriteMapPreservesOpaqueUpstreamURI(t *testing.T) {
+	refs := AssetReferenceSet{
+		references: []assetReference{{PublicID: "ast_opaque", ExpectedAssetType: "Image"}},
+		assets: map[string]assetReferenceAsset{
+			"ast_opaque": {
+				PublicID:  "ast_opaque",
+				AssetType: "Image",
+				Status:    model.AssetStatusActive,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       106,
+					Status:          model.AssetStatusActive,
+					UpstreamAssetID: "asset://asset-opaque-123",
+				}},
+			},
+		},
+	}
+
+	require.Equal(t, map[string]string{
+		"asset://ast_opaque": "asset://asset-opaque-123",
+	}, refs.RewriteMapForChannel(106))
+}
+
+func TestTechMobiReadinessRequiresOneKeyScopeToCoverEveryAsset(t *testing.T) {
+	mapping := `{"seedance2.0-pro":"doubao/seedance-pro"}`
+	channel := &model.Channel{
+		Id:           106,
+		Type:         constant.ChannelTypeTechMobiVideo,
+		Key:          "techmobi-key-a\ntechmobi-key-b",
+		ModelMapping: &mapping,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	scopeA, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "techmobi-key-a"})
+	require.NoError(t, err)
+	scopeB, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "techmobi-key-b"})
+	require.NoError(t, err)
+
+	refs := AssetReferenceSet{
+		references: []assetReference{
+			{PublicID: "ast_scope_a", ExpectedAssetType: "Image"},
+			{PublicID: "ast_scope_b", ExpectedAssetType: "Image"},
+		},
+		assets: map[string]assetReferenceAsset{
+			"ast_scope_a": {
+				PublicID:     "ast_scope_a",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeA,
+					UpstreamAssetID: "asset-a",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+			"ast_scope_b": {
+				PublicID:     "ast_scope_b",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeB,
+					UpstreamAssetID: "asset-b",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	readiness, ok := refs.ReadinessForChannel(channel, "seedance2.0-pro")
+	require.False(t, ok)
+	require.Equal(t, AssetReadinessIneligible, readiness)
+}
+
+// TechMobi readiness promises "some enabled key covers every reference". This
+// locks in that the promise is actually redeemable: resolving the scope from an
+// arbitrarily routed key must land on the key that holds the bindings, so the
+// rewrite map is never silently dropped for a channel we already ranked ready.
+func TestTechMobiReadyChannelRewritesEveryAssetForSomeEnabledKey(t *testing.T) {
+	mapping := `{"seedance2.0-pro":"doubao/seedance-pro"}`
+	channel := &model.Channel{
+		Id:           106,
+		Type:         constant.ChannelTypeTechMobiVideo,
+		Key:          "techmobi-key-a\ntechmobi-key-b",
+		ModelMapping: &mapping,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	scopeB, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "techmobi-key-b"})
+	require.NoError(t, err)
+
+	// Both assets are bound only under key B, so the channel is legitimately ready.
+	refs := AssetReferenceSet{
+		references: []assetReference{
+			{PublicID: "ast_only_b_one", ExpectedAssetType: "Image"},
+			{PublicID: "ast_only_b_two", ExpectedAssetType: "Image"},
+		},
+		assets: map[string]assetReferenceAsset{
+			"ast_only_b_one": {
+				PublicID:     "ast_only_b_one",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeB,
+					UpstreamAssetID: "asset-b-one",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+			"ast_only_b_two": {
+				PublicID:     "ast_only_b_two",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeB,
+					UpstreamAssetID: "asset-b-two",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	readiness, ok := refs.ReadinessForChannel(channel, "seedance2.0-pro")
+	require.True(t, ok)
+	require.Equal(t, AssetReadinessAllBound, readiness)
+
+	// Routing may land on key A, which holds no binding at all. Readiness promised
+	// the channel can serve this request, so resolving the scope must land on the
+	// key that actually covers every reference instead of silently dropping it.
+	options, keyIndex, err := ResolveAssetMaterializeOptions(refs, channel, AssetMaterializeOptions{
+		Model:  "doubao/seedance-pro",
+		APIKey: "techmobi-key-a",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "techmobi-key-b", options.APIKey)
+	require.Equal(t, 1, keyIndex)
+
+	require.Equal(t, map[string]string{
+		"asset://ast_only_b_one": "asset://asset-b-one",
+		"asset://ast_only_b_two": "asset://asset-b-two",
+	}, refs.RewriteMapForSelectedChannel(channel, "seedance2.0-pro", options.APIKey))
+}
+
+func TestAssetReferenceVerifiedTargetOutranksOrdinaryBindings(t *testing.T) {
+	targetChannel := &model.Channel{Id: 120, Type: constant.ChannelTypeTechMobiVideo}
+	otherChannel := &model.Channel{Id: 106, Type: constant.ChannelTypeBytePlus}
+	scope := AssetModelScope{ScopeKey: "scope-a", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0-fast"}}
+	target := model.AssetModelCoverageTarget{
+		ScopeKey:      scope.ScopeKey,
+		ModelName:     "seedance-2.0-fast",
+		RoutingGroups: assetModelRoutingGroups(scope.Groups),
+		ChannelId:     targetChannel.Id,
+		MappedModel:   "seedance-2.0-fast",
+		BindingScope:  "target-scope",
+		Generation:    3,
+		Status:        model.AssetModelTargetStatusActive,
+	}
+	refs := AssetReferenceSet{
+		strictCoverage: true,
+		scope:          scope,
+		target:         &target,
+		readinessByPublicID: map[string]model.AssetModelReadiness{
+			"ast_asset_a": {
+				AssetId:          11,
+				ScopeKey:         scope.ScopeKey,
+				ModelName:        target.ModelName,
+				TargetGeneration: target.Generation,
+				ChannelId:        target.ChannelId,
+				BindingScope:     target.BindingScope,
+				Status:           model.AssetModelReadinessStatusActive,
+			},
+			"ast_asset_b": {
+				AssetId:          12,
+				ScopeKey:         scope.ScopeKey,
+				ModelName:        target.ModelName,
+				TargetGeneration: target.Generation,
+				ChannelId:        target.ChannelId,
+				BindingScope:     target.BindingScope,
+				Status:           model.AssetModelReadinessStatusActive,
+			},
+		},
+		references: []assetReference{
+			{PublicID: "ast_asset_a", ExpectedAssetType: "Image"},
+			{PublicID: "ast_asset_b", ExpectedAssetType: "Image"},
+		},
+		assets: map[string]assetReferenceAsset{
+			"ast_asset_a": {
+				ID:        11,
+				PublicID:  "ast_asset_a",
+				AssetType: "Image",
+				Status:    model.AssetStatusActive,
+				Bindings: []assetReferenceBinding{
+					{ChannelID: otherChannel.Id, UpstreamAssetID: "other-a", Status: model.AssetStatusActive},
+					{ChannelID: targetChannel.Id, BindingScope: target.BindingScope, UpstreamAssetID: "upstream-a-target", Status: model.AssetStatusActive},
+				},
+			},
+			"ast_asset_b": {
+				ID:        12,
+				PublicID:  "ast_asset_b",
+				AssetType: "Image",
+				Status:    model.AssetStatusActive,
+				Bindings: []assetReferenceBinding{
+					{ChannelID: otherChannel.Id, UpstreamAssetID: "other-b", Status: model.AssetStatusActive},
+					{ChannelID: targetChannel.Id, BindingScope: target.BindingScope, UpstreamAssetID: "upstream-b-target", Status: model.AssetStatusActive},
+				},
+			},
+		},
+	}
+
+	readiness, eligible := refs.ReadinessForChannel(targetChannel, "seedance-2.0-fast")
+	require.True(t, eligible)
+	require.Equal(t, AssetReadinessVerifiedTarget, readiness)
+
+	readiness, eligible = refs.ReadinessForChannel(otherChannel, "seedance-2.0-fast")
+	require.False(t, eligible)
+	require.Equal(t, AssetReadinessIneligible, readiness)
+
+	rewrite := refs.RewriteMapForSelectedChannel(targetChannel, "seedance-2.0-fast", "ignored-key")
+	require.Equal(t, map[string]string{
+		"asset://ast_asset_a": "asset://upstream-a-target",
+		"asset://ast_asset_b": "asset://upstream-b-target",
+	}, rewrite)
+}
+
+func TestAssetReferenceStaleVerifiedTargetIsRecoverableAndPinsTargetChannel(t *testing.T) {
+	scope := AssetModelScope{ScopeKey: "scope-a", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0-fast"}}
+	target := model.AssetModelCoverageTarget{
+		ScopeKey:      scope.ScopeKey,
+		ModelName:     "seedance-2.0-fast",
+		RoutingGroups: assetModelRoutingGroups(scope.Groups),
+		ChannelId:     120,
+		MappedModel:   "seedance-2.0-fast",
+		BindingScope:  "target-scope",
+		Generation:    4,
+		Status:        model.AssetModelTargetStatusActive,
+	}
+	refs := AssetReferenceSet{
+		strictCoverage: true,
+		scope:          scope,
+		target:         &target,
+		readinessByPublicID: map[string]model.AssetModelReadiness{
+			"ast_asset_a": {
+				AssetId:          11,
+				ScopeKey:         scope.ScopeKey,
+				ModelName:        target.ModelName,
+				TargetGeneration: 3,
+				ChannelId:        target.ChannelId,
+				BindingScope:     target.BindingScope,
+				Status:           model.AssetModelReadinessStatusActive,
+			},
+		},
+		references: []assetReference{{PublicID: "ast_asset_a", ExpectedAssetType: "Image"}},
+		assets: map[string]assetReferenceAsset{
+			"ast_asset_a": {
+				ID:              11,
+				PublicID:        "ast_asset_a",
+				AssetType:       "Image",
+				Status:          model.AssetStatusActive,
+				SourceStatus:    model.AssetSourceStatusAvailable,
+				StorageBackend:  "gcs",
+				StorageBucket:   "bucket",
+				ObjectKey:       "assets/ast_asset_a",
+				SourceExpiresAt: time.Now().Add(time.Hour).Unix(),
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       106,
+					UpstreamAssetID: "ordinary-binding",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	readiness, eligible := refs.ReadinessForChannel(&model.Channel{Id: 120, Type: constant.ChannelTypeTechMobiVideo}, "seedance-2.0-fast")
+	require.True(t, eligible)
+	require.Equal(t, AssetReadinessRecoverable, readiness)
+
+	readiness, eligible = refs.ReadinessForChannel(&model.Channel{Id: 106, Type: constant.ChannelTypeBytePlus}, "seedance-2.0-fast")
+	require.False(t, eligible)
+	require.Equal(t, AssetReadinessIneligible, readiness)
+}
+
+func TestAssetReferencePinnedTargetOptionsUseCredentialIndexAndMappedModel(t *testing.T) {
+	channel := &model.Channel{
+		Id:     120,
+		Type:   constant.ChannelTypeTechMobiVideo,
+		Key:    "techmobi-key-a\ntechmobi-key-b",
+		Status: common.ChannelStatusEnabled,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	targetScope, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "techmobi-key-b"})
+	require.NoError(t, err)
+	scope := AssetModelScope{ScopeKey: "scope-a", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0-fast"}}
+	target := model.AssetModelCoverageTarget{
+		ScopeKey:        scope.ScopeKey,
+		ModelName:       "seedance-2.0-fast",
+		RoutingGroups:   assetModelRoutingGroups(scope.Groups),
+		ChannelId:       channel.Id,
+		MappedModel:     "doubao/seedance-pro",
+		BindingScope:    targetScope,
+		CredentialIndex: 1,
+		Generation:      3,
+		Status:          model.AssetModelTargetStatusActive,
+	}
+	refs := AssetReferenceSet{
+		strictCoverage: true,
+		scope:          scope,
+		target:         &target,
+		references:     []assetReference{{PublicID: "ast_asset_a", ExpectedAssetType: "Image"}},
+		assets: map[string]assetReferenceAsset{
+			"ast_asset_a": {ID: 11, PublicID: "ast_asset_a", AssetType: "Image", Status: model.AssetStatusActive},
+		},
+	}
+
+	options, keyIndex, err := ResolveAssetMaterializeOptions(refs, channel, AssetMaterializeOptions{
+		Model:  "wrong-model",
+		APIKey: "techmobi-key-a",
+	})
+	require.NoError(t, err)
+	require.Equal(t, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "techmobi-key-b"}, options)
+	require.Equal(t, 1, keyIndex)
+
+	channel.Key = "techmobi-key-a\nrotated-key-b"
+	_, _, err = ResolveAssetMaterializeOptions(refs, channel, AssetMaterializeOptions{
+		Model:  "doubao/seedance-pro",
+		APIKey: "rotated-key-b",
+	})
+	require.ErrorIs(t, err, ErrAssetBindingUnavailable)
+}
+
+func TestAssetReferenceStrictCoverageWithoutTargetDoesNotFallBackToLegacyBindings(t *testing.T) {
+	channel := &model.Channel{
+		Id:     120,
+		Type:   constant.ChannelTypeTechMobiVideo,
+		Key:    "techmobi-key-a",
+		Status: common.ChannelStatusEnabled,
+	}
+	refs := AssetReferenceSet{
+		strictCoverage: true,
+		references:     []assetReference{{PublicID: "ast_asset_a", ExpectedAssetType: "Image"}},
+		assets: map[string]assetReferenceAsset{
+			"ast_asset_a": {
+				ID:        11,
+				PublicID:  "ast_asset_a",
+				AssetType: "Image",
+				Status:    model.AssetStatusActive,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    "legacy-scope",
+					UpstreamAssetID: "legacy-upstream",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	readiness, eligible := refs.ReadinessForChannel(channel, "seedance-2.0-fast")
+	require.False(t, eligible)
+	require.Equal(t, AssetReadinessIneligible, readiness)
+	require.Nil(t, refs.RewriteMapForSelectedChannel(channel, "seedance-2.0-fast", channel.Key))
+	_, _, err := ResolveAssetMaterializeOptions(refs, channel, AssetMaterializeOptions{Model: "seedance-2.0-fast", APIKey: channel.Key})
+	require.ErrorIs(t, err, ErrAssetBindingInitializing)
+}
+
 func TestAssetReferenceSetRejectsMixedSourceUnavailableBindingsOnDifferentChannels(t *testing.T) {
 	newAssetReferenceDB(t)
 	insertAssetReferenceAsset(t, assetReferenceSeed{UserID: 7, PublicID: "ast_1234567890abcdefABCDEF1234567890", AssetType: "Image", SourceStatus: model.AssetSourceStatusUnavailable, BindingChannelID: 131, UpstreamID: "generalized-upstream", BindingStatus: model.AssetStatusActive})

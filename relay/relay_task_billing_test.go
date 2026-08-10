@@ -33,29 +33,35 @@ func TestBytePlusModelRatiosApplyTierRatios(t *testing.T) {
 		t.Fatalf("clear model prices: %v", err)
 	}
 	if err := ratio_setting.UpdateModelRatioByJSONString(`{
-		"seedance-2.0": 0.391,
-		"seedance-2.0-fast": 0.3145,
-		"seedance-2.0-mini": 0.1955
+		"seedance-2.0": 3.5,
+		"seedance2.0-pro": 3.5,
+		"Seedance2.0-pro": 3.5,
+		"seedance-2.0-fast": 2.8,
+		"seedance-2.0-mini": 1.75
 	}`); err != nil {
 		t.Fatalf("configure model ratios: %v", err)
 	}
-	if err := ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`); err != nil {
+	if err := ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"contract":0.8}`); err != nil {
 		t.Fatalf("configure group ratio: %v", err)
 	}
 
 	tests := []struct {
 		model         string
+		group         string
 		modelRatio    float64
 		wantBaseQuota int
 		wantTierQuota int
 	}{
-		{model: "seedance-2.0", modelRatio: 0.391, wantBaseQuota: 97750, wantTierQuota: 59500},
-		{model: "seedance-2.0-fast", modelRatio: 0.3145, wantBaseQuota: 78625, wantTierQuota: 46750},
-		{model: "seedance-2.0-mini", modelRatio: 0.1955, wantBaseQuota: 48875, wantTierQuota: 29750},
+		{model: "seedance-2.0", group: "default", modelRatio: 3.5, wantBaseQuota: 875000, wantTierQuota: 537500},
+		{model: "seedance2.0-pro", group: "default", modelRatio: 3.5, wantBaseQuota: 875000, wantTierQuota: 537500},
+		{model: "Seedance2.0-pro", group: "default", modelRatio: 3.5, wantBaseQuota: 875000, wantTierQuota: 537500},
+		{model: "seedance-2.0-fast", group: "default", modelRatio: 2.8, wantBaseQuota: 700000, wantTierQuota: 412500},
+		{model: "seedance-2.0-mini", group: "default", modelRatio: 1.75, wantBaseQuota: 437500, wantTierQuota: 262500},
+		{model: "seedance2.0-pro", group: "contract", modelRatio: 3.5, wantBaseQuota: 700000, wantTierQuota: 430000},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.model, func(t *testing.T) {
+		t.Run(tt.model+"/"+tt.group, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", strings.NewReader(
@@ -67,8 +73,8 @@ func TestBytePlusModelRatiosApplyTierRatios(t *testing.T) {
 
 			info := &relaycommon.RelayInfo{
 				OriginModelName: tt.model,
-				UserGroup:       "default",
-				UsingGroup:      "default",
+				UserGroup:       tt.group,
+				UsingGroup:      tt.group,
 				ChannelMeta: &relaycommon.ChannelMeta{
 					UpstreamModelName: "ep-private-endpoint",
 				},
