@@ -157,6 +157,10 @@ func ArchiveVideoResultForChannel(ctx context.Context, channel, publicTaskID, up
 		recordArchive("failure", 0)
 		return nil, ErrVideoResultInvalidContent
 	}
+	if strings.TrimSpace(proxy) != "" {
+		recordArchive("failure", 0)
+		return nil, ErrVideoResultInvalidContent
+	}
 	client, err := newVideoResultFetchHTTPClient(cfg, proxy, videoResultDirectFetchResolver, videoResultDirectFetchDialContext)
 	if err != nil {
 		recordArchive("failure", 0)
@@ -325,11 +329,11 @@ func videoResultCheckRedirect(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
-func buildVideoResultObjectKey(taskID string, archiveStart time.Time) (string, error) {
+func buildVideoResultObjectKey(taskID string, _ time.Time) (string, error) {
 	if !videoResultTaskIDPattern.MatchString(taskID) {
 		return "", ErrVideoResultInvalidTaskID
 	}
-	return "video-results/" + archiveStart.UTC().Format("20060102") + "/" + taskID + ".mp4", nil
+	return "video-results/tasks/" + taskID + ".mp4", nil
 }
 
 func videoResultObjectBelongsToTask(objectKey, taskID string) bool {
@@ -338,6 +342,9 @@ func videoResultObjectBelongsToTask(objectKey, taskID string) bool {
 		return false
 	}
 	remainder := strings.TrimPrefix(objectKey, prefix)
+	if remainder == "tasks/"+taskID+".mp4" {
+		return true
+	}
 	if len(remainder) <= 9 || remainder[8] != '/' {
 		return false
 	}
