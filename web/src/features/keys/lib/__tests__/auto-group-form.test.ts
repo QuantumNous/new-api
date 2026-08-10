@@ -154,6 +154,21 @@ describe('API key Auto group form mapping', () => {
     assert.equal(transformFormDataToPayload(nonAuto).cross_group_retry, false)
   })
 
+  test('submits a channel chain without cross-group retry', () => {
+    const channelChain = {
+      ...getApiKeyFormDefaultValues(true),
+      group: 'chain:OUwA5H5q',
+      auto_groups_mode: 'custom' as const,
+      auto_groups: [],
+      cross_group_retry: true,
+    }
+
+    const payload = transformFormDataToPayload(channelChain)
+    assert.equal(payload.group, 'chain:OUwA5H5q')
+    assert.equal(payload.cross_group_retry, false)
+    assert.deepEqual(payload.auto_groups, [])
+  })
+
   test('rejects snapshots over the configured limit', () => {
     const result = getApiKeyFormSchema(t, 1).safeParse({
       ...getApiKeyFormDefaultValues(true),

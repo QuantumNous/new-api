@@ -116,6 +116,32 @@ func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) boo
 	return true
 }
 
+func validateTokenChannelChain(c *gin.Context, token *model.Token) bool {
+	chainId, ok := model.ParseUserChannelChain(token.Group)
+	if !ok {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return false
+	}
+	userId := c.GetInt("id")
+	chain, err := model.GetUserChannelChain(userId, chainId)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgNotFound)
+		return false
+	}
+	channelIds := chain.GetChannelList()
+	if len(channelIds) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return false
+	}
+	if err := service.ValidateUserChannelChainChannels(channelIds); err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	token.CrossGroupRetry = false
+	_ = token.SetAutoGroups(nil)
+	return true
+}
+
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
@@ -303,6 +329,10 @@ func AddToken(c *gin.Context) {
 		if !setTokenAutoGroups(c, &token, request.AutoGroups.Groups) {
 			return
 		}
+	} else if strings.HasPrefix(token.Group, "chain:") {
+		if !validateTokenChannelChain(c, &token) {
+			return
+		}
 	} else {
 		token.CrossGroupRetry = false
 		_ = token.SetAutoGroups(nil)
@@ -357,6 +387,7 @@ func DeleteToken(c *gin.Context) {
 func UpdateToken(c *gin.Context) {
 	userId := c.GetInt("id")
 	statusOnly := c.Query("status_only")
+	groupOnly := c.Query("group_only")
 	request := tokenRequest{}
 	err := c.ShouldBindJSON(&request)
 	if err != nil {
@@ -396,6 +427,23 @@ func UpdateToken(c *gin.Context) {
 	}
 	if statusOnly != "" {
 		cleanToken.Status = token.Status
+	} else if groupOnly != "" {
+		cleanToken.Group = token.Group
+		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		if cleanToken.Group == "auto" {
+			if request.AutoGroups.Set {
+				if !setTokenAutoGroups(c, cleanToken, request.AutoGroups.Groups) {
+					return
+				}
+			}
+		} else if strings.HasPrefix(cleanToken.Group, "chain:") {
+			if !validateTokenChannelChain(c, cleanToken) {
+				return
+			}
+		} else {
+			cleanToken.CrossGroupRetry = false
+			_ = cleanToken.SetAutoGroups(nil)
+		}
 	} else {
 		// If you add more fields, please also update token.Update()
 		cleanToken.Name = token.Name
@@ -407,9 +455,13 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
-		if token.Group != "auto" {
+		if token.Group != "auto" && !strings.HasPrefix(token.Group, "chain:") {
 			cleanToken.CrossGroupRetry = false
 			_ = cleanToken.SetAutoGroups(nil)
+		} else if strings.HasPrefix(token.Group, "chain:") {
+			if !validateTokenChannelChain(c, cleanToken) {
+				return
+			}
 		} else if request.AutoGroups.Set {
 			if !setTokenAutoGroups(c, cleanToken, request.AutoGroups.Groups) {
 				return

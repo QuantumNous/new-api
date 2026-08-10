@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -42,6 +43,19 @@ func GetUserGroups(c *gin.Context) {
 		usableGroups["auto"] = map[string]interface{}{
 			"ratio": "自动",
 			"desc":  setting.GetUsableGroupDescription("auto"),
+		}
+	}
+	chains, err := model.GetUserChannelChains(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	for _, chain := range chains {
+		usableGroups["chain:"+chain.ChainId] = map[string]interface{}{
+			"custom_chain": true,
+			"channel_ids":  chain.GetChannelList(),
+			"desc":         chain.Name,
+			"ratio":        "自动",
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{

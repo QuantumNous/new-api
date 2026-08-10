@@ -86,6 +86,10 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
+	if chainChannel, chainGroup, chainErr, isChain := getChannelChainSelection(param); isChain {
+		return chainChannel, chainGroup, chainErr
+	}
+
 	if param.TokenGroup == "auto" {
 		autoGroups := GetRequestAutoGroups(param.Ctx, userGroup)
 		if len(autoGroups) == 0 {

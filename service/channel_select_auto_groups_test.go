@@ -32,7 +32,7 @@ func setupChannelSelectAutoGroupsTest(t *testing.T) *gorm.DB {
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}))
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.UserChannelChain{}))
 	model.DB = db
 	common.MemoryCacheEnabled = true
 	common.RetryTimes = 0
@@ -62,6 +62,77 @@ func setupChannelSelectAutoGroupsTest(t *testing.T) *gorm.DB {
 	})
 
 	return db
+}
+
+func TestCacheGetRandomSatisfiedChannelResolvesChannelChain(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	const modelName = "channel-chain-runtime-model"
+	createChannelSelectAutoGroupsChannel(t, db, 2301, "vip", modelName)
+	createChannelSelectAutoGroupsChannel(t, db, 2302, "default", modelName)
+	model.InitChannelCache()
+
+	chain, err := model.CreateUserChannelChain(92002, "channel-chain", []int{2301, 2302})
+	require.NoError(t, err)
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyUserId, 92002)
+	ctx.Set("id", 92002)
+	common.SetContextKey(ctx, constant.ContextKeyChannelChain, chain.GetChannelList())
+
+	retry := 0
+	param := &RetryParam{
+		Ctx:         ctx,
+		TokenGroup:  "chain:" + chain.ChainId,
+		ModelName:   modelName,
+		RequestPath: "/v1/chat/completions",
+		Retry:       &retry,
+	}
+
+	first, selectedGroup, err := CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	assert.Equal(t, 2301, first.Id)
+	assert.Equal(t, "vip", selectedGroup)
+
+	param.IncreaseRetry()
+	second, selectedGroup, err := CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, second)
+	assert.Equal(t, 2302, second.Id)
+	assert.Equal(t, "default", selectedGroup)
+}
+
+func TestChannelChainSelectsChannelsOutsideUserGroups(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	const modelName = "channel-chain-outside-model"
+	createChannelSelectAutoGroupsChannel(t, db, 2401, "other", modelName)
+	createChannelSelectAutoGroupsChannel(t, db, 2402, "default", modelName)
+	model.InitChannelCache()
+
+	chain, err := model.CreateUserChannelChain(92003, "outside-chain", []int{2401, 2402})
+	require.NoError(t, err)
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyChannelChain, chain.GetChannelList())
+
+	retry := 0
+	param := &RetryParam{
+		Ctx:         ctx,
+		TokenGroup:  "chain:" + chain.ChainId,
+		ModelName:   modelName,
+		RequestPath: "/v1/chat/completions",
+		Retry:       &retry,
+	}
+
+	first, selectedGroup, err := CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	assert.Equal(t, 2401, first.Id)
+	assert.Equal(t, "other", selectedGroup)
 }
 
 func createChannelSelectAutoGroupsChannel(t *testing.T, db *gorm.DB, id int, group, modelName string) {

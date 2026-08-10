@@ -458,19 +458,51 @@ func TokenAuth() func(c *gin.Context) {
 		userGroup := userCache.Group
 		tokenGroup := token.Group
 		if tokenGroup != "" {
-			// check common.UserUsableGroups[userGroup]
-			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
-				return
-			}
-			// check group in common.GroupRatio
-			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
-				if tokenGroup != "auto" {
-					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
+			if chainId, ok := model.ParseUserChannelChain(tokenGroup); ok {
+				chain, err := model.GetUserChannelChain(token.UserId, chainId)
+				if err != nil {
+					common.SysError(fmt.Sprintf("failed to load channel chain %s for user %d: %v", chainId, token.UserId, err))
+					abortWithOpenAiMessage(c, http.StatusForbidden, "渠道链不存在或已删除")
 					return
 				}
+				channelIds := chain.GetChannelList()
+				if len(channelIds) == 0 {
+					abortWithOpenAiMessage(c, http.StatusForbidden, "渠道链为空，请重新配置")
+					return
+				}
+				accessible, err := service.GetEnabledChannelsForChain()
+				if err != nil {
+					common.SysError(fmt.Sprintf("failed to load accessible channels for user %d: %v", token.UserId, err))
+					abortWithOpenAiMessage(c, http.StatusForbidden, "渠道链不可用")
+					return
+				}
+				accessibleMap := make(map[int]struct{}, len(accessible))
+				for _, channel := range accessible {
+					accessibleMap[channel.Id] = struct{}{}
+				}
+				for _, channelId := range channelIds {
+					if _, ok := accessibleMap[channelId]; !ok {
+						abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问渠道 #%d", channelId))
+						return
+					}
+				}
+				common.SetContextKey(c, constant.ContextKeyChannelChain, channelIds)
+				userGroup = tokenGroup
+			} else {
+				// check common.UserUsableGroups[userGroup]
+				if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
+					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
+					return
+				}
+				// check group in common.GroupRatio
+				if !ratio_setting.ContainsGroupRatio(tokenGroup) {
+					if tokenGroup != "auto" {
+						abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
+						return
+					}
+				}
+				userGroup = tokenGroup
 			}
-			userGroup = tokenGroup
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 
@@ -500,9 +532,21 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	} else {
 		c.Set("token_model_limit_enabled", false)
 	}
-	common.SetContextKey(c, constant.ContextKeyTokenGroup, token.Group)
+	tokenGroup := token.Group
+	if chainId, ok := model.ParseUserChannelChain(tokenGroup); ok {
+		chain, err := model.GetUserChannelChain(token.UserId, chainId)
+		if err != nil {
+			common.SysError(fmt.Sprintf("failed to load channel chain %s for user %d: %v", chainId, token.UserId, err))
+			return fmt.Errorf("channel chain %s not found", chainId)
+		}
+		channelIds := chain.GetChannelList()
+		if len(channelIds) > 0 {
+			common.SetContextKey(c, constant.ContextKeyChannelChain, channelIds)
+		}
+	}
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, tokenGroup)
 	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
-	if token.AutoGroups != "" {
+	if tokenGroup == "auto" && token.AutoGroups != "" {
 		autoGroups, err := token.GetAutoGroups()
 		if err != nil {
 			common.SysError(fmt.Sprintf("failed to parse auto groups for token %d: %v", token.Id, err))

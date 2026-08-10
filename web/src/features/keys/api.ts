@@ -26,6 +26,10 @@ import type {
   SearchApiKeysParams,
   ApiKeyFormData,
   TokenAutoGroupsConfig,
+  UserChannel,
+  ChannelChain,
+  ChannelChainsResponse,
+  ChannelChainInput,
 } from './types'
 
 // ============================================================================
@@ -69,6 +73,52 @@ export async function getTokenAutoGroups(): Promise<
   return res.data
 }
 
+// Get the current user's accessible channels.
+export async function getUserChannels(): Promise<
+  ApiResponse<{ channels: UserChannel[] }>
+> {
+  const res = await api.get('/api/user/self/channels')
+  return res.data
+}
+
+// Get the current user's channel chains.
+export async function getChannelChains(): Promise<
+  ApiResponse<ChannelChainsResponse>
+> {
+  const res = await api.get('/api/user/self/channel_chains')
+  return res.data
+}
+
+// Create a new channel chain.
+export async function createChannelChain(
+  data: ChannelChainInput
+): Promise<ApiResponse<ChannelChain>> {
+  const res = await api.post('/api/user/self/channel_chains', data)
+  return res.data
+}
+
+// Update an existing channel chain by id.
+export async function updateChannelChain(
+  chainId: string,
+  data: ChannelChainInput
+): Promise<ApiResponse<{ chain_id: string }>> {
+  const res = await api.put(
+    `/api/user/self/channel_chains/${encodeURIComponent(chainId)}`,
+    data
+  )
+  return res.data
+}
+
+// Delete a channel chain; bound API keys fall back to the account group.
+export async function deleteChannelChain(
+  chainId: string
+): Promise<ApiResponse<{ reset_tokens: number }>> {
+  const res = await api.delete(
+    `/api/user/self/channel_chains/${encodeURIComponent(chainId)}`
+  )
+  return res.data
+}
+
 // Create a new API key
 export async function createApiKey(
   data: ApiKeyFormData
@@ -105,6 +155,20 @@ export async function updateApiKeyStatus(
   status: number
 ): Promise<ApiResponse<ApiKey>> {
   const res = await api.put('/api/token/?status_only=true', { id, status })
+  return res.data
+}
+
+// Update only the group of an API key without touching other settings.
+export async function updateApiKeyGroup(
+  id: number,
+  group: string,
+  crossGroupRetry: boolean
+): Promise<ApiResponse<ApiKey>> {
+  const res = await api.put('/api/token/?group_only=true', {
+    id,
+    group,
+    cross_group_retry: crossGroupRetry,
+  })
   return res.data
 }
 

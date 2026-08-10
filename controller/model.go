@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -174,6 +175,7 @@ type modelListGroups struct {
 	userGroup   string
 	tokenGroup  string
 	ownerGroups []string
+	ownerModels []string
 }
 
 func getModelListGroups(c *gin.Context) (modelListGroups, error) {
@@ -192,6 +194,45 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 			userGroup:   userGroup,
 			tokenGroup:  tokenGroup,
 			ownerGroups: service.GetRequestAutoGroups(c, userGroup),
+		}, nil
+	}
+
+	if chainId, ok := model.ParseUserChannelChain(tokenGroup); ok {
+		channelIds := make([]int, 0)
+		if value, ok := common.GetContextKey(c, constant.ContextKeyChannelChain); ok {
+			if ids, ok := value.([]int); ok {
+				channelIds = ids
+			}
+		}
+		if len(channelIds) == 0 {
+			chain, err := model.GetUserChannelChain(c.GetInt("id"), chainId)
+			if err != nil {
+				return modelListGroups{}, err
+			}
+			channelIds = chain.GetChannelList()
+		}
+		modelSet := make(map[string]struct{})
+		for _, channelId := range channelIds {
+			channel, err := model.CacheGetChannel(channelId)
+			if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled {
+				continue
+			}
+			for _, modelName := range strings.Split(channel.Models, ",") {
+				modelName = strings.TrimSpace(modelName)
+				if modelName != "" {
+					modelSet[modelName] = struct{}{}
+				}
+			}
+		}
+		ownerModels := make([]string, 0, len(modelSet))
+		for modelName := range modelSet {
+			ownerModels = append(ownerModels, modelName)
+		}
+		sort.Strings(ownerModels)
+		return modelListGroups{
+			userGroup:   userGroup,
+			tokenGroup:  tokenGroup,
+			ownerModels: ownerModels,
 		}, nil
 	}
 
@@ -239,7 +280,10 @@ func ListModels(c *gin.Context, modelType int) {
 			tokenModelLimit = map[string]bool{}
 		}
 	}
-	models := service.GetGroupsEnabledModels(ownerGroups)
+	models := groups.ownerModels
+	if len(models) == 0 {
+		models = service.GetGroupsEnabledModels(ownerGroups)
+	}
 	for _, modelName := range models {
 		if modelLimitEnable {
 			matchingName := ratio_setting.FormatMatchingModelName(modelName)

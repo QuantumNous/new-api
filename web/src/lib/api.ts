@@ -57,7 +57,16 @@ export async function getUserModels(): Promise<{
 export async function getUserGroups(): Promise<{
   success: boolean
   message?: string
-  data?: Record<string, { desc: string; ratio: number | string }>
+  data?: Record<
+    string,
+    {
+      desc: string
+      ratio: number | string
+      custom_chain?: boolean
+      chain_groups?: string[]
+      channel_ids?: number[]
+    }
+  >
 }> {
   const res = await api.get('/api/user/self/groups')
   return res.data

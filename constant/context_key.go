@@ -42,6 +42,7 @@ const (
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
 	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"
+	ContextKeyChannelChain        ContextKey = "channel_chain"
 
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"

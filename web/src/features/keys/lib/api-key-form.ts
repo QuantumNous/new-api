@@ -139,6 +139,7 @@ export function getApiKeyFormDefaultValues(
 export function transformFormDataToPayload(
   data: ApiKeyFormValues
 ): ApiKeyFormData {
+  const isAutoGroup = data.group === 'auto'
   return {
     name: data.name,
     remain_quota: data.unlimited_quota
@@ -156,7 +157,7 @@ export function transformFormDataToPayload(
       data.group === 'auto' && data.auto_groups_mode === 'custom'
         ? data.auto_groups
         : [],
-    cross_group_retry: data.group === 'auto' ? !!data.cross_group_retry : false,
+    cross_group_retry: isAutoGroup ? !!data.cross_group_retry : false,
   }
 }
 

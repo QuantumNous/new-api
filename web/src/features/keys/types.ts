@@ -101,6 +101,36 @@ export interface TokenAutoGroupsConfig {
   max_count: number
 }
 
+export interface UserChannel {
+  id: number
+  name: string
+  type: number
+  status: number
+  models: string
+  group: string
+  priority?: number
+  weight: number
+  tag: string
+}
+
+export interface ChannelChain {
+  id: string
+  name: string
+  channels: number[]
+}
+
+export interface ChannelChainsResponse {
+  chains: ChannelChain[]
+  max_chains: number
+  max_channels_per_chain: number
+  token_usage: Record<string, number>
+}
+
+export interface ChannelChainInput {
+  name: string
+  channels: number[]
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================

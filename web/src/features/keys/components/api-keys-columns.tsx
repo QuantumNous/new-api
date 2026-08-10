@@ -39,6 +39,7 @@ import { API_KEY_STATUSES } from '../constants'
 import type { ApiKey } from '../types'
 import { ApiKeyGroupCell } from './api-key-group-cell'
 import { ApiKeyTimestampCell } from './api-key-timestamp-cell'
+import { useApiKeys } from './api-keys-provider'
 import {
   ApiKeyCell,
   IpRestrictionsCell,
@@ -53,29 +54,57 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
-function useGroupRatios(): Record<string, number | string> {
+type GroupMeta = {
+  ratio?: number | string
+  label?: string
+  isChain?: boolean
+  channelIds?: number[]
+}
+
+type GroupOption = {
+  value: string
+  label: string
+}
+
+function useGroupData(): {
+  meta: Record<string, GroupMeta>
+  options: GroupOption[]
+} {
   const { data } = useQuery({
     queryKey: ['user-groups'],
     queryFn: getUserGroups,
     staleTime: 0,
     select: (res) => {
-      if (!res.success || !res.data) return {}
-      const ratios: Record<string, number | string> = {}
+      if (!res.success || !res.data) return { meta: {}, options: [] }
+      const meta: Record<string, GroupMeta> = {}
+      const options: GroupOption[] = []
       for (const [group, info] of Object.entries(res.data)) {
-        if (typeof info.ratio === 'number' || typeof info.ratio === 'string') {
-          ratios[group] = info.ratio
+        const ratio =
+          typeof info.ratio === 'number' || typeof info.ratio === 'string'
+            ? info.ratio
+            : undefined
+        meta[group] = {
+          ratio,
+          label: info.custom_chain ? info.desc : undefined,
+          isChain: info.custom_chain,
+          channelIds: info.channel_ids,
         }
+        options.push({
+          value: group,
+          label: info.custom_chain ? info.desc || group : group,
+        })
       }
-      return ratios
+      return { meta, options }
     },
   })
 
-  return data ?? {}
+  return data ?? { meta: {}, options: [] }
 }
 
 export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
   const { t, i18n } = useTranslation()
-  const groupRatios = useGroupRatios()
+  const { triggerRefresh } = useApiKeys()
+  const { meta: groupMeta, options: groupOptions } = useGroupData()
   const shouldReduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const justNowLabel = t('Just now')
@@ -198,10 +227,16 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         const group = row.getValue('group') as string
         return (
           <ApiKeyGroupCell
+            apiKeyId={apiKey.id}
             group={group}
-            ratio={groupRatios[group]}
+            ratio={groupMeta[group]?.ratio}
+            label={groupMeta[group]?.label}
+            isChain={groupMeta[group]?.isChain}
+            channelIds={groupMeta[group]?.channelIds}
             crossGroupRetry={apiKey.cross_group_retry}
             shouldReduceMotion={shouldReduceMotion}
+            options={groupOptions}
+            onGroupChanged={triggerRefresh}
           />
         )
       },

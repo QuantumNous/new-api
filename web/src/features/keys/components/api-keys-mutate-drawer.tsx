@@ -159,8 +159,12 @@ export function ApiKeysMutateDrawer({
     () =>
       Object.entries(groupsData?.data || {}).map(([key, info]) => ({
         value: key,
-        label: key,
-        desc: info.desc || key,
+        label: info.custom_chain ? info.desc || key : key,
+        desc: info.custom_chain
+          ? (info.channel_ids || [])
+              .map((id) => `#${id}`)
+              .join(' -> ')
+          : info.desc || key,
         ratio: info.ratio,
       })),
     [groupsData]
