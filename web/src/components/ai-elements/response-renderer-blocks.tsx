@@ -31,6 +31,7 @@ import {
   CodeBlock,
   CodeBlockCopyButton,
 } from '@/components/ai-elements/code-block'
+import { ResponseMath } from '@/components/ai-elements/response-math'
 import { cn } from '@/lib/utils'
 
 import { getNodeKey } from './response-content'
@@ -142,6 +143,10 @@ export function renderList(
 
 export function renderCodeBlock(node: CodeBlockNode, key: string): ReactNode {
   const language = node.language || 'plaintext'
+  if (['math', 'katex', 'latex'].includes(language.toLowerCase())) {
+    return <ResponseMath displayMode key={key} source={node.code} />
+  }
+
   const lineCount = node.code.split('\n').length
 
   return (
@@ -191,23 +196,9 @@ function renderDefinitionItem(
 }
 
 export function renderMathBlock(node: MathBlockNode, key: string): ReactNode {
-  return (
-    <pre
-      className='border-border bg-muted/40 my-4 overflow-x-auto rounded-lg border p-4 font-mono text-sm'
-      key={key}
-    >
-      {node.content}
-    </pre>
-  )
+  return <ResponseMath displayMode key={key} source={node.content} />
 }
 
 export function renderMathInline(node: MathInlineNode, key: string): ReactNode {
-  return (
-    <code
-      className='bg-muted/70 text-foreground rounded px-1 py-0.5 font-mono text-[0.9em]'
-      key={key}
-    >
-      {node.content}
-    </code>
-  )
+  return <ResponseMath displayMode={false} key={key} source={node.content} />
 }

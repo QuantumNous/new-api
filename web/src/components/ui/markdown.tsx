@@ -17,18 +17,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import DOMPurify from 'dompurify'
-import * as katex from 'katex'
-
-import 'katex/dist/katex.min.css'
 import { Marked, Renderer, type MarkedExtension, type Tokens } from 'marked'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { cn } from '@/lib/utils'
+
+import {
+  getLoadedKatex,
+  loadKatex,
+  renderKatex,
+  sanitizeKatexHtml,
+  type KatexModule,
+} from './katex'
 
 interface MarkdownProps {
   breaks?: boolean
   children: string
   className?: string
+}
+
+let activeKatex: KatexModule | undefined
+
+function hasMathSyntax(markdown: string): boolean {
+  return (
+    markdown.includes('$$') ||
+    /(?:^|\n) {0,3}(?:`{3,}|~{3,})[^\S\n]*(?:math|katex|latex)[^\S\n]*(?:\n|$)/i.test(
+      markdown
+    )
+  )
 }
 
 const markdownOptions = {
@@ -181,11 +197,15 @@ function normalizeMathSource(source: string): string {
 }
 
 function renderMath(source: string, displayMode: boolean): string {
-  return katex.renderToString(normalizeMathSource(source), {
-    displayMode,
-    output: 'htmlAndMathml',
-    throwOnError: false,
-  })
+  const katex = activeKatex
+
+  if (!katex) {
+    return escapeHtml(normalizeMathSource(source))
+  }
+
+  return sanitizeKatexHtml(
+    renderKatex(normalizeMathSource(source), displayMode, katex)
+  )
 }
 
 function replaceEmojiShortcodes(value: string): string {
@@ -734,20 +754,64 @@ function addExternalLinkAttributes(html: string): string {
   return template.innerHTML
 }
 
-function renderMarkdown(markdown: string, breaks = false): string {
-  const parsedHtml = markdownParser.parse(markdown, {
-    ...markdownOptions,
-    breaks,
-  })
-  const html = DOMPurify.sanitize(parsedHtml, sanitizeOptions)
+function renderMarkdown(
+  markdown: string,
+  breaks = false,
+  katex?: KatexModule
+): string {
+  const previousKatex = activeKatex
+  activeKatex = katex
 
-  return addExternalLinkAttributes(html)
+  try {
+    const parsedHtml = markdownParser.parse(markdown, {
+      ...markdownOptions,
+      breaks,
+    })
+    const html = DOMPurify.sanitize(parsedHtml, sanitizeOptions)
+
+    return addExternalLinkAttributes(html)
+  } finally {
+    activeKatex = previousKatex
+  }
 }
 
 export function Markdown(props: MarkdownProps) {
+  const needsMath = hasMathSyntax(props.children)
+  const [katex, setKatex] = useState<KatexModule | undefined>(getLoadedKatex)
+  const [katexLoadFailed, setKatexLoadFailed] = useState(false)
+
+  useEffect(() => {
+    if (!needsMath || katex || katexLoadFailed) {
+      return
+    }
+
+    let cancelled = false
+
+    void loadKatex()
+      .then((loadedKatexModule) => {
+        if (!cancelled) {
+          setKatex(loadedKatexModule)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setKatexLoadFailed(true)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [katex, katexLoadFailed, needsMath])
+
   const html = useMemo(
-    () => renderMarkdown(props.children, props.breaks),
-    [props.breaks, props.children]
+    () =>
+      renderMarkdown(
+        props.children,
+        props.breaks,
+        needsMath ? katex : undefined
+      ),
+    [katex, needsMath, props.breaks, props.children]
   )
 
   return (
