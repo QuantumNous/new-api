@@ -586,12 +586,24 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	if err := common.ValidateEmailMessageID(providerMessageID); err != nil {
 		return w.finishPreAcceptError(ctx, item, "message_id_invalid", false)
 	}
-	attempt, err := model.BeginRecallEmailSMTPAttemptWithContext(
+	var lifecycleGate *model.RecallLifecycleSMTPGateResult
+	if item.Recipient.LifecycleEventId != nil {
+		gate, err := recallLifecycleSMTPGate(model.DB.WithContext(ctx), model.RecallLifecycleSMTPGateInput{
+			Message:   item.Message,
+			Recipient: item.Recipient,
+		})
+		if err != nil {
+			return err
+		}
+		lifecycleGate = &gate
+	}
+	attempt, err := model.BeginRecallEmailSMTPAttemptWithLifecycleGateWithContext(
 		ctx,
 		item.Message.Id,
 		w.owner,
 		expectedLeaseUntil,
 		operation_setting.GetRecallCampaignSetting().EmailHourlyLimit,
+		lifecycleGate,
 	)
 	if err != nil {
 		return err

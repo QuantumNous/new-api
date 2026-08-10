@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/glebarez/sqlite"
+	driverMysql "github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -618,7 +620,8 @@ func TestLifecycleInsertConflictSQLIsTargetedByDialect(t *testing.T) {
 				return insertRecallLifecycleEvent(tx, &event)
 			}))
 			if name == "mysql" {
-				require.Contains(t, sql, "insert ignore")
+				require.Contains(t, sql, "insert into")
+				require.NotContains(t, sql, "insert ignore")
 				require.NotContains(t, sql, "on duplicate key update")
 				require.NotContains(t, sql, "on conflict")
 			} else {
@@ -640,6 +643,62 @@ func TestLifecycleInsertConflictSQLIsTargetedByDialect(t *testing.T) {
 				require.Contains(t, sql, "on conflict")
 			}
 		})
+	}
+}
+
+func TestLifecycleInsertMySQLDuplicateClassifierIsExact(t *testing.T) {
+	duplicate := &driverMysql.MySQLError{Number: 1062, Message: "Duplicate entry"}
+	require.True(t, isRecallLifecycleMySQLDuplicateOccurrenceError(duplicate))
+	require.True(t, isRecallLifecycleMySQLDuplicateOccurrenceError(fmt.Errorf("wrapped insert: %w", duplicate)))
+
+	for _, err := range []error{
+		&driverMysql.MySQLError{Number: 1406, Message: "Data too long"},
+		&driverMysql.MySQLError{Number: 1364, Message: "Field does not have a default value"},
+		errors.New("plain insert failure"),
+		fmt.Errorf("wrapped insert: %w", &driverMysql.MySQLError{Number: 1406, Message: "Data too long"}),
+	} {
+		require.False(t, isRecallLifecycleMySQLDuplicateOccurrenceError(err), "%v", err)
+	}
+
+	dialects := recallLifecycleDryRunDialects(t)
+	originalDB := DB
+	t.Cleanup(func() { DB = originalDB })
+	mysqlDB := dialects["mysql"]
+	newEvent := func() RecallLifecycleEvent {
+		occurrence, err := NewRecallLifecycleQuotaOccurrence(RecallLifecycleTriggerQuotaLow, QuotaLifecycleScopeUser, "77", "2026-08", 77)
+		require.NoError(t, err)
+		return RecallLifecycleEvent{
+			EventType:         RecallLifecycleTriggerQuotaLow,
+			OccurrenceKeyHash: occurrence.Hash,
+			BusinessKey:       "quota:77:2026-08",
+			UserId:            77,
+			EventData:         `{}`,
+		}
+	}
+	checkInsertError := func(name string, injected error) (bool, error) {
+		db := mysqlDB.Session(&gorm.Session{NewDB: true})
+		callbackName := "test:" + name
+		require.NoError(t, db.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+			tx.AddError(injected)
+		}))
+		t.Cleanup(func() { require.NoError(t, db.Callback().Create().Remove(callbackName)) })
+		DB = db
+		event := newEvent()
+		return TryInsertRecallLifecycleEventWithContext(context.Background(), &event)
+	}
+
+	inserted, err := checkInsertError("recall_lifecycle_duplicate", duplicate)
+	require.NoError(t, err)
+	require.False(t, inserted)
+
+	for _, errCase := range []error{
+		&driverMysql.MySQLError{Number: 1406, Message: "Data too long"},
+		&driverMysql.MySQLError{Number: 1364, Message: "Field does not have a default value"},
+		errors.New("plain insert failure"),
+	} {
+		inserted, err = checkInsertError(fmt.Sprintf("recall_lifecycle_error_%T_%v", errCase, errCase), errCase)
+		require.Error(t, err)
+		require.False(t, inserted)
 	}
 }
 

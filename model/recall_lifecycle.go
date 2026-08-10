@@ -3,11 +3,13 @@ package model
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	driverMysql "github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -282,6 +284,9 @@ func TryInsertRecallLifecycleEventWithContext(ctx context.Context, event *Recall
 	}
 	result := insertRecallLifecycleEvent(DB.WithContext(ctx), event)
 	if result.Error != nil {
+		if isRecallLifecycleMySQLDuplicateOccurrenceError(result.Error) {
+			return false, nil
+		}
 		return false, result.Error
 	}
 	return result.RowsAffected == 1, nil
@@ -467,41 +472,60 @@ func DeferRecallLifecycleEvent(ctx context.Context, deferral RecallLifecycleEven
 	}
 	deferred := false
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		dbNow, err := getDBTimestamp(tx)
-		if err != nil {
-			return err
-		}
-		var event RecallLifecycleEvent
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expires_at = ? AND lease_expires_at > ?",
-				deferral.EventID, RecallLifecycleEventLeased, strings.TrimSpace(deferral.Owner), deferral.LeaseEpoch, deferral.ExpectedLeaseExpires, dbNow).
-			First(&event).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return nil
-			}
-			return err
-		}
-		nextAttemptAt := dbNow + recallLifecycleRetryBackoffSeconds(event.AttemptCount)
-		result := tx.Model(&RecallLifecycleEvent{}).
-			Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expires_at = ? AND lease_expires_at > ?",
-				event.Id, RecallLifecycleEventLeased, strings.TrimSpace(deferral.Owner), deferral.LeaseEpoch, deferral.ExpectedLeaseExpires, dbNow).
-			Updates(map[string]any{
-				"disposition":      RecallLifecycleEventPending,
-				"lease_owner":      "",
-				"lease_expires_at": int64(0),
-				"next_attempt_at":  nextAttemptAt,
-				"last_error_code":  errorCode,
-			})
-		if result.Error != nil {
-			return result.Error
-		}
-		deferred = result.RowsAffected == 1
-		return nil
+		var err error
+		deferred, err = DeferRecallLifecycleEventTx(tx, RecallLifecycleEventDeferral{
+			EventID:              deferral.EventID,
+			Owner:                deferral.Owner,
+			LeaseEpoch:           deferral.LeaseEpoch,
+			ExpectedLeaseExpires: deferral.ExpectedLeaseExpires,
+			ErrorCode:            errorCode,
+		})
+		return err
 	})
 	if err != nil {
 		return false, err
 	}
 	return deferred, nil
+}
+
+func DeferRecallLifecycleEventTx(tx *gorm.DB, deferral RecallLifecycleEventDeferral) (bool, error) {
+	if deferral.EventID <= 0 || strings.TrimSpace(deferral.Owner) == "" || deferral.LeaseEpoch <= 0 || deferral.ExpectedLeaseExpires <= 0 {
+		return false, fmt.Errorf("recall lifecycle event deferral requires event, owner, epoch, and expected lease")
+	}
+	errorCode := sanitizeRecallErrorCode(deferral.ErrorCode)
+	if errorCode == "" {
+		errorCode = "lifecycle_retry"
+	}
+	dbNow, err := getDBTimestamp(tx)
+	if err != nil {
+		return false, err
+	}
+	var event RecallLifecycleEvent
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expires_at = ? AND lease_expires_at > ?",
+			deferral.EventID, RecallLifecycleEventLeased, strings.TrimSpace(deferral.Owner), deferral.LeaseEpoch, deferral.ExpectedLeaseExpires, dbNow).
+		First(&event).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	nextAttemptAt := dbNow + recallLifecycleRetryBackoffSeconds(event.AttemptCount)
+	result := tx.Model(&RecallLifecycleEvent{}).
+		Where("id = ? AND disposition = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expires_at = ? AND lease_expires_at > ?",
+			event.Id, RecallLifecycleEventLeased, strings.TrimSpace(deferral.Owner), deferral.LeaseEpoch, deferral.ExpectedLeaseExpires, dbNow).
+		Updates(map[string]any{
+			"disposition":             RecallLifecycleEventPending,
+			"disposition_reason_code": errorCode,
+			"lease_owner":             "",
+			"lease_expires_at":        int64(0),
+			"next_attempt_at":         nextAttemptAt,
+			"last_error_code":         errorCode,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
 }
 
 func recallLifecycleRetryBackoffSeconds(attemptCount int) int64 {
@@ -520,12 +544,17 @@ func recallLifecycleRetryBackoffSeconds(attemptCount int) int64 {
 
 func insertRecallLifecycleEvent(tx *gorm.DB, event *RecallLifecycleEvent) *gorm.DB {
 	if tx.Dialector.Name() == "mysql" {
-		return tx.Clauses(clause.Insert{Modifier: "IGNORE"}).Create(event)
+		return tx.Create(event)
 	}
 	return tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "event_type"}, {Name: "occurrence_key_hash"}},
 		DoNothing: true,
 	}).Create(event)
+}
+
+func isRecallLifecycleMySQLDuplicateOccurrenceError(err error) bool {
+	var mysqlErr *driverMysql.MySQLError
+	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1062
 }
 
 func newRecallContinuousTriggerSlot(trigger string) (*RecallContinuousTriggerSlot, error) {

@@ -473,8 +473,24 @@ func (w *RecallLifecycleWorker) enrollClaimedEvent(ctx context.Context, claimed 
 			return skipRecallLifecycleEventTx(tx, event, w.owner, "malformed_event_data", dbNow)
 		}
 		campaign, ok, err := loadRecallLifecycleCampaignForEventTx(tx, event, dbNow)
-		if err != nil || !ok {
+		if err != nil {
 			return err
+		}
+		if !ok {
+			deferred, err := model.DeferRecallLifecycleEventTx(tx, model.RecallLifecycleEventDeferral{
+				EventID:              event.Id,
+				Owner:                w.owner,
+				LeaseEpoch:           event.LeaseEpoch,
+				ExpectedLeaseExpires: event.LeaseExpiresAt,
+				ErrorCode:            "lifecycle_campaign_unavailable",
+			})
+			if err != nil {
+				return err
+			}
+			if !deferred {
+				return errRecallLifecycleFenceLost
+			}
+			return nil
 		}
 		recipient, message, err := recallLifecycleEnrollmentRowsTx(tx, campaign, event, dbNow)
 		if err != nil {

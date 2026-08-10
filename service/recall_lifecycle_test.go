@@ -80,6 +80,74 @@ func TestRecallLifecyclePausedCampaignDoesNotEnroll(t *testing.T) {
 	require.Zero(t, recipients)
 }
 
+func TestEnrollClaimedLifecycleEventDefersWhenCampaignBecomesUnavailable(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(t *testing.T, campaign model.RecallCampaign)
+	}{
+		{
+			name: "paused",
+			mutate: func(t *testing.T, campaign model.RecallCampaign) {
+				t.Helper()
+				require.NoError(t, model.DB.Model(&model.RecallCampaign{}).
+					Where("id = ?", campaign.Id).
+					Update("status", model.RecallCampaignPaused).Error)
+			},
+		},
+		{
+			name: "cancelled",
+			mutate: func(t *testing.T, campaign model.RecallCampaign) {
+				t.Helper()
+				require.NoError(t, model.DB.Model(&model.RecallCampaign{}).
+					Where("id = ?", campaign.Id).
+					Update("status", model.RecallCampaignCancelled).Error)
+			},
+		},
+		{
+			name: "slot missing",
+			mutate: func(t *testing.T, campaign model.RecallCampaign) {
+				t.Helper()
+				require.NoError(t, model.DB.Model(&model.RecallContinuousTriggerSlot{}).
+					Where("trigger = ?", campaign.LifecycleTrigger).
+					Update("campaign_id", int64(0)).Error)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupRecallLifecycleServiceTestDB(t)
+			setRecallCampaignEnabled(t, true)
+			_, campaign := createRecallLifecycleEnrollmentCampaign(t, model.RecallCampaignRunning, 100)
+			event := createRecallLifecycleEnrollmentEvent(t, model.RecallLifecycleTriggerQuotaLow, 321, 120, 120, `{}`)
+			worker := NewRecallLifecycleWorker("node-a")
+			dbNow, err := model.GetDBTimestampWithContext(context.Background())
+			require.NoError(t, err)
+			claimed, won, err := model.ClaimDueRecallLifecycleEvent(context.Background(), event.Id, worker.owner, dbNow, dbNow+300)
+			require.NoError(t, err)
+			require.True(t, won)
+			require.NotNil(t, claimed)
+
+			tt.mutate(t, campaign)
+			created, err := worker.enrollClaimedEvent(context.Background(), *claimed)
+
+			require.NoError(t, err)
+			require.False(t, created)
+			var stored model.RecallLifecycleEvent
+			require.NoError(t, model.DB.First(&stored, event.Id).Error)
+			require.Equal(t, model.RecallLifecycleEventPending, stored.Disposition)
+			require.Empty(t, stored.LeaseOwner)
+			require.Zero(t, stored.LeaseExpiresAt)
+			require.NotZero(t, stored.NextAttemptAt)
+			require.Equal(t, "lifecycle_campaign_unavailable", stored.LastErrorCode)
+			require.Equal(t, "lifecycle_campaign_unavailable", stored.DispositionReasonCode)
+			var recipients int64
+			require.NoError(t, model.DB.Model(&model.RecallRecipient{}).Count(&recipients).Error)
+			require.Zero(t, recipients)
+		})
+	}
+}
+
 func TestRecallLifecycleEnrollmentBoundaryRecoveryAndCampaignReplacement(t *testing.T) {
 	setupRecallLifecycleServiceTestDB(t)
 	setRecallCampaignEnabled(t, true)

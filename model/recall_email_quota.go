@@ -115,6 +115,17 @@ func BeginRecallEmailSMTPAttemptWithContext(
 	expectedLeaseUntil int64,
 	limit int,
 ) (RecallEmailSMTPAttempt, error) {
+	return BeginRecallEmailSMTPAttemptWithLifecycleGateWithContext(ctx, messageID, owner, expectedLeaseUntil, limit, nil)
+}
+
+func BeginRecallEmailSMTPAttemptWithLifecycleGateWithContext(
+	ctx context.Context,
+	messageID int64,
+	owner string,
+	expectedLeaseUntil int64,
+	limit int,
+	lifecycleGate *RecallLifecycleSMTPGateResult,
+) (RecallEmailSMTPAttempt, error) {
 	attempt := RecallEmailSMTPAttempt{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := serializeRecallSQLiteWriterTx(tx, "UPDATE recall_messages SET id = id WHERE id = ?", messageID); err != nil {
@@ -153,20 +164,12 @@ func BeginRecallEmailSMTPAttemptWithContext(
 			return nil
 		}
 		if recipient.LifecycleEventId != nil {
-			lifecycleGate, ok := recallLifecycleSMTPGateForAttempt()
-			if !ok {
+			if lifecycleGate == nil {
 				return errRecallLifecycleGateOpen
 			}
-			gate, err := lifecycleGate(tx, RecallLifecycleSMTPGateInput{
-				Message:   message,
-				Recipient: recipient,
-			})
-			if err != nil {
-				return err
-			}
-			if gate.Blocked {
+			if lifecycleGate.Blocked {
 				attempt.Suppressed = true
-				cancelled, err := cancelSuppressedRecallEmailFlowTx(tx, message.Id, recipient.Id, owner, expectedLeaseUntil, gate.ReasonCode)
+				cancelled, err := cancelSuppressedRecallEmailFlowTx(tx, message.Id, recipient.Id, owner, expectedLeaseUntil, lifecycleGate.ReasonCode)
 				if err != nil {
 					return err
 				}
@@ -175,17 +178,17 @@ func BeginRecallEmailSMTPAttemptWithContext(
 				}
 				return nil
 			}
-			if gate.Email != "" && gate.Email != recipient.EmailSnapshot {
+			if lifecycleGate.Email != "" && lifecycleGate.Email != recipient.EmailSnapshot {
 				result := tx.Model(&RecallRecipient{}).
 					Where("id = ?", recipient.Id).
-					Update("email_snapshot", gate.Email)
+					Update("email_snapshot", lifecycleGate.Email)
 				if result.Error != nil {
 					return result.Error
 				}
 				if result.RowsAffected != 1 {
 					return errRecallEmailCASLost
 				}
-				recipient.EmailSnapshot = gate.Email
+				recipient.EmailSnapshot = lifecycleGate.Email
 			}
 		}
 		attempt.Email = recipient.EmailSnapshot
