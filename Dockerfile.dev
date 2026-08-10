@@ -1,5 +1,6 @@
 # Backend-only build for frontend development
 # Skips frontend build and uses a placeholder for //go:embed web/dist
+# （方案 A：占位产物写入 app/api/web/dist，与正式构建的拷贝目标一致）
 
 FROM golang:1.26.1-alpine AS builder
 
@@ -11,15 +12,18 @@ ENV GOEXPERIMENT=greenteagc
 
 WORKDIR /build
 
-ADD go.mod go.sum ./
-RUN go mod download
+ADD app/api/go.mod app/api/go.sum ./app/api/
+# relaykit is referenced via replace; its go.mod must be present to resolve
+# the module graph before the full source copy.
+ADD relaykit/go.mod ./relaykit/go.mod
+RUN cd app/api && go mod download
 
 COPY . .
 
-RUN mkdir -p web/dist && \
-    echo '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > web/dist/index.html
+RUN mkdir -p app/api/web/dist && \
+    echo '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > app/api/web/dist/index.html
 
-RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
+RUN cd app/api && go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat /build/VERSION)'" -o /build/new-api
 
 FROM debian:bookworm-slim
 
