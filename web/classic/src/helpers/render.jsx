@@ -405,6 +405,8 @@ export function getChannelIcon(channelType) {
       return <Doubao.Color size={iconSize} />;
     case 58: // 筷子科技 丽帧（封装 Seedance）
       return <Doubao.Color size={iconSize} />;
+    case 111: // ModelAPISeedance
+      return <Doubao.Color size={iconSize} />;
     case 56: // Replicate
       return <Replicate size={iconSize} />;
     case 8: // 自定义渠道
