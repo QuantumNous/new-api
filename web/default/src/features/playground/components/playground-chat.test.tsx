@@ -31,6 +31,7 @@ beforeAll(async () => {
     resources: {
       en: {
         translation: {
+          Copy: 'Copy',
           Download: 'Download',
           'Generated image': 'Generated image',
         },
@@ -41,7 +42,7 @@ beforeAll(async () => {
 })
 
 describe('PlaygroundChat', () => {
-  test('renders a download link directly after each completed generated image', () => {
+  test('renders icon-only download actions before Copy', () => {
     const pngSrc = 'data:image/png;base64,QUJDRA=='
     const webpSrc = 'data:image/webp;base64,RUZHSA=='
     const html = renderToStaticMarkup(
@@ -74,12 +75,19 @@ describe('PlaygroundChat', () => {
     expect(html).toContain('download="generated-image-2.webp"')
     expect(html.match(/<a\b/g)?.length ?? 0).toBe(2)
     expect(html.match(/\bdownload=/g)?.length ?? 0).toBe(2)
-    expect(html).toContain('Download')
+    expect(html.match(/aria-label="Download"/g)?.length ?? 0).toBe(2)
+    expect(html).not.toContain('>Download<')
     expect(html.indexOf('<img alt="preview"')).toBeLessThan(
       html.indexOf('download="generated-image-1.png"')
     )
     expect(html.indexOf('<img alt="second preview"')).toBeLessThan(
       html.indexOf('download="generated-image-2.webp"')
+    )
+    expect(html.indexOf('download="generated-image-1.png"')).toBeLessThan(
+      html.indexOf('aria-label="Copy"')
+    )
+    expect(html.indexOf('download="generated-image-2.webp"')).toBeLessThan(
+      html.indexOf('aria-label="Copy"')
     )
   })
 })
