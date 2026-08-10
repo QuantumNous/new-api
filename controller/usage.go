@@ -17,6 +17,8 @@ import (
 const (
 	UsageMeterRequests = "requests"
 	UsageMeterIncluded = "included"
+	UsageMeterMonthly  = "monthly"
+	UsageMeterImages   = "images"
 )
 
 // UsageRequestsUnknown marks a rate-limit counter we could not read — Redis
@@ -40,6 +42,11 @@ type UsageInputs struct {
 	IncludedTotal    int64
 	IncludedUsed     int64
 	IncludedResetAt  int64
+	MonthlyCostUsed  int64
+	MonthlyCostLimit int64
+	MonthlyResetAt   int64
+	ImagesUsed       int
+	ImageLimit       int
 }
 
 func BuildUsageMeters(in UsageInputs) []UsageMeter {
@@ -61,6 +68,25 @@ func BuildUsageMeters(in UsageInputs) []UsageMeter {
 			Limit:   int64(in.RequestLimit),
 			Percent: percentUsed(used, int64(in.RequestLimit)),
 			ResetAt: resetAt,
+		})
+	}
+
+	if in.MonthlyCostLimit > 0 {
+		meters = append(meters, UsageMeter{
+			Kind:    UsageMeterMonthly,
+			Used:    in.MonthlyCostUsed,
+			Limit:   in.MonthlyCostLimit,
+			Percent: percentUsed(in.MonthlyCostUsed, in.MonthlyCostLimit),
+			ResetAt: in.MonthlyResetAt,
+		})
+	}
+	if in.ImageLimit > 0 {
+		meters = append(meters, UsageMeter{
+			Kind:    UsageMeterImages,
+			Used:    int64(in.ImagesUsed),
+			Limit:   int64(in.ImageLimit),
+			Percent: percentUsed(int64(in.ImagesUsed), int64(in.ImageLimit)),
+			ResetAt: in.MonthlyResetAt,
 		})
 	}
 
@@ -100,14 +126,15 @@ func GetUserUsage(c *gin.Context) {
 	userId := c.GetInt("id")
 	in := UsageInputs{}
 
+	// The limiter resolves the token's group first and falls back to the
+	// user's. A portal session carries no token, so the user's group is the
+	// one that applies.
+	group := ""
+	if user, err := model.GetUserById(userId, false); err == nil {
+		group = user.Group
+	}
+
 	if setting.ModelRequestRateLimitEnabled {
-		// The limiter resolves the token's group first and falls back to the
-		// user's. A portal session carries no token, so the user's group is the
-		// one that applies.
-		group := ""
-		if user, err := model.GetUserById(userId, false); err == nil {
-			group = user.Group
-		}
 		limit := setting.ModelRequestRateLimitSuccessCount
 		if _, groupSuccessCount, found := setting.GetGroupRateLimit(group); found {
 			limit = groupSuccessCount
@@ -135,6 +162,15 @@ func GetUserUsage(c *gin.Context) {
 			}
 		}
 		in.IncludedTotal, in.IncludedUsed, in.IncludedResetAt = service.SumIncludedPools(subs)
+	}
+
+	cycleStart, resetAt := service.UsageCycle(service.CycleMonth, nil, time.Now())
+	if cost, _, images, err := model.GetUsage(userId, service.CycleMonth, cycleStart); err == nil {
+		in.MonthlyCostUsed = cost
+		in.MonthlyCostLimit = setting.GetMonthlyCostLimit(group)
+		in.MonthlyResetAt = resetAt
+		in.ImagesUsed = images
+		in.ImageLimit = setting.GetMonthlyImageLimit(group)
 	}
 
 	common.ApiSuccess(c, gin.H{"meters": BuildUsageMeters(in)})

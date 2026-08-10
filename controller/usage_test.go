@@ -159,3 +159,36 @@ func TestBuildUsageMetersNoRequestsMeterWhenLimitIsUnlimited(t *testing.T) {
 	require.Nil(t, meterOfKind(meters, UsageMeterRequests),
 		"0 means unlimited in ModelRequestRateLimitGroup; a bar needs a denominator")
 }
+
+func TestBuildUsageMetersMonthlyAllowance(t *testing.T) {
+	meters := BuildUsageMeters(UsageInputs{
+		MonthlyCostUsed:  4_120_000,
+		MonthlyCostLimit: 13_200_000,
+		MonthlyResetAt:   1788000000,
+	})
+
+	m := meterOfKind(meters, UsageMeterMonthly)
+	require.NotNil(t, m)
+	require.Equal(t, 31, m.Percent)
+	require.Equal(t, int64(1788000000), m.ResetAt)
+}
+
+func TestBuildUsageMetersNoMonthlyMeterWhenUncapped(t *testing.T) {
+	meters := BuildUsageMeters(UsageInputs{MonthlyCostUsed: 999, MonthlyCostLimit: 0})
+
+	require.Nil(t, meterOfKind(meters, UsageMeterMonthly), "0 means uncapped; Pro shows its pool instead")
+}
+
+func TestBuildUsageMetersImagesAllowance(t *testing.T) {
+	meters := BuildUsageMeters(UsageInputs{ImagesUsed: 14, ImageLimit: 100, MonthlyResetAt: 1788000000})
+
+	m := meterOfKind(meters, UsageMeterImages)
+	require.NotNil(t, m)
+	require.Equal(t, 14, m.Percent)
+}
+
+func TestBuildUsageMetersNoImageMeterForATierWithoutTheEntitlement(t *testing.T) {
+	meters := BuildUsageMeters(UsageInputs{ImagesUsed: 0, ImageLimit: 0})
+
+	require.Nil(t, meterOfKind(meters, UsageMeterImages))
+}
