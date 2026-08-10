@@ -35,6 +35,7 @@ describe('resolvePlaygroundHandoff', () => {
       })
     ).toEqual({
       model: 'gpt-image-2',
+      requestedModel: 'gpt-image-2',
       prompt: 'Draw a violet fox',
       models: [
         { label: 'gpt-image-2', value: 'gpt-image-2' },
@@ -57,6 +58,7 @@ describe('resolvePlaygroundHandoff', () => {
       })
     ).toEqual({
       model: 'gpt-image-2',
+      requestedModel: 'gpt-image-2',
       models,
     })
   })
@@ -69,6 +71,7 @@ describe('resolvePlaygroundHandoff', () => {
         model: 'not-a-real-model',
       })
     ).toEqual({
+      requestedModel: 'not-a-real-model',
       models: [{ label: 'gpt-4o', value: 'gpt-4o' }],
     })
   })

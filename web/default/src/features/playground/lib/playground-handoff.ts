@@ -28,6 +28,7 @@ type PlaygroundHandoffInput = {
 type PlaygroundHandoff = {
   models: ModelOption[]
   model?: string
+  requestedModel?: string
   prompt?: string
 }
 
@@ -67,6 +68,7 @@ export function resolvePlaygroundHandoff(
   return {
     models,
     ...(availableModel ? { model: availableModel } : {}),
+    ...(model ? { requestedModel: model } : {}),
     ...(prompt ? { prompt } : {}),
   }
 }
