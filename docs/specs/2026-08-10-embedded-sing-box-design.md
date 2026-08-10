@@ -1,7 +1,7 @@
 ---
 title: embedded sing-box encrypted proxy support
 date: 2026-08-10
-status: draft
+status: approved
 ---
 
 # Embedded sing-box Encrypted Proxy Support — Design
