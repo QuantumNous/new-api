@@ -458,6 +458,8 @@ export function getChannelIcon(channelType) {
       return <OpenAI size={iconSize} />;
     case 66: // sora2u Seedance video
       return <OpenAI size={iconSize} />;
+    case 67: // ZiZiDongHua MiniMax-H3 video
+      return <OpenAI size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;

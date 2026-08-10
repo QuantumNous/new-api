@@ -261,6 +261,26 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Async video via OpenAI Videos façade. Upstream wraps {success,task}. Maps seconds→duration, size→aspect_ratio, images→reference/reference_url. Completed tasks expose metadata.url (public video_url). No channel credit sync.',
     },
   },
+  67: {
+    id: 67,
+    name: CHANNEL_TYPES[67],
+    icon: 'openai',
+    defaultBaseUrl: 'https://www.zizidonghua.com',
+    supportedModels: [
+      'zzdh-Minimax-h3-480p',
+      'zzdh-Minimax-h3-720p',
+      'zzdh-Minimax-h3-1080p',
+      'zzdh-Minimax-h3-2k',
+    ],
+    hints: {
+      key: 'Bearer token (ZiZiDongHua / 自自动画 API Key)',
+      models:
+        'zzdh-Minimax-h3-480p, zzdh-Minimax-h3-720p, zzdh-Minimax-h3-1080p, zzdh-Minimax-h3-2k',
+      baseUrl: 'Default: https://www.zizidonghua.com',
+      other:
+        'Async MiniMax-H3 video: POST /v8/videos/generations, poll GET /v8/videos/generations/{id}, download GET /v1/videos/{id}/content. Resolution locked by model name. Maps image_with_roles→reference_images. Supports first/last frame and multimodal refs (images/videos/audios).',
+    },
+  },
 }
 
 export const CHANNEL_83ZI_BASE_URL_PRESETS = [

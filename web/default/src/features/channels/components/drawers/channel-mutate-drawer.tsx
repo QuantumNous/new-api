@@ -707,6 +707,20 @@ export function ChannelMutateDrawer({
       }
     }
 
+    if (currentType === 67) {
+      const currentModels = form.getValues('models')
+      if (!currentModels || currentModels.trim() === '') {
+        form.setValue(
+          'models',
+          'zzdh-Minimax-h3-480p,zzdh-Minimax-h3-720p,zzdh-Minimax-h3-1080p,zzdh-Minimax-h3-2k'
+        )
+      }
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue.trim() === '') {
+        form.setValue('base_url', 'https://www.zizidonghua.com')
+      }
+    }
+
     if (currentType === 1 || currentType === 55) {
       if (form.getValues('openai_face_pass') === undefined) {
         form.setValue('openai_face_pass', true)

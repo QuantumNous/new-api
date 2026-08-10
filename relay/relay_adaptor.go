@@ -48,6 +48,7 @@ import (
 	taskth12345ai "github.com/QuantumNous/new-api/relay/channel/task/th12345ai"
 	taskmegabyai "github.com/QuantumNous/new-api/relay/channel/task/megabyai"
 	tasksora2u "github.com/QuantumNous/new-api/relay/channel/task/sora2u"
+	taskzzdh "github.com/QuantumNous/new-api/relay/channel/task/zzdh"
 	taskvyro "github.com/QuantumNous/new-api/relay/channel/task/vyroseedance"
 	taskxai "github.com/QuantumNous/new-api/relay/channel/task/xai"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
@@ -189,6 +190,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskmegabyai.TaskAdaptor{}
 		case constant.ChannelTypeSora2U:
 			return &tasksora2u.TaskAdaptor{}
+		case constant.ChannelTypeZiZiDongHua:
+			return &taskzzdh.TaskAdaptor{}
 		}
 	}
 	return nil
