@@ -712,19 +712,32 @@ html.dark .pencil-control {
 }
 
 html.dark [data-handdrawn='underline'] input {
-  border: 1px solid var(--outline-variant) !important;
+  border: 1px solid var(--outline) !important;
   border-radius: var(--shape-control);
   background: var(--surface-container-low);
 }
 
 html.dark [data-handdrawn='underline'] input:hover {
-  border-color: var(--outline) !important;
-  background: var(--surface-container);
+  border-color: color-mix(
+    in srgb,
+    var(--outline) 72%,
+    var(--text-secondary)
+  ) !important;
+  background: var(--surface-container-low);
 }
 
 html.dark [data-handdrawn='underline'] input:focus {
   border-color: var(--accent) !important;
-  background: var(--surface-container);
+  background: var(--surface-container-low);
+  box-shadow: var(--focus-halo);
+}
+
+html.dark [data-handdrawn='underline'] input[aria-invalid='true'] {
+  border-color: var(--status-danger) !important;
+}
+
+html.dark [data-handdrawn='underline'] input[aria-invalid='true']:focus {
+  box-shadow: 0 0 0 4px var(--status-danger-soft);
 }
 
 html.dark [data-handdrawn='menu'],
@@ -756,6 +769,30 @@ html.dark [data-handdrawn^='navigation'] {
   background-image: none !important;
 }
 
+html.dark .setup-shell:not(.setup-error-shell) .setup-header {
+  max-width: none;
+}
+
+html.dark .setup-shell:not(.setup-error-shell) .setup-header__inner,
+html.dark .setup-shell:not(.setup-error-shell) .setup-content {
+  max-width: 1440px;
+}
+
+html.dark .setup-shell:not(.setup-error-shell) .setup-wizard {
+  max-width: 1200px;
+}
+
+html.dark .setup-error-shell .setup-header {
+  width: calc(100% + 2.5rem);
+  max-width: none;
+  margin-inline: -1.25rem;
+}
+
+html.dark .setup-error-shell .setup-header__inner {
+  max-width: 1440px;
+  padding-inline: 1.25rem;
+}
+
 html.dark [data-handdrawn^='navigation'] [aria-current='page'] {
   border-radius: var(--shape-control) !important;
   background: var(--state-press-layer) !important;
@@ -772,6 +809,17 @@ html.dark [data-handdrawn='navigation-drawer'] {
   border-radius: var(--shape-overlay) 0 0 var(--shape-overlay) !important;
   background-color: var(--surface-container-highest) !important;
   box-shadow: var(--elevation-5) !important;
+}
+
+@media (min-width: 640px) {
+  html.dark .setup-error-shell .setup-header {
+    width: calc(100% + 4rem);
+    margin-inline: -2rem;
+  }
+
+  html.dark .setup-error-shell .setup-header__inner {
+    padding-inline: 2rem;
+  }
 }
 
 html.dark [data-handdrawn='ledger'] {

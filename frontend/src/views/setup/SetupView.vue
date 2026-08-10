@@ -234,33 +234,40 @@ onMounted(async () => {
     class="setup-shell texture-paper draft-grid night-page-texture min-h-screen overflow-x-hidden bg-[var(--page-background)] text-[var(--text-primary)]"
   >
     <header
-      class="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8"
+      class="setup-header mx-auto w-full max-w-[1200px]"
       data-handdrawn="navigation-top"
+      data-setup-navigation
     >
-      <div class="flex min-w-0 items-center gap-3">
-        <!-- Local brand asset: setup runs before /api/status is meaningful. -->
-        <BrandMark class="h-9 w-9 sketch-sm" />
-        <div class="min-w-0">
-          <p
-            class="display-title truncate text-lg font-bold tracking-tight text-[var(--text-primary)]"
-          >
-            {{ BRAND_NAME }}
-          </p>
-          <p
-            class="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--text-tertiary)] sm:block"
-          >
-            {{ t('setup.eyebrow') }}
-          </p>
+      <div
+        class="setup-header__inner mx-auto flex w-full items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8"
+        data-setup-navigation-inner
+      >
+        <div class="flex min-w-0 items-center gap-3">
+          <!-- Local brand asset: setup runs before /api/status is meaningful. -->
+          <BrandMark class="h-9 w-9 sketch-sm" />
+          <div class="min-w-0">
+            <p
+              class="display-title truncate text-lg font-bold tracking-tight text-[var(--text-primary)]"
+            >
+              {{ BRAND_NAME }}
+            </p>
+            <p
+              class="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--text-tertiary)] sm:block"
+            >
+              {{ t('setup.eyebrow') }}
+            </p>
+          </div>
         </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <ThemeSwitcher variant="console" />
-        <LanguageSelector variant="console" />
+        <div class="flex items-center gap-2">
+          <ThemeSwitcher variant="console" />
+          <LanguageSelector variant="console" />
+        </div>
       </div>
     </header>
 
     <section
-      class="mx-auto w-full max-w-[1200px] px-4 pb-12 sm:px-6 lg:px-8 lg:pb-20"
+      class="setup-content mx-auto w-full max-w-[1200px] px-4 pb-12 sm:px-6 lg:px-8 lg:pb-20"
+      data-setup-content
     >
       <div class="mx-auto max-w-[760px] pt-8 text-center sm:pt-12">
         <p
@@ -301,7 +308,11 @@ onMounted(async () => {
         </p>
       </ConsoleCard>
 
-      <div v-else class="mx-auto mt-10 max-w-[1100px]">
+      <div
+        v-else
+        class="setup-wizard mx-auto mt-10 max-w-[1100px]"
+        data-setup-wizard
+      >
         <ol class="grid gap-3 md:grid-cols-4" :aria-label="t('setup.progress')">
           <li
             v-for="(step, index) in steps"
@@ -445,11 +456,12 @@ onMounted(async () => {
                         fieldError ? 'setup-account-error' : undefined
                       "
                       :placeholder="t('setup.passwordPlaceholder')"
-                      class="[&_input]:pr-12"
+                      class="[&_input]:pr-14"
                     />
                     <button
                       type="button"
-                      class="sketch-sm absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[var(--text-tertiary)] transition-colors hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-secondary)] focus-ring"
+                      class="sketch-sm absolute right-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-[var(--text-tertiary)] transition-colors hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-secondary)] focus-ring"
+                      data-setup-password-toggle
                       :aria-label="
                         showPassword
                           ? t('setup.hidePassword')
@@ -482,11 +494,12 @@ onMounted(async () => {
                         fieldError ? 'setup-account-error' : undefined
                       "
                       :placeholder="t('setup.confirmPasswordPlaceholder')"
-                      class="[&_input]:pr-12"
+                      class="[&_input]:pr-14"
                     />
                     <button
                       type="button"
-                      class="sketch-sm absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-[var(--text-tertiary)] transition-colors hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-secondary)] focus-ring"
+                      class="sketch-sm absolute right-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-[var(--text-tertiary)] transition-colors hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-secondary)] focus-ring"
+                      data-setup-password-toggle
                       :aria-label="
                         showConfirmPassword
                           ? t('setup.hidePassword')

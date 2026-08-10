@@ -39,23 +39,29 @@ async function retry() {
 
 <template>
   <main
-    class="setup-shell texture-paper draft-grid night-page-texture min-h-screen bg-[var(--page-background)] px-5 py-6 text-[var(--text-primary)] sm:px-8"
+    class="setup-shell setup-error-shell texture-paper draft-grid night-page-texture min-h-screen bg-[var(--page-background)] px-5 py-6 text-[var(--text-primary)] sm:px-8"
   >
     <header
-      class="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4"
+      class="setup-header mx-auto w-full max-w-[1200px]"
       data-handdrawn="navigation-top"
+      data-setup-navigation
     >
-      <div class="flex min-w-0 items-center gap-3">
-        <!-- Local brand asset: the status endpoint is unreachable on this page. -->
-        <BrandMark class="h-9 w-9 sketch-sm" />
-        <span
-          class="display-title truncate text-lg font-bold tracking-tight text-[var(--text-primary)]"
-          >{{ BRAND_NAME }}</span
-        >
-      </div>
-      <div class="flex items-center gap-2">
-        <ThemeSwitcher variant="console" />
-        <LanguageSelector variant="console" />
+      <div
+        class="setup-header__inner mx-auto flex w-full items-center justify-between gap-4"
+        data-setup-navigation-inner
+      >
+        <div class="flex min-w-0 items-center gap-3">
+          <!-- Local brand asset: the status endpoint is unreachable on this page. -->
+          <BrandMark class="h-9 w-9 sketch-sm" />
+          <span
+            class="display-title truncate text-lg font-bold tracking-tight text-[var(--text-primary)]"
+            >{{ BRAND_NAME }}</span
+          >
+        </div>
+        <div class="flex items-center gap-2">
+          <ThemeSwitcher variant="console" />
+          <LanguageSelector variant="console" />
+        </div>
       </div>
     </header>
     <section

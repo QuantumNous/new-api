@@ -51,10 +51,10 @@ const inputAttrs = computed(() => {
       :autocomplete="autocomplete"
       :readonly="readonly"
       v-bind="inputAttrs"
-      class="h-11 w-full border-0 border-b-[1.5px] bg-transparent pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-[border-color] focus:outline-none focus:border-[var(--accent)]"
+      class="h-11 w-full border-0 border-b-[1.5px] bg-transparent pr-4 text-[15px] leading-[22px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-[border-color,background-color,box-shadow] focus:outline-none focus:border-[var(--accent)]"
       style="border-color: var(--border-default)"
       :class="[
-        $slots.icon ? 'pl-10' : 'pl-1',
+        $slots.icon ? 'pl-10' : 'pl-4',
         readonly ? 'cursor-not-allowed opacity-60' : '',
       ]"
     />
