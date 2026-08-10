@@ -29,6 +29,7 @@ describe('resolvePlaygroundHandoff', () => {
     expect(
       resolvePlaygroundHandoff({
         models: [{ label: 'gpt-4o', value: 'gpt-4o' }],
+        availableModels: ['gpt-4o', 'gpt-image-2'],
         model: ' gpt-image-2 ',
         prompt: ' Draw a violet fox ',
       })
@@ -48,9 +49,27 @@ describe('resolvePlaygroundHandoff', () => {
       { label: 'gpt-4o', value: 'gpt-4o' },
     ]
 
-    expect(resolvePlaygroundHandoff({ models, model: 'gpt-image-2' })).toEqual({
+    expect(
+      resolvePlaygroundHandoff({
+        models,
+        availableModels: ['gpt-image-2', 'gpt-4o'],
+        model: 'gpt-image-2',
+      })
+    ).toEqual({
       model: 'gpt-image-2',
       models,
+    })
+  })
+
+  test('does not add an unavailable URL model to selectable models', () => {
+    expect(
+      resolvePlaygroundHandoff({
+        models: [{ label: 'gpt-4o', value: 'gpt-4o' }],
+        availableModels: ['gpt-4o'],
+        model: 'not-a-real-model',
+      })
+    ).toEqual({
+      models: [{ label: 'gpt-4o', value: 'gpt-4o' }],
     })
   })
 
@@ -58,6 +77,7 @@ describe('resolvePlaygroundHandoff', () => {
     expect(
       resolvePlaygroundHandoff({
         models: [{ label: 'gpt-4o', value: 'gpt-4o' }],
+        availableModels: ['gpt-4o'],
         model: '  ',
         prompt: '\n ',
       })

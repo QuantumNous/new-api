@@ -51,6 +51,7 @@ import {
   createLoadingAssistantMessage,
   createLoadingVideoMessage,
   getFirstRunChatOverride as resolveFirstRunChatOverride,
+  isPlaygroundChatModelName,
   isVideoGenModelName,
   pickFirstRunModel,
   shouldOpenFirstRunTopupPrompt,
@@ -182,8 +183,9 @@ export function Playground({
     if (messages.length > 0) updateMessages([])
   }, [firstRun, messages.length, updateMessages])
 
-  // Load models
-  const { data: modelsData, isLoading: isLoadingModels } = useQuery({
+  // Load the complete backend-authorized model set. Picker filtering remains
+  // separate so a filtered handoff model can still be validated before use.
+  const { data: availableModelsData, isLoading: isLoadingModels } = useQuery({
     queryKey: ['playground-models', config.group],
     queryFn: async () => {
       try {
@@ -198,6 +200,14 @@ export function Playground({
       }
     },
   })
+
+  const chatModelsData = useMemo(
+    () =>
+      (availableModelsData ?? [])
+        .filter(isPlaygroundChatModelName)
+        .map((model) => ({ label: model, value: model })),
+    [availableModelsData]
+  )
 
   // Load groups only when the current user can choose token groups.
   const { data: groupsData } = useQuery({
@@ -220,20 +230,27 @@ export function Playground({
   const handoff = useMemo(
     () =>
       resolvePlaygroundHandoff({
-        models: modelsData ?? [],
+        models: chatModelsData,
+        availableModels: availableModelsData ?? [],
         model: resolvePlaygroundHandoffModel(
           initialModel,
           retainedHandoffModel
         ),
         prompt: initialPrompt,
       }),
-    [initialModel, initialPrompt, modelsData, retainedHandoffModel]
+    [
+      availableModelsData,
+      chatModelsData,
+      initialModel,
+      initialPrompt,
+      retainedHandoffModel,
+    ]
   )
 
   const firstRunModel = useMemo(() => {
-    if (!firstRun || !modelsData?.length) return undefined
-    return pickFirstRunModel(modelsData, playgroundDefaultModel)
-  }, [firstRun, modelsData, playgroundDefaultModel])
+    if (!firstRun || !chatModelsData.length) return undefined
+    return pickFirstRunModel(chatModelsData, playgroundDefaultModel)
+  }, [firstRun, chatModelsData, playgroundDefaultModel])
 
   const isCurrentModelValid =
     !!config.model &&
@@ -263,17 +280,14 @@ export function Playground({
 
   // Update models when data changes
   useEffect(() => {
-    if (
-      handoff.model &&
-      appliedInitialModelRef.current !== handoff.model
-    ) {
+    if (handoff.model && appliedInitialModelRef.current !== handoff.model) {
       appliedInitialModelRef.current = handoff.model
       setUserPickedModel(true)
       updateConfig('model', handoff.model)
       return
     }
 
-    if (!modelsData) return
+    if (availableModelsData === undefined) return
 
     setModels(handoff.models)
 
@@ -291,7 +305,7 @@ export function Playground({
       updateConfig('model', handoff.models[0]?.value ?? '')
     }
   }, [
-    modelsData,
+    availableModelsData,
     config.model,
     firstRun,
     firstRunModel,
@@ -430,14 +444,24 @@ export function Playground({
     isPtFirstCallExperiment,
   ])
 
-  const prepareFirstRunSend = useCallback(() => {
-    if (firstRun && !isFirstRunModelApplied) {
-      toast.error(i18next.t('Failed to load playground models'))
-      return false
-    }
-    if (firstRun) setSentThisSession(true)
-    return true
-  }, [firstRun, isFirstRunModelApplied])
+  const prepareSend = useCallback(
+    (targetModel: string) => {
+      const isTargetModelValid = handoff.models.some(
+        (model) => model.value === targetModel
+      )
+      if (!isTargetModelValid) {
+        toast.error(i18next.t('Failed to load playground models'))
+        return false
+      }
+      if (firstRun && !isFirstRunModelApplied) {
+        toast.error(i18next.t('Failed to load playground models'))
+        return false
+      }
+      if (firstRun) setSentThisSession(true)
+      return true
+    },
+    [firstRun, handoff.models, isFirstRunModelApplied]
+  )
 
   const clearModelGeneratorDraft = useCallback(() => {
     const storageKey = window.localStorage.getItem(
@@ -467,13 +491,11 @@ export function Playground({
 
   const handleSendMessage = useCallback(
     (text: string, model?: string) => {
-      if (!prepareFirstRunSend()) return
+      const targetModel = model || config.model
+      if (!prepareSend(targetModel)) return
       clearModelGeneratorDraft()
       clearPlaygroundHandoffSearch()
       const userMessage = createUserMessage(text)
-      // The effective model for THIS send: an example chip / override wins,
-      // otherwise the currently selected model.
-      const targetModel = model || config.model
 
       // An example prompt (or the picker) can force a specific model. Persist the
       // selection so the picker reflects it, and mark it as an explicit user choice
@@ -516,7 +538,7 @@ export function Playground({
       generateVideo,
       getFirstRunChatOverride,
       messages,
-      prepareFirstRunSend,
+      prepareSend,
       sendChat,
       setUserPickedModel,
       updateConfig,
@@ -534,6 +556,12 @@ export function Playground({
     // Find the message index and regenerate from there
     const messageIndex = messages.findIndex((m) => m.key === message.key)
     if (messageIndex === -1) return
+
+    const chatOverride = getFirstRunChatOverride()
+    const targetModel = isVideoGenModelName(config.model)
+      ? config.model
+      : (chatOverride?.model ?? config.model)
+    if (!prepareSend(targetModel)) return
 
     // Remove messages after this one and regenerate
     const messagesUpToHere = messages.slice(0, messageIndex)
@@ -556,7 +584,7 @@ export function Playground({
     const newMessages = [...messagesUpToHere, loadingMessage]
 
     updateMessages(newMessages)
-    sendChat(newMessages, getFirstRunChatOverride())
+    sendChat(newMessages, chatOverride)
   }
 
   const handleEditMessage = useCallback((message: MessageType) => {
@@ -591,14 +619,17 @@ export function Playground({
         ...updated.slice(0, index + 1),
         createLoadingAssistantMessage(),
       ]
-      if (!prepareFirstRunSend()) return
+      const chatOverride = getFirstRunChatOverride()
+      const targetModel = chatOverride?.model ?? config.model
+      if (!prepareSend(targetModel)) return
       updateMessages(toSubmit)
-      sendChat(toSubmit, getFirstRunChatOverride())
+      sendChat(toSubmit, chatOverride)
     },
     [
       editingMessageKey,
+      config.model,
       messages,
-      prepareFirstRunSend,
+      prepareSend,
       updateMessages,
       sendChat,
       getFirstRunChatOverride,
@@ -653,7 +684,7 @@ export function Playground({
         <PlaygroundInput
           disabled={isGenerating}
           initialText={handoff.prompt}
-          submitDisabled={!isFirstRunModelReady}
+          submitDisabled={!isCurrentModelValid || !isFirstRunModelReady}
           showGroupSelector={canUseGroups}
           groups={groups}
           groupValue={config.group}

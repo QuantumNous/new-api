@@ -20,6 +20,7 @@ import type { ModelOption, PlaygroundConfig } from '../types'
 
 type PlaygroundHandoffInput = {
   models: readonly ModelOption[]
+  availableModels: readonly string[]
   model?: string
   prompt?: string
 }
@@ -53,14 +54,19 @@ export function resolvePlaygroundHandoff(
   const model = resolvePlaygroundHandoffModel(input.model)
   const prompt = input.prompt?.trim()
   const models = [...input.models]
+  const availableModel =
+    model && input.availableModels.includes(model) ? model : undefined
 
-  if (model && !models.some((option) => option.value === model)) {
-    models.unshift({ label: model, value: model })
+  if (
+    availableModel &&
+    !models.some((option) => option.value === availableModel)
+  ) {
+    models.unshift({ label: availableModel, value: availableModel })
   }
 
   return {
     models,
-    ...(model ? { model } : {}),
+    ...(availableModel ? { model: availableModel } : {}),
     ...(prompt ? { prompt } : {}),
   }
 }

@@ -44,7 +44,12 @@ import type { Message, PlaygroundConfig } from './types'
 type CapturedInputProps = {
   initialText?: string
   modelValue: string
+  submitDisabled?: boolean
   onSubmit: (text: string) => void
+}
+
+type CapturedChatProps = {
+  onRegenerateMessage: (message: Message) => void
 }
 
 const navigateMock = mock(() => undefined)
@@ -56,7 +61,11 @@ const updateMessagesMock = mock(() => undefined)
 const setModelsMock = mock(() => undefined)
 const setGroupsMock = mock(() => undefined)
 let capturedInputProps: CapturedInputProps | undefined
+let capturedChatProps: CapturedChatProps | undefined
 let receivedInitialModel: string | undefined
+let modelsQueryData: string[] | undefined
+let isModelsQueryLoading = true
+let playgroundMessages: Message[] = []
 
 spyOn(reactQueryModule, 'useQuery').mockImplementation((({
   queryKey,
@@ -64,7 +73,7 @@ spyOn(reactQueryModule, 'useQuery').mockImplementation((({
   queryKey: string[]
 }) =>
   queryKey[0] === 'playground-models'
-    ? { data: undefined, isLoading: true }
+    ? { data: modelsQueryData, isLoading: isModelsQueryLoading }
     : { data: undefined }) as never)
 
 spyOn(reactRouterModule, 'useNavigate').mockImplementation(
@@ -86,9 +95,12 @@ spyOn(systemConfigModule, 'useSystemConfig').mockImplementation((() => ({
   playgroundDefaultModel: undefined,
 })) as never)
 
-spyOn(playgroundChatModule, 'PlaygroundChat').mockImplementation(
-  (() => null) as never
-)
+spyOn(playgroundChatModule, 'PlaygroundChat').mockImplementation(((
+  props: CapturedChatProps
+) => {
+  capturedChatProps = props
+  return null
+}) as never)
 
 spyOn(playgroundFirstRunModule, 'FirstRunWelcome').mockImplementation(
   (() => null) as never
@@ -113,7 +125,7 @@ spyOn(playgroundHooksModule, 'usePlaygroundState').mockImplementation(((
   return {
     config,
     parameterEnabled: DEFAULT_PARAMETER_ENABLED,
-    messages: [],
+    messages: playgroundMessages,
     models: [],
     groups: [],
     updateMessages: updateMessagesMock,
@@ -156,9 +168,12 @@ Object.defineProperty(globalThis, 'window', {
 
 const { Playground } = await import('./index')
 
-function renderHandoff() {
+function renderHandoff(
+  initialModel = 'gpt-image-2',
+  initialPrompt = 'Draw a violet fox'
+) {
   renderToStaticMarkup(
-    <Playground initialModel='gpt-image-2' initialPrompt='Draw a violet fox' />
+    <Playground initialModel={initialModel} initialPrompt={initialPrompt} />
   )
   if (!capturedInputProps) throw new Error('PlaygroundInput was not rendered')
   return capturedInputProps
@@ -166,7 +181,11 @@ function renderHandoff() {
 
 beforeEach(() => {
   capturedInputProps = undefined
+  capturedChatProps = undefined
   receivedInitialModel = undefined
+  modelsQueryData = undefined
+  isModelsQueryLoading = true
+  playgroundMessages = []
   navigateMock.mockClear()
   sendChatMock.mockClear()
   updateConfigMock.mockClear()
@@ -176,13 +195,27 @@ beforeEach(() => {
 })
 
 describe('Playground model landing handoff', () => {
-  test('uses the requested model before the async model list resolves', () => {
+  test('shows the requested model but blocks submit until it is validated', () => {
     const input = renderHandoff()
 
     expect(receivedInitialModel).toBe('gpt-image-2')
     expect(input.modelValue).toBe('gpt-image-2')
     expect(input.initialText).toBe('Draw a violet fox')
+    expect(input.submitDisabled).toBe(true)
     expect(sendChatMock).not.toHaveBeenCalled()
+
+    input.onSubmit('Draw a violet fox')
+
+    expect(sendChatMock).not.toHaveBeenCalled()
+  })
+
+  test('submits an authorized image model after the model list resolves', () => {
+    modelsQueryData = ['gpt-4o', 'gpt-image-2']
+    isModelsQueryLoading = false
+    const input = renderHandoff()
+
+    expect(input.modelValue).toBe('gpt-image-2')
+    expect(input.submitDisabled).toBe(false)
 
     input.onSubmit('Draw a violet fox')
 
@@ -190,7 +223,43 @@ describe('Playground model landing handoff', () => {
     expect(sendChatMock.mock.calls[0]?.[0].model).toBe('gpt-image-2')
   })
 
+  test('blocks a URL model missing from the user model list', () => {
+    modelsQueryData = ['gpt-4o']
+    isModelsQueryLoading = false
+    const input = renderHandoff('not-a-real-model', 'Draw a violet fox')
+
+    expect(input.submitDisabled).toBe(true)
+
+    input.onSubmit('Draw a violet fox')
+
+    expect(sendChatMock).not.toHaveBeenCalled()
+  })
+
+  test('blocks regenerate until the URL model is validated', () => {
+    playgroundMessages = [
+      {
+        key: 'user-message',
+        from: 'user',
+        versions: [{ id: 'user-version', content: 'Draw a violet fox' }],
+      },
+      {
+        key: 'assistant-message',
+        from: 'assistant',
+        versions: [{ id: 'assistant-version', content: 'Previous result' }],
+      },
+    ]
+    renderHandoff()
+    if (!capturedChatProps) throw new Error('PlaygroundChat was not rendered')
+
+    capturedChatProps.onRegenerateMessage(playgroundMessages[1])
+
+    expect(updateMessagesMock).not.toHaveBeenCalled()
+    expect(sendChatMock).not.toHaveBeenCalled()
+  })
+
   test('removes replayable handoff search state after explicit submit', () => {
+    modelsQueryData = ['gpt-4o', 'gpt-image-2']
+    isModelsQueryLoading = false
     const input = renderHandoff()
 
     input.onSubmit('Draw a violet fox')
