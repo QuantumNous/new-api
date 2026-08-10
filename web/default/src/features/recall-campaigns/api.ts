@@ -147,6 +147,7 @@ function encodeRecallCampaignDraft(
   if (draft.execution_mode === 'continuous') {
     return {
       ...draft,
+      campaign_type: 'content_only',
       audience_template: '',
       audience_config: {},
       discount_config: {},

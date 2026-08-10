@@ -1,6 +1,5 @@
 import type { UseFormReturn } from 'react-hook-form'
 import {
-  convertRecallBodyTextToHtml,
   getRecallEmailStarterHtml,
   normalizeRecallBodyInputToHtml,
 } from './email-html'
@@ -470,7 +469,7 @@ export function prepareRecallCampaignSubmitDraft(
             const bodyText = template.body_text?.trim()
             let normalizedBodyHTML = ''
             if (bodyText) {
-              normalizedBodyHTML = convertRecallBodyTextToHtml(
+              normalizedBodyHTML = normalizeRecallBodyInputToHtml(
                 template.body_text ?? '',
                 effectiveCampaignType,
                 effectiveDeliveryPolicy

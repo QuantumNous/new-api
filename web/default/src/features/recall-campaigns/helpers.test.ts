@@ -261,6 +261,26 @@ describe('recall campaign editor normalization', () => {
     expect(recallCampaignDraftSchema.safeParse(normalized).success).toBe(true)
   })
 
+  test('strips forbidden service-policy actions from continuous legacy text bodies at submit', () => {
+    const draft = makeContinuousDraft()
+    draft.email_sequence[0].templates.en = {
+      subject: 'Quota update',
+      body_text: [
+        'Quota notice',
+        'Claim {{.ClaimURL}}',
+        'Unsubscribe {{.UnsubscribeURL}}',
+      ].join('\n'),
+      body_html: '',
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+    const bodyHtml = normalized.email_sequence[0].templates.en.body_html
+
+    expect(bodyHtml).toContain('Quota notice')
+    expect(bodyHtml).not.toContain('{{.ClaimURL}}')
+    expect(bodyHtml).not.toContain('{{.UnsubscribeURL}}')
+  })
+
   test('hydrates missing continuous delivery policy from the lifecycle trigger', () => {
     const draft = makeContinuousDraft()
     draft.lifecycle_trigger = 'payment_succeeded'

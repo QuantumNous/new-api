@@ -139,6 +139,7 @@ describe('recall campaign API contracts', () => {
     const draft = makeRecallDraft()
     return {
       ...draft,
+      campaign_type: 'promotion',
       audience_template: 'first_purchase',
       audience_config: {
         ...makeZeroAudienceConfig(),
@@ -277,6 +278,7 @@ describe('recall campaign API contracts', () => {
     await createRecallCampaign(makeContinuousDraftWithStaleCanonicalFields())
 
     expect(parseCapturedPayload()).toMatchObject({
+      campaign_type: 'content_only',
       audience_template: '',
       audience_config: {},
       discount_config: {},
