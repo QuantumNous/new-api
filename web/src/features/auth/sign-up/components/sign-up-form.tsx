@@ -26,7 +26,6 @@ import type { z } from 'zod'
 
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
-import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -44,7 +43,6 @@ import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
-import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import {
   getAffiliateCode,
   saveAffiliateCode,
@@ -65,27 +63,16 @@ export function SignUpForm({
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
-  const {
-    isTurnstileEnabled,
-    turnstileSiteKey,
-    turnstileToken,
-    setTurnstileToken,
-    validateTurnstile,
-  } = useTurnstile()
   const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
     isSending: isSendingCode,
     secondsLeft,
     isActive,
     sendCode,
-  } = useEmailVerification({
-    turnstileToken,
-    validateTurnstile,
-  })
+  } = useEmailVerification()
 
   const form = useForm<z.infer<typeof registerFormSchema>>({
     resolver: zodResolver(registerFormSchema),
@@ -107,7 +94,6 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
-  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -156,8 +142,6 @@ export function SignUpForm({
       }
     }
 
-    if (!validateTurnstile()) return
-
     setIsLoading(true)
     try {
       const res = await register({
@@ -166,7 +150,6 @@ export function SignUpForm({
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
-        turnstile: turnstileToken,
       })
 
       if (res?.success) {
@@ -183,10 +166,7 @@ export function SignUpForm({
   }
 
   async function handleSendVerificationCode() {
-    if (await sendCode(emailValue || '')) {
-      setTurnstileToken('')
-      setTurnstileWidgetKey((current) => current + 1)
-    }
+    await sendCode(emailValue || '')
   }
 
   const handleOpenWeChatDialog = () => {
@@ -335,8 +315,7 @@ export function SignUpForm({
                   isLoading ||
                   isSendingCode ||
                   isActive ||
-                  !emailValue ||
-                  !turnstileReady
+                  !emailValue
                 }
                 onClick={handleSendVerificationCode}
               >
@@ -344,17 +323,6 @@ export function SignUpForm({
               </Button>
             </div>
           </>
-        )}
-
-        {/* Turnstile */}
-        {isTurnstileEnabled && (
-          <div className='mt-2'>
-            <Turnstile
-              key={turnstileWidgetKey}
-              siteKey={turnstileSiteKey}
-              onVerify={setTurnstileToken}
-            />
-          </div>
         )}
 
         <LegalConsent
@@ -370,8 +338,7 @@ export function SignUpForm({
           className='mt-2 w-full justify-center gap-2'
           disabled={
             isLoading ||
-            (requiresLegalConsent && !agreedToLegal) ||
-            !turnstileReady
+            (requiresLegalConsent && !agreedToLegal)
           }
         >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}

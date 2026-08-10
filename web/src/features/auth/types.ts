@@ -25,7 +25,6 @@ import type { AuthBundle } from '@/stores/auth-store'
 export interface LoginPayload {
   username: string
   password: string
-  turnstile?: string
 }
 
 export interface TwoFAPayload {
@@ -39,17 +38,14 @@ export interface RegisterPayload {
   email?: string
   verification_code?: string
   aff_code?: string
-  turnstile?: string
 }
 
 export interface PasswordResetPayload {
   email: string
-  turnstile?: string
 }
 
 export interface EmailVerificationPayload {
   email: string
-  turnstile?: string
 }
 
 export interface BindEmailPayload {
@@ -116,8 +112,6 @@ export interface SystemStatus {
     wechat_qr_code_image_url?: string
     wechat_account_qrcode_image_url?: string
     WeChatAccountQRCodeImageURL?: string
-    turnstile_check?: boolean
-    turnstile_site_key?: string
     email_verification?: boolean
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
@@ -161,8 +155,6 @@ export interface SystemStatus {
   wechat_qr_code_image_url?: string
   wechat_account_qrcode_image_url?: string
   WeChatAccountQRCodeImageURL?: string
-  turnstile_check?: boolean
-  turnstile_site_key?: string
   email_verification?: boolean
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean

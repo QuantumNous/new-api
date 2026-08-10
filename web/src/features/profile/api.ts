@@ -99,13 +99,9 @@ export async function generateAccessToken(): Promise<ApiResponse<string>> {
  * Send email verification code
  */
 export async function sendEmailVerification(
-  email: string,
-  turnstileToken?: string
+  email: string
 ): Promise<ApiResponse> {
   const params = new URLSearchParams({ email })
-  if (turnstileToken) {
-    params.append('turnstile', turnstileToken)
-  }
   const res = await api.get(`/api/verification?${params}`)
   return res.data
 }
@@ -215,12 +211,7 @@ export async function getCheckinStatus(
 /**
  * Perform daily checkin
  */
-export async function performCheckin(
-  turnstileToken?: string
-): Promise<ApiResponse<CheckinResponse>> {
-  const url = turnstileToken
-    ? `/api/user/checkin?turnstile=${encodeURIComponent(turnstileToken)}`
-    : '/api/user/checkin'
-  const res = await api.post(url)
+export async function performCheckin(): Promise<ApiResponse<CheckinResponse>> {
+  const res = await api.post('/api/user/checkin')
   return res.data
 }

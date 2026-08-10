@@ -1,0 +1,1180 @@
+diff --git a/common/constants.go b/common/constants.go
+index d6b4fb5..7a25b2f 100644
+--- a/common/constants.go
++++ b/common/constants.go
+@@ -66,7 +66,6 @@ var GitHubOAuthEnabled = false
+ var LinuxDOOAuthEnabled = false
+ var WeChatAuthEnabled = false
+ var TelegramOAuthEnabled = false
+-var TurnstileCheckEnabled = false
+ var RegisterEnabled = true
+ 
+ var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
+@@ -115,8 +114,6 @@ var WeChatServerAddress = ""
+ var WeChatServerToken = ""
+ var WeChatAccountQRCodeImageURL = ""
+ 
+-var TurnstileSiteKey = ""
+-var TurnstileSecretKey = ""
+ 
+ var TelegramBotToken = ""
+ var TelegramBotName = ""
+diff --git a/controller/misc.go b/controller/misc.go
+index 7343b12..5344284 100644
+--- a/controller/misc.go
++++ b/controller/misc.go
+@@ -70,8 +70,6 @@ func GetStatus(c *gin.Context) {
+ 		"wechat_qrcode":               common.WeChatAccountQRCodeImageURL,
+ 		"wechat_login":                common.WeChatAuthEnabled,
+ 		"server_address":              system_setting.ServerAddress,
+-		"turnstile_check":             common.TurnstileCheckEnabled,
+-		"turnstile_site_key":          common.TurnstileSiteKey,
+ 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
+ 		"quota_per_unit":              common.QuotaPerUnit,
+ 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
+diff --git a/controller/option.go b/controller/option.go
+index 940bb30..0486f4c 100644
+--- a/controller/option.go
++++ b/controller/option.go
+@@ -200,15 +200,6 @@ func UpdateOption(c *gin.Context) {
+ 				"success": false,
+ 				"message": "无法启用微信登录，请先填入微信登录相关配置信息！",
+ 			})
+-			return
+-		}
+-	case "TurnstileCheckEnabled":
+-		if option.Value == "true" && common.TurnstileSiteKey == "" {
+-			c.JSON(http.StatusOK, gin.H{
+-				"success": false,
+-				"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
+-			})
+-
+ 			return
+ 		}
+ 	case "TelegramOAuthEnabled":
+diff --git a/middleware/turnstile-check.go b/middleware/turnstile-check.go
+deleted file mode 100644
+index 6d7f1ee..0000000
+--- a/middleware/turnstile-check.go
++++ /dev/null
+@@ -1,64 +0,0 @@
+-package middleware
+-
+-import (
+-	"net/http"
+-	"net/url"
+-
+-	"github.com/QuantumNous/new-api/common"
+-	"github.com/gin-gonic/gin"
+-)
+-
+-type turnstileCheckResponse struct {
+-	Success bool `json:"success"`
+-}
+-
+-func TurnstileCheck() gin.HandlerFunc {
+-	return func(c *gin.Context) {
+-		if common.TurnstileCheckEnabled {
+-			response := c.Query("turnstile")
+-			if response == "" {
+-				c.JSON(http.StatusOK, gin.H{
+-					"success": false,
+-					"message": "Turnstile token 为空",
+-				})
+-				c.Abort()
+-				return
+-			}
+-			rawRes, err := http.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", url.Values{
+-				"secret":   {common.TurnstileSecretKey},
+-				"response": {response},
+-				"remoteip": {c.ClientIP()},
+-			})
+-			if err != nil {
+-				common.SysLog(err.Error())
+-				c.JSON(http.StatusOK, gin.H{
+-					"success": false,
+-					"message": err.Error(),
+-				})
+-				c.Abort()
+-				return
+-			}
+-			defer rawRes.Body.Close()
+-			var res turnstileCheckResponse
+-			err = common.DecodeJson(rawRes.Body, &res)
+-			if err != nil {
+-				common.SysLog(err.Error())
+-				c.JSON(http.StatusOK, gin.H{
+-					"success": false,
+-					"message": err.Error(),
+-				})
+-				c.Abort()
+-				return
+-			}
+-			if !res.Success {
+-				c.JSON(http.StatusOK, gin.H{
+-					"success": false,
+-					"message": "Turnstile 校验失败，请刷新重试！",
+-				})
+-				c.Abort()
+-				return
+-			}
+-		}
+-		c.Next()
+-	}
+-}
+diff --git a/model/option.go b/model/option.go
+index e7fda52..79632b7 100644
+--- a/model/option.go
++++ b/model/option.go
+@@ -43,7 +43,6 @@ func InitOptionMap() {
+ 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
+ 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
+ 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
+-	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
+ 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
+ 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
+ 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
+@@ -129,8 +128,6 @@ func InitOptionMap() {
+ 	common.OptionMap["WeChatServerAddress"] = ""
+ 	common.OptionMap["WeChatServerToken"] = ""
+ 	common.OptionMap["WeChatAccountQRCodeImageURL"] = ""
+-	common.OptionMap["TurnstileSiteKey"] = ""
+-	common.OptionMap["TurnstileSecretKey"] = ""
+ 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
+ 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
+ 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+@@ -319,8 +316,6 @@ func updateOptionMap(key string, value string) (err error) {
+ 			common.WeChatAuthEnabled = boolValue
+ 		case "TelegramOAuthEnabled":
+ 			common.TelegramOAuthEnabled = boolValue
+-		case "TurnstileCheckEnabled":
+-			common.TurnstileCheckEnabled = boolValue
+ 		case "RegisterEnabled":
+ 			common.RegisterEnabled = boolValue
+ 		case "EmailDomainRestrictionEnabled":
+@@ -523,10 +518,6 @@ func updateOptionMap(key string, value string) (err error) {
+ 		common.TelegramBotToken = value
+ 	case "TelegramBotName":
+ 		common.TelegramBotName = value
+-	case "TurnstileSiteKey":
+-		common.TurnstileSiteKey = value
+-	case "TurnstileSecretKey":
+-		common.TurnstileSecretKey = value
+ 	case "QuotaForNewUser":
+ 		common.QuotaForNewUser, _ = strconv.Atoi(value)
+ 	case "QuotaForInviter":
+diff --git a/router/api-router.go b/router/api-router.go
+index 2b0bfd6..e25e4c4 100644
+--- a/router/api-router.go
++++ b/router/api-router.go
+@@ -39,8 +39,8 @@ func SetApiRouter(router *gin.Engine) {
+ 			perfMetricsRoute.GET("", controller.GetPerfMetrics)
+ 		}
+ 		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), controller.GetRankings)
+-		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
+-		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
++		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), controller.SendEmailVerification)
++		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), controller.SendPasswordResetEmail)
+ 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
+ 		// OAuth routes - specific routes must come before :provider wildcard
+ 		apiRouter.POST("/oauth/state", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.TryUserAuth(), anonymousRequestBodyLimit, controller.GenerateOAuthCode)
+@@ -69,8 +69,8 @@ func SetApiRouter(router *gin.Engine) {
+ 		{
+ 			userRoute.POST("/auth/refresh", middleware.SessionCookieOriginGuard(), middleware.CriticalRateLimit(), middleware.DisableCache(), controller.RefreshAuth)
+ 			userRoute.POST("/auth/logout", middleware.SessionCookieOriginGuard(), middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AuthLogout)
+-			userRoute.POST("/register", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, middleware.TurnstileCheck(), controller.Register)
+-			userRoute.POST("/login", middleware.CriticalRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, middleware.TurnstileCheck(), controller.Login)
++			userRoute.POST("/register", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.Register)
++			userRoute.POST("/login", middleware.CriticalRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, controller.Login)
+ 			userRoute.POST("/login/2fa", middleware.CriticalRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, controller.Verify2FALogin)
+ 			userRoute.POST("/passkey/login/begin", middleware.CriticalRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, controller.PasskeyLoginBegin)
+ 			userRoute.POST("/passkey/login/finish", middleware.CriticalRateLimit(), middleware.DisableCache(), anonymousRequestBodyLimit, controller.PasskeyLoginFinish)
+@@ -122,7 +122,7 @@ func SetApiRouter(router *gin.Engine) {
+ 
+ 				// Check-in routes
+ 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
+-				selfRoute.POST("/checkin", middleware.TurnstileCheck(), controller.DoCheckin)
++				selfRoute.POST("/checkin", middleware.CriticalRateLimit(), controller.DoCheckin)
+ 
+ 				// Custom OAuth bindings
+ 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
+diff --git a/web/package.json b/web/package.json
+index 0901b39..c23db90 100644
+--- a/web/package.json
++++ b/web/package.json
+@@ -31,6 +31,7 @@
+     "@hugeicons/react": "^1.1.9",
+     "@lezer/highlight": "^1.2.3",
+     "@lobehub/icons": "^5.10.1",
++    "@lobehub/ui": "^5.29.1",
+     "@tanstack/react-query": "^5.101.2",
+     "@tanstack/react-router": "^1.170.17",
+     "@tanstack/react-table": "^8.21.3",
+@@ -38,6 +39,7 @@
+     "@visactor/react-vchart": "^2.1.2",
+     "@visactor/vchart": "^2.1.2",
+     "ai": "^7.0.14",
++    "antd": "^6.5.4",
+     "auto-skeleton-react": "^1.0.5",
+     "axios": "^1.18.1",
+     "class-variance-authority": "^0.7.1",
+diff --git a/web/src/components/turnstile.tsx b/web/src/components/turnstile.tsx
+deleted file mode 100644
+index 87b2c92..0000000
+--- a/web/src/components/turnstile.tsx
++++ /dev/null
+@@ -1,76 +0,0 @@
+-/*
+-Copyright (C) 2023-2026 QuantumNous
+-
+-This program is free software: you can redistribute it and/or modify
+-it under the terms of the GNU Affero General Public License as
+-published by the Free Software Foundation, either version 3 of the
+-License, or (at your option) any later version.
+-
+-This program is distributed in the hope that it will be useful,
+-but WITHOUT ANY WARRANTY; without even the implied warranty of
+-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+-GNU Affero General Public License for more details.
+-
+-You should have received a copy of the GNU Affero General Public License
+-along with this program. If not, see <https://www.gnu.org/licenses/>.
+-
+-For commercial licensing, please contact support@quantumnous.com
+-*/
+-import { useEffect, useRef } from 'react'
+-
+-declare global {
+-  interface Window {
+-    turnstile?: {
+-      render: (element: HTMLElement, options: Record<string, unknown>) => void
+-    }
+-  }
+-}
+-
+-interface TurnstileProps {
+-  siteKey: string
+-  onVerify: (token: string) => void
+-  onExpire?: () => void
+-  className?: string
+-}
+-
+-export function Turnstile({
+-  siteKey,
+-  onVerify,
+-  onExpire,
+-  className,
+-}: TurnstileProps) {
+-  const ref = useRef<HTMLDivElement | null>(null)
+-
+-  useEffect(() => {
+-    const render = () => {
+-      if (!ref.current || !window.turnstile) return
+-      try {
+-        window.turnstile.render(ref.current, {
+-          sitekey: siteKey,
+-          callback: (token: string) => onVerify(token),
+-          'error-callback': () => onExpire?.(),
+-          'expired-callback': () => onExpire?.(),
+-        })
+-      } catch {
+-        /* empty */
+-      }
+-    }
+-
+-    if (window.turnstile) {
+-      render()
+-      return
+-    }
+-    const scriptId = 'cf-turnstile'
+-    if (document.getElementById(scriptId)) return
+-    const s = document.createElement('script')
+-    s.id = scriptId
+-    s.src =
+-      'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+-    s.async = true
+-    s.defer = true
+-    s.onload = () => render()
+-    document.head.appendChild(s)
+-  }, [siteKey, onVerify, onExpire])
+-
+-  return <div ref={ref} className={className} />
+-}
+diff --git a/web/src/features/auth/api.ts b/web/src/features/auth/api.ts
+index 7a3ec38..718bf91 100644
+--- a/web/src/features/auth/api.ts
++++ b/web/src/features/auth/api.ts
+@@ -42,9 +42,8 @@ import type {
+ 
+ // User login with username and password
+ export async function login(payload: LoginPayload) {
+-  const turnstile = payload.turnstile ?? ''
+   const res = await api.post<LoginResponse>(
+-    `/api/user/login?turnstile=${turnstile}`,
++    `/api/user/login`,
+     {
+       username: payload.username,
+       password: payload.password,
+@@ -118,11 +117,10 @@ export async function logout(): Promise<ApiResponse> {
+ 
+ // Send password reset email
+ export async function sendPasswordResetEmail(
+-  email: string,
+-  turnstile?: string
++  email: string
+ ): Promise<ApiResponse> {
+   const res = await api.get('/api/reset_password', {
+-    params: { email, turnstile },
++    params: { email },
+   })
+   return res.data
+ }
+@@ -182,19 +180,16 @@ export async function telegramLogin(
+ 
+ // User registration
+ export async function register(payload: RegisterPayload): Promise<ApiResponse> {
+-  const res = await api.post(`/api/user/register`, payload, {
+-    params: { turnstile: payload.turnstile ?? '' },
+-  })
++  const res = await api.post(`/api/user/register`, payload)
+   return res.data
+ }
+ 
+ // Send email verification code
+ export async function sendEmailVerification(
+-  email: string,
+-  turnstile?: string
++  email: string
+ ): Promise<ApiResponse> {
+   const res = await api.get('/api/verification', {
+-    params: { email, turnstile },
++    params: { email },
+   })
+   return res.data
+ }
+diff --git a/web/src/features/auth/forgot-password/components/forgot-password-form.tsx b/web/src/features/auth/forgot-password/components/forgot-password-form.tsx
+index 9ba9332..dda2416 100644
+--- a/web/src/features/auth/forgot-password/components/forgot-password-form.tsx
++++ b/web/src/features/auth/forgot-password/components/forgot-password-form.tsx
+@@ -24,7 +24,6 @@ import { useTranslation } from 'react-i18next'
+ import { toast } from 'sonner'
+ import type { z } from 'zod'
+ 
+-import { Turnstile } from '@/components/turnstile'
+ import { Button } from '@/components/ui/button'
+ import {
+   Form,
+@@ -40,7 +39,6 @@ import {
+   forgotPasswordFormSchema,
+   PASSWORD_RESET_COUNTDOWN,
+ } from '@/features/auth/constants'
+-import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
+ import { useCountdown } from '@/hooks/use-countdown'
+ import { cn } from '@/lib/utils'
+ 
+@@ -51,13 +49,6 @@ export function ForgotPasswordForm({
+   const { t } = useTranslation()
+   const [isLoading, setIsLoading] = useState(false)
+ 
+-  const {
+-    isTurnstileEnabled,
+-    turnstileSiteKey,
+-    turnstileToken,
+-    setTurnstileToken,
+-    validateTurnstile,
+-  } = useTurnstile()
+   const {
+     secondsLeft,
+     isActive,
+@@ -68,14 +59,11 @@ export function ForgotPasswordForm({
+     resolver: zodResolver(forgotPasswordFormSchema),
+     defaultValues: { email: '' },
+   })
+-  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
+ 
+   async function onSubmit(data: z.infer<typeof forgotPasswordFormSchema>) {
+-    if (!validateTurnstile()) return
+-
+     setIsLoading(true)
+     try {
+-      const res = await sendPasswordResetEmail(data.email, turnstileToken)
++      const res = await sendPasswordResetEmail(data.email)
+       if (res?.success) {
+         form.reset()
+         startCountdown()
+@@ -114,7 +102,7 @@ export function ForgotPasswordForm({
+         <Button
+           type='submit'
+           className='mt-2'
+-          disabled={isLoading || isActive || !turnstileReady}
++          disabled={isLoading || isActive}
+         >
+           {isActive
+             ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
+@@ -122,14 +110,6 @@ export function ForgotPasswordForm({
+           {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
+         </Button>
+ 
+-        {isTurnstileEnabled && (
+-          <div className='mt-2'>
+-            <Turnstile
+-              siteKey={turnstileSiteKey}
+-              onVerify={setTurnstileToken}
+-            />
+-          </div>
+-        )}
+       </form>
+     </Form>
+   )
+diff --git a/web/src/features/auth/hooks/use-email-verification.ts b/web/src/features/auth/hooks/use-email-verification.ts
+index 7fe79b6..8abc0b2 100644
+--- a/web/src/features/auth/hooks/use-email-verification.ts
++++ b/web/src/features/auth/hooks/use-email-verification.ts
+@@ -25,15 +25,10 @@ import { useCountdown } from '@/hooks/use-countdown'
+ import { sendEmailVerification } from '../api'
+ import { EMAIL_VERIFICATION_COUNTDOWN } from '../constants'
+ 
+-interface UseEmailVerificationOptions {
+-  turnstileToken?: string
+-  validateTurnstile?: () => boolean
+-}
+-
+ /**
+  * Hook for managing email verification code sending
+  */
+-export function useEmailVerification(options?: UseEmailVerificationOptions) {
++export function useEmailVerification() {
+   const [isSending, setIsSending] = useState(false)
+   const {
+     secondsLeft,
+@@ -50,14 +45,9 @@ export function useEmailVerification(options?: UseEmailVerificationOptions) {
+       return false
+     }
+ 
+-    // Validate turnstile if validation function is provided
+-    if (options?.validateTurnstile && !options.validateTurnstile()) {
+-      return false
+-    }
+-
+     setIsSending(true)
+     try {
+-      const res = await sendEmailVerification(email, options?.turnstileToken)
++      const res = await sendEmailVerification(email)
+       if (res?.success) {
+         startCountdown()
+         toast.success(i18next.t('Verification email sent'))
+diff --git a/web/src/features/auth/hooks/use-turnstile.ts b/web/src/features/auth/hooks/use-turnstile.ts
+deleted file mode 100644
+index bdeec63..0000000
+--- a/web/src/features/auth/hooks/use-turnstile.ts
++++ /dev/null
+@@ -1,57 +0,0 @@
+-/*
+-Copyright (C) 2023-2026 QuantumNous
+-
+-This program is free software: you can redistribute it and/or modify
+-it under the terms of the GNU Affero General Public License as
+-published by the Free Software Foundation, either version 3 of the
+-License, or (at your option) any later version.
+-
+-This program is distributed in the hope that it will be useful,
+-but WITHOUT ANY WARRANTY; without even the implied warranty of
+-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+-GNU Affero General Public License for more details.
+-
+-You should have received a copy of the GNU Affero General Public License
+-along with this program. If not, see <https://www.gnu.org/licenses/>.
+-
+-For commercial licensing, please contact support@quantumnous.com
+-*/
+-import i18next from 'i18next'
+-import { useState } from 'react'
+-import { toast } from 'sonner'
+-
+-import { useStatus } from '@/hooks/use-status'
+-
+-/**
+- * Hook for managing Turnstile verification
+- */
+-export function useTurnstile() {
+-  const { status } = useStatus()
+-  const [turnstileToken, setTurnstileToken] = useState('')
+-
+-  const isTurnstileEnabled = !!(
+-    status?.turnstile_check && status?.turnstile_site_key
+-  )
+-  const turnstileSiteKey = status?.turnstile_site_key || ''
+-
+-  /**
+-   * Validate if turnstile is ready when required
+-   */
+-  const validateTurnstile = (): boolean => {
+-    if (isTurnstileEnabled && !turnstileToken) {
+-      toast.info(
+-        i18next.t('Please wait a moment, human check is initializing...')
+-      )
+-      return false
+-    }
+-    return true
+-  }
+-
+-  return {
+-    isTurnstileEnabled,
+-    turnstileSiteKey,
+-    turnstileToken,
+-    setTurnstileToken,
+-    validateTurnstile,
+-  }
+-}
+diff --git a/web/src/features/auth/index.ts b/web/src/features/auth/index.ts
+index 4b8c56a..c7be0f7 100644
+--- a/web/src/features/auth/index.ts
++++ b/web/src/features/auth/index.ts
+@@ -99,7 +99,6 @@ export {
+ // Hooks
+ // ============================================================================
+ 
+-export { useTurnstile } from './hooks/use-turnstile'
+ export { useOAuthLogin } from './hooks/use-oauth-login'
+ export { useAuthRedirect } from './hooks/use-auth-redirect'
+ export { useEmailVerification } from './hooks/use-email-verification'
+diff --git a/web/src/features/auth/sign-in/components/user-auth-form.tsx b/web/src/features/auth/sign-in/components/user-auth-form.tsx
+index 39d41a6..88027b8 100644
+--- a/web/src/features/auth/sign-in/components/user-auth-form.tsx
++++ b/web/src/features/auth/sign-in/components/user-auth-form.tsx
+@@ -28,7 +28,6 @@ import type { z } from 'zod'
+ 
+ import { Dialog } from '@/components/dialog'
+ import { PasswordInput } from '@/components/password-input'
+-import { Turnstile } from '@/components/turnstile'
+ import { Button } from '@/components/ui/button'
+ import {
+   Form,
+@@ -45,7 +44,6 @@ import { LegalConsent } from '@/features/auth/components/legal-consent'
+ import { OAuthProviders } from '@/features/auth/components/oauth-providers'
+ import { loginFormSchema } from '@/features/auth/constants'
+ import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
+-import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
+ import { beginPasskeyLogin, finishPasskeyLogin } from '@/features/auth/passkey'
+ import type { AuthFormProps } from '@/features/auth/types'
+ import { useStatus } from '@/hooks/use-status'
+@@ -83,13 +81,6 @@ export function UserAuthForm({
+     (status?.password_login_enabled ??
+       status?.data?.password_login_enabled ??
+       true) !== false
+-  const {
+-    isTurnstileEnabled,
+-    turnstileSiteKey,
+-    turnstileToken,
+-    setTurnstileToken,
+-    validateTurnstile,
+-  } = useTurnstile()
+   const { handleLoginSuccess, redirectTo2FA } = useAuthRedirect()
+   const setPending2FAFlowToken = useAuthStore(
+     (state) => state.auth.setPending2FAFlowToken
+@@ -156,14 +147,11 @@ export function UserAuthForm({
+       return
+     }
+ 
+-    if (!validateTurnstile()) return
+-
+     setIsLoading(true)
+     try {
+       const res = await login({
+         username: data.username,
+         password: data.password,
+-        turnstile: turnstileToken,
+       })
+ 
+       if (res.success) {
+@@ -404,15 +392,6 @@ export function UserAuthForm({
+               {t('Sign in')}
+             </Button>
+ 
+-            {/* Turnstile */}
+-            {isTurnstileEnabled && (
+-              <div className='mt-2'>
+-                <Turnstile
+-                  siteKey={turnstileSiteKey}
+-                  onVerify={setTurnstileToken}
+-                />
+-              </div>
+-            )}
+           </>
+         )}
+ 
+diff --git a/web/src/features/auth/sign-up/components/sign-up-form.tsx b/web/src/features/auth/sign-up/components/sign-up-form.tsx
+index 56e2d00..b82531f 100644
+--- a/web/src/features/auth/sign-up/components/sign-up-form.tsx
++++ b/web/src/features/auth/sign-up/components/sign-up-form.tsx
+@@ -26,7 +26,6 @@ import type { z } from 'zod'
+ 
+ import { Dialog } from '@/components/dialog'
+ import { PasswordInput } from '@/components/password-input'
+-import { Turnstile } from '@/components/turnstile'
+ import { Button } from '@/components/ui/button'
+ import {
+   Form,
+@@ -44,7 +43,6 @@ import { OAuthProviders } from '@/features/auth/components/oauth-providers'
+ import { registerFormSchema } from '@/features/auth/constants'
+ import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
+ import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
+-import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
+ import {
+   getAffiliateCode,
+   saveAffiliateCode,
+@@ -65,27 +63,16 @@ export function SignUpForm({
+   const [wechatCode, setWeChatCode] = useState('')
+   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
+   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+   const legalConsentErrorMessage = t('Please agree to the legal terms first')
+ 
+   const { status } = useStatus()
+-  const {
+-    isTurnstileEnabled,
+-    turnstileSiteKey,
+-    turnstileToken,
+-    setTurnstileToken,
+-    validateTurnstile,
+-  } = useTurnstile()
+   const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
+   const {
+     isSending: isSendingCode,
+     secondsLeft,
+     isActive,
+     sendCode,
+-  } = useEmailVerification({
+-    turnstileToken,
+-    validateTurnstile,
+-  })
++  } = useEmailVerification()
+ 
+   const form = useForm<z.infer<typeof registerFormSchema>>({
+     resolver: zodResolver(registerFormSchema),
+@@ -107,7 +94,6 @@ export function SignUpForm({
+     status?.data?.oauth_register_enabled ??
+     true
+   const hasWeChatLogin = Boolean(status?.wechat_login)
+-  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
+ 
+   const wechatQrCodeUrl = useMemo(() => {
+     return (
+@@ -156,8 +142,6 @@ export function SignUpForm({
+       }
+     }
+ 
+-    if (!validateTurnstile()) return
+-
+     setIsLoading(true)
+     try {
+       const res = await register({
+@@ -166,7 +150,6 @@ export function SignUpForm({
+         email: data.email || undefined,
+         verification_code: verificationCode || undefined,
+         aff_code: getAffiliateCode(),
+-        turnstile: turnstileToken,
+       })
+ 
+       if (res?.success) {
+@@ -183,10 +166,7 @@ export function SignUpForm({
+   }
+ 
+   async function handleSendVerificationCode() {
+-    if (await sendCode(emailValue || '')) {
+-      setTurnstileToken('')
+-      setTurnstileWidgetKey((current) => current + 1)
+-    }
++    await sendCode(emailValue || '')
+   }
+ 
+   const handleOpenWeChatDialog = () => {
+@@ -335,8 +315,7 @@ export function SignUpForm({
+                   isLoading ||
+                   isSendingCode ||
+                   isActive ||
+-                  !emailValue ||
+-                  !turnstileReady
++                  !emailValue
+                 }
+                 onClick={handleSendVerificationCode}
+               >
+@@ -346,17 +325,6 @@ export function SignUpForm({
+           </>
+         )}
+ 
+-        {/* Turnstile */}
+-        {isTurnstileEnabled && (
+-          <div className='mt-2'>
+-            <Turnstile
+-              key={turnstileWidgetKey}
+-              siteKey={turnstileSiteKey}
+-              onVerify={setTurnstileToken}
+-            />
+-          </div>
+-        )}
+-
+         <LegalConsent
+           status={status}
+           checked={agreedToLegal}
+@@ -370,8 +338,7 @@ export function SignUpForm({
+           className='mt-2 w-full justify-center gap-2'
+           disabled={
+             isLoading ||
+-            (requiresLegalConsent && !agreedToLegal) ||
+-            !turnstileReady
++            (requiresLegalConsent && !agreedToLegal)
+           }
+         >
+           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
+diff --git a/web/src/features/auth/types.ts b/web/src/features/auth/types.ts
+index afaa4b7..88327e6 100644
+--- a/web/src/features/auth/types.ts
++++ b/web/src/features/auth/types.ts
+@@ -25,7 +25,6 @@ import type { AuthBundle } from '@/stores/auth-store'
+ export interface LoginPayload {
+   username: string
+   password: string
+-  turnstile?: string
+ }
+ 
+ export interface TwoFAPayload {
+@@ -39,17 +38,14 @@ export interface RegisterPayload {
+   email?: string
+   verification_code?: string
+   aff_code?: string
+-  turnstile?: string
+ }
+ 
+ export interface PasswordResetPayload {
+   email: string
+-  turnstile?: string
+ }
+ 
+ export interface EmailVerificationPayload {
+   email: string
+-  turnstile?: string
+ }
+ 
+ export interface BindEmailPayload {
+@@ -116,8 +112,6 @@ export interface SystemStatus {
+     wechat_qr_code_image_url?: string
+     wechat_account_qrcode_image_url?: string
+     WeChatAccountQRCodeImageURL?: string
+-    turnstile_check?: boolean
+-    turnstile_site_key?: string
+     email_verification?: boolean
+     self_use_mode_enabled?: boolean
+     display_in_currency?: boolean
+@@ -161,8 +155,6 @@ export interface SystemStatus {
+   wechat_qr_code_image_url?: string
+   wechat_account_qrcode_image_url?: string
+   WeChatAccountQRCodeImageURL?: string
+-  turnstile_check?: boolean
+-  turnstile_site_key?: string
+   email_verification?: boolean
+   self_use_mode_enabled?: boolean
+   display_in_currency?: boolean
+diff --git a/web/src/features/profile/api.ts b/web/src/features/profile/api.ts
+index 9a60309..3446215 100644
+--- a/web/src/features/profile/api.ts
++++ b/web/src/features/profile/api.ts
+@@ -99,13 +99,9 @@ export async function generateAccessToken(): Promise<ApiResponse<string>> {
+  * Send email verification code
+  */
+ export async function sendEmailVerification(
+-  email: string,
+-  turnstileToken?: string
++  email: string
+ ): Promise<ApiResponse> {
+   const params = new URLSearchParams({ email })
+-  if (turnstileToken) {
+-    params.append('turnstile', turnstileToken)
+-  }
+   const res = await api.get(`/api/verification?${params}`)
+   return res.data
+ }
+@@ -215,12 +211,7 @@ export async function getCheckinStatus(
+ /**
+  * Perform daily checkin
+  */
+-export async function performCheckin(
+-  turnstileToken?: string
+-): Promise<ApiResponse<CheckinResponse>> {
+-  const url = turnstileToken
+-    ? `/api/user/checkin?turnstile=${encodeURIComponent(turnstileToken)}`
+-    : '/api/user/checkin'
+-  const res = await api.post(url)
++export async function performCheckin(): Promise<ApiResponse<CheckinResponse>> {
++  const res = await api.post('/api/user/checkin')
+   return res.data
+ }
+diff --git a/web/src/features/profile/components/checkin-calendar-card.tsx b/web/src/features/profile/components/checkin-calendar-card.tsx
+index f537e9f..0ca5faa 100644
+--- a/web/src/features/profile/components/checkin-calendar-card.tsx
++++ b/web/src/features/profile/components/checkin-calendar-card.tsx
+@@ -29,8 +29,6 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
+ import { useTranslation } from 'react-i18next'
+ import { toast } from 'sonner'
+ 
+-import { Dialog } from '@/components/dialog'
+-import { Turnstile } from '@/components/turnstile'
+ import { Button } from '@/components/ui/button'
+ import { Card } from '@/components/ui/card'
+ import { IconBadge } from '@/components/ui/icon-badge'
+@@ -50,14 +48,10 @@ import type { CheckinRecord } from '../types'
+ 
+ interface CheckinCalendarCardProps {
+   checkinEnabled: boolean
+-  turnstileEnabled: boolean
+-  turnstileSiteKey: string
+ }
+ 
+ export function CheckinCalendarCard({
+   checkinEnabled,
+-  turnstileEnabled,
+-  turnstileSiteKey,
+ }: CheckinCalendarCardProps) {
+   const { t } = useTranslation()
+   const [currentMonth, setCurrentMonth] = useState(() => {
+@@ -65,8 +59,6 @@ export function CheckinCalendarCard({
+     return new Date(now.getFullYear(), now.getMonth(), 1)
+   })
+   const [checkinLoading, setCheckinLoading] = useState(false)
+-  const [turnstileModalVisible, setTurnstileModalVisible] = useState(false)
+-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+   const [initialLoaded, setInitialLoaded] = useState(false)
+   const [collapsed, setCollapsed] = useState<boolean>(false)
+ 
+@@ -129,38 +121,17 @@ export function CheckinCalendarCard({
+     setInitialLoaded(true)
+   }, [checkinData, checkedToday, initialLoaded, isLoading])
+ 
+-  const shouldTriggerTurnstile = useCallback(
+-    (message?: string) => {
+-      if (!turnstileEnabled) return false
+-      if (typeof message !== 'string') return true
+-      return message.includes('Turnstile')
+-    },
+-    [turnstileEnabled]
+-  )
+-
+   const doCheckin = useCallback(
+-    async (token?: string) => {
++    async () => {
+       setCheckinLoading(true)
+       try {
+-        const res = await performCheckin(token)
++        const res = await performCheckin()
+         if (res.success && res.data) {
+           toast.success(
+             `${t('Check-in successful! Received')} ${formatQuotaWithCurrency(res.data.quota_awarded)}`
+           )
+           refetch()
+-          setTurnstileModalVisible(false)
+         } else {
+-          if (!token && shouldTriggerTurnstile(res.message)) {
+-            if (!turnstileSiteKey) {
+-              toast.error(t('Turnstile is enabled but site key is empty.'))
+-              return
+-            }
+-            setTurnstileModalVisible(true)
+-            return
+-          }
+-          if (token && shouldTriggerTurnstile(res.message)) {
+-            setTurnstileWidgetKey((v) => v + 1)
+-          }
+           toast.error(res.message || t('Check-in failed'))
+         }
+       } catch {
+@@ -169,7 +140,7 @@ export function CheckinCalendarCard({
+         setCheckinLoading(false)
+       }
+     },
+-    [refetch, shouldTriggerTurnstile, t, turnstileSiteKey]
++    [refetch, t]
+   )
+ 
+   const handlePrevMonth = () => {
+@@ -251,36 +222,6 @@ export function CheckinCalendarCard({
+ 
+   return (
+     <TooltipProvider delay={100}>
+-      <Dialog
+-        open={turnstileModalVisible}
+-        onOpenChange={(open) => {
+-          setTurnstileModalVisible(open)
+-          if (!open) {
+-            setTurnstileWidgetKey((v) => v + 1)
+-          }
+-        }}
+-        title={t('Security Check')}
+-        contentClassName='sm:max-w-md'
+-        contentHeight='auto'
+-        bodyClassName='space-y-4'
+-      >
+-        <div className='text-muted-foreground text-sm'>
+-          {t('Please complete the security check to continue.')}
+-        </div>
+-        <div className='flex justify-center py-4'>
+-          <Turnstile
+-            key={turnstileWidgetKey}
+-            siteKey={turnstileSiteKey}
+-            onVerify={(token) => {
+-              doCheckin(token)
+-            }}
+-            onExpire={() => {
+-              setTurnstileWidgetKey((v) => v + 1)
+-            }}
+-          />
+-        </div>
+-      </Dialog>
+-
+       <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
+         {/* Header */}
+         <div className='border-b p-4 sm:p-6'>
+diff --git a/web/src/features/profile/index.tsx b/web/src/features/profile/index.tsx
+index 4d5d3aa..9c5efa3 100644
+--- a/web/src/features/profile/index.tsx
++++ b/web/src/features/profile/index.tsx
+@@ -41,10 +41,6 @@ export function Profile() {
+   const permissions = useAuthStore((s) => s.auth.user?.permissions)
+ 
+   const checkinEnabled = status?.checkin_enabled === true
+-  const turnstileEnabled = !!(
+-    status?.turnstile_check && status?.turnstile_site_key
+-  )
+-  const turnstileSiteKey = status?.turnstile_site_key || ''
+   const canConfigureSidebar = permissions?.sidebar_settings !== false
+ 
+   return (
+@@ -75,8 +71,6 @@ export function Profile() {
+                 {checkinEnabled && (
+                   <CheckinCalendarCard
+                     checkinEnabled={checkinEnabled}
+-                    turnstileEnabled={turnstileEnabled}
+-                    turnstileSiteKey={turnstileSiteKey}
+                   />
+                 )}
+                 {canConfigureSidebar && <SidebarModulesCard />}
+diff --git a/web/src/features/system-settings/auth/bot-protection-section.tsx b/web/src/features/system-settings/auth/bot-protection-section.tsx
+deleted file mode 100644
+index 3316139..0000000
+--- a/web/src/features/system-settings/auth/bot-protection-section.tsx
++++ /dev/null
+@@ -1,155 +0,0 @@
+-/*
+-Copyright (C) 2023-2026 QuantumNous
+-
+-This program is free software: you can redistribute it and/or modify
+-it under the terms of the GNU Affero General Public License as
+-published by the Free Software Foundation, either version 3 of the
+-License, or (at your option) any later version.
+-
+-This program is distributed in the hope that it will be useful,
+-but WITHOUT ANY WARRANTY; without even the implied warranty of
+-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+-GNU Affero General Public License for more details.
+-
+-You should have received a copy of the GNU Affero General Public License
+-along with this program. If not, see <https://www.gnu.org/licenses/>.
+-
+-For commercial licensing, please contact support@quantumnous.com
+-*/
+-import { zodResolver } from '@hookform/resolvers/zod'
+-import { useEffect } from 'react'
+-import { useForm } from 'react-hook-form'
+-import { useTranslation } from 'react-i18next'
+-import * as z from 'zod'
+-
+-import {
+-  Form,
+-  FormControl,
+-  FormDescription,
+-  FormField,
+-  FormItem,
+-  FormLabel,
+-  FormMessage,
+-} from '@/components/ui/form'
+-import { Input } from '@/components/ui/input'
+-import { Switch } from '@/components/ui/switch'
+-
+-import {
+-  SettingsForm,
+-  SettingsSwitchContent,
+-  SettingsSwitchItem,
+-} from '../components/settings-form-layout'
+-import { SettingsPageFormActions } from '../components/settings-page-context'
+-import { SettingsSection } from '../components/settings-section'
+-import { useUpdateOption } from '../hooks/use-update-option'
+-
+-const botProtectionSchema = z.object({
+-  TurnstileCheckEnabled: z.boolean(),
+-  TurnstileSiteKey: z.string().optional(),
+-  TurnstileSecretKey: z.string().optional(),
+-})
+-
+-type BotProtectionFormValues = z.infer<typeof botProtectionSchema>
+-
+-type BotProtectionSectionProps = {
+-  defaultValues: BotProtectionFormValues
+-}
+-
+-export function BotProtectionSection({
+-  defaultValues,
+-}: BotProtectionSectionProps) {
+-  const { t } = useTranslation()
+-  const updateOption = useUpdateOption()
+-
+-  const form = useForm<BotProtectionFormValues>({
+-    resolver: zodResolver(botProtectionSchema),
+-    defaultValues,
+-  })
+-
+-  useEffect(() => {
+-    form.reset(defaultValues)
+-  }, [defaultValues, form])
+-
+-  const onSubmit = async (data: BotProtectionFormValues) => {
+-    const updates = Object.entries(data).filter(
+-      ([key, value]) =>
+-        value !== defaultValues[key as keyof BotProtectionFormValues]
+-    )
+-
+-    for (const [key, value] of updates) {
+-      await updateOption.mutateAsync({ key, value: value ?? '' })
+-    }
+-  }
+-
+-  return (
+-    <SettingsSection title={t('Bot Protection')}>
+-      <Form {...form}>
+-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)} autoComplete='off'>
+-          <SettingsPageFormActions
+-            onSave={form.handleSubmit(onSubmit)}
+-            isSaving={updateOption.isPending}
+-          />
+-          <FormField
+-            control={form.control}
+-            name='TurnstileCheckEnabled'
+-            render={({ field }) => (
+-              <SettingsSwitchItem>
+-                <SettingsSwitchContent>
+-                  <FormLabel>{t('Enable Turnstile')}</FormLabel>
+-                  <FormDescription>
+-                    {t(
+-                      'Protect login and registration with Cloudflare Turnstile'
+-                    )}
+-                  </FormDescription>
+-                </SettingsSwitchContent>
+-                <FormControl>
+-                  <Switch
+-                    checked={field.value}
+-                    onCheckedChange={field.onChange}
+-                  />
+-                </FormControl>
+-              </SettingsSwitchItem>
+-            )}
+-          />
+-
+-          <FormField
+-            control={form.control}
+-            name='TurnstileSiteKey'
+-            render={({ field }) => (
+-              <FormItem>
+-                <FormLabel>{t('Site Key')}</FormLabel>
+-                <FormControl>
+-                  <Input
+-                    placeholder={t('Your Turnstile site key')}
+-                    autoComplete='off'
+-                    {...field}
+-                  />
+-                </FormControl>
+-                <FormMessage />
+-              </FormItem>
+-            )}
+-          />
+-
+-          <FormField
+-            control={form.control}
+-            name='TurnstileSecretKey'
+-            render={({ field }) => (
+-              <FormItem>
+-                <FormLabel>{t('Secret Key')}</FormLabel>
+-                <FormControl>
+-                  <Input
+-                    type='password'
+-                    placeholder={t('Your Turnstile secret key')}
+-                    autoComplete='new-password'
+-                    {...field}
+-                  />
+-                </FormControl>
+-                <FormMessage />
+-              </FormItem>
+-            )}
+-          />
+-        </SettingsForm>
+-      </Form>
+-    </SettingsSection>
+-  )
+-}
+diff --git a/web/src/features/system-settings/auth/index.tsx b/web/src/features/system-settings/auth/index.tsx
+index 915801f..640488d 100644
+--- a/web/src/features/system-settings/auth/index.tsx
++++ b/web/src/features/system-settings/auth/index.tsx
+@@ -58,9 +58,6 @@ const defaultAuthSettings: AuthSettings = {
+   WeChatServerAddress: '',
+   WeChatServerToken: '',
+   WeChatAccountQRCodeImageURL: '',
+-  TurnstileCheckEnabled: false,
+-  TurnstileSiteKey: '',
+-  TurnstileSecretKey: '',
+   'passkey.enabled': false,
+   'passkey.rp_display_name': '',
+   'passkey.rp_id': '',
+diff --git a/web/src/features/system-settings/auth/section-registry.tsx b/web/src/features/system-settings/auth/section-registry.tsx
+index eeaeda8..7f1e71f 100644
+--- a/web/src/features/system-settings/auth/section-registry.tsx
++++ b/web/src/features/system-settings/auth/section-registry.tsx
+@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
+ import type { AuthSettings } from '../types'
+ import { createSectionRegistry } from '../utils/section-registry'
+ import { BasicAuthSection } from './basic-auth-section'
+-import { BotProtectionSection } from './bot-protection-section'
+ import { CustomOAuthSection } from './custom-oauth/custom-oauth-section'
+ import { OAuthSection } from './oauth-section'
+ import { PasskeySection } from './passkey-section'
+@@ -101,19 +100,6 @@ const AUTH_SECTIONS = [
+       />
+     ),
+   },
+-  {
+-    id: 'bot-protection',
+-    titleKey: 'Bot Protection',
+-    build: (settings: AuthSettings) => (
+-      <BotProtectionSection
+-        defaultValues={{
+-          TurnstileCheckEnabled: settings.TurnstileCheckEnabled,
+-          TurnstileSiteKey: settings.TurnstileSiteKey,
+-          TurnstileSecretKey: settings.TurnstileSecretKey,
+-        }}
+-      />
+-    ),
+-  },
+   {
+     id: 'custom-oauth',
+     titleKey: 'Custom OAuth',
+diff --git a/web/src/features/system-settings/types.ts b/web/src/features/system-settings/types.ts
+index 6bb6f2d..1e9b54c 100644
+--- a/web/src/features/system-settings/types.ts
++++ b/web/src/features/system-settings/types.ts
+@@ -154,9 +154,6 @@ export type AuthSettings = {
+   WeChatServerAddress: string
+   WeChatServerToken: string
+   WeChatAccountQRCodeImageURL: string
+-  TurnstileCheckEnabled: boolean
+-  TurnstileSiteKey: string
+-  TurnstileSecretKey: string
+   'passkey.enabled': boolean
+   'passkey.rp_display_name': string
+   'passkey.rp_id': string
