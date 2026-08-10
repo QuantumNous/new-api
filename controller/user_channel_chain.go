@@ -13,20 +13,8 @@ import (
 )
 
 type channelChainRequest struct {
-	Name     string `json:"name"`
-	Channels []int  `json:"channels"`
-}
-
-type userChannelSummary struct {
-	Id       int     `json:"id"`
-	Name     string  `json:"name"`
-	Type     int     `json:"type"`
-	Status   int     `json:"status"`
-	Models   string  `json:"models"`
-	Group    string  `json:"group"`
-	Priority *int64  `json:"priority"`
-	Weight   int     `json:"weight"`
-	Tag      *string `json:"tag"`
+	Name   string   `json:"name"`
+	Groups []string `json:"groups"`
 }
 
 func getUserChannelChainContext(c *gin.Context) (int, string, bool) {
@@ -39,7 +27,7 @@ func getUserChannelChainContext(c *gin.Context) (int, string, bool) {
 	return userId, userGroup, true
 }
 
-func validateChannelChainRequest(c *gin.Context, req channelChainRequest) bool {
+func validateChannelChainRequest(c *gin.Context, req channelChainRequest, userGroup string) bool {
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
 		common.ApiErrorI18n(c, i18n.MsgNameCannotBeEmpty)
@@ -49,38 +37,11 @@ func validateChannelChainRequest(c *gin.Context, req channelChainRequest) bool {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return false
 	}
-	if err := service.ValidateUserChannelChainChannels(req.Channels); err != nil {
+	if err := service.ValidateUserChannelChainGroups(userGroup, req.Groups); err != nil {
 		common.ApiError(c, err)
 		return false
 	}
 	return true
-}
-
-func GetUserChannels(c *gin.Context) {
-	_, _, ok := getUserChannelChainContext(c)
-	if !ok {
-		return
-	}
-	channels, err := service.GetEnabledChannelsForChain()
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	items := make([]userChannelSummary, 0, len(channels))
-	for _, channel := range channels {
-		items = append(items, userChannelSummary{
-			Id:       channel.Id,
-			Name:     channel.Name,
-			Type:     channel.Type,
-			Status:   channel.Status,
-			Models:   channel.Models,
-			Group:    channel.Group,
-			Priority: channel.Priority,
-			Weight:   channel.GetWeight(),
-			Tag:      channel.Tag,
-		})
-	}
-	common.ApiSuccess(c, gin.H{"channels": items})
 }
 
 func GetUserChannelChains(c *gin.Context) {
@@ -95,7 +56,7 @@ func GetUserChannelChains(c *gin.Context) {
 		chainItems = append(chainItems, gin.H{
 			"id":         chain.ChainId,
 			"name":       chain.Name,
-			"channels":   chain.GetChannelList(),
+			"groups":     chain.GetGroupList(),
 			"created_at": chain.CreatedAt,
 			"updated_at": chain.UpdatedAt,
 		})
@@ -110,10 +71,10 @@ func GetUserChannelChains(c *gin.Context) {
 		tokenUsage["chain:"+chain.ChainId] = count
 	}
 	common.ApiSuccess(c, gin.H{
-		"chains":                 chainItems,
-		"max_chains":             model.MaxUserChannelChains,
-		"max_channels_per_chain": model.MaxChannelsPerUserChannelChain,
-		"token_usage":            tokenUsage,
+		"chains":               chainItems,
+		"max_chains":           model.MaxUserChannelChains,
+		"max_groups_per_chain": model.MaxGroupsPerUserChannelChain,
+		"token_usage":          tokenUsage,
 	})
 }
 
@@ -123,11 +84,14 @@ func CreateUserChannelChain(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if !validateChannelChainRequest(c, req) {
+	userId, userGroup, ok := getUserChannelChainContext(c)
+	if !ok {
 		return
 	}
-	userId := c.GetInt("id")
-	chain, err := model.CreateUserChannelChain(userId, strings.TrimSpace(req.Name), req.Channels)
+	if !validateChannelChainRequest(c, req, userGroup) {
+		return
+	}
+	chain, err := model.CreateUserChannelChain(userId, strings.TrimSpace(req.Name), req.Groups)
 	if err != nil {
 		if errors.Is(err, model.ErrChannelChainLimit) {
 			common.ApiErrorI18n(c, i18n.MsgBatchTooMany, map[string]any{"Max": model.MaxUserChannelChains})
@@ -155,10 +119,15 @@ func UpdateUserChannelChain(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if !validateChannelChainRequest(c, req) {
+	userGroup, err := model.GetUserGroup(userId, false)
+	if err != nil {
+		common.ApiError(c, err)
 		return
 	}
-	if err := model.UpdateUserChannelChain(userId, chainId, strings.TrimSpace(req.Name), req.Channels); err != nil {
+	if !validateChannelChainRequest(c, req, userGroup) {
+		return
+	}
+	if err := model.UpdateUserChannelChain(userId, chainId, strings.TrimSpace(req.Name), req.Groups); err != nil {
 		common.ApiError(c, err)
 		return
 	}

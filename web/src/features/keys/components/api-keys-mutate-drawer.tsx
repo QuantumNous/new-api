@@ -161,9 +161,7 @@ export function ApiKeysMutateDrawer({
         value: key,
         label: info.custom_chain ? info.desc || key : key,
         desc: info.custom_chain
-          ? (info.channel_ids || [])
-              .map((id) => `#${id}`)
-              .join(' -> ')
+          ? (info.chain_groups || []).join(' -> ')
           : info.desc || key,
         ratio: info.ratio,
       })),

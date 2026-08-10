@@ -198,27 +198,22 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 	}
 
 	if chainId, ok := model.ParseUserChannelChain(tokenGroup); ok {
-		channelIds := make([]int, 0)
+		groups := make([]string, 0)
 		if value, ok := common.GetContextKey(c, constant.ContextKeyChannelChain); ok {
-			if ids, ok := value.([]int); ok {
-				channelIds = ids
+			if groupNames, ok := value.([]string); ok {
+				groups = groupNames
 			}
 		}
-		if len(channelIds) == 0 {
+		if len(groups) == 0 {
 			chain, err := model.GetUserChannelChain(c.GetInt("id"), chainId)
 			if err != nil {
 				return modelListGroups{}, err
 			}
-			channelIds = chain.GetChannelList()
+			groups = chain.GetGroupList()
 		}
 		modelSet := make(map[string]struct{})
-		for _, channelId := range channelIds {
-			channel, err := model.CacheGetChannel(channelId)
-			if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled {
-				continue
-			}
-			for _, modelName := range strings.Split(channel.Models, ",") {
-				modelName = strings.TrimSpace(modelName)
+		for _, group := range groups {
+			for _, modelName := range model.GetGroupEnabledModels(group) {
 				if modelName != "" {
 					modelSet[modelName] = struct{}{}
 				}

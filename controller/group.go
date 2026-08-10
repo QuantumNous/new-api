@@ -53,7 +53,7 @@ func GetUserGroups(c *gin.Context) {
 	for _, chain := range chains {
 		usableGroups["chain:"+chain.ChainId] = map[string]interface{}{
 			"custom_chain": true,
-			"channel_ids":  chain.GetChannelList(),
+			"chain_groups": chain.GetGroupList(),
 			"desc":         chain.Name,
 			"ratio":        "自动",
 		}

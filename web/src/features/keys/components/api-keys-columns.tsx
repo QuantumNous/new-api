@@ -39,13 +39,13 @@ import { API_KEY_STATUSES } from '../constants'
 import type { ApiKey } from '../types'
 import { ApiKeyGroupCell } from './api-key-group-cell'
 import { ApiKeyTimestampCell } from './api-key-timestamp-cell'
-import { useApiKeys } from './api-keys-provider'
 import {
   ApiKeyCell,
   IpRestrictionsCell,
   ModelLimitsCell,
   UnlimitedQuotaBadge,
 } from './api-keys-cells'
+import { useApiKeys } from './api-keys-provider'
 import { DataTableRowActions } from './data-table-row-actions'
 
 function getQuotaProgressColor(percentage: number): string {
@@ -58,7 +58,7 @@ type GroupMeta = {
   ratio?: number | string
   label?: string
   isChain?: boolean
-  channelIds?: number[]
+  chainGroups?: string[]
 }
 
 type GroupOption = {
@@ -87,7 +87,7 @@ function useGroupData(): {
           ratio,
           label: info.custom_chain ? info.desc : undefined,
           isChain: info.custom_chain,
-          channelIds: info.channel_ids,
+          chainGroups: info.chain_groups,
         }
         options.push({
           value: group,
@@ -232,7 +232,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
             ratio={groupMeta[group]?.ratio}
             label={groupMeta[group]?.label}
             isChain={groupMeta[group]?.isChain}
-            channelIds={groupMeta[group]?.channelIds}
+            chainGroups={groupMeta[group]?.chainGroups}
             crossGroupRetry={apiKey.cross_group_retry}
             shouldReduceMotion={shouldReduceMotion}
             options={groupOptions}

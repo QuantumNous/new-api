@@ -9,10 +9,10 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
-func getRequestChannelChain(param *RetryParam) ([]int, bool) {
+func getRequestChannelChain(param *RetryParam) ([]string, bool) {
 	if value, ok := common.GetContextKey(param.Ctx, constant.ContextKeyChannelChain); ok {
-		if ids, ok := value.([]int); ok && len(ids) > 0 {
-			return ids, true
+		if groups, ok := value.([]string); ok && len(groups) > 0 {
+			return groups, true
 		}
 	}
 	if strings.HasPrefix(param.TokenGroup, "chain:") {
@@ -20,15 +20,15 @@ func getRequestChannelChain(param *RetryParam) ([]int, bool) {
 		if userId == 0 {
 			userId = param.Ctx.GetInt("id")
 		}
-		if ids, err := ResolveChannelChainIds(userId, param.TokenGroup); err == nil && len(ids) > 0 {
-			return ids, true
+		if groups, err := ResolveChannelChainGroups(userId, param.TokenGroup); err == nil && len(groups) > 0 {
+			return groups, true
 		}
 	}
 	return nil, false
 }
 
 func getChannelChainSelection(param *RetryParam) (*model.Channel, string, error, bool) {
-	chainIds, ok := getRequestChannelChain(param)
+	groups, ok := getRequestChannelChain(param)
 	if !ok {
 		return nil, "", nil, false
 	}
@@ -40,45 +40,43 @@ func getChannelChainSelection(param *RetryParam) (*model.Channel, string, error,
 		}
 	}
 
-	for i := param.GetRetry(); i < len(chainIds); i++ {
-		channelId := chainIds[i]
-		if _, ok := used[channelId]; ok {
+	startGroupIndex := 0
+	if index, exists := common.GetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex); exists {
+		if value, ok := index.(int); ok {
+			startGroupIndex = value
+		}
+	}
+
+	for i := startGroupIndex; i < len(groups); i++ {
+		group := groups[i]
+		priorityRetry := param.GetRetry()
+		if i > startGroupIndex {
+			priorityRetry = 0
+		}
+
+		channel, _ := model.GetRandomSatisfiedChannel(group, param.ModelName, priorityRetry, param.RequestPath)
+		if channel == nil {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
+			param.SetRetry(0)
 			continue
 		}
-		channel, err := model.CacheGetChannel(channelId)
-		if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled {
+		if _, alreadyUsed := used[channel.Id]; alreadyUsed {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
+			param.SetRetry(0)
 			continue
 		}
-		if !channelChainSupportsRequestPath(channel, param.RequestPath, param.ModelName) {
-			continue
+
+		common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, group)
+		if priorityRetry >= common.RetryTimes {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+			param.SetRetry(0)
+			param.ResetRetryNextTry()
+		} else {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
 		}
-		selectedGroup := findChannelChainGroup(channel, param.ModelName, channelId)
-		if selectedGroup == "" {
-			continue
-		}
-		common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, selectedGroup)
-		return channel, selectedGroup, nil, true
+		return channel, group, nil, true
 	}
 	return nil, param.TokenGroup, nil, true
-}
-
-func findChannelChainGroup(channel *model.Channel, modelName string, channelId int) string {
-	for _, group := range strings.Split(channel.Group, ",") {
-		group = strings.TrimSpace(group)
-		if group != "" && model.IsChannelEnabledForGroupModel(group, modelName, channelId) {
-			return group
-		}
-	}
-	return ""
-}
-
-func channelChainSupportsRequestPath(channel *model.Channel, requestPath string, requestModel string) bool {
-	if channel == nil {
-		return false
-	}
-	if channel.Type != constant.ChannelTypeAdvancedCustom {
-		return true
-	}
-	config := channel.GetOtherSettings().AdvancedCustom
-	return config != nil && config.SupportsPathForModel(requestPath, requestModel)
 }

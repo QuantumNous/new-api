@@ -86,7 +86,6 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.DELETE("/sessions/:sid", middleware.DisableCache(), controller.DeleteLoginSession)
 				selfRoute.POST("/sessions/revoke-others", middleware.DisableCache(), controller.RevokeOtherLoginSessions)
 				selfRoute.GET("/self/groups", controller.GetUserGroups)
-				selfRoute.GET("/self/channels", controller.GetUserChannels)
 				selfRoute.GET("/self/channel_chains", controller.GetUserChannelChains)
 				selfRoute.POST("/self/channel_chains", middleware.CriticalRateLimit(), controller.CreateUserChannelChain)
 				selfRoute.PUT("/self/channel_chains/:chain_id", middleware.CriticalRateLimit(), controller.UpdateUserChannelChain)

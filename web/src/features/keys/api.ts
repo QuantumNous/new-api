@@ -26,7 +26,6 @@ import type {
   SearchApiKeysParams,
   ApiKeyFormData,
   TokenAutoGroupsConfig,
-  UserChannel,
   ChannelChain,
   ChannelChainsResponse,
   ChannelChainInput,
@@ -70,14 +69,6 @@ export async function getTokenAutoGroups(): Promise<
   ApiResponse<TokenAutoGroupsConfig>
 > {
   const res = await api.get('/api/token/auto-groups')
-  return res.data
-}
-
-// Get the current user's accessible channels.
-export async function getUserChannels(): Promise<
-  ApiResponse<{ channels: UserChannel[] }>
-> {
-  const res = await api.get('/api/user/self/channels')
   return res.data
 }
 

@@ -55,7 +55,7 @@ type ApiKeyGroupCellProps = {
   group: string
   label?: string
   isChain?: boolean
-  channelIds?: number[]
+  chainGroups?: string[]
   onGroupChanged?: () => void
   ratio?: GroupRatio
   options?: GroupOption[]
@@ -68,13 +68,13 @@ function GroupCellContent(props: ApiKeyGroupCellProps) {
   if (props.isChain) {
     const ratio = typeof props.ratio === 'number' ? props.ratio : undefined
     const chainLabel = props.label || props.group
-    const channelIds = (props.channelIds || [])
-      .map((id) => `#${id}`)
-      .join(' -> ')
+    const chainGroups = (props.chainGroups || []).join(' -> ')
     return (
       <TruncatedCell
         className='-ml-1.5'
-        tooltipContent={channelIds ? `${chainLabel}\n${channelIds}` : chainLabel}
+        tooltipContent={
+          chainGroups ? `${chainLabel}\n${chainGroups}` : chainLabel
+        }
         tooltipClassName='break-all whitespace-pre-line'
       >
         <GroupBadge label={chainLabel} ratio={ratio} />
@@ -105,11 +105,7 @@ function GroupCellContent(props: ApiKeyGroupCellProps) {
           />
         }
       >
-        <StatusBadge
-          label={t('Cross-group')}
-          variant='info'
-          copyable={false}
-        />
+        <StatusBadge label={t('Cross-group')} variant='info' copyable={false} />
         <GroupRatioBadge
           ratio={props.ratio}
           isAuto
@@ -132,7 +128,10 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
   const [updating, setUpdating] = useState(false)
   const selectOptions = useMemo(() => {
     const options = [...(props.options ?? [])]
-    if (props.group && !options.some((option) => option.value === props.group)) {
+    if (
+      props.group &&
+      !options.some((option) => option.value === props.group)
+    ) {
       options.push({
         value: props.group,
         label: props.label || props.group,
@@ -182,7 +181,7 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
       <SelectTrigger
         size='sm'
         disabled={updating}
-        className='hover:bg-muted/60 h-7 min-w-28 max-w-full border-transparent bg-transparent px-1.5'
+        className='hover:bg-muted/60 h-7 max-w-full min-w-28 border-transparent bg-transparent px-1.5'
       >
         <SelectValue placeholder={currentLabel}>{currentLabel}</SelectValue>
       </SelectTrigger>

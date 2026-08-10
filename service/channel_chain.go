@@ -4,50 +4,33 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
-func GetEnabledChannelsForChain() ([]model.Channel, error) {
-	var channels []model.Channel
-	if err := model.DB.Where("status = ?", common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
-		return nil, err
+func ValidateUserChannelChainGroups(userGroup string, groups []string) error {
+	if len(groups) == 0 {
+		return errors.New("at least one pricing group is required")
 	}
-	return channels, nil
-}
-
-func ValidateUserChannelChainChannels(channelIds []int) error {
-	if len(channelIds) == 0 {
-		return errors.New("at least one channel is required")
+	if len(groups) > model.MaxGroupsPerUserChannelChain {
+		return fmt.Errorf("a group chain can contain at most %d groups", model.MaxGroupsPerUserChannelChain)
 	}
-	if len(channelIds) > model.MaxChannelsPerUserChannelChain {
-		return fmt.Errorf("a channel chain can contain at most %d channels", model.MaxChannelsPerUserChannelChain)
-	}
-	channels, err := GetEnabledChannelsForChain()
-	if err != nil {
-		return err
-	}
-	accessible := make(map[int]struct{}, len(channels))
-	for _, channel := range channels {
-		accessible[channel.Id] = struct{}{}
-	}
-	seen := make(map[int]struct{}, len(channelIds))
-	for _, id := range channelIds {
-		if id <= 0 {
-			return fmt.Errorf("invalid channel id %d", id)
+	seen := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		if group == "" {
+			return errors.New("pricing group name cannot be empty")
 		}
-		if _, ok := seen[id]; ok {
-			return fmt.Errorf("channel %d is duplicated", id)
+		if _, ok := seen[group]; ok {
+			return fmt.Errorf("group %s is duplicated", group)
 		}
-		seen[id] = struct{}{}
-		if _, ok := accessible[id]; !ok {
-			return fmt.Errorf("channel %d is unavailable or unauthorized", id)
+		seen[group] = struct{}{}
+		if !IsUserSelectableGroup(userGroup, group) {
+			return fmt.Errorf("group %s is unavailable or unauthorized", group)
 		}
 	}
 	return nil
 }
 
-func ResolveChannelChainIds(userId int, group string) ([]int, error) {
+func ResolveChannelChainGroups(userId int, group string) ([]string, error) {
 	chainId, ok := model.ParseUserChannelChain(group)
 	if !ok {
 		return nil, errors.New("invalid channel chain")
@@ -56,5 +39,5 @@ func ResolveChannelChainIds(userId int, group string) ([]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	return chain.GetChannelList(), nil
+	return chain.GetGroupList(), nil
 }

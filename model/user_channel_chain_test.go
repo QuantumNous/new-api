@@ -47,10 +47,10 @@ func TestParseUserChannelChain(t *testing.T) {
 func TestUserChannelChainCRUDAndTokenReset(t *testing.T) {
 	user := setupChannelChainTest(t)
 
-	chain, err := CreateUserChannelChain(user.Id, "chain-a", []int{1, 2})
+	chain, err := CreateUserChannelChain(user.Id, "chain-a", []string{"vip", "default"})
 	require.NoError(t, err)
 	require.NotEmpty(t, chain.ChainId)
-	assert.Equal(t, []int{1, 2}, chain.GetChannelList())
+	assert.Equal(t, []string{"vip", "default"}, chain.GetGroupList())
 
 	chainGroup := "chain:" + chain.ChainId
 	token := Token{
@@ -68,12 +68,12 @@ func TestUserChannelChainCRUDAndTokenReset(t *testing.T) {
 	}
 	require.NoError(t, DB.Create(&token).Error)
 
-	err = UpdateUserChannelChain(user.Id, chain.ChainId, "chain-b", []int{2, 1})
+	err = UpdateUserChannelChain(user.Id, chain.ChainId, "chain-b", []string{"default", "vip"})
 	require.NoError(t, err)
 	updated, err := GetUserChannelChain(user.Id, chain.ChainId)
 	require.NoError(t, err)
 	assert.Equal(t, "chain-b", updated.Name)
-	assert.Equal(t, []int{2, 1}, updated.GetChannelList())
+	assert.Equal(t, []string{"default", "vip"}, updated.GetGroupList())
 
 	resetTokens, err := DeleteUserChannelChain(user.Id, chain.ChainId)
 	require.NoError(t, err)
@@ -94,9 +94,9 @@ func TestCreateUserChannelChainEnforcesLimit(t *testing.T) {
 
 	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&UserChannelChain{}).Error)
 	for i := 0; i < MaxUserChannelChains; i++ {
-		_, err := CreateUserChannelChain(user.Id, "chain", []int{1})
+		_, err := CreateUserChannelChain(user.Id, "chain", []string{"default"})
 		require.NoError(t, err)
 	}
-	_, err := CreateUserChannelChain(user.Id, "overflow", []int{1})
+	_, err := CreateUserChannelChain(user.Id, "overflow", []string{"default"})
 	require.ErrorIs(t, err, ErrChannelChainLimit)
 }

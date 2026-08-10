@@ -271,8 +271,11 @@ func addUsedChannel(c *gin.Context, channelId int) {
 func relayRetryLimit(c *gin.Context) int {
 	maxRetry := common.RetryTimes
 	if value, ok := common.GetContextKey(c, constant.ContextKeyChannelChain); ok {
-		if ids, ok := value.([]int); ok && len(ids)-1 > maxRetry {
-			maxRetry = len(ids) - 1
+		if groups, ok := value.([]string); ok && len(groups) > 0 {
+			chainLimit := len(groups) * (common.RetryTimes + 1)
+			if chainLimit > maxRetry {
+				maxRetry = chainLimit
+			}
 		}
 	}
 	return maxRetry

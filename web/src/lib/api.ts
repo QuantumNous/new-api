@@ -64,7 +64,6 @@ export async function getUserGroups(): Promise<{
       ratio: number | string
       custom_chain?: boolean
       chain_groups?: string[]
-      channel_ids?: number[]
     }
   >
 }> {

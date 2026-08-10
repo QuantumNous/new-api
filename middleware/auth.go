@@ -462,31 +462,20 @@ func TokenAuth() func(c *gin.Context) {
 				chain, err := model.GetUserChannelChain(token.UserId, chainId)
 				if err != nil {
 					common.SysError(fmt.Sprintf("failed to load channel chain %s for user %d: %v", chainId, token.UserId, err))
-					abortWithOpenAiMessage(c, http.StatusForbidden, "渠道链不存在或已删除")
+					abortWithOpenAiMessage(c, http.StatusForbidden, "分组链不存在或已删除")
 					return
 				}
-				channelIds := chain.GetChannelList()
-				if len(channelIds) == 0 {
-					abortWithOpenAiMessage(c, http.StatusForbidden, "渠道链为空，请重新配置")
+				groups := chain.GetGroupList()
+				if len(groups) == 0 {
+					abortWithOpenAiMessage(c, http.StatusForbidden, "分组链为空，请重新配置")
 					return
 				}
-				accessible, err := service.GetEnabledChannelsForChain()
-				if err != nil {
-					common.SysError(fmt.Sprintf("failed to load accessible channels for user %d: %v", token.UserId, err))
-					abortWithOpenAiMessage(c, http.StatusForbidden, "渠道链不可用")
+				if err := service.ValidateUserChannelChainGroups(userGroup, groups); err != nil {
+					common.SysError(fmt.Sprintf("invalid group chain %s for user %d: %v", chainId, token.UserId, err))
+					abortWithOpenAiMessage(c, http.StatusForbidden, "分组链不可用")
 					return
 				}
-				accessibleMap := make(map[int]struct{}, len(accessible))
-				for _, channel := range accessible {
-					accessibleMap[channel.Id] = struct{}{}
-				}
-				for _, channelId := range channelIds {
-					if _, ok := accessibleMap[channelId]; !ok {
-						abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问渠道 #%d", channelId))
-						return
-					}
-				}
-				common.SetContextKey(c, constant.ContextKeyChannelChain, channelIds)
+				common.SetContextKey(c, constant.ContextKeyChannelChain, groups)
 				userGroup = tokenGroup
 			} else {
 				// check common.UserUsableGroups[userGroup]
@@ -537,11 +526,11 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 		chain, err := model.GetUserChannelChain(token.UserId, chainId)
 		if err != nil {
 			common.SysError(fmt.Sprintf("failed to load channel chain %s for user %d: %v", chainId, token.UserId, err))
-			return fmt.Errorf("channel chain %s not found", chainId)
+			return fmt.Errorf("group chain %s not found", chainId)
 		}
-		channelIds := chain.GetChannelList()
-		if len(channelIds) > 0 {
-			common.SetContextKey(c, constant.ContextKeyChannelChain, channelIds)
+		groups := chain.GetGroupList()
+		if len(groups) > 0 {
+			common.SetContextKey(c, constant.ContextKeyChannelChain, groups)
 		}
 	}
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, tokenGroup)

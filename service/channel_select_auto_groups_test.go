@@ -71,7 +71,7 @@ func TestCacheGetRandomSatisfiedChannelResolvesChannelChain(t *testing.T) {
 	createChannelSelectAutoGroupsChannel(t, db, 2302, "default", modelName)
 	model.InitChannelCache()
 
-	chain, err := model.CreateUserChannelChain(92002, "channel-chain", []int{2301, 2302})
+	chain, err := model.CreateUserChannelChain(92002, "channel-chain", []string{"vip", "default"})
 	require.NoError(t, err)
 
 	gin.SetMode(gin.TestMode)
@@ -79,7 +79,7 @@ func TestCacheGetRandomSatisfiedChannelResolvesChannelChain(t *testing.T) {
 	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
 	common.SetContextKey(ctx, constant.ContextKeyUserId, 92002)
 	ctx.Set("id", 92002)
-	common.SetContextKey(ctx, constant.ContextKeyChannelChain, chain.GetChannelList())
+	common.SetContextKey(ctx, constant.ContextKeyChannelChain, chain.GetGroupList())
 
 	retry := 0
 	param := &RetryParam{
@@ -104,20 +104,20 @@ func TestCacheGetRandomSatisfiedChannelResolvesChannelChain(t *testing.T) {
 	assert.Equal(t, "default", selectedGroup)
 }
 
-func TestChannelChainSelectsChannelsOutsideUserGroups(t *testing.T) {
+func TestChannelChainSelectsChannelsByGroupOrder(t *testing.T) {
 	db := setupChannelSelectAutoGroupsTest(t)
-	const modelName = "channel-chain-outside-model"
-	createChannelSelectAutoGroupsChannel(t, db, 2401, "other", modelName)
+	const modelName = "channel-chain-group-order-model"
+	createChannelSelectAutoGroupsChannel(t, db, 2401, "vip", modelName)
 	createChannelSelectAutoGroupsChannel(t, db, 2402, "default", modelName)
 	model.InitChannelCache()
 
-	chain, err := model.CreateUserChannelChain(92003, "outside-chain", []int{2401, 2402})
+	chain, err := model.CreateUserChannelChain(92003, "group-order-chain", []string{"vip", "default"})
 	require.NoError(t, err)
 
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
-	common.SetContextKey(ctx, constant.ContextKeyChannelChain, chain.GetChannelList())
+	common.SetContextKey(ctx, constant.ContextKeyChannelChain, chain.GetGroupList())
 
 	retry := 0
 	param := &RetryParam{
@@ -132,7 +132,7 @@ func TestChannelChainSelectsChannelsOutsideUserGroups(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, first)
 	assert.Equal(t, 2401, first.Id)
-	assert.Equal(t, "other", selectedGroup)
+	assert.Equal(t, "vip", selectedGroup)
 }
 
 func createChannelSelectAutoGroupsChannel(t *testing.T, db *gorm.DB, id int, group, modelName string) {

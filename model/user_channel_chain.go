@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	MaxUserChannelChains           = 10
-	MaxChannelsPerUserChannelChain = 10
+	MaxUserChannelChains         = 10
+	MaxGroupsPerUserChannelChain = 10
 )
 
 var ErrChannelChainLimit = errors.New("channel chain limit reached")
@@ -21,9 +21,13 @@ type UserChannelChain struct {
 	UserId    int    `json:"user_id" gorm:"index"`
 	ChainId   string `json:"chain_id" gorm:"type:varchar(32);uniqueIndex"`
 	Name      string `json:"name" gorm:"type:varchar(64)"`
-	Channels  string `json:"-" gorm:"type:text"`
+	Groups    string `json:"-" gorm:"type:text"`
 	CreatedAt int64  `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt int64  `json:"updated_at" gorm:"autoUpdateTime"`
+}
+
+func (UserChannelChain) TableName() string {
+	return "user_group_chains"
 }
 
 // ParseUserChannelChain extracts a chain id from a token group such as chain:OUwA5H5q.
@@ -34,28 +38,28 @@ func ParseUserChannelChain(group string) (string, bool) {
 	return strings.TrimPrefix(group, "chain:"), true
 }
 
-func (chain *UserChannelChain) GetChannelList() []int {
-	if chain.Channels == "" {
+func (chain *UserChannelChain) GetGroupList() []string {
+	if chain.Groups == "" {
 		return nil
 	}
-	var ids []int
-	if err := common.UnmarshalJsonStr(chain.Channels, &ids); err != nil {
+	var groups []string
+	if err := common.UnmarshalJsonStr(chain.Groups, &groups); err != nil {
 		common.SysError(fmt.Sprintf("failed to parse channel chain %s: %v", chain.ChainId, err))
 		return nil
 	}
-	return ids
+	return groups
 }
 
-func (chain *UserChannelChain) SetChannelList(ids []int) error {
-	if len(ids) == 0 {
-		chain.Channels = ""
+func (chain *UserChannelChain) SetGroupList(groups []string) error {
+	if len(groups) == 0 {
+		chain.Groups = ""
 		return nil
 	}
-	data, err := common.Marshal(ids)
+	data, err := common.Marshal(groups)
 	if err != nil {
 		return err
 	}
-	chain.Channels = string(data)
+	chain.Groups = string(data)
 	return nil
 }
 
@@ -77,7 +81,7 @@ func GetUserChannelChain(userId int, chainId string) (*UserChannelChain, error) 
 	return &chain, err
 }
 
-func CreateUserChannelChain(userId int, name string, channelIds []int) (*UserChannelChain, error) {
+func CreateUserChannelChain(userId int, name string, groups []string) (*UserChannelChain, error) {
 	count, err := CountUserChannelChains(userId)
 	if err != nil {
 		return nil, err
@@ -104,7 +108,7 @@ func CreateUserChannelChain(userId int, name string, channelIds []int) (*UserCha
 	if chain.ChainId == "" {
 		return nil, errors.New("failed to generate channel chain id")
 	}
-	if err := chain.SetChannelList(channelIds); err != nil {
+	if err := chain.SetGroupList(groups); err != nil {
 		return nil, err
 	}
 	if err := DB.Create(chain).Error; err != nil {
@@ -113,13 +117,13 @@ func CreateUserChannelChain(userId int, name string, channelIds []int) (*UserCha
 	return chain, nil
 }
 
-func UpdateUserChannelChain(userId int, chainId string, name string, channelIds []int) error {
+func UpdateUserChannelChain(userId int, chainId string, name string, groups []string) error {
 	chain := UserChannelChain{}
 	if err := DB.Where("user_id = ? and chain_id = ?", userId, chainId).First(&chain).Error; err != nil {
 		return err
 	}
 	chain.Name = name
-	if err := chain.SetChannelList(channelIds); err != nil {
+	if err := chain.SetGroupList(groups); err != nil {
 		return err
 	}
 	return DB.Save(&chain).Error

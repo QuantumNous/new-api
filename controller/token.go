@@ -128,12 +128,17 @@ func validateTokenChannelChain(c *gin.Context, token *model.Token) bool {
 		common.ApiErrorI18n(c, i18n.MsgNotFound)
 		return false
 	}
-	channelIds := chain.GetChannelList()
-	if len(channelIds) == 0 {
+	groups := chain.GetGroupList()
+	if len(groups) == 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return false
 	}
-	if err := service.ValidateUserChannelChainChannels(channelIds); err != nil {
+	userGroup, err := model.GetUserGroup(userId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if err := service.ValidateUserChannelChainGroups(userGroup, groups); err != nil {
 		common.ApiError(c, err)
 		return false
 	}
