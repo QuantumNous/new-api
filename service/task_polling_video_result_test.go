@@ -442,7 +442,7 @@ func TestUpdateVideoSingleTaskModelAPIArchiveFailureNoUpstreamLeaks(t *testing.T
 	require.Contains(t, err.Error(), "phase=archive")
 	require.NotContains(t, err.Error(), "https://")
 	require.NotContains(t, err.Error(), "api.modelapi.co")
-	require.NotContains(t, err.Error(), "modelapi")
+	require.NotContains(t, strings.ToLower(err.Error()), "modelapi")
 	require.NotContains(t, err.Error(), upstreamTaskID)
 	require.NotContains(t, err.Error(), "upstream-secret-id")
 	require.NotContains(t, err.Error(), "secret.example")
