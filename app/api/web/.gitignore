@@ -1,0 +1,3 @@
+# 方案 A：app/web/dist 的构建产物拷贝目标，不进版本库。
+# main.go 的 go:embed 只能引用包内路径，因此产物必须落在此处。
+dist/
