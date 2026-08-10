@@ -86,13 +86,31 @@ func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testi
 
 func TestChatCompletionsRequestToResponsesRequestPreservesPenalties(t *testing.T) {
 	tests := []struct {
-		name      string
-		frequency *float64
-		presence  *float64
+		name          string
+		frequency     *float64
+		frequencyWant json.RawMessage
+		presence      *float64
+		presenceWant  json.RawMessage
 	}{
-		{name: "positive values", frequency: lo.ToPtr(0.5), presence: lo.ToPtr(1.5)},
-		{name: "explicit zero values", frequency: lo.ToPtr(0.0), presence: lo.ToPtr(0.0)},
-		{name: "unset stays nil", frequency: nil, presence: nil},
+		{
+			name:          "positive values",
+			frequency:     lo.ToPtr(0.5),
+			frequencyWant: json.RawMessage(`0.5`),
+			presence:      lo.ToPtr(1.5),
+			presenceWant:  json.RawMessage(`1.5`),
+		},
+		{
+			name:          "explicit zero values",
+			frequency:     lo.ToPtr(0.0),
+			frequencyWant: json.RawMessage(`0`),
+			presence:      lo.ToPtr(0.0),
+			presenceWant:  json.RawMessage(`0`),
+		},
+		{
+			name:      "unset stays nil",
+			frequency: nil,
+			presence:  nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -105,8 +123,8 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPenalties(t *testing.T
 			})
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.frequency, got.FrequencyPenalty)
-			assert.Equal(t, tt.presence, got.PresencePenalty)
+			assert.Equal(t, tt.frequencyWant, got.FrequencyPenalty)
+			assert.Equal(t, tt.presenceWant, got.PresencePenalty)
 		})
 	}
 }

@@ -42,8 +42,8 @@ func TestConvertOpenAIResponsesRequestDropsPenalties(t *testing.T) {
 		Input:            json.RawMessage(`"hello"`),
 		MaxOutputTokens:  lo.ToPtr(uint(128)),
 		Temperature:      lo.ToPtr(1.0),
-		FrequencyPenalty: lo.ToPtr(1.5),
-		PresencePenalty:  lo.ToPtr(1.5),
+		FrequencyPenalty: json.RawMessage(`1.5`),
+		PresencePenalty:  json.RawMessage(`1.5`),
 	})
 	require.NoError(t, err)
 
