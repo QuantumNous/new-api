@@ -220,6 +220,32 @@ func TestCompleteSubscriptionOrderWithProviderBindingCASLoserDoesNotCreateProvid
 	requireSubscriptionLifecycleEventCount(t, order.TradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
 }
 
+func TestCompleteSubscriptionOrderWithProviderBindingRepairsMissingBindingForOwnedCompletedOrder(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+	insertUserForSubscriptionRecurringTest(t, 503)
+	insertPlanForSubscriptionRecurringTest(t, 603, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-repair-binding", 503, 603)
+	require.NoError(t, DB.Model(&SubscriptionOrder{}).
+		Where("trade_no = ?", "recurring-order-repair-binding").
+		Updates(map[string]any{"status": common.TopUpStatusSuccess, "complete_time": int64(1_700_204_000)}).Error)
+
+	snapshot := stripeSnapshotForSubscriptionRecurringTest("sub_repair_missing_binding")
+	binding, err := CompleteSubscriptionOrderWithProviderBinding("recurring-order-repair-binding", "{}", PaymentProviderStripe, PaymentMethodStripe, snapshot)
+	require.NoError(t, err)
+	require.NotNil(t, binding)
+	require.NotZero(t, binding.Id)
+	require.Equal(t, "sub_repair_missing_binding", binding.ProviderSubscriptionId)
+
+	replayed, err := CompleteSubscriptionOrderWithProviderBinding("recurring-order-repair-binding", "{}", PaymentProviderStripe, PaymentMethodStripe, snapshot)
+	require.NoError(t, err)
+	require.Equal(t, binding.Id, replayed.Id)
+
+	var bindingCount int64
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("provider_subscription_id = ?", "sub_repair_missing_binding").Count(&bindingCount).Error)
+	require.EqualValues(t, 1, bindingCount)
+}
+
 func TestCompleteSubscriptionOrderWithProviderBindingGrantsInviteSubscriptionReward(t *testing.T) {
 	setupSubscriptionRecurringTestDB(t)
 	migrateSubscriptionRecurringTestDB(t)

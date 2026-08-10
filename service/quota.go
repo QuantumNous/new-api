@@ -453,7 +453,11 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	}
 
 	if sendEmail && (quota+preConsumedQuota) != 0 {
-		checkAndSendWalletQuotaNonEmailNotify(relayInfo, quota, preConsumedQuota)
+		if relayInfo != nil && relayInfo.BillingSource == BillingSourceSubscription {
+			checkAndSendSubscriptionQuotaNotify(relayInfo)
+		} else {
+			checkAndSendWalletQuotaNonEmailNotify(relayInfo, quota, preConsumedQuota)
+		}
 	}
 
 	return nil
@@ -488,7 +492,7 @@ func checkAndSendWalletQuotaNonEmailNotify(relayInfo *relaycommon.RelayInfo, quo
 		if !ok {
 			return
 		}
-		if err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, notify); err != nil {
+		if err := dispatchNotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, notify); err != nil {
 			common.SysError(fmt.Sprintf("failed to send wallet quota non-email notify to user %d: %s", relayInfo.UserId, err.Error()))
 		}
 	})
@@ -556,7 +560,7 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 
 		content := renderQuotaNotifyContent(lang, notifyType, title, logger.FormatQuota(int(remaining)), topUpLink)
 
-		if err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, title, content, nil)); err != nil {
+		if err := dispatchNotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, title, content, nil)); err != nil {
 			common.SysError(fmt.Sprintf("failed to send subscription quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 		}
 	})

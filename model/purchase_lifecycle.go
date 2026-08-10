@@ -160,6 +160,7 @@ func persistPurchaseLifecycleTransitionWithWinner(tx *gorm.DB, transition Purcha
 		topUp.CompleteTime = occurredAt
 	case common.TopUpStatusFailed, common.TopUpStatusExpired, "cancelled", "canceled":
 		topUp.Status = toStatus
+		topUp.CompleteTime = occurredAt
 	default:
 		return false, ErrTopUpStatusInvalid
 	}
@@ -285,6 +286,9 @@ func persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx *gorm.DB, trans
 			return false, err
 		}
 	}
+	if toStatus == common.TopUpStatusSuccess && transition.SubscriptionScopeID <= 0 {
+		return false, errors.New("subscription lifecycle success requires subscription scope")
+	}
 
 	eventType := purchaseLifecycleEventType(toStatus)
 	if eventType != "" {
@@ -292,7 +296,7 @@ func persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx *gorm.DB, trans
 			return false, err
 		}
 	}
-	if toStatus == common.TopUpStatusSuccess && transition.SubscriptionScopeID > 0 {
+	if toStatus == common.TopUpStatusSuccess {
 		cycleKey := subscriptionOrderLifecycleCycleKey(order.Id, order.TradeNo)
 		if _, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
 			UserID:          order.UserId,

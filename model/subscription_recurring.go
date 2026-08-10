@@ -911,7 +911,7 @@ func CompleteSubscriptionOrderWithProviderBinding(tradeNo string, providerPayloa
 		}
 		rewardTradeNo = order.TradeNo
 		if order.Status == common.TopUpStatusSuccess {
-			binding, err := loadProviderBindingForCompletedOrderTx(tx, &order, snapshot)
+			binding, err := createOrLoadProviderBindingTx(tx, &order, snapshot)
 			if err != nil {
 				return err
 			}

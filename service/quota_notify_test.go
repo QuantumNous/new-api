@@ -2,12 +2,18 @@ package service
 
 import (
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestNotifyLang(t *testing.T) {
@@ -112,4 +118,91 @@ func TestWalletQuotaNonEmailNotifySkipsSubscriptionFunding(t *testing.T) {
 	if ok {
 		t.Fatal("wallet non-email notifier must skip subscription-funded consumption")
 	}
+}
+
+func TestSettleBillingNoSessionSubscriptionFallbackDispatchesSubscriptionNotifyOnce(t *testing.T) {
+	setupQuotaNotifySubscriptionTestDB(t)
+	require.NoError(t, i18n.Init())
+
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       7002,
+		Username: "subscription_notify",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.UserSubscription{
+		Id:          7001,
+		UserId:      7002,
+		AmountTotal: 100,
+		AmountUsed:  80,
+		Status:      "active",
+	}).Error)
+
+	var mu sync.Mutex
+	notifications := make([]dto.Notify, 0, 1)
+	originalDispatcher := dispatchNotifyUser
+	dispatchNotifyUser = func(userId int, userEmail string, userSetting dto.UserSetting, data dto.Notify) error {
+		mu.Lock()
+		defer mu.Unlock()
+		notifications = append(notifications, data)
+		return nil
+	}
+	t.Cleanup(func() { dispatchNotifyUser = originalDispatcher })
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:                                7002,
+		UserEmail:                             "subscription@example.com",
+		BillingSource:                         BillingSourceSubscription,
+		SubscriptionId:                        7001,
+		SubscriptionAmountTotal:               100,
+		SubscriptionAmountUsedAfterPreConsume: 80,
+		UserSetting: dto.UserSetting{
+			NotifyType:            dto.NotifyTypeWebhook,
+			QuotaWarningThreshold: 30,
+			WebhookUrl:            "https://example.com/hook",
+		},
+		IsPlayground: true,
+	}
+
+	require.NoError(t, SettleBilling(nil, relayInfo, 10))
+	require.NoError(t, SettleBilling(nil, relayInfo, 10))
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(notifications) == 1
+	}, time.Second, 10*time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, notifications, 1)
+	require.Equal(t, dto.NotifyTypeQuotaExceed, notifications[0].Type)
+
+	var stored model.UserSubscription
+	require.NoError(t, model.DB.First(&stored, 7001).Error)
+	require.EqualValues(t, 90, stored.AmountUsed)
+}
+
+func setupQuotaNotifySubscriptionTestDB(t *testing.T) {
+	t.Helper()
+	originalDB := model.DB
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingPostgreSQL := common.UsingPostgreSQL
+	originalUsingMySQL := common.UsingMySQL
+	db, err := gorm.Open(sqlite.Open("file:"+strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())+"?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	model.DB = db
+	common.UsingSQLite = true
+	common.UsingPostgreSQL = false
+	common.UsingMySQL = false
+	require.NoError(t, model.DB.AutoMigrate(&model.User{}, &model.UserSubscription{}, &model.QuotaLifecycleState{}, &model.RecallLifecycleEvent{}))
+	t.Cleanup(func() {
+		model.DB = originalDB
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+		common.UsingMySQL = originalUsingMySQL
+		require.NoError(t, sqlDB.Close())
+	})
 }

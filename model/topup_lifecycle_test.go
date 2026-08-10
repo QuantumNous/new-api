@@ -78,6 +78,7 @@ func TestTopUpLifecycleTerminalFailureStatusesReplayAsOneFailedEvent(t *testing.
 			user := createLifecycleQuotaTestUser(t, "topup-terminal-"+tc.name, 0, 100)
 			topUp := insertTopUpLifecycleOrder(t, user.Id, "topup-terminal-"+tc.name, PaymentProviderStripe, common.TopUpStatusPending, 1_700_002_500, 0)
 
+			terminalOccurredAt := int64(1_700_002_600)
 			transition := PurchaseLifecycleTransition{
 				Kind:       "topup",
 				SourceID:   int64(topUp.Id),
@@ -85,7 +86,7 @@ func TestTopUpLifecycleTerminalFailureStatusesReplayAsOneFailedEvent(t *testing.
 				UserID:     user.Id,
 				FromStatus: []string{common.TopUpStatusPending},
 				ToStatus:   tc.status,
-				OccurredAt: 1_700_002_600,
+				OccurredAt: terminalOccurredAt,
 				SourceRef:  "provider." + tc.name,
 			}
 			applied, err := transitionTopUpLifecycleForTest(transition)
@@ -100,6 +101,7 @@ func TestTopUpLifecycleTerminalFailureStatusesReplayAsOneFailedEvent(t *testing.
 
 			stored := GetTopUpByTradeNo(topUp.TradeNo)
 			require.Equal(t, tc.status, stored.Status)
+			require.Equal(t, terminalOccurredAt, stored.CompleteTime)
 			requireTopUpLifecycleEventCount(t, topUp.TradeNo, RecallLifecycleTriggerPaymentFailed, 1)
 			requireTopUpLifecycleEventCount(t, topUp.TradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
 			require.Equal(t, 0, walletQuotaForTest(t, user.Id))

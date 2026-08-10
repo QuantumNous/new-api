@@ -103,6 +103,41 @@ func TestSubscriptionLifecycleSuccessReplayCreatesEntitlementCycleAndEventOnce(t
 	require.EqualValues(t, 1, topups)
 }
 
+func TestSubscriptionLifecycleSuccessRequiresWinnerScopeAndRollsBack(t *testing.T) {
+	setupSubscriptionLifecycleTestDB(t, 1)
+	plan := createSubscriptionLifecyclePlan(t, "sub-life-missing-scope")
+	user := createLifecycleQuotaTestUser(t, "sub-life-missing-scope", 0, 100)
+	order := insertSubscriptionLifecycleOrder(t, user.Id, plan.Id, "sub-life-missing-scope-order", common.TopUpStatusPending, 1_700_103_250, 0)
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		_, err := persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindSubscription,
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     user.Id,
+			FromStatus: []string{common.TopUpStatusPending},
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: 1_700_103_300,
+			SourceRef:  "provider.missing_scope",
+		}, func(tx *gorm.DB, locked *SubscriptionOrder, transition *PurchaseLifecycleTransition) error {
+			_, err := createUserSubscriptionFromPlanWithCycleTx(tx, locked.UserId, plan, "order", 0, subscriptionOrderLifecycleCycleKey(locked.Id, locked.TradeNo))
+			return err
+		})
+		return err
+	})
+	require.ErrorContains(t, err, "subscription lifecycle success requires subscription scope")
+
+	stored := GetSubscriptionOrderByTradeNo(order.TradeNo)
+	require.NotNil(t, stored)
+	require.Equal(t, common.TopUpStatusPending, stored.Status)
+	require.Zero(t, stored.CompleteTime)
+	requireSubscriptionLifecycleEventCount(t, order.TradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
+	requireSubscriptionLifecycleStateCount(t, user.Id, 0)
+	var subs int64
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("user_id = ? AND plan_id = ?", user.Id, plan.Id).Count(&subs).Error)
+	require.Zero(t, subs)
+}
+
 func TestSubscriptionLifecycleCASLoserDoesNotCreateEntitlementOrEvent(t *testing.T) {
 	setupSubscriptionLifecycleTestDB(t, 1)
 	plan := createSubscriptionLifecyclePlan(t, "sub-life-cas-loser")

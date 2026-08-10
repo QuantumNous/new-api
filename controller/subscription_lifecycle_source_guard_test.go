@@ -16,6 +16,15 @@ func TestWaffoPancakeSubscriptionFailureUsesLifecycleTransition(t *testing.T) {
 	require.NotContains(t, body, "order.Update()")
 }
 
+func TestWaffoPancakeSubscriptionCheckoutFailureDoesNotSwallowLifecycleTransitionError(t *testing.T) {
+	body := controllerSourceFunctionBody(t, "subscription_payment_waffo_pancake.go", "SubscriptionRequestWaffoPancakePay")
+
+	require.NotContains(t, body, "_ = model.DB.Transaction")
+	require.Contains(t, body, "transitionErr := model.DB.Transaction")
+	require.Contains(t, body, "trade_no=%s")
+	require.Contains(t, body, "订单状态更新失败")
+}
+
 func controllerSourceFunctionBody(t *testing.T, fileName string, functionName string) string {
 	t.Helper()
 	data, err := os.ReadFile(fileName)
