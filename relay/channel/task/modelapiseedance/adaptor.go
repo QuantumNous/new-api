@@ -103,11 +103,11 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	if err := common.Unmarshal(responseBody, &submit); err != nil {
 		return "", nil, taskError(fmt.Errorf("invalid upstream response"), "invalid_response", http.StatusBadGateway)
 	}
+	if submit.Status == modelAPIStatusFailed {
+		return "", nil, taskError(fmt.Errorf("%s", modelAPIFailureReason()), "upstream_error", http.StatusBadGateway)
+	}
 	if strings.TrimSpace(submit.TaskID) == "" {
 		return "", nil, taskError(fmt.Errorf("upstream response missing task_id"), "invalid_response", http.StatusBadGateway)
-	}
-	if submit.Status == modelAPIStatusFailed {
-		return "", nil, taskError(fmt.Errorf("%s", taskcommon.ScrubBrandedText(submit.Error.Message)), "upstream_error", http.StatusBadGateway)
 	}
 
 	ov := dto.NewOpenAIVideo()
@@ -175,7 +175,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case modelAPIStatusFailed:
 		info.Status = model.TaskStatusFailure
 		info.Progress = taskcommon.ProgressComplete
-		info.Reason = taskcommon.ScrubBrandedText(result.Error.Message)
+		info.Reason = modelAPIFailureReason()
 	default:
 		info.Status = model.TaskStatusInProgress
 		info.Progress = taskcommon.ProgressInProgress
@@ -197,7 +197,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 	if originTask.Status == model.TaskStatusFailure {
 		ov.Error = &dto.OpenAIVideoError{
-			Message: taskcommon.ScrubBrandedText(originTask.FailReason),
+			Message: modelAPIFailureReason(),
 		}
 	}
 	return common.Marshal(ov)
@@ -223,6 +223,13 @@ type modelAPIInputItem struct {
 	URL     string `json:"url,omitempty"`
 }
 
+type modelAPIInput struct {
+	Text  []modelAPIInputItem `json:"text"`
+	Image []modelAPIInputItem `json:"image"`
+	Video []modelAPIInputItem `json:"video"`
+	Audio []modelAPIInputItem `json:"audio"`
+}
+
 type modelAPIParams struct {
 	Duration        *int   `json:"duration,omitempty"`
 	Resolution      string `json:"resolution,omitempty"`
@@ -234,9 +241,9 @@ type modelAPIParams struct {
 }
 
 type modelAPICreateRequest struct {
-	Model  string              `json:"model"`
-	Input  []modelAPIInputItem `json:"input"`
-	Params *modelAPIParams     `json:"params,omitempty"`
+	Model  string          `json:"model"`
+	Input  modelAPIInput   `json:"input"`
+	Params *modelAPIParams `json:"params,omitempty"`
 }
 
 type modelAPIError struct {
@@ -272,21 +279,31 @@ const (
 	modelAPIStatusRunning   = "running"
 	modelAPIStatusSucceeded = "succeeded"
 	modelAPIStatusFailed    = "failed"
+
+	modelAPIGenericFailureReason = "task failed at upstream provider"
 )
 
 func buildModelAPICreateRequest(seedReq *dto.SeedanceVideoRequest) modelAPICreateRequest {
-	body := modelAPICreateRequest{Model: UpstreamModel}
+	body := modelAPICreateRequest{
+		Model: UpstreamModel,
+		Input: modelAPIInput{
+			Text:  []modelAPIInputItem{},
+			Image: []modelAPIInputItem{},
+			Video: []modelAPIInputItem{},
+			Audio: []modelAPIInputItem{},
+		},
+	}
 	if prompt := strings.TrimSpace(seedReq.PromptText()); prompt != "" {
-		body.Input = append(body.Input, modelAPIInputItem{Role: "prompt", Content: prompt})
+		body.Input.Text = append(body.Input.Text, modelAPIInputItem{Role: "prompt", Content: prompt})
 	}
 	for _, m := range seedReq.Images() {
-		body.Input = append(body.Input, modelAPIInputItem{Role: modelAPIImageRole(m.Role), URL: m.URL})
+		body.Input.Image = append(body.Input.Image, modelAPIInputItem{Role: modelAPIImageRole(m.Role), URL: m.URL})
 	}
 	for _, m := range seedReq.Videos() {
-		body.Input = append(body.Input, modelAPIInputItem{Role: modelAPIReferenceRole, URL: m.URL})
+		body.Input.Video = append(body.Input.Video, modelAPIInputItem{Role: modelAPIReferenceRole, URL: m.URL})
 	}
 	for _, m := range seedReq.Audios() {
-		body.Input = append(body.Input, modelAPIInputItem{Role: modelAPIReferenceRole, URL: m.URL})
+		body.Input.Audio = append(body.Input.Audio, modelAPIInputItem{Role: modelAPIReferenceRole, URL: m.URL})
 	}
 	params := modelAPIParams{
 		Duration:        seedReq.Duration,
@@ -301,6 +318,10 @@ func buildModelAPICreateRequest(seedReq *dto.SeedanceVideoRequest) modelAPICreat
 		body.Params = &params
 	}
 	return body
+}
+
+func modelAPIFailureReason() string {
+	return modelAPIGenericFailureReason
 }
 
 const modelAPIReferenceRole = "reference"

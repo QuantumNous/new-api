@@ -83,16 +83,23 @@ func TestBuildModelAPICreateRequestMapsTextMediaRolesAndVideoAssetSelection(t *t
 	if body.Model != UpstreamModel {
 		t.Fatalf("model = %q, want fixed upstream model %q", body.Model, UpstreamModel)
 	}
-	if len(body.Input) != 6 {
-		t.Fatalf("input length = %d, want 6: %+v", len(body.Input), body.Input)
+	if len(body.Input.Text) != 1 || len(body.Input.Image) != 3 || len(body.Input.Video) != 1 || len(body.Input.Audio) != 1 {
+		t.Fatalf("input groups not mapped: %+v", body.Input)
 	}
-	if body.Input[0].Role != "prompt" || body.Input[0].Content != "make it cinematic" {
-		t.Fatalf("text input = %+v", body.Input[0])
+	if body.Input.Text[0].Role != "prompt" || body.Input.Text[0].Content != "make it cinematic" {
+		t.Fatalf("text input = %+v", body.Input.Text[0])
 	}
 	wantRoles := []string{"reference", "first_frame", "last_frame", "reference", "reference"}
+	gotRoles := []string{
+		body.Input.Image[0].Role,
+		body.Input.Image[1].Role,
+		body.Input.Image[2].Role,
+		body.Input.Video[0].Role,
+		body.Input.Audio[0].Role,
+	}
 	for i, want := range wantRoles {
-		if got := body.Input[i+1].Role; got != want {
-			t.Fatalf("input[%d].role = %q, want %q", i+1, got, want)
+		if got := gotRoles[i]; got != want {
+			t.Fatalf("input role[%d] = %q, want %q", i, got, want)
 		}
 	}
 	if body.Params == nil || body.Params.AspectRatio != "16:9" || body.Params.Resolution != "720p" {
@@ -113,6 +120,54 @@ func TestBuildModelAPICreateRequestMapsTextMediaRolesAndVideoAssetSelection(t *t
 	if info.Url != "https://cdn.example/final.mp4" {
 		t.Fatalf("selected url = %q, want non-first video asset", info.Url)
 	}
+}
+
+func TestBuildRequestBodyUsesModelAPIGroupedInputWireShape(t *testing.T) {
+	c, _ := newModelAPITestContext(`{
+		"model":"client-model",
+		"content":[
+			{"type":"text","text":"make it cinematic"},
+			{"type":"image_url","image_url":{"url":"https://cdn.example/ref.png"},"role":"reference_image"},
+			{"type":"image_url","image_url":{"url":"https://cdn.example/first.png"},"role":"first_frame"},
+			{"type":"image_url","image_url":{"url":"https://cdn.example/last.png"},"role":"last_frame"},
+			{"type":"video_url","video_url":{"url":"https://cdn.example/ref.mp4"}},
+			{"type":"audio_url","audio_url":{"url":"https://cdn.example/ref.mp3"}}
+		]
+	}`)
+	reader, err := (&TaskAdaptor{}).BuildRequestBody(c, newModelAPIRelayInfo("", ""))
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read BuildRequestBody: %v", err)
+	}
+
+	var wire map[string]any
+	if err := common.Unmarshal(raw, &wire); err != nil {
+		t.Fatalf("unmarshal wire body: %v", err)
+	}
+	input, ok := wire["input"].(map[string]any)
+	if !ok {
+		t.Fatalf("input wire type = %T, want object: %s", wire["input"], raw)
+	}
+	if _, flattened := wire["input"].([]any); flattened {
+		t.Fatalf("input must not be a flat array: %s", raw)
+	}
+	assertModelAPIWireItems(t, input, "text", []map[string]string{
+		{"role": "prompt", "content": "make it cinematic"},
+	})
+	assertModelAPIWireItems(t, input, "image", []map[string]string{
+		{"role": "reference", "url": "https://cdn.example/ref.png"},
+		{"role": "first_frame", "url": "https://cdn.example/first.png"},
+		{"role": "last_frame", "url": "https://cdn.example/last.png"},
+	})
+	assertModelAPIWireItems(t, input, "video", []map[string]string{
+		{"role": "reference", "url": "https://cdn.example/ref.mp4"},
+	})
+	assertModelAPIWireItems(t, input, "audio", []map[string]string{
+		{"role": "reference", "url": "https://cdn.example/ref.mp3"},
+	})
 }
 
 func TestBuildRequestBodyPreservesExplicitZeroFalseAndOmitsAbsentParams(t *testing.T) {
@@ -157,6 +212,28 @@ func TestBuildRequestBodyPreservesExplicitZeroFalseAndOmitsAbsentParams(t *testi
 	for _, omitted := range []string{"duration", "resolution", "aspect_ratio"} {
 		if strings.Contains(text, omitted) {
 			t.Fatalf("body should omit %s when absent: %s", omitted, text)
+		}
+	}
+}
+
+func assertModelAPIWireItems(t *testing.T, input map[string]any, key string, want []map[string]string) {
+	t.Helper()
+	items, ok := input[key].([]any)
+	if !ok {
+		t.Fatalf("input.%s wire type = %T, want array", key, input[key])
+	}
+	if len(items) != len(want) {
+		t.Fatalf("input.%s length = %d, want %d: %+v", key, len(items), len(want), items)
+	}
+	for i, item := range items {
+		got, ok := item.(map[string]any)
+		if !ok {
+			t.Fatalf("input.%s[%d] wire type = %T, want object", key, i, item)
+		}
+		for field, wantValue := range want[i] {
+			if gotValue, _ := got[field].(string); gotValue != wantValue {
+				t.Fatalf("input.%s[%d].%s = %q, want %q", key, i, field, gotValue, wantValue)
+			}
 		}
 	}
 }
@@ -359,6 +436,49 @@ func TestDoResponseParsesExactTaskIDAndRejectsIDOnly(t *testing.T) {
 	}
 }
 
+func TestDoResponseReturnsFailedStatusBeforeMissingTaskIDAndUsesErrorCodeFallback(t *testing.T) {
+	a := &TaskAdaptor{}
+	info := newModelAPIRelayInfo("", "")
+	c, _ := newModelAPITestContext(`{}`)
+	resp := &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"status":"failed","error":{"message":"ModelAPI api.modelapi.co rejected https://api.modelapi.co/v1/tasks/real"}}`))}
+	_, _, taskErr := a.DoResponse(c, resp, info)
+	if taskErr == nil {
+		t.Fatal("expected failed create response to be rejected")
+	}
+	if taskErr.Code != "upstream_error" {
+		t.Fatalf("taskErr.Code = %q, want upstream_error", taskErr.Code)
+	}
+	if taskErr.Message != "task failed at upstream provider" {
+		t.Fatalf("failed-without-task_id message = %q", taskErr.Message)
+	}
+	assertNoModelAPILeak(t, taskErr.Message)
+
+	c, _ = newModelAPITestContext(`{}`)
+	resp = &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"status":"failed","error":{"code":"rate_limit_exceeded"}}`))}
+	_, _, taskErr = a.DoResponse(c, resp, info)
+	if taskErr == nil {
+		t.Fatal("expected code-only failed create response to be rejected")
+	}
+	if taskErr.Message == "" {
+		t.Fatal("code-only failed create response returned empty message")
+	}
+	if taskErr.Message != "task failed at upstream provider" {
+		t.Fatalf("code-only failed create message = %q", taskErr.Message)
+	}
+	assertNoModelAPILeak(t, taskErr.Message)
+
+	c, _ = newModelAPITestContext(`{}`)
+	resp = &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"status":"failed","error":{"message":"download failed for https://cdn.example/private.mp4 upstream-task-123"}}`))}
+	_, _, taskErr = a.DoResponse(c, resp, info)
+	if taskErr == nil {
+		t.Fatal("expected unbranded failed create response to be rejected")
+	}
+	if taskErr.Message != "task failed at upstream provider" {
+		t.Fatalf("unbranded failed create message = %q", taskErr.Message)
+	}
+	assertNoModelAPILeak(t, taskErr.Message)
+}
+
 func TestParseTaskResultStatusMappingsAndFailureScrub(t *testing.T) {
 	a := &TaskAdaptor{}
 	tests := []struct {
@@ -389,6 +509,38 @@ func TestParseTaskResultStatusMappingsAndFailureScrub(t *testing.T) {
 	if _, err := a.ParseTaskResult([]byte(`{"task_id":"up","status":"succeeded","result":{"assets":[{"type":"image","url":"https://x/i.png"}]}}`)); err == nil {
 		t.Fatal("expected missing video asset to be retryable error")
 	}
+}
+
+func TestParseTaskResultUsesErrorCodeFallbackForFailedTasks(t *testing.T) {
+	info, err := (&TaskAdaptor{}).ParseTaskResult([]byte(`{"task_id":"up","status":"failed","error":{"code":"quota_exceeded"}}`))
+	if err != nil {
+		t.Fatalf("ParseTaskResult error: %v", err)
+	}
+	if info.Status != model.TaskStatusFailure {
+		t.Fatalf("Status = %q, want failure", info.Status)
+	}
+	if info.Reason != "task failed at upstream provider" {
+		t.Fatalf("code-only failure reason = %q", info.Reason)
+	}
+	assertNoModelAPILeak(t, info.Reason)
+
+	info, err = (&TaskAdaptor{}).ParseTaskResult([]byte(`{"task_id":"up","status":"failed","error":{"code":"ModelAPI api.modelapi.co https://api.modelapi.co/v1/tasks/real"}}`))
+	if err != nil {
+		t.Fatalf("ParseTaskResult branded code error: %v", err)
+	}
+	if info.Reason != "task failed at upstream provider" {
+		t.Fatalf("branded code-only failure reason = %q", info.Reason)
+	}
+	assertNoModelAPILeak(t, info.Reason)
+
+	info, err = (&TaskAdaptor{}).ParseTaskResult([]byte(`{"task_id":"up","status":"failed","error":{"message":"download failed for https://cdn.example/private.mp4 upstream-task-123"}}`))
+	if err != nil {
+		t.Fatalf("ParseTaskResult unbranded URL error: %v", err)
+	}
+	if info.Reason != "task failed at upstream provider" {
+		t.Fatalf("unbranded URL failure reason = %q", info.Reason)
+	}
+	assertNoModelAPILeak(t, info.Reason)
 }
 
 func TestConvertToOpenAIVideoUsesPublicResultURLAndScrubsFailure(t *testing.T) {
@@ -423,7 +575,7 @@ func TestConvertToOpenAIVideoUsesPublicResultURLAndScrubsFailure(t *testing.T) {
 	failure := &model.Task{
 		TaskID:     "task_public",
 		Status:     model.TaskStatusFailure,
-		FailReason: "ModelAPI seedance failed",
+		FailReason: "download failed for https://cdn.example/private.mp4 upstream-task-123",
 	}
 	raw, err = a.ConvertToOpenAIVideo(failure)
 	if err != nil {
@@ -434,5 +586,14 @@ func TestConvertToOpenAIVideoUsesPublicResultURLAndScrubsFailure(t *testing.T) {
 	}
 	if got.Error == nil || got.Error.Message != "task failed at upstream provider" {
 		t.Fatalf("failure error = %+v", got.Error)
+	}
+}
+
+func assertNoModelAPILeak(t *testing.T, s string) {
+	t.Helper()
+	for _, leaked := range []string{"ModelAPI", "modelapi", "api.modelapi.co", "https://api.modelapi.co/v1/tasks/real", "https://cdn.example/private.mp4", "upstream-task-123"} {
+		if strings.Contains(s, leaked) {
+			t.Fatalf("message leaked %q: %q", leaked, s)
+		}
 	}
 }
