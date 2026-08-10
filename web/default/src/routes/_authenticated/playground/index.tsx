@@ -112,7 +112,6 @@ function PlaygroundPage() {
     <Main className='p-0'>
       <Playground
         firstRun={first === 1}
-        initialGenerate={generate}
         initialModel={model}
         initialPrompt={prompt}
       />

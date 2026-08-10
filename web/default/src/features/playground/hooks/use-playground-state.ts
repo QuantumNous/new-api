@@ -25,6 +25,7 @@ import {
   saveParameterEnabled,
   loadMessages,
   saveMessages,
+  applyPlaygroundHandoffModel,
 } from '../lib'
 import type {
   Message,
@@ -37,11 +38,14 @@ import type {
 /**
  * Main state management hook for playground
  */
-export function usePlaygroundState() {
+export function usePlaygroundState(initialModel?: string) {
   // Load initial state from localStorage
   const [config, setConfig] = useState<PlaygroundConfig>(() => {
     const savedConfig = loadConfig()
-    return { ...DEFAULT_CONFIG, ...savedConfig }
+    return applyPlaygroundHandoffModel(
+      { ...DEFAULT_CONFIG, ...savedConfig },
+      initialModel
+    )
   })
 
   const [parameterEnabled, setParameterEnabled] = useState<ParameterEnabled>(

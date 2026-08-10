@@ -18,11 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import { API_ENDPOINTS } from './constants'
-import { isPlaygroundChatModelName } from './lib/playground-model-filter'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
-  ModelOption,
   GroupOption,
   VideoTask,
 } from './types'
@@ -47,11 +45,9 @@ export async function submitVideo(
   model: string,
   prompt: string
 ): Promise<VideoTask> {
-  const res = await api.post(
-    API_ENDPOINTS.VIDEOS,
-    { model, prompt },
-    { skipErrorHandler: true } as Record<string, unknown>
-  )
+  const res = await api.post(API_ENDPOINTS.VIDEOS, { model, prompt }, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
   return res.data
 }
 
@@ -62,10 +58,13 @@ export async function submitVideo(
  * request rather than a possibly-stale in-flight promise.
  */
 export async function fetchVideoStatus(id: string): Promise<VideoTask> {
-  const res = await api.get(`${API_ENDPOINTS.VIDEOS}/${encodeURIComponent(id)}`, {
-    disableDuplicate: true,
-    skipErrorHandler: true,
-  })
+  const res = await api.get(
+    `${API_ENDPOINTS.VIDEOS}/${encodeURIComponent(id)}`,
+    {
+      disableDuplicate: true,
+      skipErrorHandler: true,
+    }
+  )
   return res.data
 }
 
@@ -88,9 +87,11 @@ export async function fetchVideoContent(id: string): Promise<Blob> {
 }
 
 /**
- * Get user available models
+ * Get all models available to the user. Playground-specific display filtering
+ * happens at the call site so handoff models can be validated against the raw
+ * backend response before being added to the picker.
  */
-export async function getUserModels(group?: string): Promise<ModelOption[]> {
+export async function getUserModels(group?: string): Promise<string[]> {
   const res = await api.get(API_ENDPOINTS.USER_MODELS, {
     params: group ? { group } : undefined,
   })
@@ -100,12 +101,11 @@ export async function getUserModels(group?: string): Promise<ModelOption[]> {
     return []
   }
 
-  return data.data.filter(isPlaygroundChatModelName).map((model: string) => ({
-    label: model,
-    value: model,
-  }))
+  return data.data
+    .filter((model: unknown): model is string => typeof model === 'string')
+    .map((model: string) => model.trim())
+    .filter(Boolean)
 }
-
 /**
  * Get user groups
  */

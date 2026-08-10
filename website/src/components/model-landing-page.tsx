@@ -1257,11 +1257,7 @@ function buildRunHref(
   if (config.generator?.kind === "image" || config.generator?.kind === "video") {
     playgroundParams.set("generate", config.generator.kind);
   }
-  const signUpParams = new URLSearchParams({
-    redirect: `/playground?${playgroundParams.toString()}`,
-    lng: locale,
-  });
-  return consoleUrl("/sign-up", signUpParams.toString());
+  return consoleUrl("/playground", playgroundParams.toString());
 }
 
 function withCurrentSearch(baseHref: string) {
