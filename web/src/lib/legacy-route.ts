@@ -34,6 +34,10 @@ const legacyConsoleRoutes: Record<string, string> = {
   '/console/task': '/usage-logs/task',
 }
 
+const routeAliases: Record<string, string> = {
+  '/admin/dashboard': '/channels',
+}
+
 const legacySettingsTabs: Record<string, string> = {
   operation: '/system-settings/operations/behavior',
   dashboard: '/system-settings/content/dashboard',
@@ -93,6 +97,9 @@ export function resolveLegacyRoute(rawHref: string): string | null {
     const chatID = pathname.slice('/console/chat/'.length)
     return buildTargetHref(chatID ? `/chat/${chatID}` : '/dashboard', source)
   }
+
+  const aliasTarget = routeAliases[pathname]
+  if (aliasTarget) return buildTargetHref(aliasTarget, source)
 
   const target = legacyConsoleRoutes[pathname]
   if (target) return buildTargetHref(target, source)

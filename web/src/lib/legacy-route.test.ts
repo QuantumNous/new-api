@@ -47,6 +47,14 @@ describe('legacy frontend route migration', () => {
     }
   })
 
+  test('maps the admin dashboard alias to the current admin landing page', () => {
+    assert.equal(resolveLegacyRoute('/admin/dashboard'), '/channels')
+    assert.equal(
+      resolveLegacyRoute('/admin/dashboard?from=nav#switch'),
+      '/channels?from=nav#switch'
+    )
+  })
+
   test('preserves search and hash while applying route-specific behavior', () => {
     assert.equal(
       resolveLegacyRoute('/login?redirect=%2Fkeys#continue'),

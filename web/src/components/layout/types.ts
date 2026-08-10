@@ -105,7 +105,7 @@ export type TopNavLink = {
 export type SidebarViewParent = {
   /** Destination URL for the back button */
   to: LinkProps['to'] | (string & {})
-  /** Visible label, e.g. "Back to Dashboard" — already localized */
+  /** Visible label, e.g. "Back to Dashboard" */
   label: string
 }
 
@@ -124,6 +124,8 @@ export type SidebarView = {
   pathPattern: RegExp
   /** Back-navigation descriptor; required for nested views */
   parent: SidebarViewParent
+  /** Optional explicit switch targets shown instead of the single parent link */
+  parentLinks?: SidebarViewParent[]
   /** Nav group builder, called per render with the active translator */
   getNavGroups: (t: TFunction) => NavGroup[]
 }

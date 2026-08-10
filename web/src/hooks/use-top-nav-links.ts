@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useStatus } from '@/hooks/use-status'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
+import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 export type TopNavLink = {
@@ -58,7 +59,9 @@ export function useTopNavLinks(): TopNavLink[] {
   // Documentation link (may be external)
   const docsLink: string | undefined = status?.docs_link as string | undefined
 
-  const isAuthed = !!auth?.user
+  const user = auth?.user
+  const isAuthed = !!user
+  const isAdmin = (user?.role ?? 0) >= ROLE.ADMIN
 
   const links: TopNavLink[] = []
 
@@ -67,9 +70,14 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Home'), href: '/' })
   }
 
-  // Console -> /dashboard (new console path)
+  // Console paths: admins get an explicit user/admin panel switch.
   if (modules?.console !== false) {
-    links.push({ title: t('Console'), href: '/dashboard' })
+    if (isAdmin) {
+      links.push({ title: t('User Dashboard'), href: '/dashboard' })
+      links.push({ title: t('Admin Dashboard'), href: '/admin/dashboard' })
+    } else {
+      links.push({ title: t('Console'), href: '/dashboard' })
+    }
   }
 
   // Pricing
