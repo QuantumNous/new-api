@@ -85,3 +85,32 @@ func TestPreviewRecallEmailRejectsDeliveryPolicyConflictingWithLifecycleTrigger(
 
 	require.ErrorContains(t, err, `lifecycle trigger "payment_pending" requires delivery policy "engagement"`)
 }
+
+func TestPreviewRecallEmailAllowsTrimmedDeliveryPolicyMatchingLifecycleTrigger(t *testing.T) {
+	response, err := PreviewRecallEmail(RecallEmailPreviewRequest{
+		CampaignType:     model.RecallCampaignTypeContentOnly,
+		DeliveryPolicy:   "  " + model.RecallDeliveryPolicyEngagement + "  ",
+		LifecycleTrigger: model.RecallLifecycleTriggerPaymentPending,
+		Template: RecallEmailTemplate{
+			Subject:  "Payment pending",
+			BodyHTML: `<!doctype html><html><body><p>{{.payment_url}}</p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></body></html>`,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Contains(t, response.BodyHTML, "preview-trade-no")
+}
+
+func TestPreviewRecallEmailRejectsUnknownDeliveryPolicyForEngagementLifecycleTrigger(t *testing.T) {
+	_, err := PreviewRecallEmail(RecallEmailPreviewRequest{
+		CampaignType:     model.RecallCampaignTypeContentOnly,
+		DeliveryPolicy:   "bogus",
+		LifecycleTrigger: model.RecallLifecycleTriggerPaymentPending,
+		Template: RecallEmailTemplate{
+			Subject:  "Payment pending",
+			BodyHTML: `<!doctype html><html><body><p>{{.payment_url}}</p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></body></html>`,
+		},
+	})
+
+	require.ErrorContains(t, err, `lifecycle trigger "payment_pending" requires delivery policy "engagement"`)
+}

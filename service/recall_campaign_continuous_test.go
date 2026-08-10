@@ -183,6 +183,40 @@ func TestRecallCampaignContinuousSlotConflictRollsBackTransitionAndAudit(t *test
 	require.Zero(t, failedEvents)
 }
 
+func TestRecallCampaignContinuousResumeSlotConflictRollsBackTransitionAndAudit(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	setValidRecallActivitySMTP(t, common.SMTPConfig{Server: "smtp.activity.example.com", Port: 587, Account: "activity@example.com", From: "campaigns@example.com", Token: "secret"})
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), newRecallCampaignStripeService(t, &recallCampaignStripeCalls{}))
+	first, err := service.SaveDraft(context.Background(), 7, validRecallContinuousDraft())
+	require.NoError(t, err)
+	second, err := service.SaveDraft(context.Background(), 7, validRecallContinuousDraft())
+	require.NoError(t, err)
+	require.NoError(t, service.Activate(context.Background(), 7, first.Id))
+	require.NoError(t, service.Pause(context.Background(), 7, first.Id))
+	require.NoError(t, model.DB.Model(&model.RecallContinuousTriggerSlot{}).
+		Where("trigger = ?", model.RecallLifecycleTriggerQuotaLow).
+		Update("campaign_id", second.Id).Error)
+	resumeCtx := context.WithValue(context.Background(), common.RequestIdKey, "resume-conflicting-slot")
+
+	err = service.Resume(resumeCtx, 7, first.Id)
+
+	require.ErrorContains(t, err, "already owned")
+	stored, err := model.GetRecallCampaignByID(first.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.RecallCampaignPaused, stored.Status)
+	var slot model.RecallContinuousTriggerSlot
+	require.NoError(t, model.DB.First(&slot, "trigger = ?", model.RecallLifecycleTriggerQuotaLow).Error)
+	require.Equal(t, second.Id, slot.CampaignId)
+	var resumeEvents int64
+	require.NoError(t, model.DB.Model(&model.RecallEvent{}).
+		Where("campaign_id = ? AND source = ? AND event_type = ?", first.Id, "admin", "campaign_resumed").
+		Count(&resumeEvents).Error)
+	require.Zero(t, resumeEvents)
+}
+
 func TestRecallCampaignContinuousActivateWritesAtomicAdminEvent(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
