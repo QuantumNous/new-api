@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/service/authz"
 
 	// Import oauth package to register providers via init()
 	_ "github.com/QuantumNous/new-api/oauth"
@@ -187,9 +188,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/subscription/epay/notify", anonymousRequestBodyLimit, controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
-		apiRouter.POST("/subscription/epay/return", anonymousRequestBodyLimit, controller.SubscriptionEpayReturn)
 		optionRoute := apiRouter.Group("/option")
-		optionRoute.Use(middleware.RootAuth())
+		optionRoute.Use(middleware.AdminAuth(), middleware.RequirePermission(authz.SystemSettings))
 		{
 			optionRoute.GET("/", controller.GetOptions)
 			optionRoute.PUT("/", controller.UpdateOption)
@@ -203,8 +203,8 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/waffo-pancake/subscription-product", controller.CreateWaffoPancakeSubscriptionProduct)
 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
 		}
-		proxyRoute := apiRouter.Group("/proxy")
-		proxyRoute.Use(middleware.RootAuth())
+	proxyRoute := apiRouter.Group("/proxy")
+	proxyRoute.Use(middleware.AdminAuth(), middleware.RequirePermission(authz.SystemSettings))
 		{
 			proxyRoute.GET("/config", controller.GetProxyConfig)
 			proxyRoute.PUT("/config", controller.UpdateProxyConfig)
@@ -214,9 +214,9 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 
-		// Custom OAuth provider management (root only)
-		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
-		customOAuthRoute.Use(middleware.RootAuth())
+	// Custom OAuth provider management (admin with system.settings permission)
+	customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
+	customOAuthRoute.Use(middleware.AdminAuth(), middleware.RequirePermission(authz.SystemSettings))
 		{
 			customOAuthRoute.POST("/discovery", controller.FetchCustomOAuthDiscovery)
 			customOAuthRoute.GET("/", controller.GetCustomOAuthProviders)
@@ -224,9 +224,8 @@ func SetApiRouter(router *gin.Engine) {
 			customOAuthRoute.POST("/", controller.CreateCustomOAuthProvider)
 			customOAuthRoute.PUT("/:id", controller.UpdateCustomOAuthProvider)
 			customOAuthRoute.DELETE("/:id", controller.DeleteCustomOAuthProvider)
-		}
 		performanceRoute := apiRouter.Group("/performance")
-		performanceRoute.Use(middleware.RootAuth())
+		performanceRoute.Use(middleware.AdminAuth(), middleware.RequirePermission(authz.SystemSettings))
 		{
 			performanceRoute.GET("/stats", controller.GetPerformanceStats)
 			performanceRoute.DELETE("/disk_cache", controller.ClearDiskCache)
@@ -236,8 +235,7 @@ func SetApiRouter(router *gin.Engine) {
 			performanceRoute.DELETE("/logs", controller.CleanupLogFiles)
 		}
 		ratioSyncRoute := apiRouter.Group("/ratio_sync")
-		ratioSyncRoute.Use(middleware.RootAuth())
-		{
+		ratioSyncRoute.Use(middleware.AdminAuth(), middleware.RequirePermission(authz.SystemSettings))
 			ratioSyncRoute.GET("/channels", controller.GetSyncableChannels)
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
@@ -289,7 +287,7 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
 		systemTaskRoute := apiRouter.Group("/system-task")
-		systemTaskRoute.Use(middleware.RootAuth())
+		systemTaskRoute.Use(middleware.AdminAuth(), middleware.RequirePermission(authz.SystemSettings))
 		{
 			systemTaskRoute.POST("/log-cleanup", controller.CreateLogCleanupSystemTask)
 			systemTaskRoute.GET("/list", controller.ListSystemTasks)
@@ -297,7 +295,7 @@ func SetApiRouter(router *gin.Engine) {
 			systemTaskRoute.GET("/:task_id", controller.GetSystemTask)
 		}
 		systemInfoRoute := apiRouter.Group("/system-info")
-		systemInfoRoute.Use(middleware.RootAuth())
+		systemInfoRoute.Use(middleware.AdminAuth(), middleware.RequirePermission(authz.SystemSettings))
 		{
 			systemInfoRoute.GET("/instances", controller.ListSystemInstances)
 			systemInfoRoute.DELETE("/stale-instances", controller.DeleteStaleSystemInstances)

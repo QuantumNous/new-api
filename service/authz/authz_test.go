@@ -105,6 +105,9 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 			ActionSensitiveWrite: true,
 			ActionSecretView:     false,
 		},
+		ResourceSystem: {
+			ActionSettings: false,
+		},
 	}, ExplicitUserPermissions(42))
 	assert.Equal(t, PermissionsMap{
 		ResourceChannel: {
@@ -132,6 +135,9 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 			ActionWrite:          true,
 			ActionSensitiveWrite: false,
 			ActionSecretView:     false,
+		},
+		ResourceSystem: {
+			ActionSettings: false,
 		},
 	}, ExplicitUserPermissions(42))
 	assert.Empty(t, ExplicitUserOverrides(42))
@@ -226,4 +232,28 @@ func TestCapabilitiesUseCatalogShape(t *testing.T) {
 	assert.True(t, capabilities[ResourceChannel][ActionWrite])
 	assert.False(t, capabilities[ResourceChannel][ActionSensitiveWrite])
 	assert.False(t, capabilities[ResourceChannel][ActionSecretView])
+}
+
+func TestSystemSettingsPermission(t *testing.T) {
+	db := newAuthzTestDB(t)
+	require.NoError(t, Init(db))
+
+	// Admin user: should NOT have system.settings by default
+	capabilities := Capabilities(7, common.RoleAdminUser)
+	assert.False(t, capabilities[ResourceSystem][ActionSettings])
+
+	// Root user: should have it via superuser shortcut
+	rootCapabilities := Capabilities(1, common.RoleRootUser)
+	assert.True(t, rootCapabilities[ResourceSystem][ActionSettings])
+
+	// Admin user with explicit grant: should have it
+	grant := PermissionsMap{
+		ResourceSystem: {
+			ActionSettings: true,
+		},
+	}
+	require.NoError(t, SetUserPermissions(7, grant))
+	require.NoError(t, ReloadPolicy())
+	grantedCapabilities := Capabilities(7, common.RoleAdminUser)
+	assert.True(t, grantedCapabilities[ResourceSystem][ActionSettings])
 }
