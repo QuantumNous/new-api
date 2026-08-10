@@ -98,7 +98,7 @@ Rejected. It avoids shared lifecycle state but allocates and starts protocol sta
 
 PR #56 must demonstrate:
 
-- `go build -tags "with_gvisor,with_wireguard,with_utls" ./...` succeeds.
+- `cd app/api && go build -tags "with_gvisor,with_wireguard,with_utls" ./...` succeeds.
 - Tagged service tests pass, including direct registry construction and optional build-tag selection where the repository's sing-box API permits deterministic assertions.
 - `cd relaykit && GOWORK=off go build ./...` succeeds with the relaykit module unchanged.
 - Dockerfile and CI contain the same default tag list and no `with_quic`/`with_tor` baseline.
@@ -117,7 +117,7 @@ PR #57 must add deterministic tests for:
 The required gates for PR #57 are:
 
 ```text
-go build -tags "with_gvisor,with_wireguard,with_utls" ./...
+cd app/api && go build -tags "with_gvisor,with_wireguard,with_utls" ./...
 go test -tags "with_gvisor,with_wireguard,with_utls" ./service/... ./controller/...
 cd relaykit && GOWORK=off go build ./...
 ```
