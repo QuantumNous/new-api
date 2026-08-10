@@ -29,7 +29,8 @@ func trimSuffixFold(s, suf string) string {
 }
 
 // normalizeCreateBody maps aliases and validates ZZDH MiniMax-H3 create JSON.
-// Returns an error for invalid fps / duration / resolution / aspect_ratio.
+// Returns an error for invalid fps / duration / aspect_ratio.
+// Resolution is always stripped — delivery tier is locked by model name.
 func normalizeCreateBody(body map[string]interface{}, upstreamModel string) error {
 	if body == nil {
 		return fmt.Errorf("empty request body")
@@ -93,18 +94,14 @@ func normalizeCreateBody(body map[string]interface{}, upstreamModel string) erro
 		}
 	}
 
-	// resolution must match model delivery tier when present
-	expected := resolutionFromModel(upstreamModel)
-	if res := firstNonEmptyString(body, "resolution"); res != "" {
-		if expected != "" && !sameResolution(res, expected) {
-			return fmt.Errorf("resolution %q does not match model delivery resolution %q", res, expected)
-		}
-		body["resolution"] = expected
-	} else {
-		// Prefer omitting; model name already locks delivery resolution.
-		delete(body, "resolution")
-	}
+	// Delivery resolution is locked by model name (480p/720p/1080p/2k).
+	// Always omit resolution/quality and resolution-like size so clients
+	// carrying ApiMart values (e.g. 768P) do not get rejected upstream.
+	delete(body, "resolution")
 	delete(body, "quality")
+	if size := firstNonEmptyString(body, "size"); size != "" && !strings.Contains(size, ":") {
+		delete(body, "size")
+	}
 
 	// unsupported
 	delete(body, "negative_prompt")
@@ -127,16 +124,6 @@ func resolutionFromModel(modelName string) string {
 	default:
 		return ""
 	}
-}
-
-func sameResolution(a, b string) bool {
-	return normalizeResolutionToken(a) == normalizeResolutionToken(b)
-}
-
-func normalizeResolutionToken(s string) string {
-	s = strings.ToUpper(strings.TrimSpace(s))
-	s = strings.ReplaceAll(s, " ", "")
-	return s
 }
 
 func firstNonEmptyString(body map[string]interface{}, key string) string {

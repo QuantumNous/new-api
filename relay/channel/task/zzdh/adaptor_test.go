@@ -43,18 +43,28 @@ func TestNormalizeCreateBodyMapsImageWithRoles(t *testing.T) {
 	}
 }
 
-func TestNormalizeCreateBodyRejectsMismatchedResolution(t *testing.T) {
+func TestNormalizeCreateBodyStripsMismatchedResolution(t *testing.T) {
 	body := map[string]interface{}{
 		"prompt":     "x",
-		"resolution": "720P",
+		"resolution": "768P",
+		"quality":    "768P",
+		"size":       "768P",
 	}
-	err := normalizeCreateBody(body, "zzdh-Minimax-h3-480p")
-	if err == nil {
-		t.Fatal("expected resolution mismatch error")
+	if err := normalizeCreateBody(body, "zzdh-Minimax-h3-720p"); err != nil {
+		t.Fatal(err)
+	}
+	if _, has := body["resolution"]; has {
+		t.Fatalf("resolution should be omitted, got %#v", body["resolution"])
+	}
+	if _, has := body["quality"]; has {
+		t.Fatalf("quality should be omitted, got %#v", body["quality"])
+	}
+	if _, has := body["size"]; has {
+		t.Fatalf("size should be omitted, got %#v", body["size"])
 	}
 }
 
-func TestNormalizeCreateBodyAcceptsMatchingResolution(t *testing.T) {
+func TestNormalizeCreateBodyOmitsMatchingResolution(t *testing.T) {
 	body := map[string]interface{}{
 		"prompt":     "x",
 		"resolution": "2k",
@@ -63,8 +73,8 @@ func TestNormalizeCreateBodyAcceptsMatchingResolution(t *testing.T) {
 	if err := normalizeCreateBody(body, "zzdh-Minimax-h3-2k"); err != nil {
 		t.Fatal(err)
 	}
-	if body["resolution"] != "2K" {
-		t.Fatalf("resolution = %#v", body["resolution"])
+	if _, has := body["resolution"]; has {
+		t.Fatalf("resolution should be omitted (locked by model), got %#v", body["resolution"])
 	}
 }
 
