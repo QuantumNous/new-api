@@ -43,6 +43,7 @@ import type { Message, PlaygroundConfig } from './types'
 
 type CapturedInputProps = {
   initialText?: string
+  modelLocked?: boolean
   modelValue: string
   submitDisabled?: boolean
   onSubmit: (text: string) => void
@@ -50,6 +51,10 @@ type CapturedInputProps = {
 
 type CapturedChatProps = {
   onRegenerateMessage: (message: Message) => void
+}
+
+type CapturedWelcomeProps = {
+  onPickExample: (prompt: string, model?: string) => void
 }
 
 const navigateMock = mock(() => undefined)
@@ -62,6 +67,7 @@ const setModelsMock = mock(() => undefined)
 const setGroupsMock = mock(() => undefined)
 let capturedInputProps: CapturedInputProps | undefined
 let capturedChatProps: CapturedChatProps | undefined
+let capturedWelcomeProps: CapturedWelcomeProps | undefined
 let receivedInitialModel: string | undefined
 let modelsQueryData: string[] | undefined
 let isModelsQueryLoading = true
@@ -102,9 +108,12 @@ spyOn(playgroundChatModule, 'PlaygroundChat').mockImplementation(((
   return null
 }) as never)
 
-spyOn(playgroundFirstRunModule, 'FirstRunWelcome').mockImplementation(
-  (() => null) as never
-)
+spyOn(playgroundFirstRunModule, 'FirstRunWelcome').mockImplementation(((
+  props: CapturedWelcomeProps
+) => {
+  capturedWelcomeProps = props
+  return null
+}) as never)
 
 spyOn(playgroundFirstRunModule, 'GetKeyCard').mockImplementation(
   (() => null) as never
@@ -182,6 +191,7 @@ function renderHandoff(
 beforeEach(() => {
   capturedInputProps = undefined
   capturedChatProps = undefined
+  capturedWelcomeProps = undefined
   receivedInitialModel = undefined
   modelsQueryData = undefined
   isModelsQueryLoading = true
@@ -200,6 +210,7 @@ describe('Playground model landing handoff', () => {
 
     expect(receivedInitialModel).toBe('gpt-image-2')
     expect(input.modelValue).toBe('gpt-image-2')
+    expect(input.modelLocked).toBe(true)
     expect(input.initialText).toBe('Draw a violet fox')
     expect(input.submitDisabled).toBe(true)
     expect(sendChatMock).not.toHaveBeenCalled()
@@ -215,6 +226,7 @@ describe('Playground model landing handoff', () => {
     const input = renderHandoff()
 
     expect(input.modelValue).toBe('gpt-image-2')
+    expect(input.modelLocked).toBe(true)
     expect(input.submitDisabled).toBe(false)
 
     input.onSubmit('Draw a violet fox')
@@ -228,6 +240,7 @@ describe('Playground model landing handoff', () => {
     isModelsQueryLoading = false
     const input = renderHandoff('not-a-real-model', 'Draw a violet fox')
 
+    expect(input.modelLocked).toBe(true)
     expect(input.submitDisabled).toBe(true)
 
     input.onSubmit('Draw a violet fox')
@@ -269,6 +282,61 @@ describe('Playground model landing handoff', () => {
       search: {},
       replace: true,
     })
+  })
+
+  test('keeps first-run example model overrides on the locked handoff model', () => {
+    modelsQueryData = ['gpt-image-2', 'gemini-2.5-flash-image']
+    isModelsQueryLoading = false
+    renderHandoff('gpt-image-2', 'Draw a violet fox')
+    if (!capturedWelcomeProps)
+      throw new Error('FirstRunWelcome was not rendered')
+
+    capturedWelcomeProps.onPickExample(
+      'Generate an image',
+      'gemini-2.5-flash-image'
+    )
+
+    expect(sendChatMock).toHaveBeenCalledTimes(1)
+    expect(sendChatMock.mock.calls[0]?.[0].model).toBe('gpt-image-2')
+    expect(updateConfigMock).not.toHaveBeenCalledWith(
+      'model',
+      'gemini-2.5-flash-image'
+    )
+  })
+
+  test('allows a first-run handoff to an authorized filtered model', () => {
+    modelsQueryData = ['gpt-image-2']
+    isModelsQueryLoading = false
+
+    renderToStaticMarkup(
+      <Playground
+        firstRun
+        initialModel='gpt-image-2'
+        initialPrompt='Draw a violet fox'
+      />
+    )
+    if (!capturedInputProps) throw new Error('PlaygroundInput was not rendered')
+
+    expect(capturedInputProps.modelLocked).toBe(true)
+    expect(capturedInputProps.modelValue).toBe('gpt-image-2')
+    expect(capturedInputProps.submitDisabled).toBe(false)
+    expect(sendChatMock).not.toHaveBeenCalled()
+
+    capturedInputProps.onSubmit('Draw a violet fox')
+
+    expect(sendChatMock).toHaveBeenCalledTimes(1)
+    expect(sendChatMock.mock.calls[0]?.[0].model).toBe('gpt-image-2')
+  })
+
+  test('leaves the model selector unlocked on an ordinary visit', () => {
+    modelsQueryData = ['gpt-4o']
+    isModelsQueryLoading = false
+
+    renderToStaticMarkup(<Playground />)
+    if (!capturedInputProps) throw new Error('PlaygroundInput was not rendered')
+
+    expect(capturedInputProps.modelLocked).toBe(false)
+    expect(sendChatMock).not.toHaveBeenCalled()
   })
 })
 

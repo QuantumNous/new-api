@@ -246,6 +246,7 @@ export function Playground({
       retainedHandoffModel,
     ]
   )
+  const isHandoffModelLocked = !!handoff.requestedModel
 
   const firstRunModel = useMemo(() => {
     if (!firstRun || !chatModelsData.length) return undefined
@@ -259,17 +260,24 @@ export function Playground({
     !!firstRunModel &&
     isCurrentModelValid &&
     (userPickedModel || config.model === firstRunModel)
-  const isFirstRunModelReady = !firstRun || isFirstRunModelApplied
-  const getFirstRunChatOverride = useCallback(
-    () =>
-      resolveFirstRunChatOverride({
-        firstRun,
-        firstRunModel,
-        currentModel: config.model,
-        userPickedModel,
-      }),
-    [firstRun, firstRunModel, config.model, userPickedModel]
-  )
+  const isFirstRunModelReady = isHandoffModelLocked
+    ? isCurrentModelValid
+    : !firstRun || isFirstRunModelApplied
+  const getFirstRunChatOverride = useCallback(() => {
+    if (isHandoffModelLocked) return undefined
+    return resolveFirstRunChatOverride({
+      firstRun,
+      firstRunModel,
+      currentModel: config.model,
+      userPickedModel,
+    })
+  }, [
+    firstRun,
+    firstRunModel,
+    config.model,
+    isHandoffModelLocked,
+    userPickedModel,
+  ])
 
   // PLG users are pinned to the `plg` group so model fetching uses it.
   useEffect(() => {
@@ -291,6 +299,8 @@ export function Playground({
 
     setModels(handoff.models)
 
+    if (isHandoffModelLocked) return
+
     if (firstRun && !userPickedModel && !!firstRunModel) {
       if (config.model === firstRunModel) return
       updateConfig('model', firstRunModel)
@@ -311,6 +321,7 @@ export function Playground({
     firstRunModel,
     handoff.model,
     handoff.models,
+    isHandoffModelLocked,
     userPickedModel,
     setModels,
     updateConfig,
@@ -453,14 +464,14 @@ export function Playground({
         toast.error(i18next.t('Failed to load playground models'))
         return false
       }
-      if (firstRun && !isFirstRunModelApplied) {
+      if (!isFirstRunModelReady) {
         toast.error(i18next.t('Failed to load playground models'))
         return false
       }
       if (firstRun) setSentThisSession(true)
       return true
     },
-    [firstRun, handoff.models, isFirstRunModelApplied]
+    [firstRun, handoff.models, isFirstRunModelReady]
   )
 
   const clearModelGeneratorDraft = useCallback(() => {
@@ -491,7 +502,8 @@ export function Playground({
 
   const handleSendMessage = useCallback(
     (text: string, model?: string) => {
-      const targetModel = model || config.model
+      const modelOverride = isHandoffModelLocked ? undefined : model
+      const targetModel = modelOverride || config.model
       if (!prepareSend(targetModel)) return
       clearModelGeneratorDraft()
       clearPlaygroundHandoffSearch()
@@ -500,9 +512,9 @@ export function Playground({
       // An example prompt (or the picker) can force a specific model. Persist the
       // selection so the picker reflects it, and mark it as an explicit user choice
       // so the first-run cheap default never overrides it.
-      if (model) {
+      if (modelOverride) {
         setUserPickedModel(true)
-        updateConfig('model', model)
+        updateConfig('model', modelOverride)
       }
 
       // Video-generation models (veo) do NOT run through chat completions: insert a
@@ -523,8 +535,8 @@ export function Playground({
       // Crucially, pass a forced model as a direct send override: `updateConfig` is
       // async and wouldn't be reflected in `config` for this same-tick send, so the
       // override guarantees THIS message is requested against the forced model.
-      if (model) {
-        sendChat(newMessages, { model })
+      if (modelOverride) {
+        sendChat(newMessages, { model: modelOverride })
         return
       }
 
@@ -537,6 +549,7 @@ export function Playground({
       config.model,
       generateVideo,
       getFirstRunChatOverride,
+      isHandoffModelLocked,
       messages,
       prepareSend,
       sendChat,
@@ -690,6 +703,7 @@ export function Playground({
           groupValue={config.group}
           isGenerating={isGenerating}
           isModelLoading={isLoadingModels}
+          modelLocked={isHandoffModelLocked}
           modelValue={config.model}
           models={models}
           onGroupChange={(value) => updateConfig('group', value)}
