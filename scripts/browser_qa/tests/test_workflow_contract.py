@@ -209,6 +209,7 @@ def candidate_pr_job_condition():
 def evaluate_candidate_pr_condition(condition, *, upstream_result, bundle_count):
     expected_pattern = (
         "always() && needs.browser-qa.result == 'success' && "
+        "needs.browser-qa.outputs.target_environment == 'staging' && "
         "needs.browser-qa.outputs.candidate_pr_bundle_count != '0'"
     )
     if condition != expected_pattern:
@@ -1021,7 +1022,7 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
     def test_candidate_validation_runs_only_for_normal_after_manifest_and_uses_three_serial_exact_attempts(self):
         text = workflow_text()
         candidates = step_block(text, "Validate candidate promotion attempts")
-        self.assertRegex(candidates, r"(?m)^        if: \${\{ always\(\) && inputs\.mode == 'normal' && steps\.manifest\.outcome == 'success' && steps\.manifest\.outputs\.manifest_status != 'cleanup_failed' \}\}$")
+        self.assertRegex(candidates, r"(?m)^        if: \${\{ always\(\) && env\.FLATKEY_QA_TARGET_ENVIRONMENT == 'staging' && inputs\.mode == 'normal' && steps\.manifest\.outcome == 'success' && steps\.manifest\.outputs\.manifest_status != 'cleanup_failed' \}\}$")
         self.assertIn("continue-on-error: true", candidates)
         self.assertLess(text.index("- name: Fetch sanitized manifest and write summary"), text.index("- name: Validate candidate promotion attempts"))
         self.assertLess(text.index("- name: Validate candidate promotion attempts"), text.index("- name: Send terminal Browser QA report to DingTalk"))
@@ -1040,6 +1041,29 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("${{ inputs.", candidates)
         self.assertNotRegex(candidates, r"(?i)GITHUB_OUTPUT[^\n]*(result\.json|screenshots|codex-events|stderr|password|cookie|authorization|api[_-]?key|token|secret)")
 
+    def test_candidate_validation_upload_recovery_and_pr_are_staging_only_from_trusted_environment(self):
+        text = workflow_text()
+        parsed = yaml.safe_load(text)
+        self.assertEqual(
+            parsed["jobs"]["browser-qa"]["outputs"]["target_environment"],
+            "${{ steps.target.outputs.target_environment }}",
+        )
+        resolve = step_block(text, "Resolve target environment")
+        self.assertIn('echo "target_environment=${TARGET_ENVIRONMENT}"', resolve)
+
+        conditions = {
+            "normal": step_block(text, "Validate candidate promotion attempts"),
+            "upload_normal": step_block(text, "Upload normal candidate PR bundles"),
+            "recovery": step_block(text, "Recover candidate promotion from existing manifests"),
+            "upload_recovery": step_block(text, "Upload recovery candidate PR bundles"),
+        }
+        for name, block in conditions.items():
+            with self.subTest(step=name):
+                self.assertIn("env.FLATKEY_QA_TARGET_ENVIRONMENT == 'staging'", block)
+                self.assertNotIn("inputs.target_environment", block)
+                self.assertNotIn("DISPATCH_TARGET_ENVIRONMENT", block)
+        self.assertIn("needs.browser-qa.outputs.target_environment == 'staging'", candidate_pr_job_condition())
+
     def test_candidate_validation_is_skipped_for_core_cleanup_and_promotion_only_execute_recovery_has_zero_cloud_run_candidate_execution(self):
         text = workflow_text()
         candidates = step_block(text, "Validate candidate promotion attempts")
@@ -1047,7 +1071,7 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
 
         self.assertRegex(candidates, r"inputs\.mode == 'normal'")
         self.assertNotRegex(candidates, r"inputs\.mode == 'core'|inputs\.mode == 'cleanup-only'|inputs\.mode == 'promotion-only'")
-        self.assertRegex(recovery, r"(?m)^        if: \${\{ always\(\) && inputs\.mode == 'promotion-only' && steps\.manifest\.outcome == 'success' && steps\.manifest\.outputs\.manifest_status != 'cleanup_failed' \}\}$")
+        self.assertRegex(recovery, r"(?m)^        if: \${\{ always\(\) && env\.FLATKEY_QA_TARGET_ENVIRONMENT == 'staging' && inputs\.mode == 'promotion-only' && steps\.manifest\.outcome == 'success' && steps\.manifest\.outputs\.manifest_status != 'cleanup_failed' \}\}$")
         self.assertIn("python3 -B -m scripts.browser_qa.flatkey_browser_qa.candidate_orchestrator plan", recovery)
         self.assertIn("python3 -B -m scripts.browser_qa.flatkey_browser_qa.candidate_orchestrator aggregate", recovery)
         self.assertIn("gcloud storage cp \"${manifest_uri}\" \"${attempt_manifest_path}\" --quiet", recovery)

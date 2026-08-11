@@ -210,7 +210,11 @@ def _semantic_proposed_case(proposed_case):
 
 
 def _validate_proposed_case(proposed_case):
-    report._validate_proposed_case(proposed_case, "proposed_case")
+    report._validate_proposed_case(
+        proposed_case,
+        "proposed_case",
+        allowed_origins=report.STAGING_PROPOSED_CASE_ORIGINS,
+    )
 
 
 def _normalize_target_url(value):

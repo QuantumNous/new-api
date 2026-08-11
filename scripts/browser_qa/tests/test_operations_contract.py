@@ -419,6 +419,20 @@ class BrowserQaOperationsContractTests(unittest.TestCase):
                 )
                 self.assertEqual(attempt["case_id"], candidate["case_id"])
 
+    def test_candidate_orchestrator_returns_empty_plan_for_production_root_even_if_candidates_exist(self):
+        manifest = root_manifest([candidate_bundle()])
+        manifest["environment"] = "production"
+
+        plan = candidate_orchestrator.build_execution_plan(
+            manifest,
+            expected_bucket="browser-qa",
+            run_id="12345",
+            occupied={},
+        )
+
+        self.assertEqual(plan["environment"], "production")
+        self.assertEqual(plan["candidates"], [])
+
     def test_candidate_orchestrator_rejects_bucket_run_mismatch_duplicates_malformed_and_secret_candidates(self):
         valid = candidate_bundle()
         bad_cases = [

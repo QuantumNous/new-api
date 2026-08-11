@@ -89,8 +89,10 @@ jobs:
       id-token: write
     outputs:
       candidate_pr_bundle_count: ${{ steps.candidates.outputs.candidate_pr_bundle_count || steps.candidates_recovery.outputs.candidate_pr_bundle_count || '0' }}
+      target_environment: ${{ steps.target.outputs.target_environment }}
     steps:
       - name: Resolve target environment
+        id: target
         shell: bash
         env:
           DISPATCH_TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
@@ -120,6 +122,7 @@ jobs:
             echo "FLATKEY_QA_CONSOLE_ORIGIN=${CONSOLE_ORIGIN}"
             echo "FLATKEY_QA_DOCS_ORIGIN=${DOCS_ORIGIN}"
           } >> "$GITHUB_ENV"
+          echo "target_environment=${TARGET_ENVIRONMENT}" >> "$GITHUB_OUTPUT"
 
       - name: Validate dispatch inputs
         id: qa
@@ -547,7 +550,7 @@ jobs:
 
       - name: Validate candidate promotion attempts
         id: candidates
-        if: ${{ always() && inputs.mode == 'normal' && steps.manifest.outcome == 'success' && steps.manifest.outputs.manifest_status != 'cleanup_failed' }}
+        if: ${{ always() && env.FLATKEY_QA_TARGET_ENVIRONMENT == 'staging' && inputs.mode == 'normal' && steps.manifest.outcome == 'success' && steps.manifest.outputs.manifest_status != 'cleanup_failed' }}
         continue-on-error: true
         timeout-minutes: 90
         shell: bash
@@ -658,7 +661,7 @@ jobs:
           fi
 
       - name: Upload normal candidate PR bundles
-        if: ${{ always() && inputs.mode == 'normal' && steps.candidates.outcome != 'skipped' }}
+        if: ${{ always() && env.FLATKEY_QA_TARGET_ENVIRONMENT == 'staging' && inputs.mode == 'normal' && steps.candidates.outcome != 'skipped' }}
         uses: actions/upload-artifact@v4
         with:
           name: browser-qa-candidate-pr-bundles
@@ -668,7 +671,7 @@ jobs:
 
       - name: Recover candidate promotion from existing manifests
         id: candidates_recovery
-        if: ${{ always() && inputs.mode == 'promotion-only' && steps.manifest.outcome == 'success' && steps.manifest.outputs.manifest_status != 'cleanup_failed' }}
+        if: ${{ always() && env.FLATKEY_QA_TARGET_ENVIRONMENT == 'staging' && inputs.mode == 'promotion-only' && steps.manifest.outcome == 'success' && steps.manifest.outputs.manifest_status != 'cleanup_failed' }}
         continue-on-error: true
         timeout-minutes: 20
         shell: bash
@@ -756,7 +759,7 @@ jobs:
           fi
 
       - name: Upload recovery candidate PR bundles
-        if: ${{ always() && inputs.mode == 'promotion-only' && steps.candidates_recovery.outcome != 'skipped' }}
+        if: ${{ always() && env.FLATKEY_QA_TARGET_ENVIRONMENT == 'staging' && inputs.mode == 'promotion-only' && steps.candidates_recovery.outcome != 'skipped' }}
         uses: actions/upload-artifact@v4
         with:
           name: browser-qa-candidate-pr-bundles
@@ -833,7 +836,7 @@ jobs:
 
   candidate-pr:
     needs: browser-qa
-    if: ${{ always() && needs.browser-qa.result == 'success' && needs.browser-qa.outputs.candidate_pr_bundle_count != '0' }}
+    if: ${{ always() && needs.browser-qa.result == 'success' && needs.browser-qa.outputs.target_environment == 'staging' && needs.browser-qa.outputs.candidate_pr_bundle_count != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

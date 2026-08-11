@@ -8,6 +8,8 @@ from dataclasses import dataclass
 
 
 STAGING_CONSOLE_ORIGIN = "https://staging-console.flatkey.ai"
+PRODUCTION_CONSOLE_ORIGIN = "https://console.flatkey.ai"
+CONSOLE_ORIGINS = frozenset({STAGING_CONSOLE_ORIGIN, PRODUCTION_CONSOLE_ORIGIN})
 
 
 class ApiError(Exception):
@@ -158,11 +160,12 @@ def _validate_origin(origin, allow_test_origin):
     parsed = urllib.parse.urlparse(origin)
     if parsed.path not in ("", "/") or parsed.query or parsed.fragment or parsed.username or parsed.password:
         raise ValueError("console origin must not include path, query, fragment or credentials")
-    if origin == STAGING_CONSOLE_ORIGIN:
+    if origin in CONSOLE_ORIGINS:
         return origin
     if allow_test_origin and parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost"} and parsed.port:
         return origin.rstrip("/")
-    raise ValueError(f"console origin must be exactly {STAGING_CONSOLE_ORIGIN}")
+    allowed = ", ".join(sorted(CONSOLE_ORIGINS))
+    raise ValueError(f"console origin must be exactly one of: {allowed}")
 
 
 def _is_authentication_rejection(payload):

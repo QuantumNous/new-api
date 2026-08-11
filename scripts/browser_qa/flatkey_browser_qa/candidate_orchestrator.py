@@ -30,8 +30,17 @@ def build_execution_plan(root_manifest, *, expected_bucket, run_id, occupied=Non
     expected_bucket = candidate_job._validate_gcs_bucket(expected_bucket)
     run_id = candidate_job._validate_run_id(run_id)
     occupied = {} if occupied is None else dict(occupied)
-    candidates = _root_candidates(root_manifest)
     environment = _root_environment(root_manifest)
+    candidates = _root_candidates(root_manifest)
+    if environment != "staging":
+        return {
+            "schema_version": 1,
+            "kind": "candidate_execution_plan",
+            "run_id": run_id,
+            "bucket": expected_bucket,
+            "environment": environment,
+            "candidates": [],
+        }
     expected_source_uri = None
     if candidates:
         expected_source_uri = _latest_main_manifest_uri(root_manifest, expected_bucket=expected_bucket, run_id=run_id)

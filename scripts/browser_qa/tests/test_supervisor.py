@@ -1400,6 +1400,45 @@ class SupervisorTests(unittest.TestCase):
             core_manifest = json.load(handle)
         self.assertEqual(core_manifest["candidates"], [])
 
+    def test_production_normal_manifest_preserves_findings_but_does_not_emit_candidate_bundles(self):
+        finding = {
+            "severity": "high",
+            "title": "Production register returns 500",
+            "target_url": "https://console.flatkey.ai/register",
+            "steps": ["Open register"],
+            "expected": "No 500",
+            "actual": "500",
+            "evidence_paths": ["browser/network.jsonl"],
+            "confidence": "high",
+            "proposed_case": {
+                "fixture": "anonymous",
+                "start": {"origin": "production_console", "path": "/register"},
+                "steps": [{"navigate": {"path": "/register"}}],
+                "assertions": [{"page_status_not": 500}],
+                "cleanup": "not_required",
+            },
+        }
+
+        outcome, sup = self.run_supervisor(
+            FakeProcess(0),
+            input_env={
+                **env(),
+                "FLATKEY_QA_TARGET_ENVIRONMENT": "production",
+                "FLATKEY_QA_WEBSITE_ORIGIN": "https://flatkey.ai",
+                "FLATKEY_QA_CONSOLE_ORIGIN": "https://console.flatkey.ai",
+            },
+            result_payload=valid_result(environment="production", findings=[finding]),
+            preflight=lambda: {"data": {"register_enabled": True, "password_register_enabled": True, "email_verification": True, "turnstile_check": True}},
+        )
+
+        self.assertEqual(outcome.status, "findings_detected")
+        with open(os.path.join(sup.runtime_root, "manifest.json"), encoding="utf-8") as handle:
+            manifest = json.load(handle)
+        self.assertEqual(manifest["environment"], "production")
+        self.assertEqual(manifest["result"]["findings"][0]["proposed_case"], finding["proposed_case"])
+        self.assertEqual(manifest["candidates"], [])
+        self.assertNotIn("candidate_events", manifest)
+
     def test_candidate_bundle_build_failure_is_visible_without_raw_model_or_secret_details(self):
         candidate = {
             "title": "candidate with sensitive model text password=model-secret",

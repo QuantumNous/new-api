@@ -314,10 +314,13 @@ class CleanupTests(unittest.TestCase):
             [("list", 1), ("list", 2), ("list", 3)],
         )
 
-    def test_constructor_accepts_only_exact_production_staging_origin_by_default(self):
+    def test_constructor_accepts_only_exact_staging_or_production_console_origin_by_default(self):
         StagingApiClient("https://staging-console.flatkey.ai")
+        StagingApiClient("https://console.flatkey.ai")
         with self.assertRaises(ValueError):
             StagingApiClient("https://staging-console.flatkey.ai/")
+        with self.assertRaises(ValueError):
+            StagingApiClient("https://console.flatkey.ai/")
         with self.assertRaises(ValueError):
             StagingApiClient("http://127.0.0.1:1234")
         for origin in [
@@ -325,6 +328,10 @@ class CleanupTests(unittest.TestCase):
             "https://staging-console.flatkey.ai?x=1",
             "https://staging-console.flatkey.ai#frag",
             "https://user:pass@staging-console.flatkey.ai",
+            "http://console.flatkey.ai",
+            "https://console.flatkey.ai?x=1",
+            "https://console.flatkey.ai#frag",
+            "https://attacker.example",
         ]:
             with self.subTest(origin=origin):
                 with self.assertRaises(ValueError):

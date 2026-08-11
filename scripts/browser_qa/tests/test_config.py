@@ -156,6 +156,16 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(cfg.cleanup_execution_id, "cleanup-001")
         self.assertNotIn("seed", repr(cfg))
 
+    def test_load_cleanup_config_accepts_exact_production_console_origin(self):
+        env = cleanup_env()
+        env["FLATKEY_QA_TARGET_ENVIRONMENT"] = "production"
+        env["FLATKEY_QA_CONSOLE_ORIGIN"] = "https://console.flatkey.ai"
+
+        cfg = load_cleanup_config(env)
+
+        self.assertEqual(cfg.target_environment, "production")
+        self.assertEqual(cfg.console_origin, "https://console.flatkey.ai")
+
     def test_load_cleanup_config_rejects_wrong_environment_origin(self):
         env = cleanup_env()
         env["FLATKEY_QA_TARGET_ENVIRONMENT"] = "production"

@@ -17,7 +17,9 @@ class ResultValidationError(ValueError):
 SEVERITIES = {"critical", "high", "medium", "low", "info"}
 CONFIDENCE = {"low", "medium", "high"}
 PROPOSED_CASE_FIELDS = {"fixture", "start", "steps", "assertions", "cleanup"}
-PROPOSED_CASE_ORIGINS = {"staging_website", "staging_console"}
+STAGING_PROPOSED_CASE_ORIGINS = {"staging_website", "staging_console"}
+PRODUCTION_PROPOSED_CASE_ORIGINS = {"production_website", "production_console"}
+PROPOSED_CASE_ORIGINS = STAGING_PROPOSED_CASE_ORIGINS | PRODUCTION_PROPOSED_CASE_ORIGINS
 FIXED_CASE_STATUSES = {"not_started", "passed", "failed"}
 CLEANUP_STATUSES = {"passed", "not_required", "failed"}
 ENVIRONMENTS = {"staging", "production"}
@@ -630,16 +632,18 @@ def _validate_coverage_candidate(item, index):
     _validate_proposed_case(item["proposed_case"], f"{path}.proposed_case")
 
 
-def _validate_proposed_case(value, path):
+def _validate_proposed_case(value, path, *, allowed_origins=None):
     if value is None:
         return
+    allowed_origins = PROPOSED_CASE_ORIGINS if allowed_origins is None else allowed_origins
     try:
         from . import fixed_cases
 
         fixed_cases._require_object(value, PROPOSED_CASE_FIELDS, path)
         fixed_cases._enum(value["fixture"], fixed_cases.FIXTURES, f"{path}.fixture")
-        fixed_cases._validate_start(value["start"])
-        fixed_cases._enum(value["start"]["origin"], PROPOSED_CASE_ORIGINS, f"{path}.start.origin")
+        fixed_cases._require_object(value["start"], fixed_cases.START_FIELDS, f"{path}.start")
+        fixed_cases._enum(value["start"]["origin"], allowed_origins, f"{path}.start.origin")
+        fixed_cases._relative_path(value["start"]["path"], f"{path}.start.path")
         capture_count = fixed_cases._validate_steps(value["steps"])
         fixed_cases._validate_assertions(value["assertions"], capture_count)
         fixed_cases._literal(value["cleanup"], "not_required", f"{path}.cleanup")

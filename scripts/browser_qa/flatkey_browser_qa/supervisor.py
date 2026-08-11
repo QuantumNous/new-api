@@ -467,6 +467,7 @@ class Supervisor:
                 manifest_path,
                 payload,
                 mode=cfg.mode,
+                target_environment=cfg.target_environment,
                 allowed_origins={cfg.website_origin, cfg.console_origin},
                 run_id=cfg.run_id,
                 bucket=getattr(self.uploader, "bucket", "browser-qa"),
@@ -497,6 +498,7 @@ class Supervisor:
                     manifest_path,
                     payload,
                     mode=cfg.mode,
+                    target_environment=cfg.target_environment,
                     allowed_origins={cfg.website_origin, cfg.console_origin},
                     run_id=cfg.run_id,
                     bucket=getattr(self.uploader, "bucket", "browser-qa"),
@@ -2132,11 +2134,11 @@ def _collect_artifact_paths(runtime_root):
     return [item for item in candidates if os.path.exists(os.path.join(runtime_root, item.replace("/", os.sep)))]
 
 
-def _write_candidate_bundles(manifest, manifest_path, payload, *, mode, allowed_origins, run_id, bucket, execution_id, redactor):
+def _write_candidate_bundles(manifest, manifest_path, payload, *, mode, target_environment, allowed_origins, run_id, bucket, execution_id, redactor):
     updated = dict(manifest)
     updated["candidates"] = []
     candidate_events = []
-    if mode != "normal":
+    if mode != "normal" or target_environment != "staging":
         _write_private_json(manifest_path, redactor.clean(updated))
         return updated
     evidence_uri = f"gs://{bucket}/runs/{run_id}/main/{execution_id}/manifest.json"
