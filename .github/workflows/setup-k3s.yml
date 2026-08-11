@@ -69,12 +69,19 @@ jobs:
             USER=$(echo "$s" | jq -r .user)
             PASS=$(echo "$s" | jq -r .password)
             echo "=== 尝试 $USER@$IP ==="
-            if sshpass -p "$PASS" ssh-copy-id -i ~/.ssh/id_ed25519.pub \
+            # 第一步：用密码 ssh-copy-id 装公钥；失败或超时（135s）跳过
+            if ! timeout 135 sshpass -p "$PASS" ssh-copy-id -i ~/.ssh/id_ed25519.pub \
               -o StrictHostKeyChecking=no -o ConnectTimeout=15 "$USER@$IP" >/tmp/key_install.log 2>&1; then
+              echo "FAILED(装公钥): $(tail -1 /tmp/key_install.log)"
+              continue
+            fi
+            # 第二步：显式验证密钥登录（PasswordAuthentication=no 强制走密钥）
+            if timeout 30 ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+              -o PasswordAuthentication=no -o ConnectTimeout=15 "$USER@$IP" 'true' >/dev/null 2>&1; then
               echo "$IP $USER" >> /tmp/ssh_ok.txt
-              echo "OK"
+              echo "OK (密钥验证通过)"
             else
-              echo "FAILED: $(tail -1 /tmp/key_install.log)"
+              echo "FAILED(密钥验证): 公钥已装但密钥认证被服务器拒绝，检查 sshd_config 的 PubkeyAuthentication / AuthorizedKeysFile"
             fi
           done < /tmp/servers.txt
           echo "可用服务器: $(wc -l < /tmp/ssh_ok.txt)"
