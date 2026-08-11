@@ -50,25 +50,18 @@ jobs:
 
       - name: Install public key on server1
         run: |
-          sshpass -p "${{ secrets.SSH1_PASSWORD }}" ssh -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
-            "mkdir -p ~/.ssh && chmod 700 ~/.ssh"
-          cat ~/.ssh/id_ed25519.pub | sshpass -p "${{ secrets.SSH1_PASSWORD }}" ssh \
+          sshpass -p "${{ secrets.SSH1_PASSWORD }}" ssh-copy-id -i ~/.ssh/id_ed25519.pub \
             -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
-            "cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+            ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }}
           echo "public key installed on server1"
 
       - name: Install public key on server2
         run: |
-          sshpass -p "${{ secrets.SSH2_PASSWORD }}" ssh -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER2_USER }}@${{ inputs.server2_ip }} \
-            "mkdir -p ~/.ssh && chmod 700 ~/.ssh"
-          cat ~/.ssh/id_ed25519.pub | sshpass -p "${{ secrets.SSH2_PASSWORD }}" ssh \
+          sshpass -p "${{ secrets.SSH2_PASSWORD }}" ssh-copy-id -i ~/.ssh/id_ed25519.pub \
             -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER2_USER }}@${{ inputs.server2_ip }} \
-            "cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+            ${{ secrets.SERVER2_USER }}@${{ inputs.server2_ip }}
           echo "public key installed on server2"
+
 
       - name: Verify SSH key login (server1)
         run: |
