@@ -21,6 +21,15 @@ import (
 	"github.com/samber/lo"
 )
 
+const (
+	qwenImage3MaxOutputs         = 6
+	qwenImage3MaxReferenceImages = 3
+)
+
+func isQwenImage3Model(model string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "qwen-image-3.0")
+}
+
 func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequest, isSync bool) (*AliImageRequest, error) {
 	var imageRequest AliImageRequest
 	imageRequest.Model = request.Model
@@ -40,8 +49,13 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 			}
 		}
 		if val, ok := request.Extra["input"]; ok {
-			err := common.Unmarshal(val, &imageRequest.Input)
-			if err != nil {
+			if isSync {
+				var input AliImageInput
+				if err := common.Unmarshal(val, &input); err != nil {
+					return nil, fmt.Errorf("invalid input field: %w", err)
+				}
+				imageRequest.Input = input
+			} else if err := common.Unmarshal(val, &imageRequest.Input); err != nil {
 				return nil, fmt.Errorf("invalid input field: %w", err)
 			}
 		}
@@ -63,12 +77,30 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 	if imageRequest.Parameters.N != 0 {
 		info.PriceData.AddOtherRatio("n", float64(imageRequest.Parameters.N))
 	}
+	if isQwenImage3Model(request.Model) {
+		if imageRequest.Parameters.N > qwenImage3MaxOutputs {
+			return nil, fmt.Errorf("qwen-image-3.0 supports at most %d output images", qwenImage3MaxOutputs)
+		}
+		if input, ok := imageRequest.Input.(AliImageInput); ok {
+			referenceImages := 0
+			for _, message := range input.Messages {
+				for _, content := range message.Content {
+					if strings.TrimSpace(content.Image) != "" {
+						referenceImages++
+					}
+				}
+			}
+			if referenceImages > qwenImage3MaxReferenceImages {
+				return nil, fmt.Errorf("qwen-image-3.0 supports at most %d reference images", qwenImage3MaxReferenceImages)
+			}
+		}
+	}
 
 	// 同步图片模型和异步图片模型请求格式不一样
 	if isSync {
 		if imageRequest.Input == nil {
 			imageRequest.Input = AliImageInput{
-				Messages: []AliMessage{
+				Messages: []AliImageMessage{
 					{
 						Role: "user",
 						Content: []AliMediaContent{
@@ -167,6 +199,9 @@ func oaiFormEdit2AliImageEdit(c *gin.Context, info *relaycommon.RelayInfo, reque
 	if err != nil {
 		return nil, fmt.Errorf("get image base64s from form failed: %w", err)
 	}
+	if isQwenImage3Model(request.Model) && len(imageBase64s) > qwenImage3MaxReferenceImages {
+		return nil, fmt.Errorf("qwen-image-3.0 supports at most %d reference images", qwenImage3MaxReferenceImages)
+	}
 	//dto.MediaContent{}
 	mediaContents := make([]AliMediaContent, len(imageBase64s))
 	for i, b64 := range imageBase64s {
@@ -178,7 +213,7 @@ func oaiFormEdit2AliImageEdit(c *gin.Context, info *relaycommon.RelayInfo, reque
 		Text: request.Prompt,
 	})
 	imageRequest.Input = AliImageInput{
-		Messages: []AliMessage{
+		Messages: []AliImageMessage{
 			{
 				Role:    "user",
 				Content: mediaContents,
