@@ -32,6 +32,14 @@ type ModelRequest struct {
 }
 
 func Distribute() func(c *gin.Context) {
+	return distribute(0)
+}
+
+func DistributeByChannelType(requiredChannelType int) func(c *gin.Context) {
+	return distribute(requiredChannelType)
+}
+
+func distribute(requiredChannelType int) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
 		constraints := service.GetChannelConstraints(c)
@@ -39,6 +47,12 @@ func Distribute() func(c *gin.Context) {
 			Kind:        taskdto.FilterRequestPath,
 			RequestPath: c.Request.URL.Path,
 		})
+		if requiredChannelType != 0 {
+			constraints.AddFilter(taskdto.ChannelFilter{
+				Kind:        taskdto.FilterChannelType,
+				ChannelType: requiredChannelType,
+			})
+		}
 		service.AppendTaskPluginIdentityFilter(c, c.GetString("expected_task_plugin_key"))
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
@@ -74,6 +88,14 @@ func Distribute() func(c *gin.Context) {
 					logTaskPluginChannelDecision(c, channel, modelRequest.Model, "channel_rejected", "identity_mismatch")
 				}
 				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": common.GetContextKeyString(c, constant.ContextKeyUsingGroup), "Model": modelRequest.Model}), types.ErrorCode(kind))
+				return
+			}
+			if requiredChannelType != 0 && channel.Type != requiredChannelType {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
+				return
+			}
+			if relayconstant.IsVertexStoragePath(c.Request.URL.Path) && !relayconstant.VertexStorageChannelSupports(channel.GetModels(), c.Param("bucket")) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
 				return
 			}
 		} else {
@@ -407,6 +429,13 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var err error
 	if modelName := c.GetString("resolved_task_model"); modelName != "" {
 		modelRequest.Model = modelName
+	} else if relayconstant.IsVertexStoragePath(c.Request.URL.Path) {
+		modelName, err := relayconstant.VertexStorageModelName(c.Param("bucket"))
+		if err != nil {
+			return nil, false, err
+		}
+		modelRequest.Model = modelName
+		c.Set("relay_mode", relayconstant.RelayModeVertexStorage)
 	} else if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
@@ -619,6 +648,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
+	common.SetContextKey(c, constant.ContextKeyChannelModels, channel.GetModels())
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
