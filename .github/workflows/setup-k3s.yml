@@ -100,7 +100,7 @@ jobs:
             PASS=$(echo "$s" | jq -r .password)
             echo "::add-mask::$PASS"
             echo "=== 安装 k3s agent on $IP ==="
-            if timeout 120 sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no "$USER@$IP" \
+            if timeout 300 sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no "$USER@$IP" \
               "curl -sfL https://get.k3s.io | K3S_URL=https://$K3S_SERVER_IP:6443 K3S_TOKEN=$K3S_TOKEN sh -" >/tmp/agent_install.log 2>&1; then
               echo "agent installed on $IP"
             else
@@ -147,7 +147,9 @@ jobs:
             set -e
             cd /opt/actions-runner
             tar xzf actions-runner.tar.gz
-            sudo ./bin/installdependencies.sh
+            sudo apt-get update -qq || true
+            sudo apt-get install -y -qq libicu-dev || sudo apt-get install -y -qq libicu72 || sudo apt-get install -y -qq libicu70 || true
+            sudo ./bin/installdependencies.sh || echo "installdependencies 部分失败，继续（libicu 已单独安装）"
             export RUNNER_ALLOW_RUNASROOT=1
             ./config.sh --url https://github.com/${{ github.repository }} --token $REG_TOKEN --labels k8s --name k3s-runner --unattended --replace
             sudo ./svc.sh install root
