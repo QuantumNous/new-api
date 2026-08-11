@@ -173,6 +173,28 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	// omits [DONE]. EOF/timeout without either signal is only a partial stream
 	// and must not be normalized into a successful downstream completion.
 	streamCompleted := openAIStreamCompleted(info, sawFinishReason)
+	var synthesizedFinishReason string
+	if streamCompleted && info.RelayFormat == types.RelayFormatOpenAI &&
+		info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone &&
+		!sawFinishReason {
+		synthesizedFinishReason = types.FinishReasonStop
+		if toolCount > 0 || len(seenStreamToolCalls) > 0 {
+			synthesizedFinishReason = types.FinishReasonToolCalls
+		}
+
+		var lastStreamResponse dto.ChatCompletionsStreamResponse
+		if err := common.UnmarshalJsonStr(lastStreamData, &lastStreamResponse); err == nil && len(lastStreamResponse.Choices) > 0 {
+			for i := range lastStreamResponse.Choices {
+				lastStreamResponse.Choices[i].FinishReason = &synthesizedFinishReason
+			}
+			if normalizedData, err := common.Marshal(lastStreamResponse); err == nil {
+				lastStreamData = string(normalizedData)
+				synthesizedFinishReason = ""
+			} else {
+				logger.LogError(c, "error normalizing missing stream finish_reason: "+err.Error())
+			}
+		}
+	}
 
 	// 处理最后的响应
 	shouldSendLastResp := true
@@ -184,6 +206,14 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 
 	if info.RelayFormat == types.RelayFormatOpenAI && streamCompleted {
+		// [DONE] is an explicit upstream completion signal. Some compatible
+		// providers omit the terminal JSON chunk, so emit one before a trailing
+		// usage-only chunk for clients that require finish_reason.
+		if synthesizedFinishReason != "" {
+			response := helper.GenerateStopResponse(responseId, createAt, model, synthesizedFinishReason)
+			response.SetSystemFingerprint(systemFingerprint)
+			_ = helper.ObjectData(c, response)
+		}
 		if shouldSendLastResp {
 			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
 		}
