@@ -65,15 +65,32 @@ jobs:
 
       - name: Verify SSH key login (server1)
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+          set +e
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -v -o ConnectTimeout=10 \
             ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
-            'echo "SSH key login OK on server1"'
+            'echo "SSH key login OK on server1"' 2>&1
+          RC=$?
+          set -e
+          echo "--- ssh exit code: $RC ---"
+          if [ "$RC" -ne 0 ]; then
+            echo "::warning::SSH key login to server1 failed with exit code $RC. Check server sshd config."
+          fi
+          exit $RC
 
       - name: Verify SSH key login (server2)
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+          set +e
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -v -o ConnectTimeout=10 \
             ${{ secrets.SERVER2_USER }}@${{ inputs.server2_ip }} \
-            'echo "SSH key login OK on server2"'
+            'echo "SSH key login OK on server2"' 2>&1
+          RC=$?
+          set -e
+          echo "--- ssh exit code: $RC ---"
+          if [ "$RC" -ne 0 ]; then
+            echo "::warning::SSH key login to server2 failed with exit code $RC. Check server sshd config."
+          fi
+          exit $RC
+
 
       - name: Install k3s server on server1
         run: |
