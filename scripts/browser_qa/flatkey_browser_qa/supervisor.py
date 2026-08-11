@@ -162,11 +162,14 @@ class Supervisor:
             if key.startswith("FLATKEY_QA_") or key == "FLATKEY_BROWSER_QA_MODE"
         })
         identity = derive_identity(cfg.identity_seed, cfg.run_id)
+        evidence_token = secrets.token_urlsafe(32)
+        self._evidence_token = evidence_token
         redactor = Redactor(
             email=f"{cfg.gmail_base.split('@', 1)[0]}+{identity.email_tag}@{cfg.gmail_base.split('@', 1)[1]}",
             password=identity.password,
             extra_secrets=(
                 self.env.get("CODEX_API_KEY", ""),
+                evidence_token,
                 cfg.gmail_base,
                 identity.username,
                 identity.email_tag,
@@ -195,8 +198,6 @@ class Supervisor:
         provenance = None
         resource_guard = None
         preflight_turnstile_check = False
-        evidence_token = secrets.token_urlsafe(32)
-        self._evidence_token = evidence_token
 
         payload = initial_result if initial_result is not None else _empty_result()
         runtime_classification = None if initial_result is not None else "invalid_result"

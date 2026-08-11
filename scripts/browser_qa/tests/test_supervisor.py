@@ -2663,6 +2663,54 @@ class SupervisorTests(unittest.TestCase):
         self.assertIn("codex-events.jsonl", artifact_names)
         self.assertIn("codex-stderr.txt", artifact_names)
 
+    def test_runtime_evidence_token_is_redacted_from_outcome_events_and_artifacts(self):
+        token = "runtime-evidence-token-with-enough-entropy"
+
+        def fake_token_urlsafe(_size):
+            return token
+
+        process = FakeProcess(
+            1,
+            stdout=json.dumps({
+                "type": "item.completed",
+                "item": {
+                    "type": "agent_message",
+                    "text": json.dumps(valid_result(findings=[{
+                        "severity": "low",
+                        "title": "token surfaced",
+                        "evidence": token,
+                        "expected": "token must be redacted",
+                        "actual": token,
+                        "business_value": "secret hygiene",
+                        "reproduction": [{"step": token, "expected": token}],
+                    }])),
+                },
+                "token": token,
+            }) + "\n",
+            stderr=f"stderr leaked {token}\n",
+        )
+
+        with (
+            mock.patch.object(supervisor.secrets, "token_urlsafe", fake_token_urlsafe),
+            mock.patch.object(
+                supervisor,
+                "collect_runtime_provenance",
+                side_effect=RuntimeError(f"diagnostic leaked {token}"),
+            ),
+        ):
+            outcome, sup = self.run_supervisor(process)
+
+        rendered_outcome = json.dumps(outcome.to_dict(), sort_keys=True)
+        rendered_events = json.dumps(sup.events, sort_keys=True)
+        self.assertNotIn(token, rendered_outcome)
+        self.assertNotIn(token, rendered_events)
+
+        artifact_payloads = []
+        for relative_path in ("result.json", "manifest.json", "codex-events.jsonl", "codex-stderr.txt"):
+            with open(os.path.join(sup.runtime_root, relative_path), encoding="utf-8") as handle:
+                artifact_payloads.append(handle.read())
+        self.assertNotIn(token, "\n".join(artifact_payloads))
+
     def test_early_broken_pipe_preserves_codex_stderr_returncode_and_classification(self):
         process = FakeProcess(
             42,

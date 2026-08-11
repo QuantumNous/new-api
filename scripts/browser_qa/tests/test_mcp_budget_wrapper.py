@@ -437,6 +437,43 @@ class WrapperContractTests(unittest.TestCase):
             with open(os.path.join(runtime_dir, "control_state.json"), encoding="utf-8") as handle:
                 self.assertEqual(json.load(handle).get("actions_used", 0), 0)
 
+    def test_docs_reader_posts_to_runtime_evidence_sink_with_required_capability_token(self):
+        class DocsHelper:
+            def __init__(self):
+                self.urls = []
+
+            def read_docs(self, url):
+                self.urls.append(url)
+                return {"url": url, "status": 200, "text": "hello docs"}
+
+        token = "test-token-with-enough-entropy"
+        helper = DocsHelper()
+        sink = supervisor.RuntimeEvidenceSink(
+            supervisor.Redactor(),
+            evidence_helper=helper,
+            capability_token=token,
+        )
+        sink.start()
+        try:
+            with tempfile.TemporaryDirectory() as runtime_dir:
+                wrapper = self.make_wrapper(runtime_dir, FakeChild())
+                wrapper.runtime_evidence_url = sink.url
+                wrapper.runtime_evidence_token = token
+
+                self.assertEqual(
+                    wrapper._request_docs_read({"url": "https://docs.flatkey.ai/quickstart"}),
+                    {"url": "https://docs.flatkey.ai/quickstart", "status": 200, "text": "hello docs"},
+                )
+                self.assertEqual(helper.urls, ["https://docs.flatkey.ai/quickstart"])
+
+                for supplied_token in (None, "wrong-token-with-enough-entropy"):
+                    with self.subTest(supplied_token=supplied_token):
+                        wrapper.runtime_evidence_token = supplied_token
+                        with self.assertRaises(RuntimeError):
+                            wrapper._request_docs_read({"url": "https://docs.flatkey.ai/quickstart"})
+        finally:
+            sink.stop()
+
     def test_time_cutoff_state_parse_failure_client_parse_failure_and_child_protocol_parse_failure_fail_closed(self):
         clock = FakeClock()
         child = FakeChild()

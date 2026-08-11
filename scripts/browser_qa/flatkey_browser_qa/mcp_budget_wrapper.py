@@ -413,15 +413,23 @@ class BudgetedMcpWrapper:
             raise RuntimeError("invalid docs request")
         if not self.runtime_evidence_url:
             raise RuntimeError("runtime evidence endpoint unavailable")
+        if not self.runtime_evidence_token:
+            raise RuntimeError("runtime evidence token unavailable")
         payload = json.dumps({"type": "docs_read", "url": arguments["url"]}, sort_keys=True).encode("utf-8")
         request = urllib.request.Request(
             self.runtime_evidence_url,
             data=payload,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "X-Flatkey-QA-Evidence-Token": self.runtime_evidence_token,
+            },
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            raw = response.read(65537)
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                raw = response.read(65537)
+        except Exception as exc:
+            raise RuntimeError("docs request failed") from exc
         if len(raw) > 65536:
             raise RuntimeError("docs response too large")
         parsed = json.loads(raw.decode("utf-8"))
