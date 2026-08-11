@@ -170,6 +170,8 @@ function type2secretPrompt(type) {
       return 'sora2u_key_prompt';
     case 67:
       return 'zzdh_key_prompt';
+    case 68:
+      return 'mao_key_prompt';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -787,6 +789,17 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://www.zizidonghua.com',
+          }));
+          break;
+        case 68: // mao
+          localModels = [
+            'guanzhuan-seedance2.0',
+            'guanzhuan-seedance2.0-mini',
+            'guanzhuan-seedance2.5',
+          ];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://api.catertx.com',
           }));
           break;
         default:
@@ -2866,7 +2879,7 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
-                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64 || inputs.type === 65 || inputs.type === 66 || inputs.type === 67) && (
+                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64 || inputs.type === 65 || inputs.type === 66 || inputs.type === 67 || inputs.type === 68) && (
                       <Banner
                         type='info'
                         closeIcon={null}
@@ -2886,7 +2899,9 @@ const EditChannelModal = (props) => {
                                       ? 'Sora2U 渠道说明'
                                       : inputs.type === 67
                                         ? 'zz 渠道说明'
-                                        : '异步视频渠道通用说明',
+                                        : inputs.type === 68
+                                          ? 'mao 渠道说明'
+                                          : '异步视频渠道通用说明',
                         )}
                       />
                     )}

@@ -281,6 +281,25 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'zz async MiniMax-H3 video: POST /v8/videos/generations, poll GET /v8/videos/generations/{id}, download GET /v1/videos/{id}/content. Resolution locked by model name. Maps image_with_roles→reference_images. Supports first/last frame and multimodal refs (images/videos/audios).',
     },
   },
+  68: {
+    id: 68,
+    name: CHANNEL_TYPES[68],
+    icon: 'openai',
+    defaultBaseUrl: 'https://api.catertx.com',
+    supportedModels: [
+      'guanzhuan-seedance2.0',
+      'guanzhuan-seedance2.0-mini',
+      'guanzhuan-seedance2.5',
+    ],
+    hints: {
+      key: 'Bearer token (catertx API Key)',
+      models:
+        'guanzhuan-seedance2.0, guanzhuan-seedance2.0-mini, guanzhuan-seedance2.5 (resolution → upstream sd-* model)',
+      baseUrl: 'Default: https://api.catertx.com',
+      other:
+        'Async Seedance via POST/GET /v1/video/generations. Client uses logic model names; adaptor maps resolution (default 720p) to sd-2-0-* / sd-2-0-mini-* / sd-2-5-*. Unsupported tiers return 400. per_second + resolution billing.',
+    },
+  },
 }
 
 export const CHANNEL_83ZI_BASE_URL_PRESETS = [
