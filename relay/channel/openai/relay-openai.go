@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -121,7 +122,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
-	var sawFinishReason bool
+	streamChoiceStates := make(map[int]openAIStreamChoiceState)
 
 	// 检查是否为音频模型
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
@@ -134,8 +135,18 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 		}
 		if len(data) > 0 {
-			if hasOpenAIStreamFinishReason(data) {
-				sawFinishReason = true
+			var streamResponse dto.ChatCompletionsStreamResponse
+			if err := common.UnmarshalJsonStr(data, &streamResponse); err == nil {
+				for _, choice := range streamResponse.Choices {
+					state := streamChoiceStates[choice.Index]
+					if choice.FinishReason != nil && *choice.FinishReason != "" {
+						state.finished = true
+					}
+					if len(choice.Delta.ToolCalls) > 0 {
+						state.toolCalls = true
+					}
+					streamChoiceStates[choice.Index] = state
+				}
 			}
 			// 对音频模型，保存倒数第二个stream data
 			if isAudioModel && lastStreamData != "" {
@@ -172,26 +183,35 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	// A finish_reason is an explicit terminal signal even when an upstream
 	// omits [DONE]. EOF/timeout without either signal is only a partial stream
 	// and must not be normalized into a successful downstream completion.
-	streamCompleted := openAIStreamCompleted(info, sawFinishReason)
-	var synthesizedFinishReason string
+	streamCompleted := openAIStreamCompleted(info, streamChoiceStates)
+	var synthesizedFinishResponse *dto.ChatCompletionsStreamResponse
 	if streamCompleted && info.RelayFormat == types.RelayFormatOpenAI &&
-		info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone &&
-		!sawFinishReason {
-		synthesizedFinishReason = types.FinishReasonStop
-		if toolCount > 0 || len(seenStreamToolCalls) > 0 {
-			synthesizedFinishReason = types.FinishReasonToolCalls
-		}
-
-		var lastStreamResponse dto.ChatCompletionsStreamResponse
-		if err := common.UnmarshalJsonStr(lastStreamData, &lastStreamResponse); err == nil && len(lastStreamResponse.Choices) > 0 {
-			for i := range lastStreamResponse.Choices {
-				lastStreamResponse.Choices[i].FinishReason = &synthesizedFinishReason
+		info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone {
+		missingChoiceIndexes := make([]int, 0)
+		for choiceIndex, state := range streamChoiceStates {
+			if !state.finished {
+				missingChoiceIndexes = append(missingChoiceIndexes, choiceIndex)
 			}
-			if normalizedData, err := common.Marshal(lastStreamResponse); err == nil {
-				lastStreamData = string(normalizedData)
-				synthesizedFinishReason = ""
-			} else {
-				logger.LogError(c, "error normalizing missing stream finish_reason: "+err.Error())
+		}
+		if len(missingChoiceIndexes) > 0 {
+			sort.Ints(missingChoiceIndexes)
+			synthesizedFinishResponse = &dto.ChatCompletionsStreamResponse{
+				Id:      responseId,
+				Object:  "chat.completion.chunk",
+				Created: createAt,
+				Model:   model,
+			}
+			synthesizedFinishResponse.SetSystemFingerprint(systemFingerprint)
+			for _, choiceIndex := range missingChoiceIndexes {
+				finishReason := types.FinishReasonStop
+				if streamChoiceStates[choiceIndex].toolCalls {
+					finishReason = types.FinishReasonToolCalls
+				}
+				synthesizedFinishResponse.Choices = append(synthesizedFinishResponse.Choices,
+					dto.ChatCompletionsStreamResponseChoice{
+						FinishReason: common.GetPointer(finishReason),
+						Index:        choiceIndex,
+					})
 			}
 		}
 	}
@@ -209,13 +229,19 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		// [DONE] is an explicit upstream completion signal. Some compatible
 		// providers omit the terminal JSON chunk, so emit one before a trailing
 		// usage-only chunk for clients that require finish_reason.
-		if synthesizedFinishReason != "" {
-			response := helper.GenerateStopResponse(responseId, createAt, model, synthesizedFinishReason)
-			response.SetSystemFingerprint(systemFingerprint)
-			_ = helper.ObjectData(c, response)
+		lastStreamHasChoices := true
+		var lastStreamResponse dto.ChatCompletionsStreamResponse
+		if err := common.UnmarshalJsonStr(lastStreamData, &lastStreamResponse); err == nil {
+			lastStreamHasChoices = len(lastStreamResponse.Choices) > 0
+		}
+		if synthesizedFinishResponse != nil && !lastStreamHasChoices {
+			_ = helper.ObjectData(c, synthesizedFinishResponse)
 		}
 		if shouldSendLastResp {
 			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
+		}
+		if synthesizedFinishResponse != nil && lastStreamHasChoices {
+			_ = helper.ObjectData(c, synthesizedFinishResponse)
 		}
 	}
 
@@ -243,20 +269,12 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	return usage, nil
 }
 
-func hasOpenAIStreamFinishReason(data string) bool {
-	var streamResponse dto.ChatCompletionsStreamResponse
-	if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-		return false
-	}
-	for _, choice := range streamResponse.Choices {
-		if choice.FinishReason != nil && *choice.FinishReason != "" {
-			return true
-		}
-	}
-	return false
+type openAIStreamChoiceState struct {
+	finished  bool
+	toolCalls bool
 }
 
-func openAIStreamCompleted(info *relaycommon.RelayInfo, sawFinishReason bool) bool {
+func openAIStreamCompleted(info *relaycommon.RelayInfo, choiceStates map[int]openAIStreamChoiceState) bool {
 	if info == nil || info.StreamStatus == nil {
 		return true
 	}
@@ -264,7 +282,15 @@ func openAIStreamCompleted(info *relaycommon.RelayInfo, sawFinishReason bool) bo
 	case relaycommon.StreamEndReasonDone:
 		return true
 	case relaycommon.StreamEndReasonEOF:
-		return sawFinishReason
+		if len(choiceStates) == 0 {
+			return false
+		}
+		for _, state := range choiceStates {
+			if !state.finished {
+				return false
+			}
+		}
+		return true
 	default:
 		return false
 	}

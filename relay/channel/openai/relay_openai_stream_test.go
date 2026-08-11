@@ -237,6 +237,33 @@ func TestOaiStreamHandlerSynthesizesToolCallsAfterDone(t *testing.T) {
 	require.Less(t, strings.Index(got, `"finish_reason":"tool_calls"`), strings.Index(got, "data: [DONE]"))
 }
 
+func TestOaiStreamHandlerDoesNotFinalizeEOFWhenAnyChoiceIsIncomplete(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl-test","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"content":"complete"},"finish_reason":"stop"},{"index":1,"delta":{"content":"partial"},"finish_reason":null}]}`,
+		``,
+	}, "\n")
+	c, recorder, resp, info := newOpenAIStreamTestContext(t, body)
+
+	_, err := OaiStreamHandler(c, info, resp)
+
+	require.Nil(t, err)
+	require.NotNil(t, info.StreamStatus)
+	require.Equal(t, relaycommon.StreamEndReasonEOF, info.StreamStatus.EndReason)
+	require.True(t, info.StreamStatus.HasErrors())
+
+	got := recorder.Body.String()
+	require.NotContains(t, got, `"finish_reason":"stop"`)
+	require.NotContains(t, got, "data: [DONE]")
+}
+
 func TestOaiStreamHandlerFinalizesOnEOFAfterFinishReason(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
