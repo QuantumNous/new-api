@@ -277,9 +277,11 @@ export function getBestGroupRatio(model: PricingModel, fallbackGroupRatio: Recor
   return ratios.length > 0 ? Math.min(...ratios) : 1;
 }
 
-// Effective price after the best top-up bonus tier ($200 + $100 → 2/3 of list).
+// Effective price shown to visitors. The top-up bonus tiers are retired, so the
+// group ratio (applied by the caller via getBestGroupRatio) is the only discount
+// layer left and the listed price passes through unchanged.
 export function discountedPriceUsd(value: number): number {
-  return (value * 2) / 3;
+  return value;
 }
 
 export function formatUsdPrice(value: number): string {

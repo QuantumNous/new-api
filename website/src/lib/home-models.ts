@@ -127,8 +127,8 @@ function pricedTokenModels(data: PricingData): PricingModel[] {
   });
 }
 
-// Strike-through = official vendor price; green = after both discount layers
-// (best group ratio, i.e. 60-90% of official, then the top-up bonus ×2/3).
+// Strike-through = official vendor price; green = after the group ratio
+// (i.e. 60-90% of official). The top-up bonus layer is retired.
 function toHomeRow(model: PricingModel, data: PricingData): HomePricedModel {
   const official = getOfficialPriceUsd(model);
   const listed = official * getBestGroupRatio(model, data.groupRatio);
