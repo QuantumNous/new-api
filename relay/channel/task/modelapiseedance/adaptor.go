@@ -3,8 +3,10 @@ package modelapiseedance
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -69,6 +71,38 @@ func (a *TaskAdaptor) ValidateRequestAfterModelMapping(c *gin.Context, info *rel
 	return a.ValidateRequestAndSetAction(c, info)
 }
 
+func (a *TaskAdaptor) ValidateTaskPriceData(info *relaycommon.RelayInfo) *dto.TaskError {
+	if !validModelAPIPriceData(info) {
+		return taskError(fmt.Errorf("model price must be a positive finite fixed price"), "model_price_error", http.StatusBadRequest)
+	}
+	return nil
+}
+
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	if c == nil || !validModelAPIPriceData(info) {
+		return nil
+	}
+	seedReq, err := taskcommon.GetSeedanceRequest(c)
+	if err != nil || seedReq == nil {
+		return nil
+	}
+
+	duration := 5
+	if seedReq.Duration != nil {
+		duration = *seedReq.Duration
+	}
+	resolution := seedReq.Resolution
+	if resolution == "" {
+		resolution = "720p"
+	}
+
+	estimatedUSD, ok := modelAPIEstimatedUSD(resolution, duration, len(seedReq.Videos()) > 0)
+	if !ok {
+		return nil
+	}
+	return modelAPIBillingUnits(info.PriceData.ModelPrice, estimatedUSD)
+}
+
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
 	return a.baseURL + "/v1/tasks", nil
 }
@@ -125,8 +159,8 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return "", nil, taskError(fmt.Errorf("invalid upstream response"), "invalid_response", http.StatusBadGateway)
 	}
 
-	var submit modelAPISubmitResponse
-	if err := common.Unmarshal(responseBody, &submit); err != nil {
+	submit, estimatedUSD, err := parseModelAPISubmitResponse(responseBody)
+	if err != nil {
 		return "", nil, taskError(fmt.Errorf("invalid upstream response"), "invalid_response", http.StatusBadGateway)
 	}
 	if submit.Status == modelAPIStatusFailed {
@@ -144,13 +178,29 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 	ov.CreatedAt = time.Now().Unix()
 	c.JSON(http.StatusOK, ov)
-	taskData, err = common.Marshal(struct {
-		Status string `json:"status,omitempty"`
-	}{Status: submit.Status})
+	snapshot := modelAPISubmitTaskData{Status: submit.Status}
+	if estimatedUSD != nil {
+		snapshot.EstimatedUSD = estimatedUSD
+	}
+	taskData, err = common.Marshal(snapshot)
 	if err != nil {
 		return "", nil, taskError(fmt.Errorf("failed to persist submit status"), "invalid_response", http.StatusBadGateway)
 	}
 	return submit.TaskID, taskData, nil
+}
+
+func (a *TaskAdaptor) AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskData []byte) map[string]float64 {
+	if !validModelAPIPriceData(info) {
+		return nil
+	}
+	var snapshot modelAPISubmitTaskData
+	if err := common.Unmarshal(taskData, &snapshot); err != nil {
+		return nil
+	}
+	if snapshot.EstimatedUSD == nil || !validPositiveFinite(*snapshot.EstimatedUSD) {
+		return nil
+	}
+	return modelAPIBillingUnits(info.PriceData.ModelPrice, *snapshot.EstimatedUSD)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
@@ -308,9 +358,10 @@ type modelAPIResult struct {
 }
 
 type modelAPISubmitResponse struct {
-	TaskID string        `json:"task_id"`
-	Status string        `json:"status"`
-	Error  modelAPIError `json:"error"`
+	TaskID string          `json:"task_id"`
+	Status string          `json:"status"`
+	Usage  json.RawMessage `json:"usage"`
+	Error  modelAPIError   `json:"error"`
 }
 
 type modelAPITaskResponse struct {
@@ -318,6 +369,11 @@ type modelAPITaskResponse struct {
 	Status string         `json:"status"`
 	Result modelAPIResult `json:"result"`
 	Error  modelAPIError  `json:"error"`
+}
+
+type modelAPISubmitTaskData struct {
+	Status       string   `json:"status,omitempty"`
+	EstimatedUSD *float64 `json:"estimated_usd,omitempty"`
 }
 
 const (
@@ -390,6 +446,71 @@ func (p modelAPIParams) hasAny() bool {
 		p.GenerateAudio != nil ||
 		p.Watermark != nil ||
 		p.ReturnLastFrame != nil
+}
+
+func parseModelAPISubmitResponse(data []byte) (modelAPISubmitResponse, *float64, error) {
+	var submit modelAPISubmitResponse
+	if err := common.Unmarshal(data, &submit); err != nil {
+		return submit, nil, err
+	}
+	estimatedUSD := parseModelAPIEstimatedUSD(submit.Usage)
+	return submit, estimatedUSD, nil
+}
+
+func parseModelAPIEstimatedUSD(usage json.RawMessage) *float64 {
+	if len(bytes.TrimSpace(usage)) == 0 || bytes.Equal(bytes.TrimSpace(usage), []byte("null")) {
+		return nil
+	}
+	var parsed struct {
+		EstimatedUSD *float64 `json:"estimated_usd"`
+	}
+	if err := common.Unmarshal(usage, &parsed); err != nil {
+		return nil
+	}
+	if parsed.EstimatedUSD == nil || !validPositiveFinite(*parsed.EstimatedUSD) {
+		return nil
+	}
+	return parsed.EstimatedUSD
+}
+
+func validModelAPIPriceData(info *relaycommon.RelayInfo) bool {
+	return info != nil && info.PriceData.UsePrice && validPositiveFinite(info.PriceData.ModelPrice)
+}
+
+func validPositiveFinite(value float64) bool {
+	return value > 0 && !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+func modelAPIEstimatedUSD(resolution string, duration int, hasVideo bool) (float64, bool) {
+	if hasVideo {
+		switch resolution {
+		case "480p":
+			return 0.084 * 30, true
+		case "720p":
+			return 0.188 * 30, true
+		default:
+			return 0, false
+		}
+	}
+	switch resolution {
+	case "480p":
+		return 0.140 * float64(duration), true
+	case "720p":
+		return 0.314 * float64(duration), true
+	default:
+		return 0, false
+	}
+}
+
+func modelAPIBillingUnits(modelPrice, estimatedUSD float64) map[string]float64 {
+	if !validPositiveFinite(modelPrice) || !validPositiveFinite(estimatedUSD) {
+		return nil
+	}
+	units := estimatedUSD / modelPrice
+	if !validPositiveFinite(units) {
+		return nil
+	}
+	return map[string]float64{modelAPIBillingUnitsKey: units}
 }
 
 var supportedModelAPIResolutions = map[string]struct{}{
