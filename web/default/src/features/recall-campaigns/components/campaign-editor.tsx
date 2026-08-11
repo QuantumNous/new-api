@@ -645,6 +645,8 @@ export function CampaignEditor(props: CampaignEditorProps) {
     props.configRevision ?? 0
   )
   const [activeTranslationTaskID, setActiveTranslationTaskID] = useState(0)
+  const [activeTranslationTaskCampaignID, setActiveTranslationTaskCampaignID] =
+    useState(0)
   const [translationTask, setTranslationTask] =
     useState<RecallTranslationTask>()
   const [pendingServerDraft, setPendingServerDraft] =
@@ -757,29 +759,35 @@ export function CampaignEditor(props: CampaignEditorProps) {
     queryKey: persistedCampaignID
       ? recallCampaignKeys.latestTranslationTask(persistedCampaignID)
       : recallCampaignKeys.latestTranslationTask(0),
-    queryFn: () => getLatestRecallEmailTranslationTask(persistedCampaignID),
+    queryFn: ({ queryKey: [, campaignID] }) =>
+      getLatestRecallEmailTranslationTask(campaignID),
     enabled: persistedCampaignID > 0 && activeTranslationTaskID === 0,
     retry: false,
   })
 
+  const activeTranslationTaskOwnedByCampaign =
+    persistedCampaignID > 0 &&
+    activeTranslationTaskID > 0 &&
+    activeTranslationTaskCampaignID === persistedCampaignID
   const activeTranslationTaskQuery = useQuery({
-    queryKey:
-      persistedCampaignID && activeTranslationTaskID
-        ? recallCampaignKeys.translationTask(
-            persistedCampaignID,
-            activeTranslationTaskID
-          )
-        : recallCampaignKeys.translationTask(0, 0),
-    queryFn: () =>
-      getRecallEmailTranslationTask(
-        persistedCampaignID,
-        activeTranslationTaskID
-      ),
-    enabled: persistedCampaignID > 0 && activeTranslationTaskID > 0,
+    queryKey: activeTranslationTaskOwnedByCampaign
+      ? recallCampaignKeys.translationTask(
+          persistedCampaignID,
+          activeTranslationTaskID
+        )
+      : recallCampaignKeys.translationTask(0, 0),
+    queryFn: ({ queryKey: [, campaignID, , , taskID] }) =>
+      getRecallEmailTranslationTask(campaignID, taskID),
+    enabled: activeTranslationTaskOwnedByCampaign,
     retry: false,
     refetchInterval: (query) => {
       const task = query.state.data?.data
-      return task && isRecallTranslationTaskActive(task.status) ? 2_000 : false
+      return task &&
+        task.id === activeTranslationTaskID &&
+        task.campaign_id === persistedCampaignID &&
+        isRecallTranslationTaskActive(task.status)
+        ? 2_000
+        : false
     },
     refetchIntervalInBackground: true,
   })
@@ -787,17 +795,34 @@ export function CampaignEditor(props: CampaignEditorProps) {
   useEffect(() => {
     const task = latestTranslationTaskQuery.data?.data
     if (!task || activeTranslationTaskID !== 0) return
+    if (task.campaign_id !== persistedCampaignID) return
     setTranslationTask(task)
     if (isRecallTranslationTaskActive(task.status)) {
+      setActiveTranslationTaskCampaignID(task.campaign_id)
       setActiveTranslationTaskID(task.id)
     }
-  }, [activeTranslationTaskID, latestTranslationTaskQuery.data])
+  }, [
+    activeTranslationTaskID,
+    latestTranslationTaskQuery.data,
+    persistedCampaignID,
+  ])
 
   useEffect(() => {
     const task = activeTranslationTaskQuery.data?.data
     if (!task) return
+    if (
+      task.id !== activeTranslationTaskID ||
+      task.campaign_id !== persistedCampaignID
+    ) {
+      setTranslationTask(undefined)
+      return
+    }
     setTranslationTask(task)
-  }, [activeTranslationTaskQuery.data])
+  }, [
+    activeTranslationTaskID,
+    activeTranslationTaskQuery.data,
+    persistedCampaignID,
+  ])
 
   useEffect(() => {
     if (
@@ -829,6 +854,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
       !parentReceivedNewDraftID
     ) {
       setActiveTranslationTaskID(0)
+      setActiveTranslationTaskCampaignID(0)
       setTranslationTask(undefined)
       setPendingServerDraft(null)
       invalidatedTranslationTasks.current.clear()
@@ -972,7 +998,12 @@ export function CampaignEditor(props: CampaignEditorProps) {
     if (!response.success || !response.data) {
       throw new Error('Translation generation failed')
     }
+    if (persistedCampaignIDRef.current !== campaignID) return
+    if (response.data.campaign_id !== campaignID) {
+      throw new Error('Translation generation returned an invalid campaign')
+    }
     setTranslationTask(response.data)
+    setActiveTranslationTaskCampaignID(response.data.campaign_id)
     setActiveTranslationTaskID(response.data.id)
     setPersistedConfigRevision(response.data.requested_config_revision)
   }

@@ -1020,19 +1020,17 @@ beforeEach(() => {
     }
   })
   getTranslationTask.mockClear()
-  getTranslationTask.mockImplementation(
-    async (_id: number, taskId: number) => ({
-      success: true,
-      data: {
-        id: taskId,
-        campaign_id: 9,
-        requested_config_revision: 4,
-        status: 'running',
-        attempt_count: 1,
-        created_at: 1_900_000_000,
-      },
-    })
-  )
+  getTranslationTask.mockImplementation(async (id: number, taskId: number) => ({
+    success: true,
+    data: {
+      id: taskId,
+      campaign_id: id,
+      requested_config_revision: 4,
+      status: 'running',
+      attempt_count: 1,
+      created_at: 1_900_000_000,
+    },
+  }))
   getLatestTranslationTask.mockClear()
   getLatestTranslationTask.mockImplementation(async (id: number) => ({
     success: true,
@@ -2918,6 +2916,20 @@ describe('CampaignEditor email sequence', () => {
   })
 
   test('clears translation task and dirty refresh state when switching campaign identity', async () => {
+    getLatestTranslationTask.mockImplementation(async (id) => ({
+      success: true,
+      data:
+        id === 9
+          ? {
+              id: 44,
+              campaign_id: 9,
+              requested_config_revision: 4,
+              status: 'running',
+              attempt_count: 1,
+              created_at: 1_899_999_000,
+            }
+          : null,
+    }))
     const draftA = makeDraft('first_purchase')
     draftA.email_sequence[0].templates.en.subject = 'Campaign A subject'
     const draftB = makeDraft('first_purchase')
@@ -2977,6 +2989,255 @@ describe('CampaignEditor email sequence', () => {
       },
     })
     dispose(root)
+  })
+
+  test('does not poll a latest translation task owned by the previous campaign after identity switch', async () => {
+    getLatestTranslationTask.mockImplementation(async (id) => ({
+      success: true,
+      data:
+        id === 10
+          ? {
+              id: 44,
+              campaign_id: 9,
+              requested_config_revision: 4,
+              status: 'running',
+              attempt_count: 1,
+              created_at: 1_899_999_000,
+            }
+          : null,
+    }))
+    const draftA = makeDraft('first_purchase')
+    const draftB = makeDraft('first_purchase')
+    const { root, container, queryClient } = renderEditorDom(draftA, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    try {
+      await waitFor(() =>
+        getLatestTranslationTask.mock.calls.some((call) => call[0] === 9)
+      )
+      getTranslationTask.mockClear()
+      React.act(() => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <I18nextProvider i18n={testI18n}>
+              <CampaignEditor
+                campaignId={10}
+                configRevision={1}
+                initialDraft={draftB}
+                specifiedUsersSelector={MockSpecifiedUsersSelector}
+              />
+            </I18nextProvider>
+          </QueryClientProvider>
+        )
+      })
+      await waitFor(() =>
+        Boolean(
+          queryClient.getQueryData(
+            recallApi.recallCampaignKeys.latestTranslationTask(10)
+          )
+        )
+      )
+      await flushReactWork()
+      await flushReactWork()
+      await flushReactWork()
+
+      expect(getTranslationTask.mock.calls).not.toContainEqual([10, 44])
+      expect(container.textContent).not.toContain('Translation task running')
+    } finally {
+      dispose(root)
+    }
+  })
+
+  test('does not repeatedly recover a latest task after active polling returns a different owner', async () => {
+    getLatestTranslationTask.mockImplementation(async (id) => ({
+      success: true,
+      data: {
+        id: 44,
+        campaign_id: id,
+        requested_config_revision: 4,
+        status: 'running',
+        attempt_count: 1,
+        created_at: 1_899_999_000,
+      },
+    }))
+    getTranslationTask.mockImplementation(async (_id, taskId) => ({
+      success: true,
+      data: {
+        id: taskId,
+        campaign_id: 9,
+        requested_config_revision: 4,
+        status: 'running',
+        attempt_count: 1,
+        created_at: 1_900_000_000,
+      },
+    }))
+    const draft = makeDraft('first_purchase')
+    const { root, container, queryClient } = renderEditorDom(draft, {
+      campaignId: 10,
+      configRevision: 4,
+    })
+
+    try {
+      await waitFor(() =>
+        getTranslationTask.mock.calls.some(
+          (call) => call[0] === 10 && call[1] === 44
+        )
+      )
+      await waitFor(() =>
+        Boolean(
+          queryClient.getQueryData(
+            recallApi.recallCampaignKeys.translationTask(10, 44)
+          )
+        )
+      )
+      await flushReactWork()
+      await waitFor(
+        () => !container.textContent?.includes('Translation task running')
+      )
+
+      expect(getTranslationTask.mock.calls).toEqual([[10, 44]])
+      expect(container.textContent).not.toContain('Translation task running')
+    } finally {
+      dispose(root)
+    }
+  })
+
+  test('refetches the previous campaign active task with its query key after identity switch', async () => {
+    getLatestTranslationTask.mockImplementation(async (id) => ({
+      success: true,
+      data:
+        id === 9
+          ? {
+              id: 44,
+              campaign_id: 9,
+              requested_config_revision: 4,
+              status: 'running',
+              attempt_count: 1,
+              created_at: 1_899_999_000,
+            }
+          : null,
+    }))
+    const draftA = makeDraft('first_purchase')
+    const draftB = makeDraft('first_purchase')
+    const { root, queryClient } = renderEditorDom(draftA, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    try {
+      await waitFor(() =>
+        getTranslationTask.mock.calls.some(
+          (call) => call[0] === 9 && call[1] === 44
+        )
+      )
+      React.act(() => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <I18nextProvider i18n={testI18n}>
+              <CampaignEditor
+                campaignId={10}
+                configRevision={1}
+                initialDraft={draftB}
+                specifiedUsersSelector={MockSpecifiedUsersSelector}
+              />
+            </I18nextProvider>
+          </QueryClientProvider>
+        )
+      })
+      await flushReactWork()
+
+      getTranslationTask.mockClear()
+      await React.act(async () => {
+        await queryClient.refetchQueries({
+          queryKey: recallApi.recallCampaignKeys.translationTask(9, 44),
+          type: 'all',
+        })
+      })
+
+      expect(getTranslationTask.mock.calls).toEqual([[9, 44]])
+    } finally {
+      dispose(root)
+    }
+  })
+
+  test('ignores a generated translation task response after switching campaign identity', async () => {
+    let resolveGenerate:
+      | ((
+          response: Awaited<
+            ReturnType<typeof recallApi.generateRecallEmailTranslations>
+          >
+        ) => void)
+      | undefined
+    generateMutation.mockImplementationOnce(
+      (value) =>
+        new Promise((resolve) => {
+          operationOrder.push('generate')
+          resolveGenerate = resolve
+          expect(value.id).toBe(9)
+        })
+    )
+    getLatestTranslationTask.mockImplementation(async () => ({
+      success: true,
+      data: null,
+    }))
+    const draftA = makeDraft('first_purchase')
+    const draftB = makeDraft('first_purchase')
+    draftB.email_sequence[0].templates.en.subject = 'Campaign B subject'
+    const { root, container, queryClient } = renderEditorDom(draftA, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    try {
+      await clickByID(container, 'recall-generate-translations')
+      await waitFor(() => generateMutation.mock.calls.length > 0)
+      React.act(() => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <I18nextProvider i18n={testI18n}>
+              <CampaignEditor
+                campaignId={10}
+                configRevision={1}
+                initialDraft={draftB}
+                specifiedUsersSelector={MockSpecifiedUsersSelector}
+              />
+            </I18nextProvider>
+          </QueryClientProvider>
+        )
+        resolveGenerate?.({
+          success: true,
+          data: {
+            id: 55,
+            campaign_id: 9,
+            requested_config_revision: 4,
+            status: 'queued',
+            attempt_count: 0,
+            created_at: 1_900_000_000,
+          },
+        })
+      })
+      await flushReactWork()
+
+      expect(container.textContent).not.toContain('Translation task queued')
+      expect(getTranslationTask.mock.calls).not.toContainEqual([10, 55])
+      await submit(container)
+      expect(updateMutation.mock.calls.at(-1)?.[0]).toMatchObject({
+        id: 10,
+        draft: {
+          email_sequence: [
+            {
+              templates: {
+                en: { subject: 'Campaign B subject' },
+              },
+            },
+          ],
+        },
+      })
+    } finally {
+      dispose(root)
+    }
   })
 
   test('generates new draft translations after reviewing missing targets with an empty product scope', async () => {
