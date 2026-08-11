@@ -142,12 +142,17 @@ jobs:
             'sudo mkdir -p /opt/actions-runner && sudo chown $(whoami) /opt/actions-runner'
           sshpass -p "$K3S_SERVER_PASS" scp -o StrictHostKeyChecking=no \
             /tmp/actions-runner.tar.gz "$K3S_SERVER_USER@$K3S_SERVER_IP:/opt/actions-runner/"
+          # RUNNER_ALLOW_RUNASROOT=1：config.sh 默认拒绝 root 运行，服务器用户是 root 时必须设置
           sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" "
+            set -e
             cd /opt/actions-runner
             tar xzf actions-runner.tar.gz
+            sudo ./bin/installdependencies.sh
+            export RUNNER_ALLOW_RUNASROOT=1
             ./config.sh --url https://github.com/${{ github.repository }} --token $REG_TOKEN --labels k8s --name k3s-runner --unattended --replace
-            sudo ./svc.sh install
+            sudo ./svc.sh install root
             sudo ./svc.sh start
+            sudo ./svc.sh status
           "
           echo "self-hosted runner registered (label: k8s)"
 
