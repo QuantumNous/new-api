@@ -363,5 +363,7 @@ func migrateSubscriptionContractTestDB(t *testing.T) {
 		&SubscriptionTermSegment{},
 		&WalletLedgerEntry{},
 		&SubscriptionPreConsumeRecord{},
+		&RecallLifecycleEvent{},
+		&QuotaLifecycleState{},
 	))
 }

@@ -54,6 +54,27 @@ type recallCampaignAwareFakeEmailTranslator struct {
 	campaignTypes []string
 }
 
+type recallDeliveryAwareFakeEmailTranslator struct {
+	campaignTypes     []string
+	deliveryPolicies  []string
+	lifecycleTriggers []string
+}
+
+func (f *recallDeliveryAwareFakeEmailTranslator) Translate(_ context.Context, _ []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+	return nil, errors.New("generic translation path must not be used")
+}
+
+func (f *recallDeliveryAwareFakeEmailTranslator) TranslateForCampaign(_ context.Context, _ string, _ []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+	return nil, errors.New("campaign-only translation path must not be used")
+}
+
+func (f *recallDeliveryAwareFakeEmailTranslator) TranslateForDelivery(_ context.Context, campaignType string, deliveryPolicy string, lifecycleTrigger string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+	f.campaignTypes = append(f.campaignTypes, campaignType)
+	f.deliveryPolicies = append(f.deliveryPolicies, deliveryPolicy)
+	f.lifecycleTriggers = append(f.lifecycleTriggers, lifecycleTrigger)
+	return recallCampaignHTMLTranslationsForDelivery(campaignType, deliveryPolicy, lifecycleTrigger, stages, "delivery"), nil
+}
+
 func (f *recallCampaignAwareFakeEmailTranslator) Translate(_ context.Context, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
 	f.mu.Lock()
 	f.genericCalls = append(f.genericCalls, cloneRecallCampaignTestStages(stages))
@@ -117,10 +138,14 @@ func recallCampaignHTMLTranslations(stages []RecallEmailStage, version string) m
 }
 
 func recallCampaignHTMLTranslationsForCampaign(campaignType string, stages []RecallEmailStage, version string) map[int]map[string]RecallEmailTemplate {
+	return recallCampaignHTMLTranslationsForDelivery(campaignType, model.RecallDeliveryPolicyEngagement, "", stages, version)
+}
+
+func recallCampaignHTMLTranslationsForDelivery(campaignType string, deliveryPolicy string, lifecycleTrigger string, stages []RecallEmailStage, version string) map[int]map[string]RecallEmailTemplate {
 	translations := make(map[int]map[string]RecallEmailTemplate, len(stages))
 	for _, stage := range stages {
 		english := stage.Templates["en"]
-		document, err := parseRecallEmailHTMLForCampaign(campaignType, english.BodyHTML)
+		document, err := parseRecallEmailHTMLForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, english.BodyHTML)
 		if err != nil {
 			panic(err)
 		}
@@ -200,6 +225,7 @@ func setupRecallCampaignTestDB(t *testing.T) *gorm.DB {
 	})
 	require.NoError(t, db.AutoMigrate(
 		&model.User{},
+		&model.Option{},
 		&model.TopUp{},
 		&model.SubscriptionOrder{},
 		&model.SubscriptionPlan{},
@@ -212,6 +238,7 @@ func setupRecallCampaignTestDB(t *testing.T) *gorm.DB {
 		&model.RecallEmailPacingState{},
 		&model.RecallEvent{},
 		&model.RecallCampaignExclusion{},
+		&model.RecallContinuousTriggerSlot{},
 		&model.Log{},
 	))
 	return db
@@ -812,6 +839,8 @@ func TestRecallCampaignExportHonorsCancelledContext(t *testing.T) {
 func TestRecallCampaignSaveDraftValidatesAndNormalizes(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
 	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
 	service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
 	service.now = func() time.Time { return now }
@@ -897,6 +926,65 @@ func TestRecallCampaignScheduleProductChoicesNormalizeForPersistence(t *testing.
 			roundTrip, err := recallCampaignDraftFromModel(campaign)
 			require.NoError(t, err)
 			require.Equal(t, storedSchedule, roundTrip.Schedule)
+		})
+	}
+}
+
+func TestRecallCampaignLegacyExecutionModesClearLifecycleFields(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	start := now.Add(2 * time.Hour).Unix()
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
+	service.now = func() time.Time { return now }
+
+	tests := []struct {
+		name     string
+		mode     string
+		schedule RecallScheduleConfig
+	}{
+		{name: "manual", mode: "manual", schedule: RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9}},
+		{name: "scheduled_once", mode: "scheduled_once", schedule: RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai"}},
+		{name: "recurring", mode: "recurring", schedule: RecallScheduleConfig{ScheduledAt: start, Timezone: "Asia/Shanghai", Frequency: "daily", Hour: 9, Minute: 15}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			draft := validRecallCampaignDraft(now)
+			draft.Name = "Legacy lifecycle canonical " + test.name
+			draft.ExecutionMode = test.mode
+			draft.Schedule = test.schedule
+			draft.DeliveryPolicy = model.RecallDeliveryPolicyService
+			draft.LifecycleTrigger = model.RecallLifecycleTriggerQuotaLow
+			draft.LifecycleTriggerConfig = `{"stale":true}`
+			draft.ProcessingStartAt = now.Unix()
+
+			campaign, err := service.SaveDraft(context.Background(), 7, draft)
+
+			require.NoError(t, err)
+			require.Equal(t, model.RecallDeliveryPolicyEngagement, campaign.DeliveryPolicy)
+			require.Empty(t, campaign.LifecycleTrigger)
+			require.Empty(t, campaign.LifecycleTriggerConfig)
+			require.Zero(t, campaign.ProcessingStartAt)
+			roundTrip, err := recallCampaignDraftFromModel(campaign)
+			require.NoError(t, err)
+			require.Equal(t, model.RecallDeliveryPolicyEngagement, roundTrip.DeliveryPolicy)
+			require.Empty(t, roundTrip.LifecycleTrigger)
+			require.Empty(t, roundTrip.LifecycleTriggerConfig)
+			require.Zero(t, roundTrip.ProcessingStartAt)
+			if test.mode == "manual" {
+				require.Zero(t, campaign.ScheduledAt)
+				require.Empty(t, campaign.RecurrenceConfig)
+				require.Equal(t, RecallScheduleConfig{}, roundTrip.Schedule)
+				return
+			}
+			require.Equal(t, start, campaign.ScheduledAt)
+			require.Equal(t, start, roundTrip.Schedule.ScheduledAt)
+			require.Equal(t, "Asia/Shanghai", roundTrip.Schedule.Timezone)
+			if test.mode == "recurring" {
+				require.Equal(t, "daily", roundTrip.Schedule.Frequency)
+				require.Equal(t, 9, roundTrip.Schedule.Hour)
+				require.Equal(t, 15, roundTrip.Schedule.Minute)
+			}
 		})
 	}
 }
@@ -2364,6 +2452,42 @@ func TestNormalizeRecallEmailTemplateRequiresExactlyOneBody(t *testing.T) {
 			require.ErrorContains(t, err, testCase.wantErr)
 		})
 	}
+}
+
+func TestRecallCampaignContinuousServiceDraftAllowsHTMLWithoutUnsubscribe(t *testing.T) {
+	setupRecallCampaignTestDB(t)
+	setRecallCampaignEnabled(t, true)
+	_, err := model.InsertRecallLifecycleEventCollectionStartedAtBarrierWithContext(context.Background())
+	require.NoError(t, err)
+	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
+	service := NewRecallCampaignService(NewRecallAudienceSelector(), nil)
+	service.now = func() time.Time { return now }
+
+	draft := validRecallCampaignDraft(now)
+	draft.CampaignType = model.RecallCampaignTypeContentOnly
+	draft.ExecutionMode = "continuous"
+	draft.DeliveryPolicy = model.RecallDeliveryPolicyService
+	draft.LifecycleTrigger = model.RecallLifecycleTriggerQuotaLow
+	draft.LifecycleTriggerConfig = "{}"
+	draft.AudienceTemplate = ""
+	draft.Audience = RecallAudienceConfig{}
+	draft.Schedule = RecallScheduleConfig{}
+	draft.CouponSource = ""
+	draft.ExistingCouponID = ""
+	draft.Discount = RecallDiscountConfig{}
+	draft.Products = RecallProductScope{}
+	draft.PromotionExpiryMode = ""
+	draft.PromotionExpiresAt = 0
+	draft.PromotionValidSeconds = 0
+	draft.Emails[0].Templates["en"] = RecallEmailTemplate{
+		Subject:  "Service notice",
+		BodyHTML: `<!doctype html><html><body><p>Hello {{.RecipientName}}</p><a href="https://flatkey.ai/console">Open Flatkey</a></body></html>`,
+	}
+
+	campaign, err := service.SaveDraft(context.Background(), 7, draft)
+
+	require.NoError(t, err)
+	require.Equal(t, model.RecallDeliveryPolicyService, campaign.DeliveryPolicy)
 }
 
 func TestRecallCampaignSaveDraftRejectsInvalidBoundaries(t *testing.T) {

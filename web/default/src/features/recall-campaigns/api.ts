@@ -118,6 +118,111 @@ function buildRecallMetricUserParams(
   return { ...filters, metric }
 }
 
+type RecallCampaignDraftWire = Omit<
+  RecallCampaignDraft,
+  | 'audience_config'
+  | 'audience_template'
+  | 'discount_config'
+  | 'lifecycle_trigger_config'
+> & {
+  audience_template: RecallCampaignDraft['audience_template']
+  audience_config:
+    | RecallCampaignDraft['audience_config']
+    | Record<string, never>
+  discount_config:
+    | RecallCampaignDraft['discount_config']
+    | Record<string, never>
+  lifecycle_trigger_config: string
+}
+
+type RecallCampaignDetailWire = Omit<RecallCampaignDetail, 'draft'> & {
+  draft: Omit<RecallCampaignDraft, 'lifecycle_trigger_config'> & {
+    lifecycle_trigger_config?: unknown
+  }
+}
+
+function encodeRecallCampaignDraft(
+  draft: RecallCampaignDraft
+): RecallCampaignDraftWire {
+  if (draft.execution_mode === 'continuous') {
+    return {
+      ...draft,
+      campaign_type: 'content_only',
+      audience_template: '',
+      audience_config: {},
+      discount_config: {},
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: '',
+        weekday: 0,
+        hour: 0,
+        minute: 0,
+      },
+      coupon_source: '',
+      existing_coupon_id: '',
+      product_scope: { topup_price_ids: [], subscription_price_ids: [] },
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+      lifecycle_trigger_config: '{}',
+    }
+  }
+
+  return {
+    ...draft,
+    audience_template: draft.audience_template,
+    audience_config: draft.audience_config,
+    discount_config: draft.discount_config,
+    lifecycle_trigger_config: JSON.stringify(
+      draft.lifecycle_trigger_config ?? {}
+    ),
+  }
+}
+
+function decodeLifecycleTriggerConfig(value: unknown): Record<string, never> {
+  if (value === undefined || value === '') return {}
+  if (typeof value !== 'string') {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      return value as Record<string, never>
+    }
+    throw new RecallApiError(
+      'Invalid recall campaign lifecycle_trigger_config: expected JSON object'
+    )
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value) as unknown
+  } catch {
+    throw new RecallApiError(
+      'Invalid recall campaign lifecycle_trigger_config JSON'
+    )
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new RecallApiError(
+      'Invalid recall campaign lifecycle_trigger_config: expected JSON object'
+    )
+  }
+
+  return parsed as Record<string, never>
+}
+
+function decodeRecallCampaignDetail(
+  detail: RecallCampaignDetailWire
+): RecallCampaignDetail {
+  return {
+    ...detail,
+    draft: {
+      ...detail.draft,
+      lifecycle_trigger_config: decodeLifecycleTriggerConfig(
+        detail.draft.lifecycle_trigger_config
+      ),
+    },
+  }
+}
+
 export async function listRecallCampaigns(
   search: RecallCampaignSearch
 ): Promise<ApiResponse<RecallPage<RecallCampaignSummary>>> {
@@ -128,7 +233,10 @@ export async function listRecallCampaigns(
 export async function createRecallCampaign(
   draft: RecallCampaignDraft
 ): Promise<ApiResponse<RecallCampaignSummary>> {
-  const response = await api.post('/api/recall-campaigns/', draft)
+  const response = await api.post(
+    '/api/recall-campaigns/',
+    encodeRecallCampaignDraft(draft)
+  )
   return requireRecallSuccess(response.data)
 }
 
@@ -136,14 +244,23 @@ export async function getRecallCampaign(
   id: number
 ): Promise<ApiResponse<RecallCampaignDetail>> {
   const response = await api.get(`/api/recall-campaigns/${id}`)
-  return requireRecallSuccess(response.data)
+  const envelope = requireRecallSuccess(
+    response.data as ApiResponse<RecallCampaignDetailWire>
+  )
+  return {
+    ...envelope,
+    data: envelope.data ? decodeRecallCampaignDetail(envelope.data) : undefined,
+  }
 }
 
 export async function updateRecallCampaign(
   id: number,
   draft: RecallCampaignDraft
 ): Promise<ApiResponse<RecallCampaignSummary>> {
-  const response = await api.put(`/api/recall-campaigns/${id}`, draft)
+  const response = await api.put(
+    `/api/recall-campaigns/${id}`,
+    encodeRecallCampaignDraft(draft)
+  )
   return requireRecallSuccess(response.data)
 }
 
@@ -233,7 +350,7 @@ export async function validateRecallStripeConfig(
 ): Promise<ApiResponse<RecallStripePreview>> {
   const response = await api.post(
     '/api/recall-campaigns/stripe/validate',
-    draft
+    encodeRecallCampaignDraft(draft)
   )
   return requireRecallSuccess(response.data)
 }

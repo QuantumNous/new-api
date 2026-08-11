@@ -224,6 +224,74 @@ func TestBeginRecallEmailSMTPAttemptRollsBackSendingWhenQuotaIsExhausted(t *test
 	require.Equal(t, 1, status.Used)
 }
 
+func TestBeginRecallEmailSMTPAttemptFailsClosedWhenLifecycleGateMissing(t *testing.T) {
+	setupRecallEmailQuotaTestDB(t)
+	restoreRecallEmailTimeHooksForTest(t)
+
+	lifecycleEventID := int64(42)
+	recipient := createRecallEmailQuotaTestRecipient(t, 4, 2004, "lifecycle-gate-missing@example.com")
+	require.NoError(t, DB.Model(&RecallRecipient{}).Where("id = ?", recipient.Id).Update("lifecycle_event_id", lifecycleEventID).Error)
+	message := RecallMessage{
+		RecipientId:      recipient.Id,
+		StageNo:          1,
+		TemplateSnapshot: `{}`,
+		State:            RecallMessageLeased,
+		LeaseOwner:       "email-owner",
+		LeaseExpiresAt:   1_800_000_600,
+	}
+	require.NoError(t, DB.Create(&message).Error)
+
+	attempt, err := BeginRecallEmailSMTPAttemptWithContext(
+		context.Background(),
+		message.Id,
+		message.LeaseOwner,
+		message.LeaseExpiresAt,
+		5,
+	)
+
+	require.ErrorIs(t, err, errRecallLifecycleGateOpen)
+	require.ErrorContains(t, err, "recall lifecycle smtp gate decision is required")
+	require.False(t, attempt.Reserved)
+	require.False(t, attempt.Suppressed)
+	require.Equal(t, RecallMessageLeased, loadRecallMessageForQuotaTest(t, message.Id).State)
+	assertRecallEmailQuotaStatusUsed(t, 5, 1_800_000_000_000, 0)
+	var pacing RecallEmailPacingState
+	require.ErrorIs(t, DB.Where("scope = ?", recallEmailPacingScope).First(&pacing).Error, gorm.ErrRecordNotFound)
+}
+
+func TestBeginRecallEmailSMTPAttemptCompatibilityWrapperAdmitsNonLifecycleRecipient(t *testing.T) {
+	setupRecallEmailQuotaTestDB(t)
+	restoreRecallEmailTimeHooksForTest(t)
+	setRecallEmailPacingTestNowMillis(t, 1_800_000_000_000)
+
+	recipient := createRecallEmailQuotaTestRecipient(t, 4, 2004, "ordinary-recipient@example.com")
+	message := RecallMessage{
+		RecipientId:      recipient.Id,
+		StageNo:          1,
+		TemplateSnapshot: `{}`,
+		State:            RecallMessageLeased,
+		LeaseOwner:       "email-owner",
+		LeaseExpiresAt:   1_800_000_600,
+	}
+	require.NoError(t, DB.Create(&message).Error)
+
+	attempt, err := BeginRecallEmailSMTPAttemptWithContext(
+		context.Background(),
+		message.Id,
+		message.LeaseOwner,
+		message.LeaseExpiresAt,
+		5,
+	)
+
+	require.NoError(t, err)
+	require.True(t, attempt.LeaseOwned)
+	require.True(t, attempt.Reserved)
+	require.False(t, attempt.Suppressed)
+	require.Equal(t, "ordinary-recipient@example.com", attempt.Email)
+	require.Equal(t, RecallMessageSending, loadRecallMessageForQuotaTest(t, message.Id).State)
+	assertRecallEmailQuotaStatusUsed(t, 5, 1_800_000_000_000, 1)
+}
+
 func loadRecallMessageForQuotaTest(t *testing.T, id int64) RecallMessage {
 	t.Helper()
 	var message RecallMessage
@@ -553,6 +621,43 @@ func TestBeginRecallEmailSMTPAttemptDoesNotAdvancePacingCursorOnNonSendOutcomes(
 		assertRecallEmailQuotaStatusUsed(t, limit, nowMillis, 0)
 		assertRecallEmailPacingSlotStillAvailable(t, 7_103, owner, leaseUntil, limit, nowMillis)
 	})
+}
+
+func TestBeginRecallEmailSMTPAttemptUsesPrecomputedLifecycleGateBeforeReservation(t *testing.T) {
+	setupRecallEmailQuotaTestDB(t)
+	restoreRecallEmailTimeHooksForTest(t)
+	setRecallEmailPacingTestNowMillis(t, 1_800_000_000_000)
+
+	lifecycleEventID := int64(420)
+	recipient := createRecallEmailQuotaTestRecipient(t, 42, 2042, "stale-lifecycle@example.com")
+	require.NoError(t, DB.Model(&RecallRecipient{}).Where("id = ?", recipient.Id).Update("lifecycle_event_id", lifecycleEventID).Error)
+	message := RecallMessage{
+		RecipientId:      recipient.Id,
+		StageNo:          1,
+		TemplateSnapshot: `{}`,
+		State:            RecallMessageLeased,
+		LeaseOwner:       "email-owner",
+		LeaseExpiresAt:   1_800_000_600,
+	}
+	require.NoError(t, DB.Create(&message).Error)
+
+	attempt, err := BeginRecallEmailSMTPAttemptWithLifecycleGateWithContext(
+		context.Background(),
+		message.Id,
+		message.LeaseOwner,
+		message.LeaseExpiresAt,
+		5,
+		&RecallLifecycleSMTPGateResult{Blocked: true, ReasonCode: "quota_recovered"},
+	)
+
+	require.NoError(t, err)
+	require.True(t, attempt.LeaseOwned)
+	require.False(t, attempt.Reserved)
+	require.True(t, attempt.Suppressed)
+	require.Equal(t, RecallMessageCancelled, loadRecallMessageForQuotaTest(t, message.Id).State)
+	assertRecallEmailQuotaStatusUsed(t, 5, 1_800_000_000_000, 0)
+	var pacing RecallEmailPacingState
+	require.ErrorIs(t, DB.Where("scope = ?", recallEmailPacingScope).First(&pacing).Error, gorm.ErrRecordNotFound)
 }
 
 func TestBeginRecallEmailSMTPAttemptRollsBackPacingReservationWhenHourlyQuotaExhausted(t *testing.T) {

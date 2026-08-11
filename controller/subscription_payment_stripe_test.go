@@ -289,6 +289,8 @@ func setupSubscriptionRecallClaimDB(t *testing.T) {
 		&model.RecallEvent{},
 		&model.SubscriptionDiscountAccount{},
 		&model.SubscriptionDiscountEntry{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	))
 	model.DB = db
 	model.LOG_DB = db
@@ -302,6 +304,13 @@ func setupSubscriptionRecallClaimDB(t *testing.T) {
 			_ = sqlDB.Close()
 		}
 	})
+}
+
+func TestSubscriptionRecallClaimFixtureMigratesLifecycleTables(t *testing.T) {
+	setupSubscriptionRecallClaimDB(t)
+
+	require.True(t, model.DB.Migrator().HasTable(&model.RecallLifecycleEvent{}))
+	require.True(t, model.DB.Migrator().HasTable(&model.QuotaLifecycleState{}))
 }
 
 func enableRecallCampaignForControllerTest(t *testing.T) {

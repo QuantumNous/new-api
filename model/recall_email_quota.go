@@ -50,6 +50,7 @@ type RecallEmailSMTPAttempt struct {
 	Reserved   bool
 	LeaseOwned bool
 	Suppressed bool
+	Email      string
 }
 
 var (
@@ -58,7 +59,19 @@ var (
 	errRecallEmailPacingWait   = errors.New("recall email pacing wait")
 	errRecallEmailQuotaWait    = errors.New("recall email quota exhausted")
 	errRecallEmailCASLost      = errors.New("recall email CAS lost")
+	errRecallLifecycleGateOpen = errors.New("recall lifecycle smtp gate decision is required")
 )
+
+type RecallLifecycleSMTPGateInput struct {
+	Message   RecallMessage
+	Recipient RecallRecipient
+}
+
+type RecallLifecycleSMTPGateResult struct {
+	Email      string
+	Blocked    bool
+	ReasonCode string
+}
 
 func ReserveRecallEmailQuotaWithContext(ctx context.Context, limit int) (RecallEmailQuotaStatus, bool, error) {
 	return reserveRecallEmailQuota(DB.WithContext(ctx), limit)
@@ -70,6 +83,17 @@ func BeginRecallEmailSMTPAttemptWithContext(
 	owner string,
 	expectedLeaseUntil int64,
 	limit int,
+) (RecallEmailSMTPAttempt, error) {
+	return BeginRecallEmailSMTPAttemptWithLifecycleGateWithContext(ctx, messageID, owner, expectedLeaseUntil, limit, nil)
+}
+
+func BeginRecallEmailSMTPAttemptWithLifecycleGateWithContext(
+	ctx context.Context,
+	messageID int64,
+	owner string,
+	expectedLeaseUntil int64,
+	limit int,
+	lifecycleGate *RecallLifecycleSMTPGateResult,
 ) (RecallEmailSMTPAttempt, error) {
 	attempt := RecallEmailSMTPAttempt{}
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -108,6 +132,35 @@ func BeginRecallEmailSMTPAttemptWithContext(
 			}
 			return nil
 		}
+		if recipient.LifecycleEventId != nil {
+			if lifecycleGate == nil {
+				return errRecallLifecycleGateOpen
+			}
+			if lifecycleGate.Blocked {
+				attempt.Suppressed = true
+				cancelled, err := cancelSuppressedRecallEmailFlowTx(tx, message.Id, recipient.Id, owner, expectedLeaseUntil, lifecycleGate.ReasonCode)
+				if err != nil {
+					return err
+				}
+				if !cancelled {
+					return nil
+				}
+				return nil
+			}
+			if lifecycleGate.Email != "" && lifecycleGate.Email != recipient.EmailSnapshot {
+				result := tx.Model(&RecallRecipient{}).
+					Where("id = ?", recipient.Id).
+					Update("email_snapshot", lifecycleGate.Email)
+				if result.Error != nil {
+					return result.Error
+				}
+				if result.RowsAffected != 1 {
+					return errRecallEmailCASLost
+				}
+				recipient.EmailSnapshot = lifecycleGate.Email
+			}
+		}
+		attempt.Email = recipient.EmailSnapshot
 
 		nowMillis, err := recallEmailPacingNowMillis(tx)
 		if err != nil {

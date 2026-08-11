@@ -69,6 +69,8 @@ func setupSubscriptionPurchaseServiceTestDB(t *testing.T) {
 		&model.SubscriptionDiscountAccount{},
 		&model.SubscriptionDiscountEntry{},
 		&model.RecallEvent{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	))
 }
 
@@ -296,6 +298,8 @@ func TestPurchaseSubscriptionStripeRecurringResolvesRecallPromotionCode(t *testi
 		&model.WalletLedgerEntry{},
 		&model.SubscriptionDiscountAccount{},
 		&model.SubscriptionDiscountEntry{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	))
 	setRecallCampaignEnabled(t, true)
 	now := time.Now().UTC()
@@ -661,6 +665,8 @@ func setupSubscriptionRecallPurchaseTestDB(t *testing.T) {
 		&model.WalletLedgerEntry{},
 		&model.SubscriptionDiscountAccount{},
 		&model.SubscriptionDiscountEntry{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	))
 	setRecallCampaignEnabled(t, true)
 }

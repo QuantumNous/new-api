@@ -8,13 +8,17 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { previewRecallEmail } from '../api'
 import {
-  RECALL_CONTENT_ONLY_EMAIL_ACTIONS,
+  getRecallEmailActions,
   insertRecallEmailAction,
   normalizeRecallBodyInputToHtml,
   RECALL_EMAIL_ACTION_DESCRIPTIONS,
-  RECALL_EMAIL_ACTIONS,
 } from '../helpers'
-import type { RecallCampaignDraft, RecallCampaignType } from '../types'
+import type {
+  RecallCampaignDraft,
+  RecallCampaignType,
+  RecallDeliveryPolicy,
+  RecallLifecycleTrigger,
+} from '../types'
 
 interface CampaignEmailHtmlEditorProps {
   form: UseFormReturn<RecallCampaignDraft>
@@ -32,6 +36,8 @@ interface RecallEmailPreviewFrameProps {
 interface RecallEmailPreviewSnapshot {
   requestId: number
   campaignType: RecallCampaignType
+  deliveryPolicy: RecallDeliveryPolicy
+  lifecycleTrigger?: RecallLifecycleTrigger
   subject: string
   bodyHTML: string
 }
@@ -43,6 +49,8 @@ interface RecallEmailPreviewState {
 
 interface RecallEmailPreviewPreparedRequest {
   campaign_type: RecallCampaignType
+  delivery_policy: RecallDeliveryPolicy
+  lifecycle_trigger?: RecallLifecycleTrigger
   snapshot: RecallEmailPreviewSnapshot
   template: { subject: string; body_html: string }
 }
@@ -50,6 +58,7 @@ interface RecallEmailPreviewPreparedRequest {
 // eslint-disable-next-line react-refresh/only-export-components
 export function createRecallEmailPreviewTemplate(props: {
   campaignType?: RecallCampaignType
+  deliveryPolicy?: RecallDeliveryPolicy
   subject: string
   bodyHTML: string
 }): { subject: string; body_html: string } {
@@ -57,7 +66,8 @@ export function createRecallEmailPreviewTemplate(props: {
     subject: props.subject.trim() || 'Recall email preview',
     body_html: normalizeRecallBodyInputToHtml(
       props.bodyHTML,
-      props.campaignType ?? 'promotion'
+      props.campaignType ?? 'promotion',
+      props.deliveryPolicy ?? 'engagement'
     ),
   }
 }
@@ -65,6 +75,8 @@ export function createRecallEmailPreviewTemplate(props: {
 // eslint-disable-next-line react-refresh/only-export-components
 export async function prepareRecallEmailPreviewRequest(props: {
   campaignType: RecallCampaignType
+  deliveryPolicy?: RecallDeliveryPolicy
+  lifecycleTrigger?: RecallLifecycleTrigger
   nextRequestId: () => number
   subject: string
   bodyHTML: string
@@ -75,15 +87,18 @@ export async function prepareRecallEmailPreviewRequest(props: {
   const snapshot = {
     requestId: props.nextRequestId(),
     campaignType: props.campaignType,
+    deliveryPolicy: props.deliveryPolicy ?? 'engagement',
+    lifecycleTrigger: props.lifecycleTrigger,
     subject: props.subject,
     bodyHTML: props.bodyHTML,
   }
   return {
     campaign_type: props.campaignType,
+    delivery_policy: snapshot.deliveryPolicy,
+    lifecycle_trigger: snapshot.lifecycleTrigger,
     snapshot,
     template: createRecallEmailPreviewTemplate({
       ...snapshot,
-      campaignType: props.campaignType,
     }),
   }
 }
@@ -93,16 +108,25 @@ export function shouldApplyRecallEmailPreviewResult(props: {
   candidate: RecallEmailPreviewSnapshot
   latest: RecallEmailPreviewSnapshot | null
   currentCampaignType: RecallCampaignType
+  currentDeliveryPolicy: RecallDeliveryPolicy
+  currentLifecycleTrigger?: RecallLifecycleTrigger | ''
   currentSubject: string
   currentBodyHTML: string
 }): boolean {
+  const candidateTrigger = props.candidate.lifecycleTrigger ?? ''
+  const latestTrigger = props.latest?.lifecycleTrigger ?? ''
+  const currentTrigger = props.currentLifecycleTrigger ?? ''
   return (
     props.latest !== null &&
     props.candidate.requestId === props.latest.requestId &&
     props.candidate.campaignType === props.latest.campaignType &&
+    props.candidate.deliveryPolicy === props.latest.deliveryPolicy &&
+    candidateTrigger === latestTrigger &&
     props.candidate.subject === props.latest.subject &&
     props.candidate.bodyHTML === props.latest.bodyHTML &&
     props.currentCampaignType === props.candidate.campaignType &&
+    props.currentDeliveryPolicy === props.candidate.deliveryPolicy &&
+    currentTrigger === candidateTrigger &&
     props.currentSubject === props.candidate.subject &&
     props.currentBodyHTML === props.candidate.bodyHTML
   )
@@ -173,10 +197,8 @@ export function CampaignEmailHtmlEditor(
   const bodyHTML = String(props.form.getValues(bodyPath) ?? '')
   const bodyText = String(props.form.getValues(legacyBodyPath) ?? '')
   const campaignType = props.form.watch('campaign_type')
-  const availableActions =
-    campaignType === 'content_only'
-      ? RECALL_CONTENT_ONLY_EMAIL_ACTIONS
-      : RECALL_EMAIL_ACTIONS
+  const deliveryPolicy = props.form.watch('delivery_policy') ?? 'engagement'
+  const availableActions = getRecallEmailActions(campaignType, deliveryPolicy)
   const localBodyError =
     props.locale === 'en' && !bodyHTML.trim() && !bodyText.trim()
       ? 'Exactly one email body is required'
@@ -186,7 +208,9 @@ export function CampaignEmailHtmlEditor(
     : localBodyError
   const previewMutation = useMutation({ mutationFn: previewRecallEmail })
 
-  const insertAction = (action: (typeof RECALL_EMAIL_ACTIONS)[number]) => {
+  const insertAction = (
+    action: ReturnType<typeof getRecallEmailActions>[number]
+  ) => {
     const textarea = textareaRef.current
     const currentValue = String(props.form.getValues(bodyPath) ?? '')
     const start = textarea?.selectionStart ?? currentValue.length
@@ -210,8 +234,12 @@ export function CampaignEmailHtmlEditor(
 
   const previewEmail = async () => {
     setPreviewState(clearRecallEmailPreviewError)
+    const lifecycleTrigger =
+      props.form.getValues('lifecycle_trigger') || undefined
     const prepared = await prepareRecallEmailPreviewRequest({
       campaignType,
+      deliveryPolicy,
+      lifecycleTrigger,
       nextRequestId: () => (previewRequestIdRef.current += 1),
       subject: String(props.form.getValues(subjectPath) ?? ''),
       bodyHTML: String(props.form.getValues(bodyPath) ?? ''),
@@ -223,6 +251,8 @@ export function CampaignEmailHtmlEditor(
     try {
       const response = await previewMutation.mutateAsync({
         campaign_type: prepared.campaign_type,
+        delivery_policy: prepared.delivery_policy,
+        lifecycle_trigger: prepared.lifecycle_trigger,
         template: prepared.template,
       })
       if (
@@ -230,6 +260,10 @@ export function CampaignEmailHtmlEditor(
           candidate: snapshot,
           latest: latestPreviewRequestRef.current,
           currentCampaignType: props.form.getValues('campaign_type'),
+          currentDeliveryPolicy:
+            props.form.getValues('delivery_policy') ?? 'engagement',
+          currentLifecycleTrigger:
+            props.form.getValues('lifecycle_trigger') || undefined,
           currentSubject: String(props.form.getValues(subjectPath) ?? ''),
           currentBodyHTML: String(props.form.getValues(bodyPath) ?? ''),
         })
@@ -245,6 +279,10 @@ export function CampaignEmailHtmlEditor(
           candidate: snapshot,
           latest: latestPreviewRequestRef.current,
           currentCampaignType: props.form.getValues('campaign_type'),
+          currentDeliveryPolicy:
+            props.form.getValues('delivery_policy') ?? 'engagement',
+          currentLifecycleTrigger:
+            props.form.getValues('lifecycle_trigger') || undefined,
           currentSubject: String(props.form.getValues(subjectPath) ?? ''),
           currentBodyHTML: String(props.form.getValues(bodyPath) ?? ''),
         })

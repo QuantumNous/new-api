@@ -300,7 +300,13 @@ func TestExecuteDataToolChargesFlatkeyOnceAndReplaysStoredResult(t *testing.T) {
 	originalQuotaPerUnit := common.QuotaPerUnit
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.DataToolCall{}))
+	require.NoError(t, db.AutoMigrate(
+		&model.User{},
+		&model.Token{},
+		&model.DataToolCall{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
+	))
 	model.DB = db
 	common.QuotaPerUnit = 500_000
 	t.Cleanup(func() {

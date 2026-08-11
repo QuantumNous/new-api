@@ -45,11 +45,13 @@ func setupRecallMetricServiceDB(t *testing.T) *gorm.DB {
 		&model.User{},
 		&model.TopUp{},
 		&model.SubscriptionOrder{},
+		&model.Option{},
 		&model.RecallCampaign{},
 		&model.RecallRecipient{},
 		&model.RecallMessage{},
 		&model.RecallEvent{},
 		&model.RecallCampaignExclusion{},
+		&model.RecallLifecycleEvent{},
 	))
 	t.Cleanup(func() {
 		sqlDB, _ := db.DB()
@@ -517,6 +519,81 @@ func TestRecallMetricCardsShareRegistryQueryTotalsAndTokens(t *testing.T) {
 		}
 		require.Equal(t, drawerRowIDs, exportRowIDs, "export rows must match drawer rows for %s", key)
 	}
+}
+
+func TestRecallMetricsDraftContinuousWithoutMarkerOmitsLifecycleSection(t *testing.T) {
+	db := setupRecallMetricServiceDB(t)
+	campaign := model.RecallCampaign{
+		Name:              "draft continuous metrics without marker",
+		Status:            model.RecallCampaignDraft,
+		ExecutionMode:     "continuous",
+		LifecycleTrigger:  model.RecallLifecycleTriggerQuotaLow,
+		ProcessingStartAt: 100,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 70_001, RecipientIdentity: model.RecallRecipientIdentityForUser(70_001), EligibilitySnapshot: `{}`, EmailSnapshot: "draft-continuous@example.com", LanguageSnapshot: "en", State: model.RecallRecipientQueued}
+	require.NoError(t, db.Create(&recipient).Error)
+
+	metrics, err := NewRecallAttributionService(nil).GetMetrics(context.Background(), campaign.Id)
+
+	require.NoError(t, err)
+	require.Nil(t, metrics.Lifecycle)
+	require.EqualValues(t, 1, metrics.CandidateCount)
+	require.Len(t, metrics.MetricCards, len(allRecallMetricKeys))
+}
+
+func TestRecallMetricsPausedContinuousWithoutMarkerOmitsLifecycleSection(t *testing.T) {
+	db := setupRecallMetricServiceDB(t)
+	campaign := model.RecallCampaign{
+		Name:              "paused continuous metrics without marker",
+		Status:            model.RecallCampaignPaused,
+		ExecutionMode:     "continuous",
+		LifecycleTrigger:  model.RecallLifecycleTriggerQuotaLow,
+		ProcessingStartAt: 100,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	recipient := model.RecallRecipient{CampaignId: campaign.Id, UserId: 70_002, RecipientIdentity: model.RecallRecipientIdentityForUser(70_002), EligibilitySnapshot: `{}`, EmailSnapshot: "paused-continuous@example.com", LanguageSnapshot: "en", State: model.RecallRecipientQueued}
+	require.NoError(t, db.Create(&recipient).Error)
+
+	metrics, err := NewRecallAttributionService(nil).GetMetrics(context.Background(), campaign.Id)
+
+	require.NoError(t, err)
+	require.Nil(t, metrics.Lifecycle)
+	require.EqualValues(t, 1, metrics.CandidateCount)
+	require.Len(t, metrics.MetricCards, len(allRecallMetricKeys))
+}
+
+func TestRecallMetricsRunningContinuousWithoutMarkerReturnsError(t *testing.T) {
+	db := setupRecallMetricServiceDB(t)
+	campaign := model.RecallCampaign{
+		Name:              "running continuous metrics without marker",
+		Status:            model.RecallCampaignRunning,
+		ExecutionMode:     "continuous",
+		LifecycleTrigger:  model.RecallLifecycleTriggerQuotaLow,
+		ProcessingStartAt: 100,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+
+	_, err := NewRecallAttributionService(nil).GetMetrics(context.Background(), campaign.Id)
+
+	require.ErrorContains(t, err, "lifecycle event collection marker")
+}
+
+func TestRecallMetricsRunningContinuousWithMalformedMarkerReturnsError(t *testing.T) {
+	db := setupRecallMetricServiceDB(t)
+	campaign := model.RecallCampaign{
+		Name:              "running continuous metrics malformed marker",
+		Status:            model.RecallCampaignRunning,
+		ExecutionMode:     "continuous",
+		LifecycleTrigger:  model.RecallLifecycleTriggerQuotaLow,
+		ProcessingStartAt: 100,
+	}
+	require.NoError(t, db.Create(&campaign).Error)
+	require.NoError(t, db.Create(&model.Option{Key: model.OptionKeyRecallLifecycleEventCollectionStartedAt, Value: "not-a-timestamp"}).Error)
+
+	_, err := NewRecallAttributionService(nil).GetMetrics(context.Background(), campaign.Id)
+
+	require.ErrorContains(t, err, "malformed_collection_marker")
 }
 
 func TestRecallMetricCardsFreshMessageSnapshotRetriesBeforePublishingCards(t *testing.T) {

@@ -3,6 +3,25 @@ import { isRecallSpecifiedEmail } from './audience-inputs'
 import { getRecallFirstRecurringRunAt } from './helpers'
 import type { RecallCampaignDraft } from './types'
 
+const lifecycleTriggers = [
+  'user_registered',
+  'registration_unused',
+  'quota_low',
+  'quota_exhausted_unpaid',
+  'payment_failed',
+  'payment_pending',
+  'payment_succeeded',
+] as const
+const lifecycleDeliveryPolicyByTrigger = {
+  user_registered: 'service',
+  registration_unused: 'engagement',
+  quota_low: 'service',
+  quota_exhausted_unpaid: 'service',
+  payment_failed: 'service',
+  payment_pending: 'engagement',
+  payment_succeeded: 'service',
+} as const
+
 const campaignTypeSchema = z
   .enum(['promotion', 'content_only'])
   .default('promotion')
@@ -548,22 +567,36 @@ export const recallCampaignDraftSchema = z
   .object({
     campaign_type: campaignTypeSchema,
     name: z.string().trim().min(1).max(128),
-    audience_template: z.enum([
-      'first_purchase',
-      'lapsed_payer',
-      'expired_subscription',
-      'registered_only',
-      'registration_time_range',
-      'specified_users',
-    ]),
+    audience_template: z
+      .enum([
+        'first_purchase',
+        'lapsed_payer',
+        'expired_subscription',
+        'registered_only',
+        'registration_time_range',
+        'specified_users',
+      ])
+      .or(z.literal('')),
     audience_config: audienceSchema,
-    execution_mode: z.enum(['manual', 'scheduled_once', 'recurring']),
+    execution_mode: z.enum([
+      'manual',
+      'scheduled_once',
+      'recurring',
+      'continuous',
+    ]),
+    delivery_policy: z.enum(['service', 'engagement']).default('engagement'),
+    lifecycle_trigger: z.enum(lifecycleTriggers).or(z.literal('')).default(''),
+    lifecycle_trigger_config: z.record(z.string(), z.never()).default({}),
+    processing_start_at: nonNegativeInteger.default(0),
     schedule: scheduleSchema,
-    coupon_source: z.enum(['automatic', 'existing']),
+    coupon_source: z.enum(['automatic', 'existing']).or(z.literal('')),
     existing_coupon_id: z.string(),
     discount_config: discountSchema,
     product_scope: productScopeSchema,
-    promotion_expiry_mode: z.enum(['relative', 'fixed']).default('relative'),
+    promotion_expiry_mode: z
+      .enum(['relative', 'fixed'])
+      .or(z.literal(''))
+      .default('relative'),
     promotion_expires_at: nonNegativeInteger.default(0),
     promotion_valid_seconds: nonNegativeInteger,
     enrollment_limit: z.number().int().min(1).max(100_000),
@@ -573,6 +606,150 @@ export const recallCampaignDraftSchema = z
   })
   .strict()
   .superRefine((draft, context) => {
+    if (draft.execution_mode === 'continuous') {
+      if (draft.campaign_type !== 'content_only') {
+        context.addIssue({
+          code: 'custom',
+          path: ['campaign_type'],
+          message: 'Continuous activities must be content only',
+        })
+      }
+      if (draft.audience_template !== '') {
+        context.addIssue({
+          code: 'custom',
+          path: ['audience_template'],
+          message: 'Continuous audience fields must be empty',
+        })
+      }
+      if (!draft.lifecycle_trigger) {
+        context.addIssue({
+          code: 'custom',
+          path: ['lifecycle_trigger'],
+          message: 'Lifecycle trigger is required',
+        })
+      } else if (
+        draft.delivery_policy !==
+        lifecycleDeliveryPolicyByTrigger[draft.lifecycle_trigger]
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['delivery_policy'],
+          message: 'Delivery policy does not match lifecycle trigger',
+        })
+      }
+      if (Object.keys(draft.lifecycle_trigger_config).length > 0) {
+        context.addIssue({
+          code: 'custom',
+          path: ['lifecycle_trigger_config'],
+          message: 'Lifecycle trigger config must be empty',
+        })
+      }
+      for (const [field, value] of Object.entries(draft.audience_config)) {
+        const empty = Array.isArray(value)
+          ? value.length === 0
+          : value === 0 || value === ''
+        if (typeof value === 'boolean' ? value === false : empty) continue
+        context.addIssue({
+          code: 'custom',
+          path: ['audience_config', field],
+          message: 'Continuous audience fields must be empty',
+        })
+      }
+      for (const [field, value] of Object.entries(draft.schedule)) {
+        const empty = value === 0 || value === ''
+        if (empty) continue
+        context.addIssue({
+          code: 'custom',
+          path: ['schedule', field],
+          message: 'Continuous schedule fields must be empty',
+        })
+      }
+      if (draft.existing_coupon_id.trim() !== '') {
+        context.addIssue({
+          code: 'custom',
+          path: ['existing_coupon_id'],
+          message: 'Continuous promotion fields must be empty',
+        })
+      }
+      if (draft.coupon_source !== '') {
+        context.addIssue({
+          code: 'custom',
+          path: ['coupon_source'],
+          message: 'Continuous promotion fields must be empty',
+        })
+      }
+      for (const [field, value] of Object.entries(draft.discount_config)) {
+        if (field === 'type' && value === 'percent') continue
+        const empty =
+          typeof value === 'object' && value !== null
+            ? Object.keys(value).length === 0
+            : value === 0 || value === ''
+        if (empty) continue
+        context.addIssue({
+          code: 'custom',
+          path: ['discount_config', field],
+          message: 'Continuous promotion fields must be empty',
+        })
+      }
+      for (const [field, value] of Object.entries(draft.product_scope)) {
+        if (Array.isArray(value) && value.length === 0) continue
+        context.addIssue({
+          code: 'custom',
+          path: ['product_scope', field],
+          message: 'Continuous product fields must be empty',
+        })
+      }
+      if (draft.promotion_expires_at !== 0) {
+        context.addIssue({
+          code: 'custom',
+          path: ['promotion_expires_at'],
+          message: 'Continuous promotion fields must be empty',
+        })
+      }
+      if (draft.promotion_expiry_mode !== '') {
+        context.addIssue({
+          code: 'custom',
+          path: ['promotion_expiry_mode'],
+          message: 'Continuous promotion fields must be empty',
+        })
+      }
+      if (draft.promotion_valid_seconds !== 0) {
+        context.addIssue({
+          code: 'custom',
+          path: ['promotion_valid_seconds'],
+          message: 'Continuous promotion fields must be empty',
+        })
+      }
+      if (draft.email_sequence.length !== 1) {
+        context.addIssue({
+          code: 'custom',
+          path: ['email_sequence'],
+          message: 'Continuous activities allow exactly one email stage',
+        })
+      }
+      return
+    }
+    if (draft.audience_template === '') {
+      context.addIssue({
+        code: 'custom',
+        path: ['audience_template'],
+        message: 'Audience template is required',
+      })
+    }
+    if (draft.coupon_source === '') {
+      context.addIssue({
+        code: 'custom',
+        path: ['coupon_source'],
+        message: 'Coupon source is required',
+      })
+    }
+    if (draft.promotion_expiry_mode === '') {
+      context.addIssue({
+        code: 'custom',
+        path: ['promotion_expiry_mode'],
+        message: 'Promotion expiry mode is required',
+      })
+    }
     if (
       draft.audience_template === 'first_purchase' ||
       draft.audience_template === 'lapsed_payer' ||

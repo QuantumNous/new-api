@@ -41,6 +41,7 @@ type recallEmailSent struct {
 	receiver  string
 	htmlBody  string
 	messageID string
+	options   common.EmailOptions
 }
 
 type recallEmailFixture struct {
@@ -104,6 +105,62 @@ func TestRecallEmailRenderExecutesHTMLTemplateWithoutLegacyWrapper(t *testing.T)
 	require.Contains(t, body, `href="https://flatkey.ai/claim?a=1&amp;b=2"`)
 	require.Contains(t, body, `href="https://flatkey.ai/unsubscribe?a=1&amp;b=2"`)
 	require.NotContains(t, body, recallEmailCopyByLanguage["en"].GreetingPrefix+`&lt;Admin &amp; Co&gt;,`)
+}
+
+func TestRecallEmailRenderServicePolicyCannotRenderUnsubscribe(t *testing.T) {
+	_, body, err := RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:       model.RecallCampaignTypeContentOnly,
+		DeliveryPolicy:     model.RecallDeliveryPolicyService,
+		Language:           "en",
+		Template:           RecallEmailTemplate{Subject: "Service notice", BodyText: "Account notice"},
+		RecipientName:      "Ada",
+		UnsubscribeURL:     "https://console.example.com/api/recall/unsubscribe?token=service",
+		IncludeUnsubscribe: true,
+	})
+	require.NoError(t, err)
+	require.NotContains(t, body, "/api/recall/unsubscribe")
+	require.NotContains(t, body, "Unsubscribe</a>")
+
+	_, _, err = RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:   model.RecallCampaignTypeContentOnly,
+		DeliveryPolicy: model.RecallDeliveryPolicyService,
+		Language:       "en",
+		Template: RecallEmailTemplate{
+			Subject:  "Service HTML",
+			BodyHTML: `<!doctype html><html><body><p>Hello {{.RecipientName}}</p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></body></html>`,
+		},
+		RecipientName:  "Ada",
+		UnsubscribeURL: "https://console.example.com/api/recall/unsubscribe?token=service",
+	})
+	require.ErrorContains(t, err, "UnsubscribeURL")
+
+	_, body, err = RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:   model.RecallCampaignTypeContentOnly,
+		DeliveryPolicy: model.RecallDeliveryPolicyService,
+		Language:       "en",
+		Template: RecallEmailTemplate{
+			Subject:  "Service HTML",
+			BodyHTML: `<!doctype html><html><body><p>Hello {{.RecipientName}}</p><a href="https://flatkey.ai/console">Open Flatkey</a></body></html>`,
+		},
+		RecipientName: "Ada",
+	})
+	require.NoError(t, err)
+	require.Contains(t, body, "Open Flatkey")
+	require.NotContains(t, body, "Unsubscribe")
+
+	_, body, err = RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:   model.RecallCampaignTypeContentOnly,
+		DeliveryPolicy: model.RecallDeliveryPolicyEngagement,
+		Language:       "en",
+		Template: RecallEmailTemplate{
+			Subject:  "Engagement HTML",
+			BodyHTML: `<!doctype html><html><body><p>Hello {{.RecipientName}}</p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></body></html>`,
+		},
+		RecipientName:  "Ada",
+		UnsubscribeURL: "https://console.example.com/api/recall/unsubscribe?token=engagement",
+	})
+	require.NoError(t, err)
+	require.Contains(t, body, "/api/recall/unsubscribe")
 }
 
 func TestRecallEmailRenderUsesLanguageSpecificWrapperAndProductSummary(t *testing.T) {
@@ -433,6 +490,7 @@ func TestRecallEmailAcceptedSchedulesVersionedStagesRelativeToFirstAcceptance(t 
 	require.Nil(t, stageTwo.ClaimTokenHash)
 
 	*fixture.now = time.Unix(recallEmailTestNow+700, 0).UTC()
+	clearRecallEmailPacingForTest(t)
 	won, err := model.LeaseRecallMessage(stageTwo.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
 	require.NoError(t, err)
 	require.True(t, won)
@@ -632,6 +690,7 @@ func TestRecallEmailTypedSMTPPreDataFailureRetriesWithNewClaimHash(t *testing.T)
 	})
 
 	*fixture.now = time.Unix(first.NextAttemptAt, 0).UTC()
+	clearRecallEmailPacingForTest(t)
 	won, err := model.LeaseRecallMessage(first.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
 	require.NoError(t, err)
 	require.True(t, won)
@@ -755,6 +814,7 @@ func TestRecallEmailRetryableSMTPFailureSchedulesExactDelaySlotsThenStops(t *tes
 		require.Equal(t, model.RecallMessageRetryWait, stored.State)
 		require.Equal(t, attemptStartedAt+int64(recallSMTPRetryDelays[attempt-1]/time.Second), stored.NextAttemptAt)
 		*fixture.now = time.Unix(stored.NextAttemptAt, 0).UTC()
+		clearRecallEmailPacingForTest(t)
 		won, err := model.LeaseRecallMessage(stored.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
 		require.NoError(t, err)
 		require.True(t, won)
@@ -1073,6 +1133,11 @@ func TestRecallEmailRunBatchLeasesOnlyDueMessages(t *testing.T) {
 
 func TestRecallEmailRunBatchBatchesInitialAPIActivityLookup(t *testing.T) {
 	fixture := newRecallEmailFixture(t, 1, nil)
+	fixture.worker.sender = func(config common.SMTPConfig, subject, receiver, content, messageID string, options common.EmailOptions) error {
+		*fixture.sent = append(*fixture.sent, recallEmailSent{config: config, from: config.From, subject: subject, receiver: receiver, htmlBody: content, messageID: messageID, options: options})
+		clearRecallEmailPacingForTest(t)
+		return nil
+	}
 	fixture.worker.audience.LogBatchSize = 10
 	require.NoError(t, model.DB.Model(&model.RecallMessage{}).Where("id = ?", fixture.message.Id).Updates(map[string]any{
 		"state": model.RecallMessageScheduled, "lease_owner": "", "lease_expires_at": int64(0),
@@ -1802,6 +1867,7 @@ func TestRecallEmailRunBatchRefreshesActivitySMTPBeforeEachSend(t *testing.T) {
 		sent = append(sent, recallEmailSent{config: config, from: config.From, subject: subject, receiver: receiver, htmlBody: content, messageID: messageID})
 		if len(sent) == 1 {
 			setValidRecallActivitySMTP(t, secondConfig)
+			clearRecallEmailPacingForTest(t)
 		}
 		return nil
 	})
@@ -2049,6 +2115,7 @@ func TestRecallEmailWorkerRetryAndUncertainSendReserveNewSlots(t *testing.T) {
 	first := loadRecallEmailMessageByID(t, fixture.message.Id)
 	require.Equal(t, model.RecallMessageRetryWait, first.State)
 	*fixture.now = time.Unix(first.NextAttemptAt, 0).UTC()
+	clearRecallEmailPacingForTest(t)
 	won, err := model.LeaseRecallMessage(first.Id, fixture.worker.owner, fixture.now.Unix(), fixture.now.Unix()+recallEmailLeaseSeconds)
 	require.NoError(t, err)
 	require.True(t, won)
@@ -2562,8 +2629,8 @@ func newRecallEmailFixture(t *testing.T, stageCount int, sender RecallEmailSende
 	now := time.Unix(recallEmailTestNow, 0).UTC()
 	sent := make([]recallEmailSent, 0)
 	if sender == nil {
-		sender = func(config common.SMTPConfig, subject, receiver, content, messageID string, _ common.EmailOptions) error {
-			sent = append(sent, recallEmailSent{config: config, from: config.From, subject: subject, receiver: receiver, htmlBody: content, messageID: messageID})
+		sender = func(config common.SMTPConfig, subject, receiver, content, messageID string, options common.EmailOptions) error {
+			sent = append(sent, recallEmailSent{config: config, from: config.From, subject: subject, receiver: receiver, htmlBody: content, messageID: messageID, options: options})
 			return nil
 		}
 	}
@@ -2614,6 +2681,48 @@ func setRecallEmailPacing(t *testing.T, limit int, tickSeconds int) {
 			"recall_campaign_setting.batch_size":         fmt.Sprintf("%d", previous.BatchSize),
 			"recall_campaign_setting.tick_seconds":       fmt.Sprintf("%d", previous.TickSeconds),
 			"recall_campaign_setting.email_hourly_limit": fmt.Sprintf("%d", previous.EmailHourlyLimit),
+		}))
+	})
+}
+
+func clearRecallEmailPacingForTest(t *testing.T) {
+	t.Helper()
+	require.NoError(t, model.DB.Where("scope = ?", "activity_email").Delete(&model.RecallEmailPacingState{}).Error)
+}
+
+func setRecallCampaignEmailHeaderSettings(t *testing.T, replyTo string, unsubscribeMailto string) {
+	t.Helper()
+	previous := operation_setting.GetRecallCampaignSetting()
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"recall_campaign_setting.enabled":               boolString(previous.Enabled),
+		"recall_campaign_setting.batch_size":            fmt.Sprintf("%d", previous.BatchSize),
+		"recall_campaign_setting.tick_seconds":          fmt.Sprintf("%d", previous.TickSeconds),
+		"recall_campaign_setting.email_hourly_limit":    fmt.Sprintf("%d", previous.EmailHourlyLimit),
+		"recall_campaign_setting.reply_to":              replyTo,
+		"recall_campaign_setting.unsubscribe_mailto":    unsubscribeMailto,
+		"recall_campaign_setting.smtp_server":           previous.SMTPServer,
+		"recall_campaign_setting.smtp_port":             fmt.Sprintf("%d", previous.SMTPPort),
+		"recall_campaign_setting.smtp_account":          previous.SMTPAccount,
+		"recall_campaign_setting.email_from":            previous.EmailFrom,
+		"recall_campaign_setting.smtp_token":            previous.SMTPToken,
+		"recall_campaign_setting.smtp_ssl_enabled":      boolString(previous.SMTPSSLEnabled),
+		"recall_campaign_setting.smtp_force_auth_login": boolString(previous.SMTPForceAuthLogin),
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+			"recall_campaign_setting.enabled":               boolString(previous.Enabled),
+			"recall_campaign_setting.batch_size":            fmt.Sprintf("%d", previous.BatchSize),
+			"recall_campaign_setting.tick_seconds":          fmt.Sprintf("%d", previous.TickSeconds),
+			"recall_campaign_setting.email_hourly_limit":    fmt.Sprintf("%d", previous.EmailHourlyLimit),
+			"recall_campaign_setting.reply_to":              previous.ReplyTo,
+			"recall_campaign_setting.unsubscribe_mailto":    previous.UnsubscribeMailto,
+			"recall_campaign_setting.smtp_server":           previous.SMTPServer,
+			"recall_campaign_setting.smtp_port":             fmt.Sprintf("%d", previous.SMTPPort),
+			"recall_campaign_setting.smtp_account":          previous.SMTPAccount,
+			"recall_campaign_setting.email_from":            previous.EmailFrom,
+			"recall_campaign_setting.smtp_token":            previous.SMTPToken,
+			"recall_campaign_setting.smtp_ssl_enabled":      boolString(previous.SMTPSSLEnabled),
+			"recall_campaign_setting.smtp_force_auth_login": boolString(previous.SMTPForceAuthLogin),
 		}))
 	})
 }

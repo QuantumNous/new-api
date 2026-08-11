@@ -20,6 +20,7 @@ import type { RecallAudienceTemplate } from './types'
 
 export const activitySMTPDeliveryFailureCopyKey =
   'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+export const recallDeliveryUnknownErrorCopyKey = 'Unknown delivery error'
 
 export const recallDeliveryErrorCopyByCode: Record<string, string> = {
   activity_smtp_not_configured:
@@ -192,4 +193,5 @@ export const recallActivitySMTPCopyKeys = [
   'Sender must be a plain email address.',
   'SMTP token is required for first save.',
   ...Object.values(recallDeliveryErrorCopyByCode),
+  recallDeliveryUnknownErrorCopyKey,
 ] as const

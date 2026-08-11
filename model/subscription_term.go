@@ -20,7 +20,7 @@ type SubscriptionTermSegment struct {
 	StartTime    int64 `json:"start_time" gorm:"type:bigint;not null;default:0;index"`
 	EndTime      int64 `json:"end_time" gorm:"type:bigint;not null;default:0;index"`
 
-	AllocatedMoney float64 `json:"allocated_money" gorm:"type:decimal(10,6);not null;default:0"`
+	AllocatedMoney float64 `json:"allocated_money" gorm:"type:decimal(10,6);not null;default:0.000000"`
 	Status         string  `json:"status" gorm:"type:varchar(32);not null;default:'';index"`
 	RefundKey      *string `json:"refund_key" gorm:"type:varchar(255);uniqueIndex"`
 }
@@ -31,7 +31,7 @@ type WalletLedgerEntry struct {
 	UserId        int     `json:"user_id" gorm:"not null;index"`
 	EntryKey      string  `json:"entry_key" gorm:"type:varchar(255);not null;uniqueIndex"`
 	QuotaDelta    int64   `json:"quota_delta" gorm:"type:bigint;not null;default:0"`
-	MoneyAmount   float64 `json:"money_amount" gorm:"type:decimal(10,6);not null;default:0"`
+	MoneyAmount   float64 `json:"money_amount" gorm:"type:decimal(10,6);not null;default:0.000000"`
 	EntryType     string  `json:"entry_type" gorm:"type:varchar(32);not null;default:'';index"`
 	OrderId       int     `json:"order_id" gorm:"not null;default:0;index"`
 	TermSegmentId int64   `json:"term_segment_id" gorm:"type:bigint;not null;default:0;index"`

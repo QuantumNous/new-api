@@ -27,10 +27,12 @@ type RecallTranslationWorker struct {
 }
 
 type recallTranslationSourceSnapshot struct {
-	CampaignType string             `json:"campaign_type"`
-	Name         string             `json:"name"`
-	Current      []RecallEmailStage `json:"current_email_sequence"`
-	English      []RecallEmailStage `json:"english_email_sequence"`
+	CampaignType     string             `json:"campaign_type"`
+	DeliveryPolicy   string             `json:"delivery_policy"`
+	LifecycleTrigger string             `json:"lifecycle_trigger,omitempty"`
+	Name             string             `json:"name"`
+	Current          []RecallEmailStage `json:"current_email_sequence"`
+	English          []RecallEmailStage `json:"english_email_sequence"`
 }
 
 type recallTranslationResultSnapshot struct {
@@ -165,7 +167,7 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 	}
 	translateCtx, cancel := context.WithCancel(ctx)
 	heartbeat := w.startHeartbeat(translateCtx, cancel, task)
-	translated, err := translateRecallEmailStagesWithTranslator(translateCtx, w.translator, snapshot.CampaignType, snapshot.English)
+	translated, err := translateRecallEmailStagesWithTranslator(translateCtx, w.translator, snapshot.CampaignType, snapshot.DeliveryPolicy, snapshot.LifecycleTrigger, snapshot.English)
 	heartbeatErr := heartbeat()
 	cancel()
 	if heartbeatErr != nil {
@@ -189,7 +191,7 @@ func (w *RecallTranslationWorker) processDetailed(ctx context.Context, task *mod
 		}
 		return nil, result, err
 	}
-	generated, err := applyRecallEmailGenerationResult(snapshot.CampaignType, snapshot.English, translated)
+	generated, err := applyRecallEmailGenerationResultForLifecycleTrigger(snapshot.CampaignType, snapshot.DeliveryPolicy, snapshot.LifecycleTrigger, snapshot.English, translated)
 	if err == nil {
 		generated, err = incrementRecallEmailTemplateVersions(snapshot.Current, generated)
 	}
@@ -267,11 +269,21 @@ func (w *RecallTranslationWorker) failRecallTranslationTask(ctx context.Context,
 }
 
 func buildRecallTranslationSourceSnapshot(campaignType string, name string, current []RecallEmailStage, english []RecallEmailStage) (string, error) {
+	return buildRecallTranslationSourceSnapshotForDelivery(campaignType, model.RecallDeliveryPolicyEngagement, name, current, english)
+}
+
+func buildRecallTranslationSourceSnapshotForDelivery(campaignType string, deliveryPolicy string, name string, current []RecallEmailStage, english []RecallEmailStage) (string, error) {
+	return buildRecallTranslationSourceSnapshotForLifecycleTrigger(campaignType, deliveryPolicy, "", name, current, english)
+}
+
+func buildRecallTranslationSourceSnapshotForLifecycleTrigger(campaignType string, deliveryPolicy string, lifecycleTrigger string, name string, current []RecallEmailStage, english []RecallEmailStage) (string, error) {
 	payload, err := common.Marshal(recallTranslationSourceSnapshot{
-		CampaignType: campaignType,
-		Name:         strings.TrimSpace(name),
-		Current:      current,
-		English:      english,
+		CampaignType:     campaignType,
+		DeliveryPolicy:   recallEmailHTMLDeliveryPolicy(deliveryPolicy),
+		LifecycleTrigger: strings.TrimSpace(lifecycleTrigger),
+		Name:             strings.TrimSpace(name),
+		Current:          current,
+		English:          english,
 	})
 	if err != nil {
 		return "", err
@@ -346,10 +358,13 @@ func (w *RecallTranslationWorker) effectiveHeartbeatInterval() time.Duration {
 	return recallTranslationHeartbeatInterval
 }
 
-func translateRecallEmailStagesWithTranslator(ctx context.Context, translator RecallEmailTranslator, campaignType string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
+func translateRecallEmailStagesWithTranslator(ctx context.Context, translator RecallEmailTranslator, campaignType string, deliveryPolicy string, lifecycleTrigger string, stages []RecallEmailStage) (map[int]map[string]RecallEmailTemplate, error) {
 	campaignType, err := normalizeRecallCampaignType(campaignType)
 	if err != nil {
 		return nil, err
+	}
+	if deliveryTranslator, ok := translator.(RecallEmailDeliveryTranslator); ok {
+		return deliveryTranslator.TranslateForDelivery(ctx, campaignType, deliveryPolicy, lifecycleTrigger, stages)
 	}
 	if campaignTranslator, ok := translator.(RecallEmailCampaignTranslator); ok {
 		return campaignTranslator.TranslateForCampaign(ctx, campaignType, stages)

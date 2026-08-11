@@ -67,6 +67,8 @@ func TestMain(m *testing.M) {
 		&UserSubscription{},
 		&PerfMetric{},
 		&QuotaDataToken{},
+		&RecallLifecycleEvent{},
+		&QuotaLifecycleState{},
 		&Asset{},
 		&AssetBinding{},
 		&AssetUpload{},
@@ -111,6 +113,8 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM user_subscriptions")
 		DB.Exec("DELETE FROM perf_metrics")
 		DB.Exec("DELETE FROM quota_data_tokens")
+		DB.Exec("DELETE FROM recall_lifecycle_events")
+		DB.Exec("DELETE FROM quota_lifecycle_states")
 		DB.Exec("DELETE FROM asset_uploads")
 		DB.Exec("DELETE FROM asset_bindings")
 		DB.Exec("DELETE FROM assets")

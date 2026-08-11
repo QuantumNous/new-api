@@ -60,6 +60,7 @@ type RecallCampaignMetrics struct {
 	RevenueMetrics         []model.RecallRevenueTotals           `json:"revenue_metrics"`
 	MetricSnapshots        map[string]model.RecallMetricSnapshot `json:"-"`
 	MetricCards            map[string]RecallMetricCard           `json:"metric_cards"`
+	Lifecycle              *RecallLifecycleMetrics               `json:"lifecycle,omitempty"`
 }
 
 type RecallMetricCard struct {
@@ -493,6 +494,14 @@ func (s *RecallAttributionService) GetMetrics(ctx context.Context, campaignID in
 	if revenue, revenueErr := model.GetRecallRevenueTotalsWithContext(ctx, campaignID); revenueErr == nil {
 		metrics.RevenueMetrics = revenue
 	}
+	lifecycle, err := GetRecallLifecycleMetrics(ctx, campaignID)
+	if err != nil {
+		if !recallLifecycleMetricsCanOmitNotReady(ctx, campaignID, err) {
+			return RecallCampaignMetrics{}, err
+		}
+	} else {
+		metrics.Lifecycle = lifecycle
+	}
 	for _, row := range countRows {
 		switch row.Metric {
 		case "customer_success":
@@ -530,6 +539,17 @@ func (s *RecallAttributionService) GetMetrics(ctx context.Context, campaignID in
 		currency.DiscountAmount += row.DiscountAmount
 	}
 	return metrics, nil
+}
+
+func recallLifecycleMetricsCanOmitNotReady(ctx context.Context, campaignID int64, err error) bool {
+	if !errors.Is(err, errRecallLifecycleCollectionMarkerMissing) {
+		return false
+	}
+	campaign, loadErr := model.GetRecallCampaignByIDWithContext(ctx, campaignID)
+	if loadErr != nil {
+		return false
+	}
+	return campaign.ExecutionMode == "continuous" && campaign.Status != model.RecallCampaignRunning
 }
 
 func applyRecallMetricCardToLegacyFields(metrics *RecallCampaignMetrics, key model.RecallMetricKey, card RecallMetricCard) {

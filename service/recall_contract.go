@@ -40,24 +40,28 @@ type RecallResolvedOffer struct {
 }
 
 type RecallCampaignDraft struct {
-	CampaignType          string               `json:"campaign_type"`
-	Name                  string               `json:"name"`
-	AudienceTemplate      string               `json:"audience_template"`
-	Audience              RecallAudienceConfig `json:"audience_config"`
-	ExecutionMode         string               `json:"execution_mode"`
-	Schedule              RecallScheduleConfig `json:"schedule"`
-	CouponSource          string               `json:"coupon_source"`
-	ExistingCouponID      string               `json:"existing_coupon_id"`
-	Discount              RecallDiscountConfig `json:"discount_config"`
-	Products              RecallProductScope   `json:"product_scope"`
-	PromotionExpiryMode   string               `json:"promotion_expiry_mode"`
-	PromotionExpiresAt    int64                `json:"promotion_expires_at"`
-	PromotionValidSeconds int64                `json:"promotion_valid_seconds"`
-	EnrollmentLimit       int                  `json:"enrollment_limit"`
-	WorkerConcurrency     int                  `json:"worker_concurrency"`
-	Emails                []RecallEmailStage   `json:"email_sequence"`
-	DeferLocalization     bool                 `json:"defer_localization,omitempty"`
-	legacyCouponRedeemBy  int64
+	CampaignType           string               `json:"campaign_type"`
+	Name                   string               `json:"name"`
+	DeliveryPolicy         string               `json:"delivery_policy"`
+	LifecycleTrigger       string               `json:"lifecycle_trigger"`
+	LifecycleTriggerConfig string               `json:"lifecycle_trigger_config"`
+	ProcessingStartAt      int64                `json:"processing_start_at"`
+	AudienceTemplate       string               `json:"audience_template"`
+	Audience               RecallAudienceConfig `json:"audience_config"`
+	ExecutionMode          string               `json:"execution_mode"`
+	Schedule               RecallScheduleConfig `json:"schedule"`
+	CouponSource           string               `json:"coupon_source"`
+	ExistingCouponID       string               `json:"existing_coupon_id"`
+	Discount               RecallDiscountConfig `json:"discount_config"`
+	Products               RecallProductScope   `json:"product_scope"`
+	PromotionExpiryMode    string               `json:"promotion_expiry_mode"`
+	PromotionExpiresAt     int64                `json:"promotion_expires_at"`
+	PromotionValidSeconds  int64                `json:"promotion_valid_seconds"`
+	EnrollmentLimit        int                  `json:"enrollment_limit"`
+	WorkerConcurrency      int                  `json:"worker_concurrency"`
+	Emails                 []RecallEmailStage   `json:"email_sequence"`
+	DeferLocalization      bool                 `json:"defer_localization,omitempty"`
+	legacyCouponRedeemBy   int64
 }
 
 type RecallAudienceConfig struct {
@@ -130,8 +134,10 @@ type RecallEmailTemplate struct {
 }
 
 type RecallEmailPreviewRequest struct {
-	CampaignType string              `json:"campaign_type"`
-	Template     RecallEmailTemplate `json:"template"`
+	CampaignType     string              `json:"campaign_type"`
+	DeliveryPolicy   string              `json:"delivery_policy,omitempty"`
+	LifecycleTrigger string              `json:"lifecycle_trigger,omitempty"`
+	Template         RecallEmailTemplate `json:"template"`
 }
 
 type RecallEmailPreviewResponse struct {
@@ -189,7 +195,22 @@ func PreviewRecallEmail(request RecallEmailPreviewRequest) (RecallEmailPreviewRe
 	if err != nil {
 		return RecallEmailPreviewResponse{}, err
 	}
-	stages, err := normalizeRecallEmailStages(campaignType, []RecallEmailStage{{
+	lifecycleTrigger := strings.TrimSpace(request.LifecycleTrigger)
+	deliveryPolicy := strings.TrimSpace(request.DeliveryPolicy)
+	if lifecycleTrigger != "" {
+		triggerPolicy, err := model.RecallLifecycleTriggerDeliveryPolicy(lifecycleTrigger)
+		if err != nil {
+			return RecallEmailPreviewResponse{}, err
+		}
+		if deliveryPolicy == "" {
+			deliveryPolicy = triggerPolicy
+		}
+		if deliveryPolicy != triggerPolicy {
+			return RecallEmailPreviewResponse{}, fmt.Errorf("lifecycle trigger %q requires delivery policy %q", lifecycleTrigger, triggerPolicy)
+		}
+	}
+	deliveryPolicy = recallEmailHTMLDeliveryPolicy(deliveryPolicy)
+	stages, err := normalizeRecallEmailStagesForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, []RecallEmailStage{{
 		StageNo:      1,
 		DelaySeconds: 0,
 		Templates: map[string]RecallEmailTemplate{
@@ -201,6 +222,9 @@ func PreviewRecallEmail(request RecallEmailPreviewRequest) (RecallEmailPreviewRe
 	}
 	subject, bodyHTML, err := RenderRecallEmail(RecallEmailRenderInput{
 		CampaignType:        campaignType,
+		DeliveryPolicy:      deliveryPolicy,
+		LifecycleTrigger:    lifecycleTrigger,
+		LifecycleVariables:  recallEmailPreviewLifecycleVariables(lifecycleTrigger),
 		Language:            "en",
 		Template:            stages[0].Templates["en"],
 		RecipientName:       "Ada",
@@ -214,6 +238,31 @@ func PreviewRecallEmail(request RecallEmailPreviewRequest) (RecallEmailPreviewRe
 		return RecallEmailPreviewResponse{}, err
 	}
 	return RecallEmailPreviewResponse{Subject: subject, BodyHTML: bodyHTML}, nil
+}
+
+func recallEmailPreviewLifecycleVariables(lifecycleTrigger string) map[string]string {
+	variables := recallLifecycleEmailEmptyVariables(lifecycleTrigger)
+	if len(variables) == 0 {
+		return nil
+	}
+	for key := range variables {
+		variables[key] = ""
+	}
+	variables["site_name"] = "Flatkey"
+	variables["user_display_name"] = "Ada"
+	variables["console_url"] = "https://flatkey.ai/console"
+	variables["registration_time"] = "2030-03-17 17:46 UTC"
+	variables["quota_scope"] = "wallet:preview"
+	variables["balance_snapshot"] = "0"
+	variables["effective_threshold"] = "100"
+	variables["top_up_url"] = "https://flatkey.ai/console/topup"
+	variables["purchase_kind"] = model.PurchaseLifecycleKindTopUp
+	variables["trade_no"] = "preview-trade-no"
+	variables["amount"] = "100"
+	variables["currency"] = "USD"
+	variables["payment_url"] = "https://flatkey.ai/console/topup?trade_no=preview-trade-no"
+	variables["completed_at"] = "2030-03-17 17:46 UTC"
+	return variables
 }
 
 func normalizeRecallCampaignType(value string) (string, error) {

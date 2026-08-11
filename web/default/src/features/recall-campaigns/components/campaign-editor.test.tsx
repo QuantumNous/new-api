@@ -27,6 +27,7 @@ import {
 } from '@tanstack/react-query'
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -43,6 +44,7 @@ import { recallLocalDateTimeToUnix } from '../audience-inputs'
 import {
   RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
   RECALL_EMAIL_STARTER_HTML,
+  getRecallEmailStarterHtml,
 } from '../helpers'
 import type {
   RecallAudienceTemplate,
@@ -114,9 +116,20 @@ let latestSpecifiedUsersProps:
 let latestAudienceTemplateChange: ((value: string) => void) | undefined
 let latestCampaignTypeChange: ((value: string) => void) | undefined
 let latestExecutionScheduleModeChange: ((value: string) => void) | undefined
+let latestProcessingStartModeChange: ((value: string) => void) | undefined
+const latestSelectDisabled: Record<string, boolean> = {}
 const latestInputProps: Record<
   string,
   React.InputHTMLAttributes<HTMLInputElement>
+> = {}
+const latestDateTimePickerProps: Record<
+  string,
+  {
+    disabled?: boolean
+    id?: string
+    onChange?: (date: Date | undefined) => void
+    value?: Date
+  }
 > = {}
 const latestSwitchProps: Record<
   string,
@@ -127,6 +140,7 @@ const latestSwitchProps: Record<
   }
 > = {}
 const testQueryClients = new Set<QueryClient>()
+const testRoots = new Set<Root>()
 
 type TimeoutProvider = Parameters<typeof timeoutManager.setTimeoutProvider>[0]
 
@@ -202,7 +216,11 @@ mock.module('@/components/ui/select', () => ({
       ? 'audience_template'
       : props.items?.some((item) => item.value === 'content_only')
         ? 'campaign_type'
-        : undefined
+        : props.items?.some((item) => item.value === 'quota_low')
+          ? 'lifecycle_trigger'
+          : props.items?.some((item) => item.value === 'from_now')
+            ? 'processing_start_mode'
+            : undefined
     if (name === 'audience_template') {
       latestAudienceTemplateChange = props.onValueChange
     }
@@ -211,6 +229,12 @@ mock.module('@/components/ui/select', () => ({
     }
     if (props.items?.some((item) => item.value === 'once')) {
       latestExecutionScheduleModeChange = props.onValueChange
+    }
+    if (name === 'processing_start_mode') {
+      latestProcessingStartModeChange = props.onValueChange
+    }
+    if (name) {
+      latestSelectDisabled[name] = Boolean(props.disabled)
     }
     return (
       <>
@@ -259,6 +283,32 @@ mock.module('@/components/ui/input', () => ({
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => {
     if (props.id) latestInputProps[props.id] = props
     return <input {...props} />
+  },
+}))
+
+mock.module('@/components/datetime-picker', () => ({
+  DateTimePicker: (props: {
+    disabled?: boolean
+    id?: string
+    onChange?: (date: Date | undefined) => void
+    value?: Date
+  }) => {
+    React.useEffect(() => {
+      if (!props.id) return
+      latestDateTimePickerProps[props.id] = props
+      return () => {
+        delete latestDateTimePickerProps[props.id ?? '']
+      }
+    }, [props])
+    return (
+      <input
+        data-testid='datetime-picker'
+        disabled={props.disabled}
+        id={props.id}
+        readOnly
+        value={props.value?.toISOString() ?? ''}
+      />
+    )
   },
 }))
 
@@ -403,6 +453,67 @@ function makeDraft(template: RecallAudienceTemplate): RecallCampaignDraft {
     ],
     defer_localization: true,
   }
+}
+
+function makeContinuousDraft(): RecallCampaignDraft {
+  const draft = makeDraft('first_purchase') as RecallCampaignDraft & {
+    delivery_policy: string
+    lifecycle_trigger: string
+    lifecycle_trigger_config: Record<string, never>
+    processing_start_at: number
+  }
+  draft.campaign_type = 'content_only'
+  ;(draft as unknown as { audience_template: '' }).audience_template = ''
+  draft.execution_mode = 'continuous'
+  draft.audience_config = {
+    registration_age_days: 0,
+    min_request_count: 0,
+    max_quota: 0,
+    min_paid_amount: 0,
+    last_api_call_age_days: 0,
+    last_payment_age_days: 0,
+    subscription_expired_days: 0,
+    min_subscription_amount: 0,
+    min_subscription_count: 0,
+    payment_providers: [],
+    groups: [],
+    group_mode: '',
+    require_verified_email: false,
+    registration_start_at: 0,
+    registration_end_at: 0,
+    specified_user_ids: [],
+    specified_emails: [],
+  }
+  draft.schedule = {
+    scheduled_at: 0,
+    timezone: '',
+    frequency: '',
+    weekday: 0,
+    hour: 0,
+    minute: 0,
+  }
+  draft.discount_config = {
+    type: 'percent',
+    percent_off: 0,
+    amount_off: 0,
+    currency: '',
+    currency_options: {},
+    minimum_amount: 0,
+    minimum_amount_currency: '',
+  }
+  draft.product_scope = {
+    topup_price_ids: [],
+    subscription_price_ids: [],
+  }
+  ;(draft as unknown as { coupon_source: '' }).coupon_source = ''
+  ;(draft as unknown as { promotion_expiry_mode: '' }).promotion_expiry_mode =
+    ''
+  draft.promotion_valid_seconds = 0
+  draft.delivery_policy = 'service'
+  draft.lifecycle_trigger = 'quota_low'
+  draft.lifecycle_trigger_config = {}
+  draft.processing_start_at = 0
+  return draft
 }
 
 const originalGlobalPropertyDescriptors = new Map<
@@ -675,6 +786,20 @@ function renderEditor(
   )
 }
 
+function expectMarkupClassTokens(
+  html: string,
+  tagName: string,
+  tokens: string[]
+) {
+  const className = html.match(
+    new RegExp(`<${tagName}[^>]*class="([^"]+)"`)
+  )?.[1]
+  const classes = className?.split(/\s+/) ?? []
+  for (const token of tokens) {
+    expect(classes).toContain(token)
+  }
+}
+
 function renderEditorDom(
   draft: RecallCampaignDraft,
   props: Partial<React.ComponentProps<typeof CampaignEditor>> = {}
@@ -697,6 +822,7 @@ function renderEditorDom(
     )
   })
 
+  testRoots.add(root)
   return { root, container, queryClient }
 }
 
@@ -751,9 +877,11 @@ function renderOfferValidityFieldsDom(draft: RecallCampaignDraft): {
 }
 
 function dispose(root: Root) {
+  if (!testRoots.has(root)) return
   React.act(() => {
     root.unmount()
   })
+  testRoots.delete(root)
 }
 
 async function submit(container: HTMLElement) {
@@ -860,8 +988,15 @@ beforeEach(() => {
   latestAudienceTemplateChange = undefined
   latestCampaignTypeChange = undefined
   latestExecutionScheduleModeChange = undefined
+  latestProcessingStartModeChange = undefined
+  for (const key of Object.keys(latestSelectDisabled)) {
+    delete latestSelectDisabled[key]
+  }
   for (const key of Object.keys(latestInputProps)) {
     delete latestInputProps[key]
+  }
+  for (const key of Object.keys(latestDateTimePickerProps)) {
+    delete latestDateTimePickerProps[key]
   }
   for (const key of Object.keys(latestSwitchProps)) {
     delete latestSwitchProps[key]
@@ -885,19 +1020,17 @@ beforeEach(() => {
     }
   })
   getTranslationTask.mockClear()
-  getTranslationTask.mockImplementation(
-    async (_id: number, taskId: number) => ({
-      success: true,
-      data: {
-        id: taskId,
-        campaign_id: 9,
-        requested_config_revision: 4,
-        status: 'running',
-        attempt_count: 1,
-        created_at: 1_900_000_000,
-      },
-    })
-  )
+  getTranslationTask.mockImplementation(async (id: number, taskId: number) => ({
+    success: true,
+    data: {
+      id: taskId,
+      campaign_id: id,
+      requested_config_revision: 4,
+      status: 'running',
+      attempt_count: 1,
+      created_at: 1_900_000_000,
+    },
+  }))
   getLatestTranslationTask.mockClear()
   getLatestTranslationTask.mockImplementation(async (id: number) => ({
     success: true,
@@ -911,6 +1044,12 @@ beforeEach(() => {
     },
   }))
   operationOrder.length = 0
+})
+
+afterEach(() => {
+  for (const root of Array.from(testRoots)) {
+    dispose(root)
+  }
 })
 
 afterAll(async () => {
@@ -927,6 +1066,12 @@ afterAll(async () => {
 })
 
 describe('CampaignEditor audience rules', () => {
+  test('keeps the root form shrinkable inside narrow dialogs', () => {
+    const html = renderEditor('first_purchase')
+
+    expectMarkupClassTokens(html, 'form', ['min-w-0', 'w-full', 'space-y-4'])
+  })
+
   test('offers promotion and content-only campaign types', () => {
     const html = renderEditor('first_purchase')
 
@@ -1379,15 +1524,648 @@ describe('CampaignEditor audience rules', () => {
 })
 
 describe('CampaignEditor schedule modes', () => {
-  test('presents Manual, Once, Daily, and Weekly as direct mutually exclusive modes', () => {
+  test('presents Manual, Once, Recurring, and Continuous as direct mutually exclusive modes', () => {
     const html = renderEditor('first_purchase')
 
     expect(html).toContain('value="manual"')
     expect(html).toContain('value="once"')
-    expect(html).toContain('value="daily"')
-    expect(html).toContain('value="weekly"')
-    expect(html).not.toContain('value="recurring"')
+    expect(html).toContain('value="recurring"')
+    expect(html).toContain('value="continuous"')
+    expect(html).not.toContain('value="daily"')
+    expect(html).not.toContain('value="weekly"')
     expect(html).not.toContain('Scheduled once')
+  })
+
+  test('renders Continuous lifecycle controls and replaces audience schedule and promotion controls', () => {
+    const html = renderEditor('first_purchase', makeContinuousDraft())
+
+    expect(html).toContain('Lifecycle Trigger')
+    for (const trigger of [
+      'user_registered',
+      'registration_unused',
+      'quota_low',
+      'quota_exhausted_unpaid',
+      'payment_failed',
+      'payment_pending',
+      'payment_succeeded',
+    ]) {
+      expect(html).toContain(`value="${trigger}"`)
+    }
+    expect(html).toContain('Delivery Policy')
+    expect(html).toContain('Service')
+    expect(html).toContain(
+      'Operational service mail ignores marketing opt-out and does not include unsubscribe controls.'
+    )
+    expect(html).toContain('Processing start')
+    expect(html).toContain('value="from_now"')
+    expect(html).toContain('value="custom"')
+    expect(html).toContain('Trigger variables')
+    expect(html).toContain('quota_scope')
+    expect(html).not.toContain('Audience template')
+    expect(html).not.toContain('Group mode')
+    expect(html).not.toContain('3. Stripe Coupon')
+    expect(html).not.toContain('Promotion expiry mode')
+    expect(html).not.toContain('Top-up products')
+    expect(html).not.toContain('Start date and time')
+    expect(html).not.toContain('IANA timezone')
+    expect(html).not.toContain('Add email stage')
+  })
+
+  test('shows copy-ready Continuous trigger placeholders instead of raw field names', () => {
+    const draft = makeContinuousDraft()
+    draft.lifecycle_trigger = 'payment_succeeded'
+    draft.delivery_policy = 'service'
+    const html = renderEditor('first_purchase', draft)
+
+    expect(html).toContain('Trigger variables')
+    expect(html).toContain('{{.trade_no}}')
+    expect(html).toContain('{{.amount}}')
+    expect(html).toContain('{{.currency}}')
+    expect(html).toContain('{{.completed_at}}')
+    expect(html).not.toContain('>trade_no<')
+    expect(html).not.toContain('raw')
+  })
+
+  test('shows quota exhausted threshold placeholder for Continuous campaigns', () => {
+    const draft = makeContinuousDraft()
+    draft.lifecycle_trigger = 'quota_exhausted_unpaid'
+    draft.delivery_policy = 'service'
+    const html = renderEditor('first_purchase', draft)
+
+    expect(html).toContain('{{.balance_snapshot}}')
+    expect(html).toContain('{{.effective_threshold}}')
+    expect(html).toContain('{{.top_up_url}}')
+  })
+
+  test('uses service-policy Continuous starter content without unsubscribe controls', () => {
+    const draft = makeContinuousDraft()
+    draft.email_sequence[0].templates.en = {
+      subject: '',
+      body_text: '',
+      body_html: '',
+    }
+
+    const prepared = createRecallCampaignFormDraft(draft)
+
+    expect(prepared.email_sequence[0].templates.en.body_html).toContain(
+      '{{.RecipientName}}'
+    )
+    expect(prepared.email_sequence[0].templates.en.body_html).not.toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
+  test('keeps the stable English-template validation error for empty Continuous sequences', () => {
+    const draft = makeContinuousDraft()
+    draft.email_sequence = []
+
+    expect(() => createRecallCampaignFormDraft(draft)).toThrow(
+      'English template is required'
+    )
+  })
+
+  test('keeps unsubscribe controls for engagement-policy Continuous content', () => {
+    const draft = makeContinuousDraft()
+    draft.lifecycle_trigger = 'payment_pending'
+    draft.delivery_policy = 'engagement'
+    draft.email_sequence[0].templates.en = {
+      subject: '',
+      body_text: '',
+      body_html: '',
+    }
+
+    const html = renderEditor('first_purchase', draft)
+    const prepared = createRecallCampaignFormDraft(draft)
+
+    expect(html).toContain('aria-label="Insert {{.UnsubscribeURL}}"')
+    expect(prepared.email_sequence[0].templates.en.body_html).toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
+  test('switching to Continuous resets legacy audience schedule coupon discount product and promotion state before submit', async () => {
+    const draft = makeDraft('specified_users')
+    draft.audience_config = {
+      ...draft.audience_config,
+      registration_age_days: 45,
+      min_request_count: 3,
+      max_quota: 100,
+      min_paid_amount: 12,
+      last_api_call_age_days: 10,
+      last_payment_age_days: 20,
+      subscription_expired_days: 30,
+      min_subscription_amount: 50,
+      min_subscription_count: 2,
+      payment_providers: ['stripe'],
+      groups: ['paid'],
+      group_mode: 'allow',
+      require_verified_email: true,
+      registration_start_at: 1_800_000_000,
+      registration_end_at: 1_800_086_400,
+      specified_user_ids: [12, 34],
+      specified_emails: ['user@example.com'],
+    }
+    draft.execution_mode = 'recurring'
+    draft.schedule = {
+      scheduled_at: 2_000_100_000,
+      timezone: 'America/New_York',
+      frequency: 'weekly',
+      weekday: 5,
+      hour: 18,
+      minute: 45,
+    }
+    draft.coupon_source = 'existing'
+    draft.existing_coupon_id = 'coupon_existing'
+    draft.discount_config = {
+      type: 'fixed',
+      percent_off: 0,
+      amount_off: 500,
+      currency: 'USD',
+      currency_options: { inr: 45_000, brl: 2_500, jpy: 750 },
+      minimum_amount: 100,
+      minimum_amount_currency: 'USD',
+    }
+    draft.product_scope = {
+      topup_price_ids: ['price_topup_usd'],
+      subscription_price_ids: ['price_sub_usd'],
+    }
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_expires_at = 2_000_200_000
+    draft.promotion_valid_seconds = 0
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    await submit(container)
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted).toMatchObject({
+      execution_mode: 'continuous',
+      campaign_type: 'content_only',
+      audience_template: '',
+      audience_config: {
+        registration_age_days: 0,
+        min_request_count: 0,
+        max_quota: 0,
+        min_paid_amount: 0,
+        last_api_call_age_days: 0,
+        last_payment_age_days: 0,
+        subscription_expired_days: 0,
+        min_subscription_amount: 0,
+        min_subscription_count: 0,
+        payment_providers: [],
+        groups: [],
+        group_mode: '',
+        require_verified_email: false,
+        registration_start_at: 0,
+        registration_end_at: 0,
+        specified_user_ids: [],
+        specified_emails: [],
+      },
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: '',
+        weekday: 0,
+        hour: 0,
+        minute: 0,
+      },
+      coupon_source: '',
+      existing_coupon_id: '',
+      discount_config: {
+        type: 'percent',
+        percent_off: 0,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      },
+      product_scope: {
+        topup_price_ids: [],
+        subscription_price_ids: [],
+      },
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+    })
+    dispose(root)
+  })
+
+  test('restores a populated recurring draft after switching to Continuous and back', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.campaign_type = 'promotion'
+    draft.audience_template = 'first_purchase'
+    draft.audience_config = {
+      ...draft.audience_config,
+      last_api_call_age_days: 10,
+      groups: ['paid'],
+      group_mode: 'allow',
+    }
+    draft.execution_mode = 'recurring'
+    draft.schedule = {
+      scheduled_at: 2_000_100_000,
+      timezone: 'America/New_York',
+      frequency: 'weekly',
+      weekday: 5,
+      hour: 18,
+      minute: 45,
+    }
+    draft.coupon_source = 'existing'
+    draft.existing_coupon_id = 'coupon_existing'
+    draft.discount_config = {
+      type: 'fixed',
+      percent_off: 0,
+      amount_off: 500,
+      currency: 'USD',
+      currency_options: {},
+      minimum_amount: 0,
+      minimum_amount_currency: '',
+    }
+    draft.product_scope = {
+      topup_price_ids: ['price_topup_usd'],
+      subscription_price_ids: ['price_sub_usd'],
+    }
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_expires_at = 2_000_200_000
+    draft.promotion_valid_seconds = 0
+    draft.email_sequence.push({
+      stage_no: 2,
+      delay_seconds: 86_400,
+      template_version: 1,
+      templates: {
+        en: {
+          subject: 'Second subject',
+          body_text: '',
+          body_html: '<p>Second body</p>',
+        },
+      },
+    })
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    await flushReactWork()
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('recurring')
+    })
+    await flushReactWork()
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted).toMatchObject({
+      campaign_type: 'promotion',
+      audience_template: 'first_purchase',
+      audience_config: draft.audience_config,
+      execution_mode: 'recurring',
+      schedule: draft.schedule,
+      coupon_source: 'existing',
+      existing_coupon_id: 'coupon_existing',
+      discount_config: draft.discount_config,
+      product_scope: draft.product_scope,
+      promotion_expiry_mode: 'fixed',
+      promotion_expires_at: 2_000_200_000,
+      promotion_valid_seconds: 0,
+      delivery_policy: 'engagement',
+      lifecycle_trigger: '',
+      lifecycle_trigger_config: {},
+      processing_start_at: 0,
+    })
+    expect(submitted.email_sequence).toHaveLength(2)
+    expect(submitted.email_sequence[1].templates.en.subject).toBe(
+      'Second subject'
+    )
+    dispose(root)
+  })
+
+  test('leaves an initially Continuous draft with legal manual defaults when switching out without a snapshot', async () => {
+    const draft = makeContinuousDraft()
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('manual')
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted).toMatchObject({
+      execution_mode: 'manual',
+      campaign_type: 'promotion',
+      audience_template: 'first_purchase',
+      coupon_source: 'automatic',
+      promotion_expiry_mode: 'relative',
+      promotion_valid_seconds: 604800,
+      delivery_policy: 'engagement',
+      lifecycle_trigger: '',
+      lifecycle_trigger_config: {},
+      processing_start_at: 0,
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: 'daily',
+        weekday: 1,
+        hour: 0,
+        minute: 0,
+      },
+    })
+    expect(submitted.discount_config.percent_off).toBeGreaterThan(0)
+    dispose(root)
+  })
+
+  test('leaves an initially Continuous draft with legal once defaults when switching out without a snapshot', async () => {
+    const draft = makeContinuousDraft()
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('once')
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted).toMatchObject({
+      execution_mode: 'scheduled_once',
+      campaign_type: 'promotion',
+      audience_template: 'first_purchase',
+      coupon_source: 'automatic',
+      promotion_expiry_mode: 'relative',
+      promotion_valid_seconds: 604800,
+      delivery_policy: 'engagement',
+      lifecycle_trigger: '',
+      lifecycle_trigger_config: {},
+      processing_start_at: 0,
+    })
+    expect(submitted.schedule.scheduled_at).toBeGreaterThan(0)
+    expect(submitted.schedule.timezone).toBeTruthy()
+    expect(submitted.discount_config.percent_off).toBeGreaterThan(0)
+    dispose(root)
+  })
+
+  test('switching a multi-stage draft to Continuous keeps exactly first stage with zero delay', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence.push({
+      stage_no: 2,
+      delay_seconds: 86_400,
+      template_version: 1,
+      templates: {
+        en: { subject: 'Second subject', body_text: 'Second body' },
+      },
+    })
+    const { root, container } = renderEditorDom(draft)
+
+    expect(container.textContent).toContain('Remove stage')
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    expect(container.textContent).not.toContain('Add email stage')
+    expect(container.textContent).not.toContain('Remove stage')
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    expect(submitted.execution_mode).toBe('continuous')
+    expect(submitted.email_sequence).toHaveLength(1)
+    expect(submitted.email_sequence[0]).toMatchObject({
+      stage_no: 1,
+      delay_seconds: 0,
+    })
+    expect(submitted.email_sequence[0].templates.en.subject).toBe(
+      'English subject'
+    )
+    dispose(root)
+  })
+
+  test('switching a promotion draft to service Continuous strips promotion and unsubscribe tokens before submit', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates.en.body_text = ''
+    draft.email_sequence[0].templates.en.body_html = [
+      '<p>Service-safe copy for {{.RecipientName}}</p>',
+      '<p>{{.ProductSummary}}</p>',
+      '<p>Use {{.PromotionCodeMasked}} before {{.ExpiresAt}}</p>',
+      '<p><a href="{{.ClaimURL}}">Claim</a></p>',
+      '<p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>',
+    ].join('')
+    draft.email_sequence.push({
+      stage_no: 2,
+      delay_seconds: 86_400,
+      template_version: 1,
+      templates: {
+        en: {
+          subject: 'Second subject',
+          body_text: '',
+          body_html: '<p>{{.ClaimURL}}</p>',
+        },
+      },
+    })
+    const { root, container } = renderEditorDom(draft)
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft
+    const html = submitted.email_sequence[0].templates.en.body_html ?? ''
+    expect(submitted.execution_mode).toBe('continuous')
+    expect(submitted.delivery_policy).toBe('service')
+    expect(submitted.email_sequence).toHaveLength(1)
+    expect(html).toContain('Service-safe copy for {{.RecipientName}}')
+    for (const forbidden of [
+      '{{.ProductSummary}}',
+      '{{.PromotionCodeMasked}}',
+      '{{.ExpiresAt}}',
+      '{{.ClaimURL}}',
+      '{{.UnsubscribeURL}}',
+    ]) {
+      expect(html).not.toContain(forbidden)
+    }
+    dispose(root)
+  })
+
+  test('switching a manual promotion draft to Continuous refreshes the visible editor template and restores the manual draft', async () => {
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates.en.body_text = ''
+    draft.email_sequence[0].templates.en.body_html = RECALL_EMAIL_STARTER_HTML
+    const { root, container } = renderEditorDom(draft)
+    const getBodyEditor = () =>
+      container.querySelector(
+        '#recall-email-0-en-body-html'
+      ) as HTMLTextAreaElement | null
+
+    expect(getBodyEditor()?.value).toContain('{{.ClaimURL}}')
+    expect(getBodyEditor()?.value).toContain('{{.UnsubscribeURL}}')
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    await flushReactWork()
+
+    expect(getBodyEditor()?.value).toBe(
+      getRecallEmailStarterHtml('content_only', 'service')
+    )
+    expect(getBodyEditor()?.value).not.toContain('{{.ClaimURL}}')
+    expect(getBodyEditor()?.value).not.toContain('{{.UnsubscribeURL}}')
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('manual')
+    })
+    await flushReactWork()
+
+    expect(getBodyEditor()?.value).toBe(RECALL_EMAIL_STARTER_HTML)
+    dispose(root)
+  })
+
+  test('switching custom manual promotion HTML to service Continuous normalizes the visible editor and restores the manual draft', async () => {
+    const customHtml = [
+      '<main>',
+      '<p>Keep this operational note for {{.RecipientName}}.</p>',
+      '<p>Use {{.ProductSummary}} and {{.PromotionCodeMasked}} before {{.ExpiresAt}}.</p>',
+      '<p><a href="{{.ClaimURL}}">Claim</a></p>',
+      '<p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>',
+      '</main>',
+    ].join('')
+    const draft = makeDraft('first_purchase')
+    draft.email_sequence[0].templates.en.body_text = ''
+    draft.email_sequence[0].templates.en.body_html = customHtml
+    const { root, container } = renderEditorDom(draft)
+    const getBodyEditor = () =>
+      container.querySelector(
+        '#recall-email-0-en-body-html'
+      ) as HTMLTextAreaElement | null
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('continuous')
+    })
+    await flushReactWork()
+
+    const continuousHtml = getBodyEditor()?.value ?? ''
+    expect(continuousHtml).toContain(
+      'Keep this operational note for {{.RecipientName}}.'
+    )
+    for (const forbidden of [
+      '{{.ProductSummary}}',
+      '{{.PromotionCodeMasked}}',
+      '{{.ExpiresAt}}',
+      '{{.ClaimURL}}',
+      '{{.UnsubscribeURL}}',
+    ]) {
+      expect(continuousHtml).not.toContain(forbidden)
+    }
+
+    React.act(() => {
+      latestExecutionScheduleModeChange?.('manual')
+    })
+    await flushReactWork()
+
+    expect(getBodyEditor()?.value).toBe(customHtml)
+    dispose(root)
+  })
+
+  test('uses From now by default and DateTimePicker for custom continuous starts', async () => {
+    const draft = makeContinuousDraft()
+    const { root, container } = renderEditorDom(draft)
+
+    expect(latestProcessingStartModeChange).toBeTruthy()
+    expect(latestDateTimePickerProps['recall-processing-start-at']).toBeFalsy()
+
+    React.act(() => {
+      latestProcessingStartModeChange?.('custom')
+    })
+    expect(latestDateTimePickerProps['recall-processing-start-at']).toBeTruthy()
+
+    React.act(() => {
+      latestDateTimePickerProps['recall-processing-start-at'].onChange?.(
+        new Date('2030-01-02T03:04:00.000Z')
+      )
+    })
+    await submit(container)
+
+    const submitted = createMutation.mock.calls.at(
+      -1
+    )?.[0] as RecallCampaignDraft & { processing_start_at: number }
+    expect(submitted.execution_mode).toBe('continuous')
+    expect(submitted.processing_start_at).toBe(1_893_553_440)
+    dispose(root)
+  })
+
+  test('derives processing start mode from reset draft timestamps after rerender', async () => {
+    const customDraft = makeContinuousDraft()
+    customDraft.processing_start_at = 1_900_000_000
+    const { root, queryClient } = renderEditorDom(customDraft, {
+      campaignId: 77,
+      configRevision: 1,
+    })
+
+    expect(
+      latestDateTimePickerProps['recall-processing-start-at'].value
+    ).toEqual(new Date(1_900_000_000 * 1000))
+
+    const fromNowDraft = makeContinuousDraft()
+    delete latestDateTimePickerProps['recall-processing-start-at']
+    React.act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <I18nextProvider i18n={testI18n}>
+            <CampaignEditor
+              campaignId={77}
+              configRevision={2}
+              initialDraft={fromNowDraft}
+              specifiedUsersSelector={MockSpecifiedUsersSelector}
+            />
+          </I18nextProvider>
+        </QueryClientProvider>
+      )
+    })
+    await flushReactWork()
+
+    expect(latestDateTimePickerProps['recall-processing-start-at']).toBeFalsy()
+
+    const nextCustomDraft = makeContinuousDraft()
+    nextCustomDraft.processing_start_at = 1_900_500_000
+    React.act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <I18nextProvider i18n={testI18n}>
+            <CampaignEditor
+              campaignId={77}
+              configRevision={3}
+              initialDraft={nextCustomDraft}
+              specifiedUsersSelector={MockSpecifiedUsersSelector}
+            />
+          </I18nextProvider>
+        </QueryClientProvider>
+      )
+    })
+    await flushReactWork()
+
+    expect(
+      latestDateTimePickerProps['recall-processing-start-at'].value
+    ).toEqual(new Date(1_900_500_000 * 1000))
+    dispose(root)
+  })
+
+  test('keeps continuous trigger and processing start immutable after activation', () => {
+    const draft = makeContinuousDraft()
+    draft.processing_start_at = 1_900_000_000
+    const { root, container } = renderEditorDom(draft, {
+      status: 'running',
+    })
+
+    expect(container.textContent).toContain('Lifecycle Trigger')
+    expect(container.textContent).toContain('Processing start')
+    expect(latestSelectDisabled.lifecycle_trigger).toBe(true)
+    dispose(root)
   })
 
   test('hides start controls for Manual mode', () => {
@@ -1429,11 +2207,10 @@ describe('CampaignEditor schedule modes', () => {
     }
   )
 
-  test('maps Once, Daily, and Weekly selections to the backend wire contract on submit', async () => {
+  test('maps Once, Recurring, and Manual selections to the backend wire contract on submit', async () => {
     for (const [mode, executionMode, frequency] of [
       ['once', 'scheduled_once', 'daily'],
-      ['daily', 'recurring', 'daily'],
-      ['weekly', 'recurring', 'weekly'],
+      ['recurring', 'recurring', 'daily'],
       ['manual', 'manual', 'daily'],
     ] as const) {
       createMutation.mockClear()
@@ -1451,11 +2228,11 @@ describe('CampaignEditor schedule modes', () => {
       )?.[0] as RecallCampaignDraft
       expect(submitted.execution_mode).toBe(executionMode)
       expect(submitted.schedule.frequency).toBe(frequency)
-      if (mode === 'once' || mode === 'daily') {
+      if (mode === 'once' || mode === 'recurring') {
         expect(submitted.schedule.timezone).toBe('Asia/Shanghai')
         expect(submitted.schedule.scheduled_at).toBeGreaterThan(0)
       }
-      if (mode === 'daily') {
+      if (mode === 'recurring') {
         expect(submitted.schedule.weekday).toBe(1)
       }
       if (mode === 'manual') {
@@ -1473,7 +2250,7 @@ describe('CampaignEditor schedule modes', () => {
     const { root: utcRoot, container: utcContainer } = renderEditorDom(utcDraft)
 
     React.act(() => {
-      latestExecutionScheduleModeChange?.('daily')
+      latestExecutionScheduleModeChange?.('recurring')
     })
     await submit(utcContainer)
 
@@ -1492,7 +2269,7 @@ describe('CampaignEditor schedule modes', () => {
       renderEditorDom(blankDraft)
 
     React.act(() => {
-      latestExecutionScheduleModeChange?.('daily')
+      latestExecutionScheduleModeChange?.('recurring')
     })
     await submit(blankContainer)
 
@@ -2139,6 +2916,20 @@ describe('CampaignEditor email sequence', () => {
   })
 
   test('clears translation task and dirty refresh state when switching campaign identity', async () => {
+    getLatestTranslationTask.mockImplementation(async (id) => ({
+      success: true,
+      data:
+        id === 9
+          ? {
+              id: 44,
+              campaign_id: 9,
+              requested_config_revision: 4,
+              status: 'running',
+              attempt_count: 1,
+              created_at: 1_899_999_000,
+            }
+          : null,
+    }))
     const draftA = makeDraft('first_purchase')
     draftA.email_sequence[0].templates.en.subject = 'Campaign A subject'
     const draftB = makeDraft('first_purchase')
@@ -2198,6 +2989,255 @@ describe('CampaignEditor email sequence', () => {
       },
     })
     dispose(root)
+  })
+
+  test('does not poll a latest translation task owned by the previous campaign after identity switch', async () => {
+    getLatestTranslationTask.mockImplementation(async (id) => ({
+      success: true,
+      data:
+        id === 10
+          ? {
+              id: 44,
+              campaign_id: 9,
+              requested_config_revision: 4,
+              status: 'running',
+              attempt_count: 1,
+              created_at: 1_899_999_000,
+            }
+          : null,
+    }))
+    const draftA = makeDraft('first_purchase')
+    const draftB = makeDraft('first_purchase')
+    const { root, container, queryClient } = renderEditorDom(draftA, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    try {
+      await waitFor(() =>
+        getLatestTranslationTask.mock.calls.some((call) => call[0] === 9)
+      )
+      getTranslationTask.mockClear()
+      React.act(() => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <I18nextProvider i18n={testI18n}>
+              <CampaignEditor
+                campaignId={10}
+                configRevision={1}
+                initialDraft={draftB}
+                specifiedUsersSelector={MockSpecifiedUsersSelector}
+              />
+            </I18nextProvider>
+          </QueryClientProvider>
+        )
+      })
+      await waitFor(() =>
+        Boolean(
+          queryClient.getQueryData(
+            recallApi.recallCampaignKeys.latestTranslationTask(10)
+          )
+        )
+      )
+      await flushReactWork()
+      await flushReactWork()
+      await flushReactWork()
+
+      expect(getTranslationTask.mock.calls).not.toContainEqual([10, 44])
+      expect(container.textContent).not.toContain('Translation task running')
+    } finally {
+      dispose(root)
+    }
+  })
+
+  test('does not repeatedly recover a latest task after active polling returns a different owner', async () => {
+    getLatestTranslationTask.mockImplementation(async (id) => ({
+      success: true,
+      data: {
+        id: 44,
+        campaign_id: id,
+        requested_config_revision: 4,
+        status: 'running',
+        attempt_count: 1,
+        created_at: 1_899_999_000,
+      },
+    }))
+    getTranslationTask.mockImplementation(async (_id, taskId) => ({
+      success: true,
+      data: {
+        id: taskId,
+        campaign_id: 9,
+        requested_config_revision: 4,
+        status: 'running',
+        attempt_count: 1,
+        created_at: 1_900_000_000,
+      },
+    }))
+    const draft = makeDraft('first_purchase')
+    const { root, container, queryClient } = renderEditorDom(draft, {
+      campaignId: 10,
+      configRevision: 4,
+    })
+
+    try {
+      await waitFor(() =>
+        getTranslationTask.mock.calls.some(
+          (call) => call[0] === 10 && call[1] === 44
+        )
+      )
+      await waitFor(() =>
+        Boolean(
+          queryClient.getQueryData(
+            recallApi.recallCampaignKeys.translationTask(10, 44)
+          )
+        )
+      )
+      await flushReactWork()
+      await waitFor(
+        () => !container.textContent?.includes('Translation task running')
+      )
+
+      expect(getTranslationTask.mock.calls).toEqual([[10, 44]])
+      expect(container.textContent).not.toContain('Translation task running')
+    } finally {
+      dispose(root)
+    }
+  })
+
+  test('refetches the previous campaign active task with its query key after identity switch', async () => {
+    getLatestTranslationTask.mockImplementation(async (id) => ({
+      success: true,
+      data:
+        id === 9
+          ? {
+              id: 44,
+              campaign_id: 9,
+              requested_config_revision: 4,
+              status: 'running',
+              attempt_count: 1,
+              created_at: 1_899_999_000,
+            }
+          : null,
+    }))
+    const draftA = makeDraft('first_purchase')
+    const draftB = makeDraft('first_purchase')
+    const { root, queryClient } = renderEditorDom(draftA, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    try {
+      await waitFor(() =>
+        getTranslationTask.mock.calls.some(
+          (call) => call[0] === 9 && call[1] === 44
+        )
+      )
+      React.act(() => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <I18nextProvider i18n={testI18n}>
+              <CampaignEditor
+                campaignId={10}
+                configRevision={1}
+                initialDraft={draftB}
+                specifiedUsersSelector={MockSpecifiedUsersSelector}
+              />
+            </I18nextProvider>
+          </QueryClientProvider>
+        )
+      })
+      await flushReactWork()
+
+      getTranslationTask.mockClear()
+      await React.act(async () => {
+        await queryClient.refetchQueries({
+          queryKey: recallApi.recallCampaignKeys.translationTask(9, 44),
+          type: 'all',
+        })
+      })
+
+      expect(getTranslationTask.mock.calls).toEqual([[9, 44]])
+    } finally {
+      dispose(root)
+    }
+  })
+
+  test('ignores a generated translation task response after switching campaign identity', async () => {
+    let resolveGenerate:
+      | ((
+          response: Awaited<
+            ReturnType<typeof recallApi.generateRecallEmailTranslations>
+          >
+        ) => void)
+      | undefined
+    generateMutation.mockImplementationOnce(
+      (value) =>
+        new Promise((resolve) => {
+          operationOrder.push('generate')
+          resolveGenerate = resolve
+          expect(value.id).toBe(9)
+        })
+    )
+    getLatestTranslationTask.mockImplementation(async () => ({
+      success: true,
+      data: null,
+    }))
+    const draftA = makeDraft('first_purchase')
+    const draftB = makeDraft('first_purchase')
+    draftB.email_sequence[0].templates.en.subject = 'Campaign B subject'
+    const { root, container, queryClient } = renderEditorDom(draftA, {
+      campaignId: 9,
+      configRevision: 4,
+    })
+
+    try {
+      await clickByID(container, 'recall-generate-translations')
+      await waitFor(() => generateMutation.mock.calls.length > 0)
+      React.act(() => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <I18nextProvider i18n={testI18n}>
+              <CampaignEditor
+                campaignId={10}
+                configRevision={1}
+                initialDraft={draftB}
+                specifiedUsersSelector={MockSpecifiedUsersSelector}
+              />
+            </I18nextProvider>
+          </QueryClientProvider>
+        )
+        resolveGenerate?.({
+          success: true,
+          data: {
+            id: 55,
+            campaign_id: 9,
+            requested_config_revision: 4,
+            status: 'queued',
+            attempt_count: 0,
+            created_at: 1_900_000_000,
+          },
+        })
+      })
+      await flushReactWork()
+
+      expect(container.textContent).not.toContain('Translation task queued')
+      expect(getTranslationTask.mock.calls).not.toContainEqual([10, 55])
+      await submit(container)
+      expect(updateMutation.mock.calls.at(-1)?.[0]).toMatchObject({
+        id: 10,
+        draft: {
+          email_sequence: [
+            {
+              templates: {
+                en: { subject: 'Campaign B subject' },
+              },
+            },
+          ],
+        },
+      })
+    } finally {
+      dispose(root)
+    }
   })
 
   test('generates new draft translations after reviewing missing targets with an empty product scope', async () => {
