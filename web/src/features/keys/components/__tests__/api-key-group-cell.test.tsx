@@ -80,6 +80,7 @@ function CellHarness(props: {
   ratio?: number | string
   crossGroupRetry?: boolean
   shouldReduceMotion?: boolean
+  options?: Array<{ value: string; label: string; ratio?: number | string }>
 }) {
   return (
     <I18nextProvider i18n={i18n}>
@@ -89,6 +90,7 @@ function CellHarness(props: {
           ratio={props.ratio}
           crossGroupRetry={props.crossGroupRetry ?? false}
           shouldReduceMotion={props.shouldReduceMotion ?? false}
+          options={props.options}
         />
       </TooltipProvider>
     </I18nextProvider>
@@ -232,5 +234,52 @@ describe('API key group table cell', () => {
 
     await act(async () => root.unmount())
     container.remove()
+  })
+
+  test('shows group ratios in the group switch dropdown', async () => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    await act(async () =>
+      root.render(
+        <CellHarness
+          group='vip'
+          options={[
+            { value: 'default', label: 'default', ratio: 1 },
+            { value: 'vip', label: 'vip', ratio: 2 },
+          ]}
+        />
+      )
+    )
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-slot="select-trigger"]'
+    )
+    assert.ok(trigger)
+    assert.equal(trigger.textContent?.includes('2x'), true)
+
+    await act(async () => trigger.click())
+
+    const items = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="select-item"]'),
+    ]
+    assert.ok(
+      items.some(
+        (item) =>
+          item.textContent?.includes('default') &&
+          item.textContent?.includes('1x')
+      )
+    )
+    assert.ok(
+      items.some(
+        (item) =>
+          item.textContent?.includes('vip') && item.textContent?.includes('2x')
+      )
+    )
+
+    await act(async () => root.unmount())
+    container.remove()
+    document.body.replaceChildren()
   })
 })

@@ -36,6 +36,7 @@ import {
   updateChannelChain,
 } from '../api'
 import type { ChannelChain } from '../types'
+import { GroupRatioBadge } from './auto-group-visuals'
 
 type ChannelChainsDialogProps = {
   open: boolean
@@ -46,6 +47,12 @@ type ChainDraft = {
   chainId?: string
   name: string
   groups: string[]
+}
+
+type GroupChainOption = {
+  label: string
+  value: string
+  ratio?: number | string
 }
 
 export function ChannelChainsDialog({
@@ -76,7 +83,7 @@ export function ChannelChainsDialog({
   const maxChains = chainsData?.data?.max_chains ?? 10
   const maxGroupsPerChain = chainsData?.data?.max_groups_per_chain ?? 10
   const tokenUsage = chainsData?.data?.token_usage ?? {}
-  const groupOptions = useMemo(
+  const groupOptions = useMemo<GroupChainOption[]>(
     () =>
       Object.entries(groupsData?.data ?? {}).flatMap(([group, info]) => {
         if (
@@ -86,10 +93,32 @@ export function ChannelChainsDialog({
         ) {
           return []
         }
-        return [{ label: group, value: group }]
+        const ratio =
+          typeof info.ratio === 'number' || typeof info.ratio === 'string'
+            ? info.ratio
+            : undefined
+        let label = group
+        if (typeof ratio === 'number') {
+          label = `${group} (${ratio}x)`
+        } else if (ratio) {
+          label = `${group} (${t('Auto')})`
+        }
+        return [{ label, value: group, ratio }]
       }),
-    [groupsData]
+    [groupsData, t]
   )
+  const ratioByGroup = useMemo(() => {
+    const map = new Map<string, number | string | undefined>()
+    for (const [group, info] of Object.entries(groupsData?.data ?? {})) {
+      map.set(
+        group,
+        typeof info.ratio === 'number' || typeof info.ratio === 'string'
+          ? info.ratio
+          : undefined
+      )
+    }
+    return map
+  }, [groupsData])
   const availableGroupOptions = useMemo(
     () =>
       groupOptions.filter((option) => !editing?.groups.includes(option.value)),
@@ -240,6 +269,7 @@ export function ChannelChainsDialog({
                 <span className='min-w-0 truncate text-sm font-medium'>
                   {group}
                 </span>
+                <GroupRatioBadge ratio={ratioByGroup.get(group)} />
               </div>
               <div className='flex shrink-0 items-center gap-1'>
                 <Button
@@ -375,6 +405,7 @@ export function ChannelChainsDialog({
                         )}
                         <span className='bg-muted text-muted-foreground inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-xs'>
                           <span className='min-w-0 truncate'>{group}</span>
+                          <GroupRatioBadge ratio={ratioByGroup.get(group)} />
                         </span>
                       </span>
                     ))}

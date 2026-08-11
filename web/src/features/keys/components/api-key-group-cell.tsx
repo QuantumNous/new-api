@@ -47,6 +47,7 @@ import {
 type GroupOption = {
   value: string
   label: string
+  ratio?: GroupRatio
 }
 
 type ApiKeyGroupCellProps = {
@@ -135,13 +136,14 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
       options.push({
         value: props.group,
         label: props.label || props.group,
+        ratio: props.ratio,
       })
     }
     if (!props.group && !options.some((option) => option.value === '')) {
       options.unshift({ value: '', label: t('User Group') })
     }
     return options
-  }, [props.group, props.label, props.options, t])
+  }, [props.group, props.label, props.options, props.ratio, t])
 
   const handleChange = async (value: string | null) => {
     if (value === props.group || updating) return
@@ -175,6 +177,9 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
     props.label ??
     props.group ??
     t('User Group')
+  const currentOption = selectOptions.find(
+    (option) => option.value === props.group
+  )
 
   return (
     <Select value={props.group} onValueChange={handleChange}>
@@ -183,13 +188,29 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
         disabled={updating}
         className='hover:bg-muted/60 h-7 max-w-full min-w-28 border-transparent bg-transparent px-1.5'
       >
-        <SelectValue placeholder={currentLabel}>{currentLabel}</SelectValue>
+        <SelectValue placeholder={currentLabel}>
+          <span className='flex min-w-0 items-center gap-1.5'>
+            <span className='truncate'>{currentLabel}</span>
+            {currentOption?.ratio != null && (
+              <GroupRatioBadge
+                ratio={currentOption.ratio}
+                isAuto={currentOption.value === 'auto'}
+                shouldReduceMotion={props.shouldReduceMotion}
+              />
+            )}
+          </span>
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
           {selectOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.label}
+              <span className='truncate'>{option.label}</span>
+              <GroupRatioBadge
+                ratio={option.ratio}
+                isAuto={option.value === 'auto'}
+                shouldReduceMotion={props.shouldReduceMotion}
+              />
             </SelectItem>
           ))}
         </SelectGroup>

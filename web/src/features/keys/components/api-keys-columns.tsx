@@ -64,6 +64,7 @@ type GroupMeta = {
 type GroupOption = {
   value: string
   label: string
+  ratio?: number | string
 }
 
 function useGroupData(): {
@@ -92,6 +93,7 @@ function useGroupData(): {
         options.push({
           value: group,
           label: info.custom_chain ? info.desc || group : group,
+          ratio,
         })
       }
       return { meta, options }

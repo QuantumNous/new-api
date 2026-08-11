@@ -248,14 +248,14 @@ describe('Channel chains dialog', () => {
     ]
       .map((item) => item.textContent ?? '')
       .join(' ')
-    assert.equal(optionText.includes('vip'), true)
-    assert.equal(optionText.includes('default'), true)
+    assert.equal(optionText.includes('vip (2x)'), true)
+    assert.equal(optionText.includes('default (1x)'), true)
     assert.equal(optionText.includes('auto'), false)
     assert.equal(optionText.includes('Private Channel Alpha'), false)
 
     const vipOption = [
       ...document.querySelectorAll<HTMLElement>('[data-slot="combobox-item"]'),
-    ].find((item) => item.textContent?.trim() === 'vip')
+    ].find((item) => item.textContent?.includes('vip (2x)'))
     assert.ok(vipOption)
     await act(async () => vipOption.click())
     await act(async () =>
@@ -269,6 +269,7 @@ describe('Channel chains dialog', () => {
       document.body.textContent?.includes('Private Channel Alpha'),
       false
     )
+    assert.equal(document.body.textContent?.includes('2x'), true)
 
     const nameInput = document.querySelector<HTMLInputElement>(
       '#channel-chain-name'
