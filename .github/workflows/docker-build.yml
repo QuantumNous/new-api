@@ -2,6 +2,8 @@ name: Publish Docker image (Multi-arch)
 
 on:
   push:
+    branches:
+      - main
     tags:
       - '*'
       - '!nightly*'
@@ -11,6 +13,10 @@ on:
         description: 'Tag name to build (e.g., v0.10.8-alpha.3)'
         required: true
         type: string
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 jobs:
   build_single_arch:
@@ -43,13 +49,17 @@ jobs:
 
       - name: Resolve tag & write VERSION
         id: version
+        env:
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            TAG="${{ github.event.inputs.tag }}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="$DISPATCH_TAG"
             if ! git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
               echo "::error::Tag '$TAG' does not exist"
               exit 1
             fi
+          elif [ "$GITHUB_REF_TYPE" = "branch" ]; then
+            TAG="sha-${GITHUB_SHA::12}"
           else
             TAG=${GITHUB_REF#refs/tags/}
           fi
@@ -109,7 +119,7 @@ jobs:
     name: Create multi-arch manifests
     needs: [build_single_arch]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     permissions:
       id-token: write
       packages: write
@@ -156,6 +166,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Trigger deploy to Kubernetes
+        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

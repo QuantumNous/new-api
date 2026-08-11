@@ -188,21 +188,29 @@ curl -N -H "Authorization: Bearer <token>" \
 
 返回 200 且流式逐块输出即正常。之后有域名时，把 `deploy/k8s/ingress.yaml` 的 `api.example.com` 替换为真实域名，DNS A 记录指向 136.0.34.25，即可用标准 80/443 端口访问。
 
-## 5. CI/CD 链路：发布镜像后自动部署
+## 5. CI/CD 链路：构建与显式部署
 
-两条 workflow 配合成全自动链路：
+构建和生产部署分离，避免快速迭代直接重启线上应用：
 
 ```
+main 合并
+  → docker-build.yml
+      → 构建 amd64/arm64 镜像
+      → 推送 ghcr.io/xiaocongyu66/new-api:sha-<commit>
+      → 更新 latest manifest（仅供测试/开发使用）
+
 git tag v0.11.0 && git push --tags
-  → docker-build.yml（GitHub 托管 runner）
-      → 构建 amd64/arm64 镜像 → 推送到 ghcr.io/xiaocongyu66/new-api:v0.11.0
-      → 创建多架构 manifest → 签名
-      → gh workflow run deploy.yml（最后一步）
-  → deploy.yml（self-hosted runner）
-      → 注入 Secret → apply 数据层/应用层 → kubectl set image 切到 v0.11.0
+  → docker-build.yml
+      → 构建并签名 v0.11.0 多架构 manifest
+      → gh workflow run deploy.yml -f image_tag=v0.11.0
+  → deploy.yml
+      → 校验不可变 image_tag
+      → apply 数据层（不删除 PostgreSQL/Redis PVC）
+      → master 先完成迁移并就绪
+      → worker 使用 RollingUpdate 替换
 ```
 
-`deploy.yml` 的 `image_tag` 输入用于指定部署哪个镜像 tag（默认 `latest`）。手动触发时也可直接填 tag 部署指定版本。
+`deploy.yml` 的 `image_tag` 必须显式填写不可变 tag，例如 `sha-abc123` 或 `v0.11.0`；`latest` 会被拒绝。生产发布前应先在测试环境验证 SHA 镜像，再部署同一个 SHA 或对应正式 tag。应用启动仍会执行数据库迁移，迁移需保持向后兼容；应用镜像更新不会清空 Redis，也不会删除 PostgreSQL/Redis 的 PVC。
 
 ## 6. 安全边界
 

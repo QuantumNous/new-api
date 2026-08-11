@@ -30,9 +30,9 @@ on:
         required: false
         default: "3"
       image_tag:
-        description: "要部署的镜像 tag，如 v0.11.0；默认 latest"
-        required: false
-        default: "latest"
+        description: "要部署的不可变镜像 tag，如 sha-abc123 或 v0.11.0"
+        required: true
+        type: string
 
 
 concurrency:
@@ -42,6 +42,17 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate image tag
+        env:
+          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+        run: |
+          case "$IMAGE_TAG" in
+            ''|latest|*[!A-Za-z0-9_.-]*)
+              echo "::error::image_tag must be an immutable Docker tag, not '$IMAGE_TAG'"
+              exit 1
+              ;;
+          esac
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -58,6 +69,7 @@ jobs:
           kubectl config unset clusters.default.certificate-authority-data
           kubectl cluster-info
           kubectl get nodes -o wide
+
 
       - name: Create or refresh application secret
         run: |
@@ -79,19 +91,23 @@ jobs:
           kubectl rollout status statefulset/postgres --timeout=180s
           kubectl rollout status statefulset/redis --timeout=120s
 
-      - name: Apply new-api master and worker
+      - name: Apply new-api master
+        env:
+          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
         run: |
-          kubectl apply -f deploy/k8s/new-api-master.yaml
-          kubectl apply -f deploy/k8s/new-api-worker.yaml
+          IMAGE="ghcr.io/${{ github.repository }}:${IMAGE_TAG}"
+          sed "s#ghcr.io/${{ github.repository }}:latest#${IMAGE}#g" deploy/k8s/new-api-master.yaml | kubectl apply -f -
+          kubectl rollout status deployment/new-api-master --timeout=300s
+
+      - name: Apply new-api worker
+        env:
+          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+        run: |
+          IMAGE="ghcr.io/${{ github.repository }}:${IMAGE_TAG}"
+          sed "s#ghcr.io/${{ github.repository }}:latest#${IMAGE}#g" deploy/k8s/new-api-worker.yaml | kubectl apply -f -
           kubectl scale deployment/new-api-worker --replicas="${{ github.event.inputs.worker_replicas }}"
           kubectl apply -f deploy/k8s/service.yaml
           kubectl apply -f deploy/k8s/ingress.yaml
-
-      - name: Set image tag
-        run: |
-          IMAGE="ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}"
-          kubectl set image deployment/new-api-master new-api="$IMAGE"
-          kubectl set image deployment/new-api-worker new-api="$IMAGE"
           echo "部署镜像: $IMAGE"
       - name: Wait for rollout
         run: |
