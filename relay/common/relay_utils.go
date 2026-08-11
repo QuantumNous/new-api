@@ -119,8 +119,16 @@ func createTaskError(err error, code string, statusCode int, localError bool) *d
 
 func storeTaskRequest(c *gin.Context, info *RelayInfo, action string, requestObj TaskSubmitReq) {
 	info.Action = action
+	SetTaskRequest(c, requestObj)
+}
+
+// SetTaskRequest replaces the parsed asynchronous task request stored in the
+// request context. Provider adaptors use it after merging vendor-specific
+// top-level fields into Metadata.
+func SetTaskRequest(c *gin.Context, requestObj TaskSubmitReq) {
 	c.Set("task_request", requestObj)
 }
+
 func GetTaskRequest(c *gin.Context) (TaskSubmitReq, error) {
 	v, exists := c.Get("task_request")
 	if !exists {
@@ -145,10 +153,13 @@ func validatePrompt(prompt string) *dto.TaskError {
 // overflow quota calculation into a negative charge.
 const MaxTaskDurationSeconds = 3600
 
-func validateTaskDurationBounds(req TaskSubmitReq) *dto.TaskError {
+func validateTaskDurationBounds(req TaskSubmitReq, allowAutoDuration bool) *dto.TaskError {
 	seconds := req.Duration
 	if seconds == 0 && req.Seconds != "" {
 		seconds, _ = strconv.Atoi(req.Seconds)
+	}
+	if allowAutoDuration && seconds == -1 {
+		return nil
 	}
 	if seconds < 0 || seconds > MaxTaskDurationSeconds {
 		return createTaskError(fmt.Errorf("seconds must be between 1 and %d", MaxTaskDurationSeconds), "invalid_seconds", http.StatusBadRequest, true)
@@ -234,7 +245,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 		return taskErr
 	}
 
-	if taskErr := validateTaskDurationBounds(req); taskErr != nil {
+	if taskErr := validateTaskDurationBounds(req, false); taskErr != nil {
 		return taskErr
 	}
 
@@ -280,7 +291,17 @@ func isKnownTaskField(field string) bool {
 	return knownFields[field]
 }
 
-func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *dto.TaskError {
+// TaskValidationOptions controls provider-specific exceptions to the generic
+// asynchronous task request contract.
+type TaskValidationOptions struct {
+	AllowEmptyPrompt  bool
+	AllowAutoDuration bool
+}
+
+// ValidateTaskRequest parses and validates a generic asynchronous task request.
+// Provider adaptors should only enable exceptions explicitly supported by the
+// upstream API.
+func ValidateTaskRequest(c *gin.Context, info *RelayInfo, action string, options TaskValidationOptions) *dto.TaskError {
 	var err error
 	contentType := c.GetHeader("Content-Type")
 	var req TaskSubmitReq
@@ -295,11 +316,13 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 		return createTaskError(err, "invalid_request", http.StatusBadRequest, true)
 	}
 
-	if taskErr := validatePrompt(req.Prompt); taskErr != nil {
-		return taskErr
+	if !options.AllowEmptyPrompt {
+		if taskErr := validatePrompt(req.Prompt); taskErr != nil {
+			return taskErr
+		}
 	}
 
-	if taskErr := validateTaskDurationBounds(req); taskErr != nil {
+	if taskErr := validateTaskDurationBounds(req, options.AllowAutoDuration); taskErr != nil {
 		return taskErr
 	}
 
@@ -310,4 +333,8 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 
 	storeTaskRequest(c, info, action, req)
 	return nil
+}
+
+func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *dto.TaskError {
+	return ValidateTaskRequest(c, info, action, TaskValidationOptions{})
 }

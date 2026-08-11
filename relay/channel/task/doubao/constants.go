@@ -9,6 +9,7 @@ var ModelList = []string{
 	"doubao-seedance-1-5-pro-251215",
 	"doubao-seedance-2-0-260128",
 	"doubao-seedance-2-0-fast-260128",
+	"doubao-seedance-2-5-260628",
 }
 
 var ChannelName = "doubao-video"
@@ -21,8 +22,8 @@ type videoPriceKey struct {
 }
 
 // videoPriceTable 各模型在不同 (输出分辨率档, 是否含视频输入) 下的单价（元/百万 token）。
-// 其中零值键 {480p/720p, 不含视频} 为基准价，等于管理员应配置的 ModelRatio；
-// 计费时取 实际单价/基准价 作为 OtherRatio。
+// 其中零值键 {480p/720p, 不含视频} 为基准单价；计费时取
+// 实际单价/基准单价作为 OtherRatio，与该模型的 ModelRatio 相乘。
 var videoPriceTable = map[string]map[videoPriceKey]float64{
 	"doubao-seedance-2-0-260128": {
 		{hasVideo: false}:                46.0,
@@ -36,14 +37,21 @@ var videoPriceTable = map[string]map[videoPriceKey]float64{
 		{hasVideo: false}: 37.0,
 		{hasVideo: true}:  22.0,
 	},
+	"doubao-seedance-2-5-260628": {
+		{hasVideo: false}: 70.0,
+		{hasVideo: true}:  42.0,
+	},
 }
 
-// GetVideoInputRatio 返回指定模型在给定输出分辨率/是否含视频输入下，相对基准价的计费倍率。
+// GetVideoBillingRatio 返回指定模型在给定输出分辨率/是否含视频输入下，相对基准价的计费倍率。
 // 第二个返回值表示该模型是否配置了价格表；倍率为 1.0 时调用方可忽略该 OtherRatio。
-func GetVideoInputRatio(modelName, resolution string, hasVideo bool) (float64, bool) {
+func GetVideoBillingRatio(modelName, resolution string, hasVideo bool) (float64, bool) {
 	prices, ok := videoPriceTable[modelName]
+	if !ok {
+		return 0, false
+	}
 	base := prices[videoPriceKey{}] // 零值键 = {480p/720p, 不含视频} 基准价
-	if !ok || base <= 0 {
+	if base <= 0 {
 		return 0, false
 	}
 	res := strings.ToLower(strings.TrimSpace(resolution))
@@ -53,4 +61,9 @@ func GetVideoInputRatio(modelName, resolution string, hasVideo bool) (float64, b
 		return 1.0, true
 	}
 	return price / base, true
+}
+
+// GetVideoInputRatio is kept for callers compiled against the former helper name.
+func GetVideoInputRatio(modelName, resolution string, hasVideo bool) (float64, bool) {
+	return GetVideoBillingRatio(modelName, resolution, hasVideo)
 }

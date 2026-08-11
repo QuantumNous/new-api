@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -29,22 +30,28 @@ import (
 // ============================
 
 type ContentItem struct {
-	Type     string    `json:"type,omitempty"`
-	Text     string    `json:"text,omitempty"`
-	ImageURL *MediaURL `json:"image_url,omitempty"`
-	VideoURL *MediaURL `json:"video_url,omitempty"`
-	AudioURL *MediaURL `json:"audio_url,omitempty"`
-	Role     string    `json:"role,omitempty"`
+	Type      string              `json:"type,omitempty"`
+	Text      string              `json:"text,omitempty"`
+	ImageURL  *MediaURL           `json:"image_url,omitempty"`
+	VideoURL  *MediaURL           `json:"video_url,omitempty"`
+	AudioURL  *MediaURL           `json:"audio_url,omitempty"`
+	DraftTask *DraftTaskReference `json:"draft_task,omitempty"`
+	Role      string              `json:"role,omitempty"`
 }
 
 type MediaURL struct {
 	URL string `json:"url,omitempty"`
 }
 
+type DraftTaskReference struct {
+	ID string `json:"id"`
+}
+
 type requestPayload struct {
 	Model                 string         `json:"model"`
 	Content               []ContentItem  `json:"content,omitempty"`
 	CallbackURL           string         `json:"callback_url,omitempty"`
+	OutputFormat          string         `json:"output_format,omitempty"`
 	ReturnLastFrame       *dto.BoolValue `json:"return_last_frame,omitempty"`
 	ServiceTier           string         `json:"service_tier,omitempty"`
 	ExecutionExpiresAfter *dto.IntValue  `json:"execution_expires_after,omitempty"`
@@ -73,7 +80,8 @@ type responseTask struct {
 	Model   string `json:"model"`
 	Status  string `json:"status"`
 	Content struct {
-		VideoURL string `json:"video_url"`
+		VideoURL     string `json:"video_url"`
+		LastFrameURL string `json:"last_frame_url"`
 	} `json:"content"`
 	Seed            int    `json:"seed"`
 	Resolution      string `json:"resolution"`
@@ -118,8 +126,104 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *taskdto.TaskError) {
-	// Accept only POST /v1/video/generations as "generate" action.
-	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
+	// Seedance supports media-only requests and duration=-1 adaptive generation.
+	if taskErr = relaycommon.ValidateTaskRequest(c, info, constant.TaskActionGenerate, relaycommon.TaskValidationOptions{
+		AllowEmptyPrompt:  true,
+		AllowAutoDuration: true,
+	}); taskErr != nil {
+		return taskErr
+	}
+
+	if err := mergeTopLevelFieldsIntoMetadata(c); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	payload, err := a.convertToRequestPayload(&req)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	if !hasUsableContent(payload.Content) {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("content must contain text, media, or a draft task"), "invalid_request", http.StatusBadRequest)
+	}
+	return nil
+}
+
+var topLevelMetadataFields = []string{
+	"content",
+	"callback_url",
+	"output_format",
+	"return_last_frame",
+	"service_tier",
+	"execution_expires_after",
+	"generate_audio",
+	"draft",
+	"tools",
+	"safety_identifier",
+	"priority",
+	"resolution",
+	"ratio",
+	"frames",
+	"seed",
+	"camera_fixed",
+	"watermark",
+}
+
+// mergeTopLevelFieldsIntoMetadata accepts both the project's generic
+// metadata envelope and the top-level request fields used by the Ark API.
+func mergeTopLevelFieldsIntoMetadata(c *gin.Context) error {
+	if strings.HasPrefix(c.GetHeader("Content-Type"), "multipart/form-data") {
+		return nil
+	}
+
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return err
+	}
+	var rawRequest map[string]interface{}
+	if err := common.UnmarshalBodyReusable(c, &rawRequest); err != nil {
+		return err
+	}
+	if req.Metadata == nil {
+		req.Metadata = make(map[string]interface{})
+	}
+	for _, field := range topLevelMetadataFields {
+		if value, ok := rawRequest[field]; ok {
+			req.Metadata[field] = value
+		}
+	}
+	relaycommon.SetTaskRequest(c, req)
+	return nil
+}
+
+func hasUsableContent(content []ContentItem) bool {
+	for _, item := range content {
+		switch item.Type {
+		case "text":
+			if strings.TrimSpace(item.Text) != "" {
+				return true
+			}
+		case "image_url":
+			if item.ImageURL != nil && strings.TrimSpace(item.ImageURL.URL) != "" {
+				return true
+			}
+		case "video_url":
+			if item.VideoURL != nil && strings.TrimSpace(item.VideoURL.URL) != "" {
+				return true
+			}
+		case "audio_url":
+			if item.AudioURL != nil && strings.TrimSpace(item.AudioURL.URL) != "" {
+				return true
+			}
+		case "draft_task":
+			if item.DraftTask != nil && strings.TrimSpace(item.DraftTask.ID) != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // BuildRequestURL constructs the upstream URL.
@@ -135,48 +239,28 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling 根据请求 metadata 中的输出分辨率与是否包含视频输入，返回相对基准价的计费 OtherRatio。
+// EstimateBilling 根据实际输出分辨率与是否包含视频输入，返回相对基准价的计费 OtherRatio。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
 	}
-	hasVideo := hasVideoInMetadata(req.Metadata)
-	resolution, _ := req.Metadata["resolution"].(string)
-	ratio, ok := GetVideoInputRatio(info.OriginModelName, resolution, hasVideo)
+	payload, err := a.convertToRequestPayload(&req)
+	if err != nil {
+		return nil
+	}
+	hasVideo := lo.ContainsBy(payload.Content, func(item ContentItem) bool {
+		return item.Type == "video_url" || item.VideoURL != nil
+	})
+	modelName := info.UpstreamModelName
+	if modelName == "" {
+		modelName = info.OriginModelName
+	}
+	ratio, ok := GetVideoBillingRatio(modelName, payload.Resolution, hasVideo)
 	if !ok || ratio == 1.0 {
 		return nil
 	}
-	return map[string]float64{"video_input": ratio}
-}
-
-// hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，
-// 避免构建完整的上游 requestPayload。
-func hasVideoInMetadata(metadata map[string]interface{}) bool {
-	if metadata == nil {
-		return false
-	}
-	contentRaw, ok := metadata["content"]
-	if !ok {
-		return false
-	}
-	contentSlice, ok := contentRaw.([]interface{})
-	if !ok {
-		return false
-	}
-	for _, item := range contentSlice {
-		itemMap, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if itemMap["type"] == "video_url" {
-			return true
-		}
-		if _, has := itemMap["video_url"]; has {
-			return true
-		}
-	}
-	return false
+	return map[string]float64{"seedance_unit_price": ratio}
 }
 
 // BuildRequestBody converts request into Doubao specific format.
@@ -294,15 +378,25 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
-	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
-		r.Duration = lo.ToPtr(dto.IntValue(sec))
+	if req.Duration != 0 {
+		r.Duration = lo.ToPtr(dto.IntValue(req.Duration))
+	}
+	if req.Seconds != "" {
+		if sec, err := strconv.Atoi(req.Seconds); err == nil && sec != 0 {
+			r.Duration = lo.ToPtr(dto.IntValue(sec))
+		}
 	}
 
-	r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
-	r.Content = append(r.Content, ContentItem{
-		Type: "text",
-		Text: req.Prompt,
-	})
+	if r.Frames != nil {
+		r.Duration = nil
+	}
+	if strings.TrimSpace(req.Prompt) != "" {
+		r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
+		r.Content = append(r.Content, ContentItem{
+			Type: "text",
+			Text: req.Prompt,
+		})
+	}
 
 	return &r, nil
 }
@@ -332,10 +426,19 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		// 解析 usage 信息用于按倍率计费
 		taskResult.CompletionTokens = resTask.Usage.CompletionTokens
 		taskResult.TotalTokens = resTask.Usage.TotalTokens
-	case "failed":
+		if taskResult.TotalTokens <= 0 {
+			taskResult.TotalTokens = resTask.Usage.CompletionTokens
+		}
+	case "failed", "cancelled", "expired":
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"
 		taskResult.Reason = resTask.Error.Message
+		if taskResult.Reason == "" && resTask.Status == "cancelled" {
+			taskResult.Reason = "task cancelled"
+		}
+		if taskResult.Reason == "" && resTask.Status == "expired" {
+			taskResult.Reason = "task expired"
+		}
 	default:
 		// Unknown status, treat as processing
 		taskResult.Status = model.TaskStatusInProgress
@@ -357,13 +460,23 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
 	openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	if dResp.Content.LastFrameURL != "" {
+		openAIVideo.SetMetadata("last_frame_url", dResp.Content.LastFrameURL)
+	}
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 	openAIVideo.Model = originTask.Properties.OriginModelName
 
-	if dResp.Status == "failed" {
+	if dResp.Status == "failed" || dResp.Status == "cancelled" || dResp.Status == "expired" {
+		message := dResp.Error.Message
+		if message == "" && dResp.Status == "cancelled" {
+			message = "task cancelled"
+		}
+		if message == "" && dResp.Status == "expired" {
+			message = "task expired"
+		}
 		openAIVideo.Error = &dto.OpenAIVideoError{
-			Message: dResp.Error.Message,
+			Message: message,
 			Code:    dResp.Error.Code,
 		}
 	}
