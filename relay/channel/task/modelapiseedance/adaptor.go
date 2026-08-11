@@ -147,6 +147,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo)
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	requestInfo := info
 	if info != nil {
 		proxy := strings.TrimSpace(info.ChannelSetting.Proxy)
 		if proxy != "" {
@@ -159,10 +160,14 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 				scopedMeta.ChannelSetting.Proxy = ""
 				scopedInfo.ChannelMeta = &scopedMeta
 			}
-			return channel.DoTaskApiRequest(a, c, &scopedInfo, requestBody)
+			requestInfo = &scopedInfo
 		}
 	}
-	return channel.DoTaskApiRequest(a, c, info, requestBody)
+	resp, err := channel.DoTaskApiRequest(a, c, requestInfo, requestBody)
+	if resp != nil && resp.StatusCode == http.StatusCreated {
+		resp.StatusCode = http.StatusOK
+	}
+	return resp, err
 }
 
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
