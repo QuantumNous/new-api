@@ -525,6 +525,8 @@ class SupervisorTests(unittest.TestCase):
             "browser/network.jsonl",
             "environment observation/info",
             "production",
+            "selected target environment",
+            "selected-environment",
             "payment",
             "subscription",
             "invite",
@@ -532,11 +534,11 @@ class SupervisorTests(unittest.TestCase):
             "global settings",
             "real model calls",
             "CAPTCHA",
+            "Do not bypass, forge, replay, outsource, or solve CAPTCHA/Turnstile through a third-party service.",
             "runtime cleanup",
             "cookie-free docs",
             "proposed_case",
             "high confidence",
-            "staging-only",
             "closed fixed-case dsl",
             "begin_network_capture",
             "element_visible",
@@ -586,19 +588,20 @@ class SupervisorTests(unittest.TestCase):
             prompt.lower(),
         )
 
-    def test_runtime_prompt_injects_only_authorized_staging_origins_and_read_only_docs_origin(self):
+    def test_runtime_prompt_injects_only_authorized_selected_origins_and_read_only_docs_origin(self):
         process = FakeProcess(0)
 
         self.run_supervisor(process, result_payload=valid_result())
 
         prompt = process.stdin.getvalue()
-        runtime_prompt_prefix, rest = prompt.split("-----BEGIN TRUSTED STAGING CLOUD QA POLICY-----", 1)
-        _policy, runtime_prompt_suffix = rest.split("-----END TRUSTED STAGING CLOUD QA POLICY-----", 1)
+        runtime_prompt_prefix, rest = prompt.split("-----BEGIN TRUSTED SELECTED-ENVIRONMENT CLOUD QA POLICY-----", 1)
+        _policy, runtime_prompt_suffix = rest.split("-----END TRUSTED SELECTED-ENVIRONMENT CLOUD QA POLICY-----", 1)
         runtime_prompt = runtime_prompt_prefix + runtime_prompt_suffix
-        self.assertIn("Authorized staging website origin: https://staging-website.flatkey.ai", prompt)
-        self.assertIn("Authorized staging console origin: https://staging-console.flatkey.ai", prompt)
+        self.assertIn("Selected target environment: staging", prompt)
+        self.assertIn("Authorized selected-environment website origin: https://staging-website.flatkey.ai", prompt)
+        self.assertIn("Authorized selected-environment console origin: https://staging-console.flatkey.ai", prompt)
         self.assertIn("Read-only cookie-free docs origin: https://docs.flatkey.ai", prompt)
-        self.assertIn("Begin replay by navigating to the authorized staging website origin.", prompt)
+        self.assertIn("Begin replay by navigating to the authorized selected-environment website origin.", prompt)
         self.assertIn("core_body = recorded replay -> qa_replay_checkpoint (synchronously completes runtime fixed cases)", prompt)
         self.assertIn("core = core_body -> no exploration -> terminal cleanup/report", prompt)
         self.assertIn("normal = core_body -> qa_start_exploration -> bounded exploration -> terminal cleanup/report", prompt)
@@ -694,6 +697,47 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(outcome.status, "passed")
         self.assertEqual(policies[0].allowed_hosts, frozenset({"flatkey.ai", "console.flatkey.ai"}))
         self.assertEqual(policies[1].allowed_hosts, frozenset({"docs.flatkey.ai"}))
+
+    def test_preflight_accepts_production_turnstile_but_rejects_staging_turnstile_and_disabled_registration(self):
+        turnstile_status = {
+            "data": {
+                "register_enabled": True,
+                "password_register_enabled": True,
+                "email_verification": True,
+                "turnstile_check": True,
+            }
+        }
+        self.assertTrue(supervisor._preflight_ok(turnstile_status, target_environment="production"))
+        self.assertFalse(supervisor._preflight_ok(turnstile_status, target_environment="staging"))
+
+        for field in ("register_enabled", "password_register_enabled", "email_verification"):
+            disabled = {
+                "data": {
+                    "register_enabled": True,
+                    "password_register_enabled": True,
+                    "email_verification": True,
+                    "turnstile_check": False,
+                    field: False,
+                }
+            }
+            with self.subTest(field=field):
+                self.assertFalse(supervisor._preflight_ok(disabled, target_environment="staging"))
+                self.assertFalse(supervisor._preflight_ok(disabled, target_environment="production"))
+
+        self.assertFalse(supervisor._preflight_ok({"data": []}, target_environment="production"))
+        self.assertFalse(
+            supervisor._preflight_ok(
+                {
+                    "data": {
+                        "register_enabled": True,
+                        "password_register_enabled": True,
+                        "email_verification": True,
+                        "turnstile_check": "true",
+                    }
+                },
+                target_environment="production",
+            )
+        )
 
     def run_supervisor(self, process, *, result_payload=None, cleanup=None, uploader=None, preflight=None, clock=None, input_env=None, thread_factory=None, proxy_factory=None, subprocess_runner=None, resource_guard_factory=None, fixed_cases_loader=None, fixed_case_runner_factory=None, fixed_cases_dir=None):
         tmp = tempfile.mkdtemp()
@@ -1043,7 +1087,10 @@ class SupervisorTests(unittest.TestCase):
         args, kwargs = sup.subprocess_runner.calls[0]
         workspace = args[args.index("--cd") + 1]
         prompt = process.stdin.getvalue()
-        self.assertIn("The runtime has already loaded the exact `staging-cloud-qa-policy.md` content below;", prompt)
+        self.assertIn(
+            "The runtime has already loaded the exact selected-environment QA policy content from `staging-cloud-qa-policy.md` below;",
+            prompt,
+        )
         self.assertNotIn("Before taking any browser action, read", prompt)
         self.assertNotIn("read and follow the absolute `staging-cloud-qa-policy.md` file", prompt)
         policy_line = next(line for line in prompt.splitlines() if line.startswith("Policy: "))
@@ -1053,11 +1100,11 @@ class SupervisorTests(unittest.TestCase):
         self.assertTrue(os.path.isfile(policy_path))
         with open(policy_path, encoding="utf-8") as handle:
             policy = handle.read()
-        self.assertIn("-----BEGIN TRUSTED STAGING CLOUD QA POLICY-----", prompt)
+        self.assertIn("-----BEGIN TRUSTED SELECTED-ENVIRONMENT CLOUD QA POLICY-----", prompt)
         self.assertIn(policy, prompt)
-        self.assertIn("# Staging Cloud QA Policy", prompt)
+        self.assertIn("# Selected-Environment Cloud QA Policy", prompt)
         self.assertIn("Replay the recorded signup, email verification, starting credit, API key creation", prompt)
-        self.assertIn("-----END TRUSTED STAGING CLOUD QA POLICY-----", prompt)
+        self.assertIn("-----END TRUSTED SELECTED-ENVIRONMENT CLOUD QA POLICY-----", prompt)
         self.assertTrue(
             os.path.realpath(policy_path).startswith(os.path.realpath(kwargs["env"]["HOME"]) + os.sep)
         )
@@ -2421,10 +2468,14 @@ class SupervisorTests(unittest.TestCase):
         del missing_broker_env["FLATKEY_BROWSER_QA_BROKER_URL"]
         self.assertEqual(self.run_supervisor(FakeProcess(0), result_payload=valid_result(), input_env=missing_broker_env)[0].status, "infrastructure_failed")
 
-    def test_default_preflight_client_uses_exact_staging_status_contract(self):
+    def test_default_preflight_client_uses_exact_selected_status_contract(self):
         payload = {"data": {"register_enabled": True, "password_register_enabled": True, "email_verification": True, "turnstile_check": False}}
         opener = FakeStatusOpener(FakeStatusResponse(payload))
-        preflight = supervisor.StagingStatusPreflight("https://staging-console.flatkey.ai", opener=opener)
+        preflight = supervisor.StatusPreflight(
+            "https://staging-console.flatkey.ai",
+            target_environment="staging",
+            opener=opener,
+        )
 
         self.assertEqual(preflight(), payload)
         request, timeout = opener.requests[0]
@@ -2433,12 +2484,79 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(timeout, 5)
 
         with self.assertRaises(ValueError):
-            supervisor.StagingStatusPreflight("https://flatkey.ai", opener=opener)
+            supervisor.StatusPreflight("https://flatkey.ai", target_environment="staging", opener=opener)
         with self.assertRaises(RuntimeError):
-            supervisor.StagingStatusPreflight(
+            supervisor.StatusPreflight(
                 "https://staging-console.flatkey.ai",
+                target_environment="staging",
                 opener=FakeStatusOpener(FakeStatusResponse({"data": {"registration": True, "password_login": True}})),
             )()
+
+        production_payload = {"data": {"register_enabled": True, "password_register_enabled": True, "email_verification": True, "turnstile_check": True}}
+        production_opener = FakeStatusOpener(FakeStatusResponse(production_payload))
+        production_preflight = supervisor.StatusPreflight(
+            "https://console.flatkey.ai",
+            target_environment="production",
+            opener=production_opener,
+        )
+        self.assertEqual(production_preflight(), production_payload)
+        self.assertEqual(production_opener.requests[0][0].full_url, "https://console.flatkey.ai/api/status")
+
+    def test_production_human_verification_block_before_checkpoint_classifies_replay_failed_without_leaks(self):
+        input_env = env()
+        input_env.update(
+            {
+                "FLATKEY_QA_TARGET_ENVIRONMENT": "production",
+                "FLATKEY_QA_WEBSITE_ORIGIN": "https://flatkey.ai",
+                "FLATKEY_QA_CONSOLE_ORIGIN": "https://console.flatkey.ai",
+            }
+        )
+
+        class HumanVerificationSink:
+            url = "http://127.0.0.1:1/runtime-evidence"
+
+            def __init__(self, _redactor, **_kwargs):
+                self.runtime_classification = {
+                    "classification": "human_verification_blocked",
+                    "human_verification_blocked": True,
+                    "turnstile_check": True,
+                    "target_environment": "production",
+                    "blocked_stage": "registration_or_verification",
+                    "unsafe": "token=secret&cf-turnstile-response=widget-response; Cookie: secret",
+                }
+
+            def start(self):
+                return self
+
+            def stop(self):
+                return None
+
+        with mock.patch.object(supervisor, "RuntimeEvidenceSink", HumanVerificationSink):
+            outcome, sup = self.run_supervisor(
+                FakeProcess(1),
+                input_env=input_env,
+                preflight=lambda: {
+                    "data": {
+                        "register_enabled": True,
+                        "password_register_enabled": True,
+                        "email_verification": True,
+                        "turnstile_check": True,
+                    }
+                },
+            )
+
+        self.assertEqual(outcome.status, "replay_failed")
+        with open(os.path.join(sup.runtime_root, "manifest.json"), encoding="utf-8") as handle:
+            manifest = json.load(handle)
+        classification = manifest["infrastructure"]["classification"]
+        self.assertEqual(classification["classification"], "human_verification_blocked")
+        self.assertTrue(classification["human_verification_blocked"])
+        self.assertTrue(classification["turnstile_check"])
+        self.assertEqual(classification["target_environment"], "production")
+        rendered = json.dumps(classification, sort_keys=True)
+        self.assertNotIn("token=secret", rendered)
+        self.assertNotIn("widget-response", rendered)
+        self.assertNotIn("Cookie", rendered)
 
     def test_stdout_stderr_artifacts_and_outcome_do_not_leak_secrets(self):
         process = FakeProcess(

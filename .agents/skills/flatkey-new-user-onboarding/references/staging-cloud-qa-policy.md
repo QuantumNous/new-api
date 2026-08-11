@@ -1,17 +1,17 @@
-# Staging Cloud QA Policy
+# Selected-Environment Cloud QA Policy
 
 ## Activation Gate
 
-This policy applies only when the caller explicitly loads this file and provides a concrete staging QA run id.
+This policy applies only when the caller explicitly loads this file and provides a concrete selected-environment QA run id.
 
 If the run id is missing, or if this file was not explicitly loaded by the caller, stop using this policy and return to human-confirmation onboarding mode from the parent skill.
 
 ## Authorized Purpose
 
-Use this policy only for isolated Flatkey staging onboarding QA:
+Use this policy only for isolated Flatkey selected-environment onboarding QA:
 
-- Replay the recorded signup, email verification, starting credit, API key creation, documentation navigation, and cleanup-readiness path.
-- Explore only bounded, replay-adjacent staging hypotheses after replay checkpoint.
+- Replay the recorded signup, email verification, starting credit, API key creation, documentation navigation, and cleanup-readiness path for the selected environment.
+- Explore only bounded, replay-adjacent selected-environment hypotheses after replay checkpoint.
 - Produce a concise QA report with checkpoint state, failures, cleanup state, and redacted artifacts.
 
 Execution modes are fixed:
@@ -24,13 +24,13 @@ Normal includes the complete core replay. Exploration cannot skip, shorten, repl
 
 ## Identity Rules
 
-Only use a deterministic disposable staging identity assigned for the run id.
+Only use a deterministic run-scoped disposable QA identity assigned for the run id and selected environment.
 
 Allowed identity properties:
 
 - A run-scoped disposable email alias or mailbox identifier.
 - A run-scoped username/display name.
-- A run-scoped disposable password only when explicitly provided as staging disposable material by the caller or test harness.
+- A run-scoped disposable password only when explicitly provided as disposable QA material by the caller or test harness.
 
 Secrets and sensitive values must stay out of chat, logs, filenames, screenshots, and reports:
 
@@ -42,18 +42,17 @@ Secrets and sensitive values must stay out of chat, logs, filenames, screenshots
 - Do not reveal `Authorization` headers.
 - Do not reveal full API keys.
 
-Use redacted forms such as `<staging-email-redacted>`, `<verification-code-redacted>`, and `sk-...<redacted>`.
+Use redacted forms such as `<qa-email-redacted>`, `<verification-code-redacted>`, and `sk-...<redacted>`.
 
 ## Origin Boundary
 
-Writable browser actions are allowed only on explicit staging website and staging console origins supplied by the caller or test harness for this run.
+Writable browser actions are allowed only on the exact selected website and selected console origins supplied by the caller or test harness for this run.
 
-Forbidden writable origins include:
+For staging, the selected writable origins are `https://staging-website.flatkey.ai` and `https://staging-console.flatkey.ai`.
 
-- `https://flatkey.ai`
-- `https://www.flatkey.ai`
-- `https://console.flatkey.ai`
-- Any other production Flatkey website or console origin.
+For production, the selected writable origins are `https://flatkey.ai` and `https://console.flatkey.ai`, and writes are limited to the recorded replay for the run-scoped disposable QA identity plus independent cleanup for that same run.
+
+Forbidden writable origins include any Flatkey website or console origin that is not the exact selected origin for the run.
 
 `https://docs.flatkey.ai` may be opened only for read-only documentation lookup in an independent no-cookie browser context. Do not reuse a signed-in staging console context for docs. Do not write, authenticate, submit forms, or carry cookies/session storage into the docs context.
 
@@ -63,36 +62,37 @@ If the browser is on an origin that is not explicitly authorized for the current
 
 When this policy is active and origin checks pass, the agent is authorized to:
 
-- Accept staging-only Flatkey terms that are presented as part of creating the disposable staging account.
-- Create the disposable staging account assigned to the run id.
-- Claim staging starting credit for that disposable account.
-- Create a temporary staging API key for the run id.
-- Delete the temporary staging API key only as part of reaching a cleanup-ready checkpoint.
-- Delete the disposable staging account only as part of reaching a cleanup-ready checkpoint.
+- Accept selected-environment Flatkey terms that are presented as part of creating the disposable QA account.
+- Create the disposable QA account assigned to the run id.
+- Claim selected-environment starting credit for that disposable account.
+- Create a temporary selected-environment API key for the run id.
+- Delete the temporary selected-environment API key only as part of reaching a cleanup-ready checkpoint.
+- Delete the disposable QA account only as part of reaching a cleanup-ready checkpoint.
 - Read docs in an independent no-cookie context.
 
 After `qa_replay_checkpoint`, authorized normal-mode exploration may inspect only the replay-created temporary account and existing API key page state. Post-checkpoint exploration allows only navigation, read-only inspection, and non-submitting field, dialog, or client-side validation checks. Form validation/repeat actions/loading states are limited to non-submitting client-side observation.
 
 Do not submit, confirm, save, create, delete, resend, register, logout, or trigger any server state change after qa_replay_checkpoint. Recorded replay and independent runtime cleanup are the only server-write exceptions.
 
-These authorizations do not apply to real users, production origins, or non-staging accounts.
+These authorizations do not apply to real users, non-selected origins, or non-run-scoped accounts.
 
 ## Forbidden Actions
 
 Never perform these actions under this policy:
 
-- Use production Flatkey website or console origins for writable actions.
+- Use non-selected Flatkey website or console origins for writable actions.
 - Purchase, subscribe, upgrade, add payment methods, or change billing.
 - Send invitations or add users.
 - Change admin, organization, workspace, global, model, routing, pricing, provider, or security settings.
 - Make real model calls with a live Flatkey API key.
 - Use a non-disposable or personally owned account.
 - Persist credentials beyond the run-scoped browser/session state required for QA.
+- Do not bypass, forge, replay, outsource, or solve CAPTCHA/Turnstile through a third-party service.
 - Bypass, solve externally, outsource, or work around CAPTCHA, Cloudflare, or Turnstile challenges.
 - Submit, confirm, save, create, delete, resend, register, logout, or trigger any server state change after `qa_replay_checkpoint`, except for the recorded replay before the checkpoint and independent runtime cleanup after Codex exits.
 - Register a second account, create a second key, create an extra API key, or rerun registration as open-ended exploration after the replay checkpoint.
 
-CAPTCHA, Cloudflare, and Turnstile fail closed. If encountered, stop the run, record the blocked state with redactions, and do not proceed to account creation, key creation, exploration, or cleanup mutations.
+CAPTCHA, Cloudflare, and Turnstile fail closed. If encountered, stop the run, record only the blocked boolean state with redactions, and do not proceed to account creation, key creation, exploration, or cleanup mutations. Never record token, widget response, query string, cookie, verification code, or challenge content. If the selected environment is production and CAPTCHA/Turnstile normally blocks registration or verification before `qa_replay_checkpoint`, report runtime classification `human_verification_blocked`.
 
 ## Replay And Exploration Gates
 
@@ -108,7 +108,7 @@ Do not start exploration until `qa_replay_checkpoint` has returned successfully 
 
 Before exploratory browser actions, call `qa_start_exploration`. `qa_start_exploration` takes no arguments. Put the run id, current URL, authorized staging origins, and remaining budget in the final result/report narrative, not in MCP tool arguments.
 
-If replay fails before reaching a cleanup-ready state, do not enter exploration. Report the replay failure and wait for supervisor or cleanup-job direction.
+If replay fails before reaching a cleanup-ready state, do not enter exploration. Report the replay failure and wait for supervisor or cleanup-job direction. If production replay fails because CAPTCHA/Turnstile normally blocks registration or verification, stop without solving it and report only sanitized `human_verification_blocked` state.
 
 Do not register a second account, do not create an extra API key, and do not use exploration to create a second key. Use only the temporary account created by this replay and the current API key state from that replay.
 
@@ -148,7 +148,7 @@ Explore in this fixed priority order:
 
 Allowed exploration surfaces are registration, verification, onboarding, existing API-key page state, non-submitted dialog validation, and docs entry points.
 
-Forbidden exploration surfaces are payment, subscriptions, invitations, admin/global settings, production origins, real model calls, CAPTCHA bypass, second account creation, second key creation, and extra API key creation.
+Forbidden exploration surfaces are payment, subscriptions, invitations, admin/global settings, non-selected origins, arbitrary navigation, real model calls, CAPTCHA/Turnstile bypass, second account creation, second key creation, and extra API key creation.
 
 ## Finding Evidence And Noise Handling
 
@@ -158,7 +158,7 @@ Failures actively denied by allowlist or egress controls for third-party service
 
 ## Cleanup Authority
 
-The agent may drive the staging UI only to a cleanup-ready state and may perform policy-authorized temporary key/account deletion when that is part of the staging replay path and origin checks pass.
+The agent may drive the selected-environment UI only to a cleanup-ready state and may perform policy-authorized temporary key/account deletion when that is part of the selected replay path and origin checks pass.
 
 Final cleanup completion is not decided by model narration. The supervisor and an independent cleanup job decide and verify final cleanup. The report must distinguish:
 
@@ -171,10 +171,10 @@ Do not claim `cleanup-verified-by-job` from browser observation alone.
 
 ## Report Requirements
 
-Every staging QA report must include:
+Every selected-environment QA report must include:
 
 - Run id.
-- Staging origins used.
+- Selected environment and exact selected origins used.
 - Whether `qa_replay_checkpoint` was called.
 - Whether `qa_start_exploration` was called.
 - Replay result.

@@ -196,9 +196,12 @@ class Supervisor:
         payload = initial_result if initial_result is not None else _empty_result()
         runtime_classification = None if initial_result is not None else "invalid_result"
         try:
-            selected_preflight = self.preflight or StagingStatusPreflight(cfg.console_origin)
+            selected_preflight = self.preflight or StatusPreflight(
+                cfg.console_origin,
+                target_environment=cfg.target_environment,
+            )
             preflight_payload = selected_preflight()
-            if not _preflight_ok(preflight_payload):
+            if not _preflight_ok(preflight_payload, target_environment=cfg.target_environment):
                 payload = _empty_result()
                 runtime_classification = "preflight_failed"
                 invalid_result = False
@@ -266,11 +269,20 @@ class Supervisor:
                 if initial_result is None and model_payload is not None:
                     payload = redactor.clean(model_payload)
                     runtime_classification = None
-                if evidence_sink.runtime_classification == "alias_restriction":
-                    runtime_classification = "alias_restriction"
+                evidence_classification = _safe_runtime_classification(
+                    evidence_sink.runtime_classification,
+                    target_environment=cfg.target_environment,
+                    checkpoint_completed=self._checkpoint_completed,
+                )
+                if evidence_classification:
+                    runtime_classification = evidence_classification
                 if codex_returncode != 0:
                     payload = _empty_result()
-                    runtime_classification = "codex_nonzero"
+                    runtime_classification = (
+                        runtime_classification
+                        if _runtime_classification_name(runtime_classification) == "human_verification_blocked"
+                        else "codex_nonzero"
+                    )
         except TimeoutError:
             payload = _empty_result()
             runtime_classification = "codex_timeout"
@@ -1200,14 +1212,15 @@ def build_prompt(cfg, identity, *, policy_path):
         prompt
         + "\n\nSkill: $flatkey-new-user-onboarding\n"
         + f"Policy: {policy_path}\n"
-        + "-----BEGIN TRUSTED STAGING CLOUD QA POLICY-----\n"
+        + "-----BEGIN TRUSTED SELECTED-ENVIRONMENT CLOUD QA POLICY-----\n"
         + policy.rstrip()
-        + "\n-----END TRUSTED STAGING CLOUD QA POLICY-----\n"
+        + "\n-----END TRUSTED SELECTED-ENVIRONMENT CLOUD QA POLICY-----\n"
         + f"Run ID: {cfg.run_id}\n"
-        + f"Authorized staging website origin: {cfg.website_origin}\n"
-        + f"Authorized staging console origin: {cfg.console_origin}\n"
+        + f"Selected target environment: {cfg.target_environment}\n"
+        + f"Authorized selected-environment website origin: {cfg.website_origin}\n"
+        + f"Authorized selected-environment console origin: {cfg.console_origin}\n"
         + f"Read-only cookie-free docs origin: {cfg.docs_origin}\n"
-        + "Begin replay by navigating to the authorized staging website origin.\n"
+        + "Begin replay by navigating to the authorized selected-environment website origin.\n"
         + f"Disposable username: {identity.username}\n"
         + f"Disposable email: {cfg.gmail_base.split('@', 1)[0]}+{identity.email_tag}@{cfg.gmail_base.split('@', 1)[1]}\n"
         + f"Disposable password: {identity.password}\n"
@@ -1234,16 +1247,50 @@ def _read_installed_policy(policy_path):
     return policy
 
 
-def _preflight_ok(payload):
+def _preflight_ok(payload, *, target_environment):
     data = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(data, dict):
         return False
-    return (
-        data.get("register_enabled") is True
-        and data.get("password_register_enabled") is True
-        and data.get("email_verification") is True
-        and data.get("turnstile_check") is False
-    )
+    if target_environment not in {"staging", "production"}:
+        return False
+    if (
+        data.get("register_enabled") is not True
+        or data.get("password_register_enabled") is not True
+        or data.get("email_verification") is not True
+    ):
+        return False
+    turnstile_check = data.get("turnstile_check")
+    if turnstile_check is False:
+        return True
+    return turnstile_check is True and target_environment == "production"
+
+
+def _runtime_classification_name(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        name = value.get("classification")
+        if isinstance(name, str):
+            return name
+    return None
+
+
+def _safe_runtime_classification(value, *, target_environment, checkpoint_completed):
+    if value == "alias_restriction":
+        return value
+    if not isinstance(value, dict):
+        return None
+    if value.get("classification") != "human_verification_blocked":
+        return None
+    if checkpoint_completed or target_environment != "production":
+        return None
+    return {
+        "classification": "human_verification_blocked",
+        "human_verification_blocked": value.get("human_verification_blocked") is True,
+        "turnstile_check": value.get("turnstile_check") is True,
+        "target_environment": "production",
+        "blocked_stage": "registration_or_verification",
+    }
 
 
 def _terminate_process(process):
@@ -1317,11 +1364,20 @@ def _toml_escape(value):
     return str(value).replace("\\", "\\\\").replace('"', '\\"')
 
 
-class StagingStatusPreflight:
-    def __init__(self, origin, *, opener=None):
-        if origin != "https://staging-console.flatkey.ai":
-            raise ValueError("preflight origin must be staging console")
+class StatusPreflight:
+    _CONSOLE_ORIGINS = {
+        "staging": "https://staging-console.flatkey.ai",
+        "production": "https://console.flatkey.ai",
+    }
+
+    def __init__(self, origin, *, target_environment, opener=None):
+        expected_origin = self._CONSOLE_ORIGINS.get(target_environment)
+        if expected_origin is None:
+            raise ValueError("preflight target environment must be staging or production")
+        if origin != expected_origin:
+            raise ValueError("preflight origin must match target console origin")
         self.origin = origin
+        self.target_environment = target_environment
         self.opener = opener or urllib.request.build_opener(_NoRedirectHandler(), urllib.request.ProxyHandler({}))
 
     def __call__(self):
@@ -1331,9 +1387,12 @@ class StagingStatusPreflight:
             if len(raw) > 65536:
                 raise RuntimeError("status response too large")
             payload = json.loads(raw.decode("utf-8"))
-        if not _preflight_ok(payload):
-            raise RuntimeError("staging preflight failed")
+        if not _preflight_ok(payload, target_environment=self.target_environment):
+            raise RuntimeError("status preflight failed")
         return payload
+
+
+StagingStatusPreflight = StatusPreflight
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -1844,6 +1903,20 @@ class RuntimeEvidenceSink:
                         self.send_header("Content-Length", "0")
                         self.end_headers()
                         return
+                    elif event_type == "human_verification_blocked":
+                        if not _is_human_verification_blocked_evidence(event):
+                            raise ValueError("invalid human verification evidence")
+                        owner.runtime_classification = {
+                            "classification": "human_verification_blocked",
+                            "human_verification_blocked": True,
+                            "turnstile_check": event.get("turnstile_check") is True,
+                            "target_environment": "production",
+                            "blocked_stage": "registration_or_verification",
+                        }
+                        self.send_response(204)
+                        self.send_header("Content-Length", "0")
+                        self.end_headers()
+                        return
                     elif event_type == "replay_checkpoint":
                         if set(event) != {"type"} or owner.checkpoint_handler is None:
                             raise ValueError("invalid replay checkpoint request")
@@ -1925,6 +1998,17 @@ def _is_alias_restriction_evidence(event):
     failed = event.get("failed")
     marker = "\u7ba1\u7406\u5458\u5df2\u542f\u7528\u90ae\u7bb1\u5730\u5740\u522b\u540d\u9650\u5236\uff0c\u60a8\u7684\u90ae\u7bb1\u5730\u5740\u7531\u4e8e\u5305\u542b\u7279\u6b8a\u7b26\u53f7\u800c\u88ab\u62d2\u7edd\u3002"
     return failed is True and isinstance(text, str) and marker in text
+
+
+def _is_human_verification_blocked_evidence(event):
+    allowed = {"type", "failed", "turnstile_check", "stage"}
+    if set(event) != allowed:
+        return False
+    return (
+        event.get("failed") is True
+        and event.get("turnstile_check") is True
+        and event.get("stage") in {"registration", "verification"}
+    )
 
 
 def write_browser_evidence_artifacts(runtime_root, raw_events, redactor):

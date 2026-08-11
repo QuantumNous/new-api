@@ -781,6 +781,32 @@ class ReportTests(unittest.TestCase):
             "cleanup_failed",
         )
 
+    def test_human_verification_runtime_classification_is_replay_failed_and_manifest_keeps_safe_object(self):
+        classification = {
+            "classification": "human_verification_blocked",
+            "human_verification_blocked": True,
+            "turnstile_check": True,
+            "target_environment": "production",
+            "blocked_stage": "registration_or_verification",
+        }
+
+        self.assertEqual(
+            report.classify_status(valid_result(), runtime_classification=classification),
+            "replay_failed",
+        )
+
+        manifest = report.build_manifest(
+            valid_result(replay={"status": "failed", "checkpoint_reached": False}),
+            cleanup_result=CleanupResult(0, False, False, False, "not needed"),
+            run_id="123456789",
+            execution_id="main-001",
+            provenance=valid_provenance(),
+            runtime_classification=classification,
+        )
+
+        self.assertEqual(manifest["status"], "replay_failed")
+        self.assertEqual(manifest["infrastructure"]["classification"], classification)
+
     def test_cleanup_manifest_uses_trusted_tri_state_status(self):
         self.assertEqual(
             report.build_manifest(

@@ -185,6 +185,8 @@ def normalize_findings(payload, *, runtime_root, proxy_events):
 def classify_status(payload, *, cleanup_result=None, codex_returncode=0, upload_failed=False, invalid_result=False, runtime_classification=None):
     if cleanup_result is not None and cleanup_result.cleanup_failed:
         return "cleanup_failed"
+    if _runtime_classification_name(runtime_classification) == "human_verification_blocked":
+        return "replay_failed"
     if codex_returncode != 0 or upload_failed or invalid_result or runtime_classification:
         return "infrastructure_failed"
     if (
@@ -236,8 +238,18 @@ def build_manifest(
     }
     _validate_manifest_identity(run_id, execution_id)
     if runtime_classification:
-        manifest["infrastructure"] = {"status": "failed", "classification": runtime_classification}
+        manifest["infrastructure"] = {"status": "failed", "classification": redactor.clean(runtime_classification)}
     return manifest
+
+
+def _runtime_classification_name(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        name = value.get("classification")
+        if isinstance(name, str):
+            return name
+    return None
 
 
 def write_report(
