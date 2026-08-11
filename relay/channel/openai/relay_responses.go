@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -83,6 +84,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	var terminalErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -96,30 +98,22 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		if streamResponse.Response != nil && streamResponse.Response.ID != "" {
 			c.Set(common.UpstreamResponseIdKey, streamResponse.Response.ID)
 		}
+		if info.ChannelType == constant.ChannelTypeCodex && streamResponse.Type == "response.failed" {
+			responseWritten := c.Writer.Written()
+			if responseWritten {
+				sendResponsesStreamData(c, streamResponse, data)
+			}
+			terminalErr = newCodexResponsesFailedError(streamResponse.Response, responseWritten)
+			sr.Stop(terminalErr)
+			return
+		}
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
 		case "response.completed", "response.incomplete":
-			if streamResponse.Response != nil {
-				if streamResponse.Response.Usage != nil {
-					if streamResponse.Response.Usage.InputTokens != 0 {
-						usage.PromptTokens = streamResponse.Response.Usage.InputTokens
-					}
-					if streamResponse.Response.Usage.OutputTokens != 0 {
-						usage.CompletionTokens = streamResponse.Response.Usage.OutputTokens
-					}
-					if streamResponse.Response.Usage.TotalTokens != 0 {
-						usage.TotalTokens = streamResponse.Response.Usage.TotalTokens
-					}
-					if streamResponse.Response.Usage.InputTokensDetails != nil {
-						usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
-						usage.PromptTokensDetails.CacheWriteTokens = streamResponse.Response.Usage.InputTokensDetails.CacheWriteTokens
-					}
-				}
-				if streamResponse.Response.HasImageGenerationCall() {
-					c.Set("image_generation_call", true)
-					c.Set("image_generation_call_quality", streamResponse.Response.GetQuality())
-					c.Set("image_generation_call_size", streamResponse.Response.GetSize())
-				}
+			applyResponsesTerminalUsage(c, usage, streamResponse.Response)
+		case "response.done":
+			if info.ChannelType == constant.ChannelTypeCodex {
+				applyResponsesTerminalUsage(c, usage, streamResponse.Response)
 			}
 		case "response.output_text.delta":
 			// 处理输出文本
@@ -138,6 +132,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
+	if terminalErr != nil {
+		return usage, terminalErr
+	}
 
 	// FRT watchdog: upstream accepted the request but never produced a data
 	// event within constant.StreamingFirstResponseTimeout seconds. Surface as
@@ -172,4 +169,48 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func applyResponsesTerminalUsage(c *gin.Context, usage *dto.Usage, response *dto.OpenAIResponsesResponse) {
+	if usage == nil || response == nil {
+		return
+	}
+	if response.Usage != nil {
+		if response.Usage.InputTokens != 0 {
+			usage.PromptTokens = response.Usage.InputTokens
+		}
+		if response.Usage.OutputTokens != 0 {
+			usage.CompletionTokens = response.Usage.OutputTokens
+		}
+		if response.Usage.TotalTokens != 0 {
+			usage.TotalTokens = response.Usage.TotalTokens
+		}
+		if response.Usage.InputTokensDetails != nil {
+			usage.PromptTokensDetails.CachedTokens = response.Usage.InputTokensDetails.CachedTokens
+			usage.PromptTokensDetails.CacheWriteTokens = response.Usage.InputTokensDetails.CacheWriteTokens
+		}
+	}
+	if response.HasImageGenerationCall() {
+		c.Set("image_generation_call", true)
+		c.Set("image_generation_call_quality", response.GetQuality())
+		c.Set("image_generation_call_size", response.GetSize())
+	}
+}
+
+func newCodexResponsesFailedError(response *dto.OpenAIResponsesResponse, skipRetry bool) *types.NewAPIError {
+	options := make([]types.NewAPIErrorOptions, 0, 1)
+	if skipRetry {
+		options = append(options, types.ErrOptionWithSkipRetry())
+	}
+	if response != nil {
+		if openAIError := response.GetOpenAIError(); openAIError != nil && openAIError.Message != "" {
+			return types.WithOpenAIError(*openAIError, http.StatusInternalServerError, options...)
+		}
+	}
+	return types.NewOpenAIError(
+		errors.New("codex upstream response failed"),
+		types.ErrorCodeBadResponse,
+		http.StatusInternalServerError,
+		options...,
+	)
 }
