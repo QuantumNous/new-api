@@ -6,6 +6,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -32,6 +33,14 @@ func serveWebRequest(t *testing.T, assets WebAssets, requestPath string) *httpte
 	SetWebRouter(engine, assets)
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, requestPath, nil))
+	return recorder
+}
+
+func performWebRequest(engine http.Handler, requestPath string, remoteAddr string) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, requestPath, nil)
+	request.RemoteAddr = remoteAddr
+	engine.ServeHTTP(recorder, request)
 	return recorder
 }
 
@@ -79,6 +88,52 @@ func TestNextFrontendDoesNotFallbackForMissingAssets(t *testing.T) {
 
 	require.Equal(t, http.StatusNotFound, recorder.Code)
 	require.NotContains(t, recorder.Body.String(), "next-index")
+}
+
+func TestWebRateLimitSkipsExistingStaticAssetsOnly(t *testing.T) {
+	t.Setenv("NEXT_FRONTEND_ENABLED", "true")
+
+	originalRedisEnabled := common.RedisEnabled
+	originalRateLimitEnabled := common.GlobalWebRateLimitEnable
+	originalRateLimitNum := common.GlobalWebRateLimitNum
+	originalRateLimitDuration := common.GlobalWebRateLimitDuration
+	t.Cleanup(func() {
+		common.RedisEnabled = originalRedisEnabled
+		common.GlobalWebRateLimitEnable = originalRateLimitEnabled
+		common.GlobalWebRateLimitNum = originalRateLimitNum
+		common.GlobalWebRateLimitDuration = originalRateLimitDuration
+	})
+	common.RedisEnabled = false
+	common.GlobalWebRateLimitEnable = true
+	common.GlobalWebRateLimitNum = 1
+	common.GlobalWebRateLimitDuration = 60
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	SetWebRouter(engine, testWebAssets("next-index"))
+
+	for requestPath, expectedBody := range map[string]string{
+		"/assets/legacy.js":   "legacy-asset",
+		"/next/assets/app.js": "next-asset",
+	} {
+		for range 3 {
+			asset := performWebRequest(engine, requestPath, "192.0.2.201:1234")
+			require.Equal(t, http.StatusOK, asset.Code)
+			require.Equal(t, expectedBody, asset.Body.String())
+		}
+	}
+
+	spaRoute := performWebRequest(engine, "/next/console", "192.0.2.202:1234")
+	require.Equal(t, http.StatusOK, spaRoute.Code)
+	spaRoute = performWebRequest(engine, "/next/console", "192.0.2.202:1234")
+	require.Equal(t, http.StatusTooManyRequests, spaRoute.Code)
+	require.Equal(t, "60", spaRoute.Header().Get("Retry-After"))
+
+	missingAsset := performWebRequest(engine, "/next/assets/missing.js", "192.0.2.203:1234")
+	require.Equal(t, http.StatusNotFound, missingAsset.Code)
+	missingAsset = performWebRequest(engine, "/next/assets/missing.js", "192.0.2.203:1234")
+	require.Equal(t, http.StatusTooManyRequests, missingAsset.Code)
+	require.Equal(t, "60", missingAsset.Header().Get("Retry-After"))
 }
 
 func TestNextFrontendPlaceholderReturnsServiceUnavailable(t *testing.T) {

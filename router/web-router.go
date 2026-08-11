@@ -48,7 +48,6 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	nextReady := nextBuildReady(assets.NextIndexPage)
 
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
-	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
 	router.Use(func(c *gin.Context) {
 		if nextEnabled && strings.HasPrefix(c.Request.URL.Path, "/next/assets/") {
@@ -61,6 +60,7 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 		nextFS := common.EmbedFolder(assets.NextBuildFS, "frontend/embed-dist")
 		router.Use(static.Serve("/next", nextFS))
 	}
+	router.Use(middleware.GlobalWebRateLimit())
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
 		path := c.Request.URL.Path
