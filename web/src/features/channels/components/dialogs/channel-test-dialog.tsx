@@ -92,6 +92,7 @@ import {
   channelsQueryKeys,
   formatResponseTime,
   handleTestChannel,
+  VERTEX_STORAGE_MODEL_PREFIX,
 } from '../../lib'
 import type {
   Channel,
@@ -288,7 +289,7 @@ function getTestTableColumnClass(columnId: string) {
     case 'select':
       return 'w-10 min-w-10'
     case 'model':
-      return 'w-auto min-w-48 whitespace-nowrap'
+      return 'w-auto min-w-64'
     case 'status':
       return 'w-28 min-w-28 whitespace-nowrap'
     case 'result':
@@ -869,19 +870,40 @@ function ChannelTestDialogContent({
         cell: ({ row }) => {
           const model = row.original.model
           const isDefault = defaultTestModel === model
+          const isVertexStorage = model.startsWith(VERTEX_STORAGE_MODEL_PREFIX)
 
           return (
-            <div className='flex w-max items-center gap-2 whitespace-nowrap'>
-              <span className='font-medium whitespace-nowrap' title={model}>
-                {model}
-              </span>
-              {isDefault && (
-                <StatusBadge
-                  label={t('Default')}
-                  variant='info'
-                  size='sm'
-                  copyable={false}
-                />
+            <div className='flex min-w-0 flex-col items-start gap-1'>
+              <div className='flex max-w-full items-center gap-2 whitespace-nowrap'>
+                <span className='font-medium whitespace-nowrap' title={model}>
+                  {model}
+                </span>
+                {isDefault && (
+                  <StatusBadge
+                    label={t('Default')}
+                    variant='info'
+                    size='sm'
+                    copyable={false}
+                  />
+                )}
+                {isVertexStorage && (
+                  <StatusBadge
+                    label='GCS'
+                    variant='info'
+                    size='sm'
+                    copyable={false}
+                  />
+                )}
+              </div>
+              {isVertexStorage && (
+                <p
+                  data-vertex-storage-test-description
+                  className='text-muted-foreground max-w-80 text-xs leading-snug whitespace-normal'
+                >
+                  {t(
+                    'GCS bucket: writes, reads, and deletes a temporary object'
+                  )}
+                </p>
               )}
             </div>
           )
