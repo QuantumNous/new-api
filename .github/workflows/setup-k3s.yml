@@ -8,12 +8,13 @@ name: Setup k3s cluster and self-hosted runner
 #   第一台可用的服务器成为 k3s server（master 节点），其余自动加入为 agent。
 #   某台连不上（Connection closed / 超时）不会阻塞其他服务器。
 #
+# 认证方式：全程使用密码（sshpass）。服务器关闭密钥认证时也能工作。
+#
 # 流程：
-#   1. 解析 SERVERS_LIST_JSON，生成临时 ed25519 密钥对
-#   2. 逐台用密码 ssh-copy-id 装公钥（失败的跳过）
-#   3. 第一台成功装 k3s server（--disable traefik），其余装 agent
-#   4. 装 nginx ingress + self-hosted runner（标签 k8s）
-#   5. 导出 KUBE_CONFIG_B64 到 artifact
+#   1. 解析 SERVERS_LIST_JSON，逐台测试密码登录（失败的跳过）
+#   2. 第一台成功装 k3s server（--disable traefik），其余装 agent
+#   3. 装 nginx ingress + self-hosted runner（标签 k8s）
+#   4. 导出 KUBE_CONFIG_B64 到 artifact
 
 on:
   workflow_dispatch:
@@ -52,36 +53,21 @@ jobs:
               sys.exit(1)
           PYEOF
 
-      - name: Generate temporary SSH key
-        run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
-          while IFS= read -r s; do
-            IP=$(echo "$s" | jq -r .ip)
-            ssh-keyscan -H "$IP" >> ~/.ssh/known_hosts 2>/dev/null || true
-          done < /tmp/servers.txt
-
-      - name: Install public key on all servers
+      - name: Test password login on all servers
         run: |
           : > /tmp/ssh_ok.txt
           while IFS= read -r s; do
             IP=$(echo "$s" | jq -r .ip)
             USER=$(echo "$s" | jq -r .user)
             PASS=$(echo "$s" | jq -r .password)
-            echo "=== 尝试 $USER@$IP ==="
-            # 第一步：用密码 ssh-copy-id 装公钥；失败或超时（135s）跳过
-            if ! timeout 135 sshpass -p "$PASS" ssh-copy-id -i ~/.ssh/id_ed25519.pub \
-              -o StrictHostKeyChecking=no -o ConnectTimeout=15 "$USER@$IP" >/tmp/key_install.log 2>&1; then
-              echo "FAILED(装公钥): $(tail -1 /tmp/key_install.log)"
-              continue
-            fi
-            # 第二步：显式验证密钥登录（PasswordAuthentication=no 强制走密钥）
-            if timeout 30 ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
-              -o PasswordAuthentication=no -o ConnectTimeout=15 "$USER@$IP" 'true' >/dev/null 2>&1; then
-              echo "$IP $USER" >> /tmp/ssh_ok.txt
-              echo "OK (密钥验证通过)"
+            echo "=== 测试 $USER@$IP ==="
+            ssh-keyscan -H "$IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+            if timeout 30 sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=15 "$USER@$IP" 'echo ok' >/tmp/ssh_test.log 2>&1; then
+              echo "$IP $USER $PASS" >> /tmp/ssh_ok.txt
+              echo "OK"
             else
-              echo "FAILED(密钥验证): 公钥已装但密钥认证被服务器拒绝，检查 sshd_config 的 PubkeyAuthentication / AuthorizedKeysFile"
+              echo "FAILED: $(tail -1 /tmp/ssh_test.log)"
             fi
           done < /tmp/servers.txt
           echo "可用服务器: $(wc -l < /tmp/ssh_ok.txt)"
@@ -92,13 +78,14 @@ jobs:
             echo "::error::没有可用的服务器（全部 SSH 失败）"
             exit 1
           fi
-          read -r IP USER < /tmp/ssh_ok.txt
+          read -r IP USER PASS < /tmp/ssh_ok.txt
           echo "K3S_SERVER_IP=$IP" >> $GITHUB_ENV
           echo "K3S_SERVER_USER=$USER" >> $GITHUB_ENV
+          echo "K3S_SERVER_PASS=$PASS" >> $GITHUB_ENV
           echo "=== 安装 k3s server on $IP ==="
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$USER@$IP" \
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no "$USER@$IP" \
             'curl -sfL https://get.k3s.io | sh -s - --disable traefik'
-          TOKEN=$(ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$USER@$IP" \
+          TOKEN=$(sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no "$USER@$IP" \
             'sudo cat /var/lib/rancher/k3s/server/node-token')
           echo "K3S_TOKEN=$TOKEN" >> $GITHUB_ENV
           echo "k3s server installed on $IP"
@@ -106,23 +93,25 @@ jobs:
       - name: Install k3s agents on remaining servers
         run: |
           FIRST=1
-          while IFS= read -r line; do
+          while IFS= read -r s; do
             if [ "$FIRST" -eq 1 ]; then FIRST=0; continue; fi
-            read -r IP USER <<< "$line"
+            IP=$(echo "$s" | jq -r .ip)
+            USER=$(echo "$s" | jq -r .user)
+            PASS=$(echo "$s" | jq -r .password)
             echo "=== 安装 k3s agent on $IP ==="
-            ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$USER@$IP" \
+            sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no "$USER@$IP" \
               "curl -sfL https://get.k3s.io | K3S_URL=https://$K3S_SERVER_IP:6443 K3S_TOKEN=$K3S_TOKEN sh -"
-          done < /tmp/ssh_ok.txt
+          done < /tmp/servers.txt
 
       - name: Install Nginx Ingress Controller
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
+          sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
             'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml && kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/baremetal/deploy.yaml'
           echo "nginx ingress controller installed"
 
       - name: Verify cluster nodes
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
+          sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
             'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml && kubectl get nodes -o wide'
 
       - name: Get runner registration token
@@ -136,7 +125,7 @@ jobs:
 
       - name: Register self-hosted runner on server
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" "
+          sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" "
             sudo mkdir -p /opt/actions-runner
             sudo chown \$(whoami) /opt/actions-runner
             cd /opt/actions-runner
@@ -152,7 +141,7 @@ jobs:
 
       - name: Get KUBE_CONFIG_B64 and save to artifact
         run: |
-          KUBECONFIG_B64=$(ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
+          KUBECONFIG_B64=$(sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
             'base64 -w0 < /etc/rancher/k3s/k3s.yaml')
           echo "$KUBECONFIG_B64" > kubeconfig_b64.txt
           echo "KUBE_CONFIG_B64 saved to artifact"
