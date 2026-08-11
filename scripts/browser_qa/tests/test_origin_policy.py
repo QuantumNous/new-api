@@ -1,6 +1,8 @@
 import unittest
 from unittest import mock
 
+from scripts.browser_qa.tests.test_config import production_env
+from scripts.browser_qa.flatkey_browser_qa.config import load_config
 from scripts.browser_qa.flatkey_browser_qa.origin_policy import OriginPolicy
 
 
@@ -23,6 +25,13 @@ class OriginPolicyTests(unittest.TestCase):
             self.assertTrue(policy.decide("https://staging-console.flatkey.ai/dashboard").allowed)
             self.assertTrue(policy.decide("https://staging-console.flatkey.ai:443/dashboard").allowed)
             self.assertTrue(policy.decide("https://docs.flatkey.ai/quickstart").allowed)
+
+    def test_runtime_policy_uses_selected_profile_hosts_only(self):
+        policy = load_config(production_env()).origin_policy
+
+        with mock.patch("socket.getaddrinfo", return_value=[(0, 0, 0, "", ("8.8.8.8", 0))]):
+            self.assertTrue(policy.decide("https://console.flatkey.ai/dashboard").allowed)
+            self.assertFalse(policy.decide("https://staging-console.flatkey.ai/dashboard").allowed)
 
     def test_policy_rejects_credentials_schemes_and_unknown_hosts(self):
         policy = OriginPolicy.from_hosts(["staging-console.flatkey.ai"])

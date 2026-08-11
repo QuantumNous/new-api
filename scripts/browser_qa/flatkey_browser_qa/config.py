@@ -3,6 +3,7 @@ import binascii
 import os
 import re
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 from .origin_policy import OriginPolicy
 
@@ -11,18 +12,27 @@ _REQUIRED_ENV = {
     "FLATKEY_QA_RUN_ID",
     "FLATKEY_QA_IDENTITY_SEED_B64",
     "FLATKEY_QA_GMAIL_BASE",
+    "FLATKEY_QA_TARGET_ENVIRONMENT",
     "FLATKEY_QA_WEBSITE_ORIGIN",
     "FLATKEY_QA_CONSOLE_ORIGIN",
     "FLATKEY_QA_DOCS_ORIGIN",
 }
-_ALLOWED_ORIGINS = {
-    "FLATKEY_QA_WEBSITE_ORIGIN": "https://staging-website.flatkey.ai",
-    "FLATKEY_QA_CONSOLE_ORIGIN": "https://staging-console.flatkey.ai",
-    "FLATKEY_QA_DOCS_ORIGIN": "https://docs.flatkey.ai",
+_TARGET_PROFILES = {
+    "staging": {
+        "FLATKEY_QA_WEBSITE_ORIGIN": "https://staging-website.flatkey.ai",
+        "FLATKEY_QA_CONSOLE_ORIGIN": "https://staging-console.flatkey.ai",
+        "FLATKEY_QA_DOCS_ORIGIN": "https://docs.flatkey.ai",
+    },
+    "production": {
+        "FLATKEY_QA_WEBSITE_ORIGIN": "https://flatkey.ai",
+        "FLATKEY_QA_CONSOLE_ORIGIN": "https://console.flatkey.ai",
+        "FLATKEY_QA_DOCS_ORIGIN": "https://docs.flatkey.ai",
+    },
 }
 _CLEANUP_REQUIRED_ENV = {
     "FLATKEY_QA_RUN_ID",
     "FLATKEY_QA_IDENTITY_SEED_B64",
+    "FLATKEY_QA_TARGET_ENVIRONMENT",
     "FLATKEY_QA_CONSOLE_ORIGIN",
     "FLATKEY_BROWSER_QA_GCS_BUCKET",
     "FLATKEY_BROWSER_QA_MAIN_EXECUTION_ID",
@@ -36,6 +46,7 @@ _GCS_BUCKET = re.compile(r"^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$")
 class RuntimeConfig:
     run_id: str
     mode: str
+    target_environment: str
     identity_seed: bytes
     gmail_base: str
     website_origin: str
@@ -50,6 +61,7 @@ class RuntimeConfig:
 @dataclass(frozen=True, repr=False)
 class CleanupConfig:
     run_id: str
+    target_environment: str
     identity_seed: bytes
     console_origin: str
     gcs_bucket: str
@@ -72,25 +84,21 @@ def load_config(env=None):
 
     run_id = _validate_run_id(env["FLATKEY_QA_RUN_ID"])
     mode = _validate_mode(env.get("FLATKEY_BROWSER_QA_MODE", "normal"))
+    target_environment, profile = _validate_target_profile(env["FLATKEY_QA_TARGET_ENVIRONMENT"])
 
-    origins = {name: env[name] for name in _ALLOWED_ORIGINS}
-    for name, expected in _ALLOWED_ORIGINS.items():
+    origins = {name: env[name] for name in profile}
+    for name, expected in profile.items():
         if origins[name] != expected:
             raise ValueError(f"{name} must be exactly {expected}")
 
     seed = _decode_identity_seed(env["FLATKEY_QA_IDENTITY_SEED_B64"])
 
-    policy = OriginPolicy.from_hosts(
-        [
-            "staging-website.flatkey.ai",
-            "staging-console.flatkey.ai",
-            "docs.flatkey.ai",
-        ]
-    )
+    policy = OriginPolicy.from_hosts(_profile_hosts(profile))
 
     return RuntimeConfig(
         run_id=run_id,
         mode=mode,
+        target_environment=target_environment,
         identity_seed=seed,
         gmail_base=env["FLATKEY_QA_GMAIL_BASE"],
         website_origin=origins["FLATKEY_QA_WEBSITE_ORIGIN"],
@@ -114,13 +122,15 @@ def load_cleanup_config(env=None):
     if extras:
         raise ValueError(f"unknown FLATKEY_QA_ or FLATKEY_BROWSER_QA_ environment variables: {', '.join(extras)}")
 
+    target_environment, profile = _validate_target_profile(env["FLATKEY_QA_TARGET_ENVIRONMENT"])
     console_origin = env["FLATKEY_QA_CONSOLE_ORIGIN"]
-    expected = _ALLOWED_ORIGINS["FLATKEY_QA_CONSOLE_ORIGIN"]
+    expected = profile["FLATKEY_QA_CONSOLE_ORIGIN"]
     if console_origin != expected:
         raise ValueError(f"FLATKEY_QA_CONSOLE_ORIGIN must be exactly {expected}")
 
     return CleanupConfig(
         run_id=_validate_run_id(env["FLATKEY_QA_RUN_ID"]),
+        target_environment=target_environment,
         identity_seed=_decode_identity_seed(env["FLATKEY_QA_IDENTITY_SEED_B64"]),
         console_origin=console_origin,
         gcs_bucket=_validate_gcs_bucket(env["FLATKEY_BROWSER_QA_GCS_BUCKET"]),
@@ -143,6 +153,16 @@ def _validate_mode(mode):
     if mode not in {"normal", "core"}:
         raise ValueError("FLATKEY_BROWSER_QA_MODE must be normal or core")
     return mode
+
+
+def _validate_target_profile(target_environment):
+    if target_environment not in _TARGET_PROFILES:
+        raise ValueError("FLATKEY_QA_TARGET_ENVIRONMENT must be staging or production")
+    return target_environment, _TARGET_PROFILES[target_environment]
+
+
+def _profile_hosts(profile):
+    return [urlsplit(origin).hostname for origin in profile.values()]
 
 
 def _decode_identity_seed(value):
