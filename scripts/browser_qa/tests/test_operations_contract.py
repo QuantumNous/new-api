@@ -204,7 +204,7 @@ def operations_text():
 def browser_qa_section():
     text = operations_text()
     match = re.search(
-        r"(?ms)^## Flatkey staging browser QA first-run and recovery runbook\n"
+        r"(?ms)^## Flatkey browser QA first-run, production caller, and recovery runbook\n"
         r"(?P<body>.*?)(?=^## [^\n]+\n|\Z)",
         text,
     )

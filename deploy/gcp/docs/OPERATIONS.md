@@ -293,9 +293,13 @@ To use Proxied for depth-3 names would require Total TLS ($10/mo) — previously
 
 ---
 
-## Flatkey staging browser QA first-run and recovery runbook
+## Flatkey browser QA first-run, production caller, and recovery runbook
 
-This runbook is for the isolated staging browser QA surface managed by `deploy/gcp/envs/browser-qa-staging` and `.github/workflows/gcp-browser-qa.yml`. It is separate from the production deploy path. Backend staging deploys call the same-commit reusable Browser QA workflow in `core` mode after the deploy job and health check pass; QA failures turn the Actions run red and leave the completed staging deployment unchanged.
+This runbook is for the Browser QA surface managed by `deploy/gcp/envs/browser-qa-staging` and `.github/workflows/gcp-browser-qa.yml`. The Terraform root remains the isolated Browser QA root; production does not add a second Cloud Run job, GCS bucket, service account, or Secret set. Staging and production callers reuse the same Browser QA Cloud Run broker/main/cleanup/candidate resources, report bucket, runtime service accounts, WIF provider, and GitHub/GCP Secret containers.
+
+Backend staging deploys call the same-commit reusable Browser QA workflow after the deploy job and health check pass with `target_environment: staging`, `mode: normal`, and `fail_on_findings: false`. Backend production console deploys call the same reusable workflow from `.github/workflows/gcp-deploy.yml` in the `browser-qa-production` job. That caller has `needs: deploy-console`, passes `target_environment: production`, `mode: normal`, and `fail_on_findings: false`, and starts only after the approved `newapi-console` production deployment has completed. It does not depend on `deploy-router`; it does not change Cloud Run traffic; it has no rollback permission.
+
+Production Browser QA is alert-only. If replay, AI exploration, cleanup, candidate validation, infrastructure, or a product finding fails, the workflow sends the sanitized Chinese DingTalk terminal report and may mark the downstream QA job red for investigation. It never rolls back the already-completed production deployment. The website production workflow (`.github/workflows/gcp-deploy-website.yml`) is not wired to Browser QA in this phase.
 
 Operator rules:
 
@@ -327,12 +331,23 @@ These names are the implementation contract as of this Terraform root:
 | Runtime service accounts | `flatkey-browser-qa-runtime@vocai-gemini-prod.iam.gserviceaccount.com`, `flatkey-browser-qa-broker@vocai-gemini-prod.iam.gserviceaccount.com`, `flatkey-browser-qa-cleanup@vocai-gemini-prod.iam.gserviceaccount.com`, `flatkey-browser-qa-deployer@vocai-gemini-prod.iam.gserviceaccount.com` |
 | Workload Identity Federation pool/provider | `flatkey-browser-qa-github` / `staging` (global) |
 | GitHub workflow | `.github/workflows/gcp-browser-qa.yml` |
-| Workflow modes | `core`, `normal`, `cleanup-only` |
+| Workflow modes | `core`, `normal`, `cleanup-only`, `promotion-only` |
+| Staging caller | `.github/workflows/gcp-deploy-staging.yml` job `browser-qa-normal`, `target_environment: staging`, `mode: normal`, `fail_on_findings: false` |
+| Production caller | `.github/workflows/gcp-deploy.yml` job `browser-qa-production`, `needs: deploy-console`, `target_environment: production`, `mode: normal`, `fail_on_findings: false` |
 | Non-committed GitHub variable | `GCP_BROWSER_QA_AR_REPO_URL` |
 | Non-committed GitHub variable | `GCP_BROWSER_QA_WIF_PROVIDER` |
 | Non-committed GitHub variable | `GCP_BROWSER_QA_DEPLOYER_SA` |
 | Non-committed GitHub variable | `GCP_BROWSER_QA_GCS_BUCKET` |
 | Non-committed GitHub variable | `GCP_BROWSER_QA_GMAIL_BASE` |
+
+### Production caller safety contract
+
+- `target_environment` is a closed workflow input. The reusable workflow accepts only `staging` or `production`.
+- Callers pass only the target profile name. Origins are derived inside `.github/workflows/gcp-browser-qa.yml` and injected into Cloud Run as execution-scoped environment variables: staging maps to `https://staging-website.flatkey.ai`, `https://staging-console.flatkey.ai`, and `https://docs.flatkey.ai`; production maps to `https://flatkey.ai`, `https://console.flatkey.ai`, and `https://docs.flatkey.ai`.
+- Runtime config validates that the injected origins exactly match the selected profile. Arbitrary origins, mixed staging/production origins, `http`, ports, queries, and fragments fail closed.
+- `proposed_case` still uses the closed fixed-case origin enum (`staging_website`, `staging_console`, `docs`) as logical labels. Those labels resolve to the execution-scoped target profile; they are not a way for the model or caller to pass raw URLs.
+- Production Turnstile is normal product behavior. Browser QA may report `human_verification_blocked` when Turnstile blocks automation, but it must not bypass, forge, replay, outsource, or solve a challenge. Turnstile tokens and verification details must not appear in logs, GCS manifests, GitHub summaries, artifacts, or DingTalk.
+- Production rollback for this feature is only removing or disabling the `browser-qa-production` caller job in `.github/workflows/gcp-deploy.yml`. Do not roll back Cloud Run traffic, remove IAM, mutate Secrets, or destroy Terraform resources for this feature rollback.
 
 ### 1. Phase A: authenticated refreshing infrastructure plan review
 

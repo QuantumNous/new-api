@@ -387,6 +387,9 @@
         <div class="callout">
           <strong>参考项目最新验收：</strong>Flatkey staging run <a href="https://github.com/SolveaCX/new-api/actions/runs/31475296929">31475296929</a> 在提交 <code>dc9fb416a36d4c239369f8f4a84d850b28e94636</code> 上完成自动 <code>normal</code> 链路，workflow 结论为 success。root manifest 为 <code>findings_detected</code>，replay、fixed cases、15 次 exploration、cleanup 和中文钉钉通知均通过；受控 UI/network coverage candidate <code>FQA-062169633278</code> 在线上三次 attempt 全部 passed 并聚合为 <code>ready_for_review</code>。自动 run 本身 root candidates 为 0，因此 Draft PR 真实创建仍未触发。
         </div>
+        <div class="callout warn">
+          <strong>本分支生产接线口径：</strong>Flatkey 后端 production 已在 <code>gcp-deploy.yml</code> 增加 <code>browser-qa-production</code> caller。它只在 <code>deploy-console</code> 完成后运行，传入 <code>target_environment: production</code>、<code>mode: normal</code> 和 <code>fail_on_findings: false</code>；复用同一套 Browser QA Cloud Run / GCS / service account / Secret；只发中文钉钉告警和 GitHub Run 直达链接，不回滚生产。官网 production workflow 尚未接入。
+        </div>
       </header>
 
       <section id="scope">
@@ -411,6 +414,9 @@
         </div>
         <div class="callout warn">
           <strong>迁移原则：</strong>先让 replay 严格稳定，再增加 AI 发散。核心流程失败时，只做诊断和证据采集，不进入广泛探索。
+        </div>
+        <div class="callout">
+          <strong>从 0 到上线的最短路径：</strong>先准备独立 QA 基础设施和 secret 容器；再录制 replay 并跑 <code>core</code>；然后开启 <code>normal</code>，让 AI 在预算内探索并输出 nullable closed <code>proposed_case</code>；候选三次通过后只生成 Draft PR；最后把 staging/main caller 接到发布后 alert-only 链路。所有示例都使用占位符，不能写真实 key、webhook、OAuth JSON、access token 或 refresh token。
         </div>
       </section>
 
@@ -1160,7 +1166,7 @@ QA_DEPLOYER_SERVICE_ACCOUNT=QA_DEPLOYER_SERVICE_ACCOUNT</code></pre>
         <ul>
           <li>每次 run 使用一次性身份，使用 HMAC(seed, run_id) 派生 username、email tag 和 password。</li>
           <li>报告只保存 run-scoped 标识，不保存完整邮箱、密码、验证码、Cookie 或完整 key。</li>
-          <li>浏览器允许访问 staging origin 和只读 docs origin；生产、metadata、RFC1918、localhost、非 HTTPS 默认拒绝。</li>
+          <li>浏览器只允许访问执行作用域的闭合 target profile 和只读 docs origin；profile 之外的生产域名、metadata、RFC1918、localhost、非 HTTPS 默认拒绝。</li>
           <li>截图前遮罩 input、textarea、contenteditable、验证码字段、已知 secret 和完整 alias。</li>
           <li>私有报告存储设置最短可接受生命周期，例如 7 到 14 天；不要把报告复制到 issue 或聊天。</li>
           <li>候选 PR artifact 只能包含 sanitized candidate bundle；token、OAuth、webhook、验证码、cookie、Authorization、完整邮箱和完整 API key 永不进入 artifact。</li>
@@ -1282,6 +1288,9 @@ resource "cloud_oidc_trust" "github_actions" {}</code></pre>
 
       <section id="steps">
         <h2>16. 迁移步骤与分阶段 Checklist</h2>
+        <div class="callout">
+          <strong>新手时序：</strong>先准备独立 QA 基础设施和 Secret 容器；再录制一条能清理的 onboarding replay；然后在 staging 手动跑 <code>core</code>，确认 replay 与 cleanup；再接入 staging push 后的 <code>normal</code>；最后才把 main production console deploy 后的 <code>normal</code> 作为 alert-only caller 接上。production website 是另一条 workflow，未接入前不要把它算进 Browser QA 覆盖。
+        </div>
         <section>
           <h3>准备阶段</h3>
           <ul class="checklist">
@@ -1299,6 +1308,7 @@ resource "cloud_oidc_trust" "github_actions" {}</code></pre>
             <li>把项目名、域名、个人邮箱、绝对路径和真实资源名替换为占位符。</li>
             <li>将验证码、OAuth、第三方回调接入 broker，而不是暴露给模型。</li>
             <li>在本地或隔离 runner 中验证 replay 可达 checkpoint。</li>
+            <li>给 replay 写清 cleanup 输入：账号、API key、临时 workspace 或其他测试资源必须能从原始 run id 重新定位。</li>
           </ul>
         </section>
         <section>
@@ -1309,6 +1319,7 @@ resource "cloud_oidc_trust" "github_actions" {}</code></pre>
             <li>启用私有报告 bucket，设置生命周期删除和 public access prevention。</li>
             <li>部署 candidate attempt 入口，并让 main/normal 能产生 sanitized candidate bundle。</li>
             <li>先运行 core，cleanup 成功后再运行 normal；normal 必须包含完整 core。</li>
+            <li>确保终态通知包含中文产品状态、候选状态、GCS manifest URI 和可点击的 GitHub Actions Run 直达链接。</li>
           </ul>
         </section>
         <section>
@@ -1322,12 +1333,17 @@ resource "cloud_oidc_trust" "github_actions" {}</code></pre>
           </ul>
         </section>
         <section>
-          <h3>推广阶段</h3>
+          <h3>staging / main 推广阶段</h3>
           <ul class="checklist">
-            <li>连续多次 core 通过后，把 staging pipeline trigger 接入只告警模式。</li>
+            <li>连续多次 <code>core</code> 通过后，把 staging pipeline 接入 <code>normal</code> 只告警模式：部署和健康检查完成后调用 Browser QA，失败只让 QA job 告警，不回滚 staging。</li>
+            <li>main 后端生产接线只放在 console 部署下游：production caller 必须 <code>needs: deploy-console</code>，并传 <code>target_environment: production</code>、<code>mode: normal</code>、<code>fail_on_findings: false</code>。</li>
+            <li>production caller 复用已有 Browser QA Cloud Run / GCS / service account / Secret；caller 只能选择闭合 target profile，origin 由执行作用域注入，不能从手工输入或模型输出传任意 URL。</li>
+            <li>如果 production Turnstile 阻止自动化，记录 <code>human_verification_blocked</code> 并继续发送终态报告；不要绕过、伪造、重放、外包或求解挑战。</li>
+            <li>官网 production workflow 未接入前，保持文档和通知口径为“后端 console production QA 已接线，website production QA 尚未接线”。</li>
             <li>探索 finding 先人工 triage，再转成确定性回归测试。</li>
             <li>建立 cleanup-only 和 promotion-only runbook，要求使用原始 run id。</li>
             <li>每次扩大触发范围前，复查成本、配额和误报率。</li>
+            <li>需要回滚 Browser QA 生产接线时，只移除或禁用 <code>gcp-deploy.yml</code> 的 production caller；不要回滚业务流量、删 IAM、改 Secret 或销毁 Terraform。</li>
           </ul>
         </section>
       </section>
@@ -1338,7 +1354,7 @@ resource "cloud_oidc_trust" "github_actions" {}</code></pre>
           <h3>验收标准</h3>
           <ul>
             <li>核心 replay 每一步都有可验证断言，不依赖坐标。</li>
-            <li>AI 无法访问生产 origin、metadata、内网和未授权 docs context。</li>
+            <li>AI 无法访问执行作用域 target profile 之外的生产 origin、metadata、内网和未授权 docs context。</li>
             <li>broker 拒绝匿名调用和越权身份，且只返回当前 run 的最小结果。</li>
             <li>报告私有、脱敏、路径白名单生效，manifest 最后上传。</li>
             <li>main 失败、模型超时、workflow 取消后，cleanup-only 能用原始 run id 恢复。</li>
@@ -1357,7 +1373,7 @@ resource "cloud_oidc_trust" "github_actions" {}</code></pre>
             <li>Sanitized artifact 不含真实 API key、OAuth token、邮箱地址、验证码、cookie、Authorization、webhook 或 signing secret。</li>
             <li>私有 evidence URI 不公开；PR 正文只引用 URI 和摘要。</li>
             <li>所有 fixed-case locator 使用 role、label、visible text 或 test id；不允许坐标、任意 CSS/XPath、JS、shell。</li>
-            <li>所有生产 origin、metadata、localhost、RFC1918、非 HTTPS、支付、订阅、管理员和真实写操作默认拒绝。</li>
+            <li>除执行作用域的闭合 production profile 外，所有生产 origin、metadata、localhost、RFC1918、非 HTTPS、支付、订阅、管理员和真实写操作默认拒绝。</li>
           </ul>
         </section>
         <section>
@@ -1370,6 +1386,7 @@ resource "cloud_oidc_trust" "github_actions" {}</code></pre>
               <tr><td>broker OAuth 失效</td><td>暂停 normal，轮换 OAuth secret 后跑 core。</td><td>不盲目重试。</td></tr>
               <tr><td>cleanup_failed</td><td>运行 cleanup-only；仍失败则人工按 run id 查私有报告。</td><td>保留证据直到处理完成。</td></tr>
               <tr><td>candidate-pr bot 异常</td><td>保留 sanitized artifact 和私有 manifest，修权限后运行 promotion-only。</td><td>不重跑探索，不手工复制 secret 到 PR。</td></tr>
+              <tr><td>production caller 需要回滚</td><td>只移除或禁用后端部署 workflow 里的 Browser QA production caller。</td><td>保留共享 Cloud Run、GCS、service account、Secret 和 staging QA 能力。</td></tr>
               <tr><td>需要撤销整套 QA</td><td>先停触发，再按 IaC 审批销毁 QA 专属资源。</td><td>不要用手工删除制造 drift。</td></tr>
             </tbody>
           </table>

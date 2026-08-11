@@ -270,7 +270,7 @@
     <article>
       <section id="scope">
         <h2>1. 目标与范围</h2>
-        <p>Browser QA 的目标是在 staging 环境中自动复现新用户 onboarding 主路径，并在主路径成功后执行有边界的 UI / console / network 探索。它不改变生产发布链路，不访问 production Flatkey origin，不做付费、订阅、邀请、真实模型调用或管理员操作。</p>
+        <p>Browser QA 的目标是在受控目标环境中自动复现新用户 onboarding 主路径，并在主路径成功后执行有边界的 UI / console / network 探索。staging 链路用于验证能力；production 链路只在 <code>gcp-deploy.yml</code> 的 <code>deploy-console</code> 完成后运行 <code>normal</code> alert-only 检查。它不做付费、订阅、邀请、真实模型调用、管理员操作或自动回滚。</p>
         <table>
           <thead><tr><th scope="col">范围内</th><th scope="col">范围外</th></tr></thead>
           <tbody>
@@ -284,13 +284,19 @@
             </tr>
           </tbody>
         </table>
-        <p>主要落点：<code>.github/workflows/gcp-browser-qa.yml</code>、<code>.github/workflows/gcp-deploy-staging.yml</code>、<code>scripts/browser_qa/</code>、<code>deploy/gcp/envs/browser-qa-staging/</code>、<code>deploy/gcp/docs/OPERATIONS.md</code>。</p>
+        <p>主要落点：<code>.github/workflows/gcp-browser-qa.yml</code>、<code>.github/workflows/gcp-deploy-staging.yml</code>、<code>.github/workflows/gcp-deploy.yml</code>、<code>scripts/browser_qa/</code>、<code>deploy/gcp/envs/browser-qa-staging/</code>、<code>deploy/gcp/docs/OPERATIONS.md</code>。</p>
       </section>
 
       <section id="status">
         <h2>2. 状态边界：代码事实 vs 实时部署</h2>
         <div class="fact">
           <strong>代码已实现：</strong>仓库中已有 reusable Browser QA workflow、staging deploy 后自动调用 <code>browser-qa-normal</code> / <code>mode: normal</code> / <code>fail_on_findings: false</code>、QA 容器入口、supervisor、broker、cleanup、evidence upload、独立 Terraform root、phase-aware plan guard、candidate job、promotion 聚合、candidate-pr Draft PR job、钉钉中文摘要和相关 contract tests。
+        </div>
+        <div class="fact">
+          <strong>production caller 已接线：</strong><code>.github/workflows/gcp-deploy.yml</code> 中的 <code>browser-qa-production</code> job 依赖 <code>deploy-console</code>，调用同仓 <code>gcp-browser-qa.yml</code>，传入 <code>target_environment: production</code>、<code>mode: normal</code> 和 <code>fail_on_findings: false</code>。它复用现有 Browser QA Cloud Run、GCS、service account、WIF provider 与 Secret 容器，不新增生产专属 QA 基础设施。
+        </div>
+        <div class="warning">
+          <strong>生产边界：</strong>production Browser QA 只告警，不阻塞或回滚已完成的 console 部署；回滚此功能只需要移除或禁用 <code>browser-qa-production</code> caller。Turnstile 可以被记录为 <code>human_verification_blocked</code>，但不得绕过、伪造、重放、外包或求解挑战。官网 production workflow <code>gcp-deploy-website.yml</code> 尚未接入 Browser QA。
         </div>
         <div class="fact">
           <strong>实时 staging 已验证：</strong>2026-08-11 的 staging push run <code>31475296929</code> 在提交 <code>dc9fb416a36d4c239369f8f4a84d850b28e94636</code> 上完成 build、deploy、<code>normal</code> replay、固定用例、15 次受控 AI exploration、独立 cleanup、GCS manifest、候选校验和中文钉钉通知；顶层 workflow 为 success。最终业务状态是 <code>findings_detected</code>，因 <code>fail_on_findings: false</code> 只告警、不回滚 staging。
@@ -446,7 +452,7 @@ gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/candidates/89
           </svg>
         </div>
         <h3>给新同学看的端到端顺序图</h3>
-        <p>下面这张图按真实执行顺序读：上面是发布和调度，左侧是主测试任务，中间是模型和浏览器，右侧是验证码、报告和清理。最新代码边界是 <strong>staging only</strong>；staging deploy 当前自动调用 <code>normal</code>，且 <code>normal</code> 一定先跑完整 <code>core_body</code>，再进入只读发散，所以 <strong>core ⊂ normal</strong>。<code>core</code> 仍可人工 dispatch，用于只验证固定主路径。</p>
+        <p>下面这张图按真实执行顺序读：上面是发布和调度，左侧是主测试任务，中间是模型和浏览器，右侧是验证码、报告和清理。最新代码边界是 staging 已验证、production console 下游 alert-only 已接线；staging deploy 和 production console deploy 都自动调用 <code>normal</code>，且 <code>normal</code> 一定先跑完整 <code>core_body</code>，再进入只读发散，所以 <strong>core ⊂ normal</strong>。<code>core</code> 仍可人工 dispatch，用于只验证固定主路径。</p>
         <ul class="flow-legend" aria-label="箭头类型说明">
           <li><span class="swatch"></span>控制流</li>
           <li><span class="swatch model"></span>模型 API 流</li>
@@ -762,12 +768,13 @@ promotion:
             <path class="line" d="M577 215 H628"/>
           </svg>
         </div>
-        <p>QA 失败会让 Actions run 变红用于告警和排查，但 workflow 没有回滚已经完成的 staging 部署，也不触发 production 或 main 发布路径。</p>
+        <p>staging QA 失败会让 Actions run 变红用于告警和排查，但 workflow 没有回滚已经完成的 staging 部署。production QA 是 <code>gcp-deploy.yml</code> 的独立下游 caller，只在 <code>deploy-console</code> 完成后运行，不会触发新的 production 发布路径或修改流量。</p>
       </section>
 
       <section id="actions-wif">
         <h2>7. GitHub Actions / Workload Identity Federation</h2>
         <p><code>gcp-browser-qa.yml</code> 支持 <code>workflow_dispatch</code> 与 <code>workflow_call</code>，输入模式为 <code>normal</code>、<code>core</code>、<code>cleanup-only</code>、<code>promotion-only</code>。主 <code>browser-qa</code> job 权限最小化为 <code>contents: read</code> 和 <code>id-token: write</code>，通过 QA 专用 WIF provider 和 deployer service account 访问 GCP。</p>
+        <p>调用方不能直接传任意 origin。调用方只传 <code>target_environment</code>；reusable workflow 在一次执行内解析目标 profile，并把精确 origin 注入到 Cloud Run：staging 是 <code>https://staging-website.flatkey.ai</code> / <code>https://staging-console.flatkey.ai</code> / <code>https://docs.flatkey.ai</code>，production 是 <code>https://flatkey.ai</code> / <code>https://console.flatkey.ai</code> / <code>https://docs.flatkey.ai</code>。runtime 再次校验注入值必须与所选 profile 完全一致，混用环境、HTTP、端口、query 或 fragment 都 fail closed。</p>
         <pre><code>permissions:
   contents: read
   id-token: write
@@ -792,6 +799,30 @@ env:
               <td><code>contents: write</code> + <code>pull-requests: write</code></td>
               <td>只消费 <code>browser-qa-candidate-pr-bundles</code> 这个 sanitized artifact，按 fingerprint upsert Draft PR。</td>
               <td>没有 GCP/WIF 凭证，不读取 Secret Manager，不下载私有 GCS evidence，不调用 merge endpoint。</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>Staging 与 main production 调用时序</h3>
+        <table>
+          <thead><tr><th scope="col">入口</th><th scope="col">调用时机</th><th scope="col">Browser QA 输入</th><th scope="col">结果语义</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>gcp-deploy-staging.yml</code></td>
+              <td>push <code>staging</code> 后，后端部署和 <code>/api/status</code> 健康检查通过。</td>
+              <td><code>target_environment: staging</code>、<code>mode: normal</code>、<code>fail_on_findings: false</code></td>
+              <td>只告警；不自动回滚 staging。</td>
+            </tr>
+            <tr>
+              <td><code>gcp-deploy.yml</code></td>
+              <td>push <code>main</code> 或手动生产后端部署；<code>deploy-console</code> 经 <code>production-console</code> 审批并完成后。</td>
+              <td><code>target_environment: production</code>、<code>mode: normal</code>、<code>fail_on_findings: false</code></td>
+              <td>只发中文钉钉终态报告和 GitHub run 链接；不阻塞、不回滚已完成的 console 部署。</td>
+            </tr>
+            <tr>
+              <td><code>gcp-deploy-website.yml</code></td>
+              <td>官网生产部署。</td>
+              <td>本阶段没有 Browser QA caller。</td>
+              <td>尚未接入；不要把后端生产 QA 结果解释成官网生产 QA。</td>
             </tr>
           </tbody>
         </table>
@@ -912,11 +943,11 @@ candidate -&gt; python3 -m scripts.browser_qa.flatkey_browser_qa.candidate_job</
           </div>
           <div class="mini">
             <h3>Egress allowlist</h3>
-            <p>可写浏览仅允许 <code>staging-website.flatkey.ai</code> 和 <code>staging-console.flatkey.ai</code>；docs 通过 cookie-free docs-only context 只读访问 <code>docs.flatkey.ai</code>。</p>
+            <p>可写浏览仅允许当前执行作用域的 target profile：staging 使用 <code>staging-website.flatkey.ai</code> / <code>staging-console.flatkey.ai</code>，production 使用 <code>flatkey.ai</code> / <code>console.flatkey.ai</code>；docs 通过 cookie-free docs-only context 只读访问 <code>docs.flatkey.ai</code>。</p>
           </div>
           <div class="mini">
             <h3>拒绝目标</h3>
-            <p>生产 Flatkey origin、localhost、GCP metadata、link-local、RFC1918、literal IP、非 HTTP(S)、不可信 redirect、绕过 proxy 的路径均拒绝。</p>
+            <p>除当前执行作用域闭合 profile 中的精确 Flatkey origin 外，其他生产 Flatkey origin、localhost、GCP metadata、link-local、RFC1918、literal IP、非 HTTP(S)、不可信 redirect、绕过 proxy 的路径均拒绝。</p>
           </div>
         </div>
         <p>非交互运行时没有人工审批弹窗；因此全局审批策略保持 <code>never</code>，只对四个专用 MCP server 写入 <code>default_tools_approval_mode = "approve"</code>，并且每个 server 都必须有精确 <code>enabled_tools</code>。禁止 wildcard、<code>yolo</code>、<code>danger-full-access</code> 或任何会让模型获得任意工具/任意文件/任意网络访问的配置。</p>
@@ -946,7 +977,7 @@ python3 scripts/browser_qa/terraform_plan_guard.py --phase workloads &lt;plan.js
       <section id="observability">
         <h2>14. 可观测性、中文钉钉与仅告警策略</h2>
         <p>最终状态优先级由代码定义：<code>cleanup_failed</code> &gt; <code>infrastructure_failed</code> &gt; <code>replay_failed</code> &gt; <code>findings_detected</code> &gt; <code>passed</code>。GitHub Summary 展示状态、replay/exploration 摘要、finding 数量、cleanup 状态和私有 GCS URI。</p>
-        <p>当前每次 Browser QA 都会在终态向钉钉发送一份脱敏中文报告；通过、回放失败、发现问题、清理失败、基础设施失败和候选固化异常都会通知。GitHub Actions 只在通知步骤临时注入 webhook 与机器人加签密钥，并按钉钉要求为每次请求生成毫秒时间戳和 HMAC-SHA256 签名；这些密钥、签名、测试邮箱、验证码和 API Key 都不会进入报告或日志。通知仍然只是告警，不会自动 rollback staging，也不会改动 main/production。本轮 run <code>31475296929</code> 的通知步骤日志包含 <code>DINGTALK_NOTIFICATION_SENT</code>，消息为中文模板，并直接链接到该 GitHub Actions run。</p>
+        <p>当前每次 Browser QA 都会在终态向钉钉发送一份脱敏中文报告；通过、回放失败、发现问题、清理失败、基础设施失败和候选固化异常都会通知。GitHub Actions 只在通知步骤临时注入 webhook 与机器人加签密钥，并按钉钉要求为每次请求生成毫秒时间戳和 HMAC-SHA256 签名；这些密钥、签名、测试邮箱、验证码和 API Key 都不会进入报告或日志。通知仍然只是告警，不会自动 rollback staging 或 production，也不会改动 Cloud Run traffic。本轮 run <code>31475296929</code> 的通知步骤日志包含 <code>DINGTALK_NOTIFICATION_SENT</code>，消息为中文模板，并直接链接到该 GitHub Actions run。</p>
         <div class="warning">
           <strong>双层摘要：</strong>钉钉同时展示产品状态和候选状态。产品 <code>passed</code> 只表示 replay/fixed cases/cleanup/report 主状态通过；如果候选状态是 <code>cleanup_failed</code>、<code>infrastructure_failed</code>、<code>promotion_failed</code> 或 <code>unknown</code>，消息标题和 final gate 仍按候选异常处理，不能被产品通过掩盖。每个 workflow 终态只发一条钉钉消息，不为三次 attempt 分别刷屏。
         </div>
@@ -988,7 +1019,7 @@ python scripts/browser_qa/terraform_plan_guard.py --help</code></pre>
         <table>
           <thead><tr><th scope="col">步骤</th><th scope="col">要做什么</th><th scope="col">成功标准</th></tr></thead>
           <tbody>
-            <tr><td>1. 账号和范围</td><td>确认云账号、GitHub 仓库权限、staging 分支、项目 ID、region、staging website/console/docs origin。</td><td>没有 production 写路径进入 allowlist。</td></tr>
+            <tr><td>1. 账号和范围</td><td>确认云账号、GitHub 仓库权限、staging/main 分支、项目 ID、region、staging 与 production 的 website/console/docs target profile。</td><td>origin 只从闭合 target profile 注入；没有任意 production 写路径进入 allowlist。</td></tr>
             <tr><td>2. API</td><td>开启 Artifact Registry、Cloud Run、Secret Manager、IAM Credentials、Cloud Storage、Cloud Logging、WIF 所需 API。</td><td>API enable 命令成功，未创建 workload。</td></tr>
             <tr><td>3. Terraform 独立 root/state</td><td>进入 <code>deploy/gcp/envs/browser-qa-staging/</code>，使用独立 backend prefix；不要混入主 infra root。</td><td>plan 只出现 Browser QA 专属地址和 <code>browser_qa_*</code> outputs。</td></tr>
             <tr><td>4. Phase A</td><td>生成 saved plan，导出 JSON，记录 hash，运行 <code>terraform_plan_guard.py --phase infra</code>；人工审批后才单独 apply 同一个 saved plan。</td><td>Artifact Registry、GCS bucket、Secret containers、service accounts、WIF、IAM 元数据存在。</td></tr>
@@ -997,9 +1028,10 @@ python scripts/browser_qa/terraform_plan_guard.py --help</code></pre>
             <tr><td>7. GitHub 接线</td><td>写入 WIF provider、deployer service account、AR repo、GCS bucket、region、project、staging base email 等 vars；写入 DingTalk webhook/signing secret 到 GitHub Secrets。</td><td>浏览器 QA workflow 只拿到必要 vars/secrets。</td></tr>
             <tr><td>8. 构建镜像</td><td>自动 staging 链路或手动 dispatch 都会让 workflow 执行 unit/contract tests、docker build、container smoke、MCP attach smoke、push image。</td><td>镜像非 root，Codex/Playwright MCP 可启动。</td></tr>
             <tr><td>9. staging workflow 接线</td><td>staging deploy 成功并通过 <code>/api/status</code> 后调用 <code>gcp-browser-qa.yml</code>，当前自动输入是 <code>mode: normal</code> 与 <code>fail_on_findings: false</code>。</td><td>失败只影响 QA 告警，不自动 rollback staging。</td></tr>
-            <tr><td>10. 首跑验收</td><td>验证自动 <code>normal</code> 跑完完整 <code>core_body</code>、探索、candidate 三次 execution、sanitized artifact、candidate-pr Draft PR、钉钉摘要；需要隔离 replay 时再人工 dispatch <code>core</code>。</td><td>真实 staging 验收完成后，才能更新文档为“已跑通”。</td></tr>
-            <tr><td>11. 恢复和回滚</td><td><code>cleanup-only</code> 用原始 run id 清理；<code>promotion-only</code> 用原始 run id 重建候选 PR artifact；撤销时先停触发，再按 IaC 销毁 QA 专属资源。</td><td>不会用手工删除制造 drift。</td></tr>
-            <tr><td>12. 撤销临时权限</td><td>首跑结束后移除临时 owner/editor、临时本机凭证和一次性审批权限。</td><td>只保留 workflow 所需最小权限。</td></tr>
+            <tr><td>10. production caller 接线</td><td>在 <code>gcp-deploy.yml</code> 中让 <code>browser-qa-production</code> 依赖 <code>deploy-console</code>，传入 <code>target_environment: production</code>、<code>mode: normal</code>、<code>fail_on_findings: false</code>。</td><td>复用已有 QA Cloud Run / GCS / SA / Secret；只告警，不回滚生产；官网 production workflow 仍未接入。</td></tr>
+            <tr><td>11. 首跑验收</td><td>验证自动 <code>normal</code> 跑完完整 <code>core_body</code>、探索、candidate 三次 execution、sanitized artifact、candidate-pr Draft PR、钉钉摘要和 GitHub Run 直达链接；需要隔离 replay 时再人工 dispatch <code>core</code>。</td><td>真实环境验收完成后，才能更新文档为“已跑通”。</td></tr>
+            <tr><td>12. 恢复和回滚</td><td><code>cleanup-only</code> 用原始 run id 清理；<code>promotion-only</code> 用原始 run id 重建候选 PR artifact；production caller 回滚只移除或禁用 <code>browser-qa-production</code>。</td><td>不会用手工删除制造 drift；不会为 caller 回滚销毁共享 QA 资源。</td></tr>
+            <tr><td>13. 撤销临时权限</td><td>首跑结束后移除临时 owner/editor、临时本机凭证和一次性审批权限。</td><td>只保留 workflow 所需最小权限。</td></tr>
           </tbody>
         </table>
         <div class="warning">
@@ -1042,6 +1074,7 @@ python ../../../../scripts/browser_qa/terraform_plan_guard.py --phase workloads 
           <tbody>
             <tr><td><code>.github/workflows/gcp-browser-qa.yml</code></td><td>主 workflow：core/normal/cleanup-only/promotion-only、DingTalk、candidate validation、candidate-pr job。</td></tr>
             <tr><td><code>.github/workflows/gcp-deploy-staging.yml</code></td><td>staging 部署成功并 health check 后接入 <code>browser-qa-normal</code>，传入 <code>mode: normal</code> 与 <code>fail_on_findings: false</code>。</td></tr>
+            <tr><td><code>.github/workflows/gcp-deploy.yml</code></td><td>production console 部署完成后接入 <code>browser-qa-production</code>，依赖 <code>deploy-console</code>，传入 <code>target_environment: production</code>、<code>mode: normal</code> 与 <code>fail_on_findings: false</code>。</td></tr>
             <tr><td><code>scripts/browser_qa/config/qa-prompt.md</code></td><td>record/replay、normal 包含 core、AI 发散和 <code>proposed_case</code> 约束。</td></tr>
             <tr><td><code>scripts/browser_qa/config/result.schema.json</code></td><td>结果 schema，包含 <code>findings</code> 与 <code>coverage_candidates</code>。</td></tr>
             <tr><td><code>scripts/browser_qa/config/fixed_case.schema.json</code></td><td>结构化 fixed case YAML 契约。</td></tr>
@@ -1089,11 +1122,11 @@ gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/main/main-314
         <ul>
           <li>真实 staging 主链路已经由 run <code>31475296929</code> 跑通；自动 run 的 root candidates 为 0，所以 candidate-pr/Draft PR 创建和人工 merge 后进入下一次 core 尚未在本次运行中触发。</li>
           <li>受控 UI/network candidate 已在线上三次独立 Cloud Run attempt 通过并聚合为 <code>ready_for_review</code>；这证明 candidate runtime/聚合路径可用，但不等于自动探索已经真实创建 Draft PR。</li>
-          <li>当前自动接线只在 staging deploy 成功后跑 <code>normal</code>，并设置 <code>fail_on_findings: false</code>；<code>core</code>、<code>cleanup-only</code> 和 <code>promotion-only</code> 仍是人工诊断或恢复入口。</li>
+          <li>当前自动接线包括 staging deploy 后的 <code>browser-qa-normal</code>，以及 production console deploy 后的 <code>browser-qa-production</code>；两者都跑 <code>normal</code> 且 <code>fail_on_findings: false</code>。<code>core</code>、<code>cleanup-only</code> 和 <code>promotion-only</code> 仍是人工诊断或恢复入口。</li>
           <li>Gmail OAuth 外部 Testing token 可能过期；runbook 要求发布 OAuth app、重新授权并旋转 Secret 后再证明长期可重复。</li>
           <li>cleanup 依赖产品现有自助删除语义，不做数据库级 hard purge。</li>
           <li>探索预算固定为 5 分钟或 30 个 browser action；更广泛 AI 发散或更多候选 DSL 能力需要更新 policy、tests 和告警边界。</li>
-          <li>Browser QA 仅针对 staging onboarding，不覆盖付费、订阅、邀请、管理员、生产数据或真实模型调用。</li>
+          <li>Production Browser QA 仅覆盖 console onboarding 的 alert-only 检查；不覆盖官网生产 workflow、付费、订阅、邀请、管理员、生产数据变更或真实模型调用。</li>
         </ul>
       </section>
     </article>
