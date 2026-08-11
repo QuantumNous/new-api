@@ -138,7 +138,9 @@ class EgressProxy:
         max_tunnel_bytes=16 * 1024 * 1024,
         timeout=5,
     ):
-        self.policy = policy or EgressPolicy.from_file()
+        if policy is None:
+            raise ValueError("egress proxy requires an explicit policy")
+        self.policy = policy
         self.resolver = resolver
         self.connector = connector or open_verified_socket
         self.host = host

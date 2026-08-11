@@ -72,6 +72,7 @@ def candidate_env():
         "BROWSER_QA_ATTEMPT_ID": "attempt-0001",
         "FLATKEY_QA_RUN_ID": "123456789",
         "FLATKEY_BROWSER_QA_GCS_BUCKET": "flatkey-browser-qa-private",
+        "FLATKEY_QA_TARGET_ENVIRONMENT": "staging",
         "FLATKEY_QA_WEBSITE_ORIGIN": "https://staging-website.flatkey.ai",
         "FLATKEY_QA_CONSOLE_ORIGIN": "https://staging-console.flatkey.ai",
     }

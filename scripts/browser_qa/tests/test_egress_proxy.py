@@ -110,6 +110,10 @@ class EgressPolicyTests(unittest.TestCase):
         self.assertFalse(writable.is_allowed_host("staging-console.flatkey.ai"))
         self.assertEqual(read_only.allowed_hosts, frozenset({"docs.flatkey.ai"}))
 
+    def test_proxy_requires_explicit_policy(self):
+        with self.assertRaises(ValueError):
+            egress_proxy.EgressProxy()
+
     def test_dns_resolution_fails_closed_on_any_private_answer_and_uses_verified_sockaddr(self):
         policy = egress_proxy.EgressPolicy({"staging-console.flatkey.ai"})
 

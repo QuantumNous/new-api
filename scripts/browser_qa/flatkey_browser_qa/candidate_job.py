@@ -43,8 +43,21 @@ ALLOWED_CANDIDATE_ENV_KEYS = frozenset({
     "FLATKEY_QA_GMAIL_BASE",
     "FLATKEY_QA_IDENTITY_SEED_B64",
     "FLATKEY_QA_RUN_ID",
+    "FLATKEY_QA_TARGET_ENVIRONMENT",
     "FLATKEY_QA_WEBSITE_ORIGIN",
 })
+CANDIDATE_TARGET_PROFILES = {
+    "staging": {
+        "FLATKEY_QA_WEBSITE_ORIGIN": "https://staging-website.flatkey.ai",
+        "FLATKEY_QA_CONSOLE_ORIGIN": "https://staging-console.flatkey.ai",
+        "FLATKEY_QA_DOCS_ORIGIN": "https://docs.flatkey.ai",
+    },
+    "production": {
+        "FLATKEY_QA_WEBSITE_ORIGIN": "https://flatkey.ai",
+        "FLATKEY_QA_CONSOLE_ORIGIN": "https://console.flatkey.ai",
+        "FLATKEY_QA_DOCS_ORIGIN": "https://docs.flatkey.ai",
+    },
+}
 GCS_BUCKET_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$")
 RUN_APP_HOST_RE = re.compile(r"^[a-z0-9-]+-[a-z0-9-]+-[a-z0-9-]+-[a-z]{2}\.a\.run\.app$")
 ALLOWED_RUNTIME_CLASSIFICATIONS = frozenset({
@@ -129,7 +142,8 @@ class CandidateJob:
         if runtime_classification is None:
             try:
                 try:
-                    proxy = self.proxy_factory()
+                    policy = supervisor.EgressPolicy.from_file(target_environment=config["target_environment"])
+                    proxy = self.proxy_factory(policy=policy)
                     proxy.start()
                 except Exception as exc:
                     runtime_classification = "proxy_failed"
@@ -379,10 +393,18 @@ def validate_candidate_config(env):
     run_id = _validate_run_id(env.get("FLATKEY_QA_RUN_ID"))
     bucket = _validate_gcs_bucket(env.get("FLATKEY_BROWSER_QA_GCS_BUCKET"))
     attempt_id = _validate_attempt_id(env.get("BROWSER_QA_ATTEMPT_ID"))
-    website_origin = _validate_exact_origin(env.get("FLATKEY_QA_WEBSITE_ORIGIN"), "https://staging-website.flatkey.ai")
-    console_origin = _validate_exact_origin(env.get("FLATKEY_QA_CONSOLE_ORIGIN"), "https://staging-console.flatkey.ai")
+    target_environment = _validate_target_environment(env.get("FLATKEY_QA_TARGET_ENVIRONMENT"))
+    profile = CANDIDATE_TARGET_PROFILES[target_environment]
+    website_origin = _validate_exact_origin(
+        env.get("FLATKEY_QA_WEBSITE_ORIGIN"),
+        profile["FLATKEY_QA_WEBSITE_ORIGIN"],
+    )
+    console_origin = _validate_exact_origin(
+        env.get("FLATKEY_QA_CONSOLE_ORIGIN"),
+        profile["FLATKEY_QA_CONSOLE_ORIGIN"],
+    )
     docs_origin = env.get("FLATKEY_QA_DOCS_ORIGIN")
-    if docs_origin not in {None, "", "https://docs.flatkey.ai"}:
+    if docs_origin not in {None, "", profile["FLATKEY_QA_DOCS_ORIGIN"]}:
         raise ValueError("candidate docs origin invalid")
     broker_url = env.get("FLATKEY_BROWSER_QA_BROKER_URL")
     if broker_url not in {None, ""}:
@@ -392,6 +414,7 @@ def validate_candidate_config(env):
         "run_id": run_id,
         "bucket": bucket,
         "attempt_id": attempt_id,
+        "target_environment": target_environment,
         "FLATKEY_QA_WEBSITE_ORIGIN": website_origin,
         "FLATKEY_QA_CONSOLE_ORIGIN": console_origin,
     }
@@ -445,14 +468,14 @@ def _origin_allowed(origin, env):
         "staging_console": env.get("FLATKEY_QA_CONSOLE_ORIGIN"),
     }
     allowed = origins.get(origin)
-    return isinstance(allowed, str) and _trusted_staging_origin(allowed)
+    return isinstance(allowed, str) and _trusted_candidate_origin(allowed)
 
 
 def _allowed_origin_values(env):
     return {
         origin.rstrip("/")
         for origin in (env.get("FLATKEY_QA_WEBSITE_ORIGIN"), env.get("FLATKEY_QA_CONSOLE_ORIGIN"))
-        if isinstance(origin, str) and _trusted_staging_origin(origin)
+        if isinstance(origin, str) and _trusted_candidate_origin(origin)
     }
 
 
@@ -461,16 +484,34 @@ def _url_origin(value):
     return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, "", "", "")).rstrip("/")
 
 
-def _trusted_staging_origin(value):
+def _trusted_candidate_origin(value):
     if not isinstance(value, str):
         return False
     parsed = urllib.parse.urlsplit(value)
-    return parsed.scheme == "https" and parsed.netloc in {"staging-website.flatkey.ai", "staging-console.flatkey.ai"} and parsed.path in {"", "/"} and not parsed.query and not parsed.fragment
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc
+        in {
+            "staging-website.flatkey.ai",
+            "staging-console.flatkey.ai",
+            "flatkey.ai",
+            "console.flatkey.ai",
+        }
+        and parsed.path in {"", "/"}
+        and not parsed.query
+        and not parsed.fragment
+    )
 
 
 def _validate_exact_origin(value, expected):
     if value != expected:
         raise ValueError("candidate env origin invalid")
+    return value
+
+
+def _validate_target_environment(value):
+    if value not in CANDIDATE_TARGET_PROFILES:
+        raise ValueError("candidate target environment invalid")
     return value
 
 

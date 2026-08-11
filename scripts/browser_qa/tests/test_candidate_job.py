@@ -154,6 +154,7 @@ def env_for(payload, *, attempt_id="attempt-0001"):
         "FLATKEY_QA_RUN_ID": "12345",
         "FLATKEY_QA_IDENTITY_SEED_B64": "c2VlZC13aXRoLTMyLWJ5dGVzLW1pbmltdW0tdmFsdWU=",
         "FLATKEY_QA_GMAIL_BASE": "owner@example.com",
+        "FLATKEY_QA_TARGET_ENVIRONMENT": "staging",
         "FLATKEY_QA_WEBSITE_ORIGIN": "https://staging-website.flatkey.ai",
         "FLATKEY_QA_CONSOLE_ORIGIN": "https://staging-console.flatkey.ai",
         "FLATKEY_BROWSER_QA_GCS_BUCKET": "browser-qa",
@@ -191,11 +192,43 @@ class CandidateJobTests(unittest.TestCase):
             cleanup_runner=cleanup,
             uploader=uploader,
             popen_factory=lambda *_args, **_kwargs: None,
-            proxy_factory=proxy_factory or (lambda: FakeProxy([])),
+            proxy_factory=proxy_factory or (lambda policy=None: FakeProxy([])),
             fixed_case_runner_factory=fixed_case_runner_factory or candidate_job.FixedCaseRunner,
         )
         outcome = job.run()
         return outcome, tmp, uploader, cleanup
+
+    def test_default_proxy_path_uses_candidate_target_environment_policy(self):
+        payload = self.valid_payload()
+        seen = {}
+
+        class RecordingBrowser(FakeBrowser):
+            def __init__(self, *, proxy):
+                self.proxy = proxy
+                seen["allowed_hosts"] = proxy.policy.allowed_hosts
+
+        def browser_factory(**kwargs):
+            return RecordingBrowser(proxy=kwargs["proxy"])
+
+        tmp = tempfile.mkdtemp()
+        job = candidate_job.CandidateJob(
+            env=env_for(payload),
+            runtime_root=tmp,
+            browser_factory=browser_factory,
+            evidence_helper_factory=FakeHelper,
+            cleanup_runner=FakeCleanup(CleanupResult(0, False, False, False, "not required")),
+            uploader=FakeUploader(),
+            popen_factory=lambda *_args, **_kwargs: None,
+            fixed_case_runner_factory=candidate_job.FixedCaseRunner,
+        )
+
+        outcome = job.run()
+
+        self.assertEqual(outcome.status, "passed")
+        self.assertEqual(
+            seen["allowed_hosts"],
+            frozenset({"staging-website.flatkey.ai", "staging-console.flatkey.ai"}),
+        )
 
     def test_valid_payload_runs_one_fixed_case_writes_bound_manifest_uploads_candidate_prefix_and_never_starts_codex(self):
         case = fixed_case()
@@ -260,7 +293,7 @@ class CandidateJobTests(unittest.TestCase):
                     env_overrides=env_overrides,
                     browser_factory=browser_factory,
                     helper_factory=helper_factory,
-                    proxy_factory=lambda: FakeProxy(calls),
+                    proxy_factory=lambda policy=None: FakeProxy(calls),
                     fixed_case_runner_factory=runner_factory,
                 )
                 self.assertEqual(outcome.status, "infrastructure_failed")
