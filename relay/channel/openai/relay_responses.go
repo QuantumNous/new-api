@@ -19,6 +19,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Fallback token estimation is used only when a failed stream omits terminal
+// usage. Bound retained deltas so large tool arguments cannot grow per-request
+// memory and tokenizer CPU without limit.
+const maxResponsesFallbackUsageBytes = 1 << 20
+
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -135,7 +140,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			"response.code_interpreter_call_code.delta":
 			// Preserve a text-equivalent fallback when a failed terminal event
 			// omits usage, including tool-only and reasoning-only output.
-			responseTextBuilder.WriteString(streamResponse.Delta)
+			appendResponsesFallbackUsage(&responseTextBuilder, streamResponse.Delta)
 		case dto.ResponsesOutputTypeItemDone:
 			// 函数调用处理
 			if streamResponse.Item != nil {
@@ -178,6 +183,17 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	finalizeResponsesUsage(usage, &responseTextBuilder, info)
 
 	return usage, nil
+}
+
+func appendResponsesFallbackUsage(builder *strings.Builder, delta string) {
+	if builder == nil || builder.Len() >= maxResponsesFallbackUsageBytes || delta == "" {
+		return
+	}
+	remaining := maxResponsesFallbackUsageBytes - builder.Len()
+	if len(delta) > remaining {
+		delta = delta[:remaining]
+	}
+	builder.WriteString(delta)
 }
 
 func finalizeResponsesUsage(usage *dto.Usage, responseTextBuilder *strings.Builder, info *relaycommon.RelayInfo) {

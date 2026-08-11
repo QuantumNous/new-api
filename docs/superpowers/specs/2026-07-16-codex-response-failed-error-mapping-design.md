@@ -115,9 +115,9 @@ This guard is not Codex-specific: retrying or changing response format after byt
 
 ### 6. Partial-failure billing
 
-The public Responses relay preserves the terminal error even when partial output was already written. For Codex only, if the adapter returns positive terminal or estimated usage after the downstream response is committed, `ResponsesHelper` runs the normal text quota calculation and settlement before returning the error. The success relay sample is suppressed because the controller records the failed sample.
+The public Responses relay preserves the terminal error even when partial output was already written. For Codex only, if the adapter returns positive terminal or estimated usage after the downstream response is committed, `ResponsesHelper` runs the normal text quota calculation and settlement before returning the error. Fallback estimation retains at most 1 MiB of text-equivalent deltas per request so large tool arguments cannot cause unbounded memory or tokenizer work. The success relay sample is suppressed because the controller records the failed sample.
 
-Pre-commit failures, non-Codex channels, and failures without positive usage retain the existing refund behavior. If actual-usage settlement fails, the billing session retains the already reserved quota so the controller's deferred refund cannot make delivered output free; the settlement failure is logged for reconciliation. The request-local `BillingSession` keeps settlement/refund idempotent, while quota mutations remain database-backed and safe across application nodes.
+Pre-commit failures, non-Codex channels, and failures without positive usage retain the existing refund behavior. If actual-usage settlement fails, the billing session retains the already reserved quota so the controller's deferred refund cannot make delivered output free; the settlement failure is logged for reconciliation. User/channel usage and consume logs are written only after actual settlement or that pre-consumption retention has taken effect. The request-local `BillingSession` keeps settlement/refund idempotent, while quota mutations remain database-backed and safe across application nodes.
 
 ## Data Flow
 

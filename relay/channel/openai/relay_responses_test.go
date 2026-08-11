@@ -236,6 +236,18 @@ func TestOaiResponsesStreamHandlerCodexFailedAfterToolDeltaEstimatesDeliveredUsa
 	}
 }
 
+func TestAppendResponsesFallbackUsageCapsBufferedBytes(t *testing.T) {
+	var builder strings.Builder
+	delta := strings.Repeat("x", maxResponsesFallbackUsageBytes+1024)
+
+	appendResponsesFallbackUsage(&builder, delta)
+	appendResponsesFallbackUsage(&builder, "ignored after cap")
+
+	if builder.Len() != maxResponsesFallbackUsageBytes {
+		t.Fatalf("buffered bytes = %d, want %d", builder.Len(), maxResponsesFallbackUsageBytes)
+	}
+}
+
 func TestCodexResponsesFailedStatus(t *testing.T) {
 	tests := []struct {
 		name       string

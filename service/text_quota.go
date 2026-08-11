@@ -385,17 +385,26 @@ func postTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 
 	settleErr := SettleBilling(ctx, relayInfo, summary.Quota)
+	settlementApplied := settleErr == nil
 	if settleErr != nil {
 		logger.LogError(ctx, "error settling billing: "+settleErr.Error())
-		if !recordRelaySample && relayInfo.Billing != nil && relayInfo.Billing.NeedsRefund() {
-			retainedQuota := relayInfo.Billing.GetPreConsumedQuota()
-			if retainErr := relayInfo.Billing.Settle(retainedQuota); retainErr != nil {
-				logger.LogError(ctx, "error retaining pre-consumed quota after failed partial-response settlement: "+retainErr.Error())
-			} else {
-				summary.Quota = retainedQuota
-				extraContent = append(extraContent, fmt.Sprintf("实际 usage 结算失败，暂按预扣额度 %s 保留", logger.FormatQuota(retainedQuota)))
+		if !recordRelaySample && relayInfo.Billing != nil {
+			if state, ok := relayInfo.Billing.(interface{ settlementApplied() bool }); ok && state.settlementApplied() {
+				settlementApplied = true
+			} else if relayInfo.Billing.NeedsRefund() {
+				retainedQuota := relayInfo.Billing.GetPreConsumedQuota()
+				if retainErr := relayInfo.Billing.Settle(retainedQuota); retainErr != nil {
+					logger.LogError(ctx, "error retaining pre-consumed quota after failed partial-response settlement: "+retainErr.Error())
+				} else {
+					settlementApplied = true
+					summary.Quota = retainedQuota
+					extraContent = append(extraContent, fmt.Sprintf("实际 usage 结算失败，暂按预扣额度 %s 保留", logger.FormatQuota(retainedQuota)))
+				}
 			}
 		}
+	}
+	if !recordRelaySample && !settlementApplied {
+		return settleErr
 	}
 
 	if summary.TotalTokens != 0 {

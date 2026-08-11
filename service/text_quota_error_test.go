@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
@@ -19,11 +20,15 @@ import (
 type recordingBillingSettler struct {
 	settledQuotas   []int
 	failNext        bool
+	failAlways      bool
 	commitOnFailure bool
 	refundCalls     int
 }
 
 func (s *recordingBillingSettler) Settle(actualQuota int) error {
+	if s.failAlways {
+		return errors.New("injected persistent settlement failure")
+	}
 	if s.failNext {
 		s.failNext = false
 		if s.commitOnFailure {
@@ -80,6 +85,7 @@ func (s *recordingBillingSettler) Refund(*gin.Context) {
 func (s *recordingBillingSettler) NeedsRefund() bool        { return len(s.settledQuotas) == 0 }
 func (s *recordingBillingSettler) GetPreConsumedQuota() int { return 100 }
 func (s *recordingBillingSettler) Reserve(int) error        { return nil }
+func (s *recordingBillingSettler) settlementApplied() bool  { return len(s.settledQuotas) > 0 }
 
 func TestPostTextConsumeQuotaOnErrorSettlesDeliveredUsage(t *testing.T) {
 	previousBatchUpdateEnabled := common.BatchUpdateEnabled
@@ -165,5 +171,49 @@ func TestPostTextConsumeQuotaOnErrorRetainsPreConsumptionWhenActualSettlementFai
 	billing.Refund(ctx)
 	if billing.refundCalls != 0 || billing.NeedsRefund() {
 		t.Fatalf("refund lifecycle: calls=%d needsRefund=%v", billing.refundCalls, billing.NeedsRefund())
+	}
+}
+
+func TestPostTextConsumeQuotaOnErrorStopsWhenSettlementAndRetentionFail(t *testing.T) {
+	previousBatchUpdateEnabled := common.BatchUpdateEnabled
+	previousLogConsumeEnabled := common.LogConsumeEnabled
+	previousSpendHook := model.TemporaryChannelSpendHook
+	common.BatchUpdateEnabled = true
+	common.LogConsumeEnabled = true
+	consumeLogCalls := 0
+	model.TemporaryChannelSpendHook = func(int, string, int) { consumeLogCalls++ }
+	t.Cleanup(func() {
+		common.BatchUpdateEnabled = previousBatchUpdateEnabled
+		common.LogConsumeEnabled = previousLogConsumeEnabled
+		model.TemporaryChannelSpendHook = previousSpendHook
+	})
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	billing := &recordingBillingSettler{failAlways: true}
+	info := &relaycommon.RelayInfo{
+		StartTime:       time.Now(),
+		OriginModelName: "gpt-5.6-sol",
+		IsStream:        true,
+		IsPlayground:    true,
+		Billing:         billing,
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex},
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+		},
+	}
+
+	err := PostTextConsumeQuotaOnError(ctx, info, &dto.Usage{PromptTokens: 20, CompletionTokens: 5, TotalTokens: 25}, nil)
+	if err == nil {
+		t.Fatal("expected persistent settlement failure")
+	}
+	if billing.settlementApplied() || !billing.NeedsRefund() {
+		t.Fatalf("settlement state: applied=%v needsRefund=%v", billing.settlementApplied(), billing.NeedsRefund())
+	}
+	if consumeLogCalls != 0 {
+		t.Fatalf("consume log calls = %d, want 0 when no settlement was applied", consumeLogCalls)
 	}
 }
