@@ -112,21 +112,30 @@ func SyncChannelCache(frequency int) {
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+	return GetRandomSatisfiedChannelByType(group, model, retry, requestPath, 0)
+}
+
+func GetRandomSatisfiedChannelByType(group string, model string, retry int, requestPath string, requiredChannelType int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry, requestPath)
+		return GetChannelByType(group, model, retry, requestPath, requiredChannelType)
 	}
+	return getRandomSatisfiedChannelFromCache(group, model, retry, requestPath, requiredChannelType)
+}
 
+func getRandomSatisfiedChannelFromCache(group string, model string, retry int, requestPath string, requiredChannelType int) (*Channel, error) {
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
 
 	// First, try to find channels with the exact model name.
 	channels := filterChannelsByRequestPathAndModel(group2model2channels[group][model], requestPath, model)
+	channels = filterChannelsByType(channels, requiredChannelType)
 
 	// If no channels found, try to find channels with the normalized model name.
 	if len(channels) == 0 {
 		normalizedModel := ratio_setting.FormatMatchingModelName(model)
 		channels = filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, model)
+		channels = filterChannelsByType(channels, requiredChannelType)
 	}
 
 	if len(channels) == 0 {
@@ -206,6 +215,20 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")
+}
+
+func filterChannelsByType(channelIDs []int, requiredChannelType int) []int {
+	if requiredChannelType == 0 {
+		return channelIDs
+	}
+	filtered := make([]int, 0, len(channelIDs))
+	for _, channelID := range channelIDs {
+		channel, ok := channelsIDM[channelID]
+		if ok && channel.Type == requiredChannelType {
+			filtered = append(filtered, channelID)
+		}
+	}
+	return filtered
 }
 
 // filterChannelsByRequestPathAndModel restricts candidates by request path and

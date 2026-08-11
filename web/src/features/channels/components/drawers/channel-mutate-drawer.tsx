@@ -166,6 +166,8 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  mergeVertexStorageModels,
+  splitVertexStorageModels,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -189,6 +191,7 @@ import {
   ChannelBasicSection,
   ChannelEditorLoadingState,
   ChannelModelsSection,
+  VertexStorageBucketsField,
 } from './sections'
 
 type ChannelMutateDrawerProps = {
@@ -919,6 +922,12 @@ export function ChannelMutateDrawer({
     () => parseModelsString(currentModels),
     [currentModels]
   )
+  const vertexStorageParts = useMemo(
+    () => splitVertexStorageModels(currentModelsArray),
+    [currentModelsArray]
+  )
+  const currentRegularModels = vertexStorageParts.models
+  const currentStorageBuckets = vertexStorageParts.buckets
 
   const currentTypeLabel = useMemo(
     () =>
@@ -1142,12 +1151,15 @@ export function ChannelMutateDrawer({
 
   // Transform models to multi-select options
   const modelOptions = useMemo(() => {
-    const allModels = new Set([...allModelsList, ...currentModelsArray])
-    return [...allModels].map((model) => ({
+    const availableModels = splitVertexStorageModels([
+      ...allModelsList,
+      ...currentRegularModels,
+    ]).models
+    return availableModels.map((model) => ({
       value: model,
       label: model,
     }))
-  }, [allModelsList, currentModelsArray])
+  }, [allModelsList, currentRegularModels])
 
   const modelMappingGuardrail = useMemo<ModelMappingGuardrail>(() => {
     if (!currentModelMapping?.trim()) {
@@ -1180,7 +1192,7 @@ export function ChannelMutateDrawer({
             .filter(
               (entry) =>
                 Boolean(entry.source) &&
-                !currentModelsArray.includes(entry.source)
+                !currentRegularModels.includes(entry.source)
             )
             .map((entry) => entry.source)
         ),
@@ -1192,7 +1204,7 @@ export function ChannelMutateDrawer({
             .filter(
               (entry) =>
                 Boolean(entry.target) &&
-                currentModelsArray.includes(entry.target)
+                currentRegularModels.includes(entry.target)
             )
             .map((entry) => entry.target)
         ),
@@ -1207,7 +1219,7 @@ export function ChannelMutateDrawer({
     } catch {
       return { ...createEmptyModelMappingGuardrail(), invalidJson: true }
     }
-  }, [currentModelMapping, currentModelsArray])
+  }, [currentModelMapping, currentRegularModels])
 
   const mappingPreviewPairs =
     modelMappingGuardrail.entries.length > 0
@@ -1413,16 +1425,28 @@ export function ChannelMutateDrawer({
     }
   }, [channelId, queryClient, t])
 
-  // Unified function to update models
+  const setAllModels = useCallback(
+    (models: string[]) => {
+      form.setValue('models', formatModelsArray(models), {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+    },
+    [form]
+  )
+
+  // Update regular models without silently deleting configured buckets.
   const updateModels = useCallback(
     (newModels: string[], merge: boolean = false) => {
-      const finalModels = merge
-        ? formatModelsArray([...currentModelsArray, ...newModels])
-        : formatModelsArray(newModels)
-      form.setValue('models', finalModels)
+      const regularModels = merge
+        ? [...currentRegularModels, ...newModels]
+        : newModels
+      setAllModels(
+        mergeVertexStorageModels(regularModels, currentStorageBuckets)
+      )
       return newModels.length
     },
-    [currentModelsArray, form]
+    [currentRegularModels, currentStorageBuckets, setAllModels]
   )
 
   // Handle fetching models from upstream
@@ -1500,9 +1524,9 @@ export function ChannelMutateDrawer({
   }, [allModelsList, updateModels, t])
 
   const handleClearModels = useCallback(() => {
-    form.setValue('models', '')
+    updateModels([])
     toast.success(t('Cleared all models'))
-  }, [form, t])
+  }, [updateModels, t])
 
   const handleCopyModels = useCallback(async () => {
     const models = form.getValues('models')
@@ -1542,9 +1566,9 @@ export function ChannelMutateDrawer({
   // Handle model selection change from MultiSelect
   const handleModelsChange = useCallback(
     (selected: string[]) => {
-      form.setValue('models', selected.join(','))
+      updateModels(selected)
     },
-    [form]
+    [updateModels]
   )
 
   // Handle successful submission
@@ -3265,14 +3289,14 @@ export function ChannelMutateDrawer({
                                     </div>
                                     <Badge variant='outline' className='w-fit'>
                                       {t('Selected {{count}}', {
-                                        count: currentModelsArray.length,
+                                        count: currentRegularModels.length,
                                       })}
                                     </Badge>
                                   </div>
                                   <FormControl>
                                     <MultiSelect
                                       options={modelOptions}
-                                      selected={currentModelsArray}
+                                      selected={currentRegularModels}
                                       onChange={handleModelsChange}
                                       placeholder={t(
                                         'Select models or add custom ones'
@@ -3305,7 +3329,7 @@ export function ChannelMutateDrawer({
                                               modelMappingGuardrail.exposedTargetModels
                                             )
                                             updateModels(
-                                              currentModelsArray.filter(
+                                              currentRegularModels.filter(
                                                 (model) =>
                                                   !hiddenTargets.has(model)
                                               )
@@ -3320,6 +3344,15 @@ export function ChannelMutateDrawer({
                                   <FormMessage />
                                 </FormItem>
                               )}
+                            />
+
+                            {currentType === 41 && (
+                              <Separator className='my-4' />
+                            )}
+                            <VertexStorageBucketsField
+                              channelType={currentType}
+                              models={currentModelsArray}
+                              onModelsChange={setAllModels}
                             />
 
                             <Separator className='my-4' />
@@ -3404,7 +3437,7 @@ export function ChannelMutateDrawer({
                                   variant='ghost'
                                   size='sm'
                                   onClick={handleClearModels}
-                                  disabled={currentModelsArray.length === 0}
+                                  disabled={currentRegularModels.length === 0}
                                 >
                                   <Eraser
                                     className='mr-2 h-4 w-4'

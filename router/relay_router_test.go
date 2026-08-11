@@ -124,3 +124,126 @@ func setupRelayRouterTestDB(t *testing.T) {
 		}
 	})
 }
+
+func TestVertexStorageRoutesAreExact(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	SetRelayRouter(engine)
+
+	want := map[string]bool{
+		"POST /vertexai/upload/storage/v1/b/:bucket/o":    true,
+		"PUT /vertexai/upload/storage/v1/b/:bucket/o":     true,
+		"GET /vertexai/storage/v1/b/:bucket/o":            true,
+		"GET /vertexai/storage/v1/b/:bucket/o/*object":    true,
+		"DELETE /vertexai/storage/v1/b/:bucket/o/*object": true,
+	}
+	got := make(map[string]bool, len(want))
+	for _, route := range engine.Routes() {
+		if strings.HasPrefix(route.Path, "/vertexai/") {
+			got[route.Method+" "+route.Path] = true
+		}
+	}
+
+	assert.Equal(t, want, got)
+}
+
+func TestVertexStorageOpenAPIContract(t *testing.T) {
+	openAPIBytes, err := os.ReadFile("../docs/openapi/relay.json")
+	require.NoError(t, err)
+	var document struct {
+		Tags  []map[string]any          `json:"tags"`
+		Paths map[string]map[string]any `json:"paths"`
+	}
+	require.NoError(t, common.Unmarshal(openAPIBytes, &document))
+
+	const tag = "文件/Vertex AI Cloud Storage"
+	tagFound := false
+	for _, item := range document.Tags {
+		if item["name"] == tag {
+			tagFound = true
+			break
+		}
+	}
+	assert.True(t, tagFound)
+
+	expected := map[string][]string{
+		"/vertexai/upload/storage/v1/b/{bucket}/o":   {"post", "put"},
+		"/vertexai/storage/v1/b/{bucket}/o":          {"get"},
+		"/vertexai/storage/v1/b/{bucket}/o/{object}": {"get", "delete"},
+	}
+	vertexPathCount := 0
+	for path, pathItem := range document.Paths {
+		if !strings.HasPrefix(path, "/vertexai/") {
+			continue
+		}
+		vertexPathCount++
+		methods, ok := expected[path]
+		require.True(t, ok, "unexpected Vertex Storage path %s", path)
+		for _, method := range methods {
+			operation, ok := pathItem[method].(map[string]any)
+			require.True(t, ok, "%s %s", method, path)
+			assert.Equal(t, []any{tag}, operation["tags"])
+			security, ok := operation["security"].([]any)
+			require.True(t, ok)
+			require.NotEmpty(t, security)
+			securityItem, ok := security[0].(map[string]any)
+			require.True(t, ok)
+			assert.Contains(t, securityItem, "BearerAuth")
+
+			parameters, ok := operation["parameters"].([]any)
+			require.True(t, ok)
+			assertOpenAPIRequiredPathParameter(t, parameters, "bucket")
+			if strings.Contains(path, "{object}") {
+				assertOpenAPIRequiredPathParameter(t, parameters, "object")
+			}
+			if strings.Contains(path, "/upload/") {
+				assertOpenAPIParameter(t, parameters, "uploadType", "query")
+				assertOpenAPIParameter(t, parameters, "name", "query")
+				requestBody, ok := operation["requestBody"].(map[string]any)
+				require.True(t, ok)
+				content, ok := requestBody["content"].(map[string]any)
+				require.True(t, ok)
+				assert.Contains(t, content, "application/octet-stream")
+				if method == "put" {
+					assertOpenAPIParameter(t, parameters, "Content-Range", "header")
+				}
+			}
+			if strings.Contains(path, "{object}") && method == "get" {
+				assertOpenAPIParameter(t, parameters, "alt", "query")
+				assertOpenAPIParameter(t, parameters, "generation", "query")
+				assertOpenAPIParameter(t, parameters, "Range", "header")
+			}
+			responses, ok := operation["responses"].(map[string]any)
+			require.True(t, ok)
+			for _, status := range []string{"400", "403", "502", "default"} {
+				assert.Contains(t, responses, status)
+			}
+		}
+	}
+	assert.Equal(t, len(expected), vertexPathCount)
+}
+
+func assertOpenAPIRequiredPathParameter(t *testing.T, parameters []any, name string) {
+	t.Helper()
+	for _, raw := range parameters {
+		parameter, ok := raw.(map[string]any)
+		require.True(t, ok)
+		if parameter["name"] == name && parameter["in"] == "path" {
+			assert.Equal(t, true, parameter["required"])
+			return
+		}
+	}
+	assert.Fail(t, "missing required path parameter", name)
+}
+
+func assertOpenAPIParameter(t *testing.T, parameters []any, name, location string) {
+	t.Helper()
+	for _, raw := range parameters {
+		parameter, ok := raw.(map[string]any)
+		require.True(t, ok)
+		if parameter["name"] == name && parameter["in"] == location {
+			return
+		}
+	}
+	assert.Fail(t, "missing OpenAPI parameter", name+" in "+location)
+}

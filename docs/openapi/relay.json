@@ -52,6 +52,9 @@
       "name": "OpenAI音频(Audio)"
     },
     {
+      "name": "文件/Vertex AI Cloud Storage"
+    },
+    {
       "name": "重排序(Rerank)"
     },
     {
@@ -71,6 +74,411 @@
     }
   ],
   "paths": {
+    "/vertexai/upload/storage/v1/b/{bucket}/o": {
+      "post": {
+        "summary": "上传 Cloud Storage 对象",
+        "description": "通过 Vertex AI 渠道的服务账号转发 GCS media、multipart 或 resumable 初始化请求。Location 会安全改写为当前网关地址；此接口不计费。",
+        "operationId": "vertexStorageUploadObject",
+        "tags": [
+          "文件/Vertex AI Cloud Storage"
+        ],
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uploadType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "media",
+                "multipart",
+                "resumable"
+              ]
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "multipart/related": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "上传成功或 resumable 会话已创建。",
+            "headers": {
+              "Location": {
+                "description": "已改写为当前网关的 resumable 上传地址。",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "对象创建成功。"
+          },
+          "400": {
+            "description": "请求、bucket、上传类型或渠道凭证无效。"
+          },
+          "403": {
+            "description": "Token、渠道或 GCS IAM 无权访问该 bucket。"
+          },
+          "502": {
+            "description": "OAuth、GCS 请求或 resumable Location 校验失败。"
+          },
+          "default": {
+            "description": "Google Cloud Storage 原始状态、响应头和响应主体。"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "续传 Cloud Storage 对象分块",
+        "description": "使用 resumable 初始化返回的网关 Location 上传分块。请求体与响应流式转发；此接口不计费。",
+        "operationId": "vertexStorageResumeUploadObject",
+        "tags": [
+          "文件/Vertex AI Cloud Storage"
+        ],
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uploadType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Content-Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "最终分块上传完成。"
+          },
+          "201": {
+            "description": "对象创建成功。"
+          },
+          "308": {
+            "description": "分块已接受，resumable 会话尚未完成。"
+          },
+          "400": {
+            "description": "请求、bucket 或 Content-Range 无效。"
+          },
+          "403": {
+            "description": "Token、渠道或 GCS IAM 无权访问该 bucket。"
+          },
+          "502": {
+            "description": "OAuth 或 GCS 请求失败。"
+          },
+          "default": {
+            "description": "Google Cloud Storage 原始状态、响应头和响应主体。"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/vertexai/storage/v1/b/{bucket}/o": {
+      "get": {
+        "summary": "列举 Cloud Storage 对象",
+        "description": "列举渠道允许访问的 bucket 中的对象；查询参数按 GCS JSON API 透传。此接口不计费。",
+        "operationId": "vertexStorageListObjects",
+        "tags": [
+          "文件/Vertex AI Cloud Storage"
+        ],
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "prefix",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "delimiter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Google Cloud Storage 对象列表。"
+          },
+          "400": {
+            "description": "请求、bucket 或渠道凭证无效。"
+          },
+          "403": {
+            "description": "Token、渠道或 GCS IAM 无权访问该 bucket。"
+          },
+          "502": {
+            "description": "OAuth 或 GCS 请求失败。"
+          },
+          "default": {
+            "description": "Google Cloud Storage 原始状态、响应头和响应主体。"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/vertexai/storage/v1/b/{bucket}/o/{object}": {
+      "get": {
+        "summary": "读取或下载 Cloud Storage 对象",
+        "description": "默认返回对象元数据；设置 alt=media 时流式下载对象内容。对象名中的 / 应编码为 %2F；此接口不计费。",
+        "operationId": "vertexStorageGetObject",
+        "tags": [
+          "文件/Vertex AI Cloud Storage"
+        ],
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "object",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "alt",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "media"
+              ]
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "对象元数据或完整对象内容。"
+          },
+          "206": {
+            "description": "Range 下载内容。",
+            "headers": {
+              "Content-Range": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求、bucket、object 或渠道凭证无效。"
+          },
+          "403": {
+            "description": "Token、渠道或 GCS IAM 无权访问该 bucket。"
+          },
+          "502": {
+            "description": "OAuth 或 GCS 请求失败。"
+          },
+          "default": {
+            "description": "Google Cloud Storage 原始状态、响应头和响应主体。"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "删除 Cloud Storage 对象",
+        "description": "删除渠道允许访问的 bucket 中的对象。对象名中的 / 应编码为 %2F；此接口不计费。",
+        "operationId": "vertexStorageDeleteObject",
+        "tags": [
+          "文件/Vertex AI Cloud Storage"
+        ],
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "object",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ifGenerationMatch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "对象已删除。"
+          },
+          "400": {
+            "description": "请求、bucket、object 或渠道凭证无效。"
+          },
+          "403": {
+            "description": "Token、渠道或 GCS IAM 无权访问该 bucket。"
+          },
+          "502": {
+            "description": "OAuth 或 GCS 请求失败。"
+          },
+          "default": {
+            "description": "Google Cloud Storage 原始状态、响应头和响应主体。"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/models": {
       "get": {
         "summary": "获取模型列表",

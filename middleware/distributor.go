@@ -31,7 +31,16 @@ type ModelRequest struct {
 }
 
 func Distribute() func(c *gin.Context) {
+	return distribute(0)
+}
+
+func DistributeByChannelType(requiredChannelType int) func(c *gin.Context) {
+	return distribute(requiredChannelType)
+}
+
+func distribute(requiredChannelType int) func(c *gin.Context) {
 	return func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyRequiredChannelType, requiredChannelType)
 		var channel *model.Channel
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
@@ -52,6 +61,14 @@ func Distribute() func(c *gin.Context) {
 			}
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+				return
+			}
+			if requiredChannelType != 0 && channel.Type != requiredChannelType {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
+				return
+			}
+			if relayconstant.IsVertexStoragePath(c.Request.URL.Path) && !relayconstant.VertexStorageChannelSupports(channel.GetModels(), c.Param("bucket")) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
 				return
 			}
 		} else {
@@ -106,6 +123,7 @@ func Distribute() func(c *gin.Context) {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled &&
+						(requiredChannelType == 0 || preferred.Type == requiredChannelType) &&
 						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) {
 						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
@@ -134,11 +152,12 @@ func Distribute() func(c *gin.Context) {
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:         c,
-						ModelName:   modelRequest.Model,
-						TokenGroup:  usingGroup,
-						RequestPath: c.Request.URL.Path,
-						Retry:       common.GetPointer(0),
+						Ctx:                 c,
+						ModelName:           modelRequest.Model,
+						TokenGroup:          usingGroup,
+						RequestPath:         c.Request.URL.Path,
+						Retry:               common.GetPointer(0),
+						RequiredChannelType: requiredChannelType,
 					})
 					if err != nil {
 						showGroup := usingGroup
@@ -254,7 +273,14 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
 	var err error
-	if strings.Contains(c.Request.URL.Path, "/mj/") {
+	if relayconstant.IsVertexStoragePath(c.Request.URL.Path) {
+		modelName, err := relayconstant.VertexStorageModelName(c.Param("bucket"))
+		if err != nil {
+			return nil, false, err
+		}
+		modelRequest.Model = modelName
+		c.Set("relay_mode", relayconstant.RelayModeVertexStorage)
+	} else if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
 			relayMode == relayconstant.RelayModeMidjourneyTaskFetchByCondition ||
@@ -446,6 +472,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
+	common.SetContextKey(c, constant.ContextKeyChannelModels, channel.GetModels())
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())

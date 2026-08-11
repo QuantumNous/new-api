@@ -181,13 +181,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
-	retryParam := &service.RetryParam{
-		Ctx:         c,
-		TokenGroup:  relayInfo.TokenGroup,
-		ModelName:   relayInfo.OriginModelName,
-		RequestPath: c.Request.URL.Path,
-		Retry:       common.GetPointer(0),
-	}
+	retryParam := newRelayRetryParam(c, relayInfo)
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
@@ -311,6 +305,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
+	if retryParam.RequiredChannelType == 0 {
+		retryParam.RequiredChannelType = requiredChannelTypeForRelay(c)
+	}
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 	if err != nil {
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
@@ -326,6 +323,27 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		return nil, newAPIError
 	}
 	return channel, nil
+}
+
+func newRelayRetryParam(c *gin.Context, relayInfo *relaycommon.RelayInfo) *service.RetryParam {
+	return &service.RetryParam{
+		Ctx:                 c,
+		TokenGroup:          relayInfo.TokenGroup,
+		ModelName:           relayInfo.OriginModelName,
+		RequestPath:         c.Request.URL.Path,
+		Retry:               common.GetPointer(0),
+		RequiredChannelType: requiredChannelTypeForRelay(c),
+	}
+}
+
+func requiredChannelTypeForRelay(c *gin.Context) int {
+	if requiredChannelType := common.GetContextKeyInt(c, constant.ContextKeyRequiredChannelType); requiredChannelType != 0 {
+		return requiredChannelType
+	}
+	if relayconstant.IsVertexStoragePath(c.Request.URL.Path) {
+		return constant.ChannelTypeVertexAi
+	}
+	return 0
 }
 
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
@@ -513,13 +531,7 @@ func RelayTask(c *gin.Context) {
 		}
 	}()
 
-	retryParam := &service.RetryParam{
-		Ctx:         c,
-		TokenGroup:  relayInfo.TokenGroup,
-		ModelName:   relayInfo.OriginModelName,
-		RequestPath: c.Request.URL.Path,
-		Retry:       common.GetPointer(0),
-	}
+	retryParam := newRelayRetryParam(c, relayInfo)
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		var channel *model.Channel
