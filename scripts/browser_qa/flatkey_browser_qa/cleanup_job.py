@@ -41,6 +41,7 @@ _CANDIDATE_SOURCE_FIELDS = {"run_id", "evidence_uri"}
 _CANDIDATE_PROMOTION_FIELDS = {"state", "attempts_required", "attempts_passed"}
 _CANDIDATE_EVENT_FIELDS = {"kind", "candidate_kind"}
 _MAX_CANDIDATES = 20
+_ENVIRONMENTS = {"staging", "production"}
 
 
 def main(argv=None):
@@ -116,7 +117,12 @@ def _write_or_read_cleanup_payload(cfg, cleanup_object, cleanup_payload, access_
 
 def _root_matches_desired_state(cfg, root_object, desired, access_token):
     current, _generation = read_gcs_json_object(cfg.gcs_bucket, root_object, access_token)
-    _validate_root_manifest(current, cfg.run_id, expected_bucket=cfg.gcs_bucket)
+    _validate_root_manifest(
+        current,
+        cfg.run_id,
+        expected_bucket=cfg.gcs_bucket,
+        expected_environment=_cfg_environment(cfg),
+    )
     return current == desired
 
 
@@ -128,13 +134,14 @@ def _read_root_or_bootstrap(cfg, access_token):
         root = {
             "schema_version": ROOT_MANIFEST_SCHEMA_VERSION,
             "run_id": cfg.run_id,
+            "environment": _cfg_environment(cfg),
             "status": "passed",
             "latest": {"main_execution_id": cfg.main_execution_id, "cleanup_execution_id": None},
             "executions": [],
             "candidates": [],
         }
         generation = 0
-    _validate_root_manifest(root, cfg.run_id, expected_bucket=cfg.gcs_bucket)
+    _validate_root_manifest(root, cfg.run_id, expected_bucket=cfg.gcs_bucket, expected_environment=_cfg_environment(cfg))
     return root, generation
 
 
@@ -165,6 +172,7 @@ def _merge_root_manifest(root, cfg, cleanup_record, access_token):
     merged = {
         "schema_version": ROOT_MANIFEST_SCHEMA_VERSION,
         "run_id": cfg.run_id,
+        "environment": _cfg_environment(cfg),
         "status": status,
         "latest": latest,
         "executions": records,
@@ -180,7 +188,13 @@ def _main_record(cfg, access_token):
 def _read_validated_main_manifest(cfg, access_token):
     object_name = f"runs/{cfg.run_id}/main/{cfg.main_execution_id}/manifest.json"
     manifest, _generation = read_gcs_json_object(cfg.gcs_bucket, object_name, access_token)
-    _validate_main_manifest(manifest, cfg.run_id, cfg.main_execution_id, expected_bucket=cfg.gcs_bucket)
+    _validate_main_manifest(
+        manifest,
+        cfg.run_id,
+        cfg.main_execution_id,
+        expected_bucket=cfg.gcs_bucket,
+        expected_environment=_cfg_environment(cfg),
+    )
     return manifest
 
 
@@ -330,6 +344,7 @@ def _build_cleanup_payload(cfg, result, created_at):
         "schema_version": ROOT_MANIFEST_SCHEMA_VERSION,
         "kind": "cleanup",
         "run_id": cfg.run_id,
+        "environment": _cfg_environment(cfg),
         "execution_id": cfg.cleanup_execution_id,
         "main_execution_id": cfg.main_execution_id,
         "created_at": created_at,
@@ -358,14 +373,21 @@ def _execution_record(kind, execution_id, manifest, status, created_at, *, summa
     return record
 
 
-def _validate_root_manifest(root, run_id, expected_bucket=None):
+def _validate_root_manifest(root, run_id, expected_bucket=None, expected_environment=None):
     if not isinstance(root, dict):
         raise ValueError("root manifest must be an object")
-    allowed = {"schema_version", "run_id", "status", "latest", "executions", "candidates", "candidate_events"}
+    allowed = {"schema_version", "run_id", "environment", "status", "latest", "executions", "candidates", "candidate_events"}
     if set(root) - allowed:
         raise ValueError("root manifest fields are invalid")
     if root.get("schema_version") != ROOT_MANIFEST_SCHEMA_VERSION or root.get("run_id") != run_id:
         raise ValueError("root manifest identity mismatch")
+    environment = (
+        _validate_environment(root.get("environment"), "root manifest environment")
+        if "environment" in root
+        else _validate_environment(expected_environment, "trusted environment")
+    )
+    if expected_environment is not None and environment != _validate_environment(expected_environment, "trusted environment"):
+        raise ValueError("root manifest environment mismatch")
     latest = root.get("latest")
     if not isinstance(latest, dict) or set(latest) != {"main_execution_id", "cleanup_execution_id"}:
         raise ValueError("root manifest latest is invalid")
@@ -425,13 +447,14 @@ def _validate_record(record, run_id):
         _validate_record_summary(record["kind"], record["summary"])
 
 
-def _validate_main_manifest(manifest, run_id, execution_id, expected_bucket=None):
+def _validate_main_manifest(manifest, run_id, execution_id, expected_bucket=None, expected_environment=None):
     if not isinstance(manifest, dict):
         raise ValueError("main manifest must be an object")
     allowed = {
         "schema_version",
         "kind",
         "run_id",
+        "environment",
         "execution_id",
         "status",
         "created_at",
@@ -449,6 +472,9 @@ def _validate_main_manifest(manifest, run_id, execution_id, expected_bucket=None
         raise ValueError("main manifest schema is invalid")
     if manifest["kind"] != "main" or manifest["run_id"] != run_id or manifest["execution_id"] != execution_id:
         raise ValueError("main manifest identity is invalid")
+    environment = _validate_environment(manifest.get("environment"), "main manifest environment")
+    if expected_environment is not None and environment != _validate_environment(expected_environment, "trusted environment"):
+        raise ValueError("main manifest environment mismatch")
     if not _safe_gcs_component(manifest["execution_id"]):
         raise ValueError("main manifest execution_id is invalid")
     if not isinstance(manifest["status"], str) or manifest["status"] not in _STATUS_PRIORITY:
@@ -706,6 +732,7 @@ def _validate_cleanup_manifest(manifest, cfg):
         "schema_version",
         "kind",
         "run_id",
+        "environment",
         "execution_id",
         "main_execution_id",
         "created_at",
@@ -718,6 +745,7 @@ def _validate_cleanup_manifest(manifest, cfg):
     if (
         manifest["kind"] != "cleanup"
         or manifest["run_id"] != cfg.run_id
+        or manifest["environment"] != _cfg_environment(cfg)
         or manifest["execution_id"] != cfg.cleanup_execution_id
         or manifest["main_execution_id"] != cfg.main_execution_id
     ):
@@ -756,6 +784,16 @@ def _validate_cleanup_manifest(manifest, cfg):
 
 def _json_bytes(payload):
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _validate_environment(value, path):
+    if value not in _ENVIRONMENTS:
+        raise ValueError(f"{path} is invalid")
+    return value
+
+
+def _cfg_environment(cfg):
+    return _validate_environment(getattr(cfg, "target_environment", "staging"), "trusted environment")
 
 
 def _finding_summaries(findings):

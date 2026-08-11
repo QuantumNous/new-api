@@ -1660,6 +1660,7 @@ class CleanupTests(unittest.TestCase):
         cfg = SimpleNamespace(
             run_id=IDENTITY.run_id,
             gcs_bucket="flatkey-browser-qa-reports",
+            target_environment="staging",
             main_execution_id="main-001",
             cleanup_execution_id="cleanup-010",
         )
@@ -1676,10 +1677,79 @@ class CleanupTests(unittest.TestCase):
 
         self.assertEqual(merged["latest"], {"main_execution_id": "main-001", "cleanup_execution_id": "cleanup-010"})
 
+    def test_cleanup_payload_and_root_manifest_carry_trusted_environment(self):
+        cfg = SimpleNamespace(
+            run_id=IDENTITY.run_id,
+            gcs_bucket="flatkey-browser-qa-reports",
+            target_environment="production",
+            main_execution_id="main-001",
+            cleanup_execution_id="cleanup-001",
+        )
+        cleanup_payload = cleanup_job._build_cleanup_payload(
+            cfg,
+            CleanupResult(0, False, False, False, "not needed"),
+            2,
+        )
+        cleanup_record = execution_record("cleanup", "cleanup-001", IDENTITY.run_id, created_at=2)
+        main = main_manifest(environment="production", result=valid_main_result(environment="production"))
+
+        with mock.patch.object(cleanup_job, "read_gcs_json_object", lambda *_args: (main, 1)):
+            merged = cleanup_job._merge_root_manifest(
+                root_manifest(environment="production", executions=[]),
+                cfg,
+                cleanup_record,
+                "access-secret",
+            )
+
+        self.assertEqual(cleanup_payload["environment"], "production")
+        self.assertEqual(merged["environment"], "production")
+        cleanup_job._validate_cleanup_manifest(cleanup_payload, cfg)
+        cleanup_job._validate_root_manifest(
+            merged,
+            IDENTITY.run_id,
+            expected_bucket="flatkey-browser-qa-reports",
+            expected_environment="production",
+        )
+
+    def test_root_aggregation_rejects_environment_mismatch(self):
+        cfg = SimpleNamespace(
+            run_id=IDENTITY.run_id,
+            gcs_bucket="flatkey-browser-qa-reports",
+            target_environment="production",
+            main_execution_id="main-001",
+            cleanup_execution_id="cleanup-001",
+        )
+        cleanup_record = execution_record("cleanup", "cleanup-001", IDENTITY.run_id, created_at=2)
+
+        with self.assertRaises(ValueError):
+            cleanup_job._validate_cleanup_manifest(cleanup_manifest(environment="staging"), cfg)
+
+        with self.assertRaises(ValueError):
+            cleanup_job._validate_root_manifest(
+                root_manifest(environment="staging"),
+                IDENTITY.run_id,
+                expected_bucket="flatkey-browser-qa-reports",
+                expected_environment="production",
+            )
+
+        with mock.patch.object(
+            cleanup_job,
+            "read_gcs_json_object",
+            lambda *_args: (main_manifest(environment="staging", result=valid_main_result(environment="staging")), 1),
+        ):
+            with self.assertRaises(ValueError):
+                cleanup_job._merge_root_manifest(
+                    root_manifest(environment="production"),
+                    cfg,
+                    cleanup_record,
+                    "access-secret",
+                )
+
     def test_cleanup_root_preserves_infrastructure_failed_main_status_proven_by_present_manifest(self):
         cfg = SimpleNamespace(
             run_id=IDENTITY.run_id,
             gcs_bucket="flatkey-browser-qa-reports",
+            target_environment="staging",
             main_execution_id="main-001",
             cleanup_execution_id="cleanup-001",
         )
@@ -1838,6 +1908,7 @@ def main_manifest(**overrides):
         "schema_version": 1,
         "kind": "main",
         "run_id": IDENTITY.run_id,
+        "environment": "staging",
         "execution_id": "main-001",
         "status": "passed",
         "created_at": 1,
@@ -1869,6 +1940,7 @@ def valid_provenance(**overrides):
 
 def valid_main_result(**overrides):
     payload = {
+        "environment": "staging",
         "replay": {"status": "passed", "checkpoint_reached": True},
         "exploration": {"status": "not_started", "actions_used": 0},
         "budgets": {"replay_seconds": 300, "exploration_seconds": 300, "max_actions": 30},
@@ -1972,6 +2044,7 @@ def root_manifest(**overrides):
     payload = {
         "schema_version": 1,
         "run_id": IDENTITY.run_id,
+        "environment": "staging",
         "status": "passed",
         "latest": {"main_execution_id": "main-001", "cleanup_execution_id": None},
         "executions": [execution_record("main", "main-001", IDENTITY.run_id)],
@@ -1985,6 +2058,7 @@ def cleanup_manifest(**overrides):
         "schema_version": 1,
         "kind": "cleanup",
         "run_id": IDENTITY.run_id,
+        "environment": "staging",
         "execution_id": "cleanup-001",
         "main_execution_id": "main-001",
         "created_at": 2,

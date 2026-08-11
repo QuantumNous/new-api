@@ -381,6 +381,7 @@ def env():
 
 def valid_result(**overrides):
     payload = {
+        "environment": "staging",
         "replay": {"status": "passed", "checkpoint_reached": True},
         "exploration": {"status": "passed", "actions_used": 0},
         "budgets": {"replay_seconds": 300, "exploration_seconds": 300, "max_actions": 30},
@@ -1442,6 +1443,7 @@ class SupervisorTests(unittest.TestCase):
 
         payload = supervisor._with_trusted_result_contract(
             valid_result(),
+            target_environment="staging",
             fixed_case_results=sup.fixed_case_results,
             phase_trace=sup.phase_trace,
         )
@@ -1462,6 +1464,7 @@ class SupervisorTests(unittest.TestCase):
     def test_trusted_result_contract_does_not_mask_unrelated_invalid_fields(self):
         payload = supervisor._with_trusted_result_contract(
             valid_result(replay={"status": "maybe", "checkpoint_reached": True}),
+            target_environment="staging",
             fixed_case_results={"status": "passed", "cases": []},
             phase_trace=[("finalization_started", 0)],
         )
@@ -2554,12 +2557,12 @@ class SupervisorTests(unittest.TestCase):
         classification = manifest["infrastructure"]["classification"]
         self.assertEqual(classification["classification"], "human_verification_blocked")
         self.assertTrue(classification["human_verification_blocked"])
-        self.assertTrue(classification["turnstile_check"])
-        self.assertEqual(classification["target_environment"], "production")
-        rendered = json.dumps(classification, sort_keys=True)
+        self.assertEqual(classification["explanation"], "正常 Turnstile/人机验证流程阻止自动化")
+        rendered = json.dumps(classification, ensure_ascii=False, sort_keys=True)
         self.assertNotIn("token=secret", rendered)
         self.assertNotIn("widget-response", rendered)
         self.assertNotIn("Cookie", rendered)
+        self.assertNotIn("target_environment", rendered)
 
     def test_production_human_verification_requires_preflight_turnstile_observed_true(self):
         input_env = env()

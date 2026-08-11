@@ -382,6 +382,7 @@ class Supervisor:
             )
             payload = _with_trusted_result_contract(
                 payload,
+                target_environment=cfg.target_environment,
                 fixed_case_results=self.fixed_case_results,
                 phase_trace=self.phase_trace,
             )
@@ -403,6 +404,7 @@ class Supervisor:
             except Exception:
                 fallback_payload = _with_trusted_result_contract(
                     _empty_result(),
+                    target_environment=cfg.target_environment,
                     fixed_case_results=self.fixed_case_results,
                     phase_trace=self.phase_trace,
                 )
@@ -411,7 +413,12 @@ class Supervisor:
                     payload = fallback_payload
                 except Exception as exc:
                     self._event("trusted_result_contract_invalid", str(exc), redactor)
-                    payload = _empty_result()
+                    payload = _with_trusted_result_contract(
+                        _empty_result(),
+                        target_environment=cfg.target_environment,
+                        fixed_case_results={},
+                        phase_trace=[],
+                    )
                 runtime_classification = runtime_classification or "invalid_result"
                 invalid_result = True
             try:
@@ -453,6 +460,7 @@ class Supervisor:
                 upload_failed=upload_failed,
                 invalid_result=invalid_result,
                 runtime_classification=runtime_classification,
+                target_environment=cfg.target_environment,
             )
             manifest = _write_candidate_bundles(
                 manifest,
@@ -482,6 +490,7 @@ class Supervisor:
                     upload_failed=True,
                     invalid_result=invalid_result,
                     runtime_classification="upload_failed",
+                    target_environment=cfg.target_environment,
                 )
                 manifest = _write_candidate_bundles(
                     manifest,
@@ -781,10 +790,11 @@ def _with_trusted_runtime_state(payload, runtime_root, *, strict=False):
     return updated
 
 
-def _with_trusted_result_contract(payload, *, fixed_case_results, phase_trace):
+def _with_trusted_result_contract(payload, *, target_environment, fixed_case_results, phase_trace):
     if not isinstance(payload, dict):
         payload = _empty_result()
     updated = dict(payload)
+    updated["environment"] = target_environment
     updated.setdefault("coverage_candidates", [])
     updated["budgets"] = _trusted_runtime_budgets()
     updated["fixed_cases"] = _trusted_fixed_case_results(fixed_case_results)

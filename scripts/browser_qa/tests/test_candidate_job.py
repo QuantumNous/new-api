@@ -248,6 +248,7 @@ class CandidateJobTests(unittest.TestCase):
         self.assertEqual(manifest, {
             "schema_version": 1,
             "kind": "candidate_attempt",
+            "environment": "staging",
             "fingerprint": payload["fingerprint"],
             "case_id": "FQA-0001",
             "attempt_id": "attempt-0001",
@@ -265,6 +266,37 @@ class CandidateJobTests(unittest.TestCase):
         self.assertEqual(len(cleanup.calls), 0)
         self.assertFalse(hasattr(candidate_job.CandidateJob, "_start_codex"))
 
+    def test_candidate_attempt_manifest_uses_trusted_environment_and_rejects_raw_env_names(self):
+        proposed = proposed_case(origin="staging_console")
+        fingerprint = promotion.canonical_fingerprint(
+            "coverage",
+            "https://console.flatkey.ai/register",
+            proposed,
+        )
+        outcome, tmp, _uploader, _cleanup = self.run_job(
+            env_overrides={
+                "FLATKEY_QA_TARGET_ENVIRONMENT": "production",
+                "FLATKEY_QA_WEBSITE_ORIGIN": "https://flatkey.ai",
+                "FLATKEY_QA_CONSOLE_ORIGIN": "https://console.flatkey.ai",
+            },
+            payload=self.valid_payload(
+                target_url="https://console.flatkey.ai/register",
+                proposed=proposed,
+                case=fixed_case(fingerprint=fingerprint),
+            ),
+        )
+
+        self.assertEqual(outcome.status, "passed")
+        with open(os.path.join(tmp, "manifest.json"), encoding="utf-8") as handle:
+            manifest = json.load(handle)
+        self.assertEqual(manifest["environment"], "production")
+        self.assertNotIn("FLATKEY_QA_TARGET_ENVIRONMENT", json.dumps(manifest))
+
+        invalid = dict(manifest)
+        invalid["environment"] = "FLATKEY_QA_TARGET_ENVIRONMENT"
+        with self.assertRaises(ValueError):
+            candidate_job._validate_candidate_manifest(invalid)
+
     def test_rejects_unsafe_candidate_env_before_proxy_browser_helper_or_runner_side_effects(self):
         bad_envs = [
             {"FLATKEY_QA_RUN_ID": "../bad"},
@@ -272,6 +304,7 @@ class CandidateJobTests(unittest.TestCase):
             {"FLATKEY_BROWSER_QA_GCS_BUCKET": "../bucket"},
             {"FLATKEY_BROWSER_QA_GCS_BUCKET": "Bad_Bucket"},
             {"BROWSER_QA_ATTEMPT_ID": "../attempt"},
+            {"FLATKEY_QA_TARGET_ENVIRONMENT": "prod"},
         ]
         for env_overrides in bad_envs:
             calls = []

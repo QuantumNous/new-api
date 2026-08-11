@@ -1,8 +1,9 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["replay", "exploration", "budgets", "findings", "coverage_candidates"],
+  "required": ["environment", "replay", "exploration", "budgets", "findings", "coverage_candidates"],
   "properties": {
+    "environment": {"type": "string", "enum": ["staging", "production"]},
     "replay": {
       "type": "object",
       "additionalProperties": false,

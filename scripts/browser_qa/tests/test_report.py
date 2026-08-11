@@ -10,6 +10,7 @@ from scripts.browser_qa.flatkey_browser_qa import report
 
 def valid_result(**overrides):
     payload = {
+        "environment": "staging",
         "replay": {"status": "passed", "checkpoint_reached": True},
         "exploration": {"status": "passed", "actions_used": 3},
         "budgets": {"replay_seconds": 300, "exploration_seconds": 300, "max_actions": 30},
@@ -805,7 +806,53 @@ class ReportTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["status"], "replay_failed")
-        self.assertEqual(manifest["infrastructure"]["classification"], classification)
+        self.assertEqual(manifest["infrastructure"]["classification"], {
+            "classification": "human_verification_blocked",
+            "human_verification_blocked": True,
+            "explanation": "正常 Turnstile/人机验证流程阻止自动化",
+        })
+        rendered = json.dumps(manifest["infrastructure"], ensure_ascii=False)
+        for forbidden in ["widget", "token", "query", "cookie", "blocked_stage", "target_environment"]:
+            self.assertNotIn(forbidden, rendered)
+
+    def test_result_environment_is_required_and_closed_to_staging_or_production(self):
+        for environment in ["staging", "production"]:
+            with self.subTest(environment=environment):
+                payload = valid_result(environment=environment)
+                self.assertIs(report.validate_result(payload), payload)
+
+        for payload in [
+            {key: value for key, value in valid_result().items() if key != "environment"},
+            valid_result(environment="prod"),
+            valid_result(environment="FLATKEY_QA_TARGET_ENVIRONMENT"),
+        ]:
+            with self.subTest(payload=payload):
+                with self.assertRaises(report.ResultValidationError):
+                    report.validate_result(payload)
+
+    def test_main_manifest_uses_trusted_environment_and_rejects_result_mismatch(self):
+        cleanup = CleanupResult(0, False, False, False, "not needed")
+
+        manifest = report.build_manifest(
+            valid_result(environment="staging"),
+            cleanup_result=cleanup,
+            run_id="123456789",
+            execution_id="main-001",
+            provenance=valid_provenance(),
+            target_environment="staging",
+        )
+
+        self.assertEqual(manifest["environment"], "staging")
+
+        with self.assertRaises(report.ResultValidationError):
+            report.build_manifest(
+                valid_result(environment="staging"),
+                cleanup_result=cleanup,
+                run_id="123456789",
+                execution_id="main-001",
+                provenance=valid_provenance(),
+                target_environment="production",
+            )
 
     def test_human_verification_classification_does_not_override_infrastructure_flags(self):
         classification = {

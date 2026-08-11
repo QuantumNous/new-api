@@ -133,6 +133,7 @@ def root_manifest(candidates):
     return {
         "schema_version": 1,
         "run_id": "12345",
+        "environment": "staging",
         "status": "passed",
         "latest": {"main_execution_id": "main-12345", "cleanup_execution_id": "cleanup-12345"},
         "executions": [
@@ -182,6 +183,7 @@ def attempt_manifest(spec, *, status="passed", cleanup="not_required", classific
     return {
         "schema_version": 1,
         "kind": "candidate_attempt",
+        "environment": spec.get("environment", "staging"),
         "fingerprint": spec["fingerprint"],
         "case_id": spec["case_id"],
         "attempt_id": spec["attempt_id"],
@@ -485,6 +487,7 @@ class BrowserQaOperationsContractTests(unittest.TestCase):
         plan = candidate_orchestrator.build_execution_plan(root_manifest([candidate_bundle(kind="finding")]), expected_bucket="browser-qa", run_id="12345")
         candidate = plan["candidates"][0]
         attempts = candidate["attempts"]
+        self.assertEqual(candidate["environment"], "staging")
 
         cleanup_summary = candidate_orchestrator.aggregate_candidate_attempts(
             candidate,
@@ -511,6 +514,11 @@ class BrowserQaOperationsContractTests(unittest.TestCase):
             [attempt_manifest(attempt, status="passed") for attempt in attempts],
         )
         self.assertEqual(fixed_summary["decision"], "ready_for_review")
+
+        mismatched = attempt_manifest(attempts[0])
+        mismatched["environment"] = "production"
+        with self.assertRaises(ValueError):
+            candidate_orchestrator.aggregate_candidate_attempts(candidate, [mismatched])
 
     def test_candidate_orchestrator_recovery_reads_only_exact_attempt_paths_and_rejects_identity_mismatch(self):
         plan = candidate_orchestrator.build_execution_plan(root_manifest([candidate_bundle()]), expected_bucket="browser-qa", run_id="12345")

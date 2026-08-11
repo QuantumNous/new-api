@@ -69,6 +69,7 @@ class DingTalkTests(unittest.TestCase):
             "candidate_status": "skipped",
             "candidate_count": 0,
             "candidate_pr_bundle_count": 0,
+            "environment": "staging",
             "finding_summaries": (),
         }
         values.update(overrides)
@@ -81,10 +82,10 @@ class DingTalkTests(unittest.TestCase):
         payload = report.payload()
 
         self.assertEqual(payload["msgtype"], "markdown")
-        self.assertEqual(payload["markdown"]["title"], "Staging 浏览器 QA：全部通过")
+        self.assertEqual(payload["markdown"]["title"], "测试环境 浏览器 QA：全部通过")
         self.assertEqual(payload["markdown"]["text"], markdown)
         for expected in [
-            "### Staging 浏览器 QA：全部通过",
+            "### 测试环境 浏览器 QA：全部通过",
             "> 测试已执行完成，未发现需要关注的问题。",
             "最终状态：全部通过（`passed`）",
             "录制回放：通过（`passed`）",
@@ -255,8 +256,8 @@ class DingTalkTests(unittest.TestCase):
                 )
                 markdown = report.markdown()
 
-                self.assertEqual(report.payload()["markdown"]["title"], f"Staging 浏览器 QA：{label}")
-                self.assertIn(f"### Staging 浏览器 QA：{label}", markdown)
+                self.assertEqual(report.payload()["markdown"]["title"], f"测试环境 浏览器 QA：{label}")
+                self.assertIn(f"### 测试环境 浏览器 QA：{label}", markdown)
                 self.assertIn(f"> {summary}", markdown)
                 self.assertIn(f"最终状态：{label}（`{final_status}`）", markdown)
 
@@ -311,13 +312,13 @@ class DingTalkTests(unittest.TestCase):
         passed = self.report(final_status="passed", finding_count=2, finding_summaries=summaries)
         failed = self.report(final_status="cleanup_failed", finding_count=2, finding_summaries=summaries)
 
-        self.assertEqual(alert.payload()["markdown"]["title"], "Staging 浏览器 QA：发现问题")
+        self.assertEqual(alert.payload()["markdown"]["title"], "测试环境 浏览器 QA：发现问题")
         self.assertIn("### 发现的问题", alert.markdown())
         self.assertIn("- [高（`high`）] 登录入口跳转到错误页面（置信度：高（`high`）；页面：/admin）", alert.markdown())
         self.assertIn("- [中（`medium`）] API Key label is visible（置信度：中（`medium`）；页面：/keys）", alert.markdown())
-        self.assertEqual(passed.payload()["markdown"]["title"], "Staging 浏览器 QA：全部通过")
+        self.assertEqual(passed.payload()["markdown"]["title"], "测试环境 浏览器 QA：全部通过")
         self.assertNotIn("### 发现的问题", passed.markdown())
-        self.assertEqual(failed.payload()["markdown"]["title"], "Staging 浏览器 QA：清理失败")
+        self.assertEqual(failed.payload()["markdown"]["title"], "测试环境 浏览器 QA：清理失败")
         self.assertNotIn("### 发现的问题", failed.markdown())
 
     def test_report_escapes_untrusted_markdown_in_finding_text(self):
@@ -509,6 +510,7 @@ class DingTalkTests(unittest.TestCase):
             "BROWSER_QA_CANDIDATE_STATUS": "passed",
             "BROWSER_QA_CANDIDATE_COUNT": "2",
             "BROWSER_QA_CANDIDATE_PR_BUNDLE_COUNT": "1",
+            "BROWSER_QA_TARGET_ENVIRONMENT": "production",
             "BROWSER_QA_FINDING_SUMMARIES_B64": base64.urlsafe_b64encode(summaries_json).decode("ascii"),
         }
         stdout = io.StringIO()
@@ -526,6 +528,7 @@ class DingTalkTests(unittest.TestCase):
         self.assertEqual(report.candidate_status, "passed")
         self.assertEqual(report.candidate_count, 2)
         self.assertEqual(report.candidate_pr_bundle_count, 1)
+        self.assertEqual(report.environment, "production")
         self.assertEqual(
             report.finding_summaries,
             ({"severity": "high", "title": "Unsafe redirect", "confidence": "high", "page_path": "/admin"},),
@@ -534,6 +537,22 @@ class DingTalkTests(unittest.TestCase):
         self.assertNotIn(WEBHOOK, stdout.getvalue())
         self.assertNotIn("main-signing-secret", stdout.getvalue())
         self.assertEqual(send.call_args.kwargs, {"signing_secret": "main-signing-secret"})
+
+    def test_report_uses_closed_chinese_environment_label_without_raw_input(self):
+        staging = self.report(environment="staging").markdown()
+        production = self.report(environment="production").markdown()
+
+        self.assertIn("测试环境 浏览器 QA", staging)
+        self.assertIn("正式环境 浏览器 QA", production)
+        for markdown in [staging, production]:
+            self.assertNotIn("FLATKEY_QA_TARGET_ENVIRONMENT", markdown)
+            self.assertNotIn("staging 浏览器 QA", markdown)
+            self.assertNotIn("production 浏览器 QA", markdown)
+
+        for environment in ["prod", "FLATKEY_QA_TARGET_ENVIRONMENT", "测试环境"]:
+            with self.subTest(environment=environment):
+                with self.assertRaises(ValueError):
+                    self.report(environment=environment)
 
     def test_main_rejects_malformed_finding_summary_env_without_echoing_input(self):
         for encoded in [
@@ -557,6 +576,7 @@ class DingTalkTests(unittest.TestCase):
                     "BROWSER_QA_CANDIDATE_STATUS": "skipped",
                     "BROWSER_QA_CANDIDATE_COUNT": "0",
                     "BROWSER_QA_CANDIDATE_PR_BUNDLE_COUNT": "0",
+                    "BROWSER_QA_TARGET_ENVIRONMENT": "staging",
                     "BROWSER_QA_FINDING_SUMMARIES_B64": encoded,
                 }
                 with mock.patch.dict(os.environ, env, clear=True):

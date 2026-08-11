@@ -56,6 +56,10 @@ CANDIDATE_STATUS_LABELS = {
     "promotion_failed": "固化失败",
     "unknown": "未知",
 }
+ENVIRONMENT_LABELS = {
+    "staging": "测试环境",
+    "production": "正式环境",
+}
 GITHUB_RUN_URL = re.compile(
     r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[1-9][0-9]*"
 )
@@ -95,6 +99,7 @@ class DingTalkReport:
     candidate_status: str
     candidate_count: int
     candidate_pr_bundle_count: int
+    environment: str = "staging"
     finding_summaries: tuple[dict, ...] = ()
 
     def __post_init__(self):
@@ -111,6 +116,7 @@ class DingTalkReport:
         _require_member("candidate_status", self.candidate_status, CANDIDATE_STATUSES)
         _require_count("candidate_count", self.candidate_count, maximum=20)
         _require_count("candidate_pr_bundle_count", self.candidate_pr_bundle_count, maximum=20)
+        _require_member("environment", self.environment, frozenset(ENVIRONMENT_LABELS))
         if self.candidate_pr_bundle_count > self.candidate_count:
             raise ValueError("candidate_pr_bundle_count is invalid")
         _validate_finding_summaries(self.finding_summaries)
@@ -224,6 +230,7 @@ def main():
         candidate_status=_required_env("BROWSER_QA_CANDIDATE_STATUS"),
         candidate_count=_env_count("BROWSER_QA_CANDIDATE_COUNT"),
         candidate_pr_bundle_count=_env_count("BROWSER_QA_CANDIDATE_PR_BUNDLE_COUNT"),
+        environment=_required_env("BROWSER_QA_TARGET_ENVIRONMENT"),
         finding_summaries=_env_finding_summaries("BROWSER_QA_FINDING_SUMMARIES_B64"),
     )
     send_report(_required_env("DINGTALK_WEBHOOK"), report, signing_secret=_required_env("DINGTALK_SIGNING_SECRET"))
@@ -255,13 +262,17 @@ def _candidate_label(status):
     return CANDIDATE_STATUS_LABELS[status]
 
 
+def _environment_label(environment):
+    return ENVIRONMENT_LABELS[environment]
+
+
 def _candidate_failed(status):
     return status in {"cleanup_failed", "infrastructure_failed", "promotion_failed", "unknown"}
 
 
 def _title(report):
     suffix = " / 候选固化异常" if _candidate_failed(report.candidate_status) else ""
-    return f"Staging 浏览器 QA：{_final_label(report.final_status)}{suffix}"
+    return f"{_environment_label(report.environment)} 浏览器 QA：{_final_label(report.final_status)}{suffix}"
 
 
 def _product_summary(final_status, finding_count):

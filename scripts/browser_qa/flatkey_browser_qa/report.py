@@ -20,6 +20,7 @@ PROPOSED_CASE_FIELDS = {"fixture", "start", "steps", "assertions", "cleanup"}
 PROPOSED_CASE_ORIGINS = {"staging_website", "staging_console"}
 FIXED_CASE_STATUSES = {"not_started", "passed", "failed"}
 CLEANUP_STATUSES = {"passed", "not_required", "failed"}
+ENVIRONMENTS = {"staging", "production"}
 PHASE_TRACE_ORDER = ("replay_done", "fixed_cases_done", "exploration_started", "finalization_started")
 PHASE_TRACE_SEQUENCES = {
     (),
@@ -54,7 +55,7 @@ _EVIDENCE_READ_CHUNK_BYTES = 64 * 1024
 
 
 def validate_result(payload, *, legacy=False):
-    required = {"replay", "exploration", "budgets", "findings"}
+    required = {"environment", "replay", "exploration", "budgets", "findings"}
     runtime_fields = {"coverage_candidates", "fixed_cases", "phase_trace"}
     if legacy:
         if isinstance(payload, dict) and (set(payload) & runtime_fields):
@@ -65,6 +66,7 @@ def validate_result(payload, *, legacy=False):
     else:
         required |= runtime_fields
     _require_object(payload, required, set())
+    _enum(payload["environment"], ENVIRONMENTS, "environment")
     _require_object(payload["replay"], {"status", "checkpoint_reached"}, set())
     _enum(payload["replay"]["status"], {"passed", "failed"}, "replay.status")
     _boolean(payload["replay"]["checkpoint_reached"], "replay.checkpoint_reached")
@@ -214,9 +216,13 @@ def build_manifest(
     upload_failed=False,
     invalid_result=False,
     runtime_classification=None,
+    target_environment=None,
 ):
     redactor = redactor or Redactor()
     validate_result(payload)
+    environment = _trusted_environment(target_environment if target_environment is not None else payload.get("environment"))
+    if payload["environment"] != environment:
+        raise ResultValidationError("result environment does not match trusted environment")
     validate_provenance(provenance)
     cleanup = _cleanup_to_dict(cleanup_result)
     status = classify_status(
@@ -231,6 +237,7 @@ def build_manifest(
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "kind": "main",
         "run_id": run_id,
+        "environment": environment,
         "execution_id": execution_id,
         "status": status,
         "created_at": int(time.time()),
@@ -240,7 +247,7 @@ def build_manifest(
     }
     _validate_manifest_identity(run_id, execution_id)
     if runtime_classification:
-        manifest["infrastructure"] = {"status": "failed", "classification": redactor.clean(runtime_classification)}
+        manifest["infrastructure"] = {"status": "failed", "classification": redactor.clean(_safe_runtime_classification(runtime_classification))}
     return manifest
 
 
@@ -267,6 +274,7 @@ def write_report(
     upload_failed=False,
     invalid_result=False,
     runtime_classification=None,
+    target_environment=None,
 ):
     with open(result_path, encoding="utf-8") as handle:
         payload = json.load(handle)
@@ -281,6 +289,7 @@ def write_report(
         upload_failed=upload_failed,
         invalid_result=invalid_result,
         runtime_classification=runtime_classification,
+        target_environment=target_environment,
     )
     os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
     _write_json_private(manifest_path, manifest)
@@ -328,6 +337,23 @@ def cleanup_status(cleanup_result):
     ):
         return "not_required"
     return "passed"
+
+
+def _trusted_environment(value):
+    if value not in ENVIRONMENTS:
+        raise ResultValidationError("environment has invalid value")
+    return value
+
+
+def _safe_runtime_classification(value):
+    if _runtime_classification_name(value) != "human_verification_blocked":
+        return value
+    human_blocked = isinstance(value, dict) and value.get("human_verification_blocked") is True
+    return {
+        "classification": "human_verification_blocked",
+        "human_verification_blocked": human_blocked,
+        "explanation": "正常 Turnstile/人机验证流程阻止自动化",
+    }
 
 
 def _strip_url_query_fragment(url):

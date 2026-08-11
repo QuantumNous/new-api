@@ -17,10 +17,11 @@ SOURCE_FIELDS = {"run_id", "evidence_uri"}
 PROMOTION_FIELDS = {"state", "attempts_required", "attempts_passed"}
 EXECUTION_RECORD_FIELDS = {"kind", "execution_id", "manifest", "status", "created_at"}
 EXECUTION_RECORD_ALLOWED_FIELDS = EXECUTION_RECORD_FIELDS | {"summary"}
-PLAN_CANDIDATE_FIELDS = {"kind", "fingerprint", "target_url", "proposed_case", "source", "promotion", "case_id", "attempts"}
+PLAN_CANDIDATE_FIELDS = {"kind", "fingerprint", "target_url", "proposed_case", "source", "promotion", "environment", "case_id", "attempts"}
 PLAN_ATTEMPT_FIELDS = {"attempt_id", "candidate_b64", "manifest_uri", "manifest_object", "fingerprint", "case_id"}
 SAFE_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 SAFE_B64_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+ENVIRONMENTS = {"staging", "production"}
 STAGING_ORIGINS = {"https://staging-console.flatkey.ai", "https://staging-website.flatkey.ai"}
 ROOT_STATUSES = {"passed", "findings_detected", "replay_failed", "infrastructure_failed", "cleanup_failed"}
 
@@ -30,6 +31,7 @@ def build_execution_plan(root_manifest, *, expected_bucket, run_id, occupied=Non
     run_id = candidate_job._validate_run_id(run_id)
     occupied = {} if occupied is None else dict(occupied)
     candidates = _root_candidates(root_manifest)
+    environment = _root_environment(root_manifest)
     expected_source_uri = None
     if candidates:
         expected_source_uri = _latest_main_manifest_uri(root_manifest, expected_bucket=expected_bucket, run_id=run_id)
@@ -43,8 +45,8 @@ def build_execution_plan(root_manifest, *, expected_bucket, run_id, occupied=Non
         seen.add(fingerprint)
         case_id = promotion.deterministic_case_id(fingerprint, occupied)
         occupied[case_id] = fingerprint
-        planned.append(_plan_candidate(normalized, expected_bucket=expected_bucket, run_id=run_id, case_id=case_id))
-    return {"schema_version": 1, "kind": "candidate_execution_plan", "run_id": run_id, "bucket": expected_bucket, "candidates": planned}
+        planned.append(_plan_candidate(normalized, expected_bucket=expected_bucket, run_id=run_id, case_id=case_id, environment=environment))
+    return {"schema_version": 1, "kind": "candidate_execution_plan", "run_id": run_id, "bucket": expected_bucket, "environment": environment, "candidates": planned}
 
 
 def exact_attempt_manifest_uris(candidate):
@@ -58,9 +60,11 @@ def aggregate_candidate_attempts(candidate, attempt_manifests):
     by_attempt = {attempt["attempt_id"]: attempt for attempt in candidate["attempts"]}
     attempts = []
     for manifest in attempt_manifests:
-        if not isinstance(manifest, dict) or set(manifest) != {"schema_version", "kind", "fingerprint", "case_id", "attempt_id", "result", "cleanup", "runtime"}:
+        if not isinstance(manifest, dict) or set(manifest) != {"schema_version", "kind", "environment", "fingerprint", "case_id", "attempt_id", "result", "cleanup", "runtime"}:
             raise ValueError("candidate attempt manifest invalid")
         candidate_job._validate_candidate_manifest(manifest)
+        if manifest["environment"] != candidate["environment"]:
+            raise ValueError("candidate attempt environment mismatch")
         attempt_id = manifest["attempt_id"]
         expected = by_attempt.get(attempt_id)
         if expected is None:
@@ -97,6 +101,13 @@ def _root_candidates(root_manifest):
     if not isinstance(candidates, list) or len(candidates) > MAX_CANDIDATES:
         raise ValueError("root manifest candidates invalid")
     return candidates
+
+
+def _root_environment(root_manifest):
+    environment = root_manifest.get("environment")
+    if environment not in ENVIRONMENTS:
+        raise ValueError("root manifest environment invalid")
+    return environment
 
 
 def _latest_main_manifest_uri(root_manifest, *, expected_bucket, run_id):
@@ -180,7 +191,7 @@ def _validate_root_candidate(candidate, *, expected_bucket, run_id, expected_sou
     }
 
 
-def _plan_candidate(candidate, *, expected_bucket, run_id, case_id):
+def _plan_candidate(candidate, *, expected_bucket, run_id, case_id, environment):
     attempts = []
     for index in range(1, promotion.ATTEMPTS_REQUIRED + 1):
         attempt_id = f"attempt-{run_id}-{candidate['fingerprint'][7:19]}-{index}"
@@ -224,6 +235,7 @@ def _plan_candidate(candidate, *, expected_bucket, run_id, case_id):
         })
     return {
         **copy.deepcopy(candidate),
+        "environment": environment,
         "case_id": case_id,
         "attempts": attempts,
     }
@@ -234,6 +246,8 @@ def _validate_plan_candidate(candidate):
         raise ValueError("plan candidate invalid")
     promotion._validate_fingerprint(candidate["fingerprint"])
     if candidate["kind"] not in promotion.KINDS:
+        raise ValueError("plan candidate invalid")
+    if candidate["environment"] not in ENVIRONMENTS:
         raise ValueError("plan candidate invalid")
     if not isinstance(candidate["case_id"], str) or not fixed_cases.ID_RE.fullmatch(candidate["case_id"]):
         raise ValueError("plan candidate invalid")

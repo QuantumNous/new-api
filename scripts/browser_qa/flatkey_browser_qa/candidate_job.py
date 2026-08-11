@@ -212,6 +212,7 @@ class CandidateJob:
         if result is None:
             result = _empty_candidate_result(case_id, attempt_id if _safe_attempt_id(attempt_id) else "attempt-invalid")
         manifest = _candidate_manifest(
+            environment=config["target_environment"] if config is not None else "staging",
             fingerprint=fingerprint,
             case_id=case_id,
             attempt_id=attempt_id if _safe_attempt_id(attempt_id) else "attempt-invalid",
@@ -617,12 +618,13 @@ def _constant_equal(left, right):
     return len(left) == len(right) and hashlib.sha256(left.encode()).digest() == hashlib.sha256(right.encode()).digest()
 
 
-def _candidate_manifest(*, fingerprint, case_id, attempt_id, result, cleanup_status, runtime_classification, redactor):
+def _candidate_manifest(*, environment, fingerprint, case_id, attempt_id, result, cleanup_status, runtime_classification, redactor):
     if runtime_classification is not None and runtime_classification not in ALLOWED_RUNTIME_CLASSIFICATIONS:
         runtime_classification = "invalid_payload"
     manifest = {
         "schema_version": 1,
         "kind": "candidate_attempt",
+        "environment": _validate_target_environment(environment) if environment in CANDIDATE_TARGET_PROFILES else "staging",
         "fingerprint": fingerprint if isinstance(fingerprint, str) and FINGERPRINT_RE.fullmatch(fingerprint) else "sha256:" + "0" * 64,
         "case_id": case_id if isinstance(case_id, str) and fixed_cases.ID_RE.fullmatch(case_id) else "FQA-0000",
         "attempt_id": attempt_id if _safe_attempt_id(attempt_id) else "attempt-invalid",
@@ -635,10 +637,11 @@ def _candidate_manifest(*, fingerprint, case_id, attempt_id, result, cleanup_sta
 
 
 def _validate_candidate_manifest(manifest):
-    if set(manifest) != {"schema_version", "kind", "fingerprint", "case_id", "attempt_id", "result", "cleanup", "runtime"}:
+    if set(manifest) != {"schema_version", "kind", "environment", "fingerprint", "case_id", "attempt_id", "result", "cleanup", "runtime"}:
         raise ValueError("candidate manifest invalid")
     if manifest["schema_version"] != 1 or manifest["kind"] != "candidate_attempt":
         raise ValueError("candidate manifest invalid")
+    _validate_target_environment(manifest["environment"])
     if not FINGERPRINT_RE.fullmatch(manifest["fingerprint"]):
         raise ValueError("candidate manifest invalid")
     if not fixed_cases.ID_RE.fullmatch(manifest["case_id"]) or not _safe_attempt_id(manifest["attempt_id"]):
