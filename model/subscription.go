@@ -481,6 +481,70 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 	return target, nil
 }
 
+func resolveExpiredSubscriptionDowngradeTarget(subs []UserSubscription, currentGroup string) string {
+	type explicitTarget struct {
+		group   string
+		endTime int64
+		id      int
+	}
+	var latestExplicit explicitTarget
+	for _, sub := range subs {
+		target := strings.TrimSpace(sub.DowngradeGroup)
+		if target == "" {
+			continue
+		}
+		if latestExplicit.group == "" || sub.EndTime > latestExplicit.endTime || (sub.EndTime == latestExplicit.endTime && sub.Id > latestExplicit.id) {
+			latestExplicit = explicitTarget{group: target, endTime: sub.EndTime, id: sub.Id}
+		}
+	}
+	if latestExplicit.group != "" {
+		return latestExplicit.group
+	}
+
+	prevToUpgrade := make(map[string]string)
+	prevGroups := make(map[string]struct{})
+	upgradeGroups := make(map[string]struct{})
+	for _, sub := range subs {
+		prev := strings.TrimSpace(sub.PrevUserGroup)
+		upgrade := strings.TrimSpace(sub.UpgradeGroup)
+		if prev == "" || upgrade == "" {
+			continue
+		}
+		if existing, ok := prevToUpgrade[prev]; ok && existing != upgrade {
+			return ""
+		}
+		prevToUpgrade[prev] = upgrade
+		prevGroups[prev] = struct{}{}
+		upgradeGroups[upgrade] = struct{}{}
+	}
+	if len(prevToUpgrade) == 0 {
+		return ""
+	}
+
+	baseGroup := ""
+	for prev := range prevGroups {
+		if _, ok := upgradeGroups[prev]; !ok {
+			if baseGroup != "" {
+				return ""
+			}
+			baseGroup = prev
+		}
+	}
+	terminalGroup := ""
+	for upgrade := range upgradeGroups {
+		if _, ok := prevGroups[upgrade]; !ok {
+			if terminalGroup != "" {
+				return ""
+			}
+			terminalGroup = upgrade
+		}
+	}
+	if baseGroup == "" || terminalGroup == "" || currentGroup != terminalGroup {
+		return ""
+	}
+	return baseGroup
+}
+
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
@@ -1151,7 +1215,17 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 	}
 	for userId := range userIds {
 		cacheGroup := ""
+		userExpiredCount := 0
 		err := DB.Transaction(func(tx *gorm.DB) error {
+			var dueSubs []UserSubscription
+			if err := tx.Where("user_id = ? AND status = ? AND end_time > 0 AND end_time <= ?", userId, "active", now).
+				Order("end_time asc, id asc").
+				Find(&dueSubs).Error; err != nil {
+				return err
+			}
+			if len(dueSubs) == 0 {
+				return nil
+			}
 			res := tx.Model(&UserSubscription{}).
 				Where("user_id = ? AND status = ? AND end_time > 0 AND end_time <= ?", userId, "active", now).
 				Updates(map[string]interface{}{
@@ -1161,7 +1235,7 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 			if res.Error != nil {
 				return res.Error
 			}
-			expiredCount += int(res.RowsAffected)
+			userExpiredCount = int(res.RowsAffected)
 
 			// If there's an active upgraded subscription, keep current group.
 			var activeSub UserSubscription
@@ -1174,36 +1248,11 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 				return nil
 			}
 
-			// Find the most recently expired subscription that defines a group transition
-			// (an explicit downgrade target or an upgrade snapshot to revert).
-			var lastExpired UserSubscription
-			expiredQuery := tx.Where("user_id = ? AND status = ? AND (downgrade_group <> '' OR upgrade_group <> '')",
-				userId, "expired").
-				Order("end_time desc, id desc").
-				Limit(1).
-				Find(&lastExpired)
-			if expiredQuery.Error != nil || expiredQuery.RowsAffected == 0 {
-				return nil
-			}
 			currentGroup, err := getUserGroupByIdTx(tx, userId)
 			if err != nil {
 				return err
 			}
-			// An explicit downgrade group takes precedence; otherwise revert to the
-			// group held before purchase (legacy behavior, only when the subscription
-			// actually elevated the user).
-			target := strings.TrimSpace(lastExpired.DowngradeGroup)
-			if target == "" {
-				upgradeGroup := strings.TrimSpace(lastExpired.UpgradeGroup)
-				prevGroup := strings.TrimSpace(lastExpired.PrevUserGroup)
-				if upgradeGroup == "" || prevGroup == "" {
-					return nil
-				}
-				if currentGroup != upgradeGroup {
-					return nil
-				}
-				target = prevGroup
-			}
+			target := resolveExpiredSubscriptionDowngradeTarget(dueSubs, currentGroup)
 			if target == "" || target == currentGroup {
 				return nil
 			}
@@ -1217,6 +1266,7 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 		if err != nil {
 			return expiredCount, err
 		}
+		expiredCount += userExpiredCount
 		if cacheGroup != "" {
 			refreshSubscriptionUserGroupCache(userId, "subscription expiration")
 		}
