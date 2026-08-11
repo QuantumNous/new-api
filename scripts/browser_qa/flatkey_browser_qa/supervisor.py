@@ -738,6 +738,7 @@ class Supervisor:
 
 def _empty_result():
     return {
+        "environment": "staging",
         "replay": {"status": "failed", "checkpoint_reached": False},
         "exploration": {"status": "not_started", "actions_used": 0},
         "budgets": _trusted_runtime_budgets(),
