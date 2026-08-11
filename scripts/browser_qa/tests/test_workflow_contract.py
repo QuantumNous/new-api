@@ -594,25 +594,46 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("--update-env-vars", update)
         self.assertNotIn("--args=", update)
         self.assertEqual(update.count("gcloud run services update"), 1)
-        self.assertEqual(update.count("gcloud run jobs update"), 0)
+        self.assertEqual(update.count("gcloud run jobs update"), 2)
         for command in re.findall(r"gcloud run (?:services|jobs) update[\s\S]*?(?=\n          gcloud run |\Z)", update):
             self.assertIn("--image=\"${IMAGE_URI}\"", command)
             self.assertNotRegex(command, r"--(update-secrets|update-env-vars|args)=")
 
-    def test_no_persistent_job_template_update_is_used_for_browser_qa_jobs(self):
+    def test_job_template_updates_refresh_only_main_and_cleanup_images_without_target_env_or_origins(self):
         update = step_block(workflow_text(), "Update browser QA Cloud Run resources")
+        commands = re.findall(
+            r"gcloud run (?:services|jobs) update[\s\S]*?(?=\n          gcloud run |\Z)",
+            update,
+        )
 
         self.assertEqual(update.count("gcloud run services update"), 1)
-        self.assertNotIn("gcloud run jobs update", update)
-        self.assertNotRegex(update, r"gcloud run jobs update[\s\S]*--update-env-vars")
+        self.assertEqual(update.count("gcloud run jobs update"), 2)
+        self.assertEqual(len(commands), 3)
+        main = next(command for command in commands if '"${QA_MAIN_JOB}"' in command)
+        cleanup = next(command for command in commands if '"${QA_CLEANUP_JOB}"' in command)
+        broker = next(command for command in commands if '"${QA_BROKER_SERVICE}"' in command)
+        for command in [broker, main, cleanup]:
+            self.assertIn('--image="${IMAGE_URI}"', command)
+            self.assertNotRegex(
+                command,
+                r"FLATKEY_QA_TARGET_ENVIRONMENT|FLATKEY_QA_(?:WEBSITE|CONSOLE|DOCS)_ORIGIN|--update-env-vars",
+            )
 
     def test_resource_update_gives_only_the_main_job_two_gibibytes_of_memory(self):
         update = step_block(workflow_text(), "Update browser QA Cloud Run resources")
-        commands = re.findall(r"gcloud run services update[\s\S]*?(?=\n          gcloud run |\Z)", update)
-        self.assertEqual(len(commands), 1)
+        commands = re.findall(
+            r"gcloud run (?:services|jobs) update[\s\S]*?(?=\n          gcloud run |\Z)",
+            update,
+        )
+        self.assertEqual(len(commands), 3)
 
+        main = next(command for command in commands if '"${QA_MAIN_JOB}"' in command)
         broker = next(command for command in commands if '"${QA_BROKER_SERVICE}"' in command)
+        cleanup = next(command for command in commands if '"${QA_CLEANUP_JOB}"' in command)
+
+        self.assertIn('--memory="2Gi"', main)
         self.assertNotIn("--memory=", broker)
+        self.assertNotIn("--memory=", cleanup)
         self.assertNotIn("--cpu=", update)
 
     def test_main_and_cleanup_execute_with_wait_and_cleanup_is_unconditional(self):

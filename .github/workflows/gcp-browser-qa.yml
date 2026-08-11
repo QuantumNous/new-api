@@ -314,6 +314,17 @@ jobs:
             --region="${REGION}" \
             --image="${IMAGE_URI}" \
             --quiet
+          gcloud run jobs update "${QA_MAIN_JOB}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --memory="2Gi" \
+            --image="${IMAGE_URI}" \
+            --quiet
+          gcloud run jobs update "${QA_CLEANUP_JOB}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --image="${IMAGE_URI}" \
+            --quiet
 
       - name: Execute main browser QA job
         id: main
