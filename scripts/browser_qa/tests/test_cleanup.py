@@ -596,6 +596,7 @@ class CleanupTests(unittest.TestCase):
         env = {
             "FLATKEY_QA_RUN_ID": IDENTITY.run_id,
             "FLATKEY_QA_IDENTITY_SEED_B64": base64.b64encode(seed).decode("ascii"),
+            "FLATKEY_QA_TARGET_ENVIRONMENT": "staging",
             "FLATKEY_QA_CONSOLE_ORIGIN": "https://staging-console.flatkey.ai",
             "FLATKEY_BROWSER_QA_GCS_BUCKET": "flatkey-browser-qa-reports",
             "FLATKEY_BROWSER_QA_MAIN_EXECUTION_ID": "main-001",
@@ -1824,6 +1825,7 @@ def cleanup_env(seed, *, main_execution_id, cleanup_execution_id):
     return {
         "FLATKEY_QA_RUN_ID": IDENTITY.run_id,
         "FLATKEY_QA_IDENTITY_SEED_B64": base64.b64encode(seed).decode("ascii"),
+        "FLATKEY_QA_TARGET_ENVIRONMENT": "staging",
         "FLATKEY_QA_CONSOLE_ORIGIN": "https://staging-console.flatkey.ai",
         "FLATKEY_BROWSER_QA_GCS_BUCKET": "flatkey-browser-qa-reports",
         "FLATKEY_BROWSER_QA_MAIN_EXECUTION_ID": main_execution_id,

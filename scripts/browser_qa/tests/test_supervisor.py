@@ -370,6 +370,7 @@ def env():
         "FLATKEY_QA_RUN_ID": "12345",
         "FLATKEY_QA_IDENTITY_SEED_B64": "c2VlZC13aXRoLTMyLWJ5dGVzLW1pbmltdW0tdmFsdWU=",
         "FLATKEY_QA_GMAIL_BASE": "owner@gmail.com",
+        "FLATKEY_QA_TARGET_ENVIRONMENT": "staging",
         "FLATKEY_QA_WEBSITE_ORIGIN": "https://staging-website.flatkey.ai",
         "FLATKEY_QA_CONSOLE_ORIGIN": "https://staging-console.flatkey.ai",
         "FLATKEY_QA_DOCS_ORIGIN": "https://docs.flatkey.ai",
