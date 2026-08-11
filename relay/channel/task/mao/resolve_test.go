@@ -1,6 +1,9 @@
 package mao
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizeTier_FromResolution(t *testing.T) {
 	if got := normalizeTier("1080P", ""); got != "1080p" {
@@ -29,6 +32,12 @@ func TestNormalizeTier_FromSizeWxH(t *testing.T) {
 func TestNormalizeTier_Default720p(t *testing.T) {
 	if got := normalizeTier("", ""); got != "720p" {
 		t.Fatalf("got=%q", got)
+	}
+}
+
+func TestNormalizeTier_ResolutionWxHOverSizeLabel(t *testing.T) {
+	if got := normalizeTier("1920x1080", "720p"); got != "1080p" {
+		t.Fatalf("got=%q want 1080p", got)
 	}
 }
 
@@ -68,6 +77,9 @@ func TestResolveUpstreamModel_UnknownLogic(t *testing.T) {
 	_, err := resolveUpstreamModel("unknown-model", "720p")
 	if err == nil {
 		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "guanzhuan-seedance2.0") {
+		t.Fatalf("error should list supported models, got=%v", err)
 	}
 }
 

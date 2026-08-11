@@ -25,17 +25,19 @@ var upstreamPrefix = map[string]string{
 }
 
 // normalizeTier prefers resolution over size; parses *p / 4k / WxH; defaults to 720p.
+// Resolution is fully attempted first (label then WxH); size is used only if resolution
+// is empty or unparseable.
 func normalizeTier(resolution, size string) string {
 	if tier := parseTierLabel(resolution); tier != "" {
+		return tier
+	}
+	if tier := parseTierFromWxH(resolution); tier != "" {
 		return tier
 	}
 	if tier := parseTierLabel(size); tier != "" {
 		return tier
 	}
 	if tier := parseTierFromWxH(size); tier != "" {
-		return tier
-	}
-	if tier := parseTierFromWxH(resolution); tier != "" {
 		return tier
 	}
 	return "720p"
@@ -118,11 +120,11 @@ func resolveUpstreamModel(logic, tier string) (string, error) {
 
 	prefix, ok := upstreamPrefix[logic]
 	if !ok {
-		return "", fmt.Errorf("unsupported model: %s", logic)
+		return "", fmt.Errorf("unsupported model: %s; supported: %s", logic, strings.Join(ModelList, ", "))
 	}
 	allowed, ok := supportedTiers[logic]
 	if !ok {
-		return "", fmt.Errorf("unsupported model: %s", logic)
+		return "", fmt.Errorf("unsupported model: %s; supported: %s", logic, strings.Join(ModelList, ", "))
 	}
 	for _, t := range allowed {
 		if t == tier {
