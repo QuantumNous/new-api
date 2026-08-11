@@ -119,15 +119,33 @@ jobs:
           sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
             'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml && kubectl get nodes -o wide'
 
-      - name: Get runner token
+      - name: Get KUBE_CONFIG_B64 (public endpoint)
         run: |
-          # RUNNER_PAT 优先（需要 repo + admin:org 权限的 PAT）；否则回退到 GITHUB_TOKEN
+          # 拉取 kubeconfig 并把 127.0.0.1 换成公网 IP，让 GitHub 托管 runner 能直连
+          sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
+            'sudo cat /etc/rancher/k3s/k3s.yaml' > /tmp/kubeconfig.yaml
+          sed -i "s|https://127.0.0.1:6443|https://$K3S_SERVER_IP:6443|g" /tmp/kubeconfig.yaml
+          grep -q "https://$K3S_SERVER_IP:6443" /tmp/kubeconfig.yaml || {
+            echo "::error::kubeconfig server 地址替换失败"; exit 1; }
+          base64 -w0 < /tmp/kubeconfig.yaml > kubeconfig_b64.txt
+          echo "kubeconfig 已指向 https://$K3S_SERVER_IP:6443"
+
+      - name: Verify kubeconfig works from GitHub runner
+        run: |
+          curl -sL -o /tmp/kubectl "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
+          chmod +x /tmp/kubectl
+          export KUBECONFIG=/tmp/kubeconfig.yaml
+          /tmp/kubectl get nodes -o wide --insecure-skip-tls-verify --request-timeout=30s
+          echo "GitHub 托管 runner 可直连集群，无需 self-hosted runner"
+
+      - name: Get runner token (optional)
+        id: runner_token
+        continue-on-error: true
+        run: |
           AUTH_TOKEN="${{ secrets.RUNNER_PAT }}"
           if [ -z "$AUTH_TOKEN" ]; then
-            AUTH_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-            echo "使用 GITHUB_TOKEN（如失败请配置 RUNNER_PAT secret）"
-          else
-            echo "使用 RUNNER_PAT"
+            echo "未配置 RUNNER_PAT，跳过 self-hosted runner 注册（deploy 走 GitHub 托管 runner + kubeconfig）"
+            exit 1
           fi
           RESP=$(curl -s -X POST \
             -H "Authorization: token $AUTH_TOKEN" \
@@ -135,48 +153,41 @@ jobs:
             https://api.github.com/repos/${{ github.repository }}/actions/runners/registration-token)
           REG_TOKEN=$(echo "$RESP" | jq -r '.token // empty')
           if [ -z "$REG_TOKEN" ]; then
-            echo "::error::获取 runner 注册 token 失败: $(echo "$RESP" | jq -r '.message // .')"
-            echo "::error::需要在仓库配置 RUNNER_PAT secret（Personal Access Token，勾选 repo 权限）"
+            echo "RUNNER_PAT 无权限: $(echo "$RESP" | jq -r '.message // .')"
             exit 1
           fi
           echo "::add-mask::$REG_TOKEN"
           echo "REG_TOKEN=$REG_TOKEN" >> $GITHUB_ENV
           echo "RUNNER_VERSION=2.323.0" >> $GITHUB_ENV
-          echo "runner 注册 token 获取成功"
 
       - name: Download runner archive
+        if: steps.runner_token.outcome == 'success'
+        continue-on-error: true
         run: |
           curl -sL -o /tmp/actions-runner.tar.gz \
             "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
           echo "runner archive downloaded: $(ls -lh /tmp/actions-runner.tar.gz | awk '{print $5}')"
 
       - name: Upload runner to server and register
+        if: steps.runner_token.outcome == 'success'
+        continue-on-error: true
         run: |
           sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
             'sudo mkdir -p /opt/actions-runner && sudo chown $(whoami) /opt/actions-runner'
           sshpass -p "$K3S_SERVER_PASS" scp -o StrictHostKeyChecking=no \
             /tmp/actions-runner.tar.gz "$K3S_SERVER_USER@$K3S_SERVER_IP:/opt/actions-runner/"
-          # RUNNER_ALLOW_RUNASROOT=1：config.sh 默认拒绝 root 运行，服务器用户是 root 时必须设置
+          # RUNNER_ALLOW_RUNASROOT=1：config.sh 默认拒绝 root 运行
           sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" "
             set -e
             cd /opt/actions-runner
             tar xzf actions-runner.tar.gz
-            sudo apt-get update -qq || true
-            sudo apt-get install -y -qq libicu-dev || sudo apt-get install -y -qq libicu72 || sudo apt-get install -y -qq libicu70 || true
-            sudo ./bin/installdependencies.sh || echo "installdependencies 部分失败，继续（libicu 已单独安装）"
+            sudo ./bin/installdependencies.sh || true
             export RUNNER_ALLOW_RUNASROOT=1
             ./config.sh --url https://github.com/${{ github.repository }} --token $REG_TOKEN --labels k8s --name k3s-runner --unattended --replace
             sudo ./svc.sh install root
             sudo ./svc.sh start
-            sudo ./svc.sh status
           "
           echo "self-hosted runner registered (label: k8s)"
-
-      - name: Get KUBE_CONFIG_B64
-        run: |
-          KUBECONFIG_B64=$(sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
-            'base64 -w0 < /etc/rancher/k3s/k3s.yaml')
-          echo "$KUBECONFIG_B64" > kubeconfig_b64.txt
 
       - name: Upload kubeconfig artifact
         uses: actions/upload-artifact@v4
@@ -187,10 +198,10 @@ jobs:
       - name: Summarize
         run: |
           echo "### Setup complete" >> $GITHUB_STEP_SUMMARY
-          echo "- k3s server: $K3S_SERVER_IP" >> $GITHUB_STEP_SUMMARY
+          echo "- k3s server: $K3S_SERVER_IP (API https://$K3S_SERVER_IP:6443 公网可达)" >> $GITHUB_STEP_SUMMARY
           echo "- Ingress Controller: installed (NodePort 30080/30443)" >> $GITHUB_STEP_SUMMARY
-          echo "- Self-hosted runner: registered with label k8s" >> $GITHUB_STEP_SUMMARY
+          echo "- kubeconfig: 已改写为公网地址，GitHub 托管 runner 可直连" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Next steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. 下载 artifact 中的 kubeconfig_b64.txt，内容填为 KUBE_CONFIG_B64 secret" >> $GITHUB_STEP_SUMMARY
+          echo "1. 下载 artifact kubeconfig_b64.txt，内容填为 KUBE_CONFIG_B64 secret" >> $GITHUB_STEP_SUMMARY
           echo "2. 触发 Deploy to Kubernetes workflow 部署应用" >> $GITHUB_STEP_SUMMARY

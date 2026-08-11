@@ -4,8 +4,8 @@ name: Deploy to Kubernetes
 #   - 所有凭证来自 GitHub Actions Secrets，日志自动脱敏，仓库中无任何明文
 #   - CI 从 Secrets 读值，在集群内幂等创建/更新 new-api-secrets，再 apply manifests
 #   - manifests 只用 secretKeyRef 引用 Secret 名称
-#   - 本 workflow 在 self-hosted runner 上执行（runs-on: [self-hosted, k8s]），
-#     因为自建集群的 API server 在内网，GitHub 托管 runner 无法直连
+#   - 本 workflow 在 GitHub 托管 runner 上执行，通过公网直连 k3s API server
+#     （kubeconfig 已由 setup-k3s.yml 改写为公网地址）
 #
 # 触发方式：
 #   1. 手动：Actions 页面 → Deploy to Kubernetes → Run workflow
@@ -40,7 +40,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    runs-on: [self-hosted, k8s]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,6 +53,11 @@ jobs:
           mkdir -p "$HOME/.kube"
           echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
+          # k3s 证书只签内网 IP，通过公网直连需跳过 TLS 校验并移除 CA 数据
+          kubectl config set-cluster default --insecure-skip-tls-verify=true
+          kubectl config unset clusters.default.certificate-authority-data
+          kubectl cluster-info
+          kubectl get nodes -o wide
 
       - name: Create or refresh application secret
         run: |
