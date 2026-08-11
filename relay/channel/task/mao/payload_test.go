@@ -61,6 +61,38 @@ func TestBuildUpstreamPayload_MiniStripsCameraFixed(t *testing.T) {
 	}
 }
 
+func TestBuildUpstreamPayload_TopLevelCameraFixed(t *testing.T) {
+	in := map[string]interface{}{
+		"model":        "guanzhuan-seedance2.0",
+		"prompt":       "x",
+		"camera_fixed": true,
+	}
+	out, err := buildUpstreamPayload(in, "guanzhuan-seedance2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	md, _ := out["metadata"].(map[string]interface{})
+	if md["camera_fixed"] != true {
+		t.Fatalf("metadata.camera_fixed=%v, want true", md["camera_fixed"])
+	}
+
+	mini := map[string]interface{}{
+		"model":        "guanzhuan-seedance2.0-mini",
+		"prompt":       "x",
+		"camera_fixed": true,
+	}
+	outMini, err := buildUpstreamPayload(mini, "guanzhuan-seedance2.0-mini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mdMini, _ := outMini["metadata"].(map[string]interface{})
+	if mdMini != nil {
+		if _, ok := mdMini["camera_fixed"]; ok {
+			t.Fatal("top-level camera_fixed must be stripped for mini")
+		}
+	}
+}
+
 func TestBuildUpstreamPayload_UnsupportedTier(t *testing.T) {
 	in := map[string]interface{}{
 		"model":      "guanzhuan-seedance2.5",
