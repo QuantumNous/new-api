@@ -83,14 +83,22 @@ kubectl rollout restart deployment/new-api-worker
 
 `setup-k3s.yml` workflow（`Setup k3s cluster and self-hosted runner`）通过 GitHub 托管 runner 自动 SSH 到你的服务器，完成 k3s 安装、Nginx Ingress Controller 部署、self-hosted runner 注册。你需要做的是：
 
-### 4.1 配置 SSH 密码 Secrets（2 个）
+### 4.1 配置服务器列表 Secret（仅 1 个）
 
 在仓库 `Settings → Secrets and variables → Actions → New repository secret` 添加：
 
 | Secret | 值 |
 |--------|-----|
-| `SSH1_PASSWORD` | 服务器1（136.0.34.25）的 SSH 登录密码 |
-| `SSH2_PASSWORD` | 服务器2（156.254.6.210）的 SSH 登录密码 |
+| `SERVERS_JSON` | 服务器列表 JSON 数组（整个 JSON 粘贴为值） |
+
+```json
+[
+  {"ip": "156.254.6.210", "user": "root", "password": "服务器密码"},
+  {"ip": "136.0.34.25", "user": "root", "password": "另一台密码"}
+]
+```
+
+第一台能连上的服务器成为 k3s server（master 节点），其余自动加入为 agent。某台连不上不会阻塞其他服务器。加服务器只需往 JSON 里加一行，不用新增 secret。
 
 私钥**不需要**放进 GitHub：workflow 会在 GitHub 托管 runner 上生成临时密钥对，用密码装公钥，跑完即销毁。密码只用于首次装公钥，之后都用密钥登录。
 
