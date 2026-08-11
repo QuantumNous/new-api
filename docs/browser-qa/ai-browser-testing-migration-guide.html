@@ -811,7 +811,7 @@ candidate_manifests:
     }
   ]
 }</code></pre>
-          <p><code>proposed_case</code> 只能是 <code>null</code> 或闭合 fixed-case DSL object。闭合 object 只允许 <code>fixture</code>、<code>start</code>、<code>steps</code>、<code>assertions</code> 和 <code>cleanup</code>；不能包含 JavaScript、shell、任意 selector、secret、生产 origin 或需要额外清理的动作。</p>
+          <p><code>proposed_case</code> 只能是 <code>null</code> 或闭合 result-schema DSL object。闭合 object 只允许 <code>fixture</code>、<code>start</code>、<code>steps</code>、<code>assertions</code> 和 <code>cleanup</code>；<code>start.origin</code> 只能是 <code>staging_website</code> 或 <code>staging_console</code>。<code>docs</code> 只属于人工合并后的 fixed-case YAML，不属于模型输出的 <code>proposed_case</code>；候选不能包含 JavaScript、shell、任意 selector、secret、生产 origin 或需要额外清理的动作。</p>
         </section>
       </section>
 

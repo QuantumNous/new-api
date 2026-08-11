@@ -555,6 +555,13 @@ class BrowserQaOperationsContractTests(unittest.TestCase):
         self.assertNotIn(PROD_ROOT, section)
         self.assertNotIn("enable_browser_qa = true", section)
 
+    def test_proposed_case_docs_origin_is_documented_as_fixed_case_only(self):
+        section = browser_qa_section()
+
+        self.assertIn("`proposed_case` still uses the closed result-schema origin enum (`staging_website`, `staging_console`)", section)
+        self.assertIn("`docs` is allowed only in committed fixed-case YAML, not in model-authored `proposed_case`", section)
+        self.assertNotIn("`proposed_case` still uses the closed fixed-case origin enum (`staging_website`, `staging_console`, `docs`)", section)
+
     def test_resource_table_lists_all_non_committed_github_variables(self):
         text = operations_text()
         expected_variables = set(OUTPUT_BACKED_VARIABLES) | {"GCP_BROWSER_QA_GMAIL_BASE"}
