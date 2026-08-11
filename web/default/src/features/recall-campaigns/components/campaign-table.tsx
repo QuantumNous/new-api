@@ -66,7 +66,10 @@ export function CampaignTable() {
       {
         accessorKey: 'audience_template',
         header: t('Audience'),
-        cell: ({ row }) => t(row.original.audience_template),
+        cell: ({ row }) =>
+          row.original.execution_mode === 'continuous'
+            ? '-'
+            : t(row.original.audience_template),
       },
       {
         accessorKey: 'execution_mode',
@@ -75,9 +78,13 @@ export function CampaignTable() {
           <div>
             {t(row.original.execution_mode)}
             <div className='text-muted-foreground text-xs'>
-              {formatTimestamp(
-                row.original.next_run_at || row.original.scheduled_at
-              )}
+              {row.original.execution_mode === 'continuous'
+                ? row.original.lifecycle_trigger
+                  ? t(row.original.lifecycle_trigger)
+                  : '-'
+                : formatTimestamp(
+                    row.original.next_run_at || row.original.scheduled_at
+                  )}
             </div>
           </div>
         ),

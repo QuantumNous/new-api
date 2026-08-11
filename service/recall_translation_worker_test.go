@@ -51,6 +51,25 @@ func TestRecallTranslationWorkerQueuedRunningSucceededAcrossRestart(t *testing.T
 	require.NotEqual(t, campaign.EmailSequenceConfig, updated.EmailSequenceConfig)
 }
 
+func TestTranslateRecallEmailStagesWithTranslatorUsesDeliveryTriggerAwarePath(t *testing.T) {
+	translator := &recallDeliveryAwareFakeEmailTranslator{}
+	stages := []RecallEmailStage{{
+		StageNo: 1,
+		Templates: map[string]RecallEmailTemplate{"en": {
+			Subject:  "Payment complete",
+			BodyHTML: `<!doctype html><html><body><p>{{.trade_no}}</p></body></html>`,
+		}},
+	}}
+
+	translated, err := translateRecallEmailStagesWithTranslator(context.Background(), translator, model.RecallCampaignTypeContentOnly, model.RecallDeliveryPolicyService, model.RecallLifecycleTriggerPaymentSucceeded, stages)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{model.RecallCampaignTypeContentOnly}, translator.campaignTypes)
+	require.Equal(t, []string{model.RecallDeliveryPolicyService}, translator.deliveryPolicies)
+	require.Equal(t, []string{model.RecallLifecycleTriggerPaymentSucceeded}, translator.lifecycleTriggers)
+	require.Contains(t, translated[1]["zh"].BodyHTML, "{{.trade_no}}")
+}
+
 func TestRecallTranslationWorkerFailureIsTerminalAndDuplicateSubmitRequeuesSameTask(t *testing.T) {
 	setupRecallCampaignTestDB(t)
 	setRecallCampaignEnabled(t, true)

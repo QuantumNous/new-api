@@ -26,6 +26,7 @@ interface CampaignActionDialogProps {
   onOpenChange: (open: boolean) => void
   recipientId?: number
   uncertain?: boolean
+  executionMode?: 'manual' | 'scheduled_once' | 'recurring' | 'continuous'
   onLocalizationBlocked?: (blocker: RecallEmailLocalizationBlocker) => void
 }
 
@@ -110,6 +111,23 @@ export function CampaignActionDialog(props: CampaignActionDialogProps) {
   }
 
   const getDescription = () => {
+    if (props.executionMode === 'continuous') {
+      if (props.action === 'pause') {
+        return t(
+          'Pausing freezes new lifecycle enrollment and SMTP delivery while events continue to accumulate.'
+        )
+      }
+      if (props.action === 'resume') {
+        return t(
+          'Resuming processes lifecycle backlog from the immutable processing start.'
+        )
+      }
+      if (props.action === 'cancel') {
+        return t(
+          'Cancelling releases the lifecycle trigger slot, cancels unsent messages, and preserves history.'
+        )
+      }
+    }
     if (props.action === 'cancel') {
       return t(
         'Cancelling stops future enrollment and messages. Stripe Promotion Codes already issued remain usable until their expiry.'

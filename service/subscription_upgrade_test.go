@@ -17,6 +17,27 @@ import (
 	"github.com/stripe/stripe-go/v86"
 )
 
+func requireStripeUpgradeLifecycleEventCount(t *testing.T, tradeNo string, eventType string, want int64) {
+	t.Helper()
+	var got int64
+	require.NoError(t, model.DB.Model(&model.RecallLifecycleEvent{}).
+		Where("event_type = ? AND scope_type = ? AND scope_id = ?", eventType, model.PurchaseLifecycleKindSubscription, tradeNo).
+		Count(&got).Error)
+	require.Equal(t, want, got)
+}
+
+func requireStripeUpgradeSubscriptionQuotaState(t *testing.T, userID int, entitlementID int) model.QuotaLifecycleState {
+	t.Helper()
+	var state model.QuotaLifecycleState
+	require.NoError(t, model.DB.Where(
+		"user_id = ? AND scope_type = ? AND scope_id = ?",
+		userID,
+		model.QuotaLifecycleScopeSubscription,
+		fmt.Sprint(entitlementID),
+	).First(&state).Error)
+	return state
+}
+
 func insertStripeUpgradePlan(t *testing.T, id int, rank int, price float64, amount int64, priceID string) model.SubscriptionPlan {
 	t.Helper()
 	plan := insertContractServicePlan(t, id, rank, price, amount)
@@ -471,6 +492,45 @@ func TestStripeUpgradeUpdatesExistingItemAndKeepsOldEntitlementDuring3DS(t *test
 	require.Equal(t, int64(1), bindingCount)
 }
 
+func TestStripeUpgradeSnapshotOrderCreatesPendingLifecycleEventOnce(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	insertContractServiceUser(t, 7139, 0)
+	currentPlan := insertStripeUpgradePlan(t, 7250, 1, 10, 1000, "price_current_pending_lifecycle")
+	targetPlan := insertStripeUpgradePlan(t, 7251, 2, 25, 2500, "price_target_pending_lifecycle")
+	contract, binding, _ := seedStripeUpgradeContract(t, 7139, currentPlan)
+	intent := &model.SubscriptionChangeIntent{
+		ContractId:             contract.Id,
+		UserId:                 7139,
+		RequestId:              "stripe-upgrade-pending-lifecycle",
+		ChangeVersion:          1,
+		Kind:                   model.SubscriptionChangeIntentKindUpgrade,
+		PaymentMode:            model.SubscriptionPaymentModeStripeRecurring,
+		Status:                 model.SubscriptionChangeIntentStatusAwaitingPayment,
+		FromPlanId:             currentPlan.Id,
+		ToPlanId:               targetPlan.Id,
+		ProviderBindingId:      binding.Id,
+		ProviderInvoiceId:      "in_upgrade_pending_lifecycle",
+		ProviderIdempotencyKey: "subscription-upgrade:1:1:7251",
+		EffectiveAt:            common.GetTimestamp(),
+	}
+	require.NoError(t, model.DB.Create(intent).Error)
+
+	input := StripeSubscriptionUpgradeInput{
+		UserID:         7139,
+		ContractID:     contract.Id,
+		ChangeIntentID: intent.Id,
+		TargetPlanID:   targetPlan.Id,
+	}
+	order, err := ensureStripeSubscriptionUpgradeSnapshotOrder(input, &targetPlan)
+	require.NoError(t, err)
+	replayed, err := ensureStripeSubscriptionUpgradeSnapshotOrder(input, &targetPlan)
+	require.NoError(t, err)
+
+	require.Equal(t, order.Id, replayed.Id)
+	require.Equal(t, common.TopUpStatusPending, order.Status)
+	requireStripeUpgradeLifecycleEventCount(t, order.TradeNo, model.RecallLifecycleTriggerPaymentPending, 1)
+}
+
 func TestStripeUpgradePaidInvoiceRotatesTargetEntitlement(t *testing.T) {
 	setupSubscriptionContractServiceTestDB(t)
 	insertContractServiceUser(t, 7132, 0)
@@ -563,6 +623,81 @@ func TestStripeUpgradePaidInvoiceRotatesTargetEntitlement(t *testing.T) {
 	var bindingCount int64
 	require.NoError(t, model.DB.Model(&model.SubscriptionProviderBinding{}).Where("provider_subscription_id = ?", binding.ProviderSubscriptionId).Count(&bindingCount).Error)
 	require.Equal(t, int64(1), bindingCount)
+}
+
+func TestStripeUpgradePaidInvoiceLifecycleClosesOrderRotatesQuotaAndReplaysOnce(t *testing.T) {
+	setupSubscriptionContractServiceTestDB(t)
+	insertContractServiceUser(t, 7140, 0)
+	currentPlan := insertStripeUpgradePlan(t, 7252, 1, 10, 1000, "price_current_paid_lifecycle")
+	targetPlan := insertStripeUpgradePlan(t, 7253, 2, 25, 2500, "price_target_paid_lifecycle")
+	contract, binding, _ := seedStripeUpgradeContract(t, 7140, currentPlan)
+	intent := &model.SubscriptionChangeIntent{
+		ContractId:             contract.Id,
+		UserId:                 7140,
+		RequestId:              "stripe-upgrade-paid-lifecycle",
+		ChangeVersion:          1,
+		Kind:                   model.SubscriptionChangeIntentKindUpgrade,
+		PaymentMode:            model.SubscriptionPaymentModeStripeRecurring,
+		Status:                 model.SubscriptionChangeIntentStatusAwaitingPayment,
+		FromPlanId:             currentPlan.Id,
+		ToPlanId:               targetPlan.Id,
+		ProviderBindingId:      binding.Id,
+		ProviderInvoiceId:      "in_upgrade_paid_lifecycle",
+		ProviderIdempotencyKey: "subscription-upgrade:1:1:7253",
+		EffectiveAt:            common.GetTimestamp(),
+	}
+	require.NoError(t, model.DB.Create(intent).Error)
+	require.NoError(t, model.DB.Model(contract).Update("latest_change_intent_id", intent.Id).Error)
+	order, err := ensureStripeSubscriptionUpgradeSnapshotOrder(StripeSubscriptionUpgradeInput{
+		UserID:         7140,
+		ContractID:     contract.Id,
+		ChangeIntentID: intent.Id,
+		TargetPlanID:   targetPlan.Id,
+	}, &targetPlan)
+	require.NoError(t, err)
+
+	invoice := stripeInvoiceFixture("in_upgrade_paid_lifecycle", "sub_upgrade")
+	invoice.AmountPaid = 2500
+	invoice.AmountDue = 2500
+	invoice.Total = 2500
+	setStripeInvoiceLinePrice(invoice.Lines.Data[0], "price_target_paid_lifecycle")
+	invoice.Lines.Data[0].Period = &stripe.Period{Start: 3000, End: 4000}
+	subscription := stripeSubscriptionFixture("sub_upgrade", map[string]string{
+		"user_id":          "7140",
+		"plan_id":          fmt.Sprintf("%d", targetPlan.Id),
+		"contract_id":      fmt.Sprintf("%d", contract.Id),
+		"change_intent_id": fmt.Sprintf("%d", intent.Id),
+	})
+	invoice.Customer = &stripe.Customer{ID: "cus_upgrade"}
+	subscription.Customer = &stripe.Customer{ID: "cus_upgrade"}
+	subscription.Items.Data[0].ID = "si_current_item"
+	subscription.Items.Data[0].Price = &stripe.Price{ID: "price_target_paid_lifecycle"}
+	setStripeSubscriptionCurrentPeriod(subscription, 3000, 4000)
+	restore := replaceStripeInvoiceReconcilers(t, invoice, subscription)
+	defer restore()
+
+	reconciled, err := ReconcilePaidInvoice(context.Background(), "in_upgrade_paid_lifecycle")
+	require.NoError(t, err)
+	require.True(t, reconciled.Applied)
+	require.NotNil(t, reconciled.Entitlement)
+	replay, err := ReconcilePaidInvoice(context.Background(), "in_upgrade_paid_lifecycle")
+	require.NoError(t, err)
+	require.False(t, replay.Applied)
+
+	var reloadedOrder model.SubscriptionOrder
+	require.NoError(t, model.DB.First(&reloadedOrder, "id = ?", order.Id).Error)
+	require.Equal(t, common.TopUpStatusSuccess, reloadedOrder.Status)
+	require.NotZero(t, reloadedOrder.CompleteTime)
+	require.Contains(t, reloadedOrder.ProviderPayload, "invoice_id=in_upgrade_paid_lifecycle")
+	require.Contains(t, reloadedOrder.ProviderPayload, "subscription_id=sub_upgrade")
+	requireStripeUpgradeLifecycleEventCount(t, order.TradeNo, model.RecallLifecycleTriggerPaymentPending, 1)
+	requireStripeUpgradeLifecycleEventCount(t, order.TradeNo, model.RecallLifecycleTriggerPaymentSucceeded, 1)
+	state := requireStripeUpgradeSubscriptionQuotaState(t, 7140, reconciled.Entitlement.Id)
+	require.Equal(t, "subscription_order:"+order.TradeNo, state.Cycle)
+	require.Equal(t, reconciled.Entitlement.AmountTotal, state.Balance)
+	var entitlements int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("grant_key = ?", "stripe:in_upgrade_paid_lifecycle").Count(&entitlements).Error)
+	require.Equal(t, int64(1), entitlements)
 }
 
 func TestStripeUpgradePaidInvoiceUsesFrozenUpgradeOrderPlanSnapshotAfterPlanEdit(t *testing.T) {

@@ -232,6 +232,9 @@ func insertRegisteredUserWithTx(tx *gorm.DB, user *User, inviterID int, registra
 	if err := user.InsertWithTxAndRegistrationIP(tx, inviterID, registrationIP); err != nil {
 		return err
 	}
+	if err := CreateRegistrationLifecycleEventsTx(tx, user); err != nil {
+		return err
+	}
 	if afterCreate != nil {
 		return afterCreate(tx)
 	}

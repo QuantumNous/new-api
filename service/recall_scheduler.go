@@ -16,6 +16,7 @@ import (
 type RecallRuntime struct {
 	Campaigns    *RecallCampaignService
 	Claims       *RecallClaimService
+	Lifecycle    *RecallLifecycleWorker
 	Revocations  *RecallPromotionRevocationWorker
 	Recipients   *RecallRecipientWorker
 	Emails       *RecallEmailWorker
@@ -48,6 +49,7 @@ func GetRecallRuntime() *RecallRuntime {
 				NewRecallEmailTranslatorFromMonitorSettings(RecallEmailTranslatorOptions{}),
 			),
 			Claims:      claims,
+			Lifecycle:   NewRecallLifecycleWorker(owner),
 			Revocations: NewRecallPromotionRevocationWorker(stripeService, owner),
 			Recipients:  NewRecallRecipientWorker(stripeService, claims, owner),
 			Emails:      NewRecallEmailWorker(common.SendEmailWithSMTPConfigAndOptions, audience, claims, owner),
@@ -119,6 +121,11 @@ func RunRecallMaintenanceTick(ctx context.Context) {
 	}
 	if _, err := runtime.Campaigns.RunDueCampaigns(ctx, time.Now(), setting.BatchSize); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("recall campaign maintenance failed: %v", err))
+	}
+	if runtime.Lifecycle != nil {
+		if _, err := runtime.Lifecycle.RunBatch(ctx, setting.BatchSize); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("recall lifecycle enrollment maintenance failed: %v", err))
+		}
 	}
 	if runtime.Revocations != nil {
 		if _, err := runtime.Revocations.RunBatch(ctx, setting.BatchSize); err != nil {

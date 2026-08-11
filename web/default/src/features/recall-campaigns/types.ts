@@ -7,7 +7,20 @@ export type RecallAudienceTemplate =
   | 'specified_users'
 
 export type RecallCampaignType = 'promotion' | 'content_only'
-export type RecallExecutionMode = 'manual' | 'scheduled_once' | 'recurring'
+export type RecallExecutionMode =
+  | 'manual'
+  | 'scheduled_once'
+  | 'recurring'
+  | 'continuous'
+export type RecallLifecycleTrigger =
+  | 'user_registered'
+  | 'registration_unused'
+  | 'quota_low'
+  | 'quota_exhausted_unpaid'
+  | 'payment_failed'
+  | 'payment_pending'
+  | 'payment_succeeded'
+export type RecallDeliveryPolicy = 'service' | 'engagement'
 export type RecallCouponSource = 'automatic' | 'existing'
 export type RecallDiscountType = 'percent' | 'fixed'
 export type RecallPromotionExpiryMode = 'relative' | 'fixed'
@@ -99,6 +112,8 @@ export interface RecallEmailTemplate {
 
 export interface RecallEmailPreviewRequest {
   campaign_type?: RecallCampaignType
+  delivery_policy?: RecallDeliveryPolicy
+  lifecycle_trigger?: RecallLifecycleTrigger
   template: RecallEmailTemplate
 }
 
@@ -122,15 +137,19 @@ export type RecallEmailLocaleStatus = 'ready' | 'stale' | 'manual' | 'missing'
 export interface RecallCampaignDraft {
   campaign_type: RecallCampaignType
   name: string
-  audience_template: RecallAudienceTemplate
+  audience_template: RecallAudienceTemplate | ''
   audience_config: RecallAudienceConfig
   execution_mode: RecallExecutionMode
+  delivery_policy?: RecallDeliveryPolicy
+  lifecycle_trigger?: RecallLifecycleTrigger | ''
+  lifecycle_trigger_config?: Record<string, never>
+  processing_start_at?: number
   schedule: RecallScheduleConfig
-  coupon_source: RecallCouponSource
+  coupon_source: RecallCouponSource | ''
   existing_coupon_id: string
   discount_config: RecallDiscountConfig
   product_scope: RecallProductScope
-  promotion_expiry_mode: RecallPromotionExpiryMode
+  promotion_expiry_mode: RecallPromotionExpiryMode | ''
   promotion_expires_at: number
   promotion_valid_seconds: number
   enrollment_limit: number
@@ -236,13 +255,16 @@ export interface RecallCampaignSummary {
   campaign_type: RecallCampaignType
   name: string
   status: RecallCampaignStatus
-  audience_template: RecallAudienceTemplate
+  audience_template: RecallAudienceTemplate | ''
   execution_mode: RecallExecutionMode
+  delivery_policy?: RecallDeliveryPolicy
+  lifecycle_trigger?: RecallLifecycleTrigger | ''
+  processing_start_at?: number
   scheduled_at: number
   next_run_at: number
-  coupon_source: RecallCouponSource
+  coupon_source: RecallCouponSource | ''
   stripe_coupon_id: string
-  promotion_expiry_mode: RecallPromotionExpiryMode
+  promotion_expiry_mode: RecallPromotionExpiryMode | ''
   promotion_expires_at: number
   promotion_valid_seconds: number
   enrollment_limit: number
@@ -394,6 +416,56 @@ export interface RecallCampaignMetrics {
   no_coupon_count: number
   currency_metrics: RecallCurrencyMetrics[]
   metric_cards?: Record<string, RecallMetricCard>
+  lifecycle?: RecallLifecycleMetrics
+}
+
+export interface RecallLifecyclePreviewSample {
+  id: number
+  event_type: string
+  user: string
+  scope_type: string
+  scope: string
+  business_key: string
+  recipient_identity: string
+  disposition: string
+  disposition_reason_code: string
+  occurred_at: number
+  available_at: number
+  attempt_count: number
+  last_error_code: string
+}
+
+export interface RecallLifecyclePreview {
+  processing_start_at: number
+  collection_start_at: number
+  earliest_available_at: number
+  estimated_count: number
+  due_count: number
+  samples: RecallLifecyclePreviewSample[]
+}
+
+export interface RecallLifecycleMetrics {
+  collection_start_at: number
+  processing_start_at: number
+  event_total: number
+  pending_not_due_count: number
+  due_backlog_count: number
+  leased_count: number
+  enrolled_count: number
+  skipped_count: number
+  failed_count: number
+  messages_queued_count: number
+  messages_smtp_accepted_count: number
+  messages_uncertain_count: number
+  messages_failed_count: number
+  messages_cancelled_count: number
+  skip_reason_counts: Record<string, number>
+  send_blocked_reason_counts: Record<string, number>
+  error_code_counts: Record<string, number>
+  retried_event_count: number
+  lease_recovery_count: number
+  last_processed_at: number
+  max_processing_latency_seconds: number
 }
 
 export interface RecallMetricAmount {
@@ -507,6 +579,7 @@ export interface RecallCampaignPreview {
   sample: RecallAudienceCandidate[]
   exclusions: Record<string, number>
   stripe: RecallStripePreview | null
+  lifecycle?: RecallLifecyclePreview | null
 }
 
 export type RecallCampaignAction =

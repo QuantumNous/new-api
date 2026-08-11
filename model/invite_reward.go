@@ -213,9 +213,7 @@ func tryGrantInviteRewardForTriggerInTx(tx *gorm.DB, inviteeId int, trigger invi
 		return inviteRewardGrantResult{}, err
 	}
 	if result.inviteeRewardQuota > 0 {
-		if err := tx.Model(&User{}).
-			Where("id = ?", invitee.Id).
-			Update("quota", gorm.Expr("quota + ?", result.inviteeRewardQuota)).Error; err != nil {
+		if _, err := ApplyWalletQuotaMutationTx(tx, invitee.Id, int64(result.inviteeRewardQuota), 0, "invite_reward", fmt.Sprintf("invitee:%d:event:%d", invitee.Id, event.Id)); err != nil {
 			return inviteRewardGrantResult{}, err
 		}
 	}
@@ -224,10 +222,7 @@ func tryGrantInviteRewardForTriggerInTx(tx *gorm.DB, inviteeId int, trigger invi
 		if common.QuotaForInviterMaxCount > 0 {
 			inviterRewardUpdate = inviterRewardUpdate.Where("aff_count <= ?", common.QuotaForInviterMaxCount)
 		}
-		inviterRewardUpdate = inviterRewardUpdate.Updates(map[string]any{
-			"quota":       gorm.Expr("quota + ?", result.inviterRewardQuota),
-			"aff_history": gorm.Expr("aff_history + ?", result.inviterRewardQuota),
-		})
+		inviterRewardUpdate = inviterRewardUpdate.Update("aff_history", gorm.Expr("aff_history + ?", result.inviterRewardQuota))
 		if inviterRewardUpdate.Error != nil {
 			return inviteRewardGrantResult{}, inviterRewardUpdate.Error
 		}
@@ -240,6 +235,11 @@ func tryGrantInviteRewardForTriggerInTx(tx *gorm.DB, inviteeId int, trigger invi
 					"inviter_reward_quota": 0,
 					"reason":               InviteRewardBlockReasonInviterLimitReached,
 				}).Error; err != nil {
+				return inviteRewardGrantResult{}, err
+			}
+		}
+		if result.inviterRewardQuota > 0 {
+			if _, err := ApplyWalletQuotaMutationTx(tx, invitee.InviterId, int64(result.inviterRewardQuota), 0, "invite_reward", fmt.Sprintf("inviter:%d:event:%d", invitee.InviterId, event.Id)); err != nil {
 				return inviteRewardGrantResult{}, err
 			}
 		}

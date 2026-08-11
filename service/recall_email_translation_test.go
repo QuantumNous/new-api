@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/stretchr/testify/require"
@@ -136,6 +137,47 @@ func TestRecallEmailTranslationSendsOnlyVisibleHTMLSegments(t *testing.T) {
 	require.Contains(t, htmlTemplate.BodyHTML, ">zh:Claim offer</a>")
 	require.Equal(t, RecallEmailTemplate{Subject: "zh:Legacy subject", BodyText: "zh:Legacy plain body"}, translated[2]["zh"])
 	require.NotContains(t, translated[2]["zh"].BodyText, "__RECALL_EMAIL_SEGMENT_")
+}
+
+func TestRecallEmailTranslationAllowsLifecycleTriggerPlaceholders(t *testing.T) {
+	allowRecallEmailTranslationTestServer(t)
+	htmlBody := `<!doctype html><html><body><p>Trade {{.trade_no}}</p><p>{{.amount}} {{.currency}}</p><p>{{.completed_at}}</p></body></html>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request map[string]any
+		require.NoError(t, common.DecodeJson(r.Body, &request))
+		stages := recallEmailTranslationRequestStages(t, request)
+		require.Len(t, stages, 1)
+		writeRecallEmailTranslationResponse(t, w, recallEmailTranslationSegmentsResult(map[int][]string{
+			1: recallEmailTranslationRequestBodySegments(t, stages[0]),
+		}))
+	}))
+	defer server.Close()
+
+	translator, ok := newRecallEmailTranslationTestTranslator(server, RecallEmailTranslatorOptions{}).(RecallEmailDeliveryTranslator)
+	require.True(t, ok)
+	translated, err := translator.TranslateForDelivery(context.Background(), model.RecallCampaignTypeContentOnly, model.RecallDeliveryPolicyService, model.RecallLifecycleTriggerPaymentSucceeded, []RecallEmailStage{{
+		StageNo:   1,
+		Templates: map[string]RecallEmailTemplate{"en": {Subject: "Payment complete", BodyHTML: htmlBody}},
+	}})
+
+	require.NoError(t, err)
+	require.Contains(t, translated[1]["zh"].BodyHTML, "{{.trade_no}}")
+	require.Contains(t, translated[1]["zh"].BodyHTML, "{{.completed_at}}")
+}
+
+func TestRecallEmailTranslationRejectsCrossTriggerLifecyclePlaceholders(t *testing.T) {
+	allowRecallEmailTranslationTestServer(t)
+	server := httptest.NewServer(http.NotFoundHandler())
+	defer server.Close()
+	translator, ok := newRecallEmailTranslationTestTranslator(server, RecallEmailTranslatorOptions{}).(RecallEmailDeliveryTranslator)
+	require.True(t, ok)
+
+	_, err := translator.TranslateForDelivery(context.Background(), model.RecallCampaignTypeContentOnly, model.RecallDeliveryPolicyService, model.RecallLifecycleTriggerPaymentSucceeded, []RecallEmailStage{{
+		StageNo:   1,
+		Templates: map[string]RecallEmailTemplate{"en": {Subject: "Payment complete", BodyHTML: `<!doctype html><html><body><p>{{.payment_url}}</p></body></html>`}},
+	}})
+
+	require.ErrorContains(t, err, `unsupported template field "payment_url"`)
 }
 
 func TestRecallEmailTranslationRejectsWrongBodySegmentCount(t *testing.T) {

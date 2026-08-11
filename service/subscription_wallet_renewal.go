@@ -154,9 +154,8 @@ func RenewWalletSubscriptionContract(contractID int64) (*WalletSubscriptionRenew
 			TradeNo:         tradeNo,
 			PaymentMethod:   model.PaymentMethodBalance,
 			PaymentProvider: model.PaymentProviderBalance,
-			Status:          common.TopUpStatusSuccess,
+			Status:          common.TopUpStatusPending,
 			CreateTime:      now,
-			CompleteTime:    now,
 			PurchaseMonths:  1,
 			UnitPrice:       plan.PriceAmount,
 			PaymentCurrency: plan.Currency,
@@ -168,12 +167,26 @@ func RenewWalletSubscriptionContract(contractID int64) (*WalletSubscriptionRenew
 			return handleExistingWalletRenewalTx(tx, &contract, renewalKey, result, err)
 		}
 		if requiredQuota > 0 {
-			res := tx.Model(&model.User{}).Where("id = ? AND quota >= ?", user.Id, requiredQuota).
-				Update("quota", gorm.Expr("quota - ?", requiredQuota))
-			if res.Error != nil {
-				return res.Error
+			var mutation model.LifecycleQuotaMutationResult
+			err := tx.Transaction(func(debitTx *gorm.DB) error {
+				var err error
+				mutation, err = model.ApplyWalletQuotaMutationTx(debitTx, user.Id, -int64(requiredQuota), int64(requiredQuota), "subscription_renewal_wallet_debit", renewalKey)
+				return err
+			})
+			if err != nil {
+				if errors.Is(err, model.ErrLifecycleQuotaWalletBalanceChanged) {
+					deleted := tx.Where("id = ? AND trade_no = ?", order.Id, order.TradeNo).Delete(&model.SubscriptionOrder{})
+					if deleted.Error != nil {
+						return deleted.Error
+					}
+					if deleted.RowsAffected != 1 {
+						return errors.New("wallet renewal success order cleanup failed")
+					}
+					return pauseWalletRenewalTx(tx, &contract, model.SubscriptionRenewalStatusPausedInsufficientBalance, result)
+				}
+				return err
 			}
-			if res.RowsAffected != 1 {
+			if !mutation.Applied {
 				deleted := tx.Where("id = ? AND trade_no = ?", order.Id, order.TradeNo).Delete(&model.SubscriptionOrder{})
 				if deleted.Error != nil {
 					return deleted.Error
@@ -194,29 +207,49 @@ func RenewWalletSubscriptionContract(contractID int64) (*WalletSubscriptionRenew
 				return handleExistingWalletRenewalTx(tx, &contract, renewalKey, result, err)
 			}
 		}
-		grant, err := model.RotateCurrentEntitlementTx(tx, grantInput)
+		applied, err := model.PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, model.PurchaseLifecycleTransition{
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: []string{common.TopUpStatusPending},
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: now,
+			SourceRef:  renewalKey,
+		}, func(tx *gorm.DB, locked *model.SubscriptionOrder, transition *model.PurchaseLifecycleTransition) error {
+			grant, err := model.RotateCurrentEntitlementTx(tx, grantInput)
+			if err != nil {
+				return handleExistingWalletRenewalTx(tx, &contract, renewalKey, result, err)
+			}
+			if grant != nil && grant.Entitlement != nil {
+				transition.SubscriptionScopeID = int64(grant.Entitlement.Id)
+			}
+			if err := createPrepaidTermSegmentsTx(tx, contract.Id, locked.Id, plan.Id, PrepaidTermAllocation{
+				CanonicalWalletUnitPrice: plan.PriceAmount,
+			}, periodStart, 1); err != nil {
+				return err
+			}
+			if err := tx.Model(&model.UserSubscriptionContract{}).Where("id = ?", contract.Id).Updates(map[string]interface{}{
+				"renewal_status":       model.SubscriptionRenewalStatusEnabled,
+				"current_period_start": periodStart,
+				"current_period_end":   periodEnd,
+				"updated_at":           now,
+			}).Error; err != nil {
+				return err
+			}
+			if grant != nil && grant.Entitlement != nil {
+				result.EntitlementID = grant.Entitlement.Id
+			}
+			return nil
+		})
 		if err != nil {
-			return handleExistingWalletRenewalTx(tx, &contract, renewalKey, result, err)
-		}
-		if err := createPrepaidTermSegmentsTx(tx, contract.Id, order.Id, plan.Id, PrepaidTermAllocation{
-			CanonicalWalletUnitPrice: plan.PriceAmount,
-		}, periodStart, 1); err != nil {
 			return err
 		}
-		if err := tx.Model(&model.UserSubscriptionContract{}).Where("id = ?", contract.Id).Updates(map[string]interface{}{
-			"renewal_status":       model.SubscriptionRenewalStatusEnabled,
-			"current_period_start": periodStart,
-			"current_period_end":   periodEnd,
-			"updated_at":           now,
-		}).Error; err != nil {
-			return err
+		if !applied {
+			return handleExistingWalletRenewalTx(tx, &contract, renewalKey, result, model.ErrSubscriptionOrderStatusInvalid)
 		}
 		result.Renewed = true
 		result.ChargedQuota = int64(requiredQuota)
 		result.OrderID = order.Id
-		if grant != nil && grant.Entitlement != nil {
-			result.EntitlementID = grant.Entitlement.Id
-		}
 		invalidateUserID = user.Id
 		return nil
 	})

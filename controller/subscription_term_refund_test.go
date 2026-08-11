@@ -59,6 +59,7 @@ func TestGetRefundableSubscriptionTermsReturnsApiSuccessEnvelope(t *testing.T) {
 
 func TestRefundSubscriptionTermEndpointReplaysAndRejectsForeignOrActiveTerms(t *testing.T) {
 	setupSubscriptionControllerTestDB(t)
+	migrateSubscriptionControllerQuotaLifecycle(t)
 	useSubscriptionTermRefundQuotaPerUnit(t)
 	insertSubscriptionControllerUser(t, 919)
 	require.NoError(t, model.DB.Create(&model.User{

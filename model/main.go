@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -250,6 +251,9 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
+	if common.UsingSQLite {
+		return migrateDBFast()
+	}
 	if err := migrateRecallRecipientIdentity(); err != nil {
 		return err
 	}
@@ -263,100 +267,7 @@ func migrateDB() error {
 		return err
 	}
 
-	err := DB.AutoMigrate(
-		&Channel{},
-		&Token{},
-		&CliDeviceAuthorization{},
-		&User{},
-		&RecallCampaign{},
-		&RecallRecipient{},
-		&RecallMessage{},
-		&RecallExclusionBatch{},
-		&RecallCampaignExclusion{},
-		&RecallTranslationTask{},
-		&RecallEmailQuotaWindow{},
-		&RecallEmailPacingState{},
-		&RecallEvent{},
-		&RegistrationDomainState{},
-		&RegistrationDomainBlock{},
-		&RegistrationDomainBlockUser{},
-		&NewUserBonusClaim{},
-		&InviteRewardEvent{},
-		&InviteSubscriptionReward{},
-		&SubscriptionDiscountAccount{},
-		&SubscriptionDiscountEntry{},
-		&PasskeyCredential{},
-		&Option{},
-		&Redemption{},
-		&Ability{},
-		&Log{},
-		&CompanyLogSchema{},
-		&LogRequestSample{},
-		&Midjourney{},
-		&TopUp{},
-		&AdsAttributionOutbox{},
-		&PaymentAnalyticsOutbox{},
-		&PaymentAnalyticsEventReceipt{},
-		&StripeBonusClaim{},
-		&TopUpBonusClaim{},
-		&UserInvoiceProfile{},
-		&PaymentInvoice{},
-		&QuotaData{},
-		&QuotaDataToken{},
-		&Task{},
-		&TaskAcceptedAccountingLedger{},
-		&TaskAcceptedAccountingLogLedger{},
-		&Asset{},
-		&AssetBinding{},
-		&AssetUpload{},
-		&AssetModelCoverageTarget{},
-		&AssetModelReadiness{},
-		&Model{},
-		&Vendor{},
-		&PrefillGroup{},
-		&Setup{},
-		&TwoFA{},
-		&TwoFABackupCode{},
-		&Checkin{},
-		&SubscriptionOrder{},
-		&UserSubscription{},
-		&SubscriptionProviderBinding{},
-		&PaymentWebhookEvent{},
-		&SubscriptionPreConsumeRecord{},
-		&FreePlanGrant{},
-		&UserSubscriptionContract{},
-		&SubscriptionChangeIntent{},
-		&SubscriptionTierRankReservation{},
-		&SubscriptionTermSegment{},
-		&WalletLedgerEntry{},
-		&CustomOAuthProvider{},
-		&UserOAuthBinding{},
-		&PerfMetric{},
-		&DingTalkAlertCooldownRecord{},
-		&ModelAvailabilityState{},
-		&CodexModelGovernanceRecord{},
-		&CodexModelGovernanceProbeState{},
-		&CodexModelGovernanceAlertCooldownRecord{},
-		&TemporaryChannelModelSpend{},
-		&ComputeNode{},
-		&DataToolCall{},
-		&BytePlusAssetGroup{},
-		&BytePlusRealPersonProfile{},
-		&BytePlusVisualValidationSession{},
-		&APIIdempotencyRecord{},
-		&BytePlusAssetTempObject{},
-		&BytePlusAsset{},
-		&AdsSpendDaily{},
-		&AdsDailyKeyword{},
-		&AdsDailyCreative{},
-		&AdsDailyLanding{},
-		&AdsPilotCampaignDaily{},
-		&AdsPilotInsight{},
-		&AdsPilotAction{},
-		&AdsPilotProposal{},
-		&AdsPilotMeta{},
-		&PromptLibraryItem{},
-	)
+	err := DB.AutoMigrate(migrationModelValues(orderedMigrationModels())...)
 	if err != nil {
 		return err
 	}
@@ -372,6 +283,12 @@ func migrateDB() error {
 	if err := migrateRecallCampaignTypes(); err != nil {
 		return err
 	}
+	if err := migrateRecallCampaignLifecycleDefaults(); err != nil {
+		return err
+	}
+	if err := SeedRecallContinuousTriggerSlotsWithContext(context.Background()); err != nil {
+		return err
+	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -384,18 +301,13 @@ func migrateDB() error {
 	return migrateStartupInvitationValue()
 }
 
-func migrateDBFast() error {
-	if err := migrateRecallRecipientIdentity(); err != nil {
-		return err
-	}
-	if err := backfillTaskIDsBeforeUniqueIndex(); err != nil {
-		return err
-	}
+type migrationModel struct {
+	model interface{}
+	name  string
+}
 
-	migrations := []struct {
-		model interface{}
-		name  string
-	}{
+func orderedMigrationModels() []migrationModel {
+	return []migrationModel{
 		{&Channel{}, "Channel"},
 		{&Token{}, "Token"},
 		{&CliDeviceAuthorization{}, "CliDeviceAuthorization"},
@@ -409,6 +321,9 @@ func migrateDBFast() error {
 		{&RecallEmailQuotaWindow{}, "RecallEmailQuotaWindow"},
 		{&RecallEmailPacingState{}, "RecallEmailPacingState"},
 		{&RecallEvent{}, "RecallEvent"},
+		{&RecallLifecycleEvent{}, "RecallLifecycleEvent"},
+		{&RecallContinuousTriggerSlot{}, "RecallContinuousTriggerSlot"},
+		{&QuotaLifecycleState{}, "QuotaLifecycleState"},
 		{&RegistrationDomainState{}, "RegistrationDomainState"},
 		{&RegistrationDomainBlock{}, "RegistrationDomainBlock"},
 		{&RegistrationDomainBlockUser{}, "RegistrationDomainBlockUser"},
@@ -422,12 +337,15 @@ func migrateDBFast() error {
 		{&Redemption{}, "Redemption"},
 		{&Ability{}, "Ability"},
 		{&Log{}, "Log"},
+		{&CompanyLogSchema{}, "CompanyLogSchema"},
 		{&LogRequestSample{}, "LogRequestSample"},
 		{&Midjourney{}, "Midjourney"},
 		{&TopUp{}, "TopUp"},
 		{&AdsAttributionOutbox{}, "AdsAttributionOutbox"},
 		{&PaymentAnalyticsOutbox{}, "PaymentAnalyticsOutbox"},
 		{&PaymentAnalyticsEventReceipt{}, "PaymentAnalyticsEventReceipt"},
+		{&StripeBonusClaim{}, "StripeBonusClaim"},
+		{&TopUpBonusClaim{}, "TopUpBonusClaim"},
 		{&UserInvoiceProfile{}, "UserInvoiceProfile"},
 		{&PaymentInvoice{}, "PaymentInvoice"},
 		{&QuotaData{}, "QuotaData"},
@@ -475,12 +393,46 @@ func migrateDBFast() error {
 		{&APIIdempotencyRecord{}, "APIIdempotencyRecord"},
 		{&BytePlusAssetTempObject{}, "BytePlusAssetTempObject"},
 		{&BytePlusAsset{}, "BytePlusAsset"},
+		{&AdsSpendDaily{}, "AdsSpendDaily"},
+		{&AdsDailyKeyword{}, "AdsDailyKeyword"},
+		{&AdsDailyCreative{}, "AdsDailyCreative"},
+		{&AdsDailyLanding{}, "AdsDailyLanding"},
+		{&AdsPilotCampaignDaily{}, "AdsPilotCampaignDaily"},
+		{&AdsPilotInsight{}, "AdsPilotInsight"},
+		{&AdsPilotAction{}, "AdsPilotAction"},
+		{&AdsPilotProposal{}, "AdsPilotProposal"},
+		{&AdsPilotMeta{}, "AdsPilotMeta"},
 		{&PromptLibraryItem{}, "PromptLibraryItem"},
 	}
+}
+
+func migrationModelValues(models []migrationModel) []interface{} {
+	values := make([]interface{}, 0, len(models))
+	for _, m := range models {
+		values = append(values, m.model)
+	}
+	return values
+}
+
+func migrateDBFast() error {
+	if err := migrateRecallRecipientIdentity(); err != nil {
+		return err
+	}
+	if err := backfillTaskIDsBeforeUniqueIndex(); err != nil {
+		return err
+	}
+
+	migrations := orderedMigrationModels()
 	// GORM also migrates associations, so parallel AutoMigrate calls can race
 	// when related models share a table dependency.
 	for _, m := range migrations {
-		if err := DB.AutoMigrate(m.model); err != nil {
+		var err error
+		if common.UsingSQLite && sqliteModelNeedsColumnOnlyMigration(m.model) {
+			err = ensureSQLiteModelColumnsAndIndexes(m.model)
+		} else {
+			err = DB.AutoMigrate(m.model)
+		}
+		if err != nil {
 			return fmt.Errorf("failed to migrate %s: %v", m.name, err)
 		}
 	}
@@ -496,6 +448,12 @@ func migrateDBFast() error {
 	if err := migrateRecallCampaignTypes(); err != nil {
 		return err
 	}
+	if err := migrateRecallCampaignLifecycleDefaults(); err != nil {
+		return err
+	}
+	if err := SeedRecallContinuousTriggerSlotsWithContext(context.Background()); err != nil {
+		return err
+	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -509,6 +467,44 @@ func migrateDBFast() error {
 		return err
 	}
 	common.SysLog("database migrated")
+	return nil
+}
+
+func sqliteModelNeedsColumnOnlyMigration(model interface{}) bool {
+	switch model.(type) {
+	case *SubscriptionOrder, *SubscriptionTermSegment, *WalletLedgerEntry:
+		return true
+	default:
+		return false
+	}
+}
+
+func ensureSQLiteModelColumnsAndIndexes(model interface{}) error {
+	stmt := &gorm.Statement{DB: DB}
+	if err := stmt.Parse(model); err != nil {
+		return err
+	}
+	if !DB.Migrator().HasTable(model) {
+		return DB.Migrator().CreateTable(model)
+	}
+	for _, dbName := range stmt.Schema.DBNames {
+		field := stmt.Schema.FieldsByDBName[dbName]
+		if field == nil || field.IgnoreMigration {
+			continue
+		}
+		if !DB.Migrator().HasColumn(model, dbName) {
+			if err := DB.Migrator().AddColumn(model, dbName); err != nil {
+				return err
+			}
+		}
+	}
+	for _, idx := range stmt.Schema.ParseIndexes() {
+		if !DB.Migrator().HasIndex(model, idx.Name) {
+			if err := DB.Migrator().CreateIndex(model, idx.Name); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -801,6 +797,20 @@ func migrateRecallCampaignTypes() error {
 	return DB.Model(&RecallCampaign{}).
 		Where("campaign_type IS NULL OR TRIM(campaign_type) = ''").
 		Update("campaign_type", RecallCampaignTypePromotion).Error
+}
+
+func migrateRecallCampaignLifecycleDefaults() error {
+	if DB == nil || !DB.Migrator().HasTable(&RecallCampaign{}) {
+		return nil
+	}
+	if !DB.Migrator().HasColumn(&RecallCampaign{}, "delivery_policy") {
+		if err := DB.Migrator().AddColumn(&RecallCampaign{}, "DeliveryPolicy"); err != nil {
+			return fmt.Errorf("failed to add recall campaign delivery policy column: %w", err)
+		}
+	}
+	return DB.Model(&RecallCampaign{}).
+		Where("delivery_policy IS NULL OR TRIM(delivery_policy) = ''").
+		Update("delivery_policy", RecallDeliveryPolicyEngagement).Error
 }
 
 func recallRecipientIdentitySchemaSwapPending() bool {

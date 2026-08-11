@@ -63,6 +63,8 @@ func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 		&model.RegistrationDomainState{},
 		&model.RegistrationDomainBlock{},
 		&model.RegistrationDomainBlockUser{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 		&model.Channel{},
 		&model.Ability{},
 		&model.Model{},

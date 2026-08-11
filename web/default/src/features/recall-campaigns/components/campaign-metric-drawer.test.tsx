@@ -170,6 +170,22 @@ function setupDom() {
       }
       return null
     }
+    querySelectorAll(selector: string): ElementShim[] {
+      const [ancestor, descendant] = selector.split(/\s+/, 2)
+      if (descendant) {
+        return this.querySelectorAll(ancestor).flatMap((node) =>
+          node.querySelectorAll(descendant)
+        )
+      }
+      const matches: ElementShim[] = []
+      if (selector.toUpperCase() === this.tagName) matches.push(this)
+      for (const child of this.childNodes) {
+        if (child instanceof ElementShim) {
+          matches.push(...child.querySelectorAll(selector))
+        }
+      }
+      return matches
+    }
     click() {
       if (this.tagName === 'A' && anchorClickThrows) {
         throw new Error('safe click failure')
@@ -284,8 +300,40 @@ const pages: Record<string, RecallMetricResult[]> = {
           amount_minor: 0,
           failure_code: '',
         },
+        {
+          row_id: 4,
+          recipient_id: 14,
+          message_id: 104,
+          user_id: 504,
+          email: 'sending@example.com',
+          occurred_at: 1_900_000_010,
+          stage_no: 2,
+          state: 'sending',
+          conversion_kind: '',
+          trade_no: '',
+          payment_category: '',
+          currency: '',
+          amount_minor: 0,
+          failure_code: '',
+        },
+        {
+          row_id: 5,
+          recipient_id: 15,
+          message_id: 105,
+          user_id: 505,
+          email: 'unknown-state@example.com',
+          occurred_at: 1_900_000_020,
+          stage_no: 3,
+          state: 'unknown_future_state',
+          conversion_kind: '',
+          trade_no: '',
+          payment_category: '',
+          currency: '',
+          amount_minor: 0,
+          failure_code: '',
+        },
       ],
-      total: 2,
+      total: 3,
       amounts: [],
       snapshot: 'accepted-page-snapshot',
       next_cursor: 'accepted-next',
@@ -310,10 +358,26 @@ const pages: Record<string, RecallMetricResult[]> = {
           payment_category: '',
           currency: '',
           amount_minor: 0,
-          failure_code: 'smtp_rejected',
+          failure_code: 'activity_smtp_send_failed',
+        },
+        {
+          row_id: 3,
+          recipient_id: 13,
+          message_id: 103,
+          user_id: 503,
+          email: 'unknown-failure@example.com',
+          occurred_at: 1_900_000_110,
+          stage_no: 3,
+          state: 'failed',
+          conversion_kind: '',
+          trade_no: '',
+          payment_category: '',
+          currency: '',
+          amount_minor: 0,
+          failure_code: 'unknown_future_failure',
         },
       ],
-      total: 1,
+      total: 2,
       amounts: [],
       snapshot: 'failed-page-snapshot',
       legacy_unidentified_count: 0,
@@ -559,9 +623,14 @@ await testI18n.use(initReactI18next).init({
     en: {
       translation: {
         'Recipient status': 'Recipient status',
+        'SMTP accepted': 'SMTP accepted',
+        sending: 'Sending via SMTP',
+        'Unknown message state': 'Unknown message state',
         converted: 'Paid recipient',
         direct: 'Own-link attribution',
         assisted: 'Follow-up attribution',
+        activity_smtp_send_failed: 'Activity SMTP send failed',
+        'Unknown lifecycle outcome': 'Unknown lifecycle outcome',
       },
     },
   },
@@ -696,9 +765,9 @@ describe('CampaignMetricCardSection', () => {
       messages_failed: makeCard('messages_failed', 1, 'failed-card-snapshot'),
     })
 
-    await click('Accepted messages')
+    await click('SMTP accepted')
 
-    expect(container.textContent).toContain('Accepted messages')
+    expect(container.textContent).toContain('SMTP accepted')
     expect(container.textContent).toContain('Message rows')
     expect(container.textContent).toContain(
       'Historical excluded identities were not recorded'
@@ -741,7 +810,7 @@ describe('CampaignMetricCardSection', () => {
       messages_failed: makeCard('messages_failed', 1, 'failed-card-snapshot'),
     })
 
-    await click('Accepted messages')
+    await click('SMTP accepted')
     await click('Download current results')
     await click('Failed messages')
     await click('Download current results')
@@ -754,6 +823,45 @@ describe('CampaignMetricCardSection', () => {
       'accepted-card-snapshot',
       'failed-card-snapshot',
     ])
+
+    cleanupRoot(root)
+  })
+
+  test('renders message states and failure codes as safe localized copy', async () => {
+    const { container, root } = renderSection({
+      messages_accepted: makeCard(
+        'messages_accepted',
+        2,
+        'accepted-card-snapshot'
+      ),
+      messages_failed: makeCard('messages_failed', 2, 'failed-card-snapshot'),
+    })
+
+    await click('SMTP accepted')
+    await React.act(async () => {
+      await wait()
+    })
+
+    const acceptedCells = Array.from(
+      container.querySelectorAll('tbody td')
+    ).map((cell) => cell.textContent)
+
+    expect(acceptedCells).toContain('SMTP accepted')
+    expect(acceptedCells).toContain('Sending via SMTP')
+    expect(acceptedCells).toContain('Unknown message state')
+    expect(acceptedCells).not.toContain('accepted')
+    expect(acceptedCells).not.toContain('sending')
+    expect(acceptedCells).not.toContain('unknown_future_state')
+
+    await click('Failed messages')
+    await React.act(async () => {
+      await wait()
+    })
+
+    expect(container.textContent).toContain('Activity SMTP send failed')
+    expect(container.textContent).toContain('Unknown lifecycle outcome')
+    expect(container.textContent).not.toContain('activity_smtp_send_failed')
+    expect(container.textContent).not.toContain('unknown_future_failure')
 
     cleanupRoot(root)
   })
@@ -1039,7 +1147,7 @@ describe('CampaignMetricCardSection', () => {
       ),
     })
 
-    await click('Accepted messages')
+    await click('SMTP accepted')
     expect(container.textContent).toContain('Stage')
     expect(inputProps['recall-metric-state']).toBeUndefined()
 

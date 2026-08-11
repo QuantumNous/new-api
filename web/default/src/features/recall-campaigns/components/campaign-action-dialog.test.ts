@@ -289,6 +289,30 @@ function renderActionDialog(): { container: HTMLElement; root: Root } {
   return { container, root }
 }
 
+function renderLifecycleActionDialog(action: 'pause' | 'resume' | 'cancel'): {
+  container: HTMLElement
+  root: Root
+} {
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  React.act(() => {
+    root.render(
+      React.createElement(
+        I18nextProvider,
+        { i18n: testI18n },
+        React.createElement(CampaignActionDialog, {
+          action,
+          campaignId: 42,
+          executionMode: 'continuous',
+          onOpenChange: () => undefined,
+          open: true,
+        })
+      )
+    )
+  })
+  return { container, root }
+}
+
 function dispose(root: Root) {
   React.act(() => {
     root.unmount()
@@ -319,6 +343,28 @@ async function click(element: Element) {
 }
 
 describe('CampaignActionDialog localization blockers', () => {
+  test('uses lifecycle-specific pause resume and cancel copy for continuous activities', () => {
+    for (const [action, copy] of [
+      [
+        'pause',
+        'Pausing freezes new lifecycle enrollment and SMTP delivery while events continue to accumulate.',
+      ],
+      [
+        'resume',
+        'Resuming processes lifecycle backlog from the immutable processing start.',
+      ],
+      [
+        'cancel',
+        'Cancelling releases the lifecycle trigger slot, cancels unsent messages, and preserves history.',
+      ],
+    ] as const) {
+      const { container, root } = renderLifecycleActionDialog(action)
+
+      expect(container.textContent).toContain(copy)
+      dispose(root)
+    }
+  })
+
   test('extracts structured activation blockers from the API error data', () => {
     const error = new RecallApiError('Translations are stale', {
       blockers: [

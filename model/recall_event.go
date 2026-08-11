@@ -126,6 +126,10 @@ func insertRequiredRecallAdminEvent(tx *gorm.DB, event *RecallEvent) error {
 	return nil
 }
 
+func InsertRequiredRecallAdminEventTx(tx *gorm.DB, event *RecallEvent) error {
+	return insertRequiredRecallAdminEvent(tx, event)
+}
+
 const (
 	RecallClaimClickValid      RecallClaimClickOutcome = "valid"
 	RecallClaimClickConverted  RecallClaimClickOutcome = "converted"

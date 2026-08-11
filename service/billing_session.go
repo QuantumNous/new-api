@@ -230,8 +230,14 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		// 预扣费失败，回滚令牌额度
 		if s.tokenConsumed > 0 && !s.relayInfo.IsPlayground {
 			if rollbackErr := model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, s.tokenConsumed); rollbackErr != nil {
-				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
-					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
+				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%d, tokenId=%d, requestId=%s, amount=%d, fundingErr=%s, rollbackErr=%s)",
+					s.relayInfo.UserId, s.relayInfo.TokenId, s.relayInfo.RequestId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
+				return types.NewError(
+					fmt.Errorf("failed to roll back token quota after funding pre-consume failure (userId=%d, tokenId=%d, requestId=%s, amount=%d, fundingErr=%s): %w",
+						s.relayInfo.UserId, s.relayInfo.TokenId, s.relayInfo.RequestId, s.tokenConsumed, err.Error(), rollbackErr),
+					types.ErrorCodeUpdateDataError,
+					types.ErrOptionWithSkipRetry(),
+				)
 			}
 			s.tokenConsumed = 0
 		}
@@ -263,6 +269,12 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		}
 		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
 		errMsg := err.Error()
+		if errors.Is(err, ErrInsufficientWalletQuota) {
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("%s", common.TranslateMessage(c, "quota.pre_consume_failed", map[string]any{"Remaining": logger.FormatQuota(currentWalletQuota(s.relayInfo.UserId)), "Required": logger.FormatQuota(effectiveQuota)})),
+				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(), walletTopUpHintPreserveOption())
+		}
 		if strings.Contains(errMsg, "no active subscription") || strings.Contains(errMsg, "subscription quota insufficient") {
 			return types.NewErrorWithStatusCode(fmt.Errorf("%s", common.TranslateMessage(c, "quota.subscription_insufficient", map[string]any{"Detail": errMsg})), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
@@ -280,7 +292,17 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 func (s *BillingSession) reserveFunding(delta int) error {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
-		if err := model.DecreaseUserQuota(funding.userId, delta, false); err != nil {
+		if err := reserveWalletQuota(funding.userId, delta); err != nil {
+			if errors.Is(err, ErrInsufficientWalletQuota) {
+				return types.NewErrorWithStatusCode(
+					fmt.Errorf("failed to pre-deduct quota, user remaining quota: %s, required pre-deduct quota: %s", logger.FormatQuota(currentWalletQuota(funding.userId)), logger.FormatQuota(delta)),
+					types.ErrorCodeInsufficientUserQuota,
+					http.StatusForbidden,
+					types.ErrOptionWithSkipRetry(),
+					types.ErrOptionWithNoRecordErrorLog(),
+					walletTopUpHintPreserveOption(),
+				)
+			}
 			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 		}
 		funding.consumed += delta
@@ -299,6 +321,14 @@ func (s *BillingSession) reserveFunding(delta int) error {
 	default:
 		return types.NewError(fmt.Errorf("unsupported funding source: %s", s.funding.Source()), types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 	}
+}
+
+func currentWalletQuota(userID int) int {
+	quota, err := model.GetUserQuota(userID, true)
+	if err != nil {
+		return 0
+	}
+	return quota
 }
 
 func (s *BillingSession) rollbackFundingReserve(delta int) {

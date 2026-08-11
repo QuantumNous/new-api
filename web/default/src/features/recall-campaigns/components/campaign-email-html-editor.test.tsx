@@ -133,6 +133,7 @@ describe('recall email preview race guard', () => {
   const latest = {
     requestId: 2,
     campaignType: 'promotion' as const,
+    deliveryPolicy: 'engagement' as const,
     subject: 'Current subject',
     bodyHTML: '<p>Current body</p>',
   }
@@ -143,6 +144,7 @@ describe('recall email preview race guard', () => {
         candidate: latest,
         latest,
         currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: latest.deliveryPolicy,
         currentSubject: 'Edited subject',
         currentBodyHTML: latest.bodyHTML,
       })
@@ -152,6 +154,7 @@ describe('recall email preview race guard', () => {
         candidate: latest,
         latest,
         currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: latest.deliveryPolicy,
         currentSubject: latest.subject,
         currentBodyHTML: '<p>Edited body</p>',
       })
@@ -164,11 +167,13 @@ describe('recall email preview race guard', () => {
         candidate: {
           requestId: 1,
           campaignType: 'promotion',
+          deliveryPolicy: 'engagement',
           subject: 'Older subject',
           bodyHTML: '<p>Older body</p>',
         },
         latest,
         currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: latest.deliveryPolicy,
         currentSubject: latest.subject,
         currentBodyHTML: latest.bodyHTML,
       })
@@ -181,6 +186,7 @@ describe('recall email preview race guard', () => {
         candidate: latest,
         latest,
         currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: latest.deliveryPolicy,
         currentSubject: latest.subject,
         currentBodyHTML: latest.bodyHTML,
       })
@@ -193,8 +199,41 @@ describe('recall email preview race guard', () => {
         candidate: { ...latest, campaignType: 'promotion' },
         latest: { ...latest, campaignType: 'promotion' },
         currentCampaignType: 'content_only',
+        currentDeliveryPolicy: latest.deliveryPolicy,
         currentSubject: latest.subject,
         currentBodyHTML: latest.bodyHTML,
+      })
+    ).toBe(false)
+  })
+
+  test('ignores a preview result after the delivery policy changes', () => {
+    expect(
+      shouldApplyRecallEmailPreviewResult({
+        candidate: { ...latest, deliveryPolicy: 'engagement' },
+        latest: { ...latest, deliveryPolicy: 'engagement' },
+        currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: 'service',
+        currentSubject: latest.subject,
+        currentBodyHTML: latest.bodyHTML,
+      } as Parameters<typeof shouldApplyRecallEmailPreviewResult>[0] & {
+        currentDeliveryPolicy: 'service'
+      })
+    ).toBe(false)
+  })
+
+  test('ignores a preview result after the lifecycle trigger changes', () => {
+    expect(
+      shouldApplyRecallEmailPreviewResult({
+        candidate: { ...latest, lifecycleTrigger: 'payment_succeeded' },
+        latest: { ...latest, lifecycleTrigger: 'payment_succeeded' },
+        currentCampaignType: latest.campaignType,
+        currentDeliveryPolicy: latest.deliveryPolicy,
+        currentLifecycleTrigger: '',
+        currentSubject: latest.subject,
+        currentBodyHTML: latest.bodyHTML,
+      } as Parameters<typeof shouldApplyRecallEmailPreviewResult>[0] & {
+        currentDeliveryPolicy: 'engagement'
+        currentLifecycleTrigger: ''
       })
     ).toBe(false)
   })
@@ -227,6 +266,7 @@ describe('recall email preview race guard', () => {
       createRecallEmailPreviewTemplate({
         subject: 'Actual subject',
         bodyHTML: source,
+        deliveryPolicy: 'engagement',
       })
     ).toEqual({ subject: 'Actual subject', body_html: source })
   })
@@ -235,6 +275,7 @@ describe('recall email preview race guard', () => {
     const operatorBody = 'Plain preview\n2 < 3'
     const prepared = await prepareRecallEmailPreviewRequest({
       campaignType: 'promotion',
+      deliveryPolicy: 'engagement',
       nextRequestId: () => 3,
       subject: '',
       bodyHTML: operatorBody,
@@ -244,6 +285,7 @@ describe('recall email preview race guard', () => {
     expect(prepared?.snapshot).toEqual({
       requestId: 3,
       campaignType: 'promotion',
+      deliveryPolicy: 'engagement',
       subject: '',
       bodyHTML: operatorBody,
     })
@@ -257,6 +299,7 @@ describe('recall email preview race guard', () => {
   test('prepares content-only plain-text preview without a claim action', async () => {
     const prepared = await prepareRecallEmailPreviewRequest({
       campaignType: 'content_only',
+      deliveryPolicy: 'engagement',
       nextRequestId: () => 4,
       subject: 'Product update',
       bodyHTML: 'Product update\nRead the details',
@@ -268,11 +311,62 @@ describe('recall email preview race guard', () => {
     expect(prepared?.template.body_html).toContain('href="{{.UnsubscribeURL}}"')
   })
 
+  test('prepares service-policy content preview without promotion or unsubscribe tokens', async () => {
+    const prepared = await prepareRecallEmailPreviewRequest({
+      campaignType: 'content_only',
+      deliveryPolicy: 'service',
+      nextRequestId: () => 5,
+      subject: 'Service update',
+      bodyHTML: [
+        '<p>Account update for {{.RecipientName}}</p>',
+        '<p>{{.ProductSummary}}</p>',
+        '<p>Use {{.PromotionCodeMasked}} before {{.ExpiresAt}}</p>',
+        '<p><a href="{{.ClaimURL}}">Claim</a></p>',
+        '<p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>',
+      ].join(''),
+      validateBody: async () => true,
+    })
+
+    expect(prepared?.template.body_html).toContain('{{.RecipientName}}')
+    for (const forbidden of [
+      '{{.ProductSummary}}',
+      '{{.PromotionCodeMasked}}',
+      '{{.ExpiresAt}}',
+      '{{.ClaimURL}}',
+      '{{.UnsubscribeURL}}',
+    ]) {
+      expect(prepared?.template.body_html).not.toContain(forbidden)
+    }
+  })
+
+  test('prepares Continuous lifecycle preview with delivery policy and trigger', async () => {
+    const prepared = await prepareRecallEmailPreviewRequest({
+      campaignType: 'content_only',
+      deliveryPolicy: 'service',
+      lifecycleTrigger: 'payment_succeeded',
+      nextRequestId: () => 6,
+      subject: 'Payment complete',
+      bodyHTML:
+        '<p>Trade {{.trade_no}}</p><p>{{.amount}} {{.currency}}</p><p>{{.completed_at}}</p>',
+      validateBody: async () => true,
+    })
+
+    expect(prepared?.campaign_type).toBe('content_only')
+    expect(prepared?.delivery_policy).toBe('service')
+    expect(prepared?.lifecycle_trigger).toBe('payment_succeeded')
+    expect(prepared?.snapshot).toMatchObject({
+      campaignType: 'content_only',
+      deliveryPolicy: 'service',
+      lifecycleTrigger: 'payment_succeeded',
+    })
+  })
+
   test('assigns the preview request id only after body validation completes', async () => {
     let resolveValidation: ((valid: boolean) => void) | undefined
     let nextRequestId = 0
     const preparing = prepareRecallEmailPreviewRequest({
       campaignType: 'promotion',
+      deliveryPolicy: 'engagement',
       nextRequestId: () => (nextRequestId += 1),
       subject: 'Subject',
       bodyHTML: '<p>Body</p>',
@@ -335,6 +429,20 @@ describe('CampaignEmailHtmlEditor', () => {
     expect(html).not.toContain('aria-label="Insert {{.ExpiresAt}}"')
     expect(html).not.toContain('aria-label="Insert {{.ClaimURL}}"')
     expect(html).not.toContain('Preview uses sample recipient and offer data.')
+  })
+
+  test('hides unsubscribe insertion controls for service-policy Continuous content', () => {
+    const draft = makeDraft()
+    draft.campaign_type = 'content_only'
+    draft.execution_mode = 'continuous'
+    draft.delivery_policy = 'service'
+    draft.lifecycle_trigger = 'quota_low'
+    const html = renderEditor(false, draft)
+
+    expect(html).toContain('aria-label="Insert {{.RecipientName}}"')
+    expect(html).not.toContain('aria-label="Insert {{.UnsubscribeURL}}"')
+    expect(html).not.toContain('Personal link that stops future recall emails')
+    expect(html).not.toContain('&lt;a href=&quot;{{.UnsubscribeURL}}&quot;&gt;')
   })
 
   test('explains every placeholder directly in the editor', () => {

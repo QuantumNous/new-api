@@ -190,15 +190,33 @@ func ensureStripeSubscriptionUpgradeSnapshotOrder(input StripeSubscriptionUpgrad
 	if query.RowsAffected > 0 {
 		return &order, nil
 	}
-	snapshot, err := subscriptionPurchasePlanSnapshot(plan)
+	order, err := buildStripeSubscriptionUpgradeSnapshotOrder(input, plan)
 	if err != nil {
 		return nil, err
+	}
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		return model.CreateSubscriptionOrderWithPendingPurchaseLifecycleTx(tx, &order, stripeSubscriptionUpgradeSnapshotLifecycleSourceRef(input.ChangeIntentID))
+	})
+	if err != nil {
+		var existing model.SubscriptionOrder
+		if findErr := model.DB.Where("trade_no = ?", order.TradeNo).First(&existing).Error; findErr == nil {
+			return &existing, nil
+		}
+		return nil, err
+	}
+	return &order, nil
+}
+
+func buildStripeSubscriptionUpgradeSnapshotOrder(input StripeSubscriptionUpgradeInput, plan *model.SubscriptionPlan) (model.SubscriptionOrder, error) {
+	snapshot, err := subscriptionPurchasePlanSnapshot(plan)
+	if err != nil {
+		return model.SubscriptionOrder{}, err
 	}
 	minorAmount, err := stripeMinorUnitAmountForSubscription(plan.PriceAmount, plan.Currency)
 	if err != nil {
-		return nil, err
+		return model.SubscriptionOrder{}, err
 	}
-	order = model.SubscriptionOrder{
+	return model.SubscriptionOrder{
 		UserId:             input.UserID,
 		PlanId:             input.TargetPlanID,
 		Money:              plan.PriceAmount,
@@ -216,15 +234,11 @@ func ensureStripeSubscriptionUpgradeSnapshotOrder(input StripeSubscriptionUpgrad
 		RenewalSource:      model.SubscriptionRenewalSourceProvider,
 		ProviderPayload:    fmt.Sprintf("contract_id=%d;change_intent_id=%d", input.ContractID, input.ChangeIntentID),
 		ChangeIntentId:     input.ChangeIntentID,
-	}
-	if err := model.DB.Create(&order).Error; err != nil {
-		var existing model.SubscriptionOrder
-		if findErr := model.DB.Where("trade_no = ?", order.TradeNo).First(&existing).Error; findErr == nil {
-			return &existing, nil
-		}
-		return nil, err
-	}
-	return &order, nil
+	}, nil
+}
+
+func stripeSubscriptionUpgradeSnapshotLifecycleSourceRef(changeIntentID int64) string {
+	return fmt.Sprintf("stripe.subscription_upgrade.%d", changeIntentID)
 }
 
 func stripeSubscriptionUpgradeTargetAppliedWithInvoice(sub *stripe.Subscription, input StripeSubscriptionUpgradeInput) bool {
@@ -716,28 +730,55 @@ func reconcilePaidInvoiceUpgradeTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 	if err := validateStripeUpgradePaidInvoiceFacts(facts, &intent, &contract, &binding, &plan, &user, planSnapshot); err != nil {
 		return true, PermanentPaidInvoiceError(err)
 	}
+	// Legacy upgrade intents created before snapshot orders cannot emit order-scoped lifecycle events.
+	if !planSnapshot.Found {
+		return reconcilePaidInvoiceUpgradeWithoutSnapshotOrderTx(tx, facts, result, &intent, &contract, &binding, &plan, planSnapshot)
+	}
+	var upgradeOrder model.SubscriptionOrder
+	if err := tx.Where("id = ? AND user_id = ? AND change_intent_id = ?", planSnapshot.OrderID, intent.UserId, intent.Id).First(&upgradeOrder).Error; err != nil {
+		return true, err
+	}
 
-	grant, err := model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
-		ContractId:           contract.Id,
-		UserId:               binding.UserId,
-		PlanId:               plan.Id,
-		ProviderBindingId:    binding.Id,
-		GrantKey:             "stripe:" + facts.InvoiceID,
-		PaymentMode:          model.SubscriptionPaymentModeStripeRecurring,
-		AmountTotal:          recurringInvoiceGrantAmountTotal(&plan, planSnapshot),
-		MediaCreditsTotal:    recurringInvoiceGrantMediaCredits(&plan, planSnapshot),
-		Window5hAmount:       recurringInvoiceGrantWindow5h(&plan, planSnapshot),
-		WindowWeekAmount:     recurringInvoiceGrantWindowWeek(&plan, planSnapshot),
-		UpgradeGroup:         recurringInvoiceGrantUpgradeGroup(&plan, planSnapshot),
-		PeriodStart:          facts.PeriodStart,
-		PeriodEnd:            facts.PeriodEnd,
-		EndReasonForPrevious: model.SubscriptionEntitlementEndReasonUpgraded,
-		Source:               model.PaymentMethodStripe,
+	var grant *model.GrantEntitlementResult
+	now := common.GetTimestamp()
+	applied, err := model.PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, model.PurchaseLifecycleTransition{
+		SourceID:   int64(upgradeOrder.Id),
+		TradeNo:    upgradeOrder.TradeNo,
+		UserID:     upgradeOrder.UserId,
+		FromStatus: []string{common.TopUpStatusPending, common.TopUpStatusFailed, common.TopUpStatusExpired, "cancelled", "canceled"},
+		ToStatus:   common.TopUpStatusSuccess,
+		OccurredAt: now,
+		SourceRef:  "stripe.invoice." + facts.InvoiceID,
+	}, func(tx *gorm.DB, locked *model.SubscriptionOrder, transition *model.PurchaseLifecycleTransition) error {
+		grant, err = model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
+			ContractId:           contract.Id,
+			UserId:               binding.UserId,
+			PlanId:               plan.Id,
+			ProviderBindingId:    binding.Id,
+			GrantKey:             "stripe:" + facts.InvoiceID,
+			PaymentMode:          model.SubscriptionPaymentModeStripeRecurring,
+			AmountTotal:          recurringInvoiceGrantAmountTotal(&plan, planSnapshot),
+			MediaCreditsTotal:    recurringInvoiceGrantMediaCredits(&plan, planSnapshot),
+			Window5hAmount:       recurringInvoiceGrantWindow5h(&plan, planSnapshot),
+			WindowWeekAmount:     recurringInvoiceGrantWindowWeek(&plan, planSnapshot),
+			UpgradeGroup:         recurringInvoiceGrantUpgradeGroup(&plan, planSnapshot),
+			PeriodStart:          facts.PeriodStart,
+			PeriodEnd:            facts.PeriodEnd,
+			EndReasonForPrevious: model.SubscriptionEntitlementEndReasonUpgraded,
+			Source:               model.PaymentMethodStripe,
+		})
+		if err != nil {
+			return err
+		}
+		if grant != nil && grant.Entitlement != nil {
+			transition.SubscriptionScopeID = int64(grant.Entitlement.Id)
+		}
+		locked.ProviderPayload = fmt.Sprintf("invoice_id=%s;subscription_id=%s;change_intent_id=%d", facts.InvoiceID, facts.SubscriptionID, intent.Id)
+		return tx.Model(locked).Where("id = ?", locked.Id).Update("provider_payload", locked.ProviderPayload).Error
 	})
 	if err != nil {
 		return true, err
 	}
-	now := common.GetTimestamp()
 	if err := tx.Model(&binding).Where("id = ?", binding.Id).Updates(map[string]interface{}{
 		"plan_id":                       plan.Id,
 		"initial_order_id":              recurringInvoiceInitialOrderID(binding.InitialOrderId, planSnapshot),
@@ -765,18 +806,81 @@ func reconcilePaidInvoiceUpgradeTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 	}).Error; err != nil {
 		return true, err
 	}
-	// Close the snapshot order created by ensureStripeSubscriptionUpgradeSnapshotOrder:
-	// the upgrade is applied and its invoice is paid, so the order must leave
-	// "pending" — revenue reports and support tooling read subscription_orders by
-	// status, and a forever-pending row makes a settled upgrade look unpaid.
-	if err := tx.Model(&model.SubscriptionOrder{}).
-		Where("change_intent_id = ? AND payment_provider = ? AND purchase_intent = ? AND status = ?",
-			intent.Id, model.PaymentProviderStripe, model.SubscriptionChangeIntentKindUpgrade, common.TopUpStatusPending).
-		Updates(map[string]interface{}{
-			"status":           common.TopUpStatusSuccess,
-			"complete_time":    now,
-			"provider_payload": fmt.Sprintf("invoice_id=%s;subscription_id=%s;change_intent_id=%d", facts.InvoiceID, facts.SubscriptionID, intent.Id),
-		}).Error; err != nil {
+	if err := tx.Model(&model.UserSubscriptionContract{}).Where("id = ?", contract.Id).Updates(map[string]interface{}{
+		"status":                  model.SubscriptionContractStatusActive,
+		"payment_mode":            model.SubscriptionPaymentModeStripeRecurring,
+		"latest_change_intent_id": intent.Id,
+		"pending_plan_id":         0,
+		"pending_effective_at":    0,
+		"grace_period_end":        0,
+		"updated_at":              now,
+	}).Error; err != nil {
+		return true, err
+	}
+	result.Binding = &binding
+	if grant != nil {
+		result.Entitlement = grant.Entitlement
+	}
+	result.Applied = applied
+	return true, nil
+}
+
+func reconcilePaidInvoiceUpgradeWithoutSnapshotOrderTx(
+	tx *gorm.DB,
+	facts paidInvoiceFacts,
+	result *PaidInvoiceReconcileResult,
+	intent *model.SubscriptionChangeIntent,
+	contract *model.UserSubscriptionContract,
+	binding *model.SubscriptionProviderBinding,
+	plan *model.SubscriptionPlan,
+	planSnapshot recurringInvoicePlanSnapshot,
+) (bool, error) {
+	grant, err := model.RotateCurrentEntitlementTx(tx, model.GrantEntitlementInput{
+		ContractId:           contract.Id,
+		UserId:               binding.UserId,
+		PlanId:               plan.Id,
+		ProviderBindingId:    binding.Id,
+		GrantKey:             "stripe:" + facts.InvoiceID,
+		PaymentMode:          model.SubscriptionPaymentModeStripeRecurring,
+		AmountTotal:          recurringInvoiceGrantAmountTotal(plan, planSnapshot),
+		MediaCreditsTotal:    recurringInvoiceGrantMediaCredits(plan, planSnapshot),
+		Window5hAmount:       recurringInvoiceGrantWindow5h(plan, planSnapshot),
+		WindowWeekAmount:     recurringInvoiceGrantWindowWeek(plan, planSnapshot),
+		UpgradeGroup:         recurringInvoiceGrantUpgradeGroup(plan, planSnapshot),
+		PeriodStart:          facts.PeriodStart,
+		PeriodEnd:            facts.PeriodEnd,
+		EndReasonForPrevious: model.SubscriptionEntitlementEndReasonUpgraded,
+		Source:               model.PaymentMethodStripe,
+	})
+	if err != nil {
+		return true, err
+	}
+	now := common.GetTimestamp()
+	if err := tx.Model(binding).Where("id = ?", binding.Id).Updates(map[string]interface{}{
+		"plan_id":                       plan.Id,
+		"initial_order_id":              recurringInvoiceInitialOrderID(binding.InitialOrderId, planSnapshot),
+		"provider_subscription_item_id": strings.TrimSpace(facts.SubscriptionItemID),
+		"provider_customer_id":          strings.TrimSpace(facts.CustomerID),
+		"provider_price_id":             strings.TrimSpace(facts.PriceID),
+		"provider_latest_invoice_id":    facts.InvoiceID,
+		"provider_status":               strings.TrimSpace(facts.ProviderStatus),
+		"cancel_at_period_end":          facts.CancelAtPeriodEnd,
+		"current_period_start":          facts.PeriodStart,
+		"current_period_end":            facts.PeriodEnd,
+		"grace_period_end":              0,
+		"livemode":                      facts.Livemode,
+		"last_synced_at":                now,
+		"updated_at":                    now,
+	}).Error; err != nil {
+		return true, err
+	}
+	if err := tx.Model(intent).Where("id = ?", intent.Id).Updates(map[string]interface{}{
+		"status":              model.SubscriptionChangeIntentStatusApplied,
+		"provider_invoice_id": facts.InvoiceID,
+		"effective_at":        facts.PeriodStart,
+		"last_error":          "",
+		"updated_at":          now,
+	}).Error; err != nil {
 		return true, err
 	}
 	if err := tx.Model(&model.UserSubscriptionContract{}).Where("id = ?", contract.Id).Updates(map[string]interface{}{
@@ -790,7 +894,7 @@ func reconcilePaidInvoiceUpgradeTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 	}).Error; err != nil {
 		return true, err
 	}
-	result.Binding = &binding
+	result.Binding = binding
 	if grant != nil {
 		result.Entitlement = grant.Entitlement
 		result.Applied = grant.Applied
