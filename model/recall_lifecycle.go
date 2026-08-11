@@ -682,7 +682,7 @@ func EnsureRecallContinuousTriggerSlotTx(tx *gorm.DB, trigger string) error {
 		return err
 	}
 	return tx.Model(&RecallContinuousTriggerSlot{}).
-		Where("trigger = ?", slot.Trigger).
+		Where("`trigger` = ?", slot.Trigger).
 		Updates(map[string]any{
 			"delivery_policy": slot.DeliveryPolicy,
 			"delay_seconds":   slot.DelaySeconds,
@@ -740,17 +740,17 @@ func ReleaseRecallContinuousTriggerSlotTx(tx *gorm.DB, trigger string, campaignI
 
 func recallContinuousTriggerSlotSelectQuery(tx *gorm.DB, trigger string) *gorm.DB {
 	return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("trigger = ?", strings.TrimSpace(trigger))
+		Where("`trigger` = ?", strings.TrimSpace(trigger))
 }
 
 func claimRecallContinuousTriggerSlotUpdateQuery(tx *gorm.DB, trigger string, campaignID int64) *gorm.DB {
 	return tx.Model(&RecallContinuousTriggerSlot{}).
-		Where("trigger = ? AND campaign_id = 0", strings.TrimSpace(trigger)).
+		Where("`trigger` = ? AND campaign_id = 0", strings.TrimSpace(trigger)).
 		Update("campaign_id", campaignID)
 }
 
 func releaseRecallContinuousTriggerSlotUpdateQuery(tx *gorm.DB, trigger string, campaignID int64) *gorm.DB {
 	return tx.Model(&RecallContinuousTriggerSlot{}).
-		Where("trigger = ? AND campaign_id = ?", strings.TrimSpace(trigger), campaignID).
+		Where("`trigger` = ? AND campaign_id = ?", strings.TrimSpace(trigger), campaignID).
 		Update("campaign_id", int64(0))
 }
