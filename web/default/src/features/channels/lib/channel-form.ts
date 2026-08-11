@@ -40,6 +40,21 @@ export type BlockRunPaymentChainChange = {
   baseUrl: string
 }
 
+export function resolveBlockRunCreateBaseURL(params: {
+  channelType: number
+  isEditing: boolean
+  paymentChain: BlockRunPaymentChain
+  currentBaseUrl: string
+}): string {
+  if (params.channelType !== 100 || params.isEditing) {
+    return params.currentBaseUrl
+  }
+  if (params.paymentChain === 'solana') {
+    return BLOCKRUN_SOLANA_API_URL
+  }
+  return params.currentBaseUrl || BLOCKRUN_BASE_API_URL
+}
+
 export type SolanaPrivateKeyInspection =
   | { kind: 'empty'; valid: true; payer: null }
   | { kind: 'seed'; valid: true; payer: null }

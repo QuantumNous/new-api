@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -233,19 +234,40 @@ func TestDoRequest_BlockRunRedirectPolicyIsRequestScoped(t *testing.T) {
 		return resp
 	}
 
-	require.Equal(t, http.StatusNoContent, request("/redirect-same", rootconstant.ChannelTypeBlockRun, false).StatusCode)
-	require.EqualValues(t, 1, sameOriginHits.Load(), "unsigned Type 100 should follow same-origin redirects")
 	require.Equal(t, http.StatusFound, request("/redirect-cross", rootconstant.ChannelTypeBlockRun, false).StatusCode)
 	require.EqualValues(t, 0, destinationHits.Load(), "unsigned Type 100 must not follow cross-origin redirects")
 	for _, status := range []int{http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect, http.StatusPermanentRedirect} {
 		require.Equal(t, status, request("/redirect-same?status="+strconv.Itoa(status), rootconstant.ChannelTypeBlockRun, true).StatusCode)
 	}
-	require.EqualValues(t, 1, sameOriginHits.Load(), "signed Type 100 must not follow any redirect")
+	require.EqualValues(t, 0, sameOriginHits.Load(), "signed Type 100 must not follow any redirect")
 	baseClient := &http.Client{}
 	nonBlockRunReq, err := http.NewRequest(http.MethodPost, source.URL+"/redirect-cross", nil)
 	require.NoError(t, err)
 	nonBlockRun := clientForRelayRequest(baseClient, nonBlockRunReq, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: rootconstant.ChannelTypeOpenAI}})
 	require.Same(t, baseClient, nonBlockRun, "non-Type 100 must keep the shared client and redirect behavior")
+}
+
+func TestClientForRelayRequest_BlockRunPreservesRedirectPolicy(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost, "https://blockrun.example/v1/chat/completions", nil)
+	require.NoError(t, err)
+	next, err := http.NewRequest(http.MethodGet, "https://blockrun.example/redirected", nil)
+	require.NoError(t, err)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: rootconstant.ChannelTypeBlockRun}}
+
+	var hookCalls atomic.Int32
+	wantErr := errors.New("custom redirect rejected")
+	client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+		hookCalls.Add(1)
+		return wantErr
+	}}
+	redirectClient := clientForRelayRequest(client, req, info)
+	require.ErrorIs(t, redirectClient.CheckRedirect(next, []*http.Request{req}), wantErr)
+	require.EqualValues(t, 1, hookCalls.Load())
+
+	defaultClient := clientForRelayRequest(&http.Client{}, req, info)
+	require.NoError(t, defaultClient.CheckRedirect(next, []*http.Request{req}))
+	via := make([]*http.Request, 10)
+	require.EqualError(t, defaultClient.CheckRedirect(next, via), "stopped after 10 redirects")
 }
 
 func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.T) {

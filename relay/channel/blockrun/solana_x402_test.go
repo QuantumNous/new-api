@@ -42,6 +42,21 @@ func TestSignSolanaX402PaymentSelectsSolanaFromMixedAccepts(t *testing.T) {
 	}
 }
 
+func TestSignSolanaX402PaymentTrimsPrivateKey(t *testing.T) {
+	key, payer, payTo, recentBlockhash := solanaTestKeys()
+	resp := solanaPaymentRequiredResponse(t, []blockrunSDK.PaymentOption{
+		validSolanaOption(payer, payTo, recentBlockhash),
+	})
+
+	encoded, err := SignSolanaX402Payment(resp, " \n\t"+key+"\r ", "https://fallback.invalid", big.NewInt(1000))
+	if err != nil {
+		t.Fatalf("SignSolanaX402Payment with surrounding whitespace: %v", err)
+	}
+	if encoded == "" {
+		t.Fatal("signed Solana payment payload is empty")
+	}
+}
+
 func TestSelectSolanaPaymentOptionRejectsMissingAndAmbiguousOptions(t *testing.T) {
 	_, payer, payTo, recentBlockhash := solanaTestKeys()
 	valid := validSolanaOption(payer, payTo, recentBlockhash)

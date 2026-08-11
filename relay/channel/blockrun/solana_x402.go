@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"net/http"
 	"reflect"
+	"strings"
 
 	blockrunSDK "github.com/BlockRunAI/blockrun-llm-go"
 	"github.com/gagliardetto/solana-go"
@@ -16,6 +17,7 @@ const expectedNetworkSolana = "solana"
 // option. It is intentionally separate from the shared Base signer so existing
 // Type 100 Base and Type 102 callers cannot enter the Solana payment path.
 func SignSolanaX402Payment(resp *http.Response, privateKey, resourceURLFallback string, maxAmountAtomic *big.Int) (string, error) {
+	privateKey = strings.TrimSpace(privateKey)
 	payReq, err := extractPaymentRequired(resp)
 	if err != nil {
 		return "", err

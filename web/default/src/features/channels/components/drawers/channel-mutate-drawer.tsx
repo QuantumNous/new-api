@@ -131,6 +131,7 @@ import {
   BLOCKRUN_BASE_API_URL,
   BLOCKRUN_SOLANA_API_URL,
   inspectSolanaPrivateKey,
+  resolveBlockRunCreateBaseURL,
   resolveBlockRunPaymentChainChange,
   channelFormSchema,
   channelsQueryKeys,
@@ -629,13 +630,14 @@ export function ChannelMutateDrawer({
 
     if (currentType === 100) {
       const currentBaseUrlValue = form.getValues('base_url')
-      if (!currentBaseUrlValue) {
-        form.setValue(
-          'base_url',
-          blockRunPaymentChain === 'solana'
-            ? BLOCKRUN_SOLANA_API_URL
-            : BLOCKRUN_BASE_API_URL
-        )
+      const nextBaseUrl = resolveBlockRunCreateBaseURL({
+        channelType: currentType,
+        isEditing,
+        paymentChain: blockRunPaymentChain,
+        currentBaseUrl: currentBaseUrlValue || '',
+      })
+      if (currentBaseUrlValue !== nextBaseUrl) {
+        form.setValue('base_url', nextBaseUrl)
       }
     }
 

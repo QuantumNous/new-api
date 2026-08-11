@@ -4,6 +4,7 @@ import {
   CHANNEL_FORM_DEFAULT_VALUES,
   channelFormSchema,
   inspectSolanaPrivateKey,
+  resolveBlockRunCreateBaseURL,
   resolveBlockRunPaymentChainChange,
   transformChannelToFormDefaults,
   transformFormDataToCreatePayload,
@@ -120,6 +121,33 @@ describe('Codex OAuth service tier settings', () => {
 })
 
 describe('BlockRun payment chain form mapping', () => {
+  test('forces the Solana URL on create but preserves Base and edit URLs', () => {
+    expect(
+      resolveBlockRunCreateBaseURL({
+        channelType: 100,
+        isEditing: false,
+        paymentChain: 'solana',
+        currentBaseUrl: 'https://stale.example/api',
+      })
+    ).toBe('https://sol.blockrun.ai/api')
+    expect(
+      resolveBlockRunCreateBaseURL({
+        channelType: 100,
+        isEditing: false,
+        paymentChain: 'base',
+        currentBaseUrl: 'https://custom.example/api',
+      })
+    ).toBe('https://custom.example/api')
+    expect(
+      resolveBlockRunCreateBaseURL({
+        channelType: 100,
+        isEditing: true,
+        paymentChain: 'solana',
+        currentBaseUrl: 'https://legacy.example/api',
+      })
+    ).toBe('https://legacy.example/api')
+  })
+
   test('keeps the payment chain and URL unchanged while editing', () => {
     expect(
       resolveBlockRunPaymentChainChange({

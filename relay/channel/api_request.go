@@ -557,9 +557,16 @@ func clientForRelayRequest(client *http.Client, req *http.Request, info *common.
 	clientCopy := *client
 	origin := req.URL
 	signed := req.Header.Get("Payment-Signature") != "" || req.Header.Get("X-Payment") != ""
+	originalCheckRedirect := client.CheckRedirect
 	clientCopy.CheckRedirect = func(next *http.Request, via []*http.Request) error {
 		if signed || !sameHTTPOrigin(origin, next.URL) {
 			return http.ErrUseLastResponse
+		}
+		if originalCheckRedirect != nil {
+			return originalCheckRedirect(next, via)
+		}
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
 		}
 		return nil
 	}
