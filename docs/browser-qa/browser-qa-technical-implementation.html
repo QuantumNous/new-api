@@ -275,8 +275,8 @@
           <thead><tr><th scope="col">范围内</th><th scope="col">范围外</th></tr></thead>
           <tbody>
             <tr>
-              <td>staging website、staging console、只读 docs 入口、邮箱验证码、API Key 页面、报告和 cleanup。</td>
-              <td>生产站点、生产发布 gate、数据库级 hard purge、真实付费或会产生不可逆费用的行为。</td>
+              <td>当前闭合 target profile 内的 website/console、只读 docs 入口、邮箱验证码、API Key 页面、报告和 cleanup。</td>
+              <td>release gate、官网 production workflow、付费、订阅、邀请、管理员、数据库级 hard purge、真实模型调用或其他不可逆写操作。</td>
             </tr>
             <tr>
               <td>GitHub Actions 构建固定 QA 镜像，更新 QA broker/main/cleanup Cloud Run 资源并等待执行完成。</td>
@@ -608,7 +608,7 @@ gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/candidates/89
           <li>Browser QA workflow 先运行 unit/contract tests，再构建 QA 镜像，再运行 container smoke 和 MCP attach smoke；通过后推送到 Artifact Registry 并更新 QA Cloud Run 资源。</li>
           <li>Cloud Run main job 启动 supervisor；Codex CLI 通过 Flatkey base URL <code>https://router.flatkey.ai/v1</code> 获取模型响应，Flatkey token 只从 Secret Manager 注入为环境变量。</li>
           <li>Codex 只能使用四个专用 MCP server：<code>playwright</code>、<code>evidence</code>、<code>broker</code>、<code>control</code>；每个 server 都有精确 <code>enabled_tools</code> 白名单。</li>
-          <li>Playwright MCP 只 attach supervisor-owned Chromium；浏览器只访问 staging website、staging console 和只读 docs。</li>
+          <li>Playwright MCP 只 attach supervisor-owned Chromium；浏览器只访问当前 target profile：staging 时为 staging website / staging console，production 时为 production website / console；docs 始终通过只读 docs context 访问。</li>
           <li>需要邮箱验证码时，私有 Gmail broker 只返回当前 run 的最小结果；截图和 browser 日志通过 evidence 工具脱敏落盘。</li>
           <li><code>core</code> 模式到 <code>qa_replay_checkpoint</code> 后停止，<code>normal</code> 模式在 checkpoint 后才允许 <code>qa_start_exploration</code>。</li>
           <li>GCS root <code>manifest.json</code> 最后上传，GitHub Summary 只显示状态和私有 GCS URI。</li>
@@ -1133,7 +1133,7 @@ gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/main/main-314
   </main>
 
   <footer class="wrap">
-    <p>依据仓库路径：<code>.github/workflows/gcp-browser-qa.yml</code>、<code>.github/workflows/gcp-deploy-staging.yml</code>、<code>scripts/browser_qa/</code>、<code>deploy/gcp/envs/browser-qa-staging/</code>、<code>deploy/gcp/docs/OPERATIONS.md</code>、<code>docs/superpowers/specs/</code>。</p>
+    <p>依据仓库路径：<code>.github/workflows/gcp-browser-qa.yml</code>、<code>.github/workflows/gcp-deploy-staging.yml</code>、<code>.github/workflows/gcp-deploy.yml</code>、<code>scripts/browser_qa/</code>、<code>deploy/gcp/envs/browser-qa-staging/</code>、<code>deploy/gcp/docs/OPERATIONS.md</code>、<code>docs/superpowers/specs/</code>。</p>
   </footer>
 </body>
 </html>

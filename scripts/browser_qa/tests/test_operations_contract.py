@@ -8,6 +8,7 @@ from scripts.browser_qa.flatkey_browser_qa import candidate_orchestrator
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 OPERATIONS = REPO_ROOT / "deploy" / "gcp" / "docs" / "OPERATIONS.md"
+TECHNICAL_HTML = REPO_ROOT / "docs" / "browser-qa" / "browser-qa-technical-implementation.html"
 PROD_ROOT = "deploy/gcp/envs/prod"
 BROWSER_QA_ROOT = "deploy/gcp/envs/browser-qa-staging"
 BROWSER_QA_BACKEND_PREFIX = "envs/browser-qa-staging"
@@ -199,6 +200,10 @@ def sensitive_assignment(name, value):
 
 def operations_text():
     return OPERATIONS.read_text(encoding="utf-8")
+
+
+def technical_html_text():
+    return TECHNICAL_HTML.read_text(encoding="utf-8")
 
 
 def browser_qa_section():
@@ -561,6 +566,26 @@ class BrowserQaOperationsContractTests(unittest.TestCase):
         self.assertIn("`proposed_case` still uses the closed result-schema origin enum (`staging_website`, `staging_console`)", section)
         self.assertIn("`docs` is allowed only in committed fixed-case YAML, not in model-authored `proposed_case`", section)
         self.assertNotIn("`proposed_case` still uses the closed fixed-case origin enum (`staging_website`, `staging_console`, `docs`)", section)
+
+    def test_technical_html_scope_uses_target_profile_not_global_production_exclusion(self):
+        text = technical_html_text()
+
+        self.assertIn("当前闭合 target profile 内的 website/console、只读 docs 入口", text)
+        for marker in ["release gate", "官网 production workflow", "付费", "订阅", "管理员", "不可逆写操作"]:
+            with self.subTest(marker=marker):
+                self.assertIn(marker, text)
+        self.assertNotIn("staging website、staging console、只读 docs 入口", text)
+        self.assertNotIn("生产站点、生产发布 gate", text)
+
+    def test_technical_html_sequence_and_footer_include_production_caller_context(self):
+        text = technical_html_text()
+
+        self.assertIn("浏览器只访问当前 target profile：staging 时为 staging website / staging console，production 时为 production website / console", text)
+        self.assertIn("docs 始终通过只读 docs context 访问", text)
+        footer = re.search(r"(?ms)<footer\b[^>]*>.*?</footer>", text)
+        if not footer:
+            raise AssertionError("technical HTML footer not found")
+        self.assertIn("<code>.github/workflows/gcp-deploy.yml</code>", footer.group(0))
 
     def test_resource_table_lists_all_non_committed_github_variables(self):
         text = operations_text()
