@@ -91,6 +91,11 @@
             "additionalProperties": false,
             "required": ["locator"],
             "properties": {"locator": {"$ref": "#/$defs/locator"}}
+          },
+          "begin_network_capture": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       }
@@ -105,7 +110,31 @@
         "maxProperties": 1,
         "properties": {
           "page_status_not": {"type": "integer", "minimum": 100, "maximum": 599},
-          "url_not_contains": {"$ref": "#/$defs/non_control_string"}
+          "url_not_contains": {"$ref": "#/$defs/non_control_string"},
+          "element_visible": {"$ref": "#/$defs/locator_assertion"},
+          "element_hidden": {"$ref": "#/$defs/locator_assertion"},
+          "element_enabled": {"$ref": "#/$defs/locator_assertion"},
+          "element_disabled": {"$ref": "#/$defs/locator_assertion"},
+          "element_value_equals": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["locator", "value"],
+            "properties": {
+              "locator": {"$ref": "#/$defs/locator"},
+              "value": {"$ref": "#/$defs/non_control_string"}
+            }
+          },
+          "element_count_equals": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["locator", "count"],
+            "properties": {
+              "locator": {"$ref": "#/$defs/locator"},
+              "count": {"type": "integer", "minimum": 0, "maximum": 1000}
+            }
+          },
+          "network_request_sent": {"$ref": "#/$defs/network_request_assertion"},
+          "network_request_not_sent": {"$ref": "#/$defs/network_request_assertion"}
         }
       }
     },
@@ -147,6 +176,22 @@
       "minLength": 1,
       "maxLength": 256,
       "pattern": "^[^\\u0000-\\u001f\\u007f]{1,256}$"
+    },
+    "locator_assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator"],
+      "properties": {"locator": {"$ref": "#/$defs/locator"}}
+    },
+    "network_request_assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "path", "timeout_ms"],
+      "properties": {
+        "method": {"type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]},
+        "path": {"type": "string", "pattern": "^/(?!/)[^\\u0000-\\u001f\\u007f\\\\?#]*$", "minLength": 1, "maxLength": 256},
+        "timeout_ms": {"type": "integer", "minimum": 0, "maximum": 5000}
+      }
     },
     "locator": {
       "type": "object",

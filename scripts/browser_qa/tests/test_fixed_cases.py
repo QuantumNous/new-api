@@ -58,6 +58,12 @@ VALID_CASE = {
     },
 }
 
+ROLE_LOCATOR = {
+    "by": "role",
+    "role": "button",
+    "name": "Submit",
+}
+
 
 def case_yaml(case):
     step = case["steps"][0]
@@ -110,6 +116,9 @@ class FixedCaseTests(unittest.TestCase):
     def assert_invalid(self, payload):
         with self.assertRaises(FixedCaseValidationError):
             validate_case(payload)
+
+    def assert_valid(self, payload):
+        self.assertEqual(validate_case(payload), payload)
 
     def test_valid_disabled_case_loads(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -259,6 +268,104 @@ class FixedCaseTests(unittest.TestCase):
 
         self.assert_invalid(payload)
 
+    def test_accepts_begin_network_capture_step_once(self):
+        payload = copy.deepcopy(VALID_CASE)
+        payload["steps"].append({"begin_network_capture": {}})
+
+        self.assert_valid(payload)
+
+    def test_accepts_new_element_assertion_shapes(self):
+        for assertion in [
+            {"element_visible": {"locator": ROLE_LOCATOR}},
+            {"element_hidden": {"locator": ROLE_LOCATOR}},
+            {"element_enabled": {"locator": ROLE_LOCATOR}},
+            {"element_disabled": {"locator": ROLE_LOCATOR}},
+            {"element_value_equals": {"locator": ROLE_LOCATOR, "value": "expected"}},
+            {"element_count_equals": {"locator": ROLE_LOCATOR, "count": 0}},
+            {"element_count_equals": {"locator": ROLE_LOCATOR, "count": 1000}},
+        ]:
+            with self.subTest(assertion=assertion):
+                payload = copy.deepcopy(VALID_CASE)
+                payload["assertions"] = [assertion]
+                self.assert_valid(payload)
+
+    def test_accepts_network_assertion_shapes_with_capture_step(self):
+        for assertion in [
+            {"network_request_sent": {"method": "GET", "path": "/api/users", "timeout_ms": 0}},
+            {"network_request_not_sent": {"method": "DELETE", "path": "/api/users", "timeout_ms": 5000}},
+        ]:
+            with self.subTest(assertion=assertion):
+                payload = copy.deepcopy(VALID_CASE)
+                payload["steps"].append({"begin_network_capture": {}})
+                payload["assertions"] = [assertion]
+                self.assert_valid(payload)
+
+    def test_rejects_new_shape_unknown_fields(self):
+        payload = copy.deepcopy(VALID_CASE)
+        payload["steps"].append({"begin_network_capture": {"extra": "bad"}})
+        self.assert_invalid(payload)
+
+        payload = copy.deepcopy(VALID_CASE)
+        payload["assertions"] = [{"element_visible": {"locator": ROLE_LOCATOR, "extra": "bad"}}]
+        self.assert_invalid(payload)
+
+        payload = copy.deepcopy(VALID_CASE)
+        payload["steps"].append({"begin_network_capture": {}})
+        payload["assertions"] = [
+            {"network_request_sent": {"method": "GET", "path": "/api/users", "timeout_ms": 100, "extra": "bad"}}
+        ]
+        self.assert_invalid(payload)
+
+    def test_rejects_duplicate_capture_steps(self):
+        payload = copy.deepcopy(VALID_CASE)
+        payload["steps"].extend([{"begin_network_capture": {}}, {"begin_network_capture": {}}])
+
+        self.assert_invalid(payload)
+
+    def test_rejects_network_assertions_without_exactly_one_capture_step(self):
+        payload = copy.deepcopy(VALID_CASE)
+        payload["assertions"] = [{"network_request_sent": {"method": "POST", "path": "/api/users", "timeout_ms": 1000}}]
+        self.assert_invalid(payload)
+
+        payload = copy.deepcopy(VALID_CASE)
+        payload["steps"].extend([{"begin_network_capture": {}}, {"begin_network_capture": {}}])
+        payload["assertions"] = [{"network_request_not_sent": {"method": "POST", "path": "/api/users", "timeout_ms": 1000}}]
+        self.assert_invalid(payload)
+
+    def test_rejects_bad_network_method_path_and_bounds(self):
+        invalid_assertions = [
+            {"network_request_sent": {"method": "HEAD", "path": "/api/users", "timeout_ms": 100}},
+            {"network_request_sent": {"method": "GET", "path": "https://example.com/api", "timeout_ms": 100}},
+            {"network_request_sent": {"method": "GET", "path": "/api/users?token=secret", "timeout_ms": 100}},
+            {"network_request_sent": {"method": "GET", "path": "/api/users#secret", "timeout_ms": 100}},
+            {"network_request_sent": {"method": "GET", "path": "/api\\users", "timeout_ms": 100}},
+            {"network_request_sent": {"method": "GET", "path": "/api\nusers", "timeout_ms": 100}},
+            {"network_request_sent": {"method": "GET", "path": "/api/users", "timeout_ms": -1}},
+            {"network_request_sent": {"method": "GET", "path": "/api/users", "timeout_ms": 5001}},
+            {"network_request_sent": {"method": "GET", "path": "/api/users", "timeout_ms": True}},
+            {"element_count_equals": {"locator": ROLE_LOCATOR, "count": -1}},
+            {"element_count_equals": {"locator": ROLE_LOCATOR, "count": 1001}},
+            {"element_count_equals": {"locator": ROLE_LOCATOR, "count": True}},
+        ]
+        for assertion in invalid_assertions:
+            with self.subTest(assertion=assertion):
+                payload = copy.deepcopy(VALID_CASE)
+                if next(iter(assertion)) in {"network_request_sent", "network_request_not_sent"}:
+                    payload["steps"].append({"begin_network_capture": {}})
+                payload["assertions"] = [assertion]
+                self.assert_invalid(payload)
+
+    def test_new_assertions_do_not_echo_secret_like_strings(self):
+        payload = copy.deepcopy(VALID_CASE)
+        payload["assertions"] = [
+            {"element_value_equals": {"locator": ROLE_LOCATOR, "value": "expected", "sk-live-secret-token": "present"}}
+        ]
+
+        with self.assertRaises(FixedCaseValidationError) as raised:
+            validate_case(payload)
+
+        self.assertNotIn("sk-live-secret-token", str(raised.exception))
+
     def test_list_cases_sorts_stably_and_enabled_cases_filters(self):
         ready = copy.deepcopy(VALID_CASE)
         ready["id"] = "FQA-9002"
@@ -297,6 +404,39 @@ class FixedCaseTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["severity"]["enum"], ["critical", "high", "medium", "low", "info"])
         self.assertEqual(schema["properties"]["fixture"]["enum"], ["anonymous", "registered_user", "user_with_api_key"])
         self.assertEqual(schema["properties"]["promotion"]["properties"]["attempts_required"]["const"], 3)
+
+    def test_schema_declares_new_step_and_assertion_contract(self):
+        schema_path = os.path.join(os.path.dirname(__file__), "..", "config", "fixed_case.schema.json")
+        with open(schema_path, encoding="utf-8") as handle:
+            schema = json.load(handle)
+
+        def resolve_schema(node):
+            ref = node.get("$ref")
+            if not ref:
+                return node
+            self.assertTrue(ref.startswith("#/$defs/"))
+            return schema["$defs"][ref.rsplit("/", 1)[-1]]
+
+        step_properties = schema["properties"]["steps"]["items"]["properties"]
+        self.assertEqual(step_properties["begin_network_capture"]["properties"], {})
+        self.assertFalse(step_properties["begin_network_capture"]["additionalProperties"])
+
+        assertion_properties = schema["properties"]["assertions"]["items"]["properties"]
+        for key in ["element_visible", "element_hidden", "element_enabled", "element_disabled"]:
+            payload = resolve_schema(assertion_properties[key])
+            self.assertEqual(payload["required"], ["locator"])
+            self.assertFalse(payload["additionalProperties"])
+
+        self.assertEqual(assertion_properties["element_value_equals"]["required"], ["locator", "value"])
+        self.assertEqual(assertion_properties["element_count_equals"]["properties"]["count"]["minimum"], 0)
+        self.assertEqual(assertion_properties["element_count_equals"]["properties"]["count"]["maximum"], 1000)
+        for key in ["network_request_sent", "network_request_not_sent"]:
+            payload = resolve_schema(assertion_properties[key])
+            self.assertEqual(payload["properties"]["method"]["enum"], ["GET", "POST", "PUT", "PATCH", "DELETE"])
+            self.assertEqual(payload["properties"]["path"]["pattern"], schema["properties"]["start"]["properties"]["path"]["pattern"])
+            self.assertEqual(payload["properties"]["timeout_ms"]["minimum"], 0)
+            self.assertEqual(payload["properties"]["timeout_ms"]["maximum"], 5000)
+            self.assertFalse(payload["additionalProperties"])
 
     def test_schema_declares_enabled_promotion_gate(self):
         schema_path = os.path.join(os.path.dirname(__file__), "..", "config", "fixed_case.schema.json")

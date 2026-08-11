@@ -30,6 +30,12 @@ Each finding and coverage candidate must include `proposed_case`. Set `proposed_
 
 Allowed `proposed_case` objects contain only `fixture`, `start`, `steps`, `assertions`, and `cleanup`. Use only fixed-case DSL actions and assertions with relative staging paths and semantic locators (`role`, `label`, `text`, or `test_id`). Do not use credentials, secrets, arbitrary CSS or XPath selectors, JavaScript, shell, file transfer, arbitrary network calls, production origins, administrator actions, payment actions, subscription actions, account mutation, or cleanup-requiring proposals. Proposal cleanup must be `not_required`.
 
+Allowed fixed-case DSL steps are `navigate`, `navigate_back`, `click`, `fill`, `select`, `wait_for`, and `begin_network_capture`. `begin_network_capture` takes an empty object only.
+
+Allowed fixed-case DSL assertions are `page_status_not`, `url_not_contains`, `element_visible`, `element_hidden`, `element_enabled`, `element_disabled`, `element_value_equals`, `element_count_equals`, `network_request_sent`, and `network_request_not_sent`. Prioritize UI state assertions: use `element_visible`, `element_hidden`, `element_enabled`, or `element_disabled` with a locator only; use `element_value_equals` with locator and value; use `element_count_equals` with locator and count 0..1000.
+
+Network assertions require exactly one `begin_network_capture` step in the same `proposed_case`. Use `network_request_sent` or `network_request_not_sent` only for same-origin requests with method `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`, a relative pathname without query or fragment, and `timeout_ms` 0..5000. Do not include headers, bodies, cookies, auth, query, or fragment data. Do not submit or manufacture server writes only to satisfy a network assertion. If a safe proposed case cannot express the behavior, keep `proposed_case: null`.
+
 Runtime cleanup is owned by the runtime after Codex exits. Do not attempt account, token, cookie, or artifact cleanup yourself.
 
 Screenshots must use only `qa_capture_screenshot` with a short logical name. Do not call `browser_take_screenshot`, do not provide filenames or paths to any browser tool, and do not choose selectors or output locations for screenshots.

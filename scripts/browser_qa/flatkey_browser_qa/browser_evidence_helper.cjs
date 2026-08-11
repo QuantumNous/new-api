@@ -43,6 +43,9 @@ const FIXED_PROMOTION_STATES = new Set([
   "passed_3_of_3",
   "ready_for_review",
 ]);
+const ELEMENT_STATE_ASSERTIONS = new Set(["element_visible", "element_hidden", "element_enabled", "element_disabled"]);
+const NETWORK_ASSERTIONS = new Set(["network_request_sent", "network_request_not_sent"]);
+const NETWORK_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 const INIT_FAILURE_MESSAGES = Object.freeze({
   init_connect_failed: "browser connection failed",
   init_context_failed: "default browser context unavailable",
@@ -171,7 +174,7 @@ function isChromiumInternalServiceWorker(worker) {
 }
 
 class BrowserEvidenceSession {
-  constructor({ browser, runtimeDir, sensitiveValues = [], maxEvents = MAX_EVENTS, maxEventBytes = MAX_EVENT_BYTES, maxTotalBytes = MAX_TOTAL_BYTES, docsProxyUrl = null }) {
+  constructor({ browser, runtimeDir, sensitiveValues = [], maxEvents = MAX_EVENTS, maxEventBytes = MAX_EVENT_BYTES, maxTotalBytes = MAX_TOTAL_BYTES, docsProxyUrl = null, fixedCaseSleep = delay }) {
     this.browser = browser;
     this.runtimeDir = runtimeDir;
     this.sensitiveValues = Array.isArray(sensitiveValues) ? sensitiveValues.filter((value) => typeof value === "string" && value.length > 0) : [];
@@ -185,6 +188,7 @@ class BrowserEvidenceSession {
     this.context = null;
     this.page = null;
     this.docsProxyUrl = docsProxyUrl;
+    this.fixedCaseSleep = fixedCaseSleep;
     this.pageSetupPromises = new Set();
     this.pageSetupError = null;
   }
@@ -474,6 +478,7 @@ class BrowserEvidenceSession {
       failure: null,
     };
     const documentStatus = attachFixedCaseDocumentStatusTracker(this.page);
+    const networkTracker = attachFixedCaseNetworkTracker(this.page, casePayload.start.origin, this.fixedCaseSleep);
     const fail = async (failure) => {
       result.status = "failed";
       result.failure = {
@@ -490,7 +495,7 @@ class BrowserEvidenceSession {
         const step = casePayload.steps[index];
         const action = Object.keys(step)[0];
         try {
-          const status = await this._executeFixedCaseStep(action, step[action], casePayload.start.origin);
+          const status = await this._executeFixedCaseStep(action, step[action], casePayload.start.origin, networkTracker);
           documentStatus.set(status);
           result.steps.push({ index, action, status: "passed" });
         } catch (_error) {
@@ -500,7 +505,13 @@ class BrowserEvidenceSession {
       for (let index = 0; index < casePayload.assertions.length; index += 1) {
         const assertion = casePayload.assertions[index];
         const assertionName = Object.keys(assertion)[0];
-        if (!this._fixedCaseAssertionPassed(assertionName, assertion[assertionName], documentStatus.get())) {
+        let passed = false;
+        try {
+          passed = await this._fixedCaseAssertionPassed(assertionName, assertion[assertionName], documentStatus.get(), networkTracker);
+        } catch (_error) {
+          return fail({ phase: "assertion", index, assertion: assertionName, code: "assertion_failed" });
+        }
+        if (!passed) {
           return fail({ phase: "assertion", index, assertion: assertionName, code: "assertion_failed" });
         }
         result.assertions.push({ index, assertion: assertionName, status: "passed" });
@@ -510,10 +521,11 @@ class BrowserEvidenceSession {
       return fail({ phase: "start", index: null, code: "navigation_failed" });
     } finally {
       documentStatus.stop();
+      networkTracker.stop();
     }
   }
 
-  async _executeFixedCaseStep(action, payload, origin) {
+  async _executeFixedCaseStep(action, payload, origin, networkTracker) {
     if (action === "navigate") {
       return this._fixedCaseNavigate(payload.path, origin);
     }
@@ -523,6 +535,10 @@ class BrowserEvidenceSession {
         throw new Error("back navigation did not produce a page response");
       }
       return response.status();
+    }
+    if (action === "begin_network_capture") {
+      networkTracker.begin();
+      return null;
     }
     const locator = fixedCaseLocator(this.page, payload.locator);
     if (action === "click") {
@@ -556,13 +572,40 @@ class BrowserEvidenceSession {
     return status;
   }
 
-  _fixedCaseAssertionPassed(assertionName, expected, lastStatus) {
+  async _fixedCaseAssertionPassed(assertionName, expected, lastStatus, networkTracker) {
     if (assertionName === "page_status_not") {
       return typeof lastStatus === "number" && lastStatus !== expected;
     }
     if (assertionName === "url_not_contains") {
       const currentUrl = typeof this.page.url === "function" ? this.page.url() : "";
       return typeof currentUrl === "string" && !currentUrl.includes(expected);
+    }
+    if (ELEMENT_STATE_ASSERTIONS.has(assertionName)) {
+      const locator = fixedCaseLocator(this.page, expected.locator);
+      if (assertionName === "element_visible") {
+        return await locator.isVisible();
+      }
+      if (assertionName === "element_hidden") {
+        return !await locator.isVisible();
+      }
+      if (assertionName === "element_enabled") {
+        return await locator.isEnabled();
+      }
+      return await locator.isDisabled();
+    }
+    if (assertionName === "element_value_equals") {
+      const locator = fixedCaseLocator(this.page, expected.locator);
+      return await locator.inputValue() === expected.value;
+    }
+    if (assertionName === "element_count_equals") {
+      const locator = fixedCaseLocator(this.page, expected.locator);
+      return await locator.count() === expected.count;
+    }
+    if (assertionName === "network_request_sent") {
+      return await networkTracker.waitForMatch(expected);
+    }
+    if (assertionName === "network_request_not_sent") {
+      return !await networkTracker.waitForMatch(expected);
     }
     throw new Error("invalid fixed case assertion");
   }
@@ -790,8 +833,17 @@ function validateFixedCase(casePayload) {
   if (!Array.isArray(casePayload.steps) || casePayload.steps.length === 0 || !Array.isArray(casePayload.assertions) || casePayload.assertions.length === 0) {
     throw new Error("invalid fixed case");
   }
-  casePayload.steps.forEach(validateFixedStep);
-  casePayload.assertions.forEach(validateFixedAssertion);
+  let captureCount = 0;
+  for (const step of casePayload.steps) {
+    captureCount += validateFixedStep(step) ? 1 : 0;
+  }
+  let networkAssertionCount = 0;
+  for (const assertion of casePayload.assertions) {
+    networkAssertionCount += validateFixedAssertion(assertion) ? 1 : 0;
+  }
+  if (captureCount > 1 || (networkAssertionCount > 0 && captureCount !== 1)) {
+    throw new Error("invalid fixed case");
+  }
 }
 
 function validateFixedStep(step) {
@@ -800,11 +852,11 @@ function validateFixedStep(step) {
   }
   const action = Object.keys(step)[0];
   const payload = step[action];
-  if (action === "navigate_back") {
-    if (!payload || typeof payload !== "object" || Object.keys(payload).length !== 0) {
+  if (action === "navigate_back" || action === "begin_network_capture") {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length !== 0) {
       throw new Error("invalid fixed case");
     }
-    return;
+    return action === "begin_network_capture";
   }
   if (!payload || typeof payload !== "object") {
     throw new Error("invalid fixed case");
@@ -813,21 +865,21 @@ function validateFixedStep(step) {
     if (hasUnknownKeys(payload, ["path"]) || !isRelativeFixedPath(payload.path)) {
       throw new Error("invalid fixed case");
     }
-    return;
+    return false;
   }
   if (action === "click" || action === "wait_for") {
     if (hasUnknownKeys(payload, ["locator"])) {
       throw new Error("invalid fixed case");
     }
     validateFixedLocator(payload.locator);
-    return;
+    return false;
   }
   if (action === "fill" || action === "select") {
     if (hasUnknownKeys(payload, ["locator", "value"]) || !isFixedString(payload.value)) {
       throw new Error("invalid fixed case");
     }
     validateFixedLocator(payload.locator);
-    return;
+    return false;
   }
   throw new Error("invalid fixed case");
 }
@@ -873,13 +925,47 @@ function validateFixedAssertion(assertion) {
     if (!Number.isInteger(value) || value < 100 || value > 599) {
       throw new Error("invalid fixed case");
     }
-    return;
+    return false;
   }
   if (name === "url_not_contains") {
     if (!isFixedString(value)) {
       throw new Error("invalid fixed case");
     }
-    return;
+    return false;
+  }
+  if (ELEMENT_STATE_ASSERTIONS.has(name)) {
+    if (!value || typeof value !== "object" || hasUnknownKeys(value, ["locator"])) {
+      throw new Error("invalid fixed case");
+    }
+    validateFixedLocator(value.locator);
+    return false;
+  }
+  if (name === "element_value_equals") {
+    if (!value || typeof value !== "object" || hasUnknownKeys(value, ["locator", "value"]) || !isFixedString(value.value)) {
+      throw new Error("invalid fixed case");
+    }
+    validateFixedLocator(value.locator);
+    return false;
+  }
+  if (name === "element_count_equals") {
+    if (!value || typeof value !== "object" || hasUnknownKeys(value, ["locator", "count"]) || !isBoundedInteger(value.count, 0, 1000)) {
+      throw new Error("invalid fixed case");
+    }
+    validateFixedLocator(value.locator);
+    return false;
+  }
+  if (NETWORK_ASSERTIONS.has(name)) {
+    if (
+      !value
+      || typeof value !== "object"
+      || hasUnknownKeys(value, ["method", "path", "timeout_ms"])
+      || !NETWORK_METHODS.has(value.method)
+      || !isRelativeFixedPath(value.path)
+      || !isBoundedInteger(value.timeout_ms, 0, 5000)
+    ) {
+      throw new Error("invalid fixed case");
+    }
+    return true;
   }
   throw new Error("invalid fixed case");
 }
@@ -932,6 +1018,98 @@ function attachFixedCaseDocumentStatusTracker(page) {
   };
 }
 
+function attachFixedCaseNetworkTracker(page, origin, sleep) {
+  const targetOrigin = START_ORIGIN_URLS[origin];
+  const events = [];
+  const waiters = new Set();
+  let active = false;
+  let failed = false;
+  const handler = (request) => {
+    if (!active) {
+      return;
+    }
+    try {
+      const rawUrl = typeof request?.url === "function" ? request.url() : "";
+      const method = typeof request?.method === "function" ? request.method() : "";
+      const parsed = new URL(rawUrl);
+      if (parsed.origin !== targetOrigin) {
+        return;
+      }
+      events.push({ method, origin: parsed.origin, pathname: parsed.pathname });
+      for (const waiter of waiters) {
+        waiter();
+      }
+    } catch (_error) {
+      failed = true;
+      for (const waiter of waiters) {
+        waiter();
+      }
+    }
+  };
+  try {
+    if (page && typeof page.on === "function") {
+      page.on("request", handler);
+    } else {
+      failed = true;
+    }
+  } catch (_error) {
+    failed = true;
+  }
+  function assertUsable() {
+    if (failed) {
+      throw new Error("fixed case network tracker failed");
+    }
+  }
+  function hasMatch(expected) {
+    return events.some((event) => event.origin === targetOrigin && event.method === expected.method && event.pathname === expected.path);
+  }
+  return {
+    begin() {
+      events.splice(0, events.length);
+      active = true;
+    },
+    async waitForMatch(expected) {
+      assertUsable();
+      if (hasMatch(expected)) {
+        return true;
+      }
+      if (expected.timeout_ms > 0) {
+        let waiter;
+        await Promise.race([
+          sleep(expected.timeout_ms),
+          new Promise((resolve) => {
+            waiter = () => {
+              if (failed || hasMatch(expected)) {
+                waiters.delete(waiter);
+                resolve();
+              }
+            };
+            waiters.add(waiter);
+          }),
+        ]);
+        if (waiter) {
+          waiters.delete(waiter);
+        }
+      }
+      assertUsable();
+      return hasMatch(expected);
+    },
+    stop() {
+      active = false;
+      waiters.clear();
+      try {
+        if (page && typeof page.off === "function") {
+          page.off("request", handler);
+        } else if (page && typeof page.removeListener === "function") {
+          page.removeListener("request", handler);
+        }
+      } catch (_error) {
+        return;
+      }
+    },
+  };
+}
+
 function isMainDocumentResponse(page, response) {
   try {
     const request = typeof response?.request === "function" ? response.request() : null;
@@ -965,6 +1143,14 @@ function isRelativeFixedPath(value) {
 
 function isFixedString(value) {
   return typeof value === "string" && /^[^\x00-\x1f\x7f]{1,256}$/.test(value);
+}
+
+function isBoundedInteger(value, min, max) {
+  return Number.isInteger(value) && typeof value !== "boolean" && value >= min && value <= max;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function hasUnknownKeys(value, allowed) {

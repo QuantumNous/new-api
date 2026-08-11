@@ -440,6 +440,95 @@ class ReportTests(unittest.TestCase):
 
         self.assertIs(report.validate_result(valid), valid)
 
+    def test_proposed_case_accepts_network_assertion_when_capture_step_is_present(self):
+        network_case = proposed_case(
+            steps=[
+                {"begin_network_capture": {}},
+                {"click": {"locator": {"by": "role", "role": "button", "name": "Submit"}}},
+            ],
+            assertions=[
+                {"network_request_sent": {"method": "POST", "path": "/api/register", "timeout_ms": 1000}},
+            ],
+        )
+        valid = valid_result(findings=[finding(proposed_case=network_case)])
+
+        self.assertIs(report.validate_result(valid), valid)
+
+    def test_proposed_case_accepts_ui_and_network_assertion_shapes_in_findings_and_coverage(self):
+        locator = {"by": "label", "label": "Email"}
+        case = proposed_case(
+            steps=[{"begin_network_capture": {}}],
+            assertions=[
+                {"element_visible": {"locator": locator}},
+                {"element_hidden": {"locator": {"by": "text", "text": "Loading"}}},
+                {"element_enabled": {"locator": {"by": "role", "role": "button", "name": "Continue"}}},
+                {"element_disabled": {"locator": {"by": "test_id", "test_id": "submit"}}},
+                {"element_value_equals": {"locator": locator, "value": "owner@example.test"}},
+                {"element_count_equals": {"locator": {"by": "text", "text": "API key"}, "count": 0}},
+                {"network_request_not_sent": {"method": "GET", "path": "/api/register", "timeout_ms": 5000}},
+            ],
+        )
+        payload = valid_result(
+            findings=[finding(confidence="high", proposed_case=case)],
+            coverage_candidates=[coverage_candidate(confidence="high", proposed_case=case)],
+        )
+
+        self.assertIs(report.validate_result(payload), payload)
+
+    def test_proposed_case_rejects_extra_unsafe_network_and_bounds(self):
+        invalid_cases = [
+            proposed_case(steps=[{"begin_network_capture": {"extra": "bad"}}]),
+            proposed_case(steps=[{"begin_network_capture": {}}, {"begin_network_capture": {}}]),
+            proposed_case(
+                assertions=[{"network_request_sent": {"method": "GET", "path": "/api/register", "timeout_ms": 1000}}]
+            ),
+            proposed_case(
+                steps=[{"begin_network_capture": {}}],
+                assertions=[
+                    {"network_request_sent": {"method": "OPTIONS", "path": "/api/register", "timeout_ms": 1000}}
+                ],
+            ),
+            proposed_case(
+                steps=[{"begin_network_capture": {}}],
+                assertions=[
+                    {"network_request_sent": {"method": "GET", "path": "https://example.test/api", "timeout_ms": 1000}}
+                ],
+            ),
+            proposed_case(
+                steps=[{"begin_network_capture": {}}],
+                assertions=[
+                    {"network_request_sent": {"method": "GET", "path": "/api/register?token=secret", "timeout_ms": 1000}}
+                ],
+            ),
+            proposed_case(
+                steps=[{"begin_network_capture": {}}],
+                assertions=[
+                    {"network_request_sent": {"method": "GET", "path": "/api/register#token", "timeout_ms": 1000}}
+                ],
+            ),
+            proposed_case(
+                steps=[{"begin_network_capture": {}}],
+                assertions=[
+                    {"network_request_sent": {"method": "GET", "path": "/api/register", "timeout_ms": 5001}}
+                ],
+            ),
+            proposed_case(
+                steps=[{"begin_network_capture": {}}],
+                assertions=[
+                    {"network_request_sent": {"method": "GET", "path": "/api/register", "timeout_ms": -1}}
+                ],
+            ),
+            proposed_case(assertions=[{"element_count_equals": {"locator": {"by": "text", "text": "API key"}, "count": 1001}}]),
+            proposed_case(assertions=[{"element_count_equals": {"locator": {"by": "text", "text": "API key"}, "count": -1}}]),
+            proposed_case(assertions=[{"element_visible": {"locator": {"by": "text", "text": "Ready"}, "extra": "bad"}}]),
+            proposed_case(assertions=[{"element_value_equals": {"locator": {"by": "label", "label": "Email"}}}]),
+        ]
+
+        for candidate in invalid_cases:
+            with self.subTest(candidate=candidate):
+                with self.assertRaises(report.ResultValidationError):
+                    report.validate_result(valid_result(findings=[finding(confidence="high", proposed_case=candidate)]))
+
     def test_proposed_case_rejects_open_or_invalid_fixed_case_fragments(self):
         cases = [
             proposed_case(extra="bad"),
@@ -931,6 +1020,43 @@ class ReportTests(unittest.TestCase):
                     "staging_console",
                 ])
                 self.assertEqual(case_schema["properties"]["cleanup"]["enum"], ["not_required"])
+                step_branches = case_schema["properties"]["steps"]["items"]["anyOf"]
+                step_keys = {tuple(branch["required"])[0] for branch in step_branches}
+                self.assertEqual(
+                    step_keys,
+                    {"navigate", "navigate_back", "click", "fill", "select", "wait_for", "begin_network_capture"},
+                )
+                assertion_branches = case_schema["properties"]["assertions"]["items"]["anyOf"]
+                assertion_keys = {tuple(branch["required"])[0] for branch in assertion_branches}
+                self.assertEqual(
+                    assertion_keys,
+                    {
+                        "page_status_not",
+                        "url_not_contains",
+                        "element_visible",
+                        "element_hidden",
+                        "element_enabled",
+                        "element_disabled",
+                        "element_value_equals",
+                        "element_count_equals",
+                        "network_request_sent",
+                        "network_request_not_sent",
+                    },
+                )
+                network_branch = next(
+                    branch for branch in assertion_branches if branch["required"] == ["network_request_sent"]
+                )
+                network_props = network_branch["properties"]["network_request_sent"]["properties"]
+                self.assertEqual(network_props["method"]["enum"], ["GET", "POST", "PUT", "PATCH", "DELETE"])
+                self.assertEqual(network_props["timeout_ms"]["minimum"], 0)
+                self.assertEqual(network_props["timeout_ms"]["maximum"], 5000)
+                self.assertNotIn("headers", network_props)
+                count_branch = next(
+                    branch for branch in assertion_branches if branch["required"] == ["element_count_equals"]
+                )
+                count_props = count_branch["properties"]["element_count_equals"]["properties"]
+                self.assertEqual(count_props["count"]["minimum"], 0)
+                self.assertEqual(count_props["count"]["maximum"], 1000)
 
         def assert_closed_objects(value):
             if isinstance(value, dict):

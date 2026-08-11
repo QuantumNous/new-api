@@ -185,6 +185,19 @@
                         }
                       }
                     }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["begin_network_capture"],
+                    "properties": {
+                      "begin_network_capture": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [],
+                        "properties": {}
+                      }
+                    }
                   }
                 ]
               }
@@ -208,6 +221,132 @@
                     "required": ["url_not_contains"],
                     "properties": {
                       "url_not_contains": {"$ref": "#/$defs/non_control_string"}
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["element_visible"],
+                    "properties": {
+                      "element_visible": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["locator"],
+                        "properties": {
+                          "locator": {"$ref": "#/$defs/locator"}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["element_hidden"],
+                    "properties": {
+                      "element_hidden": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["locator"],
+                        "properties": {
+                          "locator": {"$ref": "#/$defs/locator"}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["element_enabled"],
+                    "properties": {
+                      "element_enabled": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["locator"],
+                        "properties": {
+                          "locator": {"$ref": "#/$defs/locator"}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["element_disabled"],
+                    "properties": {
+                      "element_disabled": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["locator"],
+                        "properties": {
+                          "locator": {"$ref": "#/$defs/locator"}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["element_value_equals"],
+                    "properties": {
+                      "element_value_equals": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["locator", "value"],
+                        "properties": {
+                          "locator": {"$ref": "#/$defs/locator"},
+                          "value": {"$ref": "#/$defs/non_control_string"}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["element_count_equals"],
+                    "properties": {
+                      "element_count_equals": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["locator", "count"],
+                        "properties": {
+                          "locator": {"$ref": "#/$defs/locator"},
+                          "count": {"type": "integer", "minimum": 0, "maximum": 1000}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["network_request_sent"],
+                    "properties": {
+                      "network_request_sent": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["method", "path", "timeout_ms"],
+                        "properties": {
+                          "method": {"type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]},
+                          "path": {"type": "string", "pattern": "^/(?!/)[^\\u0000-\\u001f\\u007f\\\\?#]*$", "minLength": 1, "maxLength": 256},
+                          "timeout_ms": {"type": "integer", "minimum": 0, "maximum": 5000}
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["network_request_not_sent"],
+                    "properties": {
+                      "network_request_not_sent": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["method", "path", "timeout_ms"],
+                        "properties": {
+                          "method": {"type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]},
+                          "path": {"type": "string", "pattern": "^/(?!/)[^\\u0000-\\u001f\\u007f\\\\?#]*$", "minLength": 1, "maxLength": 256},
+                          "timeout_ms": {"type": "integer", "minimum": 0, "maximum": 5000}
+                        }
+                      }
                     }
                   }
                 ]

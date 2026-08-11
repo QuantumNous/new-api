@@ -1,6 +1,9 @@
+import base64
 import copy
+import json
 import unittest
 
+from scripts.browser_qa.flatkey_browser_qa import candidate_job
 from scripts.browser_qa.flatkey_browser_qa import promotion
 
 
@@ -23,6 +26,55 @@ def proposed_case(**overrides):
     }
     payload.update(overrides)
     return payload
+
+
+def proposed_case_with_assertion(assertion):
+    return proposed_case(
+        steps=[{"navigate": {"path": "/zh/sign-in"}}],
+        assertions=[assertion],
+    )
+
+
+def proposed_case_with_network_assertion(assertion):
+    return proposed_case(
+        steps=[
+            {"navigate": {"path": "/zh/sign-in"}},
+            {"begin_network_capture": {}},
+            {"click": {"locator": {"by": "role", "role": "button", "name": "Open"}}},
+        ],
+        assertions=[assertion],
+    )
+
+
+def rich_proposed_case():
+    return proposed_case(
+        start={"origin": "staging_console", "path": "/register"},
+        steps=[
+            {"navigate": {"path": "/register"}},
+            {"begin_network_capture": {}},
+            {"click": {"locator": {"by": "role", "role": "button", "name": "Open dialog"}}},
+        ],
+        assertions=[
+            {"element_visible": {"locator": {"by": "role", "role": "dialog", "name": "Create key"}}},
+            {"element_hidden": {"locator": {"by": "text", "text": "Loading"}}},
+            {"element_enabled": {"locator": {"by": "role", "role": "button", "name": "Cancel"}}},
+            {"element_disabled": {"locator": {"by": "test_id", "test_id": "submit"}}},
+            {"element_value_equals": {"locator": {"by": "label", "label": "Name"}, "value": "Demo"}},
+            {"element_count_equals": {"locator": {"by": "text", "text": "API key"}, "count": 1}},
+            {"network_request_sent": {"method": "GET", "path": "/api/dialog", "timeout_ms": 500}},
+            {"network_request_not_sent": {"method": "POST", "path": "/api/keys", "timeout_ms": 0}},
+        ],
+    )
+
+
+def candidate_env():
+    return {
+        "BROWSER_QA_ATTEMPT_ID": "attempt-0001",
+        "FLATKEY_QA_RUN_ID": "123456789",
+        "FLATKEY_BROWSER_QA_GCS_BUCKET": "flatkey-browser-qa-private",
+        "FLATKEY_QA_WEBSITE_ORIGIN": "https://staging-website.flatkey.ai",
+        "FLATKEY_QA_CONSOLE_ORIGIN": "https://staging-console.flatkey.ai",
+    }
 
 
 def finding(**overrides):
@@ -146,6 +198,55 @@ class PromotionFingerprintTests(unittest.TestCase):
             promotion.canonical_fingerprint("coverage", "https://staging-console.flatkey.ai/register", changed_assertion),
         )
 
+    def test_canonical_fingerprint_changes_for_ui_and_network_assertion_semantics(self):
+        cases = [
+            (
+                "ui locator",
+                proposed_case_with_assertion({"element_disabled": {"locator": {"by": "test_id", "test_id": "submit"}}}),
+                proposed_case_with_assertion({"element_disabled": {"locator": {"by": "test_id", "test_id": "confirm"}}}),
+            ),
+            (
+                "ui value",
+                proposed_case_with_assertion({"element_value_equals": {"locator": {"by": "label", "label": "Name"}, "value": "Draft"}}),
+                proposed_case_with_assertion({"element_value_equals": {"locator": {"by": "label", "label": "Name"}, "value": "Final"}}),
+            ),
+            (
+                "ui count",
+                proposed_case_with_assertion({"element_count_equals": {"locator": {"by": "text", "text": "API key"}, "count": 1}}),
+                proposed_case_with_assertion({"element_count_equals": {"locator": {"by": "text", "text": "API key"}, "count": 2}}),
+            ),
+            (
+                "network method",
+                proposed_case_with_network_assertion({"network_request_sent": {"method": "GET", "path": "/api/dialog", "timeout_ms": 100}}),
+                proposed_case_with_network_assertion({"network_request_sent": {"method": "POST", "path": "/api/dialog", "timeout_ms": 100}}),
+            ),
+            (
+                "network path",
+                proposed_case_with_network_assertion({"network_request_sent": {"method": "GET", "path": "/api/dialog", "timeout_ms": 100}}),
+                proposed_case_with_network_assertion({"network_request_sent": {"method": "GET", "path": "/api/keys", "timeout_ms": 100}}),
+            ),
+            (
+                "network timeout",
+                proposed_case_with_network_assertion({"network_request_not_sent": {"method": "POST", "path": "/api/keys", "timeout_ms": 0}}),
+                proposed_case_with_network_assertion({"network_request_not_sent": {"method": "POST", "path": "/api/keys", "timeout_ms": 5000}}),
+            ),
+        ]
+
+        for name, first_case, second_case in cases:
+            with self.subTest(name=name):
+                first = promotion.canonical_fingerprint(
+                    "coverage",
+                    "https://staging-console.flatkey.ai/register",
+                    first_case,
+                )
+                second = promotion.canonical_fingerprint(
+                    "coverage",
+                    "https://staging-console.flatkey.ai/register",
+                    second_case,
+                )
+
+                self.assertNotEqual(first, second)
+
     def test_canonical_fingerprint_rejects_bad_kind_and_unsafe_target(self):
         for kind, url in [
             ("bad", "https://staging-console.flatkey.ai/register"),
@@ -258,7 +359,7 @@ class PromotionQualificationTests(unittest.TestCase):
             ("coverage", coverage(mutates_state=True)),
             ("coverage", coverage(cleanup_requirement="required")),
             ("coverage", coverage(proposed_case={**proposed_case(), "cleanup": "required"})),
-            ("coverage", coverage(proposed_case={**proposed_case(), "steps": [{"fill": {"locator": {"by": "label", "label": "API key"}, "value": "sk-live-secret123"}}]})),
+            ("coverage", coverage(proposed_case={**proposed_case(), "steps": [{"fill": {"locator": {"by": "label", "label": "API key"}, "value": "token=unsafe"}}]})),
         ]
         for kind, item in cases:
             with self.subTest(kind=kind, target=item.get("target_url")):
@@ -461,6 +562,52 @@ class PromotionBundleAndNamingTests(unittest.TestCase):
             with self.subTest(run_id=run_id, evidence_uri=evidence_uri):
                 with self.assertRaises(ValueError):
                     promotion.build_candidate_bundle(qualified, run_id=run_id, evidence_uri=evidence_uri)
+
+    def test_candidate_bundle_roundtrip_preserves_capture_ui_and_network_assertions_without_runtime_evidence(self):
+        proposed = rich_proposed_case()
+        qualified = promotion.qualify_candidate(
+            "coverage",
+            coverage(target_url="https://staging-console.flatkey.ai/register", proposed_case=proposed),
+            allowed_origins=ALLOWED,
+            existing_fingerprints=set(),
+        )
+        bundle = promotion.build_candidate_bundle(
+            qualified,
+            run_id="123456789",
+            evidence_uri="gs://flatkey-browser-qa-private/runs/123456789/main/main-001",
+        )
+        case_id = promotion.deterministic_case_id(bundle["fingerprint"], {})
+        config = candidate_job.validate_candidate_config(candidate_env())
+        materialized = candidate_job._materialize_candidate_case(
+            kind=bundle["kind"],
+            proposed_case=bundle["proposed_case"],
+            fingerprint=bundle["fingerprint"],
+            case_id=case_id,
+            config=config,
+        )
+        payload = {
+            "schema_version": 1,
+            "kind": bundle["kind"],
+            "target_url": bundle["target_url"],
+            "proposed_case": bundle["proposed_case"],
+            "fingerprint": bundle["fingerprint"],
+            "case_id": case_id,
+            "case": materialized,
+        }
+        encoded = base64.urlsafe_b64encode(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        ).decode("ascii").rstrip("=")
+        parsed = candidate_job.parse_candidate_payload({**candidate_env(), "BROWSER_QA_CANDIDATE_B64": encoded})
+
+        self.assertEqual(bundle["proposed_case"]["steps"], proposed["steps"])
+        self.assertEqual(bundle["proposed_case"]["assertions"], proposed["assertions"])
+        self.assertEqual(materialized["steps"], proposed["steps"])
+        self.assertEqual(materialized["assertions"], proposed["assertions"])
+        self.assertEqual(parsed["proposed_case"]["steps"], proposed["steps"])
+        self.assertEqual(parsed["proposed_case"]["assertions"], proposed["assertions"])
+        self.assertNotIn("runtime", bundle)
+        self.assertNotIn("runtime", materialized)
+        self.assertNotIn("runtime", parsed)
 
     def test_bundle_rejects_forged_fingerprint_and_ambiguous_gcs_paths(self):
         qualified = promotion.qualify_candidate("finding", finding(), allowed_origins=ALLOWED, existing_fingerprints=set())

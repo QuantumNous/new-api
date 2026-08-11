@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 浏览器测试通用迁移指南</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fa;
+      --panel: #ffffff;
+      --ink: #16202a;
+      --muted: #5b6673;
+      --line: #d9e1e8;
+      --blue: #165d9f;
+      --green: #0f7a4f;
+      --amber: #8a5a00;
+      --red: #b42318;
+      --violet: #6246a8;
+      --code: #0f1720;
+      --codeText: #f8fafc;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.66;
+      font-size: 16px;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .layout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 28px;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 22px;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 0 60px;
+      font-size: 14px;
+    }
+    nav .brand {
+      font-weight: 750;
+      color: var(--green);
+      margin-bottom: 4px;
+    }
+    nav .sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 18px;
+    }
+    nav a {
+      display: block;
+      color: var(--muted);
+      padding: 6px 10px;
+      border-left: 3px solid transparent;
+      border-radius: 0 6px 6px 0;
+    }
+    nav a:hover {
+      color: var(--ink);
+      background: #eaf0f5;
+      text-decoration: none;
+    }
+    main {
+      min-width: 0;
+      max-width: 940px;
+      padding: 36px 0 72px;
+    }
+    header {
+      background: linear-gradient(135deg, #ffffff 0%, #edf5fb 100%);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 30px;
+      margin-bottom: 28px;
+    }
+    .kicker {
+      color: var(--green);
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+    h1 {
+      margin: 10px 0 12px;
+      font-size: 34px;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+    .lead {
+      max-width: 760px;
+      color: var(--muted);
+      margin: 0;
+      font-size: 17px;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+    .pill {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 5px 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    section {
+      margin: 26px 0;
+      scroll-margin-top: 20px;
+    }
+    .panel, section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    section section {
+      border: 0;
+      border-top: 1px solid var(--line);
+      border-radius: 0;
+      padding: 18px 0 0;
+      margin: 20px 0 0;
+      background: transparent;
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+      line-height: 1.28;
+      letter-spacing: 0;
+    }
+    h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+    p { margin: 9px 0; }
+    ul, ol { margin: 8px 0 0 20px; padding: 0; }
+    li { margin: 5px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 14px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    th {
+      background: #eef3f7;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: 0; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: .92em;
+      background: #edf2f7;
+      border: 1px solid #d8e0e7;
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+    pre {
+      margin: 12px 0;
+      overflow-x: auto;
+      background: var(--code);
+      color: var(--codeText);
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.55;
+      tab-size: 2;
+    }
+    pre code {
+      background: transparent;
+      border: 0;
+      color: inherit;
+      padding: 0;
+      font-size: inherit;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin: 14px 0;
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 14px;
+    }
+    .card strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+    .card span { color: var(--muted); font-size: 14px; }
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+    }
+    .stage {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 10px 12px;
+      min-height: 98px;
+    }
+    .stage strong { display: block; margin-bottom: 5px; }
+    .stage span { color: var(--muted); font-size: 14px; }
+    .callout {
+      border-left: 4px solid var(--blue);
+      background: #eef6fd;
+      padding: 12px 14px;
+      border-radius: 0 8px 8px 0;
+      margin: 14px 0;
+    }
+    .callout.warn { border-left-color: var(--amber); background: #fff8e8; }
+    .callout.danger { border-left-color: var(--red); background: #fff1ef; }
+    .callout.good { border-left-color: var(--green); background: #edf8f2; }
+    .badge {
+      display: inline-block;
+      border-radius: 4px;
+      padding: 1px 7px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      background: var(--blue);
+      margin-right: 6px;
+    }
+    .badge.green { background: var(--green); }
+    .badge.amber { background: var(--amber); }
+    .badge.red { background: var(--red); }
+    .diagram {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 10px;
+      margin: 14px 0;
+      overflow-x: auto;
+    }
+    .diagram svg {
+      width: 100%;
+      min-width: 720px;
+      height: auto;
+      display: block;
+    }
+    .flow-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0;
+      padding: 0;
+      list-style: none;
+    }
+    .flow-legend li {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin: 0;
+      padding: 4px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .flow-legend .swatch {
+      width: 22px;
+      height: 3px;
+      border-radius: 999px;
+      background: #5b6673;
+    }
+    .flow-legend .model { background: var(--violet); }
+    .flow-legend .browser { background: var(--blue); }
+    .flow-legend .evidence { background: var(--green); }
+    .flow-legend .cleanup { background: var(--red); }
+    .checklist {
+      list-style: none;
+      margin-left: 0;
+    }
+    .checklist li {
+      position: relative;
+      padding-left: 28px;
+      margin: 8px 0;
+    }
+    .checklist li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: .45em;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--green);
+      border-radius: 3px;
+      background: #fff;
+    }
+    footer {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 28px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+    @media (max-width: 900px) {
+      .layout { display: block; padding: 0 14px; }
+      nav { display: none; }
+      main { padding-top: 16px; }
+      header, section, .panel { padding: 16px; }
+      h1 { font-size: 28px; }
+      .grid { grid-template-columns: 1fr; }
+      .pipeline { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; white-space: normal; }
+    }
+    @media print {
+      body { background: #fff; color: #000; font-size: 12px; }
+      .layout { display: block; max-width: none; padding: 0; }
+      nav { display: none; }
+      main { max-width: none; padding: 0; }
+      header, section, .panel { border: 1px solid #bbb; break-inside: avoid; box-shadow: none; }
+      a { color: #000; text-decoration: underline; }
+      pre { white-space: pre-wrap; background: #f3f3f3; color: #000; border: 1px solid #bbb; }
+      .diagram svg { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav aria-label="目录">
+      <div class="brand">AI 浏览器测试迁移</div>
+      <div class="sub">通用架构、执行契约与上线步骤</div>
+      <a href="#scope">1. 适用场景</a>
+      <a href="#decision">2. 迁移决策表</a>
+      <a href="#architecture">3. 目标架构</a>
+      <a href="#record">4. Record 与 Replay</a>
+      <a href="#skill">5. 录制 Skill 去项目化</a>
+      <a href="#runtime">6. 运行时组件</a>
+      <a href="#promotion">7. 候选固化架构</a>
+      <a href="#triggers">8. 触发策略</a>
+      <a href="#progressive">9. 渐进路线</a>
+      <a href="#platforms">10. 云平台映射</a>
+      <a href="#identity">11. 身份、Secret 与 OAuth</a>
+      <a href="#privacy">12. 数据与隐私</a>
+      <a href="#reports">13. 报告与告警</a>
+      <a href="#budgets">14. 预算与并发</a>
+      <a href="#iac">15. IaC Bootstrap</a>
+      <a href="#steps">16. 迁移步骤</a>
+      <a href="#acceptance">17. 验收、回滚与排障</a>
+      <a href="#cost">18. 成本估算</a>
+      <a href="#template">19. 最小可行模板</a>
+    </nav>
+
+    <main>
+      <header>
+        <div class="kicker">Reusable Guide · AI Browser QA</div>
+        <h1>把 AI 浏览器测试迁移到其他项目</h1>
+        <p class="lead">本文把“录制核心流程、严格语义回放、AI 有边界发散、候选三次独立验证、脱敏 artifact、GitHub Draft PR、人工合并进回归套件”的浏览器 QA 方案抽象成项目无关模板。它不绑定任何特定业务域名，目标是让 Web 项目能在 CI/CD 或独立调度中运行可审计、可清理、可控预算、不会自动 merge 的 AI 浏览器测试。</p>
+        <div class="meta">
+          <span class="pill"><strong>语言</strong> 中文</span>
+          <span class="pill"><strong>格式</strong> 单文件 HTML5</span>
+          <span class="pill"><strong>示例</strong> 仅占位符</span>
+          <span class="pill"><strong>边界</strong> 不含真实 Secret</span>
+        </div>
+      </header>
+
+      <section id="scope">
+        <h2>1. 适用场景与非目标</h2>
+        <div class="grid">
+          <div class="card">
+            <strong>适用场景</strong>
+            <span>需要验证真实浏览器流程、邮件或第三方回调、前端异常、关键路径回归、发布前只告警门禁的项目。</span>
+          </div>
+          <div class="card">
+            <strong>迁移目标</strong>
+            <span>把个人电脑录制的流程变成云端或 Runner 中可重复运行的测试，并保留证据、清理和成本边界。</span>
+          </div>
+          <div class="card">
+            <strong>不适合</strong>
+            <span>纯 API 单元测试、确定性 DOM 断言已足够的流程、需要绕过 CAPTCHA 或真实支付的流程。</span>
+          </div>
+          <div class="card">
+            <strong>非目标</strong>
+            <span>不自动批准发布，不访问生产写路径，不保存真实凭据，不把 AI 探索结果直接当作产品结论。</span>
+          </div>
+        </div>
+        <div class="callout warn">
+          <strong>迁移原则：</strong>先让 replay 严格稳定，再增加 AI 发散。核心流程失败时，只做诊断和证据采集，不进入广泛探索。
+        </div>
+      </section>
+
+      <section id="decision">
+        <h2>2. 迁移决策表</h2>
+        <table>
+          <thead>
+            <tr><th scope="col">决策点</th><th scope="col">推荐默认值</th><th scope="col">何时调整</th><th scope="col">风险</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>运行位置</td>
+              <td>容器化执行器 + 私有 broker + 独立 cleanup</td>
+              <td>小项目可先用 self-hosted runner；强隔离项目用云 Job 或 Kubernetes Job。</td>
+              <td>直接在 CI runner 放所有凭据会扩大泄露面。</td>
+            </tr>
+            <tr>
+              <td>回放方式</td>
+              <td>语义 replay：按目标状态、可访问名称、URL、文本意图定位</td>
+              <td>非常稳定的控件可补充 selector，但不能只依赖坐标。</td>
+              <td>坐标回放对布局、语言、缩放和动画非常脆弱。</td>
+            </tr>
+            <tr>
+              <td>AI 探索</td>
+              <td>核心 checkpoint 之后开启，限制时间和 action 数</td>
+              <td>需要高置信发布门禁时，先把探索发现转成确定性测试。</td>
+              <td>无边界探索会制造费用、误报和数据访问风险。</td>
+            </tr>
+            <tr>
+              <td>结果处理</td>
+              <td>先只告警，报告私有存储，摘要脱敏</td>
+              <td>replay 连续稳定后，可把 replay_failed 作为阻断条件。</td>
+              <td>直接阻断发布会把基础设施波动变成交付风险。</td>
+            </tr>
+            <tr>
+              <td>IaC</td>
+              <td>独立 state/root，两阶段 bootstrap</td>
+              <td>已有平台模块成熟时，可复用模块但保持状态隔离。</td>
+              <td>与生产 root 混用 state 会让 drift 和 QA 资源互相牵连。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="architecture">
+        <h2>3. 目标架构</h2>
+        <p>通用方案由六个边界清晰的组件组成：调度器只负责构建、部署和启动；执行器拥有浏览器与模型进程；broker 持有第三方敏感凭据；evidence 管道负责截图、日志和脱敏；cleanup 独立兜底；provider adapters 隔离云厂商差异。</p>
+        <div class="diagram" role="img" aria-label="AI 浏览器测试参考架构图">
+          <svg viewBox="0 0 960 430" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#5b6673"/>
+              </marker>
+              <style>
+                .box{fill:#ffffff;stroke:#d9e1e8;stroke-width:2;rx:10}
+                .head{font:700 18px -apple-system,BlinkMacSystemFont,Segoe UI,Microsoft YaHei,sans-serif;fill:#16202a}
+                .txt{font:14px -apple-system,BlinkMacSystemFont,Segoe UI,Microsoft YaHei,sans-serif;fill:#5b6673}
+                .small{font:12px ui-monospace,Menlo,Consolas,monospace;fill:#5b6673}
+                .line{stroke:#5b6673;stroke-width:2;fill:none;marker-end:url(#arrow)}
+                .green{fill:#edf8f2;stroke:#0f7a4f}
+                .blue{fill:#eef6fd;stroke:#165d9f}
+                .amber{fill:#fff8e8;stroke:#8a5a00}
+                .red{fill:#fff1ef;stroke:#b42318}
+              </style>
+            </defs>
+            <rect class="box blue" x="30" y="48" width="170" height="82"/>
+            <text class="head" x="55" y="82">调度器</text>
+            <text class="txt" x="55" y="106">PR / merge / release</text>
+            <text class="small" x="55" y="124">OIDC, image, job</text>
+            <rect class="box green" x="280" y="42" width="210" height="100"/>
+            <text class="head" x="305" y="76">执行器</text>
+            <text class="txt" x="305" y="100">Chromium + Playwright MCP</text>
+            <text class="small" x="305" y="120">record replay + AI explore</text>
+            <rect class="box amber" x="565" y="34" width="180" height="84"/>
+            <text class="head" x="590" y="68">Broker</text>
+            <text class="txt" x="590" y="92">验证码 / 回调 / OAuth</text>
+            <rect class="box" x="565" y="156" width="180" height="84"/>
+            <text class="head" x="590" y="190">Evidence</text>
+            <text class="txt" x="590" y="214">截图、console、network</text>
+            <rect class="box red" x="280" y="232" width="210" height="94"/>
+            <text class="head" x="305" y="266">Cleanup</text>
+            <text class="txt" x="305" y="290">删除测试账号 / key</text>
+            <text class="small" x="305" y="310">always + cleanup-only</text>
+            <rect class="box" x="790" y="116" width="140" height="128"/>
+            <text class="head" x="812" y="150">私有存储</text>
+            <text class="txt" x="812" y="174">manifest</text>
+            <text class="txt" x="812" y="196">result.json</text>
+            <text class="txt" x="812" y="218">redacted logs</text>
+            <rect class="box" x="30" y="266" width="170" height="82"/>
+            <text class="head" x="55" y="300">Provider</text>
+            <text class="txt" x="55" y="324">GCP/AWS/Azure/K8s</text>
+            <path class="line" d="M200 88 H276"/>
+            <path class="line" d="M490 78 H560"/>
+            <path class="line" d="M490 112 C530 136 535 170 560 194"/>
+            <path class="line" d="M655 240 C650 272 565 286 494 286"/>
+            <path class="line" d="M745 196 H786"/>
+            <path class="line" d="M385 232 V146"/>
+            <path class="line" d="M200 307 H276"/>
+            <text class="small" x="298" y="374">控制面：调度、IAM、镜像、Job</text>
+            <text class="small" x="298" y="396">数据面：浏览器事件、模型输出、脱敏证据、清理结果</text>
+          </svg>
+        </div>
+        <table>
+          <thead><tr><th scope="col">边界</th><th scope="col">职责</th><th scope="col">禁止</th></tr></thead>
+          <tbody>
+            <tr><td>调度器</td><td>选择 mode、构建镜像、注入非敏感变量、等待 main/cleanup 真实结束。</td><td>不持有 OAuth refresh token，不解析邮件正文，不写测试业务逻辑。</td></tr>
+            <tr><td>执行器</td><td>启动浏览器、模型、MCP、预算控制、结果 schema 校验和 artifact 上传。</td><td>不读取 broker 的 OAuth payload，不接受任意模型或任意 URL 输入。</td></tr>
+            <tr><td>Broker</td><td>最小化暴露验证码、回调或外部系统查询能力。</td><td>不返回完整邮件、header、refresh token 或任意账号查询结果。</td></tr>
+            <tr><td>Evidence</td><td>截图遮罩、console/network 投影、路径白名单、上传前脱敏。</td><td>不上传原始 Playwright output、Cookie、Authorization、完整 API key。</td></tr>
+            <tr><td>Cleanup</td><td>用同一 run identity 重新登录并幂等删除测试工件。</td><td>不依赖模型最后一句话，不把 cleanup 成功交给 AI 判断。</td></tr>
+          </tbody>
+        </table>
+        <section>
+          <h3>迁移时先看这张顺序图</h3>
+          <p>下面用项目无关的顺序图展示最小调用链。迁移时保留箭头类型和安全边界，只替换目标项目自己的域名、broker、模型入口、报告存储和 cleanup 逻辑。</p>
+          <ul class="flow-legend" aria-label="箭头类型说明">
+            <li><span class="swatch"></span>控制流</li>
+            <li><span class="swatch model"></span>模型 API 流</li>
+            <li><span class="swatch browser"></span>浏览器动作</li>
+            <li><span class="swatch evidence"></span>证据/报告</li>
+            <li><span class="swatch cleanup"></span>always cleanup</li>
+          </ul>
+          <div class="diagram" role="img" aria-label="AI 浏览器测试迁移顺序图：从 staging 变更或 pipeline trigger 到 CI，构建测试镜像，启动主执行器，调用模型入口，驱动 Playwright MCP 和受控 Chromium，访问 staging 应用，通过私有 broker 取验证码，上传私有报告，最后运行独立 cleanup">
+            <svg viewBox="0 0 960 360" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="migArrowControl" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L0,6 L9,3 z" fill="#5b6673"/>
+                </marker>
+                <marker id="migArrowModel" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L0,6 L9,3 z" fill="#6246a8"/>
+                </marker>
+                <marker id="migArrowBrowser" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L0,6 L9,3 z" fill="#165d9f"/>
+                </marker>
+                <marker id="migArrowEvidence" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L0,6 L9,3 z" fill="#0f7a4f"/>
+                </marker>
+                <marker id="migArrowCleanup" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L0,6 L9,3 z" fill="#b42318"/>
+                </marker>
+                <style>
+                  .migBox{fill:#fff;stroke:#d9e1e8;stroke-width:1.4;rx:8}
+                  .migRun{fill:#edf8f2;stroke:#0f7a4f;stroke-width:1.4;rx:8}
+                  .migModel{fill:#f3effa;stroke:#6246a8;stroke-width:1.4;rx:8}
+                  .migBrowser{fill:#eef6fd;stroke:#165d9f;stroke-width:1.4;rx:8}
+                  .migSecret{fill:#fff8e8;stroke:#8a5a00;stroke-width:1.4;rx:8}
+                  .migCleanup{fill:#fff1ef;stroke:#b42318;stroke-width:1.4;rx:8}
+                  .migTitle{font:700 14px sans-serif;fill:#16202a}
+                  .migText{font:12px sans-serif;fill:#5b6673}
+                  .migNum{font:700 12px sans-serif;fill:#fff}
+                  .migLine{stroke:#5b6673;stroke-width:1.7;fill:none;marker-end:url(#migArrowControl)}
+                  .migModelLine{stroke:#6246a8;stroke-width:1.7;fill:none;marker-end:url(#migArrowModel)}
+                  .migBrowserLine{stroke:#165d9f;stroke-width:1.7;fill:none;marker-end:url(#migArrowBrowser)}
+                  .migEvidenceLine{stroke:#0f7a4f;stroke-width:1.7;fill:none;marker-end:url(#migArrowEvidence)}
+                  .migCleanupLine{stroke:#b42318;stroke-width:1.7;fill:none;stroke-dasharray:7 5;marker-end:url(#migArrowCleanup)}
+                </style>
+              </defs>
+
+              <rect class="migBox" x="24" y="28" width="130" height="58"/>
+              <text class="migTitle" x="48" y="56">1 pipeline 触发</text>
+              <text class="migText" x="48" y="74">仅针对预发环境</text>
+              <rect class="migBox" x="190" y="28" width="140" height="58"/>
+              <text class="migTitle" x="214" y="56">2 CI / Actions</text>
+              <text class="migText" x="214" y="74">调度测试</text>
+              <rect class="migRun" x="365" y="28" width="155" height="58"/>
+              <text class="migTitle" x="388" y="56">3 构建 QA 镜像</text>
+              <text class="migText" x="388" y="74">固定浏览器工具链</text>
+              <rect class="migRun" x="555" y="28" width="155" height="58"/>
+              <text class="migTitle" x="578" y="56">4 主执行器</text>
+              <text class="migText" x="578" y="74">supervisor 拥有流程</text>
+              <rect class="migModel" x="750" y="28" width="170" height="58"/>
+              <text class="migTitle" x="774" y="56">5 模型入口</text>
+              <text class="migText" x="774" y="74">替换为你的 base URL</text>
+
+              <rect class="migSecret" x="58" y="145" width="190" height="70"/>
+              <text class="migTitle" x="84" y="174">Secret Manager</text>
+              <text class="migText" x="84" y="194">token 只注入环境变量</text>
+              <rect class="migBrowser" x="300" y="145" width="175" height="70"/>
+              <text class="migTitle" x="326" y="174">6 Playwright MCP</text>
+              <text class="migText" x="326" y="194">连接受控浏览器</text>
+              <rect class="migBrowser" x="525" y="145" width="190" height="70"/>
+              <text class="migTitle" x="552" y="174">7 staging 应用</text>
+              <text class="migText" x="552" y="194">网站 / 控制台 / docs</text>
+              <rect class="migSecret" x="760" y="145" width="160" height="70"/>
+              <text class="migTitle" x="786" y="174">8 私有 broker</text>
+              <text class="migText" x="786" y="194">验证码或回调</text>
+
+              <rect class="migRun" x="300" y="270" width="190" height="60"/>
+              <text class="migTitle" x="326" y="298">9 私有报告</text>
+              <text class="migText" x="326" y="316">脱敏后上传</text>
+              <rect class="migCleanup" x="620" y="270" width="210" height="60"/>
+              <text class="migTitle" x="646" y="298">10 独立 cleanup</text>
+              <text class="migText" x="646" y="316">always 运行</text>
+
+              <path class="migLine" d="M154 58 H190"/>
+              <path class="migLine" d="M330 58 H365"/>
+              <path class="migLine" d="M520 58 H555"/>
+              <path class="migLine" d="M710 58 H750"/>
+              <path class="migLine" d="M610 86 C540 122 300 122 200 145"/>
+              <path class="migModelLine" d="M750 68 C650 110 485 122 420 145"/>
+              <path class="migBrowserLine" d="M475 180 H525"/>
+              <path class="migBrowserLine" d="M715 180 H760"/>
+              <path class="migEvidenceLine" d="M620 215 C560 248 470 258 405 270"/>
+              <path class="migCleanupLine" d="M635 86 C720 140 750 220 735 270"/>
+              <path class="migCleanupLine" d="M490 302 H620"/>
+
+              <circle cx="48" cy="58" r="13" fill="#5b6673"/><text class="migNum" x="44" y="63">1</text>
+              <circle cx="214" cy="58" r="13" fill="#5b6673"/><text class="migNum" x="210" y="63">2</text>
+              <circle cx="388" cy="58" r="13" fill="#5b6673"/><text class="migNum" x="384" y="63">3</text>
+              <circle cx="578" cy="58" r="13" fill="#5b6673"/><text class="migNum" x="574" y="63">4</text>
+              <circle cx="774" cy="58" r="13" fill="#6246a8"/><text class="migNum" x="770" y="63">5</text>
+              <circle cx="326" cy="176" r="13" fill="#165d9f"/><text class="migNum" x="322" y="181">6</text>
+              <circle cx="552" cy="176" r="13" fill="#165d9f"/><text class="migNum" x="548" y="181">7</text>
+              <circle cx="786" cy="176" r="13" fill="#8a5a00"/><text class="migNum" x="782" y="181">8</text>
+              <circle cx="326" cy="300" r="13" fill="#0f7a4f"/><text class="migNum" x="322" y="305">9</text>
+              <circle cx="646" cy="300" r="13" fill="#b42318"/><text class="migNum" x="638" y="305">10</text>
+            </svg>
+          </div>
+          <table>
+            <thead><tr><th scope="col">参考占位符</th><th scope="col">目标项目必须替换为</th></tr></thead>
+            <tbody>
+              <tr><td><code>MODEL_GATEWAY_BASE_URL</code></td><td>你的模型网关公开 base URL；密钥仍从 Secret Manager 或等价 secret store 注入为环境变量。</td></tr>
+              <tr><td><code>STAGING_APP_ORIGIN</code> / <code>STAGING_CONSOLE_ORIGIN</code></td><td>你的 staging 网站和控制台；不要把 production 写路径放进 allowlist。</td></tr>
+              <tr><td>私有 verification broker</td><td>你的验证码、邮件、短信或第三方回调 broker；只返回当前 run 的最小结果。</td></tr>
+              <tr><td>私有 report bucket</td><td>你的私有对象存储；上传前脱敏，摘要只放私有 URI。</td></tr>
+              <tr><td>独立 cleanup job</td><td>你的测试账号、key、订单或 workspace 删除逻辑；必须 always 运行且支持 cleanup-only。</td></tr>
+            </tbody>
+          </table>
+          <div class="callout warn">
+            建议从 staging strict replay 开始接入；先证明 replay 和 cleanup，再打开有预算的 exploration。<code>normal</code> 必须包含完整 <code>core</code> 主体，不能用探索替代回放。
+          </div>
+          <div class="pipeline" aria-label="portable candidate promotion sequence">
+            <div class="stage"><strong>1. record</strong><span>录制关键业务路径，写成业务意图、断言、允许 origin 和 cleanup 契约。</span></div>
+            <div class="stage"><strong>2. replay(core)</strong><span>每次先严格回放核心路径和 enabled fixed cases；失败时停止探索。</span></div>
+            <div class="stage"><strong>3. explore(normal)</strong><span>core 通过后，AI 才能在预算内只读发散。</span></div>
+            <div class="stage"><strong>4. propose</strong><span>AI 输出 finding 或 coverage candidate；<code>proposed_case</code> 只能是 closed DSL 或 <code>null</code>。</span></div>
+            <div class="stage"><strong>5. 3 attempts</strong><span>每个候选跑 3 个独立 attempt，独立 execution、attempt id 和 evidence。</span></div>
+            <div class="stage"><strong>6. aggregate</strong><span>按 3/3 聚合；infra 不计数，cleanup failed 立即 blocked。</span></div>
+            <div class="stage"><strong>7. artifact</strong><span>生成 sanitized candidate bundle；secret、token、验证码、cookie 不进 artifact。</span></div>
+            <div class="stage"><strong>8. Draft PR</strong><span>GitHub bot 按 fingerprint upsert Draft PR；不自动 approve 或 merge。</span></div>
+            <div class="stage"><strong>9. human merge</strong><span>人工审核后合并，enabled fixed case 才进入 regression suite。</span></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="assertion-dsl">
+        <h2>3.1 Portable UI / Network Assertion DSL：本地实现，待 staging 验证</h2>
+        <div class="note">
+          迁移到别的产品时，可以把这组 DSL 当作可移植能力清单；当前口径只能写“本地实现 / 待 staging 验证”。不要把历史 run 证据改写成新 UI/network DSL 已在线上跑通。
+        </div>
+        <table>
+          <thead><tr><th scope="col">能力</th><th scope="col">迁移说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>begin_network_capture</code></td><td>步骤能力；空对象；网络断言必须在同一 case 中有且只有一次 capture，并且只看 capture 之后的浏览器请求。</td></tr>
+            <tr><td><code>element_visible</code></td><td>UI 状态断言，使用 role / label / text / test_id 等语义 locator。</td></tr>
+            <tr><td><code>element_hidden</code></td><td>UI 状态断言，使用语义 locator。</td></tr>
+            <tr><td><code>element_enabled</code></td><td>UI 状态断言，使用语义 locator。</td></tr>
+            <tr><td><code>element_disabled</code></td><td>UI 状态断言，适合证明不可提交、不可继续、不可危险操作。</td></tr>
+            <tr><td><code>element_value_equals</code></td><td>UI 值断言，只保留 locator 和 value。</td></tr>
+            <tr><td><code>element_count_equals</code></td><td>UI 数量断言，只保留 locator 和 count，count 范围 0..1000。</td></tr>
+            <tr><td><code>network_request_sent</code></td><td>网络断言，只保留 same-origin request 的 method、origin、pathname 和 timeout。</td></tr>
+            <tr><td><code>network_request_not_sent</code></td><td>网络断言，只保留 same-origin request 的 method、origin、pathname 和 timeout。</td></tr>
+          </tbody>
+        </table>
+        <p>网络监听是显式边界，不是通用抓包能力。候选只能表达 method / origin / pathname / timeout；同源以当前 fixed case 的 staging origin 为准。query、fragment、header、body、cookie、Authorization、auth credential、OAuth token、webhook secret 和任意请求 payload 都不能进入 <code>proposed_case</code>、candidate bundle、artifact、PR 或摘要。</p>
+        <pre><code># 安全示例：空名称不点击提交，只断言按钮不可用
+{
+  "steps": [{"navigate": {"path": "/settings/keys/new"}}],
+  "assertions": [
+    {"element_disabled": {"locator": {"by": "test_id", "test_id": "submit"}}}
+  ]
+}
+
+# 安全示例：弹窗打开前开始 capture，再证明没有提前创建
+{
+  "steps": [
+    {"navigate": {"path": "/settings/keys"}},
+    {"begin_network_capture": {}},
+    {"click": {"locator": {"by": "role", "role": "button", "name": "New key"}}}
+  ],
+  "assertions": [
+    {"element_visible": {"locator": {"by": "role", "role": "dialog", "name": "Create key"}}},
+    {"network_request_not_sent": {"method": "POST", "path": "/api/keys", "timeout_ms": 0}}
+  ]
+}</code></pre>
+        <p>这组 DSL 不改变 candidate 三次验证和 PR 流程：finding / coverage candidate 仍先生成 sanitized bundle，再跑三个独立 attempt，3/3 聚合后才进入 Draft PR；Draft PR 仍需要人工 review 和 merge，合并后 fixed case 才进入 regression suite。</p>
+      </section>
+
+      <section id="record">
+        <h2>4. Record 格式与 Replay Contract</h2>
+        <p>录制产物不是浏览器操作流水账，而是可迁移的业务意图记录。record 应描述“用户要达到什么状态”和“允许怎样恢复”，replay contract 应定义成功、失败、证据和停止条件。</p>
+        <section>
+          <h3>推荐 Record Schema</h3>
+          <pre><code>{
+  "schema_version": 1,
+  "flow_id": "new-user-onboarding",
+  "target_app": "APP_NAME",
+  "allowed_origins": ["https://APP_STAGING_ORIGIN", "https://APP_DOCS_ORIGIN"],
+  "identity_inputs": ["username", "email_alias", "password"],
+  "steps": [
+    {
+      "id": "open-signup",
+      "intent": "从公开站点进入注册页",
+      "start_url": "https://APP_STAGING_ORIGIN",
+      "success": [
+        "URL 匹配 /signup 或注册表单可见",
+        "注册按钮或标题可通过可访问名称识别"
+      ],
+      "selectors_hint": ["role=link[name*=注册]", "role=button[name*=Sign up]"],
+      "recovery": ["刷新一次", "回到 start_url 后重新寻找 CTA"]
+    }
+  ],
+  "checkpoint": {
+    "id": "core-replay-complete",
+    "must_prove": ["账号已登录", "关键资源已创建", "可清理身份已记录"]
+  }
+}</code></pre>
+          <p>字段名可以按团队规范调整，但必须保留：版本、允许 origin、身份输入、步骤意图、成功断言、恢复策略和 checkpoint。</p>
+        </section>
+        <section>
+          <h3>Replay Contract</h3>
+          <table>
+            <thead><tr><th scope="col">契约项</th><th scope="col">要求</th></tr></thead>
+            <tbody>
+              <tr><td>定位</td><td>优先使用 role、label、文本意图、URL 状态和业务断言；selector 仅作 hint。</td></tr>
+              <tr><td>恢复</td><td>允许有限刷新、返回上一步、重新寻找同义按钮；禁止创建第二个测试账号来掩盖失败。</td></tr>
+              <tr><td>checkpoint</td><td>只有核心状态可证明且 cleanup 有足够身份信息时，才能进入探索。</td></tr>
+              <tr><td>输出</td><td>固定 JSON schema：replay、exploration、budgets、findings、coverage_candidates；额外字段 fail closed。findings 和 coverage_candidates 的每个元素都必须包含 nullable <code>proposed_case</code>。</td></tr>
+              <tr><td>失败分类</td><td>cleanup_failed 优先级最高，其次 infrastructure_failed、replay_failed、findings_detected、passed。</td></tr>
+            </tbody>
+          </table>
+          <pre><code>{
+  "replay": {"status": "passed", "checkpoint_reached": true},
+  "exploration": {"status": "not_started", "actions_used": 0},
+  "budgets": {"replay_seconds": 600, "exploration_seconds": 300, "max_actions": 30},
+  "findings": [
+    {
+      "severity": "low",
+      "title": "标题必须描述可复现问题",
+      "target_url": "https://APP_STAGING_ORIGIN/path",
+      "steps": ["步骤 1", "步骤 2"],
+      "expected": "期望行为",
+      "actual": "实际行为",
+      "evidence_paths": ["screenshots/example.png", "browser/console.jsonl"],
+      "confidence": "medium",
+      "proposed_case": null
+    }
+  ],
+  "coverage_candidates": [
+    {
+      "title": "关键入口保持可访问",
+      "target_url": "https://APP_STAGING_ORIGIN/start",
+      "steps": ["打开起始页", "点击入口链接"],
+      "expected": "入口页面可访问且不是 404",
+      "observed": "入口页面正常打开",
+      "business_value": "保护新用户首屏入口",
+      "evidence_paths": ["screenshots/entry.png"],
+      "confidence": "high",
+      "mutates_state": false,
+      "cleanup_requirement": "not_required",
+      "proposed_case": {
+        "fixture": "anonymous",
+        "start": {"origin": "staging_website", "path": "/start"},
+        "steps": [
+          {
+            "click": {
+              "locator": {"by": "role", "role": "link", "name": "ENTRY_LABEL"}
+            }
+          }
+        ],
+        "assertions": [
+          {"page_status_not": 404},
+          {"url_not_contains": "/404"}
+        ],
+        "cleanup": "not_required"
+      }
+    }
+  ]
+}</code></pre>
+          <p><code>proposed_case</code> 只能是 <code>null</code> 或闭合 fixed-case DSL object。闭合 object 只允许 <code>fixture</code>、<code>start</code>、<code>steps</code>、<code>assertions</code> 和 <code>cleanup</code>；不能包含 JavaScript、shell、任意 selector、secret、生产 origin 或需要额外清理的动作。</p>
+        </section>
+      </section>
+
+      <section id="skill">
+        <h2>5. 如何把录制 Skill 去项目化</h2>
+        <p>迁移时不要直接复制包含真实业务名、真实域名和个人录制痕迹的 Skill。先拆成四层：通用动作、项目配置、环境策略和敏感 broker。</p>
+        <ol>
+          <li><strong>抽象输入：</strong>把邮箱、用户名、密码、起始 URL、语言和 expected credit 等值改为 runtime 注入。</li>
+          <li><strong>替换绝对事实：</strong>把“点击某产品名按钮”改成“点击进入目标工作区的主 CTA”，把真实域名改成 <code>APP_STAGING_ORIGIN</code>。</li>
+          <li><strong>保留业务断言：</strong>保留“账号完成注册”“API key 可见但不复制完整 secret”“文档入口可达”等可证明结果。</li>
+          <li><strong>移除人工接管：</strong>录制给真人的提示要改成 runtime policy，例如“本次测试已授权使用一次性身份完成注册”。</li>
+          <li><strong>禁止模型自由扩权：</strong>Skill 只描述业务流程，不暴露 secret 名称、broker URL、云项目、bucket 或 runner 路径。</li>
+        </ol>
+        <pre><code># skills/new-user-onboarding/SKILL.md
+---
+name: new-user-onboarding
+description: Replay the staging new-user onboarding flow with runtime-provided identity.
+---
+
+Use only:
+- APP_STAGING_ORIGIN
+- TEST_USERNAME
+- TEST_EMAIL
+- TEST_PASSWORD
+- get_current_verification_code
+- qa_capture_screenshot
+
+Stop at checkpoint only after:
+- the account is logged in;
+- the onboarding landing page is usable;
+- the test-created resource can be enumerated by cleanup;
+- no production origin was visited.</code></pre>
+        <div class="callout">
+          <strong>去项目化结果：</strong>Skill 仍保留流程语义，但把项目差异移到配置和 adapters。复制到新项目时，只需要替换配置、broker 查询逻辑和 cleanup API。
+        </div>
+      </section>
+
+      <section id="runtime">
+        <h2>6. 执行器、Broker、Evidence、Cleanup 与 Provider Adapters</h2>
+        <section>
+          <h3>执行器</h3>
+          <ul>
+            <li>启动一个 supervisor-owned 浏览器，Playwright MCP 只通过 CDP attach，不让模型启动第二个浏览器。</li>
+            <li>为 Codex 或其他模型进程使用临时 home、临时 workspace、固定模型配置和固定 schema。</li>
+            <li>通过 allowlist proxy 限制 origin、阻断 metadata、内网、生产域名和非 HTTP(S) scheme。</li>
+            <li>将 replay 和 exploration 的预算写入 runtime state，由 MCP wrapper 在每次 tool call 前检查。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>MCP 审批与工具白名单模板</h3>
+          <p>迁移到其他项目时，非交互执行器应保持全局 <code>approval_policy = "never"</code>，再对少量项目专用 MCP server 写 <code>default_tools_approval_mode = "approve"</code> 和精确 <code>enabled_tools</code>。这不是放开审批，而是把可用工具收敛到可审计白名单；禁止 wildcard、<code>yolo</code>、<code>danger-full-access</code>、任意 shell、任意文件读取或任意网络工具。</p>
+          <pre><code>approval_policy = "never"
+
+[mcp_servers.browser]
+required = true
+default_tools_approval_mode = "approve"
+enabled_tools = [
+  "browser_navigate",
+  "browser_click",
+  "browser_type",
+  "browser_snapshot",
+  "browser_console_messages",
+  "browser_network_requests",
+  "read_docs"
+]
+
+[mcp_servers.evidence]
+required = true
+default_tools_approval_mode = "approve"
+enabled_tools = ["capture_screenshot"]
+
+[mcp_servers.broker]
+required = true
+default_tools_approval_mode = "approve"
+enabled_tools = ["get_current_verification_code"]
+
+[mcp_servers.control]
+required = true
+default_tools_approval_mode = "approve"
+enabled_tools = ["replay_checkpoint", "start_exploration"]</code></pre>
+          <table>
+            <thead><tr><th scope="col">检查项</th><th scope="col">迁移要求</th></tr></thead>
+            <tbody>
+              <tr><td>浏览器 MCP</td><td>只能连接执行器已启动的浏览器；不允许模型启动第二个浏览器或绕过 proxy。</td></tr>
+              <tr><td>Evidence MCP</td><td>工具参数只允许逻辑名；不接受路径、selector、raw screenshot 或关闭遮罩选项。</td></tr>
+              <tr><td>Broker MCP</td><td>调用输入由 runtime 绑定当前 run；不允许模型传任意邮箱、alias、OAuth scope 或第三方账号。</td></tr>
+              <tr><td>Control MCP</td><td><code>core</code> 模式只回放到 checkpoint 并停止；只有 <code>normal</code> 模式才能在 checkpoint 后进入有预算探索。</td></tr>
+            </tbody>
+          </table>
+          <div class="callout warn">
+            模板中的工具名是项目占位符。落地时必须把每个工具名替换为你的 MCP 实际导出名称，并用测试证明没有 <code>*</code>、隐式工具组或危险执行权限。
+          </div>
+        </section>
+        <section>
+          <h3>Broker</h3>
+          <p>broker 是敏感系统的最小代理。它可以查邮件验证码、读取一次性回调状态或交换 OAuth code，但只能返回当前 run 需要的最小字段。</p>
+          <pre><code>POST /v1/current-code
+Content-Type: application/json
+
+{
+  "run_id": "GITHUB_RUN_ID",
+  "email_tag": "qa-RUN_ID-8CHARHMAC",
+  "start_time": 123456789
+}</code></pre>
+          <p>如果目标系统也有邮箱长度校验，先把完整 plus alias 算清楚。Flatkey staging 后端的完整邮箱上限是 50 字符，因此示例使用短前缀和 8 位 HMAC 后缀，而不是更长的项目名前缀。</p>
+          <p>broker 必须验证 run id、alias/tag 格式、时间窗口、调用身份和请求大小。错误只返回枚举码，例如 <code>pending</code>、<code>invalid_time_window</code>、<code>oauth_invalid_grant</code>。</p>
+        </section>
+        <section>
+          <h3>Evidence</h3>
+          <ul>
+            <li>截图由受限工具触发，工具只接收逻辑名，不接收路径、selector 或关闭遮罩的参数。</li>
+            <li>console/network 只保存投影字段；header、body、Cookie、Authorization、query secret 在落盘前脱敏。</li>
+            <li>artifact 上传使用相对 POSIX 路径白名单，拒绝符号链接、路径穿越和重复 real path。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Cleanup</h3>
+          <p>cleanup 必须和主执行解耦。主 job 在 finally 中清理，调度器再以 always 语义启动独立 cleanup job。人工恢复入口使用原始 run id 重算同一测试身份。</p>
+          <ul>
+            <li>列出并删除所有测试创建的 key 或资源，不能只看第一页。</li>
+            <li>删除测试账号或测试工件后，重新验证登录或读取失败。</li>
+            <li>若 cleanup 不能证明完成，最终状态必须是 <code>cleanup_failed</code>。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Provider Adapters</h3>
+          <p>把云厂商差异封装在 adapters：身份令牌、对象存储、Job 执行、日志 URI、服务更新、artifact content type。核心测试逻辑只依赖接口。</p>
+          <pre><code>interface ProviderAdapter {
+  getAccessToken(audience?: string): Promise&lt;string&gt;;
+  uploadArtifact(objectName: string, bytes: Uint8Array, contentType: string): Promise&lt;void&gt;;
+  executeJob(jobName: string, env: Record&lt;string, string&gt;, args: string[]): Promise&lt;JobResult&gt;;
+  updateRuntimeImage(resourceName: string, imageUri: string): Promise&lt;void&gt;;
+}</code></pre>
+        </section>
+      </section>
+
+      <section id="promotion">
+        <h2>7. 候选固化架构：从 AI 发现到人工合并</h2>
+        <p>迁移到任何项目时，都不要让 AI 直接写测试代码、JS、shell 或 selector 脚本。AI 只能提出结构化候选；运行时用 schema、origin allowlist、DSL validator、fingerprint 和 3/3 聚合决定它是否有资格进入 Draft PR。</p>
+        <table>
+          <thead><tr><th scope="col">对象</th><th scope="col">含义</th><th scope="col">迁移时要替换</th></tr></thead>
+          <tbody>
+            <tr><td>Finding</td><td>AI 发现疑似 bug；必须有证据路径和可复现步骤。</td><td>severity、业务标题、目标 URL、断言。</td></tr>
+            <tr><td>Coverage Candidate</td><td>AI 发现当前表现正常但值得长期保护的行为。</td><td>业务价值、稳定预期、只读/cleanup 契约。</td></tr>
+            <tr><td>Fixed Case DSL</td><td>可长期回归的封闭 YAML，用语义定位器和有限动作表达。</td><td>fixture、origin 枚举、动作集合、断言集合。</td></tr>
+            <tr><td>Candidate PR Bot</td><td>只消费 sanitized artifact，创建或更新 Draft PR。</td><td>仓库名、目标分支、CODEOWNERS、PR 模板。</td></tr>
+          </tbody>
+        </table>
+        <section>
+          <h3>Structured Case Schema 模板</h3>
+          <pre><code>schema_version: 1
+id: QA-000000000001
+kind: coverage_baseline
+name: 关键入口保持可访问
+enabled: false
+severity: medium
+owner: browser-qa
+fixture: anonymous
+start:
+  origin: staging_app
+  path: /START_PATH
+steps:
+  - click:
+      locator:
+        by: role
+        role: link
+        name: ENTRY_LABEL
+assertions:
+  - page_status_not: 404
+  - url_not_contains: /404
+evidence:
+  screenshot_on_failure: true
+  capture_console: true
+  capture_network: true
+cleanup: not_required
+source:
+  run_id: RUN_ID_PLACEHOLDER
+  finding_fingerprint: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  evidence_uri: gs://PRIVATE_REPORT_BUCKET/runs/RUN_ID_PLACEHOLDER/manifest.json
+promotion:
+  state: candidate_draft
+  attempts_required: 3
+  attempts_passed: 0</code></pre>
+          <p>模板中的 <code>gs://</code> 只是对象存储 URI 形状；迁移到 AWS/Azure/K8s 时可以换成私有 S3、Blob、MinIO 或内部 artifact store URI。不要把可公开 URL、secret、完整邮箱、验证码、cookie 或 Authorization 放进 YAML。</p>
+        </section>
+        <section>
+          <h3>Fingerprint / Idempotency</h3>
+          <ul>
+            <li>fingerprint 使用规范化后的 <code>kind + target origin/path + semantic steps + assertions</code> 计算。</li>
+            <li>run id、时间、随机用户名、证据路径和截图名不参与 fingerprint。</li>
+            <li>匹配 enabled fixed case：不建 PR，标记已有覆盖。</li>
+            <li>匹配 open Draft PR：更新现有 PR，不新建重复 PR。</li>
+            <li>匹配 closed 未合并 PR：不自动复活，要求人工判断。</li>
+            <li>匹配 merged PR：标记已合并，等待下一次 regression suite 覆盖。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>3/3 与 Recovery</h3>
+          <table>
+            <thead><tr><th scope="col">通道</th><th scope="col">3/3 规则</th><th scope="col">恢复</th></tr></thead>
+            <tbody>
+              <tr><td>Finding</td><td>三次一致失败进入 <code>awaiting_product_fix</code>；修复后同一 case 三次 pass 进入 <code>ready_for_review</code>。</td><td>产品修复后重跑候选验证；不要把 bug 复现误报成产品通过。</td></tr>
+              <tr><td>Coverage</td><td>三次独立 pass 进入 <code>ready_for_review</code>。</td><td>若 artifact/PR 步骤失败，用 <code>promotion-only</code> 从已有私有 manifest 恢复，不重跑核心业务流程。</td></tr>
+              <tr><td>Infra</td><td>基础设施失败不计入三次业务结论。</td><td>修基础设施后重跑缺失 attempt 或 promotion-only。</td></tr>
+              <tr><td>Cleanup</td><td>任一 attempt cleanup failed 立即 blocked。</td><td>先处理残留资源，再决定是否恢复候选。</td></tr>
+            </tbody>
+          </table>
+          <div class="callout danger">
+            <strong>人审边界：</strong>candidate-pr job 可以创建分支、更新 YAML、打开 Draft PR；它不能自动 approve、不能调用 merge endpoint、不能把 Draft PR 标成已发布事实。只有人类审核并 merge 后，case 才进入以后每次 <code>core</code> / regression suite。
+          </div>
+        </section>
+      </section>
+
+      <section id="triggers">
+        <h2>8. GitHub Merge、PR、Release 触发策略</h2>
+        <table>
+          <thead><tr><th scope="col">触发</th><th scope="col">模式</th><th scope="col">推荐行为</th><th scope="col">发布影响</th></tr></thead>
+          <tbody>
+            <tr><td>workflow_dispatch</td><td><code>core</code> / <code>normal</code> / <code>cleanup-only</code> / <code>promotion-only</code></td><td>人工诊断、首跑、恢复 cleanup，或从已有 manifest 恢复候选 PR。</td><td>不影响发布。</td></tr>
+            <tr><td>pull_request</td><td><code>replay-dry</code> 或 mock broker</td><td>只构建镜像、跑 schema、unit、容器 smoke；避免创建真实账号。</td><td>可作为 required check。</td></tr>
+            <tr><td>merge to staging</td><td><code>core</code></td><td>部署 staging 健康检查后运行严格 replay。</td><td>失败只告警或让 staging workflow 红，不回滚已部署 revision。</td></tr>
+            <tr><td>release candidate</td><td><code>normal</code></td><td>完整 core 通过后运行 5 分钟 / 30 action 探索，并对合格候选执行 3 次独立验证。</td><td>先只告警；稳定后可阻断 release promotion。</td></tr>
+            <tr><td>candidate-pr job</td><td>Draft PR bot</td><td>只消费 sanitized candidate artifact，按 fingerprint 创建或更新 Draft PR。</td><td>不自动 merge，不拿云厂商凭证。</td></tr>
+            <tr><td>production release</td><td>只读 smoke</td><td>仅访问公开只读页面或合成健康检查。</td><td>禁止生产写路径。</td></tr>
+          </tbody>
+        </table>
+        <pre><code>name: AI Browser QA
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        required: true
+        default: core
+        options: [core, normal, cleanup-only, promotion-only]
+      original_run_id:
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      mode:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ai-browser-qa-${{ github.ref }}
+  cancel-in-progress: false</code></pre>
+        <div class="callout warn">
+          workflow dispatch 或 cleanup-only 必须记录原始 run id。不要用重跑 attempt id 替代，否则 cleanup 会派生出不同测试身份。
+          promotion-only 也必须使用原始 run id；它只从已有 manifest 和 attempt evidence 恢复候选聚合/PR artifact，不重新执行开放探索。
+        </div>
+      </section>
+
+      <section id="progressive">
+        <h2>9. 先严格 Replay 后 AI 发散的渐进路线</h2>
+        <ol>
+          <li><strong>阶段 0：录制与 schema。</strong>只生成 record、result schema、redactor 测试和 cleanup 设计。</li>
+          <li><strong>阶段 1：本地 replay。</strong>在开发机或 self-hosted runner 运行，无云部署，不上传长期 artifact。</li>
+          <li><strong>阶段 2：云端 core。</strong>容器化执行，运行严格 replay，探索关闭；失败只告警。</li>
+          <li><strong>阶段 3：有边界探索。</strong>checkpoint 后开启 5 分钟或 30 action，finding 只告警。</li>
+          <li><strong>阶段 4：候选固化。</strong>把合格 finding / coverage candidate 转成 Draft PR，经 3/3 后等待人工合并。</li>
+          <li><strong>阶段 5：门禁化。</strong>将高置信 replay 失败或已合并的确定性 fixed case 接入 release gate。</li>
+        </ol>
+        <table>
+          <thead><tr><th scope="col">阶段</th><th scope="col">成功标准</th><th scope="col">停止条件</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td>record 可读，schema 固定，示例结果可校验。</td><td>不能证明 cleanup 路径时停止。</td></tr>
+            <tr><td>1</td><td>核心流程在同一环境连续通过。</td><td>出现 CAPTCHA、付费或生产跳转时停止。</td></tr>
+            <tr><td>2</td><td>云端 core 和 cleanup 均可重复。</td><td>broker 或 secret 生命周期不稳定时停止。</td></tr>
+            <tr><td>3</td><td>探索 obey budget，报告可复现。</td><td>发现真实高风险 bug 时先转人工 triage。</td></tr>
+            <tr><td>4</td><td>候选 3/3、sanitized artifact、Draft PR 和人审流程可重复。</td><td>候选 cleanup_failed 或自动 merge 需求出现时停止。</td></tr>
+            <tr><td>5</td><td>误报率和基础设施失败率可接受。</td><td>cleanup_failed 永远阻断继续推广。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="platforms">
+        <h2>10. GCP 参考实现与多平台映射</h2>
+        <section>
+          <h3>GCP Cloud Run 参考实现</h3>
+          <ul>
+            <li>Artifact Registry 保存浏览器 QA 镜像。</li>
+            <li>Cloud Run Service 运行私有 broker。</li>
+            <li>Cloud Run Jobs 运行 main、cleanup 和 candidate attempt。</li>
+            <li>Secret Manager 保存 API key、identity seed、OAuth JSON；Terraform 只管理 Secret 容器，不管理 secret value。</li>
+            <li>Cloud Storage 私有 bucket 保存报告，开启 uniform access、public access prevention 和生命周期删除。</li>
+            <li>GitHub OIDC / Workload Identity Federation 让 workflow impersonate QA deployer service account。</li>
+            <li>GitHub candidate-pr job 只消费 sanitized artifact，使用 <code>contents: write</code> 和 <code>pull-requests: write</code> 创建 Draft PR，不拿 GCP 凭证。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>AWS、Azure、Kubernetes、Self-hosted Runner 映射</h3>
+          <table>
+            <thead><tr><th scope="col">能力</th><th scope="col">GCP</th><th scope="col">AWS</th><th scope="col">Azure</th><th scope="col">Kubernetes</th><th scope="col">Self-hosted</th></tr></thead>
+            <tbody>
+              <tr><td>主执行</td><td>Cloud Run Job</td><td>ECS/Fargate Task</td><td>Container Apps Job</td><td>Job/CronJob</td><td>Runner service</td></tr>
+              <tr><td>Broker</td><td>Cloud Run Service</td><td>ECS Service + ALB 或 Lambda URL 私有化</td><td>Container App</td><td>Service + NetworkPolicy</td><td>本机 loopback 服务</td></tr>
+              <tr><td>对象存储</td><td>Cloud Storage</td><td>S3</td><td>Blob Storage</td><td>S3 兼容或 PVC 后上传</td><td>本地目录 + artifact upload</td></tr>
+              <tr><td>Secret</td><td>Secret Manager</td><td>Secrets Manager / SSM</td><td>Key Vault</td><td>External Secrets / sealed secret</td><td>Runner secret store</td></tr>
+              <tr><td>OIDC</td><td>WIF Provider</td><td>IAM OIDC provider + role trust</td><td>Federated credential</td><td>云 IAM 或 projected token</td><td>尽量用短期 token</td></tr>
+              <tr><td>候选 attempt</td><td>Cloud Run Job execution</td><td>ECS/Fargate one-off task</td><td>Container Apps Job execution</td><td>独立 Job</td><td>隔离工作目录 + 独立 attempt id</td></tr>
+              <tr><td>Sanitized artifact</td><td>GitHub artifact + GCS manifest</td><td>GitHub artifact + S3 manifest</td><td>GitHub artifact + Blob manifest</td><td>CI artifact + 私有对象存储</td><td>CI artifact + 私有目录</td></tr>
+              <tr><td>Draft PR bot</td><td>GitHub Actions job</td><td>GitHub Actions job</td><td>GitHub Actions job</td><td>CI job / GitHub App</td><td>GitHub App 或受控 bot</td></tr>
+              <tr><td>通知</td><td>DingTalk / Slack / Teams webhook</td><td>SNS + chat webhook</td><td>Action Group + chat webhook</td><td>Alertmanager + chat webhook</td><td>本地 sender + chat webhook</td></tr>
+              <tr><td>日志</td><td>Cloud Logging</td><td>CloudWatch Logs</td><td>Log Analytics</td><td>集群日志栈</td><td>Runner 日志 + 私有 artifact</td></tr>
+              <tr><td>网络限制</td><td>egress proxy + serverless egress</td><td>Security Group + NAT + proxy</td><td>NSG + UDR + proxy</td><td>NetworkPolicy + egress gateway</td><td>本机防火墙 + proxy</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="identity">
+        <h2>11. OIDC/WIF、Secret 与 OAuth</h2>
+        <p>身份设计的目标是：调度器可以部署和启动 QA，但不能读取运行时 secret；执行器可以调用 broker，但不能读取 OAuth；cleanup 可以重算身份，但不能访问 AI API key。</p>
+        <table>
+          <thead><tr><th scope="col">身份</th><th scope="col">最小权限</th><th scope="col">不得拥有</th></tr></thead>
+          <tbody>
+            <tr><td>deployer</td><td>推镜像、更新 QA service/job image、execute job、读取非敏感 output。</td><td>Secret payload accessor、生产 service admin。</td></tr>
+            <tr><td>runtime</td><td>读取模型 API key 与 identity seed、调用 broker、上传 main artifacts。</td><td>OAuth secret、删除 bucket 全局权限。</td></tr>
+            <tr><td>broker</td><td>读取 OAuth secret、写 broker 日志。</td><td>模型 API key、对象存储 admin、业务数据库写权限。</td></tr>
+            <tr><td>cleanup</td><td>读取 identity seed、读写本 run cleanup manifest。</td><td>模型 API key、OAuth secret、生产 admin。</td></tr>
+            <tr><td>candidate-pr bot</td><td>写候选分支和 Draft PR；只读 sanitized candidate artifact。</td><td>云厂商凭证、secret store 访问、私有 evidence 下载、merge 权限。</td></tr>
+          </tbody>
+        </table>
+        <pre><code># GitHub OIDC trust 条件模板
+issuer: https://token.actions.githubusercontent.com
+subject: repo:ORG/REPO:ref:refs/heads/STAGING_BRANCH
+claims:
+  repository: ORG/REPO
+  ref: refs/heads/STAGING_BRANCH
+  workflow: .github/workflows/ai-browser-qa.yml
+
+# Repository variables, not secrets
+PROJECT_ID=PROJECT_ID
+REGION=REGION
+QA_IMAGE_REPOSITORY=REGION-docker.pkg.dev/PROJECT_ID/QA_REPOSITORY
+QA_REPORT_BUCKET=QA_REPORT_BUCKET
+QA_WIF_PROVIDER=QA_WIF_PROVIDER
+QA_DEPLOYER_SERVICE_ACCOUNT=QA_DEPLOYER_SERVICE_ACCOUNT</code></pre>
+        <div class="callout danger">
+          <strong>Secret 规则：</strong>OAuth refresh token、模型 API key、验证码、完整测试邮箱、完整 API key 和密码不得进入 Terraform state、GitHub output、summary、日志、截图或提交文件。
+        </div>
+        <p>OAuth 应使用最小 scope。若 OAuth 平台存在 testing token 过期限制，首跑只能算 bootstrap；发布为生产状态、重新授权、轮换 secret 后，再跑一次完整流程，才能声明可重复。</p>
+      </section>
+
+      <section id="privacy">
+        <h2>12. 数据与隐私</h2>
+        <ul>
+          <li>每次 run 使用一次性身份，使用 HMAC(seed, run_id) 派生 username、email tag 和 password。</li>
+          <li>报告只保存 run-scoped 标识，不保存完整邮箱、密码、验证码、Cookie 或完整 key。</li>
+          <li>浏览器允许访问 staging origin 和只读 docs origin；生产、metadata、RFC1918、localhost、非 HTTPS 默认拒绝。</li>
+          <li>截图前遮罩 input、textarea、contenteditable、验证码字段、已知 secret 和完整 alias。</li>
+          <li>私有报告存储设置最短可接受生命周期，例如 7 到 14 天；不要把报告复制到 issue 或聊天。</li>
+          <li>候选 PR artifact 只能包含 sanitized candidate bundle；token、OAuth、webhook、验证码、cookie、Authorization、完整邮箱和完整 API key 永不进入 artifact。</li>
+          <li>模型输出必须经过 redactor 和 schema 校验；AI 叙述不能覆盖 runtime cleanup 状态。</li>
+        </ul>
+        <pre><code>{
+  "redaction": {
+    "replace_email": "[REDACTED_EMAIL]",
+    "replace_password": "[REDACTED_PASSWORD]",
+    "replace_code": "[REDACTED_CODE]",
+    "replace_cookie": "[REDACTED_COOKIE]",
+    "replace_authorization": "[REDACTED_AUTHORIZATION]",
+    "replace_api_key": "[REDACTED_API_KEY]"
+  },
+  "artifact_allowlist": [
+    "result.json",
+    "manifest.json",
+    "codex-events.jsonl",
+    "codex-stderr.txt",
+    "browser/console.jsonl",
+    "browser/network.jsonl",
+    "screenshots/*.png"
+  ]
+}</code></pre>
+      </section>
+
+      <section id="reports">
+        <h2>13. 报告与仅告警模式</h2>
+        <p>首版建议只告警：GitHub Summary 或发布系统只显示产品状态、replay、exploration、finding 数量、cleanup 状态、候选状态和私有报告 URI。详情留在私有对象存储。候选状态必须独立展示，不能被产品 <code>passed</code> 掩盖。</p>
+        <table>
+          <thead><tr><th scope="col">状态</th><th scope="col">含义</th><th scope="col">默认动作</th></tr></thead>
+          <tbody>
+            <tr><td><code>passed</code></td><td>核心回放通过、报告上传、cleanup 验证完成。</td><td>绿色。</td></tr>
+            <tr><td><code>findings_detected</code></td><td>核心通过，探索发现至少一个非 info finding。</td><td>红或黄，人工 triage。</td></tr>
+            <tr><td><code>replay_failed</code></td><td>核心流程未达 checkpoint。</td><td>红，修复 replay 或产品回归。</td></tr>
+            <tr><td><code>infrastructure_failed</code></td><td>模型、浏览器、broker、OAuth、上传、schema 或云配置失败。</td><td>红，先排基础设施。</td></tr>
+            <tr><td><code>cleanup_failed</code></td><td>无法证明测试工件已删除。</td><td>最高优先级红，运行 cleanup-only 或人工处理。</td></tr>
+          </tbody>
+        </table>
+        <table>
+          <thead><tr><th scope="col">候选状态</th><th scope="col">含义</th><th scope="col">默认动作</th></tr></thead>
+          <tbody>
+            <tr><td><code>skipped</code></td><td>本次未进入候选固化。</td><td>只看产品主状态。</td></tr>
+            <tr><td><code>passed</code></td><td>候选验证/PR bundle 完成，可能已有 Draft PR 待审。</td><td>人工 review，不自动 merge。</td></tr>
+            <tr><td><code>cleanup_failed</code></td><td>候选 attempt 清理失败。</td><td>先处理残留资源。</td></tr>
+            <tr><td><code>infrastructure_failed</code></td><td>候选执行或 artifact 基础设施失败。</td><td>修基础设施，infra 不计入 3/3。</td></tr>
+            <tr><td><code>promotion_failed</code></td><td>3/3 聚合未达标或候选不稳定。</td><td>保留证据，人工 triage。</td></tr>
+            <tr><td><code>unknown</code></td><td>候选步骤失败但无可信输出。</td><td>fail closed。</td></tr>
+          </tbody>
+        </table>
+        <pre><code>### AI Browser QA
+- status: findings_detected
+- replay status: passed
+- exploration status: passed
+- exploration actions: 18
+- finding count: 1
+- cleanup status: cleanup verified
+- candidate status: passed
+- draft PR bundle count: 1
+- report_uri: PRIVATE_REPORT_URI</code></pre>
+      </section>
+
+      <section id="budgets">
+        <h2>14. 预算、并发与超时</h2>
+        <table>
+          <thead><tr><th scope="col">预算</th><th scope="col">建议默认值</th><th scope="col">说明</th></tr></thead>
+          <tbody>
+            <tr><td>Workflow timeout</td><td>90 到 120 分钟</td><td>包含构建、推镜像、main、cleanup 和取 manifest。</td></tr>
+            <tr><td>Main job hard timeout</td><td>20 分钟</td><td>云平台硬限制，必须大于内部 deadline。</td></tr>
+            <tr><td>Supervisor deadline</td><td>14 分钟</td><td>预留清理和上传时间。</td></tr>
+            <tr><td>Exploration</td><td>5 分钟或 30 actions</td><td>先到即停，core 模式禁用 checkpoint 后 actions。</td></tr>
+            <tr><td>Cleanup job</td><td>5 到 20 分钟</td><td>按业务删除复杂度设置，无自动重试，使用 cleanup-only 显式恢复。</td></tr>
+            <tr><td>并发</td><td>每环境 1</td><td>避免邮箱验证码、一次性身份、配额和业务状态互相干扰。</td></tr>
+          </tbody>
+        </table>
+        <div class="callout">
+          并发要从业务资源倒推。如果每次测试创建账号、key、订单、邀请或临时 workspace，默认按环境串行，直到 cleanup 和隔离策略证明可并发。
+        </div>
+      </section>
+
+      <section id="iac">
+        <h2>15. Terraform / IaC 两阶段 Bootstrap</h2>
+        <p>推荐把 Browser QA 放在独立 IaC root 和独立 state。第一阶段只创建基础设施和 Secret 容器；人工通过安全通道写入 secret version；第二阶段再创建引用 <code>latest</code> secret 的 workloads。candidate-pr bot 通常不属于云 IaC workload，它是 CI/GitHub 权限边界：只写仓库和 PR，不拿云凭证。</p>
+        <ol>
+          <li><strong>Phase A：</strong>Artifact repository、service accounts、Secret containers、WIF、report bucket、bucket IAM。</li>
+          <li><strong>Secret versions：</strong>通过云控制台、stdin 或安全 secret pipeline 写入模型 key、identity seed、OAuth JSON。</li>
+          <li><strong>Phase B：</strong>broker service、main job、cleanup job、candidate job、resource-level invoker/developer IAM。</li>
+          <li><strong>CI Bot：</strong>为 candidate-pr job 配置 <code>contents: write</code> 和 <code>pull-requests: write</code>；不要给它云厂商 secret 或生产 deploy key。</li>
+          <li><strong>Steady state：</strong>配置保持 <code>create_workloads=true</code>，避免日常 plan 试图销毁 workloads。</li>
+        </ol>
+        <pre><code># variables.tf 模板
+variable "project_id" {
+  type = string
+}
+
+variable "region" {
+  type = string
+}
+
+variable "create_workloads" {
+  description = "Create Secret-dependent browser QA workloads"
+  type        = bool
+  default     = true
+}</code></pre>
+        <pre><code># Phase A 资源类别模板，不包含 secret payload
+resource "cloud_service_account" "qa_runtime" {}
+resource "cloud_service_account" "qa_broker" {}
+resource "cloud_service_account" "qa_cleanup" {}
+resource "cloud_job" "qa_candidate" {}
+resource "cloud_secret_container" "qa_model_api_key" {}
+resource "cloud_secret_container" "qa_identity_seed" {}
+resource "cloud_secret_container" "qa_oauth" {}
+resource "cloud_object_bucket" "qa_reports" {}
+resource "cloud_oidc_trust" "github_actions" {}</code></pre>
+        <div class="callout warn">
+          本文不提供可直接 apply 的 Terraform；上面是结构模板。迁移时必须用团队自己的 provider、模块、后端、saved plan、plan hash、plan guard 和人工审批流程验证。不要直接 apply 一个夹杂主 infra 替换、生产资源 update/delete/replace 或未知 output 的计划。
+        </div>
+      </section>
+
+      <section id="steps">
+        <h2>16. 迁移步骤与分阶段 Checklist</h2>
+        <section>
+          <h3>准备阶段</h3>
+          <ul class="checklist">
+            <li>列出目标环境、允许 origin、禁止 origin、一次性身份策略和 cleanup API。</li>
+            <li>确认不会触发真实付款、真实模型调用、生产写操作、邀请奖励或不可逆副作用。</li>
+            <li>定义 result schema、manifest schema、finding 字段和状态优先级。</li>
+            <li>定义 candidate schema、fingerprint 输入、3/3 规则、promotion-only 恢复路径和 Draft PR 人审规则。</li>
+            <li>写 redaction 测试，覆盖邮箱、alias、密码、验证码、Cookie、Authorization、API key。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>录制与去项目化</h3>
+          <ul class="checklist">
+            <li>录制核心流程，并把每一步改写为业务意图和成功断言。</li>
+            <li>把项目名、域名、个人邮箱、绝对路径和真实资源名替换为占位符。</li>
+            <li>将验证码、OAuth、第三方回调接入 broker，而不是暴露给模型。</li>
+            <li>在本地或隔离 runner 中验证 replay 可达 checkpoint。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>云端执行</h3>
+          <ul class="checklist">
+            <li>构建非 root 镜像，固定浏览器、MCP、模型 CLI 和语言运行时版本。</li>
+            <li>部署 broker、main job、cleanup job，并确认 IAM 最小化。</li>
+            <li>启用私有报告 bucket，设置生命周期删除和 public access prevention。</li>
+            <li>部署 candidate attempt 入口，并让 main/normal 能产生 sanitized candidate bundle。</li>
+            <li>先运行 core，cleanup 成功后再运行 normal；normal 必须包含完整 core。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>候选固化</h3>
+          <ul class="checklist">
+            <li>让 AI 输出 nullable closed <code>proposed_case</code>，不能输出 JS、shell、任意 selector 或 secret。</li>
+            <li>对每个候选运行 3 次独立 attempt，独立 evidence，infra 不计数，cleanup failed 立即 blocked。</li>
+            <li>只把 sanitized artifact 交给 Draft PR bot；PR 中只放占位、证据 URI 和状态摘要。</li>
+            <li>按 fingerprint upsert Draft PR；closed 未合并不自动复活，merged/open Draft 语义清楚。</li>
+            <li>人审合并后，case 才能 <code>enabled: true</code> 进入以后 core。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>推广阶段</h3>
+          <ul class="checklist">
+            <li>连续多次 core 通过后，把 staging pipeline trigger 接入只告警模式。</li>
+            <li>探索 finding 先人工 triage，再转成确定性回归测试。</li>
+            <li>建立 cleanup-only 和 promotion-only runbook，要求使用原始 run id。</li>
+            <li>每次扩大触发范围前，复查成本、配额和误报率。</li>
+          </ul>
+        </section>
+      </section>
+
+      <section id="acceptance">
+        <h2>17. 验收标准、回滚与故障排查</h2>
+        <section>
+          <h3>验收标准</h3>
+          <ul>
+            <li>核心 replay 每一步都有可验证断言，不依赖坐标。</li>
+            <li>AI 无法访问生产 origin、metadata、内网和未授权 docs context。</li>
+            <li>broker 拒绝匿名调用和越权身份，且只返回当前 run 的最小结果。</li>
+            <li>报告私有、脱敏、路径白名单生效，manifest 最后上传。</li>
+            <li>main 失败、模型超时、workflow 取消后，cleanup-only 能用原始 run id 恢复。</li>
+            <li>候选 promotion-only 能从已有 manifest 恢复 PR bundle，而不重新执行探索。</li>
+            <li>Finding 三次一致失败只进入 awaiting_product_fix；修复后三次 pass 才进入 ready_for_review。</li>
+            <li>Coverage Candidate 三次 pass 才进入 ready_for_review。</li>
+            <li>Draft PR bot 不自动 approve、不开 merge endpoint、不把候选直接合并。</li>
+            <li>Secret payload 不在 IaC state、日志、summary、截图、artifact 或提交文件中出现。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>安全 Checklist</h3>
+          <ul class="checklist">
+            <li>调度 job 只有读仓库和云 OIDC 权限；candidate-pr job 只有写仓库和写 PR 权限。</li>
+            <li>candidate-pr job 没有云厂商凭证、OAuth secret、模型 API key、对象存储读取权限。</li>
+            <li>Sanitized artifact 不含真实 API key、OAuth token、邮箱地址、验证码、cookie、Authorization、webhook 或 signing secret。</li>
+            <li>私有 evidence URI 不公开；PR 正文只引用 URI 和摘要。</li>
+            <li>所有 fixed-case locator 使用 role、label、visible text 或 test id；不允许坐标、任意 CSS/XPath、JS、shell。</li>
+            <li>所有生产 origin、metadata、localhost、RFC1918、非 HTTPS、支付、订阅、管理员和真实写操作默认拒绝。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>回滚策略</h3>
+          <table>
+            <thead><tr><th scope="col">问题</th><th scope="col">回滚</th><th scope="col">保留</th></tr></thead>
+            <tbody>
+              <tr><td>触发噪声过大</td><td>关闭自动 workflow_call 或移除 required check。</td><td>保留手动 dispatch 和云资源。</td></tr>
+              <tr><td>镜像版本坏</td><td>回滚 QA service/job image 到前一 tag。</td><td>不改 secret，不删报告。</td></tr>
+              <tr><td>broker OAuth 失效</td><td>暂停 normal，轮换 OAuth secret 后跑 core。</td><td>不盲目重试。</td></tr>
+              <tr><td>cleanup_failed</td><td>运行 cleanup-only；仍失败则人工按 run id 查私有报告。</td><td>保留证据直到处理完成。</td></tr>
+              <tr><td>candidate-pr bot 异常</td><td>保留 sanitized artifact 和私有 manifest，修权限后运行 promotion-only。</td><td>不重跑探索，不手工复制 secret 到 PR。</td></tr>
+              <tr><td>需要撤销整套 QA</td><td>先停触发，再按 IaC 审批销毁 QA 专属资源。</td><td>不要用手工删除制造 drift。</td></tr>
+            </tbody>
+          </table>
+        </section>
+        <section>
+          <h3>故障排查</h3>
+          <table>
+            <thead><tr><th scope="col">症状</th><th scope="col">优先检查</th><th scope="col">常见修复</th></tr></thead>
+            <tbody>
+              <tr><td>manifest 缺失</td><td>上传权限、bucket lifecycle、main job 是否到达报告阶段。</td><td>修复对象存储权限；若 cleanup 未跑，先 cleanup-only。</td></tr>
+              <tr><td>验证码 pending 超时</td><td>邮箱 alias、sender、subject、OAuth scope、时间窗口。</td><td>修复 broker 查询条件，不让模型重发多封邮件。</td></tr>
+              <tr><td>replay 找不到按钮</td><td>文案语言、role、URL 跳转、动画遮挡。</td><td>更新语义 selector hint 和恢复策略。</td></tr>
+              <tr><td>探索超预算</td><td>MCP wrapper phase state、action 计数、core/normal mode。</td><td>fail closed，修预算状态机。</td></tr>
+              <tr><td>候选没有生成 PR</td><td>候选是否 high confidence、<code>proposed_case</code> 是否非 null、fingerprint 是否重复、artifact 是否上传。</td><td>按报告原因处理；PR bot 失败时运行 promotion-only。</td></tr>
+              <tr><td>候选状态和产品状态冲突</td><td>通知渲染是否同时展示 product status 与 candidate status。</td><td>候选异常必须单独显示，不能被产品 passed 掩盖。</td></tr>
+              <tr><td>报告出现敏感信息</td><td>redactor 覆盖、截图遮罩、console/network 投影。</td><td>立即限制报告访问，修脱敏测试后重新运行。</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="cost">
+        <h2>18. 成本估算框架</h2>
+        <p>先用公式估算，再用真实账单校准。不要只看模型 token；浏览器容器、对象存储、日志、NAT、OAuth/broker 请求和工程维护都要计入。</p>
+        <pre><code>monthly_cost =
+  runs_per_month * (
+    build_minutes * ci_build_rate
+    + main_job_minutes * container_vcpu * vcpu_rate
+    + main_job_minutes * container_gib * memory_rate
+    + cleanup_job_minutes * cleanup_vcpu * vcpu_rate
+    + model_input_tokens * input_token_rate
+    + model_output_tokens * output_token_rate
+    + broker_requests * broker_request_rate
+    + artifact_gib_month * storage_rate
+    + log_gib * logging_rate
+  )
+  + fixed_private_network_cost
+  + maintenance_hours * engineering_hour_rate</code></pre>
+        <table>
+          <thead><tr><th scope="col">成本杠杆</th><th scope="col">降低方法</th></tr></thead>
+          <tbody>
+            <tr><td>运行次数</td><td>PR 只跑轻量 contract，staging pipeline 跑 core，release candidate 跑 normal。</td></tr>
+            <tr><td>浏览器时间</td><td>缩短 replay 恢复次数，失败时不进入探索。</td></tr>
+            <tr><td>模型费用</td><td>固定 prompt、限制 tool action、使用 schema 输出、避免重复上下文。</td></tr>
+            <tr><td>日志和截图</td><td>只保存关键截图、投影日志、生命周期删除。</td></tr>
+            <tr><td>并发</td><td>每环境串行，避免争抢导致重试和清理成本。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="template">
+        <h2>19. 最小可行模板</h2>
+        <p>以下模板用于初始化迁移计划。它们是占位符配置，不绑定任何真实项目或云资源；迁移时必须替换、审查并在目标仓库中验证。</p>
+        <section>
+          <h3>目录结构</h3>
+          <pre><code>browser-qa/
+  Dockerfile
+  entrypoint.sh
+  config/
+    record.json
+    result.schema.json
+    fixed-case.schema.json
+    allowed-origins.json
+    qa-policy.md
+  fixed-cases/
+    QA-000000000001.yaml
+  runtime/
+    supervisor.py
+    broker.py
+    cleanup.py
+    candidate.py
+    promotion.py
+    evidence.py
+    redaction.py
+    github_candidate_pr.py
+    provider_adapter.py
+  tests/
+    test_result_schema.py
+    test_candidate_promotion.py
+    test_redaction.py
+    test_cleanup.py
+    test_origin_policy.py
+    test_workflow_contract.py</code></pre>
+        </section>
+        <section>
+          <h3>环境变量模板</h3>
+          <pre><code>APP_STAGING_ORIGIN=https://APP_STAGING_ORIGIN
+APP_DOCS_ORIGIN=https://APP_DOCS_ORIGIN
+PROJECT_ID=PROJECT_ID
+REGION=REGION
+QA_REPORT_BUCKET=QA_REPORT_BUCKET
+QA_BROKER_URL=QA_BROKER_URL
+QA_MODE=core
+QA_RUN_ID=GITHUB_RUN_ID
+QA_EXECUTION_ID=main-GITHUB_RUN_ID
+QA_CANDIDATE_ARTIFACT=SANITIZED_CANDIDATE_ARTIFACT_PATH</code></pre>
+        </section>
+        <section>
+          <h3>Policy 模板</h3>
+          <pre><code>You are running authorized browser QA for APP_NAME staging.
+Use only the runtime-provided identity.
+Do not visit production, payment, admin, invite, real model-call, metadata, localhost, or private network targets.
+First complete strict replay.
+Call qa_replay_checkpoint only after the core checkpoint is proven.
+Start exploration only after checkpoint and only in normal mode.
+Normal includes the complete core body.
+Propose candidate cases only as nullable closed DSL objects.
+Use qa_capture_screenshot for screenshots.
+Do not output secrets, full email addresses, verification codes, passwords, cookies, authorization headers, or full API keys.</code></pre>
+        </section>
+        <section>
+          <h3>最小验收清单</h3>
+          <ul class="checklist">
+            <li>HTML、JSON schema、workflow YAML 和 IaC 模板均不含真实项目号、bucket、邮箱、token、secret 值或个人路径。</li>
+            <li>本地 schema 测试通过；redaction 测试能拦截代表性 secret。</li>
+            <li>容器 smoke 能证明非 root、浏览器可启动、MCP 可 attach，且每个 MCP server 都有精确 <code>enabled_tools</code>，没有 wildcard、<code>yolo</code> 或 <code>danger-full-access</code>。</li>
+            <li>core 模式 replay 通过并执行 cleanup。</li>
+            <li>normal 模式先完整执行 core，再 exploration obey budget，并只上传脱敏报告。</li>
+            <li>candidate 3/3 验证、sanitized artifact、promotion-only 恢复和 Draft PR bot 都有测试。</li>
+            <li>Draft PR 永不自动 merge，人工合并后 fixed case 才进入 regression suite。</li>
+          </ul>
+        </section>
+      </section>
+
+      <footer>
+        本文是项目无关迁移指南。所有代码块均使用占位符；涉及云资源创建、Terraform apply、Secret 写入、GitHub 变量写入或 workflow dispatch 的步骤必须由目标项目操作员按本地流程审核执行。
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

@@ -341,6 +341,426 @@ test("fixed case page_status_not tracks latest main document click navigation on
   assert.equal(passed.status, "passed");
 });
 
+test("fixed case UI assertions pass through semantic locator state", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-ui-pass-"));
+  const calls = [];
+  const session = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+  });
+  session.page = fakeFixedCasePage(calls, {
+    locatorStates: {
+      "text:Ready": { visible: true },
+      "text:Spinner": { visible: false },
+      "role:button:Continue": { enabled: true, disabled: false },
+      "test_id:submit": { enabled: false, disabled: true },
+      "label:Email": { value: "owner@example.test" },
+      "text:API key": { count: 0 },
+    },
+  });
+
+  const result = await session.executeFixedCase({
+    case: fixedCase({
+      assertions: [
+        { element_visible: { locator: { by: "text", text: "Ready" } } },
+        { element_hidden: { locator: { by: "text", text: "Spinner" } } },
+        { element_enabled: { locator: { by: "role", role: "button", name: "Continue" } } },
+        { element_disabled: { locator: { by: "test_id", test_id: "submit" } } },
+        { element_value_equals: { locator: { by: "label", label: "Email" }, value: "owner@example.test" } },
+        { element_count_equals: { locator: { by: "text", text: "API key" }, count: 0 } },
+      ],
+    }),
+    attempt: { id: "attempt-ui-pass" },
+    evidenceDir: runtime,
+  });
+
+  assert.equal(result.status, "passed");
+  assert.ok(calls.some((call) => call[0] === "isVisible" && call[1] === "text:Ready"));
+  assert.ok(calls.some((call) => call[0] === "isEnabled" && call[1] === "role:button:Continue"));
+  assert.ok(calls.some((call) => call[0] === "isDisabled" && call[1] === "test_id:submit"));
+  assert.ok(calls.some((call) => call[0] === "inputValue" && call[1] === "label:Email"));
+  assert.ok(calls.some((call) => call[0] === "count" && call[1] === "text:API key"));
+});
+
+test("fixed case element_count_equals accepts and executes upper bound count", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-ui-count-upper-"));
+  const session = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+  });
+  session.page = fakeFixedCasePage([], {
+    locatorStates: {
+      "text:Audit row": { count: 1000 },
+    },
+  });
+
+  const result = await session.executeFixedCase({
+    case: fixedCase({
+      assertions: [{ element_count_equals: { locator: { by: "text", text: "Audit row" }, count: 1000 } }],
+    }),
+    attempt: { id: "attempt-ui-count-upper" },
+    evidenceDir: runtime,
+  });
+
+  assert.equal(result.status, "passed");
+});
+
+test("fixed case UI assertions fail closed on mismatched state and browser errors", async () => {
+  const cases = [
+    ["visible false", { element_visible: { locator: { by: "text", text: "Missing" } } }, { "text:Missing": { visible: false } }],
+    ["hidden visible", { element_hidden: { locator: { by: "text", text: "Visible" } } }, { "text:Visible": { visible: true } }],
+    ["enabled false", { element_enabled: { locator: { by: "text", text: "Disabled" } } }, { "text:Disabled": { enabled: false } }],
+    ["disabled false", { element_disabled: { locator: { by: "text", text: "Enabled" } } }, { "text:Enabled": { disabled: false } }],
+    ["value mismatch", { element_value_equals: { locator: { by: "label", label: "Email" }, value: "expected@example.test" } }, { "label:Email": { value: "actual@example.test" } }],
+    ["count mismatch", { element_count_equals: { locator: { by: "text", text: "API key" }, count: 1 } }, { "text:API key": { count: 0 } }],
+    ["browser error", { element_visible: { locator: { by: "text", text: "Explodes" } } }, { "text:Explodes": { visibleError: new Error("playwright failed with secret") } }],
+  ];
+
+  for (const [name, assertion, locatorStates] of cases) {
+    const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-ui-fail-"));
+    const session = new helper.BrowserEvidenceSession({
+      browser: { contexts: () => [] },
+      runtimeDir: runtime,
+      sensitiveValues: [],
+    });
+    session.page = fakeFixedCasePage([], { locatorStates });
+
+    const result = await session.executeFixedCase({
+      case: fixedCase({ assertions: [assertion] }),
+      attempt: { id: `attempt-${name.replaceAll(" ", "-")}` },
+      evidenceDir: runtime,
+    });
+
+    assert.equal(result.status, "failed", name);
+    assert.equal(result.failure.phase, "assertion", name);
+    assert.equal(result.failure.code, "assertion_failed", name);
+    assert.ok(!JSON.stringify(result).includes("playwright failed with secret"), name);
+  }
+});
+
+test("fixed case runner rejects invalid UI assertion shapes", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-ui-invalid-"));
+  const session = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+  });
+  session.page = fakeFixedCasePage([]);
+
+  const invalidAssertions = [
+    { element_visible: { locator: { by: "text", text: "Ready" }, extra: "bad" } },
+    { element_hidden: {} },
+    { element_enabled: { locator: { by: "css", value: ".ready" } } },
+    { element_disabled: { locator: { by: "text", text: "" } } },
+    { element_value_equals: { locator: { by: "label", label: "Email" } } },
+    { element_count_equals: { locator: { by: "text", text: "API key" }, count: true } },
+    { element_count_equals: { locator: { by: "text", text: "API key" }, count: -1 } },
+    { element_count_equals: { locator: { by: "text", text: "API key" }, count: 1001 } },
+  ];
+
+  for (const assertion of invalidAssertions) {
+    await assert.rejects(
+      () => session.executeFixedCase({
+        case: fixedCase({ assertions: [assertion] }),
+        attempt: { id: `attempt-${invalidAssertions.indexOf(assertion)}` },
+        evidenceDir: runtime,
+      }),
+      /invalid fixed case/,
+    );
+  }
+});
+
+test("fixed case network assertions observe only requests after capture for the case origin", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-network-sent-"));
+  const calls = [];
+  const session = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+    fixedCaseSleep: async () => {},
+  });
+  session.page = fakeFixedCasePage(calls, {
+    clickRequestsByClick: [
+      [{ url: "https://staging-console.flatkey.ai/api/before-capture?token=secret", method: "GET" }],
+      [
+        { url: "https://other.example/api/register", method: "POST" },
+        { url: "https://staging-console.flatkey.ai/api/register?token=query-secret", method: "POST" },
+      ],
+    ],
+  });
+
+  const result = await session.executeFixedCase({
+    case: fixedCase({
+      steps: [
+        { click: { locator: { by: "text", text: "Sign in" } } },
+        { begin_network_capture: {} },
+        { click: { locator: { by: "text", text: "Sign in" } } },
+      ],
+      assertions: [
+        { network_request_not_sent: { method: "GET", path: "/api/before-capture", timeout_ms: 0 } },
+        { network_request_not_sent: { method: "POST", path: "/api/register", timeout_ms: 0 } },
+      ],
+    }),
+    attempt: { id: "attempt-network-sent" },
+    evidenceDir: runtime,
+  });
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.failure.phase, "assertion");
+  assert.equal(result.failure.index, 1);
+  assert.equal(result.failure.assertion, "network_request_not_sent");
+  assert.equal(session.page.listenerCount("request"), 0);
+  assert.ok(!JSON.stringify(result).includes("query-secret"));
+});
+
+test("fixed case network_request_sent succeeds on method and pathname or fails after timeout", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-network-sent-timeout-"));
+  const sleeps = [];
+  const successSession = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+    fixedCaseSleep: async (ms) => sleeps.push(ms),
+  });
+  successSession.page = fakeFixedCasePage([], {
+    clickRequests: [{ url: "https://staging-console.flatkey.ai/api/register?secret=query", method: "POST" }],
+  });
+
+  const passed = await successSession.executeFixedCase({
+    case: fixedCase({
+      steps: [{ begin_network_capture: {} }, { click: { locator: { by: "text", text: "Sign in" } } }],
+      assertions: [{ network_request_sent: { method: "POST", path: "/api/register", timeout_ms: 25 } }],
+    }),
+    attempt: { id: "attempt-network-sent-ok" },
+    evidenceDir: runtime,
+  });
+  assert.equal(passed.status, "passed");
+  assert.equal(sleeps.length, 0);
+
+  const timeoutSession = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+    fixedCaseSleep: async (ms) => sleeps.push(ms),
+  });
+  timeoutSession.page = fakeFixedCasePage([]);
+  const failed = await timeoutSession.executeFixedCase({
+    case: fixedCase({
+      steps: [{ begin_network_capture: {} }],
+      assertions: [{ network_request_sent: { method: "GET", path: "/api/missing", timeout_ms: 25 } }],
+    }),
+    attempt: { id: "attempt-network-sent-timeout" },
+    evidenceDir: runtime,
+  });
+
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.failure.phase, "assertion");
+  assert.deepEqual(sleeps, [25]);
+});
+
+test("fixed case network assertion accepts timeout upper bound without real wait", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-network-timeout-upper-"));
+  const sleeps = [];
+  const session = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+    fixedCaseSleep: async (ms) => sleeps.push(ms),
+  });
+  session.page = fakeFixedCasePage([]);
+
+  const result = await session.executeFixedCase({
+    case: fixedCase({
+      steps: [{ begin_network_capture: {} }],
+      assertions: [{ network_request_not_sent: { method: "GET", path: "/api/missing", timeout_ms: 5000 } }],
+    }),
+    attempt: { id: "attempt-network-timeout-upper" },
+    evidenceDir: runtime,
+  });
+
+  assert.equal(result.status, "passed");
+  assert.deepEqual(sleeps, [5000]);
+});
+
+test("fixed case network_request_not_sent waits full timeout and fails immediately on match", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-network-not-sent-"));
+  const sleeps = [];
+  const successSession = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+    fixedCaseSleep: async (ms) => sleeps.push(ms),
+  });
+  successSession.page = fakeFixedCasePage([], {
+    clickRequests: [{ url: "https://staging-console.flatkey.ai/api/other", method: "GET" }],
+  });
+
+  const passed = await successSession.executeFixedCase({
+    case: fixedCase({
+      steps: [{ begin_network_capture: {} }, { click: { locator: { by: "text", text: "Sign in" } } }],
+      assertions: [{ network_request_not_sent: { method: "GET", path: "/api/missing", timeout_ms: 50 } }],
+    }),
+    attempt: { id: "attempt-network-not-sent-ok" },
+    evidenceDir: runtime,
+  });
+  assert.equal(passed.status, "passed");
+  assert.deepEqual(sleeps, [50]);
+
+  const failSleeps = [];
+  const failSession = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+    fixedCaseSleep: async (ms) => failSleeps.push(ms),
+  });
+  failSession.page = fakeFixedCasePage([], {
+    clickRequests: [{ url: "https://staging-console.flatkey.ai/api/register", method: "DELETE" }],
+  });
+  const failed = await failSession.executeFixedCase({
+    case: fixedCase({
+      steps: [{ begin_network_capture: {} }, { click: { locator: { by: "text", text: "Sign in" } } }],
+      assertions: [{ network_request_not_sent: { method: "DELETE", path: "/api/register", timeout_ms: 50 } }],
+    }),
+    attempt: { id: "attempt-network-not-sent-fail" },
+    evidenceDir: runtime,
+  });
+
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.failure.phase, "assertion");
+  assert.deepEqual(failSleeps, []);
+});
+
+test("fixed case network tracker fails closed and listener cleanup works on success and failure", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-network-cleanup-"));
+  const trackerErrorSession = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+    fixedCaseSleep: async () => {},
+  });
+  trackerErrorSession.page = fakeFixedCasePage([], {
+    clickRequests: [{ url: () => { throw new Error("url getter failed with secret"); }, method: "GET" }],
+  });
+  const trackerFailed = await trackerErrorSession.executeFixedCase({
+    case: fixedCase({
+      steps: [{ begin_network_capture: {} }, { click: { locator: { by: "text", text: "Sign in" } } }],
+      assertions: [{ network_request_not_sent: { method: "GET", path: "/api/missing", timeout_ms: 0 } }],
+    }),
+    attempt: { id: "attempt-network-tracker-error" },
+    evidenceDir: runtime,
+  });
+  assert.equal(trackerFailed.status, "failed");
+  assert.equal(trackerFailed.failure.phase, "assertion");
+  assert.equal(trackerErrorSession.page.listenerCount("request"), 0);
+  assert.ok(!JSON.stringify(trackerFailed).includes("url getter failed with secret"));
+
+  const successSession = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+    fixedCaseSleep: async () => {},
+  });
+  successSession.page = fakeFixedCasePage([]);
+  const success = await successSession.executeFixedCase({
+    case: fixedCase({ steps: [{ begin_network_capture: {} }] }),
+    attempt: { id: "attempt-network-cleanup-success" },
+    evidenceDir: runtime,
+  });
+  assert.equal(success.status, "passed");
+  assert.equal(successSession.page.listenerCount("request"), 0);
+});
+
+test("fixed case network capture is isolated between consecutive cases", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-network-isolation-"));
+  const page = fakeFixedCasePage([], {
+    clickRequests: [{ url: "https://staging-console.flatkey.ai/api/register", method: "POST" }],
+  });
+  const session = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+    fixedCaseSleep: async () => {},
+  });
+  session.page = page;
+
+  const first = await session.executeFixedCase({
+    case: fixedCase({
+      steps: [{ begin_network_capture: {} }, { click: { locator: { by: "text", text: "Sign in" } } }],
+      assertions: [{ network_request_sent: { method: "POST", path: "/api/register", timeout_ms: 0 } }],
+    }),
+    attempt: { id: "attempt-network-isolation-first" },
+    evidenceDir: runtime,
+  });
+  assert.equal(first.status, "passed");
+
+  const second = await session.executeFixedCase({
+    case: fixedCase({
+      steps: [{ begin_network_capture: {} }],
+      assertions: [{ network_request_not_sent: { method: "POST", path: "/api/register", timeout_ms: 0 } }],
+    }),
+    attempt: { id: "attempt-network-isolation-second" },
+    evidenceDir: runtime,
+  });
+  assert.equal(second.status, "passed");
+});
+
+test("fixed case runner rejects invalid network assertion and capture shapes", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-network-invalid-"));
+  const session = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+  });
+  session.page = fakeFixedCasePage([]);
+
+  const invalidCases = [
+    fixedCase({ steps: [{ begin_network_capture: { extra: "bad" } }] }),
+    fixedCase({ steps: [{ begin_network_capture: {} }, { begin_network_capture: {} }] }),
+    fixedCase({ assertions: [{ network_request_sent: { method: "GET", path: "/api/register", timeout_ms: 0 } }] }),
+    fixedCase({
+      steps: [{ begin_network_capture: {} }],
+      assertions: [{ network_request_sent: { method: "OPTIONS", path: "/api/register", timeout_ms: 0 } }],
+    }),
+    fixedCase({
+      steps: [{ begin_network_capture: {} }],
+      assertions: [{ network_request_sent: { method: "GET", path: "https://example.test/api", timeout_ms: 0 } }],
+    }),
+    fixedCase({
+      steps: [{ begin_network_capture: {} }],
+      assertions: [{ network_request_sent: { method: "GET", path: "/api/register?secret=query", timeout_ms: 0 } }],
+    }),
+    fixedCase({
+      steps: [{ begin_network_capture: {} }],
+      assertions: [{ network_request_not_sent: { method: "GET", path: "/api/register#secret", timeout_ms: 0 } }],
+    }),
+    fixedCase({
+      steps: [{ begin_network_capture: {} }],
+      assertions: [{ network_request_not_sent: { method: "GET", path: "/api\\register", timeout_ms: 0 } }],
+    }),
+    fixedCase({
+      steps: [{ begin_network_capture: {} }],
+      assertions: [{ network_request_not_sent: { method: "GET", path: "/api/register", timeout_ms: true } }],
+    }),
+    fixedCase({
+      steps: [{ begin_network_capture: {} }],
+      assertions: [{ network_request_not_sent: { method: "GET", path: "/api/register", timeout_ms: 5001 } }],
+    }),
+  ];
+
+  for (const item of invalidCases) {
+    await assert.rejects(
+      () => session.executeFixedCase({
+        case: item,
+        attempt: { id: `attempt-network-invalid-${invalidCases.indexOf(item)}` },
+        evidenceDir: runtime,
+      }),
+      /invalid fixed case/,
+    );
+  }
+});
+
 test("fixed case runner removes response tracker listeners after success and failure", async () => {
   const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-listeners-"));
   const successPage = fakeFixedCasePage([]);
@@ -380,6 +800,30 @@ test("fixed case runner fails closed on missing back navigation", async () => {
   });
   assert.equal(backResult.status, "failed");
   assert.equal(backResult.failure.phase, "step");
+});
+
+test("fixed case runner rejects array payloads for empty fixed-case steps", async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "fixed-case-empty-step-array-"));
+  const session = new helper.BrowserEvidenceSession({
+    browser: { contexts: () => [] },
+    runtimeDir: runtime,
+    sensitiveValues: [],
+  });
+  session.page = fakeFixedCasePage([]);
+
+  for (const item of [
+    fixedCase({ steps: [{ navigate_back: [] }] }),
+    fixedCase({ steps: [{ begin_network_capture: [] }] }),
+  ]) {
+    await assert.rejects(
+      () => session.executeFixedCase({
+        case: item,
+        attempt: { id: `attempt-empty-step-array-${item.steps[0].navigate_back ? "back" : "capture"}` },
+        evidenceDir: runtime,
+      }),
+      /invalid fixed case/,
+    );
+  }
 });
 
 test("fixed case runner fails closed when start navigation has no page status", async () => {
@@ -1386,6 +1830,8 @@ function fakeFixedCasePage(calls = [], options = {}) {
   let currentUrl = options.url || "https://staging-console.flatkey.ai/start";
   const gotoStatuses = Array.isArray(options.gotoStatuses) ? [...options.gotoStatuses] : null;
   const locatorFailures = options.locatorFailures || {};
+  const locatorStates = options.locatorStates || {};
+  const clickRequestsByClick = Array.isArray(options.clickRequestsByClick) ? [...options.clickRequestsByClick] : null;
   const listeners = new Map();
   const mainFrame = {};
   function emitResponse(status, resourceType, frame = mainFrame) {
@@ -1404,6 +1850,7 @@ function fakeFixedCasePage(calls = [], options = {}) {
         if (locatorFailures[label]) {
           throw locatorFailures[label];
         }
+        emitRequests(clickRequestsByClick ? clickRequestsByClick.shift() : options.clickRequests);
         if (options.clickApiStatus) {
           emitResponse(options.clickApiStatus, "fetch", {});
         }
@@ -1428,6 +1875,41 @@ function fakeFixedCasePage(calls = [], options = {}) {
         if (locatorFailures[label]) {
           throw locatorFailures[label];
         }
+      },
+      async isVisible() {
+        calls.push(["isVisible", label]);
+        if (locatorStates[label]?.visibleError) {
+          throw locatorStates[label].visibleError;
+        }
+        return locatorStates[label]?.visible === true;
+      },
+      async isEnabled() {
+        calls.push(["isEnabled", label]);
+        if (locatorStates[label]?.enabledError) {
+          throw locatorStates[label].enabledError;
+        }
+        return locatorStates[label]?.enabled === true;
+      },
+      async isDisabled() {
+        calls.push(["isDisabled", label]);
+        if (locatorStates[label]?.disabledError) {
+          throw locatorStates[label].disabledError;
+        }
+        return locatorStates[label]?.disabled === true;
+      },
+      async inputValue() {
+        calls.push(["inputValue", label]);
+        if (locatorStates[label]?.valueError) {
+          throw locatorStates[label].valueError;
+        }
+        return locatorStates[label]?.value || "";
+      },
+      async count() {
+        calls.push(["count", label]);
+        if (locatorStates[label]?.countError) {
+          throw locatorStates[label].countError;
+        }
+        return locatorStates[label]?.count || 0;
       },
     };
   }
@@ -1500,7 +1982,21 @@ function fakeFixedCasePage(calls = [], options = {}) {
     listenerCount(name) {
       return listeners.get(name)?.size || 0;
     },
+    emitRequest(url, method = "GET") {
+      emitRequests([{ url, method }]);
+    },
   };
+
+  function emitRequests(requests) {
+    for (const request of requests || []) {
+      for (const handler of listeners.get("request") || []) {
+        handler({
+          url: typeof request.url === "function" ? request.url : () => request.url,
+          method: typeof request.method === "function" ? request.method : () => request.method,
+        });
+      }
+    }
+  }
 }
 
 function fakeStartedBrowser(page) {

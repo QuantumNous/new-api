@@ -600,8 +600,8 @@ def _validate_proposed_case(value, path):
         fixed_cases._enum(value["fixture"], fixed_cases.FIXTURES, f"{path}.fixture")
         fixed_cases._validate_start(value["start"])
         fixed_cases._enum(value["start"]["origin"], PROPOSED_CASE_ORIGINS, f"{path}.start.origin")
-        fixed_cases._validate_steps(value["steps"])
-        fixed_cases._validate_assertions(value["assertions"])
+        capture_count = fixed_cases._validate_steps(value["steps"])
+        fixed_cases._validate_assertions(value["assertions"], capture_count)
         fixed_cases._literal(value["cleanup"], "not_required", f"{path}.cleanup")
     except fixed_cases.FixedCaseValidationError as exc:
         raise ResultValidationError(str(exc)) from exc

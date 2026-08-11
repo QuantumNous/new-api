@@ -44,8 +44,16 @@ EVIDENCE_FIELDS = {"screenshot_on_failure", "capture_console", "capture_network"
 SOURCE_FIELDS = {"run_id", "finding_fingerprint", "evidence_uri"}
 PROMOTION_FIELDS = {"state", "attempts_required", "attempts_passed"}
 START_FIELDS = {"origin", "path"}
-STEP_ACTIONS = {"navigate", "navigate_back", "click", "fill", "select", "wait_for"}
-ASSERTIONS = {"page_status_not", "url_not_contains"}
+STEP_ACTIONS = {"navigate", "navigate_back", "click", "fill", "select", "wait_for", "begin_network_capture"}
+ELEMENT_STATE_ASSERTIONS = {"element_visible", "element_hidden", "element_enabled", "element_disabled"}
+NETWORK_ASSERTIONS = {"network_request_sent", "network_request_not_sent"}
+NETWORK_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+ASSERTIONS = {
+    "page_status_not",
+    "url_not_contains",
+    "element_value_equals",
+    "element_count_equals",
+} | ELEMENT_STATE_ASSERTIONS | NETWORK_ASSERTIONS
 ID_RE = re.compile(r"^FQA-[0-9]{4,}$")
 TEXT_RE = re.compile(r"^[^\x00-\x1f\x7f]{1,256}$")
 CASE_FILENAME_RE = re.compile(r"^FQA-[0-9]{4,}.*\.yaml$")
@@ -95,8 +103,8 @@ def validate_case(case):
     _enum(case["fixture"], FIXTURES, "fixture")
     _enum(case["cleanup"], CLEANUP, "cleanup")
     _validate_start(case["start"])
-    _validate_steps(case["steps"])
-    _validate_assertions(case["assertions"])
+    capture_count = _validate_steps(case["steps"])
+    _validate_assertions(case["assertions"], capture_count)
     _validate_evidence(case["evidence"])
     _validate_source(case["source"])
     _validate_promotion(case["promotion"], case["enabled"])
@@ -112,12 +120,17 @@ def _validate_start(start):
 def _validate_steps(steps):
     if not isinstance(steps, list) or not steps:
         raise FixedCaseValidationError("steps must be a non-empty array")
+    capture_count = 0
     for index, step in enumerate(steps):
         _require_single_key_object(step, STEP_ACTIONS, f"steps[{index}]")
         action, payload = next(iter(step.items()))
-        if action == "navigate_back":
+        if action in {"navigate_back", "begin_network_capture"}:
             if payload != {}:
-                raise FixedCaseValidationError(f"steps[{index}].navigate_back must be empty")
+                raise FixedCaseValidationError(f"steps[{index}].{action} must be empty")
+            if action == "begin_network_capture":
+                capture_count += 1
+                if capture_count > 1:
+                    raise FixedCaseValidationError("begin_network_capture may appear at most once")
             continue
         if not isinstance(payload, dict):
             raise FixedCaseValidationError(f"steps[{index}].{action} must be an object")
@@ -138,6 +151,7 @@ def _validate_steps(steps):
         elif action == "wait_for":
             _require_object(payload, {"locator"}, f"steps[{index}].wait_for")
             _validate_locator(payload["locator"], f"steps[{index}].wait_for.locator")
+    return capture_count
 
 
 def _validate_locator(locator, path):
@@ -161,9 +175,10 @@ def _validate_locator(locator, path):
         raise FixedCaseValidationError(f"{path}.by has invalid value")
 
 
-def _validate_assertions(assertions):
+def _validate_assertions(assertions, capture_count):
     if not isinstance(assertions, list) or not assertions:
         raise FixedCaseValidationError("assertions must be a non-empty array")
+    network_assertion_count = 0
     for index, assertion in enumerate(assertions):
         _require_single_key_object(assertion, ASSERTIONS, f"assertions[{index}]")
         key, value = next(iter(assertion.items()))
@@ -171,6 +186,25 @@ def _validate_assertions(assertions):
             _integer(value, f"assertions[{index}].page_status_not", minimum=100, maximum=599)
         elif key == "url_not_contains":
             _string(value, f"assertions[{index}].url_not_contains")
+        elif key in ELEMENT_STATE_ASSERTIONS:
+            _require_object(value, {"locator"}, f"assertions[{index}].{key}")
+            _validate_locator(value["locator"], f"assertions[{index}].{key}.locator")
+        elif key == "element_value_equals":
+            _require_object(value, {"locator", "value"}, f"assertions[{index}].element_value_equals")
+            _validate_locator(value["locator"], f"assertions[{index}].element_value_equals.locator")
+            _string(value["value"], f"assertions[{index}].element_value_equals.value")
+        elif key == "element_count_equals":
+            _require_object(value, {"locator", "count"}, f"assertions[{index}].element_count_equals")
+            _validate_locator(value["locator"], f"assertions[{index}].element_count_equals.locator")
+            _integer(value["count"], f"assertions[{index}].element_count_equals.count", minimum=0, maximum=1000)
+        elif key in NETWORK_ASSERTIONS:
+            network_assertion_count += 1
+            _require_object(value, {"method", "path", "timeout_ms"}, f"assertions[{index}].{key}")
+            _enum(value["method"], NETWORK_METHODS, f"assertions[{index}].{key}.method")
+            _relative_path(value["path"], f"assertions[{index}].{key}.path")
+            _integer(value["timeout_ms"], f"assertions[{index}].{key}.timeout_ms", minimum=0, maximum=5000)
+    if network_assertion_count and capture_count != 1:
+        raise FixedCaseValidationError("network assertions require exactly one begin_network_capture step")
 
 
 def _validate_evidence(evidence):

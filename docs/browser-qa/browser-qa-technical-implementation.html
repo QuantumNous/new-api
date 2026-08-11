@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Browser QA / Record-Replay 自动测试技术实现</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --ink: #17202a;
+      --muted: #5f6b7a;
+      --line: #d9e1ea;
+      --accent: #116a8c;
+      --accent-2: #2d6a4f;
+      --warn: #9a5b00;
+      --danger: #9b2226;
+      --code-bg: #101820;
+      --code-ink: #e8f0f7;
+      --badge-bg: #e8f5f1;
+      --shadow: 0 8px 30px rgba(23, 32, 42, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", Arial, sans-serif;
+    }
+    a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    header {
+      background: linear-gradient(180deg, #ffffff 0%, #eef5f8 100%);
+      border-bottom: 1px solid var(--line);
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+    .hero { padding: 42px 0 28px; }
+    h1 { margin: 0 0 14px; font-size: clamp(2rem, 4vw, 3.3rem); line-height: 1.12; letter-spacing: 0; }
+    .subtitle { max-width: 860px; margin: 0; color: var(--muted); font-size: 1.05rem; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 0; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      font-size: .86rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge.ok { color: #114d38; background: var(--badge-bg); border-color: #b7dfcf; }
+    .badge.todo { color: #6b4700; background: #fff3d6; border-color: #ecd189; }
+    .badge.risk { color: #751a1d; background: #fde8e8; border-color: #efb6b8; }
+    .badge.info { color: #17456b; background: #e8f2fb; border-color: #b9d5ee; }
+    main { padding: 26px 0 56px; }
+    .grid { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: 28px; align-items: start; }
+    nav.toc {
+      position: sticky;
+      top: 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    nav.toc h2 { margin: 0 0 10px; font-size: 1rem; }
+    nav.toc ol { margin: 0; padding-left: 20px; }
+    nav.toc li { margin: 5px 0; color: var(--muted); }
+    section {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow);
+    }
+    h2 { margin: 0 0 14px; font-size: 1.45rem; line-height: 1.28; letter-spacing: 0; }
+    h3 { margin: 22px 0 10px; font-size: 1.08rem; letter-spacing: 0; }
+    p { margin: 10px 0; }
+    ul, ol { margin: 10px 0 10px 1.4rem; padding: 0; }
+    li { margin: 6px 0; }
+    .note, .warning, .fact {
+      border-left: 4px solid var(--accent);
+      background: #eef7fa;
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin: 14px 0;
+    }
+    .warning { border-left-color: var(--warn); background: #fff7e6; }
+    .fact { border-left-color: var(--accent-2); background: #edf7f1; }
+    table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: .95rem; }
+    th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: #f1f5f9; }
+    code { font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace; font-size: .92em; background: #edf2f7; padding: 1px 5px; border-radius: 4px; }
+    pre {
+      overflow: auto;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 14px 16px;
+      border-radius: 8px;
+      line-height: 1.5;
+      font-size: .88rem;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; border-radius: 0; }
+    .diagram {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 10px;
+      margin: 14px 0;
+    }
+    .diagram svg { min-width: 760px; max-width: 100%; height: auto; display: block; }
+    .flow-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0;
+      padding: 0;
+      list-style: none;
+    }
+    .flow-legend li {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin: 0;
+      padding: 4px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--muted);
+      font-size: .85rem;
+      font-weight: 700;
+    }
+    .flow-legend .swatch {
+      width: 22px;
+      height: 3px;
+      border-radius: 999px;
+      background: #47606f;
+    }
+    .flow-legend .model { background: #8a4fbc; }
+    .flow-legend .browser { background: #116a8c; }
+    .flow-legend .evidence { background: #2d6a4f; }
+    .flow-legend .cleanup { background: #9b2226; }
+    .flow-steps {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+      margin-top: 12px;
+    }
+    .flow-steps li { margin: 3px 0; }
+    .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .mini {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfdff;
+    }
+    .mini h3 { margin-top: 0; }
+    .hero-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .hero-summary .mini { background: rgba(255, 255, 255, .78); }
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 16px 0;
+    }
+    .stage {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 10px 12px;
+      min-height: 100px;
+    }
+    .stage strong { display: block; margin-bottom: 5px; }
+    .stage span { color: var(--muted); font-size: .92rem; }
+    footer { color: var(--muted); padding: 16px 0 42px; }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      nav.toc { position: static; }
+      .cols { grid-template-columns: 1fr; }
+      .flow-steps { grid-template-columns: 1fr; }
+      .hero-summary { grid-template-columns: 1fr; }
+      .pipeline { grid-template-columns: 1fr; }
+      .wrap { padding: 0 16px; }
+      section { padding: 18px; }
+      table {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      th, td { white-space: normal; }
+    }
+    @media print {
+      body { background: #fff; color: #000; font-size: 12pt; }
+      header { background: #fff; border-bottom: 1px solid #999; }
+      .grid { display: block; }
+      nav.toc, section { box-shadow: none; break-inside: avoid; }
+      nav.toc { position: static; margin-bottom: 14px; }
+      a { color: #000; text-decoration: none; }
+      pre { white-space: pre-wrap; background: #f5f5f5; color: #000; border: 1px solid #bbb; }
+      .badge { border-color: #777; color: #000; background: #fff; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap hero">
+      <h1>Browser QA / Record-Replay 自动测试技术实现</h1>
+      <p class="subtitle">本文用于 10 分钟老板演示和工程落地：这套系统把新用户 onboarding 录制成稳定主路径，在 staging 自动回放核心流程，再让 AI 只读发散发现可固化的回归候选，最后用三次独立验证、脱敏证据和人工 Draft PR 把好 case 纳入以后每次 core。</p>
+      <div class="badges">
+        <span class="badge ok">代码已实现：workflow / runtime / Terraform root / candidate promotion</span>
+        <span class="badge info">目标环境：Flatkey staging</span>
+        <span class="badge ok">最新证据：本地 536 tests / 5 skipped；真实 staging run 31134160354 已通过</span>
+        <span class="badge risk">禁止：真实 Secret / token / OAuth JSON</span>
+      </div>
+      <div class="hero-summary" aria-label="老板演示摘要">
+        <div class="mini">
+          <h3>解决什么</h3>
+          <p>把“人工点一遍注册、邮箱验证、领额度、建 Key、进 docs”的验收变成可重复、可追溯、会清理的 staging 自动化。</p>
+        </div>
+        <div class="mini">
+          <h3>实现到哪</h3>
+          <p>代码层已包含 <code>core</code>、<code>normal</code>、<code>cleanup-only</code>、<code>promotion-only</code>、候选三次验证、脱敏 artifact、candidate-pr Draft PR 和中文钉钉终态摘要。</p>
+        </div>
+        <div class="mini">
+          <h3>本次尚未覆盖</h3>
+          <p>真实 staging 已跑通 replay、AI exploration、cleanup、manifest、中文钉钉通知和候选校验；本次没有合格 <code>proposed_case</code>，因此三次 candidate execution 与 Draft PR 按设计未触发，不能把“安全跳过”写成“Draft PR 已验收”。</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap grid">
+    <nav class="toc" aria-label="目录">
+      <h2>目录</h2>
+      <ol>
+        <li><a href="#scope">目标与范围</a></li>
+        <li><a href="#status">状态边界</a></li>
+        <li><a href="#architecture">总体架构</a></li>
+        <li><a href="#record-replay">Record/Replay Skill</a></li>
+        <li><a href="#promotion">候选固化与 3/3 状态机</a></li>
+        <li><a href="#trigger-chain">Staging Push 触发链</a></li>
+        <li><a href="#actions-wif">GitHub Actions / WIF</a></li>
+        <li><a href="#cloud-run">Cloud Run 三个运行面</a></li>
+        <li><a href="#terraform">Terraform 与两阶段合约</a></li>
+        <li><a href="#secrets">Secret 与身份</a></li>
+        <li><a href="#evidence">GCS Evidence / Report</a></li>
+        <li><a href="#security">安全与 Egress</a></li>
+        <li><a href="#guard">Plan Guard / Hash / INVALID 恢复</a></li>
+        <li><a href="#observability">可观测性与告警</a></li>
+        <li><a href="#operations">本地与 Staging 操作</a></li>
+        <li><a href="#zero-deploy">从 0 部署 Runbook</a></li>
+        <li><a href="#file-map">文件地图与验证命令</a></li>
+        <li><a href="#troubleshooting">故障处理</a></li>
+        <li><a href="#limits">已知限制</a></li>
+      </ol>
+    </nav>
+
+    <article>
+      <section id="scope">
+        <h2>1. 目标与范围</h2>
+        <p>Browser QA 的目标是在 staging 环境中自动复现新用户 onboarding 主路径，并在主路径成功后执行有边界的 UI / console / network 探索。它不改变生产发布链路，不访问 production Flatkey origin，不做付费、订阅、邀请、真实模型调用或管理员操作。</p>
+        <table>
+          <thead><tr><th scope="col">范围内</th><th scope="col">范围外</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>staging website、staging console、只读 docs 入口、邮箱验证码、API Key 页面、报告和 cleanup。</td>
+              <td>生产站点、生产发布 gate、数据库级 hard purge、真实付费或会产生不可逆费用的行为。</td>
+            </tr>
+            <tr>
+              <td>GitHub Actions 构建固定 QA 镜像，更新 QA broker/main/cleanup Cloud Run 资源并等待执行完成。</td>
+              <td>把个人 OAuth 文件、OpenAI API key、refresh token、验证码或完整 Flatkey API key 写入仓库、日志、Terraform state 或报告。</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>主要落点：<code>.github/workflows/gcp-browser-qa.yml</code>、<code>.github/workflows/gcp-deploy-staging.yml</code>、<code>scripts/browser_qa/</code>、<code>deploy/gcp/envs/browser-qa-staging/</code>、<code>deploy/gcp/docs/OPERATIONS.md</code>。</p>
+      </section>
+
+      <section id="status">
+        <h2>2. 状态边界：代码事实 vs 实时部署</h2>
+        <div class="fact">
+          <strong>代码已实现：</strong>仓库中已有 reusable Browser QA workflow、staging deploy 后自动调用 <code>browser-qa-normal</code> / <code>mode: normal</code> / <code>fail_on_findings: false</code>、QA 容器入口、supervisor、broker、cleanup、evidence upload、独立 Terraform root、phase-aware plan guard、candidate job、promotion 聚合、candidate-pr Draft PR job、钉钉中文摘要和相关 contract tests。
+        </div>
+        <div class="fact">
+          <strong>实时 staging 已验证：</strong>2026-08-07 的 staging push run <code>31134160354</code> 在提交 <code>7e83b8d0</code> 上完成 build、deploy、<code>normal</code> replay、固定用例 checkpoint、14 次受控 AI exploration、独立 cleanup、GCS manifest、候选校验和中文钉钉通知；顶层 workflow 为 success。最终业务状态是 <code>findings_detected</code>，因 <code>fail_on_findings: false</code> 只告警、不回滚 staging。
+        </div>
+        <p>Operations runbook 记录了一个 incident-specific 的 Phase A recovery 路径：已知场景是 Phase A 前 23 个非 bucket-IAM 资源进入独立 state，剩余 3 个 report bucket IAM member 需要通过 <code>--phase infra-recovery</code> 的新 saved plan 恢复。该记录是 runbook/设计状态，不等同于本文实时确认云端已经处在该状态。</p>
+        <table>
+          <thead><tr><th scope="col">证据类别</th><th scope="col">可以怎么讲</th><th scope="col">不能怎么讲</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>历史已验证功能</td>
+              <td>旧报告和 runbook 中已有的真实 run 证据可以作为历史能力说明，例如 core replay、cleanup、GCS 报告或钉钉通知曾在对应时间点验证过。</td>
+              <td>不能把历史 run 自动外推为“最新候选三次验证和 Draft PR 已上线跑通”。</td>
+            </tr>
+            <tr>
+              <td>最新本地实现</td>
+              <td>可以说候选固化代码、workflow 契约和本地测试已完成；最新本地证据是 <strong>536 tests / 5 skipped</strong>。</td>
+              <td>不能说真实 staging 的三次独立 Cloud Run candidate execution 已完成。</td>
+            </tr>
+            <tr>
+              <td>真实 staging 验收</td>
+              <td>run <code>31134160354</code> 已验证发布后自动 <code>normal</code>、replay、exploration、cleanup、manifest、钉钉和 alert-only 门禁。由于没有合格 <code>proposed_case</code>，candidate 三次 execution 与 Draft PR 安全跳过。</td>
+              <td>不能把“候选为 0 的安全跳过”说成“三次 candidate execution 和 Draft PR 已真实触发”。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="assertion-dsl-local">
+        <h2>2.1 Browser QA UI / Network Assertion DSL：本地实现，待 staging 验证</h2>
+        <div class="fact">
+          <strong>最新口径：</strong>以下能力已经在本地代码与 contract tests 中实现；还不能把它写成真实 staging 已完成 candidate 三次 execution、Draft PR 或线上验收。既有 run <code>31134160354</code> 仍只作为历史 staging 主链路证据保留。
+        </div>
+        <table>
+          <thead><tr><th scope="col">新增能力</th><th scope="col">语义边界</th></tr></thead>
+          <tbody>
+            <tr><td><code>begin_network_capture</code></td><td>步骤能力，必须是空对象；同一 <code>proposed_case</code> 中网络断言要求恰好一次 capture，且只观察 capture 之后的请求。</td></tr>
+            <tr><td><code>element_visible</code></td><td>UI 断言，只保留语义 locator。</td></tr>
+            <tr><td><code>element_hidden</code></td><td>UI 断言，只保留语义 locator。</td></tr>
+            <tr><td><code>element_enabled</code></td><td>UI 断言，只保留语义 locator。</td></tr>
+            <tr><td><code>element_disabled</code></td><td>UI 断言，只保留语义 locator；适合验证空名称、未同意条款等场景下提交按钮不可用。</td></tr>
+            <tr><td><code>element_value_equals</code></td><td>UI 断言，保留 locator 和期望 value。</td></tr>
+            <tr><td><code>element_count_equals</code></td><td>UI 断言，保留 locator 和 0..1000 的 count。</td></tr>
+            <tr><td><code>network_request_sent</code></td><td>网络断言，只匹配同源请求的 method、origin 和 pathname，以及 0..5000ms timeout。</td></tr>
+            <tr><td><code>network_request_not_sent</code></td><td>网络断言，只匹配同源请求的 method、origin 和 pathname，以及 0..5000ms timeout。</td></tr>
+          </tbody>
+        </table>
+        <p>显式网络监听边界：网络断言只表达 <code>GET</code>、<code>POST</code>、<code>PUT</code>、<code>PATCH</code>、<code>DELETE</code> 的 same-origin request 是否在 capture 后出现；fingerprint 和 candidate bundle 只保留 method / origin / pathname / timeout。query、fragment、header、body、cookie、Authorization、auth credential 和任意 payload 都不保留，也不能为了满足网络断言去制造服务端写入。</p>
+        <pre><code># 安全示例 1：空名称只断言提交按钮 disabled，不点击提交
+steps:
+  - navigate: {path: /api-keys/new}
+assertions:
+  - element_disabled:
+      locator: {by: test_id, test_id: submit}
+
+# 安全示例 2：打开弹窗前开始 capture，点击后证明没有提前创建
+steps:
+  - navigate: {path: /api-keys}
+  - begin_network_capture: {}
+  - click:
+      locator: {by: role, role: button, name: New key}
+assertions:
+  - element_visible:
+      locator: {by: role, role: dialog, name: Create key}
+  - network_request_not_sent:
+      method: POST
+      path: /api/keys
+      timeout_ms: 0</code></pre>
+        <p>Candidate 三次验证、sanitized artifact、candidate-pr Draft PR 和人工 review / merge 流程不变：候选仍必须通过 3/3 独立 attempt，PR 仍只走 Draft，不自动 approve、不自动 merge；本段新增的 UI/network DSL 只是让可固化 case 的断言表达更精确。</p>
+      </section>
+
+      <section id="architecture">
+        <h2>3. 总体架构</h2>
+        <p>GitHub Actions 是编排面；Cloud Run service/job 是执行面；supervisor 拥有浏览器、Codex 进程、MCP 配置、egress proxy、证据采集、脱敏、上传和进程内 cleanup；独立 cleanup job 作为第二层回收保障。</p>
+        <div class="diagram" role="img" aria-label="Browser QA 总体架构图">
+          <svg viewBox="0 0 980 480" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,6 L9,3 z" fill="#47606f"/>
+              </marker>
+              <style>
+                .box{fill:#fff;stroke:#93a4b3;stroke-width:1.4;rx:8}
+                .cloud{fill:#eef7f1;stroke:#7ab893;stroke-width:1.4;rx:8}
+                .guard{fill:#fff4dd;stroke:#d89b2b;stroke-width:1.4;rx:8}
+                .text{font:14px sans-serif;fill:#17202a}
+                .small{font:12px sans-serif;fill:#536271}
+                .line{stroke:#47606f;stroke-width:1.6;fill:none;marker-end:url(#arrow)}
+              </style>
+            </defs>
+            <rect class="box" x="30" y="40" width="190" height="74"/>
+            <text class="text" x="52" y="72">staging push / dispatch</text>
+            <text class="small" x="52" y="94">GitHub Actions</text>
+            <rect class="cloud" x="280" y="34" width="210" height="86"/>
+            <text class="text" x="304" y="66">WIF + deployer SA</text>
+            <text class="small" x="304" y="90">build, smoke, push image</text>
+            <rect class="cloud" x="560" y="34" width="360" height="86"/>
+            <text class="text" x="584" y="66">Artifact Registry + Cloud Run update</text>
+            <text class="small" x="584" y="90">broker service, main job, cleanup job</text>
+
+            <rect class="cloud" x="70" y="190" width="250" height="110"/>
+            <text class="text" x="96" y="222">Main Cloud Run Job</text>
+            <text class="small" x="96" y="246">supervisor + Codex exec</text>
+            <text class="small" x="96" y="268">Chromium + Playwright MCP</text>
+            <rect class="guard" x="370" y="180" width="240" height="130"/>
+            <text class="text" x="392" y="213">Private Broker Service</text>
+            <text class="small" x="392" y="237">Gmail readonly OAuth</text>
+            <text class="small" x="392" y="259">only current alias code</text>
+            <rect class="cloud" x="660" y="190" width="250" height="110"/>
+            <text class="text" x="690" y="222">Cleanup Cloud Run Job</text>
+            <text class="small" x="690" y="246">rederive identity</text>
+            <text class="small" x="690" y="268">delete tokens + account</text>
+
+            <rect class="box" x="70" y="365" width="250" height="72"/>
+            <text class="text" x="96" y="395">Secret Manager</text>
+            <text class="small" x="96" y="417">API key, identity seed, OAuth</text>
+            <rect class="box" x="370" y="365" width="240" height="72"/>
+            <text class="text" x="394" y="395">GCS Report Bucket</text>
+            <text class="small" x="394" y="417">manifest, result, screenshots, logs</text>
+            <rect class="box" x="660" y="365" width="250" height="72"/>
+            <text class="text" x="690" y="395">GitHub Summary</text>
+            <text class="small" x="690" y="417">status and private GCS URI</text>
+
+            <path class="line" d="M220 77 H280"/>
+            <path class="line" d="M490 77 H560"/>
+            <path class="line" d="M740 120 V190"/>
+            <path class="line" d="M195 190 V115"/>
+            <path class="line" d="M320 245 H370"/>
+            <path class="line" d="M610 245 H660"/>
+            <path class="line" d="M195 300 V365"/>
+            <path class="line" d="M490 310 V365"/>
+            <path class="line" d="M785 300 V365"/>
+          </svg>
+        </div>
+        <h3>给新同学看的端到端顺序图</h3>
+        <p>下面这张图按真实执行顺序读：上面是发布和调度，左侧是主测试任务，中间是模型和浏览器，右侧是验证码、报告和清理。最新代码边界是 <strong>staging only</strong>；staging deploy 当前自动调用 <code>normal</code>，且 <code>normal</code> 一定先跑完整 <code>core_body</code>，再进入只读发散，所以 <strong>core ⊂ normal</strong>。<code>core</code> 仍可人工 dispatch，用于只验证固定主路径。</p>
+        <ul class="flow-legend" aria-label="箭头类型说明">
+          <li><span class="swatch"></span>控制流</li>
+          <li><span class="swatch model"></span>模型 API 流</li>
+          <li><span class="swatch browser"></span>浏览器动作</li>
+          <li><span class="swatch evidence"></span>证据/报告</li>
+          <li><span class="swatch cleanup"></span>always cleanup</li>
+        </ul>
+        <div class="diagram" role="img" aria-label="Browser QA 新手顺序图：staging push 触发 backend build 和 deploy，通过 /api/status health check 后调用 browser-qa-normal reusable workflow，传入 mode normal 和 fail_on_findings false，先运行 unit/contract tests，再构建 QA 镜像，执行 container smoke 和 MCP attach smoke，通过后 push/update，随后运行 Cloud Run main；Codex 通过 Flatkey 调用四个严格 allowlisted MCP，访问 staging 网站、Gmail broker 和 evidence 工具，到 replay checkpoint 后写 GCS manifest，运行 cleanup，最后写 alert-only summary">
+          <svg viewBox="0 0 1120 760" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="seqArrowControl" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,6 L9,3 z" fill="#47606f"/>
+              </marker>
+              <marker id="seqArrowModel" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,6 L9,3 z" fill="#8a4fbc"/>
+              </marker>
+              <marker id="seqArrowBrowser" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,6 L9,3 z" fill="#116a8c"/>
+              </marker>
+              <marker id="seqArrowEvidence" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,6 L9,3 z" fill="#2d6a4f"/>
+              </marker>
+              <marker id="seqArrowCleanup" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,6 L9,3 z" fill="#9b2226"/>
+              </marker>
+              <style>
+                .seqBox{fill:#fff;stroke:#93a4b3;stroke-width:1.3;rx:8}
+                .seqMain{fill:#eef7f1;stroke:#7ab893;stroke-width:1.3;rx:8}
+                .seqModel{fill:#f4edfb;stroke:#8a4fbc;stroke-width:1.3;rx:8}
+                .seqBrowser{fill:#eef7fa;stroke:#116a8c;stroke-width:1.3;rx:8}
+                .seqSecret{fill:#fff4dd;stroke:#d89b2b;stroke-width:1.3;rx:8}
+                .seqReport{fill:#edf7f1;stroke:#2d6a4f;stroke-width:1.3;rx:8}
+                .seqCleanup{fill:#fde8e8;stroke:#9b2226;stroke-width:1.3;rx:8}
+                .seqTitle{font:700 15px sans-serif;fill:#17202a}
+                .seqText{font:12px sans-serif;fill:#536271}
+                .seqNum{font:700 13px sans-serif;fill:#fff}
+                .seqLine{stroke:#47606f;stroke-width:1.8;fill:none;marker-end:url(#seqArrowControl)}
+                .seqModelLine{stroke:#8a4fbc;stroke-width:1.8;fill:none;marker-end:url(#seqArrowModel)}
+                .seqBrowserLine{stroke:#116a8c;stroke-width:1.8;fill:none;marker-end:url(#seqArrowBrowser)}
+                .seqEvidenceLine{stroke:#2d6a4f;stroke-width:1.8;fill:none;marker-end:url(#seqArrowEvidence)}
+                .seqCleanupLine{stroke:#9b2226;stroke-width:1.8;fill:none;stroke-dasharray:7 5;marker-end:url(#seqArrowCleanup)}
+                .seqLane{stroke:#d9e1ea;stroke-width:1;stroke-dasharray:4 6}
+              </style>
+            </defs>
+
+            <rect class="seqBox" x="18" y="24" width="170" height="70"/>
+            <text class="seqTitle" x="42" y="54">1 staging push</text>
+            <text class="seqText" x="42" y="76">只触发 staging 链路</text>
+
+            <rect class="seqBox" x="214" y="24" width="190" height="70"/>
+            <text class="seqTitle" x="238" y="54">2 backend build/deploy</text>
+            <text class="seqText" x="238" y="76">部署 newapi-staging</text>
+
+            <rect class="seqBox" x="430" y="24" width="190" height="70"/>
+            <text class="seqTitle" x="454" y="54">3 /api/status check</text>
+            <text class="seqText" x="454" y="76">200 后才继续</text>
+
+            <rect class="seqMain" x="646" y="24" width="220" height="70"/>
+            <text class="seqTitle" x="670" y="54">4 browser-qa-normal</text>
+            <text class="seqText" x="670" y="76">mode normal, alert-only</text>
+
+            <rect class="seqMain" x="890" y="24" width="210" height="70"/>
+            <text class="seqTitle" x="914" y="54">5 tests/build/smoke</text>
+            <text class="seqText" x="914" y="76">pass 后 push/update</text>
+
+            <rect class="seqMain" x="18" y="164" width="190" height="86"/>
+            <text class="seqTitle" x="42" y="194">6 Cloud Run main</text>
+            <text class="seqText" x="42" y="216">启动 supervisor</text>
+            <text class="seqText" x="42" y="234">拥有浏览器和进程</text>
+
+            <rect class="seqModel" x="246" y="164" width="210" height="86"/>
+            <text class="seqTitle" x="270" y="194">7 Codex via Flatkey</text>
+            <text class="seqText" x="270" y="216">https://router.flatkey.ai/v1</text>
+            <text class="seqText" x="270" y="234">token 只从 env 注入</text>
+
+            <rect class="seqBrowser" x="494" y="164" width="248" height="86"/>
+            <text class="seqTitle" x="518" y="194">8 四个 allowlisted MCP</text>
+            <text class="seqText" x="518" y="216">playwright / evidence</text>
+            <text class="seqText" x="518" y="234">broker / control</text>
+
+            <rect class="seqBrowser" x="780" y="164" width="150" height="86"/>
+            <text class="seqTitle" x="804" y="194">9 staging 站点</text>
+            <text class="seqText" x="804" y="216">website / console</text>
+            <text class="seqText" x="804" y="234">docs 只读</text>
+
+            <rect class="seqSecret" x="960" y="164" width="140" height="86"/>
+            <text class="seqTitle" x="984" y="194">10 Gmail broker</text>
+            <text class="seqText" x="984" y="216">只返回本次</text>
+            <text class="seqText" x="984" y="234">验证码状态</text>
+
+            <rect class="seqReport" x="150" y="360" width="180" height="86"/>
+            <text class="seqTitle" x="174" y="390">11 Evidence</text>
+            <text class="seqText" x="174" y="412">截图 / console</text>
+            <text class="seqText" x="174" y="430">network 脱敏</text>
+
+            <rect class="seqBrowser" x="378" y="360" width="210" height="86"/>
+            <text class="seqTitle" x="402" y="390">12 replay checkpoint</text>
+            <text class="seqText" x="402" y="412">core 到这里停止</text>
+            <text class="seqText" x="402" y="430">不进入 exploration</text>
+
+            <rect class="seqReport" x="636" y="360" width="190" height="86"/>
+            <text class="seqTitle" x="660" y="390">13 GCS manifest</text>
+            <text class="seqText" x="660" y="412">manifest 最后上传</text>
+            <text class="seqText" x="660" y="430">私有报告 URI</text>
+
+            <rect class="seqCleanup" x="874" y="360" width="200" height="86"/>
+            <text class="seqTitle" x="898" y="390">14 cleanup job</text>
+            <text class="seqText" x="898" y="412">always 运行</text>
+            <text class="seqText" x="898" y="430">可 cleanup-only 重跑</text>
+
+            <rect class="seqCleanup" x="438" y="580" width="250" height="76"/>
+            <text class="seqTitle" x="462" y="610">15 alert-only summary</text>
+            <text class="seqText" x="462" y="632">Actions 红/绿 + Job Summary</text>
+
+            <path class="seqLine" d="M188 60 H214"/>
+            <path class="seqLine" d="M404 60 H430"/>
+            <path class="seqLine" d="M620 60 H646"/>
+            <path class="seqLine" d="M866 60 H890"/>
+            <path class="seqLine" d="M995 94 C995 128 120 128 112 164"/>
+            <path class="seqModelLine" d="M208 205 H246"/>
+            <path class="seqBrowserLine" d="M456 205 H494"/>
+            <path class="seqBrowserLine" d="M742 205 H780"/>
+            <path class="seqBrowserLine" d="M930 205 H960"/>
+            <path class="seqEvidenceLine" d="M855 250 C760 322 360 318 240 360"/>
+            <path class="seqLine" d="M330 404 H378"/>
+            <path class="seqEvidenceLine" d="M588 404 H636"/>
+            <path class="seqCleanupLine" d="M826 404 H874"/>
+            <path class="seqCleanupLine" d="M974 446 C960 540 740 618 688 618"/>
+
+            <circle cx="42" cy="60" r="14" fill="#47606f"/><text class="seqNum" x="38" y="65">1</text>
+            <circle cx="238" cy="60" r="14" fill="#47606f"/><text class="seqNum" x="234" y="65">2</text>
+            <circle cx="454" cy="60" r="14" fill="#47606f"/><text class="seqNum" x="450" y="65">3</text>
+            <circle cx="670" cy="60" r="14" fill="#47606f"/><text class="seqNum" x="666" y="65">4</text>
+            <circle cx="914" cy="60" r="14" fill="#47606f"/><text class="seqNum" x="910" y="65">5</text>
+            <circle cx="42" cy="196" r="14" fill="#47606f"/><text class="seqNum" x="38" y="201">6</text>
+            <circle cx="270" cy="196" r="14" fill="#8a4fbc"/><text class="seqNum" x="266" y="201">7</text>
+            <circle cx="518" cy="196" r="14" fill="#116a8c"/><text class="seqNum" x="514" y="201">8</text>
+            <circle cx="804" cy="196" r="14" fill="#116a8c"/><text class="seqNum" x="800" y="201">9</text>
+            <circle cx="984" cy="196" r="14" fill="#d89b2b"/><text class="seqNum" x="976" y="201">10</text>
+            <circle cx="174" cy="392" r="14" fill="#2d6a4f"/><text class="seqNum" x="166" y="397">11</text>
+            <circle cx="402" cy="392" r="14" fill="#116a8c"/><text class="seqNum" x="394" y="397">12</text>
+            <circle cx="660" cy="392" r="14" fill="#2d6a4f"/><text class="seqNum" x="652" y="397">13</text>
+            <circle cx="898" cy="392" r="14" fill="#9b2226"/><text class="seqNum" x="890" y="397">14</text>
+            <circle cx="462" cy="612" r="14" fill="#9b2226"/><text class="seqNum" x="454" y="617">15</text>
+
+            <text class="seqText" x="58" y="704">新手读法：灰色线是发布和调度，紫色线是 Codex/Flatkey 模型流，蓝色线是 allowlisted MCP 驱动的浏览器/控制动作。</text>
+            <text class="seqText" x="58" y="724">绿色线是证据和 GCS manifest，红色虚线是 cleanup 与只告警摘要。</text>
+          </svg>
+        </div>
+        <ol class="flow-steps">
+          <li><code>staging</code> 分支 push 后先走 backend build/deploy，只部署 staging。</li>
+          <li>部署完成后必须通过 <code>/api/status</code> health check，随后 <code>browser-qa-normal</code> job 调用 reusable Browser QA workflow，传入 <code>mode: normal</code> 和 <code>fail_on_findings: false</code>。</li>
+          <li>Browser QA workflow 先运行 unit/contract tests，再构建 QA 镜像，再运行 container smoke 和 MCP attach smoke；通过后推送到 Artifact Registry 并更新 QA Cloud Run 资源。</li>
+          <li>Cloud Run main job 启动 supervisor；Codex CLI 通过 Flatkey base URL <code>https://router.flatkey.ai/v1</code> 获取模型响应，Flatkey token 只从 Secret Manager 注入为环境变量。</li>
+          <li>Codex 只能使用四个专用 MCP server：<code>playwright</code>、<code>evidence</code>、<code>broker</code>、<code>control</code>；每个 server 都有精确 <code>enabled_tools</code> 白名单。</li>
+          <li>Playwright MCP 只 attach supervisor-owned Chromium；浏览器只访问 staging website、staging console 和只读 docs。</li>
+          <li>需要邮箱验证码时，私有 Gmail broker 只返回当前 run 的最小结果；截图和 browser 日志通过 evidence 工具脱敏落盘。</li>
+          <li><code>core</code> 模式到 <code>qa_replay_checkpoint</code> 后停止，<code>normal</code> 模式在 checkpoint 后才允许 <code>qa_start_exploration</code>。</li>
+          <li>GCS root <code>manifest.json</code> 最后上传，GitHub Summary 只显示状态和私有 GCS URI。</li>
+          <li>独立 cleanup job 使用 always 语义运行；main 失败、取消或超时后仍尝试删除测试工件，并可用原始 run id 执行 <code>cleanup-only</code>。</li>
+          <li>钉钉在 final gate 前发送唯一一条中文终态摘要；成功、失败、候选异常、cleanup_failed 都通知。</li>
+        </ol>
+        <div class="pipeline" aria-label="候选固化流水线">
+          <div class="stage"><strong>1. 合并部署</strong><span>staging 合并部署成功，健康检查通过后自动跑 <code>normal</code> 且 <code>fail_on_findings</code> 为 false；人工 dispatch 仍可跑 <code>core</code>。</span></div>
+          <div class="stage"><strong>2. 完整 core_body</strong><span><code>normal</code> 先做完整 replay 和 enabled fixed cases，到 checkpoint 后才进入 AI 发散。</span></div>
+          <div class="stage"><strong>3. AI 只读发散</strong><span>qa-prompt 限定 5 分钟 / 30 actions；模型只能提出 closed <code>proposed_case</code> 或 <code>null</code>。</span></div>
+          <div class="stage"><strong>4. root manifest</strong><span>supervisor 把 finding、coverage candidate、证据路径和 cleanup 状态写入私有 GCS manifest。</span></div>
+          <div class="stage"><strong>5. 三次候选执行</strong><span>每个候选启动 3 个相互独立的 Cloud Run execution，每次都有不同 attempt、execution 和 evidence。</span></div>
+          <div class="stage"><strong>6. 聚合 + cleanup</strong><span>聚合 3/3；cleanup failed 立即 blocked，infra failed 不计入三次业务结论。</span></div>
+          <div class="stage"><strong>7. sanitized artifact</strong><span>只上传候选 PR bundle，不带 token、验证码、邮箱、cookie、Authorization 或 secret。</span></div>
+          <div class="stage"><strong>8. Draft PR</strong><span>独立最小权限 <code>candidate-pr</code> job 按 fingerprint 创建或更新 Draft PR，不自动 approve 或 merge。</span></div>
+          <div class="stage"><strong>9. 人工合并</strong><span>人审后合并到 staging；只有合并后的 <code>enabled: true</code> fixed case 才进入以后每次 <code>core</code>。</span></div>
+          <div class="stage"><strong>10. 中文通知</strong><span>终态钉钉同时展示产品状态和候选状态，候选失败不能被产品 <code>passed</code> 掩盖。</span></div>
+        </div>
+      </section>
+
+      <section id="record-replay">
+        <h2>4. Record/Replay Skill 与 AI 发散边界</h2>
+        <p>当前实现加载固定 Skill：<code>.agents/skills/flatkey-new-user-onboarding</code>。录制不是坐标脚本，而是稳定主路径：注册、邮箱验证、onboarding、初始额度、API Key、docs 入口和 cleanup-ready checkpoint。运行时 prompt 要求先执行严格 replay，只有 replay 到达 checkpoint 后才允许调用 <code>qa_replay_checkpoint</code>。<code>core</code> 模式在 checkpoint 后必须停止，不能调用 <code>qa_start_exploration</code>；<code>normal</code> 模式才允许进入探索。</p>
+        <pre><code>Core mode: after the replay checkpoint, stop.
+Final result: "exploration": {"status": "not_started", "actions_used": 0}
+
+Normal mode:
+1. replay onboarding
+2. call qa_replay_checkpoint
+3. call qa_start_exploration
+4. explore up to 300 seconds or 30 browser actions</code></pre>
+        <table>
+          <thead><tr><th scope="col">阶段</th><th scope="col">边界</th><th scope="col">实现位置</th></tr></thead>
+          <tbody>
+            <tr><td>Replay</td><td>语义回放 onboarding，允许小幅定位恢复；不创建第二个账号，不绕过 CAPTCHA。</td><td><code>scripts/browser_qa/config/qa-prompt.md</code>、<code>supervisor.py</code></td></tr>
+            <tr><td>Fixed cases</td><td><code>qa_replay_checkpoint</code> 同步触发已启用结构化 fixed cases；它们属于 <code>core_body</code>，所以 <code>normal</code> 也必须执行。</td><td><code>browser_evidence_helper.cjs</code>、<code>fixed_cases.py</code></td></tr>
+            <tr><td>Core</td><td>到 checkpoint 和 fixed cases 后停止；禁止后续探索 action。</td><td><code>control_mcp.py</code>、<code>mcp_budget_wrapper.py</code></td></tr>
+            <tr><td>Normal exploration</td><td>最多 5 分钟或 30 个 browser tool action；只读观察 UI、console、network、恢复路径问题。</td><td><code>budget.py</code>、<code>mcp_budget_wrapper.py</code></td></tr>
+            <tr><td>Candidate proposal</td><td>每个 finding / coverage candidate 的 <code>proposed_case</code> 只能是 nullable closed object：不可输出 JS、shell、CSS/XPath selector、任意 URL、凭据或 cleanup-requiring proposal。</td><td><code>result.schema.json</code>、<code>report.py</code>、<code>promotion.py</code></td></tr>
+          </tbody>
+        </table>
+        <p>结果必须符合 <code>scripts/browser_qa/config/result.schema.json</code>：包含 <code>replay</code>、<code>exploration</code>、<code>budgets</code>、<code>findings</code> 和 <code>coverage_candidates</code>。模型只负责给出候选叙述和受限 <code>proposed_case</code>；Python schema、redactor、fingerprint、origin allowlist、candidate orchestrator 和 fixed-case runner 才是权威校验。非 <code>info</code> finding 会让产品 manifest 进入 <code>findings_detected</code>，但候选验证状态会单独汇总，不能被产品 <code>passed</code> 覆盖。</p>
+      </section>
+
+      <section id="promotion">
+        <h2>5. Finding / Coverage 候选固化与 3/3 状态机</h2>
+        <p><code>findings[]</code> 和 <code>coverage_candidates[]</code> 不是一类东西。Finding 表示 AI 观察到“可能坏了”的行为；Coverage Candidate 表示 AI 观察到“现在是好的，值得长期保护”的行为。二者都必须有证据和 high confidence，且能转成 closed fixed-case DSL，才进入候选固化。</p>
+        <table>
+          <thead><tr><th scope="col">类型</th><th scope="col">进入条件</th><th scope="col">3/3 语义</th><th scope="col">最终状态</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Finding</td>
+              <td>非 <code>info</code>、证据充分、同一 staging 行为可由 DSL 重放。</td>
+              <td>三次一致失败表示稳定复现 bug，进入 <code>awaiting_product_fix</code>；产品修复后再三次 pass，才进入 <code>ready_for_review</code>。</td>
+              <td>先等待产品修复，再待人审合并。</td>
+            </tr>
+            <tr>
+              <td>Coverage Candidate</td>
+              <td>当前表现正确、用户可见或发布关键、只读或 <code>cleanup: not_required</code>、能稳定断言。</td>
+              <td>三次 pass 直接表示回归候选稳定，进入 <code>ready_for_review</code>。</td>
+              <td>待人审合并。</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="warning">
+          <strong>三次必须独立：</strong>3/3 必须来自不同 Cloud Run execution、不同 attempt id、不同 evidence 目录。基础设施失败不计入业务成功或失败；cleanup <code>failed</code> 立即让候选 <code>blocked</code> 并停止后续 attempt。
+        </div>
+        <pre><code>finding:
+  candidate_draft
+  -&gt; awaiting_product_fix      # same failure signature, 3/3 failed
+  -&gt; ready_for_review          # after product fix, 3/3 passed
+
+coverage:
+  candidate_draft
+  -&gt; ready_for_review          # 3/3 passed
+
+candidate execution status:
+  skipped | passed | cleanup_failed | infrastructure_failed | promotion_failed | unknown</code></pre>
+        <h3>发散通过的 case 如何固化</h3>
+        <p>候选通过资格检查后，系统按 fingerprint 去重：已存在 enabled fixed case 不建 PR；已有 open Draft PR 就更新；closed 未合并的重复 PR 不自动复活；merged PR 只记录“已合并”。系统永不调用 GitHub merge endpoint，也不自动 approve。</p>
+        <pre><code>schema_version: 1
+id: FQA-000000000001
+kind: coverage_baseline
+name: 注册页登录入口保持可访问
+enabled: false
+severity: medium
+owner: browser-qa
+fixture: anonymous
+start:
+  origin: staging_website
+  path: /zh
+steps:
+  - click:
+      locator:
+        by: role
+        role: link
+        name: 登录
+assertions:
+  - page_status_not: 404
+  - url_not_contains: /404
+evidence:
+  screenshot_on_failure: true
+  capture_console: true
+  capture_network: true
+cleanup: not_required
+source:
+  run_id: "RUN_ID_PLACEHOLDER"
+  finding_fingerprint: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  evidence_uri: "gs://PRIVATE_BROWSER_QA_BUCKET/runs/RUN_ID_PLACEHOLDER/manifest.json"
+promotion:
+  state: candidate_draft
+  attempts_required: 3
+  attempts_passed: 0</code></pre>
+        <p><code>enabled</code> 的规则很硬：候选初始必须是 <code>false</code>；只有达到 <code>ready_for_review</code> 后，candidate-pr job 才能把候选分支中的 YAML 调整为 <code>true</code>；但它仍在 Draft PR 分支上，不会进入当前 <code>core</code>。只有人工 review 并 merge 后，它才进入以后每次 <code>core</code>。</p>
+      </section>
+
+      <section id="trigger-chain">
+        <h2>6. Staging Push 触发链</h2>
+        <p><code>.github/workflows/gcp-deploy-staging.yml</code> 在 <code>staging</code> 分支 push 后构建并部署 <code>newapi-staging</code>。deploy job 完成 Cloud Run 更新并通过 <code>/api/status</code> 健康检查后，workflow 内的 <code>browser-qa-normal</code> job 调用同仓 reusable workflow <code>.github/workflows/gcp-browser-qa.yml</code>，传入 <code>mode: normal</code> 和 <code>fail_on_findings: false</code>。这条自动链路是 alert-only：QA 失败会让 Actions run 变红用于排查，但不会自动 rollback staging。</p>
+        <div class="diagram" role="img" aria-label="Staging 到 Browser QA 流程图">
+          <svg viewBox="0 0 900 290" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,6 L9,3 z" fill="#47606f"/>
+              </marker>
+              <style>
+                .node{fill:#fff;stroke:#8ca0ae;stroke-width:1.4;rx:8}
+                .ok{fill:#edf7f1;stroke:#71ad8a;stroke-width:1.4;rx:8}
+                .warn{fill:#fff4dd;stroke:#d69c2f;stroke-width:1.4;rx:8}
+                .text{font:14px sans-serif;fill:#17202a}
+                .small{font:12px sans-serif;fill:#536271}
+                .line{stroke:#47606f;stroke-width:1.6;fill:none;marker-end:url(#arrow2)}
+              </style>
+            </defs>
+            <rect class="node" x="24" y="46" width="155" height="74"/>
+            <text class="text" x="48" y="78">push staging</text>
+            <text class="small" x="48" y="100">paths-ignore website</text>
+            <rect class="node" x="230" y="46" width="155" height="74"/>
+            <text class="text" x="258" y="78">build image</text>
+            <text class="small" x="258" y="100">server staging tag</text>
+            <rect class="ok" x="436" y="46" width="170" height="74"/>
+            <text class="text" x="464" y="78">deploy staging</text>
+            <text class="small" x="464" y="100">100% direct traffic</text>
+            <rect class="ok" x="658" y="46" width="170" height="74"/>
+            <text class="text" x="682" y="78">health check</text>
+            <text class="small" x="682" y="100">/api/status == 200</text>
+            <rect class="warn" x="322" y="178" width="255" height="74"/>
+            <text class="text" x="350" y="210">browser-qa-normal</text>
+            <text class="small" x="350" y="232">mode normal, fail_on_findings false</text>
+            <rect class="warn" x="628" y="178" width="220" height="74"/>
+            <text class="text" x="654" y="210">QA red / green</text>
+            <text class="small" x="654" y="232">alert only, no rollback</text>
+            <path class="line" d="M179 83 H230"/>
+            <path class="line" d="M385 83 H436"/>
+            <path class="line" d="M606 83 H658"/>
+            <path class="line" d="M743 120 C743 156 620 184 577 210"/>
+            <path class="line" d="M577 215 H628"/>
+          </svg>
+        </div>
+        <p>QA 失败会让 Actions run 变红用于告警和排查，但 workflow 没有回滚已经完成的 staging 部署，也不触发 production 或 main 发布路径。</p>
+      </section>
+
+      <section id="actions-wif">
+        <h2>7. GitHub Actions / Workload Identity Federation</h2>
+        <p><code>gcp-browser-qa.yml</code> 支持 <code>workflow_dispatch</code> 与 <code>workflow_call</code>，输入模式为 <code>normal</code>、<code>core</code>、<code>cleanup-only</code>、<code>promotion-only</code>。主 <code>browser-qa</code> job 权限最小化为 <code>contents: read</code> 和 <code>id-token: write</code>，通过 QA 专用 WIF provider 和 deployer service account 访问 GCP。</p>
+        <pre><code>permissions:
+  contents: read
+  id-token: write
+
+env:
+  QA_AR_REPO_URL: ${{ vars.GCP_BROWSER_QA_AR_REPO_URL }}
+  QA_WIF_PROVIDER: ${{ vars.GCP_BROWSER_QA_WIF_PROVIDER }}
+  QA_DEPLOYER_SA: ${{ vars.GCP_BROWSER_QA_DEPLOYER_SA }}
+  QA_GCS_BUCKET: ${{ vars.GCP_BROWSER_QA_GCS_BUCKET }}</code></pre>
+        <p>workflow 会先校验输入：<code>cleanup-only</code> 和 <code>promotion-only</code> 必须提供纯数字 <code>original_run_id</code>；<code>normal</code>/<code>core</code> 必须存在安全的 <code>GCP_BROWSER_QA_GMAIL_BASE</code>，且不能含 plus tag、逗号、CR 或 LF。</p>
+        <table>
+          <thead><tr><th scope="col">Job</th><th scope="col">权限</th><th scope="col">能做什么</th><th scope="col">不能做什么</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>browser-qa</code></td>
+              <td><code>contents: read</code> + <code>id-token: write</code></td>
+              <td>构建镜像、更新/执行 QA Cloud Run、读取私有 GCS manifest、上传 sanitized candidate artifact。</td>
+              <td>不能写仓库，不能创建 PR，不能 merge。</td>
+            </tr>
+            <tr>
+              <td><code>candidate-pr</code></td>
+              <td><code>contents: write</code> + <code>pull-requests: write</code></td>
+              <td>只消费 <code>browser-qa-candidate-pr-bundles</code> 这个 sanitized artifact，按 fingerprint upsert Draft PR。</td>
+              <td>没有 GCP/WIF 凭证，不读取 Secret Manager，不下载私有 GCS evidence，不调用 merge endpoint。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="cloud-run">
+        <h2>8. Cloud Run Broker / Main / Cleanup / Candidate</h2>
+        <p>同一个容器镜像由 <code>scripts/browser_qa/entrypoint.sh</code> 根据参数分派为四种模式：</p>
+        <pre><code>main    -&gt; python3 -m scripts.browser_qa.flatkey_browser_qa.supervisor
+cleanup -&gt; python3 -m scripts.browser_qa.flatkey_browser_qa.cleanup_job
+broker  -&gt; python3 -m scripts.browser_qa.flatkey_browser_qa.broker
+candidate -&gt; python3 -m scripts.browser_qa.flatkey_browser_qa.candidate_job</code></pre>
+        <table>
+          <thead><tr><th scope="col">运行面</th><th scope="col">职责</th><th scope="col">Secret / IAM 边界</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Broker service</td>
+              <td>读取 Gmail readonly OAuth，按当前 run id、email tag、时间窗查询验证码，只返回匹配的六位验证码或 pending。</td>
+              <td>只有 broker SA 读 Gmail OAuth secret；只有 QA runtime SA invoke broker。</td>
+            </tr>
+            <tr>
+              <td>Main job</td>
+              <td>生成一次性身份，启动受控 Chromium、egress proxy、Codex exec、MCP server，写 main manifest 与证据。</td>
+              <td>runtime SA 读 Codex API key 和 identity seed；写 GCS object；不读 Gmail OAuth。</td>
+            </tr>
+            <tr>
+              <td>Cleanup job</td>
+              <td>用同一 run id 重新派生身份，分页删除 API Key，删除账号，验证账号不能再登录，合并 root manifest。</td>
+              <td>cleanup SA 读 identity seed；对专用 QA bucket 有 object admin；不读 Codex API key 或 Gmail OAuth。</td>
+            </tr>
+            <tr>
+              <td>Candidate execution</td>
+              <td>每个候选独立运行 fixed-case DSL attempt，写 attempt manifest 和证据目录，供 promotion 聚合 3/3。</td>
+              <td>复用 runtime 边界；候选 payload 由 workflow 传入，schema/origin/DSL 校验失败即基础设施失败；真实 secret 不进 candidate payload。</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>容器镜像固定 Node/Codex/Playwright/Chromium 版本，以非 root 用户运行。workflow 在 push 镜像前执行容器 smoke test，包括非 root 检查、<code>codex --version</code>、<code>playwright-mcp --version</code>、Python unittest 和 CDP attach smoke。</p>
+      </section>
+
+      <section id="terraform">
+        <h2>9. Terraform 独立 State 与 Phase A + Phase B 合约</h2>
+        <p>Browser QA 的 Terraform root 是 <code>deploy/gcp/envs/browser-qa-staging/</code>，GCS backend prefix 是 <code>envs/browser-qa-staging</code>。它与 production root 共享 state bucket 但不共享 state prefix；它只声明 Browser QA 专属资源和 <code>browser_qa_*</code> outputs。</p>
+        <table>
+          <thead><tr><th scope="col">阶段</th><th scope="col">资源</th><th scope="col">Outputs</th><th scope="col">Guard phase</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Phase A</td>
+              <td>26 个非 workload 基础资源：Artifact Registry、4 个 SA、logging IAM、3 个 Secret container、Secret accessor IAM、SA user/WIF IAM、report bucket 与 bucket IAM、WIF pool/provider。</td>
+              <td>4 个基础 outputs：AR repo URL、WIF provider、deployer SA、report bucket。</td>
+              <td><code>--phase infra</code></td>
+            </tr>
+            <tr>
+              <td>Phase B</td>
+              <td>9 个 indexed workload 资源：broker service、main job、cleanup job、6 个 resource-level Run IAM member。</td>
+              <td>4 个 workload outputs：broker URI、broker service name、main job name、cleanup job name。</td>
+              <td><code>--phase workloads</code></td>
+            </tr>
+            <tr>
+              <td>合计</td>
+              <td><strong>26 + 9 = 35</strong> 个 Terraform resources。</td>
+              <td>8 个 <code>browser_qa_*</code> outputs。</td>
+              <td>旧 35-resource 单阶段 saved plan 会被两个 phase 拒绝。</td>
+            </tr>
+          </tbody>
+        </table>
+        <p><code>variables.tf</code> 中 <code>create_workloads</code> 默认 <code>true</code>，<code>terraform.tfvars</code> 也保存 steady state 的 <code>true</code>。Phase A 只通过命令行临时覆盖 <code>-var='create_workloads=false'</code>，防止首次创建时 Cloud Run 引用尚未写入 version 的 <code>latest</code> Secret。</p>
+      </section>
+
+      <section id="secrets">
+        <h2>10. Secret Manager / Gmail OAuth / API Key / Identity Seed</h2>
+        <p>Terraform 只创建 Secret Manager 容器和 IAM，不创建 <code>google_secret_manager_secret_version</code>，也不接收 Secret payload 作为变量。三个 Secret version 由人工 operator 在 Phase A 后写入：</p>
+        <ul>
+          <li><code>flatkey-browser-qa-codex-api-key</code>：只注入 main job 的 <code>CODEX_API_KEY</code>。</li>
+          <li><code>flatkey-browser-qa-identity-seed</code>：main 和 cleanup 用来通过 HMAC 派生 run-scoped username、email tag、password、API key name。</li>
+          <li><code>flatkey-browser-qa-gmail-oauth</code>：只注入 broker service 的 <code>GMAIL_OAUTH_JSON</code>，scope 必须是 Gmail readonly。</li>
+        </ul>
+        <p>派生出的 Gmail plus tag 固定为 <code>qa-&lt;run-id&gt;-&lt;8-char-HMAC-suffix&gt;</code>。这个长度是注册链路的一部分：后端当前对完整邮箱执行 50 字符上限校验，所以 QA 身份不能恢复为更长的 <code>flatkey-qa-...</code> 前缀，也不能随意加长随机后缀。</p>
+        <pre><code>{
+  "refresh_token": "&lt;operator-owned-oauth-refresh-token&gt;",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "client_id": "&lt;oauth-client-id&gt;",
+  "client_secret": "&lt;oauth-client-secret&gt;",
+  "scopes": ["https://www.googleapis.com/auth/gmail.readonly"]
+}</code></pre>
+        <p>上面的 JSON 是形状示例，不是可用凭据。实际值不得进入仓库、聊天、GitHub logs、Terraform state、镜像层或报告。</p>
+      </section>
+
+      <section id="evidence">
+        <h2>11. GCS Evidence / Report</h2>
+        <p>报告写入私有 bucket：<code>gs://vocai-gemini-prod-flatkey-browser-qa-reports</code>。bucket 启用 uniform access、public access prevention 和 14 天生命周期删除。对象前缀按 GitHub run id 分组：</p>
+        <pre><code>runs/&lt;github-run-id&gt;/
+  manifest.json
+  main/&lt;main-execution-id&gt;/
+    manifest.json
+    result.json
+    codex-events.jsonl
+    codex-stderr.txt
+    browser/console.jsonl
+    browser/network.jsonl
+    screenshots/*.png
+  cleanup/&lt;cleanup-execution-id&gt;/
+    cleanup.json</code></pre>
+        <p>上传白名单只允许 runtime-root 相对 POSIX 路径：根级 JSON/JSONL/TXT、<code>browser/console.jsonl</code>、<code>browser/network.jsonl</code> 和一级 <code>screenshots/*.png</code>。symlink、重复逻辑路径、路径逃逸和超大小 artifact 都会失败。<code>manifest.json</code> 最后上传。</p>
+        <p>supervisor 在落盘前脱敏 Gmail base、plus alias、password、验证码、Cookie、Authorization、完整 API key 等敏感值。浏览器截图只能通过 <code>qa_capture_screenshot</code>，模型不能传路径、selector 或关闭遮罩。</p>
+      </section>
+
+      <section id="security">
+        <h2>12. 安全边界与 Egress</h2>
+        <div class="cols">
+          <div class="mini">
+            <h3>浏览器与 MCP</h3>
+            <p>Chromium 由 supervisor 启动，CDP endpoint 只在 loopback。Playwright MCP 只能 attach 到该 endpoint，不负责 launch 浏览器。</p>
+          </div>
+          <div class="mini">
+            <h3>Codex 沙箱</h3>
+            <p><code>codex exec</code> 使用 ephemeral、strict config、output schema、<code>workspace-write</code>，全局 <code>approval_policy = "never"</code>，配置中 <code>network_access = false</code>。</p>
+          </div>
+          <div class="mini">
+            <h3>Egress allowlist</h3>
+            <p>可写浏览仅允许 <code>staging-website.flatkey.ai</code> 和 <code>staging-console.flatkey.ai</code>；docs 通过 cookie-free docs-only context 只读访问 <code>docs.flatkey.ai</code>。</p>
+          </div>
+          <div class="mini">
+            <h3>拒绝目标</h3>
+            <p>生产 Flatkey origin、localhost、GCP metadata、link-local、RFC1918、literal IP、非 HTTP(S)、不可信 redirect、绕过 proxy 的路径均拒绝。</p>
+          </div>
+        </div>
+        <p>非交互运行时没有人工审批弹窗；因此全局审批策略保持 <code>never</code>，只对四个专用 MCP server 写入 <code>default_tools_approval_mode = "approve"</code>，并且每个 server 都必须有精确 <code>enabled_tools</code>。禁止 wildcard、<code>yolo</code>、<code>danger-full-access</code> 或任何会让模型获得任意工具/任意文件/任意网络访问的配置。</p>
+        <table>
+          <thead><tr><th scope="col">MCP server</th><th scope="col">唯一允许的工具</th><th scope="col">边界</th></tr></thead>
+          <tbody>
+            <tr><td><code>playwright</code></td><td><code>browser_navigate</code>、<code>browser_navigate_back</code>、<code>browser_tabs</code>、<code>browser_click</code>、<code>browser_type</code>、<code>browser_fill_form</code>、<code>browser_select_option</code>、<code>browser_snapshot</code>、<code>browser_find</code>、<code>browser_wait_for</code>、<code>browser_console_messages</code>、<code>browser_network_requests</code>、<code>browser_network_request</code>、<code>qa_read_docs</code></td><td>只能 attach 到 supervisor-owned Chromium，并受预算和 egress allowlist 控制。</td></tr>
+            <tr><td><code>evidence</code></td><td><code>qa_capture_screenshot</code></td><td>截图工具不接受路径、selector 或关闭遮罩参数。</td></tr>
+            <tr><td><code>broker</code></td><td><code>get_current_verification_code</code></td><td>只查询当前 run id、email tag 和 start time 对应的验证码状态。</td></tr>
+            <tr><td><code>control</code></td><td><code>qa_replay_checkpoint</code>、<code>qa_start_exploration</code></td><td><code>core</code> 模式只允许到 checkpoint 后停止；不会进入发散探索。</td></tr>
+          </tbody>
+        </table>
+        <p>页面内容被视为不可信输入，不能覆盖 QA policy、origin 限制、预算、清理和上传规则。broker MCP client 固定 run id、email tag、start time 和 broker URL；模型不能查询任意邮箱或传入任意 alias。</p>
+        <p>数据边界也分两层：私有 GCS 保存完整脱敏 evidence 和 root manifest，只有 QA 相关 service account / operator 能读取；传给 <code>candidate-pr</code> job 的 GitHub artifact 只包含 sanitized candidate bundle。模型 API token、Gmail OAuth、DingTalk webhook、验证码、cookie、Authorization header、完整 API key、完整邮箱地址和 secret value 都不得进入 artifact、PR、summary、截图或日志。</p>
+      </section>
+
+      <section id="guard">
+        <h2>13. Plan Guard / Hash / INVALID 恢复</h2>
+        <p><code>scripts/browser_qa/terraform_plan_guard.py</code> 对 Terraform plan JSON 做精确白名单校验。它按完整 resource address 匹配，不使用子串判断；所有 meaningful change 必须是 <code>create</code>；未知 resource/output 即使是 <code>no-op</code> 也会失败；update、delete、replace、deposed object、重复 JSON key 和空 plan 都会失败。</p>
+        <pre><code>python3 scripts/browser_qa/terraform_plan_guard.py --phase infra &lt;plan.json&gt;
+python3 scripts/browser_qa/terraform_plan_guard.py --phase infra-recovery &lt;plan.json&gt;
+python3 scripts/browser_qa/terraform_plan_guard.py --phase workloads &lt;plan.json&gt;</code></pre>
+        <p>Hash 边界来自 runtime provenance：main manifest 中记录 <code>skill_content_sha256</code>、Codex 版本、model config、Playwright MCP 版本、Playwright package 版本和 Chromium 版本，用来证明本次 replay 使用的是固定 Skill 内容和固定运行工具链。</p>
+        <p>INVALID 恢复规则：任何 Phase A 或 Phase B saved-plan apply 非零退出后，原 saved plan 立即作废；不能重放旧 plan，不能切到 <code>-target</code>，不能手工删除或猜测 import。已实现的 incident recovery 是 <code>infra-recovery</code>：只接受 3 个 report bucket IAM member create，恢复后 state 应精确等于 26 个 Phase A 地址。Phase B 失败不回滚 Phase A，也不影响已有 staging 应用服务。</p>
+      </section>
+
+      <section id="observability">
+        <h2>14. 可观测性、中文钉钉与仅告警策略</h2>
+        <p>最终状态优先级由代码定义：<code>cleanup_failed</code> &gt; <code>infrastructure_failed</code> &gt; <code>replay_failed</code> &gt; <code>findings_detected</code> &gt; <code>passed</code>。GitHub Summary 展示状态、replay/exploration 摘要、finding 数量、cleanup 状态和私有 GCS URI。</p>
+        <p>当前每次 Browser QA 都会在终态向钉钉发送一份脱敏中文报告；通过、回放失败、发现问题、清理失败、基础设施失败和候选固化异常都会通知。GitHub Actions 只在通知步骤临时注入 webhook 与机器人加签密钥，并按钉钉要求为每次请求生成毫秒时间戳和 HMAC-SHA256 签名；这些密钥、签名、测试邮箱、验证码和 API Key 都不会进入报告或日志。通知仍然只是告警，不会自动 rollback staging，也不会改动 main/production。</p>
+        <div class="warning">
+          <strong>双层摘要：</strong>钉钉同时展示产品状态和候选状态。产品 <code>passed</code> 只表示 replay/fixed cases/cleanup/report 主状态通过；如果候选状态是 <code>cleanup_failed</code>、<code>infrastructure_failed</code>、<code>promotion_failed</code> 或 <code>unknown</code>，消息标题和 final gate 仍按候选异常处理，不能被产品通过掩盖。每个 workflow 终态只发一条钉钉消息，不为三次 attempt 分别刷屏。
+        </div>
+        <table>
+          <thead><tr><th scope="col">Candidate status</th><th scope="col">中文含义</th><th scope="col">处理</th></tr></thead>
+          <tbody>
+            <tr><td><code>skipped</code></td><td>本次没有可验证候选，或不是 <code>normal</code>/<code>promotion-only</code> 候选路径。</td><td>只看产品主状态。</td></tr>
+            <tr><td><code>passed</code></td><td>候选验证完成；有候选达到待人工审核或 Draft PR 条件。</td><td>人工 review Draft PR，不自动 merge。</td></tr>
+            <tr><td><code>cleanup_failed</code></td><td>候选 attempt 无法证明资源已清理。</td><td>最高优先级处理残留，停止后续 attempt。</td></tr>
+            <tr><td><code>infrastructure_failed</code></td><td>候选执行、GCS 拉取、schema、Cloud Run 或 GitHub artifact 失败。</td><td>先修基础设施；该 attempt 不计入 3/3。</td></tr>
+            <tr><td><code>promotion_failed</code></td><td>候选业务结果不满足 3/3 或聚合规则。</td><td>保留 evidence，按 flaky/blocked 排查。</td></tr>
+            <tr><td><code>unknown</code></td><td>候选步骤失败但没有可信输出。</td><td>fail closed，按异常处理。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="operations">
+        <h2>15. 本地与 Staging 操作</h2>
+        <h3>本地只读/单元验证</h3>
+        <p>本地适合运行单元测试、contract tests、HTML 文档验证、敏感模式扫描。本文未运行 Terraform 或 GCP 命令。</p>
+        <pre><code>python -m unittest discover -s scripts/browser_qa/tests -v
+python scripts/browser_qa/terraform_plan_guard.py --help</code></pre>
+        <h3>Staging runbook 摘要</h3>
+        <ol>
+          <li>Phase A：operator 在独立 root 中生成 refreshing saved plan，导出 JSON/文本，运行 <code>--phase infra</code>，人工确认后 apply 同一个 saved plan。</li>
+          <li>写入四个 output-backed GitHub repository variables，再安全写入 <code>GCP_BROWSER_QA_GMAIL_BASE</code>。</li>
+          <li>写入三个 Secret Manager version，不读取或打印 payload。</li>
+          <li>Phase B：确认 26 个 Phase A address、三个 Secret latest version 均 ENABLED、workload 不存在，再运行 <code>--phase workloads</code> 并 apply 同一个 saved plan。</li>
+          <li>先运行 <code>core</code>；core 和 cleanup 成功后再运行 <code>normal</code>。</li>
+          <li>如 cleanup 中断或需重跑，用原始 GitHub run id 执行 <code>cleanup-only</code>。</li>
+          <li>如候选三次 execution 已完成但 PR artifact 或 candidate-pr job 失败，用原始 GitHub run id 执行 <code>promotion-only</code> 恢复，不重新跑产品 replay。</li>
+        </ol>
+        <p>不要把上述摘要替代 <code>deploy/gcp/docs/OPERATIONS.md</code>。实际云端操作必须按 runbook 的 fail-closed gates 执行。</p>
+      </section>
+
+      <section id="zero-deploy">
+        <h2>16. 从 0 部署 Runbook：小白版</h2>
+        <p>这部分给第一次搭建的人使用。原则是“先建空壳，再人工写 secret version，再创建会引用 secret 的 workload”。所有命令里的值都是占位名，执行前由 operator 用本项目审批流程替换。</p>
+        <table>
+          <thead><tr><th scope="col">步骤</th><th scope="col">要做什么</th><th scope="col">成功标准</th></tr></thead>
+          <tbody>
+            <tr><td>1. 账号和范围</td><td>确认云账号、GitHub 仓库权限、staging 分支、项目 ID、region、staging website/console/docs origin。</td><td>没有 production 写路径进入 allowlist。</td></tr>
+            <tr><td>2. API</td><td>开启 Artifact Registry、Cloud Run、Secret Manager、IAM Credentials、Cloud Storage、Cloud Logging、WIF 所需 API。</td><td>API enable 命令成功，未创建 workload。</td></tr>
+            <tr><td>3. Terraform 独立 root/state</td><td>进入 <code>deploy/gcp/envs/browser-qa-staging/</code>，使用独立 backend prefix；不要混入主 infra root。</td><td>plan 只出现 Browser QA 专属地址和 <code>browser_qa_*</code> outputs。</td></tr>
+            <tr><td>4. Phase A</td><td>生成 saved plan，导出 JSON，记录 hash，运行 <code>terraform_plan_guard.py --phase infra</code>；人工审批后才单独 apply 同一个 saved plan。</td><td>Artifact Registry、GCS bucket、Secret containers、service accounts、WIF、IAM 元数据存在。</td></tr>
+            <tr><td>5. 人工写三个 secret version</td><td>只写 secret 名和值，不打印值：<code>BROWSER_QA_MODEL_API_KEY_SECRET</code>、<code>BROWSER_QA_IDENTITY_SEED_SECRET</code>、<code>BROWSER_QA_OAUTH_JSON_SECRET</code>。</td><td>三个 latest version 均 enabled；secret payload 不进 Terraform state。</td></tr>
+            <tr><td>6. Phase B workloads</td><td>生成 <code>create_workloads=true</code> 的 saved plan，导出 JSON，记录 hash，交给 <code>--phase workloads</code> 守卫；人工审批后才单独 apply 同一个 saved plan。</td><td>broker service、main job、cleanup job 和必要 Run IAM 创建完成。</td></tr>
+            <tr><td>7. GitHub 接线</td><td>写入 WIF provider、deployer service account、AR repo、GCS bucket、region、project、staging base email 等 vars；写入 DingTalk webhook/signing secret 到 GitHub Secrets。</td><td>浏览器 QA workflow 只拿到必要 vars/secrets。</td></tr>
+            <tr><td>8. 构建镜像</td><td>自动 staging 链路或手动 dispatch 都会让 workflow 执行 unit/contract tests、docker build、container smoke、MCP attach smoke、push image。</td><td>镜像非 root，Codex/Playwright MCP 可启动。</td></tr>
+            <tr><td>9. staging workflow 接线</td><td>staging deploy 成功并通过 <code>/api/status</code> 后调用 <code>gcp-browser-qa.yml</code>，当前自动输入是 <code>mode: normal</code> 与 <code>fail_on_findings: false</code>。</td><td>失败只影响 QA 告警，不自动 rollback staging。</td></tr>
+            <tr><td>10. 首跑验收</td><td>验证自动 <code>normal</code> 跑完完整 <code>core_body</code>、探索、candidate 三次 execution、sanitized artifact、candidate-pr Draft PR、钉钉摘要；需要隔离 replay 时再人工 dispatch <code>core</code>。</td><td>真实 staging 验收完成后，才能更新文档为“已跑通”。</td></tr>
+            <tr><td>11. 恢复和回滚</td><td><code>cleanup-only</code> 用原始 run id 清理；<code>promotion-only</code> 用原始 run id 重建候选 PR artifact；撤销时先停触发，再按 IaC 销毁 QA 专属资源。</td><td>不会用手工删除制造 drift。</td></tr>
+            <tr><td>12. 撤销临时权限</td><td>首跑结束后移除临时 owner/editor、临时本机凭证和一次性审批权限。</td><td>只保留 workflow 所需最小权限。</td></tr>
+          </tbody>
+        </table>
+        <div class="warning">
+          <strong>Terraform guard 原则：</strong>必须使用 saved plan、导出 plan JSON、记录 plan hash 并用 phase guard 校验。不要直接 apply 一个夹杂主 infra 替换、生产资源 update/delete/replace 或未知 output 的 plan；任何 apply 非零退出后，原 saved plan 立即作废，重新生成并重新校验。
+        </div>
+        <h3>Phase A：只生成和审查 saved plan</h3>
+        <pre><code># 本地结构和命令形状，值必须由 operator 用占位名替换
+cd deploy/gcp/envs/browser-qa-staging
+terraform init
+terraform plan -out=browser-qa-infra.tfplan -var='create_workloads=false'
+terraform show -json browser-qa-infra.tfplan &gt; browser-qa-infra.plan.json
+sha256sum browser-qa-infra.tfplan
+python ../../../../scripts/browser_qa/terraform_plan_guard.py --phase infra browser-qa-infra.plan.json</code></pre>
+        <div class="warning">
+          <strong>STOP：</strong>到这里必须停止，不能顺手 apply。人工审批时要核对 saved plan hash、Phase A 预期 26 个 create-only 资源、0 个 change/destroy、无 production 或主 infra 替换、无未知 output/resource，且 guard 输出与人工 diff 一致。
+        </div>
+        <h3>人工审批后才能单独执行</h3>
+        <pre><code>terraform apply browser-qa-infra.tfplan</code></pre>
+        <p>Phase A apply 成功后，operator 才能写入 secret version。写值时只传入文件，不在终端、日志、PR 或文档中回显 secret payload。</p>
+        <pre><code># 写 secret version 时只传入值，不回显；下面只展示 secret 名占位
+gcloud secrets versions add BROWSER_QA_MODEL_API_KEY_SECRET --data-file=SECRET_VALUE_FILE
+gcloud secrets versions add BROWSER_QA_IDENTITY_SEED_SECRET --data-file=SECRET_VALUE_FILE
+gcloud secrets versions add BROWSER_QA_OAUTH_JSON_SECRET --data-file=SECRET_VALUE_FILE</code></pre>
+        <h3>Phase B：只生成和审查 workload saved plan</h3>
+        <pre><code>terraform plan -out=browser-qa-workloads.tfplan -var='create_workloads=true'
+terraform show -json browser-qa-workloads.tfplan &gt; browser-qa-workloads.plan.json
+sha256sum browser-qa-workloads.tfplan
+python ../../../../scripts/browser_qa/terraform_plan_guard.py --phase workloads browser-qa-workloads.plan.json</code></pre>
+        <div class="warning">
+          <strong>STOP：</strong>Phase B 也必须人工审批后再 apply。审批时要核对 saved plan hash、workload phase 预期 create-only diff、0 个 change/destroy、三个 secret latest version 已 ENABLED、无主 infra 替换、无 production 写路径，且 guard 输出与人工 diff 一致。
+        </div>
+        <h3>人工审批后才能单独执行</h3>
+        <pre><code>terraform apply browser-qa-workloads.tfplan</code></pre>
+      </section>
+
+      <section id="file-map">
+        <h2>17. 文件地图与常用验证命令</h2>
+        <table>
+          <thead><tr><th scope="col">文件 / 目录</th><th scope="col">作用</th></tr></thead>
+          <tbody>
+            <tr><td><code>.github/workflows/gcp-browser-qa.yml</code></td><td>主 workflow：core/normal/cleanup-only/promotion-only、DingTalk、candidate validation、candidate-pr job。</td></tr>
+            <tr><td><code>.github/workflows/gcp-deploy-staging.yml</code></td><td>staging 部署成功并 health check 后接入 <code>browser-qa-normal</code>，传入 <code>mode: normal</code> 与 <code>fail_on_findings: false</code>。</td></tr>
+            <tr><td><code>scripts/browser_qa/config/qa-prompt.md</code></td><td>record/replay、normal 包含 core、AI 发散和 <code>proposed_case</code> 约束。</td></tr>
+            <tr><td><code>scripts/browser_qa/config/result.schema.json</code></td><td>结果 schema，包含 <code>findings</code> 与 <code>coverage_candidates</code>。</td></tr>
+            <tr><td><code>scripts/browser_qa/config/fixed_case.schema.json</code></td><td>结构化 fixed case YAML 契约。</td></tr>
+            <tr><td><code>scripts/browser_qa/fixed-cases/</code></td><td>人工合并后的长期回归用例库。</td></tr>
+            <tr><td><code>scripts/browser_qa/flatkey_browser_qa/supervisor.py</code></td><td>浏览器、Codex、MCP、证据、redaction、manifest、cleanup 编排。</td></tr>
+            <tr><td><code>scripts/browser_qa/flatkey_browser_qa/candidate_job.py</code></td><td>单个候选 attempt 的 Cloud Run 入口。</td></tr>
+            <tr><td><code>scripts/browser_qa/flatkey_browser_qa/promotion.py</code></td><td>fingerprint、候选资格和 3/3 聚合规则。</td></tr>
+            <tr><td><code>scripts/browser_qa/flatkey_browser_qa/github_candidate_pr.py</code></td><td>sanitized artifact 转 Draft PR；禁止 merge endpoint。</td></tr>
+            <tr><td><code>scripts/browser_qa/flatkey_browser_qa/dingtalk.py</code></td><td>中文终态报告、签名和候选状态摘要。</td></tr>
+            <tr><td><code>deploy/gcp/envs/browser-qa-staging/</code></td><td>独立 Terraform root/state。</td></tr>
+            <tr><td><code>deploy/gcp/docs/OPERATIONS.md</code></td><td>真实云端操作 runbook。</td></tr>
+          </tbody>
+        </table>
+        <pre><code># Windows / 通用本地验证，不包含任何 secret
+python -B -m unittest discover -s scripts/browser_qa/tests -v
+python scripts/browser_qa/terraform_plan_guard.py --help
+rg -n "candidate-pr|promotion-only|ready_for_review|526 tests" docs/browser-qa
+git diff --check</code></pre>
+        <p>最新证据口径：本地 <strong>536 tests / 5 skipped</strong>、Node helper <strong>38 tests passed</strong>；真实 staging push run <code>31134160354</code> 顶层 success，GCS root manifest 状态为 <code>findings_detected</code>，cleanup 与钉钉通知均通过。</p>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>18. 故障处理</h2>
+        <table>
+          <thead><tr><th scope="col">现象</th><th scope="col">处理</th></tr></thead>
+          <tbody>
+            <tr><td>plan guard 失败</td><td>停止；读取 guard 的 exact finding；不要 apply、不要 <code>-target</code>。</td></tr>
+            <tr><td>Phase A / Phase B apply 非零退出</td><td>标记 saved plan invalid；按实际残留状态写恢复设计和新 guard/plan；不要重放旧 plan。</td></tr>
+            <tr><td><code>gmail_invalid_grant</code></td><td>这是基础设施失败；发布/重新授权/旋转 Gmail OAuth 后先跑 <code>core</code>。</td></tr>
+            <tr><td>Gmail plus alias 被禁</td><td>修复 staging alias policy 或停止；不要临时改变身份策略。</td></tr>
+            <tr><td><code>core</code> 失败但 cleanup 成功</td><td>读取私有报告定位 replay；不要直接跑 <code>normal</code>。</td></tr>
+            <tr><td><code>cleanup_failed</code></td><td>用原始 run id 运行 <code>cleanup-only</code>；若重复失败，人工检查 staging 残留。</td></tr>
+            <tr><td>manifest 缺失且 cleanup 失败/跳过</td><td>先执行 <code>cleanup-only</code>，再继续排查基础设施或报告上传问题。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="limits">
+        <h2>19. 已知限制</h2>
+        <ul>
+          <li>真实 staging 主链路已经由 run <code>31134160354</code> 跑通；但本次没有合格 <code>proposed_case</code>，所以三次独立 candidate execution、Draft PR 创建和人工 merge 后进入下一次 core 尚未在本次运行中触发。</li>
+          <li>当前自动接线只在 staging deploy 成功后跑 <code>normal</code>，并设置 <code>fail_on_findings: false</code>；<code>core</code>、<code>cleanup-only</code> 和 <code>promotion-only</code> 仍是人工诊断或恢复入口。</li>
+          <li>Gmail OAuth 外部 Testing token 可能过期；runbook 要求发布 OAuth app、重新授权并旋转 Secret 后再证明长期可重复。</li>
+          <li>cleanup 依赖产品现有自助删除语义，不做数据库级 hard purge。</li>
+          <li>探索预算固定为 5 分钟或 30 个 browser action；更广泛 AI 发散或更多候选 DSL 能力需要更新 policy、tests 和告警边界。</li>
+          <li>Browser QA 仅针对 staging onboarding，不覆盖付费、订阅、邀请、管理员、生产数据或真实模型调用。</li>
+        </ul>
+      </section>
+    </article>
+  </main>
+
+  <footer class="wrap">
+    <p>依据仓库路径：<code>.github/workflows/gcp-browser-qa.yml</code>、<code>.github/workflows/gcp-deploy-staging.yml</code>、<code>scripts/browser_qa/</code>、<code>deploy/gcp/envs/browser-qa-staging/</code>、<code>deploy/gcp/docs/OPERATIONS.md</code>、<code>docs/superpowers/specs/</code>。</p>
+  </footer>
+</body>
+</html>
