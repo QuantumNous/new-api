@@ -92,8 +92,9 @@ export function buildTopNavLinks(
  *   rankings: { enabled: true, requireAuth: false }
  * }
  * Website entries resolve through OFFICIAL_WEBSITE_ORIGIN, while Docs uses
- * the standalone documentation site. Pricing and Rankings retain their
- * existing enable/require-auth controls.
+ * the standalone documentation site. Pricing retains its existing
+ * enable/require-auth controls. Rankings config is still parsed from shared
+ * status but is not emitted by console top navigation.
  */
 export function useTopNavLinks(): TopNavLink[] {
   const { t, i18n } = useTranslation()
