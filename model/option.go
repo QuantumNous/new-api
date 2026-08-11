@@ -1445,7 +1445,7 @@ func syncRenamedGroupsToGroupModelRatio(renames map[string]string) error {
 		for _, key := range []string{"GroupModelRatio", "group_ratio_setting.group_model_ratio"} {
 			if key == "group_ratio_setting.group_model_ratio" {
 				var count int64
-				if err := tx.Model(&Option{}).Where("key = ?", key).Count(&count).Error; err != nil {
+				if err := tx.Model(&Option{}).Where("`key` = ?", key).Count(&count).Error; err != nil {
 					return err
 				}
 				if count == 0 {

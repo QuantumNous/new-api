@@ -143,7 +143,7 @@ func loadInviteSubscriptionRewardReconciliationCursorByKey(key string) (inviteSu
 		return inviteSubscriptionRewardReconciliationCursor{}, err
 	}
 	var option model.Option
-	err = model.DB.Where("key = ?", key).First(&option).Error
+	err = model.DB.Where("`key` = ?", key).First(&option).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return inviteSubscriptionRewardReconciliationCursor{}, nil
 	}
@@ -188,7 +188,7 @@ func checkpointInviteSubscriptionRewardReconciliationCursorByKey(key string, cur
 		return cursor, err
 	}
 	result := model.DB.Model(&model.Option{}).
-		Where("key = ? AND value = ?", key, cursor.raw).
+		Where("`key` = ? AND `value` = ?", key, cursor.raw).
 		Update("value", value)
 	if result.Error != nil {
 		return cursor, result.Error
