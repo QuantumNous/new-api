@@ -82,10 +82,6 @@ func TestValidatePaymentOption_Rejects(t *testing.T) {
 		{"amount scientific notation", func(o *blockrunSDK.PaymentOption) { o.Amount = "1e6" }, "positive decimal integer"},
 		{"amount hex", func(o *blockrunSDK.PaymentOption) { o.Amount = "0xF4240" }, "positive decimal integer"},
 		{"amount trailing space", func(o *blockrunSDK.PaymentOption) { o.Amount = "1000 " }, "positive decimal integer"},
-		{"amount over cap by one", func(o *blockrunSDK.PaymentOption) { o.Amount = "5000001" }, "exceeds per-call cap"},
-		{"amount one year drain", func(o *blockrunSDK.PaymentOption) { o.Amount = "999999999999" }, "exceeds per-call cap"},
-		// "+5000000" is numerically equivalent to "5000000" and at the cap, so big.Int parses + sign and it passes — covered by the
-		// "accepts" tests above implicitly. Document here so future readers don't try to "fix" it by rejecting +.
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -102,11 +98,11 @@ func TestValidatePaymentOption_Rejects(t *testing.T) {
 	}
 }
 
-func TestValidatePaymentOption_AtCapBoundary(t *testing.T) {
+func TestValidatePaymentOption_AllowsLargeAmountWithoutDefaultCap(t *testing.T) {
 	opt := validOption()
-	opt.Amount = "5000000" // exactly the cap → must be accepted (Cmp > 0 only)
+	opt.Amount = "13836700"
 	if err := validatePaymentOption(&opt); err != nil {
-		t.Fatalf("amount at cap rejected: %v", err)
+		t.Fatalf("large amount rejected without a default cap: %v", err)
 	}
 }
 
@@ -118,7 +114,7 @@ func TestValidatePaymentOption_AtTimeoutBoundary(t *testing.T) {
 	}
 }
 
-func TestValidatePaymentOptionWithCap_AllowsAboveDefaultCap(t *testing.T) {
+func TestValidatePaymentOptionWithCap_EnforcesExplicitCap(t *testing.T) {
 	opt := &blockrunSDK.PaymentOption{
 		Network:           expectedNetworkBase,
 		Asset:             expectedAssetUSDCBase,
@@ -126,9 +122,8 @@ func TestValidatePaymentOptionWithCap_AllowsAboveDefaultCap(t *testing.T) {
 		Amount:            "6000000", // 6 USDC
 		MaxTimeoutSeconds: 60,
 	}
-	// 默认 $5 上限必须拒绝
-	if err := validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC); err == nil {
-		t.Fatal("expected 6 USDC to be rejected under 5 USDC cap")
+	if err := validatePaymentOptionWithCap(opt, big.NewInt(5_000_000)); err == nil {
+		t.Fatal("expected 6 USDC to be rejected under an explicit 5 USDC cap")
 	}
 	// $10 上限必须放行
 	if err := validatePaymentOptionWithCap(opt, big.NewInt(10_000_000)); err != nil {
@@ -150,13 +145,13 @@ func TestValidatePaymentOptionWithCaps_ImageWindow(t *testing.T) {
 	}
 
 	// Image cap (900s) must allow it.
-	if err := validatePaymentOptionWithCaps(&opt, maxAmountAtomicUSDC, maxImageAuthorizationWindowSeconds); err != nil {
+	if err := validatePaymentOptionWithCaps(&opt, nil, maxImageAuthorizationWindowSeconds); err != nil {
 		t.Fatalf("expected 600s window allowed under image cap, got %v", err)
 	}
 
 	// Beyond the image cap is still refused (no unbounded widening).
 	opt.MaxTimeoutSeconds = maxImageAuthorizationWindowSeconds + 1
-	if err := validatePaymentOptionWithCaps(&opt, maxAmountAtomicUSDC, maxImageAuthorizationWindowSeconds); err == nil {
+	if err := validatePaymentOptionWithCaps(&opt, nil, maxImageAuthorizationWindowSeconds); err == nil {
 		t.Fatalf("expected %ds window rejected under %ds image cap", maxImageAuthorizationWindowSeconds+1, maxImageAuthorizationWindowSeconds)
 	}
 
