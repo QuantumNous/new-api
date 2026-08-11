@@ -90,12 +90,42 @@ jobs:
     outputs:
       candidate_pr_bundle_count: ${{ steps.candidates.outputs.candidate_pr_bundle_count || steps.candidates_recovery.outputs.candidate_pr_bundle_count || '0' }}
     steps:
+      - name: Resolve target environment
+        shell: bash
+        env:
+          DISPATCH_TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
+        run: |
+          set -euo pipefail
+          case "${DISPATCH_TARGET_ENVIRONMENT}" in
+            staging)
+              TARGET_ENVIRONMENT="staging"
+              WEBSITE_ORIGIN="https://staging-website.flatkey.ai"
+              CONSOLE_ORIGIN="https://staging-console.flatkey.ai"
+              DOCS_ORIGIN="https://docs.flatkey.ai"
+              ;;
+            production)
+              TARGET_ENVIRONMENT="production"
+              WEBSITE_ORIGIN="https://flatkey.ai"
+              CONSOLE_ORIGIN="https://console.flatkey.ai"
+              DOCS_ORIGIN="https://docs.flatkey.ai"
+              ;;
+            *)
+              echo "target_environment must be staging or production" >&2
+              exit 2
+              ;;
+          esac
+          {
+            echo "FLATKEY_QA_TARGET_ENVIRONMENT=${TARGET_ENVIRONMENT}"
+            echo "FLATKEY_QA_WEBSITE_ORIGIN=${WEBSITE_ORIGIN}"
+            echo "FLATKEY_QA_CONSOLE_ORIGIN=${CONSOLE_ORIGIN}"
+            echo "FLATKEY_QA_DOCS_ORIGIN=${DOCS_ORIGIN}"
+          } >> "$GITHUB_ENV"
+
       - name: Validate dispatch inputs
         id: qa
         shell: bash
         env:
           DISPATCH_MODE: ${{ inputs.mode }}
-          DISPATCH_TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
           DISPATCH_ORIGINAL_RUN_ID: ${{ inputs.original_run_id }}
           DISPATCH_ORIGINAL_RUN_ATTEMPT: ${{ inputs.original_run_attempt }}
           DISPATCH_FAIL_ON_FINDINGS: ${{ inputs.fail_on_findings }}
@@ -116,24 +146,6 @@ jobs:
               ;;
             *)
               echo "fail_on_findings must be true or false" >&2
-              exit 2
-              ;;
-          esac
-          case "${DISPATCH_TARGET_ENVIRONMENT}" in
-            staging)
-              TARGET_ENVIRONMENT="staging"
-              WEBSITE_ORIGIN="https://staging-website.flatkey.ai"
-              CONSOLE_ORIGIN="https://staging-console.flatkey.ai"
-              DOCS_ORIGIN="https://docs.flatkey.ai"
-              ;;
-            production)
-              TARGET_ENVIRONMENT="production"
-              WEBSITE_ORIGIN="https://flatkey.ai"
-              CONSOLE_ORIGIN="https://console.flatkey.ai"
-              DOCS_ORIGIN="https://docs.flatkey.ai"
-              ;;
-            *)
-              echo "target_environment must be staging or production" >&2
               exit 2
               ;;
           esac
@@ -189,10 +201,6 @@ jobs:
             echo "FAIL_ON_FINDINGS=${DISPATCH_FAIL_ON_FINDINGS}"
             echo "MAIN_EXECUTION_ID=${MAIN_EXECUTION_ID}"
             echo "CLEANUP_EXECUTION_ID=${CLEANUP_EXECUTION_ID}"
-            echo "FLATKEY_QA_TARGET_ENVIRONMENT=${TARGET_ENVIRONMENT}"
-            echo "FLATKEY_QA_WEBSITE_ORIGIN=${WEBSITE_ORIGIN}"
-            echo "FLATKEY_QA_CONSOLE_ORIGIN=${CONSOLE_ORIGIN}"
-            echo "FLATKEY_QA_DOCS_ORIGIN=${DOCS_ORIGIN}"
           } >> "$GITHUB_ENV"
 
       - name: Checkout

@@ -477,16 +477,17 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
 
     def test_target_environment_is_closed_and_exports_exact_trusted_origins_before_cloud_mutation(self):
         text = workflow_text()
-        validate = step_block(text, "Validate dispatch inputs")
+        target = step_block(text, "Resolve target environment")
         first_cloud_mutation = min(
             text.index("- name: Update browser QA Cloud Run resources"),
             text.index('gcloud run jobs execute "${QA_MAIN_JOB}"'),
         )
 
-        self.assertLess(text.index("- name: Validate dispatch inputs"), first_cloud_mutation)
-        self.assertIn("DISPATCH_TARGET_ENVIRONMENT: ${{ inputs.target_environment }}", validate)
+        self.assertLess(text.index("- name: Resolve target environment"), text.index("- name: Validate dispatch inputs"))
+        self.assertLess(text.index("- name: Resolve target environment"), first_cloud_mutation)
+        self.assertIn("DISPATCH_TARGET_ENVIRONMENT: ${{ inputs.target_environment }}", target)
         self.assertRegex(
-            validate,
+            target,
             r"case \"\$\{DISPATCH_TARGET_ENVIRONMENT\}\" in[\s\S]*"
             r"staging\)[\s\S]*"
             r'TARGET_ENVIRONMENT="staging"[\s\S]*'
@@ -506,7 +507,26 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
             "FLATKEY_QA_CONSOLE_ORIGIN=${CONSOLE_ORIGIN}",
             "FLATKEY_QA_DOCS_ORIGIN=${DOCS_ORIGIN}",
         ]:
-            self.assertIn(f'echo "{exported}"', validate)
+            self.assertIn(f'echo "{exported}"', target)
+
+    def test_target_environment_export_is_independent_of_later_dispatch_validation_failures(self):
+        text = workflow_text()
+        target = step_block(text, "Resolve target environment")
+        validate = step_block(text, "Validate dispatch inputs")
+        notification = step_block(text, "Send terminal Browser QA report to DingTalk")
+
+        self.assertLess(text.index("- name: Resolve target environment"), text.index("- name: Validate dispatch inputs"))
+        self.assertLess(text.index("- name: Validate dispatch inputs"), text.index("- name: Send terminal Browser QA report to DingTalk"))
+        self.assertIn('echo "FLATKEY_QA_TARGET_ENVIRONMENT=${TARGET_ENVIRONMENT}"', target)
+        self.assertIn('echo "FLATKEY_QA_WEBSITE_ORIGIN=${WEBSITE_ORIGIN}"', target)
+        self.assertIn('echo "FLATKEY_QA_CONSOLE_ORIGIN=${CONSOLE_ORIGIN}"', target)
+        self.assertIn('echo "FLATKEY_QA_DOCS_ORIGIN=${DOCS_ORIGIN}"', target)
+        self.assertNotIn("DISPATCH_ORIGINAL_RUN_ID", target)
+        self.assertNotIn("QA_GMAIL_BASE", target)
+        self.assertNotIn("DISPATCH_TARGET_ENVIRONMENT", validate)
+        self.assertNotIn("FLATKEY_QA_TARGET_ENVIRONMENT=${TARGET_ENVIRONMENT}", validate)
+        self.assertIn('BROWSER_QA_TARGET_ENVIRONMENT="${FLATKEY_QA_TARGET_ENVIRONMENT}"', notification)
+        self.assertNotIn("${DISPATCH_TARGET_ENVIRONMENT}", notification)
 
     def test_dispatch_inputs_are_not_interpolated_inside_shell_run_blocks(self):
         for index, block in enumerate(run_blocks(workflow_text())):
