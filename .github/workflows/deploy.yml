@@ -95,8 +95,19 @@ jobs:
           echo "部署镜像: $IMAGE"
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/new-api-master --timeout=180s
-          kubectl rollout status deployment/new-api-worker --timeout=180s
+          # master 先就绪（它负责数据库迁移），worker 的 initContainer 会等 schema
+          kubectl rollout status deployment/new-api-master --timeout=300s
+          kubectl rollout status deployment/new-api-worker --timeout=420s
+
+      - name: Diagnose on failure
+        if: failure()
+        run: |
+          kubectl get pods -l app=new-api -o wide || true
+          kubectl describe pods -l app=new-api,role=worker | tail -40 || true
+          for p in $(kubectl get pods -l app=new-api,role=worker -o name); do
+            echo "=== logs $p ==="
+            kubectl logs "$p" --tail=30 --all-containers || true
+          done
 
       - name: Report state
         run: |

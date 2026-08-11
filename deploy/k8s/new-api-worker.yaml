@@ -43,6 +43,33 @@ spec:
                     app: new-api
                     role: worker
                 topologyKey: kubernetes.io/hostname
+      # worker 依赖 master 完成数据库迁移（casbin_rule 等表由 master 建）。
+      # 不等待会导致 worker 启动即 FATAL、进入 CrashLoopBackOff，拖垮 rollout。
+      initContainers:
+        - name: wait-for-schema
+          image: postgres:16-alpine
+          env:
+            - name: SQL_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: new-api-secrets
+                  key: sql-dsn
+          command:
+            - sh
+            - -c
+            - |
+              echo "等待 master 完成数据库迁移（探测 casbin_rule 表）..."
+              i=0
+              while [ $i -lt 60 ]; do
+                if psql "$SQL_DSN" -tAc "SELECT to_regclass('public.casbin_rule') IS NOT NULL" 2>/dev/null | grep -q '^t$'; then
+                  echo "schema 就绪，继续启动 worker"
+                  exit 0
+                fi
+                i=$((i+1))
+                sleep 5
+              done
+              echo "等待 schema 超时（300s）"
+              exit 1
       containers:
         - name: new-api
           image: ghcr.io/xiaocongyu66/new-api:latest
