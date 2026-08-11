@@ -19,18 +19,14 @@ import (
 
 type recordingBillingSettler struct {
 	settledQuotas   []int
-	failNext        bool
-	failAlways      bool
+	failures        int
 	commitOnFailure bool
 	refundCalls     int
 }
 
 func (s *recordingBillingSettler) Settle(actualQuota int) error {
-	if s.failAlways {
-		return errors.New("injected persistent settlement failure")
-	}
-	if s.failNext {
-		s.failNext = false
+	if s.failures > 0 {
+		s.failures--
 		if s.commitOnFailure {
 			s.settledQuotas = append(s.settledQuotas, actualQuota)
 		}
@@ -41,34 +37,10 @@ func (s *recordingBillingSettler) Settle(actualQuota int) error {
 }
 
 func TestPostTextConsumeQuotaOnErrorDoesNotReplaceCommittedSettlementAfterLateError(t *testing.T) {
-	previousBatchUpdateEnabled := common.BatchUpdateEnabled
-	previousLogConsumeEnabled := common.LogConsumeEnabled
-	common.BatchUpdateEnabled = true
-	common.LogConsumeEnabled = false
-	t.Cleanup(func() {
-		common.BatchUpdateEnabled = previousBatchUpdateEnabled
-		common.LogConsumeEnabled = previousLogConsumeEnabled
-	})
+	billing := &recordingBillingSettler{failures: 1, commitOnFailure: true}
+	ctx, info, usage := newTextQuotaErrorTest(t, billing, false)
 
-	gin.SetMode(gin.TestMode)
-	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	billing := &recordingBillingSettler{failNext: true, commitOnFailure: true}
-	info := &relaycommon.RelayInfo{
-		StartTime:       time.Now(),
-		OriginModelName: "gpt-5.6-sol",
-		IsStream:        true,
-		IsPlayground:    true,
-		Billing:         billing,
-		ChannelMeta:     &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex},
-		PriceData: types.PriceData{
-			ModelRatio:      1,
-			CompletionRatio: 1,
-			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
-		},
-	}
-
-	err := PostTextConsumeQuotaOnError(ctx, info, &dto.Usage{PromptTokens: 20, CompletionTokens: 5, TotalTokens: 25}, nil)
+	err := PostTextConsumeQuotaOnError(ctx, info, usage, nil)
 	if err == nil {
 		t.Fatal("expected late settlement error")
 	}
@@ -87,11 +59,12 @@ func (s *recordingBillingSettler) GetPreConsumedQuota() int { return 100 }
 func (s *recordingBillingSettler) Reserve(int) error        { return nil }
 func (s *recordingBillingSettler) settlementApplied() bool  { return len(s.settledQuotas) > 0 }
 
-func TestPostTextConsumeQuotaOnErrorSettlesDeliveredUsage(t *testing.T) {
+func newTextQuotaErrorTest(t *testing.T, billing *recordingBillingSettler, logConsume bool) (*gin.Context, *relaycommon.RelayInfo, *dto.Usage) {
+	t.Helper()
 	previousBatchUpdateEnabled := common.BatchUpdateEnabled
 	previousLogConsumeEnabled := common.LogConsumeEnabled
 	common.BatchUpdateEnabled = true
-	common.LogConsumeEnabled = false
+	common.LogConsumeEnabled = logConsume
 	t.Cleanup(func() {
 		common.BatchUpdateEnabled = previousBatchUpdateEnabled
 		common.LogConsumeEnabled = previousLogConsumeEnabled
@@ -100,23 +73,25 @@ func TestPostTextConsumeQuotaOnErrorSettlesDeliveredUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	billing := &recordingBillingSettler{}
 	info := &relaycommon.RelayInfo{
 		StartTime:       time.Now(),
 		OriginModelName: "gpt-5.6-sol",
 		IsStream:        true,
 		IsPlayground:    true,
 		Billing:         billing,
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType: constant.ChannelTypeCodex,
-		},
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex},
 		PriceData: types.PriceData{
 			ModelRatio:      1,
 			CompletionRatio: 1,
 			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
 		},
 	}
-	usage := &dto.Usage{PromptTokens: 20, CompletionTokens: 5, TotalTokens: 25}
+	return ctx, info, &dto.Usage{PromptTokens: 20, CompletionTokens: 5, TotalTokens: 25}
+}
+
+func TestPostTextConsumeQuotaOnErrorSettlesDeliveredUsage(t *testing.T) {
+	billing := &recordingBillingSettler{}
+	ctx, info, usage := newTextQuotaErrorTest(t, billing, false)
 
 	if err := PostTextConsumeQuotaOnError(ctx, info, usage, []string{"partial stream failed"}); err != nil {
 		t.Fatalf("settle delivered usage: %v", err)
@@ -134,34 +109,10 @@ func TestPostTextConsumeQuotaOnErrorSettlesDeliveredUsage(t *testing.T) {
 }
 
 func TestPostTextConsumeQuotaOnErrorRetainsPreConsumptionWhenActualSettlementFails(t *testing.T) {
-	previousBatchUpdateEnabled := common.BatchUpdateEnabled
-	previousLogConsumeEnabled := common.LogConsumeEnabled
-	common.BatchUpdateEnabled = true
-	common.LogConsumeEnabled = false
-	t.Cleanup(func() {
-		common.BatchUpdateEnabled = previousBatchUpdateEnabled
-		common.LogConsumeEnabled = previousLogConsumeEnabled
-	})
+	billing := &recordingBillingSettler{failures: 1}
+	ctx, info, usage := newTextQuotaErrorTest(t, billing, false)
 
-	gin.SetMode(gin.TestMode)
-	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	billing := &recordingBillingSettler{failNext: true}
-	info := &relaycommon.RelayInfo{
-		StartTime:       time.Now(),
-		OriginModelName: "gpt-5.6-sol",
-		IsStream:        true,
-		IsPlayground:    true,
-		Billing:         billing,
-		ChannelMeta:     &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex},
-		PriceData: types.PriceData{
-			ModelRatio:      1,
-			CompletionRatio: 1,
-			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
-		},
-	}
-
-	err := PostTextConsumeQuotaOnError(ctx, info, &dto.Usage{PromptTokens: 20, CompletionTokens: 5, TotalTokens: 25}, nil)
+	err := PostTextConsumeQuotaOnError(ctx, info, usage, nil)
 	if err == nil {
 		t.Fatal("expected original settlement failure")
 	}
@@ -175,38 +126,17 @@ func TestPostTextConsumeQuotaOnErrorRetainsPreConsumptionWhenActualSettlementFai
 }
 
 func TestPostTextConsumeQuotaOnErrorStopsWhenSettlementAndRetentionFail(t *testing.T) {
-	previousBatchUpdateEnabled := common.BatchUpdateEnabled
-	previousLogConsumeEnabled := common.LogConsumeEnabled
 	previousSpendHook := model.TemporaryChannelSpendHook
-	common.BatchUpdateEnabled = true
-	common.LogConsumeEnabled = true
 	consumeLogCalls := 0
 	model.TemporaryChannelSpendHook = func(int, string, int) { consumeLogCalls++ }
 	t.Cleanup(func() {
-		common.BatchUpdateEnabled = previousBatchUpdateEnabled
-		common.LogConsumeEnabled = previousLogConsumeEnabled
 		model.TemporaryChannelSpendHook = previousSpendHook
 	})
 
-	gin.SetMode(gin.TestMode)
-	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	billing := &recordingBillingSettler{failAlways: true}
-	info := &relaycommon.RelayInfo{
-		StartTime:       time.Now(),
-		OriginModelName: "gpt-5.6-sol",
-		IsStream:        true,
-		IsPlayground:    true,
-		Billing:         billing,
-		ChannelMeta:     &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex},
-		PriceData: types.PriceData{
-			ModelRatio:      1,
-			CompletionRatio: 1,
-			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
-		},
-	}
+	billing := &recordingBillingSettler{failures: 2}
+	ctx, info, usage := newTextQuotaErrorTest(t, billing, true)
 
-	err := PostTextConsumeQuotaOnError(ctx, info, &dto.Usage{PromptTokens: 20, CompletionTokens: 5, TotalTokens: 25}, nil)
+	err := PostTextConsumeQuotaOnError(ctx, info, usage, nil)
 	if err == nil {
 		t.Fatal("expected persistent settlement failure")
 	}

@@ -125,9 +125,11 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
-		if usageDto := failedCodexResponsesUsageToSettle(c, info, usage); usageDto != nil {
-			if settleErr := service.PostTextConsumeQuotaOnError(c, info, usageDto, []string{"Codex 流式响应部分输出后失败，按已返回 usage 结算"}); settleErr != nil {
-				logger.LogError(c, "failed to settle delivered Codex response usage: "+settleErr.Error())
+		if info.ChannelType == appconstant.ChannelTypeCodex && c.Writer.Written() {
+			if usageDto, ok := usage.(*dto.Usage); ok && usageDto != nil && usageDto.TotalTokens > 0 {
+				if settleErr := service.PostTextConsumeQuotaOnError(c, info, usageDto, []string{"Codex 流式响应部分输出后失败，按已返回 usage 结算"}); settleErr != nil {
+					logger.LogError(c, "failed to settle delivered Codex response usage: "+settleErr.Error())
+				}
 			}
 		}
 		// reset status code 重置状态码
@@ -159,17 +161,6 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
-}
-
-func failedCodexResponsesUsageToSettle(c *gin.Context, info *relaycommon.RelayInfo, usage any) *dto.Usage {
-	if c == nil || info == nil || info.ChannelType != appconstant.ChannelTypeCodex || !c.Writer.Written() {
-		return nil
-	}
-	usageDto, ok := usage.(*dto.Usage)
-	if !ok || usageDto == nil || usageDto.TotalTokens <= 0 {
-		return nil
-	}
-	return usageDto
 }
 
 func normalizeOpenAIResponsesRequest(request any) (*dto.OpenAIResponsesRequest, error) {

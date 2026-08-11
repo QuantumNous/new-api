@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -187,52 +188,40 @@ func TestOaiResponsesStreamHandlerCodexFailedAfterCommitSkipsRetry(t *testing.T)
 }
 
 func TestOaiResponsesStreamHandlerCodexFailedAfterCommitEstimatesDeliveredUsage(t *testing.T) {
-	upstream := strings.Join([]string{
-		"event: response.created",
-		`data: {"type":"response.created","response":{"id":"resp_failed","status":"in_progress"}}`,
-		"",
-		"event: response.output_text.delta",
-		`data: {"type":"response.output_text.delta","delta":"partial output without terminal usage"}`,
-		"",
-		"event: response.failed",
-		`data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"code":"server_error","message":"upstream blew up"}}}`,
-		"",
-	}, "\n")
-
-	_, ctx, info, resp := newResponsesStreamTest(t, upstream, constant.ChannelTypeCodex)
-	info.SetEstimatePromptTokens(17)
 	service.InitTokenEncoders()
-	usage, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
-	if apiErr == nil || !types.IsSkipRetryError(apiErr) {
-		t.Fatalf("failed response error = %#v", apiErr)
+	tests := []struct {
+		name      string
+		eventType string
+		delta     string
+	}{
+		{name: "text", eventType: "response.output_text.delta", delta: "partial output without terminal usage"},
+		{name: "tool arguments", eventType: "response.function_call_arguments.delta", delta: `{"city":"Shanghai"}`},
 	}
-	if usage.PromptTokens != 17 || usage.CompletionTokens <= 0 || usage.TotalTokens <= 17 {
-		t.Fatalf("estimated failed response usage = %#v", *usage)
-	}
-}
 
-func TestOaiResponsesStreamHandlerCodexFailedAfterToolDeltaEstimatesDeliveredUsage(t *testing.T) {
-	upstream := strings.Join([]string{
-		"event: response.created",
-		`data: {"type":"response.created","response":{"id":"resp_failed","status":"in_progress"}}`,
-		"",
-		"event: response.function_call_arguments.delta",
-		`data: {"type":"response.function_call_arguments.delta","item_id":"call_1","delta":"{\"city\":\"Shanghai\"}"}`,
-		"",
-		"event: response.failed",
-		`data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"code":"server_error","message":"upstream blew up"}}}`,
-		"",
-	}, "\n")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			upstream := strings.Join([]string{
+				"event: response.created",
+				`data: {"type":"response.created","response":{"id":"resp_failed","status":"in_progress"}}`,
+				"",
+				"event: " + test.eventType,
+				fmt.Sprintf(`data: {"type":%q,"item_id":"call_1","delta":%q}`, test.eventType, test.delta),
+				"",
+				"event: response.failed",
+				`data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"code":"server_error","message":"upstream blew up"}}}`,
+				"",
+			}, "\n")
 
-	_, ctx, info, resp := newResponsesStreamTest(t, upstream, constant.ChannelTypeCodex)
-	info.SetEstimatePromptTokens(19)
-	service.InitTokenEncoders()
-	usage, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
-	if apiErr == nil || !types.IsSkipRetryError(apiErr) {
-		t.Fatalf("failed response error = %#v", apiErr)
-	}
-	if usage.PromptTokens != 19 || usage.CompletionTokens <= 0 || usage.TotalTokens <= 19 {
-		t.Fatalf("estimated tool-only failed response usage = %#v", *usage)
+			_, ctx, info, resp := newResponsesStreamTest(t, upstream, constant.ChannelTypeCodex)
+			info.SetEstimatePromptTokens(17)
+			usage, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
+			if apiErr == nil || !types.IsSkipRetryError(apiErr) {
+				t.Fatalf("failed response error = %#v", apiErr)
+			}
+			if usage.PromptTokens != 17 || usage.CompletionTokens <= 0 || usage.TotalTokens <= 17 {
+				t.Fatalf("estimated failed response usage = %#v", *usage)
+			}
+		})
 	}
 }
 
