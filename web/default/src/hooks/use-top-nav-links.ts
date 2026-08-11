@@ -56,9 +56,7 @@ export function buildTopNavLinks(
     return { title, href, external: href.startsWith('http') }
   }
 
-  // Keep the console-specific Home and Blog entries, then follow the official
-  // website's primary navigation order.
-  links.push(websiteLink(options.translate('Home'), '/'))
+  // Follow the remaining official website primary navigation order.
   links.push(websiteLink(options.translate('Blog'), '/blog'))
   links.push(websiteLink(options.translate('Models'), '/models'))
   links.push({
@@ -66,17 +64,6 @@ export function buildTopNavLinks(
     href: OFFICIAL_DOCUMENTATION_URL,
     external: true,
   })
-
-  const rankings = options.modules.rankings
-  if (rankings.enabled) {
-    const href = officialWebsiteUrl(websitePath('/models#leaderboard'))
-    links.push({
-      title: options.translate('Rankings'),
-      href,
-      requiresAuth: rankings.requireAuth && !options.isAuthed,
-      external: href.startsWith('http'),
-    })
-  }
 
   const pricing = options.modules.pricing
   if (pricing.enabled) {
