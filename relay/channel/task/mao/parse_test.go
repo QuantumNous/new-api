@@ -1,6 +1,7 @@
 package mao
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
@@ -42,6 +43,33 @@ func TestParseTaskResult_SuccessURL(t *testing.T) {
 	}
 	if ti.Status != model.TaskStatusSuccess || ti.Url != "https://cdn.example.com/v.mp4" {
 		t.Fatalf("status=%v url=%q", ti.Status, ti.Url)
+	}
+}
+
+func TestParseTaskResult_PrefersNestedMediaOverUpstreamProxy(t *testing.T) {
+	raw := []byte(`{
+	  "code":"success",
+	  "data":{
+	    "status":"SUCCESS",
+	    "result_url":"https://api.catertx.com/v1/videos/task_upstream/content",
+	    "data":{
+	      "url":"https://ark.tos.example.com/video.mp4?X-Tos-Expires=86400",
+	      "status":"completed"
+	    }
+	  }
+	}`)
+	ti, err := parseTaskResult(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ti.Status != model.TaskStatusSuccess {
+		t.Fatalf("status=%v", ti.Status)
+	}
+	if !strings.Contains(ti.Url, "ark.tos.example.com") {
+		t.Fatalf("url=%q, want nested media URL", ti.Url)
+	}
+	if strings.Contains(ti.Url, "api.catertx.com") {
+		t.Fatalf("url must not be upstream proxy: %q", ti.Url)
 	}
 }
 

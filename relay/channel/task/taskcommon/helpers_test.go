@@ -99,3 +99,27 @@ func TestPickTaskResultURLPrefersDirectURLFromData(t *testing.T) {
 		t.Fatalf("unexpected url: %q", got)
 	}
 }
+
+func TestPickTaskResultURLRejectsUpstreamGatewayProxy(t *testing.T) {
+	task := &model.Task{TaskID: "task_local"}
+	raw := []byte(`{
+	  "code":"success",
+	  "data":{
+	    "result_url":"https://api.catertx.com/v1/videos/task_upstream/content",
+	    "data":{"url":"https://tos.example.com/a.mp4"}
+	  }
+	}`)
+	got := PickTaskResultURL(task, "https://api.catertx.com/v1/videos/task_upstream/content", raw)
+	if got != "https://tos.example.com/a.mp4" {
+		t.Fatalf("unexpected url: %q", got)
+	}
+}
+
+func TestIsVideoProxyContentURL(t *testing.T) {
+	if !IsVideoProxyContentURL("https://api.catertx.com/v1/videos/task_abc/content") {
+		t.Fatal("expected true")
+	}
+	if IsVideoProxyContentURL("https://tos.example.com/a.mp4") {
+		t.Fatal("expected false for media url")
+	}
+}

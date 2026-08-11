@@ -2,6 +2,7 @@ package mao
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -72,6 +73,9 @@ func buildUpstreamPayload(body map[string]interface{}, logicModel string) (map[s
 		}
 		md["camera_fixed"] = v
 	}
+
+	applyReferenceMedia(cloned, out, &md)
+
 	if md != nil {
 		if !supportsCameraFixed(logicModel) {
 			delete(md, "camera_fixed")
@@ -93,6 +97,122 @@ func buildUpstreamPayload(body map[string]interface{}, logicModel string) (map[s
 
 	out["model"] = upstreamModel
 	return out, nil
+}
+
+// applyReferenceMedia maps common client image fields onto catertx fields:
+// - only explicitly marked first-frame fields → top-level `image`
+// - everything else (even a single image) → metadata.reference_images
+//
+// First-frame markers: existing `image`, or aliases `first_image` / `first_frame`.
+// Without this, images / input_reference / reference_images are dropped and upstream
+// treats the job as textGenerate (no visual reference).
+func applyReferenceMedia(cloned, out map[string]interface{}, md *map[string]interface{}) {
+	// Explicit first-frame aliases (do not treat plain images[] as first frame).
+	if strings.TrimSpace(asString(out["image"])) == "" {
+		for _, key := range []string{"first_image", "first_frame"} {
+			if urls := collectURLStrings(cloned[key]); len(urls) > 0 {
+				out["image"] = urls[0]
+				break
+			}
+		}
+	}
+	if strings.TrimSpace(asString(out["last_frame"])) == "" {
+		if urls := collectURLStrings(cloned["last_image"]); len(urls) > 0 {
+			out["last_frame"] = urls[0]
+		}
+	}
+
+	firstFrame := strings.TrimSpace(asString(out["image"]))
+	lastFrame := strings.TrimSpace(asString(out["last_frame"]))
+
+	var refs []string
+	seen := map[string]struct{}{}
+	add := func(u string) {
+		u = strings.TrimSpace(u)
+		if u == "" || u == firstFrame || u == lastFrame {
+			return
+		}
+		if _, ok := seen[u]; ok {
+			return
+		}
+		seen[u] = struct{}{}
+		refs = append(refs, u)
+	}
+
+	// All non-first-frame image sources → reference_images (including a single image).
+	for _, u := range collectURLStrings(cloned["reference_images"]) {
+		add(u)
+	}
+	if *md != nil {
+		for _, u := range collectURLStrings((*md)["reference_images"]) {
+			add(u)
+		}
+	}
+	for _, u := range collectURLStrings(cloned["images"]) {
+		add(u)
+	}
+	for _, u := range collectURLStrings(cloned["image_urls"]) {
+		add(u)
+	}
+	for _, u := range collectURLStrings(cloned["image_url"]) {
+		add(u)
+	}
+	if u := strings.TrimSpace(asString(cloned["input_reference"])); u != "" {
+		add(u)
+	}
+
+	if len(refs) == 0 {
+		return
+	}
+	if *md == nil {
+		*md = make(map[string]interface{})
+	}
+	(*md)["reference_images"] = refs
+}
+
+func collectURLStrings(v interface{}) []string {
+	if v == nil {
+		return nil
+	}
+	switch t := v.(type) {
+	case string:
+		if u := strings.TrimSpace(t); u != "" {
+			return []string{u}
+		}
+	case []string:
+		out := make([]string, 0, len(t))
+		for _, s := range t {
+			if u := strings.TrimSpace(s); u != "" {
+				out = append(out, u)
+			}
+		}
+		return out
+	case []interface{}:
+		out := make([]string, 0, len(t))
+		for _, item := range t {
+			switch x := item.(type) {
+			case string:
+				if u := strings.TrimSpace(x); u != "" {
+					out = append(out, u)
+				}
+			case map[string]interface{}:
+				for _, key := range []string{"url", "image_url", "http_url", "uri", "src", "href"} {
+					if u := strings.TrimSpace(asString(x[key])); u != "" {
+						out = append(out, u)
+						break
+					}
+				}
+			}
+		}
+		return out
+	case map[string]interface{}:
+		for _, key := range []string{"url", "image_url", "http_url", "uri", "src", "href"} {
+			if u := strings.TrimSpace(asString(t[key])); u != "" {
+				return []string{u}
+			}
+		}
+	}
+	return nil
 }
 
 func cloneBodyMap(body map[string]interface{}) (map[string]interface{}, error) {

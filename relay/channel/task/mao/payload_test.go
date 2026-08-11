@@ -162,3 +162,91 @@ func TestBuildUpstreamPayload_AfterVolcNormalize(t *testing.T) {
 		t.Fatalf("metadata.watermark=%v, want false", md["watermark"])
 	}
 }
+
+func TestBuildUpstreamPayload_MapsImagesAliasToReferenceImages(t *testing.T) {
+	in := map[string]interface{}{
+		"model":    "guanzhuan-seedance2.0-mini",
+		"prompt":   "keep character",
+		"images":   []interface{}{"https://cdn.example.com/ref.png"},
+		"duration": 5,
+		"ratio":    "16:9",
+	}
+	out, err := buildUpstreamPayload(in, "guanzhuan-seedance2.0-mini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := out["image"]; ok {
+		t.Fatalf("image=%v, single images[] must not become first frame", out["image"])
+	}
+	md, _ := out["metadata"].(map[string]interface{})
+	refs := asStringSlice(md["reference_images"])
+	if len(refs) != 1 || refs[0] != "https://cdn.example.com/ref.png" {
+		t.Fatalf("reference_images=%v", refs)
+	}
+}
+
+func TestBuildUpstreamPayload_MapsInputReferenceToReferenceImages(t *testing.T) {
+	in := map[string]interface{}{
+		"model":           "guanzhuan-seedance2.0",
+		"prompt":          "run",
+		"input_reference": "https://cdn.example.com/ref.jpg",
+		"reference_images": []interface{}{
+			"https://cdn.example.com/ref1.png",
+			"https://cdn.example.com/ref2.png",
+		},
+	}
+	out, err := buildUpstreamPayload(in, "guanzhuan-seedance2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := out["image"]; ok {
+		t.Fatalf("image=%v, input_reference must not become first frame", out["image"])
+	}
+	md, _ := out["metadata"].(map[string]interface{})
+	refs := asStringSlice(md["reference_images"])
+	if len(refs) != 3 {
+		t.Fatalf("reference_images=%v", refs)
+	}
+}
+
+func TestBuildUpstreamPayload_FirstImageAliasSetsFirstFrame(t *testing.T) {
+	in := map[string]interface{}{
+		"model":       "guanzhuan-seedance2.0",
+		"prompt":      "x",
+		"first_image": "https://cdn.example.com/first.jpg",
+		"images":      []interface{}{"https://cdn.example.com/ref.png"},
+	}
+	out, err := buildUpstreamPayload(in, "guanzhuan-seedance2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["image"] != "https://cdn.example.com/first.jpg" {
+		t.Fatalf("image=%v", out["image"])
+	}
+	md, _ := out["metadata"].(map[string]interface{})
+	refs := asStringSlice(md["reference_images"])
+	if len(refs) != 1 || refs[0] != "https://cdn.example.com/ref.png" {
+		t.Fatalf("reference_images=%v", refs)
+	}
+}
+
+func TestBuildUpstreamPayload_KeepsExplicitImageAndAddsRefs(t *testing.T) {
+	in := map[string]interface{}{
+		"model":  "guanzhuan-seedance2.0",
+		"prompt": "x",
+		"image":  "https://cdn.example.com/first.jpg",
+		"images": []interface{}{"https://cdn.example.com/ref.png"},
+	}
+	out, err := buildUpstreamPayload(in, "guanzhuan-seedance2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["image"] != "https://cdn.example.com/first.jpg" {
+		t.Fatalf("image=%v", out["image"])
+	}
+	md, _ := out["metadata"].(map[string]interface{})
+	refs := asStringSlice(md["reference_images"])
+	if len(refs) != 1 || refs[0] != "https://cdn.example.com/ref.png" {
+		t.Fatalf("reference_images=%v", refs)
+	}
+}

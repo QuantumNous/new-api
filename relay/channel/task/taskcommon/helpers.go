@@ -82,6 +82,24 @@ func IsTaskProxyContentURL(url, taskID string) bool {
 	return strings.Contains(url, "/v1/videos/"+taskID+"/content")
 }
 
+// IsVideoProxyContentURL reports whether url looks like any new-api style video content proxy
+// (any host / any task id): .../v1/videos/{id}/content
+// Used to reject upstream gateway result_url values (e.g. api.catertx.com) that must not
+// be exposed to clients as the final media URL.
+func IsVideoProxyContentURL(rawURL string) bool {
+	rawURL = strings.TrimSpace(rawURL)
+	idx := strings.Index(rawURL, "/v1/videos/")
+	if idx < 0 {
+		return false
+	}
+	rest := rawURL[idx+len("/v1/videos/"):]
+	slash := strings.IndexByte(rest, '/')
+	if slash <= 0 {
+		return false
+	}
+	return strings.HasPrefix(rest[slash:], "/content")
+}
+
 // ExtractVideoURLFromJSON scans common upstream video response fields for a direct HTTP URL.
 func ExtractVideoURLFromJSON(raw []byte) string {
 	if len(raw) == 0 {
@@ -98,11 +116,19 @@ func ExtractVideoURLFromJSON(raw []byte) string {
 		"data.video_url",
 		"data.content.video_url",
 		"data.url",
+		"data.data.url",
+		"data.data.video_url",
+		"data.data.data.0.url",
 		"remixed_from_video_id",
 	} {
-		if u := strings.TrimSpace(gjson.Get(s, path).String()); u != "" && strings.HasPrefix(u, "http") {
-			return u
+		u := strings.TrimSpace(gjson.Get(s, path).String())
+		if u == "" || !strings.HasPrefix(u, "http") {
+			continue
 		}
+		if IsVideoProxyContentURL(u) {
+			continue
+		}
+		return u
 	}
 	return ""
 }
@@ -113,13 +139,13 @@ func ResolveTaskVideoURL(task *model.Task) string {
 		return ""
 	}
 	stored := strings.TrimSpace(task.GetResultURL())
-	if stored != "" && !IsTaskProxyContentURL(stored, task.TaskID) && !IsLikelyExpiredSignedVideoURL(stored) {
+	if stored != "" && !IsTaskProxyContentURL(stored, task.TaskID) && !IsVideoProxyContentURL(stored) && !IsLikelyExpiredSignedVideoURL(stored) {
 		return stored
 	}
 	if u := ExtractVideoURLFromJSON(task.Data); u != "" && !IsLikelyExpiredSignedVideoURL(u) {
 		return u
 	}
-	if stored != "" && !IsTaskProxyContentURL(stored, task.TaskID) {
+	if stored != "" && !IsTaskProxyContentURL(stored, task.TaskID) && !IsVideoProxyContentURL(stored) {
 		return stored
 	}
 	if u := ExtractVideoURLFromJSON(task.Data); u != "" {
@@ -174,19 +200,18 @@ func IsLikelyExpiredSignedVideoURL(rawURL string) bool {
 }
 
 // PickTaskResultURL stores the best available result URL, avoiding proxy self-reference when possible.
+// Upstream gateway proxy URLs (any host's /v1/videos/{id}/content) are never stored — prefer a
+// direct media URL from data, otherwise fall back to this server's BuildProxyURL.
 func PickTaskResultURL(task *model.Task, candidateURL string, data []byte) string {
 	candidateURL = strings.TrimSpace(candidateURL)
 	if strings.HasPrefix(candidateURL, "data:") {
 		return BuildProxyURL(task.TaskID)
 	}
-	if candidateURL != "" && !IsTaskProxyContentURL(candidateURL, task.TaskID) {
+	if candidateURL != "" && !IsTaskProxyContentURL(candidateURL, task.TaskID) && !IsVideoProxyContentURL(candidateURL) {
 		return candidateURL
 	}
 	if u := ExtractVideoURLFromJSON(data); u != "" {
 		return u
-	}
-	if candidateURL != "" {
-		return candidateURL
 	}
 	return BuildProxyURL(task.TaskID)
 }

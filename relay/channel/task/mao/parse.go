@@ -164,25 +164,50 @@ func formatProgress(raw string) string {
 }
 
 func extractVideoURL(raw string) string {
+	// Prefer direct media URLs; skip upstream gateway proxy links like
+	// https://api.catertx.com/v1/videos/task_xxx/content (those leak upstream host
+	// and are not playable without the upstream's auth cookies/keys).
 	for _, path := range []string{
-		"data.result_url",
+		"data.data.url",
 		"data.data.video_url",
 		"data.data.data.0.url",
 		"data.video_url",
-		"result_url",
+		"data.url",
 		"video_url",
 		"url",
-		"data.url",
+		"data.result_url",
+		"result_url",
 	} {
 		val := gjson.Get(raw, path)
 		if !val.Exists() {
 			continue
 		}
-		if u := strings.TrimSpace(val.String()); u != "" && strings.HasPrefix(u, "http") {
-			return u
+		u := strings.TrimSpace(val.String())
+		if u == "" || !strings.HasPrefix(u, "http") {
+			continue
 		}
+		if isVideoProxyContentURL(u) {
+			continue
+		}
+		return u
 	}
 	return ""
+}
+
+// isVideoProxyContentURL reports whether u looks like a new-api style video content proxy
+// (any host): .../v1/videos/{id}/content
+func isVideoProxyContentURL(u string) bool {
+	u = strings.TrimSpace(u)
+	idx := strings.Index(u, "/v1/videos/")
+	if idx < 0 {
+		return false
+	}
+	rest := u[idx+len("/v1/videos/"):]
+	slash := strings.IndexByte(rest, '/')
+	if slash <= 0 {
+		return false
+	}
+	return strings.HasPrefix(rest[slash:], "/content")
 }
 
 func extractErrorMessage(raw string) string {
