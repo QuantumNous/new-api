@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -231,4 +232,49 @@ func TestBuildWebsitePublicGroupPricingPayloadIncludesHiddenPLGOnly(t *testing.T
 		"auto_groups": null,
 		"pricing_version": "website-public-plg-v1"
 	}`, string(body))
+}
+
+func withHiddenPricingModels(t *testing.T, value string) {
+	t.Helper()
+	setting := operation_setting.GetPricingVisibilitySetting()
+	previous := setting.HiddenModels
+	t.Cleanup(func() { setting.HiddenModels = previous })
+	setting.HiddenModels = value
+}
+
+func TestFilterHiddenPricingModels(t *testing.T) {
+	withHiddenPricingModels(t, "gpt-4o, *-internal , secret*")
+
+	pricing := []model.Pricing{
+		{ModelName: "gpt-4o"},
+		{ModelName: "gpt-4o-mini"},
+		{ModelName: "foo-internal"},
+		{ModelName: "secret-model"},
+		{ModelName: "claude-opus-4-8"},
+	}
+
+	filtered := filterHiddenPricingModels(pricing)
+
+	require.Len(t, filtered, 2)
+	require.Equal(t, "gpt-4o-mini", filtered[0].ModelName)
+	require.Equal(t, "claude-opus-4-8", filtered[1].ModelName)
+}
+
+func TestFilterHiddenPricingModelsNoConfigKeepsAll(t *testing.T) {
+	withHiddenPricingModels(t, "")
+
+	pricing := []model.Pricing{{ModelName: "gpt-4o"}, {ModelName: "claude-opus-4-8"}}
+
+	require.Len(t, filterHiddenPricingModels(pricing), 2)
+}
+
+func TestFilterHiddenPricingModelsDoesNotMutateInput(t *testing.T) {
+	withHiddenPricingModels(t, "gpt-4o")
+
+	pricing := []model.Pricing{{ModelName: "gpt-4o"}, {ModelName: "claude-opus-4-8"}}
+
+	filterHiddenPricingModels(pricing)
+
+	require.Len(t, pricing, 2)
+	require.Equal(t, "gpt-4o", pricing[0].ModelName)
 }

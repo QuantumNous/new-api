@@ -246,6 +246,7 @@ export type BillingSettings = {
   AudioRatio: string
   AudioCompletionRatio: string
   ExposeRatioEnabled: boolean
+  'pricing_visibility_setting.hidden_models': string
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
   'tool_price_setting.prices': string

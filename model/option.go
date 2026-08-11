@@ -1345,6 +1345,8 @@ func handleConfigUpdate(key, value string) (bool, error) {
 	} else if configName == "billing_setting" {
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
+	} else if configName == "pricing_visibility_setting" {
+		operation_setting.NotifyPricingVisibilityChanged()
 	} else if configName == "theme" {
 		system_setting.UpdateAndSyncTheme()
 	}

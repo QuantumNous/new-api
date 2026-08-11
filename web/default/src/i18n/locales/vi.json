@@ -6542,6 +6542,8 @@
     "activity_smtp_send_failed": "Gửi SMTP hoạt động thất bại",
     "Unknown message state": "Trạng thái tin nhắn không xác định",
     "Unknown lifecycle event": "Sự kiện vòng đời không xác định",
-    "Unknown lifecycle outcome": "Kết quả vòng đời không xác định"
+    "Unknown lifecycle outcome": "Kết quả vòng đời không xác định",
+    "Hidden models": "Mô hình ẩn",
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Danh sách tên mô hình cách nhau bằng dấu phẩy sẽ bị ẩn khỏi các trang giá. Hỗ trợ ký tự đại diện * (tiền tố, hậu tố hoặc chứa). Các mô hình bị ẩn vẫn gọi được bình thường qua API."
   }
 }

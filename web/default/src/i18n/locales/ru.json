@@ -6542,6 +6542,8 @@
     "activity_smtp_send_failed": "Ошибка отправки SMTP активности",
     "Unknown message state": "Неизвестное состояние сообщения",
     "Unknown lifecycle event": "Неизвестное событие жизненного цикла",
-    "Unknown lifecycle outcome": "Неизвестный результат жизненного цикла"
+    "Unknown lifecycle outcome": "Неизвестный результат жизненного цикла",
+    "Hidden models": "Скрытые модели",
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Имена моделей через запятую, которые будут скрыты на страницах с ценами. Поддерживаются подстановочные знаки * (префикс, суффикс или вхождение). Скрытые модели по-прежнему полностью доступны через API."
   }
 }
