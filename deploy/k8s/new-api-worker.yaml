@@ -47,7 +47,9 @@ spec:
       # 不等待会导致 worker 启动即 FATAL、进入 CrashLoopBackOff，拖垮 rollout。
       initContainers:
         - name: wait-for-schema
-          image: postgres:16-alpine
+          # 与 postgres.yaml 同一个 tag，节点上已有缓存，避免 Docker Hub 拉取失败
+          image: postgres:17-alpine
+          imagePullPolicy: IfNotPresent
           env:
             - name: SQL_DSN
               valueFrom:
