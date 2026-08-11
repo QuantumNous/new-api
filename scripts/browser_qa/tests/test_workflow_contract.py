@@ -364,7 +364,13 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         )
         self.assertRegex(uncommented, r"(?ms)^permissions:\n  contents: read\n  id-token: write\b")
         self.assertEqual(len(re.findall(r"(?m)^concurrency:\s*$", uncommented)), 1)
-        self.assertRegex(uncommented, r"(?ms)^concurrency:\n  group: .+\n  queue: max\n  cancel-in-progress: false\b")
+        parsed = yaml.safe_load(text)
+        self.assertEqual(
+            set(parsed["concurrency"]),
+            {"group", "cancel-in-progress"},
+        )
+        self.assertEqual(parsed["concurrency"]["group"], "gcp-browser-qa-manual")
+        self.assertFalse(parsed["concurrency"]["cancel-in-progress"])
 
     def test_dispatch_inputs_cover_normal_core_and_cleanup_only_with_original_run_id(self):
         text = workflow_text()

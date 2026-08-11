@@ -57,7 +57,6 @@ permissions:
 
 concurrency:
   group: gcp-browser-qa-manual
-  queue: max
   cancel-in-progress: false
 
 env:
