@@ -6542,6 +6542,8 @@
     "activity_smtp_send_failed": "アクティビティ SMTP 送信失敗",
     "Unknown message state": "不明なメッセージ状態",
     "Unknown lifecycle event": "不明なライフサイクルイベント",
-    "Unknown lifecycle outcome": "不明なライフサイクル結果"
+    "Unknown lifecycle outcome": "不明なライフサイクル結果",
+    "Hidden models": "非表示モデル",
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "価格ページに表示しないモデル名をカンマ区切りで指定します。* のワイルドカード（前方一致・後方一致・部分一致）に対応します。非表示のモデルも API からは通常どおり呼び出せます。"
   }
 }

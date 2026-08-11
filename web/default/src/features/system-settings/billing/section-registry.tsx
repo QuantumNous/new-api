@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { parseCurrencyDisplayType } from '@/lib/currency'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
-import { PricingVisibilitySection } from '../general/pricing-visibility-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
@@ -116,21 +115,10 @@ const BILLING_SECTIONS = [
         modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
-        visibleTabs={['models', 'tool-prices', 'upstream-sync']}
-      />
-    ),
-  },
-  {
-    id: 'pricing-visibility',
-    titleKey: 'Pricing Page Visibility',
-    build: (settings: BillingSettings) => (
-      <PricingVisibilitySection
-        defaultValues={{
-          pricing_visibility_setting: {
-            hidden_models:
-              settings['pricing_visibility_setting.hidden_models'] ?? '',
-          },
-        }}
+        hiddenModelsDefault={
+          settings['pricing_visibility_setting.hidden_models'] ?? ''
+        }
+        visibleTabs={['models', 'tool-prices', 'upstream-sync', 'hidden-models']}
       />
     ),
   },

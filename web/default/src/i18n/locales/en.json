@@ -6542,6 +6542,8 @@
     "activity_smtp_send_failed": "Activity SMTP send failed",
     "Unknown message state": "Unknown message state",
     "Unknown lifecycle event": "Unknown lifecycle event",
-    "Unknown lifecycle outcome": "Unknown lifecycle outcome"
+    "Unknown lifecycle outcome": "Unknown lifecycle outcome",
+    "Hidden models": "Hidden models",
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API."
   }
 }
