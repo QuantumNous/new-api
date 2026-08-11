@@ -29,6 +29,14 @@ spec:
         app: new-api
         role: master
     spec:
+      # master 是唯一跑系统任务 Runner 的节点，且要先完成数据库迁移，
+      # 固定在 control-plane 与数据层同机，减少跨节点抖动导致的启动失败。
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: new-api
           image: ghcr.io/xiaocongyu66/new-api:latest

@@ -39,6 +39,15 @@ spec:
       labels:
         app: postgres
     spec:
+      # 数据层固定在 control-plane 节点：
+      # 该节点与 API server 同机、最稳定；agent 节点掉线会导致整个数据层不可达。
+      # 本地 PV 也只在该节点上，Pod 漂移会丢数据卷绑定。
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: postgres
           image: postgres:17-alpine

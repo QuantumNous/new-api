@@ -38,6 +38,13 @@ spec:
       labels:
         app: redis
     spec:
+      # 与 postgres 同理：数据层固定在最稳定的 control-plane 节点。
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: redis
           image: redis:7-alpine
