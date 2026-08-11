@@ -119,11 +119,18 @@ spec:
             limits:
               cpu: "2000m"
               memory: "2Gi"
+          # worker 首次启动需连接数据库，startupProbe 给足时间避免被误杀
+          startupProbe:
+            httpGet:
+              path: /api/status
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /api/status
               port: http
-            initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
           readinessProbe:

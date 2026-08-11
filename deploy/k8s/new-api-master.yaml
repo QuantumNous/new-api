@@ -82,11 +82,20 @@ spec:
             limits:
               cpu: "1000m"
               memory: "1Gi"
+          # master 启动时要跑数据库迁移，跨节点/慢盘时可能耗时数分钟。
+          # 没有 startupProbe 时 livenessProbe 会在 ~60s 就杀掉容器，
+          # 每次重启又从头迁移，永远起不来。startupProbe 给足 10 分钟。
+          startupProbe:
+            httpGet:
+              path: /api/status
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 60
           livenessProbe:
             httpGet:
               path: /api/status
               port: http
-            initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
           readinessProbe:
