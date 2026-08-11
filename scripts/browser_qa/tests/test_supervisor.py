@@ -669,6 +669,32 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(manifest["infrastructure"]["classification"], "invalid_result")
         self.assertEqual(manifest["result"], valid_result(phase_trace=["finalization_started"]))
 
+    def test_supervisor_binds_writable_and_docs_proxy_to_target_environment(self):
+        input_env = env()
+        input_env.update(
+            {
+                "FLATKEY_QA_TARGET_ENVIRONMENT": "production",
+                "FLATKEY_QA_WEBSITE_ORIGIN": "https://flatkey.ai",
+                "FLATKEY_QA_CONSOLE_ORIGIN": "https://console.flatkey.ai",
+            }
+        )
+        policies = []
+
+        def proxy_factory(policy=None):
+            policies.append(policy)
+            return FakeProxy()
+
+        outcome, _sup = self.run_supervisor(
+            FakeProcess(0),
+            result_payload=valid_result(),
+            input_env=input_env,
+            proxy_factory=proxy_factory,
+        )
+
+        self.assertEqual(outcome.status, "passed")
+        self.assertEqual(policies[0].allowed_hosts, frozenset({"flatkey.ai", "console.flatkey.ai"}))
+        self.assertEqual(policies[1].allowed_hosts, frozenset({"docs.flatkey.ai"}))
+
     def run_supervisor(self, process, *, result_payload=None, cleanup=None, uploader=None, preflight=None, clock=None, input_env=None, thread_factory=None, proxy_factory=None, subprocess_runner=None, resource_guard_factory=None, fixed_cases_loader=None, fixed_case_runner_factory=None, fixed_cases_dir=None):
         tmp = tempfile.mkdtemp()
         supervisor_kwargs = {}
@@ -1920,7 +1946,7 @@ class SupervisorTests(unittest.TestCase):
 
         def proxy_factory(policy=None):
             calls.append(policy)
-            if policy is not None:
+            if len(calls) == 2:
                 raise TypeError("internal docs proxy construction failure")
             return FakeProxy()
 
@@ -1932,6 +1958,7 @@ class SupervisorTests(unittest.TestCase):
 
         self.assertEqual(outcome.status, "infrastructure_failed")
         self.assertEqual(len(calls), 2)
+        self.assertIsNotNone(calls[0])
         self.assertIsNotNone(calls[1])
 
     def test_supervisor_starts_chromium_with_proxy_cdp_runtime_profile_then_stops_after_evidence(self):

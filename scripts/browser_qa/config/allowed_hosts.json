@@ -19,14 +19,5 @@
         "docs.flatkey.ai"
       ]
     }
-  },
-  "modes": {
-    "writable": [
-      "staging-website.flatkey.ai",
-      "staging-console.flatkey.ai"
-    ],
-    "read_only": [
-      "docs.flatkey.ai"
-    ]
   }
 }

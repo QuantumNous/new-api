@@ -204,9 +204,11 @@ class Supervisor:
                 invalid_result = False
             else:
                 resource_guard = self.resource_guard_factory(cfg.console_origin)
-                proxy = self.proxy_factory()
+                proxy = self.proxy_factory(
+                    policy=EgressPolicy.from_file(target_environment=cfg.target_environment)
+                )
                 proxy.start()
-                docs_proxy = _build_docs_proxy(self.proxy_factory)
+                docs_proxy = _build_docs_proxy(self.proxy_factory, cfg.target_environment)
                 docs_proxy.start()
                 browser = self.browser_factory(
                     runtime_root=self.runtime_root,
@@ -1272,8 +1274,8 @@ def _attach_process_tree_or_direct(process):
     return _DirectProcessTerminator()
 
 
-def _build_docs_proxy(proxy_factory):
-    return proxy_factory(policy=EgressPolicy.from_file(mode="read_only"))
+def _build_docs_proxy(proxy_factory, target_environment):
+    return proxy_factory(policy=EgressPolicy.from_file(mode="read_only", target_environment=target_environment))
 
 
 def _start_new_tree_popen_kwargs():

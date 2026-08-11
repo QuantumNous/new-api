@@ -72,13 +72,21 @@ class RedirectHandler(http.server.BaseHTTPRequestHandler):
 
 class EgressPolicyTests(unittest.TestCase):
     def test_allowlist_file_is_versioned_deny_by_default_and_blocks_private_literal_hosts(self):
-        policy = egress_proxy.EgressPolicy.from_file()
+        policy = egress_proxy.EgressPolicy.from_file(target_environment="staging")
 
         self.assertTrue(policy.is_allowed_host("staging-website.flatkey.ai"))
         self.assertTrue(policy.is_allowed_host("staging-console.flatkey.ai"))
         self.assertFalse(policy.is_allowed_host("docs.flatkey.ai"))
-        self.assertTrue(egress_proxy.EgressPolicy.from_file(mode="read_only").is_allowed_host("docs.flatkey.ai"))
-        self.assertFalse(egress_proxy.EgressPolicy.from_file(mode="read_only").is_allowed_host("staging-console.flatkey.ai"))
+        self.assertTrue(
+            egress_proxy.EgressPolicy.from_file(target_environment="staging", mode="read_only").is_allowed_host(
+                "docs.flatkey.ai"
+            )
+        )
+        self.assertFalse(
+            egress_proxy.EgressPolicy.from_file(target_environment="staging", mode="read_only").is_allowed_host(
+                "staging-console.flatkey.ai"
+            )
+        )
         self.assertFalse(policy.is_allowed_host("flatkey.ai"))
         self.assertFalse(policy.is_allowed_host("assets.example.com"))
         self.assertFalse(policy.is_allowed_host("localhost"))
@@ -86,6 +94,21 @@ class EgressPolicyTests(unittest.TestCase):
         self.assertFalse(policy.is_allowed_host("0177.0.0.1"))
         self.assertFalse(policy.is_allowed_host("169.254.169.254"))
         self.assertFalse(policy.is_allowed_host("http://staging-console.flatkey.ai"))
+
+    def test_allowlist_file_requires_target_profile_and_selects_production_exact_hosts(self):
+        with self.assertRaises(ValueError):
+            egress_proxy.EgressPolicy.from_file()
+        with self.assertRaises(ValueError):
+            egress_proxy.EgressPolicy.from_file(target_environment="preview")
+
+        writable = egress_proxy.EgressPolicy.from_file(target_environment="production")
+        read_only = egress_proxy.EgressPolicy.from_file(target_environment="production", mode="read_only")
+
+        self.assertEqual(writable.allowed_hosts, frozenset({"flatkey.ai", "console.flatkey.ai"}))
+        self.assertTrue(writable.is_allowed_host("flatkey.ai"))
+        self.assertTrue(writable.is_allowed_host("console.flatkey.ai"))
+        self.assertFalse(writable.is_allowed_host("staging-console.flatkey.ai"))
+        self.assertEqual(read_only.allowed_hosts, frozenset({"docs.flatkey.ai"}))
 
     def test_dns_resolution_fails_closed_on_any_private_answer_and_uses_verified_sockaddr(self):
         policy = egress_proxy.EgressPolicy({"staging-console.flatkey.ai"})
