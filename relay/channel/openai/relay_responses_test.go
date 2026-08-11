@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -161,13 +162,16 @@ func TestOaiResponsesStreamHandlerCodexFailedAfterCommitSkipsRetry(t *testing.T)
 		"event: response.created",
 		`data: {"type":"response.created","response":{"id":"resp_failed","status":"in_progress"}}`,
 		"",
+		"event: response.output_text.delta",
+		`data: {"type":"response.output_text.delta","delta":"partial output"}`,
+		"",
 		"event: response.failed",
-		`data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"code":"server_error","message":"upstream blew up"}}}`,
+		`data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"code":"server_error","message":"upstream blew up"},"usage":{"input_tokens":11,"output_tokens":3,"total_tokens":14}}}`,
 		"",
 	}, "\n")
 
 	recorder, ctx, info, resp := newResponsesStreamTest(t, upstream, constant.ChannelTypeCodex)
-	_, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
+	usage, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
 	if apiErr == nil {
 		t.Fatal("expected Codex response.failed error")
 	}
@@ -176,6 +180,100 @@ func TestOaiResponsesStreamHandlerCodexFailedAfterCommitSkipsRetry(t *testing.T)
 	}
 	if !strings.Contains(recorder.Body.String(), "response.created") || !strings.Contains(recorder.Body.String(), "response.failed") {
 		t.Fatalf("committed Codex events were not forwarded: %s", recorder.Body.String())
+	}
+	if usage.PromptTokens != 11 || usage.CompletionTokens != 3 || usage.TotalTokens != 14 {
+		t.Fatalf("failed response usage = %#v", *usage)
+	}
+}
+
+func TestOaiResponsesStreamHandlerCodexFailedAfterCommitEstimatesDeliveredUsage(t *testing.T) {
+	upstream := strings.Join([]string{
+		"event: response.created",
+		`data: {"type":"response.created","response":{"id":"resp_failed","status":"in_progress"}}`,
+		"",
+		"event: response.output_text.delta",
+		`data: {"type":"response.output_text.delta","delta":"partial output without terminal usage"}`,
+		"",
+		"event: response.failed",
+		`data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"code":"server_error","message":"upstream blew up"}}}`,
+		"",
+	}, "\n")
+
+	_, ctx, info, resp := newResponsesStreamTest(t, upstream, constant.ChannelTypeCodex)
+	info.SetEstimatePromptTokens(17)
+	service.InitTokenEncoders()
+	usage, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
+	if apiErr == nil || !types.IsSkipRetryError(apiErr) {
+		t.Fatalf("failed response error = %#v", apiErr)
+	}
+	if usage.PromptTokens != 17 || usage.CompletionTokens <= 0 || usage.TotalTokens <= 17 {
+		t.Fatalf("estimated failed response usage = %#v", *usage)
+	}
+}
+
+func TestOaiResponsesStreamHandlerCodexFailedAfterToolDeltaEstimatesDeliveredUsage(t *testing.T) {
+	upstream := strings.Join([]string{
+		"event: response.created",
+		`data: {"type":"response.created","response":{"id":"resp_failed","status":"in_progress"}}`,
+		"",
+		"event: response.function_call_arguments.delta",
+		`data: {"type":"response.function_call_arguments.delta","item_id":"call_1","delta":"{\"city\":\"Shanghai\"}"}`,
+		"",
+		"event: response.failed",
+		`data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"code":"server_error","message":"upstream blew up"}}}`,
+		"",
+	}, "\n")
+
+	_, ctx, info, resp := newResponsesStreamTest(t, upstream, constant.ChannelTypeCodex)
+	info.SetEstimatePromptTokens(19)
+	service.InitTokenEncoders()
+	usage, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
+	if apiErr == nil || !types.IsSkipRetryError(apiErr) {
+		t.Fatalf("failed response error = %#v", apiErr)
+	}
+	if usage.PromptTokens != 19 || usage.CompletionTokens <= 0 || usage.TotalTokens <= 19 {
+		t.Fatalf("estimated tool-only failed response usage = %#v", *usage)
+	}
+}
+
+func TestCodexResponsesFailedStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		errorType  string
+		errorCode  any
+		statusCode int
+	}{
+		{name: "invalid request type", errorType: "invalid_request_error", statusCode: http.StatusBadRequest},
+		{name: "content policy code", errorCode: "content_policy_violation", statusCode: http.StatusBadRequest},
+		{name: "invalid prompt", errorCode: "invalid_prompt", statusCode: http.StatusBadRequest},
+		{name: "data residency mismatch", errorCode: "data_residency_mismatch", statusCode: http.StatusBadRequest},
+		{name: "image validation", errorCode: "unsupported_image_media_type", statusCode: http.StatusBadRequest},
+		{name: "authentication", errorType: "authentication_error", statusCode: http.StatusUnauthorized},
+		{name: "specific code overrides generic type", errorType: "invalid_request_error", errorCode: "permission_denied", statusCode: http.StatusForbidden},
+		{name: "server code overrides generic client type", errorType: "invalid_request_error", errorCode: "server_error", statusCode: http.StatusInternalServerError},
+		{name: "permanent quota", errorCode: "insufficient_quota", statusCode: http.StatusTooManyRequests},
+		{name: "transient rate limit", errorType: "rate_limit_error", statusCode: http.StatusTooManyRequests},
+		{name: "overloaded", errorCode: "service_unavailable", statusCode: http.StatusServiceUnavailable},
+		{name: "vector store timeout remains retryable fallback", errorCode: "vector_store_timeout", statusCode: http.StatusInternalServerError},
+		{name: "server error", errorCode: "server_error", statusCode: http.StatusInternalServerError},
+		{name: "unknown fallback", errorCode: "new_unrecognized_code", statusCode: http.StatusInternalServerError},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response := &dto.OpenAIResponsesResponse{Error: types.OpenAIError{
+				Type:    test.errorType,
+				Code:    test.errorCode,
+				Message: "upstream failure",
+			}}
+			apiErr := newCodexResponsesFailedError(response, false)
+			if apiErr.StatusCode != test.statusCode {
+				t.Fatalf("status = %d, want %d", apiErr.StatusCode, test.statusCode)
+			}
+			if types.IsSkipRetryError(apiErr) {
+				t.Fatal("pre-commit retry must remain controlled by the centralized status policy")
+			}
+		})
 	}
 }
 

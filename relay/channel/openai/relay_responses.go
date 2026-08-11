@@ -108,6 +108,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			c.Set(common.UpstreamResponseIdKey, streamResponse.Response.ID)
 		}
 		if info.ChannelType == constant.ChannelTypeCodex && streamResponse.Type == "response.failed" {
+			applyResponsesTerminalUsage(c, usage, streamResponse.Response)
 			responseWritten := c.Writer.Written()
 			if responseWritten {
 				sendResponsesStreamData(c, streamResponse, data)
@@ -125,8 +126,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			if info.ChannelType == constant.ChannelTypeCodex {
 				applyResponsesTerminalUsage(c, usage, streamResponse.Response)
 			}
-		case "response.output_text.delta":
-			// 处理输出文本
+		case "response.output_text.delta",
+			"response.reasoning_summary_text.delta",
+			"response.reasoning_text.delta",
+			"response.function_call_arguments.delta",
+			"response.custom_tool_call_input.delta",
+			"response.mcp_call_arguments.delta",
+			"response.code_interpreter_call_code.delta":
+			// Preserve a text-equivalent fallback when a failed terminal event
+			// omits usage, including tool-only and reasoning-only output.
 			responseTextBuilder.WriteString(streamResponse.Delta)
 		case dto.ResponsesOutputTypeItemDone:
 			// 函数调用处理
@@ -145,6 +153,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	if terminalErr != nil {
 		if retryableTerminalFailure {
 			restoreResponsesStreamAttemptState(c, info, responseHeaderSnapshot, eventStreamHeadersValue, hadEventStreamHeaders)
+		} else {
+			finalizeResponsesUsage(usage, &responseTextBuilder, info)
 		}
 		return usage, terminalErr
 	}
@@ -165,23 +175,19 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		)
 	}
 
-	if usage.CompletionTokens == 0 {
-		// 计算输出文本的 token 数量
-		tempStr := responseTextBuilder.String()
-		if len(tempStr) > 0 {
-			// 非正常结束，使用输出文本的 token 数量
-			completionTokens := service.CountTextToken(tempStr, info.UpstreamModelName)
-			usage.CompletionTokens = completionTokens
-		}
-	}
+	finalizeResponsesUsage(usage, &responseTextBuilder, info)
 
+	return usage, nil
+}
+
+func finalizeResponsesUsage(usage *dto.Usage, responseTextBuilder *strings.Builder, info *relaycommon.RelayInfo) {
+	if usage.CompletionTokens == 0 && responseTextBuilder.Len() > 0 {
+		usage.CompletionTokens = service.CountTextToken(responseTextBuilder.String(), info.UpstreamModelName)
+	}
 	if usage.PromptTokens == 0 && usage.CompletionTokens != 0 {
 		usage.PromptTokens = info.GetEstimatePromptTokens()
 	}
-
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-
-	return usage, nil
 }
 
 func restoreResponsesStreamAttemptState(
@@ -237,7 +243,7 @@ func newCodexResponsesFailedError(response *dto.OpenAIResponsesResponse, skipRet
 	}
 	if response != nil {
 		if openAIError := response.GetOpenAIError(); openAIError != nil && openAIError.Message != "" {
-			return types.WithOpenAIError(*openAIError, http.StatusInternalServerError, options...)
+			return types.WithOpenAIError(*openAIError, codexResponsesFailedStatus(openAIError), options...)
 		}
 	}
 	return types.NewOpenAIError(
@@ -246,4 +252,66 @@ func newCodexResponsesFailedError(response *dto.OpenAIResponsesResponse, skipRet
 		http.StatusInternalServerError,
 		options...,
 	)
+}
+
+func codexResponsesFailedStatus(openAIError *types.OpenAIError) int {
+	if openAIError == nil {
+		return http.StatusInternalServerError
+	}
+	errorType := strings.ToLower(strings.TrimSpace(openAIError.Type))
+	errorCode := strings.ToLower(strings.TrimSpace(common.Interface2String(openAIError.Code)))
+	if statusCode := codexResponsesFailedIdentifierStatus(errorCode); statusCode != 0 {
+		return statusCode
+	}
+	if statusCode := codexResponsesFailedIdentifierStatus(errorType); statusCode != 0 {
+		return statusCode
+	}
+	return http.StatusInternalServerError
+}
+
+func codexResponsesFailedIdentifierStatus(identifier string) int {
+	switch identifier {
+	case
+		"insufficient_quota",
+		"credit_balance_exhausted",
+		"organization_spend_limit_exceeded",
+		"project_spend_limit_exceeded",
+		"organization_usage_limit_exceeded",
+		"project_usage_limit_exceeded",
+		"rate_limit_error",
+		"rate_limit_exceeded":
+		return http.StatusTooManyRequests
+	case "permission_error", "permission_denied", "unsupported_country_region_territory":
+		return http.StatusForbidden
+	case "authentication_error", "invalid_api_key":
+		return http.StatusUnauthorized
+	case "invalid_request_error",
+		"invalid_request",
+		"bad_request",
+		"invalid_prompt",
+		"content_policy_violation",
+		"data_residency_mismatch",
+		"bio_policy",
+		"invalid_image",
+		"invalid_image_format",
+		"invalid_base64_image",
+		"invalid_image_url",
+		"image_too_large",
+		"image_too_small",
+		"image_parse_error",
+		"image_content_policy_violation",
+		"invalid_image_mode",
+		"image_file_too_large",
+		"unsupported_image_media_type",
+		"empty_image_file",
+		"failed_to_download_image",
+		"image_file_not_found":
+		return http.StatusBadRequest
+	case "overloaded_error", "overloaded", "service_unavailable":
+		return http.StatusServiceUnavailable
+	case "server_error":
+		return http.StatusInternalServerError
+	default:
+		return 0
+	}
 }

@@ -2,6 +2,7 @@ package relay
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -9,8 +10,40 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestFailedCodexResponsesUsageToSettle(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	usage := &dto.Usage{PromptTokens: 10, CompletionTokens: 2, TotalTokens: 12}
+
+	tests := []struct {
+		name        string
+		channelType int
+		committed   bool
+		usage       any
+		wantSettle  bool
+	}{
+		{name: "post commit Codex usage", channelType: constant.ChannelTypeCodex, committed: true, usage: usage, wantSettle: true},
+		{name: "pre commit Codex failure", channelType: constant.ChannelTypeCodex, usage: usage},
+		{name: "non Codex failure", channelType: constant.ChannelTypeOpenAI, committed: true, usage: usage},
+		{name: "missing billable usage", channelType: constant.ChannelTypeCodex, committed: true, usage: &dto.Usage{}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			if test.committed {
+				ctx.Writer.WriteHeaderNow()
+			}
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: test.channelType}}
+			got := failedCodexResponsesUsageToSettle(ctx, info, test.usage)
+			require.Equal(t, test.wantSettle, got != nil)
+		})
+	}
+}
 
 func TestShouldPassThroughResponsesRequest_BlockRunBridgeForcesConvert(t *testing.T) {
 	original := model_setting.GetGlobalSettings().PassThroughRequestEnabled
