@@ -92,7 +92,7 @@ func ReconcileAssetForScope(ctx context.Context, userID int, publicID string, sc
 		return nil, err
 	}
 	result.Status = strictStatus
-	result.AvailableModels, err = availableAssetModelsForScope(scope, rows, targets, activeBindingKeys)
+	result.AvailableModels, err = availableAssetModelsForScope(*asset, scope, rows, targets, activeBindingKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -154,8 +154,16 @@ func projectAssetStatusForScope(asset model.Asset, scope AssetModelScope, rows [
 		case model.AssetModelReadinessStatusActive:
 			if row.TargetGeneration != target.Generation ||
 				row.ChannelId != target.ChannelId ||
-				row.BindingScope != target.BindingScope ||
-				!activeBindingKeys.has(target) {
+				row.BindingScope != target.BindingScope {
+				return model.AssetStatusProcessing, nil
+			}
+			if assetModelTargetUsesSourceURL(target) {
+				if !assetModelSourceRecoverable(asset) {
+					return model.AssetStatusProcessing, nil
+				}
+				continue
+			}
+			if !activeBindingKeys.has(target) {
 				return model.AssetStatusProcessing, nil
 			}
 		default:
@@ -255,7 +263,7 @@ func loadActiveAssetBindingKeysForTargets(assetID int64, targets map[string]mode
 	return active, nil
 }
 
-func availableAssetModelsForScope(scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget, activeBindingKeys activeAssetBindingKeySet) ([]string, error) {
+func availableAssetModelsForScope(asset model.Asset, scope AssetModelScope, rows []model.AssetModelReadiness, targets map[string]model.AssetModelCoverageTarget, activeBindingKeys activeAssetBindingKeySet) ([]string, error) {
 	modelNames := normalizedStrings(scope.ModelNames)
 	if len(modelNames) == 0 {
 		return []string{}, nil
@@ -286,11 +294,35 @@ func availableAssetModelsForScope(scope AssetModelScope, rows []model.AssetModel
 			row.BindingScope != target.BindingScope {
 			continue
 		}
+		if assetModelTargetUsesSourceURL(target) {
+			if assetModelSourceRecoverable(asset) {
+				available = append(available, modelName)
+			}
+			continue
+		}
 		if activeBindingKeys.has(target) {
 			available = append(available, modelName)
 		}
 	}
 	return normalizedStrings(available), nil
+}
+
+func assetModelTargetUsesSourceURL(target model.AssetModelCoverageTarget) bool {
+	return strings.TrimSpace(target.BindingScope) == assetModelSourceURLBindingScopeModelAPI
+}
+
+func assetModelSourceRecoverable(asset model.Asset) bool {
+	return assetReferenceSourceURLRecoverable(assetReferenceAsset{
+		ID:              asset.Id,
+		PublicID:        asset.PublicId,
+		AssetType:       asset.AssetType,
+		Status:          asset.Status,
+		SourceStatus:    asset.SourceStatus,
+		StorageBackend:  asset.StorageBackend,
+		StorageBucket:   asset.StorageBucket,
+		ObjectKey:       asset.ObjectKey,
+		SourceExpiresAt: asset.SourceExpiresAt,
+	})
 }
 
 func markAssetModelReadinessFailed(assetID int64, scopeKey, modelName string, now int64) error {

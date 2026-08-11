@@ -32,6 +32,53 @@ func TestVideoResultMetricsExportArchiveRedirectAndRetryCounters(t *testing.T) {
 	requirePrometheusSeriesGaugeMatchesRenderedSamples(t, text)
 }
 
+func TestModelAPIVideoResultMetricsExportArchiveRedirectAndRetryCounters(t *testing.T) {
+	resetPerfMetricsStateForTest(t)
+	resetVideoResultMetricsWithCleanup(t)
+
+	RecordVideoResultArchive("modelapi", "success", 321, 3*time.Second)
+	RecordVideoResultRedirect("modelapi", "success")
+	RecordVideoResultRedirect("modelapi", "expired")
+	RecordVideoResultArchiveRetry("modelapi", "archive_failure")
+
+	text, err := BuildPrometheusText(context.Background())
+	require.NoError(t, err)
+	requirePrometheusSampleLine(t, text, `newapi_video_result_archive_total{channel="modelapi",outcome="success"} 1`)
+	requirePrometheusSampleLine(t, text, `newapi_video_result_archive_bytes_total{channel="modelapi"} 321`)
+	requirePrometheusSampleLine(t, text, `newapi_video_result_redirect_total{channel="modelapi",outcome="success"} 1`)
+	requirePrometheusSampleLine(t, text, `newapi_video_result_redirect_total{channel="modelapi",outcome="expired"} 1`)
+	requirePrometheusSampleLine(t, text, `newapi_video_result_archive_retry_total{channel="modelapi",reason="archive_failure"} 1`)
+	requirePrometheusSampleLine(t, text, `newapi_video_result_archive_duration_seconds_count{channel="modelapi"} 1`)
+	requirePrometheusSampleLine(t, text, `newapi_video_result_archive_duration_seconds_sum{channel="modelapi"} 3`)
+	requirePrometheusSeriesGaugeMatchesRenderedSamples(t, text)
+}
+
+func TestModelAPIUnknownMetricLabelsDoNotGrowCardinality(t *testing.T) {
+	resetPerfMetricsStateForTest(t)
+	resetVideoResultMetricsWithCleanup(t)
+
+	RecordVideoResultArchive("modelapi", "success", 321, time.Second)
+	text, err := BuildPrometheusText(context.Background())
+	require.NoError(t, err)
+	seriesBefore := prometheusSampleValue(t, text, "newapi_perf_metrics_series")
+
+	RecordVideoResultArchive("modelapi/task_1", "success", 999, time.Second)
+	RecordVideoResultArchive("modelapi", "task_1", 999, time.Second)
+	RecordVideoResultRedirect("modelapi/task_1", "success")
+	RecordVideoResultRedirect("modelapi", "https://signed.example/object")
+	RecordVideoResultArchiveRetry("modelapi", "task_1")
+
+	text, err = BuildPrometheusText(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, seriesBefore, prometheusSampleValue(t, text, "newapi_perf_metrics_series"))
+	require.NotContains(t, text, "modelapi/task_1")
+	require.NotContains(t, text, "task_1")
+	require.NotContains(t, text, "signed.example")
+	requirePrometheusSampleLine(t, text, `newapi_video_result_archive_total{channel="modelapi",outcome="success"} 1`)
+	requirePrometheusSampleLine(t, text, `newapi_video_result_archive_bytes_total{channel="modelapi"} 321`)
+	requirePrometheusSeriesGaugeMatchesRenderedSamples(t, text)
+}
+
 func TestVideoResultMetricsCountsBytesOnlyForSuccessfulArchives(t *testing.T) {
 	resetPerfMetricsStateForTest(t)
 	resetVideoResultMetricsWithCleanup(t)
@@ -119,7 +166,11 @@ func TestVideoResultMetricsUseOnlyClosedLabelValues(t *testing.T) {
 		if !strings.HasPrefix(line, "newapi_video_result_") {
 			continue
 		}
-		require.Contains(t, line, `channel="techmobi"`)
+		require.True(t,
+			strings.Contains(line, `channel="techmobi"`) || strings.Contains(line, `channel="modelapi"`),
+			"unexpected video result channel label in %q",
+			line,
+		)
 		require.NotContains(t, line, "task_")
 		require.NotContains(t, line, "video-results/")
 		require.NotContains(t, line, "http")

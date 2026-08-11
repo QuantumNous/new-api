@@ -303,16 +303,22 @@ func buildWebsitePublicGroupPricingPayload(
 		description = group
 	}
 	usableGroup := map[string]string{group: description}
+	visiblePricing := filterHiddenPricingModels(filterPricingByUsableGroups(pricing, usableGroup))
 
 	return gin.H{
-		"success":            true,
-		"data":               filterHiddenPricingModels(filterPricingByUsableGroups(pricing, usableGroup)),
-		"vendors":            vendors,
-		"group_ratio":        map[string]float64{group: ratio},
+		"success":     true,
+		"data":        visiblePricing,
+		"vendors":     vendors,
+		"group_ratio": map[string]float64{group: ratio},
+		// Per-model overrides beat the flat group ratio during billing
+		// (ratio_setting.GetEffectiveGroupRatio), so the public payload has to
+		// carry them too — otherwise a model priced below the group ratio is
+		// quoted higher than it is actually charged.
+		"group_model_ratio":  filterGroupModelRatioByUsableGroupsAndModels(ratio_setting.GetGroupModelRatioCopy(), usableGroup, visiblePricing),
 		"usable_group":       usableGroup,
 		"supported_endpoint": supportedEndpoint,
 		"auto_groups":        autoGroups,
-		"pricing_version":    "website-public-plg-v1",
+		"pricing_version":    "website-public-plg-v2",
 	}
 }
 

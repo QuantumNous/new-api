@@ -88,7 +88,12 @@ func VideoProxy(c *gin.Context) {
 		baseURL = "https://api.openai.com"
 	}
 
-	if tryRedirectArchivedTechMobiVideo(c, task, channel) {
+	if tryRedirectArchivedVideoResult(c, task, channel) {
+		return
+	}
+	if channel.Type == constant.ChannelTypeModelAPISeedance {
+		perfmetrics.RecordVideoResultRedirect("modelapi", "unavailable")
+		videoProxyError(c, http.StatusBadGateway, "server_error", "video result is unavailable")
 		return
 	}
 
@@ -226,13 +231,21 @@ func VideoProxy(c *gin.Context) {
 }
 
 func tryRedirectArchivedTechMobiVideo(c *gin.Context, task *model.Task, channel *model.Channel) bool {
-	if c == nil || task == nil || channel == nil || channel.Type != constant.ChannelTypeTechMobiVideo || task.PrivateData.VideoResult == nil {
+	return tryRedirectArchivedVideoResult(c, task, channel)
+}
+
+func tryRedirectArchivedVideoResult(c *gin.Context, task *model.Task, channel *model.Channel) bool {
+	if c == nil || task == nil || channel == nil || task.PrivateData.VideoResult == nil {
+		return false
+	}
+	channelLabel := service.VideoResultChannelLabel(channel.Type)
+	if channelLabel == "" {
 		return false
 	}
 
 	signedURL, err := signArchivedVideoResultDownload(c.Request.Context(), c.Param("task_id"), task.PrivateData.VideoResult)
 	if err == nil {
-		perfmetrics.RecordVideoResultRedirect("techmobi", "success")
+		perfmetrics.RecordVideoResultRedirect(channelLabel, "success")
 		c.Writer.Header().Set("Location", signedURL)
 		c.Writer.Header().Set("Cache-Control", "no-store")
 		c.Writer.Header().Set("Pragma", "no-cache")
@@ -243,13 +256,13 @@ func tryRedirectArchivedTechMobiVideo(c *gin.Context, task *model.Task, channel 
 
 	switch {
 	case errors.Is(err, service.ErrVideoResultExpired):
-		perfmetrics.RecordVideoResultRedirect("techmobi", "expired")
+		perfmetrics.RecordVideoResultRedirect(channelLabel, "expired")
 		videoProxyError(c, http.StatusGone, "invalid_request_error", "video result has expired")
 	case errors.Is(err, service.ErrVideoResultUnavailable):
-		perfmetrics.RecordVideoResultRedirect("techmobi", "unavailable")
+		perfmetrics.RecordVideoResultRedirect(channelLabel, "unavailable")
 		videoProxyError(c, http.StatusBadGateway, "server_error", "video result is unavailable")
 	default:
-		perfmetrics.RecordVideoResultRedirect("techmobi", "signing-or-other")
+		perfmetrics.RecordVideoResultRedirect(channelLabel, "signing-or-other")
 		videoProxyError(c, http.StatusServiceUnavailable, "server_error", "video result is temporarily unavailable")
 	}
 	return true

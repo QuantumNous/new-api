@@ -125,10 +125,10 @@ func (r *SeedanceVideoRequest) HasFirstLastFrame() bool {
 }
 
 // Validate enforces the minimal seedance contract: a text prompt OR at least
-// one image/video reference must be present.
+// one media reference must be present.
 func (r *SeedanceVideoRequest) Validate() error {
-	if strings.TrimSpace(r.PromptText()) == "" && len(r.Images()) == 0 && len(r.Videos()) == 0 {
-		return errors.New("seedance request requires a text prompt or at least one image/video")
+	if strings.TrimSpace(r.PromptText()) == "" && len(r.Images()) == 0 && len(r.Videos()) == 0 && len(r.Audios()) == 0 {
+		return errors.New("seedance request requires a text prompt or at least one image/video/audio")
 	}
 	return nil
 }
