@@ -603,6 +603,12 @@ func mapTaskStatusToSimple(status model.TaskStatus) string {
 }
 
 func TaskModel2Dto(task *model.Task) *dto.TaskDto {
+	resultURL := task.GetResultURL()
+	// Prefer a non-upstream-gateway URL for both top-level result_url and nested data scrubbing.
+	if task.Status == model.TaskStatusSuccess {
+		resultURL = taskcommon.PickTaskResultURL(task, resultURL, task.Data)
+	}
+	data := taskcommon.RewriteUpstreamVideoProxyURLs(task.Data, resultURL)
 	return &dto.TaskDto{
 		ID:         task.ID,
 		CreatedAt:  task.CreatedAt,
@@ -616,13 +622,13 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Action:     task.Action,
 		Status:     string(task.Status),
 		FailReason: task.FailReason,
-		ResultURL:  task.GetResultURL(),
+		ResultURL:  resultURL,
 		SubmitTime: task.SubmitTime,
 		StartTime:  task.StartTime,
 		FinishTime: task.FinishTime,
 		Progress:   task.Progress,
 		Properties: task.Properties,
 		Username:   task.Username,
-		Data:       task.Data,
+		Data:       data,
 	}
 }

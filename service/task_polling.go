@@ -461,6 +461,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		} else {
 			task.PrivateData.ResultURL = taskcommon.PickTaskResultURL(task, taskResult.Url, task.Data)
 		}
+		// Scrub upstream gateway proxy links (e.g. api.catertx.com/.../content) from nested data.
+		task.Data = taskcommon.RewriteUpstreamVideoProxyURLs(task.Data, task.PrivateData.ResultURL)
 		shouldSettle = true
 	case model.TaskStatusFailure:
 		if r, ok := adaptor.(TaskAsyncFailureResubmitter); ok {

@@ -216,6 +216,73 @@ func PickTaskResultURL(task *model.Task, candidateURL string, data []byte) strin
 	return BuildProxyURL(task.TaskID)
 }
 
+// RewriteUpstreamVideoProxyURLs walks JSON and replaces any new-api style video proxy content
+// URLs (.../v1/videos/{id}/content on any host) with replacement.
+// If replacement is empty, tries ExtractVideoURLFromJSON(data); if still empty, blanks the field.
+// Used so nested task.data from upstream gateways (e.g. api.catertx.com) does not leak.
+func RewriteUpstreamVideoProxyURLs(data []byte, replacement string) []byte {
+	if len(data) == 0 {
+		return data
+	}
+	replacement = strings.TrimSpace(replacement)
+	if replacement == "" || IsVideoProxyContentURL(replacement) {
+		if u := ExtractVideoURLFromJSON(data); u != "" {
+			replacement = u
+		} else if IsVideoProxyContentURL(replacement) {
+			replacement = ""
+		}
+	}
+	var root any
+	if err := common.Unmarshal(data, &root); err != nil {
+		return data
+	}
+	if !rewriteUpstreamProxyURLsInAny(root, replacement) {
+		return data
+	}
+	out, err := common.Marshal(root)
+	if err != nil {
+		return data
+	}
+	return out
+}
+
+func rewriteUpstreamProxyURLsInAny(v any, replacement string) bool {
+	switch t := v.(type) {
+	case map[string]any:
+		changed := false
+		for k, val := range t {
+			if s, ok := val.(string); ok {
+				if IsVideoProxyContentURL(s) && s != replacement {
+					t[k] = replacement
+					changed = true
+				}
+				continue
+			}
+			if rewriteUpstreamProxyURLsInAny(val, replacement) {
+				changed = true
+			}
+		}
+		return changed
+	case []any:
+		changed := false
+		for i, val := range t {
+			if s, ok := val.(string); ok {
+				if IsVideoProxyContentURL(s) && s != replacement {
+					t[i] = replacement
+					changed = true
+				}
+				continue
+			}
+			if rewriteUpstreamProxyURLsInAny(val, replacement) {
+				changed = true
+			}
+		}
+		return changed
+	default:
+		return false
+	}
+}
+
 // Status-to-progress mapping constants for polling updates.
 const (
 	ProgressSubmitted  = "10%"

@@ -1,6 +1,7 @@
 package taskcommon
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
@@ -112,6 +113,23 @@ func TestPickTaskResultURLRejectsUpstreamGatewayProxy(t *testing.T) {
 	got := PickTaskResultURL(task, "https://api.catertx.com/v1/videos/task_upstream/content", raw)
 	if got != "https://tos.example.com/a.mp4" {
 		t.Fatalf("unexpected url: %q", got)
+	}
+}
+
+func TestRewriteUpstreamVideoProxyURLs(t *testing.T) {
+	raw := []byte(`{
+	  "code":"success",
+	  "data":{
+	    "result_url":"https://api.catertx.com/v1/videos/task_upstream/content",
+	    "data":{"url":"https://tos.example.com/a.mp4"}
+	  }
+	}`)
+	out := RewriteUpstreamVideoProxyURLs(raw, "https://tos.example.com/a.mp4")
+	if strings.Contains(string(out), "api.catertx.com") {
+		t.Fatalf("upstream proxy still present: %s", out)
+	}
+	if !strings.Contains(string(out), `"result_url":"https://tos.example.com/a.mp4"`) {
+		t.Fatalf("result_url not rewritten: %s", out)
 	}
 }
 
