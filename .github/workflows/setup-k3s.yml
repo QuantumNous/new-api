@@ -3,16 +3,14 @@ name: Setup k3s cluster and self-hosted runner
 # 一次性引导 workflow：自动在 SERVERS_LIST_JSON 列出的服务器上安装 k3s 集群 + Nginx Ingress + self-hosted runner。
 #
 # GitHub Actions Secrets（Settings → Secrets and variables → Actions → New repository secret）：
-#   SERVERS_LIST_JSON  服务器列表 JSON 数组，整个 JSON 作为 secret 的值粘贴：
-#     [{"ip":"1.2.3.4","user":"root","password":"密码1"},{"ip":"5.6.7.8","user":"root","password":"密码2"}]
-#   第一台可用的服务器成为 k3s server（master 节点），其余自动加入为 agent。
-#   某台连不上（Connection closed / 超时）不会阻塞其他服务器。
+#   SERVERS_LIST_JSON  服务器列表 JSON 数组，整个 JSON 作为 secret 的值粘贴
 #
 # 认证方式：全程使用密码（sshpass）。服务器关闭密钥认证时也能工作。
+# 密码通过 ::add-mask:: 脱敏，不泄露到日志。
 #
 # 流程：
 #   1. 解析 SERVERS_LIST_JSON，逐台测试密码登录（失败的跳过）
-#   2. 第一台成功装 k3s server（--disable traefik），其余装 agent
+#   2. 第一台成功装 k3s server（--disable traefik），其余装 agent（失败的不阻塞）
 #   3. 装 nginx ingress + self-hosted runner（标签 k8s）
 #   4. 导出 KUBE_CONFIG_B64 到 artifact
 
@@ -27,8 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install sshpass
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
 
       - name: Prepare servers list
         env:
@@ -60,6 +57,7 @@ jobs:
             IP=$(echo "$s" | jq -r .ip)
             USER=$(echo "$s" | jq -r .user)
             PASS=$(echo "$s" | jq -r .password)
+            echo "::add-mask::$PASS"
             echo "=== 测试 $USER@$IP ==="
             ssh-keyscan -H "$IP" >> ~/.ssh/known_hosts 2>/dev/null || true
             if timeout 30 sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
@@ -79,6 +77,7 @@ jobs:
             exit 1
           fi
           read -r IP USER PASS < /tmp/ssh_ok.txt
+          echo "::add-mask::$PASS"
           echo "K3S_SERVER_IP=$IP" >> $GITHUB_ENV
           echo "K3S_SERVER_USER=$USER" >> $GITHUB_ENV
           echo "K3S_SERVER_PASS=$PASS" >> $GITHUB_ENV
@@ -87,6 +86,7 @@ jobs:
             'curl -sfL https://get.k3s.io | sh -s - --disable traefik'
           TOKEN=$(sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no "$USER@$IP" \
             'sudo cat /var/lib/rancher/k3s/server/node-token')
+          echo "::add-mask::$TOKEN"
           echo "K3S_TOKEN=$TOKEN" >> $GITHUB_ENV
           echo "k3s server installed on $IP"
 
@@ -98,9 +98,14 @@ jobs:
             IP=$(echo "$s" | jq -r .ip)
             USER=$(echo "$s" | jq -r .user)
             PASS=$(echo "$s" | jq -r .password)
+            echo "::add-mask::$PASS"
             echo "=== 安装 k3s agent on $IP ==="
-            sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no "$USER@$IP" \
-              "curl -sfL https://get.k3s.io | K3S_URL=https://$K3S_SERVER_IP:6443 K3S_TOKEN=$K3S_TOKEN sh -"
+            if timeout 120 sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no "$USER@$IP" \
+              "curl -sfL https://get.k3s.io | K3S_URL=https://$K3S_SERVER_IP:6443 K3S_TOKEN=$K3S_TOKEN sh -" >/tmp/agent_install.log 2>&1; then
+              echo "agent installed on $IP"
+            else
+              echo "agent FAILED on $IP: $(tail -1 /tmp/agent_install.log)"
+            fi
           done < /tmp/servers.txt
 
       - name: Install Nginx Ingress Controller
