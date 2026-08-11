@@ -6441,6 +6441,25 @@
     "Stage": "ステージ",
     "Failure code": "失敗コード",
     "Trade number": "取引番号",
-    "Translation task {{status}}": "翻訳タスク {{status}}"
+    "Translation task {{status}}": "翻訳タスク {{status}}",
+    "Payment chain": "支払いチェーン",
+    "Base": "Base",
+    "Solana": "Solana",
+    "Pay with USDC on Solana.": "Solana 上で USDC を使用して支払います。",
+    "Pay with USDC on Base.": "Base 上で USDC を使用して支払います。",
+    "BlockRun API URL *": "BlockRun API URL（必須）",
+    "The Solana payment endpoint is fixed to the official BlockRun URL.": "Solana の支払いエンドポイントは BlockRun の公式 URL に固定されています。",
+    "The Base payment endpoint defaults to the official BlockRun URL.": "Base の支払いエンドポイントには、デフォルトで BlockRun の公式 URL が使用されます。",
+    "Maximum payment per request (atomic units) *": "リクエストごとの最大支払額（最小単位） *",
+    "Solana BlockRun requires the official API URL": "Solana BlockRun には公式 API URL が必要です",
+    "Maximum payment must be a positive decimal integer": "最大支払額には正の10進整数を指定してください",
+    "Enter a positive decimal integer in USDC atomic units (1 USDC = 1000000).": "USDC の最小単位で正の10進整数を入力してください（1 USDC = 1000000）。",
+    "Enter a base58-encoded 32-byte seed or 64-byte keypair": "base58 でエンコードされた32バイトのシードまたは64バイトのキーペアを入力してください",
+    "Solana private key *": "Solana 秘密鍵 *",
+    "Use a funded Solana wallet private key in base58 format. It is stored as the channel secret and never sent upstream.": "残高のある Solana ウォレットの秘密鍵を base58 形式で使用してください。この鍵はチャネルのシークレットとして保存され、アップストリームには送信されません。",
+    "Solana private key must decode to exactly 32 or 64 bytes": "Solana 秘密鍵は正確に 32 バイトまたは 64 バイトにデコードされる必要があります",
+    "The payment chain cannot be changed after the channel is created.": "チャネルの作成後は支払いチェーンを変更できません。",
+    "Payer wallet: {{payer}}": "支払い元ウォレット：{{payer}}",
+    "The payer wallet for a 32-byte seed is verified when you save the channel.": "32 バイトのシードに対応する支払い元ウォレットは、チャネル保存時に検証されます。"
   }
 }

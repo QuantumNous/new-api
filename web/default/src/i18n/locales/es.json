@@ -6441,6 +6441,25 @@
     "Stage": "Etapa",
     "Failure code": "Codigo de error",
     "Trade number": "Numero de operacion",
-    "Translation task {{status}}": "Tarea de traduccion {{status}}"
+    "Translation task {{status}}": "Tarea de traduccion {{status}}",
+    "Payment chain": "Cadena de pago",
+    "Base": "Base",
+    "Solana": "Solana",
+    "Pay with USDC on Solana.": "Pagar con USDC en Solana.",
+    "Pay with USDC on Base.": "Pagar con USDC en Base.",
+    "BlockRun API URL *": "URL de la API de BlockRun *",
+    "The Solana payment endpoint is fixed to the official BlockRun URL.": "El endpoint de pago de Solana está fijado a la URL oficial de BlockRun.",
+    "The Base payment endpoint defaults to the official BlockRun URL.": "El endpoint de pago de Base usa de forma predeterminada la URL oficial de BlockRun.",
+    "Maximum payment per request (atomic units) *": "Pago máximo por solicitud (unidades atómicas) *",
+    "Solana BlockRun requires the official API URL": "Solana BlockRun requiere la URL oficial de la API",
+    "Maximum payment must be a positive decimal integer": "El pago máximo debe ser un entero decimal positivo",
+    "Enter a positive decimal integer in USDC atomic units (1 USDC = 1000000).": "Introduce un entero decimal positivo en unidades atómicas de USDC (1 USDC = 1000000).",
+    "Enter a base58-encoded 32-byte seed or 64-byte keypair": "Introduce una semilla de 32 bytes o un par de claves de 64 bytes codificados en base58",
+    "Solana private key *": "Clave privada de Solana *",
+    "Use a funded Solana wallet private key in base58 format. It is stored as the channel secret and never sent upstream.": "Usa la clave privada de una cartera de Solana con fondos en formato base58. Se almacena como secreto del canal y nunca se envía al proveedor ascendente.",
+    "Solana private key must decode to exactly 32 or 64 bytes": "La clave privada de Solana debe decodificarse en exactamente 32 o 64 bytes",
+    "The payment chain cannot be changed after the channel is created.": "La cadena de pago no se puede cambiar después de crear el canal.",
+    "Payer wallet: {{payer}}": "Cartera pagadora: {{payer}}",
+    "The payer wallet for a 32-byte seed is verified when you save the channel.": "La cartera pagadora de una semilla de 32 bytes se verifica al guardar el canal."
   }
 }

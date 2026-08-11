@@ -6441,6 +6441,25 @@
     "Stage": "阶段",
     "Failure code": "失败代码",
     "Trade number": "交易编号",
-    "Translation task {{status}}": "翻译任务 {{status}}"
+    "Translation task {{status}}": "翻译任务 {{status}}",
+    "Payment chain": "支付链",
+    "Base": "Base",
+    "Solana": "Solana",
+    "Pay with USDC on Solana.": "使用 USDC 在 Solana 链上支付。",
+    "Pay with USDC on Base.": "使用 USDC 在 Base 链上支付。",
+    "BlockRun API URL *": "BlockRun API 地址 *",
+    "The Solana payment endpoint is fixed to the official BlockRun URL.": "Solana 支付端点固定为 BlockRun 官方地址。",
+    "The Base payment endpoint defaults to the official BlockRun URL.": "Base 支付端点默认使用 BlockRun 官方地址。",
+    "Maximum payment per request (atomic units) *": "单次请求最高支付金额（最小单位） *",
+    "Solana BlockRun requires the official API URL": "Solana BlockRun 必须使用官方 API 地址",
+    "Maximum payment must be a positive decimal integer": "最高支付金额必须为正十进制整数",
+    "Enter a positive decimal integer in USDC atomic units (1 USDC = 1000000).": "请输入以 USDC 最小单位计价的正十进制整数（1 USDC = 1000000）。",
+    "Enter a base58-encoded 32-byte seed or 64-byte keypair": "请输入 base58 编码的 32 字节种子或 64 字节密钥对",
+    "Solana private key *": "Solana 私钥 *",
+    "Use a funded Solana wallet private key in base58 format. It is stored as the channel secret and never sent upstream.": "请使用已有余额的 Solana 钱包私钥（base58 格式）。该私钥将作为渠道密钥存储，绝不会发送到上游。",
+    "Solana private key must decode to exactly 32 or 64 bytes": "Solana 私钥必须解码为恰好 32 或 64 字节",
+    "The payment chain cannot be changed after the channel is created.": "渠道创建后无法更改支付链。",
+    "Payer wallet: {{payer}}": "付款钱包：{{payer}}",
+    "The payer wallet for a 32-byte seed is verified when you save the channel.": "32 字节种子对应的付款钱包将在保存渠道时验证。"
   }
 }

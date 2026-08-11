@@ -6441,6 +6441,25 @@
     "Stage": "Этап",
     "Failure code": "Код ошибки",
     "Trade number": "Номер транзакции",
-    "Translation task {{status}}": "Задача перевода {{status}}"
+    "Translation task {{status}}": "Задача перевода {{status}}",
+    "Payment chain": "Платёжная сеть",
+    "Base": "Base",
+    "Solana": "Solana",
+    "Pay with USDC on Solana.": "Оплата USDC в сети Solana.",
+    "Pay with USDC on Base.": "Оплата USDC в сети Base.",
+    "BlockRun API URL *": "URL API BlockRun *",
+    "The Solana payment endpoint is fixed to the official BlockRun URL.": "Платёжная конечная точка Solana закреплена за официальным URL BlockRun.",
+    "The Base payment endpoint defaults to the official BlockRun URL.": "Для платёжной конечной точки Base по умолчанию используется официальный URL BlockRun.",
+    "Maximum payment per request (atomic units) *": "Максимальная сумма платежа за запрос (минимальные единицы) *",
+    "Solana BlockRun requires the official API URL": "Для Solana BlockRun требуется официальный URL API",
+    "Maximum payment must be a positive decimal integer": "Максимальная сумма платежа должна быть положительным целым десятичным числом",
+    "Enter a positive decimal integer in USDC atomic units (1 USDC = 1000000).": "Введите положительное целое десятичное число в минимальных единицах USDC (1 USDC = 1000000).",
+    "Enter a base58-encoded 32-byte seed or 64-byte keypair": "Введите seed длиной 32 байта или пару ключей длиной 64 байта в кодировке base58",
+    "Solana private key *": "Закрытый ключ Solana *",
+    "Use a funded Solana wallet private key in base58 format. It is stored as the channel secret and never sent upstream.": "Используйте закрытый ключ пополненного кошелька Solana в формате base58. Он хранится как секрет канала и никогда не отправляется вышестоящему сервису.",
+    "Solana private key must decode to exactly 32 or 64 bytes": "Закрытый ключ Solana должен декодироваться ровно в 32 или 64 байта",
+    "The payment chain cannot be changed after the channel is created.": "Платёжную сеть нельзя изменить после создания канала.",
+    "Payer wallet: {{payer}}": "Кошелёк плательщика: {{payer}}",
+    "The payer wallet for a 32-byte seed is verified when you save the channel.": "Кошелёк плательщика для 32-байтового seed проверяется при сохранении канала."
   }
 }

@@ -6441,6 +6441,25 @@
     "Stage": "Etape",
     "Failure code": "Code d'echec",
     "Trade number": "Numero de transaction",
-    "Translation task {{status}}": "Tache de traduction {{status}}"
+    "Translation task {{status}}": "Tache de traduction {{status}}",
+    "Payment chain": "Chaîne de paiement",
+    "Base": "Base",
+    "Solana": "Solana",
+    "Pay with USDC on Solana.": "Payer en USDC sur Solana.",
+    "Pay with USDC on Base.": "Payer en USDC sur Base.",
+    "BlockRun API URL *": "URL de l’API BlockRun *",
+    "The Solana payment endpoint is fixed to the official BlockRun URL.": "Le point de terminaison de paiement Solana est fixé à l’URL officielle de BlockRun.",
+    "The Base payment endpoint defaults to the official BlockRun URL.": "Le point de terminaison de paiement Base utilise par défaut l’URL officielle de BlockRun.",
+    "Maximum payment per request (atomic units) *": "Paiement maximal par requête (unités atomiques) *",
+    "Solana BlockRun requires the official API URL": "Solana BlockRun nécessite l’URL officielle de l’API",
+    "Maximum payment must be a positive decimal integer": "Le paiement maximal doit être un entier décimal positif",
+    "Enter a positive decimal integer in USDC atomic units (1 USDC = 1000000).": "Saisissez un entier décimal positif en unités atomiques d’USDC (1 USDC = 1000000).",
+    "Enter a base58-encoded 32-byte seed or 64-byte keypair": "Saisissez une graine de 32 octets ou une paire de clés de 64 octets encodée en base58",
+    "Solana private key *": "Clé privée Solana *",
+    "Use a funded Solana wallet private key in base58 format. It is stored as the channel secret and never sent upstream.": "Utilisez la clé privée d’un portefeuille Solana approvisionné, au format base58. Elle est stockée comme secret du canal et n’est jamais envoyée au fournisseur en amont.",
+    "Solana private key must decode to exactly 32 or 64 bytes": "La clé privée Solana doit se décoder en exactement 32 ou 64 octets",
+    "The payment chain cannot be changed after the channel is created.": "La chaîne de paiement ne peut plus être modifiée après la création du canal.",
+    "Payer wallet: {{payer}}": "Portefeuille payeur : {{payer}}",
+    "The payer wallet for a 32-byte seed is verified when you save the channel.": "Le portefeuille payeur d’une graine de 32 octets est vérifié lors de l’enregistrement du canal."
   }
 }

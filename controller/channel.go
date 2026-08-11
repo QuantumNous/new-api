@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,9 +20,12 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
 
+	blockrunSDK "github.com/BlockRunAI/blockrun-llm-go"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+const blockRunSolanaBaseURL = blockrunSDK.DefaultSolanaAPIURL
 
 type OpenAIModel struct {
 	ID         string         `json:"id"`
@@ -467,6 +471,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if err := channel.ValidateSettings(); err != nil {
 		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
 	}
+	if err := validateBlockRunPaymentSettings(channel); err != nil {
+		return err
+	}
 
 	// 如果是添加操作，检查 channel 和 key 是否为空
 	if isAdd {
@@ -519,6 +526,50 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	}
 
 	return nil
+}
+
+func validateBlockRunPaymentSettings(channel *model.Channel) error {
+	if channel.Type != constant.ChannelTypeBlockRun {
+		return nil
+	}
+
+	settings := dto.ChannelOtherSettings{}
+	if channel.OtherSettings != "" {
+		if err := common.UnmarshalJsonStr(channel.OtherSettings, &settings); err != nil {
+			return fmt.Errorf("BlockRun settings must be valid JSON: %w", err)
+		}
+	}
+
+	switch settings.GetBlockRunPaymentChain() {
+	case dto.BlockRunPaymentChainBase:
+		return nil
+	case dto.BlockRunPaymentChainSolana:
+		if channel.BaseURL == nil || (*channel.BaseURL != blockRunSolanaBaseURL && *channel.BaseURL != blockRunSolanaBaseURL+"/") {
+			return fmt.Errorf("Solana BlockRun base_url must be %s", blockRunSolanaBaseURL)
+		}
+		if _, err := blockrunSDK.GetSolanaPublicKey(strings.TrimSpace(channel.Key)); err != nil {
+			return fmt.Errorf("Solana BlockRun key is invalid: %w", err)
+		}
+		if !isPositiveDecimalInteger(settings.BlockRunMaxPaymentAtomic) {
+			return fmt.Errorf("Solana BlockRun blockrun_max_payment_atomic must be a positive decimal integer")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported BlockRun payment chain %q", settings.BlockRunPaymentChain)
+	}
+}
+
+func isPositiveDecimalInteger(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, ch := range value {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	parsed, ok := new(big.Int).SetString(value, 10)
+	return ok && parsed.Sign() > 0
 }
 
 func RefreshCodexChannelCredential(c *gin.Context) {
@@ -885,17 +936,37 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 
-	// 使用统一的校验函数
-	if err := validateChannel(&channel.Channel, false); err != nil {
+	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
+	originChannel, err := model.GetChannelById(channel.Id, true)
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
-	originChannel, err := model.GetChannelById(channel.Id, true)
-	if err != nil {
+
+	validationChannel := channel.Channel
+	if validationChannel.Type == 0 {
+		validationChannel.Type = originChannel.Type
+	}
+	if validationChannel.Key == "" {
+		validationChannel.Key = originChannel.Key
+	}
+	if validationChannel.BaseURL == nil {
+		validationChannel.BaseURL = originChannel.BaseURL
+	}
+	if validationChannel.OtherSettings == "" {
+		validationChannel.OtherSettings = originChannel.OtherSettings
+	}
+	if err := validateChannel(&validationChannel, false); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	if err := validateBlockRunPaymentChainTransition(originChannel, &validationChannel); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -1006,6 +1077,43 @@ func UpdateChannel(c *gin.Context) {
 		"data":    channel,
 	})
 	return
+}
+
+func validateBlockRunPaymentChainTransition(originChannel, updatedChannel *model.Channel) error {
+	if originChannel == nil || updatedChannel == nil {
+		return nil
+	}
+	originIsBlockRun := originChannel.Type == constant.ChannelTypeBlockRun
+	updatedIsBlockRun := updatedChannel.Type == constant.ChannelTypeBlockRun
+	if !originIsBlockRun && !updatedIsBlockRun {
+		return nil
+	}
+	if originIsBlockRun != updatedIsBlockRun {
+		return fmt.Errorf("existing channel cannot change type into or out of BlockRun")
+	}
+
+	getChain := func(channel *model.Channel) (dto.BlockRunPaymentChain, error) {
+		settings := dto.ChannelOtherSettings{}
+		if channel.OtherSettings != "" {
+			if err := common.UnmarshalJsonStr(channel.OtherSettings, &settings); err != nil {
+				return "", fmt.Errorf("BlockRun settings must be valid JSON: %w", err)
+			}
+		}
+		return settings.GetBlockRunPaymentChain(), nil
+	}
+
+	originChain, err := getChain(originChannel)
+	if err != nil {
+		return err
+	}
+	updatedChain, err := getChain(updatedChannel)
+	if err != nil {
+		return err
+	}
+	if originChain != updatedChain {
+		return fmt.Errorf("existing BlockRun channel payment chain cannot change from %s to %s", originChain, updatedChain)
+	}
+	return nil
 }
 
 func FetchModels(c *gin.Context) {

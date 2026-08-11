@@ -52,6 +52,8 @@ const (
 	ErrorCodeDoRequestFailed            ErrorCode = "do_request_failed"
 	ErrorCodeGetChannelFailed           ErrorCode = "get_channel_failed"
 	ErrorCodeGenRelayInfoFailed         ErrorCode = "gen_relay_info_failed"
+	ErrorCodeBlockRunPaymentRejected    ErrorCode = "blockrun_payment_rejected"
+	ErrorCodeBlockRunSettlementUnknown  ErrorCode = "blockrun_settlement_unknown"
 
 	// channel error
 	ErrorCodeChannelNoAvailableKey        ErrorCode = "channel:no_available_key"

@@ -3,6 +3,8 @@ import type { Channel } from '../types'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
   channelFormSchema,
+  inspectSolanaPrivateKey,
+  resolveBlockRunPaymentChainChange,
   transformChannelToFormDefaults,
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
@@ -114,5 +116,200 @@ describe('Codex OAuth service tier settings', () => {
     expect(JSON.parse(payload.settings || '{}')).toMatchObject({
       allow_service_tier: true,
     })
+  })
+})
+
+describe('BlockRun payment chain form mapping', () => {
+  test('keeps the payment chain and URL unchanged while editing', () => {
+    expect(
+      resolveBlockRunPaymentChainChange({
+        channelType: 100,
+        isEditing: true,
+        currentChain: 'base',
+        currentBaseUrl: 'https://custom.example/api',
+        requestedChain: 'solana',
+      })
+    ).toEqual({
+      paymentChain: 'base',
+      baseUrl: 'https://custom.example/api',
+    })
+  })
+
+  test('maps payment chain changes to official URLs only while creating', () => {
+    expect(
+      resolveBlockRunPaymentChainChange({
+        channelType: 100,
+        isEditing: false,
+        currentChain: 'base',
+        currentBaseUrl: 'https://custom.example/api',
+        requestedChain: 'solana',
+      })
+    ).toEqual({
+      paymentChain: 'solana',
+      baseUrl: 'https://sol.blockrun.ai/api',
+    })
+  })
+
+  test('treats a missing payment chain as Base when editing', () => {
+    const defaults = transformChannelToFormDefaults({
+      ...baseChannel,
+      type: 100,
+      settings: '{}',
+    })
+
+    expect(defaults.blockrun_payment_chain).toBe('base')
+    expect(defaults.blockrun_max_payment_atomic).toBe('')
+  })
+
+  test('restores Solana settings when editing', () => {
+    const defaults = transformChannelToFormDefaults({
+      ...baseChannel,
+      type: 100,
+      base_url: 'https://sol.blockrun.ai/api',
+      settings: JSON.stringify({
+        blockrun_payment_chain: 'solana',
+        blockrun_max_payment_atomic: '2500000',
+      }),
+    })
+
+    expect(defaults.blockrun_payment_chain).toBe('solana')
+    expect(defaults.blockrun_max_payment_atomic).toBe('2500000')
+  })
+
+  test('serializes Solana settings for create and update payloads', () => {
+    const values = {
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'blockrun-solana',
+      type: 100,
+      base_url: 'https://sol.blockrun.ai/api/',
+      key: 'solana-secret',
+      models: 'gpt-4o',
+      blockrun_payment_chain: 'solana' as const,
+      blockrun_max_payment_atomic: '2500000',
+    }
+
+    const createPayload = transformFormDataToCreatePayload(values)
+    expect(createPayload.channel.base_url).toBe('https://sol.blockrun.ai/api')
+    expect(JSON.parse(createPayload.channel.settings || '{}')).toMatchObject({
+      blockrun_payment_chain: 'solana',
+      blockrun_max_payment_atomic: '2500000',
+    })
+
+    const updatePayload = transformFormDataToUpdatePayload(
+      { ...values, key: '' },
+      100
+    )
+    expect(updatePayload.key).toBeUndefined()
+    expect(JSON.parse(updatePayload.settings || '{}')).toMatchObject({
+      blockrun_payment_chain: 'solana',
+      blockrun_max_payment_atomic: '2500000',
+    })
+  })
+
+  test('removes Solana-only settings for Base and other channel types', () => {
+    const staleSettings = JSON.stringify({
+      blockrun_payment_chain: 'solana',
+      blockrun_max_payment_atomic: '2500000',
+    })
+    const basePayload = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'blockrun-base',
+      type: 100,
+      models: 'gpt-4o',
+      settings: staleSettings,
+      blockrun_payment_chain: 'base',
+    })
+    expect(JSON.parse(basePayload.channel.settings || '{}')).toEqual({
+      blockrun_payment_chain: 'base',
+    })
+
+    const videoPayload = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'blockrun-video',
+      type: 101,
+      models: 'seedance',
+      settings: staleSettings,
+      blockrun_payment_chain: 'solana',
+      blockrun_max_payment_atomic: '2500000',
+    })
+    expect(JSON.parse(videoPayload.channel.settings || '{}')).toEqual({})
+  })
+
+  test('requires the official Solana URL and a positive decimal cap', () => {
+    const validValues = {
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'blockrun-solana',
+      type: 100,
+      base_url: 'https://sol.blockrun.ai/api/',
+      key: '11111111111111111111111111111111',
+      models: 'gpt-4o',
+      blockrun_payment_chain: 'solana' as const,
+      blockrun_max_payment_atomic: '18446744073709551616',
+    }
+    expect(channelFormSchema.safeParse(validValues).success).toBe(true)
+
+    expect(
+      channelFormSchema.safeParse({
+        ...validValues,
+        base_url: 'https://blockrun.ai/api',
+      }).success
+    ).toBe(false)
+    expect(
+      channelFormSchema.safeParse({
+        ...validValues,
+        blockrun_max_payment_atomic: '0',
+      }).success
+    ).toBe(false)
+    expect(
+      channelFormSchema.safeParse({
+        ...validValues,
+        blockrun_max_payment_atomic: '1.5',
+      }).success
+    ).toBe(false)
+  })
+
+  test('validates Solana key lengths and extracts a keypair payer', () => {
+    const seed = '11111111111111111111111111111111'
+    const keypair = '1'.repeat(64)
+
+    expect(inspectSolanaPrivateKey(seed)).toEqual({
+      kind: 'seed',
+      valid: true,
+      payer: null,
+    })
+    expect(inspectSolanaPrivateKey(keypair)).toEqual({
+      kind: 'keypair',
+      valid: true,
+      payer: seed,
+    })
+    expect(inspectSolanaPrivateKey('0OIl')).toEqual({
+      kind: 'invalid',
+      valid: false,
+      payer: null,
+    })
+    expect(inspectSolanaPrivateKey('')).toEqual({
+      kind: 'empty',
+      valid: true,
+      payer: null,
+    })
+  })
+
+  test('rejects a non-empty invalid Solana key but permits blank edit input', () => {
+    const values = {
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'blockrun-solana',
+      type: 100,
+      base_url: 'https://sol.blockrun.ai/api',
+      models: 'gpt-4o',
+      blockrun_payment_chain: 'solana' as const,
+      blockrun_max_payment_atomic: '1000000',
+    }
+
+    expect(
+      channelFormSchema.safeParse({ ...values, key: 'invalid' }).success
+    ).toBe(false)
+    expect(channelFormSchema.safeParse({ ...values, key: '' }).success).toBe(
+      true
+    )
   })
 })

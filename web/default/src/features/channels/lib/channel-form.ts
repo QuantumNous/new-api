@@ -24,6 +24,133 @@ import {
 } from '../constants'
 import type { Channel } from '../types'
 
+export const BLOCKRUN_BASE_API_URL = 'https://blockrun.ai/api'
+export const BLOCKRUN_SOLANA_API_URL = 'https://sol.blockrun.ai/api'
+
+export type BlockRunPaymentChain = 'base' | 'solana'
+
+const BASE58_ALPHABET =
+  '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+const BASE58_INDEX = new Map(
+  Array.from(BASE58_ALPHABET, (character, index) => [character, index])
+)
+
+export type BlockRunPaymentChainChange = {
+  paymentChain: BlockRunPaymentChain
+  baseUrl: string
+}
+
+export type SolanaPrivateKeyInspection =
+  | { kind: 'empty'; valid: true; payer: null }
+  | { kind: 'seed'; valid: true; payer: null }
+  | { kind: 'keypair'; valid: true; payer: string }
+  | { kind: 'invalid'; valid: false; payer: null }
+
+function decodeBase58(value: string): Uint8Array | null {
+  if (!value) return null
+
+  const bytes = [0]
+  for (const character of value) {
+    const digit = BASE58_INDEX.get(character)
+    if (digit === undefined) return null
+
+    let carry = digit
+    for (let index = 0; index < bytes.length; index += 1) {
+      carry += bytes[index] * 58
+      bytes[index] = carry & 0xff
+      carry >>= 8
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff)
+      carry >>= 8
+    }
+  }
+
+  for (
+    let index = 0;
+    value[index] === BASE58_ALPHABET[0] && index < value.length - 1;
+    index += 1
+  ) {
+    bytes.push(0)
+  }
+
+  return Uint8Array.from(bytes.reverse())
+}
+
+function encodeBase58(value: Uint8Array): string {
+  if (value.length === 0) return ''
+
+  const digits = [0]
+  for (const byte of value) {
+    let carry = byte
+    for (let index = 0; index < digits.length; index += 1) {
+      carry += digits[index] << 8
+      digits[index] = carry % 58
+      carry = Math.floor(carry / 58)
+    }
+    while (carry > 0) {
+      digits.push(carry % 58)
+      carry = Math.floor(carry / 58)
+    }
+  }
+
+  let encoded = ''
+  for (
+    let index = 0;
+    value[index] === 0 && index < value.length - 1;
+    index += 1
+  ) {
+    encoded += BASE58_ALPHABET[0]
+  }
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    encoded += BASE58_ALPHABET[digits[index]]
+  }
+  return encoded
+}
+
+export function inspectSolanaPrivateKey(
+  privateKey: string | undefined
+): SolanaPrivateKeyInspection {
+  const value = privateKey?.trim() || ''
+  if (!value) return { kind: 'empty', valid: true, payer: null }
+
+  const decoded = decodeBase58(value)
+  if (decoded?.length === 32) {
+    return { kind: 'seed', valid: true, payer: null }
+  }
+  if (decoded?.length === 64) {
+    return {
+      kind: 'keypair',
+      valid: true,
+      payer: encodeBase58(decoded.slice(32)),
+    }
+  }
+  return { kind: 'invalid', valid: false, payer: null }
+}
+
+export function resolveBlockRunPaymentChainChange(params: {
+  channelType: number
+  isEditing: boolean
+  currentChain: BlockRunPaymentChain
+  currentBaseUrl: string
+  requestedChain: BlockRunPaymentChain
+}): BlockRunPaymentChainChange {
+  if (params.channelType !== 100 || params.isEditing) {
+    return {
+      paymentChain: params.currentChain,
+      baseUrl: params.currentBaseUrl,
+    }
+  }
+
+  return {
+    paymentChain: params.requestedChain,
+    baseUrl:
+      params.requestedChain === 'solana'
+        ? BLOCKRUN_SOLANA_API_URL
+        : BLOCKRUN_BASE_API_URL,
+  }
+}
+
 // ============================================================================
 // Form Validation Schema
 // ============================================================================
@@ -193,6 +320,8 @@ export const channelFormSchema = z
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
     azure_responses_version: z.string().optional(), // Azure specific
+    blockrun_payment_chain: z.enum(['base', 'solana']),
+    blockrun_max_payment_atomic: z.string().optional(),
     // Field passthrough controls (stored in settings JSON)
     allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic/Codex
     disable_store: z.boolean().optional(), // OpenAI only
@@ -221,6 +350,33 @@ export const channelFormSchema = z
         'other',
         'This channel type requires additional configuration'
       )
+    }
+
+    if (data.type === 100 && data.blockrun_payment_chain === 'solana') {
+      if (normalizeBaseUrl(data.base_url) !== BLOCKRUN_SOLANA_API_URL) {
+        addRequiredIssue(
+          ctx,
+          'base_url',
+          'Solana BlockRun requires the official API URL'
+        )
+      }
+
+      const cap = data.blockrun_max_payment_atomic?.trim() || ''
+      if (!/^\d+$/.test(cap) || /^0+$/.test(cap)) {
+        addRequiredIssue(
+          ctx,
+          'blockrun_max_payment_atomic',
+          'Maximum payment must be a positive decimal integer'
+        )
+      }
+
+      if (!inspectSolanaPrivateKey(data.key).valid) {
+        addRequiredIssue(
+          ctx,
+          'key',
+          'Solana private key must decode to exactly 32 or 64 bytes'
+        )
+      }
     }
 
     if (data.type === 57) {
@@ -313,6 +469,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   vertex_key_type: 'json',
   aws_key_type: 'ak_sk',
   azure_responses_version: '',
+  blockrun_payment_chain: 'base',
+  blockrun_max_payment_atomic: '',
   // Field passthrough controls
   allow_service_tier: false,
   disable_store: false,
@@ -370,6 +528,8 @@ export function transformChannelToFormDefaults(
   let azureResponsesVersion = ''
   let isEnterpriseAccount = false
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
+  let blockRunPaymentChain: BlockRunPaymentChain = 'base'
+  let blockRunMaxPaymentAtomic = ''
   let allowServiceTier = false
   let disableStore = false
   let allowSafetyIdentifier = false
@@ -388,6 +548,12 @@ export function transformChannelToFormDefaults(
       azureResponsesVersion = parsed.azure_responses_version || ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
+      blockRunPaymentChain =
+        parsed.blockrun_payment_chain === 'solana' ? 'solana' : 'base'
+      blockRunMaxPaymentAtomic =
+        typeof parsed.blockrun_max_payment_atomic === 'string'
+          ? parsed.blockrun_max_payment_atomic
+          : ''
       allowServiceTier = parsed.allow_service_tier === true
       disableStore = parsed.disable_store === true
       allowSafetyIdentifier = parsed.allow_safety_identifier === true
@@ -444,6 +610,8 @@ export function transformChannelToFormDefaults(
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
     aws_key_type: awsKeyType,
+    blockrun_payment_chain: blockRunPaymentChain,
+    blockrun_max_payment_atomic: blockRunMaxPaymentAtomic,
     allow_service_tier: allowServiceTier,
     disable_store: disableStore,
     allow_include_obfuscation: allowIncludeObfuscation,
@@ -515,6 +683,24 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.aws_key_type = formData.aws_key_type || 'ak_sk'
   } else if ('aws_key_type' in settingsObj) {
     delete settingsObj.aws_key_type
+  }
+
+  if (formData.type === 100) {
+    const paymentChain = formData.blockrun_payment_chain || 'base'
+    settingsObj.blockrun_payment_chain = paymentChain
+    if (paymentChain === 'solana') {
+      settingsObj.blockrun_max_payment_atomic =
+        formData.blockrun_max_payment_atomic?.trim() || ''
+    } else if ('blockrun_max_payment_atomic' in settingsObj) {
+      delete settingsObj.blockrun_max_payment_atomic
+    }
+  } else {
+    if ('blockrun_payment_chain' in settingsObj) {
+      delete settingsObj.blockrun_payment_chain
+    }
+    if ('blockrun_max_payment_atomic' in settingsObj) {
+      delete settingsObj.blockrun_max_payment_atomic
+    }
   }
 
   // Field passthrough controls:

@@ -5,9 +5,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	rootconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
@@ -142,6 +145,107 @@ func TestProcessHeaderOverride_PassthroughSkipsAcceptEncoding(t *testing.T) {
 
 	_, hasAcceptEncoding := headers["accept-encoding"]
 	require.False(t, hasAcceptEncoding)
+}
+
+func TestProcessHeaderOverride_PassthroughSkipsPaymentHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	protected := []string{"Payment-Signature", "X-Payment", "X-Blockrun-Facilitator", "X-Payer-Wallet"}
+	for _, rule := range []string{"*", `regex:^(?i:payment-signature|x-payment|x-blockrun-facilitator|x-payer-wallet|x-trace-id)$`} {
+		t.Run(rule, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			for _, name := range protected {
+				ctx.Request.Header.Set(name, "client-controlled")
+			}
+			ctx.Request.Header.Set("X-Trace-Id", "trace-123")
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{HeadersOverride: map[string]any{rule: ""}}}
+
+			headers, err := processHeaderOverride(info, ctx)
+			require.NoError(t, err)
+			require.Equal(t, "trace-123", headers["x-trace-id"])
+			for _, name := range protected {
+				require.NotContains(t, headers, strings.ToLower(name))
+			}
+		})
+	}
+}
+
+func TestProcessHeaderOverride_ExplicitPaymentHeaderRemainsAvailableOutsideType100(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelType:     rootconstant.ChannelTypeBlockRunSeedance,
+		HeadersOverride: map[string]any{"X-Payer-Wallet": "operator-value"},
+	}}
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.Equal(t, "operator-value", headers["x-payer-wallet"])
+}
+
+func TestDoRequest_BlockRunRedirectPolicyIsRequestScoped(t *testing.T) {
+	service.InitHttpClient()
+	t.Cleanup(service.ResetProxyClientCache)
+
+	var destinationHits atomic.Int32
+	destination := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		destinationHits.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer destination.Close()
+
+	var sameOriginHits atomic.Int32
+	var source *httptest.Server
+	source = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/same-origin" {
+			sameOriginHits.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		switch r.URL.Path {
+		case "/redirect-same":
+			status := http.StatusFound
+			if raw := r.URL.Query().Get("status"); raw != "" {
+				status, _ = strconv.Atoi(raw)
+			}
+			http.Redirect(w, r, source.URL+"/same-origin", status)
+		case "/redirect-cross":
+			http.Redirect(w, r, destination.URL, http.StatusFound)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer source.Close()
+
+	request := func(path string, channelType int, signed bool) *http.Response {
+		t.Helper()
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		req, err := http.NewRequest(http.MethodPost, source.URL+path, strings.NewReader("{}"))
+		require.NoError(t, err)
+		if signed {
+			req.Header.Set("Payment-Signature", "signed-payload")
+		}
+		resp, err := doRequest(ctx, req, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: channelType}})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = resp.Body.Close() })
+		return resp
+	}
+
+	require.Equal(t, http.StatusNoContent, request("/redirect-same", rootconstant.ChannelTypeBlockRun, false).StatusCode)
+	require.EqualValues(t, 1, sameOriginHits.Load(), "unsigned Type 100 should follow same-origin redirects")
+	require.Equal(t, http.StatusFound, request("/redirect-cross", rootconstant.ChannelTypeBlockRun, false).StatusCode)
+	require.EqualValues(t, 0, destinationHits.Load(), "unsigned Type 100 must not follow cross-origin redirects")
+	for _, status := range []int{http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect, http.StatusPermanentRedirect} {
+		require.Equal(t, status, request("/redirect-same?status="+strconv.Itoa(status), rootconstant.ChannelTypeBlockRun, true).StatusCode)
+	}
+	require.EqualValues(t, 1, sameOriginHits.Load(), "signed Type 100 must not follow any redirect")
+	baseClient := &http.Client{}
+	nonBlockRunReq, err := http.NewRequest(http.MethodPost, source.URL+"/redirect-cross", nil)
+	require.NoError(t, err)
+	nonBlockRun := clientForRelayRequest(baseClient, nonBlockRunReq, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: rootconstant.ChannelTypeOpenAI}})
+	require.Same(t, baseClient, nonBlockRun, "non-Type 100 must keep the shared client and redirect behavior")
 }
 
 func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.T) {

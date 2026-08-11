@@ -101,7 +101,7 @@ func SignX402PaymentWithCaps(resp *http.Response, privateKeyHex, resourceURLFall
 	if resourceURL == "" {
 		resourceURL = resourceURLFallback
 	}
-	paymentB64, err := blockrunSDK.CreatePaymentPayload(
+	paymentB64, err := CreateBasePaymentPayloadCompat(
 		privKey, opt.PayTo, opt.Amount, opt.Network, resourceURL,
 		payReq.Resource.Description, opt.MaxTimeoutSeconds, opt.Extra, payReq.Extensions,
 	)

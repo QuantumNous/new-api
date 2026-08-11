@@ -6441,6 +6441,25 @@
     "Stage": "Giai doan",
     "Failure code": "Ma loi",
     "Trade number": "Ma giao dich",
-    "Translation task {{status}}": "Tac vu dich {{status}}"
+    "Translation task {{status}}": "Tac vu dich {{status}}",
+    "Payment chain": "Chuỗi thanh toán",
+    "Base": "Base",
+    "Solana": "Solana",
+    "Pay with USDC on Solana.": "Thanh toán bằng USDC trên Solana.",
+    "Pay with USDC on Base.": "Thanh toán bằng USDC trên Base.",
+    "BlockRun API URL *": "URL API BlockRun *",
+    "The Solana payment endpoint is fixed to the official BlockRun URL.": "Điểm cuối thanh toán Solana được cố định ở URL chính thức của BlockRun.",
+    "The Base payment endpoint defaults to the official BlockRun URL.": "Điểm cuối thanh toán Base mặc định sử dụng URL chính thức của BlockRun.",
+    "Maximum payment per request (atomic units) *": "Khoản thanh toán tối đa cho mỗi yêu cầu (đơn vị nguyên tử) *",
+    "Solana BlockRun requires the official API URL": "Solana BlockRun yêu cầu URL API chính thức",
+    "Maximum payment must be a positive decimal integer": "Khoản thanh toán tối đa phải là một số nguyên thập phân dương",
+    "Enter a positive decimal integer in USDC atomic units (1 USDC = 1000000).": "Nhập số nguyên thập phân dương theo đơn vị nguyên tử của USDC (1 USDC = 1000000).",
+    "Enter a base58-encoded 32-byte seed or 64-byte keypair": "Nhập seed 32 byte hoặc cặp khóa 64 byte được mã hóa base58",
+    "Solana private key *": "Khóa riêng Solana *",
+    "Use a funded Solana wallet private key in base58 format. It is stored as the channel secret and never sent upstream.": "Sử dụng khóa riêng của ví Solana có số dư, ở định dạng base58. Khóa được lưu dưới dạng bí mật của kênh và không bao giờ được gửi đến nhà cung cấp thượng nguồn.",
+    "Solana private key must decode to exactly 32 or 64 bytes": "Khóa riêng Solana phải giải mã thành chính xác 32 hoặc 64 byte",
+    "The payment chain cannot be changed after the channel is created.": "Không thể thay đổi chuỗi thanh toán sau khi tạo kênh.",
+    "Payer wallet: {{payer}}": "Ví thanh toán: {{payer}}",
+    "The payer wallet for a 32-byte seed is verified when you save the channel.": "Ví thanh toán của seed 32 byte được xác minh khi bạn lưu kênh."
   }
 }

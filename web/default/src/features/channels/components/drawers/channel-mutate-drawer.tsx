@@ -86,6 +86,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   Tooltip,
   TooltipContent,
@@ -127,6 +128,10 @@ import {
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  BLOCKRUN_BASE_API_URL,
+  BLOCKRUN_SOLANA_API_URL,
+  inspectSolanaPrivateKey,
+  resolveBlockRunPaymentChainChange,
   channelFormSchema,
   channelsQueryKeys,
   transformChannelToFormDefaults,
@@ -379,6 +384,8 @@ export function ChannelMutateDrawer({
     'upstream_model_update_check_enabled'
   )
   const currentSettings = form.watch('settings')
+  const blockRunPaymentChain = form.watch('blockrun_payment_chain')
+  const currentKey = form.watch('key')
   const {
     unlocked: doubaoApiEditUnlocked,
     handleClick: handleApiConfigSecretClick,
@@ -401,6 +408,11 @@ export function ChannelMutateDrawer({
   const isBatchMode =
     multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
   const isChannelDetailLoading = isEditing && isChannelLoading
+  const isBlockRunSolana =
+    currentType === 100 && blockRunPaymentChain === 'solana'
+  const solanaPrivateKeyInspection = isBlockRunSolana
+    ? inspectSolanaPrivateKey(currentKey)
+    : null
 
   // Get all models list
   const allModelsList = useMemo(
@@ -615,6 +627,18 @@ export function ChannelMutateDrawer({
       }
     }
 
+    if (currentType === 100) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue) {
+        form.setValue(
+          'base_url',
+          blockRunPaymentChain === 'solana'
+            ? BLOCKRUN_SOLANA_API_URL
+            : BLOCKRUN_BASE_API_URL
+        )
+      }
+    }
+
     // Type 18 (Xunfei) - set default other (version)
     if (currentType === 18) {
       const currentOther = form.getValues('other')
@@ -622,7 +646,7 @@ export function ChannelMutateDrawer({
         form.setValue('other', 'v2.1')
       }
     }
-  }, [currentType, isEditing, form])
+  }, [blockRunPaymentChain, currentType, isEditing, form])
 
   // Validate base_url - warn if it ends with /v1
   useEffect(() => {
@@ -1776,8 +1800,131 @@ export function ChannelMutateDrawer({
                       />
                     )}
 
+                    {currentType === 100 && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name='blockrun_payment_chain'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Payment chain')}</FormLabel>
+                              <FormControl>
+                                <ToggleGroup
+                                  value={[field.value]}
+                                  variant='outline'
+                                  disabled={isEditing}
+                                  aria-label={t('Payment chain')}
+                                  onValueChange={(values) => {
+                                    const nextChain = values[0]
+                                    if (
+                                      nextChain !== 'base' &&
+                                      nextChain !== 'solana'
+                                    ) {
+                                      return
+                                    }
+                                    const change =
+                                      resolveBlockRunPaymentChainChange({
+                                        channelType: currentType,
+                                        isEditing,
+                                        currentChain: field.value,
+                                        currentBaseUrl:
+                                          form.getValues('base_url') || '',
+                                        requestedChain: nextChain,
+                                      })
+                                    field.onChange(change.paymentChain)
+                                    form.setValue('base_url', change.baseUrl, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }}
+                                >
+                                  <ToggleGroupItem value='base'>
+                                    {t('Base')}
+                                  </ToggleGroupItem>
+                                  <ToggleGroupItem value='solana'>
+                                    {t('Solana')}
+                                  </ToggleGroupItem>
+                                </ToggleGroup>
+                              </FormControl>
+                              <FormDescription>
+                                {isEditing
+                                  ? t(
+                                      'The payment chain cannot be changed after the channel is created.'
+                                    )
+                                  : isBlockRunSolana
+                                    ? t('Pay with USDC on Solana.')
+                                    : t('Pay with USDC on Base.')}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='base_url'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('BlockRun API URL *')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  readOnly={isBlockRunSolana}
+                                  placeholder={
+                                    isBlockRunSolana
+                                      ? BLOCKRUN_SOLANA_API_URL
+                                      : BLOCKRUN_BASE_API_URL
+                                  }
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {isBlockRunSolana
+                                  ? t(
+                                      'The Solana payment endpoint is fixed to the official BlockRun URL.'
+                                    )
+                                  : t(
+                                      'The Base payment endpoint defaults to the official BlockRun URL.'
+                                    )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {isBlockRunSolana && (
+                          <FormField
+                            control={form.control}
+                            name='blockrun_max_payment_atomic'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  {t(
+                                    'Maximum payment per request (atomic units) *'
+                                  )}
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    inputMode='numeric'
+                                    pattern='[0-9]*'
+                                    placeholder='1000000'
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(
+                                    'Enter a positive decimal integer in USDC atomic units (1 USDC = 1000000).'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                      </>
+                    )}
+
                     {/* General base_url for other types */}
-                    {![3, 8, 22, 36, 45].includes(currentType) && (
+                    {![3, 8, 22, 36, 45, 100].includes(currentType) && (
                       <FormField
                         control={form.control}
                         name='base_url'
@@ -1870,6 +2017,11 @@ export function ChannelMutateDrawer({
                                     'Enter key, format: AccessKey|SecretAccessKey|Region'
                                   )
                             }
+                            if (isBlockRunSolana) {
+                              return t(
+                                'Enter a base58-encoded 32-byte seed or 64-byte keypair'
+                              )
+                            }
                             if (isBatchMode) {
                               return t(
                                 'Enter one key per line for batch creation'
@@ -1879,7 +2031,11 @@ export function ChannelMutateDrawer({
                           })()
                           return (
                             <FormItem>
-                              <FormLabel>{t('API Key *')}</FormLabel>
+                              <FormLabel>
+                                {isBlockRunSolana
+                                  ? t('Solana private key *')
+                                  : t('API Key *')}
+                              </FormLabel>
                               <FormControl>
                                 <Textarea
                                   placeholder={keyPlaceholder}
@@ -1889,31 +2045,58 @@ export function ChannelMutateDrawer({
                               </FormControl>
                               <FormDescription>
                                 <div className='flex flex-col gap-2'>
-                                  <span>
-                                    {isEditing ? (
-                                      <>
+                                  {isBlockRunSolana ? (
+                                    <div className='flex flex-col gap-1'>
+                                      <span>
                                         {t(
-                                          'Enter new key to update, or leave empty to keep current key'
+                                          'Use a funded Solana wallet private key in base58 format. It is stored as the channel secret and never sent upstream.'
                                         )}
-                                        {isMultiKeyChannel && (
-                                          <span className='text-warning mt-1 block'>
-                                            {t(
-                                              'Multi-key channel: Keys will be'
-                                            )}{' '}
-                                            {keyMode === 'replace'
-                                              ? t('replaced')
-                                              : t('appended')}
-                                          </span>
-                                        )}
-                                      </>
-                                    ) : isBatchMode ? (
-                                      t(
-                                        'Enter one API key per line for batch creation'
-                                      )
-                                    ) : (
-                                      t(FIELD_DESCRIPTIONS.KEY)
-                                    )}
-                                  </span>
+                                      </span>
+                                      {solanaPrivateKeyInspection?.kind ===
+                                        'keypair' && (
+                                        <span>
+                                          {t('Payer wallet: {{payer}}', {
+                                            payer:
+                                              solanaPrivateKeyInspection.payer,
+                                          })}
+                                        </span>
+                                      )}
+                                      {solanaPrivateKeyInspection?.kind ===
+                                        'seed' && (
+                                        <span>
+                                          {t(
+                                            'The payer wallet for a 32-byte seed is verified when you save the channel.'
+                                          )}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span>
+                                      {isEditing ? (
+                                        <>
+                                          {t(
+                                            'Enter new key to update, or leave empty to keep current key'
+                                          )}
+                                          {isMultiKeyChannel && (
+                                            <span className='text-warning mt-1 block'>
+                                              {t(
+                                                'Multi-key channel: Keys will be'
+                                              )}{' '}
+                                              {keyMode === 'replace'
+                                                ? t('replaced')
+                                                : t('appended')}
+                                            </span>
+                                          )}
+                                        </>
+                                      ) : isBatchMode ? (
+                                        t(
+                                          'Enter one API key per line for batch creation'
+                                        )
+                                      ) : (
+                                        t(FIELD_DESCRIPTIONS.KEY)
+                                      )}
+                                    </span>
+                                  )}
                                   {isBatchMode && (
                                     <Button
                                       type='button'
