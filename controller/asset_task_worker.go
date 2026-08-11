@@ -729,10 +729,15 @@ func quarantineLeasedAssetTaskSubmissionUnknown(task *model.Task, lease *taskPre
 }
 
 func taskPollingKey(channel *model.Channel, info *relaycommon.RelayInfo) string {
-	if channel == nil || channel.Type != constant.ChannelTypeTechMobiVideo || info == nil || info.ChannelMeta == nil {
+	if channel == nil || info == nil || info.ChannelMeta == nil {
 		return ""
 	}
-	return strings.TrimSpace(info.ChannelMeta.ApiKey)
+	switch channel.Type {
+	case constant.ChannelTypeTechMobiVideo, constant.ChannelTypeModelAPISeedance:
+		return strings.TrimSpace(info.ChannelMeta.ApiKey)
+	default:
+		return ""
+	}
 }
 
 func acceptLeasedAssetTask(c *gin.Context, info *relaycommon.RelayInfo, task *model.Task, owner string, lease *taskPreparationLease, channel *model.Channel, result *relay.TaskSubmitResult) error {
