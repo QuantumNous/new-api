@@ -122,6 +122,7 @@ def launch_wrapper(
         child=child,
         tree_terminator=terminator,
         runtime_evidence_url=(parent_env or os.environ).get("FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL"),
+        runtime_evidence_token=(parent_env or os.environ).get("FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN"),
         mode=(parent_env or os.environ).get(MODE_ENV, "normal"),
     )
 
@@ -195,13 +196,25 @@ class WindowsJobProcessContainment:
 
 
 class BudgetedMcpWrapper:
-    def __init__(self, runtime_dir, *, child, clock=None, tree_terminator=None, output_lock=None, runtime_evidence_url=None, mode="normal"):
+    def __init__(
+        self,
+        runtime_dir,
+        *,
+        child,
+        clock=None,
+        tree_terminator=None,
+        output_lock=None,
+        runtime_evidence_url=None,
+        runtime_evidence_token=None,
+        mode="normal",
+    ):
         self.runtime_dir = _runtime_dir(runtime_dir)
         self.child = child
         self.clock = clock or time
         self.tree_terminator = tree_terminator or ProcessTreeTerminator.attach(child)
         self.output_lock = output_lock or threading.Lock()
         self.runtime_evidence_url = runtime_evidence_url
+        self.runtime_evidence_token = runtime_evidence_token
         self.mode = mode
         self.exploration_budget = None
         self._closed = False
@@ -354,7 +367,7 @@ class BudgetedMcpWrapper:
             stdout.flush()
 
     def _post_alias_restriction_evidence(self, response):
-        if not self.runtime_evidence_url or not _is_failed_alias_restriction_response(response):
+        if not self.runtime_evidence_url or not self.runtime_evidence_token or not _is_failed_alias_restriction_response(response):
             return
         payload = json.dumps(
             {"type": "alias_restriction", "failed": True, "text": ALIAS_RESTRICTION_MARKER},
@@ -363,7 +376,10 @@ class BudgetedMcpWrapper:
         request = urllib.request.Request(
             self.runtime_evidence_url,
             data=payload,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "X-Flatkey-QA-Evidence-Token": self.runtime_evidence_token,
+            },
             method="POST",
         )
         try:

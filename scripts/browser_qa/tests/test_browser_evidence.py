@@ -119,10 +119,11 @@ class BrowserEvidenceTests(unittest.TestCase):
         self.assertEqual(responses[3]["id"], "ok")
         self.assertEqual(responses[3]["result"]["content"][0]["text"], "screenshots/checkpoint.png")
         blocked.assert_not_called()
-        capture.assert_called_once_with("http://127.0.0.1:1/runtime-evidence", "checkpoint")
+        capture.assert_called_once_with("http://127.0.0.1:1/runtime-evidence", "checkpoint", evidence_token="")
 
     def test_evidence_mcp_human_verification_tool_posts_fixed_classification_to_runtime_sink(self):
-        sink = supervisor.RuntimeEvidenceSink(supervisor.Redactor())
+        token = "test-token-with-enough-entropy"
+        sink = supervisor.RuntimeEvidenceSink(supervisor.Redactor(), capability_token=token)
         sink.start()
         try:
             stdin = io.StringIO(json.dumps({
@@ -133,7 +134,10 @@ class BrowserEvidenceTests(unittest.TestCase):
             }) + "\n")
             stdout = io.StringIO()
 
-            with mock.patch.dict(os.environ, {"FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL": sink.url}, clear=True), \
+            with mock.patch.dict(os.environ, {
+                "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL": sink.url,
+                "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN": token,
+            }, clear=True), \
                 mock.patch.object(sys, "stdin", stdin), \
                 mock.patch.object(sys, "stdout", stdout):
                 browser_evidence_mcp.main()
@@ -150,6 +154,36 @@ class BrowserEvidenceTests(unittest.TestCase):
         finally:
             sink.stop()
 
+    def test_evidence_mcp_human_verification_tool_requires_capability_token(self):
+        token = "test-token-with-enough-entropy"
+        sink = supervisor.RuntimeEvidenceSink(supervisor.Redactor(), capability_token=token)
+        sink.start()
+        try:
+            for env_update in [
+                {"FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL": sink.url},
+                {
+                    "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL": sink.url,
+                    "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN": "wrong-token",
+                },
+            ]:
+                with self.subTest(env=env_update):
+                    stdin = io.StringIO(json.dumps({
+                        "jsonrpc": "2.0",
+                        "id": "blocked",
+                        "method": "tools/call",
+                        "params": {"name": "qa_report_human_verification_blocked", "arguments": {}},
+                    }) + "\n")
+                    stdout = io.StringIO()
+                    with mock.patch.dict(os.environ, env_update, clear=True), \
+                        mock.patch.object(sys, "stdin", stdin), \
+                        mock.patch.object(sys, "stdout", stdout):
+                        browser_evidence_mcp.main()
+                    response = json.loads(stdout.getvalue())
+                    self.assertEqual(response["error"]["code"], -32000)
+                    self.assertIsNone(sink.runtime_classification)
+        finally:
+            sink.stop()
+
     def test_evidence_mcp_uses_runtime_control_url_not_cdp_or_secret_argv(self):
         stdout = io.StringIO()
         stdin = io.StringIO(json.dumps({
@@ -160,12 +194,13 @@ class BrowserEvidenceTests(unittest.TestCase):
         }) + "\n")
         calls = []
 
-        def fake_request(url, name):
-            calls.append((url, name))
+        def fake_request(url, name, *, evidence_token=None):
+            calls.append((url, name, evidence_token))
             return "screenshots/checkpoint.png"
 
         with mock.patch.dict(os.environ, {
             "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL": "http://127.0.0.1:7777/runtime-evidence",
+            "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN": "test-token-with-enough-entropy",
             "FLATKEY_BROWSER_QA_CDP_ENDPOINT": "http://127.0.0.1:9222",
             "FLATKEY_BROWSER_QA_EMAIL": "owner+secret@gmail.com",
             "FLATKEY_BROWSER_QA_PASSWORD": "pw-secret",
@@ -175,7 +210,7 @@ class BrowserEvidenceTests(unittest.TestCase):
             mock.patch.object(browser_evidence_mcp, "_request_capture", fake_request):
             browser_evidence_mcp.main()
 
-        self.assertEqual(calls, [("http://127.0.0.1:7777/runtime-evidence", "checkpoint")])
+        self.assertEqual(calls, [("http://127.0.0.1:7777/runtime-evidence", "checkpoint", "test-token-with-enough-entropy")])
         self.assertNotIn("9222", stdout.getvalue())
         self.assertNotIn("pw-secret", stdout.getvalue())
 
@@ -201,11 +236,13 @@ class BrowserEvidenceTests(unittest.TestCase):
         opener = FakeOpener()
         browser_evidence_mcp._request_human_verification_blocked(
             "http://127.0.0.1:7777/runtime-evidence",
+            "test-token-with-enough-entropy",
             opener=opener,
         )
         request, timeout = opener.requests[0]
         self.assertEqual(request.full_url, "http://127.0.0.1:7777/runtime-evidence")
         self.assertEqual(timeout, 30)
+        self.assertEqual(request.headers["X-flatkey-qa-evidence-token"], "test-token-with-enough-entropy")
         self.assertEqual(json.loads(request.data.decode("utf-8")), {"type": "human_verification_blocked"})
 
     def test_evidence_mcp_request_capture_uses_strict_loopback_url_and_no_proxy_opener(self):

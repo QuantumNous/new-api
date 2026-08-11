@@ -1257,7 +1257,10 @@ class SupervisorTests(unittest.TestCase):
             request = urllib.request.Request(
                 sup._evidence_url,
                 data=json.dumps(event).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Flatkey-QA-Evidence-Token": sup._evidence_token,
+                },
                 method="POST",
             )
             urllib.request.urlopen(request, timeout=2).close()
@@ -2558,6 +2561,50 @@ class SupervisorTests(unittest.TestCase):
         self.assertNotIn("widget-response", rendered)
         self.assertNotIn("Cookie", rendered)
 
+    def test_production_human_verification_requires_preflight_turnstile_observed_true(self):
+        input_env = env()
+        input_env.update(
+            {
+                "FLATKEY_QA_TARGET_ENVIRONMENT": "production",
+                "FLATKEY_QA_WEBSITE_ORIGIN": "https://flatkey.ai",
+                "FLATKEY_QA_CONSOLE_ORIGIN": "https://console.flatkey.ai",
+            }
+        )
+
+        class HumanVerificationSink:
+            url = "http://127.0.0.1:1/runtime-evidence"
+
+            def __init__(self, _redactor, **_kwargs):
+                self.runtime_classification = {
+                    "classification": "human_verification_blocked",
+                    "human_verification_blocked": True,
+                    "turnstile_check": True,
+                    "target_environment": "production",
+                    "blocked_stage": "registration_or_verification",
+                }
+
+            def start(self):
+                return self
+
+            def stop(self):
+                return None
+
+        with mock.patch.object(supervisor, "RuntimeEvidenceSink", HumanVerificationSink):
+            outcome, _sup = self.run_supervisor(
+                FakeProcess(1),
+                input_env=input_env,
+                preflight=lambda: {
+                    "data": {
+                        "register_enabled": True,
+                        "password_register_enabled": True,
+                        "email_verification": True,
+                        "turnstile_check": False,
+                    }
+                },
+            )
+
+        self.assertEqual(outcome.status, "infrastructure_failed")
+
     def test_supervisor_only_accepts_human_verification_classification_before_production_checkpoint(self):
         classification = {
             "classification": "human_verification_blocked",
@@ -2572,6 +2619,7 @@ class SupervisorTests(unittest.TestCase):
                 classification,
                 target_environment="production",
                 checkpoint_completed=False,
+                preflight_turnstile_check=True,
             ),
             classification,
         )
@@ -2580,6 +2628,7 @@ class SupervisorTests(unittest.TestCase):
                 classification,
                 target_environment="production",
                 checkpoint_completed=True,
+                preflight_turnstile_check=True,
             )
         )
         self.assertIsNone(
@@ -2587,6 +2636,15 @@ class SupervisorTests(unittest.TestCase):
                 classification,
                 target_environment="staging",
                 checkpoint_completed=False,
+                preflight_turnstile_check=True,
+            )
+        )
+        self.assertIsNone(
+            supervisor._safe_runtime_classification(
+                classification,
+                target_environment="production",
+                checkpoint_completed=False,
+                preflight_turnstile_check=False,
             )
         )
 
@@ -2713,7 +2771,10 @@ class SupervisorTests(unittest.TestCase):
                 request = urllib.request.Request(
                     process_holder["sup"]._evidence_url,
                     data=json.dumps({"type": "verification_code", "code": code}).encode("utf-8"),
-                    headers={"Content-Type": "application/json"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Flatkey-QA-Evidence-Token": process_holder["sup"]._evidence_token,
+                    },
                     method="POST",
                 )
                 urllib.request.urlopen(request, timeout=2).close()
@@ -3089,13 +3150,19 @@ class SupervisorTests(unittest.TestCase):
     def test_runtime_evidence_sink_registers_exact_code_and_rejects_bad_events(self):
         redactor = supervisor.Redactor(email="owner+flatkey-qa-1-x@gmail.com")
         checkpoints = []
-        sink = supervisor.RuntimeEvidenceSink(redactor, checkpoint_handler=lambda: checkpoints.append("captured"))
+        token = "test-token-with-enough-entropy"
+        sink = supervisor.RuntimeEvidenceSink(
+            redactor,
+            checkpoint_handler=lambda: checkpoints.append("captured"),
+            capability_token=token,
+        )
         sink.start()
         try:
+            headers = {"Content-Type": "application/json", "X-Flatkey-QA-Evidence-Token": token}
             request = urllib.request.Request(
                 sink.url,
                 data=json.dumps({"type": "verification_code", "code": "654321"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 method="POST",
             )
             with urllib.request.urlopen(request, timeout=2) as response:
@@ -3105,7 +3172,7 @@ class SupervisorTests(unittest.TestCase):
             checkpoint = urllib.request.Request(
                 sink.url,
                 data=json.dumps({"type": "replay_checkpoint"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 method="POST",
             )
             with urllib.request.urlopen(checkpoint, timeout=2) as response:
@@ -3115,7 +3182,7 @@ class SupervisorTests(unittest.TestCase):
             bad = urllib.request.Request(
                 sink.url,
                 data=json.dumps({"type": "verification_code", "code": "12345"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 method="POST",
             )
             with self.assertRaises(urllib.error.HTTPError):
@@ -3128,7 +3195,7 @@ class SupervisorTests(unittest.TestCase):
                     "failed": True,
                     "text": "管理员已启用邮箱地址别名限制，您的邮箱地址由于包含特殊符号而被拒绝。",
                 }).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 method="POST",
             )
             with urllib.request.urlopen(alias, timeout=2) as response:
@@ -3138,7 +3205,7 @@ class SupervisorTests(unittest.TestCase):
             wrong_path = urllib.request.Request(
                 sink.url.replace("/runtime-evidence", "/wrong"),
                 data=json.dumps({"type": "verification_code", "code": "111111"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 method="POST",
             )
             with self.assertRaises(urllib.error.HTTPError):
@@ -3147,7 +3214,7 @@ class SupervisorTests(unittest.TestCase):
             blocked = urllib.request.Request(
                 sink.url,
                 data=json.dumps({"type": "human_verification_blocked"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 method="POST",
             )
             with urllib.request.urlopen(blocked, timeout=2) as response:
@@ -3163,11 +3230,24 @@ class SupervisorTests(unittest.TestCase):
             blocked_with_argument = urllib.request.Request(
                 sink.url,
                 data=json.dumps({"type": "human_verification_blocked", "token": "secret"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 method="POST",
             )
             with self.assertRaises(urllib.error.HTTPError):
                 urllib.request.urlopen(blocked_with_argument, timeout=2)
+
+            for bad_headers in [
+                {"Content-Type": "application/json"},
+                {"Content-Type": "application/json", "X-Flatkey-QA-Evidence-Token": "wrong-token"},
+            ]:
+                blocked_without_token = urllib.request.Request(
+                    sink.url,
+                    data=json.dumps({"type": "human_verification_blocked"}).encode("utf-8"),
+                    headers=bad_headers,
+                    method="POST",
+                )
+                with self.subTest(headers=bad_headers), self.assertRaises(urllib.error.HTTPError):
+                    urllib.request.urlopen(blocked_without_token, timeout=2)
 
             with socket.create_connection((sink.host, sink.port), timeout=2) as sock:
                 sock.sendall(

@@ -185,9 +185,11 @@ def normalize_findings(payload, *, runtime_root, proxy_events):
 def classify_status(payload, *, cleanup_result=None, codex_returncode=0, upload_failed=False, invalid_result=False, runtime_classification=None):
     if cleanup_result is not None and cleanup_result.cleanup_failed:
         return "cleanup_failed"
+    if upload_failed or invalid_result:
+        return "infrastructure_failed"
     if _runtime_classification_name(runtime_classification) == "human_verification_blocked":
         return "replay_failed"
-    if codex_returncode != 0 or upload_failed or invalid_result or runtime_classification:
+    if codex_returncode != 0 or runtime_classification:
         return "infrastructure_failed"
     if (
         payload["replay"]["status"] == "failed"

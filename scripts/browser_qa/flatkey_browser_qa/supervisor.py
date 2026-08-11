@@ -4,6 +4,7 @@ import http.server
 import os
 import queue
 import re
+import secrets
 import signal
 import shutil
 import socketserver
@@ -145,6 +146,7 @@ class Supervisor:
         self.home_dir = None
         self._active_process = None
         self._evidence_url = None
+        self._evidence_token = None
         self._codex_output_last_message_path = None
         self.fixed_case_results = {"status": "not_started", "cases": []}
         self.phase_trace = []
@@ -192,6 +194,9 @@ class Supervisor:
         codex_returncode = 0
         provenance = None
         resource_guard = None
+        preflight_turnstile_check = False
+        evidence_token = secrets.token_urlsafe(32)
+        self._evidence_token = evidence_token
 
         payload = initial_result if initial_result is not None else _empty_result()
         runtime_classification = None if initial_result is not None else "invalid_result"
@@ -206,6 +211,7 @@ class Supervisor:
                 runtime_classification = "preflight_failed"
                 invalid_result = False
             else:
+                preflight_turnstile_check = _preflight_turnstile_check(preflight_payload)
                 resource_guard = self.resource_guard_factory(cfg.console_origin)
                 proxy = self.proxy_factory(
                     policy=EgressPolicy.from_file(target_environment=cfg.target_environment)
@@ -245,10 +251,11 @@ class Supervisor:
                         resource_guard=resource_guard,
                         redactor=redactor,
                     ),
+                    capability_token=evidence_token,
                 )
                 evidence_sink.start()
                 self._evidence_url = evidence_sink.url
-                process = self._start_codex(proxy, browser.cdp_endpoint, cfg.mode)
+                process = self._start_codex(proxy, browser.cdp_endpoint, cfg.mode, evidence_token=evidence_token)
                 prompt = build_prompt(
                     cfg,
                     identity,
@@ -273,6 +280,7 @@ class Supervisor:
                     evidence_sink.runtime_classification,
                     target_environment=cfg.target_environment,
                     checkpoint_completed=self._checkpoint_completed,
+                    preflight_turnstile_check=preflight_turnstile_check,
                 )
                 if evidence_classification:
                     runtime_classification = evidence_classification
@@ -535,7 +543,7 @@ class Supervisor:
             self.phase_trace.append(("exploration_started", len(self.phase_trace)))
         self.phase_trace.append(("finalization_started", len(self.phase_trace)))
 
-    def _start_codex(self, proxy, cdp_endpoint, mode):
+    def _start_codex(self, proxy, cdp_endpoint, mode, *, evidence_token):
         self.codex_home = os.path.join(self.runtime_root, "codex-home")
         self.home_dir = os.path.join(self.runtime_root, "home")
         os.makedirs(self.codex_home, mode=0o700, exist_ok=True)
@@ -562,6 +570,7 @@ class Supervisor:
             "FLATKEY_BROWSER_QA_START_TIME": str(int(self.clock.time())),
             "FLATKEY_BROWSER_QA_BROKER_URL": self.env["FLATKEY_BROWSER_QA_BROKER_URL"],
             "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL": self._evidence_url,
+            "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN": evidence_token,
             "FLATKEY_BROWSER_QA_PROXY_URL": f"http://{proxy.host}:{proxy.port}",
             "FLATKEY_BROWSER_QA_CDP_ENDPOINT": cdp_endpoint,
             "FLATKEY_BROWSER_QA_MODE": mode,
@@ -833,6 +842,7 @@ PATH = "{_toml_escape(child_env.get("PATH", ""))}"
 FLATKEY_BROWSER_QA_RUNTIME_DIR = "{escaped_runtime_dir}"
 FLATKEY_BROWSER_QA_PROXY_URL = "http://{proxy.host}:{proxy.port}"
 FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL"])}"
+FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN"])}"
 FLATKEY_BROWSER_QA_CDP_ENDPOINT = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_CDP_ENDPOINT"])}"
 FLATKEY_BROWSER_QA_MODE = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_MODE"])}"
 
@@ -848,6 +858,7 @@ PATH = "{_toml_escape(child_env.get("PATH", ""))}"
 FLATKEY_BROWSER_QA_RUNTIME_DIR = "{escaped_runtime_dir}"
 FLATKEY_BROWSER_QA_MODE = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_MODE"])}"
 FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL"])}"
+FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN"])}"
 
 [mcp_servers.broker]
 command = "{_toml_escape(sys.executable)}"
@@ -864,6 +875,7 @@ FLATKEY_BROWSER_QA_EMAIL_TAG = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_EMAI
 FLATKEY_BROWSER_QA_START_TIME = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_START_TIME"])}"
 FLATKEY_BROWSER_QA_BROKER_URL = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_BROKER_URL"])}"
 FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL"])}"
+FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN"])}"
 
 [mcp_servers.control]
 command = "{_toml_escape(sys.executable)}"
@@ -877,6 +889,7 @@ PATH = "{_toml_escape(child_env.get("PATH", ""))}"
 FLATKEY_BROWSER_QA_RUNTIME_DIR = "{escaped_runtime_dir}"
 FLATKEY_BROWSER_QA_MODE = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_MODE"])}"
 FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL"])}"
+FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN = "{_toml_escape(child_env["FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN"])}"
 
 [sandbox_workspace_write]
 network_access = false
@@ -1265,6 +1278,11 @@ def _preflight_ok(payload, *, target_environment):
     return turnstile_check is True and target_environment == "production"
 
 
+def _preflight_turnstile_check(payload):
+    data = payload.get("data") if isinstance(payload, dict) else None
+    return isinstance(data, dict) and data.get("turnstile_check") is True
+
+
 def _runtime_classification_name(value):
     if isinstance(value, str):
         return value
@@ -1275,14 +1293,14 @@ def _runtime_classification_name(value):
     return None
 
 
-def _safe_runtime_classification(value, *, target_environment, checkpoint_completed):
+def _safe_runtime_classification(value, *, target_environment, checkpoint_completed, preflight_turnstile_check):
     if value == "alias_restriction":
         return value
     if not isinstance(value, dict):
         return None
     if value.get("classification") != "human_verification_blocked":
         return None
-    if checkpoint_completed or target_environment != "production":
+    if checkpoint_completed or target_environment != "production" or preflight_turnstile_check is not True:
         return None
     return {
         "classification": "human_verification_blocked",
@@ -1832,6 +1850,7 @@ class RuntimeEvidenceSink:
         host="127.0.0.1",
         port=0,
         max_bytes=1024,
+        capability_token=None,
     ):
         self.redactor = redactor
         self.evidence_helper = evidence_helper
@@ -1839,6 +1858,9 @@ class RuntimeEvidenceSink:
         self.host = host
         self.port = port
         self.max_bytes = max_bytes
+        self.capability_token = capability_token or secrets.token_urlsafe(32)
+        if not isinstance(self.capability_token, str) or len(self.capability_token) < 24:
+            raise ValueError("runtime evidence capability token invalid")
         self._server = None
         self._thread = None
         self.url = None
@@ -1875,6 +1897,12 @@ class RuntimeEvidenceSink:
                     return
                 if self.headers.get("Content-Type") != "application/json":
                     self.send_error(415)
+                    return
+                if not secrets.compare_digest(
+                    self.headers.get("X-Flatkey-QA-Evidence-Token", ""),
+                    owner.capability_token,
+                ):
+                    self.send_error(403)
                     return
                 try:
                     event = json.loads(raw.decode("utf-8"))

@@ -23,6 +23,7 @@ NO_ARGUMENTS_SCHEMA = {
 
 def main():
     evidence_url = os.environ["FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL"]
+    evidence_token = os.environ.get("FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN", "")
     for line in sys.stdin:
         try:
             request = json.loads(line)
@@ -80,7 +81,7 @@ def main():
                     _write_error(request_id, -32602, "invalid screenshot request")
                     continue
                 try:
-                    logical = _request_capture(evidence_url, name)
+                    logical = _request_capture(evidence_url, name, evidence_token=evidence_token)
                 except Exception as exc:
                     _write_error(request_id, -32000, str(exc))
                     continue
@@ -91,7 +92,7 @@ def main():
                     _write_error(request_id, -32602, "invalid human verification report")
                     continue
                 try:
-                    _request_human_verification_blocked(evidence_url)
+                    _request_human_verification_blocked(evidence_url, evidence_token)
                 except Exception as exc:
                     _write_error(request_id, -32000, str(exc))
                     continue
@@ -102,14 +103,17 @@ def main():
             _write_error(request_id, -32601, "method not found")
 
 
-def _request_capture(evidence_url, name, *, opener=None):
+def _request_capture(evidence_url, name, *, evidence_token=None, opener=None):
     endpoint = _validate_evidence_url(evidence_url)
     selected_opener = opener or urllib.request.build_opener(urllib.request.ProxyHandler({}))
     body = json.dumps({"type": "screenshot", "name": name}, sort_keys=True).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if evidence_token:
+        headers["X-Flatkey-QA-Evidence-Token"] = evidence_token
     request = urllib.request.Request(
         endpoint,
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST",
     )
     with selected_opener.open(request, timeout=30) as response:
@@ -123,14 +127,19 @@ def _request_capture(evidence_url, name, *, opener=None):
     return path
 
 
-def _request_human_verification_blocked(evidence_url, *, opener=None):
+def _request_human_verification_blocked(evidence_url, evidence_token, *, opener=None):
     endpoint = _validate_evidence_url(evidence_url)
+    if not isinstance(evidence_token, str) or not evidence_token:
+        raise RuntimeError("runtime evidence token missing")
     selected_opener = opener or urllib.request.build_opener(urllib.request.ProxyHandler({}))
     body = json.dumps({"type": "human_verification_blocked"}, sort_keys=True).encode("utf-8")
     request = urllib.request.Request(
         endpoint,
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "X-Flatkey-QA-Evidence-Token": evidence_token,
+        },
         method="POST",
     )
     with selected_opener.open(request, timeout=30) as response:

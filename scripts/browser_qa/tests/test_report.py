@@ -807,6 +807,36 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(manifest["status"], "replay_failed")
         self.assertEqual(manifest["infrastructure"]["classification"], classification)
 
+    def test_human_verification_classification_does_not_override_infrastructure_flags(self):
+        classification = {
+            "classification": "human_verification_blocked",
+            "human_verification_blocked": True,
+            "turnstile_check": True,
+            "target_environment": "production",
+            "blocked_stage": "registration_or_verification",
+        }
+
+        self.assertEqual(
+            report.classify_status(valid_result(), runtime_classification=classification, codex_returncode=1),
+            "replay_failed",
+        )
+        self.assertEqual(
+            report.classify_status(valid_result(), runtime_classification=classification, upload_failed=True),
+            "infrastructure_failed",
+        )
+        self.assertEqual(
+            report.classify_status(valid_result(), runtime_classification=classification, invalid_result=True),
+            "infrastructure_failed",
+        )
+        self.assertEqual(
+            report.classify_status(
+                valid_result(),
+                runtime_classification=classification,
+                cleanup_result=CleanupResult(0, False, False, True, "cleanup failed"),
+            ),
+            "cleanup_failed",
+        )
+
     def test_cleanup_manifest_uses_trusted_tri_state_status(self):
         self.assertEqual(
             report.build_manifest(

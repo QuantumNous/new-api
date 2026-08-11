@@ -163,10 +163,18 @@ def _evidence_notifier_from_env(env):
     url = env.get("FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL")
     if not url:
         return lambda _event: None
+    token = env.get("FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN", "")
+    if not token:
+        raise ValueError("runtime evidence token is missing")
 
     def notify(event):
         raw = json.dumps(event, separators=(",", ":")).encode("utf-8")
-        request = urllib.request.Request(url, data=raw, headers={"Content-Type": "application/json"}, method="POST")
+        request = urllib.request.Request(
+            url,
+            data=raw,
+            headers={"Content-Type": "application/json", "X-Flatkey-QA-Evidence-Token": token},
+            method="POST",
+        )
         with _default_opener().open(request, timeout=2):
             return None
 

@@ -17,6 +17,7 @@ CHECKPOINT_RESERVATION_FILE_NAME = ".control_replay_checkpoint.lock"
 _ENV_RUNTIME_DIR = "FLATKEY_BROWSER_QA_RUNTIME_DIR"
 _ENV_MODE = "FLATKEY_BROWSER_QA_MODE"
 _ENV_EVIDENCE_URL = "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL"
+_ENV_EVIDENCE_TOKEN = "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN"
 
 
 def run(
@@ -164,6 +165,9 @@ def _evidence_notifier_from_env(env):
     url = env.get(_ENV_EVIDENCE_URL)
     if not url:
         return lambda _event: None
+    token = env.get(_ENV_EVIDENCE_TOKEN, "")
+    if not token:
+        raise ValueError("runtime evidence token is missing")
     parsed = urllib.parse.urlsplit(url)
     if (
         parsed.scheme != "http"
@@ -182,7 +186,7 @@ def _evidence_notifier_from_env(env):
         request = urllib.request.Request(
             url,
             data=raw,
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-Flatkey-QA-Evidence-Token": token},
             method="POST",
         )
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))

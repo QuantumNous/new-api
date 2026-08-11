@@ -122,12 +122,13 @@ def call_frame(identifier):
 
 
 class WrapperContractTests(unittest.TestCase):
-    def make_wrapper(self, runtime_dir, child, *, clock=None, terminator=None, mode="normal"):
+    def make_wrapper(self, runtime_dir, child, *, clock=None, terminator=None, mode="normal", runtime_evidence_token=None):
         return mcp_budget_wrapper.BudgetedMcpWrapper(
             runtime_dir,
             child=child,
             clock=clock or FakeClock(),
             tree_terminator=terminator or RecordingTreeTerminator(),
+            runtime_evidence_token=runtime_evidence_token,
             mode=mode,
         )
 
@@ -520,7 +521,8 @@ class WrapperContractTests(unittest.TestCase):
     def test_wrapper_posts_alias_restriction_only_from_failed_child_tool_response(self):
         marker = "管理员已启用邮箱地址别名限制，您的邮箱地址由于包含特殊符号而被拒绝。"
         redactor = supervisor.Redactor(email="owner+flatkey-qa-1-x@gmail.com")
-        sink = supervisor.RuntimeEvidenceSink(redactor)
+        token = "test-token-with-enough-entropy"
+        sink = supervisor.RuntimeEvidenceSink(redactor, capability_token=token)
         sink.start()
         try:
             cases = [
@@ -534,7 +536,7 @@ class WrapperContractTests(unittest.TestCase):
                     child = FakeChild()
                     child.stdout = io.StringIO(frame(payload))
                     with tempfile.TemporaryDirectory() as runtime_dir:
-                        wrapper = self.make_wrapper(runtime_dir, child)
+                        wrapper = self.make_wrapper(runtime_dir, child, runtime_evidence_token=token)
                         wrapper.runtime_evidence_url = sink.url
                         output = io.StringIO()
                         wrapper.proxy_child_stdout(output)
@@ -735,6 +737,7 @@ class WrapperContractTests(unittest.TestCase):
                     "PATH": "/bin",
                     "CODEX_API_KEY": "sk-secretSECRET",
                     "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL": "http://127.0.0.1:1/runtime-evidence",
+                    "FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_TOKEN": "test-token-with-enough-entropy",
                     "HTTP_PROXY": "http://proxy.invalid",
                 },
             )
@@ -742,6 +745,7 @@ class WrapperContractTests(unittest.TestCase):
             child_env = calls[0][1]["env"]
             self.assertEqual(child_env, {"PATH": "/bin"})
             self.assertEqual(wrapper.runtime_evidence_url, "http://127.0.0.1:1/runtime-evidence")
+            self.assertEqual(wrapper.runtime_evidence_token, "test-token-with-enough-entropy")
 
 
 class FakeKernel32:
