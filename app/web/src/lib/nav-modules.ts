@@ -173,6 +173,17 @@ export function getModuleAccess(module: HeaderNavModule): ModuleAccess {
   return getModuleAccessFromStatus(getCachedStatus(), module)
 }
 
+/**
+ * Whether the pricing (model square) module is enabled for a `/api/status`
+ * payload. Mirrors the header nav's pricing link visibility rule.
+ */
+export function isPricingModuleEnabled(status: unknown): boolean {
+  return getModuleAccessFromStatus(
+    status as Record<string, unknown> | null,
+    'pricing'
+  ).enabled
+}
+
 export async function getFreshModuleAccess(
   module: HeaderNavModule
 ): Promise<ModuleAccess> {
