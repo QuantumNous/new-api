@@ -19,6 +19,10 @@ const DAY_MS = 86_400_000
 const VISUAL_START_TIME = Math.floor(
   (FIXED_NOW - (37 * DAY_MS + 12 * 3_600_000 + 34 * 60_000 + 56_000)) / 1000
 )
+const VISUAL_HOURLY_REQUESTS = [
+  8, 12, 9, 7, 6, 11, 18, 27, 34, 41, 38, 45, 52, 49, 43, 57, 61, 54, 47, 39,
+  32, 26, 21, 15,
+]
 
 function visualDateKey(daysAgo: number): string {
   return new Date(FIXED_NOW - daysAgo * DAY_MS).toISOString().slice(0, 10)
@@ -223,7 +227,7 @@ export async function configureStablePage(
       {
         version: 'v2.6.0',
         start_time: VISUAL_START_TIME,
-        system_name: 'RenRen AI',
+        system_name: 'Ren2Hub',
         logo: '',
         docs_link: 'https://docs.example.test',
         register_enabled: true,
@@ -341,6 +345,18 @@ export async function configureStablePage(
       },
     ],
     ['/api/uptime/status', [{ monitors: [{ uptime: 0.9995, status: 1 }] }]],
+    [
+      '/api/home/metrics',
+      {
+        available: true,
+        requests_24h: VISUAL_HOURLY_REQUESTS.reduce(
+          (sum, count) => sum + count,
+          0
+        ),
+        hourly_requests: VISUAL_HOURLY_REQUESTS,
+        generated_at: Math.floor(FIXED_NOW / 1000),
+      },
+    ],
     ['/api/data/self', VISUAL_USAGE_ROWS],
     ['/api/next/dashboard/distribution', VISUAL_DISTRIBUTION],
     ['/api/next/dashboard/stats', VISUAL_STATS],

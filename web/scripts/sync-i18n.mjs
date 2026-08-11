@@ -78,6 +78,8 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Passkey',
   'Perplexity',
   'QuantumNous',
+  'Ren2Hub',
+  'Ren2Hub &lt;noreply@example.com&gt;',
   'Quota:',
   'Replicate',
   'SiliconFlow',

@@ -702,6 +702,74 @@ type SelfLogStat struct {
 	TodayQuota    int64 `json:"today_quota"`
 }
 
+// HomeRequestMetrics is the public aggregate-only snapshot used by the home
+// page. It intentionally contains no user, model, token, or channel details.
+type HomeRequestMetrics struct {
+	Available      bool    `json:"available"`
+	Requests24h    *int64  `json:"requests_24h"`
+	HourlyRequests []int64 `json:"hourly_requests"`
+	GeneratedAt    int64   `json:"generated_at"`
+}
+
+type homeRequestMetricBucket struct {
+	Bucket int64
+	Count  int64
+}
+
+// GetHomeRequestMetrics returns the rolling 24-hour request count as 24
+// wall-clock-hour buckets, ordered from oldest to newest. The exact rolling
+// lower bound is still applied before grouping, so older records are excluded.
+func GetHomeRequestMetrics(now time.Time) (HomeRequestMetrics, error) {
+	metrics := HomeRequestMetrics{
+		Available:      common.LogConsumeEnabled,
+		HourlyRequests: make([]int64, 24),
+		GeneratedAt:    now.Unix(),
+	}
+	if !common.LogConsumeEnabled {
+		return metrics, nil
+	}
+	if LOG_DB == nil {
+		return metrics, errors.New("log database is unavailable")
+	}
+
+	nowUnix := now.Unix()
+	// Exclude the exact second 24 hours earlier while keeping the current
+	// second in the newest bucket.
+	startUnix := nowUnix - 24*60*60 + 1
+	bucketExpression := fmt.Sprintf("CAST((created_at - %d) / 3600 AS INTEGER)", startUnix)
+	switch {
+	case common.UsingLogDatabase(common.DatabaseTypeClickHouse):
+		bucketExpression = fmt.Sprintf("intDiv(created_at - %d, 3600)", startUnix)
+	case common.UsingLogDatabase(common.DatabaseTypePostgreSQL):
+		bucketExpression = fmt.Sprintf("(created_at - %d) / 3600", startUnix)
+	case common.UsingLogDatabase(common.DatabaseTypeMySQL):
+		bucketExpression = fmt.Sprintf("FLOOR((created_at - %d) / 3600)", startUnix)
+	}
+
+	var buckets []homeRequestMetricBucket
+	err := LOG_DB.Table("logs").
+		Select(bucketExpression+" AS bucket, COUNT(*) AS count").
+		Where("type = ? AND created_at >= ? AND created_at <= ?", LogTypeConsume, startUnix, nowUnix).
+		Group("bucket").
+		Scan(&buckets).Error
+	if err != nil {
+		return metrics, err
+	}
+
+	total := int64(0)
+	for _, bucket := range buckets {
+		index := bucket.Bucket
+		if index < 0 || index >= int64(len(metrics.HourlyRequests)) {
+			continue
+		}
+		metrics.HourlyRequests[index] = bucket.Count
+		total += bucket.Count
+	}
+	metrics.Available = true
+	metrics.Requests24h = &total
+	return metrics, nil
+}
+
 func GetSelfLogStat(userId int, now time.Time) (stat SelfLogStat, err error) {
 	base := LOG_DB.Table("logs").Where("user_id = ? AND type = ?", userId, LogTypeConsume)
 	if err = base.Select("count(*) total_requests, COALESCE(sum(quota), 0) total_quota").Scan(&stat).Error; err != nil {

@@ -10,7 +10,7 @@
     "
   >
     <nav
-      class="mx-auto flex h-16 max-w-[100rem] items-center justify-between gap-2 px-4 sm:gap-4 sm:px-6 md:h-14 lg:px-8 2xl:px-12"
+      class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-6 md:h-14 lg:px-8"
       :aria-label="t('nav.navigation')"
     >
       <div class="flex min-w-0 items-center gap-2.5 sm:gap-4">

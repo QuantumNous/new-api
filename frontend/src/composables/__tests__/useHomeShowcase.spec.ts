@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
+import type { HomeRequestMetrics } from '@/api/public'
 import {
   calculateRuntime,
   useHomeShowcase,
@@ -82,5 +83,83 @@ describe('home runtime calculations', () => {
       configurable: true,
       value: originalVisibility,
     })
+  })
+
+  it('loads metrics on visibility and refreshes at most every 60 seconds', async () => {
+    vi.useFakeTimers()
+    const snapshot = {
+      available: true,
+      requests_24h: 24,
+      hourly_requests: Array(24).fill(1),
+      generated_at: 1_700_000_000,
+    }
+    const metricsLoader = vi.fn(
+      async (): Promise<HomeRequestMetrics> => snapshot
+    )
+    const state = useHomeShowcase(undefined, {
+      loadMetrics: true,
+      metricsLoader,
+    })
+
+    expect(metricsLoader).toHaveBeenCalledTimes(1)
+    await Promise.resolve()
+    expect(state.requestMetrics.value).toEqual(snapshot)
+    vi.advanceTimersByTime(59_999)
+    expect(metricsLoader).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(1)
+    expect(metricsLoader).toHaveBeenCalledTimes(2)
+    state.dispose()
+  })
+
+  it('pauses refresh while hidden and isolates failed refreshes', async () => {
+    vi.useFakeTimers()
+    const snapshot = {
+      available: true,
+      requests_24h: 24,
+      hourly_requests: Array(24).fill(1),
+      generated_at: 1_700_000_000,
+    }
+    let calls = 0
+    const metricsLoader = vi.fn(async (): Promise<HomeRequestMetrics> => {
+      calls += 1
+      if (calls > 1) throw new Error('metrics offline')
+      return snapshot
+    })
+    const state = useHomeShowcase(undefined, {
+      loadMetrics: true,
+      metricsLoader,
+    })
+    await Promise.resolve()
+    state.setSectionVisible(false)
+    vi.advanceTimersByTime(120_000)
+    expect(metricsLoader).toHaveBeenCalledTimes(1)
+    expect(state.requestMetrics.value).toEqual(snapshot)
+
+    state.setSectionVisible(true)
+    await Promise.resolve()
+    expect(metricsLoader).toHaveBeenCalledTimes(2)
+    expect(state.requestMetrics.value).toEqual(snapshot)
+    expect(state.metricsError.value).toBeInstanceOf(Error)
+    state.dispose()
+  })
+
+  it('aborts an in-flight metrics request on disposal', () => {
+    const abortSpy = vi.fn()
+    const metricsLoader = vi.fn(
+      (signal?: AbortSignal): Promise<HomeRequestMetrics> =>
+        new Promise((_, reject) => {
+          signal?.addEventListener('abort', () => {
+            abortSpy()
+            reject(new DOMException('aborted', 'AbortError'))
+          })
+        })
+    )
+    const state = useHomeShowcase(undefined, {
+      loadMetrics: true,
+      metricsLoader,
+    })
+    expect(metricsLoader).toHaveBeenCalledOnce()
+    state.dispose()
+    expect(abortSpy).toHaveBeenCalledOnce()
   })
 })

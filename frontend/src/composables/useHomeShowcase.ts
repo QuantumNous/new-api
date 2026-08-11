@@ -1,5 +1,6 @@
 import { computed, getCurrentScope, onScopeDispose, ref, type Ref } from 'vue'
 
+import { publicApi, type HomeRequestMetrics } from '@/api/public'
 import type { HomeRuntime } from '@/types/homeShowcase'
 
 export function calculateRuntime(
@@ -23,11 +24,26 @@ export function calculateRuntime(
   }
 }
 
-export function useHomeShowcase(startTime?: Readonly<Ref<number | null>>) {
+export interface HomeShowcaseOptions {
+  loadMetrics?: boolean
+  metricsLoader?: (signal?: AbortSignal) => Promise<HomeRequestMetrics>
+  initiallyVisible?: boolean
+}
+
+export function useHomeShowcase(
+  startTime?: Readonly<Ref<number | null>>,
+  options: HomeShowcaseOptions = {}
+) {
   const now = ref(Date.now())
-  const sectionVisible = ref(true)
+  const sectionVisible = ref(options.initiallyVisible ?? true)
+  const requestMetrics = ref<HomeRequestMetrics | null>(null)
+  const metricsError = ref<unknown>(null)
   let intervalId: number | null = null
+  let metricsIntervalId: number | null = null
+  let metricsAbortController: AbortController | null = null
   let disposed = false
+  const loadMetrics = options.loadMetrics === true
+  const metricsLoader = options.metricsLoader ?? publicApi.homeMetrics
 
   const runtime = computed(() =>
     calculateRuntime(now.value, startTime?.value ?? undefined)
@@ -36,6 +52,30 @@ export function useHomeShowcase(startTime?: Readonly<Ref<number | null>>) {
   function stopClock() {
     if (intervalId !== null) window.clearInterval(intervalId)
     intervalId = null
+  }
+
+  function stopMetrics() {
+    if (metricsIntervalId !== null) window.clearInterval(metricsIntervalId)
+    metricsIntervalId = null
+    metricsAbortController?.abort()
+    metricsAbortController = null
+  }
+
+  async function refreshMetrics() {
+    if (!loadMetrics || disposed || !sectionVisible.value) return
+    metricsAbortController?.abort()
+    const controller = new AbortController()
+    metricsAbortController = controller
+    metricsError.value = null
+    try {
+      requestMetrics.value = await metricsLoader(controller.signal)
+    } catch (error: unknown) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        metricsError.value = error
+      }
+    } finally {
+      if (metricsAbortController === controller) metricsAbortController = null
+    }
   }
 
   function syncClock() {
@@ -48,17 +88,22 @@ export function useHomeShowcase(startTime?: Readonly<Ref<number | null>>) {
     }
 
     stopClock()
-    if (
-      !sectionVisible.value ||
-      document.visibilityState === 'hidden' ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    ) {
+    stopMetrics()
+    if (!sectionVisible.value || document.visibilityState === 'hidden') {
       return
     }
 
-    intervalId = window.setInterval(() => {
-      now.value = Date.now()
-    }, 1_000)
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      intervalId = window.setInterval(() => {
+        now.value = Date.now()
+      }, 1_000)
+    }
+    if (loadMetrics) {
+      void refreshMetrics()
+      metricsIntervalId = window.setInterval(() => {
+        void refreshMetrics()
+      }, 60_000)
+    }
   }
 
   function setSectionVisible(next: boolean) {
@@ -75,6 +120,7 @@ export function useHomeShowcase(startTime?: Readonly<Ref<number | null>>) {
     if (disposed) return
     disposed = true
     stopClock()
+    stopMetrics()
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
@@ -88,6 +134,8 @@ export function useHomeShowcase(startTime?: Readonly<Ref<number | null>>) {
 
   return {
     runtime,
+    requestMetrics,
+    metricsError,
     setSectionVisible,
     dispose,
   }

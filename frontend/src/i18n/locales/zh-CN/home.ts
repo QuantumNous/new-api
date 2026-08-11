@@ -113,6 +113,7 @@ export default {
       stableCalls: '稳定调用',
       todaySuccess: '次（今日成功）',
       protectedBy: '多上游智能调度护航',
+      metricsUnavailable: '请求指标暂不可用',
       recentAvailability: '近 7 天',
       trend24h: '近 24 小时趋势',
       units: { days: '天', hours: '时', minutes: '分', seconds: '秒' },

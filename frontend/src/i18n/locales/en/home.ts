@@ -117,6 +117,7 @@ export default {
       stableCalls: 'Stable calls',
       todaySuccess: 'successful requests today',
       protectedBy: 'protected by multi-upstream smart routing',
+      metricsUnavailable: 'request metrics unavailable',
       recentAvailability: 'last 7 days',
       trend24h: 'Last 24 hours',
       units: { days: 'd', hours: 'h', minutes: 'm', seconds: 's' },

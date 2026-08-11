@@ -148,9 +148,8 @@ async function inspectHeroGeometry(page: import('@playwright/test').Page) {
       titleSize: Number.parseFloat(
         getComputedStyle(document.querySelector('.hero-title')!).fontSize
       ),
-      navContentRight:
-        nav.getBoundingClientRect().right -
-        Number.parseFloat(navStyle.paddingRight),
+      navWidth: nav.getBoundingClientRect().width,
+      navMaxWidth: Number.parseFloat(navStyle.maxWidth),
       focusPixels: {
         distinct: colors.size,
         contrast: maxLuma - minLuma,
@@ -198,13 +197,64 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
           geometry.hero.bottom + 1
         )
       }
-      if (viewport.width >= 1024) {
-        expect(
-          Math.abs(geometry.navContentRight - geometry.copy.right)
-        ).toBeLessThanOrEqual(1)
+      if (viewport.width >= 1280) {
+        expect(geometry.navMaxWidth).toBeCloseTo(1280, 0)
+        expect(geometry.navWidth).toBeCloseTo(1280, 0)
       }
 
       await assertInteractiveCentersVisible(page)
+      await assertNoHorizontalOverflow(page)
+
+      const runtime = page.locator('#home-runtime')
+      await runtime.scrollIntoViewIfNeeded()
+      await expect(page.locator('[data-home-request-total]')).toHaveText('752')
+      await expect(page.locator('.runtime-trend polyline')).toHaveAttribute(
+        'points',
+        /,/
+      )
+      const runtimeBounds = await runtime.evaluate((section) => {
+        const bounds = (selector: string) => {
+          const element = section.querySelector<HTMLElement>(selector)
+          if (!element) throw new Error(`Missing runtime element: ${selector}`)
+          const rect = element.getBoundingClientRect()
+          return {
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            left: rect.left,
+          }
+        }
+        const rect = section.getBoundingClientRect()
+        return {
+          section: {
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            left: rect.left,
+          },
+          uptime: bounds('.runtime-ledger-panel--uptime'),
+          requests: bounds('.runtime-ledger-panel--requests'),
+          total: bounds('[data-home-request-total]'),
+          trend: bounds('.runtime-trend'),
+        }
+      })
+      for (const bounds of [
+        runtimeBounds.uptime,
+        runtimeBounds.requests,
+        runtimeBounds.total,
+        runtimeBounds.trend,
+      ]) {
+        expect(bounds.left).toBeGreaterThanOrEqual(
+          runtimeBounds.section.left - 1
+        )
+        expect(bounds.right).toBeLessThanOrEqual(
+          runtimeBounds.section.right + 1
+        )
+        expect(bounds.top).toBeGreaterThanOrEqual(runtimeBounds.section.top - 1)
+        expect(bounds.bottom).toBeLessThanOrEqual(
+          runtimeBounds.section.bottom + 1
+        )
+      }
       await assertNoHorizontalOverflow(page)
     })
   }
@@ -238,22 +288,6 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
         heroMetrics.viewportHeight
       )
 
-      if (viewport === 'desktop') {
-        const alignment = await page.evaluate(() => {
-          const nav = document.querySelector('.app-navbar nav')
-          const copy = document.querySelector('.hero-copy-glow')
-          if (!nav || !copy) throw new Error('Hero alignment anchors missing')
-
-          const navStyle = getComputedStyle(nav)
-          const navRight =
-            nav.getBoundingClientRect().right -
-            Number.parseFloat(navStyle.paddingRight)
-          const copyRight = copy.getBoundingClientRect().right
-          return Math.abs(navRight - copyRight)
-        })
-        expect(alignment).toBeLessThanOrEqual(1)
-      }
-
       await assertInteractiveCentersVisible(page)
       await expect(page.locator('html')).toHaveClass(/hero-scrollbar-hidden/)
       expect(
@@ -265,6 +299,8 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
       const showcase = page.locator('.home-showcase')
       await showcase.scrollIntoViewIfNeeded()
       await expect(showcase).toBeVisible()
+      await expect(page.locator('[data-home-request-total]')).toHaveText('752')
+      await expect(page.locator('.runtime-trend polyline')).toBeVisible()
       await assertNoHorizontalOverflow(page)
       await expect(page.locator('.scroll-activity-indicator')).toHaveCount(0)
       await expect(page.locator('[data-home-progress-dots]')).toHaveCount(1)
@@ -342,7 +378,7 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
           .evaluate((element) => getComputedStyle(element).fontFamily)
       ).toContain(expectedFonts.hand)
       if (theme === 'dark') {
-        await expect(page.locator('.runtime-ledger-panel')).toHaveCount(1)
+        await expect(page.locator('.runtime-ledger-panel')).toHaveCount(2)
         await expect(page.locator('.runtime-ledger-panel').first()).toHaveCSS(
           'border-radius',
           '16px'
@@ -377,6 +413,9 @@ test('home runtime workbench remains self-contained', async ({ page }) => {
   await expect(page.locator('.runtime-availability strong')).toContainText(
     '99.95%'
   )
+  await page.locator('#home-runtime').scrollIntoViewIfNeeded()
+  await expect(page.locator('[data-home-request-total]')).toHaveText('752')
+  await expect(page.locator('.runtime-trend polyline')).toHaveCount(1)
   await expect(page.locator('[data-home-channel-exchange]')).toHaveCount(0)
   await expect(page.locator('[data-home-token-routing]')).toHaveCount(0)
   await expect(page.getByText('渠道供应，也能自由买卖')).toHaveCount(0)
@@ -399,6 +438,10 @@ test('home showcase remains intact at narrow mobile width', async ({
     .locator('.runtime-clock')
     .evaluate((element) => element.scrollWidth - element.clientWidth)
   expect(clockOverflow).toBeLessThanOrEqual(1)
+  const trendOverflow = await page
+    .locator('.runtime-trend')
+    .evaluate((element) => element.scrollWidth - element.clientWidth)
+  expect(trendOverflow).toBeLessThanOrEqual(1)
 })
 
 test('home progress dots navigate and track page position', async ({

@@ -26,7 +26,7 @@ beforeEach(() => {
 
 describe('public application state', () => {
   it('uses the landing reference brand before status is available', () => {
-    expect(useAppStore().systemName).toBe('RenRen AI')
+    expect(useAppStore().systemName).toBe('Ren2Hub')
   })
 
   it('normalizes HeaderNavModules objects and JSON strings', () => {

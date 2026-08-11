@@ -55,6 +55,13 @@ export interface UptimeGroup {
   monitors: UptimeMonitor[]
 }
 
+export interface HomeRequestMetrics {
+  available: boolean
+  requests_24h: number | null
+  hourly_requests: number[]
+  generated_at: number
+}
+
 const publicClient = createApiClient(publicHttpTransport)
 
 function invalidResponse(endpoint: string): never {
@@ -212,6 +219,43 @@ export function parseUptimeGroups(value: unknown): UptimeGroup[] {
   })
 }
 
+export function parseHomeRequestMetrics(value: unknown): HomeRequestMetrics {
+  if (
+    !isRecord(value) ||
+    typeof value.available !== 'boolean' ||
+    !Number.isInteger(value.generated_at) ||
+    !Array.isArray(value.hourly_requests) ||
+    value.hourly_requests.length !== 24 ||
+    value.hourly_requests.some(
+      (count) => !Number.isInteger(count) || Number(count) < 0
+    ) ||
+    (value.requests_24h !== null &&
+      (!Number.isInteger(value.requests_24h) || Number(value.requests_24h) < 0))
+  ) {
+    invalidResponse('/api/home/metrics')
+  }
+  if (value.available !== (value.requests_24h !== null)) {
+    invalidResponse('/api/home/metrics')
+  }
+
+  const hourlyRequests = value.hourly_requests.map(Number)
+  const requests24h =
+    value.requests_24h === null ? null : Number(value.requests_24h)
+  if (
+    requests24h !== null &&
+    hourlyRequests.reduce((sum, count) => sum + count, 0) !== requests24h
+  ) {
+    invalidResponse('/api/home/metrics')
+  }
+
+  return {
+    available: value.available,
+    requests_24h: requests24h,
+    hourly_requests: hourlyRequests,
+    generated_at: Number(value.generated_at),
+  }
+}
+
 export const publicApi = {
   async status(signal?: AbortSignal) {
     return parsePublicStatus(
@@ -233,6 +277,13 @@ export const publicApi = {
   async uptime(signal?: AbortSignal) {
     return parseUptimeGroups(
       await publicClient.get<unknown>('/api/uptime/status', undefined, {
+        signal,
+      })
+    )
+  },
+  async homeMetrics(signal?: AbortSignal) {
+    return parseHomeRequestMetrics(
+      await publicClient.get<unknown>('/api/home/metrics', undefined, {
         signal,
       })
     )

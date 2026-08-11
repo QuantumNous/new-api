@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Activity } from 'lucide-vue-next'
+import { Activity, Zap } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
+import type { HomeRequestMetrics } from '@/api/public'
 import type { HomeRuntime } from '@/types/homeShowcase'
 
 const props = defineProps<{
   runtime: HomeRuntime
   uptimeLabel: string
+  requestMetrics: HomeRequestMetrics | null
 }>()
 
 const { t } = useI18n()
@@ -72,6 +74,54 @@ function previousDigit(id: string, fallback: string) {
 
 const barHeights = [14, 20, 16, 26, 12, 22, 18]
 const barsVisible = ref(false)
+const displayRequests = ref(0)
+let countRafId: number | null = null
+
+const requestValue = computed(() => {
+  const metrics = props.requestMetrics
+  return metrics?.available && metrics.requests_24h !== null
+    ? metrics.requests_24h
+    : null
+})
+
+const trendPoints = computed(() => {
+  const values = props.requestMetrics?.hourly_requests ?? []
+  if (!values.length || requestValue.value === null) return ''
+  const max = Math.max(...values, 1)
+  return values
+    .map((value, index) => {
+      const x = 2 + (236 * index) / Math.max(values.length - 1, 1)
+      const y = 44 - (value / max) * 35
+      return x.toFixed(1) + ',' + y.toFixed(1)
+    })
+    .join(' ')
+})
+
+function animateRequestTotal(target: number | null) {
+  if (countRafId !== null) cancelAnimationFrame(countRafId)
+  countRafId = null
+  if (target === null) {
+    displayRequests.value = 0
+    return
+  }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    displayRequests.value = target
+    return
+  }
+  const start = displayRequests.value
+  const startedAt = performance.now()
+  const duration = 700
+  const tick = (now: number) => {
+    const progress = Math.min(1, (now - startedAt) / duration)
+    const eased = 1 - Math.pow(1 - progress, 3)
+    displayRequests.value = Math.round(start + (target - start) * eased)
+    if (progress < 1) countRafId = requestAnimationFrame(tick)
+    else countRafId = null
+  }
+  countRafId = requestAnimationFrame(tick)
+}
+
+watch(requestValue, animateRequestTotal, { immediate: true })
 
 onMounted(() => {
   clockGroups.value.forEach((group) => {
@@ -84,6 +134,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   Object.values(flipTimers).forEach(clearTimeout)
+  if (countRafId !== null) cancelAnimationFrame(countRafId)
 })
 </script>
 
@@ -185,6 +236,41 @@ onBeforeUnmount(() => {
           </span>
           <strong>{{ uptimeLabel }}</strong>
           <span>/ {{ t('showcase.runtime.recentAvailability') }}</span>
+        </div>
+      </div>
+
+      <div class="runtime-ledger-panel runtime-ledger-panel--requests">
+        <header class="runtime-ledger-heading">
+          <Zap :size="19" aria-hidden="true" />
+          <strong>{{ t('showcase.runtime.stableCalls') }}</strong>
+          <span aria-hidden="true">·</span>
+          <em>{{ t('showcase.runtime.servedTag') }}</em>
+        </header>
+
+        <strong class="runtime-request-total" data-home-request-total>
+          {{
+            requestValue === null
+              ? '--'
+              : displayRequests.toLocaleString('en-US')
+          }}
+        </strong>
+        <p class="runtime-request-caption">
+          {{
+            requestValue === null
+              ? t('showcase.runtime.metricsUnavailable')
+              : t('showcase.runtime.protectedBy')
+          }}
+        </p>
+
+        <div class="runtime-trend">
+          <svg
+            viewBox="0 0 240 54"
+            role="img"
+            :aria-label="t('showcase.runtime.trend24h')"
+          >
+            <polyline v-if="trendPoints" :points="trendPoints" />
+          </svg>
+          <span>{{ t('showcase.runtime.trend24h') }}</span>
         </div>
       </div>
     </div>
