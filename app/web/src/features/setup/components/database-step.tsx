@@ -71,14 +71,6 @@ function resolveDatabaseMeta(type?: string) {
 export function DatabaseStep({ status }: DatabaseStepProps) {
   const { t } = useTranslation()
   const meta = resolveDatabaseMeta(status?.database_type)
-  const electronApi =
-    typeof window !== 'undefined'
-      ? ((window as unknown as Record<string, unknown>)?.electron as
-          | Record<string, unknown>
-          | undefined)
-      : undefined
-  const isElectron = Boolean(electronApi?.isElectron)
-  const electronDataDir = electronApi?.dataDir as string | undefined
 
   return (
     <div className='space-y-4'>
@@ -118,18 +110,6 @@ export function DatabaseStep({ status }: DatabaseStepProps) {
                 'When running in containers or ephemeral environments, ensure the SQLite file is mapped to persistent storage to avoid data loss on restart.'
               )}
             </p>
-            {isElectron && electronDataDir && (
-              <p className='mt-3 rounded-md bg-amber-100/70 px-3 py-2 font-mono text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200'>
-                {t('Data directory:')} {electronDataDir}
-              </p>
-            )}
-            {isElectron && !electronDataDir && (
-              <p className='text-muted-foreground mt-3 text-xs'>
-                {t(
-                  'Data is stored locally on this device. Use system backups to keep a safe copy.'
-                )}
-              </p>
-            )}
           </AlertDescription>
         </Alert>
       )}

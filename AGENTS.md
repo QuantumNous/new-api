@@ -54,7 +54,7 @@ go.work        — Go workspace (app/api + modules/relaykit)
 `app/api/main.go` uses `//go:embed web/dist`. `go:embed` cannot reference parent
 directories, so the frontend build output must be copied from `app/web/dist`
 into `app/api/web/dist` before compiling Go. `make build-web` performs this copy;
-Dockerfile, release and electron workflows do the same. The copy target is
+Dockerfile and release workflows do the same. The copy target is
 gitignored.
 
 ## Internationalization (i18n)
