@@ -1,0 +1,50 @@
+name: k3s node maintenance
+
+# 运维用 workflow：重启 agent 节点的 k3s-agent 服务。
+#
+# 用途：agent 节点出现 "Kubelet stopped posting node status"（NotReady）时，
+# 远程重启其 k3s-agent 让它重新注册到 control-plane。
+#
+# 需要的 Secret：SERVERS_LIST_JSON（与 setup-k3s.yml 相同）
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ip:
+        description: "要重启 k3s-agent 的节点 IP；留空则处理除第一台外的所有节点"
+        required: false
+        default: ""
+
+jobs:
+  restart-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Restart k3s-agent
+        env:
+          SERVERS_LIST_JSON: ${{ secrets.SERVERS_LIST_JSON }}
+          TARGET_IP: ${{ github.event.inputs.target_ip }}
+        run: |
+          echo "$SERVERS_LIST_JSON" | jq -c '.[]' > /tmp/servers.txt
+          FIRST=1
+          while IFS= read -r s; do
+            IP=$(echo "$s" | jq -r .ip)
+            USER=$(echo "$s" | jq -r .user)
+            PASS=$(echo "$s" | jq -r .password)
+            echo "::add-mask::$PASS"
+
+            # 第一台是 control-plane，跑的是 k3s.service，不在本 workflow 处理范围
+            if [ "$FIRST" -eq 1 ]; then FIRST=0; continue; fi
+            if [ -n "$TARGET_IP" ] && [ "$IP" != "$TARGET_IP" ]; then continue; fi
+
+            echo "=== 重启 $IP 的 k3s-agent ==="
+            timeout 120 sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=15 "$USER@$IP" '
+                systemctl restart k3s-agent || true
+                sleep 10
+                systemctl is-active k3s-agent && echo "k3s-agent active" || echo "k3s-agent NOT active"
+                journalctl -u k3s-agent -n 15 --no-pager | tail -15
+              ' 2>&1 || echo "$IP 操作失败（节点可能不可达）"
+          done < /tmp/servers.txt
