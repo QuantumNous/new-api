@@ -29,7 +29,18 @@ func TestHardDeleteUserFailsClosedWhenAuthFenceCannotPublish(t *testing.T) {
 	require.NoError(t, DB.Create(&TwoFA{UserId: user.Id, Secret: "secret", IsEnabled: true}).Error)
 	require.NoError(t, DB.Create(&TwoFABackupCode{UserId: user.Id, CodeHash: "hash"}).Error)
 	require.NoError(t, DB.Create(&PasskeyCredential{UserID: user.Id, CredentialID: "credential", PublicKey: "public-key"}).Error)
-	require.NoError(t, DB.Create(&UserOAuthBinding{UserId: user.Id, ProviderId: 1, ProviderUserId: "provider-user"}).Error)
+	require.NoError(t, CreateUserOAuthBinding(&UserOAuthBinding{UserId: user.Id, ProviderId: 1, ProviderUserId: "provider-user"}))
+	require.NoError(t, EnsureAuthIdentity(user.Id, AuthIdentityProviderGitHub, "github-user"))
+	require.NoError(t, DB.Create(&ExternalIdentityClaim{
+		Provider: ExternalIdentityProviderTelegram,
+		Subject:  user.TelegramId,
+		UserId:   user.Id,
+	}).Error)
+	require.NoError(t, DB.Create(&UserOAuthBinding{
+		UserId:         user.Id,
+		ProviderId:     1,
+		ProviderUserId: "provider-user",
+	}).Error)
 	require.NoError(t, DB.Create(&UserSession{
 		SID: "hard-delete-session", UserID: user.Id, Version: 1, UserAuthVersion: 1,
 		Status: UserSessionStatusActive, RefreshHash: "refresh-hash", LoginMethod: "password",
@@ -63,14 +74,16 @@ func TestHardDeleteUserFailsClosedWhenAuthFenceCannotPublish(t *testing.T) {
 		&TwoFA{},
 		&TwoFABackupCode{},
 		&PasskeyCredential{},
-		&UserOAuthBinding{},
 		&UserSession{},
 		&AuthFlow{},
 		&ExternalIdentityClaim{},
+		&UserOAuthBinding{},
 	} {
 		require.NoError(t, DB.Unscoped().Model(record).Where("user_id = ?", user.Id).Count(&count).Error)
 		assert.EqualValues(t, 1, count)
 	}
+	require.NoError(t, DB.Model(&AuthIdentity{}).Where("user_id = ?", user.Id).Count(&count).Error)
+	assert.EqualValues(t, 3, count)
 }
 
 func TestHardDeleteUserPublishesTombstoneAndPurgesAuthenticationData(t *testing.T) {
@@ -89,7 +102,18 @@ func TestHardDeleteUserPublishesTombstoneAndPurgesAuthenticationData(t *testing.
 	require.NoError(t, DB.Create(&TwoFA{UserId: user.Id, Secret: "secret", IsEnabled: true}).Error)
 	require.NoError(t, DB.Create(&TwoFABackupCode{UserId: user.Id, CodeHash: "hash"}).Error)
 	require.NoError(t, DB.Create(&PasskeyCredential{UserID: user.Id, CredentialID: "credential-success", PublicKey: "public-key"}).Error)
-	require.NoError(t, DB.Create(&UserOAuthBinding{UserId: user.Id, ProviderId: 1, ProviderUserId: "provider-user-success"}).Error)
+	require.NoError(t, CreateUserOAuthBinding(&UserOAuthBinding{UserId: user.Id, ProviderId: 1, ProviderUserId: "provider-user-success"}))
+	require.NoError(t, EnsureAuthIdentity(user.Id, AuthIdentityProviderGitHub, "github-user-success"))
+	require.NoError(t, DB.Create(&ExternalIdentityClaim{
+		Provider: ExternalIdentityProviderTelegram,
+		Subject:  user.TelegramId,
+		UserId:   user.Id,
+	}).Error)
+	require.NoError(t, DB.Create(&UserOAuthBinding{
+		UserId:         user.Id,
+		ProviderId:     1,
+		ProviderUserId: "provider-user-success",
+	}).Error)
 	require.NoError(t, DB.Create(&UserSession{
 		SID: "hard-delete-success-session", UserID: user.Id, Version: 1, UserAuthVersion: 1,
 		Status: UserSessionStatusActive, RefreshHash: "refresh-hash", LoginMethod: "password",
@@ -114,10 +138,11 @@ func TestHardDeleteUserPublishesTombstoneAndPurgesAuthenticationData(t *testing.
 		&TwoFA{},
 		&TwoFABackupCode{},
 		&PasskeyCredential{},
-		&UserOAuthBinding{},
+		&AuthIdentity{},
 		&UserSession{},
 		&AuthFlow{},
 		&ExternalIdentityClaim{},
+		&UserOAuthBinding{},
 	} {
 		require.NoError(t, DB.Unscoped().Model(record).Where("user_id = ?", user.Id).Count(&count).Error)
 		assert.Zero(t, count)

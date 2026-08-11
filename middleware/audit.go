@@ -66,6 +66,12 @@ var auditRouteActions = map[string]string{
 	"DELETE /api/redemption/:id":     "redemption.delete",
 	"DELETE /api/redemption/invalid": "redemption.delete_invalid",
 
+	// Invitation codes
+	"POST /api/invitation/":       "invitation.create",
+	"PUT /api/invitation/":        "invitation.update",
+	"DELETE /api/invitation/used": "invitation.delete_used",
+	"DELETE /api/invitation/:id":  "invitation.delete",
+
 	// 预填组
 	"POST /api/prefill_group/":      "prefill_group.create",
 	"PUT /api/prefill_group/":       "prefill_group.update",

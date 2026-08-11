@@ -572,4 +572,8 @@ export const STATIC_I18N_KEYS = [
   'This user account is disabled.',
   'Telegram binding failed. Please try again.',
   'Verification scope is missing',
+
+  // Invitation code form validation / admin UI
+  'Select at least one registration method',
+  'Expiration time must be in the future',
 ] as const

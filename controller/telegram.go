@@ -22,8 +22,6 @@ import (
 )
 
 const (
-	// The legacy Telegram widget has no nonce. Keep its signed assertion short-lived
-	// so captured callbacks cannot be reused indefinitely.
 	telegramAuthorizationMaxAge     = 5 * time.Minute
 	telegramAuthorizationFutureSkew = 2 * time.Minute
 	telegramBindFlowTTL             = 5 * time.Minute
@@ -47,10 +45,7 @@ var (
 
 func TelegramBindStart(c *gin.Context) {
 	if !common.TelegramOAuthEnabled {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "管理员未开启通过 Telegram 登录以及注册",
-			"success": false,
-		})
+		c.JSON(http.StatusOK, gin.H{"message": "管理员未开启通过 Telegram 登录以及注册", "success": false})
 		return
 	}
 	identity, ok := middleware.GetSessionAuthIdentity(c)
@@ -69,13 +64,12 @@ func TelegramBindStart(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	callbackURL := "/api/oauth/telegram/bind/" + flowToken
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
 			"flow_token":   flowToken,
-			"callback_url": callbackURL,
+			"callback_url": "/api/oauth/telegram/bind/" + flowToken,
 			"expires_at":   expiresAt.Unix(),
 		},
 	})
@@ -87,19 +81,15 @@ func TelegramBind(c *gin.Context) {
 		return
 	}
 	params := c.Request.URL.Query()
-	telegramId, err := verifyTelegramAuthorization(params, common.TelegramBotToken, time.Now())
+	telegramID, err := verifyTelegramAuthorization(params, common.TelegramBotToken, time.Now())
 	if err != nil {
 		common.SysLog("TelegramBind authorization failed: " + err.Error())
 		telegramBindFailure(c, telegramBindErrorInvalidRequest)
 		return
 	}
-	pendingFlow, err := model.GetAuthFlow(c.Param("flow_token"), model.AuthFlowMatch{
-		Purpose: model.AuthFlowPurposeTelegramBind,
-	})
+	pendingFlow, err := model.GetAuthFlow(c.Param("flow_token"), model.AuthFlowMatch{Purpose: model.AuthFlowPurposeTelegramBind})
 	if err != nil {
-		if !errors.Is(err, model.ErrAuthFlowInvalid) &&
-			!errors.Is(err, model.ErrAuthFlowExpired) &&
-			!errors.Is(err, model.ErrAuthFlowConsumed) {
+		if !errors.Is(err, model.ErrAuthFlowInvalid) && !errors.Is(err, model.ErrAuthFlowExpired) && !errors.Is(err, model.ErrAuthFlowConsumed) {
 			common.SysError("TelegramBind flow lookup failed: " + err.Error())
 			telegramBindFailure(c, telegramBindErrorInternal)
 			return
@@ -108,15 +98,11 @@ func TelegramBind(c *gin.Context) {
 		return
 	}
 	if _, err := service.ValidateSessionReference(pendingFlow.UserId, pendingFlow.SessionId); err != nil {
-		if !errors.Is(err, service.ErrLoginSessionInvalid) &&
-			!errors.Is(err, service.ErrLoginSessionRevoked) &&
-			!errors.Is(err, model.ErrUserSessionInactive) &&
-			!errors.Is(err, gorm.ErrRecordNotFound) {
+		if !errors.Is(err, service.ErrLoginSessionInvalid) && !errors.Is(err, service.ErrLoginSessionRevoked) && !errors.Is(err, model.ErrUserSessionInactive) && !errors.Is(err, gorm.ErrRecordNotFound) {
 			common.SysError("TelegramBind session validation failed: " + err.Error())
 			telegramBindFailure(c, telegramBindErrorInternal)
 			return
 		}
-
 		var user model.User
 		userErr := model.DB.First(&user, pendingFlow.UserId).Error
 		switch {
@@ -149,7 +135,6 @@ func TelegramBind(c *gin.Context) {
 			}
 			return err
 		}
-
 		var user model.User
 		if err := tx.First(&user, flow.UserId).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -160,7 +145,6 @@ func TelegramBind(c *gin.Context) {
 		if user.Status != common.UserStatusEnabled {
 			return errTelegramBindUserDisabled
 		}
-
 		var session model.UserSession
 		if err := tx.Where("sid = ? AND user_id = ?", flow.SessionId, flow.UserId).First(&session).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -168,34 +152,22 @@ func TelegramBind(c *gin.Context) {
 			}
 			return err
 		}
-		if session.Status != model.UserSessionStatusActive || session.RevokedAt != 0 || session.ExpiresAt <= time.Now().Unix() {
+		if session.Status != model.UserSessionStatusActive || session.RevokedAt != 0 || session.ExpiresAt <= time.Now().Unix() || session.UserAuthVersion != user.AuthVersion {
 			return service.ErrLoginSessionRevoked
 		}
-		if session.UserAuthVersion != user.AuthVersion {
-			return service.ErrLoginSessionRevoked
-		}
-		if user.TelegramId != "" {
+		var existing model.AuthIdentity
+		existingErr := tx.Where("user_id = ? AND provider_key = ?", user.Id, model.AuthIdentityProviderTelegram).First(&existing).Error
+		if existingErr == nil {
 			return errTelegramAccountAlreadyBound
 		}
-		if err := model.ClaimExternalIdentityWithTx(
-			tx,
-			model.ExternalIdentityProviderTelegram,
-			telegramId,
-			user.Id,
-		); err != nil {
-			if errors.Is(err, model.ErrExternalIdentityAlreadyClaimed) {
+		if !errors.Is(existingErr, gorm.ErrRecordNotFound) {
+			return existingErr
+		}
+		if err := model.CreateBuiltInAuthIdentityWithTx(tx, &user, model.AuthIdentityProviderTelegram, telegramID); err != nil {
+			if errors.Is(err, model.ErrAuthIdentityAlreadyBound) || errors.Is(err, model.ErrAuthIdentityProviderAlreadyBound) {
 				return errTelegramAccountAlreadyBound
 			}
 			return err
-		}
-		result := tx.Model(&model.User{}).
-			Where("id = ? AND status = ? AND auth_version = ? AND telegram_id = ?", user.Id, common.UserStatusEnabled, user.AuthVersion, "").
-			Update("telegram_id", telegramId)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected != 1 {
-			return errTelegramAccountAlreadyBound
 		}
 		return nil
 	})
@@ -219,56 +191,45 @@ func TelegramBind(c *gin.Context) {
 		}
 		return
 	}
-
-	callback := "/oauth/telegram?telegram_bind=success&flow_token=" + url.QueryEscape(c.Param("flow_token"))
-	c.Redirect(http.StatusFound, callback)
+	c.Redirect(http.StatusFound, "/oauth/telegram?telegram_bind=success&flow_token="+url.QueryEscape(c.Param("flow_token")))
 }
 
 func telegramBindFailure(c *gin.Context, errorCode string) {
-	query := url.Values{
-		"telegram_bind": {"error"},
-		"flow_token":    {c.Param("flow_token")},
-		"error_code":    {errorCode},
-	}
+	query := url.Values{"telegram_bind": {"error"}, "flow_token": {c.Param("flow_token")}, "error_code": {errorCode}}
 	c.Redirect(http.StatusFound, "/oauth/telegram?"+query.Encode())
 }
 
 func TelegramLogin(c *gin.Context) {
 	if !common.TelegramOAuthEnabled {
-		c.JSON(200, gin.H{
-			"message": "管理员未开启通过 Telegram 登录以及注册",
-			"success": false,
-		})
+		c.JSON(http.StatusOK, gin.H{"message": "管理员未开启通过 Telegram 登录以及注册", "success": false})
 		return
 	}
 	params := c.Request.URL.Query()
-	telegramId, err := verifyTelegramAuthorization(params, common.TelegramBotToken, time.Now())
+	telegramID, err := verifyTelegramAuthorization(params, common.TelegramBotToken, time.Now())
 	if err != nil {
 		common.SysLog("TelegramLogin authorization failed: " + err.Error())
-		c.JSON(200, gin.H{
-			"message": "无效的请求",
-			"success": false,
-		})
+		c.JSON(http.StatusOK, gin.H{"message": "无效的请求", "success": false})
 		return
 	}
-
-	user := model.User{TelegramId: telegramId}
-	if err := user.FillUserByTelegramId(); err != nil {
-		c.JSON(200, gin.H{
-			"message": err.Error(),
-			"success": false,
-		})
+	user, err := model.GetUserByAuthIdentity(model.AuthIdentityProviderTelegram, telegramID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusOK, gin.H{"message": "Telegram 账号未绑定", "success": false})
+		return
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if user.Id == 0 || user.DeletedAt.Valid {
+		c.JSON(http.StatusOK, gin.H{"message": "用户已注销", "success": false})
 		return
 	}
 	if err := claimTelegramAuthorization(params, time.Now()); err != nil {
 		common.SysLog("TelegramLogin assertion replay rejected: " + err.Error())
-		c.JSON(http.StatusForbidden, gin.H{
-			"message": "该登录凭据已被使用",
-			"success": false,
-		})
+		c.JSON(http.StatusForbidden, gin.H{"message": "该登录凭据已被使用", "success": false})
 		return
 	}
-	setupLogin(&user, c)
+	setupLogin(user, c)
 }
 
 func claimTelegramAuthorization(params url.Values, now time.Time) error {
@@ -304,7 +265,6 @@ func verifyTelegramAuthorization(params url.Values, token string, now time.Time)
 			return "", errors.New("telegram authorization contains duplicate parameters")
 		}
 	}
-
 	telegramID := params.Get("id")
 	hash := params.Get("hash")
 	authDateText := params.Get("auth_date")
@@ -315,17 +275,15 @@ func verifyTelegramAuthorization(params url.Values, token string, now time.Time)
 	if err != nil {
 		return "", errors.New("telegram authorization date is invalid")
 	}
-	if authDate < now.Add(-telegramAuthorizationMaxAge).Unix() ||
-		authDate > now.Add(telegramAuthorizationFutureSkew).Unix() {
+	if authDate < now.Add(-telegramAuthorizationMaxAge).Unix() || authDate > now.Add(telegramAuthorizationFutureSkew).Unix() {
 		return "", errors.New("telegram authorization has expired")
 	}
-
 	strs := make([]string, 0, len(params)-1)
-	for k, v := range params {
-		if k == "hash" {
+	for key, values := range params {
+		if key == "hash" {
 			continue
 		}
-		strs = append(strs, k+"="+v[0])
+		strs = append(strs, key+"="+values[0])
 	}
 	sort.Strings(strs)
 	secret := sha256.Sum256([]byte(token))
@@ -335,6 +293,5 @@ func verifyTelegramAuthorization(params url.Values, token string, now time.Time)
 	if err != nil || !hmac.Equal(providedHash, mac.Sum(nil)) {
 		return "", errors.New("telegram authorization signature is invalid")
 	}
-
 	return telegramID, nil
 }

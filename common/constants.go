@@ -241,6 +241,12 @@ const (
 )
 
 const (
+	InvitationCodeStatusEnabled  = 1
+	InvitationCodeStatusDisabled = 2
+	InvitationCodeStatusUsed     = 3
+)
+
+const (
 	ChannelStatusUnknown          = 0
 	ChannelStatusEnabled          = 1 // don't use 0, 0 is the default value!
 	ChannelStatusManuallyDisabled = 2 // also don't use 0

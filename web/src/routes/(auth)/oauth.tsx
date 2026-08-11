@@ -38,6 +38,8 @@ function OAuthComponent() {
   useEffect(() => {
     ;(async () => {
       try {
+        // Invitation codes must never be recovered from query/storage on callback.
+        // WeChat auth here only forwards the protocol authorization code.
         if (search?.provider === 'wechat' && search.code) {
           const res = await wechatLoginByCode(search.code)
           if (res?.success && isAuthBundle(res.data)) {

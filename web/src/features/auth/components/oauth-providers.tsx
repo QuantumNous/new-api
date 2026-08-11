@@ -40,6 +40,12 @@ type OAuthProvidersProps = {
   onWeChatLogin?: () => void
   isWeChatLoading?: boolean
   redirectTo?: string
+  /**
+   * In-memory invitation code from the sign-up form only.
+   * Passed through to login AuthFlow create for providers that require it.
+   * Never blocks OAuth when missing (existing users may log in).
+   */
+  invitationCode?: string
 }
 
 type ProviderButton = {
@@ -57,6 +63,7 @@ export function OAuthProviders({
   onWeChatLogin,
   isWeChatLoading = false,
   redirectTo,
+  invitationCode,
 }: OAuthProvidersProps) {
   const { t } = useTranslation()
   const {
@@ -73,7 +80,7 @@ export function OAuthProviders({
     isTelegramPending,
     handleTelegramAuthorization,
     setIsTelegramDialogOpen,
-  } = useOAuthLogin(status, redirectTo)
+  } = useOAuthLogin(status, redirectTo, { invitationCode })
 
   const providerButtons: ProviderButton[] = []
 

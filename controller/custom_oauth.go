@@ -217,6 +217,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的请求参数: "+err.Error())
 		return
 	}
+	req.Slug = model.NormalizeCustomOAuthProviderSlug(req.Slug)
 
 	// Check if slug is already taken
 	if model.IsSlugTaken(req.Slug, 0) {
@@ -302,6 +303,7 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的请求参数: "+err.Error())
 		return
 	}
+	req.Slug = model.NormalizeCustomOAuthProviderSlug(req.Slug)
 
 	// Get existing provider
 	provider, err := model.GetCustomOAuthProviderById(id)

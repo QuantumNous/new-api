@@ -37,6 +37,7 @@ export const registerFormSchema = z
       .min(8, 'Password must be between 8 and 20 characters')
       .max(20, 'Password must be at most 20 characters long'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
+    invitationCode: z.string().trim().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match.",
