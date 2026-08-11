@@ -1,15 +1,15 @@
 name: Setup k3s cluster and self-hosted runner
 
-# 一次性引导 workflow：自动在 SERVERS_JSON 列出的服务器上安装 k3s 集群 + Nginx Ingress + self-hosted runner。
+# 一次性引导 workflow：自动在 SERVERS_LIST_JSON 列出的服务器上安装 k3s 集群 + Nginx Ingress + self-hosted runner。
 #
 # GitHub Actions Secrets（Settings → Secrets and variables → Actions → New repository secret）：
-#   SERVERS_JSON  服务器列表 JSON 数组，整个 JSON 作为 secret 的值粘贴：
+#   SERVERS_LIST_JSON  服务器列表 JSON 数组，整个 JSON 作为 secret 的值粘贴：
 #     [{"ip":"1.2.3.4","user":"root","password":"密码1"},{"ip":"5.6.7.8","user":"root","password":"密码2"}]
 #   第一台可用的服务器成为 k3s server（master 节点），其余自动加入为 agent。
 #   某台连不上（Connection closed / 超时）不会阻塞其他服务器。
 #
 # 流程：
-#   1. 解析 SERVERS_JSON，生成临时 ed25519 密钥对
+#   1. 解析 SERVERS_LIST_JSON，生成临时 ed25519 密钥对
 #   2. 逐台用密码 ssh-copy-id 装公钥（失败的跳过）
 #   3. 第一台成功装 k3s server（--disable traefik），其余装 agent
 #   4. 装 nginx ingress + self-hosted runner（标签 k8s）
@@ -31,13 +31,13 @@ jobs:
 
       - name: Prepare servers list
         run: |
-          echo "${{ secrets.SERVERS_JSON }}" > /tmp/servers.json
+          echo "${{ secrets.SERVERS_LIST_JSON }}" > /tmp/servers.json
           jq -c '.[]' /tmp/servers.json > /tmp/servers.txt
           echo "服务器数量: $(wc -l < /tmp/servers.txt)"
           echo "服务器列表:"
           jq -r '.[] | "\(.ip) (\(.user))"' /tmp/servers.json
           if [ ! -s /tmp/servers.txt ]; then
-            echo "::error::SERVERS_JSON 为空或格式错误，示例: [{\"ip\":\"1.2.3.4\",\"user\":\"root\",\"password\":\"xxx\"}]"
+            echo "::error::SERVERS_LIST_JSON 为空或格式错误，示例: [{\"ip\":\"1.2.3.4\",\"user\":\"root\",\"password\":\"xxx\"}]"
             exit 1
           fi
 

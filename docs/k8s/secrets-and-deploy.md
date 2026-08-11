@@ -89,7 +89,7 @@ kubectl rollout restart deployment/new-api-worker
 
 | Secret | 值 |
 |--------|-----|
-| `SERVERS_JSON` | 服务器列表 JSON 数组（整个 JSON 粘贴为值） |
+| `SERVERS_LIST_JSON` | 服务器列表 JSON 数组（整个 JSON 粘贴为值） |
 
 ```json
 [
