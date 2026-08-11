@@ -85,6 +85,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
 	var terminalErr *types.NewAPIError
+	var retryableTerminalFailure bool
+
+	var responseHeaderSnapshot http.Header
+	var eventStreamHeadersValue any
+	var hadEventStreamHeaders bool
+	if info.ChannelType == constant.ChannelTypeCodex {
+		responseHeaderSnapshot = c.Writer.Header().Clone()
+		eventStreamHeadersValue, hadEventStreamHeaders = c.Get("event_stream_headers_set")
+	}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -103,6 +112,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			if responseWritten {
 				sendResponsesStreamData(c, streamResponse, data)
 			}
+			retryableTerminalFailure = !responseWritten
 			terminalErr = newCodexResponsesFailedError(streamResponse.Response, responseWritten)
 			sr.Stop(terminalErr)
 			return
@@ -133,6 +143,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 	})
 	if terminalErr != nil {
+		if retryableTerminalFailure {
+			restoreResponsesStreamAttemptState(c, info, responseHeaderSnapshot, eventStreamHeadersValue, hadEventStreamHeaders)
+		}
 		return usage, terminalErr
 	}
 
@@ -169,6 +182,26 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func restoreResponsesStreamAttemptState(
+	c *gin.Context,
+	info *relaycommon.RelayInfo,
+	headerSnapshot http.Header,
+	eventStreamHeadersValue any,
+	hadEventStreamHeaders bool,
+) {
+	header := c.Writer.Header()
+	clear(header)
+	for key, values := range headerSnapshot {
+		header[key] = append([]string(nil), values...)
+	}
+	if hadEventStreamHeaders {
+		c.Set("event_stream_headers_set", eventStreamHeadersValue)
+	} else if c.Keys != nil {
+		delete(c.Keys, "event_stream_headers_set")
+	}
+	info.ResetStreamResponseStateForRetry()
 }
 
 func applyResponsesTerminalUsage(c *gin.Context, usage *dto.Usage, response *dto.OpenAIResponsesResponse) {

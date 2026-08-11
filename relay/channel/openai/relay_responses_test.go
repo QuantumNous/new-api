@@ -114,6 +114,10 @@ func TestOaiResponsesStreamHandlerCodexFailedBeforeCommitIsRetryable(t *testing.
 	}, "\n")
 
 	recorder, ctx, info, resp := newResponsesStreamTest(t, upstream, constant.ChannelTypeCodex)
+	info.ApiType = constant.APITypeCodex
+	ctx.Header("X-Existing", "keep")
+	resp.Header.Set("X-Reasoning-Included", "true")
+	resp.Header.Set("X-Codex-Turn-State", "state-from-failed-attempt")
 	_, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
 	if apiErr == nil {
 		t.Fatal("expected Codex response.failed error")
@@ -123,6 +127,32 @@ func TestOaiResponsesStreamHandlerCodexFailedBeforeCommitIsRetryable(t *testing.
 	}
 	if recorder.Body.Len() != 0 || ctx.Writer.Written() {
 		t.Fatalf("failed event committed before retry: %s", recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Content-Type"); got != "" {
+		t.Fatalf("retryable failure retained SSE content type %q", got)
+	}
+	if got := recorder.Header().Get("Transfer-Encoding"); got != "" {
+		t.Fatalf("retryable failure retained transfer encoding %q", got)
+	}
+	if got := recorder.Header().Get("X-Reasoning-Included"); got != "" {
+		t.Fatalf("retryable failure retained Codex response header %q", got)
+	}
+	if got := recorder.Header().Get("X-Codex-Turn-State"); got != "" {
+		t.Fatalf("retryable failure retained Codex turn state %q", got)
+	}
+	if got := recorder.Header().Get("X-Existing"); got != "keep" {
+		t.Fatalf("pre-existing response header = %q", got)
+	}
+	if _, exists := ctx.Get("event_stream_headers_set"); exists {
+		t.Fatal("retryable failure retained event_stream_headers_set")
+	}
+	if info.HasSendResponse() || info.ReceivedResponseCount != 0 {
+		t.Fatalf("retryable failure retained first-response state: sent=%v received=%d", info.HasSendResponse(), info.ReceivedResponseCount)
+	}
+
+	ctx.JSON(apiErr.StatusCode, gin.H{"error": apiErr.ToOpenAIError()})
+	if got := recorder.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
+		t.Fatalf("final JSON content type = %q", got)
 	}
 }
 
@@ -146,6 +176,46 @@ func TestOaiResponsesStreamHandlerCodexFailedAfterCommitSkipsRetry(t *testing.T)
 	}
 	if !strings.Contains(recorder.Body.String(), "response.created") || !strings.Contains(recorder.Body.String(), "response.failed") {
 		t.Fatalf("committed Codex events were not forwarded: %s", recorder.Body.String())
+	}
+}
+
+func TestOaiResponsesStreamHandlerCodexRetryRearmsFirstResponseTracking(t *testing.T) {
+	failedUpstream := strings.Join([]string{
+		"event: response.failed",
+		`data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"code":"server_error","message":"upstream blew up"}}}`,
+		"",
+	}, "\n")
+
+	recorder, ctx, info, failedResp := newResponsesStreamTest(t, failedUpstream, constant.ChannelTypeCodex)
+	info.ApiType = constant.APITypeCodex
+	_, apiErr := OaiResponsesStreamHandler(ctx, info, failedResp)
+	if apiErr == nil || types.IsSkipRetryError(apiErr) {
+		t.Fatalf("first attempt error = %#v", apiErr)
+	}
+
+	doneUpstream := strings.Join([]string{
+		"event: response.done",
+		`data: {"type":"response.done","response":{"id":"resp_done","status":"completed","usage":{"input_tokens":8,"output_tokens":2,"total_tokens":10}}}`,
+		"",
+	}, "\n")
+	doneResp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(doneUpstream)),
+	}
+
+	usage, apiErr := OaiResponsesStreamHandler(ctx, info, doneResp)
+	if apiErr != nil {
+		t.Fatalf("retry attempt: %v", apiErr)
+	}
+	if !info.HasSendResponse() || info.ReceivedResponseCount != 1 {
+		t.Fatalf("retry first-response state: sent=%v received=%d", info.HasSendResponse(), info.ReceivedResponseCount)
+	}
+	if usage.PromptTokens != 8 || usage.CompletionTokens != 2 {
+		t.Fatalf("retry usage = %#v", *usage)
+	}
+	if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
+		t.Fatalf("retry content type = %q", got)
 	}
 }
 
