@@ -65,6 +65,7 @@ const (
 	ChannelTypeMegabyai       = 65
 	ChannelTypeSora2U         = 66
 	ChannelTypeZiZiDongHua    = 67
+	ChannelTypeMao            = 68
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -138,6 +139,7 @@ var ChannelBaseURLs = []string{
 	"https://newapi.megabyai.cc",                //65 megabyai video
 	"https://sora2u.com",                        //66 sora2u Seedance video
 	"https://www.zizidonghua.com",               //67 zz (ZiZiDongHua) MiniMax-H3 video
+	"https://api.catertx.com",                   //68 mao (catertx Seedance)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -205,6 +207,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeMegabyai:      "megabyai",
 	ChannelTypeSora2U:        "sora2u",
 	ChannelTypeZiZiDongHua:   "zz",
+	ChannelTypeMao:           "mao",
 }
 
 func GetChannelTypeName(channelType int) string {
