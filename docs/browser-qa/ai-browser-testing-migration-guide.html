@@ -384,6 +384,9 @@
           <span class="pill"><strong>示例</strong> 仅占位符</span>
           <span class="pill"><strong>边界</strong> 不含真实 Secret</span>
         </div>
+        <div class="callout">
+          <strong>参考项目最新验收：</strong>Flatkey staging run <a href="https://github.com/SolveaCX/new-api/actions/runs/31475296929">31475296929</a> 在提交 <code>dc9fb416a36d4c239369f8f4a84d850b28e94636</code> 上完成自动 <code>normal</code> 链路，workflow 结论为 success。root manifest 为 <code>findings_detected</code>，replay、fixed cases、15 次 exploration、cleanup 和中文钉钉通知均通过；受控 UI/network coverage candidate <code>FQA-062169633278</code> 在线上三次 attempt 全部 passed 并聚合为 <code>ready_for_review</code>。自动 run 本身 root candidates 为 0，因此 Draft PR 真实创建仍未触发。
+        </div>
       </header>
 
       <section id="scope">
@@ -654,9 +657,9 @@
       </section>
 
       <section id="assertion-dsl">
-        <h2>3.1 Portable UI / Network Assertion DSL：本地实现，待 staging 验证</h2>
+        <h2>3.1 Portable UI / Network Assertion DSL：参考项目已验收，迁移项目需重跑</h2>
         <div class="note">
-          迁移到别的产品时，可以把这组 DSL 当作可移植能力清单；当前口径只能写“本地实现 / 待 staging 验证”。不要把历史 run 证据改写成新 UI/network DSL 已在线上跑通。
+          迁移到别的产品时，可以把这组 DSL 当作可移植能力清单。Flatkey staging 已用一个非变更型 coverage candidate 验证 UI 断言和网络否定断言的 runtime/聚合路径；但每个新项目仍必须用自己的 staging origin、自己的 allowlist 和自己的 cleanup 语义重新跑三次 attempt，不能直接继承参考项目的验收结论。
         </div>
         <table>
           <thead><tr><th scope="col">能力</th><th scope="col">迁移说明</th></tr></thead>
@@ -694,6 +697,21 @@
   ]
 }</code></pre>
         <p>这组 DSL 不改变 candidate 三次验证和 PR 流程：finding / coverage candidate 仍先生成 sanitized bundle，再跑三个独立 attempt，3/3 聚合后才进入 Draft PR；Draft PR 仍需要人工 review 和 merge，合并后 fixed case 才进入 regression suite。</p>
+        <h3>参考验收 case</h3>
+        <p>参考项目使用的受控 candidate 不改变服务端数据：匿名打开 <code>/zh</code>，先 <code>begin_network_capture</code>，再断言 <code>role=link name=登录</code> 可见，并断言 500ms 内没有 <code>POST /api/token/</code>。三次 manifest 都显示 <code>passed</code>、<code>steps=1</code>、<code>assertions=2</code>、<code>cleanup=not_required</code>，正式聚合 <code>3/3 ready_for_review</code>。迁移项目可以照这个形状设计第一个 coverage candidate，但 locator 名称、路径和 forbidden network path 必须替换成目标项目自己的安全场景。</p>
+        <pre><code>reference candidate:
+case_id: FQA-062169633278
+fingerprint12: 8972c3f56c51
+full_fingerprint: sha256:8972c3f56c5137a4f5c4267880770c86e16c1413959ccae0e8e66fd8b578d54e
+github_run: https://github.com/SolveaCX/new-api/actions/runs/31475296929
+root_manifest: gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/manifest.json
+candidate_manifests:
+  - gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/candidates/8972c3f56c51/attempt-31475296929-8972c3f56c51-1/manifest.json
+  - gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/candidates/8972c3f56c51/attempt-31475296929-8972c3f56c51-2/manifest.json
+  - gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/candidates/8972c3f56c51/attempt-31475296929-8972c3f56c51-3/manifest.json</code></pre>
+        <div class="callout warn">
+          <strong>Windows 编码注意：</strong>如果候选里有中文 locator，不要从默认 GBK 的 PowerShell stdin 直接喂 JSON/YAML。参考项目第一次人工构造候选时，中文 <code>登录</code> 被转成 <code>??</code> 导致三次业务失败；正确做法是用 ASCII Unicode escape，或显式 UTF-8 文件/管道，并在提交前跑 canonical payload 校验。
+        </div>
       </section>
 
       <section id="record">

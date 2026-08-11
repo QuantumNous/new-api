@@ -221,7 +221,7 @@
       <div class="badges">
         <span class="badge ok">代码已实现：workflow / runtime / Terraform root / candidate promotion</span>
         <span class="badge info">目标环境：Flatkey staging</span>
-        <span class="badge ok">最新证据：本地 536 tests / 5 skipped；真实 staging run 31134160354 已通过</span>
+        <span class="badge ok">最新证据：Python 553 passed / 5 skipped；Node 50 passed；staging run 31475296929 已通过</span>
         <span class="badge risk">禁止：真实 Secret / token / OAuth JSON</span>
       </div>
       <div class="hero-summary" aria-label="老板演示摘要">
@@ -234,8 +234,8 @@
           <p>代码层已包含 <code>core</code>、<code>normal</code>、<code>cleanup-only</code>、<code>promotion-only</code>、候选三次验证、脱敏 artifact、candidate-pr Draft PR 和中文钉钉终态摘要。</p>
         </div>
         <div class="mini">
-          <h3>本次尚未覆盖</h3>
-          <p>真实 staging 已跑通 replay、AI exploration、cleanup、manifest、中文钉钉通知和候选校验；本次没有合格 <code>proposed_case</code>，因此三次 candidate execution 与 Draft PR 按设计未触发，不能把“安全跳过”写成“Draft PR 已验收”。</p>
+          <h3>本次边界</h3>
+          <p>真实 staging 已跑通 replay、AI exploration、cleanup、manifest、中文钉钉通知；受控 UI/network candidate 已在线上 3/3 通过。自动 run 本身 root candidates 为 0，所以 candidate-pr/Draft PR 的真实创建仍未触发，不能写成“Draft PR 已验收”。</p>
         </div>
       </div>
     </div>
@@ -293,7 +293,7 @@
           <strong>代码已实现：</strong>仓库中已有 reusable Browser QA workflow、staging deploy 后自动调用 <code>browser-qa-normal</code> / <code>mode: normal</code> / <code>fail_on_findings: false</code>、QA 容器入口、supervisor、broker、cleanup、evidence upload、独立 Terraform root、phase-aware plan guard、candidate job、promotion 聚合、candidate-pr Draft PR job、钉钉中文摘要和相关 contract tests。
         </div>
         <div class="fact">
-          <strong>实时 staging 已验证：</strong>2026-08-07 的 staging push run <code>31134160354</code> 在提交 <code>7e83b8d0</code> 上完成 build、deploy、<code>normal</code> replay、固定用例 checkpoint、14 次受控 AI exploration、独立 cleanup、GCS manifest、候选校验和中文钉钉通知；顶层 workflow 为 success。最终业务状态是 <code>findings_detected</code>，因 <code>fail_on_findings: false</code> 只告警、不回滚 staging。
+          <strong>实时 staging 已验证：</strong>2026-08-11 的 staging push run <code>31475296929</code> 在提交 <code>dc9fb416a36d4c239369f8f4a84d850b28e94636</code> 上完成 build、deploy、<code>normal</code> replay、固定用例、15 次受控 AI exploration、独立 cleanup、GCS manifest、候选校验和中文钉钉通知；顶层 workflow 为 success。最终业务状态是 <code>findings_detected</code>，因 <code>fail_on_findings: false</code> 只告警、不回滚 staging。
         </div>
         <p>Operations runbook 记录了一个 incident-specific 的 Phase A recovery 路径：已知场景是 Phase A 前 23 个非 bucket-IAM 资源进入独立 state，剩余 3 个 report bucket IAM member 需要通过 <code>--phase infra-recovery</code> 的新 saved plan 恢复。该记录是 runbook/设计状态，不等同于本文实时确认云端已经处在该状态。</p>
         <table>
@@ -305,23 +305,23 @@
               <td>不能把历史 run 自动外推为“最新候选三次验证和 Draft PR 已上线跑通”。</td>
             </tr>
             <tr>
-              <td>最新本地实现</td>
-              <td>可以说候选固化代码、workflow 契约和本地测试已完成；最新本地证据是 <strong>536 tests / 5 skipped</strong>。</td>
-              <td>不能说真实 staging 的三次独立 Cloud Run candidate execution 已完成。</td>
+              <td>最新实现与测试</td>
+              <td>可以说候选固化代码、workflow 契约和本地测试已完成；最新本地证据是 <strong>Python 553 passed / 5 skipped</strong>、<strong>Node 50 passed</strong>、schema parse、compileall 和 diff-check 均通过。</td>
+              <td>不能把本地测试数字单独当成云端已验收。</td>
             </tr>
             <tr>
               <td>真实 staging 验收</td>
-              <td>run <code>31134160354</code> 已验证发布后自动 <code>normal</code>、replay、exploration、cleanup、manifest、钉钉和 alert-only 门禁。由于没有合格 <code>proposed_case</code>，candidate 三次 execution 与 Draft PR 安全跳过。</td>
-              <td>不能把“候选为 0 的安全跳过”说成“三次 candidate execution 和 Draft PR 已真实触发”。</td>
+              <td>run <code>31475296929</code> 已验证发布后自动 <code>normal</code>、replay、fixed cases、exploration、cleanup、manifest、钉钉和 alert-only 门禁；受控 candidate <code>FQA-062169633278</code> 已手工触发三次 Cloud Run attempt 并 3/3 通过。</td>
+              <td>不能把“自动 run candidates=0”说成“自动探索已创建 Draft PR”。Draft PR 真实创建仍未触发。</td>
             </tr>
           </tbody>
         </table>
       </section>
 
       <section id="assertion-dsl-local">
-        <h2>2.1 Browser QA UI / Network Assertion DSL：本地实现，待 staging 验证</h2>
+        <h2>2.1 Browser QA UI / Network Assertion DSL：staging 受控候选已验证</h2>
         <div class="fact">
-          <strong>最新口径：</strong>以下能力已经在本地代码与 contract tests 中实现；还不能把它写成真实 staging 已完成 candidate 三次 execution、Draft PR 或线上验收。既有 run <code>31134160354</code> 仍只作为历史 staging 主链路证据保留。
+          <strong>最新口径：</strong>以下能力已经在本地代码、contract tests 和真实 Cloud Run candidate runtime 中验证。受控 staging coverage candidate <code>FQA-062169633278</code> 使用 UI 断言加网络否定断言，三次 attempt 全部 <code>passed</code>，正式聚合为 <code>ready_for_review</code>。但自动 run 的 root candidates 为 0，所以 candidate-pr/Draft PR 的真实创建仍未触发。
         </div>
         <table>
           <thead><tr><th scope="col">新增能力</th><th scope="col">语义边界</th></tr></thead>
@@ -359,6 +359,28 @@ assertions:
       path: /api/keys
       timeout_ms: 0</code></pre>
         <p>Candidate 三次验证、sanitized artifact、candidate-pr Draft PR 和人工 review / merge 流程不变：候选仍必须通过 3/3 独立 attempt，PR 仍只走 Draft，不自动 approve、不自动 merge；本段新增的 UI/network DSL 只是让可固化 case 的断言表达更精确。</p>
+        <h3>本轮受控线上 candidate 证据</h3>
+        <p>为了证明 UI/network DSL 不是只停留在本地测试，本轮用真实 staging Cloud Run job 手工执行了一个非变更型 coverage candidate。它不登录、不注册、不创建资源，只验证中文首页上“登录”入口可见，并证明观察窗口内没有向 <code>/api/token/</code> 发送登录请求。</p>
+        <table>
+          <thead><tr><th scope="col">字段</th><th scope="col">值</th></tr></thead>
+          <tbody>
+            <tr><td>GitHub run</td><td><a href="https://github.com/SolveaCX/new-api/actions/runs/31475296929">31475296929</a></td></tr>
+            <tr><td>case id</td><td><code>FQA-062169633278</code></td></tr>
+            <tr><td>fingerprint</td><td><code>sha256:8972c3f56c5137a4f5c4267880770c86e16c1413959ccae0e8e66fd8b578d54e</code></td></tr>
+            <tr><td>start</td><td><code>staging_website /zh</code>，匿名身份，<code>cleanup: not_required</code></td></tr>
+            <tr><td>步骤与断言</td><td><code>begin_network_capture</code>；<code>element_visible role=link name=登录</code>；<code>network_request_not_sent POST /api/token/ timeout_ms=500</code></td></tr>
+            <tr><td>三次 attempt</td><td>全部 <code>passed</code>，每次 <code>steps=1</code>、<code>assertions=2</code>、<code>classification=null</code>。</td></tr>
+            <tr><td>聚合结果</td><td><code>ready_for_review</code>，<code>3/3</code>。</td></tr>
+            <tr><td>脱敏扫描</td><td>forbidden keys、query、邮箱、OpenAI key、DingTalk webhook、<code>access_token</code> 全部 0。</td></tr>
+          </tbody>
+        </table>
+        <pre><code>candidate manifests:
+gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/candidates/8972c3f56c51/attempt-31475296929-8972c3f56c51-1/manifest.json
+gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/candidates/8972c3f56c51/attempt-31475296929-8972c3f56c51-2/manifest.json
+gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/candidates/8972c3f56c51/attempt-31475296929-8972c3f56c51-3/manifest.json</code></pre>
+        <div class="warning">
+          <strong>Windows 编码陷阱：</strong>第一次人工构造 candidate 时，PowerShell stdin 使用 GBK 把中文 <code>登录</code> 变成 <code>??</code>，导致三次业务断言失败。这个失败不是 DSL 或 Cloud Run 基础设施问题。以后从 Windows 传中文 payload 时，使用 ASCII Unicode escape 或显式 UTF-8 文件/管道，再让 Python 校验 canonical payload。
+        </div>
       </section>
 
       <section id="architecture">
@@ -924,7 +946,7 @@ python3 scripts/browser_qa/terraform_plan_guard.py --phase workloads &lt;plan.js
       <section id="observability">
         <h2>14. 可观测性、中文钉钉与仅告警策略</h2>
         <p>最终状态优先级由代码定义：<code>cleanup_failed</code> &gt; <code>infrastructure_failed</code> &gt; <code>replay_failed</code> &gt; <code>findings_detected</code> &gt; <code>passed</code>。GitHub Summary 展示状态、replay/exploration 摘要、finding 数量、cleanup 状态和私有 GCS URI。</p>
-        <p>当前每次 Browser QA 都会在终态向钉钉发送一份脱敏中文报告；通过、回放失败、发现问题、清理失败、基础设施失败和候选固化异常都会通知。GitHub Actions 只在通知步骤临时注入 webhook 与机器人加签密钥，并按钉钉要求为每次请求生成毫秒时间戳和 HMAC-SHA256 签名；这些密钥、签名、测试邮箱、验证码和 API Key 都不会进入报告或日志。通知仍然只是告警，不会自动 rollback staging，也不会改动 main/production。</p>
+        <p>当前每次 Browser QA 都会在终态向钉钉发送一份脱敏中文报告；通过、回放失败、发现问题、清理失败、基础设施失败和候选固化异常都会通知。GitHub Actions 只在通知步骤临时注入 webhook 与机器人加签密钥，并按钉钉要求为每次请求生成毫秒时间戳和 HMAC-SHA256 签名；这些密钥、签名、测试邮箱、验证码和 API Key 都不会进入报告或日志。通知仍然只是告警，不会自动 rollback staging，也不会改动 main/production。本轮 run <code>31475296929</code> 的通知步骤日志包含 <code>DINGTALK_NOTIFICATION_SENT</code>，消息为中文模板，并直接链接到该 GitHub Actions run。</p>
         <div class="warning">
           <strong>双层摘要：</strong>钉钉同时展示产品状态和候选状态。产品 <code>passed</code> 只表示 replay/fixed cases/cleanup/report 主状态通过；如果候选状态是 <code>cleanup_failed</code>、<code>infrastructure_failed</code>、<code>promotion_failed</code> 或 <code>unknown</code>，消息标题和 final gate 仍按候选异常处理，不能被产品通过掩盖。每个 workflow 终态只发一条钉钉消息，不为三次 attempt 分别刷屏。
         </div>
@@ -1036,9 +1058,14 @@ python ../../../../scripts/browser_qa/terraform_plan_guard.py --phase workloads 
         <pre><code># Windows / 通用本地验证，不包含任何 secret
 python -B -m unittest discover -s scripts/browser_qa/tests -v
 python scripts/browser_qa/terraform_plan_guard.py --help
-rg -n "candidate-pr|promotion-only|ready_for_review|526 tests" docs/browser-qa
+rg -n "candidate-pr|promotion-only|ready_for_review|553 passed" docs/browser-qa
 git diff --check</code></pre>
-        <p>最新证据口径：本地 <strong>536 tests / 5 skipped</strong>、Node helper <strong>38 tests passed</strong>；真实 staging push run <code>31134160354</code> 顶层 success，GCS root manifest 状态为 <code>findings_detected</code>，cleanup 与钉钉通知均通过。</p>
+        <p>最新证据口径：本地 <strong>Python 553 passed / 5 skipped</strong>、Node helper <strong>50 passed</strong>、JSON Schema 解析、<code>compileall</code> 和 <code>git diff --check</code> 均通过；真实 staging push run <code>31475296929</code> 顶层 success，GCS root manifest 状态为 <code>findings_detected</code>，replay、fixed cases、exploration、cleanup、钉钉通知均通过。</p>
+        <pre><code>root manifest:
+gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/manifest.json
+
+main manifest:
+gs://vocai-gemini-prod-flatkey-browser-qa-reports/runs/31475296929/main/main-31475296929-1/manifest.json</code></pre>
       </section>
 
       <section id="troubleshooting">
@@ -1060,7 +1087,8 @@ git diff --check</code></pre>
       <section id="limits">
         <h2>19. 已知限制</h2>
         <ul>
-          <li>真实 staging 主链路已经由 run <code>31134160354</code> 跑通；但本次没有合格 <code>proposed_case</code>，所以三次独立 candidate execution、Draft PR 创建和人工 merge 后进入下一次 core 尚未在本次运行中触发。</li>
+          <li>真实 staging 主链路已经由 run <code>31475296929</code> 跑通；自动 run 的 root candidates 为 0，所以 candidate-pr/Draft PR 创建和人工 merge 后进入下一次 core 尚未在本次运行中触发。</li>
+          <li>受控 UI/network candidate 已在线上三次独立 Cloud Run attempt 通过并聚合为 <code>ready_for_review</code>；这证明 candidate runtime/聚合路径可用，但不等于自动探索已经真实创建 Draft PR。</li>
           <li>当前自动接线只在 staging deploy 成功后跑 <code>normal</code>，并设置 <code>fail_on_findings: false</code>；<code>core</code>、<code>cleanup-only</code> 和 <code>promotion-only</code> 仍是人工诊断或恢复入口。</li>
           <li>Gmail OAuth 外部 Testing token 可能过期；runbook 要求发布 OAuth app、重新授权并旋转 Secret 后再证明长期可重复。</li>
           <li>cleanup 依赖产品现有自助删除语义，不做数据库级 hard purge。</li>
