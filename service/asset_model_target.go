@@ -24,6 +24,12 @@ type AssetModelTargetCandidate struct {
 	CredentialIndex int
 }
 
+const assetModelSourceURLBindingScopeModelAPI = "source-url:modelapi"
+
+func AssetModelChannelUsesSourceURL(channelType int) bool {
+	return channelType == constant.ChannelTypeModelAPISeedance
+}
+
 func AssetModelTargetCandidates(scope AssetModelScope, modelName string) ([]AssetModelTargetCandidate, error) {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" || len(scope.Groups) == 0 {
@@ -70,6 +76,11 @@ func assetModelChannelEligible(scope AssetModelScope, channel *model.Channel) bo
 	if scope.SpecificChannelID > 0 && channel.Id != scope.SpecificChannelID {
 		return false
 	}
+	if AssetModelChannelUsesSourceURL(channel.Type) {
+		return channelCanConsumeAssetType(channel, "Image") ||
+			channelCanConsumeAssetType(channel, "Video") ||
+			channelCanConsumeAssetType(channel, "Audio")
+	}
 	if _, ok := assetMaterializerForChannel(channel.Type); !ok {
 		return false
 	}
@@ -83,6 +94,17 @@ func assetModelCandidatesForChannel(channel *model.Channel, modelName string) []
 	mappedModel, ok := assetReferenceMappedModel(channel.GetModelMapping(), modelName)
 	if !ok {
 		return nil
+	}
+	if AssetModelChannelUsesSourceURL(channel.Type) {
+		return []AssetModelTargetCandidate{{
+			ChannelID:       channel.Id,
+			ChannelType:     channel.Type,
+			Priority:        channel.GetPriority(),
+			Weight:          channel.GetWeight(),
+			MappedModel:     mappedModel,
+			BindingScope:    assetModelSourceURLBindingScopeModelAPI,
+			CredentialIndex: -1,
+		}}
 	}
 	if channel.Type != constant.ChannelTypeTechMobiVideo {
 		scope, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: mappedModel})

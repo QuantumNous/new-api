@@ -183,6 +183,12 @@ func (s AssetReferenceSet) targetReadinessForChannel(channel *model.Channel, ori
 		if !ok || !assetModelReadinessMatchesTarget(row, *s.target) || row.AssetId != asset.ID || row.Status != model.AssetModelReadinessStatusActive {
 			return AssetReadinessRecoverable, true
 		}
+		if AssetModelChannelUsesSourceURL(channel.Type) && s.target.BindingScope == assetModelSourceURLBindingScopeModelAPI {
+			if assetReferenceSourceURLRecoverable(asset) {
+				continue
+			}
+			return AssetReadinessRecoverable, true
+		}
 		if _, ok := activeAssetReferenceBindingForScope(asset.Bindings, channel.Id, s.target.BindingScope); !ok {
 			return AssetReadinessRecoverable, true
 		}
@@ -733,6 +739,10 @@ func assetReferenceSourceRecoverable(asset assetReferenceAsset) bool {
 	return asset.SourceExpiresAt > assetNow().Unix()
 }
 
+func assetReferenceSourceURLRecoverable(asset assetReferenceAsset) bool {
+	return asset.Status == model.AssetStatusActive && assetReferenceSourceRecoverable(asset)
+}
+
 func assetReferenceSourceExpired(asset assetReferenceAsset) bool {
 	if asset.SourceStatus == model.AssetSourceStatusExpired || asset.Status == model.AssetStatusExpired {
 		return true
@@ -746,6 +756,8 @@ func channelCanConsumeAssetType(channel *model.Channel, assetType string) bool {
 	}
 	switch channel.Type {
 	case constant.ChannelTypeBytePlus:
+		return assetType == "Image" || assetType == "Video" || assetType == "Audio"
+	case constant.ChannelTypeModelAPISeedance:
 		return assetType == "Image" || assetType == "Video" || assetType == "Audio"
 	case constant.ChannelTypeBlockRunSeedance, constant.ChannelTypeBlockRunVideo, constant.ChannelTypeSora, constant.ChannelTypeTechMobiVideo, constant.ChannelTypeXaiGrokVideo:
 		return assetType == "Image" || assetType == "Video"

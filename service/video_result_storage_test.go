@@ -73,7 +73,11 @@ func TestVideoResultObjectKey(t *testing.T) {
 	now := time.Date(2026, 8, 6, 23, 59, 0, 0, time.FixedZone("CST", 8*3600))
 	key, err := buildVideoResultObjectKey("task_Abc-123_ok", now)
 	require.NoError(t, err)
-	require.Equal(t, "video-results/20260806/task_Abc-123_ok.mp4", key)
+	require.Equal(t, "video-results/tasks/task_Abc-123_ok.mp4", key)
+
+	nextDayKey, err := buildVideoResultObjectKey("task_Abc-123_ok", now.Add(10*time.Hour))
+	require.NoError(t, err)
+	require.Equal(t, key, nextDayKey)
 
 	for _, taskID := range []string{"", "abc", "task_", "task_../x", "task_a/b", "../task_a", "task_ space"} {
 		_, err := buildVideoResultObjectKey(taskID, now)
@@ -115,7 +119,7 @@ func TestArchiveVideoResult(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, &model.VideoResult{
 			Bucket:      "video-bucket",
-			Object:      "video-results/20260806/task_archive-1.mp4",
+			Object:      "video-results/tasks/task_archive-1.mp4",
 			Generation:  1,
 			ContentType: "video/mp4",
 			Size:        int64(len(payload)),
@@ -123,7 +127,7 @@ func TestArchiveVideoResult(t *testing.T) {
 			ExpiresAt:   start.Add(time.Hour).Unix(),
 		}, result)
 
-		created := store.created["video-bucket/video-results/20260806/task_archive-1.mp4"]
+		created := store.created["video-bucket/video-results/tasks/task_archive-1.mp4"]
 		require.Equal(t, payload, created.body)
 		require.Equal(t, "video/mp4", created.options.ContentType)
 		require.Equal(t, "private, max-age=0, no-store", created.options.CacheControl)
@@ -133,6 +137,30 @@ func TestArchiveVideoResult(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, text, `newapi_video_result_archive_total{channel="techmobi",outcome="success"} 1`)
 		require.Contains(t, text, `newapi_video_result_archive_bytes_total{channel="techmobi"} 16`)
+	})
+
+	t.Run("archives modelapi video with modelapi metric label", func(t *testing.T) {
+		resetVideoResultMetricsForServiceTest(t)
+		start := time.Date(2026, 8, 6, 1, 2, 3, 0, time.UTC)
+		store := newFakeVideoResultStore()
+		restore := installVideoResultArchiveTestHooks(t, store, start)
+		defer restore()
+		t.Setenv("VIDEO_RESULT_STORAGE_BUCKET", "video-bucket")
+		payload := minimalMP4Fixture()
+
+		server := newVideoResultTestServer(t, http.StatusOK, "video/mp4", string(payload))
+		defer server.Close()
+
+		result, err := ArchiveVideoResultForChannel(context.Background(), "modelapi", "task_modelapi_archive", server.URL, "")
+		require.NoError(t, err)
+		require.Equal(t, "video-results/tasks/task_modelapi_archive.mp4", result.Object)
+		require.Contains(t, store.created, "video-bucket/video-results/tasks/task_modelapi_archive.mp4")
+
+		text, err := perfmetrics.BuildPrometheusText(context.Background())
+		require.NoError(t, err)
+		require.Contains(t, text, `newapi_video_result_archive_total{channel="modelapi",outcome="success"} 1`)
+		require.Contains(t, text, `newapi_video_result_archive_bytes_total{channel="modelapi"} 16`)
+		require.Contains(t, text, `newapi_video_result_archive_total{channel="techmobi",outcome="success"} 0`)
 	})
 
 	for _, testCase := range []struct {
@@ -466,6 +494,111 @@ func TestArchiveVideoResult(t *testing.T) {
 		require.ErrorIs(t, err, ErrVideoResultConfig)
 	})
 
+	t.Run("modelapi rejects configured proxy before fetching archive source", func(t *testing.T) {
+		start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+		store := newFakeVideoResultStore()
+		restore := installVideoResultArchiveTestHooks(t, store, start)
+		defer restore()
+		t.Setenv("VIDEO_RESULT_STORAGE_BUCKET", "video-bucket")
+		sourceHits := 0
+		source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sourceHits++
+			w.Header().Set("Content-Type", "video/mp4")
+			_, _ = w.Write(minimalMP4Fixture())
+		}))
+		defer source.Close()
+		proxyHits := 0
+		proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			proxyHits++
+			w.Header().Set("Content-Type", "video/mp4")
+			_, _ = w.Write(minimalMP4Fixture())
+		}))
+		defer proxy.Close()
+
+		_, err := ArchiveVideoResultForChannel(context.Background(), "modelapi", "task_proxy_rejected", source.URL, proxy.URL)
+		require.ErrorIs(t, err, ErrVideoResultInvalidContent)
+		require.Equal(t, 0, proxyHits)
+		require.Equal(t, 0, sourceHits)
+		require.Empty(t, store.created)
+	})
+
+	t.Run("techmobi archives through configured proxy", func(t *testing.T) {
+		start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+		store := newFakeVideoResultStore()
+		restore := installVideoResultArchiveTestHooks(t, store, start)
+		defer restore()
+		t.Cleanup(ResetProxyClientCache)
+		t.Setenv("VIDEO_RESULT_STORAGE_BUCKET", "video-bucket")
+		payload := minimalMP4Fixture()
+
+		sourceHits := 0
+		source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sourceHits++
+			require.Equal(t, http.MethodGet, r.Method)
+			w.Header().Set("Content-Type", "video/mp4")
+			_, _ = w.Write(payload)
+		}))
+		defer source.Close()
+		sourceURL, err := url.Parse(source.URL)
+		require.NoError(t, err)
+
+		proxyHits := 0
+		proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			proxyHits++
+			require.Equal(t, http.MethodGet, r.Method)
+			require.Equal(t, sourceURL.Host, r.URL.Host)
+
+			outbound := r.Clone(r.Context())
+			outbound.RequestURI = ""
+			outbound.Header.Del("Proxy-Connection")
+			response, err := http.DefaultTransport.RoundTrip(outbound)
+			require.NoError(t, err)
+			defer response.Body.Close()
+
+			for key, values := range response.Header {
+				for _, value := range values {
+					w.Header().Add(key, value)
+				}
+			}
+			w.WriteHeader(response.StatusCode)
+			_, err = io.Copy(w, response.Body)
+			require.NoError(t, err)
+		}))
+		defer proxy.Close()
+
+		result, err := ArchiveVideoResult(context.Background(), "task_proxy_archive", source.URL, proxy.URL)
+		require.NoError(t, err)
+		require.Equal(t, "video-results/tasks/task_proxy_archive.mp4", result.Object)
+		require.Equal(t, 1, proxyHits)
+		require.Equal(t, 1, sourceHits)
+		created := store.created["video-bucket/video-results/tasks/task_proxy_archive.mp4"]
+		require.Equal(t, payload, created.body)
+	})
+
+	t.Run("uses the same object key across archive start dates", func(t *testing.T) {
+		t.Setenv("VIDEO_RESULT_STORAGE_BUCKET", "video-bucket")
+		payload := minimalMP4Fixture()
+		server := newVideoResultTestServer(t, http.StatusOK, "video/mp4", string(payload))
+		defer server.Close()
+
+		storeBeforeMidnight := newFakeVideoResultStore()
+		restoreBefore := installVideoResultArchiveTestHooks(t, storeBeforeMidnight, time.Date(2026, 8, 6, 23, 59, 59, 0, time.UTC))
+		resultBefore, err := ArchiveVideoResult(context.Background(), "task_cross_date", server.URL, "")
+		require.NoError(t, err)
+		restoreBefore()
+
+		storeAfterMidnight := newFakeVideoResultStore()
+		restoreAfter := installVideoResultArchiveTestHooks(t, storeAfterMidnight, time.Date(2026, 8, 7, 0, 0, 1, 0, time.UTC))
+		resultAfter, err := ArchiveVideoResult(context.Background(), "task_cross_date", server.URL, "")
+		require.NoError(t, err)
+		restoreAfter()
+
+		require.Equal(t, "video-results/tasks/task_cross_date.mp4", resultBefore.Object)
+		require.Equal(t, resultBefore.Object, resultAfter.Object)
+		require.Contains(t, storeBeforeMidnight.created, "video-bucket/video-results/tasks/task_cross_date.mp4")
+		require.Contains(t, storeAfterMidnight.created, "video-bucket/video-results/tasks/task_cross_date.mp4")
+	})
+
 	t.Run("reuses valid existing object after create conflict", func(t *testing.T) {
 		resetVideoResultMetricsForServiceTest(t)
 		start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
@@ -475,7 +608,7 @@ func TestArchiveVideoResult(t *testing.T) {
 		defer restore()
 		t.Setenv("VIDEO_RESULT_STORAGE_BUCKET", "video-bucket")
 		t.Setenv("VIDEO_RESULT_RETENTION_SECONDS", "7200")
-		key := "video-bucket/video-results/20260806/task_conflict.mp4"
+		key := "video-bucket/video-results/tasks/task_conflict.mp4"
 		store.createErr = ErrVideoResultAlreadyExists
 		store.attrs[key] = VideoResultObjectAttrs{
 			ContentType: "video/mp4",
@@ -505,7 +638,7 @@ func TestArchiveVideoResult(t *testing.T) {
 		restore := installVideoResultArchiveTestHooks(t, store, start)
 		defer restore()
 		t.Setenv("VIDEO_RESULT_STORAGE_BUCKET", "video-bucket")
-		key := "video-bucket/video-results/20260806/task_invalid_existing.mp4"
+		key := "video-bucket/video-results/tasks/task_invalid_existing.mp4"
 		store.createErr = ErrVideoResultAlreadyExists
 		store.attrs[key] = VideoResultObjectAttrs{ContentType: "application/octet-stream", Size: 42, Generation: 7, Created: start}
 
@@ -577,19 +710,19 @@ func TestSignVideoResultDownload(t *testing.T) {
 		t.Setenv("VIDEO_RESULT_SERVICE_ACCOUNT_EMAIL", "video-signer@example.iam.gserviceaccount.com")
 		result := &model.VideoResult{
 			Bucket:      "video-bucket",
-			Object:      "video-results/20260806/task_signed.mp4",
+			Object:      "video-results/tasks/task_signed.mp4",
 			Generation:  7,
 			ContentType: "video/mp4; charset=binary",
 			Size:        42,
 			ExpiresAt:   now.Add(5 * time.Minute).Unix(),
 		}
-		store.attrs["video-bucket/video-results/20260806/task_signed.mp4"] = VideoResultObjectAttrs{
+		store.attrs["video-bucket/video-results/tasks/task_signed.mp4"] = VideoResultObjectAttrs{
 			ContentType: "video/mp4; charset=binary",
 			Size:        42,
 			Generation:  7,
 			Created:     now.Add(-time.Minute),
 		}
-		store.signedURL = "https://storage.googleapis.com/video-bucket/video-results/20260806/task_signed.mp4?X-Goog-Signature=secret"
+		store.signedURL = "https://storage.googleapis.com/video-bucket/video-results/tasks/task_signed.mp4?X-Goog-Signature=secret"
 
 		signed, err := SignVideoResultDownload(context.Background(), "task_signed", result)
 		require.NoError(t, err)
@@ -605,6 +738,36 @@ func TestSignVideoResultDownload(t *testing.T) {
 		require.Equal(t, "7", req.QueryParameters.Get("generation"))
 		require.Equal(t, `attachment; filename="task_signed.mp4"`, req.QueryParameters.Get("response-content-disposition"))
 		require.Equal(t, "video/mp4", req.QueryParameters.Get("response-content-type"))
+	})
+
+	t.Run("signs a historical date object path for existing archived results", func(t *testing.T) {
+		store := newFakeVideoResultStore()
+		restore := installVideoResultArchiveTestHooks(t, store, now)
+		defer restore()
+		t.Setenv("VIDEO_RESULT_STORAGE_BUCKET", "video-bucket")
+		t.Setenv("VIDEO_RESULT_SIGNED_URL_TTL_SECONDS", "900")
+		result := &model.VideoResult{
+			Bucket:      "video-bucket",
+			Object:      "video-results/20260806/task_signed.mp4",
+			Generation:  7,
+			ContentType: "video/mp4",
+			Size:        42,
+			ExpiresAt:   now.Add(5 * time.Minute).Unix(),
+		}
+		store.attrs["video-bucket/video-results/20260806/task_signed.mp4"] = VideoResultObjectAttrs{
+			ContentType: "video/mp4",
+			Size:        42,
+			Generation:  7,
+			Created:     now.Add(-time.Minute),
+		}
+
+		signed, err := SignVideoResultDownload(context.Background(), "task_signed", result)
+		require.NoError(t, err)
+		require.Equal(t, "https://signed.example/video", signed)
+		require.Equal(t, "video-bucket", store.signedBucket)
+		require.Equal(t, "video-results/20260806/task_signed.mp4", store.signedObject)
+		require.Equal(t, 1, store.attrsCalls)
+		require.Equal(t, 1, store.signCalls)
 	})
 
 	t.Run("requires attrs content type to match persisted media type", func(t *testing.T) {
@@ -647,6 +810,9 @@ func TestSignVideoResultDownload(t *testing.T) {
 
 	t.Run("rejects object paths not bound to the requested task before object access", func(t *testing.T) {
 		for _, objectKey := range []string{
+			"video-results/tasks/task_other.mp4",
+			"video-results/tasks/task_signed.webm",
+			"video-results/tasks/nested/task_signed.mp4",
 			"video-results/20260806/task_other.mp4",
 			"video-results/20260806/task_signed.webm",
 			"video-results/2026080/task_signed.mp4",
@@ -894,6 +1060,8 @@ type fakeVideoResultStore struct {
 	attrsCalls      int
 	signCalls       int
 	signRequests    []VideoResultSignedURLRequest
+	signedBucket    string
+	signedObject    string
 	nextAttrs       VideoResultObjectAttrs
 	closedWithError bool
 	validatedURLs   map[string]bool
@@ -949,9 +1117,11 @@ func (f *fakeVideoResultStore) Attrs(_ context.Context, bucket, objectKey string
 	return attrs, nil
 }
 
-func (f *fakeVideoResultStore) SignURL(_ context.Context, _ string, _ string, request VideoResultSignedURLRequest) (string, error) {
+func (f *fakeVideoResultStore) SignURL(_ context.Context, bucket, objectKey string, request VideoResultSignedURLRequest) (string, error) {
 	f.signCalls++
 	f.signRequests = append(f.signRequests, request)
+	f.signedBucket = bucket
+	f.signedObject = objectKey
 	if f.signErr != nil {
 		return "", f.signErr
 	}

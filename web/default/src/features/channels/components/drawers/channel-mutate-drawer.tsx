@@ -142,6 +142,7 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  hasAdvancedSettingsValues,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -202,29 +203,6 @@ const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8
 function readAdvancedSettingsPreference(): boolean {
   if (typeof window === 'undefined') return false
   return window.localStorage.getItem(ADVANCED_SETTINGS_EXPANDED_KEY) === 'true'
-}
-
-function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
-  return Boolean(
-    values.param_override?.trim() ||
-    values.header_override?.trim() ||
-    values.status_code_mapping?.trim() ||
-    values.tag?.trim() ||
-    values.remark?.trim() ||
-    values.priority ||
-    values.weight ||
-    values.max_concurrency ||
-    values.proxy?.trim() ||
-    values.system_prompt?.trim() ||
-    values.force_format ||
-    values.thinking_to_content ||
-    values.pass_through_body_enabled ||
-    values.system_prompt_override ||
-    values.claude_beta_query ||
-    values.upstream_model_update_check_enabled ||
-    values.upstream_model_update_auto_sync_enabled ||
-    values.upstream_model_update_ignored_models?.trim()
-  )
 }
 
 function parseSettingsRecord(
@@ -3234,27 +3212,31 @@ export function ChannelMutateDrawer({
                         />
                       </div>
 
-                      <FormField
-                        control={form.control}
-                        name='proxy'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('Proxy Address')}</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder={t('socks5://user:pass@host:port')}
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              {t(
-                                'Network proxy for this channel (supports socks5 protocol)'
-                              )}
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {currentType !== 111 && (
+                        <FormField
+                          control={form.control}
+                          name='proxy'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Proxy Address')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={t(
+                                    'socks5://user:pass@host:port'
+                                  )}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Network proxy for this channel (supports socks5 protocol)'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
 
                       <FormField
                         control={form.control}

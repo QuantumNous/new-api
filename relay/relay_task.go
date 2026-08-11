@@ -306,13 +306,17 @@ func ExecutePreparedTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo, pref
 	// 11. 解析响应
 	upstreamTaskID, taskData, taskErr := adaptor.DoResponse(c, resp, info)
 	if taskErr != nil {
-		return &TaskSubmitResult{
-			UpstreamTaskID:      upstreamTaskID,
-			TaskData:            taskData,
-			Platform:            platform,
-			Quota:               preflight.Quota,
-			OutcomeMayBeUnknown: true,
-		}, taskErr
+		result := &TaskSubmitResult{
+			UpstreamTaskID: upstreamTaskID,
+			TaskData:       taskData,
+			Platform:       platform,
+			Quota:          preflight.Quota,
+		}
+		if info != nil && info.ChannelType == constant.ChannelTypeModelAPISeedance && taskErr.StatusCode == http.StatusTooManyRequests {
+			return result, taskErr
+		}
+		result.OutcomeMayBeUnknown = true
+		return result, taskErr
 	}
 
 	// 11. 提交后计费调整：让适配器根据上游实际返回调整 OtherRatios
@@ -348,16 +352,29 @@ func applyTaskOtherRatios(priceData *types.PriceData) {
 	}
 }
 
+const (
+	taskSubmitErrorResponseMaxBytes = 1 << 20
+	taskSubmitErrorFallbackMessage  = "upstream task submit failed"
+)
+
 func taskSubmitStatusError(platform constant.TaskPlatform, resp *http.Response) *dto.TaskError {
 	statusCode := http.StatusInternalServerError
 	if resp != nil {
 		statusCode = resp.StatusCode
 	}
 	var responseBody []byte
+	var readErr error
 	if resp != nil && resp.Body != nil {
-		responseBody, _ = io.ReadAll(resp.Body)
+		defer func() { _ = resp.Body.Close() }()
+		responseBody, readErr = io.ReadAll(io.LimitReader(resp.Body, taskSubmitErrorResponseMaxBytes+1))
+		if len(responseBody) > taskSubmitErrorResponseMaxBytes {
+			responseBody = responseBody[:taskSubmitErrorResponseMaxBytes]
+		}
 	}
 	message := string(responseBody)
+	if readErr != nil || strings.TrimSpace(message) == "" {
+		message = taskSubmitErrorFallbackMessage
+	}
 	if channelType, err := strconv.Atoi(string(platform)); err == nil && taskcommon.ShouldWhitelabelChannelType(channelType) {
 		message = "task failed at upstream provider"
 	}
@@ -486,6 +503,10 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	isOpenAIVideoAPI := isOpenAIVideoFetchPath(c.Request.URL.Path)
 	isVideoToMusicAPI := isVideoToMusicFetchPath(c.Request.URL.Path)
 	isGenerationTasksAPI := isGenerationTasksFetchPath(c.Request.URL.Path)
+	if isModelAPISeedanceTask(originTask) && !isOpenAIVideoAPI {
+		taskResp = service.TaskErrorWrapperLocal(errors.New("task is not available on this endpoint"), "invalid_request", http.StatusBadRequest)
+		return
+	}
 
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
 	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI || isGenerationTasksAPI); len(realtimeResp) > 0 {
@@ -563,6 +584,13 @@ func isVideoToMusicFetchPath(path string) bool {
 
 func isGenerationTasksFetchPath(path string) bool {
 	return strings.HasPrefix(path, "/v1/generation/tasks/")
+}
+
+func isModelAPISeedanceTask(task *model.Task) bool {
+	if task == nil {
+		return false
+	}
+	return task.Platform == constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeModelAPISeedance))
 }
 
 type generationTaskVideoURL struct {

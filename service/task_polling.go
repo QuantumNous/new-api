@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -52,9 +53,23 @@ type perCallTaskBillingAdjuster interface {
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
 
+var archiveVideoResultForChannel = ArchiveVideoResultForChannel
 var archiveTechMobiVideoResult = ArchiveVideoResult
+var archiveModelAPIVideoResult = func(ctx context.Context, publicTaskID, upstreamURL, proxy string) (*model.VideoResult, error) {
+	return archiveVideoResultForChannel(ctx, "modelapi", publicTaskID, upstreamURL, proxy)
+}
 
-var techMobiLogURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+`)
+var taskVideoResultArchiveLeaseHeartbeatInterval time.Duration
+
+const (
+	modelAPIPollingRequestTimeout                   = 30 * time.Second
+	modelAPIPollingResponseMaxBytes                 = 1 << 20
+	taskVideoResultArchiveLeaseMinHeartbeatInterval = 5 * time.Second
+)
+
+var archivedVideoLogURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+`)
+
+var errTaskVideoResultArchiveLeaseLost = errors.New("video_result_archive_lease_lost")
 
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
 // 每次最多处理 100 条，剩余的下个周期继续处理。
@@ -315,14 +330,14 @@ func taskNeedsUpdate(oldTask *model.Task, newTask dto.SunoDataResponse) bool {
 func UpdateVideoTasks(ctx context.Context, platform constant.TaskPlatform, taskChannelM map[int][]string, taskM map[string]*model.Task) error {
 	for channelId, taskIds := range taskChannelM {
 		if err := updateVideoTasks(ctx, platform, channelId, taskIds, taskM); err != nil {
-			logger.LogError(ctx, fmt.Sprintf("Channel #%d failed to update video async tasks: %s", channelId, err.Error()))
+			logger.LogError(ctx, fmt.Sprintf("Failed to update video async tasks: %s", err.Error()))
 		}
 	}
 	return nil
 }
 
 func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, channelId int, taskIds []string, taskM map[string]*model.Task) error {
-	logger.LogInfo(ctx, fmt.Sprintf("Channel #%d pending video tasks: %d", channelId, len(taskIds)))
+	logger.LogInfo(ctx, fmt.Sprintf("Pending video tasks: %d", len(taskIds)))
 	if len(taskIds) == 0 {
 		return nil
 	}
@@ -357,12 +372,86 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	adaptor.Init(info)
 	for _, taskId := range taskIds {
 		if err := updateVideoSingleTask(ctx, adaptor, cacheGetChannel, taskId, taskM); err != nil {
-			logger.LogError(ctx, fmt.Sprintf("Failed to update video task %s: %s", taskId, err.Error()))
+			logger.LogError(ctx, fmt.Sprintf("Failed to update video task: %s", err.Error()))
 		}
 		// sleep 1 second between each task to avoid hitting rate limits of upstream platforms
 		time.Sleep(1 * time.Second)
 	}
 	return nil
+}
+
+func startTaskVideoResultArchiveLeaseHeartbeat(ctx context.Context, cancel context.CancelFunc, taskID string, fromStatus model.TaskStatus, owner string, initialLeaseExpiresAt int64, leaseTTL time.Duration) func() (int64, error) {
+	interval := effectiveTaskVideoResultArchiveLeaseHeartbeatInterval(leaseTTL)
+	stop := make(chan struct{})
+	done := make(chan error, 1)
+	var lost atomic.Bool
+	var latestExpiry atomic.Int64
+	latestExpiry.Store(initialLeaseExpiresAt)
+
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				done <- nil
+				return
+			case <-ctx.Done():
+				done <- ctx.Err()
+				return
+			case <-ticker.C:
+				now, err := model.GetDBTimestampWithContext(ctx)
+				if err != nil {
+					lost.Store(true)
+					cancel()
+					done <- errTaskVideoResultArchiveLeaseLost
+					return
+				}
+				expected := latestExpiry.Load()
+				nextExpiry := now + int64(leaseTTL.Seconds())
+				won, err := model.RenewTaskVideoResultArchiveLease(taskID, fromStatus, owner, expected, now, nextExpiry)
+				if err != nil || !won {
+					lost.Store(true)
+					cancel()
+					done <- errTaskVideoResultArchiveLeaseLost
+					return
+				}
+				latestExpiry.Store(nextExpiry)
+			}
+		}
+	}()
+
+	return func() (int64, error) {
+		if lost.Load() {
+			return latestExpiry.Load(), <-done
+		}
+		close(stop)
+		err := <-done
+		if errors.Is(err, context.Canceled) {
+			return latestExpiry.Load(), nil
+		}
+		return latestExpiry.Load(), err
+	}
+}
+
+func effectiveTaskVideoResultArchiveLeaseHeartbeatInterval(leaseTTL time.Duration) time.Duration {
+	if taskVideoResultArchiveLeaseHeartbeatInterval > 0 {
+		return taskVideoResultArchiveLeaseHeartbeatInterval
+	}
+	interval := leaseTTL / 3
+	if interval > time.Minute {
+		interval = time.Minute
+	}
+	if interval < taskVideoResultArchiveLeaseMinHeartbeatInterval {
+		interval = taskVideoResultArchiveLeaseMinHeartbeatInterval
+	}
+	if leaseTTL > 0 && interval >= leaseTTL {
+		interval = leaseTTL / 2
+	}
+	if interval <= 0 {
+		interval = time.Second
+	}
+	return interval
 }
 
 func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *model.Channel, taskId string, taskM map[string]*model.Task) error {
@@ -376,8 +465,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	task := taskM[taskId]
 	if task == nil {
-		logger.LogError(ctx, fmt.Sprintf("Task %s not found in taskM", taskId))
-		return fmt.Errorf("task %s not found", taskId)
+		logger.LogError(ctx, "Task not found in taskM")
+		return errors.New("task not found")
+	}
+	if ch.Type == constant.ChannelTypeModelAPISeedance && strings.TrimSpace(proxy) != "" {
+		return archivedVideoPollingPhaseError(task.TaskID, "fetch")
 	}
 	key := ch.Key
 
@@ -385,21 +477,34 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
-	resp, err := FetchTaskWithContext(ctx, adaptor, baseURL, key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
+	upstreamTaskID := task.GetUpstreamTaskID()
+	pollingCtx := ctx
+	var cancelPolling context.CancelFunc
+	if ch.Type == constant.ChannelTypeModelAPISeedance {
+		pollingCtx, cancelPolling = context.WithTimeout(ctx, modelAPIPollingRequestTimeout)
+		defer cancelPolling()
+	}
+	resp, err := FetchTaskWithContext(pollingCtx, adaptor, baseURL, key, map[string]any{
+		"task_id": upstreamTaskID,
 		"action":  task.Action,
 	}, proxy)
 	if err != nil {
-		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
+		if VideoResultChannelLabel(ch.Type) != "" {
+			return archivedVideoPollingPhaseError(task.TaskID, "fetch")
+		}
+		return fmt.Errorf("fetchTask failed for task %s: %w", task.TaskID, err)
 	}
 	defer resp.Body.Close()
-	responseBody, err := io.ReadAll(resp.Body)
+	responseBody, err := readVideoPollingResponseBody(pollingCtx, ch.Type, resp.Body)
 	if err != nil {
-		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
+		if VideoResultChannelLabel(ch.Type) != "" {
+			return archivedVideoPollingPhaseError(task.TaskID, "read")
+		}
+		return fmt.Errorf("readAll failed for task %s: %w", task.TaskID, err)
 	}
 
-	if ch.Type == constant.ChannelTypeTechMobiVideo {
-		logger.LogDebug(ctx, "updateVideoSingleTask response received: task_id=%s upstream_task_id=%s phase=fetched bytes=%d", task.TaskID, task.GetUpstreamTaskID(), len(responseBody))
+	if VideoResultChannelLabel(ch.Type) != "" {
+		logger.LogDebug(ctx, "updateVideoSingleTask response received: task_id=%s phase=fetched bytes=%d", task.TaskID, len(responseBody))
 	} else {
 		logger.LogDebug(ctx, "updateVideoSingleTask response: %s", responseBody)
 	}
@@ -409,9 +514,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	taskResult := &relaycommon.TaskInfo{}
 	// try parse as New API response format
 	var responseItems dto.TaskResponse[model.Task]
-	if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
-		if ch.Type == constant.ChannelTypeTechMobiVideo {
-			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: task_id=%s upstream_task_id=%s phase=parsed status=%s", task.TaskID, task.GetUpstreamTaskID(), responseItems.Data.Status)
+	if ch.Type != constant.ChannelTypeModelAPISeedance && common.Unmarshal(responseBody, &responseItems) == nil && responseItems.IsSuccess() {
+		if VideoResultChannelLabel(ch.Type) != "" {
+			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: task_id=%s phase=parsed status=%s", task.TaskID, archivedVideoPollingStatus(string(responseItems.Data.Status)))
 		} else {
 			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: %+v", responseItems)
 		}
@@ -423,13 +528,16 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		taskResult.Reason = t.FailReason
 		task.Data = t.Data
 	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
-		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
+		if VideoResultChannelLabel(ch.Type) != "" {
+			return archivedVideoPollingPhaseError(task.TaskID, "parse")
+		}
+		return fmt.Errorf("parseTaskResult failed for task %s: %w", task.TaskID, err)
 	}
 
 	task.Data = redactVideoResponseForChannel(ch.Type, responseBody)
 
-	if ch.Type == constant.ChannelTypeTechMobiVideo {
-		logger.LogDebug(ctx, "updateVideoSingleTask task result parsed: task_id=%s upstream_task_id=%s phase=parsed status=%s progress=%s", task.TaskID, task.GetUpstreamTaskID(), taskResult.Status, taskResult.Progress)
+	if VideoResultChannelLabel(ch.Type) != "" {
+		logger.LogDebug(ctx, "updateVideoSingleTask task result parsed: task_id=%s phase=parsed status=%s", task.TaskID, archivedVideoPollingStatus(taskResult.Status))
 	} else {
 		logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
 	}
@@ -451,26 +559,103 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
 				// unknown error format, log original response
-				if ch.Type == constant.ChannelTypeTechMobiVideo {
-					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format", taskId))
+				if VideoResultChannelLabel(ch.Type) != "" {
+					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format", task.TaskID))
 				} else {
-					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
+					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", task.TaskID, string(responseBody)))
 				}
 				taskResult = relaycommon.FailTaskInfo("upstream returned unrecognized message")
 			}
 		}
 	}
 
-	if returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess && strings.TrimSpace(taskResult.Url) == "" {
-		return fmt.Errorf("techmobi task %s missing source URL", task.TaskID)
+	archiveChannelLabel := VideoResultChannelLabel(ch.Type)
+	if (returnSourceURL || (archiveChannelLabel != "" && !returnSourceURL)) &&
+		taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess && strings.TrimSpace(taskResult.Url) == "" {
+		return fmt.Errorf("task %s missing source URL: phase=source status=%s", task.TaskID, archivedVideoPollingStatus(taskResult.Status))
 	}
 
-	if ch.Type == constant.ChannelTypeTechMobiVideo && !returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
+	var (
+		archiveLeaseOwner         string
+		archiveLeaseExpiresAt     int64
+		archiveLeaseClaimed       bool
+		stopArchiveLeaseHeartbeat func() (int64, error)
+		cancelArchiveLeaseContext context.CancelFunc
+	)
+	releaseArchiveLease := func() {
+		if !archiveLeaseClaimed {
+			return
+		}
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancelCleanup()
+		releaseNow, dbErr := model.GetDBTimestampWithContext(cleanupCtx)
+		if dbErr != nil {
+			logger.LogError(ctx, fmt.Sprintf("GetDBTimestampWithContext failed before archive lease release for task %s: %s", task.TaskID, dbErr.Error()))
+			return
+		}
+		released, releaseErr := model.ReleaseTaskVideoResultArchiveLeaseWithContext(cleanupCtx, task.TaskID, snap.Status, archiveLeaseOwner, archiveLeaseExpiresAt, releaseNow)
+		if releaseErr != nil {
+			logger.LogError(ctx, fmt.Sprintf("ReleaseTaskVideoResultArchiveLease failed for task %s: %s", task.TaskID, releaseErr.Error()))
+			return
+		}
+		if !released {
+			logger.LogWarn(ctx, fmt.Sprintf("Task %s archive lease was already moved, skip release", task.TaskID))
+		}
+	}
+
+	if archiveChannelLabel != "" && !returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
 		if task.PrivateData.VideoResult == nil {
-			videoResult, archiveErr := archiveTechMobiVideoResult(ctx, task.TaskID, taskResult.Url, proxy)
+			var (
+				videoResult *model.VideoResult
+				archiveErr  error
+			)
+			archiveCtx := ctx
+			if ch.Type == constant.ChannelTypeModelAPISeedance {
+				dbNow, dbErr := model.GetDBTimestampWithContext(ctx)
+				if dbErr != nil {
+					logger.LogError(ctx, fmt.Sprintf("GetDBTimestampWithContext failed before archive lease for task %s: %s", task.TaskID, dbErr.Error()))
+					return archivedVideoPollingPhaseError(task.TaskID, "archive")
+				}
+				archiveLeaseOwner = common.GetUUID()
+				archiveLeaseTTL := CurrentVideoResultStorageConfig().FetchTimeout + time.Minute
+				archiveLeaseExpiresAt = dbNow + int64(archiveLeaseTTL.Seconds())
+				claimed, claimErr := model.ClaimTaskVideoResultArchiveLease(task.TaskID, snap.Status, archiveLeaseOwner, dbNow, archiveLeaseExpiresAt)
+				if claimErr != nil {
+					logger.LogError(ctx, fmt.Sprintf("ClaimTaskVideoResultArchiveLease failed for task %s: %s", task.TaskID, claimErr.Error()))
+					return archivedVideoPollingPhaseError(task.TaskID, "archive")
+				}
+				if !claimed {
+					logger.LogWarn(ctx, fmt.Sprintf("Task %s archive lease already claimed or finalized, skip archive", task.TaskID))
+					return nil
+				}
+				archiveLeaseClaimed = true
+				archiveCtx, cancelArchiveLeaseContext = context.WithCancel(ctx)
+				stopArchiveLeaseHeartbeat = startTaskVideoResultArchiveLeaseHeartbeat(archiveCtx, cancelArchiveLeaseContext, task.TaskID, snap.Status, archiveLeaseOwner, archiveLeaseExpiresAt, archiveLeaseTTL)
+			}
+			switch ch.Type {
+			case constant.ChannelTypeTechMobiVideo:
+				videoResult, archiveErr = archiveTechMobiVideoResult(ctx, task.TaskID, taskResult.Url, proxy)
+			case constant.ChannelTypeModelAPISeedance:
+				videoResult, archiveErr = archiveModelAPIVideoResult(archiveCtx, task.TaskID, taskResult.Url, proxy)
+			default:
+				videoResult, archiveErr = archiveVideoResultForChannel(ctx, archiveChannelLabel, task.TaskID, taskResult.Url, proxy)
+			}
+			if stopArchiveLeaseHeartbeat != nil {
+				latestExpiry, heartbeatErr := stopArchiveLeaseHeartbeat()
+				archiveLeaseExpiresAt = latestExpiry
+				if cancelArchiveLeaseContext != nil {
+					cancelArchiveLeaseContext()
+				}
+				if heartbeatErr != nil && archiveErr == nil {
+					archiveErr = heartbeatErr
+				}
+			}
 			if archiveErr != nil {
-				perfmetrics.RecordVideoResultArchiveRetry("techmobi", "archive_failure")
-				return fmt.Errorf("archive techmobi video result failed for task %s: %s", task.TaskID, sanitizeVideoResultArchiveError(archiveErr))
+				if archiveLeaseClaimed {
+					releaseArchiveLease()
+				}
+				perfmetrics.RecordVideoResultArchiveRetry(archiveChannelLabel, "archive_failure")
+				return fmt.Errorf("video archive failed for task %s: phase=archive status=%s: %s", task.TaskID, archivedVideoPollingStatus(taskResult.Status), sanitizeVideoResultArchiveError(archiveErr))
 			}
 			task.PrivateData.VideoResult = videoResult
 		}
@@ -520,8 +705,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
-		if ch.Type == constant.ChannelTypeTechMobiVideo {
-			logger.LogInfo(ctx, fmt.Sprintf("TechMobi task failed: task_id=%s channel_id=%d status=%s reason=%s", task.TaskID, ch.Id, taskResult.Status, sanitizeTechMobiLogText(taskResult.Reason)))
+		if VideoResultChannelLabel(ch.Type) != "" {
+			logger.LogInfo(ctx, fmt.Sprintf("Archived video task failed: task_id=%s status=%s", task.TaskID, taskResult.Status))
 		} else {
 			logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
 		}
@@ -531,15 +716,20 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			task.FinishTime = now
 		}
 		task.FailReason = taskResult.Reason
-		if ch.Type == constant.ChannelTypeTechMobiVideo {
-			task.FailReason = sanitizeTechMobiLogText(task.FailReason)
+		if VideoResultChannelLabel(ch.Type) != "" {
+			task.FailReason = sanitizeArchivedVideoLogText(ch.Type, task.FailReason)
+			logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: status=%s", task.TaskID, task.Status))
+		} else {
+			logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		}
-		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		taskResult.Progress = taskcommon.ProgressComplete
 		if quota != 0 {
 			shouldRefund = true
 		}
 	default:
+		if VideoResultChannelLabel(ch.Type) != "" {
+			return fmt.Errorf("unknown task status for task %s: phase=status status=%s", task.TaskID, archivedVideoPollingStatus(taskResult.Status))
+		}
 		return fmt.Errorf("unknown task status %s for task %s", taskResult.Status, task.TaskID)
 	}
 	if taskResult.Progress != "" {
@@ -548,7 +738,24 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	isDone := task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure
 	if isDone && snap.Status != task.Status {
-		won, err := task.UpdateWithStatus(snap.Status)
+		var won bool
+		var err error
+		if archiveLeaseClaimed {
+			dbNow, dbErr := model.GetDBTimestampWithContext(ctx)
+			if dbErr != nil {
+				logger.LogError(ctx, fmt.Sprintf("GetDBTimestampWithContext failed before archive finalize for task %s: %s", task.TaskID, dbErr.Error()))
+				releaseArchiveLease()
+				shouldRefund = false
+				shouldSettle = false
+			} else {
+				won, err = task.UpdateWithStatusAndVideoResultArchiveLease(snap.Status, archiveLeaseOwner, archiveLeaseExpiresAt, dbNow)
+				if err != nil || !won {
+					releaseArchiveLease()
+				}
+			}
+		} else {
+			won, err = task.UpdateWithStatus(snap.Status)
+		}
 		if err != nil {
 			logger.LogError(ctx, fmt.Sprintf("UpdateWithStatus failed for task %s: %s", task.TaskID, err.Error()))
 			shouldRefund = false
@@ -609,17 +816,24 @@ func redactVideoResponseBody(body []byte) []byte {
 func redactVideoResponseForChannel(channelType int, body []byte) []byte {
 	redacted := redactVideoResponseBody(body)
 	if channelType == constant.ChannelTypeTechMobiVideo {
-		return redactTechMobiVideoResponseBody(redacted)
+		return redactArchivedVideoResponseBody(redacted, false)
+	}
+	if channelType == constant.ChannelTypeModelAPISeedance {
+		return redactArchivedVideoResponseBody(redacted, true)
 	}
 	return redacted
 }
 
 func redactTechMobiVideoResponseBody(body []byte) []byte {
+	return redactArchivedVideoResponseBody(body, false)
+}
+
+func redactArchivedVideoResponseBody(body []byte, scrubBrand bool) []byte {
 	var value any
 	if err := common.Unmarshal(body, &value); err != nil {
 		return body
 	}
-	redacted := redactTechMobiVideoValue(value)
+	redacted := redactArchivedVideoValue(value, scrubBrand)
 	b, err := common.Marshal(redacted)
 	if err != nil {
 		return body
@@ -627,34 +841,47 @@ func redactTechMobiVideoResponseBody(body []byte) []byte {
 	return b
 }
 
-func redactTechMobiVideoValue(v any) any {
+func redactArchivedVideoValue(v any, scrubBrand bool) any {
 	switch value := v.(type) {
 	case map[string]any:
 		for key, child := range value {
-			if isTechMobiVideoURLKey(key) {
-				value[key] = redactTechMobiVideoURLValue(child)
+			if scrubBrand && isArchivedVideoPrivateIdentifierKey(key) {
+				delete(value, key)
 				continue
 			}
-			value[key] = redactTechMobiVideoValue(child)
+			if isArchivedVideoURLKey(key) {
+				value[key] = redactArchivedVideoURLValue(child, scrubBrand)
+				continue
+			}
+			value[key] = redactArchivedVideoValue(child, scrubBrand)
 		}
 		return value
 	case []any:
 		for i, child := range value {
-			value[i] = redactTechMobiVideoValue(child)
+			value[i] = redactArchivedVideoValue(child, scrubBrand)
 		}
 		return value
 	case string:
-		return redactTechMobiURLs(value)
+		return sanitizeArchivedVideoString(value, scrubBrand)
 	default:
 		return value
 	}
 }
 
-func redactTechMobiVideoURLValue(v any) any {
-	return redactTechMobiVideoValue(v)
+func isArchivedVideoPrivateIdentifierKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(key, "_", ""))
+	return normalized == "id" || normalized == "taskid"
+}
+
+func redactArchivedVideoURLValue(v any, scrubBrand bool) any {
+	return redactArchivedVideoValue(v, scrubBrand)
 }
 
 func isTechMobiVideoURLKey(key string) bool {
+	return isArchivedVideoURLKey(key)
+}
+
+func isArchivedVideoURLKey(key string) bool {
 	normalized := strings.ToLower(strings.ReplaceAll(key, "_", ""))
 	switch normalized {
 	case "url", "videourl", "downloadurl", "fileurl", "objecturl", "remoteurl":
@@ -689,15 +916,69 @@ func sanitizeVideoResultArchiveError(err error) string {
 	return "archive unavailable"
 }
 
-func sanitizeTechMobiLogText(text string) string {
+func archivedVideoPollingPhaseError(taskID, phase string) error {
+	return fmt.Errorf("task %s polling failed: phase=%s", taskID, phase)
+}
+
+func archivedVideoPollingStatus(status string) string {
+	switch model.TaskStatus(status) {
+	case model.TaskStatusSubmitted, model.TaskStatusQueued, model.TaskStatusInProgress, model.TaskStatusSuccess, model.TaskStatusFailure:
+		return status
+	default:
+		return "unknown"
+	}
+}
+
+func readVideoPollingResponseBody(ctx context.Context, channelType int, body io.Reader) ([]byte, error) {
+	if channelType != constant.ChannelTypeModelAPISeedance {
+		return io.ReadAll(body)
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	responseBody, err := io.ReadAll(io.LimitReader(body, modelAPIPollingResponseMaxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	if len(responseBody) > modelAPIPollingResponseMaxBytes {
+		return nil, errors.New("polling response too large")
+	}
+	return responseBody, nil
+}
+
+func sanitizeArchivedVideoLogText(channelType int, text string) string {
 	if strings.TrimSpace(text) == "" {
 		return ""
 	}
-	return taskcommon.ScrubBrandedText(redactTechMobiURLs(text))
+	scrubBrand := channelType == constant.ChannelTypeModelAPISeedance
+	return sanitizeArchivedVideoString(text, scrubBrand)
+}
+
+func sanitizeTechMobiLogText(text string) string {
+	return sanitizeArchivedVideoLogText(constant.ChannelTypeTechMobiVideo, text)
+}
+
+func sanitizeArchivedVideoString(text string, scrubBrand bool) string {
+	redacted := redactArchivedVideoURLs(text)
+	if scrubBrand {
+		return taskcommon.ScrubBrandedText(redacted)
+	}
+	return redacted
 }
 
 func redactTechMobiURLs(text string) string {
-	return techMobiLogURLPattern.ReplaceAllStringFunc(text, func(match string) string {
+	return redactArchivedVideoURLs(text)
+}
+
+func redactArchivedVideoURLs(text string) string {
+	return archivedVideoLogURLPattern.ReplaceAllStringFunc(text, func(match string) string {
 		trimmed := strings.TrimRight(match, ",.;:)")
 		return "[redacted]" + match[len(trimmed):]
 	})
