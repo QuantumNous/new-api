@@ -34,23 +34,23 @@ jobs:
           SERVERS_LIST_JSON: ${{ secrets.SERVERS_LIST_JSON }}
         run: |
           echo "$SERVERS_LIST_JSON" > /tmp/servers.json
-          python3 -c "
-import json, sys
-try:
-    data = json.load(open('/tmp/servers.json'))
-    print('服务器数量:', len(data))
-    for s in data:
-        print(s['ip'], '(' + s['user'] + ')')
-    with open('/tmp/servers.txt', 'w') as f:
-        for s in data:
-            f.write(json.dumps(s) + '\n')
-except json.JSONDecodeError as e:
-    print('::error::JSON 解析错误:', e)
-    sys.exit(1)
-except KeyError as e:
-    print('::error::缺少字段:', e)
-    sys.exit(1)
-"
+          python3 << 'PYEOF'
+          import json, sys
+          try:
+              data = json.load(open('/tmp/servers.json'))
+              print('服务器数量:', len(data))
+              for s in data:
+                  print(s['ip'], '(' + s['user'] + ')')
+              with open('/tmp/servers.txt', 'w') as f:
+                  for s in data:
+                      f.write(json.dumps(s, ensure_ascii=False) + '\n')
+          except json.JSONDecodeError as e:
+              print('::error::JSON 解析错误:', e)
+              sys.exit(1)
+          except KeyError as e:
+              print('::error::缺少字段:', e)
+              sys.exit(1)
+          PYEOF
 
       - name: Generate temporary SSH key
         run: |
