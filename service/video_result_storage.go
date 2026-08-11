@@ -157,11 +157,17 @@ func ArchiveVideoResultForChannel(ctx context.Context, channel, publicTaskID, up
 		recordArchive("failure", 0)
 		return nil, ErrVideoResultInvalidContent
 	}
-	if strings.TrimSpace(proxy) != "" {
-		recordArchive("failure", 0)
-		return nil, ErrVideoResultInvalidContent
+	proxy = strings.TrimSpace(proxy)
+	var client *http.Client
+	if proxy != "" {
+		if strings.EqualFold(strings.TrimSpace(channel), "modelapi") {
+			recordArchive("failure", 0)
+			return nil, ErrVideoResultInvalidContent
+		}
+		client, err = GetHttpClientWithProxy(proxy)
+	} else {
+		client, err = newVideoResultFetchHTTPClient(cfg, videoResultDirectFetchResolver, videoResultDirectFetchDialContext)
 	}
-	client, err := newVideoResultFetchHTTPClient(cfg, videoResultDirectFetchResolver, videoResultDirectFetchDialContext)
 	if err != nil {
 		recordArchive("failure", 0)
 		return nil, ErrVideoResultInvalidContent

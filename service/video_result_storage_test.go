@@ -494,7 +494,7 @@ func TestArchiveVideoResult(t *testing.T) {
 		require.ErrorIs(t, err, ErrVideoResultConfig)
 	})
 
-	t.Run("rejects configured proxy before fetching archive source", func(t *testing.T) {
+	t.Run("modelapi rejects configured proxy before fetching archive source", func(t *testing.T) {
 		start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
 		store := newFakeVideoResultStore()
 		restore := installVideoResultArchiveTestHooks(t, store, start)
@@ -515,11 +515,64 @@ func TestArchiveVideoResult(t *testing.T) {
 		}))
 		defer proxy.Close()
 
-		_, err := ArchiveVideoResult(context.Background(), "task_proxy_rejected", source.URL, proxy.URL)
+		_, err := ArchiveVideoResultForChannel(context.Background(), "modelapi", "task_proxy_rejected", source.URL, proxy.URL)
 		require.ErrorIs(t, err, ErrVideoResultInvalidContent)
 		require.Equal(t, 0, proxyHits)
 		require.Equal(t, 0, sourceHits)
 		require.Empty(t, store.created)
+	})
+
+	t.Run("techmobi archives through configured proxy", func(t *testing.T) {
+		start := time.Date(2026, 8, 6, 0, 0, 0, 0, time.UTC)
+		store := newFakeVideoResultStore()
+		restore := installVideoResultArchiveTestHooks(t, store, start)
+		defer restore()
+		t.Cleanup(ResetProxyClientCache)
+		t.Setenv("VIDEO_RESULT_STORAGE_BUCKET", "video-bucket")
+		payload := minimalMP4Fixture()
+
+		sourceHits := 0
+		source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sourceHits++
+			require.Equal(t, http.MethodGet, r.Method)
+			w.Header().Set("Content-Type", "video/mp4")
+			_, _ = w.Write(payload)
+		}))
+		defer source.Close()
+		sourceURL, err := url.Parse(source.URL)
+		require.NoError(t, err)
+
+		proxyHits := 0
+		proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			proxyHits++
+			require.Equal(t, http.MethodGet, r.Method)
+			require.Equal(t, sourceURL.Host, r.URL.Host)
+
+			outbound := r.Clone(r.Context())
+			outbound.RequestURI = ""
+			outbound.Header.Del("Proxy-Connection")
+			response, err := http.DefaultTransport.RoundTrip(outbound)
+			require.NoError(t, err)
+			defer response.Body.Close()
+
+			for key, values := range response.Header {
+				for _, value := range values {
+					w.Header().Add(key, value)
+				}
+			}
+			w.WriteHeader(response.StatusCode)
+			_, err = io.Copy(w, response.Body)
+			require.NoError(t, err)
+		}))
+		defer proxy.Close()
+
+		result, err := ArchiveVideoResult(context.Background(), "task_proxy_archive", source.URL, proxy.URL)
+		require.NoError(t, err)
+		require.Equal(t, "video-results/tasks/task_proxy_archive.mp4", result.Object)
+		require.Equal(t, 1, proxyHits)
+		require.Equal(t, 1, sourceHits)
+		created := store.created["video-bucket/video-results/tasks/task_proxy_archive.mp4"]
+		require.Equal(t, payload, created.body)
 	})
 
 	t.Run("uses the same object key across archive start dates", func(t *testing.T) {
