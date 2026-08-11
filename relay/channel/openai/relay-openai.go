@@ -121,6 +121,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
+	var sawFinishReason bool
 
 	// 检查是否为音频模型
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
@@ -133,6 +134,9 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 		}
 		if len(data) > 0 {
+			if hasOpenAIStreamFinishReason(data) {
+				sawFinishReason = true
+			}
 			// 对音频模型，保存倒数第二个stream data
 			if isAudioModel && lastStreamData != "" {
 				secondLastStreamData = lastStreamData
@@ -165,14 +169,21 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 	}
 
+	// A finish_reason is an explicit terminal signal even when an upstream
+	// omits [DONE]. EOF/timeout without either signal is only a partial stream
+	// and must not be normalized into a successful downstream completion.
+	streamCompleted := openAIStreamCompleted(info, sawFinishReason)
+
 	// 处理最后的响应
 	shouldSendLastResp := true
-	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
-		&containStreamUsage, info, &shouldSendLastResp); err != nil {
-		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
+	if streamCompleted {
+		if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
+			&containStreamUsage, info, &shouldSendLastResp); err != nil {
+			logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
+		}
 	}
 
-	if info.RelayFormat == types.RelayFormatOpenAI {
+	if info.RelayFormat == types.RelayFormatOpenAI && streamCompleted {
 		if shouldSendLastResp {
 			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
 		}
@@ -189,9 +200,44 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		info.CountBillableToolCall(dto.BuildInCallFunctionCall, name)
 	}
 
+	if !streamCompleted {
+		if info.StreamStatus != nil {
+			info.StreamStatus.RecordError("openai stream ended without finish_reason or [DONE]")
+			logger.LogError(c, fmt.Sprintf("openai stream ended before terminal chunk: %s", info.StreamStatus.Summary()))
+		}
+		return usage, nil
+	}
+
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
 	return usage, nil
+}
+
+func hasOpenAIStreamFinishReason(data string) bool {
+	var streamResponse dto.ChatCompletionsStreamResponse
+	if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+		return false
+	}
+	for _, choice := range streamResponse.Choices {
+		if choice.FinishReason != nil && *choice.FinishReason != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func openAIStreamCompleted(info *relaycommon.RelayInfo, sawFinishReason bool) bool {
+	if info == nil || info.StreamStatus == nil {
+		return true
+	}
+	switch info.StreamStatus.EndReason {
+	case relaycommon.StreamEndReasonDone:
+		return true
+	case relaycommon.StreamEndReasonEOF:
+		return sawFinishReason
+	default:
+		return false
+	}
 }
 
 func collectStreamFunctionCallNames(data string, seen map[string]struct{}, names *[]string) {
