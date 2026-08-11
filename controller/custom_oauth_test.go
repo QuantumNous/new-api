@@ -33,8 +33,11 @@ func TestFetchCustomOAuthDiscoveryRejectsPrivateTargetBeforeRequest(t *testing.T
 
 	fetchSetting := system_setting.GetFetchSetting()
 	originalFetchSetting := *fetchSetting
+	originalGinMode := gin.Mode()
 	t.Cleanup(func() {
 		*fetchSetting = originalFetchSetting
+		service.InitHttpClient()
+		gin.SetMode(originalGinMode)
 	})
 	fetchSetting.EnableSSRFProtection = true
 	fetchSetting.AllowPrivateIp = false
