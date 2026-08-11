@@ -261,6 +261,12 @@ describe('API key group table cell', () => {
 
     await act(async () => trigger.click())
 
+    const popup = document.querySelector<HTMLElement>(
+      '[data-slot="select-content"]'
+    )
+    assert.ok(popup)
+    assert.equal(popup.classList.contains('min-w-72'), true)
+
     const items = [
       ...document.querySelectorAll<HTMLElement>('[data-slot="select-item"]'),
     ]

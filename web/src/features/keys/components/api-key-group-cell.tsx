@@ -201,11 +201,11 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
           </span>
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className='min-w-72'>
         <SelectGroup>
           {selectOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              <span className='truncate'>{option.label}</span>
+              <span className='min-w-0 flex-1 truncate'>{option.label}</span>
               <GroupRatioBadge
                 ratio={option.ratio}
                 isAuto={option.value === 'auto'}
