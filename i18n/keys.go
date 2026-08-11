@@ -28,6 +28,19 @@ const (
 	MsgBatchTooMany      = "common.batch_too_many"
 )
 
+// Savings estimate messages
+const (
+	MsgSavingsTimeRangeRequired  = "savings.time_range_required"
+	MsgSavingsUTCOffsetRequired  = "savings.utc_offset_required"
+	MsgSavingsUTCOffsetInvalid   = "savings.utc_offset_invalid"
+	MsgSavingsEndAfterNow        = "savings.end_after_now"
+	MsgSavingsTimeRangeInvalid   = "savings.time_range_invalid"
+	MsgSavingsTimeRangeTooLarge  = "savings.time_range_too_large"
+	MsgSavingsHourRangeTooLarge  = "savings.hour_range_too_large"
+	MsgSavingsGranularityInvalid = "savings.granularity_invalid"
+	MsgSavingsTooManyBuckets     = "savings.too_many_buckets"
+)
+
 // Auth middleware messages
 const (
 	MsgAuthNotLoggedIn           = "auth.not_logged_in"

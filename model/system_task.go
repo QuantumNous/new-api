@@ -11,16 +11,19 @@ import (
 type SystemTaskStatus string
 
 const (
-	SystemTaskStatusPending   SystemTaskStatus = "pending"
-	SystemTaskStatusRunning   SystemTaskStatus = "running"
-	SystemTaskStatusSucceeded SystemTaskStatus = "succeeded"
-	SystemTaskStatusFailed    SystemTaskStatus = "failed"
+	SystemTaskStatusPending        SystemTaskStatus = "pending"
+	SystemTaskStatusRunning        SystemTaskStatus = "running"
+	SystemTaskStatusPauseRequested SystemTaskStatus = "pause_requested"
+	SystemTaskStatusPaused         SystemTaskStatus = "paused"
+	SystemTaskStatusSucceeded      SystemTaskStatus = "succeeded"
+	SystemTaskStatusFailed         SystemTaskStatus = "failed"
 
-	SystemTaskTypeLogCleanup     = "log_cleanup"
-	SystemTaskTypeChannelTest    = "channel_test"
-	SystemTaskTypeModelUpdate    = "model_update"
-	SystemTaskTypeMidjourneyPoll = "midjourney_poll"
-	SystemTaskTypeAsyncTaskPoll  = "async_task_poll"
+	SystemTaskTypeLogCleanup      = "log_cleanup"
+	SystemTaskTypeChannelTest     = "channel_test"
+	SystemTaskTypeModelUpdate     = "model_update"
+	SystemTaskTypeMidjourneyPoll  = "midjourney_poll"
+	SystemTaskTypeAsyncTaskPoll   = "async_task_poll"
+	SystemTaskTypeSavingsBackfill = "savings_lifetime_backfill"
 )
 
 var ErrSystemTaskLockLost = errors.New("system task lock lost")
@@ -313,7 +316,7 @@ func UpdateSystemTaskState(taskID string, lockedBy string, state any) error {
 	}
 	now := common.GetTimestamp()
 	result := DB.Model(&SystemTask{}).
-		Where("task_id = ? AND status = ? AND locked_by = ?", taskID, SystemTaskStatusRunning, lockedBy).
+		Where("task_id = ? AND status IN ? AND locked_by = ?", taskID, []SystemTaskStatus{SystemTaskStatusRunning, SystemTaskStatusPauseRequested}, lockedBy).
 		Where("EXISTS (SELECT 1 FROM system_task_locks WHERE system_task_locks.task_id = system_tasks.task_id AND system_task_locks.locked_by = ? AND system_task_locks.locked_until >= ?)", lockedBy, now).
 		Updates(map[string]any{
 			"state":      stateText,
@@ -347,7 +350,7 @@ func RenewSystemTaskLock(taskID string, lockedBy string, lockUntil int64) error 
 
 func MarkSystemTaskLeaseExpired(taskID string) error {
 	result := DB.Model(&SystemTask{}).
-		Where("task_id = ? AND status = ?", taskID, SystemTaskStatusRunning).
+		Where("task_id = ? AND status IN ?", taskID, []SystemTaskStatus{SystemTaskStatusRunning, SystemTaskStatusPauseRequested}).
 		Updates(map[string]any{
 			"status":     SystemTaskStatusFailed,
 			"active_key": nil,
@@ -387,7 +390,7 @@ func FinishSystemTask(taskID string, lockedBy string, status SystemTaskStatus, r
 	}
 	now := common.GetTimestamp()
 	result := DB.Model(&SystemTask{}).
-		Where("task_id = ? AND status = ? AND locked_by = ?", taskID, SystemTaskStatusRunning, lockedBy).
+		Where("task_id = ? AND status IN ? AND locked_by = ?", taskID, []SystemTaskStatus{SystemTaskStatusRunning, SystemTaskStatusPauseRequested}, lockedBy).
 		Where("EXISTS (SELECT 1 FROM system_task_locks WHERE system_task_locks.task_id = system_tasks.task_id AND system_task_locks.locked_by = ? AND system_task_locks.locked_until >= ?)", lockedBy, now).
 		Updates(map[string]any{
 			"status":     status,
@@ -431,7 +434,110 @@ func (task *SystemTask) ToResponse() SystemTaskResponse {
 }
 
 func activeSystemTaskStatuses() []string {
-	return []string{string(SystemTaskStatusPending), string(SystemTaskStatusRunning)}
+	return []string{
+		string(SystemTaskStatusPending),
+		string(SystemTaskStatusRunning),
+		string(SystemTaskStatusPauseRequested),
+		string(SystemTaskStatusPaused),
+	}
+}
+
+func RequestSystemTaskPause(taskID string, taskType string) (*SystemTask, error) {
+	var task SystemTask
+	if err := DB.Where("task_id = ? AND type = ?", taskID, taskType).First(&task).Error; err != nil {
+		return nil, err
+	}
+	if task.Status == SystemTaskStatusPaused || task.Status == SystemTaskStatusPauseRequested {
+		return &task, nil
+	}
+	if task.Status != SystemTaskStatusPending && task.Status != SystemTaskStatusRunning {
+		return nil, errors.New("system task cannot be paused in its current state")
+	}
+	nextStatus := SystemTaskStatusPaused
+	if task.Status == SystemTaskStatusRunning {
+		nextStatus = SystemTaskStatusPauseRequested
+	}
+	result := DB.Model(&SystemTask{}).
+		Where("task_id = ? AND type = ? AND status = ?", taskID, taskType, task.Status).
+		Updates(map[string]any{
+			"status":     nextStatus,
+			"updated_at": common.GetTimestamp(),
+		})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, ErrSystemTaskLockLost
+	}
+	if err := DB.Where("task_id = ?", taskID).First(&task).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+func CompleteSystemTaskPause(taskID string, lockedBy string) error {
+	now := common.GetTimestamp()
+	result := DB.Model(&SystemTask{}).
+		Where("task_id = ? AND status = ? AND locked_by = ?", taskID, SystemTaskStatusPauseRequested, lockedBy).
+		Where("EXISTS (SELECT 1 FROM system_task_locks WHERE system_task_locks.task_id = system_tasks.task_id AND system_task_locks.locked_by = ? AND system_task_locks.locked_until >= ?)", lockedBy, now).
+		Updates(map[string]any{
+			"status":     SystemTaskStatusPaused,
+			"locked_by":  "",
+			"updated_at": now,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrSystemTaskLockLost
+	}
+	return ReleaseSystemTaskLock(taskID, lockedBy)
+}
+
+func ResumeSystemTask(taskID string, taskType string) (*SystemTask, error) {
+	result := DB.Model(&SystemTask{}).
+		Where("task_id = ? AND type = ? AND status = ?", taskID, taskType, SystemTaskStatusPaused).
+		Updates(map[string]any{
+			"status":     SystemTaskStatusPending,
+			"locked_by":  "",
+			"updated_at": common.GetTimestamp(),
+		})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, errors.New("system task is not paused")
+	}
+	var task SystemTask
+	if err := DB.Where("task_id = ?", taskID).First(&task).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+func RetryFailedSystemTask(taskID string, taskType string) (*SystemTask, error) {
+	activeKey := taskType
+	result := DB.Model(&SystemTask{}).
+		Where("task_id = ? AND type = ? AND status = ?", taskID, taskType, SystemTaskStatusFailed).
+		Updates(map[string]any{
+			"status":     SystemTaskStatusPending,
+			"active_key": &activeKey,
+			"result":     "",
+			"error":      "",
+			"locked_by":  "",
+			"updated_at": common.GetTimestamp(),
+		})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, errors.New("system task is not failed")
+	}
+	var task SystemTask
+	if err := DB.Where("task_id = ?", taskID).First(&task).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
 }
 
 func marshalSystemTaskJSON(v any) (string, error) {

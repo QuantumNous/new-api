@@ -24,6 +24,17 @@ common.already_exists: "已存在"
 common.name_cannot_be_empty: "名称不能为空"
 common.batch_too_many: "批量请求数量过多，最多 {{.Max}} 条"
 
+# 节省金额估算消息
+savings.time_range_required: "必须传入开始和结束时间"
+savings.utc_offset_required: "必须传入时区偏移"
+savings.utc_offset_invalid: "时区偏移无效"
+savings.end_after_now: "结束时间不能晚于当前时间"
+savings.time_range_invalid: "时间范围无效"
+savings.time_range_too_large: "时间范围过大，请缩小时间范围"
+savings.hour_range_too_large: "小时粒度最多查询 48 小时"
+savings.granularity_invalid: "趋势粒度无效"
+savings.too_many_buckets: "趋势时间桶过多，请缩小时间范围"
+
 # Auth middleware messages
 auth.not_logged_in: "无权进行此操作，未登录且未提供 access token"
 auth.access_token_invalid: "无权进行此操作，access token 无效"

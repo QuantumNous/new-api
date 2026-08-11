@@ -29,8 +29,9 @@ const (
 
 // SystemTaskHandler executes a claimed task of a specific type. Run owns the
 // task lifecycle from claim to terminal state: it MUST call
-// model.FinishSystemTask (succeeded/failed) before returning and MUST honor
-// ctx cancellation, which the runner triggers if the per-type lock is lost.
+// model.FinishSystemTask (succeeded/failed) before returning, unless it has
+// completed a requested pause and released the task lock. It MUST honor ctx
+// cancellation, which the runner triggers if the per-type lock is lost.
 type SystemTaskHandler interface {
 	Type() string
 	Run(ctx context.Context, task *model.SystemTask, runnerID string)
@@ -281,7 +282,10 @@ func runSystemTaskScheduler() {
 	for _, scheduled := range scheduledHandlers {
 		latest := latestTasks[scheduled.Type()]
 		if latest != nil {
-			if latest.Status == model.SystemTaskStatusPending || latest.Status == model.SystemTaskStatusRunning {
+			if latest.Status == model.SystemTaskStatusPending ||
+				latest.Status == model.SystemTaskStatusRunning ||
+				latest.Status == model.SystemTaskStatusPauseRequested ||
+				latest.Status == model.SystemTaskStatusPaused {
 				continue // an active row already exists
 			}
 			if now-latest.UpdatedAt < int64(scheduled.Interval().Seconds()) {
