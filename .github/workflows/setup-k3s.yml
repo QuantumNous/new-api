@@ -19,6 +19,7 @@ on:
 
 permissions:
   actions: write
+  administration: write
 
 jobs:
   setup:
@@ -121,14 +122,28 @@ jobs:
 
       - name: Get runner token
         run: |
-          REG_TOKEN=$(curl -s -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          # RUNNER_PAT 优先（需要 repo + admin:org 权限的 PAT）；否则回退到 GITHUB_TOKEN
+          AUTH_TOKEN="${{ secrets.RUNNER_PAT }}"
+          if [ -z "$AUTH_TOKEN" ]; then
+            AUTH_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+            echo "使用 GITHUB_TOKEN（如失败请配置 RUNNER_PAT secret）"
+          else
+            echo "使用 RUNNER_PAT"
+          fi
+          RESP=$(curl -s -X POST \
+            -H "Authorization: token $AUTH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/runners/registration-token \
-            | jq -r .token)
+            https://api.github.com/repos/${{ github.repository }}/actions/runners/registration-token)
+          REG_TOKEN=$(echo "$RESP" | jq -r '.token // empty')
+          if [ -z "$REG_TOKEN" ]; then
+            echo "::error::获取 runner 注册 token 失败: $(echo "$RESP" | jq -r '.message // .')"
+            echo "::error::需要在仓库配置 RUNNER_PAT secret（Personal Access Token，勾选 repo 权限）"
+            exit 1
+          fi
           echo "::add-mask::$REG_TOKEN"
           echo "REG_TOKEN=$REG_TOKEN" >> $GITHUB_ENV
           echo "RUNNER_VERSION=2.323.0" >> $GITHUB_ENV
+          echo "runner 注册 token 获取成功"
 
       - name: Download runner archive
         run: |
