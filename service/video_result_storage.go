@@ -165,6 +165,12 @@ func ArchiveVideoResultForChannel(ctx context.Context, channel, publicTaskID, up
 			return nil, ErrVideoResultInvalidContent
 		}
 		client, err = GetHttpClientWithProxy(proxy)
+		if err == nil {
+			proxyClient := *client
+			proxyClient.Timeout = cfg.FetchTimeout
+			proxyClient.CheckRedirect = videoResultCheckRedirect
+			client = &proxyClient
+		}
 	} else {
 		client, err = newVideoResultFetchHTTPClient(cfg, videoResultDirectFetchResolver, videoResultDirectFetchDialContext)
 	}

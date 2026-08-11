@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -58,12 +59,17 @@ var archiveModelAPIVideoResult = func(ctx context.Context, publicTaskID, upstrea
 	return archiveVideoResultForChannel(ctx, "modelapi", publicTaskID, upstreamURL, proxy)
 }
 
+var taskVideoResultArchiveLeaseHeartbeatInterval time.Duration
+
 const (
-	modelAPIPollingRequestTimeout   = 30 * time.Second
-	modelAPIPollingResponseMaxBytes = 1 << 20
+	modelAPIPollingRequestTimeout                   = 30 * time.Second
+	modelAPIPollingResponseMaxBytes                 = 1 << 20
+	taskVideoResultArchiveLeaseMinHeartbeatInterval = 5 * time.Second
 )
 
 var archivedVideoLogURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+`)
+
+var errTaskVideoResultArchiveLeaseLost = errors.New("video_result_archive_lease_lost")
 
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
 // 每次最多处理 100 条，剩余的下个周期继续处理。
@@ -374,6 +380,80 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	return nil
 }
 
+func startTaskVideoResultArchiveLeaseHeartbeat(ctx context.Context, cancel context.CancelFunc, taskID string, fromStatus model.TaskStatus, owner string, initialLeaseExpiresAt int64, leaseTTL time.Duration) func() (int64, error) {
+	interval := effectiveTaskVideoResultArchiveLeaseHeartbeatInterval(leaseTTL)
+	stop := make(chan struct{})
+	done := make(chan error, 1)
+	var lost atomic.Bool
+	var latestExpiry atomic.Int64
+	latestExpiry.Store(initialLeaseExpiresAt)
+
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				done <- nil
+				return
+			case <-ctx.Done():
+				done <- ctx.Err()
+				return
+			case <-ticker.C:
+				now, err := model.GetDBTimestampWithContext(ctx)
+				if err != nil {
+					lost.Store(true)
+					cancel()
+					done <- errTaskVideoResultArchiveLeaseLost
+					return
+				}
+				expected := latestExpiry.Load()
+				nextExpiry := now + int64(leaseTTL.Seconds())
+				won, err := model.RenewTaskVideoResultArchiveLease(taskID, fromStatus, owner, expected, now, nextExpiry)
+				if err != nil || !won {
+					lost.Store(true)
+					cancel()
+					done <- errTaskVideoResultArchiveLeaseLost
+					return
+				}
+				latestExpiry.Store(nextExpiry)
+			}
+		}
+	}()
+
+	return func() (int64, error) {
+		if lost.Load() {
+			return latestExpiry.Load(), <-done
+		}
+		close(stop)
+		err := <-done
+		if errors.Is(err, context.Canceled) {
+			return latestExpiry.Load(), nil
+		}
+		return latestExpiry.Load(), err
+	}
+}
+
+func effectiveTaskVideoResultArchiveLeaseHeartbeatInterval(leaseTTL time.Duration) time.Duration {
+	if taskVideoResultArchiveLeaseHeartbeatInterval > 0 {
+		return taskVideoResultArchiveLeaseHeartbeatInterval
+	}
+	interval := leaseTTL / 3
+	if interval > time.Minute {
+		interval = time.Minute
+	}
+	if interval < taskVideoResultArchiveLeaseMinHeartbeatInterval {
+		interval = taskVideoResultArchiveLeaseMinHeartbeatInterval
+	}
+	if leaseTTL > 0 && interval >= leaseTTL {
+		interval = leaseTTL / 2
+	}
+	if interval <= 0 {
+		interval = time.Second
+	}
+	return interval
+}
+
 func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *model.Channel, taskId string, taskM map[string]*model.Task) error {
 	baseURL := constant.ChannelBaseURLs[ch.Type]
 	if ch.GetBaseURL() != "" {
@@ -495,21 +575,85 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("task %s missing source URL: phase=source status=%s", task.TaskID, archivedVideoPollingStatus(taskResult.Status))
 	}
 
+	var (
+		archiveLeaseOwner         string
+		archiveLeaseExpiresAt     int64
+		archiveLeaseClaimed       bool
+		stopArchiveLeaseHeartbeat func() (int64, error)
+		cancelArchiveLeaseContext context.CancelFunc
+	)
+	releaseArchiveLease := func() {
+		if !archiveLeaseClaimed {
+			return
+		}
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancelCleanup()
+		releaseNow, dbErr := model.GetDBTimestampWithContext(cleanupCtx)
+		if dbErr != nil {
+			logger.LogError(ctx, fmt.Sprintf("GetDBTimestampWithContext failed before archive lease release for task %s: %s", task.TaskID, dbErr.Error()))
+			return
+		}
+		released, releaseErr := model.ReleaseTaskVideoResultArchiveLeaseWithContext(cleanupCtx, task.TaskID, snap.Status, archiveLeaseOwner, archiveLeaseExpiresAt, releaseNow)
+		if releaseErr != nil {
+			logger.LogError(ctx, fmt.Sprintf("ReleaseTaskVideoResultArchiveLease failed for task %s: %s", task.TaskID, releaseErr.Error()))
+			return
+		}
+		if !released {
+			logger.LogWarn(ctx, fmt.Sprintf("Task %s archive lease was already moved, skip release", task.TaskID))
+		}
+	}
+
 	if archiveChannelLabel != "" && !returnSourceURL && taskResult.Status == model.TaskStatusSuccess && snap.Status != model.TaskStatusSuccess {
 		if task.PrivateData.VideoResult == nil {
 			var (
 				videoResult *model.VideoResult
 				archiveErr  error
 			)
+			archiveCtx := ctx
+			if ch.Type == constant.ChannelTypeModelAPISeedance {
+				dbNow, dbErr := model.GetDBTimestampWithContext(ctx)
+				if dbErr != nil {
+					logger.LogError(ctx, fmt.Sprintf("GetDBTimestampWithContext failed before archive lease for task %s: %s", task.TaskID, dbErr.Error()))
+					return archivedVideoPollingPhaseError(task.TaskID, "archive")
+				}
+				archiveLeaseOwner = common.GetUUID()
+				archiveLeaseTTL := CurrentVideoResultStorageConfig().FetchTimeout + time.Minute
+				archiveLeaseExpiresAt = dbNow + int64(archiveLeaseTTL.Seconds())
+				claimed, claimErr := model.ClaimTaskVideoResultArchiveLease(task.TaskID, snap.Status, archiveLeaseOwner, dbNow, archiveLeaseExpiresAt)
+				if claimErr != nil {
+					logger.LogError(ctx, fmt.Sprintf("ClaimTaskVideoResultArchiveLease failed for task %s: %s", task.TaskID, claimErr.Error()))
+					return archivedVideoPollingPhaseError(task.TaskID, "archive")
+				}
+				if !claimed {
+					logger.LogWarn(ctx, fmt.Sprintf("Task %s archive lease already claimed or finalized, skip archive", task.TaskID))
+					return nil
+				}
+				archiveLeaseClaimed = true
+				archiveCtx, cancelArchiveLeaseContext = context.WithCancel(ctx)
+				stopArchiveLeaseHeartbeat = startTaskVideoResultArchiveLeaseHeartbeat(archiveCtx, cancelArchiveLeaseContext, task.TaskID, snap.Status, archiveLeaseOwner, archiveLeaseExpiresAt, archiveLeaseTTL)
+			}
 			switch ch.Type {
 			case constant.ChannelTypeTechMobiVideo:
 				videoResult, archiveErr = archiveTechMobiVideoResult(ctx, task.TaskID, taskResult.Url, proxy)
 			case constant.ChannelTypeModelAPISeedance:
-				videoResult, archiveErr = archiveModelAPIVideoResult(ctx, task.TaskID, taskResult.Url, proxy)
+				videoResult, archiveErr = archiveModelAPIVideoResult(archiveCtx, task.TaskID, taskResult.Url, proxy)
 			default:
 				videoResult, archiveErr = archiveVideoResultForChannel(ctx, archiveChannelLabel, task.TaskID, taskResult.Url, proxy)
 			}
+			if stopArchiveLeaseHeartbeat != nil {
+				latestExpiry, heartbeatErr := stopArchiveLeaseHeartbeat()
+				archiveLeaseExpiresAt = latestExpiry
+				if cancelArchiveLeaseContext != nil {
+					cancelArchiveLeaseContext()
+				}
+				if heartbeatErr != nil && archiveErr == nil {
+					archiveErr = heartbeatErr
+				}
+			}
 			if archiveErr != nil {
+				if archiveLeaseClaimed {
+					releaseArchiveLease()
+				}
 				perfmetrics.RecordVideoResultArchiveRetry(archiveChannelLabel, "archive_failure")
 				return fmt.Errorf("video archive failed for task %s: phase=archive status=%s: %s", task.TaskID, archivedVideoPollingStatus(taskResult.Status), sanitizeVideoResultArchiveError(archiveErr))
 			}
@@ -594,7 +738,24 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	isDone := task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure
 	if isDone && snap.Status != task.Status {
-		won, err := task.UpdateWithStatus(snap.Status)
+		var won bool
+		var err error
+		if archiveLeaseClaimed {
+			dbNow, dbErr := model.GetDBTimestampWithContext(ctx)
+			if dbErr != nil {
+				logger.LogError(ctx, fmt.Sprintf("GetDBTimestampWithContext failed before archive finalize for task %s: %s", task.TaskID, dbErr.Error()))
+				releaseArchiveLease()
+				shouldRefund = false
+				shouldSettle = false
+			} else {
+				won, err = task.UpdateWithStatusAndVideoResultArchiveLease(snap.Status, archiveLeaseOwner, archiveLeaseExpiresAt, dbNow)
+				if err != nil || !won {
+					releaseArchiveLease()
+				}
+			}
+		} else {
+			won, err = task.UpdateWithStatus(snap.Status)
+		}
 		if err != nil {
 			logger.LogError(ctx, fmt.Sprintf("UpdateWithStatus failed for task %s: %s", task.TaskID, err.Error()))
 			shouldRefund = false

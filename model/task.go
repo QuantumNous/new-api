@@ -2,6 +2,7 @@ package model
 
 import (
 	"bytes"
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"strings"
@@ -86,13 +87,15 @@ type Task struct {
 	Properties Properties            `json:"properties" gorm:"type:json"`
 	Username   string                `json:"username,omitempty" gorm:"-"`
 	// 禁止返回给用户，内部可能包含key等隐私信息
-	PrivateData               TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
-	Data                      json.RawMessage `json:"data" gorm:"type:json"`
-	PreparationStatus         string          `json:"-" gorm:"type:varchar(24);index"`
-	NormalizedRequestPayload  json.RawMessage `json:"-" gorm:"type:json"`
-	PreparationLeaseOwner     string          `json:"-" gorm:"type:varchar(64);index"`
-	PreparationLeaseExpiresAt int64           `json:"-" gorm:"index"`
-	PreparationAttemptCount   int             `json:"-"`
+	PrivateData                      TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
+	Data                             json.RawMessage `json:"data" gorm:"type:json"`
+	PreparationStatus                string          `json:"-" gorm:"type:varchar(24);index"`
+	NormalizedRequestPayload         json.RawMessage `json:"-" gorm:"type:json"`
+	PreparationLeaseOwner            string          `json:"-" gorm:"type:varchar(64);index"`
+	PreparationLeaseExpiresAt        int64           `json:"-" gorm:"index"`
+	PreparationAttemptCount          int             `json:"-"`
+	VideoResultArchiveLeaseOwner     string          `json:"-" gorm:"type:varchar(64);index"`
+	VideoResultArchiveLeaseExpiresAt int64           `json:"-" gorm:"index;default:0"`
 
 	AcceptedAccountingStatus         string `json:"-" gorm:"type:varchar(24);index"`
 	AcceptedAccountingLeaseOwner     string `json:"-" gorm:"type:varchar(64);index"`
@@ -591,6 +594,73 @@ func (Task *Task) Update() error {
 // zero rows, which silently bypasses the CAS guard.
 func (t *Task) UpdateWithStatus(fromStatus TaskStatus) (bool, error) {
 	result := DB.Model(t).Where("status = ?", fromStatus).Select("*").Updates(t)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+func ClaimTaskVideoResultArchiveLease(taskID string, fromStatus TaskStatus, owner string, now int64, leaseExpiresAt int64) (bool, error) {
+	result := DB.Model(&Task{}).
+		Where("task_id = ? AND status = ?", taskID, fromStatus).
+		Where("(video_result_archive_lease_expires_at IS NULL OR video_result_archive_lease_expires_at <= ?)", now).
+		Updates(map[string]any{
+			"video_result_archive_lease_owner":      owner,
+			"video_result_archive_lease_expires_at": leaseExpiresAt,
+			"updated_at":                            now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func ReleaseTaskVideoResultArchiveLease(taskID string, fromStatus TaskStatus, owner string, expectedLeaseExpiresAt int64, now int64) (bool, error) {
+	return releaseTaskVideoResultArchiveLease(DB, taskID, fromStatus, owner, expectedLeaseExpiresAt, now)
+}
+
+func ReleaseTaskVideoResultArchiveLeaseWithContext(ctx context.Context, taskID string, fromStatus TaskStatus, owner string, expectedLeaseExpiresAt int64, now int64) (bool, error) {
+	return releaseTaskVideoResultArchiveLease(DB.WithContext(ctx), taskID, fromStatus, owner, expectedLeaseExpiresAt, now)
+}
+
+func RenewTaskVideoResultArchiveLease(taskID string, fromStatus TaskStatus, owner string, expectedLeaseExpiresAt int64, now int64, leaseExpiresAt int64) (bool, error) {
+	result := DB.Model(&Task{}).
+		Where("task_id = ? AND status = ?", taskID, fromStatus).
+		Where("video_result_archive_lease_owner = ? AND video_result_archive_lease_expires_at = ? AND video_result_archive_lease_expires_at > ?", owner, expectedLeaseExpiresAt, now).
+		Updates(map[string]any{
+			"video_result_archive_lease_expires_at": leaseExpiresAt,
+			"updated_at":                            now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func releaseTaskVideoResultArchiveLease(db *gorm.DB, taskID string, fromStatus TaskStatus, owner string, expectedLeaseExpiresAt int64, now int64) (bool, error) {
+	result := db.Model(&Task{}).
+		Where("task_id = ? AND status = ?", taskID, fromStatus).
+		Where("video_result_archive_lease_owner = ? AND video_result_archive_lease_expires_at = ?", owner, expectedLeaseExpiresAt).
+		Updates(map[string]any{
+			"video_result_archive_lease_owner":      "",
+			"video_result_archive_lease_expires_at": 0,
+			"updated_at":                            now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func (t *Task) UpdateWithStatusAndVideoResultArchiveLease(fromStatus TaskStatus, owner string, expectedLeaseExpiresAt int64, now int64) (bool, error) {
+	t.VideoResultArchiveLeaseOwner = ""
+	t.VideoResultArchiveLeaseExpiresAt = 0
+	result := DB.Model(t).
+		Where("task_id = ?", t.TaskID).
+		Where("status = ?", fromStatus).
+		Where("video_result_archive_lease_owner = ? AND video_result_archive_lease_expires_at = ? AND video_result_archive_lease_expires_at > ?", owner, expectedLeaseExpiresAt, now).
+		Select("*").
+		Updates(t)
 	if result.Error != nil {
 		return false, result.Error
 	}

@@ -306,13 +306,17 @@ func ExecutePreparedTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo, pref
 	// 11. 解析响应
 	upstreamTaskID, taskData, taskErr := adaptor.DoResponse(c, resp, info)
 	if taskErr != nil {
-		return &TaskSubmitResult{
-			UpstreamTaskID:      upstreamTaskID,
-			TaskData:            taskData,
-			Platform:            platform,
-			Quota:               preflight.Quota,
-			OutcomeMayBeUnknown: true,
-		}, taskErr
+		result := &TaskSubmitResult{
+			UpstreamTaskID: upstreamTaskID,
+			TaskData:       taskData,
+			Platform:       platform,
+			Quota:          preflight.Quota,
+		}
+		if info != nil && info.ChannelType == constant.ChannelTypeModelAPISeedance && taskErr.StatusCode == http.StatusTooManyRequests {
+			return result, taskErr
+		}
+		result.OutcomeMayBeUnknown = true
+		return result, taskErr
 	}
 
 	// 11. 提交后计费调整：让适配器根据上游实际返回调整 OtherRatios

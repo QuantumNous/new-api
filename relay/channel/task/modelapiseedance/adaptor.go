@@ -68,7 +68,18 @@ func (a *TaskAdaptor) ValidateRequestAfterModelMapping(c *gin.Context, info *rel
 	if c == nil || c.Request == nil || c.Request.URL == nil || c.Request.Method != http.MethodPost || c.Request.URL.Path != "/v1/videos" {
 		return taskError(fmt.Errorf("this channel type is only available on /v1/videos"), "invalid_request", http.StatusBadRequest)
 	}
-	return a.ValidateRequestAndSetAction(c, info)
+	seedReq, err := bindModelAPISeedanceRequestAfterAssetRewrite(c, info)
+	if err != nil {
+		return taskError(err, "invalid_request", http.StatusBadRequest)
+	}
+	if err := validateModelAPISeedanceRequest(seedReq); err != nil {
+		return taskError(err, "invalid_request", http.StatusBadRequest)
+	}
+	info.UpstreamModelName = UpstreamModel
+	if info.ChannelMeta != nil {
+		info.ChannelMeta.UpstreamModelName = UpstreamModel
+	}
+	return nil
 }
 
 func (a *TaskAdaptor) ValidateTaskPriceData(info *relaycommon.RelayInfo) *dto.TaskError {
@@ -115,14 +126,19 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo) (io.Reader, error) {
-	var seedReq dto.SeedanceVideoRequest
-	if err := common.UnmarshalBodyReusable(c, &seedReq); err != nil {
+	seedReq, err := taskcommon.GetSeedanceRequest(c)
+	if err != nil {
 		return nil, err
 	}
-	if err := validateModelAPISeedanceRequest(&seedReq); err != nil {
+	rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+	if err := rewriteModelAPIAssetReferences(seedReq, rewriteMap); err != nil {
 		return nil, err
 	}
-	body := buildModelAPICreateRequest(&seedReq)
+	if err := validateModelAPISeedanceRequest(seedReq); err != nil {
+		return nil, err
+	}
+	taskcommon.SetSeedanceRequest(c, seedReq)
+	body := buildModelAPICreateRequest(seedReq)
 	data, err := common.MarshalNoHTMLEscape(body)
 	if err != nil {
 		return nil, err
@@ -164,7 +180,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return "", nil, taskError(fmt.Errorf("invalid upstream response"), "invalid_response", http.StatusBadGateway)
 	}
 	if submit.Status == modelAPIStatusFailed {
-		return "", nil, taskError(fmt.Errorf("%s", modelAPIFailureReason()), "upstream_error", http.StatusBadGateway)
+		return "", nil, taskError(fmt.Errorf("%s", modelAPIFailureReason()), "upstream_error", modelAPISubmitFailureStatusCode(submit.Error))
 	}
 	if strings.TrimSpace(submit.TaskID) == "" {
 		return "", nil, taskError(fmt.Errorf("upstream response missing task_id"), "invalid_response", http.StatusBadGateway)
@@ -427,6 +443,17 @@ func modelAPIFailureReason() string {
 	return modelAPIGenericFailureReason
 }
 
+func modelAPISubmitFailureStatusCode(upstreamErr modelAPIError) int {
+	if strings.EqualFold(strings.TrimSpace(upstreamErr.Code), "rate_limit_exceeded") {
+		return http.StatusTooManyRequests
+	}
+	normalizedMessage := strings.ToLower(strings.Join(strings.Fields(upstreamErr.Message), " "))
+	if normalizedMessage == "selected model is at capacity" || strings.Contains(normalizedMessage, "selected model is at capacity") {
+		return http.StatusTooManyRequests
+	}
+	return http.StatusBadGateway
+}
+
 const modelAPIReferenceRole = "reference"
 
 func modelAPIImageRole(role string) string {
@@ -511,6 +538,58 @@ func modelAPIBillingUnits(modelPrice, estimatedUSD float64) map[string]float64 {
 		return nil
 	}
 	return map[string]float64{modelAPIBillingUnitsKey: units}
+}
+
+func bindModelAPISeedanceRequestAfterAssetRewrite(c *gin.Context, info *relaycommon.RelayInfo) (*dto.SeedanceVideoRequest, error) {
+	originalReq, err := taskcommon.BindSeedanceRequest(c, info, constant.TaskActionGenerate)
+	if err != nil {
+		return nil, err
+	}
+	data, err := common.Marshal(originalReq)
+	if err != nil {
+		return nil, err
+	}
+	var req dto.SeedanceVideoRequest
+	if err := common.Unmarshal(data, &req); err != nil {
+		return nil, err
+	}
+	rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+	if err := rewriteModelAPIAssetReferences(&req, rewriteMap); err != nil {
+		return nil, err
+	}
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+
+	taskcommon.SetSeedanceRequest(c, &req)
+	return &req, nil
+}
+
+func rewriteModelAPIAssetReferences(seedReq *dto.SeedanceVideoRequest, rewriteMap map[string]string) error {
+	if seedReq == nil {
+		return nil
+	}
+	for index := range seedReq.Content {
+		item := &seedReq.Content[index]
+		for _, media := range []*dto.SeedanceURLObject{item.ImageURL, item.VideoURL, item.AudioURL} {
+			if media == nil {
+				continue
+			}
+			rawURL := media.URL
+			if !service.IsStrictBytePlusAssetURI(rawURL) {
+				if strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "asset://ast_") {
+					return fmt.Errorf("invalid asset reference")
+				}
+				continue
+			}
+			upstreamURL, ok := rewriteMap[rawURL]
+			if !ok || validateModelAPIAssetRewriteURL(upstreamURL) != nil {
+				return fmt.Errorf("invalid asset reference")
+			}
+			media.URL = upstreamURL
+		}
+	}
+	return nil
 }
 
 var supportedModelAPIResolutions = map[string]struct{}{
@@ -603,8 +682,29 @@ func validateModelAPISeedanceRequest(seedReq *dto.SeedanceVideoRequest) error {
 }
 
 func validateModelAPIMediaURL(raw string) error {
+	if err := validateModelAPIHTTPSURL(raw); err != nil {
+		return fmt.Errorf("media url is not allowed")
+	}
 	if err := taskcommon.ValidateRemoteMediaURL(raw); err != nil {
 		return fmt.Errorf("media url is not allowed")
+	}
+	return nil
+}
+
+func validateModelAPIAssetRewriteURL(raw string) error {
+	if err := validateModelAPIHTTPSURL(raw); err != nil {
+		return err
+	}
+	return validateModelAPIMediaURL(raw)
+}
+
+func validateModelAPIHTTPSURL(raw string) error {
+	if raw == "" || raw != strings.TrimSpace(raw) {
+		return fmt.Errorf("media url must be https")
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return fmt.Errorf("media url must be https")
 	}
 	return nil
 }
