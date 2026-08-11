@@ -37,8 +37,13 @@ func (s *recordingBillingSettler) Settle(actualQuota int) error {
 }
 
 func TestPostTextConsumeQuotaOnErrorDoesNotReplaceCommittedSettlementAfterLateError(t *testing.T) {
+	previousSpendHook := model.TemporaryChannelSpendHook
+	consumeLogCalls := 0
+	model.TemporaryChannelSpendHook = func(int, string, int) { consumeLogCalls++ }
+	t.Cleanup(func() { model.TemporaryChannelSpendHook = previousSpendHook })
+
 	billing := &recordingBillingSettler{failures: 1, commitOnFailure: true}
-	ctx, info, usage := newTextQuotaErrorTest(t, billing, false)
+	ctx, info, usage := newTextQuotaErrorTest(t, billing, true)
 
 	err := PostTextConsumeQuotaOnError(ctx, info, usage, nil)
 	if err == nil {
@@ -46,6 +51,9 @@ func TestPostTextConsumeQuotaOnErrorDoesNotReplaceCommittedSettlementAfterLateEr
 	}
 	if len(billing.settledQuotas) != 1 || billing.settledQuotas[0] == billing.GetPreConsumedQuota() {
 		t.Fatalf("settled quotas = %v, actual settlement must not be replaced by pre-consumption", billing.settledQuotas)
+	}
+	if consumeLogCalls != 1 {
+		t.Fatalf("consume log calls = %d, want 1 after settlement committed", consumeLogCalls)
 	}
 }
 
