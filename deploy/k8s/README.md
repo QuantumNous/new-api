@@ -52,13 +52,16 @@ base64 -w0 < ~/.kube/config
 
 ### 方式一：通过 publish workflow（推荐）
 
-在 GitHub 仓库 Actions 页面手动触发 `Deploy to Kubernetes`，可指定 worker 副本数。workflow 会：
+在 GitHub 仓库 Actions 页面手动触发 `Deploy to Kubernetes`，可指定 worker 副本数和镜像 tag。workflow 会：
 
 1. 从 Secrets 生成/更新集群内 `new-api-secrets`
 2. apply PostgreSQL 与 Redis，等待就绪
 3. apply master 与 worker，按输入调整副本数
-4. apply Service 与 Ingress
-5. 输出 Pod 与 Service 状态
+4. 通过 `kubectl set image` 把镜像切换到指定 tag（如 `v0.11.0`）
+5. apply Service 与 Ingress
+6. 输出 Pod 与 Service 状态
+
+**自动触发**：打 tag 推送到 GitHub 时，`Publish Docker image (Multi-arch)` workflow 会自动构建镜像并推送到 GHCR，成功后自动触发本 workflow 部署到集群。
 
 ### 方式二：手动 apply
 

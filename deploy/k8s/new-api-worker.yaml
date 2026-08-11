@@ -45,7 +45,7 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: new-api
-          image: calciumion/new-api:latest
+          image: ghcr.io/xiaocongyu66/new-api:latest
           imagePullPolicy: Always
           ports:
             - name: http

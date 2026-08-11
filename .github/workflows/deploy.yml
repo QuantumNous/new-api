@@ -4,20 +4,23 @@ name: Deploy to Kubernetes
 #   - 所有凭证来自 GitHub Actions Secrets，日志自动脱敏，仓库中无任何明文
 #   - CI 从 Secrets 读值，在集群内幂等创建/更新 new-api-secrets，再 apply manifests
 #   - manifests 只用 secretKeyRef 引用 Secret 名称
+#   - 本 workflow 在 self-hosted runner 上执行（runs-on: [self-hosted, k8s]），
+#     因为自建集群的 API server 在内网，GitHub 托管 runner 无法直连
+#
+# 触发方式：
+#   1. 手动：Actions 页面 → Deploy to Kubernetes → Run workflow
+#   2. 自动：docker-build.yml 发布镜像成功后用 gh workflow run 调用本 workflow
 #
 # 需要在仓库 Settings → Secrets and variables → Actions 配置的 Secret：
 #   KUBE_CONFIG_B64     base64 编码的 kubeconfig（runner 访问集群用）
-#   SQL_DSN             自建 PostgreSQL 连接串
-#   REDIS_CONN_STRING   自建 Redis 连接串
+#   SQL_DSN             PostgreSQL 连接串（集群内 Pod 用 DNS 名 postgres:5432）
+#   REDIS_CONN_STRING   Redis 连接串（集群内 Pod 用 DNS 名 redis:6379）
 #   SESSION_SECRET      会话签名密钥（所有 Pod 一致）
 #   CRYPTO_SECRET       缓存键 HMAC 密钥（共享 Redis 时所有 Pod 一致）
-#   POSTGRES_DB         自建 PG 数据库名
-#   POSTGRES_USER       自建 PG 用户名
-#   POSTGRES_PASSWORD   自建 PG 密码
-#   REDIS_PASSWORD      自建 Redis 密码
-#
-# 注意：若集群 API server 在内网不可从 GitHub 托管 runner 直连，
-#       改用 self-hosted runner（runs-on 换成自托管标签）。
+#   POSTGRES_DB         PG 数据库名（postgres.yaml 初始化用）
+#   POSTGRES_USER       PG 用户名
+#   POSTGRES_PASSWORD   PG 密码
+#   REDIS_PASSWORD      Redis 密码（redis.yaml 初始化用）
 
 on:
   workflow_dispatch:
@@ -26,14 +29,18 @@ on:
         description: "worker 副本数"
         required: false
         default: "3"
+      image_tag:
+        description: "要部署的镜像 tag，如 v0.11.0；默认 latest"
+        required: false
+        default: "latest"
+
 
 concurrency:
   group: k8s-deploy
   cancel-in-progress: false
-
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, k8s]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -75,6 +82,12 @@ jobs:
           kubectl apply -f deploy/k8s/service.yaml
           kubectl apply -f deploy/k8s/ingress.yaml
 
+      - name: Set image tag
+        run: |
+          IMAGE="ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}"
+          kubectl set image deployment/new-api-master new-api="$IMAGE"
+          kubectl set image deployment/new-api-worker new-api="$IMAGE"
+          echo "部署镜像: $IMAGE"
       - name: Wait for rollout
         run: |
           kubectl rollout status deployment/new-api-master --timeout=180s

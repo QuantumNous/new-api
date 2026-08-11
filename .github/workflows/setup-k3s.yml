@@ -1,0 +1,163 @@
+name: Setup k3s cluster and self-hosted runner
+
+# 一次性引导 workflow：在用户服务器上自动安装 k3s 集群 + Nginx Ingress + self-hosted runner。
+# 之后 deploy.yml 通过 self-hosted runner（标签 k8s）在集群内执行部署。
+#
+# 需要的 GitHub Actions Secrets（Settings → Secrets and variables → Actions）：
+#   SERVER1_IP         k3s server 节点 IP（如 136.0.34.25）
+#   SERVER1_USER       SSH 用户名（root 或具有 sudo 的用户）
+#   SERVER2_IP         k3s agent 节点 IP（如 156.254.6.210）
+#   SERVER2_USER       SSH 用户名
+#   SSH1_PASSWORD      服务器1 SSH 登录密码（用于首次装公钥）
+#   SSH2_PASSWORD      服务器2 SSH 登录密码（同上）
+#
+# 流程：
+#   1. 在 GitHub 托管 runner 上生成临时 ed25519 密钥对
+#   2. 用 sshpass + 密码（SSH1/SSH2_PASSWORD）把公钥装到两台服务器
+#   3. 后续用临时私钥自动登录，跑完即销毁
+#   4. 装 k3s server / agent / nginx ingress / self-hosted runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      server1_ip:
+        description: "服务器1 IP（k3s server 节点）"
+        required: false
+        default: "136.0.34.25"
+      server2_ip:
+        description: "服务器2 IP（k3s agent 节点）"
+        required: false
+        default: "156.254.6.210"
+
+permissions:
+  actions: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install sshpass
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Generate temporary SSH key pair
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ inputs.server1_ip }} >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H ${{ inputs.server2_ip }} >> ~/.ssh/known_hosts 2>/dev/null
+          echo "temporary ed25519 key pair generated (will be discarded after run)"
+
+      - name: Install public key on server1
+        run: |
+          sshpass -p "${{ secrets.SSH1_PASSWORD }}" ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
+            "mkdir -p ~/.ssh && chmod 700 ~/.ssh"
+          cat ~/.ssh/id_ed25519.pub | sshpass -p "${{ secrets.SSH1_PASSWORD }}" ssh \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
+            "cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+          echo "public key installed on server1"
+
+      - name: Install public key on server2
+        run: |
+          sshpass -p "${{ secrets.SSH2_PASSWORD }}" ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER2_USER }}@${{ inputs.server2_ip }} \
+            "mkdir -p ~/.ssh && chmod 700 ~/.ssh"
+          cat ~/.ssh/id_ed25519.pub | sshpass -p "${{ secrets.SSH2_PASSWORD }}" ssh \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER2_USER }}@${{ inputs.server2_ip }} \
+            "cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+          echo "public key installed on server2"
+
+      - name: Verify SSH key login (server1)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
+            'echo "SSH key login OK on server1"'
+
+      - name: Verify SSH key login (server2)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER2_USER }}@${{ inputs.server2_ip }} \
+            'echo "SSH key login OK on server2"'
+
+      - name: Install k3s server on server1
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
+            'curl -sfL https://get.k3s.io | sh -s - --disable traefik'
+          echo "k3s server installed on ${{ inputs.server1_ip }}"
+
+      - name: Get k3s node token
+        run: |
+          TOKEN=$(ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
+            'sudo cat /var/lib/rancher/k3s/server/node-token')
+          echo "K3S_TOKEN=$TOKEN" >> $GITHUB_ENV
+          echo "k3s node token retrieved"
+
+      - name: Install k3s agent on server2
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER2_USER }}@${{ inputs.server2_ip }} \
+            "curl -sfL https://get.k3s.io | K3S_URL=https://${{ inputs.server1_ip }}:6443 K3S_TOKEN=$K3S_TOKEN sh -"
+          echo "k3s agent joined from ${{ inputs.server2_ip }}"
+
+      - name: Install Nginx Ingress Controller
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
+            'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml && kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/baremetal/deploy.yaml'
+          echo "nginx ingress controller installed"
+
+      - name: Verify cluster nodes
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
+            'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml && kubectl get nodes -o wide'
+
+      - name: Get runner registration token
+        run: |
+          REG_TOKEN=$(curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/runners/registration-token \
+            | jq -r .token)
+          echo "REG_TOKEN=$REG_TOKEN" >> $GITHUB_ENV
+
+      - name: Register self-hosted runner on server1
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} "
+            sudo mkdir -p /opt/actions-runner
+            sudo chown \$(whoami) /opt/actions-runner
+            cd /opt/actions-runner
+            LATEST=\$(curl -s https://api.github.com/repos/actions/runner/releases/latest | jq -r .tag_name)
+            RUNNER_VERSION=\${LATEST#v}
+            curl -sL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/\$LATEST/actions-runner-linux-x64-\$RUNNER_VERSION.tar.gz
+            tar xzf actions-runner.tar.gz
+            ./config.sh --url https://github.com/${{ github.repository }} --token $REG_TOKEN --labels k8s --name k3s-runner --unattended --replace
+            sudo ./svc.sh install
+            sudo ./svc.sh start
+          "
+          echo "self-hosted runner registered (label: k8s)"
+
+      - name: Get KUBE_CONFIG_B64 and save to artifact
+        run: |
+          KUBECONFIG_B64=$(ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER1_USER }}@${{ inputs.server1_ip }} \
+            'base64 -w0 < /etc/rancher/k3s/k3s.yaml')
+          echo "$KUBECONFIG_B64" > kubeconfig_b64.txt
+          echo "KUBE_CONFIG_B64 saved to artifact"
+
+      - name: Upload kubeconfig artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubeconfig-b64
+          path: kubeconfig_b64.txt
+
+      - name: Summarize
+        run: |
+          echo "### Setup complete" >> $GITHUB_STEP_SUMMARY
+          echo "- k3s server: ${{ inputs.server1_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "- k3s agent: ${{ inputs.server2_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Ingress Controller: installed (NodePort 30080/30443)" >> $GITHUB_STEP_SUMMARY
+          echo "- Self-hosted runner: registered with label k8s" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. 下载 artifact 中的 kubeconfig_b64.txt，内容填为 KUBE_CONFIG_B64 secret" >> $GITHUB_STEP_SUMMARY
+          echo "2. 触发 Deploy to Kubernetes workflow 部署应用" >> $GITHUB_STEP_SUMMARY

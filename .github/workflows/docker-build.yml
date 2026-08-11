@@ -113,6 +113,7 @@ jobs:
     permissions:
       id-token: write
       packages: write
+      actions: write
 
     steps:
       - name: Set version
@@ -153,3 +154,12 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           docker buildx imagetools inspect ghcr.io/${{ github.repository }}:${TAG} >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Trigger deploy to Kubernetes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run deploy.yml \
+            -f image_tag="$TAG" \
+            -f worker_replicas=3
+          echo "已触发 Deploy to Kubernetes (image_tag=$TAG)"
