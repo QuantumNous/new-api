@@ -1633,6 +1633,7 @@
     "megabyai_key_prompt": "格式：Bearer token（MegaByAI API Key）",
     "sora2u_key_prompt": "格式：Bearer token（Sora2U API Key，sk_sora_...）",
     "zzdh_key_prompt": "格式：Bearer token（zz API Key）",
+    "mao_key_prompt": "格式：Bearer token（catertx / mao API Key）",
     "渠道管理": "渠道管理",
     "渠道额外设置": "渠道额外设置",
     "源地址": "源地址",
