@@ -13,6 +13,7 @@ import yaml
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "gcp-browser-qa.yml"
 STAGING_DEPLOY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "gcp-deploy-staging.yml"
+PRODUCTION_DEPLOY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "gcp-deploy.yml"
 
 
 def workflow_text():
@@ -21,6 +22,10 @@ def workflow_text():
 
 def staging_deploy_workflow_text():
     return STAGING_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+
+
+def production_deploy_workflow_text():
+    return PRODUCTION_DEPLOY_WORKFLOW.read_text(encoding="utf-8")
 
 
 def strip_comments(text):
@@ -1203,6 +1208,67 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertEqual(qa_dependent_rollback_jobs(text), [])
         self.assertNotRegex(uncommented, r"(?i)browser-qa[\s\S]{0,400}continue-on-error")
         self.assertNotRegex(uncommented, r"(?i)(GITHUB_STEP_SUMMARY|summary)[^\n]*(password|cookie|authorization|api[_-]?key|token|secret|email)")
+
+    def test_production_backend_calls_browser_qa_alert_only_after_console_deploy(self):
+        text = production_deploy_workflow_text()
+        uncommented = strip_comments(text)
+        qa = job_block(text, "browser-qa-production")
+        parsed_qa = yaml.safe_load(text)["jobs"]["browser-qa-production"]
+
+        self.assertEqual(
+            parsed_qa,
+            {
+                "needs": "deploy-console",
+                "uses": "./.github/workflows/gcp-browser-qa.yml",
+                "permissions": {
+                    "contents": "write",
+                    "pull-requests": "write",
+                    "id-token": "write",
+                },
+                "with": {
+                    "target_environment": "production",
+                    "mode": "normal",
+                    "fail_on_findings": False,
+                },
+                "secrets": {
+                    "STAGING_BROWSER_QA_DINGTALK_WEBHOOK": "${{ secrets.STAGING_BROWSER_QA_DINGTALK_WEBHOOK }}",
+                    "STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET": "${{ secrets.STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET }}",
+                },
+            },
+        )
+
+        self.assertRegex(qa, r"(?m)^    needs: deploy-console$")
+        self.assertRegex(qa, r"(?m)^    uses: \./\.github/workflows/gcp-browser-qa\.yml$")
+        self.assertRegex(
+            qa,
+            r"(?m)^    permissions:\n"
+            r"      contents: write\n"
+            r"      pull-requests: write\n"
+            r"      id-token: write\b",
+        )
+        self.assertRegex(
+            qa,
+            r"(?ms)^    with:\n"
+            r"      target_environment: production\n"
+            r"      mode: normal\n"
+            r"      fail_on_findings: false\b",
+        )
+        self.assertRegex(
+            qa,
+            r"(?ms)^    secrets:\n"
+            r"      STAGING_BROWSER_QA_DINGTALK_WEBHOOK: \$\{\{ secrets\.STAGING_BROWSER_QA_DINGTALK_WEBHOOK \}\}\n"
+            r"      STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET: \$\{\{ secrets\.STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET \}\}\s*$",
+        )
+        self.assertNotIn("deploy-router", qa)
+        self.assertNotRegex(qa, r"(?m)^    environment:")
+        self.assertNotRegex(qa, r"(?i)\b(rollback|restore|update-traffic|traffic|gcloud run|run:)\b")
+        self.assertNotIn("continue-on-error", qa)
+        self.assertNotIn("secrets: inherit", qa)
+        self.assertNotRegex(uncommented, r"(?i)browser-qa-production[\s\S]{0,400}continue-on-error")
+        self.assertNotRegex(
+            uncommented,
+            r"(?ms)^  [A-Za-z0-9_-]+:\n(?:(?!^  [A-Za-z0-9_-]+:).)*needs:[^\n]*browser-qa-production",
+        )
 
     def test_staging_deploy_explicitly_allows_browser_qa_gmail_aliases(self):
         text = staging_deploy_workflow_text()
