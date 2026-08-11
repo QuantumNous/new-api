@@ -19,7 +19,6 @@ on:
 
 permissions:
   actions: write
-  administration: write
 
 jobs:
   setup:
