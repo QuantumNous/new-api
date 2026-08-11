@@ -304,7 +304,7 @@ func ListDueRecallLifecycleEvents(ctx context.Context, now int64, limit int) ([]
 	err = DB.WithContext(ctx).
 		Model(&RecallLifecycleEvent{}).
 		Select("recall_lifecycle_events.*").
-		Joins("JOIN recall_continuous_trigger_slots ON recall_continuous_trigger_slots.trigger = recall_lifecycle_events.event_type").
+		Joins("JOIN recall_continuous_trigger_slots ON recall_continuous_trigger_slots.`trigger` = recall_lifecycle_events.event_type").
 		Joins("JOIN recall_campaigns ON recall_campaigns.id = recall_continuous_trigger_slots.campaign_id").
 		Where("recall_campaigns.execution_mode = ? AND recall_campaigns.status = ?", "continuous", RecallCampaignRunning).
 		Where("recall_campaigns.lifecycle_trigger = recall_lifecycle_events.event_type").
@@ -612,7 +612,7 @@ func GetRecallLifecycleEventCollectionStartedAtWithContext(ctx context.Context) 
 		return 0, fmt.Errorf("context is nil")
 	}
 	var option Option
-	if err := DB.WithContext(ctx).First(&option, "key = ?", OptionKeyRecallLifecycleEventCollectionStartedAt).Error; err != nil {
+	if err := DB.WithContext(ctx).First(&option, "`key` = ?", OptionKeyRecallLifecycleEventCollectionStartedAt).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return 0, fmt.Errorf("recall lifecycle event collection marker is missing")
 		}

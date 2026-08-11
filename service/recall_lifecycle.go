@@ -326,7 +326,7 @@ func recallLifecycleCountBy(ctx context.Context, base *gorm.DB, column string) (
 		Count int64
 	}, 0)
 	if err := base.Session(&gorm.Session{}).
-		Select(column + " AS key, COUNT(*) AS count").
+		Select(column + " AS `key`, COUNT(*) AS `count`").
 		Where(column + " <> ''").
 		Group(column).
 		Find(&rows).Error; err != nil {
@@ -572,7 +572,7 @@ func loadRecallLifecycleCampaignForEventTx(tx *gorm.DB, event model.RecallLifecy
 		Model(&model.RecallCampaign{}).
 		Select("recall_campaigns.*").
 		Joins("JOIN recall_continuous_trigger_slots ON recall_continuous_trigger_slots.campaign_id = recall_campaigns.id").
-		Where("recall_continuous_trigger_slots.trigger = ?", event.EventType).
+		Where("recall_continuous_trigger_slots.`trigger` = ?", event.EventType).
 		Where("recall_campaigns.status = ? AND recall_campaigns.execution_mode = ? AND recall_campaigns.lifecycle_trigger = ?",
 			model.RecallCampaignRunning, "continuous", event.EventType).
 		First(&campaign).Error

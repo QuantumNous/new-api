@@ -700,7 +700,7 @@ func loadStripeSubscriptionDiscountInvoiceReconciliationCursor() (stripeSubscrip
 		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, err
 	}
 	var option model.Option
-	err = model.DB.Where("key = ?", stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey).First(&option).Error
+	err = model.DB.Where("`key` = ?", stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey).First(&option).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return stripeSubscriptionDiscountInvoiceReconciliationCursor{}, nil
 	}
@@ -732,7 +732,7 @@ func checkpointStripeSubscriptionDiscountInvoiceReconciliationCursor(cursor stri
 		return cursor, err
 	}
 	result := model.DB.Model(&model.Option{}).
-		Where("key = ? AND value = ?", stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey, cursor.raw).
+		Where("`key` = ? AND `value` = ?", stripeSubscriptionDiscountInvoiceReconciliationCursorOptionKey, cursor.raw).
 		Update("value", value)
 	if result.Error != nil {
 		return cursor, result.Error
