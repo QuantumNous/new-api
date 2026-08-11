@@ -41,6 +41,13 @@ def run_blocks(text):
     return re.findall(r"(?ms)^        run: \|\n(?P<body>.*?)(?=^      - name: |\Z)", text)
 
 
+def gcloud_execute_commands(block):
+    return re.findall(
+        r"gcloud run jobs execute [\s\S]*?(?=\n\s+(?:[A-Za-z_][A-Za-z0-9_]*=|set -e|attempt_manifest_path=|$))",
+        block,
+    )
+
+
 def job_block(text, name):
     match = re.search(
         rf"(?ms)^  {re.escape(name)}:\n(?P<body>.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
@@ -338,7 +345,7 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertRegex(qa, r"(?m)^    needs: deploy$")
         self.assertRegex(qa, r"(?m)^    uses: \./\.github/workflows/gcp-browser-qa\.yml$")
         self.assertRegex(qa, r"(?m)^    permissions:\n      # Reusable workflow calls cannot elevate permissions inside the called workflow;\n      # this caller ceiling is the exact union of called jobs, not an expansion of browser-qa\.\n      contents: write\n      pull-requests: write\n      id-token: write\b")
-        self.assertRegex(qa, r"(?ms)^    with:\n      mode: normal\n      fail_on_findings: false\b")
+        self.assertRegex(qa, r"(?ms)^    with:\n      mode: normal\n      target_environment: staging\n      fail_on_findings: false\b")
         self.assertNotIn("original_run_id", qa)
         self.assertRegex(
             qa,
@@ -447,20 +454,72 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertRegex(validate, r"case \"\$\{DISPATCH_FAIL_ON_FINDINGS\}\" in[\s\S]*true\|false")
         self.assertIn("echo \"FAIL_ON_FINDINGS=${DISPATCH_FAIL_ON_FINDINGS}\"", validate)
 
+    def test_target_environment_is_explicit_dispatch_default_and_required_call_input(self):
+        text = workflow_text()
+        self.assertRegex(
+            text,
+            r"(?ms)^      target_environment:\n"
+            r"        description: \"Browser QA target environment\"\n"
+            r"        required: true\n"
+            r"        default: staging\n"
+            r"        type: string\b",
+        )
+        self.assertRegex(
+            text,
+            r"(?ms)^  workflow_call:\n    inputs:\n.*?      target_environment:\n"
+            r"        description: \"Browser QA target environment\"\n"
+            r"        required: true\n"
+            r"        type: string\b",
+        )
+        workflow_call = re.search(r"(?ms)^  workflow_call:\n(?P<body>.*?)(?=^permissions:)", text).group("body")
+        target_call = re.search(r"(?ms)^      target_environment:\n(?P<body>.*?)(?=^      [A-Za-z0-9_-]+:|^    secrets:)", workflow_call).group("body")
+        self.assertNotIn("default:", target_call)
+
+    def test_target_environment_is_closed_and_exports_exact_trusted_origins_before_cloud_mutation(self):
+        text = workflow_text()
+        validate = step_block(text, "Validate dispatch inputs")
+        first_cloud_mutation = min(
+            text.index("- name: Update browser QA Cloud Run resources"),
+            text.index('gcloud run jobs execute "${QA_MAIN_JOB}"'),
+        )
+
+        self.assertLess(text.index("- name: Validate dispatch inputs"), first_cloud_mutation)
+        self.assertIn("DISPATCH_TARGET_ENVIRONMENT: ${{ inputs.target_environment }}", validate)
+        self.assertRegex(
+            validate,
+            r"case \"\$\{DISPATCH_TARGET_ENVIRONMENT\}\" in[\s\S]*"
+            r"staging\)[\s\S]*"
+            r'TARGET_ENVIRONMENT="staging"[\s\S]*'
+            r'WEBSITE_ORIGIN="https://staging-website\.flatkey\.ai"[\s\S]*'
+            r'CONSOLE_ORIGIN="https://staging-console\.flatkey\.ai"[\s\S]*'
+            r'DOCS_ORIGIN="https://docs\.flatkey\.ai"[\s\S]*'
+            r"production\)[\s\S]*"
+            r'TARGET_ENVIRONMENT="production"[\s\S]*'
+            r'WEBSITE_ORIGIN="https://flatkey\.ai"[\s\S]*'
+            r'CONSOLE_ORIGIN="https://console\.flatkey\.ai"[\s\S]*'
+            r'DOCS_ORIGIN="https://docs\.flatkey\.ai"[\s\S]*'
+            r"\*\)[\s\S]*target_environment must be staging or production[\s\S]*exit 2[\s\S]*esac",
+        )
+        for exported in [
+            "FLATKEY_QA_TARGET_ENVIRONMENT=${TARGET_ENVIRONMENT}",
+            "FLATKEY_QA_WEBSITE_ORIGIN=${WEBSITE_ORIGIN}",
+            "FLATKEY_QA_CONSOLE_ORIGIN=${CONSOLE_ORIGIN}",
+            "FLATKEY_QA_DOCS_ORIGIN=${DOCS_ORIGIN}",
+        ]:
+            self.assertIn(f'echo "{exported}"', validate)
+
     def test_dispatch_inputs_are_not_interpolated_inside_shell_run_blocks(self):
         for index, block in enumerate(run_blocks(workflow_text())):
             with self.subTest(run_block=index):
                 self.assertNotIn("${{ inputs.", block)
 
-    def test_workflow_uses_dedicated_qa_identity_and_never_names_production_environment(self):
+    def test_workflow_uses_dedicated_qa_identity_and_never_uses_github_environment_gates(self):
         text = workflow_text()
         self.assertIn("GCP_BROWSER_QA_WIF_PROVIDER", text)
         self.assertIn("GCP_BROWSER_QA_DEPLOYER_SA", text)
         self.assertNotIn("vars.GCP_WIF_PROVIDER", text)
         self.assertNotIn("vars.GCP_DEPLOYER_SA", text)
         self.assertNotRegex(text, r"(?mi)^\s*environment:\s*(production|prod|staging)\b")
-        without_manifest_summary = text.replace(step_block(text, "Fetch sanitized manifest and write summary"), "")
-        self.assertNotRegex(without_manifest_summary, r"(?i)\bproduction\b|\bprod\b")
 
     def test_image_is_sha_bound_and_only_qa_resources_are_mutated(self):
         text = workflow_text()
@@ -478,6 +537,8 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
                 "flatkey-staging-browser-qa-cleanup",
             ],
         )
+        self.assertNotIn("inputs.QA_", text)
+        self.assertNotIn("inputs.qa_", text)
 
     def test_repo_tests_run_from_checkout_before_the_runtime_image_is_built(self):
         text = workflow_text()
@@ -533,26 +594,25 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("--update-env-vars", update)
         self.assertNotIn("--args=", update)
         self.assertEqual(update.count("gcloud run services update"), 1)
-        self.assertEqual(update.count("gcloud run jobs update"), 2)
+        self.assertEqual(update.count("gcloud run jobs update"), 0)
         for command in re.findall(r"gcloud run (?:services|jobs) update[\s\S]*?(?=\n          gcloud run |\Z)", update):
             self.assertIn("--image=\"${IMAGE_URI}\"", command)
             self.assertNotRegex(command, r"--(update-secrets|update-env-vars|args)=")
 
+    def test_no_persistent_job_template_update_is_used_for_browser_qa_jobs(self):
+        update = step_block(workflow_text(), "Update browser QA Cloud Run resources")
+
+        self.assertEqual(update.count("gcloud run services update"), 1)
+        self.assertNotIn("gcloud run jobs update", update)
+        self.assertNotRegex(update, r"gcloud run jobs update[\s\S]*--update-env-vars")
+
     def test_resource_update_gives_only_the_main_job_two_gibibytes_of_memory(self):
         update = step_block(workflow_text(), "Update browser QA Cloud Run resources")
-        commands = re.findall(
-            r"gcloud run (?:services|jobs) update[\s\S]*?(?=\n          gcloud run |\Z)",
-            update,
-        )
-        self.assertEqual(len(commands), 3)
+        commands = re.findall(r"gcloud run services update[\s\S]*?(?=\n          gcloud run |\Z)", update)
+        self.assertEqual(len(commands), 1)
 
-        main = next(command for command in commands if '"${QA_MAIN_JOB}"' in command)
         broker = next(command for command in commands if '"${QA_BROKER_SERVICE}"' in command)
-        cleanup = next(command for command in commands if '"${QA_CLEANUP_JOB}"' in command)
-
-        self.assertIn('--memory="2Gi"', main)
         self.assertNotIn("--memory=", broker)
-        self.assertNotIn("--memory=", cleanup)
         self.assertNotIn("--cpu=", update)
 
     def test_main_and_cleanup_execute_with_wait_and_cleanup_is_unconditional(self):
@@ -569,6 +629,41 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertIn("FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID}", main)
         self.assertIn("FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID}", cleanup)
         self.assertIn("FLATKEY_BROWSER_QA_MODE=${BROWSER_QA_MODE}", main)
+
+    def test_cloud_run_executions_pass_selected_target_environment_and_origins_as_execution_overrides(self):
+        blocks = {
+            "main": step_block(workflow_text(), "Execute main browser QA job"),
+            "cleanup": step_block(workflow_text(), "Execute cleanup browser QA job"),
+            "candidate": step_block(workflow_text(), "Validate candidate promotion attempts"),
+        }
+        expected = [
+            "FLATKEY_QA_TARGET_ENVIRONMENT=${FLATKEY_QA_TARGET_ENVIRONMENT}",
+            "FLATKEY_QA_WEBSITE_ORIGIN=${FLATKEY_QA_WEBSITE_ORIGIN}",
+            "FLATKEY_QA_CONSOLE_ORIGIN=${FLATKEY_QA_CONSOLE_ORIGIN}",
+            "FLATKEY_QA_DOCS_ORIGIN=${FLATKEY_QA_DOCS_ORIGIN}",
+        ]
+
+        for name, block in blocks.items():
+            with self.subTest(path=name):
+                commands = gcloud_execute_commands(block)
+                self.assertGreaterEqual(len(commands), 1)
+                for command in commands:
+                    self.assertIn("--update-env-vars=", command)
+                    for item in expected:
+                        self.assertIn(item, command)
+
+    def test_execution_overrides_do_not_accept_caller_supplied_origin_job_or_service_names(self):
+        text = workflow_text()
+
+        self.assertNotRegex(text, r"\$\{\{\s*inputs\.(?:website|console|docs)_origin")
+        self.assertNotRegex(text, r"\$\{\{\s*inputs\.(?:job|service)_name")
+        for block in [
+            step_block(text, "Execute main browser QA job"),
+            step_block(text, "Execute cleanup browser QA job"),
+            step_block(text, "Validate candidate promotion attempts"),
+        ]:
+            self.assertNotRegex(block, r"FLATKEY_QA_(?:WEBSITE|CONSOLE|DOCS)_ORIGIN=\$\{\{\s*inputs\.")
+            self.assertNotRegex(block, r"gcloud run jobs execute \"\$\{\{\s*inputs\.")
 
     def test_gmail_base_is_runtime_var_only_for_validation_and_main_execution(self):
         text = workflow_text()
@@ -993,7 +1088,7 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
             "BROWSER_QA_GCS_URI",
         ]:
             self.assertIn(safe_env, notification)
-        self.assertIn("BROWSER_QA_TARGET_ENVIRONMENT: staging", notification)
+        self.assertIn('BROWSER_QA_TARGET_ENVIRONMENT="${FLATKEY_QA_TARGET_ENVIRONMENT}"', notification)
         self.assertIn("BROWSER_QA_FINDING_SUMMARIES_B64: ${{ steps.manifest.outputs.finding_summaries_b64 || 'W10=' }}", notification)
         self.assertIn("steps.candidates.outcome == 'failure'", notification)
         self.assertIn("steps.candidates_recovery.outcome == 'failure'", notification)
@@ -1027,7 +1122,7 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
 
         self.assertRegex(qa, r"(?m)^    needs: deploy$")
         self.assertRegex(qa, r"(?m)^    uses: \./\.github/workflows/gcp-browser-qa\.yml$")
-        self.assertRegex(qa, r"(?ms)^    with:\n      mode: normal\n      fail_on_findings: false\b")
+        self.assertRegex(qa, r"(?ms)^    with:\n      mode: normal\n      target_environment: staging\n      fail_on_findings: false\b")
         self.assertRegex(
             qa,
             r"(?ms)^    secrets:\n"

@@ -13,6 +13,11 @@ on:
           - core
           - cleanup-only
           - promotion-only
+      target_environment:
+        description: "Browser QA target environment"
+        required: true
+        default: staging
+        type: string
       original_run_id:
         description: "Required cleanup-only or promotion-only original run id"
         required: false
@@ -30,6 +35,10 @@ on:
     inputs:
       mode:
         description: "Browser QA mode to run"
+        required: true
+        type: string
+      target_environment:
+        description: "Browser QA target environment"
         required: true
         type: string
       original_run_id:
@@ -86,6 +95,7 @@ jobs:
         shell: bash
         env:
           DISPATCH_MODE: ${{ inputs.mode }}
+          DISPATCH_TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
           DISPATCH_ORIGINAL_RUN_ID: ${{ inputs.original_run_id }}
           DISPATCH_ORIGINAL_RUN_ATTEMPT: ${{ inputs.original_run_attempt }}
           DISPATCH_FAIL_ON_FINDINGS: ${{ inputs.fail_on_findings }}
@@ -106,6 +116,24 @@ jobs:
               ;;
             *)
               echo "fail_on_findings must be true or false" >&2
+              exit 2
+              ;;
+          esac
+          case "${DISPATCH_TARGET_ENVIRONMENT}" in
+            staging)
+              TARGET_ENVIRONMENT="staging"
+              WEBSITE_ORIGIN="https://staging-website.flatkey.ai"
+              CONSOLE_ORIGIN="https://staging-console.flatkey.ai"
+              DOCS_ORIGIN="https://docs.flatkey.ai"
+              ;;
+            production)
+              TARGET_ENVIRONMENT="production"
+              WEBSITE_ORIGIN="https://flatkey.ai"
+              CONSOLE_ORIGIN="https://console.flatkey.ai"
+              DOCS_ORIGIN="https://docs.flatkey.ai"
+              ;;
+            *)
+              echo "target_environment must be staging or production" >&2
               exit 2
               ;;
           esac
@@ -161,6 +189,10 @@ jobs:
             echo "FAIL_ON_FINDINGS=${DISPATCH_FAIL_ON_FINDINGS}"
             echo "MAIN_EXECUTION_ID=${MAIN_EXECUTION_ID}"
             echo "CLEANUP_EXECUTION_ID=${CLEANUP_EXECUTION_ID}"
+            echo "FLATKEY_QA_TARGET_ENVIRONMENT=${TARGET_ENVIRONMENT}"
+            echo "FLATKEY_QA_WEBSITE_ORIGIN=${WEBSITE_ORIGIN}"
+            echo "FLATKEY_QA_CONSOLE_ORIGIN=${CONSOLE_ORIGIN}"
+            echo "FLATKEY_QA_DOCS_ORIGIN=${DOCS_ORIGIN}"
           } >> "$GITHUB_ENV"
 
       - name: Checkout
@@ -282,17 +314,6 @@ jobs:
             --region="${REGION}" \
             --image="${IMAGE_URI}" \
             --quiet
-          gcloud run jobs update "${QA_MAIN_JOB}" \
-            --project="${PROJECT_ID}" \
-            --region="${REGION}" \
-            --memory="2Gi" \
-            --image="${IMAGE_URI}" \
-            --quiet
-          gcloud run jobs update "${QA_CLEANUP_JOB}" \
-            --project="${PROJECT_ID}" \
-            --region="${REGION}" \
-            --image="${IMAGE_URI}" \
-            --quiet
 
       - name: Execute main browser QA job
         id: main
@@ -308,7 +329,7 @@ jobs:
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --args=main \
-            --update-env-vars="FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID},FLATKEY_QA_GMAIL_BASE=${QA_GMAIL_BASE},FLATKEY_BROWSER_QA_MODE=${BROWSER_QA_MODE},FLATKEY_BROWSER_QA_EXECUTION_ID=${MAIN_EXECUTION_ID},FLATKEY_BROWSER_QA_GCS_BUCKET=${QA_GCS_BUCKET}" \
+            --update-env-vars="FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID},FLATKEY_QA_GMAIL_BASE=${QA_GMAIL_BASE},FLATKEY_BROWSER_QA_MODE=${BROWSER_QA_MODE},FLATKEY_BROWSER_QA_EXECUTION_ID=${MAIN_EXECUTION_ID},FLATKEY_BROWSER_QA_GCS_BUCKET=${QA_GCS_BUCKET},FLATKEY_QA_TARGET_ENVIRONMENT=${FLATKEY_QA_TARGET_ENVIRONMENT},FLATKEY_QA_WEBSITE_ORIGIN=${FLATKEY_QA_WEBSITE_ORIGIN},FLATKEY_QA_CONSOLE_ORIGIN=${FLATKEY_QA_CONSOLE_ORIGIN},FLATKEY_QA_DOCS_ORIGIN=${FLATKEY_QA_DOCS_ORIGIN}" \
             --wait \
             --quiet
           main_status=$?
@@ -329,7 +350,7 @@ jobs:
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --args=cleanup \
-            --update-env-vars="FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID},FLATKEY_BROWSER_QA_MAIN_EXECUTION_ID=${MAIN_EXECUTION_ID},FLATKEY_BROWSER_QA_CLEANUP_EXECUTION_ID=${CLEANUP_EXECUTION_ID},FLATKEY_BROWSER_QA_GCS_BUCKET=${QA_GCS_BUCKET}" \
+            --update-env-vars="FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID},FLATKEY_BROWSER_QA_MAIN_EXECUTION_ID=${MAIN_EXECUTION_ID},FLATKEY_BROWSER_QA_CLEANUP_EXECUTION_ID=${CLEANUP_EXECUTION_ID},FLATKEY_BROWSER_QA_GCS_BUCKET=${QA_GCS_BUCKET},FLATKEY_QA_TARGET_ENVIRONMENT=${FLATKEY_QA_TARGET_ENVIRONMENT},FLATKEY_QA_WEBSITE_ORIGIN=${FLATKEY_QA_WEBSITE_ORIGIN},FLATKEY_QA_CONSOLE_ORIGIN=${FLATKEY_QA_CONSOLE_ORIGIN},FLATKEY_QA_DOCS_ORIGIN=${FLATKEY_QA_DOCS_ORIGIN}" \
             --wait \
             --quiet
           cleanup_status=$?
@@ -551,7 +572,7 @@ jobs:
                 --project="${PROJECT_ID}" \
                 --region="${REGION}" \
                 --args=candidate \
-                --update-env-vars="FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID},FLATKEY_QA_GMAIL_BASE=${QA_GMAIL_BASE},FLATKEY_BROWSER_QA_EXECUTION_ID=${attempt_id},FLATKEY_BROWSER_QA_GCS_BUCKET=${QA_GCS_BUCKET},BROWSER_QA_CANDIDATE_B64=${candidate_b64},BROWSER_QA_ATTEMPT_ID=${attempt_id}" \
+                --update-env-vars="FLATKEY_QA_RUN_ID=${EFFECTIVE_RUN_ID},FLATKEY_QA_GMAIL_BASE=${QA_GMAIL_BASE},FLATKEY_BROWSER_QA_EXECUTION_ID=${attempt_id},FLATKEY_BROWSER_QA_GCS_BUCKET=${QA_GCS_BUCKET},BROWSER_QA_CANDIDATE_B64=${candidate_b64},BROWSER_QA_ATTEMPT_ID=${attempt_id},FLATKEY_QA_TARGET_ENVIRONMENT=${FLATKEY_QA_TARGET_ENVIRONMENT},FLATKEY_QA_WEBSITE_ORIGIN=${FLATKEY_QA_WEBSITE_ORIGIN},FLATKEY_QA_CONSOLE_ORIGIN=${FLATKEY_QA_CONSOLE_ORIGIN},FLATKEY_QA_DOCS_ORIGIN=${FLATKEY_QA_DOCS_ORIGIN}" \
                 --wait \
                 --quiet
               execute_status=$?
@@ -740,10 +761,11 @@ jobs:
           BROWSER_QA_CANDIDATE_STATUS: ${{ (steps.candidates.outcome == 'failure' && !steps.candidates.outputs.candidate_status && 'unknown') || (steps.candidates_recovery.outcome == 'failure' && !steps.candidates_recovery.outputs.candidate_status && 'unknown') || steps.candidates.outputs.candidate_status || steps.candidates_recovery.outputs.candidate_status || 'skipped' }}
           BROWSER_QA_CANDIDATE_COUNT: ${{ steps.candidates.outputs.candidate_count || steps.candidates_recovery.outputs.candidate_count || '0' }}
           BROWSER_QA_CANDIDATE_PR_BUNDLE_COUNT: ${{ steps.candidates.outputs.candidate_pr_bundle_count || steps.candidates_recovery.outputs.candidate_pr_bundle_count || '0' }}
-          BROWSER_QA_TARGET_ENVIRONMENT: staging
           BROWSER_QA_GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BROWSER_QA_GCS_URI: ${{ steps.manifest.outputs.gcs_uri || format('gs://browser-qa-report-unavailable/runs/{0}/manifest.json', github.run_id) }}
-        run: python3 -B -m scripts.browser_qa.flatkey_browser_qa.dingtalk
+        run: |
+          set -euo pipefail
+          BROWSER_QA_TARGET_ENVIRONMENT="${FLATKEY_QA_TARGET_ENVIRONMENT}" python3 -B -m scripts.browser_qa.flatkey_browser_qa.dingtalk
 
       - name: Fail standalone workflow for actionable QA states
         if: always()
