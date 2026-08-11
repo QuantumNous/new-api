@@ -297,6 +297,18 @@ class CandidateJobTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             candidate_job._validate_candidate_manifest(invalid)
 
+        with self.assertRaises(ValueError):
+            candidate_job._candidate_manifest(
+                environment="prod",
+                fingerprint=fingerprint,
+                case_id="FQA-0001",
+                attempt_id="attempt-0001",
+                result=fixed_case_result("FQA-0001", "attempt-0001"),
+                cleanup_status="not_required",
+                runtime_classification=None,
+                redactor=candidate_job.Redactor(),
+            )
+
     def test_rejects_unsafe_candidate_env_before_proxy_browser_helper_or_runner_side_effects(self):
         bad_envs = [
             {"FLATKEY_QA_RUN_ID": "../bad"},

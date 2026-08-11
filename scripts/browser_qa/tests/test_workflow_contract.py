@@ -130,6 +130,7 @@ def summarized_root_manifest(status, *, summary=None):
     return {
         "schema_version": 1,
         "run_id": "12345",
+        "environment": "staging",
         "status": status,
         "latest": {"main_execution_id": "main-001", "cleanup_execution_id": None},
         "executions": [
@@ -458,7 +459,8 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("vars.GCP_WIF_PROVIDER", text)
         self.assertNotIn("vars.GCP_DEPLOYER_SA", text)
         self.assertNotRegex(text, r"(?mi)^\s*environment:\s*(production|prod|staging)\b")
-        self.assertNotRegex(text, r"(?i)\bproduction\b|\bprod\b")
+        without_manifest_summary = text.replace(step_block(text, "Fetch sanitized manifest and write summary"), "")
+        self.assertNotRegex(without_manifest_summary, r"(?i)\bproduction\b|\bprod\b")
 
     def test_image_is_sha_bound_and_only_qa_resources_are_mutated(self):
         text = workflow_text()
@@ -622,6 +624,8 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertIn("latest.main_execution_id", summary)
         self.assertIn("summary", summary)
         self.assertIn("validate_root_manifest", summary)
+        self.assertIn('"environment"', summary)
+        self.assertIn('manifest.get("environment") not in {"staging", "production"}', summary)
         self.assertNotIn("main_record.get(\"result\"", summary)
 
     def test_manifest_exports_the_complete_sanitized_notification_contract(self):
@@ -817,6 +821,19 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         self.assertEqual(outputs["manifest_status"], "infrastructure_failed")
         self.assertIn("- replay status: unknown", rendered)
 
+        for name, manifest in [
+            ("missing_environment", {key: value for key, value in summarized_root_manifest("passed").items() if key != "environment"}),
+            ("invalid_environment", {**summarized_root_manifest("passed"), "environment": "prod"}),
+        ]:
+            with self.subTest(name=name):
+                outputs, rendered = run_summary_python(
+                    manifest,
+                    main_outcome="success",
+                    cleanup_outcome="success",
+                )
+                self.assertEqual(outputs["manifest_status"], "infrastructure_failed")
+                self.assertIn("- replay status: unknown", rendered)
+
     def test_summary_python_promotion_only_uses_prior_root_status_not_skipped_cleanup_outcome(self):
         outputs, rendered = run_summary_python(
             summarized_root_manifest("passed"),
@@ -840,7 +857,8 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
         gate = step_block(text, "Fail standalone workflow for actionable QA states")
         for state in ["cleanup_failed", "infrastructure_failed", "replay_failed", "findings_detected"]:
             self.assertIn(state, gate)
-        self.assertNotRegex(text, r"(?i)release gate|needs: .*deploy|environment:")
+        self.assertNotRegex(text, r"(?i)release gate|needs: .*deploy")
+        self.assertNotRegex(text, r"(?mi)^\s*environment:")
 
     def test_fail_on_findings_gate_is_alert_only_when_false_and_blocking_when_true(self):
         gate = step_block(workflow_text(), "Fail standalone workflow for actionable QA states")
@@ -970,10 +988,12 @@ class BrowserQaWorkflowContractTests(unittest.TestCase):
             "BROWSER_QA_CANDIDATE_STATUS",
             "BROWSER_QA_CANDIDATE_COUNT",
             "BROWSER_QA_CANDIDATE_PR_BUNDLE_COUNT",
+            "BROWSER_QA_TARGET_ENVIRONMENT",
             "BROWSER_QA_GITHUB_RUN_URL",
             "BROWSER_QA_GCS_URI",
         ]:
             self.assertIn(safe_env, notification)
+        self.assertIn("BROWSER_QA_TARGET_ENVIRONMENT: staging", notification)
         self.assertIn("BROWSER_QA_FINDING_SUMMARIES_B64: ${{ steps.manifest.outputs.finding_summaries_b64 || 'W10=' }}", notification)
         self.assertIn("steps.candidates.outcome == 'failure'", notification)
         self.assertIn("steps.candidates_recovery.outcome == 'failure'", notification)

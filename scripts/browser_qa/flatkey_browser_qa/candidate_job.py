@@ -624,7 +624,7 @@ def _candidate_manifest(*, environment, fingerprint, case_id, attempt_id, result
     manifest = {
         "schema_version": 1,
         "kind": "candidate_attempt",
-        "environment": _validate_target_environment(environment) if environment in CANDIDATE_TARGET_PROFILES else "staging",
+        "environment": _validate_target_environment(environment),
         "fingerprint": fingerprint if isinstance(fingerprint, str) and FINGERPRINT_RE.fullmatch(fingerprint) else "sha256:" + "0" * 64,
         "case_id": case_id if isinstance(case_id, str) and fixed_cases.ID_RE.fullmatch(case_id) else "FQA-0000",
         "attempt_id": attempt_id if _safe_attempt_id(attempt_id) else "attempt-invalid",

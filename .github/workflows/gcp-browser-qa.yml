@@ -396,7 +396,7 @@ jobs:
           from scripts.browser_qa.flatkey_browser_qa import cleanup_job, dingtalk
 
           ALLOWED_ROOT_STATUS = {"passed", "findings_detected", "replay_failed", "infrastructure_failed", "cleanup_failed"}
-          ALLOWED_ROOT_FIELDS = {"schema_version", "run_id", "status", "latest", "executions", "candidates", "candidate_events"}
+          ALLOWED_ROOT_FIELDS = {"schema_version", "run_id", "environment", "status", "latest", "executions", "candidates", "candidate_events"}
           CANDIDATE_FIELDS = {"schema_version", "kind", "fingerprint", "target_url", "proposed_case", "source", "promotion"}
           EMPTY_FINDING_SUMMARIES_B64 = "W10="
 
@@ -416,6 +416,8 @@ jobs:
                   raise ValueError("root manifest identity invalid")
               if set(manifest) - ALLOWED_ROOT_FIELDS:
                   raise ValueError("root manifest fields invalid")
+              if manifest.get("environment") not in {"staging", "production"}:
+                  raise ValueError("root manifest environment invalid")
               candidates = manifest.get("candidates", [])
               if not isinstance(candidates, list) or len(candidates) > 20:
                   raise ValueError("root manifest candidates invalid")
@@ -738,6 +740,7 @@ jobs:
           BROWSER_QA_CANDIDATE_STATUS: ${{ (steps.candidates.outcome == 'failure' && !steps.candidates.outputs.candidate_status && 'unknown') || (steps.candidates_recovery.outcome == 'failure' && !steps.candidates_recovery.outputs.candidate_status && 'unknown') || steps.candidates.outputs.candidate_status || steps.candidates_recovery.outputs.candidate_status || 'skipped' }}
           BROWSER_QA_CANDIDATE_COUNT: ${{ steps.candidates.outputs.candidate_count || steps.candidates_recovery.outputs.candidate_count || '0' }}
           BROWSER_QA_CANDIDATE_PR_BUNDLE_COUNT: ${{ steps.candidates.outputs.candidate_pr_bundle_count || steps.candidates_recovery.outputs.candidate_pr_bundle_count || '0' }}
+          BROWSER_QA_TARGET_ENVIRONMENT: staging
           BROWSER_QA_GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BROWSER_QA_GCS_URI: ${{ steps.manifest.outputs.gcs_uri || format('gs://browser-qa-report-unavailable/runs/{0}/manifest.json', github.run_id) }}
         run: python3 -B -m scripts.browser_qa.flatkey_browser_qa.dingtalk
