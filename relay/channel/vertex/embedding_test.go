@@ -1,6 +1,7 @@
 package vertex
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -155,6 +156,32 @@ func TestVertexEmbeddingHandlerConvertsPredictResponse(t *testing.T) {
 	require.Equal(t, []float64{0.25, -0.5}, converted.Data[0].Embedding)
 	require.Equal(t, 0, converted.Data[0].Index)
 	require.Equal(t, 6, converted.PromptTokens)
+}
+
+func TestVertexEmbeddingHandlerFallsBackForNonPositiveTokenCount(t *testing.T) {
+	t.Parallel()
+
+	for _, tokenCount := range []int{0, -1} {
+		t.Run(fmt.Sprintf("token count %d", tokenCount), func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+			info.SetEstimatePromptTokens(7)
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body: io.NopCloser(strings.NewReader(fmt.Sprintf(
+					`{"predictions":[{"embeddings":{"statistics":{"token_count":%d},"values":[0.25]}}]}`,
+					tokenCount,
+				))),
+			}
+
+			usage, apiErr := VertexEmbeddingHandler(c, info, resp)
+			require.Nil(t, apiErr)
+			require.Equal(t, 7, usage.PromptTokens)
+			require.Equal(t, 7, usage.TotalTokens)
+		})
+	}
 }
 
 func TestVertexEmbeddingHandlerRejectsEmptyPrediction(t *testing.T) {

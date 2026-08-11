@@ -36,7 +36,7 @@ func VertexEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	}
 
 	promptTokens := prediction.Embeddings.Statistics.TokenCount
-	if promptTokens == 0 {
+	if promptTokens <= 0 {
 		promptTokens = info.GetEstimatePromptTokens()
 	}
 	usage := dto.Usage{
