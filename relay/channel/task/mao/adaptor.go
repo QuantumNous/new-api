@@ -77,9 +77,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 
-	logic := strings.TrimSpace(info.OriginModelName)
+	logic := strings.TrimSpace(info.UpstreamModelName)
 	if logic == "" {
-		logic = strings.TrimSpace(info.UpstreamModelName)
+		logic = strings.TrimSpace(info.OriginModelName)
 	}
 	if logic == "" {
 		return nil, fmt.Errorf("model is empty; use one of: %s", strings.Join(ModelList, ", "))
@@ -93,6 +93,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	c.Set(taskcommon.GinKeyUpstreamRequestBody, string(data))
 	return bytes.NewReader(data), nil
 }
 

@@ -15,6 +15,10 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// GinKeyUpstreamRequestBody stores the marshaled upstream create JSON on gin.Context
+// so the task insert path can persist it into TaskPrivateData.RequestBody.
+const GinKeyUpstreamRequestBody = "task_upstream_request_body"
+
 // UnmarshalMetadata converts a map[string]any metadata to a typed struct via JSON round-trip.
 // This replaces the repeated pattern: json.Marshal(metadata) → json.Unmarshal(bytes, &target).
 func UnmarshalMetadata(metadata map[string]any, target any) error {
