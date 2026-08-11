@@ -270,6 +270,148 @@ html.dark .home-showcase {
   border-radius: 0;
 }
 
+@media (max-width: 1023px) {
+  #hero-immersive-stage {
+    padding-top: calc(env(safe-area-inset-top) + 4.25rem);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 3rem);
+  }
+
+  .landing-shell .hero-map-stage {
+    flex: 0 0 clamp(7rem, 22svh, 13rem);
+    min-height: clamp(7rem, 22svh, 13rem);
+  }
+}
+
+.landing-shell .hero-title {
+  font-size: 2.5rem;
+}
+
+@media (max-width: 374px) {
+  .landing-shell .hero-title {
+    font-size: 2.15rem;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .landing-shell .hero-title {
+    font-size: 3rem;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .landing-shell .hero-title {
+    font-size: 3.4rem;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1599px) {
+  .landing-shell .hero-title {
+    font-size: 3.65rem;
+  }
+}
+
+@media (min-width: 1600px) {
+  .landing-shell .hero-copy-glow {
+    max-width: 46rem;
+  }
+
+  .landing-shell .hero-title {
+    font-size: 4rem;
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 780px) {
+  .landing-shell .hero-layout-track {
+    padding-block: 2rem;
+  }
+}
+
+@media (max-width: 359px), (max-width: 1023px) and (max-height: 700px) {
+  #hero-immersive-stage {
+    padding-top: calc(env(safe-area-inset-top) + 4rem);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 2.75rem);
+  }
+
+  .landing-shell .hero-layout-track {
+    gap: 0.75rem;
+    padding-block: 0;
+  }
+
+  .landing-shell .hero-map-stage {
+    flex-basis: 6rem;
+    min-height: 6rem;
+  }
+
+  .landing-shell .hero-copy-glow {
+    padding-block: 0;
+  }
+
+  .landing-shell .hero-eyebrow {
+    font-size: 0.625rem;
+  }
+
+  .landing-shell .hero-title {
+    margin-top: 0.35rem;
+    line-height: 1.05;
+  }
+
+  .landing-shell .hero-subtitle {
+    margin-top: 0.4rem;
+    line-height: 1.45;
+  }
+
+  .landing-shell .hero-pledges {
+    gap: 0.25rem;
+    margin-top: 0.45rem;
+  }
+
+  .landing-shell .hero-pledge {
+    padding-block: 0.125rem;
+  }
+
+  .landing-shell .hero-actions {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.5rem;
+    margin-top: 0.65rem;
+  }
+
+  .landing-shell .hero-cta-primary {
+    min-height: 44px;
+    flex: 1 1 auto;
+    width: auto;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.875rem;
+  }
+
+  .landing-shell .hero-cta-secondary {
+    flex: 0 0 auto;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .landing-shell .hero-integration-boundary {
+    margin-top: 0.55rem;
+    padding-top: 0.35rem;
+  }
+
+  .landing-shell .hero-integration-marquee-wrapper {
+    min-height: 4rem;
+    padding-block: 0.25rem;
+  }
+}
+
+@media (min-width: 375px) and (max-width: 1023px) and (max-height: 700px) {
+  .landing-shell .hero-title {
+    font-size: 2.1rem;
+  }
+}
+
+@media (max-width: 374px) and (max-height: 700px) {
+  .landing-shell .hero-title {
+    font-size: 1.85rem;
+  }
+}
+
 /* The global day-theme sketch scope also reaches the outer Hero section.
    Keep this page-level seam square while leaving its internal controls free to
    use their thematic shape tokens. */

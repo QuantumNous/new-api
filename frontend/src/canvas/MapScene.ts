@@ -23,6 +23,13 @@ import type {
   SignalRouteHop,
 } from '@/constants/home/signalConsole'
 
+export interface SceneFocusRegion {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 interface Ripple {
   x: number
   y: number
@@ -149,6 +156,7 @@ export class MapScene {
 
   private map: WorldMap
   private rain: CharRain
+  private focusRegion: SceneFocusRegion | null = null
   private markers: ModelMarker[] = []
   private users: UserNode[] = []
   private channels: UserChannel[] = []
@@ -250,17 +258,29 @@ export class MapScene {
 
   private placeHub() {
     const radius = this.w < 640 ? 16 : 22
-    // On desktop the gateway becomes the hinge between telemetry, routing, and
-    // copy. On smaller screens it rises into the reserved stage strip above
-    // the frosted content card, so the routing story stays visible.
+    const focus = this.resolveFocusPoint(radius)
+    this.hub.setPos(focus.x, focus.y, radius)
+    this.buildLinks()
+  }
+
+  private resolveFocusPoint(radius: number) {
     const desktop = this.w >= 1024
     const mobileHubY = this.h < 700 ? 0.16 : 0.21
-    this.hub.setPos(
-      this.w * (desktop ? 0.43 : 0.5),
-      this.h * (desktop ? 0.52 : mobileHubY),
-      radius
-    )
-    this.buildLinks()
+    const x = this.focusRegion
+      ? desktop
+        ? Math.min(
+            this.focusRegion.x + this.focusRegion.width - radius * 1.5,
+            Math.max(
+              this.focusRegion.x + this.focusRegion.width / 2,
+              this.w * 0.32
+            )
+          )
+        : this.focusRegion.x + this.focusRegion.width / 2
+      : this.w * (desktop ? 0.43 : 0.5)
+    const y = this.focusRegion
+      ? this.focusRegion.y + this.focusRegion.height / 2
+      : this.h * (desktop ? 0.52 : mobileHubY)
+    return { x, y }
   }
 
   private buildLinks() {
@@ -278,7 +298,8 @@ export class MapScene {
     return this.w < 640 ? 13 : 16
   }
 
-  resize() {
+  resize(focusRegion: SceneFocusRegion | null = this.focusRegion) {
+    this.focusRegion = focusRegion
     this.dpr = Math.min(window.devicePixelRatio || 1, 2)
     const rect = this.canvas.getBoundingClientRect()
     this.w = rect.width
@@ -286,6 +307,8 @@ export class MapScene {
     this.canvas.width = Math.floor(this.w * this.dpr)
     this.canvas.height = Math.floor(this.h * this.dpr)
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+    const focus = this.resolveFocusPoint(this.nodeRadius())
+    this.map.setFocusPoint(focus.x, focus.y)
     this.map.setLayout(this.w, this.h)
     this.rain.setLayout(this.w, this.h)
     if (!this.markers.length) return

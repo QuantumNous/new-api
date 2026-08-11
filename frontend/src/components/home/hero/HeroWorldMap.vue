@@ -12,7 +12,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
-import type { MapScene } from '@/canvas/MapScene'
+import type { MapScene, SceneFocusRegion } from '@/canvas/MapScene'
 import type { SignalConsoleSnapshot } from '@/constants/home/signalConsole'
 import { useTheme } from '@/composables/useTheme'
 
@@ -33,7 +33,34 @@ let io: IntersectionObserver | null = null
 
 watch(resolvedTheme, (theme) => scene?.setTheme(theme))
 
-const onResize = useDebounceFn(() => scene?.resize(), 180)
+function readFocusRegion(): SceneFocusRegion | null {
+  const canvas = canvasEl.value
+  if (!canvas) return null
+  const canvasRect = canvas.getBoundingClientRect()
+  const target = Array.from(
+    canvas.parentElement?.querySelectorAll<HTMLElement>(
+      '[data-hero-map-focus]'
+    ) ?? []
+  ).find((element) => {
+    const rect = element.getBoundingClientRect()
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      getComputedStyle(element).display !== 'none'
+    )
+  })
+  if (!target) return null
+
+  const rect = target.getBoundingClientRect()
+  return {
+    x: rect.left - canvasRect.left,
+    y: rect.top - canvasRect.top,
+    width: rect.width,
+    height: rect.height,
+  }
+}
+
+const onResize = useDebounceFn(() => scene?.resize(readFocusRegion()), 180)
 
 // 事件挂到 window 而非 canvas：右侧 HeroContent 等 HTML 层盖在画布上会吞掉指针事件，
 // 导致中间/右侧模型无法悬停聚焦。改为按 canvas 矩形自行换算坐标，让悬停「穿透」到画布，
@@ -293,6 +320,7 @@ onMounted(async () => {
       (snapshot) => emit('signalChange', snapshot),
       resolvedTheme.value
     )
+    scene.resize(readFocusRegion())
     await scene.init()
   } catch (error) {
     // No 2D context (unsupported/constrained env) or init failed. The map is

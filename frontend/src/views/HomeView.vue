@@ -44,14 +44,19 @@
 
       <!-- 两栏内容（桌面：左图右文网格；移动：上舞台留白 + 下海报式直排） -->
       <div
-        class="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 self-stretch px-4 py-6 max-lg:gap-4 max-lg:py-4 [@media(max-height:700px)_and_(max-width:1023px)]:py-2 sm:px-6 lg:grid lg:grid-cols-[minmax(18rem,0.78fr)_minmax(34rem,1.22fr)] lg:items-center lg:gap-10 lg:px-8 lg:py-14 xl:gap-14 xl:py-16"
+        class="hero-layout-track relative z-10 mx-auto flex w-full max-w-[100rem] flex-1 flex-col gap-6 self-stretch px-4 py-6 max-lg:gap-4 max-lg:py-4 sm:px-6 lg:grid lg:grid-cols-[minmax(18rem,0.78fr)_minmax(34rem,1.22fr)] lg:items-center lg:gap-10 lg:px-8 lg:py-14 xl:gap-14 xl:py-16 2xl:px-12"
       >
         <!-- 左：留空（地图与网关枢纽由全屏背景层透出） -->
-        <div class="order-1 hidden lg:order-none lg:block" aria-hidden="true" />
+        <div
+          class="order-1 hidden lg:order-none lg:block lg:self-stretch"
+          data-hero-map-focus
+          aria-hidden="true"
+        />
         <!-- 移动舞台：弹性填充把多余高度还给地图，内容自然沉底（各高度观感一致）；
              下滑手势区（进入全屏沉浸），引导胶囊置顶；矮屏保底舞台条高度 -->
         <div
-          class="order-1 flex min-h-[8svh] flex-1 items-start justify-center pt-1 [touch-action:pan-x] [@media(max-height:843px)_and_(max-width:1023px)]:min-h-[6svh] [@media(max-height:700px)_and_(max-width:1023px)]:min-h-[36px] lg:hidden"
+          class="hero-map-stage order-1 flex items-start justify-center pt-1 [touch-action:pan-x] lg:hidden"
+          data-hero-map-focus
           @touchstart="onStageTouchStart"
           @touchmove="onStageTouchMove"
           @touchend="onStageTouchEnd"

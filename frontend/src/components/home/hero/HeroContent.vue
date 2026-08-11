@@ -4,7 +4,7 @@
   >
     <!-- 眉标 -->
     <p
-      class="animate-fade-in font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--accent)] sm:text-xs sm:tracking-[0.2em]"
+      class="hero-eyebrow animate-fade-in font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--accent)] sm:text-xs sm:tracking-[0.2em]"
       style="animation-delay: 0.15s"
     >
       {{ t('hero.eyebrow') }}
@@ -16,7 +16,7 @@
          typedLine 的 clientWidth 随当前词变化 → 逐词缩放基准跟着内容漂移。
          w-full 后测量基准 = HeroContent 容器宽（与内容无关），缩放只随视口变化。 -->
     <h1
-      class="hero-title mt-3 w-full text-[2.5rem] font-extrabold leading-[1.08] tracking-normal text-[var(--text-primary)] [@media(max-height:700px)_and_(max-width:1023px)]:text-[1.9rem] sm:mt-4 sm:text-5xl sm:leading-[1.15] lg:text-[3.4rem]"
+      class="hero-title mt-3 w-full font-extrabold leading-[1.08] tracking-normal text-[var(--text-primary)] sm:mt-4 sm:leading-[1.15]"
     >
       <span
         class="animate-rise-in whitespace-nowrap"
@@ -35,7 +35,7 @@
 
     <!-- 副标题 -->
     <p
-      class="mt-3 max-w-lg animate-fade-in text-[15px] leading-relaxed text-[var(--text-secondary)] max-sm:[@media(min-height:701px)]:mt-4 sm:mt-5 sm:text-lg"
+      class="hero-subtitle mt-3 max-w-lg animate-fade-in text-[15px] leading-relaxed text-[var(--text-secondary)] max-sm:[@media(min-height:701px)]:mt-4 sm:mt-5 sm:text-lg"
       style="animation-delay: 0.5s"
     >
       {{ t('hero.subtitle') }}
@@ -43,7 +43,7 @@
 
     <!-- 承诺胶囊 -->
     <ul
-      class="mt-3.5 flex flex-wrap justify-center gap-1.5 animate-fade-in max-sm:[@media(min-height:701px)]:mt-4 sm:mt-5 sm:gap-2 lg:justify-end"
+      class="hero-pledges mt-3.5 flex flex-wrap justify-center gap-1.5 animate-fade-in max-sm:[@media(min-height:701px)]:mt-4 sm:mt-5 sm:gap-2 lg:justify-end"
       style="animation-delay: 0.65s"
     >
       <li
@@ -69,7 +69,7 @@
 
     <!-- CTA -->
     <div
-      class="mt-5 flex w-full flex-col items-stretch gap-2 animate-fade-in max-sm:[@media(min-height:701px)]:mt-6 sm:mt-6 lg:mt-8 lg:w-auto lg:flex-row lg:items-center lg:gap-3 lg:justify-end"
+      class="hero-actions mt-5 flex w-full flex-col items-stretch gap-2 animate-fade-in max-sm:[@media(min-height:701px)]:mt-6 sm:mt-6 lg:mt-8 lg:w-auto lg:flex-row lg:items-center lg:gap-3 lg:justify-end"
       style="animation-delay: 0.8s"
     >
       <RouterLink
@@ -118,7 +118,7 @@
 
     <!-- 指标（≤843px 高的移动设备隐藏：延迟数据已由 Ticker 呈现，为完整间距腾出空间） -->
     <dl
-      class="mt-5 grid w-full grid-cols-3 gap-2 text-center animate-fade-in max-sm:[@media(min-height:701px)]:mt-6 [@media(max-height:843px)_and_(max-width:1023px)]:hidden sm:mt-6 sm:gap-4 lg:mt-8 lg:flex lg:w-auto lg:gap-8 lg:text-right lg:justify-end"
+      class="hero-metrics mt-5 grid w-full grid-cols-3 gap-2 text-center animate-fade-in max-sm:[@media(min-height:701px)]:mt-6 [@media(max-height:843px)_and_(max-width:1023px)]:hidden sm:mt-6 sm:gap-4 lg:mt-8 lg:flex lg:w-auto lg:gap-8 lg:text-right lg:justify-end"
       style="animation-delay: 0.95s"
     >
       <div v-for="m in metrics" :key="m.label" class="min-w-0">

@@ -9,6 +9,207 @@ import {
   type VisualTheme,
 } from './fixtures'
 
+const heroViewports = [
+  { name: 'wide-desktop', width: 1920, height: 1080, titleSize: 64 },
+  { name: 'desktop', width: 1440, height: 900, titleSize: 58.4 },
+  { name: 'short-desktop', width: 1366, height: 768, titleSize: 58.4 },
+  { name: 'small-desktop', width: 1024, height: 768, titleSize: 54.4 },
+  { name: 'portrait-tablet', width: 768, height: 1024, titleSize: 48 },
+  { name: 'large-phone', width: 430, height: 932, titleSize: 40 },
+  { name: 'phone', width: 390, height: 844, titleSize: 40 },
+  { name: 'short-phone', width: 360, height: 640, titleSize: 29.6 },
+  { name: 'narrow-phone', width: 320, height: 720, titleSize: 34.4 },
+] as const
+
+interface ElementBounds {
+  top: number
+  right: number
+  bottom: number
+  left: number
+  width: number
+  height: number
+}
+
+function overlapArea(a: ElementBounds, b: ElementBounds): number {
+  const width = Math.max(
+    0,
+    Math.min(a.right, b.right) - Math.max(a.left, b.left)
+  )
+  const height = Math.max(
+    0,
+    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+  )
+  return width * height
+}
+
+async function inspectHeroGeometry(page: import('@playwright/test').Page) {
+  return page.evaluate(() => {
+    const bounds = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector)
+      if (!element) throw new Error(`Missing Hero element: ${selector}`)
+      const rect = element.getBoundingClientRect()
+      return {
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      }
+    }
+
+    const hero = bounds('#hero-immersive-stage')
+    const focus = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-hero-map-focus]')
+    )
+      .filter((element) => {
+        const rect = element.getBoundingClientRect()
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          getComputedStyle(element).display !== 'none'
+        )
+      })
+      .map((element) => {
+        const rect = element.getBoundingClientRect()
+        return {
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+        }
+      })[0]
+    if (!focus) throw new Error('Visible Hero map focus region missing')
+
+    const canvas =
+      document.querySelector<HTMLCanvasElement>('canvas[role="img"]')
+    const context = canvas?.getContext('2d')
+    if (!canvas || !context) throw new Error('Hero canvas unavailable')
+    const canvasRect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / canvasRect.width
+    const scaleY = canvas.height / canvasRect.height
+    const sampleX = Math.max(
+      0,
+      Math.floor((focus.left - canvasRect.left) * scaleX)
+    )
+    const sampleY = Math.max(
+      0,
+      Math.floor((focus.top - canvasRect.top) * scaleY)
+    )
+    const sampleWidth = Math.min(
+      canvas.width - sampleX,
+      Math.max(1, Math.floor(focus.width * scaleX))
+    )
+    const sampleHeight = Math.min(
+      canvas.height - sampleY,
+      Math.max(1, Math.floor(focus.height * scaleY))
+    )
+    const pixels = context.getImageData(
+      sampleX,
+      sampleY,
+      sampleWidth,
+      sampleHeight
+    ).data
+    const colors = new Set<string>()
+    let minLuma = 255
+    let maxLuma = 0
+    const sampleStride = Math.max(4, Math.floor(pixels.length / 16_000 / 4) * 4)
+    for (let offset = 0; offset < pixels.length; offset += sampleStride) {
+      const red = pixels[offset]!
+      const green = pixels[offset + 1]!
+      const blue = pixels[offset + 2]!
+      colors.add(`${red >> 3},${green >> 3},${blue >> 3}`)
+      const luma = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+      minLuma = Math.min(minLuma, luma)
+      maxLuma = Math.max(maxLuma, luma)
+    }
+
+    const nav = document.querySelector<HTMLElement>('.app-navbar nav')
+    if (!nav) throw new Error('Home navigation missing')
+    const navStyle = getComputedStyle(nav)
+    const ticker = document.querySelector<HTMLElement>(
+      '.signal-console__ticker'
+    )
+    const tickerVisible =
+      ticker !== null && getComputedStyle(ticker).display !== 'none'
+
+    return {
+      viewportHeight: innerHeight,
+      hero,
+      focus,
+      copy: bounds('.hero-copy-glow'),
+      title: bounds('.hero-title'),
+      actions: bounds('.hero-actions'),
+      primaryCta: bounds('.hero-cta-primary'),
+      integration: bounds('.hero-integration-boundary'),
+      ticker: tickerVisible ? bounds('.signal-console__ticker') : null,
+      titleSize: Number.parseFloat(
+        getComputedStyle(document.querySelector('.hero-title')!).fontSize
+      ),
+      navContentRight:
+        nav.getBoundingClientRect().right -
+        Number.parseFloat(navStyle.paddingRight),
+      focusPixels: {
+        distinct: colors.size,
+        contrast: maxLuma - minLuma,
+      },
+    }
+  })
+}
+
+for (const theme of ['light', 'dark'] as VisualTheme[]) {
+  for (const viewport of heroViewports) {
+    test(`${theme} ${viewport.name} Hero geometry`, async ({ page }) => {
+      await page.setViewportSize(viewport)
+      await configureStablePage(page, { theme, authenticated: true })
+      await page.goto('/', { waitUntil: 'domcontentloaded' })
+      await waitForStablePage(page)
+      await freezeAndInspectHomeCanvas(page)
+
+      const geometry = await inspectHeroGeometry(page)
+      expect(
+        Math.abs(geometry.hero.height - geometry.viewportHeight)
+      ).toBeLessThanOrEqual(1)
+      expect(geometry.titleSize).toBeCloseTo(viewport.titleSize, 1)
+      expect(geometry.primaryCta.height).toBeGreaterThanOrEqual(44)
+      expect(geometry.focusPixels.distinct).toBeGreaterThan(8)
+      expect(geometry.focusPixels.contrast).toBeGreaterThan(18)
+
+      for (const bounds of [
+        geometry.focus,
+        geometry.copy,
+        geometry.title,
+        geometry.actions,
+        geometry.integration,
+      ]) {
+        expect(bounds.left).toBeGreaterThanOrEqual(geometry.hero.left - 1)
+        expect(bounds.right).toBeLessThanOrEqual(geometry.hero.right + 1)
+        expect(bounds.top).toBeGreaterThanOrEqual(geometry.hero.top - 1)
+        expect(bounds.bottom).toBeLessThanOrEqual(geometry.hero.bottom + 1)
+      }
+
+      expect(overlapArea(geometry.focus, geometry.copy)).toBe(0)
+      expect(overlapArea(geometry.actions, geometry.integration)).toBe(0)
+      if (geometry.ticker) {
+        expect(overlapArea(geometry.ticker, geometry.integration)).toBe(0)
+        expect(geometry.ticker.bottom).toBeLessThanOrEqual(
+          geometry.hero.bottom + 1
+        )
+      }
+      if (viewport.width >= 1024) {
+        expect(
+          Math.abs(geometry.navContentRight - geometry.copy.right)
+        ).toBeLessThanOrEqual(1)
+      }
+
+      await assertInteractiveCentersVisible(page)
+      await assertNoHorizontalOverflow(page)
+    })
+  }
+}
+
 for (const theme of ['light', 'dark'] as VisualTheme[]) {
   for (const viewport of ['desktop', 'mobile'] as const) {
     test(`${theme} ${viewport} home showcase`, async ({ page }) => {

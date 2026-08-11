@@ -8,10 +8,9 @@ import { getCanvasTheme, withAlpha, type CanvasTheme } from './theme'
 const LAT_TOP = 75
 const LAT_BOT = -60
 
-// 移动端竖屏地图：高度占屏比 / 聚焦纬度(北纬模型带) / 舞台锚点高度(对齐枢纽 0.21h)
+// 移动端竖屏地图：高度占屏比 / 聚焦纬度(北纬模型带)
 const MOBILE_MAP_HEIGHT_RATIO = 0.5
 const MOBILE_FOCUS_LAT = 30
-const MOBILE_STAGE_Y_RATIO = 0.21
 
 // 惯性换算用单帧时长（60Hz 基准，与 MapScene.FRAME_MS 同值）
 const FRAME_MS = 1000 / 60
@@ -101,6 +100,8 @@ interface FlowWake {
 
 export class WorldMap {
   private theme: CanvasTheme
+  private focusX: number | null = null
+  private focusY: number | null = null
   private highlightLut: string[]
   private landLut: string[]
   private oceanLut: string[]
@@ -217,6 +218,11 @@ export class WorldMap {
     this.bgGrad = null
   }
 
+  setFocusPoint(x: number, y: number) {
+    this.focusX = x
+    this.focusY = y
+  }
+
   setLayout(w: number, h: number) {
     this.w = w
     this.h = h
@@ -230,13 +236,12 @@ export class WorldMap {
       this.mh = (w / mapAspect) * SCALE
       this.my = (h - this.mh) / 2
     } else {
-      // 移动端竖屏：地图高度改由屏高推导（按屏宽推导会缩成 ~22% 屏高的一条，
-      // 且垂直居中后正好被内容卡遮挡）。北纬 30° 模型密集带锚定到 21% 屏高，
-      // 与枢纽(MapScene 0.21h)、CSS 聚光(50% 26%) 对齐，内容聚焦卡片之上的舞台区。
+      // 移动端竖屏：地图高度改由屏高推导，并把北纬 30° 模型带锚定到
+      // DOM 预留舞台的中心，避免 Canvas 与响应式排版各维护一套位置常量。
       this.mh = h * MOBILE_MAP_HEIGHT_RATIO
       this.mw = this.mh * mapAspect
       this.my =
-        h * MOBILE_STAGE_Y_RATIO -
+        (this.focusY ?? h * 0.21) -
         ((LAT_TOP - MOBILE_FOCUS_LAT) / (LAT_TOP - LAT_BOT)) * this.mh
     }
     this.mx = (w - this.mw) / 2
@@ -460,17 +465,14 @@ export class WorldMap {
       ? 1
       : 0.85 + 0.15 * Math.sin(this.t * 0.012)
 
-    // Ambient field: desktop shifts its centre toward the gateway hinge;
-    // mobile aligns with the hub/stage strip at the top (50% x, 21% y).
+    // Keep the ambient field centred on the same DOM-derived focus as the hub.
     const desktop = this.w >= 1024
+    const baseFocusX = this.focusX ?? this.w * (desktop ? 0.39 : 0.5)
+    const baseFocusY = this.focusY ?? this.h * (desktop ? 0.43 : 0.21)
     const fieldCx =
-      this.w *
-      ((desktop ? 0.39 : 0.5) +
-        (desktop ? 0.08 : 0.1) * Math.sin(this.t * 0.006))
+      baseFocusX + this.w * (desktop ? 0.08 : 0.1) * Math.sin(this.t * 0.006)
     const fieldCy =
-      this.h *
-      ((desktop ? 0.43 : 0.21) +
-        (desktop ? 0.07 : 0.08) * Math.cos(this.t * 0.008))
+      baseFocusY + this.h * (desktop ? 0.07 : 0.08) * Math.cos(this.t * 0.008)
     const fieldR = Math.min(this.w, this.h) * (desktop ? 0.32 : 0.28)
 
     for (const d of this.dots) {
