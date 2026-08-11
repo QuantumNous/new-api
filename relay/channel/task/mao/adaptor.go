@@ -77,6 +77,19 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 
+	var raw []byte
+	if storage, err := common.GetBodyStorage(c); err == nil {
+		raw, _ = storage.Bytes()
+	}
+	if len(raw) == 0 {
+		if b, e := common.Marshal(body); e == nil {
+			raw = b
+		}
+	}
+	if len(raw) > 0 {
+		normalizeVolcOfficialInBodyMap(body, raw)
+	}
+
 	logic := strings.TrimSpace(info.UpstreamModelName)
 	if logic == "" {
 		logic = strings.TrimSpace(info.OriginModelName)

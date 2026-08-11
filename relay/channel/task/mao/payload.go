@@ -60,6 +60,12 @@ func buildUpstreamPayload(body map[string]interface{}, logicModel string) (map[s
 		}
 		md["generate_audio"] = v
 	}
+	if v, ok := cloned["watermark"]; ok {
+		if md == nil {
+			md = make(map[string]interface{})
+		}
+		md["watermark"] = v
+	}
 	if md != nil {
 		if !supportsCameraFixed(logicModel) {
 			delete(md, "camera_fixed")

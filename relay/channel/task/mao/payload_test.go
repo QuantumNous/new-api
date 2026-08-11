@@ -1,6 +1,9 @@
 package mao
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestBuildUpstreamPayload_RewritesModelAndDropsResolution(t *testing.T) {
 	in := map[string]interface{}{
@@ -78,5 +81,52 @@ func TestBuildUpstreamPayload_DefaultResponseFormat(t *testing.T) {
 	}
 	if out["response_format"] != "url" {
 		t.Fatalf("response_format=%v", out["response_format"])
+	}
+}
+
+func TestBuildUpstreamPayload_AfterVolcNormalize(t *testing.T) {
+	raw := []byte(`{
+	  "model":"guanzhuan-seedance2.0",
+	  "content":[
+	    {"type":"text","text":"run"},
+	    {"type":"image_url","role":"first_frame","image_url":{"url":"https://a/first.jpg"}},
+	    {"type":"image_url","role":"last_frame","image_url":{"url":"https://a/last.jpg"}},
+	    {"type":"video_url","video_url":{"url":"https://a/v.mp4"}}
+	  ],
+	  "resolution":"1080p"
+	}`)
+	var body map[string]interface{}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	if !normalizeVolcOfficialInBodyMap(body, raw) {
+		t.Fatal("expected normalize")
+	}
+	out, err := buildUpstreamPayload(body, "guanzhuan-seedance2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["model"] != "sd-2-0-1080p" {
+		t.Fatalf("model=%v", out["model"])
+	}
+	if _, ok := out["content"]; ok {
+		t.Fatal("content must not be present")
+	}
+	if out["image"] != "https://a/first.jpg" {
+		t.Fatalf("image=%v", out["image"])
+	}
+	if out["last_frame"] != "https://a/last.jpg" {
+		t.Fatalf("last_frame=%v", out["last_frame"])
+	}
+	vids := asStringSlice(out["videos"])
+	if len(vids) != 1 || vids[0] != "https://a/v.mp4" {
+		t.Fatalf("videos=%v", out["videos"])
+	}
+	md, _ := out["metadata"].(map[string]interface{})
+	if md["generate_audio"] != true {
+		t.Fatalf("metadata.generate_audio=%v", md["generate_audio"])
+	}
+	if md["watermark"] != false {
+		t.Fatalf("metadata.watermark=%v, want false", md["watermark"])
 	}
 }
