@@ -871,6 +871,20 @@
         showAudioWatermark: false,
         showMingizSend: true,
       },
+      "fr-seedance-2.5": {
+        label: "fr-seedance-2.5（OpenAI Videos）",
+        family: "openai",
+        hint: "OpenAI Videos 协议 · Seedance 2.5 · POST /v1/videos · 支持 multipart 直传 input_reference（本地图），也可 JSON；时长最长 30 秒。",
+        createPath: "/v1/videos",
+        queryPath: (id) => `/v1/videos/${encodeURIComponent(id)}`,
+        contentPath: (id) => `/v1/videos/${encodeURIComponent(id)}/content`,
+        durations: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+        defaultDuration: 8,
+        showMode: true,
+        showResolution: true,
+        showAudioWatermark: false,
+        showMingizSend: true,
+      },
       "sdvip720": {
         label: "sdvip720（OpenAI Videos）",
         family: "openai",
@@ -1081,6 +1095,7 @@
         return n.includes("fast") ? "sd2-fast" : "mingiz-sd2";
       }
       if (n.includes("lec-seedance")) return "lec-seedance-videos-stable";
+      if (n.includes("fr-seedance") && (n.includes("2.5") || n.includes("2-5"))) return "fr-seedance-2.5";
       if (n.includes("fr-seedance") || n === "fr-seedance-2.0") return "fr-seedance-2.0";
       if (n.includes("sdvip") || n === "sdvip720") return "sdvip720";
       if (n.includes("seedance")) return "seedance2.0";
@@ -2837,7 +2852,7 @@
       // 调试页固定展示的模型（即使广场为空或尚未上架）
       {
         const seen = new Set(plazaModels.map((m) => m.id));
-        for (const id of ["fr-seedance-2.0", "sdvip720"]) {
+        for (const id of ["fr-seedance-2.0", "fr-seedance-2.5", "sdvip720"]) {
           if (seen.has(id)) continue;
           seen.add(id);
           const p = MODEL_PROFILES[id];
