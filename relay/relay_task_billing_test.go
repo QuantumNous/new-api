@@ -6,10 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel/task/byteplus"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -110,5 +112,40 @@ func TestBytePlusModelRatiosApplyTierRatios(t *testing.T) {
 				t.Fatalf("tier quota = %d, want %d", priceData.Quota, tt.wantTierQuota)
 			}
 		})
+	}
+}
+
+func TestModelAPISeedanceSubmitAdjustmentPreservesGroupRatio(t *testing.T) {
+	const (
+		modelPrice  = 0.14
+		groupRatio  = 0.8
+		reservedUSD = 0.314 * 5
+		actualUSD   = 1.25
+	)
+
+	reservedBillableUnits := reservedUSD / modelPrice
+	actualBillableUnits := actualUSD / modelPrice
+	baseQuotaWithGroupRatio := int(modelPrice * common.QuotaPerUnit * groupRatio)
+
+	info := &relaycommon.RelayInfo{
+		PriceData: types.PriceData{
+			ModelPrice: modelPrice,
+			UsePrice:   true,
+			Quota:      int(float64(baseQuotaWithGroupRatio) * reservedBillableUnits),
+			OtherRatios: map[string]float64{
+				"billable_units": reservedBillableUnits,
+			},
+			GroupRatioInfo: types.GroupRatioInfo{
+				GroupRatio: groupRatio,
+			},
+		},
+	}
+
+	got := recalcQuotaFromRatios(info, map[string]float64{
+		"billable_units": actualBillableUnits,
+	})
+	want := int(actualUSD * common.QuotaPerUnit * groupRatio)
+	if got != want {
+		t.Fatalf("adjusted quota = %d, want %d", got, want)
 	}
 }
