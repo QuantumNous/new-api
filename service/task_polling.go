@@ -33,6 +33,13 @@ type TaskPollingAdaptor interface {
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
+// TaskAsyncFailureResubmitter is optionally implemented by task adaptors that can
+// re-POST a stored create body on the same channel after a transient async failure.
+// When TryResubmitOnFailure returns resubmitted=true, polling must not refund.
+type TaskAsyncFailureResubmitter interface {
+	TryResubmitOnFailure(ctx context.Context, ch *model.Channel, task *model.Task, failReason string) (resubmitted bool, progress string, err error)
+}
+
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
@@ -456,6 +463,27 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
+		if r, ok := adaptor.(TaskAsyncFailureResubmitter); ok {
+			okResubmit, progress, resubmitErr := r.TryResubmitOnFailure(ctx, ch, task, taskResult.Reason)
+			if resubmitErr != nil {
+				logger.LogError(ctx, fmt.Sprintf("Task %s resubmit error: %s", task.TaskID, resubmitErr.Error()))
+			}
+			if okResubmit {
+				task.Status = model.TaskStatusQueued
+				if progress != "" {
+					task.Progress = progress
+				} else {
+					task.Progress = taskcommon.ProgressQueued
+				}
+				task.FailReason = ""
+				task.FinishTime = 0
+				// Clear so post-switch progress overwrite does not clobber retrying label
+				// (failure parse often sets Progress to "100%").
+				taskResult.Progress = ""
+				// do NOT set shouldRefund — keep task alive for next poll with new UpstreamTaskID
+				break
+			}
+		}
 		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
 		task.Status = model.TaskStatusFailure
 		task.Progress = taskcommon.ProgressComplete

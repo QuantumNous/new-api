@@ -367,13 +367,15 @@ func (Task *Task) Insert() error {
 }
 
 type taskSnapshot struct {
-	Status     TaskStatus
-	Progress   string
-	StartTime  int64
-	FinishTime int64
-	FailReason string
-	ResultURL  string
-	Data       json.RawMessage
+	Status         TaskStatus
+	Progress       string
+	StartTime      int64
+	FinishTime     int64
+	FailReason     string
+	ResultURL      string
+	Data           json.RawMessage
+	UpstreamTaskID string
+	RetryCount     int
 }
 
 func (s taskSnapshot) Equal(other taskSnapshot) bool {
@@ -383,18 +385,22 @@ func (s taskSnapshot) Equal(other taskSnapshot) bool {
 		s.FinishTime == other.FinishTime &&
 		s.FailReason == other.FailReason &&
 		s.ResultURL == other.ResultURL &&
-		bytes.Equal(s.Data, other.Data)
+		bytes.Equal(s.Data, other.Data) &&
+		s.UpstreamTaskID == other.UpstreamTaskID &&
+		s.RetryCount == other.RetryCount
 }
 
 func (t *Task) Snapshot() taskSnapshot {
 	return taskSnapshot{
-		Status:     t.Status,
-		Progress:   t.Progress,
-		StartTime:  t.StartTime,
-		FinishTime: t.FinishTime,
-		FailReason: t.FailReason,
-		ResultURL:  t.PrivateData.ResultURL,
-		Data:       t.Data,
+		Status:         t.Status,
+		Progress:       t.Progress,
+		StartTime:      t.StartTime,
+		FinishTime:     t.FinishTime,
+		FailReason:     t.FailReason,
+		ResultURL:      t.PrivateData.ResultURL,
+		Data:           t.Data,
+		UpstreamTaskID: t.PrivateData.UpstreamTaskID,
+		RetryCount:     t.PrivateData.RetryCount,
 	}
 }
 
