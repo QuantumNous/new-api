@@ -43,6 +43,12 @@ func TestShouldAttemptResubmit(t *testing.T) {
 	if shouldAttemptResubmit(`{}`, 3, "oops") {
 		t.Fatal("max retries")
 	}
+	if shouldAttemptResubmit(`{}`, 2, "timeout") {
+		t.Fatal("count=2 is 3rd failure: no resubmit")
+	}
+	if !shouldAttemptResubmit(`{}`, 1, "timeout") {
+		t.Fatal("count=1 should still resubmit")
+	}
 	if shouldAttemptResubmit(`{}`, 0, "audit failed") {
 		t.Fatal("audit")
 	}

@@ -49,5 +49,7 @@ func retryProgressLabel(failCount int) string {
 }
 
 func shouldAttemptResubmit(body string, retryCount int, reason string) bool {
-	return body != "" && retryCount < MaxAsyncRetries && !isNonRetryableFailReason(reason)
+	// Only resubmit when this failure's new count would still be < MaxAsyncRetries
+	// (i.e. allow resubmit at count 0 and 1; at count 2 → terminal after 3rd failure).
+	return body != "" && retryCount+1 < MaxAsyncRetries && !isNonRetryableFailReason(reason)
 }

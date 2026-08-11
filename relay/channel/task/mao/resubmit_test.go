@@ -64,6 +64,42 @@ func TestTryResubmitOnFailure_AuditNoHTTP(t *testing.T) {
 	}
 }
 
+func TestTryResubmitOnFailure_RetryCount2NoHTTP(t *testing.T) {
+	hit := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hit = true
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"task_id":"should-not"}`))
+	}))
+	defer srv.Close()
+
+	a := &TaskAdaptor{}
+	ch := &model.Channel{Key: "k", BaseURL: &srv.URL}
+	task := &model.Task{
+		PrivateData: model.TaskPrivateData{
+			RequestBody:    `{"model":"x"}`,
+			UpstreamTaskID: "old",
+			RetryCount:     2,
+		},
+	}
+	ok, prog, err := a.TryResubmitOnFailure(context.Background(), ch, task, "timeout")
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if ok || prog != "" {
+		t.Fatalf("expected no resubmit, got ok=%v prog=%q", ok, prog)
+	}
+	if hit {
+		t.Fatal("RetryCount=2 must not hit HTTP")
+	}
+	if task.PrivateData.RetryCount != 2 {
+		t.Fatalf("RetryCount should stay 2, got %d", task.PrivateData.RetryCount)
+	}
+	if task.PrivateData.UpstreamTaskID != "old" {
+		t.Fatalf("UpstreamTaskID changed: %q", task.PrivateData.UpstreamTaskID)
+	}
+}
+
 func TestTryResubmitOnFailure_SuccessUpdatesUpstreamTaskID(t *testing.T) {
 	var gotAuth, gotBody string
 	var gotPath string
