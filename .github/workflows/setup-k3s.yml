@@ -119,24 +119,31 @@ jobs:
           sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
             'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml && kubectl get nodes -o wide'
 
-      - name: Get runner registration token
+      - name: Get runner token
         run: |
           REG_TOKEN=$(curl -s -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/${{ github.repository }}/actions/runners/registration-token \
             | jq -r .token)
+          echo "::add-mask::$REG_TOKEN"
           echo "REG_TOKEN=$REG_TOKEN" >> $GITHUB_ENV
+          echo "RUNNER_VERSION=2.323.0" >> $GITHUB_ENV
 
-      - name: Register self-hosted runner on server
+      - name: Download runner archive
         run: |
+          curl -sL -o /tmp/actions-runner.tar.gz \
+            "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
+          echo "runner archive downloaded: $(ls -lh /tmp/actions-runner.tar.gz | awk '{print $5}')"
+
+      - name: Upload runner to server and register
+        run: |
+          sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
+            'sudo mkdir -p /opt/actions-runner && sudo chown $(whoami) /opt/actions-runner'
+          sshpass -p "$K3S_SERVER_PASS" scp -o StrictHostKeyChecking=no \
+            /tmp/actions-runner.tar.gz "$K3S_SERVER_USER@$K3S_SERVER_IP:/opt/actions-runner/"
           sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" "
-            sudo mkdir -p /opt/actions-runner
-            sudo chown \$(whoami) /opt/actions-runner
             cd /opt/actions-runner
-            LATEST=\$(curl -s https://api.github.com/repos/actions/runner/releases/latest | jq -r .tag_name)
-            RUNNER_VERSION=\${LATEST#v}
-            curl -sL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/\$LATEST/actions-runner-linux-x64-\$RUNNER_VERSION.tar.gz
             tar xzf actions-runner.tar.gz
             ./config.sh --url https://github.com/${{ github.repository }} --token $REG_TOKEN --labels k8s --name k3s-runner --unattended --replace
             sudo ./svc.sh install
@@ -144,12 +151,11 @@ jobs:
           "
           echo "self-hosted runner registered (label: k8s)"
 
-      - name: Get KUBE_CONFIG_B64 and save to artifact
+      - name: Get KUBE_CONFIG_B64
         run: |
           KUBECONFIG_B64=$(sshpass -p "$K3S_SERVER_PASS" ssh -o StrictHostKeyChecking=no "$K3S_SERVER_USER@$K3S_SERVER_IP" \
             'base64 -w0 < /etc/rancher/k3s/k3s.yaml')
           echo "$KUBECONFIG_B64" > kubeconfig_b64.txt
-          echo "KUBE_CONFIG_B64 saved to artifact"
 
       - name: Upload kubeconfig artifact
         uses: actions/upload-artifact@v4
