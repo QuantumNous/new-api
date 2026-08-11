@@ -841,7 +841,7 @@ command = "{_toml_escape(sys.executable)}"
 args = ["-m", "scripts.browser_qa.flatkey_browser_qa.browser_evidence_mcp"]
 required = true
 default_tools_approval_mode = "approve"
-enabled_tools = ["qa_capture_screenshot"]
+enabled_tools = ["qa_capture_screenshot", "qa_report_human_verification_blocked"]
 [mcp_servers.evidence.env]
 PYTHONPATH = "{escaped_repo_root}"
 PATH = "{_toml_escape(child_env.get("PATH", ""))}"
@@ -1909,7 +1909,7 @@ class RuntimeEvidenceSink:
                         owner.runtime_classification = {
                             "classification": "human_verification_blocked",
                             "human_verification_blocked": True,
-                            "turnstile_check": event.get("turnstile_check") is True,
+                            "turnstile_check": True,
                             "target_environment": "production",
                             "blocked_stage": "registration_or_verification",
                         }
@@ -2001,14 +2001,7 @@ def _is_alias_restriction_evidence(event):
 
 
 def _is_human_verification_blocked_evidence(event):
-    allowed = {"type", "failed", "turnstile_check", "stage"}
-    if set(event) != allowed:
-        return False
-    return (
-        event.get("failed") is True
-        and event.get("turnstile_check") is True
-        and event.get("stage") in {"registration", "verification"}
-    )
+    return set(event) == {"type"}
 
 
 def write_browser_evidence_artifacts(runtime_root, raw_events, redactor):

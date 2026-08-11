@@ -38,7 +38,7 @@ Network assertions require exactly one `begin_network_capture` step in the same 
 
 Runtime cleanup is owned by the runtime after Codex exits. Do not attempt account, token, cookie, or artifact cleanup yourself.
 
-If the selected environment is production and CAPTCHA/Turnstile normally blocks registration or verification before `qa_replay_checkpoint`, stop replay, do not solve the challenge, and send only a sanitized `human_verification_blocked` runtime evidence event with boolean state; do not include token, widget response, query string, cookie, verification code, or challenge content.
+If the selected environment is production and CAPTCHA/Turnstile normally blocks registration or verification before `qa_replay_checkpoint`, stop replay, do not solve the challenge, and call `qa_report_human_verification_blocked` with no arguments. Do not include token, widget response, query string, cookie, verification code, or challenge content.
 
 Screenshots must use only `qa_capture_screenshot` with a short logical name. Do not call `browser_take_screenshot`, do not provide filenames or paths to any browser tool, and do not choose selectors or output locations for screenshots.
 

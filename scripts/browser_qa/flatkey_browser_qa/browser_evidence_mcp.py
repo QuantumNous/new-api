@@ -13,6 +13,12 @@ SCREENSHOT_SCHEMA = {
     "required": ["name"],
     "additionalProperties": False,
 }
+NO_ARGUMENTS_SCHEMA = {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": False,
+}
 
 
 def main():
@@ -43,32 +49,55 @@ def main():
             _write_result(
                 request_id,
                 {
-                    "tools": [{
-                        "name": "qa_capture_screenshot",
-                        "description": "Capture a redacted screenshot into the private QA runtime evidence area.",
-                        "inputSchema": SCREENSHOT_SCHEMA,
-                    }]
+                    "tools": [
+                        {
+                            "name": "qa_capture_screenshot",
+                            "description": "Capture a redacted screenshot into the private QA runtime evidence area.",
+                            "inputSchema": SCREENSHOT_SCHEMA,
+                        },
+                        {
+                            "name": "qa_report_human_verification_blocked",
+                            "description": "Report that production replay was blocked by CAPTCHA/Turnstile without sending challenge data.",
+                            "inputSchema": NO_ARGUMENTS_SCHEMA,
+                        },
+                    ]
                 },
             )
         elif method == "tools/call":
             params = request.get("params") if isinstance(request, dict) else None
             arguments = params.get("arguments") if isinstance(params, dict) else None
-            name = arguments.get("name") if isinstance(arguments, dict) else None
-            if (
-                not isinstance(params, dict)
-                or params.get("name") != "qa_capture_screenshot"
-                or not isinstance(arguments, dict)
-                or set(arguments) != {"name"}
-                or not isinstance(name, str)
-            ):
-                _write_error(request_id, -32602, "invalid screenshot request")
+            if not isinstance(params, dict):
+                _write_error(request_id, -32602, "invalid tool request")
                 continue
-            try:
-                logical = _request_capture(evidence_url, name)
-            except Exception as exc:
-                _write_error(request_id, -32000, str(exc))
+            tool_name = params.get("name")
+            if tool_name == "qa_capture_screenshot":
+                name = arguments.get("name") if isinstance(arguments, dict) else None
+                if (
+                    not isinstance(arguments, dict)
+                    or set(arguments) != {"name"}
+                    or not isinstance(name, str)
+                ):
+                    _write_error(request_id, -32602, "invalid screenshot request")
+                    continue
+                try:
+                    logical = _request_capture(evidence_url, name)
+                except Exception as exc:
+                    _write_error(request_id, -32000, str(exc))
+                    continue
+                _write_result(request_id, {"content": [{"type": "text", "text": logical}]})
                 continue
-            _write_result(request_id, {"content": [{"type": "text", "text": logical}]})
+            if tool_name == "qa_report_human_verification_blocked":
+                if not isinstance(arguments, dict) or set(arguments):
+                    _write_error(request_id, -32602, "invalid human verification report")
+                    continue
+                try:
+                    _request_human_verification_blocked(evidence_url)
+                except Exception as exc:
+                    _write_error(request_id, -32000, str(exc))
+                    continue
+                _write_result(request_id, {"content": [{"type": "text", "text": "human_verification_blocked"}]})
+                continue
+            _write_error(request_id, -32602, "invalid tool request")
         else:
             _write_error(request_id, -32601, "method not found")
 
@@ -92,6 +121,20 @@ def _request_capture(evidence_url, name, *, opener=None):
     if not isinstance(path, str) or not path.startswith("screenshots/"):
         raise RuntimeError("screenshot response invalid")
     return path
+
+
+def _request_human_verification_blocked(evidence_url, *, opener=None):
+    endpoint = _validate_evidence_url(evidence_url)
+    selected_opener = opener or urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    body = json.dumps({"type": "human_verification_blocked"}, sort_keys=True).encode("utf-8")
+    request = urllib.request.Request(
+        endpoint,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with selected_opener.open(request, timeout=30) as response:
+        response.read(1)
 
 
 def _validate_evidence_url(evidence_url):

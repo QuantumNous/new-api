@@ -1069,7 +1069,7 @@ class SupervisorTests(unittest.TestCase):
                 "browser_network_request",
                 "qa_read_docs",
             ],
-            "evidence": ["qa_capture_screenshot"],
+            "evidence": ["qa_capture_screenshot", "qa_report_human_verification_blocked"],
             "broker": ["get_current_verification_code"],
             "control": ["qa_replay_checkpoint", "qa_start_exploration"],
         }
@@ -2558,6 +2558,38 @@ class SupervisorTests(unittest.TestCase):
         self.assertNotIn("widget-response", rendered)
         self.assertNotIn("Cookie", rendered)
 
+    def test_supervisor_only_accepts_human_verification_classification_before_production_checkpoint(self):
+        classification = {
+            "classification": "human_verification_blocked",
+            "human_verification_blocked": True,
+            "turnstile_check": True,
+            "target_environment": "production",
+            "blocked_stage": "registration_or_verification",
+        }
+
+        self.assertEqual(
+            supervisor._safe_runtime_classification(
+                classification,
+                target_environment="production",
+                checkpoint_completed=False,
+            ),
+            classification,
+        )
+        self.assertIsNone(
+            supervisor._safe_runtime_classification(
+                classification,
+                target_environment="production",
+                checkpoint_completed=True,
+            )
+        )
+        self.assertIsNone(
+            supervisor._safe_runtime_classification(
+                classification,
+                target_environment="staging",
+                checkpoint_completed=False,
+            )
+        )
+
     def test_stdout_stderr_artifacts_and_outcome_do_not_leak_secrets(self):
         process = FakeProcess(
             1,
@@ -3111,6 +3143,31 @@ class SupervisorTests(unittest.TestCase):
             )
             with self.assertRaises(urllib.error.HTTPError):
                 urllib.request.urlopen(wrong_path, timeout=2)
+
+            blocked = urllib.request.Request(
+                sink.url,
+                data=json.dumps({"type": "human_verification_blocked"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(blocked, timeout=2) as response:
+                self.assertEqual(response.status, 204)
+            self.assertEqual(sink.runtime_classification, {
+                "classification": "human_verification_blocked",
+                "human_verification_blocked": True,
+                "turnstile_check": True,
+                "target_environment": "production",
+                "blocked_stage": "registration_or_verification",
+            })
+
+            blocked_with_argument = urllib.request.Request(
+                sink.url,
+                data=json.dumps({"type": "human_verification_blocked", "token": "secret"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError):
+                urllib.request.urlopen(blocked_with_argument, timeout=2)
 
             with socket.create_connection((sink.host, sink.port), timeout=2) as sock:
                 sock.sendall(

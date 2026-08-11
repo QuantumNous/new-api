@@ -20,6 +20,12 @@ class BrowserEvidenceTests(unittest.TestCase):
                 json.dumps({"jsonrpc": "2.0", "id": "list", "method": "tools/list"}),
                 json.dumps({
                     "jsonrpc": "2.0",
+                    "id": "blocked",
+                    "method": "tools/call",
+                    "params": {"name": "qa_report_human_verification_blocked", "arguments": {}},
+                }),
+                json.dumps({
+                    "jsonrpc": "2.0",
                     "id": "call",
                     "method": "tools/call",
                     "params": {"name": "qa_capture_screenshot", "arguments": {"name": "checkpoint"}},
@@ -32,6 +38,7 @@ class BrowserEvidenceTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL": "http://127.0.0.1:1/runtime-evidence"}, clear=True), \
             mock.patch.object(sys, "stdin", stdin), \
             mock.patch.object(sys, "stdout", stdout), \
+            mock.patch.object(browser_evidence_mcp, "_request_human_verification_blocked", return_value=None), \
             mock.patch.object(browser_evidence_mcp, "_request_capture", return_value="screenshots/checkpoint.png"):
             browser_evidence_mcp.main()
 
@@ -39,9 +46,13 @@ class BrowserEvidenceTests(unittest.TestCase):
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
         self.assertEqual(responses[0]["result"]["capabilities"], {"tools": {}})
         self.assertEqual(responses[0]["result"]["serverInfo"]["name"], "flatkey-browser-evidence")
-        self.assertEqual([tool["name"] for tool in responses[1]["result"]["tools"]], ["qa_capture_screenshot"])
-        self.assertEqual(responses[2]["result"]["content"][0]["text"], "screenshots/checkpoint.png")
-        self.assertEqual(responses[3]["error"]["code"], -32601)
+        self.assertEqual(
+            [tool["name"] for tool in responses[1]["result"]["tools"]],
+            ["qa_capture_screenshot", "qa_report_human_verification_blocked"],
+        )
+        self.assertEqual(responses[2]["result"]["content"][0]["text"], "human_verification_blocked")
+        self.assertEqual(responses[3]["result"]["content"][0]["text"], "screenshots/checkpoint.png")
+        self.assertEqual(responses[4]["error"]["code"], -32601)
 
     def test_evidence_mcp_silences_notifications_and_no_id_requests_without_side_effects(self):
         stdin = io.StringIO(
@@ -78,6 +89,12 @@ class BrowserEvidenceTests(unittest.TestCase):
                 }),
                 json.dumps({
                     "jsonrpc": "2.0",
+                    "id": "blocked-extra",
+                    "method": "tools/call",
+                    "params": {"name": "qa_report_human_verification_blocked", "arguments": {"token": "secret"}},
+                }),
+                json.dumps({
+                    "jsonrpc": "2.0",
                     "id": "ok",
                     "method": "tools/call",
                     "params": {"name": "qa_capture_screenshot", "arguments": {"name": "checkpoint"}},
@@ -89,6 +106,7 @@ class BrowserEvidenceTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL": "http://127.0.0.1:1/runtime-evidence"}, clear=True), \
             mock.patch.object(sys, "stdin", stdin), \
             mock.patch.object(sys, "stdout", stdout), \
+            mock.patch.object(browser_evidence_mcp, "_request_human_verification_blocked", return_value=None) as blocked, \
             mock.patch.object(browser_evidence_mcp, "_request_capture", return_value="screenshots/checkpoint.png") as capture:
             browser_evidence_mcp.main()
 
@@ -96,9 +114,41 @@ class BrowserEvidenceTests(unittest.TestCase):
         self.assertEqual(responses[0]["error"]["code"], -32600)
         self.assertEqual(responses[1]["id"], "extra")
         self.assertEqual(responses[1]["error"]["code"], -32602)
-        self.assertEqual(responses[2]["id"], "ok")
-        self.assertEqual(responses[2]["result"]["content"][0]["text"], "screenshots/checkpoint.png")
+        self.assertEqual(responses[2]["id"], "blocked-extra")
+        self.assertEqual(responses[2]["error"]["code"], -32602)
+        self.assertEqual(responses[3]["id"], "ok")
+        self.assertEqual(responses[3]["result"]["content"][0]["text"], "screenshots/checkpoint.png")
+        blocked.assert_not_called()
         capture.assert_called_once_with("http://127.0.0.1:1/runtime-evidence", "checkpoint")
+
+    def test_evidence_mcp_human_verification_tool_posts_fixed_classification_to_runtime_sink(self):
+        sink = supervisor.RuntimeEvidenceSink(supervisor.Redactor())
+        sink.start()
+        try:
+            stdin = io.StringIO(json.dumps({
+                "jsonrpc": "2.0",
+                "id": "blocked",
+                "method": "tools/call",
+                "params": {"name": "qa_report_human_verification_blocked", "arguments": {}},
+            }) + "\n")
+            stdout = io.StringIO()
+
+            with mock.patch.dict(os.environ, {"FLATKEY_BROWSER_QA_RUNTIME_EVIDENCE_URL": sink.url}, clear=True), \
+                mock.patch.object(sys, "stdin", stdin), \
+                mock.patch.object(sys, "stdout", stdout):
+                browser_evidence_mcp.main()
+
+            response = json.loads(stdout.getvalue())
+            self.assertEqual(response["result"]["content"][0]["text"], "human_verification_blocked")
+            self.assertEqual(sink.runtime_classification, {
+                "classification": "human_verification_blocked",
+                "human_verification_blocked": True,
+                "turnstile_check": True,
+                "target_environment": "production",
+                "blocked_stage": "registration_or_verification",
+            })
+        finally:
+            sink.stop()
 
     def test_evidence_mcp_uses_runtime_control_url_not_cdp_or_secret_argv(self):
         stdout = io.StringIO()
@@ -128,6 +178,35 @@ class BrowserEvidenceTests(unittest.TestCase):
         self.assertEqual(calls, [("http://127.0.0.1:7777/runtime-evidence", "checkpoint")])
         self.assertNotIn("9222", stdout.getvalue())
         self.assertNotIn("pw-secret", stdout.getvalue())
+
+    def test_evidence_mcp_human_verification_request_uses_strict_loopback_url_and_no_payload(self):
+        class FakeResponse:
+            def read(self, _limit=-1):
+                return b""
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        class FakeOpener:
+            def __init__(self):
+                self.requests = []
+
+            def open(self, request, timeout=0):
+                self.requests.append((request, timeout))
+                return FakeResponse()
+
+        opener = FakeOpener()
+        browser_evidence_mcp._request_human_verification_blocked(
+            "http://127.0.0.1:7777/runtime-evidence",
+            opener=opener,
+        )
+        request, timeout = opener.requests[0]
+        self.assertEqual(request.full_url, "http://127.0.0.1:7777/runtime-evidence")
+        self.assertEqual(timeout, 30)
+        self.assertEqual(json.loads(request.data.decode("utf-8")), {"type": "human_verification_blocked"})
 
     def test_evidence_mcp_request_capture_uses_strict_loopback_url_and_no_proxy_opener(self):
         class FakeResponse:
