@@ -30,16 +30,27 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
 
       - name: Prepare servers list
+        env:
+          SERVERS_LIST_JSON: ${{ secrets.SERVERS_LIST_JSON }}
         run: |
-          echo "${{ secrets.SERVERS_LIST_JSON }}" > /tmp/servers.json
-          jq -c '.[]' /tmp/servers.json > /tmp/servers.txt
-          echo "服务器数量: $(wc -l < /tmp/servers.txt)"
-          echo "服务器列表:"
-          jq -r '.[] | "\(.ip) (\(.user))"' /tmp/servers.json
-          if [ ! -s /tmp/servers.txt ]; then
-            echo "::error::SERVERS_LIST_JSON 为空或格式错误，示例: [{\"ip\":\"1.2.3.4\",\"user\":\"root\",\"password\":\"xxx\"}]"
-            exit 1
-          fi
+          echo "$SERVERS_LIST_JSON" > /tmp/servers.json
+          python3 -c "
+import json, sys
+try:
+    data = json.load(open('/tmp/servers.json'))
+    print('服务器数量:', len(data))
+    for s in data:
+        print(s['ip'], '(' + s['user'] + ')')
+    with open('/tmp/servers.txt', 'w') as f:
+        for s in data:
+            f.write(json.dumps(s) + '\n')
+except json.JSONDecodeError as e:
+    print('::error::JSON 解析错误:', e)
+    sys.exit(1)
+except KeyError as e:
+    print('::error::缺少字段:', e)
+    sys.exit(1)
+"
 
       - name: Generate temporary SSH key
         run: |
