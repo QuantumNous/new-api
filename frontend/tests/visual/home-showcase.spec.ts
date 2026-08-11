@@ -22,6 +22,37 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
       await waitForStablePage(page)
       await freezeAndInspectHomeCanvas(page)
 
+      const heroMetrics = await page
+        .locator('#hero-immersive-stage')
+        .evaluate((element) => {
+          const bounds = element.getBoundingClientRect()
+          return {
+            height: bounds.height,
+            minHeight: Number.parseFloat(getComputedStyle(element).minHeight),
+            viewportHeight: window.innerHeight,
+          }
+        })
+      expect(heroMetrics.minHeight).toBeCloseTo(heroMetrics.viewportHeight, 0)
+      expect(heroMetrics.height).toBeGreaterThanOrEqual(
+        heroMetrics.viewportHeight
+      )
+
+      if (viewport === 'desktop') {
+        const alignment = await page.evaluate(() => {
+          const nav = document.querySelector('.app-navbar nav')
+          const copy = document.querySelector('.hero-copy-glow')
+          if (!nav || !copy) throw new Error('Hero alignment anchors missing')
+
+          const navStyle = getComputedStyle(nav)
+          const navRight =
+            nav.getBoundingClientRect().right -
+            Number.parseFloat(navStyle.paddingRight)
+          const copyRight = copy.getBoundingClientRect().right
+          return Math.abs(navRight - copyRight)
+        })
+        expect(alignment).toBeLessThanOrEqual(1)
+      }
+
       await assertInteractiveCentersVisible(page)
       await expect(page.locator('html')).toHaveClass(/hero-scrollbar-hidden/)
       expect(
