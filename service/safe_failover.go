@@ -132,7 +132,7 @@ func isSafetyFailure(err *types.NewAPIError, message string) bool {
 	for _, marker := range []string{
 		"content safety", "safety policy", "safety filter", "prompt blocked",
 		"content policy", "responsible ai policy", "moderation blocked",
-		"prohibited content",
+		"prohibited content", "内容审计", "内容安全", "风险规则", "安全拒绝",
 	} {
 		if strings.Contains(message, marker) {
 			return true
