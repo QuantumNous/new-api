@@ -503,7 +503,11 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	isOpenAIVideoAPI := isOpenAIVideoFetchPath(c.Request.URL.Path)
 	isVideoToMusicAPI := isVideoToMusicFetchPath(c.Request.URL.Path)
 	isGenerationTasksAPI := isGenerationTasksFetchPath(c.Request.URL.Path)
-	if isModelAPISeedanceTask(originTask) && !isOpenAIVideoAPI {
+	// ModelAPI Seedance answers on the OpenAI video route and the generic
+	// /v1/video/generations route (both whitelabel-sanitized by
+	// ConvertToOpenAIVideo / TaskModel2Dto). The generation-task and
+	// video-to-music formats are not served by this channel.
+	if isModelAPISeedanceTask(originTask) && (isGenerationTasksAPI || isVideoToMusicAPI) {
 		taskResp = service.TaskErrorWrapperLocal(errors.New("task is not available on this endpoint"), "invalid_request", http.StatusBadRequest)
 		return
 	}

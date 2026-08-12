@@ -176,11 +176,11 @@ func TestGenerationTaskRespBodyFailureScrubsError(t *testing.T) {
 	}
 }
 
-func TestModelAPISeedancePrepareTaskAttemptRejectsLegacySubmitPathBeforePricing(t *testing.T) {
+func TestModelAPISeedancePrepareTaskAttemptRejectsUnsupportedSubmitPathBeforePricing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", strings.NewReader(
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/generation/tasks", strings.NewReader(
 		`{"model":"doubao-seedance-2-5-260628","content":[{"type":"text","text":"hello"}]}`,
 	))
 	c.Request.Header.Set("Content-Type", "application/json")
@@ -196,14 +196,14 @@ func TestModelAPISeedancePrepareTaskAttemptRejectsLegacySubmitPathBeforePricing(
 		TaskRelayInfo:   &relaycommon.TaskRelayInfo{},
 	})
 	if taskErr == nil {
-		t.Fatal("legacy submit path was accepted")
+		t.Fatal("unsupported submit path was accepted")
 	}
 	if taskErr.Code != "invalid_request" || taskErr.StatusCode != http.StatusBadRequest {
 		t.Fatalf("taskErr = %+v, want invalid_request 400", taskErr)
 	}
 }
 
-func TestModelAPISeedanceFetchRejectsLegacyRoutesAfterTaskLookup(t *testing.T) {
+func TestModelAPISeedanceFetchRejectsUnsupportedRoutesAfterTaskLookup(t *testing.T) {
 	setupRelayTaskTestDB(t)
 	seedRelayTask(t, &model.Task{
 		TaskID:     "task_modelapi",
@@ -220,14 +220,19 @@ func TestModelAPISeedanceFetchRejectsLegacyRoutesAfterTaskLookup(t *testing.T) {
 		Data: []byte(`{"task_id":"upstream-secret","status":"succeeded"}`),
 	})
 
+	// Error text must not carry any upstream identifier. Response bodies use a
+	// narrower list: the public task id ("task_modelapi") legitimately contains
+	// the bare vendor substring, so only the real leak markers are checked.
+	errorMarkers := []string{"ModelAPI", "modelapi", "api.modelapi.co", "upstream-secret", "private/result.mp4", "modelapi-secret-model"}
+	bodyMarkers := []string{"ModelAPI", "api.modelapi.co", "upstream-secret", "private/result.mp4", "modelapi-secret-model"}
+
 	for _, path := range []string{
-		"/v1/video/generations/task_modelapi",
 		"/v1/generation/tasks/task_modelapi",
 	} {
 		t.Run(path, func(t *testing.T) {
 			_, taskErr := fetchTaskByPath(t, path, "task_modelapi")
 			if taskErr == nil {
-				t.Fatal("legacy fetch path was accepted")
+				t.Fatal("unsupported fetch path was accepted")
 			}
 			if taskErr.StatusCode != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400", taskErr.StatusCode)
@@ -236,9 +241,9 @@ func TestModelAPISeedanceFetchRejectsLegacyRoutesAfterTaskLookup(t *testing.T) {
 			if taskErr.Error != nil {
 				text += " " + taskErr.Error.Error()
 			}
-			for _, marker := range []string{"ModelAPI", "modelapi", "api.modelapi.co", "upstream-secret", "private/result.mp4", "modelapi-secret-model"} {
+			for _, marker := range errorMarkers {
 				if strings.Contains(text, marker) {
-					t.Fatalf("legacy fetch error leaked %q in %q", marker, text)
+					t.Fatalf("unsupported fetch error leaked %q in %q", marker, text)
 				}
 			}
 		})
@@ -256,9 +261,31 @@ func TestModelAPISeedanceFetchRejectsLegacyRoutesAfterTaskLookup(t *testing.T) {
 		if got.ID != "task_modelapi" || got.Metadata["url"] != "https://flatkey.example/v1/videos/task_modelapi/content" {
 			t.Fatalf("OpenAI video response = %+v", got)
 		}
-		for _, marker := range []string{"ModelAPI", "api.modelapi.co", "upstream-secret", "private/result.mp4", "modelapi-secret-model"} {
+		for _, marker := range bodyMarkers {
 			if strings.Contains(string(body), marker) {
 				t.Fatalf("standard fetch response leaked %q in %s", marker, body)
+			}
+		}
+	})
+
+	// The generic video route is the platform-wide fetch entrypoint; ModelAPI
+	// Seedance must answer on it like every other video channel, and the
+	// whitelabel scrub in TaskModel2Dto must still strip upstream branding.
+	t.Run("allows generic video generations fetch", func(t *testing.T) {
+		body, taskErr := fetchTaskByPath(t, "/v1/video/generations/task_modelapi", "task_modelapi")
+		if taskErr != nil {
+			t.Fatalf("generic fetch rejected: %+v", taskErr)
+		}
+		var generic dto.TaskResponse[any]
+		if err := common.Unmarshal(body, &generic); err != nil {
+			t.Fatalf("unmarshal generic response: %v", err)
+		}
+		if generic.Code != "success" || generic.Data == nil {
+			t.Fatalf("generic response = %+v", generic)
+		}
+		for _, marker := range bodyMarkers {
+			if strings.Contains(string(body), marker) {
+				t.Fatalf("generic fetch response leaked %q in %s", marker, body)
 			}
 		}
 	})

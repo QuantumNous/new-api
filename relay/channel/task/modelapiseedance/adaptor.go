@@ -65,8 +65,8 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func (a *TaskAdaptor) ValidateRequestAfterModelMapping(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	if c == nil || c.Request == nil || c.Request.URL == nil || c.Request.Method != http.MethodPost || c.Request.URL.Path != "/v1/videos" {
-		return taskError(fmt.Errorf("this channel type is only available on /v1/videos"), "invalid_request", http.StatusBadRequest)
+	if c == nil || c.Request == nil || c.Request.URL == nil || c.Request.Method != http.MethodPost || !isSupportedModelAPISubmitPath(c.Request.URL.Path) {
+		return taskError(fmt.Errorf("this channel type is only available on /v1/videos and /v1/video/generations"), "invalid_request", http.StatusBadRequest)
 	}
 	seedReq, err := bindModelAPISeedanceRequestAfterAssetRewrite(c, info)
 	if err != nil {
@@ -80,6 +80,20 @@ func (a *TaskAdaptor) ValidateRequestAfterModelMapping(c *gin.Context, info *rel
 		info.ChannelMeta.UpstreamModelName = UpstreamModel
 	}
 	return nil
+}
+
+// supportedModelAPISubmitPaths lists the public submit routes this channel is
+// reachable on. Both are shared platform video routes — the ModelAPI upstream
+// path (/v1/tasks) is never exposed. /v1/generation/tasks stays excluded: it
+// answers in the generation-task format, which this channel does not serve.
+var supportedModelAPISubmitPaths = map[string]struct{}{
+	"/v1/videos":            {},
+	"/v1/video/generations": {},
+}
+
+func isSupportedModelAPISubmitPath(path string) bool {
+	_, ok := supportedModelAPISubmitPaths[path]
+	return ok
 }
 
 func (a *TaskAdaptor) ValidateTaskPriceData(info *relaycommon.RelayInfo) *dto.TaskError {
