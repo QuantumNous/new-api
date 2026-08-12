@@ -1832,7 +1832,6 @@ func TestRecallEmailWorkerActivitySMTPConfigIsFreshAndControlsMessageIDDomain(t 
 	require.Len(t, configs, 1)
 	require.Equal(t, "smtp.first.example.com", configs[0].Server)
 	require.Equal(t, "first-secret", configs[0].Token)
-	clearRecallEmailPacingForTest(t)
 
 	second := model.RecallMessage{
 		RecipientId: fixture.recipient.Id, StageNo: 2, TemplateVersion: 11, TemplateSnapshot: fixture.message.TemplateSnapshot,

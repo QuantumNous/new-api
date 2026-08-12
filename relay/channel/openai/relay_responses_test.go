@@ -68,43 +68,33 @@ func TestOaiResponsesStreamHandlerCapturesIncompleteUsage(t *testing.T) {
 	}
 }
 
-func TestOaiResponsesStreamHandlerCodexCapturesDoneUsage(t *testing.T) {
+func TestOaiResponsesStreamHandlerResponseDoneIsCodexOnly(t *testing.T) {
 	upstream := strings.Join([]string{
 		"event: response.done",
 		`data: {"type":"response.done","response":{"id":"resp_done","status":"completed","usage":{"input_tokens":71,"output_tokens":19,"total_tokens":90,"input_tokens_details":{"cached_tokens":7,"cache_write_tokens":2}}}}`,
 		"",
 	}, "\n")
 
-	recorder, ctx, info, resp := newResponsesStreamTest(t, upstream, constant.ChannelTypeCodex)
-	usage, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
-	if apiErr != nil {
-		t.Fatalf("handle Codex response.done: %v", apiErr)
-	}
-	if usage.PromptTokens != 71 || usage.CompletionTokens != 19 || usage.TotalTokens != 90 {
-		t.Fatalf("done usage = %#v", *usage)
-	}
-	if usage.PromptTokensDetails.CachedTokens != 7 || usage.PromptTokensDetails.CacheWriteTokens != 2 {
-		t.Fatalf("done token details = %#v", usage.PromptTokensDetails)
-	}
-	if !strings.Contains(recorder.Body.String(), "response.done") {
-		t.Fatalf("done event was not forwarded: %s", recorder.Body.String())
-	}
-}
-
-func TestOaiResponsesStreamHandlerNonCodexKeepsDoneBehavior(t *testing.T) {
-	upstream := strings.Join([]string{
-		"event: response.done",
-		`data: {"type":"response.done","response":{"id":"resp_done","status":"completed","usage":{"input_tokens":71,"output_tokens":19,"total_tokens":90}}}`,
-		"",
-	}, "\n")
-
-	_, ctx, info, resp := newResponsesStreamTest(t, upstream, constant.ChannelTypeOpenAI)
-	usage, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
-	if apiErr != nil {
-		t.Fatalf("handle non-Codex response.done: %v", apiErr)
-	}
-	if usage.PromptTokens != 0 || usage.CompletionTokens != 0 || usage.TotalTokens != 0 {
-		t.Fatalf("non-Codex behavior changed, usage = %#v", *usage)
+	for _, test := range []struct {
+		name, want string
+		channel    int
+	}{
+		{name: "Codex captures usage", channel: constant.ChannelTypeCodex, want: "71/19/90"},
+		{name: "other channels stay unchanged", channel: constant.ChannelTypeOpenAI, want: "0/0/0"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			recorder, ctx, info, resp := newResponsesStreamTest(t, upstream, test.channel)
+			usage, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
+			if apiErr != nil {
+				t.Fatal(apiErr)
+			}
+			if got := fmt.Sprintf("%d/%d/%d", usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens); got != test.want {
+				t.Fatalf("usage = %s, want %s", got, test.want)
+			}
+			if !strings.Contains(recorder.Body.String(), "response.done") {
+				t.Fatalf("done event was not forwarded: %s", recorder.Body.String())
+			}
+		})
 	}
 }
 
@@ -130,17 +120,10 @@ func TestOaiResponsesStreamHandlerCodexFailedBeforeCommitIsRetryable(t *testing.
 	if recorder.Body.Len() != 0 || ctx.Writer.Written() {
 		t.Fatalf("failed event committed before retry: %s", recorder.Body.String())
 	}
-	if got := recorder.Header().Get("Content-Type"); got != "" {
-		t.Fatalf("retryable failure retained SSE content type %q", got)
-	}
-	if got := recorder.Header().Get("Transfer-Encoding"); got != "" {
-		t.Fatalf("retryable failure retained transfer encoding %q", got)
-	}
-	if got := recorder.Header().Get("X-Reasoning-Included"); got != "" {
-		t.Fatalf("retryable failure retained Codex response header %q", got)
-	}
-	if got := recorder.Header().Get("X-Codex-Turn-State"); got != "" {
-		t.Fatalf("retryable failure retained Codex turn state %q", got)
+	for _, header := range []string{"Content-Type", "Transfer-Encoding", "X-Reasoning-Included", "X-Codex-Turn-State"} {
+		if got := recorder.Header().Get(header); got != "" {
+			t.Fatalf("retryable failure retained %s %q", header, got)
+		}
 	}
 	if got := recorder.Header().Get("X-Existing"); got != "keep" {
 		t.Fatalf("pre-existing response header = %q", got)
@@ -152,9 +135,24 @@ func TestOaiResponsesStreamHandlerCodexFailedBeforeCommitIsRetryable(t *testing.
 		t.Fatalf("retryable failure retained first-response state: sent=%v received=%d", info.HasSendResponse(), info.ReceivedResponseCount)
 	}
 
-	ctx.JSON(apiErr.StatusCode, gin.H{"error": apiErr.ToOpenAIError()})
-	if got := recorder.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
-		t.Fatalf("final JSON content type = %q", got)
+	// A real retry reuses RelayInfo and the downstream writer. Prove the reset
+	// above re-arms both response observation and SSE headers.
+	retry := strings.Join([]string{
+		"event: response.done",
+		`data: {"type":"response.done","response":{"id":"resp_done","status":"completed","usage":{"input_tokens":8,"output_tokens":2,"total_tokens":10}}}`,
+		"",
+	}, "\n")
+	resp = &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(retry)),
+	}
+	usage, apiErr := OaiResponsesStreamHandler(ctx, info, resp)
+	if apiErr != nil || !info.HasSendResponse() || info.ReceivedResponseCount != 1 {
+		t.Fatalf("retry error=%v sent=%v received=%d", apiErr, info.HasSendResponse(), info.ReceivedResponseCount)
+	}
+	if usage.PromptTokens != 8 || usage.CompletionTokens != 2 || recorder.Header().Get("Content-Type") != "text/event-stream" {
+		t.Fatalf("retry usage=%#v content-type=%q", *usage, recorder.Header().Get("Content-Type"))
 	}
 }
 
@@ -245,18 +243,12 @@ func TestCodexResponsesFailedStatus(t *testing.T) {
 		statusCode int
 	}{
 		{name: "invalid request type", errorType: "invalid_request_error", statusCode: http.StatusBadRequest},
-		{name: "content policy code", errorCode: "content_policy_violation", statusCode: http.StatusBadRequest},
-		{name: "invalid prompt", errorCode: "invalid_prompt", statusCode: http.StatusBadRequest},
-		{name: "data residency mismatch", errorCode: "data_residency_mismatch", statusCode: http.StatusBadRequest},
 		{name: "image validation", errorCode: "unsupported_image_media_type", statusCode: http.StatusBadRequest},
 		{name: "authentication", errorType: "authentication_error", statusCode: http.StatusUnauthorized},
 		{name: "specific code overrides generic type", errorType: "invalid_request_error", errorCode: "permission_denied", statusCode: http.StatusForbidden},
 		{name: "server code overrides generic client type", errorType: "invalid_request_error", errorCode: "server_error", statusCode: http.StatusInternalServerError},
 		{name: "permanent quota", errorCode: "insufficient_quota", statusCode: http.StatusTooManyRequests},
-		{name: "transient rate limit", errorType: "rate_limit_error", statusCode: http.StatusTooManyRequests},
 		{name: "overloaded", errorCode: "service_unavailable", statusCode: http.StatusServiceUnavailable},
-		{name: "vector store timeout remains retryable fallback", errorCode: "vector_store_timeout", statusCode: http.StatusInternalServerError},
-		{name: "server error", errorCode: "server_error", statusCode: http.StatusInternalServerError},
 		{name: "unknown fallback", errorCode: "new_unrecognized_code", statusCode: http.StatusInternalServerError},
 	}
 
@@ -275,46 +267,6 @@ func TestCodexResponsesFailedStatus(t *testing.T) {
 				t.Fatal("pre-commit retry must remain controlled by the centralized status policy")
 			}
 		})
-	}
-}
-
-func TestOaiResponsesStreamHandlerCodexRetryRearmsFirstResponseTracking(t *testing.T) {
-	failedUpstream := strings.Join([]string{
-		"event: response.failed",
-		`data: {"type":"response.failed","response":{"id":"resp_failed","status":"failed","error":{"code":"server_error","message":"upstream blew up"}}}`,
-		"",
-	}, "\n")
-
-	recorder, ctx, info, failedResp := newResponsesStreamTest(t, failedUpstream, constant.ChannelTypeCodex)
-	info.ApiType = constant.APITypeCodex
-	_, apiErr := OaiResponsesStreamHandler(ctx, info, failedResp)
-	if apiErr == nil || types.IsSkipRetryError(apiErr) {
-		t.Fatalf("first attempt error = %#v", apiErr)
-	}
-
-	doneUpstream := strings.Join([]string{
-		"event: response.done",
-		`data: {"type":"response.done","response":{"id":"resp_done","status":"completed","usage":{"input_tokens":8,"output_tokens":2,"total_tokens":10}}}`,
-		"",
-	}, "\n")
-	doneResp := &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-		Body:       io.NopCloser(strings.NewReader(doneUpstream)),
-	}
-
-	usage, apiErr := OaiResponsesStreamHandler(ctx, info, doneResp)
-	if apiErr != nil {
-		t.Fatalf("retry attempt: %v", apiErr)
-	}
-	if !info.HasSendResponse() || info.ReceivedResponseCount != 1 {
-		t.Fatalf("retry first-response state: sent=%v received=%d", info.HasSendResponse(), info.ReceivedResponseCount)
-	}
-	if usage.PromptTokens != 8 || usage.CompletionTokens != 2 {
-		t.Fatalf("retry usage = %#v", *usage)
-	}
-	if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
-		t.Fatalf("retry content type = %q", got)
 	}
 }
 

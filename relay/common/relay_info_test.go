@@ -2,34 +2,10 @@ package common
 
 import (
 	"testing"
-	"time"
 
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
-
-func TestResetStreamResponseStateForRetry(t *testing.T) {
-	start := time.Now().Add(-time.Second)
-	info := &RelayInfo{
-		StartTime:             start,
-		FirstResponseTime:     time.Now(),
-		isFirstResponse:       false,
-		ReceivedResponseCount: 3,
-	}
-
-	info.ResetStreamResponseStateForRetry()
-
-	if info.HasSendResponse() {
-		t.Fatal("reset stream state still reports a sent response")
-	}
-	if info.ReceivedResponseCount != 0 {
-		t.Fatalf("received response count = %d", info.ReceivedResponseCount)
-	}
-	info.SetFirstResponseTime()
-	if !info.HasSendResponse() {
-		t.Fatal("reset stream state did not re-arm first response tracking")
-	}
-}
 
 func TestRelayInfoGetFinalRequestRelayFormatPrefersExplicitFinal(t *testing.T) {
 	info := &RelayInfo{

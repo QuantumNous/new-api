@@ -28,14 +28,13 @@ LiteLLM recognizes an OpenAI-shaped first SSE error frame whose `error.code` is 
 - Never emit a success finish chunk or `[DONE]` after a failed or truncated stream.
 - Never retry after downstream bytes have been written.
 - Preserve upstream HTTP non-2xx status mapping and successful stream behavior.
-- Retain usage carried by failed terminal events in the adapter result.
-- For Codex streams that fail after billable output has reached the client, settle the delivered usage exactly once while preserving the failed request outcome.
+- Retain usage carried by failed terminal events in the adapter result while keeping the existing refund-on-error billing policy.
 
 ## Non-goals
 
 - Changing the public Responses API relay path.
 - Retrying a request after any downstream bytes were written.
-- Charging pre-commit failures or failures without any billable delivered usage.
+- Charging users for failed requests; existing refund behavior remains unchanged.
 - Refactoring unrelated streaming adapters or the controller retry policy beyond the response-commit invariant.
 
 ## Considered Approaches
@@ -62,7 +61,7 @@ For `response.failed`:
 
 - capture `response.error.message`, falling back to `response.error.code`, then to a generic upstream-failure message;
 - capture `response.usage` when present;
-- map recognized Responses error codes to their HTTP semantics, with unknown/server failures falling back to HTTP 500;
+- create a `types.NewAPIError` with HTTP 500 and the existing bad-response error category;
 - do not pass the event through the normal success finalizer.
 
 An actual upstream HTTP non-2xx response continues to preserve its original status code. Transport/protocol termination without a successful terminal event uses HTTP 502.
@@ -100,7 +99,7 @@ The bridge tracks whether a successful terminal event (`response.completed`, `re
 The upstream SSE stream is fully accumulated before any downstream body is written.
 
 - successful terminal event: build the current HTTP 200 Chat Completions JSON response;
-- `response.failed`: return the mapped non-2xx status with an OpenAI error object, never a Chat Completions assistant message;
+- `response.failed`: return HTTP 500 with an OpenAI error object, never a Chat Completions assistant message;
 - scanner error or EOF without a terminal event: return HTTP 502 with an OpenAI error object;
 - failed-event usage remains returned by the adapter alongside the error for accounting visibility, while the caller's existing error path refunds the request.
 
@@ -113,18 +112,12 @@ The relay controller enforces a generic HTTP invariant:
 
 This guard is not Codex-specific: retrying or changing response format after bytes have reached a client is invalid for every streaming provider. The Codex adapter still marks late failures with `ErrOptionWithSkipRetry` as defense in depth.
 
-### 6. Partial-failure billing
-
-The public Responses relay preserves the terminal error even when partial output was already written. For Codex only, if the adapter returns positive terminal or estimated usage after the downstream response is committed, `ResponsesHelper` runs the normal text quota calculation and settlement before returning the error. Fallback estimation retains at most 1 MiB of text-equivalent deltas per request so large tool arguments cannot cause unbounded memory or tokenizer work. The success relay sample is suppressed because the controller records the failed sample.
-
-Pre-commit failures, non-Codex channels, and failures without positive usage retain the existing refund behavior. If actual-usage settlement fails, the billing session retains the already reserved quota so the controller's deferred refund cannot make delivered output free; the settlement failure is logged for reconciliation. User/channel usage and consume logs are written only after actual settlement or that pre-consumption retention has taken effect. The request-local `BillingSession` keeps settlement/refund idempotent, while quota mutations remain database-backed and safe across application nodes.
-
 ## Data Flow
 
 | Upstream sequence | Downstream result |
 | --- | --- |
 | HTTP non-2xx | Same non-2xx status through existing error mapping |
-| `created -> failed` | Mapped non-2xx OpenAI error JSON; no role/content chunk |
+| `created -> failed` | HTTP 500 OpenAI error JSON; no role/content chunk |
 | `created -> text delta -> failed` | Existing role/text chunks, then SSE error frame; no finish or `[DONE]` |
 | `created -> EOF` | HTTP 502 before output, or SSE error after output |
 | `created -> completed` | Existing successful Chat Completions stream/JSON |
@@ -156,26 +149,18 @@ Pre-commit failures, non-Codex channels, and failures without positive usage ret
    - retain role/content/finish/usage behavior.
 7. Failed terminal event with usage:
    - returns the captured prompt/completion/total token values alongside the error.
-   - after committed Codex output, settles once, remains an error, and is not refunded;
-   - before commit, retains the existing refund path.
-8. Failed terminal event without usage after text or tool-call deltas:
-   - estimates positive delivered output usage and follows the same post-commit settlement path.
-9. Recognized `response.error.code` values:
-   - map to accurate 4xx/429/5xx status classes;
-   - unknown and transient server codes fall back to retryable 500 behavior;
-   - pre-commit retry remains controlled by the centralized status policy.
 
 ### API compatibility conversion
 
-10. `response.failed` conversion:
+8. `response.failed` conversion:
    - never emits upstream error text as `delta.content`;
    - retains usage in converter state when called directly.
 
 ### Relay controller
 
-11. Retry decision after response commitment:
+9. Retry decision after response commitment:
    - `shouldRetry` is false after any downstream write.
-12. Deferred error rendering after response commitment:
+10. Deferred error rendering after response commitment:
     - does not append a JSON error object to an existing SSE body.
 
 ## Validation
