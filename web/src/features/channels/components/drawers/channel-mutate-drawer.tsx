@@ -888,6 +888,7 @@ export function ChannelMutateDrawer({
 
   // Get basic models for the current channel type
   const basicModels = useMemo(() => {
+    if (currentType === 61) return ['MiniMax-H3']
     if (!allModelsList.length) return []
     // Filter models based on common patterns for specific types
     if (currentType === 1) {
@@ -1284,6 +1285,14 @@ export function ChannelMutateDrawer({
       if (!currentOther || currentOther === '') {
         form.setValue('other', 'v2.1')
       }
+    }
+
+    // SiftQ exposes one fixed video model, so keep the routing model exact.
+    if (currentType === 61) {
+      form.setValue('models', 'MiniMax-H3', {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
     }
   }, [currentType, isEditing, form])
 
@@ -4233,9 +4242,7 @@ export function ChannelMutateDrawer({
                                         <SelectValue />
                                       </SelectTrigger>
                                     </FormControl>
-                                    <SelectContent
-                                      alignItemWithTrigger={false}
-                                    >
+                                    <SelectContent alignItemWithTrigger={false}>
                                       <SelectGroup>
                                         <SelectItem value='auto'>
                                           {t('Auto')}

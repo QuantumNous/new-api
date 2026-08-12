@@ -95,6 +95,16 @@ func TestNewAPIChannelRegistration(t *testing.T) {
 	assert.Empty(t, constant.ChannelBaseURLs[constant.ChannelTypeNewAPI])
 }
 
+func TestSiftQChannelRegistration(t *testing.T) {
+	assert.Equal(t, "SiftQ", constant.GetChannelTypeName(constant.ChannelTypeSiftQ))
+	require.Greater(t, len(constant.ChannelBaseURLs), constant.ChannelTypeSiftQ)
+	assert.Equal(t, "https://siftq.com/api/minimax/", constant.ChannelBaseURLs[constant.ChannelTypeSiftQ])
+	assert.Equal(t,
+		[]constant.EndpointType{constant.EndpointTypeOpenAIVideo},
+		common.GetEndpointTypesByChannelType(constant.ChannelTypeSiftQ, "MiniMax-H3"),
+	)
+}
+
 func TestResponsesCompactChannelSupport(t *testing.T) {
 	tests := []struct {
 		name        string
