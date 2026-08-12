@@ -229,7 +229,7 @@ func TestVideoPriceSettingNormalizeAndValidate_AcceptsValidRules(t *testing.T) {
 	}
 }
 
-func TestVideoPriceSettingNormalizeAndValidate_RejectsInvalidRules(t *testing.T) {
+func TestVideoPriceSettingNormalizeAndValidate_QuarantinesInvalidRules(t *testing.T) {
 	cases := []struct {
 		name  string
 		rules []VideoPriceRule
@@ -247,8 +247,14 @@ func TestVideoPriceSettingNormalizeAndValidate_RejectsInvalidRules(t *testing.T)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			s := VideoPriceSetting{VideoPriceRules: tc.rules}
-			if err := s.NormalizeAndValidate(); err == nil {
-				t.Fatalf("expected rejection for %s", tc.name)
+			// The load path does not fail: it drops the offending model so the
+			// rest of the table keeps serving. The model must end up
+			// unconfigured, which returns it to legacy billing.
+			if err := s.NormalizeAndValidate(); err != nil {
+				t.Fatalf("the load path must not fail the whole set: %v", err)
+			}
+			if IsVideoModelConfigured(s.VideoPriceRules, "m") {
+				t.Fatalf("%s must leave the model unconfigured, got %+v", tc.name, s.VideoPriceRules)
 			}
 		})
 	}
@@ -267,12 +273,13 @@ func TestVideoPriceSettingIsRegisteredAsNormalizingConfig(t *testing.T) {
 	}
 }
 
-// The property that matters: a rule set the administrator saved into the
-// database that would make matching order-dependent must be refused, and the
-// rules already serving traffic must keep serving it. Driven through a private
-// ConfigManager so the real clone-then-swap path runs without touching the
-// process-wide config.
-func TestVideoPriceSettingLoadFromDBRejectionKeepsPreviousRules(t *testing.T) {
+// The property that matters: a rule set that would make matching
+// order-dependent must never reach the matcher. The load path quarantines the
+// offending model rather than refusing the whole set, so the model ends up
+// unconfigured — which returns it cleanly to legacy billing — while every other
+// model keeps its pricing. Driven through a private ConfigManager so the real
+// clone-then-swap path runs without touching the process-wide config.
+func TestVideoPriceSettingLoadFromDBQuarantinesAmbiguousModel(t *testing.T) {
 	manager := config.NewConfigManager()
 	setting := &VideoPriceSetting{}
 	manager.Register("billing_setting_video", setting)
@@ -292,19 +299,25 @@ func TestVideoPriceSettingLoadFromDBRejectionKeepsPreviousRules(t *testing.T) {
 
 	// Two one-constraint rules on disjoint keys: a 720p request with video
 	// satisfies both, so which price is charged would depend on array order.
+	// "keep" is well-formed and must survive the other model's problem.
 	ambiguous := []VideoPriceRule{
 		{Model: "m", Match: map[string]string{"resolution": "720p"},
 			PricePerSecond: 9, Basis: BasisOutputDuration},
 		{Model: "m", Match: map[string]string{"has_video": "true"},
 			PricePerSecond: 99, Basis: BasisOutputDuration},
+		{Model: "keep", Match: map[string]string{"resolution": "480p"},
+			PricePerSecond: 0.1, Basis: BasisOutputDuration},
 	}
 	if err := manager.LoadFromDB(map[string]string{
 		"billing_setting_video.video_price_rules": marshalRules(t, ambiguous),
 	}); err != nil {
 		t.Fatalf("LoadFromDB failed: %v", err)
 	}
-	if len(setting.VideoPriceRules) != 1 || setting.VideoPriceRules[0].PricePerSecond != 0.314 {
-		t.Fatalf("rules = %+v, want the previous valid set preserved", setting.VideoPriceRules)
+	if IsVideoModelConfigured(setting.VideoPriceRules, "m") {
+		t.Fatalf("the ambiguous model must be dropped, got %+v", setting.VideoPriceRules)
+	}
+	if !IsVideoModelConfigured(setting.VideoPriceRules, "keep") {
+		t.Fatalf("the well-formed model lost its pricing as collateral, got %+v", setting.VideoPriceRules)
 	}
 }
 
@@ -553,16 +566,95 @@ func TestNormalizeVideoPriceRules_LeavesUnknownDimensionsAlone(t *testing.T) {
 	}
 }
 
-func TestNormalizeAndValidate_NormalizesBeforeValidating(t *testing.T) {
+func TestNormalizeAndValidate_NormalizesBeforeChecking(t *testing.T) {
 	// Normalization can create an ambiguity that was not visible in the raw
-	// input: "4K" and "4k" are the same tier once folded.
+	// input: "4K" and "4k" are the same tier once folded. If folding ran after
+	// the ambiguity check, this pair would slip through and prices would depend
+	// on array order.
 	s := &VideoPriceSetting{VideoPriceRules: []VideoPriceRule{
 		{Model: "m", Match: map[string]string{"resolution": "4K"},
 			PricePerSecond: 1, Basis: BasisOutputDuration},
 		{Model: "m", Match: map[string]string{"resolution": "4k"},
 			PricePerSecond: 2, Basis: BasisOutputDuration},
 	}}
-	if err := s.NormalizeAndValidate(); err == nil {
-		t.Fatal("folded duplicates must be rejected as ambiguous")
+	if err := s.NormalizeAndValidate(); err != nil {
+		t.Fatalf("the load path must not fail the whole set: %v", err)
+	}
+	if IsVideoModelConfigured(s.VideoPriceRules, "m") {
+		t.Fatalf("folded duplicates must quarantine the model, got %+v", s.VideoPriceRules)
+	}
+}
+
+func TestNormalizeAndValidate_QuarantinesOnlyTheBadModel(t *testing.T) {
+	// A typo in one model's rule must not take every other model's pricing down
+	// with it. ConfigManager logs a rejected load and continues, so an
+	// all-or-nothing rule set turns one typo into a silent, fleet-wide revert
+	// to legacy billing for models that were configured correctly.
+	s := &VideoPriceSetting{VideoPriceRules: []VideoPriceRule{
+		{Model: "good", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.3, Basis: BasisOutputDuration},
+		{Model: "typo", Match: map[string]string{"resolution": "1440p"},
+			PricePerSecond: 1, Basis: BasisOutputDuration},
+	}}
+	if err := s.NormalizeAndValidate(); err != nil {
+		t.Fatalf("a typo in one model must not reject the table: %v", err)
+	}
+	if !IsVideoModelConfigured(s.VideoPriceRules, "good") {
+		t.Fatal("the well-formed model lost its pricing as collateral")
+	}
+	// The bad model must be absent entirely, not half-configured: present-but-
+	// unmatchable would hard-fail every request for it.
+	if IsVideoModelConfigured(s.VideoPriceRules, "typo") {
+		t.Fatal("the malformed model must be dropped, not left unmatchable")
+	}
+}
+
+func TestNormalizeAndValidate_QuarantinesEveryRuleOfTheBadModel(t *testing.T) {
+	// Dropping only the offending row would leave the model configured but
+	// missing a tier, so requests for that tier would hard-fail. The whole
+	// model has to go.
+	s := &VideoPriceSetting{VideoPriceRules: []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.3, Basis: BasisOutputDuration},
+		{Model: "m", Match: map[string]string{"resolution": "banana"},
+			PricePerSecond: 1, Basis: BasisOutputDuration},
+	}}
+	if err := s.NormalizeAndValidate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if IsVideoModelConfigured(s.VideoPriceRules, "m") {
+		t.Fatal("a model with any malformed rule must be dropped entirely")
+	}
+}
+
+func TestNormalizeAndValidate_QuarantinesAmbiguousModel(t *testing.T) {
+	s := &VideoPriceSetting{VideoPriceRules: []VideoPriceRule{
+		{Model: "good", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.3, Basis: BasisOutputDuration},
+		{Model: "ambig", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 1, Basis: BasisOutputDuration},
+		{Model: "ambig", Match: map[string]string{"has_video": "true"},
+			PricePerSecond: 2, Basis: BasisOutputDuration},
+	}}
+	if err := s.NormalizeAndValidate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !IsVideoModelConfigured(s.VideoPriceRules, "good") {
+		t.Fatal("the well-formed model lost its pricing as collateral")
+	}
+	if IsVideoModelConfigured(s.VideoPriceRules, "ambig") {
+		t.Fatal("the ambiguous model must be dropped")
+	}
+}
+
+func TestValidateVideoPriceRules_StillStrictForSaves(t *testing.T) {
+	// The save path must stay all-or-nothing: an administrator needs to see the
+	// typo, not have it silently quarantined.
+	rules := []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0, Basis: BasisOutputDuration},
+	}
+	if err := ValidateVideoPriceRules(rules); err == nil {
+		t.Fatal("ValidateVideoPriceRules must stay strict")
 	}
 }

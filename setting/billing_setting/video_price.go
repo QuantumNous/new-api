@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -197,6 +198,85 @@ func CanonicalResolutionValues() []string {
 	return values
 }
 
+// quarantineBadModels drops every rule belonging to a model that has any
+// malformed or ambiguous rule, and reports what it dropped.
+//
+// The whole model goes, not just the offending row: a model left with some of
+// its tiers missing is still "configured", so a request for a dropped tier
+// would hard-fail rather than fall back to legacy billing. Dropping the model
+// entirely returns it cleanly to its previous behaviour.
+func quarantineBadModels(rules []VideoPriceRule) ([]VideoPriceRule, []string) {
+	bad := make(map[string]string)
+	for i, r := range rules {
+		if r.Model == "" {
+			continue
+		}
+		if _, already := bad[r.Model]; already {
+			continue
+		}
+		// Normalization runs here rather than in a separate pass so that a value
+		// which will not fold quarantines its model instead of silently staying
+		// unmatchable, which for a configured model rejects every request.
+		if err := normalizeRuleMatch(r); err != nil {
+			bad[r.Model] = err.Error()
+			continue
+		}
+		if err := ValidateVideoPriceRules(rules[i : i+1]); err != nil {
+			bad[r.Model] = err.Error()
+		}
+	}
+	// Ambiguity is a property of a pair, so it needs a second pass over the
+	// rules that survived the per-rule check.
+	for i := range rules {
+		for j := i + 1; j < len(rules); j++ {
+			if rules[i].Model != rules[j].Model || rules[i].Model == "" {
+				continue
+			}
+			if _, already := bad[rules[i].Model]; already {
+				continue
+			}
+			if len(rules[i].Match) == len(rules[j].Match) && canBothMatch(rules[i].Match, rules[j].Match) {
+				bad[rules[i].Model] = fmt.Sprintf(
+					"rules %d and %d are ambiguous: both have %d constraints and can match the same request",
+					i, j, len(rules[i].Match))
+			}
+		}
+	}
+
+	if len(bad) == 0 {
+		return rules, nil
+	}
+	kept := make([]VideoPriceRule, 0, len(rules))
+	for _, r := range rules {
+		if _, dropped := bad[r.Model]; !dropped || r.Model == "" {
+			kept = append(kept, r)
+		}
+	}
+	reasons := make([]string, 0, len(bad))
+	for model, reason := range bad {
+		reasons = append(reasons, fmt.Sprintf("%s (%s)", model, reason))
+	}
+	sort.Strings(reasons)
+	return kept, reasons
+}
+
+// normalizeRuleMatch folds one rule's Match values in place, reporting the
+// first unrecognized value instead of aborting the whole set.
+func normalizeRuleMatch(r VideoPriceRule) error {
+	for key, raw := range r.Match {
+		vocabulary, closed := canonicalDimensions[key]
+		if !closed {
+			continue
+		}
+		canonical, ok := vocabulary[strings.ToLower(strings.TrimSpace(raw))]
+		if !ok {
+			return fmt.Errorf("%s=%q is not a recognized value", key, raw)
+		}
+		r.Match[key] = canonical
+	}
+	return nil
+}
+
 // NormalizeVideoPriceRules folds hand-written Match values to the canonical
 // forms adapters emit, and rejects values outside a known vocabulary.
 //
@@ -207,37 +287,42 @@ func CanonicalResolutionValues() []string {
 // unpriceable. Rejecting an unrecognized value here surfaces the typo when it
 // is saved rather than when traffic arrives.
 //
+// This is the strict, all-or-nothing form used when an administrator saves.
+// The load path quarantines per model instead — see NormalizeAndValidate.
+//
 // Rules are modified in place.
 func NormalizeVideoPriceRules(rules []VideoPriceRule) error {
 	for i, r := range rules {
-		for key, raw := range r.Match {
-			vocabulary, closed := canonicalDimensions[key]
-			if !closed {
-				continue
-			}
-			canonical, ok := vocabulary[strings.ToLower(strings.TrimSpace(raw))]
-			if !ok {
-				return fmt.Errorf(
-					"video price rule %d (model %s): %s=%q is not a recognized value",
-					i, r.Model, key, raw)
-			}
-			r.Match[key] = canonical
+		if err := normalizeRuleMatch(r); err != nil {
+			return fmt.Errorf("video price rule %d (model %s): %w", i, r.Model, err)
 		}
 	}
 	return nil
 }
 
 // NormalizeAndValidate makes this setting a normalizing config, so ConfigManager
-// validates a candidate rule set before swapping it in and keeps the rules
-// already serving traffic when the candidate is rejected. Without it, rules
+// runs it on a candidate rule set before swapping it in. Without it, rules
 // stored in the database would reach memory unvalidated and FindVideoPriceRule's
 // most-constrained-wins tie-break — which assumes ties are impossible — would
 // silently decide prices by JSON array order.
+//
+// This path quarantines per model rather than rejecting the whole set. An
+// all-or-nothing load turns one typo into a fleet-wide outage of the price
+// table: ConfigManager logs a rejected load and carries on with the previous
+// rules, so every correctly-configured model would silently revert to legacy
+// billing with nothing but a log line to say why. Dropping only the offending
+// model keeps the rest of the table serving and returns that one model cleanly
+// to its previous behaviour.
+//
+// Saves stay strict — see NormalizeVideoPriceRules — so an administrator sees
+// the typo at the point of entry instead of discovering it in a log.
 func (s *VideoPriceSetting) NormalizeAndValidate() error {
-	if err := NormalizeVideoPriceRules(s.VideoPriceRules); err != nil {
-		return err
+	kept, dropped := quarantineBadModels(s.VideoPriceRules)
+	if len(dropped) > 0 {
+		common.SysError("video price rules ignored for " + strings.Join(dropped, "; "))
 	}
-	return ValidateVideoPriceRules(s.VideoPriceRules)
+	s.VideoPriceRules = kept
+	return nil
 }
 
 // FindVideoPriceRule returns the best rule for a model and its resolved
