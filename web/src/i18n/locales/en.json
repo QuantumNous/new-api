@@ -5331,6 +5331,7 @@
     "SEO Description": "SEO Description",
     "SEO Keywords": "SEO Keywords",
     "SEO Site URL": "SEO Site URL",
+    "Enter a full URL or a path starting with /": "Enter a full URL or a path starting with /",
     "SEO OG Image URL": "SEO OG Image URL",
     "Used for meta description and social previews": "Used for meta description and social previews",
     "Canonical base URL for Open Graph and sitemap": "Canonical base URL for Open Graph and sitemap",
@@ -5345,7 +5346,6 @@
     "Image shown in social media link previews": "Image shown in social media link previews",
     "Allow Search Engine Indexing": "Allow Search Engine Indexing",
     "When disabled, robots.txt will block all crawlers": "When disabled, robots.txt will block all crawlers",
-    "Legal": "Legal",
     "Anonymous": "Anonymous"
   }
 }

@@ -26,7 +26,7 @@ import {
   useRouterState,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
-import { useEffect } from 'react'
+import { useEffect, type ReactElement } from 'react'
 
 import { NavigationProgress } from '@/components/navigation-progress'
 import { Toaster } from '@/components/ui/sonner'
@@ -46,7 +46,7 @@ import { resolveLegacyRoute } from '@/lib/legacy-route'
 import { applySeoFromStatus, readCachedStatus } from '@/lib/seo'
 import { useAuthStore } from '@/stores/auth-store'
 
-function RootComponent() {
+function RootComponent(): ReactElement {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 

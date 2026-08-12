@@ -5330,6 +5330,7 @@
     "SEO Description": "SEO 描述",
     "SEO Keywords": "SEO 關鍵詞",
     "SEO Site URL": "SEO 站點 URL",
+    "Enter a full URL or a path starting with /": "請輸入完整 URL 或以 / 開頭的路徑",
     "SEO OG Image URL": "SEO 分享圖 URL",
     "Used for meta description and social previews": "用於頁面描述與社交分享預覽",
     "Canonical base URL for Open Graph and sitemap": "用於 canonical、Open Graph 與 sitemap 的站點根位址",
@@ -5344,7 +5345,6 @@
     "Image shown in social media link previews": "社群媒體分享時顯示的圖片",
     "Allow Search Engine Indexing": "允許搜尋引擎收錄",
     "When disabled, robots.txt will block all crawlers": "關閉後 robots.txt 將阻擋所有爬蟲",
-    "Legal": "法律條款",
     "Anonymous": "匿名"
   }
 }

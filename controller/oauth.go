@@ -361,7 +361,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 
-// Handle affiliate code (same rules as Register: refuse disabled inviters).
+	// Handle affiliate code (same rules as Register: refuse disabled inviters).
 	inviterId := 0
 	affiliateCode = strings.TrimSpace(affiliateCode)
 	if len(affiliateCode) > 32 {

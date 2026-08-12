@@ -151,8 +151,11 @@ export function applySeoFromStatus(
     fullTitle: home ? s.seo_title : undefined,
     titleSuffix: home ? s.seo_title_suffix : undefined,
     // Console/auth: noindex. Public pages follow admin robots flag.
+    // The real path is always preserved — rewriting it to '/' made every
+    // console/auth route look like the homepage and emit the homepage
+    // canonical/OG URL. Indexing is controlled by robotsIndex alone.
     robotsIndex: publicPath ? baseRobots : false,
-    path: publicPath ? path : '/',
+    path,
     ...extra,
   }
   // Re-assert after spread so callers cannot put long-tail on non-home routes

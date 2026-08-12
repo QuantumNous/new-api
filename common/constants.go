@@ -124,11 +124,12 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+
 // Invite top-up rebate (invitee top-up → inviter aff_quota). Default off for safe merges.
 // Only top-ups completed at/after InviteTopupRebateEnabledAt are eligible.
 // Historical top-ups before the feature was turned on are never backfilled.
 var InviteTopupRebateEnabled = false
-var InviteTopupRebateRatioBp = 100 // 100 basis points = 1.00%
+var InviteTopupRebateRatioBp = 100       // 100 basis points = 1.00%
 var InviteTopupRebateBackfillMinutes = 5 // scheduled backfill interval; min 1, max 1440
 // InviteTopupRebateEnabledAt is unix seconds when the feature was last turned ON.
 // 0 means "never enabled" (or unknown) — backfill grants nothing until set on enable.

@@ -56,8 +56,8 @@ const quotaSchema = z.object({
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
   InviteTopupRebateEnabled: z.boolean(),
-  InviteTopupRebateRatioBp: z.coerce.number().min(0).max(10000),
-  InviteTopupRebateBackfillMinutes: z.coerce.number().min(1).max(1440),
+  InviteTopupRebateRatioBp: z.coerce.number().int().min(0).max(10000),
+  InviteTopupRebateBackfillMinutes: z.coerce.number().int().min(1).max(1440),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -295,6 +295,7 @@ export function QuotaSettingsSection({
                   <FormControl>
                     <Input
                       type='number'
+                      step={1}
                       value={field.value ?? ''}
                       onChange={handleNumberChange(field.onChange)}
                       name={field.name}
@@ -319,6 +320,7 @@ export function QuotaSettingsSection({
                   <FormControl>
                     <Input
                       type='number'
+                      step={1}
                       value={field.value ?? ''}
                       onChange={handleNumberChange(field.onChange)}
                       name={field.name}

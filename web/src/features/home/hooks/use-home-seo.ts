@@ -9,7 +9,7 @@ import { applySeoFromStatus, clearSeoJsonLd, readCachedStatus } from '@/lib/seo'
  * Reads status from localStorage (already populated by main.tsx on boot).
  * On unmount, strips long-tail back to short brand title.
  */
-export function useHomeSeo() {
+export function useHomeSeo(): void {
   const { i18n } = useTranslation()
   const { systemName, logo } = useSystemConfig()
 

@@ -58,7 +58,7 @@ const _systemInfoSchema = z.object({
   'SEO.Description': z.string().optional(),
   'SEO.Keywords': z.string().optional(),
   'SEO.SiteURL': z.string().url().optional().or(z.literal('')),
-  'SEO.OGImage': z.string().url().optional().or(z.literal('')),
+  'SEO.OGImage': z.string().refine(isOgImageValue).optional(),
   'SEO.RobotsIndex': z.boolean().optional(),
   legal: z.object({
     user_agreement: z.string().optional(),
@@ -69,12 +69,29 @@ const _systemInfoSchema = z.object({
 type SystemInfoFormValues = z.infer<typeof _systemInfoSchema>
 
 type SystemInfoSectionProps = {
-  defaultValues: SystemInfoFormValues
+  // The option API returns booleans as strings, so accept the raw shape here
+  // and normalize below rather than forcing callers to pre-convert.
+  defaultValues: Omit<SystemInfoFormValues, 'SEO.RobotsIndex'> & {
+    'SEO.RobotsIndex'?: boolean | string
+  }
 }
 
 function normalizeValue(value: unknown): string {
   if (value === undefined || value === null) return ''
   return typeof value === 'string' ? value : String(value)
+}
+
+// The SEO renderer resolves a site-root-relative image path against the site
+// URL, so `/logo.png` (the field's placeholder) is valid even though z.url()
+// only accepts absolute URLs.
+function isOgImageValue(value: string): boolean {
+  if (value === '' || value.startsWith('/')) return true
+  try {
+    new URL(value)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
@@ -88,15 +105,17 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
     HomePageContent: normalizeValue(defaultValues.HomePageContent),
-    'SEO.Title': normalizeValue((defaultValues as any)['SEO.Title']),
-    'SEO.TitleSuffix': normalizeValue((defaultValues as any)['SEO.TitleSuffix']),
-    'SEO.Description': normalizeValue((defaultValues as any)['SEO.Description']),
-    'SEO.Keywords': normalizeValue((defaultValues as any)['SEO.Keywords']),
-    'SEO.SiteURL': normalizeValue((defaultValues as any)['SEO.SiteURL']),
-    'SEO.OGImage': normalizeValue((defaultValues as any)['SEO.OGImage']),
+    'SEO.Title': normalizeValue(defaultValues['SEO.Title']),
+    'SEO.TitleSuffix': normalizeValue(defaultValues['SEO.TitleSuffix']),
+    'SEO.Description': normalizeValue(defaultValues['SEO.Description']),
+    'SEO.Keywords': normalizeValue(defaultValues['SEO.Keywords']),
+    'SEO.SiteURL': normalizeValue(defaultValues['SEO.SiteURL']),
+    'SEO.OGImage': normalizeValue(defaultValues['SEO.OGImage']),
+    // Absent means enabled: the browser SEO layer treats a missing
+    // seo_robots_index as indexable, so only an explicit false disables it.
     'SEO.RobotsIndex':
-      (defaultValues as any)['SEO.RobotsIndex'] === true ||
-      (defaultValues as any)['SEO.RobotsIndex'] === 'true',
+      defaultValues['SEO.RobotsIndex'] !== false &&
+      defaultValues['SEO.RobotsIndex'] !== 'false',
     legal: {
       user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
       privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
@@ -113,11 +132,16 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     About: z.string().optional(),
     HomePageContent: z.string().optional(),
     'SEO.Title': z.string().optional(),
-  'SEO.TitleSuffix': z.string().optional(),
-  'SEO.Description': z.string().optional(),
+    'SEO.TitleSuffix': z.string().optional(),
+    'SEO.Description': z.string().optional(),
     'SEO.Keywords': z.string().optional(),
     'SEO.SiteURL': z.string().url().optional().or(z.literal('')),
-    'SEO.OGImage': z.string().url().optional().or(z.literal('')),
+    'SEO.OGImage': z
+      .string()
+      .refine(isOgImageValue, {
+        error: () => t('Enter a full URL or a path starting with /'),
+      })
+      .optional(),
     'SEO.RobotsIndex': z.boolean().optional(),
     legal: z.object({
       user_agreement: z.string().optional(),

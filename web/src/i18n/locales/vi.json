@@ -5314,6 +5314,7 @@
     "Invite Rebate": "Invite Rebate",
     "Transfer pending rewards to your balance": "Transfer pending rewards to your balance",
     "No rebate records yet": "No rebate records yet",
+    "Enter a full URL or a path starting with /": "Nhập URL đầy đủ hoặc đường dẫn bắt đầu bằng /",
     "SEO OG Image URL": "URL hình ảnh OG SEO",
     "How often to scan for missing rebates (1-1440 minutes)": "How often to scan for missing rebates (1-1440 minutes)",
     "Invite leaderboard": "Invite leaderboard",
@@ -5328,7 +5329,6 @@
     "Canonical base URL for Open Graph and sitemap": "URL gốc chuẩn cho Open Graph và sitemap",
     "Leave empty to use System Name + suffix": "Để trống để sử dụng Tên hệ thống + hậu tố",
     "e.g. AI大模型API网关|OpenAI兼容|统一分发平台": "VD: Cổng API AI|Tương thích OpenAI|Nền tảng phân phối hợp nhất",
-    "Appended after system name when full title is empty: {Name} - {Suffix}": "Thêm sau tên hệ thống khi tiêu đề đầy đủ trống: {Name} - {Suffix}",
-    "Legal": "Pháp lý"
+    "Appended after system name when full title is empty: {Name} - {Suffix}": "Thêm sau tên hệ thống khi tiêu đề đầy đủ trống: {Name} - {Suffix}"
   }
 }

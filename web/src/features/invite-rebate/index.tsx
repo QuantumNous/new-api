@@ -3,6 +3,7 @@ import {
   Crown,
   Gift,
   Share2,
+  TriangleAlert,
   Trophy,
   Users,
   Wallet,
@@ -96,6 +97,7 @@ export function InviteRebatePage() {
   const [transferring, setTransferring] = useState(false)
   const [tab, setTab] = useState('overview')
   const [leaderboardError, setLeaderboardError] = useState(false)
+  const [summaryError, setSummaryError] = useState('')
 
   const affiliateLink = useMemo(() => {
     if (typeof window === 'undefined' || !affCode) return ''
@@ -122,11 +124,27 @@ export function InviteRebatePage() {
       const b = val<Awaited<ReturnType<typeof fetchInviteRebateLeaderboard>>>(3)
       const a = val<Awaited<ReturnType<typeof fetchAffiliateCode>>>(4)
 
-      if (s?.success && s.data) setSummary(s.data)
-      else if (!s) toast.error(t('Failed to load invite rebate data'))
+      // `Promise.allSettled` reports `{ success: false }` as fulfilled, so a
+      // business error has to be detected explicitly — otherwise the page
+      // renders zero balances and "Rebate disabled" as if they were real.
+      if (s?.success && s.data) {
+        setSummary(s.data)
+        setSummaryError('')
+      } else {
+        setSummaryError(s?.message || t('Failed to load invite rebate data'))
+      }
 
+      let sectionFailed = false
       if (l?.success && l.data) setLogs(l.data.items || [])
+      else sectionFailed = true
       if (i?.success && i.data) setInvitees(i.data.items || [])
+      else sectionFailed = true
+      if (a?.success && a.data) setAffCode(a.data)
+      else sectionFailed = true
+      // One toast for the secondary sections: a full outage should not stack
+      // four of them, but the failure must not be silent either.
+      if (sectionFailed) toast.error(t('Failed to load invite rebate data'))
+
       if (b?.success && b.data) {
         setBoard(b.data.items || [])
         setMyRank(b.data.my_rank || 0)
@@ -135,7 +153,6 @@ export function InviteRebatePage() {
         // Keep previous board data if any; only flag error for empty UI retry
         setLeaderboardError(true)
       }
-      if (a?.success && a.data) setAffCode(a.data)
     } catch (e) {
       console.error(e)
       toast.error(t('Failed to load invite rebate data'))
@@ -198,6 +215,22 @@ export function InviteRebatePage() {
                 <Skeleton key={i} className='h-24 rounded-xl' />
               ))}
             </div>
+          ) : summaryError && !summary ? (
+            <Card className='border-destructive/40 border-dashed'>
+              <CardContent className='flex flex-col items-start gap-3 p-6'>
+                <div className='flex items-center gap-2 text-sm font-semibold'>
+                  <TriangleAlert className='text-destructive size-4' />
+                  {summaryError}
+                </div>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  onClick={() => void reload()}
+                >
+                  {t('Retry')}
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
             <>
               <Card className='border-dashed'>
@@ -637,8 +670,12 @@ export function InviteRebateAdminPage() {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
   const [backfilling, setBackfilling] = useState(false)
-  const [inviterId, setInviterId] = useState('')
-  const [inviteeId, setInviteeId] = useState('')
+  // Draft inputs are kept apart from the applied filters: reloading on every
+  // keystroke floods the API and lets a stale partial-ID response overwrite
+  // the table.
+  const [inviterIdDraft, setInviterIdDraft] = useState('')
+  const [inviteeIdDraft, setInviteeIdDraft] = useState('')
+  const [filters, setFilters] = useState({ inviterId: '', inviteeId: '' })
   const [summary, setSummary] = useState<AdminInviteRebateSummary | null>(null)
   const [rows, setRows] = useState<InviteRebateLog[]>([])
 
@@ -651,11 +688,11 @@ export function InviteRebateAdminPage() {
         inviter_id?: number
         invitee_id?: number
       } = { p: 1, page_size: 50 }
-      if (inviterId) params.inviter_id = Number(inviterId)
-      if (inviteeId) params.invitee_id = Number(inviteeId)
+      if (filters.inviterId) params.inviter_id = Number(filters.inviterId)
+      if (filters.inviteeId) params.invitee_id = Number(filters.inviteeId)
       const [s, list] = await Promise.all([
         fetchAdminInviteRebateSummary(
-          inviterId ? Number(inviterId) : undefined
+          filters.inviterId ? Number(filters.inviterId) : undefined
         ),
         fetchAdminInviteRebates(params),
       ])
@@ -667,11 +704,15 @@ export function InviteRebateAdminPage() {
     } finally {
       setLoading(false)
     }
-  }, [inviteeId, inviterId, t])
+  }, [filters, t])
 
   useEffect(() => {
     void reload()
   }, [reload])
+
+  const applyFilters = useCallback(() => {
+    setFilters({ inviterId: inviterIdDraft, inviteeId: inviteeIdDraft })
+  }, [inviteeIdDraft, inviterIdDraft])
 
   return (
     <SectionPageLayout>
@@ -710,19 +751,21 @@ export function InviteRebateAdminPage() {
               {t('Inviter ID')}
               <Input
                 className='mt-1 h-9 w-36'
-                value={inviterId}
-                onChange={(e) => setInviterId(e.target.value)}
+                value={inviterIdDraft}
+                onChange={(e) => setInviterIdDraft(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
               />
             </label>
             <label className='text-xs'>
               {t('Invitee ID')}
               <Input
                 className='mt-1 h-9 w-36'
-                value={inviteeId}
-                onChange={(e) => setInviteeId(e.target.value)}
+                value={inviteeIdDraft}
+                onChange={(e) => setInviteeIdDraft(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
               />
             </label>
-            <Button size='sm' onClick={() => void reload()}>
+            <Button size='sm' onClick={applyFilters}>
               {t('Filter')}
             </Button>
           </div>
@@ -755,7 +798,7 @@ export function InviteRebateAdminPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
+                      <TableHead>{t('ID')}</TableHead>
                       <TableHead>{t('Inviter')}</TableHead>
                       <TableHead>{t('Invitee')}</TableHead>
                       <TableHead>{t('Trade no')}</TableHead>

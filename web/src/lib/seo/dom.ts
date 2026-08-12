@@ -1,4 +1,4 @@
-export function upsertMetaByName(name: string, content: string) {
+export function upsertMetaByName(name: string, content: string): void {
   if (typeof document === 'undefined' || !content) return
   let el = document.querySelector(
     `meta[name="${CSS.escape(name)}"]`
@@ -11,7 +11,7 @@ export function upsertMetaByName(name: string, content: string) {
   el.setAttribute('content', content)
 }
 
-export function upsertMetaByProperty(property: string, content: string) {
+export function upsertMetaByProperty(property: string, content: string): void {
   if (typeof document === 'undefined' || !content) return
   let el = document.querySelector(
     `meta[property="${CSS.escape(property)}"]`
@@ -24,7 +24,7 @@ export function upsertMetaByProperty(property: string, content: string) {
   el.setAttribute('content', content)
 }
 
-export function upsertLinkRel(rel: string, href: string) {
+export function upsertLinkRel(rel: string, href: string): void {
   if (typeof document === 'undefined' || !href) return
   let el = document.querySelector(
     `link[rel="${CSS.escape(rel)}"]`
@@ -37,7 +37,7 @@ export function upsertLinkRel(rel: string, href: string) {
   el.setAttribute('href', href)
 }
 
-export function upsertJsonLd(id: string, data: unknown) {
+export function upsertJsonLd(id: string, data: unknown): void {
   if (typeof document === 'undefined' || data == null) return
   let el = document.getElementById(id) as HTMLScriptElement | null
   if (!el) {
@@ -49,7 +49,7 @@ export function upsertJsonLd(id: string, data: unknown) {
   el.textContent = JSON.stringify(data)
 }
 
-export function removeJsonLd(id: string) {
+export function removeJsonLd(id: string): void {
   if (typeof document === 'undefined') return
   document.getElementById(id)?.remove()
 }

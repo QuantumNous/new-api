@@ -5331,6 +5331,7 @@
     "SEO Description": "SEO 描述",
     "SEO Keywords": "SEO 关键词",
     "SEO Site URL": "SEO 站点 URL",
+    "Enter a full URL or a path starting with /": "请输入完整 URL 或以 / 开头的路径",
     "SEO OG Image URL": "SEO 分享图 URL",
     "Used for meta description and social previews": "用于页面描述与社交分享预览",
     "Canonical base URL for Open Graph and sitemap": "用于 canonical、Open Graph 与 sitemap 的站点根地址",
@@ -5345,7 +5346,6 @@
     "Image shown in social media link previews": "社交媒体分享时显示的图片",
     "Allow Search Engine Indexing": "允许搜索引擎收录",
     "When disabled, robots.txt will block all crawlers": "关闭后 robots.txt 将阻止所有爬虫",
-    "Legal": "法律条款",
     "Anonymous": "匿名"
   }
 }

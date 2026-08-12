@@ -116,7 +116,6 @@ func GetSystemTask(c *gin.Context) {
 	})
 }
 
-
 // CreateInviteRebateBackfillSystemTask enqueues an on-demand invite rebate backfill.
 // Root only (route middleware). Optional query limit=1..500 (default 100).
 // If the feature is disabled, returns error without creating a task.

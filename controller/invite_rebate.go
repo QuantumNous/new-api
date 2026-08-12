@@ -89,7 +89,6 @@ func GetAdminInviteRebateSummary(c *gin.Context) {
 	})
 }
 
-
 func GetInviteRebateLeaderboard(c *gin.Context) {
 	userId := c.GetInt("id")
 	by := c.DefaultQuery("by", "rebate")

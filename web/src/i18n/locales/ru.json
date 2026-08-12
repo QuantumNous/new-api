@@ -5314,6 +5314,7 @@
     "Invite Rebate": "Invite Rebate",
     "Transfer pending rewards to your balance": "Transfer pending rewards to your balance",
     "No rebate records yet": "No rebate records yet",
+    "Enter a full URL or a path starting with /": "Укажите полный URL или путь, начинающийся с /",
     "SEO OG Image URL": "URL OG-изображения (SEO)",
     "How often to scan for missing rebates (1-1440 minutes)": "How often to scan for missing rebates (1-1440 minutes)",
     "Invite leaderboard": "Invite leaderboard",
@@ -5328,7 +5329,6 @@
     "Canonical base URL for Open Graph and sitemap": "Канонический базовый URL для Open Graph и карты сайта",
     "Leave empty to use System Name + suffix": "Оставьте пустым, чтобы использовать Имя системы + суффикс",
     "e.g. AI大模型API网关|OpenAI兼容|统一分发平台": "напр. Шлюз AI API|Совместимость с OpenAI|Единая платформа",
-    "Appended after system name when full title is empty: {Name} - {Suffix}": "Добавляется после имени системы, когда полный заголовок пуст: {Name} - {Suffix}",
-    "Legal": "Юридическая информация"
+    "Appended after system name when full title is empty: {Name} - {Suffix}": "Добавляется после имени системы, когда полный заголовок пуст: {Name} - {Suffix}"
   }
 }

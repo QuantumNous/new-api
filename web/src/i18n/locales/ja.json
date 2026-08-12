@@ -5314,6 +5314,7 @@
     "Invite Rebate": "Invite Rebate",
     "Transfer pending rewards to your balance": "Transfer pending rewards to your balance",
     "No rebate records yet": "No rebate records yet",
+    "Enter a full URL or a path starting with /": "完全な URL または / で始まるパスを入力してください",
     "SEO OG Image URL": "SEO OG 画像 URL",
     "How often to scan for missing rebates (1-1440 minutes)": "How often to scan for missing rebates (1-1440 minutes)",
     "Invite leaderboard": "Invite leaderboard",
@@ -5328,7 +5329,6 @@
     "Canonical base URL for Open Graph and sitemap": "Open Graph とサイトマップ用の正規ベース URL",
     "Leave empty to use System Name + suffix": "空欄でシステム名＋接尾辞を使用",
     "e.g. AI大模型API网关|OpenAI兼容|统一分发平台": "例: AI大規模モデルAPIゲートウェイ|OpenAI互換|統合配信プラットフォーム",
-    "Appended after system name when full title is empty: {Name} - {Suffix}": "完全タイトルが空の場合、システム名の後に追加：{Name} - {Suffix}",
-    "Legal": "法的事項"
+    "Appended after system name when full title is empty: {Name} - {Suffix}": "完全タイトルが空の場合、システム名の後に追加：{Name} - {Suffix}"
   }
 }
