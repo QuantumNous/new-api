@@ -1,17 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { expectFile, getRandomPort, test } from '@e2e/helper';
+import { test } from '@e2e/helper';
+import { getRandomPort, waitForFile } from '@rstackjs/test-utils';
 import fse from 'fs-extra';
 
 test('should restart dev server and reload config when config file changed', async ({
+  prepareDist,
   execCli,
 }) => {
-  const dist1 = path.join(import.meta.dirname, 'dist');
-  const dist2 = path.join(import.meta.dirname, 'dist-2');
   const configFile = path.join(import.meta.dirname, 'rsbuild.config.mjs');
 
-  await fse.remove(dist1);
-  await fse.remove(dist2);
+  const dist1 = await prepareDist();
+  const dist2 = await prepareDist('dist-2');
   await fse.remove(configFile);
 
   fs.writeFileSync(
@@ -26,7 +26,7 @@ test('should restart dev server and reload config when config file changed', asy
 
   execCli('dev');
 
-  await expectFile(dist1);
+  await waitForFile(dist1);
 
   fs.writeFileSync(
     configFile,
@@ -41,5 +41,5 @@ test('should restart dev server and reload config when config file changed', asy
     };`,
   );
 
-  await expectFile(dist2);
+  await waitForFile(dist2);
 });

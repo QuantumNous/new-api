@@ -234,10 +234,10 @@ export default defineConfig({
 
 ## 引用未知资源
 
-在 CRA 中，如果你引用了一个构建工具无法识别的资源，CRA 默认会将该文件输出到 `build/static/media` 目录下，比如 `document.pdf` 文件：
+在 CRA 中，如果你引用了一个构建工具无法识别的资源，CRA 默认会将该文件输出到 `build/static/media` 目录下，比如 `model.gltf` 文件：
 
 ```js title="index.js"
-import document from './document.pdf';
+import model from './model.gltf';
 ```
 
 在 Rsbuild 中，遇到无法识别的资源时，Rsbuild 会输出报错日志，类似于：

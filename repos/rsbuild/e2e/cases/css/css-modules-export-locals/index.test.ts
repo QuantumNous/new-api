@@ -1,4 +1,5 @@
-import { type BuildResult, expect, getFileContent, test } from '@e2e/helper';
+import { type BuildResult, expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 declare global {
   interface Window {

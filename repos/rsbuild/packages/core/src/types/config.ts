@@ -747,7 +747,7 @@ export interface ResourceHintsOptions {
   /**
    * Specifies which types of resources will be included.
    * - `async-chunks`: Includes all async resources on the current page, such as async JS
-   * chunks, and its associated CSS, images, fonts, and other static resources.
+   * chunks, and its associated CSS, images, and fonts.
    * - `initial`: Includes all non-async resources on the current page.
    * - `all-chunks`: Includes all async and non-async resources on the current page.
    * - `all-assets`: Includes all resources from all pages.
@@ -755,11 +755,13 @@ export interface ResourceHintsOptions {
    */
   type?: ResourceHintsIncludeType;
   /**
-   * A extra filter to determine which resources to include.
+   * An extra filter to determine which resources to include.
    */
   include?: ResourceHintsFilter;
   /**
-   * A extra filter to determine which resources to exclude.
+   * An extra filter to determine which resources to exclude.
+   *
+   * @default /\.(?:webmanifest|pdf|txt)$/i
    */
   exclude?: ResourceHintsFilter;
   /**
@@ -822,7 +824,7 @@ export interface PerformanceConfig {
    *
    * When `performance.preload` is set to `true`, Rsbuild will use the following default
    * options to preload resources. This means preloading all async resources on the current
-   * page, including async JS and its associated CSS, image, font, and other resources.
+   * page, including async JS and its associated CSS, image, and font resources.
    *
    * ```js
    * const defaultOptions = {
@@ -840,7 +842,7 @@ export interface PerformanceConfig {
    *
    * When `performance.prefetch` is set to `true`, Rsbuild will use the following default
    * options to prefetch resources. This means prefetching all async resources on the current
-   * page, including async JS and its associated CSS, image, font, and other resources.
+   * page, including async JS and its associated CSS, image, and font resources.
    *
    * ```js
    * const defaultOptions = {

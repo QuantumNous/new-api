@@ -9,6 +9,6 @@
     "preview": "rsbuild preview"
   },
   "devDependencies": {
-    "@rsbuild/core": "^2.1.4"
+    "@rsbuild/core": "^2.1.6"
   }
 }

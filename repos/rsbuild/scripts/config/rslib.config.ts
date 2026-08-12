@@ -40,6 +40,9 @@ export const pureEsmPackage = defineConfig({
   lib: [esmConfig],
   tools: {
     rspack: {
+      experiments: {
+        nativeWatcher: true,
+      },
       externals: commonExternals,
     },
   },
@@ -58,6 +61,9 @@ export const dualPackage = defineConfig({
   lib: [esmConfig, cjsConfig],
   tools: {
     rspack: {
+      experiments: {
+        nativeWatcher: true,
+      },
       externals: commonExternals,
     },
   },

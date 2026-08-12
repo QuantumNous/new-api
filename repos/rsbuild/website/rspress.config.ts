@@ -244,6 +244,13 @@ export default defineConfig({
     server: {
       open: true,
     },
+    tools: {
+      rspack: {
+        experiments: {
+          nativeWatcher: true,
+        },
+      },
+    },
     html: {
       tags: [
         // for baidu SEO verification

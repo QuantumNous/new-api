@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { type Build, expect, getFileContent, mapSourceMapPositions, test } from '@e2e/helper';
+import { type Build, expect, mapSourceMapPositions, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 import type { SourceMapExtract } from '@rsbuild/core';
 import fse from 'fs-extra';
 

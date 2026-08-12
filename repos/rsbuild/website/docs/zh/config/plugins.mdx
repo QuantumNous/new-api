@@ -12,10 +12,7 @@ description: '默认情况下，插件会按照 plugins 数组中的顺序依次
 type Falsy = false | null | undefined;
 
 type RsbuildPlugins = (
-  | RsbuildPlugin
-  | Falsy
-  | Promise<RsbuildPlugin | Falsy | RsbuildPlugins>
-  | RsbuildPlugins
+  RsbuildPlugin | Falsy | Promise<RsbuildPlugin | Falsy | RsbuildPlugins> | RsbuildPlugins
 )[];
 ```
 

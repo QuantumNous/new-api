@@ -18,4 +18,13 @@ describe('getResourceType', () => {
       }),
     ).toBe('image');
   });
+
+  it('should return track for WebVTT files', () => {
+    expect(
+      getResourceType({
+        href: '/media/subtitles.vtt',
+        file: 'media/subtitles.vtt',
+      }),
+    ).toBe('track');
+  });
 });

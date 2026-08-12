@@ -1,4 +1,5 @@
-import { getRandomPort, NETWORK_LOG_REGEX, test } from '@e2e/helper';
+import { NETWORK_LOG_REGEX, test } from '@e2e/helper';
+import { getRandomPort } from '@rstackjs/test-utils';
 
 test('should listen on localhost by default', async ({ execCli, logHelper }) => {
   const port = await getRandomPort();

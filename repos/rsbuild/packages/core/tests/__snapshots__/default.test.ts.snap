@@ -342,7 +342,7 @@ exports[`should apply default plugins correctly 1`] = `
             "type": "asset",
           },
         ],
-        "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+        "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
       },
       {
         "oneOf": [
@@ -416,7 +416,7 @@ exports[`should apply default plugins correctly 1`] = `
             "type": "asset",
           },
         ],
-        "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\)\\$/i,
+        "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\|vtt\\)\\$/i,
       },
       {
         "oneOf": [
@@ -454,6 +454,43 @@ exports[`should apply default plugins correctly 1`] = `
           },
         ],
         "test": /\\\\\\.\\(\\?:woff\\|woff2\\|eot\\|ttf\\|otf\\|ttc\\)\\$/i,
+      },
+      {
+        "oneOf": [
+          {
+            "generator": {
+              "filename": "static/assets/[name].[contenthash:10][ext]",
+            },
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/resource",
+          },
+          {
+            "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/inline",
+          },
+          {
+            "type": "asset/source",
+            "with": {
+              "type": "text",
+            },
+          },
+          {
+            "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/source",
+          },
+          {
+            "generator": {
+              "filename": "static/assets/[name].[contenthash:10][ext]",
+            },
+            "parser": {
+              "dataUrlCondition": {
+                "maxSize": 4096,
+              },
+            },
+            "type": "asset",
+          },
+        ],
+        "test": /\\\\\\.\\(\\?:webmanifest\\|pdf\\|txt\\)\\$/i,
       },
       {
         "oneOf": [
@@ -875,7 +912,7 @@ exports[`should apply default plugins correctly in production 1`] = `
             "type": "asset",
           },
         ],
-        "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+        "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
       },
       {
         "oneOf": [
@@ -949,7 +986,7 @@ exports[`should apply default plugins correctly in production 1`] = `
             "type": "asset",
           },
         ],
-        "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\)\\$/i,
+        "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\|vtt\\)\\$/i,
       },
       {
         "oneOf": [
@@ -987,6 +1024,43 @@ exports[`should apply default plugins correctly in production 1`] = `
           },
         ],
         "test": /\\\\\\.\\(\\?:woff\\|woff2\\|eot\\|ttf\\|otf\\|ttc\\)\\$/i,
+      },
+      {
+        "oneOf": [
+          {
+            "generator": {
+              "filename": "static/assets/[name].[contenthash:10][ext]",
+            },
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/resource",
+          },
+          {
+            "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/inline",
+          },
+          {
+            "type": "asset/source",
+            "with": {
+              "type": "text",
+            },
+          },
+          {
+            "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/source",
+          },
+          {
+            "generator": {
+              "filename": "static/assets/[name].[contenthash:10][ext]",
+            },
+            "parser": {
+              "dataUrlCondition": {
+                "maxSize": 4096,
+              },
+            },
+            "type": "asset",
+          },
+        ],
+        "test": /\\\\\\.\\(\\?:webmanifest\\|pdf\\|txt\\)\\$/i,
       },
       {
         "oneOf": [
@@ -1419,7 +1493,7 @@ exports[`should apply default plugins correctly when target is node 1`] = `
             "type": "asset",
           },
         ],
-        "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+        "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
       },
       {
         "oneOf": [
@@ -1493,7 +1567,7 @@ exports[`should apply default plugins correctly when target is node 1`] = `
             "type": "asset",
           },
         ],
-        "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\)\\$/i,
+        "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\|vtt\\)\\$/i,
       },
       {
         "oneOf": [
@@ -1531,6 +1605,43 @@ exports[`should apply default plugins correctly when target is node 1`] = `
           },
         ],
         "test": /\\\\\\.\\(\\?:woff\\|woff2\\|eot\\|ttf\\|otf\\|ttc\\)\\$/i,
+      },
+      {
+        "oneOf": [
+          {
+            "generator": {
+              "filename": "static/assets/[name].[contenthash:10][ext]",
+            },
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/resource",
+          },
+          {
+            "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/inline",
+          },
+          {
+            "type": "asset/source",
+            "with": {
+              "type": "text",
+            },
+          },
+          {
+            "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/source",
+          },
+          {
+            "generator": {
+              "filename": "static/assets/[name].[contenthash:10][ext]",
+            },
+            "parser": {
+              "dataUrlCondition": {
+                "maxSize": 4096,
+              },
+            },
+            "type": "asset",
+          },
+        ],
+        "test": /\\\\\\.\\(\\?:webmanifest\\|pdf\\|txt\\)\\$/i,
       },
       {
         "oneOf": [
@@ -1963,7 +2074,7 @@ exports[`tools.rspack > should match snapshot 1`] = `
             "type": "asset",
           },
         ],
-        "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+        "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
       },
       {
         "oneOf": [
@@ -2037,7 +2148,7 @@ exports[`tools.rspack > should match snapshot 1`] = `
             "type": "asset",
           },
         ],
-        "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\)\\$/i,
+        "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\|vtt\\)\\$/i,
       },
       {
         "oneOf": [
@@ -2075,6 +2186,43 @@ exports[`tools.rspack > should match snapshot 1`] = `
           },
         ],
         "test": /\\\\\\.\\(\\?:woff\\|woff2\\|eot\\|ttf\\|otf\\|ttc\\)\\$/i,
+      },
+      {
+        "oneOf": [
+          {
+            "generator": {
+              "filename": "static/assets/[name].[contenthash:10][ext]",
+            },
+            "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/resource",
+          },
+          {
+            "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/inline",
+          },
+          {
+            "type": "asset/source",
+            "with": {
+              "type": "text",
+            },
+          },
+          {
+            "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+            "type": "asset/source",
+          },
+          {
+            "generator": {
+              "filename": "static/assets/[name].[contenthash:10][ext]",
+            },
+            "parser": {
+              "dataUrlCondition": {
+                "maxSize": 4096,
+              },
+            },
+            "type": "asset",
+          },
+        ],
+        "test": /\\\\\\.\\(\\?:webmanifest\\|pdf\\|txt\\)\\$/i,
       },
       {
         "oneOf": [

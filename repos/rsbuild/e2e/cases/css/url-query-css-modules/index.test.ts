@@ -1,4 +1,5 @@
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 const EXPECTED_ERROR = 'CSS Modules do not support the ?url query';
 

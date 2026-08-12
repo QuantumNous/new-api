@@ -37,7 +37,7 @@ exports[`plugin-asset > should add image rules correctly 1`] = `
         "type": "asset",
       },
     ],
-    "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+    "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
   },
 ]
 `;
@@ -79,7 +79,91 @@ exports[`plugin-asset > should add image rules correctly 2`] = `
         "type": "asset",
       },
     ],
-    "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+    "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
+  },
+]
+`;
+
+exports[`plugin-asset > should add media rules correctly 1`] = `
+[
+  {
+    "oneOf": [
+      {
+        "generator": {
+          "filename": "static/media/[name].[contenthash:10][ext]",
+        },
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/resource",
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/inline",
+      },
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "generator": {
+          "filename": "static/media/[name].[contenthash:10][ext]",
+        },
+        "parser": {
+          "dataUrlCondition": {
+            "maxSize": 4096,
+          },
+        },
+        "type": "asset",
+      },
+    ],
+    "test": /\\\\\\.\\(\\?:mp4\\|webm\\|ogg\\|mov\\|mp3\\|wav\\|flac\\|aac\\|m4a\\|opus\\|vtt\\)\\$/i,
+  },
+]
+`;
+
+exports[`plugin-asset > should add other asset rules correctly 1`] = `
+[
+  {
+    "oneOf": [
+      {
+        "generator": {
+          "filename": "static/assets/[name].[contenthash:10][ext]",
+        },
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/resource",
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/inline",
+      },
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "generator": {
+          "filename": "static/assets/[name].[contenthash:10][ext]",
+        },
+        "parser": {
+          "dataUrlCondition": {
+            "maxSize": 4096,
+          },
+        },
+        "type": "asset",
+      },
+    ],
+    "test": /\\\\\\.\\(\\?:webmanifest\\|pdf\\|txt\\)\\$/i,
   },
 ]
 `;
@@ -121,7 +205,7 @@ exports[`plugin-asset > should allow using distPath.image to modify dist path 1`
         "type": "asset",
       },
     ],
-    "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+    "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
   },
 ]
 `;
@@ -163,7 +247,7 @@ exports[`plugin-asset > should allow using filename.image to modify filename 1`]
         "type": "asset",
       },
     ],
-    "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\)\\$/i,
+    "test": /\\\\\\.\\(\\?:png\\|jpg\\|jpeg\\|pjpeg\\|pjp\\|gif\\|bmp\\|webp\\|ico\\|apng\\|avif\\|tif\\|tiff\\|jfif\\|cur\\|jxl\\)\\$/i,
   },
 ]
 `;

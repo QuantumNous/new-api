@@ -1,4 +1,5 @@
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 import type { ManifestData } from '@rsbuild/core';
 
 const checkManifestIntegrity = (rsbuild: { getDistFiles: () => Record<string, string> }) => {

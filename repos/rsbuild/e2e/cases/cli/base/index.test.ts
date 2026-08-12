@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { expect, readDirContents, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { readDirContents } from '@rstackjs/test-utils';
 
 test('should run allow to specify base path', async ({ execCliSync }) => {
   execCliSync('build --base /test');

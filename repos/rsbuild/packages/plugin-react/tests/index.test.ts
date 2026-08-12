@@ -4,10 +4,6 @@ import { matchPlugin, matchRules } from '@scripts/test-helper';
 import { pluginReact } from '../src';
 
 describe('plugins/react', () => {
-  afterEach(() => {
-    rs.unstubAllEnvs();
-  });
-
   it('should work with swc-loader', async () => {
     const rsbuild = await createRsbuild({
       config: {

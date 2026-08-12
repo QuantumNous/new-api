@@ -1,5 +1,6 @@
 import path, { join } from 'node:path';
-import { expect, getDistFiles, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getDistFiles } from '@rstackjs/test-utils';
 import fse from 'fs-extra';
 
 test('should serve publicDir for dev server correctly', async ({ page, devOnly }) => {
@@ -191,9 +192,10 @@ test('should copy publicDir to the node distDir when copyOnBuild is specified as
 
 test('should copy publicDir to root dist when environment dist path has a parent-child relationship', async ({
   build,
+  prepareDist,
 }) => {
   await fse.outputFile(join(import.meta.dirname, 'public', 'test-temp-file.txt'), 'a');
-  fse.removeSync(join(import.meta.dirname, 'dist-build-web'));
+  await prepareDist('dist-build-web');
 
   const rsbuild = await build({
     config: {

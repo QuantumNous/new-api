@@ -1,13 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path, { join } from 'node:path';
-import {
-  type Build,
-  expect,
-  findFile,
-  getFileContent,
-  mapSourceMapPositions,
-  test,
-} from '@e2e/helper';
+import { type Build, expect, mapSourceMapPositions, test } from '@e2e/helper';
+import { findFile, getFileContent } from '@rstackjs/test-utils';
 import type { Rspack } from '@rsbuild/core';
 
 const cwd = import.meta.dirname;

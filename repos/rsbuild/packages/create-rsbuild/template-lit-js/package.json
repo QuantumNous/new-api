@@ -12,6 +12,6 @@
     "lit": "^3.3.3"
   },
   "devDependencies": {
-    "@rsbuild/core": "^2.1.4"
+    "@rsbuild/core": "^2.1.6"
   }
 }

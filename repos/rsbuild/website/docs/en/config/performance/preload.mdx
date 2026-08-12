@@ -29,7 +29,7 @@ This ensures they are available earlier and are less likely to block the page's 
 
 ## Enable preload
 
-When `performance.preload` is set to `true`, Rsbuild will use the following default options to preload resources. This means preloading all async resources on the current page, including async JS and its associated CSS, image, font, and other resources.
+When `performance.preload` is set to `true`, Rsbuild will use the following default options to preload resources. This means preloading all async resources on the current page, including async JS and its associated CSS, image, and font resources.
 
 ```js
 const defaultOptions = {
@@ -101,7 +101,7 @@ type ResourceHintsIncludeType = 'async-chunks' | 'initial' | 'all-assets' | 'all
 
 Specify which types of resources will be included. Currently supported values are as follows:
 
-- `async-chunks`: Includes all async resources on the current page, such as async JS chunks, and its associated CSS, images, fonts, and other static resources.
+- `async-chunks`: Includes all async resources on the current page, such as async JS chunks, and its associated CSS, images, and fonts.
 - `initial`: Includes all non-async resources on the current page.
 - `all-chunks`: Includes all async and non-async resources on the current page.
 - `all-assets`: Includes all resources from all pages.
@@ -214,7 +214,7 @@ type ResourceHintsFilter =
   | Array<string | RegExp | ((filename: string) => boolean)>;
 ```
 
-- **Default:** `undefined`
+- **Default:** `/\.(?:webmanifest|pdf|txt)$/i`
 
 An extra filter to determine which resources to exclude. The usage is similar to `include`.
 
@@ -239,6 +239,7 @@ export default {
 
 ## Version history
 
-| Version | Changes                                                     |
-| ------- | ----------------------------------------------------------- |
-| v2.0.12 | Added support for setting `performance.preload` to an array |
+| Version | Changes                                                       |
+| ------- | ------------------------------------------------------------- |
+| v2.1.5  | Excluded `.webmanifest`, `.pdf`, and `.txt` assets by default |
+| v2.0.12 | Added support for setting `performance.preload` to an array   |

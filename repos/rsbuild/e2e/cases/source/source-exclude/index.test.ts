@@ -1,4 +1,5 @@
-import { expect, test, toPosixPath } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { toPosixPath } from '@rstackjs/test-utils';
 
 test('should not compile specified file when source.exclude', async ({ build }) => {
   const rsbuild = await build({

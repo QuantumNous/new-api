@@ -1,4 +1,5 @@
-import { expect, getRandomPort, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getRandomPort } from '@rstackjs/test-utils';
 
 test('should set the port via server.port', async ({ page, dev }) => {
   const errors: string[] = [];

@@ -1,10 +1,6 @@
 import { createRsbuild } from '../src';
 
 describe('plugin-minimize', () => {
-  afterEach(() => {
-    rs.unstubAllEnvs();
-  });
-
   it('should not apply minimizer in development', async () => {
     rs.stubEnv('NODE_ENV', 'development');
 

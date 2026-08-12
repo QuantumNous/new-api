@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { expectFileWithContent, test } from '@e2e/helper';
+import { test } from '@e2e/helper';
+import { waitForFileContent } from '@rstackjs/test-utils';
 import fse from 'fs-extra';
 
 test('should support watch mode for build command', async ({ execCli, logHelper }) => {
@@ -12,11 +13,11 @@ test('should support watch mode for build command', async ({ execCli, logHelper 
   const { expectBuildEnd, clearLogs, expectLog } = logHelper;
 
   await expectBuildEnd();
-  await expectFileWithContent(distIndexFile, 'hello!');
+  await waitForFileContent(distIndexFile, 'hello!');
   clearLogs();
 
   fse.outputFileSync(indexFile, `console.log('hello2!');`);
   await expectLog('building src/index.js', { posix: true });
   await expectBuildEnd();
-  await expectFileWithContent(distIndexFile, 'hello2!');
+  await waitForFileContent(distIndexFile, 'hello2!');
 });

@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { expectFileWithContent, test } from '@e2e/helper';
+import { test } from '@e2e/helper';
+import { waitForFileContent } from '@rstackjs/test-utils';
 import fse from 'fs-extra';
 
 test('should support restart build when config changed', async ({ execCli, logHelper }) => {
@@ -22,7 +23,7 @@ test('should support restart build when config changed', async ({ execCli, logHe
   const { clearLogs, expectLog, expectBuildEnd } = logHelper;
 
   await expectBuildEnd();
-  await expectFileWithContent(distIndexFile, 'hello!');
+  await waitForFileContent(distIndexFile, 'hello!');
 
   fse.outputFileSync(
     tempConfig,
@@ -36,10 +37,10 @@ test('should support restart build when config changed', async ({ execCli, logHe
   );
 
   await expectLog('restarting build');
-  await expectFileWithContent(distIndexFile, 'hello!');
+  await waitForFileContent(distIndexFile, 'hello!');
 
   clearLogs();
   fse.outputFileSync(indexFile, `console.log('hello2!');`);
   await expectBuildEnd();
-  await expectFileWithContent(distIndexFile, 'hello2!');
+  await waitForFileContent(distIndexFile, 'hello2!');
 });

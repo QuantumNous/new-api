@@ -19,6 +19,10 @@ export default {
   dependencies: [
     'html-rspack-plugin',
     {
+      name: '@rstackjs/load-config',
+      dtsOnly: true,
+    },
+    {
       name: 'chokidar',
       dtsOnly: true,
     },

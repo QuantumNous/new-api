@@ -12,9 +12,7 @@ type InlineChunkTestFunction = (params: { size: number; name: string }) => boole
 type InlineChunkTest = RegExp | InlineChunkTestFunction;
 
 type InlineChunkConfig =
-  | boolean
-  | InlineChunkTest
-  | { enable?: boolean | 'auto'; test: InlineChunkTest };
+  boolean | InlineChunkTest | { enable?: boolean | 'auto'; test: InlineChunkTest };
 ```
 
 - **Default:** `false`

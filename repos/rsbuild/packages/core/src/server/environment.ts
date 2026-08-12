@@ -89,20 +89,30 @@ export const getTransformedHtml = (entryName: string, utils: ServerUtils): strin
 export const createCacheableFunction = <T>(
   getter: (stats: Rspack.Stats, entryName: string, utils: ServerUtils) => Promise<T> | T,
 ) => {
-  const cache = new WeakMap<Rspack.Stats, Record<string, T>>();
+  const cache = new WeakMap<Rspack.Stats, Map<string, Promise<T>>>();
 
-  return async (stats: Rspack.Stats, entryName: string, utils: ServerUtils): Promise<T> => {
-    const cachedEntries = cache.get(stats);
-    if (cachedEntries?.[entryName]) {
-      return cachedEntries[entryName];
+  return (stats: Rspack.Stats, entryName: string, utils: ServerUtils): Promise<T> => {
+    let cachedEntries = cache.get(stats);
+    if (!cachedEntries) {
+      cachedEntries = new Map();
+      cache.set(stats, cachedEntries);
     }
 
-    const res = await getter(stats, entryName, utils);
+    const cachedPromise = cachedEntries.get(entryName);
+    if (cachedPromise) {
+      return cachedPromise;
+    }
 
-    cache.set(stats, {
-      ...(cachedEntries || {}),
-      [entryName]: res,
-    });
-    return res;
+    // Cache the pending promise so concurrent calls share the same execution.
+    const promise = Promise.resolve()
+      .then(() => getter(stats, entryName, utils))
+      .catch((error) => {
+        // Do not cache failures, allowing the next call to retry.
+        cachedEntries.delete(entryName);
+        throw error;
+      });
+
+    cachedEntries.set(entryName, promise);
+    return promise;
   };
 };

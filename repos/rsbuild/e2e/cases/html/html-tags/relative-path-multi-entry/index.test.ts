@@ -1,4 +1,5 @@
-import { expect, getFileContent, gotoPage, test } from '@e2e/helper';
+import { expect, gotoPage, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 test('should handle relative paths correctly for multiple entries in subdirectories', async ({
   page,

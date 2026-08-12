@@ -55,6 +55,30 @@ function parse(src: Buffer) {
   return obj;
 }
 
+function validatePrefixes(prefixes: string[]) {
+  const invalidIndex = prefixes.findIndex((prefix) => prefix.trim() === '');
+
+  if (invalidIndex === -1) {
+    return;
+  }
+
+  const prefix = prefixes[invalidIndex];
+  const reason =
+    prefix === ''
+      ? 'An empty string matches every key in processEnv, so every environment variable would be treated as public and could be inlined into client-side code through process.env.* and import.meta.env.* replacements.'
+      : 'A whitespace-only string is not a valid public environment variable prefix because it does not contain any non-whitespace characters.';
+
+  throw new Error(
+    `${color.dim('[rsbuild:loadEnv]')} Invalid ${color.yellow(
+      'prefixes',
+    )} option: received ${color.yellow(
+      JSON.stringify(prefix),
+    )}. ${reason} Use a prefix with at least one non-whitespace character, such as ${color.yellow(
+      '"PUBLIC_"',
+    )}.`,
+  );
+}
+
 export type LoadEnvOptions = {
   /**
    * The root path to load the env file
@@ -125,6 +149,8 @@ export function loadEnv({
   prefixes = ['PUBLIC_'],
   processEnv = process.env as Record<string, string>,
 }: LoadEnvOptions = {}): LoadEnvResult {
+  validatePrefixes(prefixes);
+
   if (mode === 'local') {
     throw new Error(
       `${color.dim('[rsbuild:loadEnv]')} ${color.yellow('local')} cannot be used as a value for env mode, because ${color.yellow(

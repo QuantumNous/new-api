@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { expect, findFile, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile, getFileContent } from '@rstackjs/test-utils';
 import fse from 'fs-extra';
 
 test('should emit local favicon to dist path', async ({ build }) => {

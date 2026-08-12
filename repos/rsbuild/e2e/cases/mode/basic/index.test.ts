@@ -1,4 +1,5 @@
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 test('should allow to set development mode when building', async ({ build }) => {
   const rsbuild = await build({

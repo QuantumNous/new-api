@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { expect, getRandomPort, gotoPage, test } from '@e2e/helper';
+import { expect, gotoPage, test } from '@e2e/helper';
+import { getRandomPort } from '@rstackjs/test-utils';
 
 const tempConfig = path.join(import.meta.dirname, 'test-temp-config.ts');
 

@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { expect, findFile, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile } from '@rstackjs/test-utils';
 import fse from 'fs-extra';
 
 const require = createRequire(import.meta.url);

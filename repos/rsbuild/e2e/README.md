@@ -32,11 +32,14 @@ npx rsbuild build
 ## Add test cases
 
 ```ts
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@e2e/helper';
+import { toPosixPath } from '@rstackjs/test-utils';
 
-test('test 1 + 1', () => {
-  expect(1 + 1).toBe(2);
+test('normalize path', () => {
+  expect(toPosixPath('foo\\bar')).toBe('foo/bar');
 });
 ```
+
+Use `@e2e/helper` for Rsbuild-specific fixtures and helpers. Import generic test utilities directly from `@rstackjs/test-utils`.
 
 You can use the local skill at [`write-e2e-cases`](../.agents/skills/write-e2e-cases/SKILL.md) to add new test cases.

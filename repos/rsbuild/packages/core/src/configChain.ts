@@ -38,6 +38,8 @@ export const CHAIN_ID = {
     IMAGE: 'image',
     /** Rule for media */
     MEDIA: 'media',
+    /** Rule for other built-in assets */
+    ASSETS: 'assets',
     /** Rule for additional assets */
     ADDITIONAL_ASSETS: 'additional-assets',
     /** Rule for JS */

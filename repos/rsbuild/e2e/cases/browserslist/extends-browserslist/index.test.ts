@@ -1,4 +1,5 @@
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 test('should extend browserslist and downgrade syntax', async ({ build }) => {
   const originalCwd = process.cwd();

@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { expectFileWithContent, test } from '@e2e/helper';
+import { test } from '@e2e/helper';
+import { waitForFileContent } from '@rstackjs/test-utils';
 import fse from 'fs-extra';
 
 test('should allow to custom watch options for build watch', async ({
@@ -16,14 +17,14 @@ test('should allow to custom watch options for build watch', async ({
   const { expectLog, expectNoLog, expectBuildEnd, clearLogs } = logHelper;
 
   await expectBuildEnd();
-  await expectFileWithContent(distIndexFile, 'foo1bar1');
+  await waitForFileContent(distIndexFile, 'foo1bar1');
   clearLogs();
 
   // should watch foo.js
   fse.outputFileSync(fooFile, `export const foo = 'foo2';`);
   await expectLog('building test-temp-src/foo.js', { posix: true });
   await expectBuildEnd();
-  await expectFileWithContent(distIndexFile, 'foo2bar1');
+  await waitForFileContent(distIndexFile, 'foo2bar1');
 
   // should not watch bar.js
   fse.outputFileSync(barFile, `export const bar = 'bar2';`);

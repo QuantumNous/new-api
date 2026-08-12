@@ -10,10 +10,6 @@ describe('plugin-html', () => {
     },
   };
 
-  afterEach(() => {
-    rs.unstubAllEnvs();
-  });
-
   it('should register html plugin correctly', async () => {
     const rsbuild = await createRsbuild({
       config: defaultEntryConfig,

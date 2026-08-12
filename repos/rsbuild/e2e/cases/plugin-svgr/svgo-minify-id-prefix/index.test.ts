@@ -1,4 +1,5 @@
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 test('should add id prefix after svgo minification', async ({ build }) => {
   const rsbuild = await build();

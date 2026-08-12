@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import { expect, findFile, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile, getFileContent } from '@rstackjs/test-utils';
 
 test('should inline style when `injectStyles` is enabled', async ({ page, buildPreview }) => {
   const rsbuild = await buildPreview();

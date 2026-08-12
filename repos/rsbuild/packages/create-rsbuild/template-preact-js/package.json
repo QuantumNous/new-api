@@ -9,10 +9,10 @@
     "preview": "rsbuild preview"
   },
   "dependencies": {
-    "preact": "^10.29.3"
+    "preact": "^10.29.7"
   },
   "devDependencies": {
-    "@rsbuild/core": "^2.1.4",
+    "@rsbuild/core": "^2.1.6",
     "@rsbuild/plugin-preact": "^2.0.0"
   }
 }

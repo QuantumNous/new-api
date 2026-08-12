@@ -1,4 +1,5 @@
-import { expect, getDistFiles, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getDistFiles, getFileContent } from '@rstackjs/test-utils';
 
 test('should use public manifest for additional manifest fields', async ({ build }) => {
   const rsbuild = await build();

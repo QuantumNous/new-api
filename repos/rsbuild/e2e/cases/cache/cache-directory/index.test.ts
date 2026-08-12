@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { expect, expectFile, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { waitForFile } from '@rstackjs/test-utils';
 import fse from 'fs-extra';
 
 const cacheDirectory = path.resolve(import.meta.dirname, './node_modules/.cache');
@@ -23,7 +24,7 @@ test('should use `buildCache.cacheDirectory` as expected in dev', async ({ dev }
     },
   });
 
-  await expectFile(customDirectory);
+  await waitForFile(customDirectory);
   expect(fs.existsSync(cacheDirectory)).toBeFalsy();
 });
 
@@ -41,6 +42,6 @@ test('should use `buildCache.cacheDirectory` as expected in build', async ({ bui
     },
   });
 
-  await expectFile(customDirectory);
+  await waitForFile(customDirectory);
   expect(fs.existsSync(cacheDirectory)).toBeFalsy();
 });

@@ -1,4 +1,5 @@
-import { expect, getRandomPort, gotoPage, test } from '@e2e/helper';
+import { expect, gotoPage, test } from '@e2e/helper';
+import { getRandomPort } from '@rstackjs/test-utils';
 
 test('should run dev server via `dev` command', async ({ page, execCli, logHelper }) => {
   const port = await getRandomPort();

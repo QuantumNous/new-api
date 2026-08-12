@@ -1,4 +1,5 @@
-import { expect, findFile, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile, getFileContent } from '@rstackjs/test-utils';
 import { pluginReact } from '@rsbuild/plugin-react';
 
 test('legalComments linked (default)', async ({ page, buildPreview }) => {

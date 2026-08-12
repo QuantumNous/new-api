@@ -3,10 +3,6 @@ import { matchPlugin } from '@scripts/test-helper';
 import { createRsbuild, type RsbuildPlugin } from '../src';
 
 describe('environment config', () => {
-  afterEach(() => {
-    rs.unstubAllEnvs();
-  });
-
   it('should normalize context correctly', async () => {
     rs.stubEnv('NODE_ENV', 'development');
     const cwd = process.cwd();

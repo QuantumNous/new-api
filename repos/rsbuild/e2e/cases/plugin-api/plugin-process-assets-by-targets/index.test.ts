@@ -1,4 +1,5 @@
-import { expect, findFile, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile } from '@rstackjs/test-utils';
 
 test('should process assets when target is web', async ({ build }) => {
   const rsbuild = await build({

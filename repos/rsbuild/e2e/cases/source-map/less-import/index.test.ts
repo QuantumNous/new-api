@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, findFile, mapSourceMapPositions, normalizeNewlines, test } from '@e2e/helper';
+import { expect, mapSourceMapPositions, test } from '@e2e/helper';
+import { findFile, normalizeEol } from '@rstackjs/test-utils';
 
 const normalizePath = (source: string | null) => source?.replace(/\\/g, '/') ?? '';
 
@@ -40,7 +41,7 @@ test('should map imported Less sources correctly in CSS source map', async ({ de
   expect(originalPosition.line).toBe(1);
   expect(originalPosition.column).toBe(importedSource.split('\n')[0].indexOf('.imported-panel'));
   expect(importedSourceIndex).toBeGreaterThanOrEqual(0);
-  expect(normalizeNewlines(sourceMap.sourcesContent[importedSourceIndex])).toBe(
-    normalizeNewlines(importedSource),
+  expect(normalizeEol(sourceMap.sourcesContent[importedSourceIndex])).toBe(
+    normalizeEol(importedSource),
   );
 });

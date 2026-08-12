@@ -4,8 +4,8 @@
     "test:watch": "rstest --watch"
   },
   "devDependencies": {
-    "@rstest/adapter-rsbuild": "^0.10.6",
-    "@rstest/core": "^0.10.6",
+    "@rstest/adapter-rsbuild": "^0.11.1",
+    "@rstest/core": "^0.11.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/vue": "^8.1.0",

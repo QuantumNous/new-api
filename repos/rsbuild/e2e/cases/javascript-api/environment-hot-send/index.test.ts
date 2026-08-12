@@ -1,4 +1,5 @@
-import { expect, getRandomPort, HMR_CONNECTED_LOG, test } from '@e2e/helper';
+import { expect, HMR_CONNECTED_LOG, test } from '@e2e/helper';
+import { getRandomPort } from '@rstackjs/test-utils';
 import { createRsbuild } from '@rsbuild/core';
 
 test('should send HMR messages to the matched environment only', async ({ page, context }) => {

@@ -1,10 +1,10 @@
 ---
-description: 'Rsbuild 支持在代码中引用图片、字体、音频、视频等类型的静态资源。'
+description: 'Rsbuild 支持在代码中引用图片、字体、媒体和其他类型文件等静态资源。'
 ---
 
 # 静态资源
 
-Rsbuild 支持在代码中引用图片、字体、音频、视频等类型的静态资源。
+Rsbuild 支持在代码中引用图片、字体、媒体和其他类型文件等静态资源。
 
 :::tip 什么是静态资源
 静态资源是指 Web 应用中不会发生变化的文件。常见的静态资源包括图片、字体、视频、样式表和 JavaScript 文件。这些资源通常存储在服务器或 CDN 上，当用户访问 Web 应用时会被传送到用户的浏览器。由于它们不会发生变化，静态资源可以被浏览器缓存，从而提高 Web 应用的性能。
@@ -14,10 +14,11 @@ Rsbuild 支持在代码中引用图片、字体、音频、视频等类型的静
 
 以下是 Rsbuild 默认支持的静态资源格式：
 
-- **图片**：png、jpg、jpeg、gif、svg、bmp、webp、ico、apng、avif、tif、tiff、jfif、pjpeg、pjp、cur。
+- **图片**：png、jpg、jpeg、gif、svg、bmp、webp、ico、apng、avif、tif、tiff、jfif、pjpeg、pjp、cur、jxl。
 - **字体**：woff、woff2、eot、ttf、otf、ttc。
 - **音频**：mp3、wav、flac、aac、m4a、opus。
 - **视频**：mp4、webm、ogg、mov。
+- **其他**：webmanifest、pdf、txt、vtt。
 
 如果你需要引用其他格式的静态资源，请参考 [扩展静态资源类型](#extend-asset-types)。
 
@@ -346,24 +347,24 @@ declare module '*.png' {
 ```ts title="rsbuild.config.ts"
 export default {
   source: {
-    assetsInclude: /\.pdf$/,
+    assetsInclude: /\.gltf$/,
   },
 };
 ```
 
-添加以上配置后，你就可以在代码里引用 `*.pdf` 文件了，比如：
+添加以上配置后，你就可以在代码里引用 `*.gltf` 文件了，比如：
 
 ```js
-import myFile from './static/myFile.pdf';
+import myFile from './static/model.gltf';
 
-console.log(myFile); // "/static/myFile.[hash].pdf"
+console.log(myFile); // "/static/model.[hash].gltf"
 ```
 
 ### 使用 `tools.rspack`
 
 可以通过 [tools.rspack](/config/tools/rspack) 来修改内置的 Rspack 配置，并添加自定义的静态资源处理规则。
 
-比如，把 `*.pdf` 文件当做静态资源输出到产物目录，可以添加以下配置：
+比如，把 `*.gltf` 文件当做静态资源输出到产物目录，可以添加以下配置：
 
 ```ts title="rsbuild.config.ts"
 export default {
@@ -371,7 +372,7 @@ export default {
     rspack(config, { addRules }) {
       addRules([
         {
-          test: /\.pdf$/,
+          test: /\.gltf$/,
           // 将资源转换为单独的文件，并且导出产物地址
           type: 'asset/resource',
         },

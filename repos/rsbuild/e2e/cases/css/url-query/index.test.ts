@@ -1,4 +1,5 @@
-import { expect, findFile, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile, getFileContent } from '@rstackjs/test-utils';
 
 type CssUrlResult = {
   aStyleContent: string;
