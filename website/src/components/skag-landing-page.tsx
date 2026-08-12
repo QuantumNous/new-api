@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
 import { localizePath } from "@/lib/locales";
 import { ROUTER_ORIGIN } from "@/lib/origins";
+import { cn } from "@/lib/utils";
 import {
   SKAG_TRUST_LINE,
   getSkagLandingCtaUrl,
@@ -24,11 +25,17 @@ export function SkagLandingPage({ config }: Props) {
   const locale = config.locale ?? "en";
   const pathname = config.pathname ?? skagLandingPath(config.slug);
   const trustLine = config.trustLine ?? SKAG_TRUST_LINE;
+  const compactHero = config.compactHero ?? false;
 
   return (
-    <SiteShell locale={locale} pathname={pathname} hideLanguageSwitcher>
+    <SiteShell locale={locale} pathname={pathname} expandNavigationAtTablet>
       <div className="min-h-screen overflow-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_28%,#ffffff_58%,#f4f1ff_100%)] text-slate-950 dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_36%,#070712_72%,#03040b_100%)] dark:text-white">
-        <section className="relative border-b border-violet-500/10 pt-20 pb-16 dark:border-white/10 md:pt-28 md:pb-24">
+        <section
+          className={cn(
+            "relative border-b border-violet-500/10 dark:border-white/10",
+            compactHero ? "pt-10 pb-10 md:pt-12 md:pb-14" : "pt-20 pb-16 md:pt-28 md:pb-24"
+          )}
+        >
           <div
             aria-hidden="true"
             className="absolute inset-0 bg-[radial-gradient(circle_at_46%_-18%,rgba(124,58,237,0.24),transparent_38%),radial-gradient(circle_at_82%_76%,rgba(79,70,229,0.14),transparent_34%),linear-gradient(180deg,#f6f2ff_0%,#fbfaff_48%,#ffffff_100%)] dark:bg-[radial-gradient(circle_at_50%_-20%,rgba(72,103,255,0.33),transparent_36%),radial-gradient(circle_at_86%_82%,rgba(130,80,255,0.22),transparent_32%),linear-gradient(180deg,#111a33_0%,#070911_48%,#05070d_100%)]"
@@ -37,24 +44,39 @@ export function SkagLandingPage({ config }: Props) {
             aria-hidden="true"
             className="absolute inset-0 opacity-[0.34] [background-image:linear-gradient(rgba(124,58,237,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(124,58,237,0.1)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(ellipse_70%_58%_at_50%_18%,black_0%,transparent_78%)] dark:opacity-[0.18] dark:[background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)]"
           />
-          <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-6 lg:grid-cols-[1fr_1fr]">
+          <div
+            className={cn(
+              "relative mx-auto grid max-w-7xl items-center px-6",
+              compactHero ? "gap-8 xl:grid-cols-[1fr_1fr]" : "gap-12 lg:grid-cols-[1fr_1fr]"
+            )}
+          >
             <div className="mx-auto max-w-3xl text-center lg:mx-0 lg:text-left">
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/35 bg-emerald-50/85 px-4 py-2 font-mono text-xs font-bold tracking-[0.18em] text-emerald-700 uppercase shadow-[0_18px_48px_rgba(16,185,129,0.16)] dark:border-emerald-300/35 dark:bg-emerald-300/10 dark:text-emerald-300 dark:shadow-[0_0_40px_rgba(52,211,153,0.16)]">
                 <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_16px_rgba(16,185,129,0.75)] dark:bg-emerald-300 dark:shadow-[0_0_16px_rgba(52,211,153,0.9)]" />
                 {config.badge}
               </div>
 
-              <h1 className="mt-7 text-[clamp(2.6rem,6.4vw,4.9rem)] leading-[1.02] font-black tracking-tight text-balance">
+              <h1
+                className={cn(
+                  "leading-[1.02] font-black tracking-tight text-balance",
+                  compactHero ? "mt-5 text-[clamp(2.35rem,5.4vw,4.25rem)]" : "mt-7 text-[clamp(2.6rem,6.4vw,4.9rem)]"
+                )}
+              >
                 {config.h1Lead}{" "}
                 <span className="bg-gradient-to-r from-[#5d8cff] via-[#7f6bff] to-[#a855f7] bg-clip-text text-transparent">
                   {config.h1Accent}
                 </span>
               </h1>
-              <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 font-medium text-slate-600 lg:mx-0 dark:text-slate-300">
+              <p
+                className={cn(
+                  "mx-auto max-w-2xl text-lg leading-8 font-medium text-slate-600 lg:mx-0 dark:text-slate-300",
+                  compactHero ? "mt-4" : "mt-6"
+                )}
+              >
                 {config.description}
               </p>
 
-              <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row lg:justify-start">
+              <div className={cn("flex flex-col items-center justify-center gap-4 sm:flex-row lg:justify-start", compactHero ? "mt-6" : "mt-8")}>
                 <a
                   href={ctaUrl}
                   className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#5f86ff] to-[#8357ff] px-7 text-base font-extrabold text-white shadow-[0_22px_70px_rgba(95,134,255,0.35)] transition-transform hover:-translate-y-0.5 sm:w-auto"
@@ -62,16 +84,18 @@ export function SkagLandingPage({ config }: Props) {
                   {config.ctaLabel}
                   <ArrowRight className="size-4" />
                 </a>
-                <Link
-                  href={localizePath("/pricing", locale)}
-                  className="inline-flex min-h-14 w-full items-center justify-center rounded-lg border border-slate-300 bg-white/70 px-7 text-base font-extrabold text-slate-950 shadow-[0_18px_46px_rgba(15,23,42,0.08)] transition-colors hover:border-violet-400/70 dark:border-slate-600/70 dark:bg-slate-950/30 dark:text-white dark:shadow-none dark:hover:border-violet-300/60 sm:w-auto"
-                >
-                  {config.secondaryCtaLabel ?? "See live pricing"}
-                </Link>
+                {!config.hideSecondaryCta && (
+                  <Link
+                    href={localizePath("/pricing", locale)}
+                    className="inline-flex min-h-14 w-full items-center justify-center rounded-lg border border-slate-300 bg-white/70 px-7 text-base font-extrabold text-slate-950 shadow-[0_18px_46px_rgba(15,23,42,0.08)] transition-colors hover:border-violet-400/70 dark:border-slate-600/70 dark:bg-slate-950/30 dark:text-white dark:shadow-none dark:hover:border-violet-300/60 sm:w-auto"
+                  >
+                    {config.secondaryCtaLabel ?? "See live pricing"}
+                  </Link>
+                )}
               </div>
-              <p className="mt-5 text-sm font-medium text-slate-500 dark:text-slate-500">{trustLine}</p>
+              <p className={cn("text-sm font-medium text-slate-500 dark:text-slate-500", compactHero ? "mt-4" : "mt-5")}>{trustLine}</p>
 
-              <div className="mt-8 rounded-lg border border-violet-200/70 bg-white/80 p-5 text-left shadow-[0_18px_48px_rgba(79,70,229,0.08)] dark:border-slate-800 dark:bg-[#0d121c] dark:shadow-none">
+              <div className={cn("rounded-lg border border-violet-200/70 bg-white/80 p-5 text-left shadow-[0_18px_48px_rgba(79,70,229,0.08)] dark:border-slate-800 dark:bg-[#0d121c] dark:shadow-none", compactHero ? "mt-6" : "mt-8")}>
                 <p className="font-mono text-xs font-bold tracking-[0.2em] text-slate-500 uppercase">{config.pricingTitle}</p>
                 <table className="mt-3 w-full text-sm">
                   <tbody>

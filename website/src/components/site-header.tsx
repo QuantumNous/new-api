@@ -60,6 +60,8 @@ type Props = {
   locale: Locale;
   pathname: string;
   languageCookieDomain?: string;
+  /** Paid-search pages opt in so desktop navigation matches the static homepage at 1024px+. */
+  expandNavigationAtTablet?: boolean;
   hideLanguageSwitcher?: boolean;
 };
 
@@ -110,6 +112,9 @@ export function SiteHeader(props: Props) {
   const signInHref = consoleUrl("/sign-in", `lng=${props.locale}`);
   const signUpHref = consoleUrl("/sign-up", `lng=${props.locale}`);
   const showContactAction = currentPath !== "/contact";
+  const desktopNavigation = props.expandNavigationAtTablet
+    ? { show: "min-[1024px]:flex", hide: "min-[1024px]:hidden" }
+    : { show: "min-[1180px]:flex", hide: "min-[1180px]:hidden" };
 
   const productItems = useMemo<NavItem[]>(
     () => [
@@ -205,14 +210,14 @@ export function SiteHeader(props: Props) {
           <span className="sr-only">flatkey.ai</span>
         </Link>
 
-        <div className="hidden min-w-0 flex-1 items-center gap-1 min-[1180px]:flex">
+        <div className={cn("hidden min-w-0 flex-1 items-center gap-1", desktopNavigation.show)}>
           {renderNavGroup(groupLabels.products, productItems)}
           {renderNavGroup(groupLabels.developers, developerItems)}
           {renderNavGroup(groupLabels.resources, resourceItems)}
           {topLevelItems.map((item) => renderNavLink(item, false, true))}
         </div>
 
-        <div className="ml-auto hidden shrink-0 items-center gap-2 min-[1180px]:flex">
+        <div className={cn("ml-auto hidden shrink-0 items-center gap-2", desktopNavigation.show)}>
           <a className="inline-flex h-9 items-center whitespace-nowrap px-2 text-[13px] font-semibold text-[#0B0B0F] hover:text-[#4C1D95]" href={signInHref}>
             {copy.nav.signIn}
           </a>
@@ -238,7 +243,10 @@ export function SiteHeader(props: Props) {
 
         <button
           type="button"
-          className="ml-auto inline-flex size-[42px] items-center justify-center rounded-[10px] border border-[#0B0B0F14] bg-white text-[#0B0B0F] min-[1180px]:hidden"
+          className={cn(
+            "ml-auto inline-flex size-[42px] items-center justify-center rounded-[10px] border border-[#0B0B0F14] bg-white text-[#0B0B0F]",
+            desktopNavigation.hide
+          )}
           aria-label={copy.nav.toggle}
           aria-expanded={mobileOpen}
           onClick={() => setMobileOpen((value) => !value)}
@@ -249,7 +257,8 @@ export function SiteHeader(props: Props) {
 
       <div
         className={cn(
-          "fixed inset-x-0 top-[76px] z-40 border-b border-[#0B0B0F14] bg-white px-5 py-4 shadow-[0_22px_60px_-42px_rgba(11,11,15,.45)] transition min-[1180px]:hidden",
+          "fixed inset-x-0 top-[76px] z-40 border-b border-[#0B0B0F14] bg-white px-5 py-4 shadow-[0_22px_60px_-42px_rgba(11,11,15,.45)] transition",
+          desktopNavigation.hide,
           mobileOpen ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-3 opacity-0"
         )}
       >

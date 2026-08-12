@@ -21,6 +21,9 @@ describe("SKAG landing configuration", () => {
     expect(h1("gpt-api-alternative")).toBe("ChatGPT API Alternative");
     expect(h1("chinese-ai")).toBe("Chinese AI Models, One API");
     expect(h1("chinese-ai-models-api")).toBe("Chinese AI Models API");
+    expect(h1("deepseek-api")).toBe("DeepSeek API");
+    expect(h1("kimi-api")).toBe("Kimi API");
+    expect(h1("qwen-api")).toBe("Qwen API");
     expect(h1("openai-compatible")).toBe("OpenAI-Compatible API");
     expect(h1("gateway")).toBe("LLM API Gateway");
   });
@@ -30,6 +33,9 @@ describe("SKAG landing configuration", () => {
       "/gpt-api-alternative",
       "/chinese-ai",
       "/chinese-ai-models-api",
+      "/deepseek-api",
+      "/kimi-api",
+      "/qwen-api",
       "/openai-compatible",
       "/gateway",
     ]);
@@ -72,6 +78,9 @@ describe("SKAG landing configuration", () => {
 
   test("maps each landing to the locales that have translated copy", () => {
     expect(getSkagLandingLocales("chinese-ai-models-api")).toEqual(["en", "pt"]);
+    expect(getSkagLandingLocales("deepseek-api")).toEqual(["en", "pt"]);
+    expect(getSkagLandingLocales("kimi-api")).toEqual(["en", "pt"]);
+    expect(getSkagLandingLocales("qwen-api")).toEqual(["en", "pt"]);
     expect(getSkagLandingLocales("gateway")).toEqual(["en"]);
   });
 
@@ -93,5 +102,51 @@ describe("SKAG landing configuration", () => {
     expect(input.locale).toBe("pt");
     expect(input.locales).toEqual(["en", "pt"]);
     expect(input.title).toContain("API de Modelos Chineses de IA");
+  });
+
+  test("exposes Portuguese DeepSeek paid-search copy", () => {
+    const config = getSkagLandingConfig("deepseek-api", "pt");
+
+    expect(config.keyword).toBe("deepseek api");
+    expect(`${config.h1Lead} ${config.h1Accent}`).toBe("API DeepSeek para equipes no Brasil");
+    expect(config.ctaLabel).toBe("Obter chave da API DeepSeek");
+    expect(config.hideSecondaryCta).toBe(true);
+    expect(config.compactHero).toBe(true);
+    expect(config.exampleModel).toBe("deepseek-v4-flash");
+  });
+
+  test("Portuguese DeepSeek metadata advertises only English and Portuguese alternates", () => {
+    const input = getSkagLandingMetadataInput("deepseek-api", "pt");
+
+    expect(input.pathname).toBe("/deepseek-api");
+    expect(input.locale).toBe("pt");
+    expect(input.locales).toEqual(["en", "pt"]);
+    expect(input.title).toContain("API DeepSeek no Brasil");
+  });
+
+  test("exposes Portuguese Kimi and Qwen paid-search copy", () => {
+    const kimi = getSkagLandingConfig("kimi-api", "pt");
+    const qwen = getSkagLandingConfig("qwen-api", "pt");
+
+    expect(`${kimi.h1Lead} ${kimi.h1Accent}`).toBe("API Kimi para equipes no Brasil");
+    expect(kimi.ctaLabel).toBe("Obter chave da API Kimi");
+    expect(kimi.hideSecondaryCta).toBe(true);
+    expect(kimi.compactHero).toBe(true);
+    expect(kimi.exampleModel).toBe("kimi-k2.5");
+
+    expect(`${qwen.h1Lead} ${qwen.h1Accent}`).toBe("API Qwen para equipes no Brasil");
+    expect(qwen.ctaLabel).toBe("Obter chave da API Qwen");
+    expect(qwen.hideSecondaryCta).toBe(true);
+    expect(qwen.compactHero).toBe(true);
+    expect(qwen.exampleModel).toBe("qwen3.7-plus");
+  });
+
+  test("Portuguese Kimi and Qwen metadata advertise only English and Portuguese alternates", () => {
+    for (const slug of ["kimi-api", "qwen-api"] as const) {
+      const input = getSkagLandingMetadataInput(slug, "pt");
+      expect(input.pathname).toBe(`/${slug}`);
+      expect(input.locale).toBe("pt");
+      expect(input.locales).toEqual(["en", "pt"]);
+    }
   });
 });

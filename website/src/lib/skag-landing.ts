@@ -5,13 +5,16 @@ import type { SeoInput } from "@/lib/seo";
 // SKAG (single-keyword ad group) landing pages for Google Ads paid search.
 // Each page maps 1:1 to one high-value search keyword and its H1 must echo
 // that query exactly, so the ad → landing message match stays tight.
-// English-only by design: these routes live under the (en) route group and
-// paid non-English traffic lands on the localized /models/* pages instead.
+// Most routes are English-only. Localized variants are added only when there
+// is dedicated acquisition copy for that market.
 
 export const SKAG_LANDING_SLUGS = [
   "gpt-api-alternative",
   "chinese-ai",
   "chinese-ai-models-api",
+  "deepseek-api",
+  "kimi-api",
+  "qwen-api",
   "openai-compatible",
   "gateway",
 ] as const;
@@ -31,6 +34,8 @@ export type SkagLandingConfig = {
   description: string;
   ctaLabel: string;
   secondaryCtaLabel?: string;
+  hideSecondaryCta?: boolean;
+  compactHero?: boolean;
   trustLine?: string;
   /** Shown under the price table. */
   priceFootnote: string;
@@ -296,6 +301,382 @@ const PT_CHINESE_AI_MODELS_API: SkagLandingConfig = {
   },
 };
 
+const DEEPSEEK_API: SkagLandingConfig = {
+  slug: "deepseek-api",
+  keyword: "deepseek api",
+  badge: "DeepSeek V3 · V3.2 · V4 Flash · V4 Pro",
+  h1Lead: "DeepSeek",
+  h1Accent: "API",
+  description:
+    "Call DeepSeek V3 and V4 through one OpenAI-compatible API key. Keep your existing SDK, switch base_url and api_key, and use live pricing and a single account for every supported DeepSeek model.",
+  ctaLabel: "Get your DeepSeek API key",
+  hideSecondaryCta: true,
+  compactHero: true,
+  pricingTitle: "DeepSeek API access",
+  priceRows: [
+    { label: "DeepSeek V4 Flash / 1M tokens", flatkey: "$0.056", official: "$0.14" },
+    { label: "DeepSeek V3, V3.2, V4 Pro", flatkey: "One key", official: "Separate setup" },
+    { label: "OpenAI SDK migration", flatkey: "base_url + key", official: "Provider SDK work" },
+  ],
+  priceFootnote: "* Representative coverage — see live pricing for current model rates and availability.",
+  exampleModel: "deepseek-v4-flash",
+  codeTitle: "Call DeepSeek through /v1",
+  features: [
+    {
+      title: "DeepSeek V3 and V4 coverage",
+      body: "Start with DeepSeek V3, V3.2, V4 Flash, and V4 Pro from one catalog instead of maintaining a separate integration for each model release.",
+    },
+    {
+      title: "OpenAI-compatible API",
+      body: "Keep the OpenAI SDK already in your application. Change base_url, set a flatkey API key, and select a DeepSeek model id.",
+    },
+    {
+      title: "Live pricing before you scale",
+      body: "Check the current model price and availability in one account, then use the same balance across supported DeepSeek and other frontier models.",
+    },
+    {
+      title: "One account for model comparison",
+      body: "Compare DeepSeek with GPT, Claude, Gemini, Qwen, and GLM without creating separate provider accounts or changing your API integration.",
+    },
+  ],
+  faq: [
+    {
+      question: "Which DeepSeek models can I call?",
+      answer:
+        "The catalog includes DeepSeek V3, V3.2, V4 Flash, and V4 Pro when available. Check live pricing for the current model list and access status.",
+    },
+    {
+      question: "Can I use my existing OpenAI SDK?",
+      answer:
+        "Yes. Point the SDK at the flatkey /v1 base URL, use a flatkey API key, and choose the DeepSeek model id you need.",
+    },
+    ...SHARED_FAQ,
+  ],
+  seo: {
+    title: "DeepSeek API — OpenAI-compatible V3 and V4 access",
+    description:
+      "Call DeepSeek V3 and V4 models through one OpenAI-compatible API key. Keep your SDK, check live pricing, and compare DeepSeek with other frontier models in one account.",
+  },
+};
+
+const PT_DEEPSEEK_API: SkagLandingConfig = {
+  slug: "deepseek-api",
+  locale: "pt",
+  pathname: "/deepseek-api",
+  keyword: "deepseek api",
+  badge: "DeepSeek V3 · V3.2 · V4 Flash · V4 Pro",
+  h1Lead: "API DeepSeek",
+  h1Accent: "para equipes no Brasil",
+  description:
+    "Use DeepSeek V3 e V4 com uma única chave de API compatível com OpenAI. Mantenha o SDK que sua equipe já usa, altere base_url e api_key e consulte preços e modelos disponíveis em uma só conta.",
+  ctaLabel: "Obter chave da API DeepSeek",
+  hideSecondaryCta: true,
+  compactHero: true,
+  trustLine: "DeepSeek · GPT · Claude · Gemini · Qwen · GLM — uma chave, uma fatura · sem cartão de crédito para começar",
+  pricingTitle: "Acesso à API DeepSeek",
+  priceRows: [
+    { label: "DeepSeek V4 Flash / 1M tokens", flatkey: "$0.056", official: "$0.14" },
+    { label: "DeepSeek V3, V3.2, V4 Pro", flatkey: "Uma chave", official: "Configurações separadas" },
+    { label: "Migração do SDK OpenAI", flatkey: "base_url + key", official: "Trabalho por fornecedor" },
+  ],
+  priceFootnote: "* Cobertura representativa — veja os preços ao vivo para taxas e disponibilidade atuais.",
+  exampleModel: "deepseek-v4-flash",
+  codeTitle: "Chame DeepSeek via /v1",
+  features: [
+    {
+      title: "DeepSeek V3 e V4 em um catálogo",
+      body: "Comece com DeepSeek V3, V3.2, V4 Flash e V4 Pro sem manter uma integração separada para cada lançamento de modelo.",
+    },
+    {
+      title: "API compatível com OpenAI",
+      body: "Mantenha o SDK da OpenAI que já existe no seu aplicativo. Altere base_url, use uma chave flatkey e escolha o ID do modelo DeepSeek.",
+    },
+    {
+      title: "Preço visível antes de escalar",
+      body: "Confira preço e disponibilidade atuais em uma conta e use o mesmo saldo em DeepSeek e outros modelos compatíveis.",
+    },
+    {
+      title: "Compare modelos sem novas contas",
+      body: "Compare DeepSeek com GPT, Claude, Gemini, Qwen e GLM sem abrir contas separadas de fornecedor nem mudar sua integração de API.",
+    },
+  ],
+  faq: [
+    {
+      question: "Quais modelos DeepSeek posso chamar?",
+      answer:
+        "O catálogo inclui DeepSeek V3, V3.2, V4 Flash e V4 Pro quando disponíveis. Consulte os preços ao vivo para a lista atual de modelos e o status de acesso.",
+    },
+    {
+      question: "Posso usar meu SDK atual da OpenAI?",
+      answer:
+        "Sim. Aponte o SDK para a base URL /v1 da flatkey, use uma chave de API flatkey e escolha o ID do modelo DeepSeek necessário.",
+    },
+    {
+      question: "Preciso alterar meu código?",
+      answer:
+        "Não. A flatkey.ai é compatível com OpenAI: mantenha seu SDK e troque base_url e api_key. Os IDs dos modelos permanecem iguais.",
+    },
+    {
+      question: "Como funciona a cobrança entre modelos?",
+      answer:
+        "Uma conta cobre os modelos compatíveis. Os preços ao vivo e o uso por modelo ajudam a manter o gasto visível antes de escalar.",
+    },
+  ],
+  seo: {
+    title: "API DeepSeek no Brasil — acesso compatível com OpenAI a V3 e V4",
+    description:
+      "Use DeepSeek V3 e V4 com uma chave de API compatível com OpenAI. Mantenha seu SDK, consulte preços ao vivo e compare DeepSeek com outros modelos em uma só conta.",
+  },
+};
+
+const KIMI_API: SkagLandingConfig = {
+  slug: "kimi-api",
+  keyword: "kimi api",
+  badge: "Kimi K3 · long context · agents",
+  h1Lead: "Kimi",
+  h1Accent: "API",
+  description:
+    "Call Kimi through one OpenAI-compatible API key. Keep your existing SDK, switch base_url and api_key, and use one account for Kimi alongside DeepSeek, Qwen, and other supported models.",
+  ctaLabel: "Get your Kimi API key",
+  hideSecondaryCta: true,
+  compactHero: true,
+  pricingTitle: "Kimi API access",
+  priceRows: [
+    { label: "Kimi K3 / 1M tokens", flatkey: "$1.20", official: "$3.00" },
+    { label: "OpenAI SDK migration", flatkey: "base_url + key", official: "Provider SDK work" },
+    { label: "Kimi and other models", flatkey: "One key", official: "Separate accounts" },
+  ],
+  priceFootnote: "* Representative coverage — see live pricing for current model rates and availability.",
+  exampleModel: "kimi-k2.5",
+  codeTitle: "Call Kimi through /v1",
+  features: [
+    {
+      title: "Kimi access from one catalog",
+      body: "Use Kimi without a separate integration, then compare it with DeepSeek, Qwen, GPT, Claude, and Gemini from the same account.",
+    },
+    {
+      title: "OpenAI-compatible API",
+      body: "Keep the OpenAI SDK already in your application. Change base_url, set a flatkey API key, and select a supported Kimi model id.",
+    },
+    {
+      title: "Live pricing before you scale",
+      body: "Check current model pricing and availability in one account, then manage Kimi spend alongside the rest of your model usage.",
+    },
+    {
+      title: "One account for model comparison",
+      body: "Evaluate Kimi for long-context and agent workflows without opening a new provider account or changing your API integration.",
+    },
+  ],
+  faq: [
+    {
+      question: "Which Kimi models can I call?",
+      answer:
+        "The catalog includes supported Kimi models as they become available. Check live pricing for the current model list and access status.",
+    },
+    {
+      question: "Can I use my existing OpenAI SDK?",
+      answer: "Yes. Point the SDK at the flatkey /v1 base URL, use a flatkey API key, and choose the Kimi model id you need.",
+    },
+    ...SHARED_FAQ,
+  ],
+  seo: {
+    title: "Kimi API — OpenAI-compatible access with one API key",
+    description:
+      "Call Kimi through one OpenAI-compatible API key. Keep your SDK, check live pricing, and compare Kimi with DeepSeek, Qwen, and other frontier models in one account.",
+  },
+};
+
+const PT_KIMI_API: SkagLandingConfig = {
+  slug: "kimi-api",
+  locale: "pt",
+  pathname: "/kimi-api",
+  keyword: "kimi api",
+  badge: "Kimi K3 · contexto longo · agentes",
+  h1Lead: "API Kimi",
+  h1Accent: "para equipes no Brasil",
+  description:
+    "Use Kimi com uma única chave de API compatível com OpenAI. Mantenha o SDK que sua equipe já usa, altere base_url e api_key e gerencie Kimi, DeepSeek, Qwen e outros modelos compatíveis em uma só conta.",
+  ctaLabel: "Obter chave da API Kimi",
+  hideSecondaryCta: true,
+  compactHero: true,
+  trustLine: "Kimi · DeepSeek · Qwen · GPT · Claude · Gemini — uma chave, uma fatura · sem cartão de crédito para começar",
+  pricingTitle: "Acesso à API Kimi",
+  priceRows: [
+    { label: "Kimi K3 / 1M tokens", flatkey: "$1.20", official: "$3.00" },
+    { label: "Migração do SDK OpenAI", flatkey: "base_url + key", official: "Trabalho por fornecedor" },
+    { label: "Kimi e outros modelos", flatkey: "Uma chave", official: "Contas separadas" },
+  ],
+  priceFootnote: "* Cobertura representativa — veja os preços ao vivo para taxas e disponibilidade atuais.",
+  exampleModel: "kimi-k2.5",
+  codeTitle: "Chame Kimi via /v1",
+  features: [
+    {
+      title: "Kimi em um único catálogo",
+      body: "Use Kimi sem uma integração separada e compare-o com DeepSeek, Qwen, GPT, Claude e Gemini na mesma conta.",
+    },
+    {
+      title: "API compatível com OpenAI",
+      body: "Mantenha o SDK da OpenAI que já existe no seu aplicativo. Altere base_url, use uma chave flatkey e escolha um ID de modelo Kimi compatível.",
+    },
+    {
+      title: "Preço visível antes de escalar",
+      body: "Confira preço e disponibilidade atuais em uma conta e acompanhe o gasto com Kimi junto com o uso dos demais modelos.",
+    },
+    {
+      title: "Compare modelos sem novas contas",
+      body: "Avalie Kimi para contexto longo e fluxos de agentes sem abrir outra conta de fornecedor nem mudar sua integração de API.",
+    },
+  ],
+  faq: [
+    {
+      question: "Quais modelos Kimi posso chamar?",
+      answer:
+        "O catálogo inclui modelos Kimi compatíveis conforme ficam disponíveis. Consulte os preços ao vivo para a lista atual de modelos e o status de acesso.",
+    },
+    {
+      question: "Posso usar meu SDK atual da OpenAI?",
+      answer: "Sim. Aponte o SDK para a base URL /v1 da flatkey, use uma chave de API flatkey e escolha o ID do modelo Kimi necessário.",
+    },
+    {
+      question: "Preciso alterar meu código?",
+      answer: "Não. A flatkey.ai é compatível com OpenAI: mantenha seu SDK e troque base_url e api_key. Os IDs dos modelos permanecem iguais.",
+    },
+    {
+      question: "Como funciona a cobrança entre modelos?",
+      answer: "Uma conta cobre os modelos compatíveis. Os preços ao vivo e o uso por modelo ajudam a manter o gasto visível antes de escalar.",
+    },
+  ],
+  seo: {
+    title: "API Kimi no Brasil — acesso compatível com OpenAI em uma chave",
+    description:
+      "Use Kimi com uma chave de API compatível com OpenAI. Mantenha seu SDK, consulte preços ao vivo e compare Kimi com DeepSeek, Qwen e outros modelos em uma só conta.",
+  },
+};
+
+const QWEN_API: SkagLandingConfig = {
+  slug: "qwen-api",
+  keyword: "qwen api",
+  badge: "Qwen 3.5 · 3.6 · 3.7 · Max · Plus",
+  h1Lead: "Qwen",
+  h1Accent: "API",
+  description:
+    "Call Qwen 3.5, 3.6, and 3.7 through one OpenAI-compatible API key. Keep your existing SDK, switch base_url and api_key, and use live pricing with one account for every supported Qwen model.",
+  ctaLabel: "Get your Qwen API key",
+  hideSecondaryCta: true,
+  compactHero: true,
+  pricingTitle: "Qwen API access",
+  priceRows: [
+    { label: "Qwen 3.7 Plus / 1M tokens", flatkey: "$0.24", official: "$0.40" },
+    { label: "Qwen 3.5, 3.6, 3.7, Max", flatkey: "One key", official: "Separate setup" },
+    { label: "OpenAI SDK migration", flatkey: "base_url + key", official: "Provider SDK work" },
+  ],
+  priceFootnote: "* Representative coverage — see live pricing for current model rates and availability.",
+  exampleModel: "qwen3.7-plus",
+  codeTitle: "Call Qwen through /v1",
+  features: [
+    {
+      title: "Qwen 3.5, 3.6, and 3.7 coverage",
+      body: "Start with supported Qwen Plus and Max models from one catalog instead of maintaining a separate integration for each model release.",
+    },
+    {
+      title: "OpenAI-compatible API",
+      body: "Keep the OpenAI SDK already in your application. Change base_url, set a flatkey API key, and select a Qwen model id.",
+    },
+    {
+      title: "Live pricing before you scale",
+      body: "Check the current model price and availability in one account, then use the same balance across supported Qwen and other frontier models.",
+    },
+    {
+      title: "One account for model comparison",
+      body: "Compare Qwen with GPT, Claude, Gemini, DeepSeek, Kimi, and GLM without creating separate provider accounts or changing your API integration.",
+    },
+  ],
+  faq: [
+    {
+      question: "Which Qwen models can I call?",
+      answer:
+        "The catalog includes Qwen 3.5, 3.6, 3.7, Plus, and Max models when available. Check live pricing for the current model list and access status.",
+    },
+    {
+      question: "Can I use my existing OpenAI SDK?",
+      answer: "Yes. Point the SDK at the flatkey /v1 base URL, use a flatkey API key, and choose the Qwen model id you need.",
+    },
+    ...SHARED_FAQ,
+  ],
+  seo: {
+    title: "Qwen API — OpenAI-compatible Qwen 3.5, 3.6, and 3.7 access",
+    description:
+      "Call Qwen 3.5, 3.6, and 3.7 models through one OpenAI-compatible API key. Keep your SDK, check live pricing, and compare Qwen with other frontier models in one account.",
+  },
+};
+
+const PT_QWEN_API: SkagLandingConfig = {
+  slug: "qwen-api",
+  locale: "pt",
+  pathname: "/qwen-api",
+  keyword: "qwen api",
+  badge: "Qwen 3.5 · 3.6 · 3.7 · Max · Plus",
+  h1Lead: "API Qwen",
+  h1Accent: "para equipes no Brasil",
+  description:
+    "Use Qwen 3.5, 3.6 e 3.7 com uma única chave de API compatível com OpenAI. Mantenha o SDK que sua equipe já usa, altere base_url e api_key e consulte preços e modelos disponíveis em uma só conta.",
+  ctaLabel: "Obter chave da API Qwen",
+  hideSecondaryCta: true,
+  compactHero: true,
+  trustLine: "Qwen · DeepSeek · Kimi · GPT · Claude · Gemini — uma chave, uma fatura · sem cartão de crédito para começar",
+  pricingTitle: "Acesso à API Qwen",
+  priceRows: [
+    { label: "Qwen 3.7 Plus / 1M tokens", flatkey: "$0.24", official: "$0.40" },
+    { label: "Qwen 3.5, 3.6, 3.7 e Max", flatkey: "Uma chave", official: "Configurações separadas" },
+    { label: "Migração do SDK OpenAI", flatkey: "base_url + key", official: "Trabalho por fornecedor" },
+  ],
+  priceFootnote: "* Cobertura representativa — veja os preços ao vivo para taxas e disponibilidade atuais.",
+  exampleModel: "qwen3.7-plus",
+  codeTitle: "Chame Qwen via /v1",
+  features: [
+    {
+      title: "Qwen 3.5, 3.6 e 3.7 em um catálogo",
+      body: "Comece com modelos Qwen Plus e Max compatíveis em um só catálogo sem manter uma integração separada para cada lançamento de modelo.",
+    },
+    {
+      title: "API compatível com OpenAI",
+      body: "Mantenha o SDK da OpenAI que já existe no seu aplicativo. Altere base_url, use uma chave flatkey e escolha o ID do modelo Qwen.",
+    },
+    {
+      title: "Preço visível antes de escalar",
+      body: "Confira preço e disponibilidade atuais em uma conta e use o mesmo saldo em Qwen e outros modelos compatíveis.",
+    },
+    {
+      title: "Compare modelos sem novas contas",
+      body: "Compare Qwen com GPT, Claude, Gemini, DeepSeek, Kimi e GLM sem abrir contas separadas de fornecedor nem mudar sua integração de API.",
+    },
+  ],
+  faq: [
+    {
+      question: "Quais modelos Qwen posso chamar?",
+      answer:
+        "O catálogo inclui modelos Qwen 3.5, 3.6, 3.7, Plus e Max quando disponíveis. Consulte os preços ao vivo para a lista atual de modelos e o status de acesso.",
+    },
+    {
+      question: "Posso usar meu SDK atual da OpenAI?",
+      answer: "Sim. Aponte o SDK para a base URL /v1 da flatkey, use uma chave de API flatkey e escolha o ID do modelo Qwen necessário.",
+    },
+    {
+      question: "Preciso alterar meu código?",
+      answer: "Não. A flatkey.ai é compatível com OpenAI: mantenha seu SDK e troque base_url e api_key. Os IDs dos modelos permanecem iguais.",
+    },
+    {
+      question: "Como funciona a cobrança entre modelos?",
+      answer: "Uma conta cobre os modelos compatíveis. Os preços ao vivo e o uso por modelo ajudam a manter o gasto visível antes de escalar.",
+    },
+  ],
+  seo: {
+    title: "API Qwen no Brasil — acesso compatível com OpenAI a Qwen 3.5, 3.6 e 3.7",
+    description:
+      "Use Qwen 3.5, 3.6 e 3.7 com uma chave de API compatível com OpenAI. Mantenha seu SDK, consulte preços ao vivo e compare Qwen com outros modelos em uma só conta.",
+  },
+};
+
 const OPENAI_COMPATIBLE: SkagLandingConfig = {
   slug: "openai-compatible",
   keyword: "openai compatible api",
@@ -400,6 +781,9 @@ const SKAG_CONFIGS: Record<SkagLandingSlug, Partial<Record<Locale, SkagLandingCo
   "gpt-api-alternative": { en: GPT_API_ALTERNATIVE },
   "chinese-ai": { en: CHINESE_AI },
   "chinese-ai-models-api": CHINESE_AI_MODELS_API_COPY,
+  "deepseek-api": { en: DEEPSEEK_API, pt: PT_DEEPSEEK_API },
+  "kimi-api": { en: KIMI_API, pt: PT_KIMI_API },
+  "qwen-api": { en: QWEN_API, pt: PT_QWEN_API },
   "openai-compatible": { en: OPENAI_COMPATIBLE },
   gateway: { en: GATEWAY },
 };
