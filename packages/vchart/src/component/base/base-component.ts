@@ -1,4 +1,5 @@
-import { CustomEvent, type IGraphicAttribute, type IGraphic, type IGroup, type INode } from '@visactor/vrender-core';
+import type { IGraphicAttribute, IGraphic, IGroup, INode } from '@visactor/vrender-core';
+import { CustomEvent } from '@visactor/vrender-core/event/constant';
 import type { IRegion } from '../../region/interface';
 import type { IComponent, IComponentOption } from '../interface';
 import { ComponentPluginService } from '../../plugin/components/plugin-service';

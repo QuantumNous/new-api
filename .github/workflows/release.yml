@@ -1,17 +1,20 @@
 name: Release CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - 'release/[0-9]+\.[0-9]+\.[0-9]+'
-      - 'hotfix/[0-9]+\.[0-9]+\.[0-9]+'
-      - 'pre-release/[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+'
-      - 'pre-release/[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+'
-      - 'pre-release/[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+'
-      - 'pre-release/[0-9]+\.[0-9]+\.[0-9]+-hotfix\.[0-9]+'
+      - 'release/**'
+      - 'hotfix/**'
+      - 'pre-release/**'
 
 jobs:
   release:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref_name, 'release/') ||
+      startsWith(github.ref_name, 'hotfix/') ||
+      startsWith(github.ref_name, 'pre-release/')
     runs-on: macos-latest
     permissions:
       id-token: write # OIDC for npm publish (single entry)
@@ -20,7 +23,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
 
     concurrency:
       group: vchart-release-${{ github.ref_name }}
@@ -37,6 +40,35 @@ jobs:
           git config user.name ${{ github.actor }}
           git config user.email ${{ github.actor }}@users.noreply.github.com
 
+      - name: Validate release branch name
+        run: |
+          set -euo pipefail
+          case "${GITHUB_REF_NAME}" in
+            release/*)
+              [[ "${GITHUB_REF_NAME}" =~ ^release/[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+                echo "Invalid release branch: ${GITHUB_REF_NAME}"
+                exit 1
+              }
+              ;;
+            hotfix/*)
+              [[ "${GITHUB_REF_NAME}" =~ ^hotfix/[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+                echo "Invalid hotfix branch: ${GITHUB_REF_NAME}"
+                exit 1
+              }
+              ;;
+            pre-release/*)
+              [[ "${GITHUB_REF_NAME}" =~ ^pre-release/[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc|hotfix)\.[0-9]+$ ]] || {
+                echo "Invalid pre-release branch: ${GITHUB_REF_NAME}"
+                exit 1
+              }
+              ;;
+            *)
+              echo "Unsupported release branch: ${GITHUB_REF_NAME}"
+              echo "For workflow_dispatch recovery, choose a release/*, hotfix/*, or pre-release/* branch in the Run workflow branch selector."
+              exit 1
+              ;;
+          esac
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -46,7 +78,7 @@ jobs:
           cache-dependency-path: './common/config/rush/pnpm-lock.yaml'
 
       - name: Update npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@^11.5.1
 
       - name: Install latest pnpm
         run: npm install -g pnpm@10.7.0
@@ -88,8 +120,54 @@ jobs:
           semver_string: ${{ github.ref_name }}
           semver_pattern: '^release/(.*)$'
 
-      - name: update nextBump (release)
+      - name: Check version-policy version (release)
         if: startsWith(github.ref_name, 'release/')
+        id: release_version_policy
+        env:
+          RELEASE_VERSION: ${{ steps.semver_release.outputs.full }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const policies = JSON.parse(fs.readFileSync('common/config/rush/version-policies.json', 'utf8'));
+          const policyVersion = policies[0] && policies[0].version;
+          const releaseVersion = process.env.RELEASE_VERSION;
+
+          const parseVersion = version => String(version).split('-')[0].split('.').map(Number);
+          const compareVersion = (a, b) => {
+            const av = parseVersion(a);
+            const bv = parseVersion(b);
+            for (let i = 0; i < Math.max(av.length, bv.length); i++) {
+              const diff = (av[i] || 0) - (bv[i] || 0);
+              if (diff !== 0) {
+                return diff;
+              }
+            }
+            return 0;
+          };
+
+          if (!releaseVersion || !policyVersion) {
+            console.error('Missing release version or version-policy version.', { releaseVersion, policyVersion });
+            process.exit(1);
+          }
+
+          const result = compareVersion(releaseVersion, policyVersion);
+          if (result < 0) {
+            console.error(`Release version ${releaseVersion} is lower than version-policy version ${policyVersion}.`);
+            process.exit(1);
+          }
+
+          const shouldSkip = result === 0 ? 'true' : 'false';
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `skip_next_bump=${shouldSkip}\n`);
+          console.log(
+            result === 0
+              ? `Release version ${releaseVersion} equals version-policy version ${policyVersion}, skip nextBump update.`
+              : `Release version ${releaseVersion} is greater than version-policy version ${policyVersion}, update nextBump.`
+          );
+          NODE
+
+      - name: update nextBump (release)
+        if: startsWith(github.ref_name, 'release/') && steps.release_version_policy.outputs.skip_next_bump != 'true'
         uses: xile611/set-next-bump-of-rush@main
         with:
           release_version: ${{ steps.semver_release.outputs.full }}
@@ -284,6 +362,24 @@ jobs:
             echo "Missing harmony changelog block, skip."
           fi
 
+      - name: Reset version-policy base version (release)
+        if: startsWith(github.ref_name, 'release/')
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const packageJson = JSON.parse(fs.readFileSync('packages/vchart/package.json', 'utf8'));
+          const policiesPath = 'common/config/rush/version-policies.json';
+          const policies = JSON.parse(fs.readFileSync(policiesPath, 'utf8'));
+
+          if (!policies[0]) {
+            throw new Error('Missing version policy.');
+          }
+
+          policies[0].version = packageJson.version;
+          fs.writeFileSync(policiesPath, JSON.stringify(policies));
+          NODE
+
       - name: Generate rush version (release)
         if: startsWith(github.ref_name, 'release/')
         run: node common/scripts/install-run-rush.js version --bump
@@ -328,8 +424,53 @@ jobs:
           NODE_OPTIONS: '--max_old_space_size=4096'
         run: node common/scripts/install-run-rush.js build --only @visactor/wx-vchart
 
-      - name: Publish to npm (release)
+      - name: Check npm version (release)
         if: startsWith(github.ref_name, 'release/')
+        id: npm_version_release
+        env:
+          PACKAGE_VERSION: ${{ steps.semver_release.outputs.main }}
+        run: |
+          set -euo pipefail
+          package_names=()
+          while IFS= read -r package_name; do
+            [ -n "$package_name" ] && package_names+=("$package_name")
+          done < <(node <<'NODE'
+          const fs = require('fs');
+          const rush = JSON.parse(fs.readFileSync('rush.json', 'utf8'));
+          for (const project of rush.projects) {
+            if (project.shouldPublish) {
+              console.log(project.packageName);
+            }
+          }
+          NODE
+          )
+
+          existing=()
+          missing=()
+          for package_name in "${package_names[@]}"; do
+            if npm view "${package_name}@${PACKAGE_VERSION}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+              existing+=("${package_name}")
+            else
+              missing+=("${package_name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "All packages already have version ${PACKAGE_VERSION} on npm, skip publish."
+            echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+          elif [ "${#existing[@]}" -eq 0 ]; then
+            echo "No package has version ${PACKAGE_VERSION} on npm, continue publish."
+            echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Partial npm publish detected for ${PACKAGE_VERSION}."
+            echo "Existing packages: ${existing[*]}"
+            echo "Missing packages: ${missing[*]}"
+            echo "Stop before publish to avoid masking a partial release."
+            exit 1
+          fi
+
+      - name: Publish to npm (release)
+        if: startsWith(github.ref_name, 'release/') && steps.npm_version_release.outputs.skip_publish != 'true'
         run: node common/scripts/install-run-rush.js publish --publish --include-all --tag latest
 
       - name: Update shrinkwrap
@@ -342,13 +483,6 @@ jobs:
         with:
           path: packages/vchart
 
-      - name: BytePack CDN smoke test (release)
-        if: startsWith(github.ref_name, 'release/')
-        env:
-          BYTEPACK_SMOKE_ATTEMPTS: 12
-          BYTEPACK_SMOKE_DELAY_MS: 30000
-        run: node --experimental-network-imports common/scripts/bytepack-smoke-test.mjs ${{ steps.package_version_release.outputs.current_version }}
-
       - name: Commit & Push changes (release)
         if: startsWith(github.ref_name, 'release/')
         run: |
@@ -356,6 +490,9 @@ jobs:
           if git diff --quiet; then
             echo 'No changes to commit for release branch.'
           else
+            rm -rf .changelog
+            find docs/assets/changelog -name '*.bak' -delete
+            find packages/harmony_vchart/library -name '*.bak' -delete
             git add .
             git commit -m "build: release version ${{ steps.package_version_release.outputs.current_version }} [skip ci]" -n
             git push --no-verify origin ${{ github.ref_name }}
@@ -403,8 +540,53 @@ jobs:
         if: startsWith(github.ref_name, 'hotfix/')
         run: node common/scripts/apply-release-version.js 'none' ${{ steps.semver_hotfix.outputs.main }}
 
-      - name: Publish to npm (hotfix)
+      - name: Check npm version (hotfix)
         if: startsWith(github.ref_name, 'hotfix/')
+        id: npm_version_hotfix
+        env:
+          PACKAGE_VERSION: ${{ steps.semver_hotfix.outputs.main }}
+        run: |
+          set -euo pipefail
+          package_names=()
+          while IFS= read -r package_name; do
+            [ -n "$package_name" ] && package_names+=("$package_name")
+          done < <(node <<'NODE'
+          const fs = require('fs');
+          const rush = JSON.parse(fs.readFileSync('rush.json', 'utf8'));
+          for (const project of rush.projects) {
+            if (project.shouldPublish) {
+              console.log(project.packageName);
+            }
+          }
+          NODE
+          )
+
+          existing=()
+          missing=()
+          for package_name in "${package_names[@]}"; do
+            if npm view "${package_name}@${PACKAGE_VERSION}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+              existing+=("${package_name}")
+            else
+              missing+=("${package_name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "All packages already have version ${PACKAGE_VERSION} on npm, skip publish."
+            echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+          elif [ "${#existing[@]}" -eq 0 ]; then
+            echo "No package has version ${PACKAGE_VERSION} on npm, continue publish."
+            echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Partial npm publish detected for ${PACKAGE_VERSION}."
+            echo "Existing packages: ${existing[*]}"
+            echo "Missing packages: ${missing[*]}"
+            echo "Stop before publish to avoid masking a partial release."
+            exit 1
+          fi
+
+      - name: Publish to npm (hotfix)
+        if: startsWith(github.ref_name, 'hotfix/') && steps.npm_version_hotfix.outputs.skip_publish != 'true'
         run: node common/scripts/install-run-rush.js publish --publish --include-all --tag hotfix
 
       - name: Get npm version (hotfix)
@@ -413,13 +595,6 @@ jobs:
         uses: xile611/read-package-version-action@main
         with:
           path: packages/vchart
-
-      - name: BytePack CDN smoke test (hotfix)
-        if: startsWith(github.ref_name, 'hotfix/')
-        env:
-          BYTEPACK_SMOKE_ATTEMPTS: 12
-          BYTEPACK_SMOKE_DELAY_MS: 30000
-        run: node --experimental-network-imports common/scripts/bytepack-smoke-test.mjs ${{ steps.package_version_hotfix.outputs.current_version }}
 
       - name: Commit & Push changes (hotfix)
         if: startsWith(github.ref_name, 'hotfix/')
@@ -447,8 +622,53 @@ jobs:
         if: startsWith(github.ref_name, 'pre-release/')
         run: node common/scripts/apply-release-version.js ${{ steps.semver_prerelease.outputs.pre_release_name }} ${{ steps.semver_prerelease.outputs.main }}
 
-      - name: Publish to npm (pre-release)
+      - name: Check npm version (pre-release)
         if: startsWith(github.ref_name, 'pre-release/')
+        id: npm_version_prerelease
+        env:
+          PACKAGE_VERSION: ${{ steps.semver_prerelease.outputs.full }}
+        run: |
+          set -euo pipefail
+          package_names=()
+          while IFS= read -r package_name; do
+            [ -n "$package_name" ] && package_names+=("$package_name")
+          done < <(node <<'NODE'
+          const fs = require('fs');
+          const rush = JSON.parse(fs.readFileSync('rush.json', 'utf8'));
+          for (const project of rush.projects) {
+            if (project.shouldPublish) {
+              console.log(project.packageName);
+            }
+          }
+          NODE
+          )
+
+          existing=()
+          missing=()
+          for package_name in "${package_names[@]}"; do
+            if npm view "${package_name}@${PACKAGE_VERSION}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+              existing+=("${package_name}")
+            else
+              missing+=("${package_name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "All packages already have version ${PACKAGE_VERSION} on npm, skip publish."
+            echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+          elif [ "${#existing[@]}" -eq 0 ]; then
+            echo "No package has version ${PACKAGE_VERSION} on npm, continue publish."
+            echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Partial npm publish detected for ${PACKAGE_VERSION}."
+            echo "Existing packages: ${existing[*]}"
+            echo "Missing packages: ${missing[*]}"
+            echo "Stop before publish to avoid masking a partial release."
+            exit 1
+          fi
+
+      - name: Publish to npm (pre-release)
+        if: startsWith(github.ref_name, 'pre-release/') && steps.npm_version_prerelease.outputs.skip_publish != 'true'
         run: node common/scripts/install-run-rush.js publish --publish --include-all --tag ${{ steps.semver_prerelease.outputs.pre_release_type }}
 
       - name: Get npm version (pre-release)
@@ -457,13 +677,6 @@ jobs:
         uses: xile611/read-package-version-action@main
         with:
           path: packages/vchart
-
-      - name: BytePack CDN smoke test (pre-release)
-        if: startsWith(github.ref_name, 'pre-release/')
-        env:
-          BYTEPACK_SMOKE_ATTEMPTS: 12
-          BYTEPACK_SMOKE_DELAY_MS: 30000
-        run: node --experimental-network-imports common/scripts/bytepack-smoke-test.mjs ${{ steps.package_version_prerelease.outputs.current_version }}
 
       - name: Commit & Push changes (pre-release)
         if: startsWith(github.ref_name, 'pre-release/')

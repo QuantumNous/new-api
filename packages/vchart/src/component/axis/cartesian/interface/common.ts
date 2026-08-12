@@ -93,7 +93,7 @@ export interface IAxisHelper {
   dataToPosition: (values: any[], cfg?: IAxisLocationCfg) => number;
   valueToPosition?: (value: any, cfg?: IAxisLocationCfg) => number;
   getScale?: (depth: number) => IBaseScale;
-  getBandwidth?: (depth: number) => number; // band轴特有
+  getBandwidth?: (depth: number) => number | undefined; // band轴特有；连续轴可按关联柱系列返回虚拟 bandwidth
 
   // 用户其他模块扩充轴scale的区间
   setExtendDomain?: (key: string, value: number | undefined) => void;

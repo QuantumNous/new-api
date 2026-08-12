@@ -13,12 +13,10 @@ import { MarkTypeEnum } from '../mark/interface/type';
 import type { IRegion, IRegionConstructor } from '../region/interface';
 import type { IBaseModelSpecTransformer, IBaseModelSpecTransformerOption, IModelOption } from '../model/interface';
 import type { Transform, Parser } from '@visactor/vdataset';
-// eslint-disable-next-line no-duplicate-imports
-import { fields, filter, fold, csvParser, dsvParser, tsvParser } from '@visactor/vdataset';
 import type { ILayoutConstructor } from '../layout/interface';
 import type { IChartPluginConstructor } from '../plugin/chart/interface';
 import type { IComponentPluginConstructor } from '../plugin/components/interface';
-import type { IGraphic } from '@visactor/vrender-core';
+import type { IApp, IGraphic } from '@visactor/vrender-core';
 import type { GrammarTransformOption, IStageEventPlugin, VRenderComponentOptions } from './interface';
 import type { MarkAnimationSpec } from '../animation/interface';
 import type { IBaseTriggerOptions, ITriggerConstructor } from '../interaction/interface/trigger';
@@ -26,44 +24,37 @@ import type { IComposedEventConstructor } from '../index-harmony-simple';
 import type { ITooltipProcessorConstructor } from '../component/tooltip/processor/interface';
 import type { ITooltip } from '../component';
 import type { IVChartPluginConstructor } from '../plugin/vchart';
+import { factoryRegistry } from './factory-registry';
 
 export class Factory {
-  private static _charts: { [key: string]: IChartConstructor } = {};
-  private static _series: { [key: string]: ISeriesConstructor } = {};
+  private static _charts: { [key: string]: IChartConstructor } = factoryRegistry.charts;
+  private static _series: { [key: string]: ISeriesConstructor } = factoryRegistry.series;
   private static _components: {
     [key: string]: {
       cmp: IComponentConstructor;
       alwaysCheck?: boolean;
       createOrder: number;
     };
-  } = {};
-  private static _graphicComponents: Record<string, (attrs: any, options?: VRenderComponentOptions) => IGraphic> = {};
-  private static _marks: { [key: string]: MarkConstructor } = {};
-  private static _regions: { [key: string]: IRegionConstructor } = {};
-  private static _animations: { [key: string]: (params?: any, preset?: any) => MarkAnimationSpec } = {};
-  private static _implements: { [key: string]: (...args: any) => void } = {};
-  private static _chartPlugin: { [key: string]: IChartPluginConstructor } = {};
-  private static _vChartPlugin: { [key: string]: IVChartPluginConstructor } = {};
-  private static _componentPlugin: { [key: string]: IComponentPluginConstructor } = {};
+  } = factoryRegistry.components;
+  private static _graphicComponents: Record<string, (attrs: any, options?: VRenderComponentOptions) => IGraphic> =
+    factoryRegistry.graphicComponents;
+  private static _marks: { [key: string]: MarkConstructor } = factoryRegistry.marks;
+  private static _regions: { [key: string]: IRegionConstructor } = factoryRegistry.regions;
+  private static _animations: { [key: string]: (params?: any, preset?: any) => MarkAnimationSpec } =
+    factoryRegistry.animations;
+  private static _implements: { [key: string]: (...args: any) => void } = factoryRegistry.implements;
+  private static _chartPlugin: { [key: string]: IChartPluginConstructor } = factoryRegistry.chartPlugin;
+  private static _vChartPlugin: { [key: string]: IVChartPluginConstructor } = factoryRegistry.vChartPlugin;
+  private static _componentPlugin: { [key: string]: IComponentPluginConstructor } = factoryRegistry.componentPlugin;
   private static _formatter: (
     text: string | number | string[] | number[],
     datum: any,
     formatter: string | string[]
   ) => any;
 
-  static transforms: { [key: string]: Transform } = {
-    // buildIn transforms
-    fields: fields,
-    filter: filter,
-    fold: fold
-  };
-  static dataParser: { [key: string]: Parser } = {
-    // buildIn parser
-    csv: csvParser,
-    dsv: dsvParser,
-    tsv: tsvParser
-  };
-  static _layout: { [key: string]: ILayoutConstructor } = {};
+  static transforms: { [key: string]: Transform } = factoryRegistry.transforms;
+  static dataParser: { [key: string]: Parser } = factoryRegistry.dataParser;
+  static _layout: { [key: string]: ILayoutConstructor } = factoryRegistry.layout;
 
   static registerChart(key: string, chart: IChartConstructor) {
     Factory._charts[key] = chart;
@@ -98,7 +89,7 @@ export class Factory {
     Factory.transforms[key] = transform;
   }
 
-  private static _grammarTransforms: Record<string, GrammarTransformOption> = {};
+  private static _grammarTransforms: Record<string, GrammarTransformOption> = factoryRegistry.grammarTransforms;
 
   static registerGrammarTransform(type: string, transform: GrammarTransformOption) {
     Factory._grammarTransforms[type] = transform;
@@ -288,13 +279,14 @@ export class Factory {
 
   static registerFormatter(func: typeof Factory['_formatter']) {
     this._formatter = func;
+    factoryRegistry.formatter = func;
   }
 
   static getFormatter() {
-    return this._formatter;
+    return factoryRegistry.formatter ?? this._formatter;
   }
 
-  private static _stageEventPlugins: Record<string, IStageEventPlugin<any>> = {};
+  private static _stageEventPlugins: Record<string, IStageEventPlugin<any>> = factoryRegistry.stageEventPlugins;
 
   static registerStageEventPlugin = (type: string, Plugin: IStageEventPlugin<any>) => {
     Factory._stageEventPlugins[type] = Plugin;
@@ -304,7 +296,7 @@ export class Factory {
     return Factory._stageEventPlugins[type];
   };
 
-  private static _interactionTriggers: Record<string, ITriggerConstructor> = {};
+  private static _interactionTriggers: Record<string, ITriggerConstructor> = factoryRegistry.interactionTriggers;
 
   static registerInteractionTrigger = (interactionType: string, interaction: ITriggerConstructor) => {
     Factory._interactionTriggers[interactionType] = interaction;
@@ -323,7 +315,7 @@ export class Factory {
     return !!Factory._interactionTriggers[interactionType];
   }
 
-  private static _composedEventMap: Record<string, IComposedEventConstructor> = {};
+  private static _composedEventMap: Record<string, IComposedEventConstructor> = factoryRegistry.composedEventMap;
 
   static registerComposedEvent = (eType: string, composedEvent: IComposedEventConstructor) => {
     Factory._composedEventMap[eType] = composedEvent;
@@ -333,7 +325,7 @@ export class Factory {
     return Factory._composedEventMap[eType];
   }
 
-  private static _tooltipProcessors: Record<string, ITooltipProcessorConstructor> = {};
+  private static _tooltipProcessors: Record<string, ITooltipProcessorConstructor> = factoryRegistry.tooltipProcessors;
   static registerTooltipProcessor = (type: string, processor: ITooltipProcessorConstructor) => {
     Factory._tooltipProcessors[type] = processor;
   };
@@ -343,5 +335,16 @@ export class Factory {
       return null;
     }
     return new Cror(tooltip);
+  };
+
+  private static _runtimePluginInstallers: Record<string, (app?: IApp) => void> =
+    factoryRegistry.runtimePluginInstallers;
+
+  static registerRuntimePluginInstaller = (type: string, installer: (app?: IApp) => void) => {
+    Factory._runtimePluginInstallers[type] = installer;
+  };
+
+  static getRuntimePluginInstaller = (type: string) => {
+    return Factory._runtimePluginInstallers[type];
   };
 }

@@ -4,7 +4,7 @@ import ms from 'ms';
 import watcher from 'glob-watcher';
 import { DebugConfig } from './logic/debug';
 import { parserCLIArgs, getDefaultConfig, getFinalConfig, loadConfigFile, DEFAULT_CONFIG_FILE } from './logic/config';
-import type { _ModuleKind } from './logic/config';
+import type { _ModuleKind, Config } from './logic/config';
 import { loadPackageJson } from './logic/package';
 import Undertaker, { Task } from 'undertaker';
 import Spinnies from '@trufflesuite/spinnies';
@@ -32,6 +32,19 @@ enum Tasks {
   // COPY_DIST = "Copy dist",
   COPY_FILES = 'Copy files'
 }
+
+function mergeRollupOptions(
+  base: Config['rollupOptions'],
+  extra: Config['esTotalRollupOptions']
+): Config['rollupOptions'] {
+  return {
+    ...base,
+    ...extra,
+    prePlugins: [...(base.prePlugins ?? []), ...(extra.prePlugins ?? [])],
+    plugins: [...((base.plugins ?? []) as any[]), ...((extra.plugins ?? []) as any[])]
+  };
+}
+
 async function bootstrap() {
   const args = parserCLIArgs(process.argv.slice(2));
   DebugConfig('CLI args', args);
@@ -104,7 +117,18 @@ async function bootstrap() {
         return;
       } else if (format === 'es' && config.esTotalFile) {
         subBuildTasks.push(`${taskName}_total`);
-        _task(`${taskName}_total`, () => buildES({ ...config, minify: false }, PROJECT_ROOT, rawPackageJson, false));
+        _task(`${taskName}_total`, () =>
+          buildES(
+            {
+              ...config,
+              minify: false,
+              rollupOptions: mergeRollupOptions(config.rollupOptions, config.esTotalRollupOptions)
+            },
+            PROJECT_ROOT,
+            rawPackageJson,
+            false
+          )
+        );
       }
 
       _task(taskName, () =>

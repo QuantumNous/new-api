@@ -1,7 +1,8 @@
 import { escapeHTML } from './common';
 // eslint-disable-next-line no-duplicate-imports
 import type { CustomSymbolClass, IColor, IGradientColor, ILinearGradient } from '@visactor/vrender-core';
-import { Symbol, GradientParser } from '@visactor/vrender-core';
+import { Symbol } from '@visactor/vrender-core/graphic/symbol';
+import { GradientParser } from '@visactor/vrender-core/svg';
 import { Bounds, isObject, isString } from '@visactor/vutils';
 import type { ITooltipShapeActual } from '../../../../typings';
 

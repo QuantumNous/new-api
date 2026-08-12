@@ -1,9 +1,8 @@
-import { createPyramid3d } from '@visactor/vrender-core';
-import { registerPyramid3d } from '@visactor/vrender-kits/register/register-pyramid3d';
-import { registerShadowRoot } from '@visactor/vrender-kits/register/register-shadowRoot';
+import { createPyramid3d } from './graphic-creator';
 import { registerPolygonAnimation } from '@visactor/vchart/esm/animation/config';
 import { Factory } from '@visactor/vchart/esm/core/factory';
 import { BasePolygonMark } from '@visactor/vchart/esm/mark/polygon/base-polygon';
+import { registerPyramid3d, registerShadowRoot } from '@visactor/vchart/esm/vrender-bridge';
 import type { IPyramid3dMark, IPyramid3dMarkSpec } from './interface';
 import { MarkType3dEnum } from './enum';
 

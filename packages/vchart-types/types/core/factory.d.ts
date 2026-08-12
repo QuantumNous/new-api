@@ -8,7 +8,7 @@ import type { Transform, Parser } from '@visactor/vdataset';
 import type { ILayoutConstructor } from '../layout/interface';
 import type { IChartPluginConstructor } from '../plugin/chart/interface';
 import type { IComponentPluginConstructor } from '../plugin/components/interface';
-import type { IGraphic } from '@visactor/vrender-core';
+import type { IApp, IGraphic } from '@visactor/vrender-core';
 import type { GrammarTransformOption, IStageEventPlugin, VRenderComponentOptions } from './interface';
 import type { MarkAnimationSpec } from '../animation/interface';
 import type { IBaseTriggerOptions, ITriggerConstructor } from '../interaction/interface/trigger';
@@ -98,4 +98,7 @@ export declare class Factory {
     private static _tooltipProcessors;
     static registerTooltipProcessor: (type: string, processor: ITooltipProcessorConstructor) => void;
     static createTooltipProcessor: (type: string, tooltip: ITooltip) => import("../component/tooltip/processor/interface").ITooltipProcessor<import("../component/tooltip/processor/interface").DimensionTooltipInfo> | import("../component/tooltip/processor/interface").ITooltipProcessor<import("../component/tooltip/processor/interface").MarkTooltipInfo<import("../index-harmony-simple").Datum>>;
+    private static _runtimePluginInstallers;
+    static registerRuntimePluginInstaller: (type: string, installer: (app?: IApp) => void) => void;
+    static getRuntimePluginInstaller: (type: string) => (app?: IApp) => void;
 }

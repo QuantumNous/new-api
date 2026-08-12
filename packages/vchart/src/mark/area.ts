@@ -5,11 +5,9 @@ import type { IAreaMark, IMarkStyle } from './interface';
 // eslint-disable-next-line no-duplicate-imports
 import { MarkTypeEnum } from './interface/type';
 import { registerLineOrAreaAnimation } from '../animation/config';
-import { registerArea } from '@visactor/vrender-kits/register/register-area';
-import { registerShadowRoot } from '@visactor/vrender-kits/register/register-shadowRoot';
 import { registerLineDataLabel } from '@visactor/vrender-components/label/line';
 import { registerSymbolDataLabel } from '@visactor/vrender-components/label/symbol';
-import { createArea } from '@visactor/vrender-core';
+import { createArea, registerArea, registerShadowRoot } from '../vrender-bridge';
 
 const AREA_SEGMENT_ATTRIBUTES = [
   ...LINE_SEGMENT_ATTRIBUTES,

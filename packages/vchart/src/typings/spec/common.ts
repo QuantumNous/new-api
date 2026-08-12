@@ -625,15 +625,17 @@ export interface IMarkStateTheme<T> extends Record<string, T> {
   selected_reverse?: T;
 }
 
+type ConvertToThemeMarkStyleSpec<T> = T extends Record<string, any> ? Partial<ConvertToMarkStyleSpec<T>> : never;
+
 export type IMarkTheme<T> = {
   /**
    * mark 层 是否显示配置
    */
   visible?: boolean;
   /** 默认样式设置 */
-  style?: T;
+  style?: ConvertToThemeMarkStyleSpec<T>;
   /** 不同状态下的样式配置 */
-  state?: IMarkStateTheme<T>;
+  state?: IMarkStateTheme<ConvertToThemeMarkStyleSpec<T>>;
   /**
    * 可交互的开关
    */

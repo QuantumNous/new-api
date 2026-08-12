@@ -1,6 +1,22 @@
 # Change Log - @visactor/vchart
 
-This log was last generated on Thu, 25 Jun 2026 03:26:39 GMT and should not be manually modified.
+This log was last generated on Wed, 08 Jul 2026 08:25:01 GMT and should not be manually modified.
+
+## 2.1.2
+Wed, 08 Jul 2026 08:25:01 GMT
+
+### Patches
+
+- fix: stabilize BytePack ESM VRender registration paths and preserve seriesStyle after theme updates
+
+### Updates
+
+- fix(vchart): handle progressive graphics hover state
+
+
+- fix: normalize funnel range mapping
+
+
 
 ## 2.1.1
 Thu, 25 Jun 2026 03:26:39 GMT

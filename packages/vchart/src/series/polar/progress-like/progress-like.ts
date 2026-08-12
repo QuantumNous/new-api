@@ -8,7 +8,7 @@ import { valueInScaleRange } from '../../../util/scale';
 import { PolarSeries } from '../polar';
 import type { IContinuousTickData, IProgressLikeSeriesSpec } from './interface';
 import type { IPolarAxis, IPolarAxisSpec } from '../../../component/axis';
-import { createArc, createRect } from '@visactor/vrender-core';
+import { createArc, createRect } from '../../../vrender-bridge';
 import type { SeriesMarkMap } from '../../interface';
 import { progressLikeSeriesMark } from './constant';
 import type { ISeriesSpecUpdatePolicy } from '../../base/base-series';

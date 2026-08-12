@@ -35,6 +35,7 @@ import type { ILayoutRect, ILayoutType } from '../../../typings/layout';
 import type { IComponentOption } from '../../interface';
 // eslint-disable-next-line no-duplicate-imports
 import { ComponentTypeEnum } from '../../interface/type';
+import { SeriesTypeEnum } from '../../../series/interface/type';
 import type { AxisItem, LineAxisAttributes } from '@visactor/vrender-components';
 // eslint-disable-next-line no-duplicate-imports
 import { getAxisItem, isValidCartesianAxis, shouldUpdateAxis } from '../util';
@@ -47,11 +48,20 @@ import type { DataSet } from '@visactor/vdataset';
 import { AxisComponent } from '../base-axis';
 import type { IGraphic, IText } from '@visactor/vrender-core';
 // eslint-disable-next-line no-duplicate-imports
-import { createText } from '@visactor/vrender-core';
+import { createText } from '../../../vrender-bridge';
 import type { ICartesianChartSpec } from '../../../chart/cartesian/interface';
 import { getCombinedSizeOfRegions } from '../../../util/region';
 
 const CartesianAxisPlugin = [AxisSyncPlugin];
+
+type ContinuousBarBandwidthCache = {
+  scale: IBaseScale;
+  domainStart: number;
+  domainEnd: number;
+  rangeStart: number;
+  rangeEnd: number;
+  bandWidth: number;
+};
 
 export abstract class CartesianAxis<T extends ICartesianAxisCommonSpec = ICartesianAxisCommonSpec>
   extends AxisComponent<T>
@@ -75,6 +85,7 @@ export abstract class CartesianAxis<T extends ICartesianAxisCommonSpec = ICartes
   layoutLevel: number = LayoutLevel.Axis;
 
   protected _dataSet: DataSet;
+  protected _continuousBarBandwidthCache?: ContinuousBarBandwidthCache;
 
   protected _orient: IOrientType = 'left';
   getOrient() {
@@ -376,15 +387,122 @@ export abstract class CartesianAxis<T extends ICartesianAxisCommonSpec = ICartes
     const getScale = (depth: number = 0) => {
       return this._scales[depth];
     };
+    const getBandwidth = (depth: number = 0) => {
+      return this._getContinuousBarBandwidth(depth);
+    };
     return {
       isContinuous: isContinuous(this._scale.type),
       dataToPosition: this.dataToPosition.bind(this),
       getScale,
+      getBandwidth,
       getAxisType: () => this.type,
       getAxisId: () => this.id,
       isInverse: () => this._inverse === true,
       getSpec: () => this._spec
     };
+  }
+
+  protected _clearContinuousBarBandwidthCache = () => {
+    this._continuousBarBandwidthCache = undefined;
+  };
+
+  protected _getContinuousBarBandwidth(depth: number = 0) {
+    if (depth !== 0 || !isContinuous(this._scale.type)) {
+      return undefined;
+    }
+
+    const scale = this._scales[0];
+    const domain = scale.domain() as number[];
+    const range = scale.range() as number[];
+    const domainStart = +domain?.[0];
+    const domainEnd = +domain?.[domain.length - 1];
+    const rangeStart = +range?.[0];
+    const rangeEnd = +range?.[range.length - 1];
+
+    if (
+      !Number.isFinite(domainStart) ||
+      !Number.isFinite(domainEnd) ||
+      !Number.isFinite(rangeStart) ||
+      !Number.isFinite(rangeEnd) ||
+      domainStart === domainEnd
+    ) {
+      return undefined;
+    }
+
+    const cache = this._continuousBarBandwidthCache;
+    if (
+      cache &&
+      cache.scale === scale &&
+      cache.domainStart === domainStart &&
+      cache.domainEnd === domainEnd &&
+      cache.rangeStart === rangeStart &&
+      cache.rangeEnd === rangeEnd
+    ) {
+      return cache.bandWidth;
+    }
+
+    const valueSet = new Set<number>();
+    const orient = this.getOrient();
+    eachSeries(
+      this._regions,
+      s => {
+        if (s.type !== SeriesTypeEnum.bar) {
+          return;
+        }
+        const barSeries = s as ICartesianSeries;
+        const field =
+          isXAxis(orient) && barSeries.direction === Direction.vertical
+            ? barSeries.fieldX[0]
+            : isYAxis(orient) && barSeries.direction === Direction.horizontal
+            ? barSeries.fieldY[0]
+            : undefined;
+        const values = (field ? s.getViewDataStatistics?.()?.latestData?.[field]?.values : undefined) as
+          | unknown[]
+          | undefined;
+        values?.forEach(value => {
+          const numericValue = +value;
+          if (Number.isFinite(numericValue)) {
+            valueSet.add(numericValue);
+          }
+        });
+      },
+      {
+        userId: this._seriesUserId,
+        specIndex: this._seriesIndex
+      }
+    );
+
+    const values = Array.from(valueSet).sort((a, b) => a - b);
+    if (values.length < 2) {
+      return undefined;
+    }
+
+    let minStep = Infinity;
+    let lastValue = values[0];
+    for (let i = 1; i < values.length; i++) {
+      const value = values[i];
+      const step = value - lastValue;
+      if (step > 0 && step < minStep) {
+        minStep = step;
+      }
+      lastValue = value;
+    }
+
+    const bandWidth =
+      minStep < Infinity ? Math.abs(((rangeEnd - rangeStart) / (domainEnd - domainStart)) * minStep) : undefined;
+    if (!Number.isFinite(bandWidth)) {
+      return undefined;
+    }
+
+    this._continuousBarBandwidthCache = {
+      scale,
+      domainStart,
+      domainEnd,
+      rangeStart,
+      rangeEnd,
+      bandWidth
+    };
+    return bandWidth;
   }
 
   /** LifeCycle API**/
@@ -789,6 +907,16 @@ export abstract class CartesianAxis<T extends ICartesianAxisCommonSpec = ICartes
 
   protected initEvent() {
     super.initEvent();
+    eachSeries(
+      this._regions,
+      s => {
+        s.getViewDataStatistics?.()?.target.addListener('change', this._clearContinuousBarBandwidthCache);
+      },
+      {
+        userId: this._seriesUserId,
+        specIndex: this._seriesIndex
+      }
+    );
 
     if (this._specVisible) {
       // 过程: dolayout -> getBoundsInRect: update tick attr -> forceLayout ->  updateLayoutAttr: update tick attr -> chart layout -> scale update -> mark encode

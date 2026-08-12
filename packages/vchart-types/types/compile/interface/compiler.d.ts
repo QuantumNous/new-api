@@ -57,6 +57,7 @@ export interface IRenderOption {
     disableDirtyBounds?: boolean;
     enableView3dTransform?: boolean;
     pluginList?: string[];
+    runtimePluginInstallers?: ((app?: IApp) => void)[];
     ticker?: ITicker;
     optimize?: IOptimizeType;
     enableHtmlAttribute?: boolean;

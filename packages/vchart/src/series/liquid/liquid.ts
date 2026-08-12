@@ -19,7 +19,7 @@ import { BaseSeries } from '../base';
 // eslint-disable-next-line no-duplicate-imports
 import { registerGroupMark } from '../../mark/group';
 import { getShapes } from './util';
-import { createRect, createSymbol } from '@visactor/vrender-core';
+import { createRect, createSymbol } from '../../vrender-bridge';
 import type { IColor, IGlyph } from '@visactor/vrender-core';
 import { labelSmartInvert } from '@visactor/vrender-components';
 import { normalizeLayoutPaddingSpec } from '../../util';

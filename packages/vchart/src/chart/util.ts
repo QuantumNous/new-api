@@ -7,7 +7,7 @@ import { mergeSpec } from '@visactor/vutils-extension';
 import type { ICartesianChartSpec } from './cartesian/interface';
 import type { IChartOption } from './interface/common';
 import type { IUpdateSpecEffects, IUpdateSpecResult } from '../model/interface';
-import { vglobal } from '@visactor/vrender-core';
+import { vglobal } from '../vrender-bridge';
 
 export function setDefaultCrosshairForCartesianChart(spec: ICartesianChartSpec) {
   spec.crosshair = array(spec.crosshair || {}).map(crosshairCfg => {

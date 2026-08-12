@@ -26,6 +26,27 @@ export const getFunnelTheme = (is3d?: boolean): IFunnelSeriesTheme => {
         fill: { type: 'palette', key: 'secondaryFontColor' },
         textBaseline: 'middle'
       }
+    },
+    conversionArrow: {
+      // Defaults intentionally mirror the original hardcoded constants (non-breaking); they are
+      // only surfaced to the theme layer so they can be overridden.
+      // To adapt to dark themes, override them in a custom theme, e.g. { type: 'palette', key: 'axisDomainColor' }.
+      line: {
+        style: {
+          stroke: 'black'
+        }
+      },
+      symbol: {
+        style: {
+          fill: 'black'
+        }
+      },
+      text: {
+        style: {
+          fontSize: 12,
+          fill: '#606773'
+        }
+      }
     }
   };
 

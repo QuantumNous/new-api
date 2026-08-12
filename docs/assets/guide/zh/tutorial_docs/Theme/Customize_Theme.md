@@ -208,6 +208,30 @@ const vchart = new VChart(spec, { dom: CONTAINER_ID });
 vchart.renderSync();
 ```
 
+### 在序列化主题中引用回调函数
+
+直接注册 JavaScript 主题时，可以在图元的 `style` 和 `state` 中配置回调函数。如果主题来自 JSON 等不可保存函数的序列化数据，可以先通过 `VChart.registerFunction` 注册函数，再在主题中使用函数名。函数需要在图表渲染或切换到该主题前完成注册。
+
+```javascript
+VChart.registerFunction('theme.bar.fill', datum => {
+  return datum.value < 0 ? '#f53f3f' : '#00b42a';
+});
+
+VChart.ThemeManager.registerTheme('userTheme', {
+  series: {
+    bar: {
+      bar: {
+        style: {
+          fill: 'theme.bar.fill'
+        }
+      }
+    }
+  }
+});
+```
+
+函数名只会解析为通过 `registerFunction` 注册的可信函数，不会把字符串作为代码执行。建议使用带命名空间的函数名，避免与普通样式字符串重名。
+
 ## 更新主题
 
 在某些应用场景下，我们可能需要根据用户的操作或其他状态来动态更新图表的主题。下面将介绍如何热更新单个图表实例和全局图表实例的主题：

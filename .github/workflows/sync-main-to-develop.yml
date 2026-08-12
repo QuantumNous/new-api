@@ -1,6 +1,12 @@
 name: Sync main to develop after release
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version to sync, e.g. 1.2.3. Defaults to packages/vchart version on main.'
+        required: false
+        type: string
   pull_request:
     types:
       - closed
@@ -9,7 +15,9 @@ on:
 
 jobs:
   sync_main_to_develop:
-    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/'))
 
     runs-on: macos-latest
 
@@ -24,11 +32,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Configure Git identity
         run: |
           git config user.name ${{ github.actor }}
           git config user.email ${{ github.actor }}@users.noreply.github.com
+
+      - name: Configure git remote for workflow-created branches
+        env:
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -75,11 +94,19 @@ jobs:
 
       - name: Compute sync branch name and check existence
         id: sync_branch
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          PACKAGE_VERSION: ${{ steps.package_version.outputs.current_version }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.package_version.outputs.current_version }}"
+          VERSION="${INPUT_VERSION:-${PACKAGE_VERSION}}"
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid sync version: ${VERSION}"
+            exit 1
+          fi
           BRANCH="sync/main-${VERSION}"
           echo "sync_branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
           git fetch origin "${BRANCH}":refs/remotes/origin/tmp-sync-branch 2>/dev/null || true
           if git ls-remote --exit-code --heads origin "${BRANCH}" > /dev/null 2>&1; then
@@ -93,7 +120,6 @@ jobs:
         if: steps.sync_branch.outputs.exists == 'false'
         run: |
           set -euo pipefail
-          VERSION="${{ steps.package_version.outputs.current_version }}"
           BRANCH="${{ steps.sync_branch.outputs.sync_branch }}"
           git checkout main
           git pull --ff-only origin main
@@ -101,9 +127,8 @@ jobs:
           git push --no-verify origin "${BRANCH}"
 
       - name: Create Pull Request to develop
-        if: steps.sync_branch.outputs.exists == 'false'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
         run: |
           set -euo pipefail
           BRANCH="${{ steps.sync_branch.outputs.sync_branch }}"
@@ -115,7 +140,7 @@ jobs:
             exit 0
           fi
 
-          TITLE="[Auto Sync] Sync the code from branch main to branch develop after release ${{ steps.package_version.outputs.current_version }}"
-          BODY="Sync the code from branch main to branch develop after release ${{ steps.package_version.outputs.current_version }}"
+          TITLE="[Auto Sync] Sync the code from branch main to branch develop after release ${{ steps.sync_branch.outputs.version }}"
+          BODY="Sync the code from branch main to branch develop after release ${{ steps.sync_branch.outputs.version }}"
 
           gh pr create --base develop --head "$BRANCH" --title "$TITLE" --body "$BODY" --reviewer xuefei1313

@@ -1274,6 +1274,7 @@ export abstract class BaseSeries<T extends ISeriesSpec> extends BaseModel<T> imp
       (this._spec as any)[mark.name] && this.initMarkStyleWithSpec(mark, (this._spec as any)[mark.name]);
     });
     this.initMarkStyle();
+    this.initMarkState();
     marks.forEach(mark => {
       mark.commit(false);
     });

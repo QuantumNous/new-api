@@ -160,4 +160,37 @@ describe('[Domain-Series-Funnel] Funnel Series', () => {
     funnelData0[FUNNEL_TRANSFORM_LEVEL] = true;
     expect(get(funnelPolygon.stateStyle.normal, 'points.style')(funnelData0)[0].y).toBe(400);
   });
+
+  test('single zero value keeps visible funnel width', () => {
+    const singleZeroDataView = new DataView(dataSet);
+    singleZeroDataView.parse('name,value\nStep1,0', {
+      type: 'csv'
+    });
+
+    const funnel = new FunnelSeries<any>(
+      {
+        data: singleZeroDataView,
+        maxSize: 400,
+        categoryField: 'name',
+        valueField: 'value'
+      },
+      ctx
+    );
+    funnel.created();
+    funnel.init({});
+    funnel.fillData();
+    funnel.setLayoutRect({ width: 500, height: 500 });
+    funnel.getLayoutRect = () => {
+      return { width: 500, height: 500 };
+    };
+
+    const funnelData0 = funnel.getViewData()?.latestData?.[0];
+    const points = funnel.getPoints(funnelData0);
+
+    expect(funnelData0[FUNNEL_VALUE_RATIO]).toBe(1);
+    expect(points[0].x).toBe(50);
+    expect(points[1].x).toBe(450);
+    expect(points[2].x).toBe(250);
+    expect(points[3].x).toBe(250);
+  });
 });

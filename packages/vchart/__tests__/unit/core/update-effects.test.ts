@@ -40,6 +40,7 @@ type TestChartModel = {
   getComponentsByKey: (key: string) => Array<{
     position?: string;
     getOrient?: () => string;
+    getVRenderComponents?: () => TestVRenderGraphic[];
     getScale?: () => { domain: () => unknown[] };
     getTickData?: () => {
       getDataView: () => {
@@ -50,6 +51,15 @@ type TestChartModel = {
   updateDataSpec: () => void;
   updateGlobalScaleDomain: () => void;
   reDataFlow: () => void;
+};
+
+type TestVRenderGraphic = {
+  name?: string;
+  attribute?: {
+    visible?: boolean;
+    visibleAll?: boolean;
+  };
+  forEachChildren?: (cb: (child: TestVRenderGraphic) => void) => void;
 };
 
 const getChartModel = (chart: VChart) => chart.getChart() as unknown as TestChartModel;
@@ -260,6 +270,29 @@ const createAxisElementVisibleSpec = (element: AxisVisibleElement, visible: bool
     }
   ]
 });
+
+const createLineAxisGridVisibleSpec = (gridVisible: boolean, animation: boolean): ILineChartSpec =>
+  ({
+    type: 'line',
+    animation,
+    data: [
+      {
+        id: 'data',
+        values: [
+          { x: 'A', y: 11 },
+          { x: 'B', y: 12 },
+          { x: 'C', y: 23 },
+          { x: 'D', y: 14 }
+        ]
+      }
+    ],
+    xField: 'x',
+    yField: 'y',
+    axes: [
+      { orient: 'left', grid: { visible: gridVisible } },
+      { orient: 'bottom', grid: { visible: gridVisible } }
+    ]
+  } as ILineChartSpec);
 
 const createLegendAppearanceSpec = (
   labelFill: string,
@@ -1282,6 +1315,55 @@ const getAxisTickTransformOptions = (chart: VChart, orient: 'angle' | 'radius') 
   return tickTransform?.options as { startAngle?: number };
 };
 
+const findAxisGridComponent = (chart: VChart, orient: 'left' | 'bottom') => {
+  const axis = getChartModel(chart)
+    .getComponentsByKey('axes')
+    .find(axisItem => axisItem.getOrient?.() === orient);
+
+  return axis?.getVRenderComponents?.()[1];
+};
+
+const getAxisGridComponent = (chart: VChart, orient: 'left' | 'bottom') => {
+  const gridComponent = findAxisGridComponent(chart, orient);
+  expect(gridComponent).toBeDefined();
+
+  return gridComponent as TestVRenderGraphic;
+};
+
+const collectGraphicsByName = (graphic: TestVRenderGraphic, name: string) => {
+  const graphics: TestVRenderGraphic[] = [];
+  const visit = (current: TestVRenderGraphic) => {
+    if (current.name === name) {
+      graphics.push(current);
+    }
+    current.forEachChildren?.(visit);
+  };
+
+  visit(graphic);
+  return graphics;
+};
+
+const expectAxisGridLinesShown = (chart: VChart, orient: 'left' | 'bottom') => {
+  const gridComponent = getAxisGridComponent(chart, orient);
+  const gridLines = collectGraphicsByName(gridComponent, 'axis-grid-line');
+
+  expect(gridComponent.attribute?.visibleAll).not.toBe(false);
+  expect(gridLines.length).toBeGreaterThan(0);
+  gridLines.forEach(gridLine => {
+    expect(gridLine.attribute?.visible).not.toBe(false);
+  });
+};
+
+const expectAxisGridHidden = (chart: VChart, orient: 'left' | 'bottom') => {
+  const gridComponent = findAxisGridComponent(chart, orient);
+
+  if (!gridComponent) {
+    return;
+  }
+
+  expect(gridComponent.attribute?.visibleAll).toBe(false);
+};
+
 const getFirstScatterGraphic = (chart: VChart) => {
   const scatterSeries = chart
     .getChart()
@@ -2191,6 +2273,29 @@ describe('vchart scoped update effects', () => {
       const result = (chart as unknown as VChartInternals)._updateSpec(createAxisElementVisibleSpec('grid', true));
 
       expect(result.reMake).toBe(true);
+    } finally {
+      chart.release();
+    }
+  });
+
+  it('restores existing axis grid lines after animation false hides and shows them', async () => {
+    const chart = new VChart(createLineAxisGridVisibleSpec(true, true), { dom });
+
+    try {
+      chart.renderSync();
+
+      expectAxisGridLinesShown(chart, 'left');
+      expectAxisGridLinesShown(chart, 'bottom');
+
+      await chart.updateSpec(createLineAxisGridVisibleSpec(false, false));
+
+      expectAxisGridHidden(chart, 'left');
+      expectAxisGridHidden(chart, 'bottom');
+
+      await chart.updateSpec(createLineAxisGridVisibleSpec(true, false));
+
+      expectAxisGridLinesShown(chart, 'left');
+      expectAxisGridLinesShown(chart, 'bottom');
     } finally {
       chart.release();
     }

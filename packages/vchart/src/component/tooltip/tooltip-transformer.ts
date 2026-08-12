@@ -1,4 +1,4 @@
-import { vglobal } from '@visactor/vrender-core';
+import { vglobal } from '../../vrender-bridge';
 import type { IChartSpecInfo } from '../../chart/interface';
 import { domDocument, isMiniAppLikeMode, isString, isTrueBrowser, isValid } from '../../util';
 import { BaseComponentSpecTransformer } from '../base';

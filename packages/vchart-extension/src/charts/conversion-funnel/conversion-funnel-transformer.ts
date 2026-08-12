@@ -15,7 +15,8 @@ export class ConversionFunnelChartSpecTransformer extends FunnelChartSpecTransfo
   transformSpec(spec: IConversionFunnelChartSpecBase): void {
     const { conversionArrow, extensionMark = [], funnelBackground } = spec;
     if (conversionArrow && conversionArrow.arrows && conversionArrow.arrows.length) {
-      const marks = addArrowMark(conversionArrow);
+      const arrowTheme = (this._option?.getTheme?.('series', 'funnel') as any)?.conversionArrow;
+      const marks = addArrowMark(conversionArrow, arrowTheme);
       if (marks && marks.length) {
         extensionMark.push(...marks);
       }
@@ -39,13 +40,19 @@ export class ConversionFunnelChartSpecTransformer extends FunnelChartSpecTransfo
 }
 
 /**  Arrow Related */
-function addArrowMark(arrowSpec: IConversionFunnelSpec['conversionArrow']) {
+interface IArrowTheme {
+  line?: { style?: Record<string, any> };
+  symbol?: { style?: Record<string, any> };
+  text?: { style?: Record<string, any> };
+}
+
+function addArrowMark(arrowSpec: IConversionFunnelSpec['conversionArrow'], theme?: IArrowTheme) {
   const { arrows, ...style } = arrowSpec;
   const leftArrows = arrows.filter(arrow => arrow.position === 'left');
   const rightArrows = arrows.filter(arrow => arrow.position === 'right');
 
-  const rightGroup = computeArrows(rightArrows, style);
-  const leftGroup = computeArrows(leftArrows, style);
+  const rightGroup = computeArrows(rightArrows, style, theme);
+  const leftGroup = computeArrows(leftArrows, style, theme);
 
   const result = [];
   if (rightGroup) {
@@ -60,7 +67,11 @@ function addArrowMark(arrowSpec: IConversionFunnelSpec['conversionArrow']) {
   return result;
 }
 
-function computeArrows(arrows: Arrow[], style: Omit<IConversionFunnelSpec['conversionArrow'], 'arrows'>) {
+function computeArrows(
+  arrows: Arrow[],
+  style: Omit<IConversionFunnelSpec['conversionArrow'], 'arrows'>,
+  theme?: IArrowTheme
+) {
   if (arrows?.length === 0) {
     return null;
   }
@@ -74,15 +85,15 @@ function computeArrows(arrows: Arrow[], style: Omit<IConversionFunnelSpec['conve
     zIndex: LayoutZIndex.Mark + 1,
     children: []
   };
-  const lineMark = generateArrowLineSpec(line, margin);
+  const lineMark = generateArrowLineSpec(line, margin, theme?.line?.style);
   if (lineMark) {
     result.push(lineMark);
   }
-  const arrowMark = generateArrowSymbolSpec(symbol, margin);
+  const arrowMark = generateArrowSymbolSpec(symbol, margin, theme?.symbol?.style);
   if (arrowMark) {
     result.push(arrowMark);
   }
-  const textMark = generateArrowTextSpec(text, margin);
+  const textMark = generateArrowTextSpec(text, margin, theme?.text?.style);
   if (textMark) {
     result.push(textMark);
   }
@@ -90,7 +101,11 @@ function computeArrows(arrows: Arrow[], style: Omit<IConversionFunnelSpec['conve
   return rootGroup;
 }
 
-function generateArrowLineSpec(line: IConversionFunnelSpec['conversionArrow']['line'] = {}, margin?: number) {
+function generateArrowLineSpec(
+  line: IConversionFunnelSpec['conversionArrow']['line'] = {},
+  margin?: number,
+  themeStyle: Record<string, any> = {}
+) {
   const { style = {}, ...rest } = line;
   const renderable = (arrow: any, ctx: any) => {
     const { from, to } = arrow;
@@ -112,6 +127,7 @@ function generateArrowLineSpec(line: IConversionFunnelSpec['conversionArrow']['l
     dataKey: arrow => `${arrow.id}`,
     style: {
       ...DEFAULT_ARROW_MARK_STYLE,
+      ...themeStyle,
       ...style,
       renderable,
       points: (arrow: any, ctx: any) => {
@@ -126,7 +142,11 @@ function generateArrowLineSpec(line: IConversionFunnelSpec['conversionArrow']['l
   } as IExtensionMarkSpec<'polygon'>;
 }
 
-function generateArrowSymbolSpec(symbol: IConversionFunnelSpec['conversionArrow']['symbol'] = {}, margin?: number) {
+function generateArrowSymbolSpec(
+  symbol: IConversionFunnelSpec['conversionArrow']['symbol'] = {},
+  margin?: number,
+  themeStyle: Record<string, any> = {}
+) {
   const { style = {}, ...rest } = symbol;
   return {
     type: 'symbol',
@@ -135,6 +155,7 @@ function generateArrowSymbolSpec(symbol: IConversionFunnelSpec['conversionArrow'
     ...rest,
     style: {
       ...DEFAULT_ARROW_SYMBOL_MARK_STYLE,
+      ...themeStyle,
       ...style,
 
       x: (arrow: any, ctx: any) => {
@@ -152,7 +173,11 @@ function generateArrowSymbolSpec(symbol: IConversionFunnelSpec['conversionArrow'
   } as IExtensionMarkSpec<'symbol'>;
 }
 
-function generateArrowTextSpec(text: IConversionFunnelSpec['conversionArrow']['text'] = {}, margin?: number) {
+function generateArrowTextSpec(
+  text: IConversionFunnelSpec['conversionArrow']['text'] = {},
+  margin?: number,
+  themeStyle: Record<string, any> = {}
+) {
   const { style = {}, formatMethod, textMargin = 4, ...rest } = text;
 
   return {
@@ -163,6 +188,7 @@ function generateArrowTextSpec(text: IConversionFunnelSpec['conversionArrow']['t
     ...rest,
     style: {
       ...DEFAULT_ARROW_TEXT_MARK_STYLE,
+      ...themeStyle,
       text: (arrow: any, ctx: any) => {
         const { text: textContent } = arrow;
         let displayTextContent: ReturnType<typeof formatMethod> = textContent;

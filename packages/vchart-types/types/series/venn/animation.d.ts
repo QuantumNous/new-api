@@ -1,4 +1,4 @@
-import { ACustomAnimate } from '@visactor/vrender-animate';
+import { ACustomAnimate } from '@visactor/vrender-animate/custom/custom-animate';
 import type { IVennCircle, IVennOverlapArc, VennCircleName } from '@visactor/vlayouts';
 import type { VennAppearPreset } from './interface';
 import type { IAnimationTypeConfig } from '../../animation/interface';

@@ -2,6 +2,7 @@ import { Factory } from '@visactor/vchart/esm/core/factory';
 import type { AdaptiveSpec } from '@visactor/vchart/esm/typings/spec/common';
 import { BasePieChart } from '@visactor/vchart/esm/chart/pie/base/base';
 import { registerMarkTooltipProcessor } from '@visactor/vchart/esm/component/tooltip/processor/mark-tooltip';
+import { registerAnimate } from '@visactor/vchart/esm/plugin/other';
 import type { IPie3dChartSpec } from './interface';
 import { ChartType3dEnum, SeriesType3dEnum } from '../3d/enum';
 import { register3DPlugin } from '../3d/plugin';
@@ -20,6 +21,7 @@ export class Pie3dChart<T extends IPie3dChartSpec = IPie3dChartSpec> extends Bas
 }
 
 export const registerPie3dChart = () => {
+  registerAnimate();
   registerMarkTooltipProcessor();
   register3DPlugin();
   registerLayout3d();

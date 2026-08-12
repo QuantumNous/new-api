@@ -1,4 +1,4 @@
-import { isBrowserEnv } from '@visactor/vrender-core';
+import { isBrowserEnv } from '@visactor/vrender-core/env';
 import type { RenderMode } from '../typings/spec';
 
 export const isBrowser = isBrowserEnv();

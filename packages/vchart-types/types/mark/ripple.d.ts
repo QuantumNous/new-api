@@ -3,7 +3,7 @@ import type { IMarkStyle, IRippleMark } from './interface';
 import { MarkTypeEnum } from './interface/type';
 import { GlyphMark } from './glyph';
 import type { Datum } from '../typings/common';
-import { type IGlyph } from '@visactor/vrender-core';
+import type { IGlyph } from '@visactor/vrender-core';
 export declare class RippleMark extends GlyphMark<IRippleMarkSpec> implements IRippleMark {
     static readonly type = MarkTypeEnum.ripple;
     readonly type = MarkTypeEnum.ripple;

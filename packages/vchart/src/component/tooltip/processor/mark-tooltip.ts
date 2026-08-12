@@ -4,7 +4,7 @@ import type { ITooltipSpec, TooltipHandlerParams } from '../interface';
 import type { MarkTooltipInfo, MouseEventData } from './interface';
 import { BaseTooltipProcessor } from './base';
 import type { ISeries } from '../../../series/interface';
-import { IContainPointMode } from '@visactor/vrender-core';
+import { IContainPointMode } from '@visactor/vrender-core/event/constant';
 import type { IDimensionData } from '../../../event/events/dimension/interface';
 import type { Label } from '../../label';
 import { getDatumOfGraphic } from '../../../util/mark';

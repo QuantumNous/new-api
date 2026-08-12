@@ -63,7 +63,7 @@ import type {
   StateDefinitionsInput,
   StateResolveContext
 } from '@visactor/vrender-core';
-import { createGroup, CustomPath2D } from '@visactor/vrender-core';
+import { createGroup, CustomPath2D } from '../../vrender-bridge';
 import { isStateAttrChangeable } from '../../compile/mark/util';
 import { Factory } from '../../core/factory';
 import { DEFAULT_DATA_KEY } from '../../constant/data';

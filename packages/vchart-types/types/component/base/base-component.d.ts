@@ -1,4 +1,4 @@
-import { type IGraphicAttribute, type IGraphic, type IGroup } from '@visactor/vrender-core';
+import type { IGraphicAttribute, IGraphic, IGroup } from '@visactor/vrender-core';
 import type { IRegion } from '../../region/interface';
 import type { IComponent, IComponentOption } from '../interface';
 import type { IComponentPluginService, IComponentPlugin } from '../../plugin/components/interface';

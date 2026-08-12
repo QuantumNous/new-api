@@ -42,11 +42,14 @@ export function getRollupOptions(
   babelPlugins: BabelPlugins,
   config: Config
 ): RollupOptions {
+  const { prePlugins = [], plugins = [], ...rollupOptions } = config.rollupOptions;
+
   return {
     input: entry,
     external: getExternal(rawPackageJson, config.external),
-    ...config.rollupOptions,
+    ...rollupOptions,
     plugins: [
+      ...prePlugins,
       resolve(getNodeResolveOptions(entry, config)),
       commonjs(),
       babel({ ...babelPlugins, babelHelpers: 'bundled' }),
@@ -68,7 +71,7 @@ export function getRollupOptions(
       }),
       Alias({ entries: config.alias }),
       ...(config.minify ? [terser()] : []),
-      ...((config.rollupOptions.plugins as Plugin[]) || [])
+      ...(plugins as Plugin[])
     ]
   };
 }

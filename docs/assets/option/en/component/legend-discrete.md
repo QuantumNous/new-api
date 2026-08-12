@@ -838,6 +838,10 @@ Default current page number.
 
 The spacing of the page turner from the same legend.
 
+#### hugContent(boolean) = false
+
+Whether the pager hugs the legend content. Defaults to `false`, where the pager is pinned to the far end of the legend's available space, the items and the pager are justified to opposite ends, and the legend bounds always occupy the full available space. When enabled, the pager is placed right after the last legend item (using `space` as the gap, falling back to the end-pinned position when the content fills the available space), and the paging clip region shrinks to the actual content extent, so the bounds of "items + pager" hug the content. This makes it easy to center the whole block for legends with `orient` set to `'top'` | `'bottom'`.
+
 #### animation(boolean) = true
 
 Whether to turn on animation.

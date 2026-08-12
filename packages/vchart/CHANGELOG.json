@@ -2,6 +2,26 @@
   "name": "@visactor/vchart",
   "entries": [
     {
+      "version": "2.1.2",
+      "tag": "@visactor/vchart_v2.1.2",
+      "date": "Wed, 08 Jul 2026 08:25:01 GMT",
+      "comments": {
+        "none": [
+          {
+            "comment": "fix(vchart): handle progressive graphics hover state\n\n"
+          },
+          {
+            "comment": "fix: normalize funnel range mapping\n\n"
+          }
+        ],
+        "patch": [
+          {
+            "comment": "fix: stabilize BytePack ESM VRender registration paths and preserve seriesStyle after theme updates"
+          }
+        ]
+      }
+    },
+    {
       "version": "2.1.1",
       "tag": "@visactor/vchart_v2.1.1",
       "date": "Thu, 25 Jun 2026 03:26:39 GMT",

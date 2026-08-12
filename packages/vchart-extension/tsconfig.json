@@ -5,7 +5,11 @@
     "baseUrl": "./",
     "rootDir": "./src",
     "outDir": "./esm",
-    "composite": true
+    "composite": true,
+    "paths": {
+      "@visactor/vrender-core": ["./node_modules/@visactor/vrender-core/es/index"],
+      "@visactor/vrender-core/*": ["./node_modules/@visactor/vrender-core/es/*"]
+    }
   },
   "ts-node": {
     "transpileOnly": true,

@@ -1,3 +1,16 @@
+# v2.1.3
+
+2026-07-08
+
+**🐛 Bug Fixes**
+
+- **@visactor/vchart**: handle progressive graphics hover state
+- **@visactor/vchart**: stabilize BytePack ESM VRender registration paths and preserve seriesStyle after theme updates
+- **@visactor/vchart**: normalize funnel range mapping
+
+**Full Changelog**: https://github.com/VisActor/VChart/compare/v2.1.1...v2.1.3
+
+[more detail about v2.1.3](https://github.com/VisActor/VChart/releases/tag/v2.1.3)
 # v2.1.1
 
 2026-06-25

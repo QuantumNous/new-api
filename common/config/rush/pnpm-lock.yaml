@@ -19,16 +19,16 @@ importers:
         specifier: 2.46.1
         version: 2.46.1(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@visactor/openinula-vchart':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../packages/openinula-vchart
       '@visactor/react-vchart':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../packages/react-vchart
       '@visactor/vchart':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../packages/vchart
       '@visactor/vchart-extension':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../packages/vchart-extension
       '@visactor/vchart-theme':
         specifier: ~1.6.6
@@ -37,11 +37,11 @@ importers:
         specifier: 1.2.4-alpha.5
         version: 1.2.4-alpha.5
       '@visactor/vrender':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-kits':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vtable':
         specifier: 1.19.0-alpha.0
         version: 1.19.0-alpha.0
@@ -200,14 +200,14 @@ importers:
   ../../packages/openinula-vchart:
     dependencies:
       '@visactor/vchart':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../vchart
       '@visactor/vrender-core':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-kits':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vutils':
         specifier: ~1.0.23
         version: 1.0.23
@@ -288,17 +288,17 @@ importers:
   ../../packages/react-vchart:
     dependencies:
       '@visactor/vchart':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../vchart
       '@visactor/vchart-extension':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../vchart-extension
       '@visactor/vrender-core':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-kits':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vutils':
         specifier: ~1.0.23
         version: 1.0.23
@@ -388,10 +388,10 @@ importers:
   ../../packages/taro-vchart:
     dependencies:
       '@visactor/vchart':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../vchart
       '@visactor/vchart-extension':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../vchart-extension
     devDependencies:
       '@babel/core':
@@ -529,20 +529,20 @@ importers:
         specifier: ~1.0.23
         version: 1.0.23
       '@visactor/vrender':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-animate':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-components':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-core':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-kits':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vscale':
         specifier: ~1.0.23
         version: 1.0.23
@@ -550,7 +550,7 @@ importers:
         specifier: ~1.0.23
         version: 1.0.23
       '@visactor/vutils-extension':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../vutils-extension
     devDependencies:
       '@esbuild-plugins/node-globals-polyfill':
@@ -686,7 +686,7 @@ importers:
   ../../packages/vchart-extension:
     dependencies:
       '@visactor/vchart':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../vchart
       '@visactor/vdataset':
         specifier: ~1.0.23
@@ -695,17 +695,17 @@ importers:
         specifier: ~1.0.23
         version: 1.0.23
       '@visactor/vrender-animate':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-components':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-core':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-kits':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vutils':
         specifier: ~1.0.23
         version: 1.0.23
@@ -994,10 +994,10 @@ importers:
   ../../tools/bugserver-trigger:
     dependencies:
       '@visactor/vchart':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../../packages/vchart
       '@visactor/vchart-extension':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../../packages/vchart-extension
     devDependencies:
       '@internal/bundler':
@@ -1260,17 +1260,17 @@ importers:
   ../../tools/story-player:
     dependencies:
       '@visactor/vchart':
-        specifier: workspace:2.1.1
+        specifier: workspace:2.1.3
         version: link:../../packages/vchart
       '@visactor/vrender':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-core':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vrender-kits':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ~1.1.4
+        version: 1.1.4
       '@visactor/vutils':
         specifier: ~1.0.23
         version: 1.0.23
@@ -2942,8 +2942,8 @@ packages:
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
 
-  '@types/vinyl-fs@3.0.7':
-    resolution: {integrity: sha512-ojGFhBnh5pj5Crf2yBOk3rjJXUX2U4W9z6tZ7hn6pUbQa/J8KH8NrXem0POYVQWI3ifnx4T65DPktuWfxc3iiA==}
+  '@types/vinyl-fs@3.0.8':
+    resolution: {integrity: sha512-L36QEbDQVv5zaPawqqjrpOOR03BIK3iQ4wa2Rrk376CER8Vbu0Ao8XPNhjM14anStU28solakJLThY7GPp40Jw==}
 
   '@types/vinyl@2.0.7':
     resolution: {integrity: sha512-4UqPv+2567NhMQuMLdKAyK4yzrfCqwaTt6bLhHEs8PFcxbHILsrxaY63n4wgE/BRLDWDQeI+WcTmkXKExh9hQg==}
@@ -3079,29 +3079,29 @@ packages:
   '@visactor/vrender-animate@1.0.0-alpha.18':
     resolution: {integrity: sha512-9kTtvp1ef+1t+AtUiza6A7qBQP7SmvOu3/ILGrqs/HGdZVj1XGjbYvD/X/zwKJ3LEb7gGV5fa8x95e4czTvRSA==}
 
-  '@visactor/vrender-animate@1.1.3':
-    resolution: {integrity: sha512-uqm0ihI+0dIGxMvvoDUbK6a1ifSTIXWjJmyLYOO3vldcmtvzbokaDk44h3RT9l+NwwswxO6TtTRykmBZZ6Ql+Q==}
+  '@visactor/vrender-animate@1.1.4':
+    resolution: {integrity: sha512-XBaCXMLSNw9E+htAEaqjby28mdINyVokNkLjKJ/ukmGobi3XX8siekXTNzCfe9M9UG4QGRTqyph848sxLB02Tw==}
 
   '@visactor/vrender-components@1.0.0-alpha.18':
     resolution: {integrity: sha512-7Euq+ZfswL74n2pgkaqZSsPxoSa5SPIGyXatN1eUrdzM2Z0kX6U0RcJg01fctvRs4op6WhcecRLqGvnHcBeb9Q==}
 
-  '@visactor/vrender-components@1.1.3':
-    resolution: {integrity: sha512-l5O9sUXF99V3b4t2swfgD91VxdmPB/t5SQGz/cMl7nyecuBU6IK0kVDzp1OC3G35nxYxCGp3S1IHT6Qk8K+Ndw==}
+  '@visactor/vrender-components@1.1.4':
+    resolution: {integrity: sha512-N1bnIuefe6Lms7Ij8NGjKfNUYQpZ+M8RYsnjBR2So0wmnxAnXUTgqbpWDT9DiXzRF17qYSkF0HZJIdS/wN2o3Q==}
 
   '@visactor/vrender-core@1.0.0-alpha.18':
     resolution: {integrity: sha512-0ihtNvCyNkOsWPFgRqowHzq0IcQgS2Wl/nPpKbVtxWKveenwlhA+ZKoQvam6VJyBY7jeNe1pROy0mJMDyVAJQw==}
 
-  '@visactor/vrender-core@1.1.3':
-    resolution: {integrity: sha512-6vsx0J5wX/QHfBk8cJ9o2/QVoodUYyjYCWJR+SuSLzldWXsV6+e1Lyrh2lFmwZvdSzz69FlwSMYcQ5i/IZ6OVQ==}
+  '@visactor/vrender-core@1.1.4':
+    resolution: {integrity: sha512-AyMKFohr/iK1Wc5jxvE/04MLcFI0VAR5qleDy+b2WwLi7UoeXn0tBhtzz72xIOKU1OrzvmflWsVmdnlh6ittwg==}
 
   '@visactor/vrender-kits@1.0.0-alpha.18':
     resolution: {integrity: sha512-Tvolkq+4G8qiPFZo0Aj8M//Yr6jR2h8FNkFEyWM9gbQbEiTkjpmHAJOYnoSsaPtPrcMSlG4EhJSFDk6ymANHVg==}
 
-  '@visactor/vrender-kits@1.1.3':
-    resolution: {integrity: sha512-Nw+JjBhtNQLUYZCs8KBpf5CHNM2FzrKFsNPTzry5+Qphj4hfpbGr0CsUeIZuVkwRRYEYAgqycINxdZEPsPvpgA==}
+  '@visactor/vrender-kits@1.1.4':
+    resolution: {integrity: sha512-YD1y2TWh5yl6AzpW47HPcYogk0d6KntuwUrGocXqSkLXwzsGnYntE9RvAEGTu4ketdeahh+8/0w34d6BU0Hzig==}
 
-  '@visactor/vrender@1.1.3':
-    resolution: {integrity: sha512-Ccu8erRCvDtHdSN5+VQqGUOSg7Cw37FqiQ6RlkZGzVi47DjOqgUy7AVW9r9lPm8ogDb/z5oAQStgIoFm3Nyeng==}
+  '@visactor/vrender@1.1.4':
+    resolution: {integrity: sha512-+T09pS5EJ2HizxMCa3r8MuvgcWnoJpGUK2ykLZLcR6w+5kfpfbu2B8uQzetTOKn1CVIhDbuO05monfI7mCYGQA==}
 
   '@visactor/vscale@0.18.18':
     resolution: {integrity: sha512-iRG4kv+5Fv4KX3AxEfV95XU3I6OmF0QizyAhqHxKa7L1MaT+MRvDDk5zHWf1E8gialLbL2xDe3GnT6g/4u5jhA==}
@@ -4053,8 +4053,8 @@ packages:
     resolution: {integrity: sha512-5T6P4xPgpp0YDFvSWwEZ4NoE3aM4QBQXDzmVbraCkFj8zHM+mba8SyqB5DbZWyR7mYHo6Y7BdQo3MoA4m0TeQg==}
     engines: {node: '>=0.10.0'}
 
-  baseline-browser-mapping@2.10.40:
-    resolution: {integrity: sha512-BSSLZ9/Cjjv7Gtj5B68ZzXcXUg8iOf3fme+FCuh8rC/Go+Kmh8cox7M3A8dolou16s64QjLPOSdngh7GxXvkSw==}
+  baseline-browser-mapping@2.10.42:
+    resolution: {integrity: sha512-c/jurFrDLyui7o1J86yLkRu4LMsTYcBohveus7/I2Hzdn9KIP2bdJPTue/lR1KH46enoPbD77GKeSYNdyPoD3Q==}
     engines: {node: '>=6.0.0'}
     hasBin: true
 
@@ -4362,8 +4362,8 @@ packages:
   camelize@1.0.1:
     resolution: {integrity: sha512-dU+Tx2fsypxTgtLoE36npi3UqcjSSMNYfkqgmoEhtZrraP5VWq0K7FkWVTYa8eMPtnU/G2txVsfdCJTn9uzpuQ==}
 
-  caniuse-lite@1.0.30001799:
-    resolution: {integrity: sha512-hG1bReV+OUU+MOqK4t/ZWI0tZOyz3rqS9XuhOUz1cIcbwBKjOyJEJuw9ER5JuNyqxNk8u/JUVbGibBOL1yrjFw==}
+  caniuse-lite@1.0.30001800:
+    resolution: {integrity: sha512-MMHtuAz9Ys840zAY5F4k6fV5GaivZ9sPk+nz0mY+GYVzRBnYkN0mpqkSR92oWRQ19yQWo4HvBV/FnC16AJX8MA==}
 
   canvas@2.11.2:
     resolution: {integrity: sha512-ItanGBMrmRV7Py2Z+Xhs7cT+FNt5K0vPL4p9EZ/UX/Mu7hFbkxSjKF2KVtPwX7UYWp7dRKnrTvReflgrItJbdw==}
@@ -5439,8 +5439,8 @@ packages:
     engines: {node: '>=0.10.0'}
     hasBin: true
 
-  electron-to-chromium@1.5.381:
-    resolution: {integrity: sha512-n9Wa6yB+vDsGuA8AKbl/0z7HbvWqt5jxIdvr1IUicd0ryPrk7/xzwqLv8D9AbbvZ6avVNtXYLTfmgFHkwkyelg==}
+  electron-to-chromium@1.5.387:
+    resolution: {integrity: sha512-TaxwufTFDufvPEoXdhwVrA3UdFWBeWGkYoJ1K8ldF1xe6gKfth6iRNS5lTQ5JPNOHdGQm8PT1QYKUqFLCiUefQ==}
 
   electron@11.5.0:
     resolution: {integrity: sha512-WjNDd6lGpxyiNjE3LhnFCAk/D9GIj1rU3GSDealVShhkkkPR3Vh4q8ErXGDl1OAO/faomVa10KoFPUN/pLbNxg==}
@@ -5745,8 +5745,8 @@ packages:
   eslint-import-resolver-node@0.3.10:
     resolution: {integrity: sha512-tRrKqFyCaKict5hOd244sL6EQFNycnMQnBe+j8uqGNXYzsImGbGUU4ibtoaBmv5FLwJwcFJNeg1GeVjQfbMrDQ==}
 
-  eslint-module-utils@2.13.0:
-    resolution: {integrity: sha512-bLohSkT6469rRs8czj0tLTD8vaeIS/whvPRJVjDr7IuoTT1k5DYDERlNycjDj/HkOlvQdYurmfZ/g3fG5bgeLQ==}
+  eslint-module-utils@2.14.0:
+    resolution: {integrity: sha512-W2WCRZ9Dqntd+2u8jJcVMV2PKulc6RdLgUUoh/yQr3uB6lo/ZOeGx11sv60/8S4QFFKNslAlWhr9u0Ef7ZW6Ig==}
     engines: {node: '>=4'}
     peerDependencies:
       eslint: '*'
@@ -9391,8 +9391,8 @@ packages:
     resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
 
-  picomatch@4.0.4:
-    resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
+  picomatch@4.0.5:
+    resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
     engines: {node: '>=12'}
 
   pidtree@0.5.0:
@@ -10695,8 +10695,8 @@ packages:
   simple-get@3.1.1:
     resolution: {integrity: sha512-CQ5LTKGfCpvE1K0n2us+kuMPbk/q0EKl82s4aheV9oXjFEz6W/Y7oQFVJuU6QG77hRT4Ghb5RURteF5vnWjupA==}
 
-  simple-statistics@7.9.1:
-    resolution: {integrity: sha512-F2KqbV8mNYuARZdIuKtqv8Ax0s5KLKy9kEsaAFnKJxkTU+ZjmBae5ssp6mtPqpAj+D29OITOSbm9aiSkEPo1cA==}
+  simple-statistics@7.9.3:
+    resolution: {integrity: sha512-WXpxUfo7BJCRpyl4besiuMV7wNj9xiPIq7IKmUQO4upIaF8pK2AXwhjttHN5L8KXZrLkGMCHGHq4p+pJXiIahQ==}
 
   simple-swizzle@0.2.4:
     resolution: {integrity: sha512-nAu1WFPQSMNr2Zn9PGSZK9AGn4t/y97lEm+MXTtUDwfP0ksAIX4nO+6ruD9Jwut4C49SB1Ws+fbXsm/yScWOHw==}
@@ -13619,7 +13619,7 @@ snapshots:
       jest-resolve: 26.6.2
       jest-resolve-dependencies: 26.6.3
       jest-runner: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5))
-      jest-runtime: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@4.9.5))
+      jest-runtime: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5))
       jest-snapshot: 26.6.2
       jest-util: 26.6.2
       jest-validate: 26.6.2
@@ -13738,7 +13738,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@jest/test-sequencer@26.6.3':
+  '@jest/test-sequencer@26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@4.9.5))':
     dependencies:
       '@jest/test-result': 26.6.2
       graceful-fs: 4.2.11
@@ -13746,7 +13746,25 @@ snapshots:
       jest-runner: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@4.9.5))
       jest-runtime: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@4.9.5))
     transitivePeerDependencies:
+      - bufferutil
+      - canvas
       - supports-color
+      - ts-node
+      - utf-8-validate
+
+  '@jest/test-sequencer@26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5))':
+    dependencies:
+      '@jest/test-result': 26.6.2
+      graceful-fs: 4.2.11
+      jest-haste-map: 26.6.2
+      jest-runner: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5))
+      jest-runtime: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5))
+    transitivePeerDependencies:
+      - bufferutil
+      - canvas
+      - supports-color
+      - ts-node
+      - utf-8-validate
 
   '@jest/transform@24.9.0':
     dependencies:
@@ -14031,7 +14049,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.9
       estree-walker: 2.0.2
-      picomatch: 4.0.4
+      picomatch: 4.0.5
     optionalDependencies:
       rollup: 3.20.5
 
@@ -14643,7 +14661,7 @@ snapshots:
   '@types/gulp@4.0.10':
     dependencies:
       '@types/undertaker': 1.2.8
-      '@types/vinyl-fs': 3.0.7
+      '@types/vinyl-fs': 3.0.8
       chokidar: 3.6.0
 
   '@types/highlightjs@9.12.6': {}
@@ -14792,7 +14810,7 @@ snapshots:
 
   '@types/unist@2.0.11': {}
 
-  '@types/vinyl-fs@3.0.7':
+  '@types/vinyl-fs@3.0.8':
     dependencies:
       '@types/glob-stream': 8.0.3
       '@types/node': 20.14.10
@@ -14973,7 +14991,7 @@ snapshots:
       path-browserify: 1.0.1
       pbf: 3.3.0
       point-at-length: 1.1.0
-      simple-statistics: 7.9.1
+      simple-statistics: 7.9.3
       simplify-geojson: 1.0.5
       topojson-client: 3.1.0
 
@@ -14993,7 +15011,7 @@ snapshots:
       path-browserify: 1.0.1
       pbf: 3.3.0
       point-at-length: 1.1.0
-      simple-statistics: 7.9.1
+      simple-statistics: 7.9.3
       simplify-geojson: 1.0.5
       topojson-client: 3.1.0
 
@@ -15013,7 +15031,7 @@ snapshots:
       path-browserify: 1.0.1
       pbf: 3.3.0
       point-at-length: 1.1.0
-      simple-statistics: 7.9.1
+      simple-statistics: 7.9.3
       simplify-geojson: 1.0.5
       topojson-client: 3.1.0
 
@@ -15047,9 +15065,9 @@ snapshots:
       '@visactor/vrender-core': 1.0.0-alpha.18
       '@visactor/vutils': 1.0.4
 
-  '@visactor/vrender-animate@1.1.3':
+  '@visactor/vrender-animate@1.1.4':
     dependencies:
-      '@visactor/vrender-core': 1.1.3
+      '@visactor/vrender-core': 1.1.4
       '@visactor/vutils': 1.0.23
 
   '@visactor/vrender-components@1.0.0-alpha.18':
@@ -15060,11 +15078,11 @@ snapshots:
       '@visactor/vscale': 1.0.4
       '@visactor/vutils': 1.0.4
 
-  '@visactor/vrender-components@1.1.3':
+  '@visactor/vrender-components@1.1.4':
     dependencies:
-      '@visactor/vrender-animate': 1.1.3
-      '@visactor/vrender-core': 1.1.3
-      '@visactor/vrender-kits': 1.1.3
+      '@visactor/vrender-animate': 1.1.4
+      '@visactor/vrender-core': 1.1.4
+      '@visactor/vrender-kits': 1.1.4
       '@visactor/vscale': 1.0.23
       '@visactor/vutils': 1.0.23
 
@@ -15073,7 +15091,7 @@ snapshots:
       '@visactor/vutils': 1.0.4
       color-convert: 2.0.1
 
-  '@visactor/vrender-core@1.1.3':
+  '@visactor/vrender-core@1.1.4':
     dependencies:
       '@visactor/vutils': 1.0.23
       color-convert: 2.0.1
@@ -15087,21 +15105,21 @@ snapshots:
       lottie-web: 5.13.0
       roughjs: 4.5.2
 
-  '@visactor/vrender-kits@1.1.3':
+  '@visactor/vrender-kits@1.1.4':
     dependencies:
       '@resvg/resvg-js': 2.4.1
-      '@visactor/vrender-core': 1.1.3
+      '@visactor/vrender-core': 1.1.4
       '@visactor/vutils': 1.0.23
       gifuct-js: 2.1.2
       lottie-web: 5.13.0
       roughjs: 4.6.6
 
-  '@visactor/vrender@1.1.3':
+  '@visactor/vrender@1.1.4':
     dependencies:
-      '@visactor/vrender-animate': 1.1.3
-      '@visactor/vrender-components': 1.1.3
-      '@visactor/vrender-core': 1.1.3
-      '@visactor/vrender-kits': 1.1.3
+      '@visactor/vrender-animate': 1.1.4
+      '@visactor/vrender-components': 1.1.4
+      '@visactor/vrender-core': 1.1.4
+      '@visactor/vrender-kits': 1.1.4
 
   '@visactor/vscale@0.18.18':
     dependencies:
@@ -15887,7 +15905,7 @@ snapshots:
   autoprefixer@10.4.13(postcss@8.4.21):
     dependencies:
       browserslist: 4.28.4
-      caniuse-lite: 1.0.30001799
+      caniuse-lite: 1.0.30001800
       fraction.js: 4.3.7
       normalize-range: 0.1.2
       picocolors: 1.1.1
@@ -15897,7 +15915,7 @@ snapshots:
   autoprefixer@8.6.5:
     dependencies:
       browserslist: 3.2.8
-      caniuse-lite: 1.0.30001799
+      caniuse-lite: 1.0.30001800
       normalize-range: 0.1.2
       num2fraction: 1.2.2
       postcss: 6.0.23
@@ -15906,7 +15924,7 @@ snapshots:
   autoprefixer@9.7.4:
     dependencies:
       browserslist: 4.28.4
-      caniuse-lite: 1.0.30001799
+      caniuse-lite: 1.0.30001800
       chalk: 2.4.2
       normalize-range: 0.1.2
       num2fraction: 1.2.2
@@ -15916,7 +15934,7 @@ snapshots:
   autoprefixer@9.8.8:
     dependencies:
       browserslist: 4.28.4
-      caniuse-lite: 1.0.30001799
+      caniuse-lite: 1.0.30001800
       normalize-range: 0.1.2
       num2fraction: 1.2.2
       picocolors: 0.2.1
@@ -16400,7 +16418,7 @@ snapshots:
       mixin-deep: 1.3.2
       pascalcase: 0.1.1
 
-  baseline-browser-mapping@2.10.40: {}
+  baseline-browser-mapping@2.10.42: {}
 
   batch@0.6.1: {}
 
@@ -16593,14 +16611,14 @@ snapshots:
 
   browserslist@3.2.8:
     dependencies:
-      caniuse-lite: 1.0.30001799
-      electron-to-chromium: 1.5.381
+      caniuse-lite: 1.0.30001800
+      electron-to-chromium: 1.5.387
 
   browserslist@4.28.4:
     dependencies:
-      baseline-browser-mapping: 2.10.40
-      caniuse-lite: 1.0.30001799
-      electron-to-chromium: 1.5.381
+      baseline-browser-mapping: 2.10.42
+      caniuse-lite: 1.0.30001800
+      electron-to-chromium: 1.5.387
       node-releases: 2.0.50
       update-browserslist-db: 1.2.3(browserslist@4.28.4)
 
@@ -16815,7 +16833,7 @@ snapshots:
 
   camelize@1.0.1: {}
 
-  caniuse-lite@1.0.30001799: {}
+  caniuse-lite@1.0.30001800: {}
 
   canvas@2.11.2(encoding@0.1.13):
     dependencies:
@@ -18089,7 +18107,7 @@ snapshots:
     dependencies:
       jake: 10.9.4
 
-  electron-to-chromium@1.5.381: {}
+  electron-to-chromium@1.5.387: {}
 
   electron@11.5.0:
     dependencies:
@@ -18430,13 +18448,13 @@ snapshots:
       is-core-module: 2.16.2
       resolve: 2.0.0-next.7
 
-  eslint-module-utils@2.13.0(eslint@6.8.0):
+  eslint-module-utils@2.14.0(eslint@6.8.0):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
       eslint: 6.8.0
 
-  eslint-module-utils@2.13.0(eslint@8.18.0):
+  eslint-module-utils@2.14.0(eslint@8.18.0):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
@@ -18453,7 +18471,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 6.8.0
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.13.0(eslint@6.8.0)
+      eslint-module-utils: 2.14.0(eslint@6.8.0)
       hasown: 2.0.4
       is-core-module: 2.16.2
       is-glob: 4.0.3
@@ -18476,7 +18494,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.18.0
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.13.0(eslint@8.18.0)
+      eslint-module-utils: 2.14.0(eslint@8.18.0)
       hasown: 2.0.4
       is-core-module: 2.16.2
       is-glob: 4.0.3
@@ -20912,7 +20930,7 @@ snapshots:
   jest-config@26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@4.9.5)):
     dependencies:
       '@babel/core': 7.20.12
-      '@jest/test-sequencer': 26.6.3
+      '@jest/test-sequencer': 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@4.9.5))
       '@jest/types': 26.6.2
       babel-jest: 26.6.3(@babel/core@7.20.12)
       chalk: 4.1.2
@@ -20940,7 +20958,7 @@ snapshots:
   jest-config@26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5)):
     dependencies:
       '@babel/core': 7.20.12
-      '@jest/test-sequencer': 26.6.3
+      '@jest/test-sequencer': 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5))
       '@jest/types': 26.6.2
       babel-jest: 26.6.3(@babel/core@7.20.12)
       chalk: 4.1.2
@@ -20950,7 +20968,7 @@ snapshots:
       jest-environment-jsdom: 26.6.2(canvas@2.11.2(encoding@0.1.13))
       jest-environment-node: 26.6.2
       jest-get-type: 26.3.0
-      jest-jasmine2: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@4.9.5))
+      jest-jasmine2: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5))
       jest-regex-util: 26.0.0
       jest-resolve: 26.6.2
       jest-util: 26.6.2
@@ -21166,6 +21184,33 @@ snapshots:
       - ts-node
       - utf-8-validate
 
+  jest-jasmine2@26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5)):
+    dependencies:
+      '@babel/traverse': 7.29.7
+      '@jest/environment': 26.6.2
+      '@jest/source-map': 26.6.2
+      '@jest/test-result': 26.6.2
+      '@jest/types': 26.6.2
+      '@types/node': 20.14.10
+      chalk: 4.1.2
+      co: 4.6.0
+      expect: 26.6.2
+      is-generator-fn: 2.1.0
+      jest-each: 26.6.2
+      jest-matcher-utils: 26.6.2
+      jest-message-util: 26.6.2
+      jest-runtime: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5))
+      jest-snapshot: 26.6.2
+      jest-util: 26.6.2
+      pretty-format: 26.6.2
+      throat: 5.0.0
+    transitivePeerDependencies:
+      - bufferutil
+      - canvas
+      - supports-color
+      - ts-node
+      - utf-8-validate
+
   jest-leak-detector@24.9.0:
     dependencies:
       jest-get-type: 24.9.0
@@ -21329,7 +21374,7 @@ snapshots:
       jest-leak-detector: 26.6.2
       jest-message-util: 26.6.2
       jest-resolve: 26.6.2
-      jest-runtime: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@4.9.5))
+      jest-runtime: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5))
       jest-util: 26.6.2
       jest-worker: 26.6.2
       source-map-support: 0.5.21
@@ -21387,6 +21432,42 @@ snapshots:
       glob: 7.2.3
       graceful-fs: 4.2.11
       jest-config: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@4.9.5))
+      jest-haste-map: 26.6.2
+      jest-message-util: 26.6.2
+      jest-mock: 26.6.2
+      jest-regex-util: 26.0.0
+      jest-resolve: 26.6.2
+      jest-snapshot: 26.6.2
+      jest-util: 26.6.2
+      jest-validate: 26.6.2
+      slash: 3.0.0
+      strip-bom: 4.0.0
+      yargs: 15.4.1
+    transitivePeerDependencies:
+      - bufferutil
+      - canvas
+      - supports-color
+      - ts-node
+      - utf-8-validate
+
+  jest-runtime@26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5)):
+    dependencies:
+      '@jest/console': 26.6.2
+      '@jest/environment': 26.6.2
+      '@jest/fake-timers': 26.6.2
+      '@jest/globals': 26.6.2
+      '@jest/source-map': 26.6.2
+      '@jest/test-result': 26.6.2
+      '@jest/transform': 26.6.2
+      '@jest/types': 26.6.2
+      '@types/yargs': 15.0.20
+      chalk: 4.1.2
+      cjs-module-lexer: 0.6.0
+      collect-v8-coverage: 1.0.3
+      exit: 0.1.2
+      glob: 7.2.3
+      graceful-fs: 4.2.11
+      jest-config: 26.6.3(canvas@2.11.2(encoding@0.1.13))(ts-node@10.9.0(@types/node@20.14.10)(typescript@5.4.5))
       jest-haste-map: 26.6.2
       jest-message-util: 26.6.2
       jest-mock: 26.6.2
@@ -23356,7 +23437,7 @@ snapshots:
 
   picomatch@2.3.2: {}
 
-  picomatch@4.0.4: {}
+  picomatch@4.0.5: {}
 
   pidtree@0.5.0: {}
 
@@ -24895,7 +24976,7 @@ snapshots:
       once: 1.4.0
       simple-concat: 1.0.1
 
-  simple-statistics@7.9.1: {}
+  simple-statistics@7.9.3: {}
 
   simple-swizzle@0.2.4:
     dependencies:

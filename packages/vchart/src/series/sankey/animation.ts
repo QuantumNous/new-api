@@ -5,7 +5,8 @@ import { DEFAULT_ANIMATION_CONFIG } from '../../animation/config';
 import { FadeInOutAnimation } from '../../animation/config';
 import type { ISankeyAnimationParams, SankeyAppearPreset } from './interface';
 import type { IAnimationTypeConfig, IAnimationParameters } from '../../animation/interface';
-import { ACustomAnimate, AnimateExecutor } from '@visactor/vrender-animate';
+import { ACustomAnimate } from '@visactor/vrender-animate/custom/custom-animate';
+import { AnimateExecutor } from '@visactor/vrender-animate/executor/animate-executor';
 import type { IGraphic } from '@visactor/vrender-core';
 import type { ILinkPathMarkSpec } from '../../typings';
 
