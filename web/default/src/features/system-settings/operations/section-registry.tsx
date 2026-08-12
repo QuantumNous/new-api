@@ -27,6 +27,7 @@ import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { SeedanceAssetSettingsSection } from './seedance-asset-settings-section'
 import { SeedanceOfficialAssetSettingsSection } from './seedance-official-asset-settings-section'
+import { TaskModelChannelOrderSection } from './task-model-channel-order-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -37,9 +38,25 @@ const OPERATIONS_SECTIONS = [
       <SystemBehaviorSection
         defaultValues={{
           RetryTimes: settings.RetryTimes,
+          TaskSameChannelMaxRetries: settings.TaskSameChannelMaxRetries,
+          TaskCrossChannelFailoverEnabled:
+            settings.TaskCrossChannelFailoverEnabled,
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'task-channel-order',
+    titleKey: 'Task Model Channel Order',
+    descriptionKey:
+      'Optional ordered channel lists per model for async task failover (overrides Priority)',
+    build: (settings: OperationsSettings) => (
+      <TaskModelChannelOrderSection
+        defaultValues={{
+          TaskModelChannelOrder: settings.TaskModelChannelOrder || '{}',
         }}
       />
     ),

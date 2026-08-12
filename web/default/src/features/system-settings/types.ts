@@ -285,6 +285,9 @@ export type BillingSettings = {
 
 export type OperationsSettings = {
   RetryTimes: number
+  TaskSameChannelMaxRetries: number
+  TaskCrossChannelFailoverEnabled: boolean
+  TaskModelChannelOrder: string
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean

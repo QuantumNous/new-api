@@ -1,8 +1,9 @@
 # 异步视频任务跨渠道容灾设计
 
 日期：2026-08-12  
-状态：已确认设计，待实现  
-关联：`docs/superpowers/specs/2026-08-11-mao-async-retry-design.md`
+状态：已实现（核心路径已落地；multipart 跨渠与 Classic UI 仍见设计非目标）  
+关联：`docs/superpowers/specs/2026-08-11-mao-async-retry-design.md`  
+实现计划：`docs/superpowers/specs/2026-08-12-async-task-cross-channel-failover-plan.md`
 
 ## 1. 目标
 

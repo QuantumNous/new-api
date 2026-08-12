@@ -38,6 +38,8 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const behaviorSchema = z.object({
   RetryTimes: z.coerce.number().min(0).max(10),
+  TaskSameChannelMaxRetries: z.coerce.number().min(0).max(10),
+  TaskCrossChannelFailoverEnabled: z.boolean(),
   DefaultCollapseSidebar: z.boolean(),
   DemoSiteEnabled: z.boolean(),
   SelfUseModeEnabled: z.boolean(),
@@ -101,6 +103,59 @@ export function SystemBehaviorSection({
                   {t('Number of times to retry failed requests (0-10)')}
                 </FormDescription>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='TaskSameChannelMaxRetries'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Task Same-Channel Max Retries')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min='0'
+                    max='10'
+                    value={field.value as number}
+                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Max same-channel resubmits after async video task failure before switching channel (0-10)'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='TaskCrossChannelFailoverEnabled'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>
+                    {t('Task Cross-Channel Failover')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'When async video generation fails, try the next channel after same-channel retries'
+                    )}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
               </FormItem>
             )}
           />

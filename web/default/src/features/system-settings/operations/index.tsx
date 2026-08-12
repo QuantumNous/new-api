@@ -29,6 +29,9 @@ import {
 
 const defaultOperationsSettings: OperationsSettings = {
   RetryTimes: 0,
+  TaskSameChannelMaxRetries: 2,
+  TaskCrossChannelFailoverEnabled: true,
+  TaskModelChannelOrder: '{}',
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
