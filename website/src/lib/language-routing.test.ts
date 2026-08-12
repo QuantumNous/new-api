@@ -79,6 +79,19 @@ describe("language routing", () => {
     }
   });
 
+  test("localizes paid-search pages that have Portuguese variants", () => {
+    for (const pathname of ["/deepseek-api", "/kimi-api", "/qwen-api"]) {
+      expect(
+        getLanguageRedirectPath({
+          pathname,
+          method: "GET",
+          cookieLocale: "pt",
+          acceptLanguage: "en-US,en;q=0.9",
+        })
+      ).toBe(`/pt${pathname}`);
+    }
+  });
+
   test("detects search and AI crawlers", () => {
     const bots = [
       "Googlebot/2.1",
