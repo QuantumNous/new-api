@@ -234,7 +234,7 @@ func zhipuHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if !zhipuResponse.Success {
-		return nil, types.WithOpenAIError(types.OpenAIError{
+		return nil, types.WithUpstreamOpenAIError(types.OpenAIError{
 			Message: zhipuResponse.Msg,
 			Code:    zhipuResponse.Code,
 		}, resp.StatusCode)

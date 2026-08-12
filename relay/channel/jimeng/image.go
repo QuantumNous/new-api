@@ -64,7 +64,7 @@ func jimengImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.R
 
 	// Check if the response indicates an error
 	if jimengResponse.Code != 10000 {
-		return nil, types.WithOpenAIError(types.OpenAIError{
+		return nil, types.WithUpstreamOpenAIError(types.OpenAIError{
 			Message: jimengResponse.Message,
 			Type:    "jimeng_error",
 			Param:   "",

@@ -340,6 +340,8 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  ErrorOverrideEnabled: boolean
+  ErrorOverrideKeywords: string
   QuotaRemindThreshold: string
   SMTPServer: string
   SMTPPort: string

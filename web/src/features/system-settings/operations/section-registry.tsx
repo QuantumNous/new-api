@@ -36,6 +36,8 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+          ErrorOverrideEnabled: settings.ErrorOverrideEnabled,
+          ErrorOverrideKeywords: settings.ErrorOverrideKeywords,
         }}
       />
     ),

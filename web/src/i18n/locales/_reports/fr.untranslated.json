@@ -1,4 +1,6 @@
 {
+  "Replace upstream error messages that match a keyword with a generic message, so upstream billing state is not exposed. Errors produced by this site are never replaced.": "Replace upstream error messages that match a keyword with a generic message, so upstream billing state is not exposed. Errors produced by this site are never replaced.",
+  "One keyword per line, case-insensitive. Matching upstream errors return Service Unavailable with the original status code preserved.": "One keyword per line, case-insensitive. Matching upstream errors return Service Unavailable with the original status code preserved.",
   "Detailed metrics, uptime, announcements and FAQs": "Detailed metrics, uptime, announcements and FAQs",
   "Realtime usage and spend stats with multi-dimensional charts": "Realtime usage and spend stats with multi-dimensional charts",
   "Route by rules to the best model — balance cost and quality": "Route by rules to the best model — balance cost and quality",

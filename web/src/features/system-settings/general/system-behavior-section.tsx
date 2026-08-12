@@ -26,9 +26,12 @@ import {
   FormControl,
   FormDescription,
   FormField,
+  FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 
 import {
   SettingsForm,
@@ -44,6 +47,8 @@ const behaviorSchema = z.object({
   DefaultCollapseSidebar: z.boolean(),
   DemoSiteEnabled: z.boolean(),
   SelfUseModeEnabled: z.boolean(),
+  ErrorOverrideEnabled: z.boolean(),
+  ErrorOverrideKeywords: z.string(),
 })
 
 type BehaviorFormValues = z.infer<typeof behaviorSchema>
@@ -145,6 +150,54 @@ export function SystemBehaviorSection({
               </SettingsSwitchItem>
             )}
           />
+
+          <FormField
+            control={form.control}
+            name='ErrorOverrideEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Error Message Override')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Replace upstream error messages that match a keyword with a generic message, so upstream billing state is not exposed. Errors produced by this site are never replaced.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          {form.watch('ErrorOverrideEnabled') && (
+            <FormField
+              control={form.control}
+              name='ErrorOverrideKeywords'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Override keywords')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={6}
+                      placeholder={t('Enter one keyword per line')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'One keyword per line, case-insensitive. Matching upstream errors return Service Unavailable with the original status code preserved.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </SettingsForm>
       </Form>
     </SettingsSection>

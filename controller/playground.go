@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +18,7 @@ func Playground(c *gin.Context) {
 
 	defer func() {
 		if newAPIError != nil {
+			operation_setting.OverrideUpstreamError(newAPIError)
 			c.JSON(newAPIError.StatusCode, gin.H{
 				"error": newAPIError.ToOpenAIError(),
 			})

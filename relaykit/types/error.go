@@ -92,6 +92,7 @@ type NewAPIError struct {
 	RelayError     any
 	skipRetry      bool
 	recordErrorLog *bool
+	fromUpstream   bool
 	errorType      ErrorType
 	errorCode      ErrorCode
 	StatusCode     int
@@ -175,6 +176,39 @@ func (e *NewAPIError) MaskSensitiveErrorWithStatusCode() string {
 
 func (e *NewAPIError) SetMessage(message string) {
 	e.Err = errors.New(message)
+}
+
+// MarkUpstreamOrigin records that this error's message text came from an upstream
+// provider response rather than being produced locally by the gateway. Callers that
+// decode an upstream error body must set this so the message can be treated as
+// upstream-controlled text downstream.
+func (e *NewAPIError) MarkUpstreamOrigin() {
+	if e == nil {
+		return
+	}
+	e.fromUpstream = true
+}
+
+// ReplaceMessage rewrites the user-facing message on every representation of the
+// error while preserving StatusCode, type and code. Unlike SetMessage it also
+// updates RelayError, because ToOpenAIError/ToClaudeError return the provider
+// payload verbatim for upstream errors and never read Err. Upstream metadata is
+// dropped because it carries the raw provider error body.
+func (e *NewAPIError) ReplaceMessage(message string) {
+	if e == nil {
+		return
+	}
+	e.Err = errors.New(message)
+	e.Metadata = nil
+	switch relayError := e.RelayError.(type) {
+	case OpenAIError:
+		relayError.Message = message
+		relayError.Metadata = nil
+		e.RelayError = relayError
+	case ClaudeError:
+		relayError.Message = message
+		e.RelayError = relayError
+	}
 }
 
 func (e *NewAPIError) ToOpenAIError() OpenAIError {
@@ -363,6 +397,23 @@ func WithClaudeError(claudeError ClaudeError, statusCode int, ops ...NewAPIError
 	return e
 }
 
+// WithUpstreamOpenAIError builds an error from an OpenAI-shaped payload decoded out
+// of an upstream provider response, recording that the message text is upstream
+// controlled. Channel adaptors that surface a provider error must use this instead of
+// WithOpenAIError, which is also used for locally constructed errors.
+func WithUpstreamOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	e := WithOpenAIError(openAIError, statusCode, ops...)
+	e.MarkUpstreamOrigin()
+	return e
+}
+
+// WithUpstreamClaudeError is the Claude-shaped counterpart of WithUpstreamOpenAIError.
+func WithUpstreamClaudeError(claudeError ClaudeError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	e := WithClaudeError(claudeError, statusCode, ops...)
+	e.MarkUpstreamOrigin()
+	return e
+}
+
 func IsChannelError(err *NewAPIError) bool {
 	if err == nil {
 		return false
@@ -376,6 +427,16 @@ func IsSkipRetryError(err *NewAPIError) bool {
 	}
 
 	return err.skipRetry
+}
+
+// IsFromUpstreamError reports whether the error message originated from an upstream
+// provider response. Errors produced by the gateway itself return false.
+func IsFromUpstreamError(err *NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+
+	return err.fromUpstream
 }
 
 func ErrOptionWithSkipRetry() NewAPIErrorOptions {

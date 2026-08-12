@@ -86,6 +86,10 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+	// 该函数的错误文案全部来自上游响应，标记后可被错误信息覆写识别
+	defer func() {
+		newApiErr.MarkUpstreamOrigin()
+	}()
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {

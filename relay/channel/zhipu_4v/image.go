@@ -67,7 +67,7 @@ func zhipu4vImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	}
 
 	if zhipuResp.Error != nil && zhipuResp.Error.Message != "" {
-		return nil, types.WithOpenAIError(types.OpenAIError{
+		return nil, types.WithUpstreamOpenAIError(types.OpenAIError{
 			Message: zhipuResp.Error.Message,
 			Type:    "zhipu_image_error",
 			Code:    zhipuResp.Error.Code,

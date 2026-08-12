@@ -92,7 +92,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
-			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			// 必须在错误日志之后执行：日志与渠道禁用判定始终使用原始上游文案
+			if operation_setting.OverrideUpstreamError(newAPIError) {
+				// 覆写后的错误须用 ReplaceMessage 附加 request id：上游错误的 ToOpenAIError()
+				// 直接返回 RelayError，不读 Err，SetMessage 改不到响应体
+				newAPIError.ReplaceMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			} else {
+				newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			}
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
@@ -440,13 +447,16 @@ func RelayMidjourney(c *gin.Context) {
 			mjErr.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
 		}
+		description := fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)
+		channelId := c.GetInt("channel_id")
+		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): %s", channelId, statusCode, description))
+		// MidjourneyResponse 没有 LocalError 标志，但本站自产的错误是 bind_request_body_failed、
+		// task_no_found 这类码状字符串，不含覆写关键词，故关键词门控足以避免误伤
 		c.JSON(statusCode, gin.H{
-			"description": fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
+			"description": operation_setting.OverrideUpstreamMessage(description),
 			"type":        "upstream_error",
 			"code":        mjErr.Code,
 		})
-		channelId := c.GetInt("channel_id")
-		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): %s", channelId, statusCode, fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)))
 	}
 }
 
@@ -615,6 +625,10 @@ func RelayTask(c *gin.Context) {
 func respondTaskError(c *gin.Context, taskErr *taskdto.TaskError) {
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
+	}
+	// LocalError 为 false 表示文案来自上游任务平台，需按错误信息覆写设置处理
+	if !taskErr.LocalError {
+		taskErr.Message = operation_setting.OverrideUpstreamMessage(taskErr.Message)
 	}
 	c.JSON(taskErr.StatusCode, taskErr)
 }

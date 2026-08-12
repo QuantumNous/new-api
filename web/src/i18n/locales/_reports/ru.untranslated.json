@@ -1,4 +1,8 @@
 {
+  "Error Message Override": "Error Message Override",
+  "Replace upstream error messages that match a keyword with a generic message, so upstream billing state is not exposed. Errors produced by this site are never replaced.": "Replace upstream error messages that match a keyword with a generic message, so upstream billing state is not exposed. Errors produced by this site are never replaced.",
+  "Override keywords": "Override keywords",
+  "One keyword per line, case-insensitive. Matching upstream errors return Service Unavailable with the original status code preserved.": "One keyword per line, case-insensitive. Matching upstream errors return Service Unavailable with the original status code preserved.",
   "3 steps, just a few minutes": "3 steps, just a few minutes",
   "@visactor/vchart": "@visactor/vchart",
   "Automatic Retries": "Automatic Retries",

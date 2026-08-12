@@ -113,7 +113,7 @@ func palmHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respons
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if palmResponse.Error.Code != 0 || len(palmResponse.Candidates) == 0 {
-		return nil, types.WithOpenAIError(types.OpenAIError{
+		return nil, types.WithUpstreamOpenAIError(types.OpenAIError{
 			Message: palmResponse.Error.Message,
 			Type:    palmResponse.Error.Status,
 			Param:   "",
