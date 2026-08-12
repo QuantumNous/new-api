@@ -1,0 +1,59 @@
+/**index.wxss**/
+.userinfo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #aaa;
+}
+
+.userinfo-avatar {
+  overflow: hidden;
+  width: 88rpx;
+  height: 88rpx;
+  margin: 10rpx;
+  border-radius: 50%;
+  display: inline;
+}
+
+.userinfo-title-content {
+  display: flex;
+  align-items: center;
+}
+
+.userinfo-title {
+  font-size: 22px;
+  color: black;
+}
+
+.userinfo-content {
+  font-size: 16px;
+  padding: 10px 0;
+  margin: auto;
+  width: 90%;
+}
+
+.gallary-image {
+  width: 160rpx;
+  height: 160rpx;
+  padding: 20rpx;
+  border: 1px solid #eee;
+}
+
+.gallary-container {
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.gallary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20rpx;
+}
+
+.gallary-name {
+  margin-top: 20rpx;
+  font-size: 12px;
+}

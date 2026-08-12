@@ -1,0 +1,55 @@
+import type { IGraphic } from '@visactor/vrender-core';
+import type { IPlayer } from './interface';
+import type { IComponent } from '../interface';
+import type { IPoint, IOrientType, ILayoutRect } from '../../typings';
+import { ComponentTypeEnum } from '../interface/type';
+import { BaseComponent } from '../base/base-component';
+export declare class Player extends BaseComponent<IPlayer> implements IComponent {
+    layoutZIndex: number;
+    layoutLevel: number;
+    static readonly builtInTheme: {
+        player: import("./interface").IPlayerTheme;
+    };
+    static specKey: string;
+    specKey: string;
+    static type: ComponentTypeEnum;
+    type: ComponentTypeEnum;
+    protected _orient: IOrientType;
+    private _specs;
+    private _playerComponent;
+    private _cacheAttrs;
+    private _visible;
+    private _direction;
+    private _alternate;
+    private _dx;
+    private _dy;
+    private _width;
+    private _height;
+    private _position;
+    get orient(): IOrientType;
+    set layoutOrient(v: IOrientType);
+    setAttrFromSpec(): void;
+    _compareSpec(spec: IPlayer, prevSpec: IPlayer): import("../../model/interface").IUpdateSpecResult;
+    afterSetLayoutStartPoint(pos: IPoint): void;
+    getBoundsInRect(rect: ILayoutRect, fullSpace: ILayoutRect): {
+        x1: number;
+        x2: number;
+        y1: number;
+        y2: number;
+    };
+    protected _getNeedClearVRenderComponents(): IGraphic[];
+    private _getPlayerAttrs;
+    private _createOrUpdatePlayerComponent;
+    private _computeLayoutRect;
+    private _computeWidth;
+    private _computeHeight;
+    private _computeDx;
+    private _computeDy;
+    private _maxSize;
+    private _sliderExceededSize;
+    changePlayerIndex(index: number): void;
+    autoPlayCallback: () => void;
+    private _initEvent;
+    release(): void;
+}
+export declare const registerPlayer: () => void;

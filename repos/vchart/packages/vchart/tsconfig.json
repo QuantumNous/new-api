@@ -1,0 +1,36 @@
+{
+  "extends": "@internal/ts-config/tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["jest", "offscreencanvas", "node"],
+    "lib": ["DOM", "ESNext"],
+    "baseUrl": "./",
+    "rootDir": "./src",
+    "outDir": "./esm",
+    "composite": true,
+    "paths": {
+      "eventemitter3": ["./node_modules/eventemitter3"],
+      "@visactor/vrender": ["./node_modules/@visactor/vrender/es/index"],
+      "@visactor/vrender/*": ["./node_modules/@visactor/vrender/es/*"],
+      "@visactor/vrender-core": ["./node_modules/@visactor/vrender-core/es/index"],
+      "@visactor/vrender-core/*": ["./node_modules/@visactor/vrender-core/es/*"],
+      "@visactor/vrender-animate": ["./node_modules/@visactor/vrender-animate/es/index"],
+      "@visactor/vrender-animate/*": ["./node_modules/@visactor/vrender-animate/es/*"],
+      "@visactor/vrender-components": ["./node_modules/@visactor/vrender-components/es/index"],
+      "@visactor/vrender-components/*": ["./node_modules/@visactor/vrender-components/es/*"],
+      "@visactor/vrender-kits": ["./node_modules/@visactor/vrender-kits/es/index"],
+      "@visactor/vrender-kits/*": ["./node_modules/@visactor/vrender-kits/es/*"]
+    }
+  },
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  },
+  "references": [
+    {
+      "path": "../vutils-extension"
+    }
+  ],
+  "include": ["src"]
+}

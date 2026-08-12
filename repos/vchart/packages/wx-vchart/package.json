@@ -1,0 +1,49 @@
+{
+  "name": "@visactor/wx-vchart",
+  "version": "2.1.1",
+  "description": "",
+  "main": "index.js",
+  "miniprogram": ".",
+  "files": [
+    "index.js",
+    "index.json",
+    "index.wxml",
+    "index.wxss"
+  ],
+  "scripts": {
+    "rollup": "npm run build",
+    "build": "npm run clear && rollup -c --configPlugin typescript --bundleConfigAsCjs",
+    "clear": "rimraf index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "dependencies": {},
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VisActor/VChart",
+    "directory": "packages/wx-vchart"
+  },
+  "devDependencies": {
+    "@babel/core": "7.20.12",
+    "@babel/preset-env": "7.20.2",
+    "miniprogram-api-typings": "^2.8.3-1",
+    "@rollup/plugin-babel": "6.0.3",
+    "@rollup/plugin-commonjs": "24.1.0",
+    "@rollup/plugin-node-resolve": "15.0.2",
+    "@rollup/plugin-typescript": "11.1.0",
+    "rimraf": "3.0.2",
+    "rollup": "3.20.5",
+    "rollup-plugin-copy": "3.4.0",
+    "rollup-plugin-terser": "7.0.2",
+    "@internal/bundler": "workspace:*",
+    "@internal/eslint-config": "workspace:*",
+    "@internal/ts-config": "workspace:*",
+    "@rushstack/eslint-patch": "~1.1.4",
+    "eslint": "~8.18.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
