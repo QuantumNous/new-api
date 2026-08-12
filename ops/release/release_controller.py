@@ -191,6 +191,131 @@ def _sha256(path: Path) -> tuple[str, int]:
     return digest.hexdigest(), size
 
 
+def _sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _safe_tar_member_name(value: str, field: str) -> str:
+    path = Path(value)
+    if not value or path.is_absolute() or any(part in ("", "..") for part in path.parts):
+        raise ReleaseError(f"OCI image tar contains unsafe {field}: {value!r}")
+    return value
+
+
+def _tar_json(members: dict[str, tarfile.TarInfo], stream: tarfile.TarFile, name: str, field: str) -> Any:
+    member = members.get(_safe_tar_member_name(name, field))
+    if member is None or not member.isfile():
+        raise ReleaseError(f"OCI image tar is missing {field}: {name}")
+    handle = stream.extractfile(member)
+    if handle is None:
+        raise ReleaseError(f"OCI image tar cannot read {field}: {name}")
+    try:
+        return json.loads(handle.read())
+    except json.JSONDecodeError as exc:
+        raise ReleaseError(f"OCI image tar has invalid JSON in {field}: {name}") from exc
+
+
+def _tar_digest(members: dict[str, tarfile.TarInfo], stream: tarfile.TarFile, name: str, field: str) -> str:
+    member = members.get(_safe_tar_member_name(name, field))
+    if member is None or not member.isfile():
+        raise ReleaseError(f"OCI image tar is missing {field}: {name}")
+    handle = stream.extractfile(member)
+    if handle is None:
+        raise ReleaseError(f"OCI image tar cannot read {field}: {name}")
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+        digest.update(chunk)
+    return "sha256:" + digest.hexdigest()
+
+
+def verify_oci_image_tar(
+    image_tar: Path,
+    expected_tar_sha256: str,
+    expected_manifest_digest: str,
+    expected_config_digest: str,
+    expected_revision: str,
+    expected_platform: str,
+    expected_repo_tag: str,
+) -> None:
+    """Verify a portable OCI/Docker image tar without relying on Docker's ID display.
+
+    Docker commonly reports a config digest as `.Id`; OCI registries identify an
+    image by its manifest digest.  Both are verified, alongside the config's
+    revision/platform and every referenced layer, so a same-revision image
+    cannot silently replace the authorized binary.
+    """
+
+    image_tar = image_tar.expanduser().resolve()
+    if not image_tar.is_file():
+        raise ReleaseError(f"OCI image tar does not exist: {image_tar}")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_tar_sha256):
+        raise ReleaseError("expected image tar SHA-256 must be 64 lowercase hex characters")
+    manifest_digest = _require_digest(expected_manifest_digest, "expected OCI manifest digest")
+    config_digest = _require_digest(expected_config_digest, "expected OCI config digest")
+    revision = _require_hex40(expected_revision, "expected OCI revision")
+    if expected_platform != "linux/amd64":
+        raise ReleaseError("expected OCI platform must be linux/amd64")
+    if not expected_repo_tag or "@" in expected_repo_tag or expected_repo_tag.startswith("/"):
+        raise ReleaseError("expected OCI repo tag must be a non-empty image tag")
+    actual_tar_sha256, _ = _sha256(image_tar)
+    if actual_tar_sha256 != expected_tar_sha256:
+        raise ReleaseError("OCI image tar SHA-256 mismatch")
+    try:
+        with tarfile.open(image_tar, mode="r:") as stream:
+            members = {member.name: member for member in stream.getmembers()}
+            if len(members) != len(stream.getmembers()):
+                raise ReleaseError("OCI image tar contains duplicate member names")
+            index = _tar_json(members, stream, "index.json", "OCI index")
+            docker_manifest = _tar_json(members, stream, "manifest.json", "Docker manifest")
+            if not isinstance(index, dict) or not isinstance(index.get("manifests"), list):
+                raise ReleaseError("OCI image index must contain a manifests list")
+            selected = [entry for entry in index["manifests"] if isinstance(entry, dict) and entry.get("digest") == manifest_digest]
+            if len(selected) != 1:
+                raise ReleaseError("OCI image index does not bind exactly one expected manifest digest")
+            manifest_name = "blobs/sha256/" + manifest_digest.removeprefix("sha256:")
+            if _tar_digest(members, stream, manifest_name, "OCI manifest blob") != manifest_digest:
+                raise ReleaseError("OCI manifest blob digest mismatch")
+            manifest = _tar_json(members, stream, manifest_name, "OCI manifest blob")
+            if not isinstance(manifest, dict) or not isinstance(manifest.get("config"), dict):
+                raise ReleaseError("OCI manifest must contain a config object")
+            if manifest["config"].get("digest") != config_digest:
+                raise ReleaseError("OCI manifest config digest mismatch")
+            config_name = "blobs/sha256/" + config_digest.removeprefix("sha256:")
+            if _tar_digest(members, stream, config_name, "OCI config blob") != config_digest:
+                raise ReleaseError("OCI config blob digest mismatch")
+            config = _tar_json(members, stream, config_name, "OCI config blob")
+            if not isinstance(config, dict):
+                raise ReleaseError("OCI config must be a JSON object")
+            labels = config.get("config", {}).get("Labels", {})
+            if not isinstance(labels, dict) or labels.get("org.opencontainers.image.revision") != revision:
+                raise ReleaseError("OCI config revision mismatch")
+            if f"{config.get('os')}/{config.get('architecture')}" != expected_platform:
+                raise ReleaseError("OCI config platform mismatch")
+            layers = manifest.get("layers")
+            if not isinstance(layers, list) or not layers:
+                raise ReleaseError("OCI manifest must contain a non-empty layers list")
+            manifest_layers: list[str] = []
+            for layer in layers:
+                if not isinstance(layer, dict):
+                    raise ReleaseError("OCI manifest layer must be an object")
+                digest = _require_digest(layer.get("digest"), "OCI layer digest")
+                layer_name = "blobs/sha256/" + digest.removeprefix("sha256:")
+                if _tar_digest(members, stream, layer_name, "OCI layer blob") != digest:
+                    raise ReleaseError("OCI layer blob digest mismatch")
+                manifest_layers.append(digest)
+            if not isinstance(docker_manifest, list) or len(docker_manifest) != 1 or not isinstance(docker_manifest[0], dict):
+                raise ReleaseError("Docker manifest must contain exactly one image entry")
+            docker_entry = docker_manifest[0]
+            if docker_entry.get("Config") != config_name:
+                raise ReleaseError("Docker manifest config path mismatch")
+            if docker_entry.get("Layers") != ["blobs/sha256/" + digest.removeprefix("sha256:") for digest in manifest_layers]:
+                raise ReleaseError("Docker manifest layer list mismatch")
+            if docker_entry.get("RepoTags") != [expected_repo_tag]:
+                raise ReleaseError("Docker manifest repo tag mismatch")
+    except (OSError, tarfile.TarError) as exc:
+        raise ReleaseError(f"OCI image tar is unreadable: {image_tar.name}") from exc
+
+
 def _write_source_archive(repo: Path, commit: str, destination: Path) -> None:
     """Write a deterministic gzip-wrapped `git archive` for the candidate."""
 
@@ -746,6 +871,20 @@ def _cmd_registry_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_image_verify(args: argparse.Namespace) -> int:
+    verify_oci_image_tar(
+        Path(args.image_tar),
+        args.tar_sha256,
+        args.oci_manifest_digest,
+        args.config_digest,
+        args.revision,
+        args.platform,
+        args.repo_tag,
+    )
+    print("OCI IMAGE VERIFY PASS: tar, manifest, config, revision, platform, tag, and layers are exact")
+    return 0
+
+
 def _cmd_lock_acquire(args: argparse.Namespace) -> int:
     owner_id = args.owner_id or f"pid-{os.getpid()}-{uuid.uuid4().hex}"
     if args.hold_seconds < 0:
@@ -800,6 +939,18 @@ def _build_parser() -> argparse.ArgumentParser:
     registry_verify_parser = registry_commands.add_parser("verify", help="verify a staged package without a pre-existing checkout")
     registry_verify_parser.add_argument("--manifest", required=True)
     registry_verify_parser.set_defaults(handler=_cmd_registry_verify)
+
+    image_parser = commands.add_parser("image", help="verify an exact portable OCI image tar")
+    image_commands = image_parser.add_subparsers(dest="image_command", required=True)
+    image_verify_parser = image_commands.add_parser("verify", help="verify tar, OCI manifest/config, revision, platform, tag, and layers")
+    image_verify_parser.add_argument("--image-tar", required=True)
+    image_verify_parser.add_argument("--tar-sha256", required=True)
+    image_verify_parser.add_argument("--oci-manifest-digest", required=True)
+    image_verify_parser.add_argument("--config-digest", required=True)
+    image_verify_parser.add_argument("--revision", required=True)
+    image_verify_parser.add_argument("--platform", required=True)
+    image_verify_parser.add_argument("--repo-tag", required=True)
+    image_verify_parser.set_defaults(handler=_cmd_image_verify)
 
     lock_parser = commands.add_parser("lock", help="acquire or release the single deployment lock")
     lock_commands = lock_parser.add_subparsers(dest="lock_command", required=True)

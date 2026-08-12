@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import io
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tarfile
 import time
 import unittest
 
@@ -92,6 +95,54 @@ class ReleaseControllerTests(unittest.TestCase):
         result = self.prepare(output)
         self.assertEqual(result.returncode, 0, result.stderr)
         return output
+
+    def write_oci_image_tar(self, name: str = "candidate-image.tar") -> tuple[Path, dict[str, str]]:
+        revision = self.candidate_commit
+        config = json.dumps(
+            {
+                "architecture": "amd64",
+                "config": {"Labels": {"org.opencontainers.image.revision": revision}},
+                "os": "linux",
+            },
+            separators=(",", ":"),
+        ).encode()
+        layer = b"exact layer bytes\n"
+        config_hex = hashlib.sha256(config).hexdigest()
+        layer_hex = hashlib.sha256(layer).hexdigest()
+        config_path = f"blobs/sha256/{config_hex}"
+        layer_path = f"blobs/sha256/{layer_hex}"
+        manifest = json.dumps(
+            {
+                "schemaVersion": 2,
+                "config": {"mediaType": "application/vnd.oci.image.config.v1+json", "digest": f"sha256:{config_hex}", "size": len(config)},
+                "layers": [{"mediaType": "application/vnd.oci.image.layer.v1.tar", "digest": f"sha256:{layer_hex}", "size": len(layer)}],
+            },
+            separators=(",", ":"),
+        ).encode()
+        manifest_hex = hashlib.sha256(manifest).hexdigest()
+        manifest_path = f"blobs/sha256/{manifest_hex}"
+        tag = "example.invalid/aibuff:aadd"
+        index = json.dumps(
+            {"schemaVersion": 2, "manifests": [{"mediaType": "application/vnd.oci.image.manifest.v1+json", "digest": f"sha256:{manifest_hex}", "size": len(manifest)}]},
+            separators=(",", ":"),
+        ).encode()
+        docker_manifest = json.dumps(
+            [{"Config": config_path, "RepoTags": [tag], "Layers": [layer_path]}], separators=(",", ":")
+        ).encode()
+        image_tar = self.root / name
+        with tarfile.open(image_tar, "w") as archive:
+            for path, payload in (("index.json", index), ("manifest.json", docker_manifest), (config_path, config), (layer_path, layer), (manifest_path, manifest)):
+                info = tarfile.TarInfo(path)
+                info.size = len(payload)
+                archive.addfile(info, io.BytesIO(payload))
+        return image_tar, {
+            "tar_sha256": hashlib.sha256(image_tar.read_bytes()).hexdigest(),
+            "manifest": f"sha256:{manifest_hex}",
+            "config": f"sha256:{config_hex}",
+            "revision": revision,
+            "platform": "linux/amd64",
+            "tag": tag,
+        }
 
     def test_prepare_and_validate_success(self) -> None:
         package = self.package()
@@ -195,6 +246,23 @@ class ReleaseControllerTests(unittest.TestCase):
         result = self.run_cli("validate", "--repo", str(self.repo_path), "--manifest", str(package / "release-manifest.json"))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("HARD STOP", result.stderr)
+
+    def test_oci_image_identity_chain_is_verified(self) -> None:
+        image_tar, identity = self.write_oci_image_tar()
+        result = self.run_cli(
+            "image", "verify", "--image-tar", str(image_tar), "--tar-sha256", identity["tar_sha256"],
+            "--oci-manifest-digest", identity["manifest"], "--config-digest", identity["config"],
+            "--revision", identity["revision"], "--platform", identity["platform"], "--repo-tag", identity["tag"],
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("OCI IMAGE VERIFY PASS", result.stdout)
+        wrong = self.run_cli(
+            "image", "verify", "--image-tar", str(image_tar), "--tar-sha256", identity["tar_sha256"],
+            "--oci-manifest-digest", "sha256:" + "0" * 64, "--config-digest", identity["config"],
+            "--revision", identity["revision"], "--platform", identity["platform"], "--repo-tag", identity["tag"],
+        )
+        self.assertNotEqual(wrong.returncode, 0)
+        self.assertIn("HARD STOP", wrong.stderr)
 
         package = self.package("bundle-tamper")
         bundle = package / "source.bundle"
