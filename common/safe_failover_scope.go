@@ -7,7 +7,9 @@ func IsScopedGPTTestSafeFailover(model, group string, tokenID int) bool {
 	if !SafeFailoverGPTTestEnabled || model != "gpt-5.5" {
 		return false
 	}
-	if SafeFailoverGPTTestGroup == "" && SafeFailoverGPTTestTokenID <= 0 {
+	// Production verification always binds both identities. Accepting one
+	// selector would allow an administrator's typo to widen the test surface.
+	if SafeFailoverGPTTestGroup == "" || SafeFailoverGPTTestTokenID <= 0 {
 		return false
 	}
 	if SafeFailoverGPTTestGroup != "" && group != SafeFailoverGPTTestGroup {

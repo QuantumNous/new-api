@@ -429,6 +429,10 @@ func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.N
 			logger.LogInfo(c, fmt.Sprintf("safe failover decision: retry=false reason=ambiguous_gateway_timeout attempt=%d status=%d error_code=%s elapsed_ms=%d", info.RetryIndex, openaiErr.StatusCode, openaiErr.GetErrorCode(), attemptElapsed.Milliseconds()))
 			return false
 		}
+		if scopedGPTTestFailover && operation_setting.IsAlwaysSkipRetryCode(openaiErr.GetErrorCode()) {
+			logger.LogInfo(c, fmt.Sprintf("safe failover decision: retry=false reason=always_skip_retry_error attempt=%d status=%d error_code=%s elapsed_ms=%d", info.RetryIndex, openaiErr.StatusCode, openaiErr.GetErrorCode(), attemptElapsed.Milliseconds()))
+			return false
+		}
 		responseWritten := c.Writer != nil && c.Writer.Written()
 		requestContextErr := error(nil)
 		if c.Request != nil {

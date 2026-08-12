@@ -22,4 +22,12 @@ func TestIsScopedGPTTestSafeFailoverFailsClosed(t *testing.T) {
 			t.Fatalf("scope(%q,%q,%d)=%t want %t", tc.model, tc.group, tc.token, got, tc.want)
 		}
 	}
+	SafeFailoverGPTTestGroup, SafeFailoverGPTTestTokenID = "gpt-failover-iso-20260812", 0
+	if IsScopedGPTTestSafeFailover("gpt-5.5", "gpt-failover-iso-20260812", 42) {
+		t.Fatal("group-only scope must fail closed")
+	}
+	SafeFailoverGPTTestGroup, SafeFailoverGPTTestTokenID = "", 42
+	if IsScopedGPTTestSafeFailover("gpt-5.5", "gpt-failover-iso-20260812", 42) {
+		t.Fatal("token-only scope must fail closed")
+	}
 }
