@@ -255,6 +255,99 @@ func TestBuildRequestBodyPreservesExplicitZeroFalseAndOmitsAbsentParams(t *testi
 	}
 }
 
+// The upstream defaults an omitted generate_audio to OFF while the other
+// seedance channels' upstream defaults it ON. This channel closes that gap by
+// sending true when the client said nothing — but an explicit client value,
+// including false, must always win (CLAUDE.md Rule 5).
+func TestBuildModelAPICreateRequestDefaultsGenerateAudioOnlyWhenClientOmitsIt(t *testing.T) {
+	textOnly := func() []dto.SeedanceContentItem {
+		return []dto.SeedanceContentItem{{Type: dto.SeedanceContentText, Text: "x"}}
+	}
+
+	t.Run("absent defaults to true", func(t *testing.T) {
+		body := buildModelAPICreateRequest(&dto.SeedanceVideoRequest{Content: textOnly()})
+		if body.Params == nil {
+			t.Fatal("params omitted; generate_audio default must be sent")
+		}
+		if body.Params.GenerateAudio == nil || !*body.Params.GenerateAudio {
+			t.Fatalf("generate_audio = %v, want true", body.Params.GenerateAudio)
+		}
+		raw, err := common.MarshalNoHTMLEscape(body)
+		if err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+		if !strings.Contains(string(raw), `"generate_audio":true`) {
+			t.Fatalf("wire body missing generate_audio true: %s", raw)
+		}
+	})
+
+	t.Run("explicit false is preserved", func(t *testing.T) {
+		body := buildModelAPICreateRequest(&dto.SeedanceVideoRequest{
+			Content:       textOnly(),
+			GenerateAudio: modelAPIPtrBool(false),
+		})
+		if body.Params == nil || body.Params.GenerateAudio == nil || *body.Params.GenerateAudio {
+			t.Fatalf("generate_audio = %+v, want explicit false", body.Params)
+		}
+		raw, err := common.MarshalNoHTMLEscape(body)
+		if err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+		if !strings.Contains(string(raw), `"generate_audio":false`) {
+			t.Fatalf("wire body dropped explicit false: %s", raw)
+		}
+	})
+
+	t.Run("explicit true is preserved", func(t *testing.T) {
+		body := buildModelAPICreateRequest(&dto.SeedanceVideoRequest{
+			Content:       textOnly(),
+			GenerateAudio: modelAPIPtrBool(true),
+		})
+		if body.Params == nil || body.Params.GenerateAudio == nil || !*body.Params.GenerateAudio {
+			t.Fatalf("generate_audio = %+v, want explicit true", body.Params)
+		}
+	})
+
+	t.Run("default does not leak into other optional params", func(t *testing.T) {
+		body := buildModelAPICreateRequest(&dto.SeedanceVideoRequest{Content: textOnly()})
+		raw, err := common.MarshalNoHTMLEscape(body)
+		if err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+		// Assert on decoded keys, not raw substrings — "seed" also occurs
+		// inside the upstream model id, which would false-positive.
+		var decoded struct {
+			Params map[string]any `json:"params"`
+		}
+		if err := common.Unmarshal(raw, &decoded); err != nil {
+			t.Fatalf("unmarshal body: %v", err)
+		}
+		if len(decoded.Params) != 1 {
+			t.Fatalf("params = %+v, want generate_audio only", decoded.Params)
+		}
+		if _, ok := decoded.Params["generate_audio"]; !ok {
+			t.Fatalf("params missing generate_audio: %+v", decoded.Params)
+		}
+	})
+}
+
+// BuildRequestBody is the real entrypoint; assert the default survives the full
+// bind → rewrite → marshal path, not just the pure mapping function.
+func TestBuildRequestBodyDefaultsGenerateAudioWhenClientOmitsIt(t *testing.T) {
+	c, _ := newModelAPITestContext(`{"model":"client-model","content":[{"type":"text","text":"x"}]}`)
+	reader, err := (&TaskAdaptor{}).BuildRequestBody(c, newModelAPIRelayInfo("", ""))
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read BuildRequestBody: %v", err)
+	}
+	if !strings.Contains(string(raw), `"generate_audio":true`) {
+		t.Fatalf("end-to-end body missing generate_audio true: %s", raw)
+	}
+}
+
 func assertModelAPIWireItems(t *testing.T, input map[string]any, key string, want []map[string]string) {
 	t.Helper()
 	items, ok := input[key].([]any)
@@ -477,13 +570,13 @@ func TestValidateRequestAfterModelMappingRestrictsPublicSubmitEntrypoints(t *tes
 	}
 
 	validBody := `{"model":"client-model","content":[{"type":"text","text":"hello"}]}`
-	for _, path := range []string{"/v1/video/generations", "/v1/generation/tasks"} {
+	for _, path := range []string{"/v1/generation/tasks", "/v1/tasks", "/v1/video-to-music"} {
 		t.Run("rejects "+path, func(t *testing.T) {
 			c, _ := newModelAPITestContext(validBody)
 			c.Request.URL.Path = path
 			err := validator.ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", ""))
 			if err == nil {
-				t.Fatal("legacy submit path was accepted")
+				t.Fatal("unsupported submit path was accepted")
 			}
 			if err.StatusCode != http.StatusBadRequest || err.Code != "invalid_request" {
 				t.Fatalf("error = %+v, want invalid_request 400", err)
@@ -500,18 +593,25 @@ func TestValidateRequestAfterModelMappingRestrictsPublicSubmitEntrypoints(t *tes
 		}
 	})
 
-	t.Run("allows /v1/videos and preserves payload validation", func(t *testing.T) {
-		c, _ := newModelAPITestContext(validBody)
-		if err := validator.ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", "")); err != nil {
-			t.Fatalf("/v1/videos rejected: %+v", err)
-		}
+	// Both shared platform video submit routes must work: /v1/videos is the
+	// OpenAI-compatible entrypoint and /v1/video/generations is the generic one
+	// every other video channel already accepts.
+	for _, path := range []string{"/v1/videos", "/v1/video/generations"} {
+		t.Run("allows "+path+" and preserves payload validation", func(t *testing.T) {
+			c, _ := newModelAPITestContext(validBody)
+			c.Request.URL.Path = path
+			if err := validator.ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", "")); err != nil {
+				t.Fatalf("%s rejected: %+v", path, err)
+			}
 
-		c, _ = newModelAPITestContext(`{"model":"client-model","duration":31,"content":[{"type":"text","text":"hello"}]}`)
-		err := validator.ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", ""))
-		if err == nil || err.Code != "invalid_request" || !strings.Contains(err.Message, "duration") {
-			t.Fatalf("invalid payload error = %+v, want duration invalid_request", err)
-		}
-	})
+			c, _ = newModelAPITestContext(`{"model":"client-model","duration":31,"content":[{"type":"text","text":"hello"}]}`)
+			c.Request.URL.Path = path
+			err := validator.ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", ""))
+			if err == nil || err.Code != "invalid_request" || !strings.Contains(err.Message, "duration") {
+				t.Fatalf("invalid payload error = %+v, want duration invalid_request", err)
+			}
+		})
+	}
 }
 
 func TestBuildAndFetchPathsHeadersAndEscaping(t *testing.T) {
