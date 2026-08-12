@@ -20,6 +20,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 )
 
 // https://platform.minimaxi.com/docs/api-reference/video-generation-intro
@@ -28,6 +29,115 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
+}
+
+// hailuoResolutionLabels maps the tiers MiniMax renders onto price-table
+// vocabulary. The mapping is channel-local and exact, mirroring the constants
+// the model configs actually name, rather than going through the shared
+// taskcommon.NormalizeResolution: MiniMax uses its own upper-case labels, and
+// 512P and 768P have no counterpart in the shared vocabulary — no other channel
+// serves those tiers — so folding them in would price them against another
+// channel's tier. An unrecognised value refuses rather than guessing, which on
+// a configured model becomes a rejected request.
+var hailuoResolutionLabels = map[string]string{
+	Resolution512P:  "512p",
+	Resolution720P:  "720p",
+	Resolution768P:  "768p",
+	Resolution1080P: "1080p",
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those.
+func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
+	label, ok := hailuoResolutionLabels[resolution]
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
+}
+
+// EstimateBilling captures the per-second billing inputs. Hailuo has no legacy
+// per-second estimate to preserve — it bills purely per call today — so this
+// always returns nil and all per-second pricing flows through
+// SecondBillingRatios. A model absent from the price table is left exactly as
+// it is today.
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	if info == nil {
+		return nil
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil
+	}
+	// Price the body the upstream will actually receive: convertToRequestPayload
+	// applies the 6s default, resolves size to the model config's resolution
+	// tier, and then lets metadata override both, so deriving the dimensions any
+	// other way could bill a length or tier the upstream never renders.
+	payload, err := a.convertToRequestPayload(&req, info)
+	if err != nil {
+		return nil
+	}
+	// Duration is a *int upstream: metadata can null it out or set it
+	// non-positive, either of which means the length is not determinable.
+	// Capture nothing rather than price off a guess, which leaves the request on
+	// the per-call path exactly as today.
+	if payload.Duration == nil || *payload.Duration <= 0 {
+		return nil
+	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// Keyed on info.OriginModelName — the client-facing name the administrator
+	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
+	// Not the upstream name: the model configs carry different default tiers, so
+	// keying on the mapped name would divide one model's rate by another's price.
+	if dims, ok := resolveDimensions(payload.Resolution, false); ok {
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = float64(*payload.Duration)
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
+	}
+	return nil
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {

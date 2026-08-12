@@ -157,6 +157,10 @@ func ValidateVideoPriceRules(rules []VideoPriceRule) error {
 var (
 	canonicalResolutions = map[string]string{
 		"480p": "480p",
+		// hailuo (v1) owns its own label map and emits this; the MiniMax
+		// I2V/T2V model configs really serve a 512P tier, and without this
+		// value an administrator cannot save a rule for it.
+		"512p": "512p",
 		"720p": "720p",
 		// hailuo_v2 owns its own label map and emits these two; without them an
 		// administrator cannot save a rule for a tier that channel really uses.
