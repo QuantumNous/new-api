@@ -461,6 +461,64 @@ test('home runtime workbench remains self-contained', async ({ page }) => {
   await expect(page.getByText('每一枚令牌，都有自己的路由表')).toHaveCount(0)
 })
 
+test('zero request trend uses the request caption text style', async ({
+  page,
+}) => {
+  await configureStablePage(page, { theme: 'light', authenticated: true })
+  await page.route('**/api/home/metrics', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        message: '',
+        data: {
+          available: true,
+          requests_24h: 0,
+          hourly_requests: Array(24).fill(0),
+          generated_at: 1_785_103_200,
+        },
+      }),
+    })
+  )
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await waitForStablePage(page)
+  await page.locator('#home-runtime').scrollIntoViewIfNeeded()
+
+  await expect(page.locator('[data-home-request-total]')).toHaveText('0')
+  await expect(page.locator('.runtime-trend polyline')).toHaveCount(0)
+  await expect(page.locator('.runtime-trend-placeholder')).toHaveText('--')
+
+  const styles = await page.evaluate(() => {
+    const caption = document.querySelector<HTMLElement>(
+      '.runtime-request-caption'
+    )
+    const placeholder = document.querySelector<HTMLElement>(
+      '.runtime-trend-placeholder'
+    )
+    if (!caption || !placeholder) {
+      throw new Error('Runtime request caption or trend placeholder missing')
+    }
+    const captionStyle = getComputedStyle(caption)
+    const placeholderStyle = getComputedStyle(placeholder)
+    return {
+      caption: {
+        color: captionStyle.color,
+        fontSize: captionStyle.fontSize,
+        fontWeight: captionStyle.fontWeight,
+      },
+      placeholder: {
+        color: placeholderStyle.color,
+        fontSize: placeholderStyle.fontSize,
+        fontWeight: placeholderStyle.fontWeight,
+      },
+    }
+  })
+
+  expect(styles.placeholder).toEqual(styles.caption)
+  await assertNoHorizontalOverflow(page)
+})
+
 test('home showcase remains intact at narrow mobile width', async ({
   page,
 }) => {

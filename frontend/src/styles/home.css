@@ -569,9 +569,11 @@ html.light .landing-shell > #hero-immersive-stage {
   margin-top: 0;
   place-items: center;
   border-bottom: 1px dashed var(--showcase-rule);
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .runtime-trend polyline {

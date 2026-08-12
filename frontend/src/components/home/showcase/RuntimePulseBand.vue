@@ -297,9 +297,9 @@ onBeforeUnmount(() => {
           >
             <polyline :points="trendPoints" />
           </svg>
-          <span v-else class="runtime-trend-placeholder" aria-hidden="true">{{
-            requestValue === null ? '--' : '——'
-          }}</span>
+          <span v-else class="runtime-trend-placeholder" aria-hidden="true"
+            >--</span
+          >
           <span>{{ t('showcase.runtime.trend24h') }}</span>
         </div>
       </div>

@@ -110,7 +110,7 @@ describe('RuntimePulseBand', () => {
     const wrapper = mountBand(true, 0)
 
     expect(wrapper.get('[data-home-request-total]').text()).toBe('0')
-    expect(wrapper.get('.runtime-trend-placeholder').text()).toBe('——')
+    expect(wrapper.get('.runtime-trend-placeholder').text()).toBe('--')
     expect(wrapper.text()).not.toContain(
       i18n.global.t('showcase.runtime.metricsUnavailable')
     )
@@ -133,7 +133,7 @@ describe('RuntimePulseBand', () => {
     })
 
     expect(wrapper.find('.runtime-trend polyline').exists()).toBe(false)
-    expect(wrapper.get('.runtime-trend-placeholder').text()).toBe('——')
+    expect(wrapper.get('.runtime-trend-placeholder').text()).toBe('--')
     wrapper.unmount()
   })
 })
