@@ -1,5 +1,5 @@
-// 营销站域名隔离：www 子域名（或本地 ?marketing=1）进入营销前台，其余进入控制台。
-// 与 P0 设计 ADR-1 一致；本地预览用 ?marketing=1，无需真实子域名。
+// 营销站域名隔离：本部署默认进入营销前台（首页即营销落地页），本地预览无需 ?marketing=1。
+// 仍可通过 ?marketing=0 或 app. 子域名回退到控制台；与 P0 设计 ADR-1 一致。
 
 export const MARKETING_HOST_PREFIX = 'www.'
 export const CONSOLE_HOST_PREFIX = 'app.'
@@ -20,8 +20,14 @@ const MARKETING_ONLY_PATHS = ['/solutions', '/quick-start', '/contact-sales']
 export function isMarketingMode(): boolean {
   if (typeof window === 'undefined') return false
   const params = new URLSearchParams(window.location.search)
+  // 显式回退到控制台
+  if (params.get('marketing') === '0') return false
+  // 显式进入营销前台
   if (params.get('marketing') === '1') return true
-  return window.location.host.startsWith(MARKETING_HOST_PREFIX)
+  // app. 子域名保留为控制台
+  if (window.location.host.startsWith(CONSOLE_HOST_PREFIX)) return false
+  // 默认：本部署首页即营销落地页（含 localhost 预览）
+  return true
 }
 
 export function isMarketingPath(pathname: string): boolean {
