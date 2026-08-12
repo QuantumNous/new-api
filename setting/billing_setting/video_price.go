@@ -3,6 +3,7 @@ package billing_setting
 import (
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/QuantumNous/new-api/setting/config"
 )
@@ -45,6 +46,32 @@ type VideoPriceSetting struct {
 
 var videoPriceSetting = VideoPriceSetting{
 	VideoPriceRules: make([]VideoPriceRule, 0),
+}
+
+// videoPriceSettingMu guards videoPriceSetting. ConfigManager replaces the
+// struct by reflection during a reload, so the lock has to be reachable from
+// there: the locker methods below hand it to the manager.
+var videoPriceSettingMu sync.RWMutex
+
+// LockConfig/UnlockConfig/RLockConfig/RUnlockConfig make this setting a
+// configWriteLocker and configReadLocker, so ConfigManager holds this package's
+// lock across its reflective swap. Nothing in this package could take that lock
+// itself -- the write happens inside setting/config -- so without these methods
+// a reload would race every reader on the relay hot path.
+func (s *VideoPriceSetting) LockConfig() {
+	videoPriceSettingMu.Lock()
+}
+
+func (s *VideoPriceSetting) UnlockConfig() {
+	videoPriceSettingMu.Unlock()
+}
+
+func (s *VideoPriceSetting) RLockConfig() {
+	videoPriceSettingMu.RLock()
+}
+
+func (s *VideoPriceSetting) RUnlockConfig() {
+	videoPriceSettingMu.RUnlock()
 }
 
 func init() {
@@ -171,7 +198,17 @@ func IsVideoModelConfigured(rules []VideoPriceRule, model string) bool {
 	return false
 }
 
-// GetVideoPriceRules returns the live rule set.
+// GetVideoPriceRules returns a snapshot of the live rule set.
+//
+// The returned slice is a copy. Taking the read lock alone would already give a
+// consistent view, because a reload swaps the slice header wholesale and never
+// edits elements in place -- but the copy also stops a caller that mutates what
+// it received from corrupting the table every other request reads, which on a
+// billing path is worth the per-call allocation. The copy is shallow: each
+// rule's Match map is shared with the live table, so callers must treat Match
+// as read-only.
 func GetVideoPriceRules() []VideoPriceRule {
-	return videoPriceSetting.VideoPriceRules
+	videoPriceSettingMu.RLock()
+	defer videoPriceSettingMu.RUnlock()
+	return append([]VideoPriceRule(nil), videoPriceSetting.VideoPriceRules...)
 }

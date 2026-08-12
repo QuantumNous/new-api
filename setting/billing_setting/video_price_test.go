@@ -1,7 +1,9 @@
 package billing_setting
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -313,4 +315,179 @@ func marshalRules(t *testing.T, rules []VideoPriceRule) string {
 		t.Fatalf("failed to encode rules: %v", err)
 	}
 	return string(encoded)
+}
+
+// ConfigManager only takes a module lock around its reflective write when the
+// registered value implements these two interfaces (setting/config/config.go
+// lockModuleForWrite). Their method sets are pinned here because the swap
+// happens inside config.go via reflection, where this package cannot lock.
+var (
+	_ interface {
+		LockConfig()
+		UnlockConfig()
+	} = (*VideoPriceSetting)(nil)
+	_ interface {
+		RLockConfig()
+		RUnlockConfig()
+	} = (*VideoPriceSetting)(nil)
+)
+
+// blocksWhile reports whether fn is still running while the caller holds a
+// lock, then waits for it to finish once release runs. Deterministic proof that
+// fn contends for the same mutex: an unlocked fn returns immediately.
+func blocksWhile(t *testing.T, fn func(), release func()) bool {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		fn()
+		close(done)
+	}()
+
+	blocked := false
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		blocked = true
+	}
+
+	release()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("call never completed after the lock was released")
+	}
+	return blocked
+}
+
+// The getter must read under the module read lock, or it races the reflective
+// swap in config.go. Holding the write lock must therefore stall it.
+func TestGetVideoPriceRulesReadsUnderTheModuleLock(t *testing.T) {
+	videoPriceSettingMu.Lock()
+	blocked := blocksWhile(t, func() { _ = GetVideoPriceRules() }, videoPriceSettingMu.Unlock)
+	if !blocked {
+		t.Fatal("GetVideoPriceRules returned while the config write lock was held: it is not reading under the lock")
+	}
+}
+
+// The other half: ConfigManager must hold this package's write lock across its
+// reflective swap, which it only does when the registered value implements
+// configWriteLocker. Holding the mutex must therefore stall a reload.
+func TestLoadFromDBWritesUnderTheModuleLock(t *testing.T) {
+	original := GetVideoPriceRules()
+	t.Cleanup(func() {
+		videoPriceSettingMu.Lock()
+		defer videoPriceSettingMu.Unlock()
+		videoPriceSetting.VideoPriceRules = original
+	})
+
+	manager := config.NewConfigManager()
+	manager.Register("billing_setting_video", &videoPriceSetting)
+	values := map[string]string{
+		"billing_setting_video.video_price_rules": marshalRules(t, []VideoPriceRule{
+			{Model: "m", Match: map[string]string{"resolution": "720p"},
+				PricePerSecond: 0.314, Basis: BasisOutputDuration},
+		}),
+	}
+
+	videoPriceSettingMu.Lock()
+	blocked := blocksWhile(t, func() {
+		if err := manager.LoadFromDB(values); err != nil {
+			t.Errorf("LoadFromDB failed: %v", err)
+		}
+	}, videoPriceSettingMu.Unlock)
+	if !blocked {
+		t.Fatal("LoadFromDB swapped the config while this package's write lock was held: ConfigManager is not using it")
+	}
+	if rules := GetVideoPriceRules(); len(rules) != 1 || rules[0].PricePerSecond != 0.314 {
+		t.Fatalf("rules = %+v, want the reload applied after the lock was released", rules)
+	}
+}
+
+// The getter hands out a copy, so a caller mutating what it received -- easy to
+// do by accident on a billing path -- cannot corrupt the table every other
+// request reads. The copy is shallow: Match maps are still shared, so they stay
+// read-only by contract.
+func TestGetVideoPriceRulesCallerCannotMutateSharedRules(t *testing.T) {
+	original := GetVideoPriceRules()
+	t.Cleanup(func() {
+		videoPriceSettingMu.Lock()
+		defer videoPriceSettingMu.Unlock()
+		videoPriceSetting.VideoPriceRules = original
+	})
+
+	videoPriceSettingMu.Lock()
+	videoPriceSetting.VideoPriceRules = []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.314, Basis: BasisOutputDuration},
+	}
+	videoPriceSettingMu.Unlock()
+
+	mine := GetVideoPriceRules()
+	mine[0].PricePerSecond = 999
+
+	if again := GetVideoPriceRules(); again[0].PricePerSecond != 0.314 {
+		t.Fatalf("price = %v, want 0.314: a caller mutated the shared rule table", again[0].PricePerSecond)
+	}
+}
+
+// GetVideoPriceRules is about to move onto the relay hot path, where it runs
+// concurrently with an admin-triggered config reload. The reload replaces the
+// slice header by reflection inside config.go, so an unlocked getter is a data
+// race on every video request. Registers the package-level setting -- the
+// memory the getter actually reads -- with a private manager so the race is
+// real rather than staged, and restores it afterwards.
+func TestGetVideoPriceRulesIsRaceFreeDuringReload(t *testing.T) {
+	original := GetVideoPriceRules()
+	t.Cleanup(func() {
+		videoPriceSettingMu.Lock()
+		defer videoPriceSettingMu.Unlock()
+		videoPriceSetting.VideoPriceRules = original
+	})
+
+	manager := config.NewConfigManager()
+	manager.Register("billing_setting_video", &videoPriceSetting)
+
+	first := marshalRules(t, []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.314, Basis: BasisOutputDuration},
+	})
+	second := marshalRules(t, []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "480p"},
+			PricePerSecond: 0.140, Basis: BasisOutputDuration},
+		{Model: "m", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.314, Basis: BasisOutputDuration},
+	})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			payload := first
+			if i%2 == 1 {
+				payload = second
+			}
+			if err := manager.LoadFromDB(map[string]string{
+				"billing_setting_video.video_price_rules": payload,
+			}); err != nil {
+				t.Errorf("LoadFromDB failed: %v", err)
+				return
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			// Read the header and index it: both must see one consistent
+			// snapshot, never a torn header from a half-applied reload.
+			rules := GetVideoPriceRules()
+			for _, r := range rules {
+				if r.PricePerSecond <= 0 {
+					t.Errorf("observed a torn rule set: %+v", rules)
+					return
+				}
+			}
+		}
+	}()
+	wg.Wait()
 }
