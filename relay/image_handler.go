@@ -172,7 +172,11 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			// A completed image event is independently usable. Settle exactly the
 			// fully written images and let the platform absorb any ambiguous or
 			// partially written remainder.
-			service.PostTextConsumeQuota(c, info, imageUsage, nil)
+			settleNote := "上游已完成部分产出，按实际产出结算"
+			if newAPIError.GetErrorCode() == types.ErrorCodeWriteResponseBodyFailed {
+				settleNote = "客户端提前断开，上游已完成生成，按实际产出结算"
+			}
+			service.PostTextConsumeQuota(c, info, imageUsage, []string{settleNote})
 		}
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)

@@ -285,6 +285,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
+		// A downstream write failure means the upstream already produced a
+		// response and the client connection dropped while we were delivering
+		// it. That is a client-side abort: do not disable, cool down, or log an
+		// error against the (healthy) channel, and do not retry because the
+		// client is gone. Billing for completed image output has already been
+		// settled inside the relay handler.
+		if isDownstreamDeliveryFailure(newAPIError) {
+			logger.LogWarn(c, fmt.Sprintf("downstream delivery failed on channel #%d after upstream completion; not attributed to the channel", channel.Id))
+			break
+		}
+
 		channelError := types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan())
 		if recordImageAutoCooldown(imageAutoCooldowns, relayInfo, newAPIError) {
 			// A 524 on an image-auto route is a temporary route-local condition.
@@ -320,6 +331,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 func canWriteRelayError(c *gin.Context) bool {
 	return c != nil && c.Writer != nil && !c.Writer.Written()
+}
+
+// isDownstreamDeliveryFailure reports whether the relay error only describes a
+// failure to write the (already produced) upstream response to the client.
+func isDownstreamDeliveryFailure(err *types.NewAPIError) bool {
+	return err != nil && err.GetErrorCode() == types.ErrorCodeWriteResponseBodyFailed
 }
 
 // isImageAutoRefundSafe returns true when the gateway can prove the request

@@ -18,7 +18,7 @@ const [data, config, types, navGroup, zh, consoleInjection] = await Promise.all(
 const zhTranslations = JSON.parse(zh).translation
 
 for (const [key, label, url] of [
-  ['Creative Studio', '创作 Studio', '/studio/'],
+  ['Creative Studio', 'AI 生图', '/studio/'],
   ['Agent Management', '代理管理', '/agent/admin'],
   ['User Activity', '用户活跃', '/agent/active'],
   ['Regional Access', '地域访问', '/geo-admin/'],

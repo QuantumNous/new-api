@@ -34,6 +34,18 @@ func TestCanWriteRelayErrorRefusesAfterResponseStarted(t *testing.T) {
 	require.False(t, canWriteRelayError(c))
 }
 
+func TestDownstreamDeliveryFailureIsNotAChannelError(t *testing.T) {
+	require.False(t, isDownstreamDeliveryFailure(nil))
+	require.True(t, isDownstreamDeliveryFailure(types.NewError(
+		errors.New("write image response: broken pipe"),
+		types.ErrorCodeWriteResponseBodyFailed,
+	)))
+	require.False(t, isDownstreamDeliveryFailure(types.NewError(
+		errors.New("no route"),
+		types.ErrorCodeGetChannelFailed,
+	)))
+}
+
 func TestImageAutoRefundRequiresProofRequestWasNotDispatched(t *testing.T) {
 	require.True(t, isImageAutoRefundSafe(types.NewError(
 		errors.New("no route"),

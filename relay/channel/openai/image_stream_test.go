@@ -56,18 +56,27 @@ func newImageTestContext(t *testing.T, body, contentType string, isStream bool) 
 	return c, recorder, resp, info
 }
 
-func TestOpenaiImageAutoNonStreamWriteFailureIsNotDelivered(t *testing.T) {
+// A buffered image-auto response is validated as complete before delivery
+// starts, so a downstream write failure (client abort) must still settle the
+// upstream-completed result instead of refunding it: the upstream produced and
+// billed the image regardless of whether the client stayed to receive it.
+func TestOpenaiImageAutoNonStreamWriteFailureSettlesCompletedResult(t *testing.T) {
 	c, _, resp, info := newImageTestContext(t, `{"data":[{"b64_json":"valid"}]}`, "application/json", false)
 	enableImageAutoFixedRoute(t, info, 1)
 	c.Writer = &failImageWriteNumber{ResponseWriter: c.Writer, failAt: 1}
 
 	usage, err := OpenaiImageHandler(c, info, resp)
 
-	require.Nil(t, usage)
+	require.NotNil(t, usage)
 	require.NotNil(t, err)
 	require.Equal(t, types.ErrorCodeWriteResponseBodyFailed, err.GetErrorCode())
 	require.False(t, info.ImageRouting.DownstreamPayloadStarted())
-	require.False(t, info.ImageRouting.ReturnedImagesKnown)
+	require.True(t, info.ImageRouting.ReturnedImagesKnown)
+	require.Equal(t, uint(1), info.ImageRouting.ReturnedImages)
+	require.NoError(t, service.FinalizeImageRoutingSettlement(info, usage))
+	quota, breached := service.ResolveImageRoutingQuota(info, 999999)
+	require.Equal(t, 100000, quota)
+	require.False(t, breached)
 }
 
 func TestOpenaiImageAutoJSONStreamSettlesOnlyFramesWrittenBeforeFailure(t *testing.T) {

@@ -158,6 +158,17 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 			"image response delivery failed: bytes_written=%d expected_bytes=%d error=%v",
 			written, len(responseBody), writeErr,
 		))
+		if isImageAutoRelay(info) {
+			// The buffered upstream response was validated as a complete result
+			// (imageCount > 0) before this write started, so a downstream write
+			// failure is a client-side abort, not an upstream/channel failure.
+			// Record the produced images and return the parsed usage so the
+			// caller settles billing for work the upstream completed and billed.
+			updateOpenAIImageCount(info, imageCount)
+			normalizeOpenAIUsage(&usageResp.Usage)
+			applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
+			return &usageResp.Usage, newImageAutoDownstreamWriteError(writeErr)
+		}
 		return nil, newImageAutoDownstreamWriteError(writeErr)
 	}
 	updateOpenAIImageCount(info, imageCount)
