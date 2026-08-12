@@ -15,7 +15,7 @@ import type { ITheme } from '../../../../theme';
 import type { ITooltipSpec, ITooltipTextTheme, ITooltipTheme } from '../../../../component/tooltip';
 import { token } from '../../../../theme/token';
 // eslint-disable-next-line no-duplicate-imports
-import { getRichTextBounds } from '@visactor/vrender-core';
+import { getRichTextBounds } from '@visactor/vrender-core/text';
 // eslint-disable-next-line no-duplicate-imports
 import type { IRichTextCharacter, IRichTextParagraphCharacter } from '@visactor/vrender-core';
 

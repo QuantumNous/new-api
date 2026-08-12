@@ -1,9 +1,8 @@
-import { createRect3d } from '@visactor/vrender-core';
-import { registerRect3d } from '@visactor/vrender-kits/register/register-rect3d';
-import { registerShadowRoot } from '@visactor/vrender-kits/register/register-shadowRoot';
+import { createRect3d } from './graphic-creator';
 import { registerRectAnimation } from '@visactor/vchart/esm/animation/config';
 import { Factory } from '@visactor/vchart/esm/core/factory';
 import { BaseMark } from '@visactor/vchart/esm/mark/base/base-mark';
+import { registerRect3d, registerShadowRoot } from '@visactor/vchart/esm/vrender-bridge';
 import type { IMarkStyle } from '@visactor/vchart/esm/mark/interface/common';
 import type { IRect3dMark, IRect3dMarkSpec } from './interface';
 import { MarkType3dEnum } from './enum';

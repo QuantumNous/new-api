@@ -167,6 +167,7 @@ export declare class BaseMark<T extends ICommonSpec> extends GrammarItem impleme
     protected _runEncoder(graphics: IMarkGraphic[], noGroupEncode?: boolean): void;
     protected _excludeStateControlledDiffAttrs(g: IMarkGraphic, diffAttrs: Record<string, any>): Record<string, any>;
     protected _hasDiffAttrs(g: IMarkGraphic): boolean;
+    protected _commitPreventedAnimationStaticAttrs(g: IMarkGraphic, attrs: Record<string, any>): void;
     protected _runApplyGraphic(graphics: IMarkGraphic[]): void;
     protected _updateEncoderByState(): void;
     protected _runState(graphics: IMarkGraphic[]): void;

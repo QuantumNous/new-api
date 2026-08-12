@@ -20,6 +20,13 @@ import { getSvgHtml } from './utils/svg';
 import { formatContent } from './utils/common';
 import { token } from '../../../theme/token';
 import { calcLayoutNumber } from '../../../util/space';
+
+const isTooltipParentElement = (element: unknown): element is HTMLElement | HTMLCanvasElement =>
+  !!element &&
+  (element as HTMLElement).nodeType === 1 &&
+  typeof (element as HTMLElement).appendChild === 'function' &&
+  !!(element as HTMLElement).children;
+
 /**
  * The tooltip handler class.
  */
@@ -69,10 +76,26 @@ export class DomTooltipHandler extends BaseTooltipHandler {
     this.initEl();
   }
 
+  protected _getTooltipParentElement(tooltipSpec: ITooltipSpec) {
+    if (isTooltipParentElement(tooltipSpec.parentElement)) {
+      return tooltipSpec.parentElement;
+    }
+
+    if (isTooltipParentElement(this._chartContainer)) {
+      return this._chartContainer;
+    }
+
+    if (isTooltipParentElement(domDocument?.body)) {
+      return domDocument.body;
+    }
+
+    return undefined;
+  }
+
   initEl() {
     const tooltipSpec = this._component.getSpec() as ITooltipSpec;
-    const parentElement = tooltipSpec.parentElement as HTMLElement | HTMLCanvasElement;
-    if (domDocument && parentElement && parentElement.children && parentElement.children.length) {
+    const parentElement = this._getTooltipParentElement(tooltipSpec);
+    if (domDocument && parentElement) {
       for (let i = 0; i < parentElement.children.length; i++) {
         if (parentElement.children[i].classList.contains(TOOLTIP_CONTAINER_EL_CLASS_NAME)) {
           this._container = parentElement.children[i] as HTMLDivElement;
@@ -90,8 +113,15 @@ export class DomTooltipHandler extends BaseTooltipHandler {
   }
 
   initRootDom() {
+    if (!this._container) {
+      this.initEl();
+    }
+    if (!this._container) {
+      return;
+    }
+
     const tooltipSpec = this._component.getSpec() as ITooltipSpec;
-    const tooltipElement = document.createElement('div');
+    const tooltipElement = domDocument.createElement('div');
     const themeFontFamily = this._chartOption?.getTheme('fontFamily');
     setStyleToDom(tooltipElement, {
       left: '0',
@@ -394,7 +424,7 @@ export class DomTooltipHandler extends BaseTooltipHandler {
   }
 
   protected _getParentElement(spec: ITooltipSpec): HTMLElement {
-    return this._container ?? super._getParentElement(spec);
+    return this._container ?? (this._getTooltipParentElement(spec) as HTMLElement);
   }
 
   isTooltipShown() {

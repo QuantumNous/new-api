@@ -2,7 +2,7 @@ import type { IMarkStyle } from './interface';
 import { MarkTypeEnum } from './interface/type';
 import type { ILiquidMark } from '../series/liquid/liquid';
 import { GlyphMark } from './glyph';
-import { type IGlyph } from '@visactor/vrender-core';
+import type { IGlyph } from '@visactor/vrender-core';
 import type { IPointLike } from '@visactor/vutils';
 import type { ILiquidMarkSpec } from '../typings/visual';
 import type { Datum } from '../typings/common';

@@ -1,6 +1,6 @@
 import type { ISankeyAnimationParams, SankeyAppearPreset } from './interface';
 import type { IAnimationTypeConfig } from '../../animation/interface';
-import { ACustomAnimate } from '@visactor/vrender-animate';
+import { ACustomAnimate } from '@visactor/vrender-animate/custom/custom-animate';
 export declare const sankeyGrowIn: (params: ISankeyAnimationParams, isOverall?: boolean) => IAnimationTypeConfig;
 export declare const sankeyGrowOut: (params: ISankeyAnimationParams, isOverall?: boolean) => IAnimationTypeConfig;
 export declare const sankeyNodePresetAnimation: (params: ISankeyAnimationParams, preset: SankeyAppearPreset) => IAnimationTypeConfig;

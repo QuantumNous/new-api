@@ -2,7 +2,8 @@ import type { EasingType, ILineAttribute, IRectAttribute } from '@visactor/vrend
 import type { IGlyph } from '@visactor/vrender-core';
 import type { IAnimationParameters } from '../../animation/interface';
 import { isValidNumber } from '@visactor/vutils';
-import { ACustomAnimate, AnimateExecutor } from '@visactor/vrender-animate';
+import { ACustomAnimate } from '@visactor/vrender-animate/custom/custom-animate';
+import { AnimateExecutor } from '@visactor/vrender-animate/executor/animate-executor';
 export interface IBoxplotScaleAnimationOptions {
   center?: number;
 }

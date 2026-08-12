@@ -59,6 +59,16 @@ Whether the bottom of the funnel chart is sharp. It doesn't work when shape is `
 #${prefix} gap(number) = 0
 The pixel gap between the funnel layers.
 
+#${prefix} range(Object)
+Specify the value mapping range. `range.min` maps to `minSize`, `range.max` maps to `maxSize`, and out-of-range values are clamped to the corresponding minimum or maximum width.
+When `range.min` is not configured, it defaults to `0`. When `range.max` is not configured, it defaults to the maximum data value.
+
+##${prefix} min(number)
+Minimum value of the mapping range. Defaults to `0`.
+
+##${prefix} max(number)
+Maximum value of the mapping range. Defaults to the maximum data value.
+
 #${prefix} maxSize(number|string) = '80%'
 The maximum width of the funnel chart, supports pixel values and percentage strings.
 

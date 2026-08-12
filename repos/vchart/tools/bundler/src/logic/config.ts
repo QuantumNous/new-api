@@ -1,6 +1,6 @@
 import ArgsParser, { Arguments } from 'yargs-parser';
 import type { RawPackageJson } from './package';
-import type { RollupOptions } from 'rollup';
+import type { Plugin, RollupOptions } from 'rollup';
 import type { Alias } from '@rollup/plugin-alias';
 import type { RollupNodeResolveOptions } from '@rollup/plugin-node-resolve';
 
@@ -102,7 +102,9 @@ export interface Config {
   // 构建 UMD 产物时，传递给 @rollup/plugin-alias 作为 entries 的选项
   alias: Array<Alias>;
   // 额外的 rollup 配置项
-  rollupOptions: Omit<RollupOptions, 'output'>;
+  rollupOptions: Omit<RollupOptions, 'output'> & { prePlugins?: Plugin[] };
+  // 仅用于 esTotalFile 产物的额外 rollup 配置项
+  esTotalRollupOptions: Omit<RollupOptions, 'output'> & { prePlugins?: Plugin[] };
   // 传给 @rollup/plugin-node-resolve 的配置项
   nodeResolveOptions:
     | RollupNodeResolveOptions
@@ -159,6 +161,7 @@ export function getDefaultConfig(): Config {
     external: [],
     alias: [],
     rollupOptions: {},
+    esTotalRollupOptions: {},
     nodeResolveOptions: {},
     preTasks: {},
     postTasks: {},

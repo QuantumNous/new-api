@@ -44,6 +44,8 @@ export declare class Compiler implements ICompiler {
     getCanvas(): HTMLCanvasElement | undefined;
     _gestureController?: Gesture;
     getStage(): IStage | undefined;
+    private _dedupeStagePlugin;
+    private _dedupePoptipPlugin;
     initView(): void;
     getLayoutState(): LayoutState;
     updateLayoutTag(): void;

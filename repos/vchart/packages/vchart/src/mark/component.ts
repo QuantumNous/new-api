@@ -190,6 +190,9 @@ export class ComponentMark extends BaseMark<ICommonSpec> implements IComponentMa
       this._component && this._product.appendChild(this._component);
     } else {
       this._component.setAttributes(attrs as any);
+      if (this._product && this._component.parent !== this._product) {
+        this._product.appendChild(this._component);
+      }
     }
 
     if (this._component) {

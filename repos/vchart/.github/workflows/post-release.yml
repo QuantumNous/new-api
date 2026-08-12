@@ -1,6 +1,8 @@
 name: Post release after develop synced
 
 on:
+  repository_dispatch:
+    types: [develop-synced]
   workflow_dispatch:
     inputs:
       version:
@@ -16,19 +18,25 @@ jobs:
       contents: write
 
     steps:
-      - name: Read version from workflow_dispatch input
+      - name: Read version from event payload or workflow_dispatch input
         id: meta
         env:
+          PAYLOAD_VERSION: ${{ github.event.client_payload.version }}
           INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           set -euo pipefail
-          if [ -z "${INPUT_VERSION}" ]; then
-            echo "No version in workflow_dispatch input, skip post-release."
+          VERSION="${PAYLOAD_VERSION:-${INPUT_VERSION:-}}"
+          if [ -z "${VERSION}" ]; then
+            echo "No version in repository_dispatch payload or workflow_dispatch input, skip post-release."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "Using version from input: ${INPUT_VERSION}"
-          echo "version=${INPUT_VERSION}" >> "$GITHUB_OUTPUT"
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid post-release version: ${VERSION}"
+            exit 1
+          fi
+          echo "Using version: ${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Checkout main
@@ -39,14 +47,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Configure git remote to use PAT
+      - name: Configure git remote for tag push
         if: steps.meta.outputs.skip != 'true'
         env:
-          GH_PAT: ${{ secrets.CREATE_TAG_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
         run: |
           set -euo pipefail
-          git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git"
-          git remote -v
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
       - name: Fetch tags
         if: steps.meta.outputs.skip != 'true'
@@ -59,24 +66,36 @@ jobs:
         if: steps.meta.outputs.skip != 'true'
         env:
           VERSION: ${{ steps.meta.outputs.version }}
-          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
         run: |
           set -euo pipefail
           TAG="v${VERSION}"
+          TAG_EXISTS="false"
+          RELEASE_EXISTS="false"
+          git fetch origin main:refs/remotes/origin/main --depth=1
+          MAIN_SHA="$(git rev-parse origin/main)"
 
           if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "Tag ${TAG} already exists, skip post-release."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "Tag ${TAG} already exists."
+            TAG_SHA="$(git rev-list -n 1 "${TAG}")"
+            if [ "${TAG_SHA}" != "${MAIN_SHA}" ]; then
+              echo "Existing tag ${TAG} points to ${TAG_SHA}, expected origin/main ${MAIN_SHA}."
+              exit 1
+            fi
+            TAG_EXISTS="true"
           fi
 
           if gh release view "${TAG}" >/dev/null 2>&1; then
             echo "Release ${TAG} already exists, skip post-release."
+            RELEASE_EXISTS="true"
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          else
+            echo "Release ${TAG} does not exist, continue post-release."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "tag_exists=${TAG_EXISTS}" >> "$GITHUB_OUTPUT"
+          echo "release_exists=${RELEASE_EXISTS}" >> "$GITHUB_OUTPUT"
 
       - name: Ensure main changelog exists
         if: steps.meta.outputs.skip != 'true' && steps.exist.outputs.skip != 'true'
@@ -161,15 +180,15 @@ jobs:
       - name: Verify gh identity
         if: steps.meta.outputs.skip != 'true' && steps.exist.outputs.skip != 'true' && steps.body.outputs.has_body == 'true'
         env:
-          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
         run: |
           set -euo pipefail
           gh api user -q '.login'
 
-      - name: Diagnose PAT repository permission
+      - name: Diagnose repository token permission
         if: steps.meta.outputs.skip != 'true' && steps.exist.outputs.skip != 'true' && steps.body.outputs.has_body == 'true'
         env:
-          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
         run: |
           set -euo pipefail
           LOGIN=$(gh api user -q '.login')
@@ -188,21 +207,26 @@ jobs:
             echo "permission insufficient: $RESP"
           fi
 
-      - name: Create tag and GitHub Release
+      - name: Create missing tag and GitHub Release
         if: steps.meta.outputs.skip != 'true' && steps.exist.outputs.skip != 'true' && steps.body.outputs.has_body == 'true'
         env:
           VERSION: ${{ steps.meta.outputs.version }}
-          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
+          TAG_EXISTS: ${{ steps.exist.outputs.tag_exists }}
         run: |
           set -euo pipefail
           TAG="v${VERSION}"
 
-          git fetch origin main:refs/remotes/origin/main --depth=1
-          MAIN_SHA="$(git rev-parse origin/main)"
+          if [ "${TAG_EXISTS}" != "true" ]; then
+            git fetch origin main:refs/remotes/origin/main --depth=1
+            MAIN_SHA="$(git rev-parse origin/main)"
 
-          echo "Creating tag ${TAG} at ${MAIN_SHA}"
-          git tag "${TAG}" "${MAIN_SHA}"
-          git push origin "${TAG}"
+            echo "Creating tag ${TAG} at ${MAIN_SHA}"
+            git tag "${TAG}" "${MAIN_SHA}"
+            git push origin "${TAG}"
+          else
+            echo "Using existing tag ${TAG}."
+          fi
 
           echo "Creating GitHub Release ${TAG}"
           gh release create "${TAG}" \

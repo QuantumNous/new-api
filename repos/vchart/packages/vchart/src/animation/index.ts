@@ -1,4 +1,5 @@
-export { registerAnimate as registerVRenderAnimate, registerCustomAnimate } from '@visactor/vrender-animate';
+export { registerVRenderAnimate } from '../vrender-bridge';
+export { registerCustomAnimate } from '@visactor/vrender-animate/custom/register';
 export { registerStateTransition } from './state-transition';
 export { registerSequentialAnimate } from './sequential-animate';
 export {

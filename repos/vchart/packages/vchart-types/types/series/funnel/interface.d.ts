@@ -1,4 +1,4 @@
-import type { Datum, IMarkSpec, IMarkTheme, ISeriesSpec, IOrientType, IPathMarkSpec, IPolygonMarkSpec, IRuleMarkSpec, ITextMarkSpec, IPercent, IComposedTextMarkSpec, IFormatMethod } from '../../typings';
+import type { Datum, IMarkSpec, IMarkTheme, ISeriesSpec, IOrientType, IPathMarkSpec, IPolygonMarkSpec, IRuleMarkSpec, ISymbolMarkSpec, ITextMarkSpec, IPercent, IComposedTextMarkSpec, IFormatMethod } from '../../typings';
 import type { IAnimationSpec } from '../../animation/spec';
 import type { SeriesMarkNameEnum } from '../interface/type';
 import type { ILabelSpec } from '../../component/label/interface';
@@ -49,5 +49,10 @@ export interface IFunnelSeriesTheme {
         line?: Partial<IMarkTheme<IRuleMarkSpec>>;
     };
     [SeriesMarkNameEnum.transformLabel]?: Partial<IMarkTheme<ITextMarkSpec>>;
+    conversionArrow?: {
+        line?: Partial<IMarkTheme<IPolygonMarkSpec>>;
+        symbol?: Partial<IMarkTheme<ISymbolMarkSpec>>;
+        text?: Partial<IMarkTheme<ITextMarkSpec>>;
+    };
 }
 export {};

@@ -1,4 +1,4 @@
-import { AnimationTransitionRegistry } from '@visactor/vrender-animate';
+import { AnimationTransitionRegistry } from '@visactor/vrender-animate/state/animation-states-registry';
 
 export function registerStateTransition() {
   const animationTransitionRegistry = AnimationTransitionRegistry.getInstance();

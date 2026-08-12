@@ -5,7 +5,7 @@ import type { BaseLabelAttrs, LabelItem, OverlapAttrs, Strategy } from '@visacto
 import { SeriesTypeEnum, type ICartesianSeries } from '../../series/interface';
 import { isBoolean, isFunction, isObject, isString } from '@visactor/vutils';
 import type { IGlyph, IGraphic, IText } from '@visactor/vrender-core';
-import { createText } from '@visactor/vrender-core';
+import { createText } from '../../vrender-bridge';
 import type { IWaterfallSeriesSpec } from '../../series/waterfall/interface';
 import type { ILabelInfo, ILabelSpec } from './interface';
 import { getFormatFunction } from '../util';

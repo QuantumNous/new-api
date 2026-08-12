@@ -27,6 +27,7 @@ export declare class DomTooltipHandler extends BaseTooltipHandler {
     getRootDom(): HTMLElement;
     constructor();
     onAdd(service: IComponentPluginService<any>): void;
+    protected _getTooltipParentElement(tooltipSpec: ITooltipSpec): HTMLElement;
     initEl(): void;
     initRootDom(): void;
     protected _getTooltipBoxSize(actualTooltip: ITooltipActual, changePositionOnly: boolean): IContainerSize | undefined;

@@ -88,4 +88,100 @@ describe('radar theme test', () => {
     expect(series?.getSpec()?.area?.visible).toBe(true);
     expect(series?.getSpec()?.area?.style?.lineDash).toEqual([2, 2]);
   });
+
+  it('should preserve radar seriesStyle after setting current theme', async () => {
+    vchart = new VChart(
+      {
+        type: 'radar',
+        data: [
+          {
+            id: 'd',
+            values: [
+              { key: 'A', value: 90, group: 'S1' },
+              { key: 'B', value: 60, group: 'S1' },
+              { key: 'C', value: 70, group: 'S1' },
+              { key: 'D', value: 80, group: 'S1' },
+              { key: 'A', value: 40, group: 'S2' },
+              { key: 'B', value: 80, group: 'S2' },
+              { key: 'C', value: 55, group: 'S2' },
+              { key: 'D', value: 65, group: 'S2' }
+            ]
+          }
+        ],
+        categoryField: 'key',
+        valueField: 'value',
+        seriesField: 'group',
+        animation: false,
+        tooltip: {
+          visible: false
+        },
+        area: {
+          visible: true
+        },
+        seriesStyle: [
+          {
+            name: 'S1',
+            area: {
+              style: {
+                fill: '#ff00ff',
+                fillOpacity: 0.9
+              }
+            },
+            line: {
+              style: {
+                stroke: '#ff00ff'
+              }
+            }
+          },
+          {
+            name: 'S2',
+            area: {
+              style: {
+                fill: '#00ffff',
+                fillOpacity: 0.9
+              }
+            },
+            line: {
+              style: {
+                stroke: '#00ffff'
+              }
+            }
+          }
+        ],
+        axes: [
+          { orient: 'radius', min: 0, max: 100, grid: { visible: true } },
+          { orient: 'angle', grid: { visible: true } }
+        ]
+      } as IRadarChartSpec,
+      {
+        renderCanvas: canvasDom,
+        background: 'yellow',
+        autoFit: true,
+        animation: false
+      }
+    );
+
+    await vchart.renderAsync();
+
+    const series = vchart.getChart()?.getAllSeries()?.[0];
+    const getMarkAttributes = (markName: string) =>
+      series
+        ?.getMarkInName(markName)
+        ?.getGraphics()
+        .map(graphic => graphic.attribute);
+
+    expect(getMarkAttributes('area')?.map(attribute => [attribute.fill, attribute.fillOpacity])).toEqual([
+      ['#ff00ff', 0.9],
+      ['#00ffff', 0.9]
+    ]);
+    expect(getMarkAttributes('line')?.map(attribute => attribute.stroke)).toEqual(['#ff00ff', '#00ffff']);
+
+    await vchart.setCurrentTheme(vchart.getCurrentThemeName());
+
+    expect(getMarkAttributes('area')?.map(attribute => [attribute.fill, attribute.fillOpacity])).toEqual([
+      ['#ff00ff', 0.9],
+      ['#00ffff', 0.9]
+    ]);
+    expect(getMarkAttributes('line')?.map(attribute => attribute.stroke)).toEqual(['#ff00ff', '#00ffff']);
+  });
 });

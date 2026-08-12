@@ -19,4 +19,4 @@ export {
   centerToCorner,
   pulseWave,
   particleEffect
-} from '@visactor/vrender-kits';
+} from '@visactor/vrender-kits/tools/dynamicTexture/effect';

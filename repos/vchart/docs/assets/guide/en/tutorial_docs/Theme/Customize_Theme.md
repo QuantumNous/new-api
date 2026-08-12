@@ -208,6 +208,30 @@ const vchart = new VChart(spec, { dom: CONTAINER_ID });
 vchart.renderSync();
 ```
 
+### Referencing callbacks in serialized themes
+
+When registering a JavaScript theme directly, callbacks can be configured in mark `style` and `state`. If a theme comes from serialized data such as JSON, register the callback with `VChart.registerFunction` first and use its name in the theme. The function must be registered before the chart is rendered or switched to that theme.
+
+```javascript
+VChart.registerFunction('theme.bar.fill', datum => {
+  return datum.value < 0 ? '#f53f3f' : '#00b42a';
+});
+
+VChart.ThemeManager.registerTheme('userTheme', {
+  series: {
+    bar: {
+      bar: {
+        style: {
+          fill: 'theme.bar.fill'
+        }
+      }
+    }
+  }
+});
+```
+
+Only trusted functions registered through `registerFunction` are resolved. String values are never evaluated as code. Use namespaced function names to avoid collisions with ordinary style strings.
+
 ## Updating Themes
 
 In some application scenarios, we may need to dynamically update the chart theme based on user actions or other states. The following will introduce how to hot-update the theme of individual chart instances and global chart instances:

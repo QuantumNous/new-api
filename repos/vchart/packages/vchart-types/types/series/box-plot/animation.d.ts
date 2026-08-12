@@ -1,5 +1,5 @@
 import type { EasingType } from '@visactor/vrender-core';
-import { ACustomAnimate } from '@visactor/vrender-animate';
+import { ACustomAnimate } from '@visactor/vrender-animate/custom/custom-animate';
 export interface IBoxplotScaleAnimationOptions {
     center?: number;
 }

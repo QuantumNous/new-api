@@ -44,6 +44,8 @@ export default {
     ...localConf?.resolve,
     alias: {
       ...localConf?.resolve?.alias,
+      '@visactor/vchart/esm': path.resolve(__dirname, '../../../../vchart/src'),
+      '@visactor/vchart/src': path.resolve(__dirname, '../../../../vchart/src'),
       '@visactor/vutils-extension': path.resolve(__dirname, '../../../../vutils-extension/src/index.ts'),
       '@visactor/vchart': path.resolve(__dirname, '../../../../vchart/src/index.ts')
     }

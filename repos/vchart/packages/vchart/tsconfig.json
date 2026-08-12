@@ -12,6 +12,7 @@
       "@visactor/vrender": ["./node_modules/@visactor/vrender/es/index"],
       "@visactor/vrender/*": ["./node_modules/@visactor/vrender/es/*"],
       "@visactor/vrender-core": ["./node_modules/@visactor/vrender-core/es/index"],
+      "@visactor/vrender-core/event/constant": ["./node_modules/@visactor/vrender-core/es/event/public-constant"],
       "@visactor/vrender-core/*": ["./node_modules/@visactor/vrender-core/es/*"],
       "@visactor/vrender-animate": ["./node_modules/@visactor/vrender-animate/es/index"],
       "@visactor/vrender-animate/*": ["./node_modules/@visactor/vrender-animate/es/*"],

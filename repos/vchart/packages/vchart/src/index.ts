@@ -38,16 +38,24 @@ export * from './compile/data/compilable-data';
 export * from './animation';
 export * from './interaction';
 
+export { createImage, createPath, graphicCreator } from './vrender-bridge';
 export {
-  createImage,
-  createPath,
   createArc3d,
   createPyramid3d,
   createRect3d,
+  registerArc3d,
+  registerLine,
+  registerPyramid3d,
+  registerRect,
+  registerRect3d,
+  registerShadowRoot
+} from './vrender-bridge';
+export {
   registerDirectionalLight,
   registerOrthoCamera,
-  registerViewTransform3dPlugin,
-  graphicCreator,
+  registerViewTransform3dPlugin
+} from '@visactor/vrender-core/plugin/3d';
+export {
   type IGraphic,
   type IGlyph,
   type IGroup,
@@ -69,7 +77,9 @@ export {
   type ISymbolGraphicAttribute
 } from '@visactor/vrender-core';
 
-export { ACustomAnimate, AnimateExecutor, RotateBySphereAnimate } from '@visactor/vrender-animate';
+export { ACustomAnimate } from '@visactor/vrender-animate/custom/custom-animate';
+export { AnimateExecutor } from '@visactor/vrender-animate/executor/animate-executor';
+export { RotateBySphereAnimate } from '@visactor/vrender-animate/custom/sphere';
 
 // vrender-components
 export {
@@ -79,14 +89,6 @@ export {
   type SegmentAttributes,
   type Point
 } from '@visactor/vrender-components';
-
-// vrender-kits
-export { registerLine } from '@visactor/vrender-kits/register/register-line';
-export { registerRect } from '@visactor/vrender-kits/register/register-rect';
-export { registerArc3d } from '@visactor/vrender-kits/register/register-arc3d';
-export { registerPyramid3d } from '@visactor/vrender-kits/register/register-pyramid3d';
-export { registerRect3d } from '@visactor/vrender-kits/register/register-rect3d';
-export { registerShadowRoot } from '@visactor/vrender-kits/register/register-shadowRoot';
 
 // vlayouts
 export * from '@visactor/vlayouts';

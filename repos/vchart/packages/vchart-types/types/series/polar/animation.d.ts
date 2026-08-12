@@ -1,6 +1,7 @@
 import type { EasingType } from '@visactor/vrender-core';
 import type { IPointLike } from '@visactor/vutils';
-import { ACustomAnimate, TagPointsUpdate } from '@visactor/vrender-animate';
+import { ACustomAnimate } from '@visactor/vrender-animate/custom/custom-animate';
+import { TagPointsUpdate } from '@visactor/vrender-animate/custom/tag-points';
 export declare class PolarPointUpdate extends ACustomAnimate<{
     x: number;
     y: number;

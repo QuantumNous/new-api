@@ -9,7 +9,7 @@ import {
   loadTTEnv,
   loadHarmonyEnv
 } from '@visactor/vrender-kits/env';
-import { container } from '@visactor/vrender-core';
+import { container } from '@visactor/vrender-core/container';
 
 /**
  * 加载所有环境兼容代码

@@ -9,6 +9,8 @@ export declare class Interaction implements IInteraction {
     addTrigger(trigger: ITrigger): void;
     setStatedGraphics(trigger: ITrigger, graphics: IMarkGraphic[]): void;
     getStatedGraphics(trigger: ITrigger): IMarkGraphic[];
+    private _getMarkById;
+    private _hasAnimationByGraphicState;
     updateStates(trigger: ITrigger, newStatedGraphics: IMarkGraphic[], prevStatedGraphics?: IMarkGraphic[], state?: string, reverseState?: string): IMarkGraphic[];
     protected toggleReverseStateOfGraphics(trigger: ITrigger, newStatedGraphics: IMarkGraphic[], prevStatedGraphics: IMarkGraphic[], reverseState: string): void;
     protected toggleStateOfGraphics(trigger: ITrigger, newStatedGraphics: IMarkGraphic[], prevStatedGraphics: IMarkGraphic[], state: string): void;

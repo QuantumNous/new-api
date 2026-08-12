@@ -28,9 +28,9 @@ import type {
 import type { IParserOptions, IFields, Transform } from '@visactor/vdataset';
 // eslint-disable-next-line no-duplicate-imports
 import { DataSet, dataViewParser, DataView } from '@visactor/vdataset';
-import type { IGraphic, IStage, Stage } from '@visactor/vrender-core';
+import type { IApp, IGraphic, IStage, Stage } from '@visactor/vrender-core';
 // eslint-disable-next-line no-duplicate-imports
-import { vglobal } from '@visactor/vrender-core';
+import { vglobal } from '../vrender-bridge';
 import { isString, isValid, isNil, array, specTransform, functionTransform, removeUndefined } from '../util';
 import { createID } from '../util/id';
 import { convertPoint } from '../util/space';
@@ -420,8 +420,14 @@ export class VChart implements IVChart {
     this._updateCurrentTheme();
     this._currentSize = this.getCurrentSize();
     const pluginList: string[] = [];
+    const runtimePluginInstallers: ((app?: IApp) => void)[] = [];
 
     if (poptip !== false) {
+      const poptipInstaller = Factory.getRuntimePluginInstaller('poptipForText');
+      if (poptipInstaller) {
+        poptipInstaller();
+        runtimePluginInstallers.push(poptipInstaller);
+      }
       pluginList.push('poptipForText');
     }
 
@@ -446,6 +452,7 @@ export class VChart implements IVChart {
         mode: this._option.mode,
         stage,
         pluginList,
+        runtimePluginInstallers,
         ...restOptions,
         background: this._getBackground(),
         onError: this._onError
@@ -460,7 +467,7 @@ export class VChart implements IVChart {
     // 设置全局字体
     this._setFontFamilyTheme(this.getTheme('fontFamily') as string);
     this._initDataSet(this._option.dataSet);
-    this._autoSize = isTrueBrowseEnv ? spec.autoFit ?? this._option.autoFit ?? true : false;
+    this._autoSize = isTrueBrowseEnv ? (spec.autoFit ?? this._option.autoFit ?? true) : false;
     this._bindResizeEvent();
     this._bindViewEvent();
     this._initChartPlugin();
@@ -1527,8 +1534,8 @@ export class VChart implements IVChart {
           isObject(specTheme) && specTheme.type
             ? specTheme.type
             : isObject(optionTheme) && optionTheme.type
-            ? optionTheme.type
-            : this._currentThemeName
+              ? optionTheme.type
+              : this._currentThemeName
         ),
         getThemeObject(optionTheme),
         getThemeObject(specTheme)
@@ -1562,7 +1569,7 @@ export class VChart implements IVChart {
     }
 
     const lasAutoSize = this._autoSize;
-    this._autoSize = isTrueBrowser(this._option.mode) ? this._spec.autoFit ?? this._option.autoFit ?? true : false;
+    this._autoSize = isTrueBrowser(this._option.mode) ? (this._spec.autoFit ?? this._option.autoFit ?? true) : false;
     if (this._autoSize !== lasAutoSize) {
       resize = true;
     }
@@ -2285,6 +2292,9 @@ export class VChart implements IVChart {
           this._currentTheme.colorScheme,
           this._currentTheme.token
         )[key];
+        if (this.getFunctionList()?.length) {
+          theme = functionTransform(theme, this);
+        }
       }
     });
 

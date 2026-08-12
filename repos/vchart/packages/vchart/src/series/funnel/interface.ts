@@ -7,6 +7,7 @@ import type {
   IPathMarkSpec,
   IPolygonMarkSpec,
   IRuleMarkSpec,
+  ISymbolMarkSpec,
   ITextMarkSpec,
   IPercent,
   IComposedTextMarkSpec,
@@ -60,7 +61,8 @@ export interface IFunnelSeriesSpec extends ISeriesSpec, IAnimationSpec<FunnelMar
    */
   gap?: number;
   /**
-   * 指定数据项的最大值和最小值
+   * 指定数值映射范围，range.min 映射到 minSize，range.max 映射到 maxSize。
+   * range.min 默认为 0，range.max 默认为数据最大值。
    */
   range?: {
     min?: number;
@@ -160,4 +162,16 @@ export interface IFunnelSeriesTheme {
     line?: Partial<IMarkTheme<IRuleMarkSpec>>;
   };
   [SeriesMarkNameEnum.transformLabel]?: Partial<IMarkTheme<ITextMarkSpec>>;
+  /**
+   * Style of the conversion-rate arrow (used by the `conversionFunnel` extension chart)
+   * @since 2.1.4
+   */
+  conversionArrow?: {
+    /** Style of the arrow leader line */
+    line?: Partial<IMarkTheme<IPolygonMarkSpec>>;
+    /** Style of the arrow head symbol */
+    symbol?: Partial<IMarkTheme<ISymbolMarkSpec>>;
+    /** Style of the arrow label text */
+    text?: Partial<IMarkTheme<ITextMarkSpec>>;
+  };
 }

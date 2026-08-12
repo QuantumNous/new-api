@@ -1,5 +1,5 @@
 import type { DataView } from '@visactor/vdataset';
-import { isFunction, isValidNumber } from '@visactor/vutils';
+import { clamp, isFunction, isValidNumber } from '@visactor/vutils';
 
 type FunnelOptionValue<T> = T | (() => T);
 
@@ -49,16 +49,30 @@ export const funnel = (originData: Array<DataView>, op: IFunnelOpt) => {
     asLastValueRatio,
     asLastValue,
     asCurrentValue,
-    asNextValue,
+    asNextValue
   } = op;
   const valueField = resolveOptionValue(op.valueField);
   const heightVisual = resolveOptionValue(op.heightVisual) ?? false;
   const isCone = resolveOptionValue(op.isCone) ?? true;
   const range = resolveOptionValue(op.range);
 
-  const max = data.reduce((m, d) => Math.max(m, Number.parseFloat(d[valueField]) || -Infinity), -Infinity);
-  const min = data.reduce((m, d) => Math.min(m, Number.parseFloat(d[valueField]) || Infinity), Infinity);
-  const rangeArr = [range?.min ?? min, range?.max ?? max];
+  const max = data.reduce((m, d) => {
+    const value = Number.parseFloat(d[valueField]);
+    return isValidNumber(value) ? Math.max(m, value) : m;
+  }, -Infinity);
+  const rangeMin = range?.min ?? 0;
+  const rangeMax = range?.max ?? max;
+  const getValueRatio = (value: number) => {
+    if (!isValidNumber(value) || !isValidNumber(rangeMin) || !isValidNumber(rangeMax)) {
+      return 0;
+    }
+
+    if (rangeMin === rangeMax) {
+      return value < rangeMin ? 0 : 1;
+    }
+
+    return clamp((value - rangeMin) / (rangeMax - rangeMin), 0, 1);
+  };
 
   data.forEach((d, i) => {
     const currentValue: number = Number.parseFloat(d[valueField]);
@@ -68,16 +82,17 @@ export const funnel = (originData: Array<DataView>, op: IFunnelOpt) => {
     const transformRatio =
       !isValidNumber(nextValue * currentValue) || currentValue === 0 ? 0 : nextValue / currentValue;
     const reachRatio = !isValidNumber(currentValue * lastValue) || lastValue === 0 ? 0 : currentValue / lastValue;
+    const valueRatio = getValueRatio(currentValue);
 
     asLastValue && (d[asLastValue] = lastValue);
     asNextValue && (d[asNextValue] = nextValue);
     asTransformRatio && (d[asTransformRatio] = transformRatio);
     asReachRatio && (d[asReachRatio] = i === 0 ? 1 : reachRatio);
     asHeightRatio && (d[asHeightRatio] = heightVisual === true ? transformRatio : 1 / data.length);
-    asValueRatio && (d[asValueRatio] = currentValue / rangeArr[1]);
+    asValueRatio && (d[asValueRatio] = valueRatio);
     asNextValueRatio &&
-      (d[asNextValueRatio] = i === data.length - 1 ? (isCone ? 0 : d[asValueRatio]) : nextValue / rangeArr[1]);
-    asLastValueRatio && (d[asLastValueRatio] = i === 0 ? 1 : lastValue / rangeArr[1]);
+      (d[asNextValueRatio] = i === data.length - 1 ? (isCone ? 0 : d[asValueRatio]) : getValueRatio(nextValue));
+    asLastValueRatio && (d[asLastValueRatio] = i === 0 ? 1 : getValueRatio(lastValue));
     asCurrentValue && (d[asCurrentValue] = currentValue);
   });
 

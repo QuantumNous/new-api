@@ -4,7 +4,7 @@ import { GlobalScale } from '../../../src/scale/global-scale';
 import { EventDispatcher } from '../../../src/event/event-dispatcher';
 import type { BarSeries } from '../../../src';
 // eslint-disable-next-line no-duplicate-imports
-import { BarChart } from '../../../src';
+import { BarChart, CommonChart } from '../../../src';
 import { DataSet } from '@visactor/vdataset';
 import { createCanvas, removeDom } from '../../util/dom';
 import { getTheme, initChartDataSet } from '../../util/context';
@@ -74,7 +74,7 @@ const spec = {
 
 describe('Bar chart test', () => {
   let canvasDom: HTMLCanvasElement;
-  let chart: BarChart;
+  let chart: BarChart | CommonChart;
   beforeEach(() => {
     canvasDom = createCanvas();
     canvasDom.style.position = 'relative';
@@ -85,41 +85,116 @@ describe('Bar chart test', () => {
   });
 
   afterEach(() => {
+    chart?.release?.();
+    chart = null;
     removeDom(canvasDom);
   });
 
-  test('Bar chart init', () => {
+  const createBarChart = (chartSpec: Record<string, unknown>) => {
     const transformer = new BarChart.transformerConstructor({
       type: 'bar',
       seriesType: 'bar',
       getTheme: getTheme,
       mode: 'desktop-browser'
     });
-    const info = transformer.initChartSpec(spec as any);
-    chart = new BarChart(
-      spec as any,
+    const info = transformer.initChartSpec(chartSpec as never);
+    const barChart = new BarChart(
+      chartSpec as never,
       {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
-        eventDispatcher: new EventDispatcher({} as any, { addEventListener: () => {} } as any),
+        eventDispatcher: new EventDispatcher({} as never, { addEventListener: () => {} } as never),
         globalInstance: {
           isAnimationEnable: () => true,
           getContainer: () => ({}),
           getTooltipHandlerByUser: (() => undefined) as () => undefined
         },
-        render: {} as any,
+        render: {} as never,
         dataSet,
         map: new Map(),
         container: null,
         mode: 'desktop-browser',
         getCompiler: getTestCompiler,
-        globalScale: new GlobalScale([], { getAllSeries: () => [] as any[] } as any),
+        globalScale: new GlobalScale([], { getAllSeries: (): never[] => [] } as never),
         getTheme: getTheme,
         getSpecInfo: () => info
-      } as any
+      } as never
     );
-    chart.created(transformer);
-    chart.init();
+    barChart.created(transformer);
+    barChart.init();
+    return barChart;
+  };
+
+  const createCommonChart = (chartSpec: Record<string, unknown>) => {
+    const transformer = new CommonChart.transformerConstructor({
+      type: 'common',
+      getTheme: getTheme,
+      mode: 'desktop-browser'
+    });
+    const info = transformer.initChartSpec(chartSpec as never);
+    const commonChart = new CommonChart(
+      chartSpec as never,
+      {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        eventDispatcher: new EventDispatcher({} as never, { addEventListener: () => {} } as never),
+        globalInstance: {
+          isAnimationEnable: () => true,
+          getContainer: () => ({}),
+          getTooltipHandlerByUser: (() => undefined) as () => undefined
+        },
+        render: {} as never,
+        dataSet,
+        map: new Map(),
+        container: null,
+        mode: 'desktop-browser',
+        getCompiler: getTestCompiler,
+        globalScale: new GlobalScale([], { getAllSeries: (): never[] => [] } as never),
+        getTheme: getTheme,
+        getSpecInfo: () => info
+      } as never
+    );
+    commonChart.created(transformer);
+    commonChart.init();
+    return commonChart;
+  };
+
+  const getLinearBarWidth = (extraSpec: Record<string, unknown> = {}) => {
+    const linearSpec = {
+      type: 'bar',
+      data: {
+        values: [
+          { x: 0, y: 10 },
+          { x: 10, y: 20 },
+          { x: 20, y: 12 }
+        ]
+      },
+      xField: 'x',
+      yField: 'y',
+      axes: [
+        { orient: 'bottom', type: 'linear' },
+        { orient: 'left', type: 'linear' }
+      ],
+      ...extraSpec
+    };
+    chart = createBarChart(linearSpec);
+    const series = chart.getAllSeries()[0] as BarSeries;
+    const xScale = series.getXAxisHelper().getScale(0) as {
+      domain: (domain: number[]) => void;
+      range: (range: number[]) => void;
+    };
+    xScale.domain([0, 20]);
+    xScale.range([0, 200]);
+
+    return (
+      series.getMarkInName('bar') as {
+        getAttribute: (key: string, datum: unknown) => unknown;
+      }
+    ).getAttribute('width', series.getViewData().latestData[0]) as number;
+  };
+
+  test('Bar chart init', () => {
+    chart = createBarChart(spec);
 
     // spec
     const transformSpec = chart.getSpec();
@@ -138,7 +213,8 @@ describe('Bar chart test', () => {
   });
 
   test('Bar chart updateSpec', () => {
-    chart.updateSpec(spec as any);
+    chart = createBarChart(spec);
+    chart.updateSpec(spec as never);
 
     expect(chart.getAllSeries().length).toEqual(1);
     const series: BarSeries = chart.getAllSeries()[0] as BarSeries;
@@ -171,48 +247,90 @@ describe('Bar chart test', () => {
       yField: 'value',
       seriesField: 'type'
     };
-    const transformer = new BarChart.transformerConstructor({
-      type: 'bar',
-      seriesType: 'bar',
-      getTheme: getTheme,
-      mode: 'desktop-browser'
-    });
-    const info = transformer.initChartSpec(stackSpec as any);
-    chart = new BarChart(
-      stackSpec as any,
-      {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        eventDispatcher: new EventDispatcher({} as any, { addEventListener: () => {} } as any),
-        globalInstance: {
-          isAnimationEnable: () => true,
-          getContainer: () => ({}),
-          getTooltipHandlerByUser: (() => undefined) as () => undefined
-        },
-        render: {} as any,
-        dataSet,
-        map: new Map(),
-        container: null,
-        mode: 'desktop-browser',
-        getCompiler: getTestCompiler,
-        globalScale: new GlobalScale([], { getAllSeries: () => [] as any[] } as any),
-        getTheme: getTheme,
-        getSpecInfo: () => info
-      } as any
-    );
-    chart.created(transformer);
-    chart.init();
+    chart = createBarChart(stackSpec);
 
     const series: BarSeries = chart.getAllSeries()[0] as BarSeries;
-    const barMark = series.getMarkInName('bar') as any;
+    const barMark = series.getMarkInName('bar') as unknown as {
+      _markConfig: {
+        clipPath: () => Array<{ attribute: { x: number; y: number; y1: number; width: number } }>;
+      };
+    };
     const clipPaths = barMark._markConfig.clipPath();
 
     expect(clipPaths.length).toBeGreaterThan(0);
-    clipPaths.forEach((path: any) => {
+    clipPaths.forEach(path => {
       expect(Number.isFinite(path.attribute.x)).toBe(true);
       expect(Number.isFinite(path.attribute.y)).toBe(true);
       expect(Number.isFinite(path.attribute.y1)).toBe(true);
       expect(Number.isFinite(path.attribute.width)).toBe(true);
     });
+  });
+
+  test('linear x axis bar uses adjacent data spacing as automatic width base', () => {
+    expect(getLinearBarWidth()).toBe(50);
+  });
+
+  test('linear x axis bar respects numeric barWidth', () => {
+    expect(getLinearBarWidth({ barWidth: 18 })).toBe(18);
+  });
+
+  test('linear x axis bar resolves percent barWidth from automatic width base', () => {
+    expect(getLinearBarWidth({ barWidth: '25%' })).toBe(25);
+  });
+
+  test('linear x axis common chart bar series share automatic width base', () => {
+    chart = createCommonChart({
+      type: 'common',
+      data: [
+        {
+          id: 'barA',
+          values: [
+            { x: 0, y: 10 },
+            { x: 10, y: 20 }
+          ]
+        },
+        {
+          id: 'barB',
+          values: [
+            { x: 11, y: 12 },
+            { x: 20, y: 18 }
+          ]
+        },
+        {
+          id: 'line',
+          values: [
+            { x: 10.2, y: 30 },
+            { x: 10.3, y: 36 }
+          ]
+        }
+      ],
+      series: [
+        { type: 'bar', dataId: 'barA', xField: 'x', yField: 'y' },
+        { type: 'bar', dataId: 'barB', xField: 'x', yField: 'y' },
+        { type: 'line', dataId: 'line', xField: 'x', yField: 'y' }
+      ],
+      axes: [
+        { orient: 'bottom', type: 'linear' },
+        { orient: 'left', type: 'linear' }
+      ]
+    });
+
+    const barSeriesList = chart.getAllSeries().filter(series => series.type === 'bar') as BarSeries[];
+    const xScale = barSeriesList[0].getXAxisHelper().getScale(0) as {
+      domain: (domain: number[]) => void;
+      range: (range: number[]) => void;
+    };
+    xScale.domain([0, 20]);
+    xScale.range([0, 200]);
+
+    const getWidth = (series: BarSeries) =>
+      (
+        series.getMarkInName('bar') as {
+          getAttribute: (key: string, datum: unknown) => unknown;
+        }
+      ).getAttribute('width', series.getViewData().latestData[0]) as number;
+
+    expect(getWidth(barSeriesList[0])).toBe(5);
+    expect(getWidth(barSeriesList[1])).toBe(5);
   });
 });

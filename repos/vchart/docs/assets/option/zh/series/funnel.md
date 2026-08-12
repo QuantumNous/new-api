@@ -60,6 +60,16 @@
 #${prefix} gap(number) = 0
 漏斗层之间的像素间隔。
 
+#${prefix} range(Object)
+指定数值映射范围。`range.min` 映射到 `minSize`，`range.max` 映射到 `maxSize`，超出范围的值会被截断到对应的最小或最大宽度。
+未配置 `range.min` 时默认为 `0`，未配置 `range.max` 时默认为数据最大值。
+
+##${prefix} min(number)
+数值映射范围的最小值，默认为 `0`。
+
+##${prefix} max(number)
+数值映射范围的最大值，默认为数据最大值。
+
 #${prefix} maxSize(number|string) = '80%'
 漏斗图最大宽度，支持配置像素值和百分比字符串。
 

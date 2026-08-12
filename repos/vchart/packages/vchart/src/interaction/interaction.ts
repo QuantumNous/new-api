@@ -1,5 +1,5 @@
 import type { StateValue } from '../compile/mark';
-import type { IMarkGraphic } from '../mark/interface';
+import type { IMark, IMarkGraphic } from '../mark/interface';
 import type { IInteraction } from './interface/common';
 import type { ITrigger } from './interface/trigger';
 import { addGraphicState, removeGraphicState } from '../util/graphic-state';
@@ -41,6 +41,24 @@ export class Interaction implements IInteraction {
     return this._stateGraphicsByTrigger.get(trigger);
   }
 
+  private _getMarkById(trigger: ITrigger) {
+    const markById = new Map<number, IMark>();
+
+    trigger.getMarks().forEach(mark => {
+      if (mark) {
+        markById.set(mark.id, mark);
+      }
+    });
+
+    return markById;
+  }
+
+  private _hasAnimationByGraphicState(graphic: IMarkGraphic, markById: Map<number, IMark>) {
+    const mark = (graphic.parent as any)?.mark ?? markById.get(graphic.context.markId);
+
+    return !!(mark as any)?.hasAnimationByState?.('state');
+  }
+
   updateStates(
     trigger: ITrigger,
     newStatedGraphics: IMarkGraphic[],
@@ -53,6 +71,9 @@ export class Interaction implements IInteraction {
     }
 
     if (!newStatedGraphics || !newStatedGraphics.length) {
+      if (prevStatedGraphics && prevStatedGraphics.length) {
+        this.clearAllStatesOfTrigger(trigger, state, reverseState);
+      }
       return [];
     }
     if (state && reverseState) {
@@ -82,14 +103,14 @@ export class Interaction implements IInteraction {
     reverseState: string
   ) {
     const markIdByState = trigger.getMarkIdByState();
+    const markById = this._getMarkById(trigger);
 
     prevStatedGraphics.forEach(g => {
       const hasReverse =
         reverseState && markIdByState[reverseState] && markIdByState[reverseState].includes(g.context.markId);
 
       if (hasReverse) {
-        const m = g.parent?.mark;
-        const hasAnimation = (m as any).hasAnimationByState && (m as any).hasAnimationByState('state');
+        const hasAnimation = this._hasAnimationByGraphicState(g, markById);
         addGraphicState(g, reverseState, true, hasAnimation);
       }
     });
@@ -99,8 +120,7 @@ export class Interaction implements IInteraction {
         reverseState && markIdByState[reverseState] && markIdByState[reverseState].includes(g.context.markId);
 
       if (hasReverse) {
-        const m = g.parent?.mark;
-        const hasAnimation = (m as any).hasAnimationByState && (m as any).hasAnimationByState('state');
+        const hasAnimation = this._hasAnimationByGraphicState(g, markById);
         removeGraphicState(g, reverseState, hasAnimation);
       }
     });
@@ -113,13 +133,13 @@ export class Interaction implements IInteraction {
     state: string
   ) {
     const markIdByState = trigger.getMarkIdByState();
+    const markById = this._getMarkById(trigger);
 
     prevStatedGraphics.forEach(g => {
       const hasState = state && markIdByState[state] && markIdByState[state].includes(g.context.markId);
 
       if (hasState) {
-        const m = g.parent?.mark;
-        const hasAnimation = (m as any).hasAnimationByState && (m as any).hasAnimationByState('state');
+        const hasAnimation = this._hasAnimationByGraphicState(g, markById);
         removeGraphicState(g, state, hasAnimation);
       }
     });
@@ -127,8 +147,7 @@ export class Interaction implements IInteraction {
     newStatedGraphics.forEach(g => {
       const hasState = state && markIdByState[state] && markIdByState[state].includes(g.context.markId);
       if (hasState) {
-        const m = g.parent?.mark;
-        const hasAnimation = (m as any).hasAnimationByState && (m as any).hasAnimationByState('state');
+        const hasAnimation = this._hasAnimationByGraphicState(g, markById);
         addGraphicState(g, state, true, hasAnimation);
       }
     });

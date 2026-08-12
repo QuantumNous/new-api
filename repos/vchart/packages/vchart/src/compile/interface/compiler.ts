@@ -185,6 +185,10 @@ export interface IRenderOption {
    */
   pluginList?: string[];
   /**
+   * stage 创建前需要安装到当前 VRender app 的插件。
+   */
+  runtimePluginInstallers?: ((app?: IApp) => void)[];
+  /**
    * vrender 的 ticker
    */
   ticker?: ITicker;

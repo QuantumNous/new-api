@@ -29,6 +29,9 @@ export declare class SankeySeries<T extends ISankeySeriesSpec = ISankeySeriesSpe
     private _nodeList;
     private _needClear;
     get direction(): "horizontal" | "vertical";
+    private _hasStateAnimation;
+    private _hasLinkStateAnimation;
+    private _hasNodeStateAnimation;
     getCategoryField(): string;
     setCategoryField(f: string): string;
     protected _valueField: string;
