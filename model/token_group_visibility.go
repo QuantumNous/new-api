@@ -304,6 +304,9 @@ func normalizeTokenGroupVisibilityPolicy(policy TokenGroupVisibilityPolicy, allo
 	if policy.Visibility != TokenGroupVisibilityPublic && policy.Visibility != TokenGroupVisibilityTargeted && policy.Visibility != TokenGroupVisibilityHidden {
 		return policy, errors.New("无效的令牌分组可见性策略")
 	}
+	if policy.StartTime < 0 || policy.EndTime < 0 {
+		return policy, errors.New("开始和结束时间必须为非负 Unix 时间戳")
+	}
 	if policy.EndTime != 0 && policy.StartTime != 0 && policy.EndTime <= policy.StartTime {
 		return policy, errors.New("结束时间必须晚于开始时间")
 	}

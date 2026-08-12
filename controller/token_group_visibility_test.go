@@ -127,6 +127,29 @@ func TestTokenGroupVisibilityAdminBatchUsesDigestCAS(t *testing.T) {
 	}
 }
 
+func TestTokenGroupVisibilityAdminBatchRequiresExpectedDigest(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	createVisibilityTestUser(t, 1, "cas-required-digest", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityPublic,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/group/token-visibility/batch", map[string]any{
+		"policies":    []model.TokenGroupVisibilityPolicy{},
+		"allow_empty": true,
+	}, 99)
+	ReplaceTokenGroupVisibilityPolicies(ctx)
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatal("batch policy writes without expected_digest must be rejected")
+	}
+	if err := model.DB.Where(map[string]interface{}{"group": "default"}).First(&model.TokenGroupVisibility{}).Error; err != nil {
+		t.Fatalf("missing digest rejection must not mutate the policy: %v", err)
+	}
+}
+
 func TestAddTokenEnforcesTargetedVisibility(t *testing.T) {
 	setupTokenGroupVisibilityTestDB(t)
 	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
@@ -214,6 +237,18 @@ func TestNonTargetedPoliciesRejectTargetFields(t *testing.T) {
 				t.Fatalf("%s policy with user_ids must be rejected", visibility)
 			}
 		})
+	}
+}
+
+func TestVisibilityPoliciesRejectNegativeTimeWindow(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	for _, policy := range []model.TokenGroupVisibilityPolicy{
+		{Group: "default", Visibility: model.TokenGroupVisibilityPublic, StartTime: -1},
+		{Group: "default", Visibility: model.TokenGroupVisibilityHidden, EndTime: -1},
+	} {
+		if err := model.SaveTokenGroupVisibilityPolicy(policy); err == nil {
+			t.Fatalf("negative time window must be rejected: %#v", policy)
+		}
 	}
 }
 
@@ -690,8 +725,9 @@ func TestInvalidVisibilityModeRejectsBatchWrites(t *testing.T) {
 	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
 	t.Setenv("TOKEN_GROUP_VISIBILITY_MODE", "unexpected")
 	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/group/token-visibility/batch", map[string]any{
-		"policies":    []model.TokenGroupVisibilityPolicy{{Group: "default", Visibility: model.TokenGroupVisibilityPublic}},
-		"allow_empty": true,
+		"policies":        []model.TokenGroupVisibilityPolicy{{Group: "default", Visibility: model.TokenGroupVisibilityPublic}},
+		"expected_digest": "invalid-mode-snapshot",
+		"allow_empty":     true,
 	}, 99)
 	ReplaceTokenGroupVisibilityPolicies(ctx)
 	response := decodeAPIResponse(t, recorder)

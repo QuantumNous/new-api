@@ -441,6 +441,7 @@ export default function GroupRatioSettings(props) {
                 <Form.Input
                   value={policy.start_time || 0}
                   type='number'
+                  min={0}
                   placeholder={t('开始时间')}
                   onChange={(value) =>
                     setVisibilityPolicies((items) =>
@@ -458,6 +459,7 @@ export default function GroupRatioSettings(props) {
                 <Form.Input
                   value={policy.end_time || 0}
                   type='number'
+                  min={0}
                   placeholder={t('结束时间')}
                   onChange={(value) =>
                     setVisibilityPolicies((items) =>

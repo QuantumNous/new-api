@@ -222,6 +222,7 @@ export function TokenGroupVisibilityEditor() {
             />
             <Input
               type='number'
+              min={0}
               value={policy.start_time || 0}
               title={t('Start Unix timestamp')}
               onChange={(event) =>
@@ -233,6 +234,7 @@ export function TokenGroupVisibilityEditor() {
             />
             <Input
               type='number'
+              min={0}
               value={policy.end_time || 0}
               title={t('End Unix timestamp; 0 means no end')}
               onChange={(event) =>

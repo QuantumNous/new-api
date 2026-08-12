@@ -32,7 +32,7 @@ func GetUserSelectableTokenGroups(userId int) (map[string]string, error) {
 		return nil, errors.New("令牌分组可见性运行模式无效，已拒绝授权")
 	}
 	v2Groups := applyTokenGroupVisibilityPolicies(legacyGroups, user.Id, policies, common.GetTimestamp())
-	if mode != model.TokenGroupVisibilityModeEnforce {
+	if mode == model.TokenGroupVisibilityModeShadow {
 		for _, policy := range policies {
 			_, legacyAllowed := legacyGroups[policy.Group]
 			_, v2Allowed := v2Groups[policy.Group]
@@ -40,6 +40,9 @@ func GetUserSelectableTokenGroups(userId int) (map[string]string, error) {
 				common.SysLog(fmt.Sprintf("token_group_visibility_shadow user_id=%d group=%q legacy_allowed=%t v2_allowed=%t policy=%s", user.Id, policy.Group, legacyAllowed, v2Allowed, policy.Visibility))
 			}
 		}
+		return legacyGroups, nil
+	}
+	if mode == model.TokenGroupVisibilityModeLegacy {
 		return legacyGroups, nil
 	}
 	return v2Groups, nil

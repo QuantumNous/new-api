@@ -97,6 +97,10 @@ func ReplaceTokenGroupVisibilityPolicies(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if strings.TrimSpace(request.ExpectedDigest) == "" {
+		common.ApiError(c, errors.New("批量策略写入必须携带 expected_digest"))
+		return
+	}
 	state, stateErr := model.GetTokenGroupVisibilityState()
 	if stateErr != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": stateErr.Error(), "data": state})
