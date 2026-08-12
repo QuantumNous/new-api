@@ -20,6 +20,11 @@ type Option struct {
 	Value string `json:"value"`
 }
 
+var retiredDogPayOptionKeys = []string{
+	"DogPayCurrencyConfigId",
+	"DogPayPayChannel",
+}
+
 func AllOption() ([]*Option, error) {
 	var options []*Option
 	var err error
@@ -89,6 +94,13 @@ func InitOptionMap() {
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["StripePromotionCodesEnabled"] = strconv.FormatBool(setting.StripePromotionCodesEnabled)
+	common.OptionMap["DogPayEnabled"] = strconv.FormatBool(setting.DogPayEnabled)
+	common.OptionMap["DogPayBaseUrl"] = setting.DogPayBaseUrl
+	common.OptionMap["DogPayAppId"] = setting.DogPayAppId
+	common.OptionMap["DogPaySecret"] = setting.DogPaySecret
+	common.OptionMap["DogPayPrice"] = strconv.FormatFloat(setting.DogPayPrice, 'f', -1, 64)
+	common.OptionMap["DogPayMinTopUp"] = strconv.FormatFloat(setting.DogPayMinTopUp, 'f', -1, 64)
+	common.OptionMap["DogPayFee"] = strconv.FormatFloat(setting.DogPayFee, 'f', -1, 64)
 	common.OptionMap["CreemApiKey"] = setting.CreemApiKey
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
@@ -184,7 +196,17 @@ func InitOptionMap() {
 	}
 
 	common.OptionMapRWMutex.Unlock()
+	removeRetiredDogPayOptions()
 	loadOptionsFromDatabase()
+}
+
+func removeRetiredDogPayOptions() {
+	if DB == nil {
+		return
+	}
+	if err := DB.Where(commonKeyCol+" IN ?", retiredDogPayOptionKeys).Delete(&Option{}).Error; err != nil {
+		common.SysError("failed to remove retired DogPay options: " + err.Error())
+	}
 }
 
 func loadOptionsFromDatabase() {
@@ -443,6 +465,20 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StripeMinTopUp, _ = strconv.Atoi(value)
 	case "StripePromotionCodesEnabled":
 		setting.StripePromotionCodesEnabled = value == "true"
+	case "DogPayEnabled":
+		setting.DogPayEnabled = value == "true"
+	case "DogPayBaseUrl":
+		setting.DogPayBaseUrl = value
+	case "DogPayAppId":
+		setting.DogPayAppId = value
+	case "DogPaySecret":
+		setting.DogPaySecret = value
+	case "DogPayPrice":
+		setting.DogPayPrice, _ = strconv.ParseFloat(value, 64)
+	case "DogPayMinTopUp":
+		setting.DogPayMinTopUp, _ = strconv.ParseFloat(value, 64)
+	case "DogPayFee":
+		setting.DogPayFee, _ = strconv.ParseFloat(value, 64)
 	case "CreemApiKey":
 		setting.CreemApiKey = value
 	case "CreemProducts":

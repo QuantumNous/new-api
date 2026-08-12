@@ -304,6 +304,9 @@ export function Wallet(props: WalletProps) {
                   selectedPreset={selectedPreset}
                   onSelectPreset={handleSelectPreset}
                   topupAmount={topupAmount}
+                  selectedPaymentType={
+                    selectedPaymentMethod?.type || getDefaultPaymentType(topupInfo)
+                  }
                   onTopupAmountChange={handleTopupAmountChange}
                   paymentAmount={paymentAmount}
                   calculating={calculating}
@@ -328,6 +331,7 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
+                  enableDogPayTopup={topupInfo?.enable_dogpay_topup}
                 />
               </div>
 

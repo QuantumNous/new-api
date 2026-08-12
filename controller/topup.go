@@ -95,12 +95,33 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enableDogPay := isDogPayTopUpEnabled()
+	if enableDogPay {
+		hasDogPay := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodDogPay {
+				hasDogPay = true
+				break
+			}
+		}
+
+		if !hasDogPay {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "DogPay",
+				"type":      model.PaymentMethodDogPay,
+				"color":     "#FF6600",
+				"min_topup": strconv.FormatFloat(getDogPayMinTopup(), 'f', -1, 64),
+			})
+		}
+	}
+
 	data := gin.H{
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_dogpay_topup":              enableDogPay,
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
@@ -116,6 +137,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"stripe_min_topup":        setting.StripeMinTopUp,
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
+		"dogpay_min_topup":        getDogPayMinTopup(),
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,

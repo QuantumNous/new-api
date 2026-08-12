@@ -304,6 +304,13 @@ export type BillingSettings = {
   StripeUnitPrice: number
   StripeMinTopUp: number
   StripePromotionCodesEnabled: boolean
+  DogPayEnabled: boolean
+  DogPayBaseUrl: string
+  DogPayAppId: string
+  DogPaySecret: string
+  DogPayPrice: number
+  DogPayMinTopUp: number
+  DogPayFee: number
   CreemApiKey: string
   CreemWebhookSecret: string
   CreemTestMode: boolean

@@ -43,6 +43,7 @@ import {
   getPaymentIcon,
   getMinTopupAmount,
   calculatePresetPricing,
+  isDogPayPayment,
 } from '../lib'
 import type {
   PaymentMethod,
@@ -59,6 +60,7 @@ interface RechargeFormCardProps {
   selectedPreset: number | null
   onSelectPreset: (preset: PresetAmount) => void
   topupAmount: number
+  selectedPaymentType?: string
   onTopupAmountChange: (amount: number) => void
   paymentAmount: number
   calculating: boolean
@@ -81,6 +83,7 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  enableDogPayTopup?: boolean
 }
 
 export function RechargeFormCard({
@@ -89,6 +92,7 @@ export function RechargeFormCard({
   selectedPreset,
   onSelectPreset,
   topupAmount,
+  selectedPaymentType = '',
   onTopupAmountChange,
   paymentAmount,
   calculating,
@@ -111,6 +115,7 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  enableDogPayTopup,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -124,7 +129,9 @@ export function RechargeFormCard({
 
   const handleAmountChange = (value: string) => {
     setLocalAmount(value)
-    const numValue = Number.parseInt(value) || 0
+    const numValue = isDogPayPayment(selectedPaymentType)
+      ? Number.parseFloat(value) || 0
+      : Number.parseInt(value) || 0
     if (numValue >= 0) {
       onTopupAmountChange(numValue)
     }
@@ -134,7 +141,8 @@ export function RechargeFormCard({
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
     enableWaffoTopup ||
-    enableWaffoPancakeTopup
+    enableWaffoPancakeTopup ||
+    enableDogPayTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0

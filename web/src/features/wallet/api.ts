@@ -83,6 +83,22 @@ export async function calculateAmount(
 }
 
 /**
+ * Calculate payment amount for DogPay payment
+ */
+export async function calculateDogPayAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/dogpay/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+
+  return {
+    ...res.data,
+    data: res.data?.data?.total_money?.toString(),
+  }
+}
+
+/**
  * Calculate payment amount for Stripe payment
  */
 export async function calculateStripeAmount(
@@ -119,6 +135,18 @@ export async function requestPayment(
     ...res.data,
     url: res.data.url || (res as unknown as { url?: string }).url,
   }
+}
+
+/**
+ * Request DogPay payment
+ */
+export async function requestDogPayPayment(
+  request: PaymentRequest
+): Promise<PaymentResponse> {
+  const res = await api.post('/api/user/dogpay/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
 }
 
 /**

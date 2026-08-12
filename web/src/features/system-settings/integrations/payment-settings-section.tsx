@@ -147,6 +147,13 @@ const paymentSchema = z.object({
   StripeUnitPrice: z.coerce.number().min(0),
   StripeMinTopUp: z.coerce.number().min(0),
   StripePromotionCodesEnabled: z.boolean(),
+  DogPayEnabled: z.boolean(),
+  DogPayBaseUrl: z.string(),
+  DogPayAppId: z.string(),
+  DogPaySecret: z.string(),
+  DogPayPrice: z.coerce.number().min(0),
+  DogPayMinTopUp: z.coerce.number().min(0),
+  DogPayFee: z.coerce.number().min(0),
   CreemApiKey: z.string(),
   CreemWebhookSecret: z.string(),
   CreemTestMode: z.boolean(),
@@ -433,6 +440,13 @@ export function PaymentSettingsSection({
       StripeUnitPrice: values.StripeUnitPrice,
       StripeMinTopUp: values.StripeMinTopUp,
       StripePromotionCodesEnabled: values.StripePromotionCodesEnabled,
+      DogPayEnabled: values.DogPayEnabled,
+      DogPayBaseUrl: removeTrailingSlash(values.DogPayBaseUrl.trim()),
+      DogPayAppId: values.DogPayAppId.trim(),
+      DogPaySecret: values.DogPaySecret.trim(),
+      DogPayPrice: values.DogPayPrice,
+      DogPayMinTopUp: values.DogPayMinTopUp,
+      DogPayFee: values.DogPayFee,
       CreemApiKey: values.CreemApiKey.trim(),
       CreemWebhookSecret: values.CreemWebhookSecret.trim(),
       CreemTestMode: values.CreemTestMode,
@@ -478,6 +492,13 @@ export function PaymentSettingsSection({
       StripeMinTopUp: initialRef.current.StripeMinTopUp,
       StripePromotionCodesEnabled:
         initialRef.current.StripePromotionCodesEnabled,
+      DogPayEnabled: initialRef.current.DogPayEnabled,
+      DogPayBaseUrl: removeTrailingSlash(initialRef.current.DogPayBaseUrl),
+      DogPayAppId: initialRef.current.DogPayAppId.trim(),
+      DogPaySecret: initialRef.current.DogPaySecret.trim(),
+      DogPayPrice: initialRef.current.DogPayPrice,
+      DogPayMinTopUp: initialRef.current.DogPayMinTopUp,
+      DogPayFee: initialRef.current.DogPayFee,
       CreemApiKey: initialRef.current.CreemApiKey.trim(),
       CreemWebhookSecret: initialRef.current.CreemWebhookSecret.trim(),
       CreemTestMode: initialRef.current.CreemTestMode,
@@ -599,6 +620,37 @@ export function PaymentSettingsSection({
         key: 'StripePromotionCodesEnabled',
         value: sanitized.StripePromotionCodesEnabled,
       })
+    }
+
+    if (sanitized.DogPayEnabled !== initial.DogPayEnabled) {
+      updates.push({ key: 'DogPayEnabled', value: sanitized.DogPayEnabled })
+    }
+
+    if (sanitized.DogPayBaseUrl !== initial.DogPayBaseUrl) {
+      updates.push({ key: 'DogPayBaseUrl', value: sanitized.DogPayBaseUrl })
+    }
+
+    if (sanitized.DogPayAppId !== initial.DogPayAppId) {
+      updates.push({ key: 'DogPayAppId', value: sanitized.DogPayAppId })
+    }
+
+    if (
+      sanitized.DogPaySecret &&
+      sanitized.DogPaySecret !== initial.DogPaySecret
+    ) {
+      updates.push({ key: 'DogPaySecret', value: sanitized.DogPaySecret })
+    }
+
+    if (sanitized.DogPayPrice !== initial.DogPayPrice) {
+      updates.push({ key: 'DogPayPrice', value: sanitized.DogPayPrice })
+    }
+
+    if (sanitized.DogPayMinTopUp !== initial.DogPayMinTopUp) {
+      updates.push({ key: 'DogPayMinTopUp', value: sanitized.DogPayMinTopUp })
+    }
+
+    if (sanitized.DogPayFee !== initial.DogPayFee) {
+      updates.push({ key: 'DogPayFee', value: sanitized.DogPayFee })
     }
 
     if (
@@ -877,13 +929,14 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[44rem] grid-cols-6'>
+              <TabsList className='grid min-w-[52rem] grid-cols-7'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
                 <TabsTrigger value='waffo'>Waffo</TabsTrigger>
+                <TabsTrigger value='dogpay'>DogPay</TabsTrigger>
               </TabsList>
             </div>
 
@@ -1625,6 +1678,180 @@ export function PaymentSettingsSection({
                 payMethods={waffoPayMethods}
                 onPayMethodsChange={setWaffoPayMethods}
               />
+            </TabsContent>
+
+            <TabsContent value='dogpay' className={paymentTabContentClassName}>
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>DogPay</h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Configuration for DogPay payment integration')}
+                  </p>
+                </div>
+
+                <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+                  <p className='mb-2 font-medium'>
+                    {t('Webhook Configuration:')}
+                  </p>
+                  <ul className='list-inside list-disc space-y-1'>
+                    <li>
+                      {t('Webhook URL:')}{' '}
+                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                        {'<ServerAddress>/api/user/dogpay/notify'}
+                      </code>
+                    </li>
+                    <li>{t('Configure in your DogPay dashboard')}</li>
+                  </ul>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='DogPayEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable DogPay')}</FormLabel>
+                        <FormDescription>
+                          {t('Enable DogPay checkout for wallet top-up')}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <div className='grid gap-6 md:grid-cols-3'>
+                  <FormField
+                    control={form.control}
+                    name='DogPayBaseUrl'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('DogPay API URL')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t('e.g., https://api.dogpay.com')}
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='DogPayAppId'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('App ID')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t('DogPay App ID')}
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='DogPaySecret'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('App secret')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t('DogPay App Secret')}
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Leave blank unless rotating the secret')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-3'>
+                  <FormField
+                    control={form.control}
+                    name='DogPayPrice'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Exchange rate (x USDT / 1 USD)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='DogPayMinTopUp'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Minimum top-up')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='DogPayFee'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('DogPay Fee (%)')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </SettingsForm>

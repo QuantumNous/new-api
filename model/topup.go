@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -12,20 +13,27 @@ import (
 )
 
 type TopUp struct {
-	Id              int     `json:"id"`
-	UserId          int     `json:"user_id" gorm:"index"`
-	Amount          int64   `json:"amount"`
-	Money           float64 `json:"money"`
-	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	CreateTime      int64   `json:"create_time"`
-	CompleteTime    int64   `json:"complete_time"`
-	Status          string  `json:"status"`
+	Id                     int     `json:"id"`
+	UserId                 int     `json:"user_id" gorm:"index"`
+	Amount                 int64   `json:"amount"`
+	Money                  float64 `json:"money"`
+	QuotaToCredit          int64   `json:"quota_to_credit"`
+	DogPayOrderAmount      float64 `json:"dogpay_order_amount"`
+	DogPayCurrencyConfigID string  `json:"dogpay_currency_config_id" gorm:"type:varchar(255)"`
+	DogPayPayChannel       string  `json:"dogpay_pay_channel" gorm:"type:varchar(100)"`
+	DogPayPayURL           string  `json:"dogpay_pay_url" gorm:"type:varchar(2048)"`
+	ThirdPartyTxId         string  `json:"third_party_tx_id" gorm:"type:varchar(255)"`
+	TradeNo                string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod          string  `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider        string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	CreateTime             int64   `json:"create_time"`
+	CompleteTime           int64   `json:"complete_time"`
+	Status                 string  `json:"status"`
 }
 
 const (
 	PaymentMethodStripe       = "stripe"
+	PaymentMethodDogPay       = "dogpay"
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
@@ -35,6 +43,7 @@ const (
 const (
 	PaymentProviderEpay         = "epay"
 	PaymentProviderStripe       = "stripe"
+	PaymentProviderDogPay       = "dogpay"
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
@@ -42,9 +51,14 @@ const (
 )
 
 var (
-	ErrPaymentMethodMismatch = errors.New("payment method mismatch")
-	ErrTopUpNotFound         = errors.New("topup not found")
-	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
+	ErrPaymentMethodMismatch  = errors.New("payment method mismatch")
+	ErrTopUpNotFound          = errors.New("topup not found")
+	ErrTopUpStatusInvalid     = errors.New("topup status invalid")
+	ErrDogPayAmountMismatch   = errors.New("dogpay amount mismatch")
+	ErrDogPayCurrencyMismatch = errors.New("dogpay currency mismatch")
+	ErrDogPayChannelMismatch  = errors.New("dogpay channel mismatch")
+	ErrDogPayQuotaInvalid     = errors.New("dogpay quota invalid")
+	ErrDogPayQuotaOverflow    = errors.New("dogpay quota overflow")
 )
 
 func (topUp *TopUp) Insert() error {
@@ -331,6 +345,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	var quotaToAdd int
 	var payMoney float64
 	var paymentMethod string
+	var credited bool
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
@@ -349,15 +364,29 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		}
 
 		// 计算应充值额度：
+		// - DogPay 订单：使用创建订单时保存的 QuotaToCredit
 		// - Stripe 订单：Money 代表经分组倍率换算后的美元数量，直接 * QuotaPerUnit
 		// - 其他订单（如易支付）：Amount 为美元数量，* QuotaPerUnit
-		if topUp.PaymentProvider == PaymentProviderStripe {
+		if topUp.PaymentProvider == PaymentProviderDogPay {
+			if topUp.QuotaToCredit <= 0 || topUp.QuotaToCredit > int64(common.MaxQuota) {
+				return errors.New("DogPay 订单缺少有效充值额度")
+			}
+			quotaToAdd = int(topUp.QuotaToCredit)
+		} else if topUp.PaymentProvider == PaymentProviderStripe {
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit).IntPart())
+			calculatedQuota, clamp := common.QuotaFromDecimalChecked(decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit))
+			if clamp != nil {
+				return errors.New("充值额度超出系统上限")
+			}
+			quotaToAdd = calculatedQuota
 		} else {
 			dAmount := decimal.NewFromInt(topUp.Amount)
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
+			calculatedQuota, clamp := common.QuotaFromDecimalChecked(dAmount.Mul(dQuotaPerUnit))
+			if clamp != nil {
+				return errors.New("充值额度超出系统上限")
+			}
+			quotaToAdd = calculatedQuota
 		}
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
@@ -371,13 +400,25 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		}
 
 		// 增加用户额度（立即写库，保持一致性）
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
-			return err
+		var user User
+		if err := lockForUpdate(tx).Select("id", "quota").Where("id = ?", topUp.UserId).First(&user).Error; err != nil {
+			return errors.New("充值用户不存在")
+		}
+		if user.Quota < 0 || int64(user.Quota) > int64(common.MaxQuota)-int64(quotaToAdd) {
+			return errors.New("充值后额度超出系统上限")
+		}
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("充值用户不存在")
 		}
 
 		userId = topUp.UserId
 		payMoney = topUp.Money
 		paymentMethod = topUp.PaymentMethod
+		credited = true
 		return nil
 	})
 
@@ -385,6 +426,12 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		return err
 	}
 
+	if !credited {
+		return nil
+	}
+	if cacheErr := cacheIncrUserQuota(userId, int64(quotaToAdd)); cacheErr != nil {
+		common.SysLog("failed to update manually completed topup quota cache: " + cacheErr.Error())
+	}
 	// 事务外记录日志，避免阻塞
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
 	return nil
@@ -462,6 +509,105 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
 
 	return nil
+}
+
+func RechargeDogPay(tradeNo string, thirdPartyTxId string, callbackAmount string, callbackCurrency string, callbackCurrencyConfigID string, callbackPayChannel string, callerIp string) (topUp *TopUp, quotaToAdd int, credited bool, err error) {
+	if tradeNo == "" {
+		return nil, 0, false, errors.New("未提供支付单号")
+	}
+
+	topUp = &TopUp{}
+
+	refCol := "`trade_no`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		refCol = `"trade_no"`
+	}
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error
+		if err != nil {
+			return ErrTopUpNotFound
+		}
+
+		if topUp.PaymentProvider != PaymentProviderDogPay {
+			return ErrPaymentMethodMismatch
+		}
+
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+
+		if topUp.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+
+		if topUp.DogPayOrderAmount <= 0 {
+			return ErrDogPayAmountMismatch
+		}
+		actualAmount, parseErr := decimal.NewFromString(callbackAmount)
+		if parseErr != nil || actualAmount.Cmp(decimal.NewFromFloat(topUp.DogPayOrderAmount)) != 0 {
+			return ErrDogPayAmountMismatch
+		}
+		if strings.TrimSpace(callbackCurrency) != "" && !strings.EqualFold(strings.TrimSpace(callbackCurrency), "USDT") {
+			return ErrDogPayCurrencyMismatch
+		}
+		if callbackCurrencyConfigID = strings.TrimSpace(callbackCurrencyConfigID); callbackCurrencyConfigID != "" && callbackCurrencyConfigID != topUp.DogPayCurrencyConfigID {
+			return ErrDogPayCurrencyMismatch
+		}
+		if callbackPayChannel = strings.TrimSpace(callbackPayChannel); callbackPayChannel != "" && callbackPayChannel != topUp.DogPayPayChannel {
+			return ErrDogPayChannelMismatch
+		}
+
+		if topUp.QuotaToCredit <= 0 || topUp.QuotaToCredit > int64(common.MaxQuota) {
+			return ErrDogPayQuotaInvalid
+		}
+		quotaToAdd = int(topUp.QuotaToCredit)
+		if quotaToAdd <= 0 {
+			return ErrDogPayQuotaInvalid
+		}
+
+		if strings.TrimSpace(thirdPartyTxId) == "" {
+			return errors.New("DogPay 回调缺少交易号")
+		}
+		topUp.ThirdPartyTxId = strings.TrimSpace(thirdPartyTxId)
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+
+		var user User
+		if err := lockForUpdate(tx).Select("id", "quota").Where("id = ?", topUp.UserId).First(&user).Error; err != nil {
+			return errors.New("DogPay 充值用户不存在")
+		}
+		if user.Quota < 0 || int64(user.Quota) > int64(common.MaxQuota)-int64(quotaToAdd) {
+			return ErrDogPayQuotaOverflow
+		}
+
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("DogPay 充值用户不存在")
+		}
+
+		credited = true
+		return nil
+	})
+
+	if err != nil {
+		return nil, 0, false, err
+	}
+
+	if credited {
+		if cacheErr := cacheIncrUserQuota(topUp.UserId, int64(quotaToAdd)); cacheErr != nil {
+			common.SysLog("failed to update DogPay user quota cache: " + cacheErr.Error())
+		}
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用 DogPay 充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodDogPay)
+	}
+
+	return topUp, quotaToAdd, credited, nil
 }
 
 func RechargeWaffo(tradeNo string, callerIp string) (err error) {

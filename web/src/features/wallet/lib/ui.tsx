@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
 import { CreditCard, Landmark } from 'lucide-react'
-import { type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si'
 
 import { ReactIconByName } from '@/components/react-icon-by-name'
@@ -153,6 +153,18 @@ export function getPaymentIcon(
             className='hidden h-full w-full object-contain dark:block'
           />
         </span>
+      )
+    case PAYMENT_TYPES.DOGPAY:
+      return (
+        <img
+          src='/dogpay-logo.png'
+          alt={altName || i18next.t('DogPay')}
+          className={className}
+          style={{ objectFit: 'contain' }}
+          loading='lazy'
+          decoding='async'
+          referrerPolicy='no-referrer'
+        />
       )
     default:
       return <CreditCard className={className} />

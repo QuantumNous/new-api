@@ -22,14 +22,17 @@ import { toast } from 'sonner'
 
 import {
   calculateAmount,
+  calculateDogPayAmount,
   calculateStripeAmount,
   calculateWaffoAmount,
   calculateWaffoPancakeAmount,
   requestPayment,
+  requestDogPayPayment,
   requestStripePayment,
   isApiSuccess,
 } from '../api'
 import {
+  isDogPayPayment,
   isStripePayment,
   isWaffoPayment,
   isWaffoPancakePayment,
@@ -45,6 +48,7 @@ type AmountCalculator = (request: AmountRequest) => Promise<AmountResponse>
 
 export interface PaymentAmountCalculators {
   regular: AmountCalculator
+  dogpay: AmountCalculator
   stripe: AmountCalculator
   waffo: AmountCalculator
   waffoPancake: AmountCalculator
@@ -52,6 +56,7 @@ export interface PaymentAmountCalculators {
 
 const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
   regular: calculateAmount,
+  dogpay: calculateDogPayAmount,
   stripe: calculateStripeAmount,
   waffo: calculateWaffoAmount,
   waffoPancake: calculateWaffoPancakeAmount,
@@ -63,7 +68,9 @@ export async function requestPaymentAmount(
   calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
 ): Promise<number> {
   let calculator = calculators.regular
-  if (isStripePayment(paymentType)) {
+  if (isDogPayPayment(paymentType)) {
+    calculator = calculators.dogpay
+  } else if (isStripePayment(paymentType)) {
     calculator = calculators.stripe
   } else if (isWaffoPayment(paymentType)) {
     calculator = calculators.waffo
@@ -112,12 +119,35 @@ export function usePayment() {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
-        const amount = Math.floor(topupAmount)
+        const isDogPay = isDogPayPayment(paymentType)
+        const amount = isDogPay ? topupAmount : Math.floor(topupAmount)
 
-        const response = isStripe
-          ? await requestStripePayment({
+        if (isStripe) {
+          const stripeResponse = await requestStripePayment({
+            amount,
+            payment_method: 'stripe',
+          })
+
+          if (!isApiSuccess(stripeResponse)) {
+            toast.error(
+              stripeResponse.message || i18next.t('Payment request failed')
+            )
+            return false
+          }
+
+          if (stripeResponse.data?.pay_link) {
+            window.open(stripeResponse.data.pay_link, '_blank')
+            toast.success(i18next.t('Redirecting to payment page...'))
+            return true
+          }
+
+          return false
+        }
+
+        const response = isDogPay
+          ? await requestDogPayPayment({
               amount,
-              payment_method: 'stripe',
+              payment_method: 'dogpay',
             })
           : await requestPayment({
               amount,
@@ -129,16 +159,22 @@ export function usePayment() {
           return false
         }
 
-        // Handle Stripe payment
-        if (isStripe && response.data?.pay_link) {
-          window.open(response.data.pay_link as string, '_blank')
-          toast.success(i18next.t('Redirecting to payment page...'))
-          return true
+        if (isDogPay) {
+          const responseData = response.data as Record<string, unknown>
+          const payLink =
+            (typeof responseData?.pay_link === 'string'
+              ? responseData.pay_link
+              : '') || response.url
+          if (payLink) {
+            window.open(payLink, '_blank')
+            toast.success(i18next.t('Redirecting to payment page...'))
+            return true
+          }
+          return false
         }
 
-        // Handle non-Stripe payment
-        if (!isStripe && response.data) {
-          const url = (response as unknown as { url?: string }).url
+        if (response.data) {
+          const url = response.url
           if (url) {
             submitPaymentForm(url, response.data)
             toast.success(i18next.t('Redirecting to payment page...'))

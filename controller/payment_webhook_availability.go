@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"math"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/setting"
@@ -90,6 +92,31 @@ func isWaffoPancakeWebhookConfigured() bool {
 
 func isWaffoPancakeWebhookEnabled() bool {
 	return isWaffoPancakeTopUpEnabled()
+}
+
+func isDogPayTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	if !setting.DogPayEnabled ||
+		strings.TrimSpace(setting.DogPayAppId) == "" ||
+		strings.TrimSpace(setting.DogPaySecret) == "" {
+		return false
+	}
+
+	baseURL, err := url.Parse(strings.TrimSpace(setting.DogPayBaseUrl))
+	if err != nil || baseURL.Host == "" || baseURL.User != nil || baseURL.RawQuery != "" || baseURL.Fragment != "" {
+		return false
+	}
+	if baseURL.Scheme != "http" && baseURL.Scheme != "https" {
+		return false
+	}
+	return setting.DogPayPrice > 0 &&
+		!math.IsNaN(setting.DogPayPrice) && !math.IsInf(setting.DogPayPrice, 0) &&
+		setting.DogPayMinTopUp > 0 &&
+		!math.IsNaN(setting.DogPayMinTopUp) && !math.IsInf(setting.DogPayMinTopUp, 0) &&
+		setting.DogPayFee >= 0 && setting.DogPayFee <= 100 &&
+		!math.IsNaN(setting.DogPayFee) && !math.IsInf(setting.DogPayFee, 0)
 }
 
 func isEpayTopUpEnabled() bool {

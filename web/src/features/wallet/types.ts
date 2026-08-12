@@ -150,6 +150,10 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether DogPay topup is enabled */
+  enable_dogpay_topup?: boolean
+  /** Minimum topup amount for DogPay */
+  dogpay_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */
@@ -184,6 +188,12 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+  /** Optional success redirect URL for hosted checkout providers */
+  success_url?: string
+  /** Optional failure redirect URL for hosted checkout providers */
+  failure_url?: string
+  /** Optional cancellation redirect URL alias */
+  cancel_url?: string
 }
 
 /**
