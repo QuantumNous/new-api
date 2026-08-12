@@ -105,6 +105,9 @@ func InitEnv() {
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
 	SafeFailoverV1Enabled = GetEnvOrDefaultBool("SAFE_FAILOVER_V1", false)
+	SafeFailoverGPTTestEnabled = GetEnvOrDefaultBool("SAFE_FAILOVER_GPT_TEST_ENABLED", false)
+	SafeFailoverGPTTestGroup = GetEnvOrDefaultString("SAFE_FAILOVER_GPT_TEST_GROUP", "")
+	SafeFailoverGPTTestTokenID = GetEnvOrDefault("SAFE_FAILOVER_GPT_TEST_TOKEN_ID", 0)
 	SafeFailoverMaxAttempts = safeFailoverMaxAttemptsFromEnv()
 	SafeFailoverImageGuardSeconds = GetEnvOrDefault("SAFE_FAILOVER_IMAGE_GUARD_SECONDS", 60)
 	if SafeFailoverImageGuardSeconds < 1 {

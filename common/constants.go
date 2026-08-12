@@ -136,6 +136,12 @@ var RetryTimes = 0
 // until the target node explicitly opts in.
 var SafeFailoverV1Enabled = false
 
+// Scoped GPT test failover is a deliberately narrow, fail-closed production
+// verification gate. It is disabled unless every configured selector matches.
+var SafeFailoverGPTTestEnabled = false
+var SafeFailoverGPTTestGroup = ""
+var SafeFailoverGPTTestTokenID = 0
+
 // DefaultSafeFailoverMaxAttempts is the bounded default number of
 // cross-channel retries after the initial attempt.
 const DefaultSafeFailoverMaxAttempts = 1

@@ -201,20 +201,24 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
+	scopedGPTTestFailover := common.IsScopedGPTTestSafeFailover(relayInfo.OriginModelName, relayInfo.TokenGroup, relayInfo.TokenId)
+	safeFailoverActive := common.SafeFailoverV1Enabled || scopedGPTTestFailover || image2Router != nil
 	retryParam := &service.RetryParam{
 		Ctx:                    c,
 		TokenGroup:             relayInfo.TokenGroup,
 		ModelName:              relayInfo.OriginModelName,
 		Retry:                  common.GetPointer(0),
-		StopAtExhaustion:       common.SafeFailoverV1Enabled || image2Router != nil,
-		ExhaustiveSafeFailover: common.SafeFailoverV1Enabled || image2Router != nil,
+		StopAtExhaustion:       safeFailoverActive,
+		ExhaustiveSafeFailover: safeFailoverActive,
 		Image2Router:           image2Router,
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
 	maxRetries := effectiveRelayRetryTimes()
-	safeFailoverActive := common.SafeFailoverV1Enabled || image2Router != nil
+	if scopedGPTTestFailover {
+		maxRetries = 1
+	}
 
 	for ; safeFailoverActive || retryParam.GetRetry() <= maxRetries; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
@@ -308,6 +312,14 @@ func effectiveRelayRetryTimes() int {
 		return common.SafeFailoverMaxAttempts
 	}
 	return common.RetryTimes
+}
+
+func safeFailoverMaxAttempts(scopedGPTTestFailover bool) int {
+	if scopedGPTTestFailover {
+		// The production fixture is only allowed one alternate channel.
+		return 1
+	}
+	return common.SafeFailoverMaxAttempts
 }
 
 var upgrader = websocket.Upgrader{
@@ -405,8 +417,16 @@ func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.N
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		return false
 	}
-	if common.SafeFailoverV1Enabled || c.GetBool("image2_smart_router_active") {
+	scopedGPTTestFailover := common.IsScopedGPTTestSafeFailover(info.OriginModelName, info.TokenGroup, info.TokenId)
+	if common.SafeFailoverV1Enabled || scopedGPTTestFailover || c.GetBool("image2_smart_router_active") {
 		if _, ok := c.Get("specific_channel_id"); ok {
+			return false
+		}
+		// A timeout after a potentially long upstream operation is ambiguous.
+		// Keep the scoped GPT fixture fail-closed even though the general safe
+		// evaluator regards 5xx as retryable.
+		if scopedGPTTestFailover && (openaiErr.StatusCode == http.StatusGatewayTimeout || openaiErr.StatusCode == 524) {
+			logger.LogInfo(c, fmt.Sprintf("safe failover decision: retry=false reason=ambiguous_gateway_timeout attempt=%d status=%d error_code=%s elapsed_ms=%d", info.RetryIndex, openaiErr.StatusCode, openaiErr.GetErrorCode(), attemptElapsed.Milliseconds()))
 			return false
 		}
 		responseWritten := c.Writer != nil && c.Writer.Written()
@@ -416,7 +436,7 @@ func shouldRetry(c *gin.Context, info *relaycommon.RelayInfo, openaiErr *types.N
 		}
 		failoverInput := service.SafeFailoverInput{
 			RetryIndex:            info.RetryIndex,
-			MaxAttempts:           common.SafeFailoverMaxAttempts,
+			MaxAttempts:           safeFailoverMaxAttempts(scopedGPTTestFailover),
 			RelayMode:             info.RelayMode,
 			ModelName:             info.OriginModelName,
 			IsStream:              info.IsStream,
