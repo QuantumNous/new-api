@@ -15,3 +15,11 @@ func TestEvaluateSafeFailoverRejectsChineseSafetySignals(t *testing.T) {
 		t.Fatalf("got %+v, want non-retry content_safety", decision)
 	}
 }
+
+func TestEvaluateSafeFailoverRejectsChineseAcceptanceSignals(t *testing.T) {
+	err := types.NewErrorWithStatusCode(errors.New("请求已受理，正在生成"), types.ErrorCodeBadResponseStatusCode, http.StatusServiceUnavailable)
+	decision := EvaluateSafeFailover(SafeFailoverInput{Error: err, MaxAttempts: 1})
+	if decision.Retry || decision.Reason != "upstream_accepted" {
+		t.Fatalf("got %+v, want non-retry upstream_accepted", decision)
+	}
+}

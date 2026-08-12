@@ -132,7 +132,7 @@ func isSafetyFailure(err *types.NewAPIError, message string) bool {
 	for _, marker := range []string{
 		"content safety", "safety policy", "safety filter", "prompt blocked",
 		"content policy", "responsible ai policy", "moderation blocked",
-		"prohibited content", "内容审计", "内容安全", "风险规则", "安全拒绝",
+		"prohibited content", "omni-moderation", "flagged", "内容审计", "内容安全", "风险规则", "安全拒绝",
 	} {
 		if strings.Contains(message, marker) {
 			return true
@@ -146,6 +146,7 @@ func hasAcceptanceEvidence(message string) bool {
 		"task_id", "task id", "job_id", "job id", "operation_id",
 		"operation id", "queued", "generating", "generation started",
 		"billing succeeded", "already billed", "request accepted",
+		"请求已受理", "已受理", "已排队", "正在生成", "任务已创建", "已计费",
 	} {
 		if strings.Contains(message, marker) {
 			return true
