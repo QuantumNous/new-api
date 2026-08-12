@@ -10,13 +10,22 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
+import { LIB_SCENARIO_EXCLUSIONS } from '../src/scenarios/libScenarioExclusions.mjs'
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url))
 const BENCH_DIR = path.resolve(__dirname, '..')
 const PORT = 4173
 const BASE = `http://localhost:${PORT}`
 
-const ALL_LIBS = ['tanstack', 'virtua', 'virtuoso', 'window']
+const ALL_LIBS = [
+  'tanstack',
+  'tanstack-rac',
+  'virtua',
+  'virtuoso',
+  'window',
+  'rac',
+  'rac-listbox',
+]
 const ALL_SCENARIOS = [
   'mount-fixed-1k',
   'mount-fixed-10k',
@@ -260,7 +269,9 @@ async function main() {
 
     const results = []
     for (const lib of opts.libs) {
-      for (const scenarioId of opts.scenarios) {
+      const excluded = LIB_SCENARIO_EXCLUSIONS[lib] ?? []
+      const scenarios = opts.scenarios.filter((id) => !excluded.includes(id))
+      for (const scenarioId of scenarios) {
         for (let r = 0; r < opts.runs; r++) {
           process.stderr.write(
             `\n  ${lib.padEnd(9)} ${scenarioId.padEnd(28)} run ${r + 1}/${opts.runs} ... `,

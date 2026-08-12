@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@faker-js/faker": "^8.4.1",
-    "@tanstack/react-virtual": "^3.14.5",
+    "@tanstack/react-virtual": "^3.14.6",
     "lodash": "^4.17.21",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

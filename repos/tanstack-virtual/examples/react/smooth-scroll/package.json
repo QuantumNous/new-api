@@ -9,7 +9,7 @@
     "start": "vite"
   },
   "dependencies": {
-    "@tanstack/react-virtual": "^3.14.5",
+    "@tanstack/react-virtual": "^3.14.6",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Grid Virtualisation — @tanstack/marko-virtual</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, sans-serif; padding: 24px; }
+      h1 { font-size: 24px; margin-bottom: 8px; }
+      p { color: #555; margin-bottom: 16px; }
+      .scroll-grid { height: 500px; width: 100%; max-width: 700px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
+      .cell { font-size: 11px; font-family: monospace; box-sizing: border-box; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: center; }
+      .cell-even { background: #f9fafb; }
+      .cell-odd  { background: #ffffff; }
+    </style>
+  </head>
+  <body>
+    <h1>Grid Virtualisation</h1>
+    <p>A 1000 × 1000 grid — two &lt;virtualizer&gt; tags sharing the same scroll element.</p>
+
+    <let/mounted = false/>
+    <lifecycle onMount() { mounted = true }/>
+
+    <div/gridScroll class="scroll-grid">
+      <if=mounted>
+        <virtualizer|{ virtualItems: rowItems, totalSize: rowTotal }|
+          count=1000
+          estimateSize=(i) => 30 + ((i * 7 + 11) % 20)
+          getScrollElement=gridScroll
+        >
+          <virtualizer|{ virtualItems: colItems, totalSize: colTotal }|
+            count=1000
+            estimateSize=(i) => 80 + ((i * 11 + 17) % 80)
+            horizontal=true
+            getScrollElement=gridScroll
+          >
+            <div style=`height: ${rowTotal}px; width: ${colTotal}px; position: relative`>
+              <for|row| of=rowItems>
+                <for|col| of=colItems>
+                  <div
+                    class=(col.index + row.index) % 2 === 0 ? "cell cell-even" : "cell cell-odd"
+                    style=`position: absolute; top: 0; left: 0; width: ${col.size}px; height: ${row.size}px; transform: translateX(${col.start}px) translateY(${row.start}px)`
+                  >
+                    ${row.index},${col.index}
+                  </div>
+                </for>
+              </for>
+            </div>
+          </virtualizer>
+        </virtualizer>
+      </if>
+    </div>
+  </body>
+</html>

@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/virtual-benchmarks",
   "private": true,
-  "version": "0.0.8",
+  "version": "0.0.9",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
   "dependencies": {
     "@tanstack/react-virtual": "workspace:*",
     "react": "^19.2.7",
+    "react-aria-components": "^1.19.0",
     "react-dom": "^19.2.7",
     "react-virtuoso": "^4.15.0",
     "react-window": "^2.2.4",

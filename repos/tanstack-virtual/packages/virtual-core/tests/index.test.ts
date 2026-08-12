@@ -1271,6 +1271,50 @@ test('lazy fast path: respects paddingStart + scrollMargin + gap', () => {
   expect(m[1]!.size).toBe(40)
 })
 
+test('changing gap invalidates cached measurements', () => {
+  const baseOptions = {
+    count: 5,
+    estimateSize: () => 50,
+    getScrollElement: () => null,
+    scrollToFn: vi.fn(),
+    observeElementRect: vi.fn(),
+    observeElementOffset: vi.fn(),
+  }
+  const v = new Virtualizer({ ...baseOptions, gap: 0 })
+  let m = v['getMeasurements']()
+  expect(m[1]!.start).toBe(50)
+  expect(v.getTotalSize()).toBe(250)
+
+  v.setOptions({ ...baseOptions, gap: 40 })
+  m = v['getMeasurements']()
+  // start(i) = i * (size + gap); previously stale starts survived a gap-only
+  // change because gap was missing from the measurement memo dependencies
+  expect(m[1]!.start).toBe(90)
+  expect(m[2]!.start).toBe(180)
+  expect(v.getTotalSize()).toBe(410)
+})
+
+test('changing gap invalidates cached measurements (multi-lane)', () => {
+  const baseOptions = {
+    count: 4,
+    lanes: 2,
+    estimateSize: () => 50,
+    getScrollElement: () => null,
+    scrollToFn: vi.fn(),
+    observeElementRect: vi.fn(),
+    observeElementOffset: vi.fn(),
+  }
+  const v = new Virtualizer({ ...baseOptions, gap: 0 })
+  let m = v['getMeasurements']()
+  expect(m[2]!.start).toBe(50)
+
+  v.setOptions({ ...baseOptions, gap: 40 })
+  m = v['getMeasurements']()
+  // second row in each lane starts at prevInLane.end + gap
+  expect(m[2]!.start).toBe(90)
+  expect(m[3]!.start).toBe(90)
+})
+
 test('lazy fast path: VirtualItem fields are correct', () => {
   const v = new Virtualizer({
     count: 3,
@@ -1763,6 +1807,134 @@ test('iOS Phase 1: new touchstart during grace window cancels pending flush time
     expect(timers.has(firstTimerId)).toBe(false)
     expect(v['_iosTouchEndTimerId']).toBeNull()
     expect(v['_iosTouching']).toBe(true)
+  })
+})
+
+// Helper for the element-swap tests below: like makeIOSVirtualizerWithRealEl
+// but getScrollElement reads a mutable holder, so tests can swap the scroll
+// element and re-run _willUpdate (which triggers cleanup + re-attach).
+function makeIOSVirtualizerWithSwappableEl(
+  scrollToFn: ReturnType<typeof vi.fn>,
+  mockWindow: any,
+  { startScrolling = false }: { startScrolling?: boolean } = {},
+) {
+  const makeEl = () =>
+    makeMockScrollElement({
+      scrollTop: 100,
+      scrollLeft: 0,
+      scrollHeight: 500,
+      clientHeight: 200,
+      offsetHeight: 200,
+      ownerDocument: { defaultView: mockWindow },
+    })
+  const holder = { el: makeEl() }
+  let scrollCallback: ((offset: number, isScrolling: boolean) => void) | null =
+    null
+  const v = new Virtualizer({
+    count: 10,
+    estimateSize: () => 50,
+    getScrollElement: () => holder.el as any,
+    scrollToFn,
+    observeElementRect: () => {},
+    observeElementOffset: (_inst, cb) => {
+      scrollCallback = cb
+      cb(100, startScrolling)
+      return () => {}
+    },
+  })
+  v._willUpdate()
+  v['getMeasurements']()
+  return {
+    v,
+    holder,
+    makeEl,
+    getScrollCallback: () => scrollCallback!,
+  }
+}
+
+test('iOS Phase 1: scroll-element swap does not replay a stale deferred adjustment', () => {
+  withFakeIOSUserAgent(() => {
+    const scrollToFn = vi.fn()
+    const mockWindow = {
+      setTimeout: globalThis.setTimeout.bind(globalThis),
+      clearTimeout: globalThis.clearTimeout.bind(globalThis),
+    }
+    const { v, holder, makeEl, getScrollCallback } =
+      makeIOSVirtualizerWithSwappableEl(scrollToFn, mockWindow, {
+        startScrolling: true,
+      })
+    scrollToFn.mockClear()
+
+    // A resize above the viewport during the live scroll defers its
+    // adjustment instead of writing scrollTop.
+    v.resizeItem(0, 100)
+    expect(scrollToFn).not.toHaveBeenCalled()
+    expect(v['_iosDeferredAdjustment']).toBe(50)
+
+    // The scroll element is swapped while the deferral is pending — the
+    // delta was computed against the old element's content and must not
+    // survive into the new element.
+    holder.el = makeEl()
+    v._willUpdate()
+    expect(v['_iosDeferredAdjustment']).toBe(0)
+
+    // The new element's first quiescence must not write the stale delta.
+    scrollToFn.mockClear()
+    getScrollCallback()(100, false)
+    expect(scrollToFn).not.toHaveBeenCalled()
+  })
+})
+
+test('iOS Phase 1: scroll-element swap mid-touch does not strand _iosTouching', () => {
+  withFakeIOSUserAgent(() => {
+    const mockWindow = {
+      setTimeout: globalThis.setTimeout.bind(globalThis),
+      clearTimeout: globalThis.clearTimeout.bind(globalThis),
+    }
+    const { v, holder, makeEl } = makeIOSVirtualizerWithSwappableEl(
+      vi.fn(),
+      mockWindow,
+    )
+    dispatchTouchEvent(holder.el, 'touchstart')
+    expect(v['_iosTouching']).toBe(true)
+
+    // The in-flight touch keeps targeting the old element (implicit touch
+    // capture), so the new element will never deliver its touchend. Without
+    // a reset, every adjustment on the new element would be deferred and
+    // the flush blocked until the user's next full touch cycle.
+    holder.el = makeEl()
+    v._willUpdate()
+    expect(v['_iosTouching']).toBe(false)
+  })
+})
+
+test('iOS Phase 1: scroll-element swap during grace window does not strand _iosJustTouchEnded', () => {
+  withFakeIOSUserAgent(() => {
+    let timerId = 0
+    const timers = new Map<number, () => void>()
+    const mockWindow = {
+      setTimeout: (fn: () => void, _ms: number) => {
+        const id = ++timerId
+        timers.set(id, fn)
+        return id
+      },
+      clearTimeout: (id: number) => timers.delete(id),
+    }
+    const { v, holder, makeEl } = makeIOSVirtualizerWithSwappableEl(
+      vi.fn(),
+      mockWindow,
+    )
+    dispatchTouchEvent(holder.el, 'touchstart')
+    dispatchTouchEvent(holder.el, 'touchend')
+    expect(v['_iosJustTouchEnded']).toBe(true)
+
+    // Swapping inside the grace window removes the listeners and clears the
+    // grace timer — which was the only pending reset of the flag. Without
+    // the cleanup reset the flag would stay true indefinitely.
+    holder.el = makeEl()
+    v._willUpdate()
+    expect(v['_iosJustTouchEnded']).toBe(false)
+    expect(timers.size).toBe(0)
   })
 })
 

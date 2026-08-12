@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Window Virtualisation — @tanstack/marko-virtual</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, sans-serif; padding: 24px; }
+      h1 { font-size: 24px; margin-bottom: 8px; }
+      p { color: #555; margin-bottom: 16px; }
+      .item { display: flex; align-items: center; padding: 0 12px; font-size: 13px; border-bottom: 1px solid #f3f4f6; box-sizing: border-box; }
+      .item-even { background: #f9fafb; }
+      .item-odd  { background: #ffffff; }
+    </style>
+  </head>
+  <body>
+    <h1>Window Virtualisation</h1>
+    <p>Uses &lt;window-virtualizer&gt; — the entire page scrolls. Scroll down to see rows.</p>
+
+    <let/mounted = false/>
+    <lifecycle onMount() { mounted = true }/>
+
+    <if=mounted>
+      <window-virtualizer|{ virtualItems, totalSize }|
+        count=10000
+        estimateSize=() => 35
+        overscan=5
+      >
+        <div style=`height: ${totalSize}px; width: 100%; position: relative`>
+          <for|item| of=virtualItems>
+            <div
+              class=item.index % 2 === 0 ? "item item-even" : "item item-odd"
+              style=`position: absolute; top: 0; left: 0; width: 100%; height: ${item.size}px; transform: translateY(${item.start}px)`
+            >
+              Row ${item.index}
+            </div>
+          </for>
+        </div>
+      </window-virtualizer>
+    </if>
+  </body>
+</html>
