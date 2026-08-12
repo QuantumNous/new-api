@@ -1,0 +1,24 @@
+{
+  "name": "tanstack-svelte-virtual-example-infinite-scroll",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@tanstack/svelte-query": "^5.80.7",
+    "@tanstack/svelte-virtual": "^3.13.31"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.1.2",
+    "@tsconfig/svelte": "^5.0.4",
+    "svelte": "^4.2.20",
+    "svelte-check": "^4.2.1",
+    "tslib": "^2.8.1",
+    "typescript": "5.6.3",
+    "vite": "^6.4.2"
+  }
+}

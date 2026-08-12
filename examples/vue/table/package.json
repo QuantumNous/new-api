@@ -1,0 +1,23 @@
+{
+  "name": "tanstack-vue-virtual-example-table",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^8.4.1",
+    "@tanstack/vue-table": "^8.21.3",
+    "@tanstack/vue-virtual": "^3.13.31",
+    "vue": "^3.5.16"
+  },
+  "devDependencies": {
+    "@codesandbox/vue-preview": "^0.1.1-alpha.16",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "typescript": "5.6.3",
+    "vite": "^6.4.2",
+    "vue-tsc": "^2.2.10"
+  }
+}
